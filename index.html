@@ -1,48 +1,45 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Perícia Judicial | Eng. Ícaro Amaral</title>
-
-<meta name="description" content="Engenheiro Civil Ícaro Amaral, especialista em perícia judicial, laudos técnicos e fiscalização de obras. Atendimento em todo o Brasil.">
-<meta name="keywords" content="perícia judicial engenharia, laudo técnico judicial, engenheiro perito, fiscalização de obras">
-
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f4f6f8;color:#1a1a1a}
-
 header{
 background:linear-gradient(135deg,#0b1a2b,#1e3a5f);
 color:white;
-padding:140px 20px;
+padding:80px 20px; /* REDUZIDO */
 text-align:center;
 }
 
-header h1{font-family:'Playfair Display';font-size:50px}
-header p{margin-top:10px;font-size:18px;opacity:0.9}
+header h1{
+font-family:'Playfair Display';
+font-size:38px;
+}
+
+header p{
+margin-top:8px;
+font-size:16px;
+opacity:0.9;
+max-width:700px;
+margin-left:auto;
+margin-right:auto;
+}
 
 .badge{
-margin-top:20px;
+margin-top:15px;
 display:inline-block;
-padding:8px 16px;
+padding:6px 14px;
 border:1px solid rgba(255,255,255,0.4);
 border-radius:50px;
-font-size:14px;
+font-size:13px;
 }
 
 .cta-btn{
-display:inline-block;
-margin-top:20px;
-padding:16px 32px;
-background:linear-gradient(135deg,#c9a96e,#a8894f);
+display:inline-flex;
+align-items:center;
+gap:10px;
+margin-top:18px;
+padding:14px 28px;
+background:linear-gradient(135deg,#25d366,#1ebe5d); /* VERDE WHATS */
 color:white;
 text-decoration:none;
 border-radius:50px;
 font-weight:600;
-letter-spacing:0.5px;
+letter-spacing:0.3px;
 box-shadow:0 8px 20px rgba(0,0,0,0.2);
 transition:all 0.3s ease;
 }
@@ -52,234 +49,12 @@ transform:translateY(-2px);
 box-shadow:0 12px 25px rgba(0,0,0,0.3);
 }
 
-.phone-btn{
+/* Ícone WhatsApp */
+.cta-btn::before{
+content:"";
+width:18px;
+height:18px;
+background:url('https://cdn-icons-png.flaticon.com/512/733/733585.png') no-repeat center;
+background-size:contain;
 display:inline-block;
-margin-top:12px;
-padding:12px 26px;
-background:transparent;
-color:white;
-border:2px solid rgba(255,255,255,0.6);
-border-radius:50px;
-text-decoration:none;
-font-weight:500;
-transition:all 0.3s ease;
 }
-
-.phone-btn:hover{
-background:white;
-color:#1e3a5f;
-}
-
-section{padding:70px 20px;max-width:1100px;margin:auto}
-
-h2{font-family:'Playfair Display';font-size:28px;margin-bottom:25px;color:#1e3a5f}
-
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
-
-.card{
-background:white;
-padding:25px;
-border-radius:8px;
-border-left:4px solid #1e3a5f;
-box-shadow:0 5px 20px rgba(0,0,0,0.05)
-}
-
-.authority{
-background:#ffffff;
-padding:40px;
-border-radius:8px;
-box-shadow:0 5px 25px rgba(0,0,0,0.05);
-text-align:center;
-}
-
-.authority p{margin-top:10px;color:#555}
-
-.problem{
-background:#1e3a5f;
-color:white;
-padding:40px;
-border-radius:8px;
-text-align:center;
-}
-
-.problem h2{color:white}
-
-.whatsapp{
-position:fixed;
-bottom:20px;
-right:20px;
-background:#25d366;
-color:white;
-padding:15px 20px;
-border-radius:50px;
-text-decoration:none;
-font-weight:bold;
-}
-
-footer{
-background:#0b1a2b;
-color:white;
-padding:25px;
-text-align:center
-}
-</style>
-</head>
-
-<body>
-
-<header>
-<h1>Engenheiro Civil Ícaro Amaral</h1>
-<p>Perícia Judicial | Laudos Técnicos | Fiscalização de Obras | Projetos de Engenharia e Recuperação Estrutural</p>
-<div class="badge">Atendimento em todo o Brasil</div>
-<a class="cta-btn" href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20laudo%20técnico">Solicitar Análise Técnica</a>
-<p style="margin-top:15px;"><a class="phone-btn" href="https://wa.me/5577981214968?text=Olá,%20vim%20pelo%20site">💬 Fale com Engenheiro Agora no WhatsApp</a></p>
-</header>
-
-<section class="authority">
-<h2>Atuação Técnica Especializada</h2>
-<p>Engenheiro Civil com atuação em engenharia diagnóstica, perícias judiciais e assistência técnica, com elaboração de laudos técnicos fundamentados em normas da ABNT, literatura técnica e boas práticas da engenharia pericial.</p>
-
-<p><strong>CREA:</strong> 3000169646BA</p>
-
-<p>Experiência superior a 5 anos em fiscalização de obras, análise de manifestações patológicas e desenvolvimento de projetos de recuperação e reforço estrutural, atuando desde a identificação das causas até a definição de soluções técnicas adequadas.</p>
-
-<p>Os laudos são elaborados com metodologia técnica estruturada, incluindo:</p>
-<ul style="text-align:left; margin-top:15px; line-height:1.6;">
-<li>Inspeção técnica detalhada in loco</li>
-<li>Levantamento fotográfico e documental</li>
-<li>Aplicação de ensaios e métodos de investigação</li>
-<li>Análise das causas das patologias</li>
-<li>Diagnóstico técnico fundamentado</li>
-<li>Recomendações de intervenção e correção</li>
-<li>Conclusão técnica conforme normas vigentes</li>
-</ul>
-
-<p style="margin-top:15px;">Atuação conforme diretrizes de normas como ABNT NBR 13752 (Perícias de Engenharia), ABNT NBR 15575 (Desempenho de Edificações) e demais normas aplicáveis.</p>
-</section>
-
-<section>
-<h2>Ensaios e Métodos de Investigação</h2>
-<div class="grid">
-
-<div class="card">
-<h3>Esclerometria (NBR 7584)</h3>
-<p>Determinação indireta da resistência superficial do concreto, permitindo avaliação da uniformidade e qualidade do material.</p>
-</div>
-
-<div class="card">
-<h3>Carbonatação com Fenolftaleína</h3>
-<p>Determinação da profundidade de carbonatação, essencial para avaliação do risco de despassivação das armaduras.</p>
-</div>
-
-<div class="card">
-<h3>Mapeamento de Fissuras</h3>
-<p>Classificação, medição e análise da evolução de fissuras conforme critérios técnicos e normativos.</p>
-</div>
-
-<div class="card">
-<h3>Análise de Recalques</h3>
-<p>Identificação de recalques diferenciais e movimentações estruturais com avaliação de causas geotécnicas e estruturais.</p>
-</div>
-
-<div class="card">
-<h3>Inspeção Predial Técnica</h3>
-<p>Avaliação sistemática das condições da edificação conforme diretrizes da engenharia diagnóstica.</p>
-</div>
-
-<div class="card">
-<h3>Análise de Umidade e Infiltração</h3>
-<p>Diagnóstico técnico de falhas de impermeabilização, capilaridade e infiltrações acidentais.</p>
-</div>
-
-</div>
-</section>
-
-<section class="problem">
-<h2>Problemas estruturais exigem análise técnica precisa</h2>
-<p>Fissuras, infiltrações e falhas construtivas podem evoluir para riscos estruturais e prejuízos jurídicos. A perícia técnica garante segurança e respaldo legal.</p>
-</section>
-
-<section>
-<h2>Serviços Periciais</h2>
-<div class="grid">
-
-<div class="card">
-<h3>Perícia Judicial</h3>
-<p>Elaboração de laudos técnicos para processos judiciais, com linguagem técnica e fundamentação normativa.</p>
-</div>
-
-<div class="card">
-<h3>Assistência Técnica Judicial</h3>
-<p>Atuação como assistente técnico em processos, auxiliando advogados e partes envolvidas.</p>
-</div>
-
-<div class="card">
-<h3>Laudo de Patologias Construtivas</h3>
-<p>Diagnóstico técnico de fissuras, infiltrações e manifestações patológicas.</p>
-</div>
-
-<div class="card">
-<h3>Laudo de Inspeção Predial</h3>
-<p>Avaliação técnica do estado de conservação e desempenho da edificação.</p>
-</div>
-
-<div class="card">
-<h3>Laudo Estrutural</h3>
-<p>Análise da integridade de elementos estruturais com recomendações técnicas.</p>
-</div>
-
-</div>
-</section>
-
-<section>
-<h2>Projetos Arquitetônicos</h2>
-<div class="grid">
-
-<div class="card">
-<img src="file_00000000658071f5b500e1b76d64c31f" style="width:100%; border-radius:8px; margin-bottom:10px;">
-<h3>Residência de Alto Padrão</h3>
-<p>Projeto arquitetônico contemporâneo com foco em estética, funcionalidade e integração com o ambiente.</p>
-</div>
-
-<div class="card">
-<img src="file_00000000c7e8720e81d5fc479f0bc831" style="width:100%; border-radius:8px; margin-bottom:10px;">
-<h3>Edifício Residencial Multifamiliar</h3>
-<p>Projeto com soluções modernas, otimização de espaços e linguagem arquitetônica atual.</p>
-</div>
-
-<div class="card">
-<img src="file_000000009ae8720e892ba314b4fc659d" style="width:100%; border-radius:8px; margin-bottom:10px;">
-<h3>Empreendimento Contemporâneo</h3>
-<p>Desenvolvimento arquitetônico com foco em valorização imobiliária e identidade visual marcante.</p>
-</div>
-
-</div>
-</section>
-
-<section class="authority">
-<h2>Sobre o Engenheiro</h2>
-<img src="file_00000000809c720eb1e83d5c6fa70b2e" style="width:160px; border-radius:100px; margin-bottom:20px;">
-<p><strong>Engenheiro Civil Ícaro Amaral</strong></p>
-<p>Especialista em engenharia diagnóstica, perícias técnicas e projetos arquitetônicos, com atuação integrada entre análise técnica e concepção de soluções construtivas.</p>
-<p>Experiência consolidada na elaboração de projetos arquitetônicos e estruturais, aliando estética, desempenho e viabilidade técnica.</p>
-</section>
-
-<section class="problem">
-<h2>Solicite um parecer técnico</h2>
-<p>Atendimento direto com engenheiro civil especializado</p>
-<a class="cta-btn" href="https://wa.me/5577981214968?text=Quero%20um%20laudo%20técnico">Entrar em Contato</a>
-</section>
-
-<footer>
-<p>Engenheiro Civil Ícaro Amaral</p>
-<p>CREA 3000169646BA</p>
-<p>Perícia Judicial e Engenharia Diagnóstica</p>
-<p>Mais de 40 obras fiscalizadas, experiência com fiscalização de obras, perícias e recuperação estrutural</p>
-<p>Atendimento em todo o Brasil</p>
-<p>📞 (77) 98121-4968</p>
-</footer>
-
-<a class="whatsapp" href="https://wa.me/5577981214968">WhatsApp</a>
-
-</body>
-</html>
