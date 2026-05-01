@@ -1,245 +1,635 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-  <!-- SEO GOOGLE -->
-  <title>Ícaro Amaral - Engenharia Civil, Perícias e Laudos</title>
-  <meta name="description" content="Engenheiro Civil especialista em perícias, laudos técnicos, projetos e fiscalização de obras em Vitória da Conquista e região.">
-  <meta name="keywords" content="engenheiro civil, perícia, laudo técnico, estrutura, Vitória da Conquista">
+  <title>Ícaro Amaral | Engenharia Civil & Arquitetura</title>
 
-  <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Ícaro Amaral Engenharia">
-  <meta property="og:description" content="Perícias, Laudos e Projetos com segurança técnica">
-  <meta property="og:type" content="website">
+  <meta name="description" content="Perícias, laudos, fiscalização de obras, projetos estruturais e arquitetônicos. Engenharia com precisão e resultados que geram valor.">
+  <meta name="keywords" content="engenheiro civil, perícia, laudo técnico, fiscalização de obras, projeto estrutural, arquitetura, engenharia civil Bahia">
+  <meta name="author" content="Ícaro Amaral">
+  <meta name="robots" content="index, follow">
 
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      color: #222;
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    header {
-      position: relative;
-      height: 100vh;
-      background: linear-gradient(135deg, #0f172a, #1e293b);
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      padding: 20px;
+    body{
+      background:#070707;
+      color:#fff;
+      line-height:1.6;
     }
 
-    .overlay {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.55);
+    a{
+      text-decoration:none;
     }
 
-    .header-content {
-      position: relative;
-      z-index: 2;
-      max-width: 750px;
+    .container{
+      width:90%;
+      max-width:1200px;
+      margin:auto;
     }
 
-    h1 {
-      font-size: 3rem;
-      margin-bottom: 20px;
+    header{
+      min-height:100vh;
+      background:
+      linear-gradient(rgba(0,0,0,.78), rgba(0,0,0,.82)),
+      url('https://images.unsplash.com/photo-1511818966892-d7d671e672a2?q=80&w=1600&auto=format&fit=crop') center/cover;
+      display:flex;
+      align-items:center;
+      padding:40px 0;
+      position:relative;
     }
 
-    .highlight {
-      color: gold;
+    .top-bar{
+      position:absolute;
+      top:25px;
+      left:0;
+      width:100%;
     }
 
-    .site-url {
-      margin-top: 20px;
-      font-size: 1rem;
-      letter-spacing: 1px;
-      opacity: 0.9;
+    .top-content{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
     }
 
-    .site-url a {
-      color: #ffffff;
-      text-decoration: none;
-      border-bottom: 1px solid rgba(255,255,255,0.5);
-      padding-bottom: 2px;
+    .logo-area h1{
+      font-size:42px;
+      color:#d4a34a;
+      line-height:1;
     }
 
-    .btn {
-      background: #25D366;
-      padding: 15px 25px;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
-      display: inline-block;
-      margin-top: 25px;
-      font-weight: bold;
-      transition: 0.3s;
+    .logo-area h2{
+      font-size:22px;
+      font-weight:800;
+      letter-spacing:1px;
     }
 
-    .btn:hover {
-      transform: scale(1.03);
+    .logo-area p{
+      color:#d4a34a;
+      font-weight:600;
+      font-size:15px;
+      letter-spacing:1px;
     }
 
-    .section {
-      padding: 60px 20px;
-      text-align: center;
+    .crea-box{
+      border:1px solid rgba(212,163,74,.5);
+      padding:15px 22px;
+      border-radius:10px;
+      color:#d4a34a;
+      font-weight:bold;
+      backdrop-filter:blur(4px);
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px,1fr));
-      gap: 20px;
-      max-width: 1100px;
-      margin: auto;
+    .hero{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:50px;
+      align-items:center;
+      margin-top:80px;
     }
 
-    .card {
-      background: white;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-      font-weight: bold;
+    .hero-image img{
+      width:100%;
+      max-width:480px;
+      border-radius:20px;
+      box-shadow:0 20px 50px rgba(0,0,0,.5);
     }
 
-    .whatsapp {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #25D366;
-      color: white;
-      padding: 15px;
-      border-radius: 50%;
-      font-size: 20px;
-      text-decoration: none;
+    .hero-text h3{
+      font-size:64px;
+      line-height:1.05;
+      font-weight:900;
+      margin-bottom:25px;
     }
 
-    nav {
-      position: fixed;
-      top: 0;
-      width: 100%;
-      background: rgba(0,0,0,0.75);
-      padding: 15px;
-      color: white;
-      z-index: 999;
-      text-align: center;
-      font-weight: bold;
+    .gold{
+      color:#d4a34a;
     }
 
-    .sobre-box {
-      max-width: 700px;
-      margin: auto;
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    .hero-text h4{
+      font-size:32px;
+      margin-bottom:10px;
     }
 
-    footer {
-      background: #0f172a;
-      color: white;
-      text-align: center;
-      padding: 30px 20px;
-      margin-top: 40px;
+    .hero-text p{
+      font-size:20px;
+      color:#ddd;
+      margin-bottom:25px;
     }
 
-    footer a {
-      color: gold;
-      text-decoration: none;
+    .buttons{
+      display:flex;
+      gap:20px;
+      flex-wrap:wrap;
+      margin-top:30px;
+    }
+
+    .btn{
+      padding:18px 32px;
+      border-radius:12px;
+      font-size:18px;
+      font-weight:700;
+      transition:.3s;
+      display:inline-block;
+    }
+
+    .btn-whats{
+      background:#d4a34a;
+      color:#fff;
+    }
+
+    .btn-whats:hover{
+      transform:translateY(-3px);
+    }
+
+    .btn-dark{
+      border:2px solid #d4a34a;
+      color:#fff;
+    }
+
+    .btn-dark:hover{
+      background:#d4a34a;
+    }
+
+    .site-link{
+      margin-top:25px;
+      font-size:18px;
+      color:#d4a34a;
+      font-weight:bold;
+    }
+
+    .stats{
+      background:#0f0f0f;
+      padding:45px 0;
+      border-top:1px solid rgba(212,163,74,.2);
+      border-bottom:1px solid rgba(212,163,74,.2);
+    }
+
+    .stats-grid{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:30px;
+      text-align:center;
+    }
+
+    .stat h3{
+      color:#d4a34a;
+      font-size:42px;
+    }
+
+    .stat p{
+      color:#ddd;
+      font-size:18px;
+    }
+
+    section{
+      padding:90px 0;
+    }
+
+    .section-title{
+      text-align:center;
+      margin-bottom:60px;
+    }
+
+    .section-title span{
+      color:#d4a34a;
+      letter-spacing:2px;
+      font-size:16px;
+    }
+
+    .section-title h2{
+      font-size:46px;
+      margin-top:10px;
+    }
+
+    .services{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+      gap:25px;
+    }
+
+    .card{
+      background:#111;
+      border:1px solid rgba(212,163,74,.2);
+      border-radius:20px;
+      overflow:hidden;
+      transition:.3s;
+    }
+
+    .card:hover{
+      transform:translateY(-8px);
+      border-color:#d4a34a;
+    }
+
+    .card img{
+      width:100%;
+      height:220px;
+      object-fit:cover;
+    }
+
+    .card-content{
+      padding:25px;
+    }
+
+    .card h3{
+      color:#d4a34a;
+      margin-bottom:12px;
+      font-size:24px;
+    }
+
+    .card p{
+      color:#ddd;
+      font-size:16px;
+    }
+
+    .testimonials{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      gap:25px;
+      margin-top:40px;
+    }
+
+    .testimonial{
+      background:#111;
+      border:1px solid rgba(212,163,74,.2);
+      border-radius:18px;
+      padding:30px;
+    }
+
+    .stars{
+      color:#d4a34a;
+      font-size:22px;
+      margin-bottom:15px;
+    }
+
+    .testimonial p{
+      color:#ddd;
+      margin-bottom:18px;
+    }
+
+    .testimonial strong{
+      color:#fff;
+    }
+
+    .cta{
+      background:#d4a34a;
+      padding:45px;
+      border-radius:25px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:20px;
+      flex-wrap:wrap;
+      margin-top:60px;
+    }
+
+    .cta h3{
+      color:#111;
+      font-size:36px;
+      margin-bottom:10px;
+    }
+
+    .cta p{
+      color:#222;
+      font-size:18px;
+    }
+
+    .phone{
+      background:#111;
+      color:#d4a34a;
+      padding:22px 35px;
+      border-radius:15px;
+      font-size:38px;
+      font-weight:900;
+    }
+
+    footer{
+      background:#050505;
+      padding:50px 0;
+      text-align:center;
+      border-top:1px solid rgba(212,163,74,.2);
+    }
+
+    footer p{
+      color:#ccc;
+      margin:8px 0;
+    }
+
+    footer a{
+      color:#d4a34a;
+      font-weight:bold;
+    }
+
+    @media(max-width:900px){
+
+      .hero{
+        grid-template-columns:1fr;
+        text-align:center;
+      }
+
+      .hero-text h3{
+        font-size:42px;
+      }
+
+      .stats-grid{
+        grid-template-columns:1fr 1fr;
+      }
+
+      .top-content{
+        flex-direction:column;
+        gap:20px;
+      }
+
+      .cta{
+        text-align:center;
+        justify-content:center;
+      }
+
+      .phone{
+        font-size:28px;
+      }
+    }
+
+    @media(max-width:600px){
+
+      .stats-grid{
+        grid-template-columns:1fr;
+      }
+
+      .hero-text h3{
+        font-size:34px;
+      }
+
+      .section-title h2{
+        font-size:32px;
+      }
     }
   </style>
 </head>
 <body>
 
-<nav>Ícaro Amaral Engenharia | www.icaroamaral.com.br</nav>
+  <header>
 
-<header>
-  <div class="overlay"></div>
+    <div class="top-bar">
+      <div class="container top-content">
 
-  <div class="header-content">
-    <h1>
-      Ícaro Amaral<br>
-      <span class="highlight">Engenharia Civil</span>
-    </h1>
+        <div class="logo-area">
+          <h1>IA</h1>
+          <h2>ÍCaro Amaral</h2>
+          <p>ENGENHARIA CIVIL & ARQUITETURA E URBANISMO</p>
+        </div>
 
-    <p>
-      <strong>Perícias, Laudos e Fiscalização</strong><br>
-      Evite prejuízos na sua obra
-    </p>
+        <div class="crea-box">
+          CREA-BA<br>
+          3000169646BA
+        </div>
 
-    <div class="site-url">
-      🌐 <a href="https://www.icaroamaral.com.br" target="_blank">
-      www.icaroamaral.com.br
-      </a>
+      </div>
     </div>
 
-    <a class="btn" href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
-      Falar no WhatsApp
-    </a>
-  </div>
-</header>
+    <div class="container hero">
 
-<section class="section">
-  <h2>Serviços</h2>
+      <div class="hero-image">
+        <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1200&auto=format&fit=crop" alt="Engenheiro Civil">
+      </div>
 
-  <div class="grid">
-    <div class="card">Perícias e Laudos</div>
-    <div class="card">Projetos Estruturais</div>
-    <div class="card">Projetos Arquitetônicos</div>
-    <div class="card">Fiscalização de Obras</div>
-  </div>
-</section>
+      <div class="hero-text">
 
-<section class="section">
-  <h2>Sobre</h2>
+        <h3>
+          ENGENHARIA COM <span class="gold">PRECISÃO.</span><br>
+          RESULTADOS QUE <span class="gold">GERAM VALOR.</span>
+        </h3>
 
-  <div class="sobre-box">
-    <p><strong>Ícaro Amaral</strong></p>
-    <p>CREA 3000169646BA</p>
-    <p>+62 obras fiscalizadas</p>
-  </div>
-</section>
+        <h4>Perícias, Laudos e Fiscalização de Obras</h4>
 
-<section class="section">
-  <h2>Contato</h2>
+        <p>
+          Soluções técnicas completas para garantir segurança,
+          conformidade e excelência em cada etapa do seu projeto.
+        </p>
 
-  <a class="btn" href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
-    Solicitar orçamento
-  </a>
-</section>
+        <div class="buttons">
 
-<footer>
-  <p><strong>Ícaro Amaral Engenharia</strong></p>
-  <p>
-    🌐 <a href="https://www.icaroamaral.com.br" target="_blank">
-    www.icaroamaral.com.br
-    </a>
-  </p>
-  <p>Vitória da Conquista - BA</p>
-</footer>
+          <a href="https://wa.me/5577981214968" class="btn btn-whats">
+            FALAR NO WHATSAPP
+          </a>
 
-<a class="whatsapp" href="https://wa.me/5577981214968">💬</a>
+          <a href="#servicos" class="btn btn-dark">
+            CONHECER SERVIÇOS
+          </a>
 
-<!-- DADOS ESTRUTURADOS GOOGLE -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "ProfessionalService",
-  "name": "Ícaro Amaral Engenharia",
-  "url": "https://www.icaroamaral.com.br",
-  "telephone": "+5577981214968",
-  "address": {
-    "@type": "PostalAddress",
-    "addressLocality": "Vitória da Conquista",
-    "addressCountry": "BR"
-  }
-}
-</script>
+        </div>
+
+        <div class="site-link">
+          www.icaroamaral.com.br
+        </div>
+
+      </div>
+
+    </div>
+
+  </header>
+
+  <section class="stats">
+
+    <div class="container">
+
+      <div class="stats-grid">
+
+        <div class="stat">
+          <h3>+62</h3>
+          <p>Obras fiscalizadas com sucesso</p>
+        </div>
+
+        <div class="stat">
+          <h3>5</h3>
+          <p>Anos de experiência em projetos e obras</p>
+        </div>
+
+        <div class="stat">
+          <h3>BA</h3>
+          <p>Atuação técnica em todo o estado da Bahia</p>
+        </div>
+
+        <div class="stat">
+          <h3>100%</h3>
+          <p>Compromisso com qualidade, prazos e ética</p>
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+  <section id="servicos">
+
+    <div class="container">
+
+      <div class="section-title">
+        <span>COMO POSSO TE AJUDAR</span>
+        <h2>Soluções Completas em Engenharia</h2>
+      </div>
+
+      <div class="services">
+
+        <div class="card">
+          <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1200&auto=format&fit=crop">
+
+          <div class="card-content">
+            <h3>Perícias e Laudos</h3>
+            <p>
+              Análises técnicas precisas com embasamento técnico e normativo.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <img src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop">
+
+          <div class="card-content">
+            <h3>Projetos Estruturais</h3>
+            <p>
+              Projetos seguros, econômicos e em conformidade com as normas.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <img src="https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=1200&auto=format&fit=crop">
+
+          <div class="card-content">
+            <h3>Projetos Arquitetônicos</h3>
+            <p>
+              Soluções funcionais, estéticas e personalizadas para cada cliente.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1200&auto=format&fit=crop">
+
+          <div class="card-content">
+            <h3>Recuperação Estrutural</h3>
+            <p>
+              Reforço e reabilitação de estruturas com segurança e durabilidade.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1200&auto=format&fit=crop">
+
+          <div class="card-content">
+            <h3>Fiscalização de Obras</h3>
+            <p>
+              Acompanhamento técnico para garantir qualidade, prazos e conformidade.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+  <section>
+
+    <div class="container">
+
+      <div class="section-title">
+        <span>O QUE NOSSOS CLIENTES DIZEM</span>
+        <h2>Depoimentos</h2>
+      </div>
+
+      <div class="testimonials">
+
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+
+          <p>
+            Profissional extremamente competente e atencioso.
+            O laudo foi claro, detalhado e me ajudou a resolver
+            um problema sério no meu imóvel.
+          </p>
+
+          <strong>Carlos A. – Conquista/BA</strong>
+        </div>
+
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+
+          <p>
+            Ícaro Amaral entrega muito mais do que promete.
+            Projeto estrutural impecável e acompanhamento
+            da obra com excelência.
+          </p>
+
+          <strong>Juliana R. – Salvador/BA</strong>
+        </div>
+
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+
+          <p>
+            Seriedade, responsabilidade e domínio técnico.
+            A fiscalização da minha obra foi fundamental
+            para evitar prejuízos e garantir qualidade.
+          </p>
+
+          <strong>Roberto L. – Feira de Santana/BA</strong>
+        </div>
+
+      </div>
+
+      <div class="cta">
+
+        <div>
+          <h3>Vamos conversar sobre seu projeto?</h3>
+          <p>
+            Agilidade no atendimento e soluções sob medida para você.
+          </p>
+        </div>
+
+        <div class="phone">
+          (77) 98121-4968
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+  <footer>
+
+    <div class="container">
+
+      <p><strong>Ícaro Amaral - Engenharia Civil & Arquitetura</strong></p>
+
+      <p>CREA-BA: 3000169646BA</p>
+
+      <p>
+        Site Oficial:
+        <a href="https://www.icaroamaral.com.br">
+          www.icaroamaral.com.br
+        </a>
+      </p>
+
+      <p>WhatsApp: (77) 98121-4968</p>
+
+      <p>© 2026 - Todos os direitos reservados.</p>
+
+    </div>
+
+  </footer>
 
 </body>
 </html>
