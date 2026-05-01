@@ -624,7 +624,7 @@ Enviar E-mail
 <p>
 “O laudo estrutural foi entregue com rapidez e muita qualidade técnica. Atendimento excelente.”
 </p>
-<strong>Fernanda Oliveira • Empresária</strong>
+<strong>Bruna Oliveira • Empresária</strong>
 </div>
 
 <div class="testimonial">
@@ -732,25 +732,36 @@ href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
 
 <script>
 
-window.addEventListener('scroll',()=>{
-const cards=document.querySelectorAll('.card,.testimonial,.profile-card');
+const animated=document.querySelectorAll('.card,.testimonial,.profile-card');
 
-cards.forEach(card=>{
-const top=card.getBoundingClientRect().top;
+function revealElements(){
+
+animated.forEach(el=>{
+
+const top = el.getBoundingClientRect().top;
 
 if(top < window.innerHeight - 80){
-card.style.transform='translateY(0px)';
-card.style.opacity='1';
+
+el.style.transform='translateY(0px)';
+el.style.opacity='1';
+
 }
-});
+
 });
 
-const animated=document.querySelectorAll('.card,.testimonial,.profile-card');
+}
+
 animated.forEach(el=>{
+
 el.style.transform='translateY(25px)';
 el.style.opacity='0';
-el.style.transition='0.7s';
+el.style.transition='0.7s ease';
+
 });
+
+window.addEventListener('scroll', revealElements);
+
+window.addEventListener('load', revealElements);
 
 
 let i = 0;
