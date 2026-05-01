@@ -1,13 +1,15 @@
+# HTML ULTRA PREMIUM — Ícaro Amaral Engenharia
+
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Ícaro Amaral Engenharia Civil</title>
+<title>Ícaro Amaral Engenharia Civil | Perícias, Projetos e Fiscalização</title>
 
-<meta name="description"
-content="Fiscalização de obras, laudos periciais, recuperação estrutural e projetos estruturais e arquitetônicos em todo o Brasil.">
+<meta name="description" content="Perícias, laudos, fiscalização, recuperação estrutural e projetos em todo o Brasil.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,413 +17,397 @@ content="Fiscalização de obras, laudos periciais, recuperação estrutural e p
 <style>
 
 *{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+html{
+scroll-behavior:smooth;
 }
 
 body{
-  font-family:'Montserrat',sans-serif;
-  background:#0b1120;
-  color:white;
-  overflow-x:hidden;
+font-family:'Montserrat',sans-serif;
+background:#07111f;
+background-image:url('imagens/textura-concreto.png');
+background-size:cover;
+background-attachment:fixed;
+color:white;
+overflow-x:hidden;
 }
 
-/* FUNDO */
 body::before{
-  content:"";
-  position:fixed;
-  inset:0;
-
-  background:
-  radial-gradient(circle at top left, rgba(255,215,0,0.10), transparent 25%),
-  radial-gradient(circle at bottom right, rgba(255,255,255,0.05), transparent 20%),
-  linear-gradient(135deg,#020617,#0f172a,#111827);
-
-  z-index:-2;
+content:"";
+position:fixed;
+inset:0;
+background:
+radial-gradient(circle at top left, rgba(212,175,55,0.14), transparent 25%),
+radial-gradient(circle at bottom right, rgba(255,255,255,0.05), transparent 20%),
+linear-gradient(135deg,#020617,#07111f,#0f172a);
+z-index:-2;
 }
-
-/* EFEITO */
-body::after{
-  content:"";
-  position:fixed;
-  inset:0;
-  backdrop-filter:blur(2px);
-  z-index:-1;
-}
-
-/* NAVBAR */
 
 nav{
-  position:fixed;
-  top:0;
-  width:100%;
-  padding:18px 40px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-
-  background:rgba(3,7,18,0.75);
-
-  backdrop-filter:blur(12px);
-
-  border-bottom:1px solid rgba(255,255,255,0.08);
-
-  z-index:999;
+position:fixed;
+top:0;
+width:100%;
+padding:12px 20px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+background:rgba(2,6,23,0.82);
+backdrop-filter:blur(12px);
+border-bottom:1px solid rgba(255,255,255,0.08);
+z-index:999;
 }
 
 .logo{
-  display:flex;
-  align-items:center;
-  gap:16px;
+display:flex;
+align-items:center;
+gap:14px;
 }
 
 .logo-icon{
-  width:55px;
-  height:55px;
-
-  border-radius:14px;
-
-  background:linear-gradient(135deg,#d4af37,#f5d76e);
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  color:#0f172a;
-
-  font-size:1.5rem;
-  font-weight:800;
-
-  box-shadow:0 5px 20px rgba(212,175,55,0.35);
+width:58px;
+height:58px;
+border-radius:16px;
+background:linear-gradient(135deg,#d4af37,#f5d76e);
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:1.7rem;
+color:#07111f;
+font-weight:800;
+box-shadow:0 10px 30px rgba(212,175,55,0.25);
 }
 
 .logo-text h1{
-  font-size:1.1rem;
-  font-weight:800;
-  letter-spacing:1px;
+font-size:1rem;
+font-weight:800;
+letter-spacing:0.5px;
 }
 
 .logo-text p{
-  font-size:0.82rem;
-  opacity:0.8;
+font-size:0.8rem;
+opacity:0.85;
+margin-top:2px;
 }
 
-.crea-box{
-  padding:10px 18px;
-
-  border:1px solid rgba(212,175,55,0.4);
-
-  border-radius:50px;
-
-  background:rgba(255,255,255,0.04);
-
-  color:#f5d76e;
-
-  font-size:0.9rem;
-  font-weight:600;
+.top-info{
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+justify-content:flex-end;
 }
 
-/* HEADER */
+.info-item{
+padding:10px 14px;
+border-radius:50px;
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.08);
+font-size:0.82rem;
+}
 
 header{
-  min-height:100vh;
-
-  padding:150px 30px 80px;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
+min-height:100vh;
+padding:95px 18px 30px;
+display:flex;
+align-items:center;
+justify-content:center;
 }
 
 .hero{
-  max-width:1400px;
-  width:100%;
-
-  display:grid;
-  grid-template-columns:420px 1fr;
-
-  gap:70px;
-  align-items:center;
+max-width:1400px;
+width:100%;
+display:grid;
+grid-template-columns:330px 1fr;
+gap:28px;
+align-items:stretch;
 }
 
-/* FOTO PERFIL */
-
 .profile-card{
-
-  background:rgba(255,255,255,0.05);
-
-  border:1px solid rgba(255,255,255,0.08);
-
-  border-radius:28px;
-
-  overflow:hidden;
-
-  backdrop-filter:blur(12px);
-
-  box-shadow:0 20px 50px rgba(0,0,0,0.45);
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.08);
+border-radius:24px;
+overflow:hidden;
+backdrop-filter:blur(12px);
+box-shadow:0 20px 50px rgba(0,0,0,0.35);
 }
 
 .profile-card img{
-  width:100%;
-  height:520px;
-  object-fit:cover;
-  display:block;
+width:100%;
+height:330px;
+object-fit:cover;
+display:block;
 }
 
 .profile-content{
-  padding:30px;
+padding:18px;
 }
 
 .profile-content h2{
-  font-size:2rem;
-  margin-bottom:12px;
+font-size:1.6rem;
+margin-bottom:8px;
 }
 
 .profile-content p{
-  color:#d7d7d7;
-  margin-bottom:8px;
+font-size:0.92rem;
+color:#d6d6d6;
+margin-bottom:5px;
 }
 
 .stats{
-  margin-top:18px;
-
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-top:12px;
 }
 
 .stat-item{
-  padding:10px 16px;
-
-  border-radius:12px;
-
-  background:rgba(255,255,255,0.06);
-
-  border:1px solid rgba(255,255,255,0.06);
-
-  font-size:0.9rem;
+padding:8px 12px;
+border-radius:10px;
+background:rgba(255,255,255,0.06);
+font-size:0.78rem;
 }
-
-/* TEXTO */
 
 .hero-content{
-
+background:rgba(255,255,255,0.04);
+border:1px solid rgba(255,255,255,0.08);
+border-radius:26px;
+padding:28px;
+backdrop-filter:blur(12px);
+box-shadow:0 20px 50px rgba(0,0,0,0.28);
 }
 
-.hero-content .tag{
-  display:inline-block;
-
-  padding:10px 18px;
-
-  border-radius:50px;
-
-  background:rgba(212,175,55,0.12);
-
-  border:1px solid rgba(212,175,55,0.35);
-
-  color:#f5d76e;
-
-  margin-bottom:28px;
-
-  font-size:0.92rem;
-  font-weight:600;
+.tag{
+display:inline-block;
+padding:10px 18px;
+border-radius:50px;
+background:rgba(212,175,55,0.12);
+border:1px solid rgba(212,175,55,0.35);
+color:#f5d76e;
+font-size:0.85rem;
+font-weight:600;
+margin-bottom:18px;
 }
-
-.hero-content h1{
-  font-size:4.3rem;
-  line-height:1.05;
-
-  margin-bottom:28px;
-
-  font-weight:800;
-}
-
-.hero-content h1 span{
-  color:#f5d76e;
-}
-
-.hero-content p{
-  font-size:1.15rem;
-
-  color:#d6d6d6;
-
-  max-width:760px;
-
-  margin-bottom:38px;
-
-  line-height:1.8;
-}
-
-/* SERVIÇOS */
 
 .services-top{
-  display:flex;
-  flex-wrap:wrap;
-  gap:14px;
-
-  margin-bottom:35px;
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+margin-bottom:20px;
 }
 
 .service-item{
-  padding:14px 20px;
-
-  border-radius:14px;
-
-  background:rgba(255,255,255,0.06);
-
-  border:1px solid rgba(255,255,255,0.08);
-
-  backdrop-filter:blur(10px);
-
-  font-size:0.94rem;
-  font-weight:600;
-
-  transition:0.3s;
+padding:12px 16px;
+border-radius:12px;
+background:rgba(255,255,255,0.06);
+border:1px solid rgba(255,255,255,0.08);
+font-size:0.82rem;
+font-weight:600;
 }
 
-.service-item:hover{
-  transform:translateY(-3px);
-  border-color:rgba(212,175,55,0.4);
+.hero-content h1{
+font-size:3rem;
+line-height:1.05;
+margin-bottom:18px;
+font-weight:800;
 }
 
-/* BOTÕES */
+.hero-content h1 span{
+color:#f5d76e;
+}
+
+.hero-content p{
+font-size:0.98rem;
+line-height:1.8;
+color:#d7d7d7;
+margin-bottom:20px;
+}
 
 .buttons{
-  display:flex;
-  gap:16px;
-  flex-wrap:wrap;
+display:flex;
+flex-wrap:wrap;
+gap:12px;
+margin-bottom:24px;
 }
 
 .btn{
-  padding:18px 30px;
-
-  border-radius:14px;
-
-  text-decoration:none;
-
-  font-weight:700;
-
-  transition:0.3s;
-}
-
-.btn-primary{
-  background:linear-gradient(135deg,#25D366,#1ebc59);
-  color:white;
-
-  box-shadow:0 10px 25px rgba(37,211,102,0.28);
-}
-
-.btn-secondary{
-  border:1px solid rgba(255,255,255,0.14);
-  color:white;
-
-  background:rgba(255,255,255,0.05);
+padding:15px 22px;
+border-radius:14px;
+text-decoration:none;
+font-size:0.9rem;
+font-weight:700;
+transition:0.3s;
 }
 
 .btn:hover{
-  transform:translateY(-3px);
+transform:translateY(-2px);
 }
 
-/* GALERIA NO HEADER */
-
-.projects-preview{
-  margin-top:50px;
-
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-
-  gap:16px;
+.btn-primary{
+background:linear-gradient(135deg,#25D366,#1ebc59);
+color:white;
+box-shadow:0 10px 25px rgba(37,211,102,0.28);
 }
 
-.projects-preview img{
-  width:100%;
-  height:180px;
-
-  object-fit:cover;
-
-  border-radius:18px;
-
-  border:1px solid rgba(255,255,255,0.08);
-
-  transition:0.4s;
-
-  box-shadow:0 10px 25px rgba(0,0,0,0.28);
+.btn-secondary{
+background:linear-gradient(135deg,#d4af37,#f5d76e);
+color:#07111f;
 }
 
-.projects-preview img:hover{
-  transform:scale(1.03);
+.btn-outline{
+background:rgba(255,255,255,0.05);
+color:white;
+border:1px solid rgba(255,255,255,0.12);
 }
 
-/* WHATSAPP */
-
-.whatsapp{
-  position:fixed;
-
-  right:22px;
-  bottom:22px;
-
-  width:68px;
-  height:68px;
-
-  border-radius:50%;
-
-  background:#25D366;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  text-decoration:none;
-
-  font-size:28px;
-
-  color:white;
-
-  box-shadow:0 10px 30px rgba(37,211,102,0.4);
-
-  z-index:999;
+.carousel{
+position:relative;
+height:220px;
+border-radius:22px;
+overflow:hidden;
+margin-top:10px;
 }
 
-/* RESPONSIVO */
+.carousel img{
+position:absolute;
+width:100%;
+height:100%;
+object-fit:cover;
+opacity:0;
+transition:opacity 1s;
+}
+
+.carousel img.active{
+opacity:1;
+}
+
+.section{
+padding:45px 18px;
+}
+
+.container{
+max-width:1350px;
+margin:auto;
+}
+
+.section-title{
+text-align:center;
+margin-bottom:25px;
+}
+
+.section-title h2{
+font-size:2rem;
+margin-bottom:10px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+gap:18px;
+}
+
+.card{
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.08);
+border-radius:20px;
+padding:24px;
+backdrop-filter:blur(12px);
+}
+
+.card h3{
+margin-bottom:12px;
+color:#f5d76e;
+font-size:1rem;
+}
+
+.card p{
+font-size:0.9rem;
+line-height:1.7;
+color:#d6d6d6;
+}
+
+.testimonials{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+gap:18px;
+}
+
+.testimonial{
+background:rgba(255,255,255,0.05);
+border-radius:20px;
+padding:24px;
+border:1px solid rgba(255,255,255,0.08);
+}
+
+.testimonial strong{
+display:block;
+margin-top:15px;
+color:#f5d76e;
+}
+
+footer{
+padding:35px 18px;
+text-align:center;
+background:#020617;
+border-top:1px solid rgba(255,255,255,0.08);
+}
+
+footer p{
+margin-bottom:8px;
+color:#cfcfcf;
+font-size:0.9rem;
+}
+
+.whatsapp-float{
+position:fixed;
+right:18px;
+bottom:18px;
+background:linear-gradient(135deg,#25D366,#1ebc59);
+color:white;
+padding:16px 22px;
+border-radius:60px;
+text-decoration:none;
+font-weight:700;
+font-size:0.95rem;
+box-shadow:0 10px 30px rgba(37,211,102,0.35);
+z-index:999;
+display:flex;
+align-items:center;
+gap:10px;
+}
 
 @media(max-width:1100px){
-
-  .hero{
-    grid-template-columns:1fr;
-  }
-
-  .hero-content h1{
-    font-size:3rem;
-  }
-
-  .projects-preview{
-    grid-template-columns:1fr;
-  }
-
+.hero{
+grid-template-columns:1fr;
+}
 }
 
 @media(max-width:700px){
+nav{
+flex-direction:column;
+gap:10px;
+padding:12px;
+}
 
-  nav{
-    padding:15px;
-    flex-direction:column;
-    gap:12px;
-  }
+.hero-content h1{
+font-size:2.1rem;
+}
 
-  .hero-content h1{
-    font-size:2.4rem;
-  }
+.carousel{
+height:180px;
+}
 
-  .services-top{
-    gap:10px;
-  }
+.service-item{
+width:100%;
+text-align:center;
+}
 
-  .service-item{
-    width:100%;
-    text-align:center;
-  }
-
+.whatsapp-float{
+padding:14px 18px;
+font-size:0.85rem;
+}
 }
 
 </style>
@@ -429,161 +415,384 @@ header{
 
 <body>
 
-<!-- NAVBAR -->
-
 <nav>
 
-  <div class="logo">
+<div class="logo">
 
-    <div class="logo-icon">
-      IA
-    </div>
+<div class="logo-icon">
+△
+</div>
 
-    <div class="logo-text">
-      <h1>Ícaro Amaral Engenharia</h1>
-      <p>Engenharia Civil • Atendimento Nacional</p>
-    </div>
+<div class="logo-text">
+<h1>Ícaro Amaral Engenharia</h1>
+<p>Engenheiro Civil - Perícias, Laudos, Fiscalização e Projetos</p>
+</div>
 
-  </div>
+</div>
 
-  <div class="crea-box">
-    CREA 3000169646BA
-  </div>
+<div class="top-info">
+<div class="info-item">CREA 3000169646BA</div>
+<div class="info-item">Atendimento em Todo o Brasil</div>
+<div class="info-item">icaroamaralengenharia@gmail.com</div>
+</div>
 
 </nav>
 
-<!-- HEADER -->
-
 <header>
 
-  <div class="hero">
+<div class="hero">
 
-    <!-- FOTO -->
+<div class="profile-card">
 
-    <div class="profile-card">
+<img src="imagens/icaro-3x4.jpg" alt="Ícaro Amaral">
 
-      <img src="imagens/icaro-3x4.jpg"
-      alt="Ícaro Amaral">
+<div class="profile-content">
 
-      <div class="profile-content">
+<h2>Ícaro Amaral</h2>
 
-        <h2>Ícaro Amaral</h2>
+<p>Engenheiro Civil</p>
+<p>Especialista em perícias, fiscalização e recuperação estrutural.</p>
 
-        <p>Engenheiro Civil</p>
+<div class="stats">
+<div class="stat-item">+62 Obras Fiscalizadas</div>
+<div class="stat-item">Atendimento Nacional</div>
+<div class="stat-item">Projetos Residenciais e Comerciais</div>
+</div>
 
-        <p>Especialista em fiscalização, perícias e estruturas.</p>
+</div>
 
-        <div class="stats">
+</div>
 
-          <div class="stat-item">
-            +62 Obras Fiscalizadas
-          </div>
+<div class="hero-content">
 
-          <div class="stat-item">
-            Atendimento em Todo o Brasil
-          </div>
+<div class="tag">
+Engenharia de Alto Padrão • Soluções Técnicas • Atendimento Nacional • CREA Profissional
+</div>
 
-        </div>
+<div class="services-top">
+<div class="service-item">Fiscalização de Obras</div>
+<div class="service-item">Laudos Periciais</div>
+<div class="service-item">Recuperação Estrutural</div>
+<div class="service-item">Projetos Estruturais</div>
+<div class="service-item">Projetos Arquitetônicos</div>
+<div class="service-item">Ensaios Técnicos</div>
+</div>
 
-      </div>
+<h1>
+Projetos com <span>Segurança, Elegância e Credibilidade</span>
+</h1>
 
-    </div>
+<p>
+Soluções completas em engenharia civil com foco em segurança estrutural, desempenho técnico e valorização do seu patrimônio. Atendimento especializado para residências, empresas e perícias em todo o Brasil.
+</p>
 
-    <!-- TEXTO -->
+<div class="buttons">
 
-    <div class="hero-content">
+<a class="btn btn-primary"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+ORÇAMENTO EM 5 MIN
+</a>
 
-      <div class="tag">
-        Engenharia • Perícias • Estruturas • Atendimento Nacional
-      </div>
+<a class="btn btn-primary"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+WhatsApp Direto
+</a>
 
-      <!-- SERVIÇOS LOGO NO TOPO -->
+<a class="btn btn-secondary" href="#projetos-gratis">
+PROJETOS GRÁTIS
+</a>
 
-      <div class="services-top">
+<a class="btn btn-outline"
+href="mailto:icaroamaralengenharia@gmail.com">
+Enviar E-mail
+</a>
 
-        <div class="service-item">
-          Fiscalização de Obras
-        </div>
+</div>
 
-        <div class="service-item">
-          Laudos Periciais
-        </div>
+<div class="carousel">
 
-        <div class="service-item">
-          Recuperação Estrutural
-        </div>
+<video autoplay muted loop playsinline style="position:absolute;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0.28;">
+<source src="imagens/video-obra.mp4" type="video/mp4">
+</video>
 
-        <div class="service-item">
-          Projetos Estruturais
-        </div>
+<img src="imagens/projeto1.jpg" class="active" alt="Projeto 1">
+<img src="imagens/projeto2.jpg" alt="Projeto 2">
+<img src="imagens/projeto3.jpg" alt="Projeto 3">
 
-        <div class="service-item">
-          Projetos Arquitetônicos
-        </div>
+</div>
 
-      </div>
+</div>
 
-      <h1>
-
-        Engenharia com<br>
-
-        <span>Segurança, Credibilidade e Alto Padrão</span>
-
-      </h1>
-
-      <p>
-
-        Soluções técnicas completas para obras, perícias, recuperação estrutural e projetos arquitetônicos e estruturais. Atendemos clientes residenciais, comerciais e corporativos em todo o Brasil.
-
-      </p>
-
-      <div class="buttons">
-
-        <a class="btn btn-primary"
-        href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
-
-        Solicitar orçamento
-
-        </a>
-
-        <a class="btn btn-secondary"
-        href="#">
-
-        Atendimento Nacional
-
-        </a>
-
-      </div>
-
-      <!-- IMAGENS DOS PROJETOS NO HEADER -->
-
-      <div class="projects-preview">
-
-        <img src="imagens/projeto1.jpg"
-        alt="Projeto 1">
-
-        <img src="imagens/projeto2.jpg"
-        alt="Projeto 2">
-
-        <img src="imagens/projeto3.jpg"
-        alt="Projeto 3">
-
-      </div>
-
-    </div>
-
-  </div>
+</div>
 
 </header>
 
-<!-- BOTÃO -->
+<section class="section">
+<div class="container">
 
-<a class="whatsapp"
-href="https://wa.me/5577981214968">
+<div class="grid" style="margin-bottom:30px;">
 
-💬
+<div class="card" style="text-align:center;">
+<h3>+62</h3>
+<p>Obras Fiscalizadas</p>
+</div>
 
+<div class="card" style="text-align:center;">
+<h3>+120</h3>
+<p>Laudos Emitidos</p>
+</div>
+
+<div class="card" style="text-align:center;">
+<h3>+18</h3>
+<p>Cidades Atendidas</p>
+</div>
+
+<div class="card" style="text-align:center;">
+<h3>Atendimento Nacional</h3>
+<p>Residencial • Comercial • Corporativo</p>
+</div>
+
+</div>
+
+<div class="section-title">
+<h2>Ensaios e Diagnósticos Técnicos</h2>
+<p>Serviços complementares utilizados em inspeções e perícias estruturais.</p>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>Esclerometria</h3>
+<p>Ensaio utilizado para estimar a resistência superficial do concreto através do esclerômetro.</p>
+</div>
+
+<div class="card">
+<h3>Fenolftaleína</h3>
+<p>Aplicação para análise da carbonatação do concreto e avaliação da proteção da armadura.</p>
+</div>
+
+<div class="card">
+<h3>Corrosão de Armadura</h3>
+<p>Inspeções técnicas para identificação de processos corrosivos e riscos estruturais.</p>
+</div>
+
+<div class="card">
+<h3>Resistência do Concreto</h3>
+<p>Avaliação estrutural para verificação da capacidade resistente e segurança da estrutura.</p>
+</div>
+
+<div class="card">
+<h3>Pacometria</h3>
+<p>Identificação da posição e cobrimento das armaduras em estruturas de concreto.</p>
+</div>
+
+<div class="card">
+<h3>Inspeção Predial</h3>
+<p>Análise técnica preventiva para edificações residenciais, comerciais e industriais.</p>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="section-title">
+<h2>Depoimentos</h2>
+<p>Experiência e confiança reconhecidas pelos clientes.</p>
+</div>
+
+<div class="testimonials">
+
+<div class="testimonial">
+<p>
+“Excelente atendimento e extrema organização técnica. A fiscalização trouxe muita segurança para nossa obra.”
+</p>
+<strong>Juliana Mendes • Cliente Residencial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Profissional extremamente técnico e responsável. O acompanhamento da obra evitou diversos problemas durante a execução.”
+</p>
+<strong>Marcos Vinícius • Cliente Residencial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“O laudo estrutural foi entregue com rapidez e muita qualidade técnica. Atendimento excelente.”
+</p>
+<strong>Fernanda Oliveira • Empresária</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Serviço impecável. Passa muita confiança e domina completamente a parte estrutural.”
+</p>
+<strong>Ricardo Almeida • Cliente Comercial</strong>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section" id="projetos-gratis">
+<div class="container">
+
+<div class="card" style="text-align:center; padding:40px;">
+
+<h2 style="margin-bottom:18px; color:#f5d76e;">
+Projetos Gratuitos até 80m²
+</h2>
+
+<p style="max-width:850px; margin:auto; margin-bottom:25px;">
+Área exclusiva onde serão disponibilizados projetos gratuitos para download. Ideal para clientes que desejam iniciar sua construção com soluções acessíveis e profissionais.
+</p>
+
+<a class="btn btn-secondary" href="#">
+Baixar Projetos Gratuitos
 </a>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="section-title">
+<h2>Metodologia de Trabalho</h2>
+<p>Processo técnico aplicado em cada atendimento.</p>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>1. Visita Técnica</h3>
+<p>Levantamento completo da estrutura e análise das necessidades do cliente.</p>
+</div>
+
+<div class="card">
+<h3>2. Diagnóstico</h3>
+<p>Aplicação de ensaios, inspeções e avaliações conforme normas técnicas.</p>
+</div>
+
+<div class="card">
+<h3>3. Solução Técnica</h3>
+<p>Desenvolvimento de projetos, laudos e soluções estruturais seguras.</p>
+</div>
+
+<div class="card">
+<h3>4. Acompanhamento</h3>
+<p>Fiscalização profissional e suporte durante toda execução.</p>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="card" style="text-align:center; padding:50px;">
+<h2 style="margin-bottom:18px; color:#f5d76e;">Downloads Técnicos</h2>
+
+<p style="margin-bottom:25px;">
+Em breve: planilhas, checklists de obra, modelos PDF, projetos gratuitos e materiais técnicos.
+</p>
+
+<div class="buttons" style="justify-content:center;">
+<a class="btn btn-secondary" href="#">Baixar Checklist</a>
+<a class="btn btn-outline" href="#">Projetos até 80m²</a>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<footer>
+
+<p><strong>Ícaro Amaral Engenharia</strong></p>
+<p>Engenheiro Civil - CREA 3000169646BA</p>
+<p>icaroamaralengenharia@gmail.com</p>
+<p>Atendimento em Todo o Brasil</p>
+
+</footer>
+
+<a class="whatsapp-float"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+💬 Falar no WhatsApp
+</a>
+
+<script>
+
+window.addEventListener('scroll',()=>{
+const cards=document.querySelectorAll('.card,.testimonial,.profile-card');
+
+cards.forEach(card=>{
+const top=card.getBoundingClientRect().top;
+
+if(top < window.innerHeight - 80){
+card.style.transform='translateY(0px)';
+card.style.opacity='1';
+}
+});
+});
+
+const animated=document.querySelectorAll('.card,.testimonial,.profile-card');
+animated.forEach(el=>{
+el.style.transform='translateY(25px)';
+el.style.opacity='0';
+el.style.transition='0.7s';
+});
+
+
+let i = 0;
+const imgs = document.querySelectorAll('.carousel img');
+
+setInterval(()=>{
+
+imgs[i].classList.remove('active');
+
+i = (i + 1) % imgs.length;
+
+imgs[i].classList.add('active');
+
+},3500);
+
+</script>
 
 </body>
 </html>
+```
+
+# IMAGENS NECESSÁRIAS
+
+Coloque estas imagens dentro da pasta:
+
+```text
+/imagens
+```
+
+Arquivos:
+
+```text
+icaro-3x4.jpg
+projeto1.jpg
+projeto2.jpg
+projeto3.jpg
+```
+
+# COMO ATUALIZAR
+
+1. Abra o arquivo `index.html`
+2. Apague tudo
+3. Cole o novo código
+4. Clique em “Commit changes” no GitHub
+5. Aguarde o Netlify atualizar
