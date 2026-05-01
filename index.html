@@ -1,635 +1,370 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Ícaro Amaral | Engenharia Civil & Arquitetura</title>
+  <title>Ícaro Amaral Engenharia Civil</title>
 
-  <meta name="description" content="Perícias, laudos, fiscalização de obras, projetos estruturais e arquitetônicos. Engenharia com precisão e resultados que geram valor.">
-  <meta name="keywords" content="engenheiro civil, perícia, laudo técnico, fiscalização de obras, projeto estrutural, arquitetura, engenharia civil Bahia">
-  <meta name="author" content="Ícaro Amaral">
-  <meta name="robots" content="index, follow">
+  <meta name="description" content="Fiscalização de obras, laudos periciais, recuperação estrutural e projetos em Vitória da Conquista.">
 
   <style>
+
     *{
       margin:0;
       padding:0;
       box-sizing:border-box;
-      font-family: Arial, Helvetica, sans-serif;
     }
 
     body{
-      background:#070707;
-      color:#fff;
-      line-height:1.6;
+      font-family:Arial, sans-serif;
+      background:#f4f4f4;
+      color:#222;
     }
 
-    a{
-      text-decoration:none;
-    }
-
-    .container{
-      width:90%;
-      max-width:1200px;
-      margin:auto;
+    nav{
+      position:fixed;
+      top:0;
+      width:100%;
+      padding:18px 30px;
+      background:rgba(0,0,0,0.85);
+      color:white;
+      z-index:999;
+      font-weight:bold;
+      backdrop-filter:blur(8px);
     }
 
     header{
       min-height:100vh;
       background:
-      linear-gradient(rgba(0,0,0,.78), rgba(0,0,0,.82)),
-      url('https://images.unsplash.com/photo-1511818966892-d7d671e672a2?q=80&w=1600&auto=format&fit=crop') center/cover;
+      linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.72)),
+      linear-gradient(135deg,#0f172a,#1e293b);
+
       display:flex;
       align-items:center;
-      padding:40px 0;
-      position:relative;
-    }
+      justify-content:center;
 
-    .top-bar{
-      position:absolute;
-      top:25px;
-      left:0;
-      width:100%;
-    }
-
-    .top-content{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-    }
-
-    .logo-area h1{
-      font-size:42px;
-      color:#d4a34a;
-      line-height:1;
-    }
-
-    .logo-area h2{
-      font-size:22px;
-      font-weight:800;
-      letter-spacing:1px;
-    }
-
-    .logo-area p{
-      color:#d4a34a;
-      font-weight:600;
-      font-size:15px;
-      letter-spacing:1px;
-    }
-
-    .crea-box{
-      border:1px solid rgba(212,163,74,.5);
-      padding:15px 22px;
-      border-radius:10px;
-      color:#d4a34a;
-      font-weight:bold;
-      backdrop-filter:blur(4px);
+      padding:120px 20px 60px;
+      color:white;
     }
 
     .hero{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:50px;
-      align-items:center;
-      margin-top:80px;
-    }
-
-    .hero-image img{
+      max-width:1200px;
       width:100%;
-      max-width:480px;
+
+      display:grid;
+      grid-template-columns:420px 1fr;
+      gap:60px;
+      align-items:center;
+    }
+
+    .profile-box{
+      background:white;
       border-radius:20px;
-      box-shadow:0 20px 50px rgba(0,0,0,.5);
+      overflow:hidden;
+      box-shadow:0 10px 35px rgba(0,0,0,0.35);
     }
 
-    .hero-text h3{
-      font-size:64px;
-      line-height:1.05;
-      font-weight:900;
-      margin-bottom:25px;
+    .profile-box img{
+      width:100%;
+      height:500px;
+      object-fit:cover;
+      display:block;
     }
 
-    .gold{
-      color:#d4a34a;
+    .profile-info{
+      padding:25px;
+      text-align:center;
+      color:#222;
     }
 
-    .hero-text h4{
-      font-size:32px;
+    .profile-info h2{
       margin-bottom:10px;
+      font-size:1.8rem;
     }
 
-    .hero-text p{
-      font-size:20px;
-      color:#ddd;
-      margin-bottom:25px;
+    .profile-info p{
+      color:#555;
+      margin-bottom:6px;
     }
 
-    .buttons{
+    .hero-content h1{
+      font-size:3.5rem;
+      line-height:1.1;
+      margin-bottom:20px;
+    }
+
+    .hero-content .highlight{
+      color:gold;
+    }
+
+    .hero-content p{
+      font-size:1.1rem;
+      color:#d7d7d7;
+      margin-bottom:35px;
+      max-width:650px;
+    }
+
+    .services-top{
       display:flex;
-      gap:20px;
       flex-wrap:wrap;
-      margin-top:30px;
+      gap:14px;
+      margin-bottom:35px;
+    }
+
+    .service-item{
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.12);
+      padding:14px 18px;
+      border-radius:10px;
+      font-size:0.95rem;
+      backdrop-filter:blur(5px);
     }
 
     .btn{
-      padding:18px 32px;
-      border-radius:12px;
-      font-size:18px;
-      font-weight:700;
-      transition:.3s;
       display:inline-block;
-    }
-
-    .btn-whats{
-      background:#d4a34a;
-      color:#fff;
-    }
-
-    .btn-whats:hover{
-      transform:translateY(-3px);
-    }
-
-    .btn-dark{
-      border:2px solid #d4a34a;
-      color:#fff;
-    }
-
-    .btn-dark:hover{
-      background:#d4a34a;
-    }
-
-    .site-link{
-      margin-top:25px;
-      font-size:18px;
-      color:#d4a34a;
+      background:#25D366;
+      color:white;
+      text-decoration:none;
+      padding:16px 30px;
+      border-radius:8px;
       font-weight:bold;
+      transition:0.3s;
     }
 
-    .stats{
-      background:#0f0f0f;
-      padding:45px 0;
-      border-top:1px solid rgba(212,163,74,.2);
-      border-bottom:1px solid rgba(212,163,74,.2);
+    .btn:hover{
+      transform:translateY(-2px);
     }
 
-    .stats-grid{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:30px;
+    .section{
+      padding:80px 20px;
+    }
+
+    .container{
+      max-width:1200px;
+      margin:auto;
+    }
+
+    .title{
       text-align:center;
+      margin-bottom:50px;
     }
 
-    .stat h3{
-      color:#d4a34a;
-      font-size:42px;
-    }
-
-    .stat p{
-      color:#ddd;
-      font-size:18px;
-    }
-
-    section{
-      padding:90px 0;
-    }
-
-    .section-title{
-      text-align:center;
-      margin-bottom:60px;
-    }
-
-    .section-title span{
-      color:#d4a34a;
-      letter-spacing:2px;
-      font-size:16px;
-    }
-
-    .section-title h2{
-      font-size:46px;
-      margin-top:10px;
-    }
-
-    .services{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-      gap:25px;
-    }
-
-    .card{
-      background:#111;
-      border:1px solid rgba(212,163,74,.2);
-      border-radius:20px;
-      overflow:hidden;
-      transition:.3s;
-    }
-
-    .card:hover{
-      transform:translateY(-8px);
-      border-color:#d4a34a;
-    }
-
-    .card img{
-      width:100%;
-      height:220px;
-      object-fit:cover;
-    }
-
-    .card-content{
-      padding:25px;
-    }
-
-    .card h3{
-      color:#d4a34a;
-      margin-bottom:12px;
-      font-size:24px;
-    }
-
-    .card p{
-      color:#ddd;
-      font-size:16px;
-    }
-
-    .testimonials{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-      gap:25px;
-      margin-top:40px;
-    }
-
-    .testimonial{
-      background:#111;
-      border:1px solid rgba(212,163,74,.2);
-      border-radius:18px;
-      padding:30px;
-    }
-
-    .stars{
-      color:#d4a34a;
-      font-size:22px;
-      margin-bottom:15px;
-    }
-
-    .testimonial p{
-      color:#ddd;
-      margin-bottom:18px;
-    }
-
-    .testimonial strong{
-      color:#fff;
-    }
-
-    .cta{
-      background:#d4a34a;
-      padding:45px;
-      border-radius:25px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:20px;
-      flex-wrap:wrap;
-      margin-top:60px;
-    }
-
-    .cta h3{
-      color:#111;
-      font-size:36px;
+    .title h2{
+      font-size:2.4rem;
       margin-bottom:10px;
     }
 
-    .cta p{
-      color:#222;
-      font-size:18px;
+    .projects{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      gap:25px;
     }
 
-    .phone{
-      background:#111;
-      color:#d4a34a;
-      padding:22px 35px;
-      border-radius:15px;
-      font-size:38px;
-      font-weight:900;
+    .project-card{
+      background:white;
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:0 5px 20px rgba(0,0,0,0.08);
+    }
+
+    .project-card img{
+      width:100%;
+      height:250px;
+      object-fit:cover;
+      display:block;
+    }
+
+    .project-content{
+      padding:22px;
+    }
+
+    .project-content h3{
+      margin-bottom:10px;
     }
 
     footer{
-      background:#050505;
-      padding:50px 0;
+      background:#0f172a;
+      color:white;
       text-align:center;
-      border-top:1px solid rgba(212,163,74,.2);
+      padding:45px 20px;
     }
 
-    footer p{
-      color:#ccc;
-      margin:8px 0;
+    .whatsapp{
+      position:fixed;
+      bottom:20px;
+      right:20px;
+      width:60px;
+      height:60px;
+      border-radius:50%;
+      background:#25D366;
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+      font-size:24px;
+      box-shadow:0 5px 15px rgba(0,0,0,0.25);
     }
 
-    footer a{
-      color:#d4a34a;
-      font-weight:bold;
-    }
-
-    @media(max-width:900px){
+    @media(max-width:950px){
 
       .hero{
         grid-template-columns:1fr;
-        text-align:center;
       }
 
-      .hero-text h3{
-        font-size:42px;
+      .hero-content h1{
+        font-size:2.5rem;
       }
 
-      .stats-grid{
-        grid-template-columns:1fr 1fr;
+      .profile-box{
+        max-width:420px;
+        margin:auto;
       }
 
-      .top-content{
-        flex-direction:column;
-        gap:20px;
-      }
-
-      .cta{
-        text-align:center;
-        justify-content:center;
-      }
-
-      .phone{
-        font-size:28px;
-      }
     }
 
-    @media(max-width:600px){
-
-      .stats-grid{
-        grid-template-columns:1fr;
-      }
-
-      .hero-text h3{
-        font-size:34px;
-      }
-
-      .section-title h2{
-        font-size:32px;
-      }
-    }
   </style>
 </head>
+
 <body>
 
-  <header>
+<nav>
+  Ícaro Amaral Engenharia Civil
+</nav>
 
-    <div class="top-bar">
-      <div class="container top-content">
+<header>
 
-        <div class="logo-area">
-          <h1>IA</h1>
-          <h2>ÍCaro Amaral</h2>
-          <p>ENGENHARIA CIVIL & ARQUITETURA E URBANISMO</p>
-        </div>
+  <div class="hero">
 
-        <div class="crea-box">
-          CREA-BA<br>
-          3000169646BA
-        </div>
+    <!-- FOTO 3X4 -->
+    <div class="profile-box">
 
-      </div>
-    </div>
+      <img src="imagens/icaro-3x4.jpg" alt="Ícaro Amaral">
 
-    <div class="container hero">
+      <div class="profile-info">
+        <h2>Ícaro Amaral</h2>
 
-      <div class="hero-image">
-        <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1200&auto=format&fit=crop" alt="Engenheiro Civil">
-      </div>
+        <p>Engenheiro Civil</p>
 
-      <div class="hero-text">
+        <p>CREA 3000169646BA</p>
 
-        <h3>
-          ENGENHARIA COM <span class="gold">PRECISÃO.</span><br>
-          RESULTADOS QUE <span class="gold">GERAM VALOR.</span>
-        </h3>
-
-        <h4>Perícias, Laudos e Fiscalização de Obras</h4>
-
-        <p>
-          Soluções técnicas completas para garantir segurança,
-          conformidade e excelência em cada etapa do seu projeto.
-        </p>
-
-        <div class="buttons">
-
-          <a href="https://wa.me/5577981214968" class="btn btn-whats">
-            FALAR NO WHATSAPP
-          </a>
-
-          <a href="#servicos" class="btn btn-dark">
-            CONHECER SERVIÇOS
-          </a>
-
-        </div>
-
-        <div class="site-link">
-          www.icaroamaral.com.br
-        </div>
-
+        <p><strong>+62 obras fiscalizadas</strong></p>
       </div>
 
     </div>
 
-  </header>
+    <!-- CONTEÚDO -->
+    <div class="hero-content">
 
-  <section class="stats">
+      <!-- SERVIÇOS LOGO NO TOPO -->
+      <div class="services-top">
 
-    <div class="container">
+        <div class="service-item">Fiscalização de Obras</div>
 
-      <div class="stats-grid">
+        <div class="service-item">Laudos Periciais</div>
 
-        <div class="stat">
-          <h3>+62</h3>
-          <p>Obras fiscalizadas com sucesso</p>
-        </div>
+        <div class="service-item">Recuperação Estrutural</div>
 
-        <div class="stat">
-          <h3>5</h3>
-          <p>Anos de experiência em projetos e obras</p>
-        </div>
+        <div class="service-item">Projetos Estruturais</div>
 
-        <div class="stat">
-          <h3>BA</h3>
-          <p>Atuação técnica em todo o estado da Bahia</p>
-        </div>
-
-        <div class="stat">
-          <h3>100%</h3>
-          <p>Compromisso com qualidade, prazos e ética</p>
-        </div>
+        <div class="service-item">Projetos Arquitetônicos</div>
 
       </div>
 
-    </div>
-
-  </section>
-
-  <section id="servicos">
-
-    <div class="container">
-
-      <div class="section-title">
-        <span>COMO POSSO TE AJUDAR</span>
-        <h2>Soluções Completas em Engenharia</h2>
-      </div>
-
-      <div class="services">
-
-        <div class="card">
-          <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1200&auto=format&fit=crop">
-
-          <div class="card-content">
-            <h3>Perícias e Laudos</h3>
-            <p>
-              Análises técnicas precisas com embasamento técnico e normativo.
-            </p>
-          </div>
-        </div>
-
-        <div class="card">
-          <img src="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=1200&auto=format&fit=crop">
-
-          <div class="card-content">
-            <h3>Projetos Estruturais</h3>
-            <p>
-              Projetos seguros, econômicos e em conformidade com as normas.
-            </p>
-          </div>
-        </div>
-
-        <div class="card">
-          <img src="https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=1200&auto=format&fit=crop">
-
-          <div class="card-content">
-            <h3>Projetos Arquitetônicos</h3>
-            <p>
-              Soluções funcionais, estéticas e personalizadas para cada cliente.
-            </p>
-          </div>
-        </div>
-
-        <div class="card">
-          <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1200&auto=format&fit=crop">
-
-          <div class="card-content">
-            <h3>Recuperação Estrutural</h3>
-            <p>
-              Reforço e reabilitação de estruturas com segurança e durabilidade.
-            </p>
-          </div>
-        </div>
-
-        <div class="card">
-          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1200&auto=format&fit=crop">
-
-          <div class="card-content">
-            <h3>Fiscalização de Obras</h3>
-            <p>
-              Acompanhamento técnico para garantir qualidade, prazos e conformidade.
-            </p>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-  </section>
-
-  <section>
-
-    <div class="container">
-
-      <div class="section-title">
-        <span>O QUE NOSSOS CLIENTES DIZEM</span>
-        <h2>Depoimentos</h2>
-      </div>
-
-      <div class="testimonials">
-
-        <div class="testimonial">
-          <div class="stars">★★★★★</div>
-
-          <p>
-            Profissional extremamente competente e atencioso.
-            O laudo foi claro, detalhado e me ajudou a resolver
-            um problema sério no meu imóvel.
-          </p>
-
-          <strong>Carlos A. – Conquista/BA</strong>
-        </div>
-
-        <div class="testimonial">
-          <div class="stars">★★★★★</div>
-
-          <p>
-            Ícaro Amaral entrega muito mais do que promete.
-            Projeto estrutural impecável e acompanhamento
-            da obra com excelência.
-          </p>
-
-          <strong>Juliana R. – Salvador/BA</strong>
-        </div>
-
-        <div class="testimonial">
-          <div class="stars">★★★★★</div>
-
-          <p>
-            Seriedade, responsabilidade e domínio técnico.
-            A fiscalização da minha obra foi fundamental
-            para evitar prejuízos e garantir qualidade.
-          </p>
-
-          <strong>Roberto L. – Feira de Santana/BA</strong>
-        </div>
-
-      </div>
-
-      <div class="cta">
-
-        <div>
-          <h3>Vamos conversar sobre seu projeto?</h3>
-          <p>
-            Agilidade no atendimento e soluções sob medida para você.
-          </p>
-        </div>
-
-        <div class="phone">
-          (77) 98121-4968
-        </div>
-
-      </div>
-
-    </div>
-
-  </section>
-
-  <footer>
-
-    <div class="container">
-
-      <p><strong>Ícaro Amaral - Engenharia Civil & Arquitetura</strong></p>
-
-      <p>CREA-BA: 3000169646BA</p>
+      <h1>
+        Engenharia com<br>
+        <span class="highlight">Segurança e Credibilidade</span>
+      </h1>
 
       <p>
-        Site Oficial:
-        <a href="https://www.icaroamaral.com.br">
-          www.icaroamaral.com.br
-        </a>
+        Soluções técnicas para obras, perícias e projetos com acompanhamento profissional e responsabilidade técnica.
       </p>
 
-      <p>WhatsApp: (77) 98121-4968</p>
-
-      <p>© 2026 - Todos os direitos reservados.</p>
+      <a class="btn"
+      href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+      Solicitar orçamento
+      </a>
 
     </div>
 
-  </footer>
+  </div>
+
+</header>
+
+<!-- PROJETOS -->
+<section class="section">
+
+  <div class="container">
+
+    <div class="title">
+      <h2>Projetos e Obras</h2>
+
+      <p>Adicione fotos reais dos seus serviços para aumentar a credibilidade.</p>
+    </div>
+
+    <div class="projects">
+
+      <div class="project-card">
+
+        <img src="imagens/projeto1.jpg" alt="Projeto 1">
+
+        <div class="project-content">
+          <h3>Projeto Residencial</h3>
+
+          <p>
+            Projeto arquitetônico e estrutural executado com acompanhamento técnico.
+          </p>
+        </div>
+
+      </div>
+
+      <div class="project-card">
+
+        <img src="imagens/projeto2.jpg" alt="Projeto 2">
+
+        <div class="project-content">
+          <h3>Fiscalização de Obras</h3>
+
+          <p>
+            Fiscalização técnica e controle de execução de obra.
+          </p>
+        </div>
+
+      </div>
+
+      <div class="project-card">
+
+        <img src="imagens/projeto3.jpg" alt="Projeto 3">
+
+        <div class="project-content">
+          <h3>Recuperação Estrutural</h3>
+
+          <p>
+            Reforço e recuperação de estruturas comprometidas.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+<footer>
+
+  <h3>Ícaro Amaral Engenharia</h3>
+
+  <p>Vitória da Conquista - BA</p>
+
+</footer>
+
+<a class="whatsapp"
+href="https://wa.me/5577981214968">
+💬
+</a>
 
 </body>
 </html>
