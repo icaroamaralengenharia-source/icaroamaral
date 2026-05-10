@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
 <title>Ícaro Amaral Engenharia</title>
 
@@ -24,45 +24,48 @@ scroll-behavior:smooth;
 
 body{
 font-family:'Montserrat',sans-serif;
-background:#0b1220;
-color:#f5f5f5;
+background:#050816;
+color:#fff;
 overflow-x:hidden;
 }
 
-/* FUNDO PREMIUM */
+/* FUNDO */
 
 body::before{
 content:"";
 position:fixed;
 inset:0;
 background:
-linear-gradient(to right, rgba(11,18,32,0.96), rgba(11,18,32,0.78)),
-url('imagens/textura-concreto.png');
-background-size:cover;
-background-position:center;
+linear-gradient(120deg,#020617 0%,#07122b 50%,#020617 100%);
 z-index:-2;
 }
 
-/* HEADER */
+body::after{
+content:"";
+position:fixed;
+width:700px;
+height:700px;
+background:radial-gradient(circle, rgba(212,175,55,0.12), transparent 70%);
+top:-250px;
+right:-200px;
+z-index:-1;
+}
 
-header{
+/* NAVBAR */
+
+nav{
 position:fixed;
 top:0;
 left:0;
 width:100%;
-z-index:999;
-padding:22px 5%;
-background:rgba(5,10,20,0.72);
-backdrop-filter:blur(12px);
-border-bottom:1px solid rgba(255,255,255,0.05);
-}
-
-.navbar{
+padding:18px 5%;
 display:flex;
-align-items:center;
 justify-content:space-between;
-max-width:1400px;
-margin:auto;
+align-items:center;
+background:rgba(2,6,23,0.82);
+backdrop-filter:blur(14px);
+border-bottom:1px solid rgba(255,255,255,0.05);
+z-index:999;
 }
 
 .logo{
@@ -71,30 +74,29 @@ align-items:center;
 gap:16px;
 }
 
-.logo-box{
-width:58px;
-height:58px;
-background:linear-gradient(145deg,#c8a96b,#e0c38a);
-border-radius:14px;
+.logo-icon{
+width:62px;
+height:62px;
+border-radius:18px;
+background:linear-gradient(135deg,#d4af37,#f5d76e);
 display:flex;
 align-items:center;
 justify-content:center;
-font-size:2rem;
-font-weight:700;
-color:#0b1220;
-box-shadow:0 10px 30px rgba(200,169,107,0.18);
+font-size:1.9rem;
+font-weight:800;
+color:#07111f;
+box-shadow:0 10px 35px rgba(212,175,55,0.28);
 }
 
 .logo-text h1{
-font-size:1.1rem;
-font-weight:700;
-letter-spacing:0.5px;
+font-size:1.35rem;
+font-weight:800;
+margin-bottom:4px;
 }
 
 .logo-text p{
-font-size:0.78rem;
-opacity:0.75;
-margin-top:3px;
+font-size:0.9rem;
+color:#cfcfcf;
 }
 
 .menu{
@@ -104,296 +106,309 @@ gap:35px;
 }
 
 .menu a{
+color:#fff;
 text-decoration:none;
-color:#f5f5f5;
-font-size:0.92rem;
-opacity:0.82;
+font-size:0.95rem;
+opacity:0.85;
 transition:0.3s;
 }
 
 .menu a:hover{
 opacity:1;
-color:#c8a96b;
+color:#f5d76e;
 }
 
-.whatsapp-btn{
-padding:13px 22px;
-border-radius:40px;
-background:#c8a96b;
-color:#0b1220;
-text-decoration:none;
+.btn-nav{
+padding:14px 24px;
+border-radius:50px;
+background:linear-gradient(135deg,#d4af37,#f5d76e);
+color:#07111f !important;
 font-weight:700;
-font-size:0.88rem;
-transition:0.3s;
-}
-
-.whatsapp-btn:hover{
-transform:translateY(-2px);
 }
 
 /* HERO */
 
 .hero{
 min-height:100vh;
-display:flex;
+padding:150px 5% 70px;
+display:grid;
+grid-template-columns:360px 1fr;
+gap:40px;
 align-items:center;
-padding:140px 5% 80px;
+}
+
+/* CARD ESQUERDO */
+
+.profile-card{
+background:rgba(255,255,255,0.04);
+border:1px solid rgba(255,255,255,0.06);
+border-radius:28px;
+overflow:hidden;
+backdrop-filter:blur(14px);
+box-shadow:0 25px 60px rgba(0,0,0,0.35);
+}
+
+.profile-card img{
+width:100%;
+height:500px;
+object-fit:cover;
+display:block;
+}
+
+.profile-content{
+padding:28px;
+}
+
+.profile-content h2{
+font-size:2rem;
+margin-bottom:10px;
+}
+
+.profile-content .crea{
+color:#f5d76e;
+font-weight:700;
+margin-bottom:20px;
+display:block;
+font-size:1rem;
+}
+
+.services-list{
+display:flex;
+flex-direction:column;
+gap:12px;
+margin-top:20px;
+}
+
+.service-item{
+padding:14px 16px;
+background:rgba(255,255,255,0.05);
+border:1px solid rgba(255,255,255,0.06);
+border-radius:14px;
+font-size:0.92rem;
+font-weight:500;
+color:#dcdcdc;
+}
+
+/* HERO DIREITA */
+
+.hero-content{
 position:relative;
 overflow:hidden;
-}
-
-.hero-container{
-max-width:1400px;
-margin:auto;
-width:100%;
-display:grid;
-grid-template-columns:1fr 520px;
-gap:70px;
+border-radius:34px;
+padding:70px;
+min-height:760px;
+display:flex;
 align-items:center;
 }
 
-/* TEXTO */
-
-.hero-left{
-position:relative;
+.hero-overlay{
+position:absolute;
+inset:0;
+background:
+linear-gradient(90deg,#020817 0%,rgba(2,8,23,0.96) 45%,rgba(2,8,23,0.40) 100%);
 z-index:2;
 }
 
-.hero-tag{
-display:inline-block;
-padding:12px 18px;
-border:1px solid rgba(200,169,107,0.35);
-border-radius:50px;
-font-size:0.8rem;
-letter-spacing:1px;
-color:#c8a96b;
-margin-bottom:28px;
-background:rgba(255,255,255,0.03);
+.hero-carousel{
+position:absolute;
+inset:0;
+z-index:1;
 }
 
-.hero-left h2{
-font-size:4.3rem;
-line-height:1.02;
-font-weight:800;
-max-width:760px;
-margin-bottom:28px;
-}
-
-.hero-left h2 span{
-color:#c8a96b;
-}
-
-.hero-description{
-font-size:1rem;
-line-height:1.9;
-color:rgba(255,255,255,0.72);
-max-width:680px;
-margin-bottom:40px;
-}
-
-.hero-services{
-font-size:0.92rem;
-letter-spacing:0.5px;
-color:#c8a96b;
-margin-bottom:40px;
-line-height:1.8;
-}
-
-.hero-buttons{
-display:flex;
-gap:18px;
-flex-wrap:wrap;
-}
-
-.primary-btn{
-padding:16px 28px;
-background:#c8a96b;
-color:#0b1220;
-border-radius:50px;
-text-decoration:none;
-font-weight:700;
-transition:0.3s;
-}
-
-.primary-btn:hover{
-transform:translateY(-2px);
-}
-
-.secondary-btn{
-padding:16px 28px;
-border:1px solid rgba(255,255,255,0.14);
-border-radius:50px;
-text-decoration:none;
-color:#f5f5f5;
-font-weight:600;
-transition:0.3s;
-background:rgba(255,255,255,0.03);
-}
-
-.secondary-btn:hover{
-border-color:#c8a96b;
-color:#c8a96b;
-}
-
-/* IMAGEM */
-
-.hero-right{
-position:relative;
-height:700px;
-border-radius:36px;
-overflow:hidden;
-clip-path:polygon(10% 0%,100% 0%,100% 100%,0% 100%);
-box-shadow:0 40px 80px rgba(0,0,0,0.45);
-}
-
-.carousel{
-position:relative;
-width:100%;
-height:100%;
-}
-
-.carousel img{
+.hero-carousel img{
 position:absolute;
 width:100%;
 height:100%;
 object-fit:cover;
 opacity:0;
-transition:opacity 1.2s ease;
+transition:opacity 1s ease;
 }
 
-.carousel img.active{
+.hero-carousel img.active{
 opacity:1;
 }
 
-.carousel::after{
-content:"";
-position:absolute;
-inset:0;
-background:
-linear-gradient(to top, rgba(0,0,0,0.45), rgba(0,0,0,0.08));
+.hero-info{
+position:relative;
+z-index:3;
+max-width:720px;
 }
 
-/* INFO CARD */
-
-.hero-card{
-position:absolute;
-left:-40px;
-bottom:40px;
-background:rgba(10,15,28,0.92);
-border:1px solid rgba(255,255,255,0.06);
-padding:28px;
-border-radius:26px;
-backdrop-filter:blur(12px);
-max-width:320px;
-z-index:5;
-box-shadow:0 20px 50px rgba(0,0,0,0.4);
-}
-
-.hero-card h3{
-font-size:1.3rem;
-margin-bottom:10px;
-}
-
-.hero-card p{
+.hero-tag{
+display:inline-block;
+padding:12px 22px;
+border-radius:50px;
+background:rgba(212,175,55,0.12);
+border:1px solid rgba(212,175,55,0.25);
+color:#f5d76e;
 font-size:0.9rem;
-line-height:1.7;
-color:rgba(255,255,255,0.7);
+font-weight:600;
+margin-bottom:26px;
 }
 
-.hero-card strong{
-display:block;
-margin-top:14px;
-color:#c8a96b;
-font-size:0.88rem;
+.hero-info h1{
+font-size:5rem;
+line-height:0.98;
+font-weight:800;
+margin-bottom:28px;
+max-width:850px;
 }
 
-/* WHATSAPP FIXO */
+.hero-info h1 span{
+color:#f5d76e;
+}
 
-.whatsapp-float{
+.hero-info p{
+font-size:1.08rem;
+line-height:1.9;
+color:#d6d6d6;
+max-width:700px;
+margin-bottom:35px;
+}
+
+/* BOTÕES */
+
+.hero-buttons{
+display:flex;
+gap:16px;
+flex-wrap:wrap;
+}
+
+.btn{
+padding:18px 28px;
+border-radius:18px;
+text-decoration:none;
+font-weight:700;
+font-size:0.95rem;
+transition:0.3s;
+}
+
+.btn:hover{
+transform:translateY(-2px);
+}
+
+.btn-primary{
+background:linear-gradient(135deg,#d4af37,#f5d76e);
+color:#07111f;
+}
+
+.btn-outline{
+border:1px solid rgba(255,255,255,0.14);
+background:rgba(255,255,255,0.04);
+color:#fff;
+}
+
+/* WHATSAPP */
+
+.whatsapp{
 position:fixed;
-right:24px;
-bottom:24px;
+right:25px;
+bottom:25px;
 background:#25D366;
-color:white;
-padding:16px 26px;
+color:#fff;
+padding:18px 28px;
 border-radius:60px;
 text-decoration:none;
 font-weight:700;
+box-shadow:0 12px 35px rgba(37,211,102,0.35);
 z-index:999;
-box-shadow:0 20px 40px rgba(37,211,102,0.3);
 }
 
 /* RESPONSIVO */
 
 @media(max-width:1200px){
 
-.hero-container{
+.hero-info h1{
+font-size:4rem;
+}
+
+}
+
+@media(max-width:980px){
+
+.hero{
 grid-template-columns:1fr;
-gap:50px;
 }
 
-.hero-right{
-height:500px;
-clip-path:none;
+.profile-card img{
+height:420px;
 }
 
-.hero-left h2{
-font-size:3.3rem;
+.hero-content{
+min-height:650px;
+padding:50px 35px;
 }
 
-.hero-card{
-left:20px;
-bottom:20px;
+.hero-info h1{
+font-size:3rem;
 }
 
 }
 
-@media(max-width:768px){
+@media(max-width:700px){
+
+nav{
+padding:14px 20px;
+flex-direction:column;
+gap:16px;
+}
 
 .menu{
-display:none;
+gap:18px;
+flex-wrap:wrap;
+justify-content:center;
+}
+
+.logo{
+align-items:flex-start;
+}
+
+.logo-text h1{
+font-size:1.05rem;
+}
+
+.logo-text p{
+font-size:0.8rem;
 }
 
 .hero{
-padding-top:130px;
+padding-top:170px;
+gap:24px;
 }
 
-.hero-left h2{
-font-size:2.4rem;
+.hero-content{
+padding:40px 24px;
+min-height:580px;
 }
 
-.hero-description{
+.hero-info h1{
+font-size:2.2rem;
+line-height:1.08;
+}
+
+.hero-info p{
 font-size:0.95rem;
+line-height:1.8;
 }
 
-.hero-right{
-height:420px;
-border-radius:26px;
-}
-
-.hero-card{
-position:relative;
-left:auto;
-bottom:auto;
-margin-top:20px;
-max-width:100%;
+.profile-card img{
+height:340px;
 }
 
 .hero-buttons{
 flex-direction:column;
 }
 
-.primary-btn,
-.secondary-btn{
+.btn{
 width:100%;
 text-align:center;
 }
 
-.whatsapp-float{
-right:14px;
-bottom:14px;
+.whatsapp{
+right:15px;
+bottom:15px;
 padding:14px 20px;
-font-size:0.85rem;
+font-size:0.9rem;
 }
 
 }
@@ -403,13 +418,13 @@ font-size:0.85rem;
 
 <body>
 
-<header>
+<!-- NAVBAR -->
 
-<div class="navbar">
+<nav>
 
 <div class="logo">
 
-<div class="logo-box">
+<div class="logo-icon">
 △
 </div>
 
@@ -426,63 +441,69 @@ font-size:0.85rem;
 <a href="#">Projetos</a>
 <a href="#">Contato</a>
 
-<a class="whatsapp-btn"
+<a class="btn-nav"
 href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
 WhatsApp
 </a>
-
 </div>
 
-</div>
+</nav>
 
-</header>
+<!-- HERO -->
 
 <section class="hero">
 
-<div class="hero-container">
+<!-- CARD ESQUERDO -->
 
-<div class="hero-left">
+<div class="profile-card">
 
-<div class="hero-tag">
-ENGENHARIA PERICIAL • ATENDIMENTO NACIONAL
+<img src="imagens/icaro-3x4.jpg" alt="Ícaro Amaral">
+
+<div class="profile-content">
+
+<h2>Ícaro Amaral</h2>
+
+<span class="crea">
+Engenheiro Civil • CREA 3000169646BA
+</span>
+
+<div class="services-list">
+
+<div class="service-item">
+Laudos Periciais de Engenharia
 </div>
 
-<h2>
-Precisão Técnica em
-<span>Perícias, Auditorias</span>
-e Fiscalização de Obras
-</h2>
-
-<p class="hero-description">
-
-Atuação especializada em engenharia civil, assistência técnica judicial, inspeções prediais, auditorias técnicas e fiscalização profissional de obras residenciais, comerciais e corporativas.
-
-</p>
-
-<div class="hero-services">
-Laudos Periciais • Assistência Técnica Judicial • Inspeção Predial • Auditorias • Fiscalização Profissional • Diagnósticos Estruturais
+<div class="service-item">
+Assistência Técnica Judicial
 </div>
 
-<div class="hero-buttons">
+<div class="service-item">
+Fiscalização Profissional de Obras
+</div>
 
-<a class="primary-btn"
-href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
-Solicitar Atendimento
-</a>
+<div class="service-item">
+Inspeções e Vistorias Técnicas
+</div>
 
-<a class="secondary-btn" href="#">
-Conhecer Serviços
-</a>
+<div class="service-item">
+Auditorias e Diagnósticos Estruturais
+</div>
+
+<div class="service-item">
+Projetos Arquitetônicos e Estruturais
+</div>
+
+</div>
 
 </div>
 
 </div>
 
-<div class="hero-right">
+<!-- HERO DIREITA -->
 
-<div class="carousel">
+<div class="hero-content">
 
-<!-- MANTIDAS AS SUAS IMAGENS -->
+<div class="hero-carousel">
 
 <img src="imagens/projeto1.jpg" class="active" alt="">
 <img src="imagens/projeto2.jpg" alt="">
@@ -494,19 +515,34 @@ Conhecer Serviços
 
 </div>
 
-<div class="hero-card">
+<div class="hero-overlay"></div>
 
-<h3>
-Ícaro Amaral
-</h3>
+<div class="hero-info">
+
+<div class="hero-tag">
+Especialista em Engenharia Diagnóstica e Fiscalização Técnica
+</div>
+
+<h1>
+Precisão Técnica em
+<span>Perícias, Auditorias</span>
+e Fiscalização de Obras
+</h1>
 
 <p>
-Engenheiro Civil especializado em perícias de engenharia, auditorias técnicas e fiscalização profissional de obras.
+Atuação especializada em engenharia civil, assistência técnica judicial, inspeções prediais, auditorias técnicas e fiscalização profissional de obras residenciais, comerciais e corporativas.
 </p>
 
-<strong>
-CREA 3000169646BA
-</strong>
+<div class="hero-buttons">
+
+<a class="btn btn-primary"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+Solicitar Atendimento
+</a>
+
+<a class="btn btn-outline" href="#">
+Conhecer Serviços
+</a>
 
 </div>
 
@@ -516,7 +552,9 @@ CREA 3000169646BA
 
 </section>
 
-<a class="whatsapp-float"
+<!-- WHATSAPP -->
+
+<a class="whatsapp"
 href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
 💬 WhatsApp
 </a>
@@ -525,19 +563,19 @@ href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
 
 /* CAROUSEL */
 
-let i = 0;
+let current = 0;
 
-const imgs = document.querySelectorAll('.carousel img');
+const images = document.querySelectorAll('.hero-carousel img');
 
 setInterval(()=>{
 
-imgs[i].classList.remove('active');
+images[current].classList.remove('active');
 
-i = (i + 1) % imgs.length;
+current = (current + 1) % images.length;
 
-imgs[i].classList.add('active');
+images[current].classList.add('active');
 
-},4000);
+},3500);
 
 </script>
 
