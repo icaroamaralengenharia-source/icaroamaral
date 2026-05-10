@@ -1,4 +1,6 @@
+# Ícaro Amaral Engenharia, Perícias, Auditorias, Fiscalizaçaõ de Obras, Assistência Técnica Judicial, Projetos de Recuperação Estrutural
 
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -262,21 +264,10 @@ border:1px solid rgba(255,255,255,0.12);
 
 .carousel{
 position:relative;
-width:100%;
-height:600px;
+height:220px;
 border-radius:22px;
 overflow:hidden;
 margin-top:10px;
-background:#000;
-}
-
-.carousel video{
-position:absolute;
-width:100%;
-height:100%;
-object-fit:cover;
-z-index:0;
-opacity:0.28;
 }
 
 .carousel img{
@@ -284,45 +275,12 @@ position:absolute;
 width:100%;
 height:100%;
 object-fit:cover;
-top:0;
-left:0;
-display:none;
-z-index:1;
+opacity:0;
+transition:opacity 1s;
 }
 
 .carousel img.active{
-display:block;
-}
-
-.carousel-btn{
-position:absolute;
-top:50%;
-transform:translateY(-50%);
-z-index:20;
-background:rgba(0,0,0,0.45);
-color:white;
-border:none;
-width:52px;
-height:52px;
-border-radius:50%;
-cursor:pointer;
-font-size:28px;
-transition:0.3s;
-display:flex;
-align-items:center;
-justify-content:center;
-}
-
-.carousel-btn:hover{
-background:rgba(0,0,0,0.75);
-}
-
-.prev{
-left:18px;
-}
-
-.next{
-right:18px;
+opacity:1;
 }
 
 .section{
@@ -438,18 +396,12 @@ font-size:2.1rem;
 }
 
 .carousel{
-height:260px;
+height:180px;
 }
 
 .service-item{
 width:100%;
 text-align:center;
-}
-
-.carousel-btn{
-width:42px;
-height:42px;
-font-size:22px;
 }
 
 .whatsapp-float{
@@ -463,74 +415,402 @@ font-size:0.85rem;
 
 <body>
 
+<nav>
+
+<div class="logo">
+
+<div class="logo-icon">
+△
+</div>
+
+<div class="logo-text">
+<h1>Ícaro Amaral Engenharia</h1>
+<p>Perícias de Engenharia • Assistência Técnica Judicial • Fiscalização Profissional</p>
+</div>
+
+</div>
+
+<div class="top-info">
+<div class="info-item">CREA 3000169646BA</div>
+<div class="info-item">Atendimento em Todo o Brasil</div>
+<div class="info-item">icaroamaralengenharia@gmail.com</div>
+</div>
+
+</nav>
+
+<header>
+
+<div class="hero">
+
+<div class="profile-card">
+
+<img src="imagens/icaro-3x4.jpg" alt="Ícaro Amaral">
+
+<div class="profile-content">
+
+<h2>Ícaro Amaral</h2>
+
+<p style="font-weight:700; color:#f5d76e; margin-bottom:10px;">
+Engenheiro Civil • CREA 3000169646BA
+</p>
+
+<p>
+Pós-Graduação em Perícias e Auditorias de Obras de Engenharia
+</p>
+
+<p>
+Pós-Graduação em Perícia e Auditoria Ambiental
+</p>
+
+<p>
+Pós-Graduação em Arquitetura Paisagística
+</p>
+
+<p>
+Técnico em Edificações 
+</p>
+  <p>
+  Especialista em perícias de engenharia, assistência técnica judicial e fiscalização profissional de obras.
+</p>
+
+<p style="margin-top:12px;">
+Projetos de Arquitetura & Urbanismo
+</p>
+
+<div class="stats">
+<div class="stat-item">+62 Obras Fiscalizadas</div>
+<div class="stat-item">Atendimento Nacional</div>
+<div class="stat-item">Projetos Residenciais e Comerciais</div>
+</div>
+
+</div>
+
+</div>
+
+<div class="hero-content">
+
+<div class="tag">
+Perícias de Engenharia • Assistência Técnica Judicial • Fiscalização Profissional • Atendimento Nacional
+</div>
+
+<div class="services-top">
+<div class="service-item">Laudos Periciais de Engenharia</div>
+<div class="service-item">Assistência Técnica Judicial</div>
+<div class="service-item">Fiscalização de Obras</div>
+<div class="service-item">Vistorias Técnicas</div>
+<div class="service-item">Inspeção Predial</div>
+<div class="service-item">Ensaios e Diagnósticos Estruturais</div>
+</div>
+
+<h1>
+Especialista em <span>Laudos Periciais, Assistência Técnica Judicial e Fiscalização de Obras</span>
+</h1>
+
+<p>
+Atuação especializada em perícias de engenharia civil, elaboração de laudos técnicos, assistência técnica judicial, acompanhamento processual e fiscalização profissional de obras. Soluções técnicas voltadas para segurança, prevenção de prejuízos e suporte técnico em demandas judiciais e extrajudiciais em todo o Brasil.
+</p>
+
+<div class="buttons">
+
+<a class="btn btn-primary"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+ORÇAMENTO EM 5 MIN
+</a>
+
+<a class="btn btn-primary"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+WhatsApp Direto
+</a>
+
+<a class="btn btn-secondary" href="#projetos-gratis">
+PROJETOS GRÁTIS
+</a>
+
+<a class="btn btn-outline"
+href="mailto:icaroamaralengenharia@gmail.com">
+Enviar E-mail
+</a>
+
+</div>
+
 <div class="carousel">
 
-<video autoplay muted loop playsinline>
+<video autoplay muted loop playsinline style="position:absolute;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0.28;">
 <source src="imagens/video-obra.mp4" type="video/mp4">
 </video>
 
+<!-- SETA ESQUERDA -->
 <button class="carousel-btn prev">&#10094;</button>
 
+<!-- IMAGENS -->
 <img src="imagens/projeto1.jpg" class="active" alt="Projeto 1">
 <img src="imagens/projeto2.jpg" alt="Projeto 2">
 <img src="imagens/projeto3.jpg" alt="Projeto 3">
 
 <img src="imagens2/imagem01.jpg" alt="imagem01">
 <img src="imagens2/imagem2.jpg" alt="imagem2">
+<img src="imagens2/imagem3.jpg" alt="imagem3">
 <img src="imagens2/imagem4.jpg" alt="imagem4">
 
+<!-- SETA DIREITA -->
 <button class="carousel-btn next">&#10095;</button>
 
 </div>
+</div>
+
+
+
+</header>
+
+<section class="section">
+<div class="container">
+
+<div class="grid" style="margin-bottom:30px;">
+
+<div class="card" style="text-align:center;">
+<h3>+62</h3>
+<p>Obras Fiscalizadas</p>
+</div>
+
+<div class="card" style="text-align:center;">
+<h3>+120</h3>
+<p>Clientes Atendidos </p>
+</div>
+
+<div class="card" style="text-align:center;">
+<h3>+18</h3>
+<p>Cidades Atendidas</p>
+</div>
+
+<div class="card" style="text-align:center;">
+<h3>Atendimento Nacional</h3>
+<p>Residencial • Comercial • Corporativo</p>
+</div>
+
+</div>
+
+<div class="section-title">
+<h2>Ensaios e Diagnósticos Técnicos</h2>
+<p>Serviços complementares utilizados em inspeções e perícias estruturais.</p>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>Esclerometria</h3>
+<p>Ensaio utilizado para estimar a resistência superficial do concreto através do esclerômetro.</p>
+</div>
+
+<div class="card">
+<h3>Fenolftaleína</h3>
+<p>Aplicação para análise da carbonatação do concreto e avaliação da proteção da armadura.</p>
+</div>
+
+<div class="card">
+<h3>Corrosão de Armadura</h3>
+<p>Inspeções técnicas para identificação de processos corrosivos e riscos estruturais.</p>
+</div>
+
+<div class="card">
+<h3>Resistência do Concreto</h3>
+<p>Avaliação estrutural para verificação da capacidade resistente e segurança da estrutura.</p>
+</div>
+
+<div class="card">
+<h3>Pacometria</h3>
+<p>Identificação da posição e cobrimento das armaduras em estruturas de concreto.</p>
+</div>
+
+<div class="card">
+<h3>Inspeção Predial</h3>
+<p>Análise técnica preventiva para edificações residenciais, comerciais e industriais.</p>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="section-title">
+<h2>Depoimentos</h2>
+<p>Experiência e confiança reconhecidas pelos clientes.</p>
+</div>
+
+<div class="testimonials">
+
+<div class="testimonial">
+<p>
+“Excelente atendimento e extrema organização técnica. A fiscalização trouxe muita segurança para nossa obra.”
+</p>
+<strong>Juliana Mendes • Cliente Residencial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Profissional extremamente técnico e responsável. O acompanhamento da obra evitou diversos problemas durante a execução.”
+</p>
+<strong>Marcos Vinícius • Cliente Residencial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“O laudo estrutural foi entregue com rapidez e muita qualidade técnica. Atendimento excelente.”
+</p>
+<strong>Rafaela Oliveira • Empresária</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Serviço impecável. Passa muita confiança e domina completamente a parte estrutural.”
+</p>
+<strong>Ricardo Almeida • Cliente Comercial</strong>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section" id="projetos-gratis">
+<div class="container">
+
+<div class="card" style="text-align:center; padding:40px;">
+
+<h2 style="margin-bottom:18px; color:#f5d76e;">
+Projetos Gratuitos até 90m² (arquitetônico, elétrico/luminotécnico, estrutural, hidrossanitário, aproveitamento de águas pluviais)
+</h2>
+
+<p style="max-width:850px; margin:auto; margin-bottom:25px;">
+Área exclusiva onde serão disponibilizados projetos gratuitos para download. Ideal para clientes que desejam iniciar sua construção com soluções acessíveis e profissionais.
+</p>
+
+<a class="btn btn-secondary" href="#">
+Baixar Projetos Gratuitos
+</a>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="section-title">
+<h2>Metodologia de Trabalho</h2>
+<p>Processo técnico aplicado em cada atendimento.</p>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<h3>1. Visita Técnica</h3>
+<p>Levantamento completo da estrutura e análise das necessidades do cliente.</p>
+</div>
+
+<div class="card">
+<h3>2. Diagnóstico</h3>
+<p>Aplicação de ensaios, inspeções e avaliações conforme normas técnicas.</p>
+</div>
+
+<div class="card">
+<h3>3. Solução Técnica</h3>
+<p>Desenvolvimento de projetos, laudos e soluções estruturais seguras.</p>
+</div>
+
+<div class="card">
+<h3>4. Acompanhamento</h3>
+<p>Fiscalização profissional e suporte durante toda execução.</p>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<section class="section">
+<div class="container">
+
+<div class="card" style="text-align:center; padding:50px;">
+<h2 style="margin-bottom:18px; color:#f5d76e;">Downloads Técnicos</h2>
+
+<p style="margin-bottom:25px;">
+Em breve: planilhas, checklists de obra, modelos PDF, projetos gratuitos e materiais técnicos.
+</p>
+
+<div class="buttons" style="justify-content:center;">
+<a class="btn btn-secondary" href="#">Baixar Checklist</a>
+<a class="btn btn-outline" href="#">Projetos até 80m²</a>
+</div>
+
+</div>
+
+</div>
+</section>
+
+<footer>
+
+<p><strong>Ícaro Amaral Engenharia</strong></p>
+<p>Engenheiro Civil - CREA 3000169646BA</p>
+<p>icaroamaralengenharia@gmail.com</p>
+<p>Atendimento em Todo o Brasil</p>
+
+</footer>
+
+<a class="whatsapp-float"
+href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
+💬 Falar no WhatsApp
+</a>
 
 <script>
 
-const slides = document.querySelectorAll('.carousel img');
-const nextBtn = document.querySelector('.next');
-const prevBtn = document.querySelector('.prev');
+window.addEventListener('scroll',()=>{
 
-let currentSlide = 0;
+const cards=document.querySelectorAll('.card,.testimonial');
 
-function showSlide(index){
+cards.forEach(card=>{
 
-slides.forEach((slide)=>{
-slide.classList.remove('active');
+const top=card.getBoundingClientRect().top;
+
+if(top < window.innerHeight - 80){
+
+card.style.transform='translateY(0px)';
+card.style.opacity='1';
+
+}
+
 });
 
-slides[index].classList.add('active');
-}
+});
 
-function nextSlide(){
+const animated=document.querySelectorAll('.card,.testimonial');
 
-currentSlide++;
+animated.forEach(el=>{
 
-if(currentSlide >= slides.length){
-currentSlide = 0;
-}
+el.style.transform='translateY(25px)';
+el.style.opacity='0';
+el.style.transition='0.7s';
 
-showSlide(currentSlide);
-}
+});
 
-function prevSlide(){
 
-currentSlide--;
+let i = 0;
+const imgs = document.querySelectorAll('.carousel img');
 
-if(currentSlide < 0){
-currentSlide = slides.length - 1;
-}
+setInterval(()=>{
 
-showSlide(currentSlide);
-}
+imgs[i].classList.remove('active');
 
-nextBtn.addEventListener('click', nextSlide);
-prevBtn.addEventListener('click', prevSlide);
+i = (i + 1) % imgs.length;
 
-setInterval(nextSlide, 5000);
+imgs[i].classList.add('active');
 
-showSlide(currentSlide);
+},3500);
 
 </script>
 
 </body>
 </html>
-```
