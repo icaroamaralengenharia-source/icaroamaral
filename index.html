@@ -125,7 +125,7 @@ box-shadow:0 8px 20px rgba(212,175,55,0.15);
 min-height:100vh;
 padding:130px 5% 80px;
 display:grid;
-grid-template-columns:270px 1fr;
+grid-template-columns:270px 1fr 320px;
 gap:34px;
 align-items:start;
 }
@@ -167,31 +167,23 @@ line-height:1.5;
 margin-bottom:24px;
 }
 
-/* NÚMEROS */
+/* IMAGEM LATERAL DIREITA */
 
-.stats{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:12px;
-}
-
-.stat-box{
-padding:16px;
-border-radius:18px;
-background:rgba(255,255,255,0.03);
+.side-project{
+background:rgba(255,255,255,0.035);
 border:1px solid rgba(255,255,255,0.04);
+border-radius:28px;
+overflow:hidden;
+backdrop-filter:blur(14px);
+box-shadow:0 14px 45px rgba(0,0,0,0.22);
+min-height:820px;
 }
 
-.stat-box h3{
-font-size:1.5rem;
-color:#f5d76e;
-margin-bottom:6px;
-}
-
-.stat-box p{
-font-size:0.78rem;
-line-height:1.5;
-color:#d6d6d6;
+.side-project img{
+width:100%;
+height:100%;
+object-fit:cover;
+display:block;
 }
 
 /* HERO DIREITA */
@@ -209,7 +201,6 @@ isolation:isolate;
 box-shadow:0 18px 55px rgba(0,0,0,0.22);
 background:#061120;
 }
-  
 
 /* CAROUSEL */
 
@@ -274,8 +265,6 @@ margin-bottom:28px;
 letter-spacing:0.4px;
 }
 
-/* TÍTULO */
-
 .hero-info h1{
 font-size:4rem;
 line-height:1.02;
@@ -297,8 +286,6 @@ max-width:700px;
 margin-bottom:38px;
 font-weight:400;
 }
-
-/* BOTÕES */
 
 .hero-buttons{
 display:flex;
@@ -332,134 +319,6 @@ border:1px solid rgba(255,255,255,0.06);
 color:#fff;
 }
 
-/* SERVIÇOS */
-
-.services-grid{
-display:grid;
-grid-template-columns:repeat(2,1fr);
-gap:18px;
-margin-top:55px;
-margin-bottom:55px;
-max-width:860px;
-}
-
-.service-card{
-padding:24px;
-border-radius:22px;
-background:rgba(255,255,255,0.035);
-border:1px solid rgba(255,255,255,0.05);
-backdrop-filter:blur(10px);
-transition:0.3s;
-box-shadow:0 10px 30px rgba(0,0,0,0.12);
-}
-
-.service-card:hover{
-transform:translateY(-4px);
-border-color:rgba(212,175,55,0.18);
-}
-
-.service-card h3{
-font-size:1rem;
-margin-bottom:10px;
-color:#f5d76e;
-letter-spacing:-0.4px;
-}
-
-.service-card p{
-font-size:0.88rem;
-line-height:1.8;
-color:#d7d7d7;
-}
-
-/* AUTORIDADE */
-
-.authority{
-display:flex;
-flex-wrap:wrap;
-gap:18px;
-margin-top:10px;
-}
-
-.authority-item{
-padding:18px 22px;
-border-radius:20px;
-background:rgba(255,255,255,0.03);
-border:1px solid rgba(255,255,255,0.04);
-min-width:180px;
-}
-
-.authority-item h3{
-font-size:1.6rem;
-color:#f5d76e;
-margin-bottom:6px;
-}
-
-.authority-item p{
-margin:0;
-font-size:0.82rem;
-line-height:1.6;
-color:#d5d5d5;
-}
-
-/* DEPOIMENTOS */
-
-.testimonials{
-margin-top:70px;
-display:grid;
-grid-template-columns:repeat(3,1fr);
-gap:22px;
-}
-
-.testimonial{
-padding:26px;
-border-radius:24px;
-background:rgba(255,255,255,0.03);
-border:1px solid rgba(255,255,255,0.04);
-box-shadow:0 10px 30px rgba(0,0,0,0.15);
-}
-
-.testimonial p{
-font-size:0.92rem;
-line-height:1.9;
-color:#d8d8d8;
-margin-bottom:18px;
-}
-
-.testimonial strong{
-font-size:0.88rem;
-color:#f5d76e;
-}
-
-/*  AUTORAL */
-
-.copyright-note{
-margin-top:45px;
-padding-top:28px;
-border-top:1px solid rgba(255,255,255,0.06);
-font-size:0.82rem;
-line-height:1.8;
-color:#bdbdbd;
-opacity:0.8;
-max-width:780px;
-}
-
-/* WHATSAPP */
-
-.whatsapp{
-position:fixed;
-right:22px;
-bottom:22px;
-padding:16px 24px;
-border-radius:60px;
-background:#25D366;
-color:#fff;
-font-weight:700;
-font-size:0.92rem;
-text-decoration:none;
-box-shadow:0 10px 28px rgba(37,211,102,0.22);
-z-index:999;
-}
-
 /* RESPONSIVO */
 
 @media(max-width:1200px){
@@ -468,12 +327,8 @@ z-index:999;
 grid-template-columns:1fr;
 }
 
-.testimonials{
-grid-template-columns:1fr;
-}
-
-.services-grid{
-grid-template-columns:1fr;
+.side-project{
+display:none;
 }
 
 .hero-content{
@@ -535,25 +390,6 @@ text-align:center;
 height:300px;
 }
 
-.authority{
-flex-direction:column;
-}
-
-.stats{
-grid-template-columns:1fr;
-}
-
-.services-grid{
-grid-template-columns:1fr;
-}
-
-.whatsapp{
-right:15px;
-bottom:15px;
-padding:14px 22px;
-font-size:0.9rem;
-}
-
 }
 
 </style>
@@ -594,7 +430,7 @@ WhatsApp
 
 <section class="hero">
 
-<!-- FOTO -->
+<!-- FOTO ESQUERDA -->
 
 <div class="profile-card">
 
@@ -608,104 +444,23 @@ WhatsApp
 Engenheiro Civil • CREA 3000169646BA
 </span>
 
-<div class="stats">
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Contratei o engenheiro Ícaro para uma inspeção predial e fiquei impressionado com o nível técnico do trabalho. O laudo foi entregue com muita clareza e organização.”
-</p>
-
-<strong>Cláudio Santos</strong>
-
-<span class="client-role">
-Cliente Residencial
-</span>
-
-</div>
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Excelente profissional. Acompanhou a fiscalização da obra com responsabilidade e atenção aos detalhes. Passou muita confiança durante todo o processo.”
-</p>
-
-<strong>Hélio Batista Nogueira</strong>
-
-<span class="client-role">
-Fiscalização de Obra
-</span>
-
-</div>
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Atendimento rápido, técnico e transparente. Precisávamos de uma avaliação estrutural e o serviço foi executado com total profissionalismo.”
-</p>
-
-<strong>Luciano Feraz Oliveira</strong>
-
-<span class="client-role">
-Assistência Técnica
-</span>
-
 </div>
 
 </div>
-  .testimonial strong{
-font-size:0.88rem;
-color:#f5d76e;
-}
-  .stars{
-color:#f5d76e;
-font-size:1.1rem;
-letter-spacing:2px;
-margin-bottom:16px;
-}
 
-.client-role{
-display:block;
-margin-top:6px;
-font-size:0.78rem;
-color:#bfbfbf;
-opacity:0.9;
-}
-
-<!-- HERO DIREITA -->
+<!-- CONTEÚDO CENTRAL -->
 
 <div class="hero-content">
-
-<!-- CAROUSEL -->
 
 <div class="hero-carousel">
 
 <img src="imagens/projeto1.jpg" class="active" alt="">
 <img src="imagens/projeto2.jpg" alt="">
-<img src="imagens/projeto3.jpeg" alt="">
-<img src="imagens2/imagem01.jpg" alt="">
-<img src="imagens2/imagem2.jpg" alt="">
-<img src="imagens2/imagem3.jpg" alt="">
+<img src="imagens/projeto3.jpg" alt="">
 
 </div>
 
-<!-- OVERLAY -->
-
 <div class="hero-overlay"></div>
-
-<!-- TEXTO -->
 
 <div class="hero-info">
 
@@ -736,134 +491,15 @@ Conhecer Serviços
 
 </div>
 
-<!-- SERVIÇOS -->
-
-<div class="services-grid">
-
-<div class="service-card">
-<h3>Laudos Periciais</h3>
-<p>Análises técnicas completas com respaldo normativo.</p>
-</div>
-
-<div class="service-card">
-<h3>Assistência Judicial</h3>
-<p>Suporte técnico especializado para processos judiciais.</p>
-</div>
-
-<div class="service-card">
-<h3>Fiscalização de Obras</h3>
-<p>Acompanhamento técnico profissional e controle executivo.</p>
-</div>
-
-<div class="service-card">
-<h3>Inspeções Prediais</h3>
-<p>Diagnóstico técnico e identificação de patologias.</p>
-</div>
-
-<div class="service-card">
-<h3>Auditorias Técnicas</h3>
-<p>Verificação de conformidade e avaliação técnica detalhada.</p>
-</div>
-
-<div class="service-card">
-<h3>Projetos Arquitetônicos</h3>
-<p>Soluções funcionais, modernas e tecnicamente eficientes.</p>
 </div>
 
 </div>
 
-<!-- AUTORIDADE -->
+<!-- IMAGEM DIREITA -->
 
-<div class="authority">
+<div class="side-project">
 
-<div class="authority-item">
-<h3>CREA</h3>
-<p>Responsabilidade técnica com emissão de ART</p>
-</div>
-
-<div class="authority-item">
-<h3>Bahia</h3>
-<p>Atendimento técnico em Vitória da Conquista e região</p>
-</div>
-
-<div class="authority-item">
-<h3>Perícias</h3>
-<p>Atuação especializada em demandas judiciais e extrajudiciais</p>
-</div>
-
-</div>
-
-<!-- DEPOIMENTOS -->
-
-<!-- DEPOIMENTOS -->
-
-<div class="testimonials">
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Contratei o engenheiro Ícaro para uma inspeção predial e fiquei impressionado com o nível técnico do trabalho. O laudo foi entregue com muita clareza e organização.”
-</p>
-
-<strong>Cláudio Santos</strong>
-
-<span class="client-role">
-Cliente Residencial
-</span>
-
-</div>
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Excelente profissional. Acompanhou a fiscalização da obra com responsabilidade e atenção aos detalhes. Passou muita confiança durante todo o processo.”
-</p>
-
-<strong>Hélio Batista Nogueira</strong>
-
-<span class="client-role">
-Fiscalização de Obra
-</span>
-
-</div>
-
-<div class="testimonial">
-
-<div class="stars">
-★★★★★
-</div>
-
-<p>
-“Atendimento rápido, técnico e transparente. Precisávamos de uma avaliação estrutural e o serviço foi executado com total profissionalismo.”
-</p>
-
-<strong>Luciano Feraz Oliveira</strong>
-
-<span class="client-role">
-Assistência Técnica
-</span>
-
-</div>
-
-</div>
-
-
-
-<!-- Todos os projetos e imagens possuem direitos autorais (Ícaro Amaral) -->
-
-<div class="copyright-note">
-Todos os projetos, imagens e materiais apresentados neste site são de autoria e responsabilidade técnica de Ícaro Amaral Engenharia.
-</div>
-
-</div>
+<img src="imagens/projeto3.jpg" alt="Projeto Arquitetônico">
 
 </div>
 
