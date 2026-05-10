@@ -533,6 +533,57 @@ Enviar E-mail
 
 </div>
 
+<style>
+.carousel {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    overflow: hidden;
+    border-radius: 20px;
+}
+
+.carousel img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.carousel img.active {
+    display: block;
+}
+
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    background: rgba(0,0,0,0.45);
+    color: white;
+    border: none;
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 28px;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.carousel-btn:hover {
+    background: rgba(0,0,0,0.75);
+}
+
+.prev {
+    left: 20px;
+}
+
+.next {
+    right: 20px;
+}
+</style>
+
 <div class="carousel">
 
 <video autoplay muted loop playsinline style="position:absolute;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0.28;">
@@ -549,14 +600,58 @@ Enviar E-mail
 
 <img src="imagens2/imagem01.jpg" alt="imagem01">
 <img src="imagens2/imagem2.jpg" alt="imagem2">
-
 <img src="imagens2/imagem4.jpg" alt="imagem4">
 
 <!-- SETA DIREITA -->
 <button class="carousel-btn next">&#10095;</button>
 
 </div>
-</div>
+
+<script>
+const slides = document.querySelectorAll('.carousel img');
+const nextBtn = document.querySelector('.next');
+const prevBtn = document.querySelector('.prev');
+
+let currentSlide = 0;
+
+function showSlide(index) {
+
+    slides.forEach((slide) => {
+        slide.classList.remove('active');
+    });
+
+    slides[index].classList.add('active');
+}
+
+function nextSlide() {
+
+    currentSlide++;
+
+    if (currentSlide >= slides.length) {
+        currentSlide = 0;
+    }
+
+    showSlide(currentSlide);
+}
+
+function prevSlide() {
+
+    currentSlide--;
+
+    if (currentSlide < 0) {
+        currentSlide = slides.length - 1;
+    }
+
+    showSlide(currentSlide);
+}
+
+nextBtn.addEventListener('click', nextSlide);
+prevBtn.addEventListener('click', prevSlide);
+
+setInterval(nextSlide, 5000);
+
+showSlide(currentSlide);
+</script>
 
 
 
