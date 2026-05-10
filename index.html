@@ -36,7 +36,7 @@ content:"";
 position:fixed;
 inset:0;
 background:
-radial-gradient(circle at top right, rgba(212,175,55,0.08), transparent 25%),
+radial-gradient(circle at top right, rgba(212,175,55,0.06), transparent 28%),
 linear-gradient(135deg,#020617,#071226,#020617);
 z-index:-2;
 }
@@ -53,9 +53,9 @@ padding:0 5%;
 display:flex;
 justify-content:space-between;
 align-items:center;
-background:rgba(2,6,23,0.82);
-backdrop-filter:blur(14px);
-border-bottom:1px solid rgba(255,255,255,0.05);
+background:rgba(2,6,23,0.78);
+backdrop-filter:blur(18px);
+border-bottom:1px solid rgba(255,255,255,0.04);
 z-index:999;
 }
 
@@ -76,13 +76,14 @@ justify-content:center;
 font-size:1.9rem;
 font-weight:800;
 color:#07111f;
-box-shadow:0 10px 35px rgba(212,175,55,0.20);
+box-shadow:0 8px 28px rgba(212,175,55,0.18);
 }
 
 .logo-text h1{
 font-size:1.45rem;
 font-weight:800;
 margin-bottom:4px;
+letter-spacing:-0.5px;
 }
 
 .logo-text p{
@@ -115,34 +116,34 @@ border-radius:50px;
 background:linear-gradient(135deg,#d4af37,#f5d76e);
 color:#07111f !important;
 font-weight:700;
+box-shadow:0 8px 20px rgba(212,175,55,0.15);
 }
 
 /* HERO */
 
 .hero{
 min-height:100vh;
-padding:115px 5% 40px;
+padding:130px 5% 80px;
 display:grid;
-grid-template-columns:320px 1fr;
-gap:28px;
+grid-template-columns:270px 1fr;
+gap:34px;
 align-items:start;
 }
 
 /* CARD ESQUERDO */
 
 .profile-card{
-background:rgba(255,255,255,0.04);
-border:1px solid rgba(255,255,255,0.05);
-border-radius:30px;
+background:rgba(255,255,255,0.035);
+border:1px solid rgba(255,255,255,0.04);
+border-radius:28px;
 overflow:hidden;
 backdrop-filter:blur(14px);
-box-shadow:0 20px 60px rgba(0,0,0,0.30);
-margin-top:-5px;
+box-shadow:0 14px 45px rgba(0,0,0,0.22);
 }
 
 .profile-card img{
 width:100%;
-height:410px;
+height:320px;
 object-fit:cover;
 display:block;
 }
@@ -152,16 +153,46 @@ padding:24px;
 }
 
 .profile-content h2{
-font-size:1.9rem;
+font-size:1.65rem;
 margin-bottom:8px;
+letter-spacing:-1px;
 }
 
 .crea{
 display:block;
 color:#f5d76e;
 font-weight:700;
-font-size:1rem;
-margin-bottom:22px;
+font-size:0.92rem;
+line-height:1.5;
+margin-bottom:24px;
+}
+
+/* NÚMEROS */
+
+.stats{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:12px;
+margin-bottom:24px;
+}
+
+.stat-box{
+padding:16px;
+border-radius:18px;
+background:rgba(255,255,255,0.03);
+border:1px solid rgba(255,255,255,0.04);
+}
+
+.stat-box h3{
+font-size:1.5rem;
+color:#f5d76e;
+margin-bottom:6px;
+}
+
+.stat-box p{
+font-size:0.78rem;
+line-height:1.5;
+color:#d6d6d6;
 }
 
 /* SERVIÇOS */
@@ -173,17 +204,18 @@ gap:12px;
 }
 
 .service-item{
-padding:14px 16px;
-border-radius:14px;
-background:rgba(255,255,255,0.04);
-border:1px solid rgba(255,255,255,0.05);
-font-size:0.9rem;
+padding:15px 16px;
+border-radius:15px;
+background:rgba(255,255,255,0.03);
+border:1px solid rgba(255,255,255,0.04);
+font-size:0.88rem;
+line-height:1.6;
 color:#d9d9d9;
 transition:0.3s;
 }
 
 .service-item:hover{
-border-color:rgba(212,175,55,0.20);
+border-color:rgba(212,175,55,0.16);
 transform:translateX(3px);
 }
 
@@ -193,22 +225,21 @@ transform:translateX(3px);
 position:relative;
 border-radius:38px;
 overflow:hidden;
-min-height:590px;
+min-height:700px;
 display:flex;
 align-items:flex-start;
-padding:42px 55px;
-margin-top:-5px;
+padding:70px 70px;
 isolation:isolate;
-box-shadow:0 20px 70px rgba(0,0,0,0.35);
+box-shadow:0 18px 55px rgba(0,0,0,0.22);
+background:#061120;
 }
 
-/* CAROUSEL MODERNO */
+/* CAROUSEL */
 
 .hero-carousel{
 position:absolute;
 inset:0;
 z-index:1;
-clip-path:polygon(35% 0%,100% 0%,100% 100%,12% 100%);
 }
 
 .hero-carousel img{
@@ -218,11 +249,12 @@ height:100%;
 object-fit:cover;
 opacity:0;
 transition:opacity 1s ease;
-transform:scale(1.03);
+transform:scale(1.02);
+filter:blur(1px);
 }
 
 .hero-carousel img.active{
-opacity:1;
+opacity:0.32;
 }
 
 /* OVERLAY */
@@ -234,10 +266,9 @@ background:
 linear-gradient(
 90deg,
 rgba(2,8,23,0.98) 0%,
-rgba(2,8,23,0.96) 28%,
-rgba(2,8,23,0.84) 45%,
-rgba(2,8,23,0.20) 72%,
-rgba(2,8,23,0.08) 100%
+rgba(2,8,23,0.96) 35%,
+rgba(2,8,23,0.92) 55%,
+rgba(2,8,23,0.82) 100%
 );
 z-index:2;
 }
@@ -247,63 +278,60 @@ z-index:2;
 .hero-info{
 position:relative;
 z-index:3;
-max-width:610px;
-padding-top:0;
-margin-top:0;
+max-width:760px;
 }
 
 .hero-tag{
 display:inline-block;
-padding:11px 20px;
+padding:12px 22px;
 border-radius:50px;
-background:rgba(212,175,55,0.10);
-border:1px solid rgba(212,175,55,0.18);
+background:rgba(212,175,55,0.08);
+border:1px solid rgba(212,175,55,0.16);
 color:#f5d76e;
 font-size:0.82rem;
 font-weight:600;
-margin-bottom:22px;
-letter-spacing:0.3px;
+margin-bottom:28px;
+letter-spacing:0.4px;
 }
 
 /* TÍTULO */
 
 .hero-info h1{
-font-size:3.2rem;
-line-height:1.05;
+font-size:4rem;
+line-height:1.02;
 font-weight:800;
-margin-bottom:20px;
-max-width:620px;
-letter-spacing:-2px;
+margin-bottom:28px;
+max-width:760px;
+letter-spacing:-3px;
 }
 
 .hero-info h1 span{
 color:#f5d76e;
 }
 
-/* TEXTO */
-
 .hero-info p{
-font-size:1rem;
-line-height:1.8;
-color:#d8d8d8;
-max-width:560px;
-margin-bottom:26px;
+font-size:1.08rem;
+line-height:2;
+color:#d6d6d6;
+max-width:650px;
+margin-bottom:38px;
+font-weight:400;
 }
 
 /* BOTÕES */
 
 .hero-buttons{
 display:flex;
-gap:14px;
+gap:16px;
 flex-wrap:wrap;
-margin-top:0;
+margin-bottom:50px;
 }
 
 .btn{
-padding:17px 26px;
-border-radius:16px;
+padding:18px 30px;
+border-radius:18px;
 font-weight:700;
-font-size:0.92rem;
+font-size:0.95rem;
 text-decoration:none;
 transition:0.3s;
 }
@@ -315,13 +343,72 @@ transform:translateY(-2px);
 .btn-primary{
 background:linear-gradient(135deg,#d4af37,#f5d76e);
 color:#07111f;
-box-shadow:0 10px 25px rgba(212,175,55,0.18);
+box-shadow:0 10px 25px rgba(212,175,55,0.16);
 }
 
 .btn-outline{
 background:rgba(255,255,255,0.04);
-border:1px solid rgba(255,255,255,0.08);
+border:1px solid rgba(255,255,255,0.06);
 color:#fff;
+}
+
+/* PROVAS */
+
+.authority{
+display:flex;
+flex-wrap:wrap;
+gap:18px;
+margin-top:10px;
+}
+
+.authority-item{
+padding:18px 22px;
+border-radius:20px;
+background:rgba(255,255,255,0.03);
+border:1px solid rgba(255,255,255,0.04);
+min-width:180px;
+}
+
+.authority-item h3{
+font-size:1.6rem;
+color:#f5d76e;
+margin-bottom:6px;
+}
+
+.authority-item p{
+margin:0;
+font-size:0.82rem;
+line-height:1.6;
+color:#d5d5d5;
+}
+
+/* DEPOIMENTOS */
+
+.testimonials{
+margin-top:70px;
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:22px;
+}
+
+.testimonial{
+padding:26px;
+border-radius:24px;
+background:rgba(255,255,255,0.03);
+border:1px solid rgba(255,255,255,0.04);
+box-shadow:0 10px 30px rgba(0,0,0,0.15);
+}
+
+.testimonial p{
+font-size:0.92rem;
+line-height:1.9;
+color:#d8d8d8;
+margin-bottom:18px;
+}
+
+.testimonial strong{
+font-size:0.88rem;
+color:#f5d76e;
 }
 
 /* WHATSAPP */
@@ -330,36 +417,35 @@ color:#fff;
 position:fixed;
 right:22px;
 bottom:22px;
-padding:15px 24px;
+padding:16px 24px;
 border-radius:60px;
 background:#25D366;
 color:#fff;
 font-weight:700;
 font-size:0.92rem;
 text-decoration:none;
-box-shadow:0 10px 30px rgba(37,211,102,0.28);
+box-shadow:0 10px 28px rgba(37,211,102,0.22);
 z-index:999;
 }
 
 /* RESPONSIVO */
 
-@media(max-width:1100px){
+@media(max-width:1200px){
 
 .hero{
 grid-template-columns:1fr;
 }
 
-.hero-content{
-min-height:620px;
-padding:40px 35px;
+.testimonials{
+grid-template-columns:1fr;
 }
 
-.hero-carousel{
-clip-path:none;
+.hero-content{
+padding:50px 35px;
 }
 
 .hero-info h1{
-font-size:2.8rem;
+font-size:3rem;
 }
 
 }
@@ -380,24 +466,24 @@ justify-content:center;
 }
 
 .hero{
-padding-top:170px;
-gap:24px;
+padding-top:180px;
+gap:28px;
 }
 
 .hero-content{
-padding:34px 24px;
-min-height:540px;
+padding:40px 24px;
+min-height:auto;
 }
 
 .hero-info h1{
-font-size:2.15rem;
+font-size:2.25rem;
 line-height:1.08;
 letter-spacing:-1px;
 }
 
 .hero-info p{
-font-size:0.94rem;
-line-height:1.7;
+font-size:0.96rem;
+line-height:1.9;
 }
 
 .hero-buttons{
@@ -410,7 +496,15 @@ text-align:center;
 }
 
 .profile-card img{
-height:340px;
+height:300px;
+}
+
+.authority{
+flex-direction:column;
+}
+
+.stats{
+grid-template-columns:1fr;
 }
 
 .whatsapp{
@@ -478,6 +572,22 @@ WhatsApp
 Engenheiro Civil • CREA 3000169646BA
 </span>
 
+<!-- PROVAS -->
+
+<div class="stats">
+
+<div class="stat-box">
+<h3>+120</h3>
+<p>Laudos e inspeções realizadas</p>
+</div>
+
+<div class="stat-box">
+<h3>+5</h3>
+<p>Anos de atuação técnica</p>
+</div>
+
+</div>
+
 <div class="services-list">
 
 <div class="service-item">
@@ -521,7 +631,6 @@ Projetos Arquitetônicos e Estruturais
 <img src="imagens/projeto1.jpg" class="active" alt="">
 <img src="imagens/projeto2.jpg" alt="">
 <img src="imagens/projeto3.jpeg" alt="">
-
 <img src="imagens2/imagem01.jpg" alt="">
 <img src="imagens2/imagem2.jpg" alt="">
 <img src="imagens2/imagem3.jpg" alt="">
@@ -537,17 +646,17 @@ Projetos Arquitetônicos e Estruturais
 <div class="hero-info">
 
 <div class="hero-tag">
-Especialista em Engenharia Diagnóstica e Fiscalização Técnica
+Especialista em Engenharia Diagnóstica • Perícias • Fiscalização Técnica
 </div>
 
 <h1>
 Precisão Técnica em
 <span>Perícias, Auditorias</span>
-e Fiscalização de Obras
+e Fiscalização Profissional de Obras
 </h1>
 
 <p>
-Atuação especializada em engenharia civil, assistência técnica judicial, inspeções prediais, auditorias técnicas e fiscalização profissional de obras residenciais, comerciais e corporativas.
+Soluções técnicas com rigor pericial, respaldo normativo e acompanhamento especializado para obras, diagnósticos construtivos, assistência técnica judicial e inspeções em edificações residenciais, comerciais e corporativas.
 </p>
 
 <div class="hero-buttons">
@@ -560,6 +669,54 @@ Solicitar Atendimento
 <a class="btn btn-outline" href="#">
 Conhecer Serviços
 </a>
+
+</div>
+
+<!-- AUTORIDADE -->
+
+<div class="authority">
+
+<div class="authority-item">
+<h3>CREA</h3>
+<p>Responsabilidade técnica com emissão de ART</p>
+</div>
+
+<div class="authority-item">
+<h3>Bahia</h3>
+<p>Atendimento técnico em Vitória da Conquista e região</p>
+</div>
+
+<div class="authority-item">
+<h3>Perícias</h3>
+<p>Atuação especializada em demandas judiciais e extrajudiciais</p>
+</div>
+
+</div>
+
+<!-- DEPOIMENTOS -->
+
+<div class="testimonials">
+
+<div class="testimonial">
+<p>
+“Profissional extremamente técnico e detalhista. O laudo entregue trouxe segurança total para nossa tomada de decisão.”
+</p>
+<strong>Cliente Residencial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Excelente acompanhamento de obra e fiscalização. Comunicação clara e alto nível profissional.”
+</p>
+<strong>Cliente Comercial</strong>
+</div>
+
+<div class="testimonial">
+<p>
+“Atendimento rápido, técnico e muito transparente. Recomendo para perícias e inspeções prediais.”
+</p>
+<strong>Assistência Técnica</strong>
+</div>
 
 </div>
 
@@ -592,7 +749,7 @@ current = (current + 1) % images.length;
 
 images[current].classList.add('active');
 
-},3500);
+},4000);
 
 </script>
 
