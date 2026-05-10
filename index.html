@@ -2,8 +2,8 @@
 <html lang="pt-BR">
 
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Ícaro Amaral Engenharia</title>
 
@@ -24,7 +24,7 @@ scroll-behavior:smooth;
 
 body{
 font-family:'Montserrat',sans-serif;
-background:#050816;
+background:#030712;
 color:#fff;
 overflow-x:hidden;
 }
@@ -36,19 +36,9 @@ content:"";
 position:fixed;
 inset:0;
 background:
-linear-gradient(120deg,#020617 0%,#07122b 50%,#020617 100%);
+radial-gradient(circle at top right, rgba(212,175,55,0.08), transparent 25%),
+linear-gradient(135deg,#020617,#071226,#020617);
 z-index:-2;
-}
-
-body::after{
-content:"";
-position:fixed;
-width:700px;
-height:700px;
-background:radial-gradient(circle, rgba(212,175,55,0.12), transparent 70%);
-top:-250px;
-right:-200px;
-z-index:-1;
 }
 
 /* NAVBAR */
@@ -58,7 +48,8 @@ position:fixed;
 top:0;
 left:0;
 width:100%;
-padding:18px 5%;
+height:92px;
+padding:0 5%;
 display:flex;
 justify-content:space-between;
 align-items:center;
@@ -85,11 +76,11 @@ justify-content:center;
 font-size:1.9rem;
 font-weight:800;
 color:#07111f;
-box-shadow:0 10px 35px rgba(212,175,55,0.28);
+box-shadow:0 10px 35px rgba(212,175,55,0.20);
 }
 
 .logo-text h1{
-font-size:1.35rem;
+font-size:1.45rem;
 font-weight:800;
 margin-bottom:4px;
 }
@@ -106,8 +97,8 @@ gap:35px;
 }
 
 .menu a{
-color:#fff;
 text-decoration:none;
+color:#fff;
 font-size:0.95rem;
 opacity:0.85;
 transition:0.3s;
@@ -119,7 +110,7 @@ color:#f5d76e;
 }
 
 .btn-nav{
-padding:14px 24px;
+padding:15px 26px;
 border-radius:50px;
 background:linear-gradient(135deg,#d4af37,#f5d76e);
 color:#07111f !important;
@@ -130,84 +121,80 @@ font-weight:700;
 
 .hero{
 min-height:100vh;
-padding:150px 5% 70px;
+padding:120px 5% 40px;
 display:grid;
-grid-template-columns:360px 1fr;
-gap:40px;
-align-items:center;
+grid-template-columns:330px 1fr;
+gap:30px;
+align-items:start;
 }
 
 /* CARD ESQUERDO */
 
 .profile-card{
 background:rgba(255,255,255,0.04);
-border:1px solid rgba(255,255,255,0.06);
-border-radius:28px;
+border:1px solid rgba(255,255,255,0.05);
+border-radius:30px;
 overflow:hidden;
 backdrop-filter:blur(14px);
-box-shadow:0 25px 60px rgba(0,0,0,0.35);
+box-shadow:0 20px 60px rgba(0,0,0,0.30);
+margin-top:-15px;
 }
 
 .profile-card img{
 width:100%;
-height:500px;
+height:430px;
 object-fit:cover;
 display:block;
 }
 
 .profile-content{
-padding:28px;
+padding:26px;
 }
 
 .profile-content h2{
 font-size:2rem;
-margin-bottom:10px;
+margin-bottom:8px;
 }
 
-.profile-content .crea{
+.crea{
+display:block;
 color:#f5d76e;
 font-weight:700;
-margin-bottom:20px;
-display:block;
 font-size:1rem;
+margin-bottom:25px;
 }
+
+/* SERVIÇOS ABAIXO */
 
 .services-list{
 display:flex;
 flex-direction:column;
 gap:12px;
-margin-top:20px;
 }
 
 .service-item{
 padding:14px 16px;
-background:rgba(255,255,255,0.05);
-border:1px solid rgba(255,255,255,0.06);
 border-radius:14px;
+background:rgba(255,255,255,0.04);
+border:1px solid rgba(255,255,255,0.05);
 font-size:0.92rem;
-font-weight:500;
-color:#dcdcdc;
+color:#d9d9d9;
 }
 
 /* HERO DIREITA */
 
 .hero-content{
 position:relative;
-overflow:hidden;
 border-radius:34px;
-padding:70px;
-min-height:760px;
+overflow:hidden;
+min-height:700px;
 display:flex;
-align-items:center;
+align-items:flex-start;
+padding:55px 60px;
+margin-top:-15px;
 }
 
-.hero-overlay{
-position:absolute;
-inset:0;
-background:
-linear-gradient(90deg,#020817 0%,rgba(2,8,23,0.96) 45%,rgba(2,8,23,0.40) 100%);
-z-index:2;
-}
+/* CAROUSEL */
 
 .hero-carousel{
 position:absolute;
@@ -228,30 +215,42 @@ transition:opacity 1s ease;
 opacity:1;
 }
 
+/* OVERLAY */
+
+.hero-overlay{
+position:absolute;
+inset:0;
+background:
+linear-gradient(90deg,#020817 0%,rgba(2,8,23,0.95) 42%,rgba(2,8,23,0.30) 100%);
+z-index:2;
+}
+
+/* TEXTO */
+
 .hero-info{
 position:relative;
 z-index:3;
 max-width:720px;
+padding-top:10px;
 }
 
 .hero-tag{
 display:inline-block;
 padding:12px 22px;
 border-radius:50px;
-background:rgba(212,175,55,0.12);
-border:1px solid rgba(212,175,55,0.25);
+background:rgba(212,175,55,0.10);
+border:1px solid rgba(212,175,55,0.22);
 color:#f5d76e;
 font-size:0.9rem;
 font-weight:600;
-margin-bottom:26px;
+margin-bottom:24px;
 }
 
 .hero-info h1{
 font-size:5rem;
-line-height:0.98;
+line-height:0.95;
 font-weight:800;
-margin-bottom:28px;
-max-width:850px;
+margin-bottom:26px;
 }
 
 .hero-info h1 span{
@@ -259,11 +258,11 @@ color:#f5d76e;
 }
 
 .hero-info p{
-font-size:1.08rem;
+font-size:1.05rem;
 line-height:1.9;
-color:#d6d6d6;
-max-width:700px;
-margin-bottom:35px;
+color:#d8d8d8;
+max-width:650px;
+margin-bottom:34px;
 }
 
 /* BOTÕES */
@@ -277,9 +276,9 @@ flex-wrap:wrap;
 .btn{
 padding:18px 28px;
 border-radius:18px;
-text-decoration:none;
 font-weight:700;
 font-size:0.95rem;
+text-decoration:none;
 transition:0.3s;
 }
 
@@ -293,8 +292,8 @@ color:#07111f;
 }
 
 .btn-outline{
-border:1px solid rgba(255,255,255,0.14);
 background:rgba(255,255,255,0.04);
+border:1px solid rgba(255,255,255,0.08);
 color:#fff;
 }
 
@@ -304,43 +303,35 @@ color:#fff;
 position:fixed;
 right:25px;
 bottom:25px;
-background:#25D366;
-color:#fff;
 padding:18px 28px;
 border-radius:60px;
-text-decoration:none;
+background:#25D366;
+color:#fff;
 font-weight:700;
+text-decoration:none;
 box-shadow:0 12px 35px rgba(37,211,102,0.35);
 z-index:999;
 }
 
 /* RESPONSIVO */
 
-@media(max-width:1200px){
-
-.hero-info h1{
-font-size:4rem;
-}
-
-}
-
-@media(max-width:980px){
+@media(max-width:1100px){
 
 .hero{
 grid-template-columns:1fr;
 }
 
-.profile-card img{
-height:420px;
+.profile-card{
+margin-top:0;
 }
 
 .hero-content{
-min-height:650px;
-padding:50px 35px;
+margin-top:0;
+min-height:620px;
 }
 
 .hero-info h1{
-font-size:3rem;
+font-size:3.6rem;
 }
 
 }
@@ -348,27 +339,16 @@ font-size:3rem;
 @media(max-width:700px){
 
 nav{
-padding:14px 20px;
+height:auto;
+padding:16px 20px;
 flex-direction:column;
-gap:16px;
+gap:15px;
 }
 
 .menu{
 gap:18px;
 flex-wrap:wrap;
 justify-content:center;
-}
-
-.logo{
-align-items:flex-start;
-}
-
-.logo-text h1{
-font-size:1.05rem;
-}
-
-.logo-text p{
-font-size:0.8rem;
 }
 
 .hero{
@@ -378,21 +358,20 @@ gap:24px;
 
 .hero-content{
 padding:40px 24px;
-min-height:580px;
+min-height:560px;
 }
 
 .hero-info h1{
-font-size:2.2rem;
-line-height:1.08;
+font-size:2.3rem;
+line-height:1.05;
 }
 
 .hero-info p{
 font-size:0.95rem;
-line-height:1.8;
 }
 
 .profile-card img{
-height:340px;
+height:350px;
 }
 
 .hero-buttons{
@@ -407,7 +386,7 @@ text-align:center;
 .whatsapp{
 right:15px;
 bottom:15px;
-padding:14px 20px;
+padding:14px 22px;
 font-size:0.9rem;
 }
 
@@ -436,6 +415,7 @@ font-size:0.9rem;
 </div>
 
 <div class="menu">
+
 <a href="#">Início</a>
 <a href="#">Serviços</a>
 <a href="#">Projetos</a>
@@ -445,6 +425,7 @@ font-size:0.9rem;
 href="https://wa.me/5577981214968?text=Olá,%20preciso%20de%20um%20engenheiro">
 WhatsApp
 </a>
+
 </div>
 
 </nav>
@@ -453,7 +434,7 @@ WhatsApp
 
 <section class="hero">
 
-<!-- CARD ESQUERDO -->
+<!-- FOTO ESQUERDA -->
 
 <div class="profile-card">
 
@@ -482,11 +463,11 @@ Fiscalização Profissional de Obras
 </div>
 
 <div class="service-item">
-Inspeções e Vistorias Técnicas
+Inspeções Prediais e Vistorias
 </div>
 
 <div class="service-item">
-Auditorias e Diagnósticos Estruturais
+Auditorias Técnicas e Diagnósticos
 </div>
 
 <div class="service-item">
@@ -503,6 +484,8 @@ Projetos Arquitetônicos e Estruturais
 
 <div class="hero-content">
 
+<!-- CAROUSEL -->
+
 <div class="hero-carousel">
 
 <img src="imagens/projeto1.jpg" class="active" alt="">
@@ -515,7 +498,11 @@ Projetos Arquitetônicos e Estruturais
 
 </div>
 
+<!-- ESCURECIMENTO -->
+
 <div class="hero-overlay"></div>
+
+<!-- TEXTO -->
 
 <div class="hero-info">
 
