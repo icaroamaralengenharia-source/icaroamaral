@@ -16,8 +16,32 @@ box-sizing:border-box;
 body{
 margin:0;
 font-family:Arial, sans-serif;
-background:#071a35;
+background:
+linear-gradient(
+135deg,
+#03152b,
+#08264d,
+#0b35ba
+);
 color:white;
+min-height:100vh;
+}
+ .hero-bg{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:
+linear-gradient(
+rgba(3,21,43,0.85),
+rgba(3,21,43,0.92)
+),
+url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1974&auto=format&fit=crop');
+background-size:cover;
+background-position:center;
+z-index:-1;
+filter:blur(2px);
 }
 
 .container{
@@ -44,7 +68,8 @@ font-size:18px;
 }
 
 .card{
-background:white;
+background:rgba(255,255,255,0.96);
+backdrop-filter:blur(10px);
 color:#111;
 border-radius:20px;
 padding:35px;
@@ -140,15 +165,19 @@ font-size:32px;
 </head>
 
 <body>
+ <div class="hero-bg"></div>
 
 <div id="login" style="
-max-width:400px;
-margin:100px auto;
-background:white;
-padding:40px;
-border-radius:20px;
-box-shadow:0 10px 30px rgba(0,0,0,0.3);
+max-width:420px;
+margin:80px auto;
+background:rgba(255,255,255,0.96);
+backdrop-filter:blur(10px);
+padding:45px;
+border-radius:24px;
+box-shadow:0 15px 40px rgba(0,0,0,0.35);
+border:1px solid rgba(255,255,255,0.3);
 ">
+
 
 <h2 style="
 text-align:center;
@@ -416,7 +445,7 @@ color:#071a35;
 text-align:center;
 "
 >
-Realatório salvo com sucesso, Amaral Engenharia agradeçe!
+Relatório salvo com sucesso, Amaral Engenharia agradece!
 </p>
     
 
