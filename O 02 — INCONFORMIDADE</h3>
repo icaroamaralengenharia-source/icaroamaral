@@ -365,14 +365,7 @@ rows="5"
 </div>
  <div class="full">
 
-<label>Fotos da Inspeção</label>
 
-<input
-type="file"
-id="fotos"
-accept="image/*"
-multiple
->
 
 </div>
 
@@ -384,6 +377,13 @@ multiple
 <div class="inconformidade">
 
 <h3>RQO 01 — INCONFORMIDADE</h3>
+ <label>Foto da Inconformidade 01</label>
+
+<input
+type="file"
+id="foto1"
+accept="image/*"
+>
 
 
 
@@ -404,6 +404,19 @@ rows="4"
 <div class="inconformidade">
 
 <h3>RQO 02 — INCONFORMIDADE</h3>
+ <label>Foto da Inconformidade 03</label>
+
+<input
+type="file"
+id="foto3"
+accept="image/*"
+>
+
+<input
+type="file"
+id="foto2"
+accept="image/*"
+>
 
 
 
