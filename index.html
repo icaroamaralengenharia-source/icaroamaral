@@ -128,6 +128,15 @@ document.getElementById('meuForm')
 
 e.preventDefault();
 
+const form = document.getElementById('meuForm');
+
+const formData = new FormData(form);
+
+await fetch("https://script.google.com/macros/s/AKfycbwVEx_7Dm9xnqGqo7a1cFB5Mp8YS-NJ0DUyODq95PTDugL84VOcOxkyFbxWvDCpy8wgqQ/exec",{
+  method:"POST",
+  body:formData
+});
+
 alert("Relatório enviado com sucesso!");
 
 });
