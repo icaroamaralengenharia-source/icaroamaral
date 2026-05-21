@@ -473,9 +473,17 @@ var senha =
 document.getElementById("senha").value;
 
 if(
-usuario === "Ícaro Amaral"
+
+(usuario === "Ícaro Amaral"
 &&
-senha === "04544442575"
+senha === "04544442575")
+
+||
+
+(usuario === "Visitante"
+&&
+senha === "1234")
+
 ){
 
 document.getElementById(
@@ -493,6 +501,8 @@ document.getElementById(
 ).style.display = "block";
 
 }
+
+
 
 }
 
@@ -514,7 +524,7 @@ document.querySelector("form").reset();
 }
 
 </script>
- </div>
+
 </body>
  
 </html>
