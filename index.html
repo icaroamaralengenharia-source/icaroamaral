@@ -154,16 +154,12 @@ font-size:32px;
 Sistema de Relatório Técnico
 </h2>
 
-  <form
+ 
+ <form
 action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
 method="POST"
 target="hidden_iframe"
 onsubmit="mostrarMensagem()"
->
-  <form
-action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
-method="POST"
-target="_blank"
 >
 
 <div class="grid">
@@ -313,6 +309,7 @@ name="entry.1497874086"
 rows="4"
 ></textarea>
 
+
 <label>Inconformidade 02 - Solução Recomendada</label>
 <textarea
 name="entry.1789400349"
@@ -345,12 +342,12 @@ rows="4"
     <button type="submit">
 Enviar Relatório
 </button>
-    <p
+   <p
 id="mensagem-sucesso"
 style="
 display:none;
 margin-top:20px;
-font-size:20px;
+font-size:22px;
 font-weight:bold;
 color:green;
 text-align:center;
@@ -358,13 +355,14 @@ text-align:center;
 >
 Recebemos seu relatório, obrigado!
 </p>
+    
 
 </form>
 
 
 </div>
-
 </div>
+
 
 
 <iframe
@@ -389,6 +387,5 @@ document.querySelector("form").reset();
 }
 
 </script>
-
 </body>
 </html>
