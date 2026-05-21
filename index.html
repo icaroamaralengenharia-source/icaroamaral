@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -8,15 +9,19 @@
 
 <style>
 
+*{
+box-sizing:border-box;
+}
+
 body{
 margin:0;
-font-family:Arial;
+font-family:Arial, sans-serif;
 background:#071a35;
 color:white;
 }
 
 .container{
-max-width:800px;
+max-width:1100px;
 margin:auto;
 padding:40px 20px;
 }
@@ -35,50 +40,103 @@ color:#d4a63d;
 .logo p{
 margin-top:10px;
 color:#ccc;
+font-size:18px;
 }
 
 .card{
 background:white;
 color:#111;
 border-radius:20px;
-padding:30px;
-box-shadow:0 10px 30px rgba(0,0,0,0.3);
+padding:35px;
+margin-bottom:30px;
+box-shadow:0 10px 30px rgba(0,0,0,0.25);
 }
 
-h2{
+.section-title{
 margin-top:0;
+margin-bottom:30px;
+font-size:24px;
 color:#071a35;
+border-left:6px solid #d4a63d;
+padding-left:15px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
+}
+
+.full{
+grid-column:1 / -1;
+}
+
+label{
+display:block;
+font-weight:bold;
+margin-bottom:8px;
+margin-top:10px;
 }
 
 input,
-textarea{
+textarea,
+select{
 width:100%;
 padding:15px;
-margin-top:10px;
-margin-bottom:20px;
-border-radius:10px;
+border-radius:12px;
 border:1px solid #ccc;
-box-sizing:border-box;
 font-size:16px;
+}
+
+textarea{
+resize:vertical;
 }
 
 button{
 width:100%;
-padding:18px;
+padding:20px;
 border:none;
-border-radius:12px;
+border-radius:14px;
 background:#d4a63d;
 color:white;
-font-size:18px;
-cursor:pointer;
+font-size:20px;
 font-weight:bold;
+cursor:pointer;
+transition:0.3s;
 }
 
 button:hover{
 opacity:0.9;
+transform:scale(1.01);
+}
+
+.inconformidade{
+border:2px solid #eee;
+padding:25px;
+border-radius:18px;
+margin-bottom:25px;
+background:#fafafa;
+}
+
+.inconformidade h3{
+margin-top:0;
+color:#071a35;
+}
+
+@media(max-width:768px){
+
+.grid{
+grid-template-columns:1fr;
+}
+
+.logo h1{
+font-size:32px;
+}
+
 }
 
 </style>
+
 </head>
 
 <body>
@@ -87,29 +145,255 @@ opacity:0.9;
 
 <div class="logo">
 <h1>Ícaro Amaral Engenharia</h1>
-<p>Relatório de Qualidade de Obras</p>
+<p>Sistema Inteligente de Relatórios de Qualidade de Obras</p>
 </div>
-
-<div class="card">
-
-<h2>Nova Inspeção</h2>
 
 <form id="meuForm">
 
+<!-- DADOS DA OBRA -->
+
+<div class="card">
+
+<h2 class="section-title">
+Dados da Obra
+</h2>
+
+<div class="grid">
+
+<div>
 <label>Obra</label>
-<input type="text" name="obra" required>
+<input type="text" name="Obra" required>
+</div>
 
-<label>Descrição Técnica</label>
-<textarea name="descricao" rows="5"></textarea>
+<div>
+<label>Local</label>
+<input type="text" name="Local">
+</div>
 
-<label>Data da Vistoria</label>
-<input type="date" name="data">
+<div>
+<label>Data da vistoria</label>
+<input type="date" name="Data da vistoria">
+</div>
 
+<div>
 <label>Responsável Técnico</label>
-<input type="text" name="responsavel">
+<input type="text" name="Responsável Técnico">
+</div>
 
-<label>Fotos da Obra</label>
-<input type="file" name="fotos" multiple>
+<div>
+<label>Data de início da obra</label>
+<input type="date" name="Data de início da obra">
+</div>
+
+<div>
+<label>Link de câmeras</label>
+<input type="text" name="Link de câmeras">
+</div>
+
+</div>
+
+</div>
+
+<!-- INFORMAÇÕES TÉCNICAS -->
+
+<div class="card">
+
+<h2 class="section-title">
+Informações Técnicas
+</h2>
+
+<div class="grid">
+
+<div>
+<label>Tipo de obra</label>
+<select name="Tipo de obra">
+<option value="">Selecionar</option>
+<option>Residencial</option>
+<option>Comercial</option>
+<option>Industrial</option>
+<option>Infraestrutura</option>
+</select>
+</div>
+
+<div>
+<label>Avanço físico</label>
+<input type="text" name="Avanço físico">
+</div>
+
+<div>
+<label>Avanço financeiro</label>
+<input type="text" name="Avanço financeiro">
+</div>
+
+<div>
+<label>Funcionários em campo</label>
+<input type="text" name="Funcionários em campo">
+</div>
+
+<div>
+<label>Utilização de EPI's</label>
+<input type="text" name="Utilização de EPI's">
+</div>
+
+<div>
+<label>Controle do concreto</label>
+<input type="text" name="Controle do concreto">
+</div>
+
+<div class="full">
+<label>Observações</label>
+<textarea
+name="Observações"
+rows="5"></textarea>
+</div>
+
+</div>
+
+</div>
+
+<!-- INCONFORMIDADE 01 -->
+
+<div class="card inconformidade">
+
+<h2 class="section-title">
+RQO 01 — Inconformidade
+</h2>
+
+<div class="grid">
+
+<div class="full">
+<label>Inconformidade 01 - Foto</label>
+<input
+type="file"
+name="Inconformidade 01 - Foto"
+accept="image/*">
+</div>
+
+<div class="full">
+<label>Inconformidade 01 - Descrição Técnica</label>
+<textarea
+name="Inconformidade 01 - Descrição Técnica"
+rows="5"></textarea>
+</div>
+
+<div class="full">
+<label>Inconformidade 01 - Solução Recomendada</label>
+<textarea
+name="Inconformidade 01 - Solução Recomendada"
+rows="5"></textarea>
+</div>
+
+</div>
+
+</div>
+
+<!-- INCONFORMIDADE 02 -->
+
+<div class="card inconformidade">
+
+<h2 class="section-title">
+RQO 02 — Inconformidade
+</h2>
+
+<div class="grid">
+
+<div class="full">
+<label>Inconformidade 02 - Foto</label>
+<input
+type="file"
+name="Inconformidade 02 - Foto"
+accept="image/*">
+</div>
+
+<div class="full">
+<label>Inconformidade 02 - Descrição Técnica</label>
+<textarea
+name="Inconformidade 02 - Descrição Técnica"
+rows="5"></textarea>
+</div>
+
+<div class="full">
+<label>Inconformidade 02 - Solução Recomendada</label>
+<textarea
+name="Inconformidade 02 - Solução Recomendada"
+rows="5"></textarea>
+</div>
+
+</div>
+
+</div>
+
+<!-- INCONFORMIDADE 03 -->
+
+<div class="card inconformidade">
+
+<h2 class="section-title">
+RQO 03 — Inconformidade
+</h2>
+
+<div class="grid">
+
+<div class="full">
+<label>Inconformidade 03 - Foto</label>
+<input
+type="file"
+name="Inconformidade 03 - Foto"
+accept="image/*">
+</div>
+
+<div class="full">
+<label>Inconformidade 03 - Descrição Técnica</label>
+<textarea
+name="Inconformidade 03 - Descrição Técnica"
+rows="5"></textarea>
+</div>
+
+<div class="full">
+<label>Inconformidade 03 - Solução Recomendada</label>
+<textarea
+name="Inconformidade 03 - Solução Recomendada"
+rows="5"></textarea>
+</div>
+
+</div>
+
+</div>
+
+<!-- INCONFORMIDADE 04 -->
+
+<div class="card inconformidade">
+
+<h2 class="section-title">
+RQO 04 — Inconformidade
+</h2>
+
+<div class="grid">
+
+<div class="full">
+<label>Inconformidade 04 - Foto</label>
+<input
+type="file"
+name="Inconformidade 04 - Foto"
+accept="image/*">
+</div>
+
+<div class="full">
+<label>Inconformidade 04 - Descrição Técnica</label>
+<textarea
+name="Inconformidade 04 - Descrição Técnica"
+rows="5"></textarea>
+</div>
+
+<div class="full">
+<label>Inconformidade 04 - Solução Recomendada</label>
+<textarea
+name="Inconformidade 04 - Solução Recomendada"
+rows="5"></textarea>
+</div>
+
+</div>
+
+</div>
 
 <button type="submit">
 Enviar Relatório
@@ -119,25 +403,58 @@ Enviar Relatório
 
 </div>
 
-</div>
-
 <script>
 
-document.getElementById('meuForm')
-.addEventListener('submit', async function(e){
+document
+.getElementById("meuForm")
+.addEventListener("submit", async function(e){
 
 e.preventDefault();
 
-const form = document.getElementById('meuForm');
+const botao =
+document.querySelector("button");
 
-const formData = new FormData(form);
+botao.innerText =
+"Enviando relatório...";
 
-await fetch("https://script.google.com/macros/s/AKfycbyRssWgAboK00hVrk2Uqgk2uJpdj7JoAkT0CnoP3ULTj61mtBOyiVJo7wvp2nwf23_B0A/exec",{
-  method:"POST",
-  body:formData
-});
+botao.disabled = true;
 
-alert("Relatório enviado com sucesso!");
+try{
+
+const form =
+document.getElementById("meuForm");
+
+const formData =
+new FormData(form);
+
+await fetch(
+"https://script.google.com/macros/s/AKfycbyRssWgAboK00hVrk2Uqgk2uJpdj7JoAkT0CnoP3ULTj61mtBOyiVJo7wvp2nwf23_B0A/exec",
+{
+method:"POST",
+body:formData
+}
+);
+
+alert(
+"Relatório enviado com sucesso!"
+);
+
+form.reset();
+
+}catch(erro){
+
+console.error(erro);
+
+alert(
+"Erro ao enviar relatório."
+);
+
+}
+
+botao.innerText =
+"Enviar Relatório";
+
+botao.disabled = false;
 
 });
 
