@@ -141,6 +141,69 @@ font-size:32px;
 
 <body>
 
+<div id="login" style="
+max-width:400px;
+margin:100px auto;
+background:white;
+padding:40px;
+border-radius:20px;
+box-shadow:0 10px 30px rgba(0,0,0,0.3);
+">
+
+<h2 style="
+text-align:center;
+color:#071a35;
+margin-bottom:30px;
+">
+Área Restrita
+</h2>
+
+<input
+type="text"
+id="usuario"
+placeholder="Usuário"
+style="
+width:100%;
+padding:15px;
+margin-bottom:20px;
+border-radius:12px;
+border:1px solid #ccc;
+"
+>
+
+<input
+type="password"
+id="senha"
+placeholder="Senha"
+style="
+width:100%;
+padding:15px;
+margin-bottom:20px;
+border-radius:12px;
+border:1px solid #ccc;
+"
+>
+
+<button onclick="fazerLogin()">
+Entrar
+</button>
+
+<p
+id="erro-login"
+style="
+display:none;
+color:red;
+text-align:center;
+margin-top:15px;
+"
+>
+Usuário ou senha incorretos
+</p>
+
+</div>
+
+<div id="sistema" style="display:none;">
+
 <div class="container">
 
 <div class="logo">
@@ -372,6 +435,41 @@ style="display:none;">
 
 <script>
 
+function fazerLogin(){
+
+var usuario =
+document.getElementById("usuario").value;
+
+var senha =
+document.getElementById("senha").value;
+
+if(
+usuario === "Ícaro Amaral"
+&&
+senha === "04544442575"
+){
+
+document.getElementById(
+"login"
+).style.display = "none";
+
+document.getElementById(
+"sistema"
+).style.display = "block";
+
+}else{
+
+document.getElementById(
+"erro-login"
+).style.display = "block";
+
+}
+
+}
+
+</script>
+ <script>
+
 function mostrarMensagem(){
 
 setTimeout(function(){
@@ -387,5 +485,7 @@ document.querySelector("form").reset();
 }
 
 </script>
+ </div>
 </body>
+ 
 </html>
