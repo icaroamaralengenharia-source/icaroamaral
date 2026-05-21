@@ -156,7 +156,7 @@ Sistema de Relatório Técnico
   <form
 action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
 method="POST"
-target="_blank"
+target="hidden_iframe"
 >
 
 <div class="grid">
@@ -212,9 +212,9 @@ name="entry.866299979"
 
 <div>
 <label>Tipo de obra</label>
-<select name="entry.XXXXXXXX">
+<select name="entry.1175664792">
 <option value="">Escolher</option>
-<option>Residencial</option>
+<option>Residencial - Construção</option>
 <option>Comercial</option>
 <option>Industrial</option>
 <option>Infraestrutura</option>
@@ -225,7 +225,7 @@ name="entry.866299979"
 <label>Avanço físico</label>
 <input
 type="text"
-name="entry.XXXXXXXX"
+name="entry.1276325607"
 >
 </div>
 
@@ -233,7 +233,7 @@ name="entry.XXXXXXXX"
 <label>Avanço financeiro</label>
 <input
 type="text"
-name="entry.XXXXXXXX"
+name="entry.988061566"
 >
 </div>
 
@@ -241,7 +241,7 @@ name="entry.XXXXXXXX"
 <label>Funcionários em campo</label>
 <input
 type="text"
-name="entry.XXXXXXXX"
+name="entry.1104162433"
 >
 </div>
 
@@ -249,7 +249,7 @@ name="entry.XXXXXXXX"
 <label>Utilização EPI</label>
 <input
 type="text"
-name="entry.XXXXXXXX"
+name="entry.498519601"
 >
 </div>
 
@@ -257,14 +257,14 @@ name="entry.XXXXXXXX"
 <label>Controle do concreto</label>
 <input
 type="text"
-name="entry.XXXXXXXX"
+name="entry.1455883528"
 >
 </div>
 
 <div class="full">
 <label>Observações</label>
 <textarea
-name="entry.XXXXXXXX"
+name="entry.1497874086"
 rows="5"
 ></textarea>
 </div>
@@ -279,7 +279,7 @@ rows="5"
 <h3>RQO 01 — INCONFORMIDADE</h3>
 
 <label>Inconformidade 01 - Foto</label>
-<input type="file">
+<!-- upload de imagem em desenvolvimento -->
 
 <label>Inconformidade 01 - Descrição Técnica</label>
 <textarea rows="4"></textarea>
@@ -294,7 +294,7 @@ rows="5"
 <h3>RQO 02 — INCONFORMIDADE</h3>
 
 <label>Inconformidade 02 - Foto</label>
-<input type="file">
+<!-- upload de imagem em desenvolvimento -->
 
 <label>Inconformidade 02 - Descrição Técnica</label>
 <textarea rows="4"></textarea>
@@ -309,7 +309,7 @@ rows="5"
 <h3>RQO 03 — INCONFORMIDADE</h3>
 
 <label>Inconformidade 03 - Foto</label>
-<input type="file">
+<!-- upload de imagem em desenvolvimento -->
 
 <label>Inconformidade 03 - Descrição Técnica</label>
 <textarea rows="4"></textarea>
@@ -332,6 +332,9 @@ Enviar Relatório
 </div>
 
 
-
+<iframe
+name="hidden_iframe"
+style="display:none;">
+</iframe>
 </body>
 </html>
