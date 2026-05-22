@@ -259,9 +259,7 @@ onsubmit="return enviarFormulario(event)"
 
 <input type="hidden" name="entry.1060681515" id="linkFoto3">
 
-<input type="hidden" name="entry.732513546" id="linkFoto4">
 
-<input type="hidden" name="entry.1691715489" id="linkFoto5">
 
 <div class="grid">
 
@@ -391,7 +389,7 @@ rows="5"
 <input
 type="file"
 id="foto1"
-accept="image/*"
+accept=".jpg,.jpeg,.png,.webp"
 >
 
 
@@ -420,7 +418,7 @@ rows="4"
 <input
 type="file"
 id="foto2"
-accept="image/*"
+accept=".jpg,.jpeg,.png,.webp"
 >
 
 
@@ -557,7 +555,7 @@ document.getElementById(
  <script>
 
 const WEBAPP_URL =
-"https://script.google.com/macros/s/AKfycbw1-WqKPxdnjp-jKbF8I359ouWzukCxV-2HRG8uGAt5hVL_3-Ms3ab-363Gzw8ySjVYxw/exec";
+"https://script.google.com/macros/s/AKfycbyED5VMDRDVBzsmu9n0P_FIjPKjAwfPtuFN1RT8MGmG4lW8AJS6zm8PYov29SoZxnm5uA/exec";
 
 async function uploadImagem(inputId){
 
@@ -569,6 +567,15 @@ async function uploadImagem(inputId){
 
   const arquivo =
     input.files[0];
+ if(arquivo.size > 8 * 1024 * 1024){
+
+  alert(
+    "Imagem muito grande. Máximo 8MB."
+  );
+
+  return "";
+
+}
 
   const base64 =
     await converterBase64(arquivo);
@@ -579,10 +586,14 @@ const resposta =
     {
       method: "POST",
 
-     
-     
+      headers:{
+        "Content-Type":
+        "application/json"
+      },
 
       body: JSON.stringify({
+
+       
 
         nomeArquivo:
           arquivo.name,
@@ -610,8 +621,14 @@ const link =
 console.log(link);
 
 if(
-  link.includes("ERRO")
+  !link.startsWith("https")
 ){
+
+  throw new Error(
+    "Upload inválido"
+  );
+
+}
 
   throw new Error(link);
 
@@ -668,9 +685,7 @@ await uploadImagem("foto2");
 const foto3 =
 await uploadImagem("foto3");
 
-const foto4 = "";
 
-const foto5 = "";
 
 document.getElementById(
 "linkFoto1"
@@ -684,13 +699,11 @@ document.getElementById(
 "linkFoto3"
 ).value = foto3;
 
-document.getElementById(
-"linkFoto4"
-).value = foto4;
 
-document.getElementById(
-"linkFoto5"
-).value = foto5;
+
+await new Promise(
+  resolve => setTimeout(resolve,1000)
+);
 
 event.target.submit();
 
