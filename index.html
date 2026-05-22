@@ -447,7 +447,7 @@ rows="4"
 <input
 type="file"
 id="foto3"
-accept="image/*"
+accept=".jpg,.jpeg,.png,.webp"
 >
 
 
@@ -620,17 +620,14 @@ const link =
 
 console.log(link);
 
-if(
+
+ if(
   !link.startsWith("https")
 ){
 
   throw new Error(
     "Upload inválido"
   );
-
-}
-
-  throw new Error(link);
 
 }
 
