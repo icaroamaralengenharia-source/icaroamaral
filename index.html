@@ -557,7 +557,7 @@ document.getElementById(
  <script>
 
 const WEBAPP_URL =
-"https://script.google.com/macros/s/AKfycbxc7Mm9BmXENl0L6Ox4290eVTSFa35MB_UXiNjQS31RpkjeVQisgLZAUDaz5mvXy01Yow/exec";
+"https://script.google.com/macros/s/AKfycbwIpD-3kW2ssEQbKCAyz2OBsTxZ-nl2XdAaSfUCI-RVacglv6ui9IhUT3b4N-Gb3eToWQ/exec";
 
 async function uploadImagem(inputId){
 
@@ -577,10 +577,10 @@ const resposta =
   await fetch(
     WEBAPP_URL,
     {
-      method:"POST",
+      method: "POST",
 
-      headers:{
-        "Content-Type":"application/json"
+      headers: {
+        "Content-Type": "application/json"
       },
 
       body: JSON.stringify({
@@ -596,10 +596,29 @@ const resposta =
     }
   );
 
-  const link =
-    await resposta.text();
+if(!resposta.ok){
 
-  return link;
+  throw new Error(
+    "Erro HTTP: " +
+    resposta.status
+  );
+
+}
+
+const link =
+  await resposta.text();
+
+console.log(link);
+
+if(
+  link.includes("ERRO")
+){
+
+  throw new Error(link);
+
+}
+
+return link;
 
 }
 
