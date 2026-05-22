@@ -251,7 +251,7 @@ Sistema de Relatório Técnico
 action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
 method="POST"
 target="hidden_iframe"
-onsubmit="enviarFormulario(event)"
+onsubmit="return enviarFormulario(event)"
 >
   <input type="hidden" name="entry.1462901347" id="linkFoto1">
 
@@ -470,7 +470,10 @@ rows="4"
 </div>
 
 </div>
-    <button type="submit">
+  <button
+type="submit"
+id="btnEnviar"
+>
 Enviar Relatório
 </button>
    <p
@@ -546,23 +549,9 @@ document.getElementById(
 }
 
 </script>
- <script>
 
-function mostrarMensagem(){
 
-setTimeout(function(){
 
-document.getElementById(
-"mensagem-sucesso"
-).style.display = "block";
-
-document.querySelector("form").reset();
-
-},1000);
-
-}
-
-</script>
 
 
  <script>
@@ -629,8 +618,8 @@ async function enviarFormulario(event){
 event.preventDefault();
 
 const botao =
-document.querySelector(
-'button[type="submit"]'
+document.getElementById(
+"btnEnviar"
 );
 
 botao.innerHTML =
@@ -646,10 +635,10 @@ await uploadImagem("foto1");
 const foto2 =
 await uploadImagem("foto2");
 
-const foto3 = "";
-
 const foto3 =
 await uploadImagem("foto3");
+
+const foto4 = "";
 
 const foto5 = "";
 
@@ -681,6 +670,10 @@ document.getElementById(
 "mensagem-sucesso"
 ).style.display = "block";
 
+alert(
+"Relatório enviado com sucesso!"
+);
+
 document.querySelector(
 "form"
 ).reset();
@@ -690,8 +683,7 @@ botao.innerHTML =
 
 botao.disabled = false;
 
-},2000);
-
+},1500);
 }catch(erro){
 
 alert(
@@ -706,6 +698,7 @@ botao.innerHTML =
 botao.disabled = false;
 
 }
+ return false;
 
 }
 
