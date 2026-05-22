@@ -251,8 +251,17 @@ Sistema de Relatório Técnico
 action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
 method="POST"
 target="hidden_iframe"
-onsubmit="mostrarMensagem()"
+onsubmit="enviarFormulario(event)"
 >
+  <input type="hidden" name="entry.1462901347" id="linkFoto1">
+
+<input type="hidden" name="entry.1688075078" id="linkFoto2">
+
+<input type="hidden" name="entry.1060681515" id="linkFoto3">
+
+<input type="hidden" name="entry.732513546" id="linkFoto4">
+
+<input type="hidden" name="entry.1691715489" id="linkFoto5">
 
 <div class="grid">
 
@@ -404,13 +413,9 @@ rows="4"
 <div class="inconformidade">
 
 <h3>RQO 02 — INCONFORMIDADE</h3>
- <label>Foto da Inconformidade 03</label>
+<label>Foto da Inconformidade 02</label>
 
-<input
-type="file"
-id="foto3"
-accept="image/*"
->
+
 
 <input
 type="file"
@@ -422,7 +427,7 @@ accept="image/*"
 
 <label>Inconformidade 02 - Descrição Técnica</label>
 <textarea
-name="entry.1497874086"
+name="entry.884866882"
 rows="4"
 ></textarea>
 
@@ -438,7 +443,8 @@ rows="4"
 <div class="inconformidade">
 
 <h3>RQO 03 — INCONFORMIDADE</h3>
-<label>Foto da Inconformidade 04</label>
+
+<label>Foto da Inconformidade 03</label>
 
 <input
 type="file"
@@ -446,11 +452,7 @@ id="foto4"
 accept="image/*"
 >
 
-<input
-type="file"
-id="foto5"
-accept="image/*"
->
+
 
 
 <label>Inconformidade 03 - Descrição Técnica</label>
@@ -562,6 +564,151 @@ document.querySelector("form").reset();
 
 </script>
 
-</body>
- 
+
+ <script>
+
+const WEBAPP_URL =
+"https://script.google.com/macros/s/AKfycbw0PFNThofGklUF2DHOLs5ok8NZ6QIP-pJbA_j6mdvv3VQ577Q4xko8tZeBQ6vtMITnvQ/exec";
+
+async function uploadImagem(inputId){
+
+  const input =
+    document.getElementById(inputId);
+
+  if(!input.files.length)
+    return "";
+
+  const arquivo =
+    input.files[0];
+
+  const base64 =
+    await converterBase64(arquivo);
+
+  const resposta =
+    await fetch(
+      WEBAPP_URL,
+      {
+        method:"POST",
+        body:new URLSearchParams({
+          foto: base64.split(",")[1]
+        })
+      }
+    );
+
+  const link =
+    await resposta.text();
+
+  return link;
+
+}
+
+function converterBase64(file){
+
+  return new Promise((resolve,reject)=>{
+
+    const leitor =
+      new FileReader();
+
+    leitor.readAsDataURL(file);
+
+    leitor.onload =
+      ()=> resolve(leitor.result);
+
+    leitor.onerror =
+      erro => reject(erro);
+
+  });
+
+}
+
+</script>
+ <script>
+
+async function enviarFormulario(event){
+
+event.preventDefault();
+
+const botao =
+document.querySelector(
+'button[type="submit"]'
+);
+
+botao.innerHTML =
+"Enviando imagens...";
+
+botao.disabled = true;
+
+try{
+
+const foto1 =
+await uploadImagem("foto1");
+
+const foto2 =
+await uploadImagem("foto2");
+
+const foto3 = "";
+
+const foto4 =
+await uploadImagem("foto4");
+
+const foto5 = "";
+
+document.getElementById(
+"linkFoto1"
+).value = foto1;
+
+document.getElementById(
+"linkFoto2"
+).value = foto2;
+
+document.getElementById(
+"linkFoto3"
+).value = foto3;
+
+document.getElementById(
+"linkFoto4"
+).value = foto4;
+
+document.getElementById(
+"linkFoto5"
+).value = foto5;
+
+event.target.submit();
+
+setTimeout(function(){
+
+document.getElementById(
+"mensagem-sucesso"
+).style.display = "block";
+
+document.querySelector(
+"form"
+).reset();
+
+botao.innerHTML =
+"Enviar Relatório";
+
+botao.disabled = false;
+
+},2000);
+
+}catch(erro){
+
+alert(
+"Erro ao enviar imagens"
+);
+
+console.log(erro);
+
+botao.innerHTML =
+"Enviar Relatório";
+
+botao.disabled = false;
+
+}
+
+}
+
+</script>
+ </body>
 </html>
