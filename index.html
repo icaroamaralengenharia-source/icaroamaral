@@ -608,8 +608,21 @@ if(!resposta.ok){
 
 }
 
+const json =
+  await resposta.json();
+
+console.log(json);
+
+if(!json.success){
+
+  throw new Error(
+    json.erro
+  );
+
+}
+
 const link =
-  await resposta.text();
+  json.link;
 
 console.log(link);
 
