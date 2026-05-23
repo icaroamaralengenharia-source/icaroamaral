@@ -580,21 +580,16 @@ async function uploadImagem(inputId){
   const base64 =
     await converterBase64(arquivo);
 
-const resposta =
+cconst resposta =
   await fetch(
     WEBAPP_URL,
     {
       method: "POST",
       mode: "no-cors",
 
-      body: JSON.stringify({{
-
-        nomeArquivo:
-          arquivo.name,
-
-        base64:
-          base64.split(",")[1]
-
+      body: JSON.stringify({
+        nomeArquivo: arquivo.name,
+        base64: base64.split(",")[1]
       })
 
     }
