@@ -585,8 +585,9 @@ const resposta =
     WEBAPP_URL,
     {
       method: "POST",
+      mode: "no-cors",
 
-      body: JSON.stringify({
+      body: JSON.stringify({{
 
         nomeArquivo:
           arquivo.name,
@@ -599,45 +600,9 @@ const resposta =
     }
   );
 
-if(!resposta.ok){
+console.log("Upload enviado");
 
-  throw new Error(
-    "Erro HTTP: " +
-    resposta.status
-  );
-
-}
-
-const json =
-  await resposta.json();
-
-console.log(json);
-
-if(!json.success){
-
-  throw new Error(
-    json.erro
-  );
-
-}
-
-const link =
-  json.link;
-
-console.log(link);
-
-
- if(
-  !link.startsWith("https")
-){
-
-  throw new Error(
-    "Upload inválido"
-  );
-
-}
-
-return link;
+return "UPLOAD_OK";
 
 }
 
