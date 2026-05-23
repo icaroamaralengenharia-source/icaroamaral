@@ -555,7 +555,7 @@ document.getElementById(
  <script>
 
 const WEBAPP_URL =
-"https://script.google.com/macros/s/AKfycbx__JYKOhm8kZkDY19FMGRplvZNXp81P0kPGryQN48N6vElrDau0TOI8RR4KjykQK2qig/exec";
+"https://script.google.com/macros/s/AKfycbyvTcrXp7f-pa1iPANHBzFELfNvcdQ3HfTXSe-vCws1l3mL7_y6FHiu5-rHs07UDRInaQ/exec";
 
 async function uploadImagem(inputId){
 
@@ -579,26 +579,26 @@ async function uploadImagem(inputId){
 
   const base64 =
     await converterBase64(arquivo);
-
 const resposta =
-  await fetch(
-    WEBAPP_URL,
-    {
-      method: "POST",
-      mode: "no-cors",
+await fetch(
+  WEBAPP_URL,
+  {
+    method: "POST",
 
-      body: JSON.stringify({
-        nomeArquivo: arquivo.name,
-        base64: base64.split(",")[1]
-      })
+    body: JSON.stringify({
+      nomeArquivo: arquivo.name,
+      base64: base64.split(",")[1]
+    })
 
-    }
-  );
+  }
+);
 
-console.log("Upload enviado");
+const link =
+await resposta.text();
 
-return "UPLOAD_OK";
+console.log(link);
 
+return link;
 }
 
 function converterBase64(file){
