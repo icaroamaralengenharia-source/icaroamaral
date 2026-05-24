@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="720" viewBox="0 0 520 720" role="img" aria-labelledby="title desc">
+  <title id="title">Capa do ebook Filhos Fortes</title>
+  <desc id="desc">Capa editorial azul escura e dourada do ebook Filhos Fortes</desc>
+  <defs>
+    <linearGradient id="cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#142b40"/>
+      <stop offset="0.55" stop-color="#0e2032"/>
+      <stop offset="1" stop-color="#102336"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1dca2"/>
+      <stop offset="1" stop-color="#b99349"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#07111d" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="44" y="28" width="432" height="664" rx="10" fill="#07111d" opacity=".22"/>
+  <rect x="34" y="18" width="432" height="664" rx="10" fill="url(#cover)" filter="url(#shadow)"/>
+  <path d="M86 80h328" stroke="#d8b56d" stroke-width="2"/>
+  <path d="M86 628h328" stroke="#d8b56d" stroke-width="2"/>
+  <text x="86" y="134" fill="#f5efe3" font-family="Georgia, 'Times New Roman', serif" font-size="24" letter-spacing="2">ÍCARO AMARAL</text>
+  <text x="86" y="286" fill="#f8f2e8" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="700">Filhos</text>
+  <text x="86" y="368" fill="#f8f2e8" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="700">Fortes</text>
+  <text x="88" y="430" fill="#d8b56d" font-family="Inter, Arial, sans-serif" font-size="24">A infância não precisa ser perfeita.</text>
+  <text x="88" y="466" fill="#d8b56d" font-family="Inter, Arial, sans-serif" font-size="24">Precisa formar.</text>
+  <circle cx="250" cy="548" r="64" fill="none" stroke="url(#gold)" stroke-width="3"/>
+  <path d="M219 559c18-54 45-54 63 0" fill="none" stroke="#f3dfaa" stroke-width="7" stroke-linecap="round"/>
+  <path d="M207 544c20-32 67-32 87 0" fill="none" stroke="#f3dfaa" stroke-width="4" stroke-linecap="round" opacity=".72"/>
+</svg>
