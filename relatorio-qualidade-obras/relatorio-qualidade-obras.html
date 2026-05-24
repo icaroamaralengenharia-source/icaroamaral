@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ícaro Amaral Engenharia - Relatório Técnico</title>
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="brand-header">
+      <h1>Ícaro Amaral Engenharia</h1>
+      <p>Sistema Inteligente de Relatórios de Qualidade de Obras</p>
+    </header>
+
+    <section class="form-panel" aria-labelledby="form-title">
+      <div class="section-title">
+        <span></span>
+        <h2 id="form-title">Sistema de Relatório Técnico</h2>
+      </div>
+
+      <form id="qualityReportForm" class="report-form">
+        <div class="field-grid">
+          <label>
+            Obra
+            <input name="obra" type="text" required>
+          </label>
+
+          <label>
+            Data da vistoria
+            <input name="dataVistoria" type="date" required>
+          </label>
+
+          <label>
+            Responsável Técnico
+            <input name="responsavelTecnico" type="text" required>
+          </label>
+
+          <label>
+            Local
+            <input name="local" type="text" required>
+          </label>
+
+          <label>
+            Data de início da obra
+            <input name="dataInicioObra" type="date">
+          </label>
+
+          <label>
+            Link de câmeras
+            <input name="linkCameras" type="url" placeholder="">
+          </label>
+
+          <label>
+            Tipo de obra
+            <select name="tipoObra" required>
+              <option value="">Escolher</option>
+              <option value="Residencial">Residencial</option>
+              <option value="Comercial">Comercial</option>
+              <option value="Industrial">Industrial</option>
+              <option value="Infraestrutura">Infraestrutura</option>
+              <option value="Reforma">Reforma</option>
+            </select>
+          </label>
+
+          <label>
+            Avanço físico
+            <input name="avancoFisico" type="text" placeholder="">
+          </label>
+
+          <label>
+            Avanço financeiro
+            <input name="avancoFinanceiro" type="text" placeholder="">
+          </label>
+
+          <label>
+            Funcionários em campo
+            <input name="funcionariosCampo" type="text" inputmode="numeric">
+          </label>
+
+          <label>
+            Utilização EPI
+            <input name="utilizacaoEpi" type="text">
+          </label>
+
+          <label>
+            Controle do concreto
+            <input name="controleConcreto" type="text">
+          </label>
+        </div>
+
+        <label class="full-width">
+          Observações
+          <textarea name="observacoes" rows="5"></textarea>
+        </label>
+
+        <div id="inconformidades" class="nonconformities" aria-live="polite"></div>
+
+        <label class="full-width">
+          E-mail para envio do PDF
+          <input name="emailDestino" type="email" required>
+        </label>
+
+        <button id="submitButton" type="submit" class="send-button">Enviar Relatório</button>
+        <output id="formLog" class="form-log" role="status" aria-live="polite"></output>
+      </form>
+    </section>
+  </main>
+
+  <script src="./relatorio-config.js"></script>
+  <script src="./relatorio-qualidade-obras.js"></script>
+</body>
+</html>
