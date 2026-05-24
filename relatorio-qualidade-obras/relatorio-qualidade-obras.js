@@ -7,7 +7,7 @@
   const log = document.getElementById("formLog");
   const submitButton = document.getElementById("submitButton");
   const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-  const maxInconformidades = config.maxInconformidades || 12;
+  const maxInconformidades = config.maxInconformidades || 20;
 
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
