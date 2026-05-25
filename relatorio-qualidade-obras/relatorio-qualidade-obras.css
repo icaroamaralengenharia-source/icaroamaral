@@ -123,6 +123,212 @@ body {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
 }
 
+.auth-panel,
+.saas-panel {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: 28px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.auth-panel {
+  width: min(100%, 720px);
+}
+
+.auth-form,
+.entity-form {
+  display: grid;
+  gap: 18px;
+}
+
+.auth-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.app-topbar,
+.report-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+}
+
+.app-topbar h2 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.45rem;
+}
+
+.session-box,
+.context-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-box strong,
+.report-context-bar strong {
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.compact {
+  width: auto;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 0.86rem;
+}
+
+.saas-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.saas-tabs button {
+  min-height: 42px;
+  border: 1px solid #dbe0e7;
+  border-radius: 8px;
+  color: var(--navy);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.saas-tabs button.active {
+  border-color: rgba(216, 171, 56, 0.75);
+  background: rgba(216, 171, 56, 0.16);
+}
+
+.route-panel {
+  display: none;
+  gap: 18px;
+}
+
+.route-panel.active {
+  display: grid;
+}
+
+.saas-metrics {
+  margin-bottom: 0;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+}
+
+.workspace-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+}
+
+.workspace-card h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.12rem;
+}
+
+.flow-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-list li {
+  padding: 12px;
+  color: var(--navy);
+  background: #f8fafc;
+  border: 1px solid #e1e5ea;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.entity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.entity-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e1e5ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.entity-item strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.98rem;
+}
+
+.entity-item span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.entity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.mini-button {
+  min-height: 34px;
+  border: 1px solid #cfd7df;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--navy);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.mini-button.primary {
+  border-color: rgba(216, 171, 56, 0.75);
+  background: rgba(216, 171, 56, 0.18);
+}
+
+.empty-list {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.report-context-bar {
+  margin-bottom: 22px;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -532,12 +738,47 @@ textarea:focus {
     padding: 18px 12px;
   }
 
+  .auth-panel,
+  .saas-panel {
+    padding: 18px 12px;
+  }
+
   .home-panel {
     padding: 24px 18px;
   }
 
-  .primary-action {
+  .primary-action,
+  .compact {
     width: 100%;
+  }
+
+  .app-topbar,
+  .report-context-bar,
+  .session-box,
+  .context-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .saas-tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dashboard-grid,
+  .entity-item {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-actions {
+    justify-content: stretch;
+  }
+
+  .entity-actions .mini-button {
+    flex: 1;
+  }
+
+  .flow-list {
+    grid-template-columns: 1fr;
   }
 
   .field-grid {

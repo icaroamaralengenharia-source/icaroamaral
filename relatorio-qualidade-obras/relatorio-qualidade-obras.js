@@ -4,8 +4,29 @@
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
   const form = document.getElementById("qualityReportForm");
   const homePanel = document.getElementById("homePanel");
+  const loginPanel = document.getElementById("loginPanel");
+  const dashboardPanel = document.getElementById("dashboardPanel");
   const reportPanel = document.getElementById("reportPanel");
   const openReportButton = document.getElementById("openReportButton");
+  const loginForm = document.getElementById("loginForm");
+  const logoutButton = document.getElementById("logoutButton");
+  const userBadge = document.getElementById("userBadge");
+  const clientForm = document.getElementById("clientForm");
+  const clientsList = document.getElementById("clientsList");
+  const workForm = document.getElementById("workForm");
+  const workClientSelect = document.getElementById("workClientSelect");
+  const worksList = document.getElementById("worksList");
+  const reportCreateForm = document.getElementById("reportCreateForm");
+  const reportClientSelect = document.getElementById("reportClientSelect");
+  const reportWorkSelect = document.getElementById("reportWorkSelect");
+  const reportsList = document.getElementById("reportsList");
+  const recentReportsList = document.getElementById("recentReportsList");
+  const clientMetric = document.getElementById("clientMetric");
+  const workMetric = document.getElementById("workMetric");
+  const reportMetric = document.getElementById("reportMetric");
+  const currentReportLabel = document.getElementById("currentReportLabel");
+  const saveReportButton = document.getElementById("saveReportButton");
+  const backToDashboardButton = document.getElementById("backToDashboardButton");
   const fotosUnidadeContainer = document.getElementById("fotosUnidade");
   const inconformidadesContainer = document.getElementById("inconformidades");
   const log = document.getElementById("formLog");
@@ -20,13 +41,19 @@
   const stepOrder = ["dados", "fotos", "inconformidades", "revisao", "gerar"];
   const stepPanels = Array.from(document.querySelectorAll("[data-step]"));
   const stepButtons = Array.from(document.querySelectorAll("[data-step-target]"));
+  const routePanels = Array.from(document.querySelectorAll("[data-route]"));
+  const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
   const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
   const allowedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
   const heicExtensions = new Set(["heic", "heif"]);
   const maxFotosUnidade = config.maxFotosUnidade || 20;
   const maxInconformidades = config.maxInconformidades || 20;
-  const draftId = "relatorio-fiscalizacao-draft-v2";
+  const defaultDraftId = "relatorio-fiscalizacao-draft-v2";
+  const saasStoreKey = "obrareport-saas-v1";
   const imageCache = new Map();
+  let appState = loadAppState_();
+  let currentUser = getCurrentUser_();
+  let activeReportId = null;
   let draftSaveTimer = null;
   let imageProcessingQueue = Promise.resolve();
 
@@ -39,15 +66,16 @@
   renderInconformidadeFields();
   initializeWizard_();
   initializeDraft_();
+  initializeSaas_();
 
   if (openReportButton && homePanel && reportPanel) {
     openReportButton.addEventListener("click", function () {
-      showReportPanel_();
-      const firstInput = form.querySelector("input, select, textarea");
-
-      if (firstInput) {
-        firstInput.focus();
+      if (currentUser) {
+        showDashboardPanel_("dashboard");
+        return;
       }
+
+      showLoginPanel_();
     });
   }
 
@@ -123,15 +151,21 @@
         throw new Error(result.error || "Falha ao gerar relatório.");
       }
 
+      saveActiveReportExport_(result.pdfUrl, payload);
       setGenerationStatus_("Relatório gerado com sucesso.");
       setLog("Relatório enviado com sucesso. PDF: " + result.pdfUrl, "success");
-      form.reset();
-      imageCache.clear();
-      clearAllImagePreviews_();
-      await clearDraft_();
 
-      if (todayInput) {
-        todayInput.valueAsDate = new Date();
+      if (!activeReportId) {
+        form.reset();
+        imageCache.clear();
+        clearAllImagePreviews_();
+        await clearDraft_();
+
+        if (todayInput) {
+          todayInput.valueAsDate = new Date();
+        }
+      } else {
+        await saveDraft_();
       }
     } catch (error) {
       console.error(error);
@@ -212,9 +246,728 @@
     return String(value || "").trim();
   }
 
+  function initializeSaas_() {
+    bindSaasEvents_();
+    renderSaasState_();
+
+    if (currentUser) {
+      showDashboardPanel_(getRouteFromHash_());
+      return;
+    }
+
+    showHomePanel_();
+  }
+
+  function bindSaasEvents_() {
+    if (loginForm) {
+      loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(loginForm);
+        const name = clean(formData.get("userName"));
+        const email = clean(formData.get("userEmail")).toLowerCase();
+        const password = clean(formData.get("userPassword"));
+
+        if (!name || !email || !password) {
+          return;
+        }
+
+        let user = appState.users.find(function (item) {
+          return item.email === email;
+        });
+
+        if (!user) {
+          user = {
+            id: createId_("usr"),
+            name: name,
+            email: email,
+            role: "Responsável técnico",
+            createdAt: new Date().toISOString()
+          };
+          appState.users.push(user);
+        } else {
+          user.name = name;
+        }
+
+        appState.session = {
+          userId: user.id,
+          signedInAt: new Date().toISOString()
+        };
+        saveAppState_();
+        currentUser = user;
+        loginForm.reset();
+        renderSaasState_();
+        showDashboardPanel_("dashboard");
+      });
+    }
+
+    if (logoutButton) {
+      logoutButton.addEventListener("click", function () {
+        activeReportId = null;
+        appState.session = null;
+        saveAppState_();
+        currentUser = null;
+        showHomePanel_();
+      });
+    }
+
+    routeButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        showDashboardPanel_(button.dataset.routeTarget);
+      });
+    });
+
+    window.addEventListener("hashchange", function () {
+      if (currentUser && window.location.hash.indexOf("#app/") === 0) {
+        showDashboardPanel_(getRouteFromHash_());
+      }
+    });
+
+    if (clientForm) {
+      clientForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(clientForm);
+        const client = {
+          id: createId_("cli"),
+          userId: currentUser.id,
+          name: clean(formData.get("clientName")),
+          document: clean(formData.get("clientDocument")),
+          phone: clean(formData.get("clientPhone")),
+          email: clean(formData.get("clientEmail")),
+          notes: clean(formData.get("clientNotes")),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        if (!client.name) {
+          return;
+        }
+
+        appState.clients.push(client);
+        saveAppState_();
+        clientForm.reset();
+        renderSaasState_();
+        showDashboardPanel_("clientes");
+      });
+    }
+
+    if (workForm) {
+      workForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(workForm);
+        const clientId = clean(formData.get("workClientId"));
+        const work = {
+          id: createId_("obr"),
+          userId: currentUser.id,
+          clientId: clientId,
+          name: clean(formData.get("workName")),
+          address: clean(formData.get("workAddress")),
+          type: clean(formData.get("workType")),
+          status: clean(formData.get("workStatus")) || "Em andamento",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        if (!work.clientId || !work.name || !work.address || !work.type) {
+          return;
+        }
+
+        appState.works.push(work);
+        saveAppState_();
+        workForm.reset();
+        renderSaasState_();
+        showDashboardPanel_("obras");
+      });
+    }
+
+    if (reportClientSelect) {
+      reportClientSelect.addEventListener("change", function () {
+        renderReportWorkOptions_(reportClientSelect.value);
+      });
+    }
+
+    if (reportCreateForm) {
+      reportCreateForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(reportCreateForm);
+        const workId = clean(formData.get("reportWorkId"));
+        const work = findWork_(workId);
+        const title = clean(formData.get("reportTitle")) || "Relatório de Fiscalização";
+
+        if (!work) {
+          return;
+        }
+
+        const report = createReport_(work, title);
+        appState.reports.push(report);
+        saveAppState_();
+        reportCreateForm.reset();
+        renderSaasState_();
+        openReportEditor_(report.id);
+      });
+    }
+
+    if (saveReportButton) {
+      saveReportButton.addEventListener("click", function () {
+        saveDraft_().then(function () {
+          setDraftStatus_("Relatório salvo no histórico da obra.", "success");
+        });
+      });
+    }
+
+    if (backToDashboardButton) {
+      backToDashboardButton.addEventListener("click", function () {
+        saveDraft_().finally(function () {
+          showDashboardPanel_("relatorios");
+        });
+      });
+    }
+  }
+
+  function loadAppState_() {
+    try {
+      const raw = window.localStorage.getItem(saasStoreKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+
+      if (parsed && parsed.version === 1) {
+        parsed.users = Array.isArray(parsed.users) ? parsed.users : [];
+        parsed.clients = Array.isArray(parsed.clients) ? parsed.clients : [];
+        parsed.works = Array.isArray(parsed.works) ? parsed.works : [];
+        parsed.reports = Array.isArray(parsed.reports) ? parsed.reports : [];
+        return parsed;
+      }
+    } catch (error) {
+      console.warn("Não foi possível ler os dados locais do SaaS.", error);
+    }
+
+    return {
+      version: 1,
+      session: null,
+      users: [],
+      clients: [],
+      works: [],
+      reports: []
+    };
+  }
+
+  function saveAppState_() {
+    try {
+      window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
+    } catch (error) {
+      console.error("Não foi possível salvar a estrutura SaaS local.", error);
+      throw new Error("Não foi possível salvar os dados locais do SaaS neste navegador.");
+    }
+  }
+
+  function getCurrentUser_() {
+    if (!appState.session || !appState.session.userId) {
+      return null;
+    }
+
+    return appState.users.find(function (user) {
+      return user.id === appState.session.userId;
+    }) || null;
+  }
+
+  function createId_(prefix) {
+    return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function getRouteFromHash_() {
+    const value = String(window.location.hash || "").replace("#app/", "");
+    return ["dashboard", "clientes", "obras", "relatorios"].indexOf(value) >= 0 ? value : "dashboard";
+  }
+
+  function showHomePanel_() {
+    showOnlyPanel_(homePanel);
+    window.location.hash = "";
+  }
+
+  function showLoginPanel_() {
+    showOnlyPanel_(loginPanel);
+    if (loginForm) {
+      const firstField = loginForm.querySelector("input");
+      if (firstField) {
+        firstField.focus();
+      }
+    }
+  }
+
+  function showDashboardPanel_(route) {
+    const safeRoute = route || "dashboard";
+    showOnlyPanel_(dashboardPanel);
+    window.location.hash = "#app/" + safeRoute;
+    renderRoute_(safeRoute);
+    renderSaasState_();
+  }
+
+  function showOnlyPanel_(panel) {
+    [homePanel, loginPanel, dashboardPanel, reportPanel].forEach(function (item) {
+      if (item) {
+        item.classList.toggle("is-hidden", item !== panel);
+      }
+    });
+  }
+
+  function renderRoute_(route) {
+    routePanels.forEach(function (panel) {
+      panel.classList.toggle("active", panel.dataset.route === route);
+    });
+
+    routeButtons.forEach(function (button) {
+      button.classList.toggle("active", button.dataset.routeTarget === route);
+    });
+  }
+
+  function getUserClients_() {
+    if (!currentUser) {
+      return [];
+    }
+
+    return appState.clients.filter(function (client) {
+      return client.userId === currentUser.id;
+    });
+  }
+
+  function getUserWorks_() {
+    if (!currentUser) {
+      return [];
+    }
+
+    return appState.works.filter(function (work) {
+      return work.userId === currentUser.id;
+    });
+  }
+
+  function getUserReports_() {
+    if (!currentUser) {
+      return [];
+    }
+
+    return appState.reports
+      .filter(function (report) {
+        return report.userId === currentUser.id;
+      })
+      .sort(function (a, b) {
+        return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+      });
+  }
+
+  function renderSaasState_() {
+    if (!currentUser) {
+      return;
+    }
+
+    const clients = getUserClients_();
+    const works = getUserWorks_();
+    const reports = getUserReports_();
+
+    if (userBadge) {
+      userBadge.textContent = currentUser.name + " · " + currentUser.email;
+    }
+
+    if (clientMetric) {
+      clientMetric.textContent = String(clients.length);
+    }
+
+    if (workMetric) {
+      workMetric.textContent = String(works.length);
+    }
+
+    if (reportMetric) {
+      reportMetric.textContent = String(reports.length);
+    }
+
+    renderClientOptions_(workClientSelect, clients);
+    renderClientOptions_(reportClientSelect, clients);
+    renderReportWorkOptions_(reportClientSelect ? reportClientSelect.value : "");
+    renderClientsList_(clients);
+    renderWorksList_(works);
+    renderReportsList_(reportsList, reports);
+    renderReportsList_(recentReportsList, reports.slice(0, 5));
+    updateReportContext_();
+  }
+
+  function renderClientOptions_(select, clients) {
+    if (!select) {
+      return;
+    }
+
+    const previous = select.value;
+    select.innerHTML = "";
+    select.appendChild(createOption_("", clients.length ? "Escolher cliente" : "Cadastre um cliente primeiro"));
+
+    clients.forEach(function (client) {
+      select.appendChild(createOption_(client.id, client.name));
+    });
+
+    if (clients.some(function (client) { return client.id === previous; })) {
+      select.value = previous;
+    }
+  }
+
+  function renderReportWorkOptions_(clientId) {
+    if (!reportWorkSelect) {
+      return;
+    }
+
+    const safeClientId = clientId || (reportClientSelect && reportClientSelect.value) || "";
+    const works = getUserWorks_().filter(function (work) {
+      return !safeClientId || work.clientId === safeClientId;
+    });
+
+    reportWorkSelect.innerHTML = "";
+    reportWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : "Cadastre uma obra para este cliente"));
+
+    works.forEach(function (work) {
+      reportWorkSelect.appendChild(createOption_(work.id, work.name));
+    });
+  }
+
+  function createOption_(value, label) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    return option;
+  }
+
+  function renderClientsList_(clients) {
+    if (!clientsList) {
+      return;
+    }
+
+    clientsList.innerHTML = "";
+    if (!clients.length) {
+      clientsList.textContent = "Nenhum cliente cadastrado.";
+      clientsList.className = "entity-list empty-list";
+      return;
+    }
+
+    clientsList.className = "entity-list";
+    clients.forEach(function (client) {
+      const item = createEntityItem_(
+        client.name,
+        [client.document, client.phone, client.email].filter(Boolean).join(" · ") || "Cliente sem contato informado",
+        [
+          createMiniButton_("Nova obra", "primary", function () {
+            showDashboardPanel_("obras");
+            if (workClientSelect) {
+              workClientSelect.value = client.id;
+            }
+          })
+        ]
+      );
+      clientsList.appendChild(item);
+    });
+  }
+
+  function renderWorksList_(works) {
+    if (!worksList) {
+      return;
+    }
+
+    worksList.innerHTML = "";
+    if (!works.length) {
+      worksList.textContent = "Nenhuma obra cadastrada.";
+      worksList.className = "entity-list empty-list";
+      return;
+    }
+
+    worksList.className = "entity-list";
+    works.forEach(function (work) {
+      const client = findClient_(work.clientId);
+      const item = createEntityItem_(
+        work.name,
+        (client ? client.name + " · " : "") + work.address + " · " + work.status,
+        [
+          createMiniButton_("Novo relatório", "primary", function () {
+            showDashboardPanel_("relatorios");
+            if (reportClientSelect) {
+              reportClientSelect.value = work.clientId;
+              renderReportWorkOptions_(work.clientId);
+            }
+            if (reportWorkSelect) {
+              reportWorkSelect.value = work.id;
+            }
+          })
+        ]
+      );
+      worksList.appendChild(item);
+    });
+  }
+
+  function renderReportsList_(target, reports) {
+    if (!target) {
+      return;
+    }
+
+    target.innerHTML = "";
+    if (!reports.length) {
+      target.textContent = "Nenhum relatório criado ainda.";
+      target.className = "entity-list empty-list";
+      return;
+    }
+
+    target.className = "entity-list";
+    reports.forEach(function (report) {
+      const work = findWork_(report.workId);
+      const client = findClient_(report.clientId);
+      const detail = [
+        client && client.name,
+        work && work.name,
+        report.status,
+        "Atualizado em " + formatDateTime_(report.updatedAt)
+      ].filter(Boolean).join(" · ");
+      const item = createEntityItem_(
+        report.title,
+        detail,
+        [
+          createMiniButton_("Abrir", "primary", function () {
+            openReportEditor_(report.id);
+          }),
+          report.pdfUrl ? createMiniButton_("PDF", "", function () {
+            window.open(report.pdfUrl, "_blank", "noopener");
+          }) : null
+        ].filter(Boolean)
+      );
+      target.appendChild(item);
+    });
+  }
+
+  function createEntityItem_(title, detail, actions) {
+    const item = document.createElement("article");
+    const content = document.createElement("div");
+    const titleElement = document.createElement("strong");
+    const detailElement = document.createElement("span");
+    const actionsElement = document.createElement("div");
+
+    item.className = "entity-item";
+    titleElement.textContent = title;
+    detailElement.textContent = detail;
+    actionsElement.className = "entity-actions";
+
+    actions.forEach(function (action) {
+      actionsElement.appendChild(action);
+    });
+
+    content.appendChild(titleElement);
+    content.appendChild(detailElement);
+    item.appendChild(content);
+    item.appendChild(actionsElement);
+    return item;
+  }
+
+  function createMiniButton_(label, kind, onClick) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mini-button" + (kind ? " " + kind : "");
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function createReport_(work, title) {
+    const client = findClient_(work.clientId);
+    const today = new Date().toISOString().slice(0, 10);
+    const draft = {
+      id: defaultDraftId + "-new",
+      version: 2,
+      updatedAt: new Date().toISOString(),
+      values: {
+        obra: work.name,
+        dataVistoria: today,
+        responsavelTecnico: currentUser.name,
+        local: work.address,
+        tipoObra: work.type,
+        emailDestino: currentUser.email,
+        observacoes: client ? "Cliente: " + client.name : ""
+      },
+      images: {}
+    };
+
+    return {
+      id: createId_("rel"),
+      userId: currentUser.id,
+      clientId: work.clientId,
+      workId: work.id,
+      title: title,
+      status: "Em edição",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      draft: draft,
+      pdfUrl: ""
+    };
+  }
+
+  async function openReportEditor_(reportId) {
+    const report = findReport_(reportId);
+
+    if (!report) {
+      return;
+    }
+
+    activeReportId = report.id;
+    resetEditorForm_();
+    applyDraftToForm_(await getDraftRecord_() || report.draft);
+    updateReportContext_();
+    showReportPanel_();
+    goToStep_("dados", false);
+    setDraftStatus_("Relatório carregado do histórico da obra.", "success");
+  }
+
+  function resetEditorForm_() {
+    form.reset();
+    imageCache.clear();
+    clearAllImagePreviews_();
+    setLog("");
+    setGenerationStatus_("Pronto para gerar o PDF técnico.");
+
+    if (todayInput) {
+      todayInput.valueAsDate = new Date();
+    }
+  }
+
+  function applyDraftToForm_(draft) {
+    if (!draft || !draft.values) {
+      return;
+    }
+
+    Object.keys(draft.values).forEach(function (name) {
+      const field = form.elements[name];
+
+      if (field && field.type !== "file") {
+        field.value = draft.values[name];
+      }
+    });
+
+    if (draft.images) {
+      Object.keys(draft.images).forEach(function (inputName) {
+        const hiddenField = getHiddenImageField_(inputName);
+
+        imageCache.set(inputName, draft.images[inputName]);
+        if (hiddenField) {
+          hiddenField.value = draft.images[inputName].payload.base64;
+        }
+        renderImagePreview_(inputName, draft.images[inputName]);
+      });
+    }
+
+    updateReportMetrics_();
+    renderReviewSummary_();
+  }
+
+  function saveActiveReportDraft_(draft) {
+    if (!activeReportId) {
+      return;
+    }
+
+    const report = findReport_(activeReportId);
+    if (!report) {
+      return;
+    }
+
+    report.draft = cloneDraftWithoutImages_(draft);
+    report.updatedAt = draft.updatedAt;
+    report.status = report.pdfUrl ? "PDF gerado · em edição" : "Em edição";
+    report.summary = getReportStats_();
+    report.imageCount = Object.keys(draft.images || {}).length;
+    saveAppState_();
+    renderSaasState_();
+  }
+
+  function saveActiveReportExport_(pdfUrl, payload) {
+    if (!activeReportId) {
+      return;
+    }
+
+    const report = findReport_(activeReportId);
+    if (!report) {
+      return;
+    }
+
+    report.pdfUrl = pdfUrl || "";
+    report.status = "PDF gerado";
+    report.lastExport = {
+      submittedAt: payload.submittedAt,
+      fotosUnidade: payload.fotosUnidade.length,
+      inconformidades: payload.inconformidades.length
+    };
+    report.updatedAt = new Date().toISOString();
+    report.summary = getReportStats_();
+    saveAppState_();
+    renderSaasState_();
+  }
+
+  function cloneDraftWithoutImages_(draft) {
+    return {
+      id: draft.id,
+      version: draft.version,
+      updatedAt: draft.updatedAt,
+      values: Object.assign({}, draft.values),
+      images: {}
+    };
+  }
+
+  function updateReportContext_() {
+    if (!currentReportLabel) {
+      return;
+    }
+
+    const report = activeReportId ? findReport_(activeReportId) : null;
+    const work = report ? findWork_(report.workId) : null;
+    const client = report ? findClient_(report.clientId) : null;
+
+    if (!report) {
+      currentReportLabel.textContent = "Relatório sem vínculo";
+      return;
+    }
+
+    currentReportLabel.textContent = [
+      report.title,
+      client && client.name,
+      work && work.name
+    ].filter(Boolean).join(" · ");
+  }
+
+  function findClient_(clientId) {
+    return appState.clients.find(function (client) {
+      return client.id === clientId;
+    }) || null;
+  }
+
+  function findWork_(workId) {
+    return appState.works.find(function (work) {
+      return work.id === workId;
+    }) || null;
+  }
+
+  function findReport_(reportId) {
+    return appState.reports.find(function (report) {
+      return report.id === reportId;
+    }) || null;
+  }
+
+  function formatDateTime_(value) {
+    if (!value) {
+      return "-";
+    }
+
+    try {
+      return new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short"
+      }).format(new Date(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
   function showReportPanel_() {
-    homePanel.classList.add("is-hidden");
-    reportPanel.classList.remove("is-hidden");
+    showOnlyPanel_(reportPanel);
+    const firstInput = form.querySelector("input, select, textarea");
+
+    if (firstInput) {
+      firstInput.focus();
+    }
   }
 
   function setBusy(isBusy) {
@@ -567,9 +1320,7 @@
       updateReportMetrics_();
     });
 
-    restoreDraft_().catch(function (error) {
-      console.warn("Não foi possível restaurar o rascunho.", error);
-    });
+    // A restauração acontece ao abrir um relatório no fluxo SaaS.
   }
 
   async function handleFileInputChange_(input) {
@@ -1017,6 +1768,7 @@
     const draft = buildDraft_();
     saveDraftTextFallback_(draft);
     await putDraftRecord_(draft);
+    saveActiveReportDraft_(draft);
     setDraftStatus_("Rascunho salvo automaticamente.", "success");
   }
 
@@ -1043,7 +1795,7 @@
     });
 
     return {
-      id: draftId,
+      id: getActiveDraftId_(),
       version: 2,
       updatedAt: new Date().toISOString(),
       values: values,
@@ -1052,35 +1804,19 @@
   }
 
   async function restoreDraft_() {
-    const draft = await getDraftRecord_();
+    let draft = await getDraftRecord_();
+
+    if (!draft && activeReportId && findReport_(activeReportId)) {
+      draft = findReport_(activeReportId).draft;
+    }
 
     if (!draft || !draft.values) {
       return;
     }
 
-    Object.keys(draft.values).forEach(function (name) {
-      const field = form.elements[name];
-
-      if (field && field.type !== "file") {
-        field.value = draft.values[name];
-      }
-    });
-
-    if (draft.images) {
-      Object.keys(draft.images).forEach(function (inputName) {
-        const hiddenField = getHiddenImageField_(inputName);
-
-        imageCache.set(inputName, draft.images[inputName]);
-        if (hiddenField) {
-          hiddenField.value = draft.images[inputName].payload.base64;
-        }
-        renderImagePreview_(inputName, draft.images[inputName]);
-      });
-    }
+    applyDraftToForm_(draft);
 
     showReportPanel_();
-    updateReportMetrics_();
-    renderReviewSummary_();
     setDraftStatus_("Rascunho restaurado automaticamente.", "success");
   }
 
@@ -1114,6 +1850,10 @@
         resolve(request.result);
       };
     });
+  }
+
+  function getActiveDraftId_() {
+    return activeReportId ? defaultDraftId + "-" + activeReportId : defaultDraftId;
   }
 
   async function putDraftRecord_(record) {
@@ -1159,7 +1899,7 @@
     return new Promise(function (resolve, reject) {
       const transaction = db.transaction("drafts", "readonly");
       const store = transaction.objectStore("drafts");
-      const request = store.get(draftId);
+      const request = store.get(getActiveDraftId_());
 
       request.onerror = function () {
         reject(request.error);
@@ -1175,7 +1915,7 @@
   async function deleteDraftRecord_() {
     let db;
 
-    window.localStorage.removeItem(draftId);
+    window.localStorage.removeItem(getActiveDraftId_());
 
     try {
       db = await openDraftDb_();
@@ -1186,7 +1926,7 @@
     return new Promise(function (resolve, reject) {
       const transaction = db.transaction("drafts", "readwrite");
       const store = transaction.objectStore("drafts");
-      const request = store.delete(draftId);
+      const request = store.delete(getActiveDraftId_());
 
       request.onerror = function () {
         reject(request.error);
@@ -1219,7 +1959,7 @@
     };
 
     try {
-      window.localStorage.setItem(draftId, JSON.stringify(textOnlyRecord));
+      window.localStorage.setItem(getActiveDraftId_(), JSON.stringify(textOnlyRecord));
     } catch (error) {
       console.warn("Fallback de rascunho indisponível.", error);
     }
@@ -1227,7 +1967,7 @@
 
   function getDraftFallback_() {
     try {
-      const raw = window.localStorage.getItem(draftId);
+      const raw = window.localStorage.getItem(getActiveDraftId_());
       return raw ? JSON.parse(raw) : null;
     } catch (error) {
       console.warn("Não foi possível ler o rascunho local.", error);
