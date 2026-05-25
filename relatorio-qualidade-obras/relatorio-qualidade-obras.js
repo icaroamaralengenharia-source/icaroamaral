@@ -62,7 +62,7 @@
         inconformidades: inconformidades
       };
 
-      setLog("Enviando relatorio para o Google Apps Script...");
+      setLog("Enviando relatório para o Google Apps Script...");
 
       const response = await fetch(config.appsScriptUrl, {
         method: "POST",
@@ -78,21 +78,23 @@
       try {
         result = JSON.parse(text);
       } catch (error) {
-        throw new Error("Resposta invalida do Apps Script: " + text.slice(0, 180));
+        throw new Error("Resposta inválida do Apps Script: " + text.slice(0, 180));
       }
 
       if (!response.ok || !result.ok) {
-        throw new Error(result.error || "Falha ao gerar relatorio.");
+        throw new Error(result.error || "Falha ao gerar relatório.");
       }
 
-      setLog("Relatorio enviado com sucesso. PDF: " + result.pdfUrl, "success");
+      setLog("Relatório enviado com sucesso. PDF: " + result.pdfUrl, "success");
+
       form.reset();
+
       if (todayInput) {
         todayInput.valueAsDate = new Date();
       }
     } catch (error) {
       console.error(error);
-      setLog(error.message || "Erro inesperado ao enviar relatorio.", "error");
+      setLog(error.message || "Erro inesperado ao enviar relatório.", "error");
     } finally {
       setBusy(false);
     }
@@ -116,7 +118,7 @@
       }
 
       if (!descricao) {
-        throw new Error("Preencha a descricao da Foto da Unidade " + number + ".");
+        throw new Error("Preencha a descrição da Foto da Unidade " + number + ".");
       }
 
       validateImageFile_(file, "Foto da Unidade " + number);
@@ -151,7 +153,7 @@
       }
 
       if (!descricao || !solucao || !grauRisco) {
-        throw new Error("Preencha descricao, solucao e grau de risco da Inconformidade " + number + ".");
+        throw new Error("Preencha descrição, solução e grau de risco da Inconformidade " + number + ".");
       }
 
       validateImageFile_(file, "Inconformidade " + number);
@@ -174,13 +176,13 @@
 
   function validateImageFile_(file, label) {
     if (!allowedTypes.has(file.type)) {
-      throw new Error("Arquivo nao permitido em " + label + ". Use PNG, JPG ou WEBP.");
+      throw new Error("Arquivo não permitido em " + label + ". Use PNG, JPG ou WEBP.");
     }
   }
 
   function setBusy(isBusy) {
     submitButton.disabled = isBusy;
-    submitButton.textContent = isBusy ? "Enviando..." : "Enviar Relatorio";
+    submitButton.textContent = isBusy ? "Enviando..." : "Enviar Relatório";
   }
 
   function setLog(message, kind) {
@@ -196,9 +198,9 @@
       const section = document.createElement("section");
       section.className = "nonconformity-card";
 
-      section.appendChild(createTitle("FOTO DA UNIDADE " + number));
+      section.appendChild(createTitle("Foto da Unidade " + number));
       section.appendChild(createFileField("Foto da Unidade " + number, "fotoUnidade" + number));
-      section.appendChild(createTextAreaField("Descricao da Foto " + number, "descricaoFotoUnidade" + number, 3));
+      section.appendChild(createTextAreaField("Descrição da Foto " + number, "descricaoFotoUnidade" + number, 3));
 
       fragment.appendChild(section);
     }
@@ -215,11 +217,11 @@
       const section = document.createElement("section");
       section.className = "nonconformity-card";
 
-      section.appendChild(createTitle("RQO " + number + " - INCONFORMIDADE IDENTIFICADA"));
+      section.appendChild(createTitle("Inconformidade " + number));
       section.appendChild(createFileField("Foto da Inconformidade " + number, "fotoInconformidade" + number));
       section.appendChild(createRiskField("Grau de risco " + number, "grauRisco" + number));
-      section.appendChild(createTextAreaField("Inconformidade " + number + " - Descricao Tecnica", "descricaoInconformidade" + number, 4));
-      section.appendChild(createTextAreaField("Inconformidade " + number + " - Solucao Recomendada", "solucaoInconformidade" + number, 4));
+      section.appendChild(createTextAreaField("Inconformidade " + number + " - Descrição Técnica", "descricaoInconformidade" + number, 4));
+      section.appendChild(createTextAreaField("Inconformidade " + number + " - Solução Recomendada", "solucaoInconformidade" + number, 4));
 
       fragment.appendChild(section);
     }
@@ -244,18 +246,20 @@
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(input);
+
     return label;
   }
 
   function createRiskField(labelText, name) {
     const label = document.createElement("label");
     const select = document.createElement("select");
+
     const options = [
       ["", "Escolher"],
       ["Baixo - acompanhar", "Baixo - acompanhar"],
-      ["Medio - corrigir com prioridade", "Medio - corrigir com prioridade"],
+      ["Médio - corrigir com prioridade", "Médio - corrigir com prioridade"],
       ["Alto - corrigir imediatamente", "Alto - corrigir imediatamente"],
-      ["Interdicao - paralisar area", "Interdicao - paralisar area"]
+      ["Interdição - paralisar área", "Interdição - paralisar área"]
     ];
 
     select.name = name;
@@ -269,6 +273,7 @@
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(select);
+
     return label;
   }
 
@@ -281,6 +286,7 @@
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(textarea);
+
     return label;
   }
 
@@ -289,20 +295,21 @@
       const reader = new FileReader();
 
       reader.onerror = function () {
-        reject(new Error("Nao foi possivel ler a imagem: " + file.name));
+        reject(new Error("Não foi possível ler a imagem: " + file.name));
       };
 
       reader.onload = function () {
         const image = new Image();
 
         image.onerror = function () {
-          reject(new Error("Imagem invalida: " + file.name));
+          reject(new Error("Imagem inválida: " + file.name));
         };
 
         image.onload = function () {
           const maxWidth = config.maxImageWidth || 1600;
           const ratio = Math.min(1, maxWidth / image.width);
           const canvas = document.createElement("canvas");
+
           canvas.width = Math.round(image.width * ratio);
           canvas.height = Math.round(image.height * ratio);
 
