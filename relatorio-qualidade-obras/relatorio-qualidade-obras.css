@@ -254,14 +254,40 @@ body {
   display: grid;
 }
 
-.saas-metrics {
-  margin-bottom: 0;
+.dashboard-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 18px;
 }
 
-.dashboard-grid {
+.dashboard-card {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 18px;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  min-height: 158px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(10, 31, 51, 0.06);
+}
+
+.dashboard-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.dashboard-card strong {
+  align-self: center;
+  color: var(--navy);
+  font-size: 2.15rem;
+  line-height: 1;
+}
+
+.dashboard-card .mini-button {
+  width: 100%;
 }
 
 .workspace-card {
@@ -279,22 +305,15 @@ body {
   font-size: 1.12rem;
 }
 
-.flow-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.recent-report-card {
+  align-content: start;
 }
 
-.flow-list li {
-  padding: 12px;
-  color: var(--navy);
-  background: #f8fafc;
-  border: 1px solid #e1e5ea;
-  border-radius: 8px;
-  font-weight: 700;
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .entity-list {
@@ -797,9 +816,18 @@ textarea:focus {
     grid-template-columns: 1fr 1fr;
   }
 
-  .dashboard-grid,
+  .dashboard-actions-grid,
   .entity-item {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-card {
+    min-height: 132px;
+  }
+
+  .section-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .entity-actions {
@@ -808,10 +836,6 @@ textarea:focus {
 
   .entity-actions .mini-button {
     flex: 1;
-  }
-
-  .flow-list {
-    grid-template-columns: 1fr;
   }
 
   .field-grid {

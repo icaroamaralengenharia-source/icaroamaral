@@ -30,6 +30,8 @@
   const clientMetric = document.getElementById("clientMetric");
   const workMetric = document.getElementById("workMetric");
   const reportMetric = document.getElementById("reportMetric");
+  const photoMetric = document.getElementById("photoMetric");
+  const pdfMetric = document.getElementById("pdfMetric");
   const currentReportLabel = document.getElementById("currentReportLabel");
   const saveReportButton = document.getElementById("saveReportButton");
   const backToDashboardButton = document.getElementById("backToDashboardButton");
@@ -49,6 +51,7 @@
   const stepButtons = Array.from(document.querySelectorAll("[data-step-target]"));
   const routePanels = Array.from(document.querySelectorAll("[data-route]"));
   const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
+  const dashboardActionButtons = Array.from(document.querySelectorAll("[data-dashboard-action]"));
   const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
   const allowedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
   const heicExtensions = new Set(["heic", "heif"]);
@@ -342,6 +345,12 @@
       });
     });
 
+    dashboardActionButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        handleDashboardAction_(button.dataset.dashboardAction);
+      });
+    });
+
     window.addEventListener("hashchange", function () {
       if (currentUser && window.location.hash.indexOf("#app/") === 0) {
         showDashboardPanel_(getRouteFromHash_());
@@ -474,6 +483,51 @@
     }
   }
 
+  async function handleDashboardAction_(action) {
+    if (action === "clientes") {
+      setLastOpened_("clientes");
+      scheduleLocalDataSave_();
+      showDashboardPanel_("clientes");
+      return;
+    }
+
+    if (action === "obras") {
+      setLastOpened_("obras");
+      scheduleLocalDataSave_();
+      showDashboardPanel_("obras");
+      return;
+    }
+
+    if (action === "relatorios" || action === "historico") {
+      setLastOpened_("relatorios");
+      scheduleLocalDataSave_();
+      showDashboardPanel_("relatorios");
+      return;
+    }
+
+    if (action === "exportar-pdf") {
+      const reports = getUserReports_();
+      const selectedReport = findReport_(activeReportId) || reports[0];
+
+      if (!selectedReport) {
+        setLastOpened_("relatorios");
+        scheduleLocalDataSave_();
+        showDashboardPanel_("relatorios");
+        setCloudStatus_("Crie um relatório antes de exportar PDF.", "info");
+        return;
+      }
+
+      try {
+        await openReportEditor_(selectedReport.id);
+        goToStep_("gerar", false);
+        setGenerationStatus_("Revise o relatório e clique em Gerar relatório para exportar o PDF.");
+      } catch (error) {
+        console.error(error);
+        setCloudStatus_("Não foi possível abrir o relatório para exportar PDF.", "error");
+      }
+    }
+  }
+
   function loadLocalData() {
     return loadAppState_();
   }
@@ -596,7 +650,8 @@
 
     const last = appState.local;
     const hashReportId = getReportIdFromHash_();
-    const reportIdToRecover = hashReportId || (last.lastView === "editor" ? last.lastReportId : "");
+    const hasAppRouteHash = window.location.hash.indexOf("#app/") === 0;
+    const reportIdToRecover = hashReportId || (!hasAppRouteHash && last.lastView === "editor" ? last.lastReportId : "");
     const shouldRecoverEditor =
       reportIdToRecover &&
       Boolean(findReport_(reportIdToRecover));
@@ -922,6 +977,15 @@
     const clients = getUserClients_();
     const works = getUserWorks_();
     const reports = getUserReports_();
+    const activeWorks = works.filter(function (work) {
+      return String(work.status || "").toLowerCase().indexOf("andamento") >= 0;
+    });
+    const totalPhotos = reports.reduce(function (total, report) {
+      return total + getReportPhotoCount_(report);
+    }, 0);
+    const exportedPdfs = reports.filter(function (report) {
+      return Boolean(report.pdfUrl);
+    });
 
     if (userBadge) {
       userBadge.textContent = currentUser.name + " · " + currentUser.email;
@@ -932,11 +996,19 @@
     }
 
     if (workMetric) {
-      workMetric.textContent = String(works.length);
+      workMetric.textContent = String(activeWorks.length);
     }
 
     if (reportMetric) {
       reportMetric.textContent = String(reports.length);
+    }
+
+    if (photoMetric) {
+      photoMetric.textContent = String(totalPhotos);
+    }
+
+    if (pdfMetric) {
+      pdfMetric.textContent = String(exportedPdfs.length);
     }
 
     renderClientOptions_(workClientSelect, clients);
@@ -947,6 +1019,24 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     updateReportContext_();
+  }
+
+  function getReportPhotoCount_(report) {
+    const imageCount = Number(report && report.imageCount);
+
+    if (Number.isFinite(imageCount) && imageCount > 0) {
+      return imageCount;
+    }
+
+    if (report && report.lastExport) {
+      return Number(report.lastExport.fotosUnidade || 0) + Number(report.lastExport.inconformidades || 0);
+    }
+
+    if (report && report.summary) {
+      return Number(report.summary.fotos || 0) + Number(report.summary.inconformidades || 0);
+    }
+
+    return 0;
   }
 
   function renderClientOptions_(select, clients) {

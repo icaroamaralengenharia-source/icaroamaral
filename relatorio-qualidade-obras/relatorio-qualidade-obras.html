@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-saas11a2">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-dashboard1">
 </head>
 <body>
   <main class="page-shell">
@@ -89,39 +89,45 @@
       </nav>
 
       <section class="route-panel active" data-route="dashboard" aria-label="Dashboard principal">
-        <div class="metrics-grid saas-metrics">
-          <div class="metric-card">
+        <div class="dashboard-actions-grid">
+          <article class="dashboard-card">
+            <span>Clientes cadastrados</span>
             <strong id="clientMetric">0</strong>
-            <span>clientes</span>
-          </div>
-          <div class="metric-card">
+            <button type="button" class="mini-button primary" data-dashboard-action="clientes">Novo cliente</button>
+          </article>
+
+          <article class="dashboard-card">
+            <span>Obras em andamento</span>
             <strong id="workMetric">0</strong>
-            <span>obras</span>
-          </div>
-          <div class="metric-card">
+            <button type="button" class="mini-button primary" data-dashboard-action="obras">Nova obra</button>
+          </article>
+
+          <article class="dashboard-card">
+            <span>Relatórios criados</span>
             <strong id="reportMetric">0</strong>
-            <span>relatórios</span>
+            <button type="button" class="mini-button primary" data-dashboard-action="relatorios">Novo relatório</button>
+          </article>
+
+          <article class="dashboard-card">
+            <span>Fotos anexadas</span>
+            <strong id="photoMetric">0</strong>
+            <button type="button" class="mini-button" data-dashboard-action="historico">Ver histórico</button>
+          </article>
+
+          <article class="dashboard-card">
+            <span>PDFs exportados</span>
+            <strong id="pdfMetric">0</strong>
+            <button type="button" class="mini-button" data-dashboard-action="exportar-pdf">Exportar PDF</button>
+          </article>
+        </div>
+
+        <section class="workspace-card recent-report-card">
+          <div class="section-row">
+            <h3>Últimos relatórios</h3>
+            <button type="button" class="mini-button" data-dashboard-action="historico">Ver histórico</button>
           </div>
-        </div>
-
-        <div class="dashboard-grid">
-          <section class="workspace-card">
-            <h3>Fluxo profissional</h3>
-            <ol class="flow-list">
-              <li>Usuário</li>
-              <li>Clientes</li>
-              <li>Obras</li>
-              <li>Relatórios</li>
-              <li>Fotos</li>
-              <li>PDF</li>
-            </ol>
-          </section>
-
-          <section class="workspace-card">
-            <h3>Relatórios recentes</h3>
-            <div id="recentReportsList" class="entity-list empty-list">Nenhum relatório criado ainda.</div>
-          </section>
-        </div>
+          <div id="recentReportsList" class="entity-list empty-list">Nenhum relatório criado ainda.</div>
+        </section>
       </section>
 
       <section class="route-panel" data-route="clientes" aria-label="Cadastro de clientes">
@@ -433,7 +439,7 @@
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-saas11a2"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-saas11a2"></script>
+  <script src="./relatorio-config.js?v=20260525-dashboard1"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-dashboard1"></script>
 </body>
 </html>
