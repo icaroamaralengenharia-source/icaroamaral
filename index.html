@@ -1,713 +1,484 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ícaro Amaral Engenharia</title>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --navy: #071b31;
+      --navy-2: #0d2b47;
+      --gold: #d8ab38;
+      --white: #ffffff;
+      --soft: #f4f6f8;
+      --text: #102033;
+      --muted: #647184;
+      --line: rgba(255, 255, 255, 0.24);
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+    }
 
-<title>Ícaro Amaral Engenharia</title>
+    * {
+      box-sizing: border-box;
+    }
 
-<style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--navy);
+    }
 
-*{
-box-sizing:border-box;
-}
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        linear-gradient(rgba(7, 27, 49, 0.72), rgba(7, 27, 49, 0.86)),
+        url("imagens/projeto2.jpg") center / cover no-repeat;
+    }
 
-body{
-margin:0;
-font-family:Arial, sans-serif;
-background:
-linear-gradient(
-135deg,
-#03152b,
-#08264d,
-#0b35ba
-);
-color:white;
-min-height:100vh;
-}
- .hero-bg{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-background:
-linear-gradient(
-rgba(3,21,43,0.85),
-rgba(3,21,43,0.92)
-),
-url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1974&auto=format&fit=crop');
-background-size:cover;
-background-position:center;
-z-index:-1;
-filter:blur(2px);
-}
+    .login-card {
+      width: min(100%, 420px);
+      padding: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+    }
 
-.container{
-max-width:1100px;
-margin:auto;
-padding:40px 20px;
-}
+    .login-card h1 {
+      margin: 0 0 8px;
+      color: var(--navy);
+      font-size: 1.75rem;
+      letter-spacing: 0;
+      text-align: center;
+    }
 
-.logo{
-text-align:center;
-margin-bottom:40px;
-}
+    .login-card p {
+      margin: 0 0 26px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+    }
 
-.logo h1{
-font-size:42px;
-margin:0;
-color:#d4a63d;
-}
+    .login-card label {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 14px;
+      color: var(--navy);
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
 
-.logo p{
-margin-top:10px;
-color:#ccc;
-font-size:18px;
-}
+    .login-card input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      font: inherit;
+    }
 
-.card{
-background:rgba(255,255,255,0.96);
-backdrop-filter:blur(10px);
-color:#111;
-border-radius:20px;
-padding:35px;
-margin-bottom:30px;
-box-shadow:0 10px 30px rgba(0,0,0,0.25);
-}
+    .login-card button,
+    .primary-button,
+    .secondary-button {
+      min-height: 46px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+    }
 
-.section-title{
-margin-top:0;
-margin-bottom:30px;
-font-size:24px;
-color:#071a35;
-border-left:6px solid #d4a63d;
-padding-left:15px;
-}
+    .login-card button {
+      width: 100%;
+      margin-top: 8px;
+      color: var(--white);
+      background: var(--gold);
+    }
 
-.grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:20px;
-}
+    .login-error {
+      min-height: 20px;
+      margin: 12px 0 0;
+      color: #b42318;
+      font-size: 0.9rem;
+      text-align: center;
+    }
 
-.full{
-grid-column:1 / -1;
-}
+    .site-shell {
+      display: none;
+      min-height: 100vh;
+      background: #f5f7fa;
+    }
 
-label{
-display:block;
-font-weight:bold;
-margin-bottom:8px;
-margin-top:10px;
-}
+    .hero {
+      position: relative;
+      min-height: 76vh;
+      display: grid;
+      align-items: end;
+      padding: 28px;
+      color: var(--white);
+      background:
+        linear-gradient(90deg, rgba(7, 27, 49, 0.92) 0%, rgba(7, 27, 49, 0.74) 42%, rgba(7, 27, 49, 0.18) 100%),
+        url("imagens/projeto2.jpg") center / cover no-repeat;
+    }
 
-input,
-textarea,
-select{
-width:100%;
-padding:15px;
-border-radius:12px;
-border:1px solid #ccc;
-font-size:16px;
-}
+    .topbar {
+      position: absolute;
+      inset: 0 0 auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 24px 32px;
+      z-index: 2;
+    }
 
-textarea{
-resize:vertical;
-}
+    .brand {
+      display: grid;
+      gap: 3px;
+    }
 
-button{
-width:100%;
-padding:20px;
-border:none;
-border-radius:14px;
-background:#d4a63d;
-color:white;
-font-size:20px;
-font-weight:bold;
-cursor:pointer;
-transition:0.3s;
-}
+    .brand strong {
+      color: var(--gold);
+      font-size: 1.35rem;
+      letter-spacing: 0;
+    }
 
-button:hover{
-opacity:0.9;
-transform:scale(1.01);
-}
+    .brand span {
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 0.86rem;
+    }
 
-.inconformidade{
-border:2px solid #eee;
-padding:25px;
-border-radius:18px;
-margin-bottom:25px;
-background:#fafafa;
-}
+    .logout-button {
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--white);
+      background: rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
 
-.inconformidade h3{
-margin-top:0;
-color:#071a35;
-}
+    .hero-content {
+      width: min(100%, 900px);
+      padding: 120px 0 44px;
+    }
 
-@media(max-width:768px){
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--gold);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
 
-.grid{
-grid-template-columns:1fr;
-}
+    .hero h1 {
+      max-width: 760px;
+      margin: 0;
+      font-size: clamp(2.35rem, 6vw, 5.5rem);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
 
-.logo h1{
-font-size:32px;
-}
+    .hero-text {
+      max-width: 660px;
+      margin: 22px 0 0;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 1.08rem;
+      line-height: 1.55;
+    }
 
-}
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
 
-</style>
+    .primary-button,
+    .secondary-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 20px;
+    }
 
+    .primary-button {
+      color: var(--navy);
+      background: var(--gold);
+    }
+
+    .secondary-button {
+      color: var(--white);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .dashboard {
+      padding: 34px 28px 46px;
+      background: var(--soft);
+    }
+
+    .dashboard-inner {
+      width: min(1160px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .panel {
+      padding: 26px;
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: 0 10px 28px rgba(16, 32, 51, 0.08);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      color: var(--navy);
+      font-size: 1.45rem;
+    }
+
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .tool-card {
+      display: grid;
+      gap: 18px;
+      padding: 24px;
+      border-radius: 8px;
+      color: var(--white);
+      background: linear-gradient(135deg, var(--navy), var(--navy-2));
+      box-shadow: 0 10px 28px rgba(16, 32, 51, 0.12);
+    }
+
+    .tool-card h2 {
+      margin: 0;
+      color: var(--white);
+      font-size: 1.35rem;
+    }
+
+    .tool-card p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.82);
+      line-height: 1.55;
+    }
+
+    .portfolio-grid {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .portfolio-item {
+      overflow: hidden;
+      min-height: 180px;
+      border-radius: 8px;
+      background: #dce2e8;
+    }
+
+    .portfolio-item img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    @media (max-width: 860px) {
+      .hero {
+        min-height: 70vh;
+        padding: 22px;
+      }
+
+      .topbar {
+        padding: 18px 22px;
+      }
+
+      .dashboard-inner,
+      .portfolio-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .portfolio-item {
+        min-height: 220px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero-content {
+        padding-top: 150px;
+      }
+
+      .actions a {
+        width: 100%;
+      }
+
+      .login-card {
+        padding: 26px 20px;
+      }
+    }
+  </style>
 </head>
 
 <body>
- <div class="hero-bg"></div>
-
-<div id="login" style="
-max-width:420px;
-margin:80px auto;
-background:rgba(255,255,255,0.96);
-backdrop-filter:blur(10px);
-padding:45px;
-border-radius:24px;
-box-shadow:0 15px 40px rgba(0,0,0,0.35);
-border:1px solid rgba(255,255,255,0.3);
-">
-
-
-<h2 style="
-text-align:center;
-color:#071a35;
-margin-bottom:30px;
-">
-Área Restrita
-</h2>
-
-<input
-type="text"
-id="usuario"
-placeholder="Usuário"
-style="
-width:100%;
-padding:15px;
-margin-bottom:20px;
-border-radius:12px;
-border:1px solid #ccc;
-"
->
-
-<input
-type="password"
-id="senha"
-placeholder="Senha"
-style="
-width:100%;
-padding:15px;
-margin-bottom:20px;
-border-radius:12px;
-border:1px solid #ccc;
-"
->
-
-<button onclick="fazerLogin()">
-Entrar
-</button>
-
-<p
-id="erro-login"
-style="
-display:none;
-color:red;
-text-align:center;
-margin-top:15px;
-"
->
-Usuário ou senha incorretos
-</p>
-
-</div>
-
-<div id="sistema" style="display:none;">
-
-<div class="container">
-
-<div class="logo">
-<h1>Ícaro Amaral Engenharia</h1>
-<p>Sistema Inteligente de Relatórios de Qualidade de Obras</p>
-</div>
-
-<div class="card">
-
-<h2 class="section-title">
-Sistema de Relatório Técnico
-</h2>
-
- 
- <form
-action="https://docs.google.com/forms/d/e/1FAIpQLSfnUmJyQc9n7HZsD3MhTDSWstBAI8xnLN9JYlrwlArrNX3tGg/formResponse"
-method="POST"
-target="hidden_iframe"
-onsubmit="return enviarFormulario(event)"
->
-<input type="hidden" name="entry.439098998" id="linkFoto1">
-
-<input type="hidden" name="entry.201763265" id="linkFoto2">
-
-<input type="hidden" name="entry.74764640" id="linkFoto3">
-
-
-
-<div class="grid">
-
-<div>
-<label>Obra</label>
-<input
-type="text"
-name="entry.2103603575"
-required
->
-</div>
-
-<div>
-<label>Data da vistoria</label>
-<input
-type="date"
-name="entry.1680077394"
->
-</div>
-
-<div>
-<label>Responsável Técnico</label>
-<input
-type="text"
-name="entry.1076303558"
->
-</div>
-
-<div>
-<label>Local</label>
-<input
-type="text"
-name="entry.1080839875"
->
-</div>
-
-<div>
-<label>Data de início da obra</label>
-<input
-type="date"
-name="entry.897927114"
->
-</div>
-
-<div>
-<label>Link de câmeras</label>
-<input
-type="text"
-name="entry.866299979"
->
-</div>
-
-<div>
-<label>Tipo de obra</label>
-<select name="entry.1175664792">
-<option value="">Escolher</option>
-<option>Residencial - Construção</option>
-<option>Comercial</option>
-<option>Industrial</option>
-<option>Infraestrutura</option>
-</select>
-</div>
-
-<div>
-<label>Avanço físico</label>
-<input
-type="text"
-name="entry.1276325607"
->
-</div>
-
-<div>
-<label>Avanço financeiro</label>
-<input
-type="text"
-name="entry.988061566"
->
-</div>
-
-<div>
-<label>Funcionários em campo</label>
-<input
-type="text"
-name="entry.1104162433"
->
-</div>
-
-<div>
-<label>Utilização EPI</label>
-<input
-type="text"
-name="entry.498519601"
->
-</div>
-
-<div>
-<label>Controle do concreto</label>
-<input
-type="text"
-name="entry.1455883528"
->
-</div>
-
-<div class="full">
-<label>Observações</label>
-<textarea
-name="entry.1497874086"
-rows="5"
-></textarea>
-</div>
- <div class="full">
-
-
-
-</div>
-
-</div>
-
-
-    <div class="full">
-
-<div class="inconformidade">
-
-<h3>RQO 01 — INCONFORMIDADE</h3>
- <label>Foto da Inconformidade 01</label>
-
-<input
-type="file"
-id="foto1"
-accept=".jpg,.jpeg,.png,.webp"
->
-
-
-
-<label>Inconformidade 01 - Descrição Técnica</label>
-<textarea
-name="entry.889613225"
-rows="4"
-></textarea>
-
-<label>Inconformidade 01 - Solução Recomendada</label>
-<textarea
-name="entry.964292147"
-rows="4"
-></textarea>
-
-</div>
-
-<div class="inconformidade">
-
-<h3>RQO 02 — INCONFORMIDADE</h3>
-<label>Foto da Inconformidade 02</label>
-
-
-
-<input
-type="file"
-id="foto2"
-accept=".jpg,.jpeg,.png,.webp"
->
-
-
-
-<label>Inconformidade 02 - Descrição Técnica</label>
-<textarea
-name="entry.884866882"
-rows="4"
-></textarea>
-
-
-<label>Inconformidade 02 - Solução Recomendada</label>
-<textarea
-name="entry.1789400349"
-rows="4"
-></textarea>
-
-</div>
-
-<div class="inconformidade">
-
-<h3>RQO 03 — INCONFORMIDADE</h3>
-
-<label>Foto da Inconformidade 03</label>
-
-<input
-type="file"
-id="foto3"
-accept=".jpg,.jpeg,.png,.webp"
->
-
-
-
-
-<label>Inconformidade 03 - Descrição Técnica</label>
-<textarea
-name="entry.851837906"
-rows="4"
-></textarea>
-
-<label>Inconformidade 03 - Solução Recomendada</label>
-<textarea
-name="entry.1044079802"
-rows="4"
-></textarea>
-
-</div>
-
-</div>
-  <button
-type="submit"
-id="btnEnviar"
->
-Enviar Relatório
-</button>
-   <p
-id="mensagem-sucesso"
-style="
-display:none;
-margin-top:20px;
-font-size:22px;
-font-weight:bold;
-color:#071a35;
-text-align:center;
-"
->
-Relatório salvo com sucesso, Amaral Engenharia agradece!
-</p>
-    
-
-</form>
-
-
-</div>
-</div>
-
-
-
-<iframe
-name="hidden_iframe"
-style="display:none;">
-</iframe>
-
-<script>
-
-function fazerLogin(){
-
-var usuario =
-document.getElementById("usuario").value;
-
-var senha =
-document.getElementById("senha").value;
-
-if(
-
-(usuario === "Ícaro Amaral"
-&&
-senha === "04544442575")
-
-||
-
-(usuario === "Visitante"
-&&
-senha === "1234")
-
-){
-
-document.getElementById(
-"login"
-).style.display = "none";
-
-document.getElementById(
-"sistema"
-).style.display = "block";
-
-}else{
-
-document.getElementById(
-"erro-login"
-).style.display = "block";
-
-}
-
-
-
-}
-
-</script>
-
-
-
-
-
- <script>
-
-const WEBAPP_URL =
-"https://script.google.com/macros/s/AKfycbx1cIceCEzcjZ3cHMmpjfTX1jwb0YtWPd6k0JbkvI1LDtOE4wYRDi_AiRLlf4wUGooahg/exec";
-
-async function uploadImagem(inputId){
-
-  const input =
-    document.getElementById(inputId);
-
-  if(!input.files.length)
-    return "";
-
-  const arquivo =
-    input.files[0];
- if(arquivo.size > 8 * 1024 * 1024){
-
-  alert(
-    "Imagem muito grande. Máximo 8MB."
-  );
-
-  return "";
-
-}
-
-  const base64 =
-    await converterBase64(arquivo);
-const resposta =
-await fetch(
-  WEBAPP_URL,
-  {
-    method: "POST",
-
-    body: JSON.stringify({
-      nomeArquivo: arquivo.name,
-      base64: base64.split(",")[1]
-    })
-
-  }
-);
-
-const link =
-await resposta.text();
-
-console.log(link);
-
-return link;
-}
-
-function converterBase64(file){
-
-  return new Promise((resolve,reject)=>{
-
-    const leitor =
-      new FileReader();
-
-    leitor.readAsDataURL(file);
-
-    leitor.onload =
-      ()=> resolve(leitor.result);
-
-    leitor.onerror =
-      erro => reject(erro);
-
-  });
-
-}
-
-</script>
- <script>
-
-async function enviarFormulario(event){
-
-event.preventDefault();
-
-const botao =
-document.getElementById(
-"btnEnviar"
-);
-
-botao.innerHTML =
-"Enviando imagens...";
-
-botao.disabled = true;
-
-try{
-
-const foto1 =
-await uploadImagem("foto1");
-
-const foto2 =
-await uploadImagem("foto2");
-
-const foto3 =
-await uploadImagem("foto3");
-
-
-
-document.getElementById(
-"linkFoto1"
-).value = foto1;
-
-document.getElementById(
-"linkFoto2"
-).value = foto2;
-
-document.getElementById(
-"linkFoto3"
-).value = foto3;
-
-
-
-await new Promise(
-  resolve => setTimeout(resolve,1000)
-);
-
-event.target.submit();
-
-setTimeout(function(){
-
-document.getElementById(
-"mensagem-sucesso"
-).style.display = "block";
-
-alert(
-"Relatório enviado com sucesso!"
-);
-
-document.querySelector(
-"form"
-).reset();
-
-botao.innerHTML =
-"Enviar Relatório";
-
-botao.disabled = false;
-
-},1500);
-}catch(erro){
-
-alert(
-"Erro ao enviar imagens"
-);
-
-console.log(erro);
-
-botao.innerHTML =
-"Enviar Relatório";
-
-botao.disabled = false;
-
-}
- return false;
-
-}
-
-</script>
- </body>
+  <section class="login-screen" id="loginScreen">
+    <form class="login-card" id="loginForm">
+      <h1>Ícaro Amaral Engenharia</h1>
+      <p>Acesso interno ao sistema técnico de relatórios e fiscalização.</p>
+
+      <label>
+        Login
+        <input id="loginUser" type="text" autocomplete="username" required>
+      </label>
+
+      <label>
+        Senha
+        <input id="loginPassword" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button type="submit">Entrar</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </section>
+
+  <div class="site-shell" id="siteShell">
+    <section class="hero">
+      <div class="topbar">
+        <div class="brand">
+          <strong>Ícaro Amaral Engenharia</strong>
+          <span>Engenharia & Arquitetura</span>
+        </div>
+
+        <button class="logout-button" type="button" id="logoutButton">Sair</button>
+      </div>
+
+      <div class="hero-content">
+        <p class="eyebrow">Projetos, fiscalização e tecnologia aplicada</p>
+        <h1>Engenharia com precisão técnica e apresentação profissional.</h1>
+        <p class="hero-text">
+          Um ambiente digital para organizar vistorias, registrar evidências,
+          classificar riscos e gerar relatórios técnicos com padrão profissional.
+        </p>
+
+        <div class="actions">
+          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+            Abrir Relatório de Fiscalização
+          </a>
+
+          <a class="secondary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+            Gerar Relatório Técnico
+          </a>
+
+          <a class="secondary-button" href="#projetos">
+            Ver projetos
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard">
+      <div class="dashboard-inner">
+        <article class="panel">
+          <h2>Sistema de Relatórios Técnicos</h2>
+          <p>
+            Gere relatórios com dados da obra, fotos da unidade, inconformidades,
+            grau de risco, matriz de prioridade, assinatura e envio automático por e-mail.
+          </p>
+
+          <div class="portfolio-grid" id="projetos">
+            <figure class="portfolio-item">
+              <img src="imagens/projeto2.jpg" alt="Projeto arquitetônico residencial">
+            </figure>
+
+            <figure class="portfolio-item">
+              <img src="imagens2/imagem3.jpg" alt="Fachada de empreendimento">
+            </figure>
+
+            <figure class="portfolio-item">
+              <img src="projeto3.jpeg" alt="Projeto de engenharia e arquitetura">
+            </figure>
+          </div>
+        </article>
+
+        <aside class="tool-card">
+          <h2>Relatório de Fiscalização</h2>
+          <p>
+            Acesse o formulário técnico para registrar fotos da obra, inconformidades,
+            grau de risco, matriz de prioridade e gerar o PDF final automaticamente.
+          </p>
+
+          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+            Abrir Relatório de Fiscalização
+          </a>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const loginScreen = document.getElementById("loginScreen");
+    const siteShell = document.getElementById("siteShell");
+    const loginForm = document.getElementById("loginForm");
+    const loginError = document.getElementById("loginError");
+    const logoutButton = document.getElementById("logoutButton");
+
+    const ACCESS_KEY = "icaro_site_access";
+
+    function showSite() {
+      loginScreen.style.display = "none";
+      siteShell.style.display = "block";
+    }
+
+    function showLogin() {
+      loginScreen.style.display = "grid";
+      siteShell.style.display = "none";
+    }
+
+    if (sessionStorage.getItem(ACCESS_KEY) === "ok") {
+      showSite();
+    } else {
+      showLogin();
+    }
+
+    loginForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const user = document.getElementById("loginUser").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
+
+      if (user === "visitante" && password === "1234") {
+        sessionStorage.setItem(ACCESS_KEY, "ok");
+        loginError.textContent = "";
+        showSite();
+        return;
+      }
+
+      loginError.textContent = "Login ou senha incorretos.";
+    });
+
+    logoutButton.addEventListener("click", function () {
+      sessionStorage.removeItem(ACCESS_KEY);
+      showLogin();
+    });
+  </script>
+</body>
 </html>
