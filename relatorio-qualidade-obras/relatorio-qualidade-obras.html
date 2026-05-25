@@ -3,20 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ícaro Amaral Engenharia - Relatório Técnico</title>
+  <title>Ícaro Amaral Engenharia - Relatório de Fiscalização</title>
   <link rel="stylesheet" href="./relatorio-qualidade-obras.css">
 </head>
+
 <body>
   <main class="page-shell">
     <header class="brand-header">
       <h1>Ícaro Amaral Engenharia</h1>
-      <p>Sistema Inteligente de Relatórios de Qualidade de Obras</p>
+      <p>Sistema Inteligente de Relatórios de Fiscalização de Obras</p>
     </header>
 
     <section class="form-panel" aria-labelledby="form-title">
       <div class="section-title">
         <span></span>
-        <h2 id="form-title">Sistema de Relatório Técnico</h2>
+        <h2 id="form-title">Relatório de Fiscalização</h2>
       </div>
 
       <form id="qualityReportForm" class="report-form">
@@ -48,7 +49,7 @@
 
           <label>
             Link de câmeras
-            <input name="linkCameras" type="url" placeholder="">
+            <input name="linkCameras" type="url">
           </label>
 
           <label>
@@ -65,12 +66,12 @@
 
           <label>
             Avanço físico
-            <input name="avancoFisico" type="text" placeholder="">
+            <input name="avancoFisico" type="text">
           </label>
 
           <label>
             Avanço financeiro
-            <input name="avancoFinanceiro" type="text" placeholder="">
+            <input name="avancoFinanceiro" type="text">
           </label>
 
           <label>
@@ -79,7 +80,7 @@
           </label>
 
           <label>
-            Utilização EPI
+            Utilização de EPI
             <input name="utilizacaoEpi" type="text">
           </label>
 
@@ -94,6 +95,26 @@
           <textarea name="observacoes" rows="5"></textarea>
         </label>
 
+        <div class="section-title subsection-title">
+          <span></span>
+          <h2>Fotos da unidade</h2>
+        </div>
+
+        <p class="section-helper">
+          Use esta parte para registrar fotos gerais da obra, ambiente, unidade, pavimento ou etapa fiscalizada.
+        </p>
+
+        <div id="fotosUnidade" class="nonconformities" aria-live="polite"></div>
+
+        <div class="section-title subsection-title">
+          <span></span>
+          <h2>Inconformidades identificadas</h2>
+        </div>
+
+        <p class="section-helper">
+          Use esta parte para registrar problemas encontrados, grau de risco, descrição técnica e solução recomendada.
+        </p>
+
         <div id="inconformidades" class="nonconformities" aria-live="polite"></div>
 
         <label class="full-width">
@@ -101,13 +122,16 @@
           <input name="emailDestino" type="email" required>
         </label>
 
-        <button id="submitButton" type="submit" class="send-button">Enviar Relatório</button>
+        <button id="submitButton" type="submit" class="send-button">
+          Enviar Relatório
+        </button>
+
         <output id="formLog" class="form-log" role="status" aria-live="polite"></output>
       </form>
     </section>
   </main>
 
- <script src="./relatorio-config.js?v=3"></script>
-<script src="./relatorio-qualidade-obras.js?v=3"></script>
+  <script src="./relatorio-config.js"></script>
+  <script src="./relatorio-qualidade-obras.js"></script>
 </body>
 </html>
