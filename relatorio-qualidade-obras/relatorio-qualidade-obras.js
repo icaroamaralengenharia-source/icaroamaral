@@ -11,6 +11,8 @@
   const loginForm = document.getElementById("loginForm");
   const logoutButton = document.getElementById("logoutButton");
   const userBadge = document.getElementById("userBadge");
+  const cloudStatus = document.getElementById("cloudStatus");
+  const editorCloudStatus = document.getElementById("editorCloudStatus");
   const clientForm = document.getElementById("clientForm");
   const clientsList = document.getElementById("clientsList");
   const workForm = document.getElementById("workForm");
@@ -55,6 +57,8 @@
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
+  let cloudSyncTimer = null;
+  let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
 
   const todayInput = document.querySelector("[name='dataVistoria']");
@@ -250,8 +254,9 @@
     bindSaasEvents_();
     renderSaasState_();
 
-    if (currentUser) {
+    if (currentUser && appState.session && appState.session.token) {
       showDashboardPanel_(getRouteFromHash_());
+      refreshCloudState_();
       return;
     }
 
@@ -260,7 +265,7 @@
 
   function bindSaasEvents_() {
     if (loginForm) {
-      loginForm.addEventListener("submit", function (event) {
+      loginForm.addEventListener("submit", async function (event) {
         event.preventDefault();
         const formData = new FormData(loginForm);
         const name = clean(formData.get("userName"));
@@ -271,32 +276,24 @@
           return;
         }
 
-        let user = appState.users.find(function (item) {
-          return item.email === email;
-        });
-
-        if (!user) {
-          user = {
-            id: createId_("usr"),
+        try {
+          setCloudStatus_("Conectando à nuvem...", "info");
+          const result = await cloudApi_("auth.login", {
             name: name,
             email: email,
-            role: "Responsável técnico",
-            createdAt: new Date().toISOString()
-          };
-          appState.users.push(user);
-        } else {
-          user.name = name;
-        }
+            password: password
+          });
 
-        appState.session = {
-          userId: user.id,
-          signedInAt: new Date().toISOString()
-        };
-        saveAppState_();
-        currentUser = user;
-        loginForm.reset();
-        renderSaasState_();
-        showDashboardPanel_("dashboard");
+          await applyCloudLogin_(result);
+          loginForm.reset();
+          renderSaasState_();
+          showDashboardPanel_("dashboard");
+          setCloudStatus_("Sincronizado na nuvem", "success");
+        } catch (error) {
+          console.error(error);
+          loginLocalFallback_(name, email);
+          setCloudStatus_("Modo local ativo. Publique o Apps Script novo para sincronizar na nuvem.", "error");
+        }
       });
     }
 
@@ -402,7 +399,10 @@
         saveAppState_();
         reportCreateForm.reset();
         renderSaasState_();
-        openReportEditor_(report.id);
+        openReportEditor_(report.id).catch(function (error) {
+          console.error(error);
+          setCloudStatus_("Não foi possível abrir o relatório.", "error");
+        });
       });
     }
 
@@ -449,6 +449,38 @@
     };
   }
 
+  function loginLocalFallback_(name, email) {
+    let user = appState.users.find(function (item) {
+      return item.email === email;
+    });
+
+    if (!user) {
+      user = {
+        id: createId_("usr"),
+        name: name,
+        email: email,
+        role: "Responsável técnico",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      appState.users.push(user);
+    } else {
+      user.name = name || user.name;
+      user.updatedAt = new Date().toISOString();
+    }
+
+    appState.session = {
+      userId: user.id,
+      localOnly: true,
+      signedInAt: new Date().toISOString()
+    };
+    window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
+    currentUser = user;
+    loginForm.reset();
+    renderSaasState_();
+    showDashboardPanel_("dashboard");
+  }
+
   function saveAppState_() {
     try {
       window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
@@ -456,6 +488,168 @@
       console.error("Não foi possível salvar a estrutura SaaS local.", error);
       throw new Error("Não foi possível salvar os dados locais do SaaS neste navegador.");
     }
+
+    scheduleCloudSync_();
+  }
+
+  function scheduleCloudSync_(fullDraft) {
+    if (isApplyingCloudState || !appState.session || !appState.session.token) {
+      return;
+    }
+
+    window.clearTimeout(cloudSyncTimer);
+    setCloudStatus_("Salvando na nuvem...", "info");
+    cloudSyncTimer = window.setTimeout(function () {
+      syncCloudState_(fullDraft).catch(function (error) {
+        console.warn("Não foi possível sincronizar com a nuvem.", error);
+        setCloudStatus_(error.message || "Falha ao sincronizar nuvem.", "error");
+      });
+    }, 700);
+  }
+
+  async function syncCloudState_(fullDraft) {
+    if (!appState.session || !appState.session.token) {
+      return;
+    }
+
+    const state = buildCloudState_(fullDraft);
+    const result = await cloudApi_("sync.save", {
+      token: appState.session.token,
+      state: state
+    });
+
+    await applyCloudState_(result.state, appState.session.token);
+    setCloudStatus_("Sincronizado na nuvem", "success");
+  }
+
+  async function refreshCloudState_() {
+    if (!appState.session || !appState.session.token) {
+      return;
+    }
+
+    try {
+      setCloudStatus_("Atualizando dados da nuvem...", "info");
+      const result = await cloudApi_("sync.get", {
+        token: appState.session.token
+      });
+      await applyCloudState_(result.state, appState.session.token);
+      renderSaasState_();
+      setCloudStatus_("Sincronizado na nuvem", "success");
+    } catch (error) {
+      console.warn("Não foi possível atualizar a nuvem.", error);
+      setCloudStatus_(error.message || "Nuvem indisponível.", "error");
+    }
+  }
+
+  function buildCloudState_(fullDraft) {
+    const reports = appState.reports.map(function (report) {
+      const copy = JSON.parse(JSON.stringify(report));
+
+      if (fullDraft && activeReportId && copy.id === activeReportId) {
+        copy.draft = fullDraft;
+      }
+
+      return copy;
+    });
+
+    return {
+      version: 1,
+      clients: appState.clients,
+      works: appState.works,
+      reports: reports
+    };
+  }
+
+  async function cloudApi_(action, payload) {
+    if (!config.appsScriptUrl || config.appsScriptUrl.includes("COLE_AQUI")) {
+      throw new Error("Configure a URL do Apps Script para usar a nuvem.");
+    }
+
+    const response = await fetch(config.appsScriptUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(Object.assign({
+        app: "ObraReport",
+        action: action
+      }, payload || {}))
+    });
+
+    const text = await response.text();
+    let result;
+
+    try {
+      result = JSON.parse(text);
+    } catch (error) {
+      throw new Error("Resposta inválida da nuvem: " + text.slice(0, 160));
+    }
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Falha na API do ObraReport.");
+    }
+
+    return result;
+  }
+
+  async function applyCloudLogin_(result) {
+    if (!result || !result.user || !result.token) {
+      throw new Error("Login em nuvem retornou dados incompletos.");
+    }
+
+    await applyCloudState_(result.state, result.token);
+  }
+
+  async function applyCloudState_(state, token) {
+    if (!state || !Array.isArray(state.users)) {
+      return;
+    }
+
+    isApplyingCloudState = true;
+
+    try {
+      const localState = {
+        version: 1,
+        session: {
+          userId: state.users[0].id,
+          token: token || (appState.session && appState.session.token) || "",
+          signedInAt: new Date().toISOString(),
+          syncedAt: state.syncedAt || new Date().toISOString()
+        },
+        users: state.users,
+        clients: state.clients || [],
+        works: state.works || [],
+        reports: []
+      };
+
+      for (let index = 0; index < (state.reports || []).length; index += 1) {
+        const report = JSON.parse(JSON.stringify(state.reports[index]));
+
+        if (report.draft && report.draft.images && Object.keys(report.draft.images).length) {
+          await putDraftRecordById_(getDraftIdForReport_(report.id), report.draft);
+          report.draft = cloneDraftWithoutImages_(report.draft);
+        }
+
+        localState.reports.push(report);
+      }
+
+      appState = localState;
+      currentUser = getCurrentUser_();
+      window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
+    } finally {
+      isApplyingCloudState = false;
+    }
+  }
+
+  function setCloudStatus_(message, kind) {
+    [cloudStatus, editorCloudStatus].forEach(function (target) {
+      if (!target) {
+        return;
+      }
+
+      target.textContent = message;
+      target.className = "cloud-status" + (kind ? " " + kind : "");
+    });
   }
 
   function getCurrentUser_() {
@@ -722,7 +916,10 @@
         detail,
         [
           createMiniButton_("Abrir", "primary", function () {
-            openReportEditor_(report.id);
+            openReportEditor_(report.id).catch(function (error) {
+              console.error(error);
+              setCloudStatus_("Não foi possível abrir o relatório.", "error");
+            });
           }),
           report.pdfUrl ? createMiniButton_("PDF", "", function () {
             window.open(report.pdfUrl, "_blank", "noopener");
@@ -1769,6 +1966,7 @@
     saveDraftTextFallback_(draft);
     await putDraftRecord_(draft);
     saveActiveReportDraft_(draft);
+    scheduleCloudSync_(draft);
     setDraftStatus_("Rascunho salvo automaticamente.", "success");
   }
 
@@ -1853,10 +2051,18 @@
   }
 
   function getActiveDraftId_() {
-    return activeReportId ? defaultDraftId + "-" + activeReportId : defaultDraftId;
+    return activeReportId ? getDraftIdForReport_(activeReportId) : defaultDraftId;
+  }
+
+  function getDraftIdForReport_(reportId) {
+    return defaultDraftId + "-" + reportId;
   }
 
   async function putDraftRecord_(record) {
+    return putDraftRecordById_(record.id || getActiveDraftId_(), record);
+  }
+
+  async function putDraftRecordById_(draftId, record) {
     let db;
 
     try {
@@ -1869,7 +2075,8 @@
     return new Promise(function (resolve, reject) {
       const transaction = db.transaction("drafts", "readwrite");
       const store = transaction.objectStore("drafts");
-      const request = store.put(record);
+      const copy = Object.assign({}, record, { id: draftId });
+      const request = store.put(copy);
 
       request.onerror = function () {
         reject(request.error);

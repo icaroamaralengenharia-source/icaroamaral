@@ -176,6 +176,35 @@ body {
   gap: 10px;
 }
 
+.cloud-status {
+  padding: 7px 10px;
+  color: var(--muted);
+  background: #f8fafc;
+  border: 1px solid #dbe0e7;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cloud-status.success {
+  color: var(--success);
+  background: #f6fff8;
+  border-color: rgba(21, 127, 59, 0.32);
+}
+
+.cloud-status.error {
+  color: var(--danger);
+  background: #fff7f6;
+  border-color: rgba(180, 35, 24, 0.32);
+}
+
+.cloud-status.info {
+  color: var(--navy);
+  background: #fffaf0;
+  border-color: rgba(216, 171, 56, 0.42);
+}
+
 .session-box strong,
 .report-context-bar strong {
   color: var(--navy);

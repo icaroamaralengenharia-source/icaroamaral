@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-saas1">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-saas11">
 </head>
 <body>
   <main class="page-shell">
@@ -50,7 +50,7 @@
           </label>
 
           <label class="full-width">
-            Senha local
+            Senha
             <input name="userPassword" type="password" autocomplete="current-password" required>
           </label>
         </div>
@@ -60,8 +60,8 @@
         </div>
 
         <p class="auth-note">
-          Nesta primeira fase, o acesso é salvo localmente neste navegador. A estrutura já separa usuário,
-          clientes, obras, relatórios, fotos e PDF para evolução posterior com backend.
+          O acesso sincroniza clientes, obras e relatórios pela nuvem do ObraReport.
+          Este navegador mantém um cache local para continuar protegido contra quedas de internet.
         </p>
       </form>
     </section>
@@ -74,6 +74,7 @@
         </div>
         <div class="session-box">
           <strong id="userBadge">Usuário</strong>
+          <span class="cloud-status" id="cloudStatus">Nuvem aguardando login</span>
           <button type="button" class="secondary-action compact" id="logoutButton">Sair</button>
         </div>
       </div>
@@ -240,6 +241,7 @@
           <strong id="currentReportLabel">Relatório sem vínculo</strong>
         </div>
         <div class="context-actions">
+          <span class="cloud-status" id="editorCloudStatus">Nuvem aguardando alterações</span>
           <button type="button" class="secondary-action compact" id="backToDashboardButton">Dashboard</button>
           <button type="button" class="next-action compact" id="saveReportButton">Salvar relatório</button>
         </div>
@@ -427,7 +429,7 @@
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-saas1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-saas1"></script>
+  <script src="./relatorio-config.js?v=20260525-saas11"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-saas11"></script>
 </body>
 </html>
