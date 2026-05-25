@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-saas11">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-saas11a2">
 </head>
 <body>
   <main class="page-shell">
@@ -74,7 +74,9 @@
         </div>
         <div class="session-box">
           <strong id="userBadge">Usuário</strong>
+          <span class="local-status" id="localStatus">Salvo localmente</span>
           <span class="cloud-status" id="cloudStatus">Nuvem aguardando login</span>
+          <button type="button" class="secondary-action compact" id="saveNowButton">Salvar agora</button>
           <button type="button" class="secondary-action compact" id="logoutButton">Sair</button>
         </div>
       </div>
@@ -241,7 +243,9 @@
           <strong id="currentReportLabel">Relatório sem vínculo</strong>
         </div>
         <div class="context-actions">
+          <span class="local-status" id="editorLocalStatus">Salvo localmente</span>
           <span class="cloud-status" id="editorCloudStatus">Nuvem aguardando alterações</span>
+          <button type="button" class="secondary-action compact" id="saveEditorNowButton">Salvar agora</button>
           <button type="button" class="secondary-action compact" id="backToDashboardButton">Dashboard</button>
           <button type="button" class="next-action compact" id="saveReportButton">Salvar relatório</button>
         </div>
@@ -429,7 +433,7 @@
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-saas11"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-saas11"></script>
+  <script src="./relatorio-config.js?v=20260525-saas11a2"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-saas11a2"></script>
 </body>
 </html>

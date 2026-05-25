@@ -11,8 +11,12 @@
   const loginForm = document.getElementById("loginForm");
   const logoutButton = document.getElementById("logoutButton");
   const userBadge = document.getElementById("userBadge");
+  const localStatus = document.getElementById("localStatus");
+  const editorLocalStatus = document.getElementById("editorLocalStatus");
   const cloudStatus = document.getElementById("cloudStatus");
   const editorCloudStatus = document.getElementById("editorCloudStatus");
+  const saveNowButton = document.getElementById("saveNowButton");
+  const saveEditorNowButton = document.getElementById("saveEditorNowButton");
   const clientForm = document.getElementById("clientForm");
   const clientsList = document.getElementById("clientsList");
   const workForm = document.getElementById("workForm");
@@ -53,10 +57,11 @@
   const defaultDraftId = "relatorio-fiscalizacao-draft-v2";
   const saasStoreKey = "obrareport-saas-v1";
   const imageCache = new Map();
-  let appState = loadAppState_();
+  let appState = loadLocalData();
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
+  let localSaveTimer = null;
   let cloudSyncTimer = null;
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
@@ -254,9 +259,17 @@
     bindSaasEvents_();
     renderSaasState_();
 
-    if (currentUser && appState.session && appState.session.token) {
-      showDashboardPanel_(getRouteFromHash_());
-      refreshCloudState_();
+    if (currentUser) {
+      recoverDraft().catch(function (error) {
+        console.warn("Não foi possível recuperar o estado local.", error);
+        showDashboardPanel_(getRouteFromHash_());
+      });
+
+      if (appState.session && appState.session.token) {
+        refreshCloudState_();
+      } else {
+        setCloudStatus_("Modo local ativo", "info");
+      }
       return;
     }
 
@@ -301,14 +314,30 @@
       logoutButton.addEventListener("click", function () {
         activeReportId = null;
         appState.session = null;
+        setLastOpened_("dashboard");
         saveAppState_();
         currentUser = null;
         showHomePanel_();
       });
     }
 
+    [saveNowButton, saveEditorNowButton].forEach(function (button) {
+      if (!button) {
+        return;
+      }
+
+      button.addEventListener("click", function () {
+        saveNow_().catch(function (error) {
+          console.error(error);
+          setLocalStatus_("Alterações não salvas", "error");
+        });
+      });
+    });
+
     routeButtons.forEach(function (button) {
       button.addEventListener("click", function () {
+        setLastOpened_(button.dataset.routeTarget);
+        scheduleLocalDataSave_();
         showDashboardPanel_(button.dataset.routeTarget);
       });
     });
@@ -340,6 +369,7 @@
         }
 
         appState.clients.push(client);
+        setLastOpened_("clientes", client.id, "", "");
         saveAppState_();
         clientForm.reset();
         renderSaasState_();
@@ -369,6 +399,7 @@
         }
 
         appState.works.push(work);
+        setLastOpened_("obras", work.clientId, work.id, "");
         saveAppState_();
         workForm.reset();
         renderSaasState_();
@@ -378,7 +409,23 @@
 
     if (reportClientSelect) {
       reportClientSelect.addEventListener("change", function () {
+        setLastOpened_("relatorios", reportClientSelect.value, "", "");
+        scheduleLocalDataSave_();
         renderReportWorkOptions_(reportClientSelect.value);
+      });
+    }
+
+    if (workClientSelect) {
+      workClientSelect.addEventListener("change", function () {
+        setLastOpened_("obras", workClientSelect.value, "", "");
+        scheduleLocalDataSave_();
+      });
+    }
+
+    if (reportWorkSelect) {
+      reportWorkSelect.addEventListener("change", function () {
+        setLastOpened_("relatorios", reportClientSelect ? reportClientSelect.value : "", reportWorkSelect.value, "");
+        scheduleLocalDataSave_();
       });
     }
 
@@ -396,6 +443,7 @@
 
         const report = createReport_(work, title);
         appState.reports.push(report);
+        setLastOpened_("editor", report.clientId, report.workId, report.id);
         saveAppState_();
         reportCreateForm.reset();
         renderSaasState_();
@@ -409,6 +457,7 @@
     if (saveReportButton) {
       saveReportButton.addEventListener("click", function () {
         saveDraft_().then(function () {
+          setLastOpened_("editor");
           setDraftStatus_("Relatório salvo no histórico da obra.", "success");
         });
       });
@@ -417,10 +466,16 @@
     if (backToDashboardButton) {
       backToDashboardButton.addEventListener("click", function () {
         saveDraft_().finally(function () {
+          setLastOpened_("relatorios");
+          saveLocalData({ syncCloud: true });
           showDashboardPanel_("relatorios");
         });
       });
     }
+  }
+
+  function loadLocalData() {
+    return loadAppState_();
   }
 
   function loadAppState_() {
@@ -433,20 +488,31 @@
         parsed.clients = Array.isArray(parsed.clients) ? parsed.clients : [];
         parsed.works = Array.isArray(parsed.works) ? parsed.works : [];
         parsed.reports = Array.isArray(parsed.reports) ? parsed.reports : [];
-        return parsed;
+        return ensureLocalState_(parsed);
       }
     } catch (error) {
       console.warn("Não foi possível ler os dados locais do SaaS.", error);
     }
 
-    return {
+    return ensureLocalState_({
       version: 1,
       session: null,
       users: [],
       clients: [],
       works: [],
       reports: []
-    };
+    });
+  }
+
+  function ensureLocalState_(state) {
+    state.local = state.local || {};
+    state.local.lastRoute = state.local.lastRoute || "dashboard";
+    state.local.lastView = state.local.lastView || state.local.lastRoute;
+    state.local.lastClientId = state.local.lastClientId || "";
+    state.local.lastWorkId = state.local.lastWorkId || "";
+    state.local.lastReportId = state.local.lastReportId || "";
+    state.local.updatedAt = state.local.updatedAt || new Date().toISOString();
+    return state;
   }
 
   function loginLocalFallback_(name, email) {
@@ -474,22 +540,116 @@
       localOnly: true,
       signedInAt: new Date().toISOString()
     };
-    window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
+    saveLocalData({ syncCloud: false });
     currentUser = user;
     loginForm.reset();
     renderSaasState_();
     showDashboardPanel_("dashboard");
   }
 
-  function saveAppState_() {
+  function saveLocalData(options) {
+    const settings = options || {};
+
     try {
+      ensureLocalState_(appState);
+      appState.local.updatedAt = new Date().toISOString();
       window.localStorage.setItem(saasStoreKey, JSON.stringify(appState));
+      setLocalStatus_("Salvo localmente", "success");
     } catch (error) {
       console.error("Não foi possível salvar a estrutura SaaS local.", error);
+      setLocalStatus_("Alterações não salvas", "error");
       throw new Error("Não foi possível salvar os dados locais do SaaS neste navegador.");
     }
 
-    scheduleCloudSync_();
+    if (settings.syncCloud !== false) {
+      scheduleCloudSync_(settings.fullDraft);
+    }
+  }
+
+  function saveAppState_() {
+    saveLocalData({ syncCloud: true });
+  }
+
+  function scheduleLocalDataSave_(options) {
+    window.clearTimeout(localSaveTimer);
+    setLocalStatus_("Alterações não salvas", "info");
+    localSaveTimer = window.setTimeout(function () {
+      try {
+        saveLocalData(options);
+      } catch (error) {
+        console.warn("Não foi possível salvar localmente.", error);
+      }
+    }, 600);
+  }
+
+  async function saveNow_() {
+    if (activeReportId && !reportPanel.classList.contains("is-hidden")) {
+      await saveDraft_();
+      return;
+    }
+
+    saveLocalData({ syncCloud: true });
+  }
+
+  async function recoverDraft() {
+    ensureLocalState_(appState);
+
+    const last = appState.local;
+    const hashReportId = getReportIdFromHash_();
+    const reportIdToRecover = hashReportId || (last.lastView === "editor" ? last.lastReportId : "");
+    const shouldRecoverEditor =
+      reportIdToRecover &&
+      Boolean(findReport_(reportIdToRecover));
+
+    if (shouldRecoverEditor) {
+      await openReportEditor_(reportIdToRecover);
+      setLocalStatus_("Salvo localmente", "success");
+      return;
+    }
+
+    const routeFromHash = getRouteFromHash_();
+    const route = window.location.hash.indexOf("#app/") === 0 ? routeFromHash : last.lastRoute;
+    showDashboardPanel_(route || "dashboard");
+    restoreLastSelections_();
+    setLocalStatus_("Salvo localmente", "success");
+  }
+
+  function restoreLastSelections_() {
+    const last = appState.local || {};
+
+    if (workClientSelect && last.lastClientId) {
+      workClientSelect.value = last.lastClientId;
+    }
+
+    if (reportClientSelect && last.lastClientId) {
+      reportClientSelect.value = last.lastClientId;
+      renderReportWorkOptions_(last.lastClientId);
+    }
+
+    if (reportWorkSelect && last.lastWorkId) {
+      reportWorkSelect.value = last.lastWorkId;
+    }
+  }
+
+  function setLastOpened_(view, clientId, workId, reportId) {
+    ensureLocalState_(appState);
+    appState.local.lastView = view || appState.local.lastView || "dashboard";
+    appState.local.lastRoute = view === "editor" ? "relatorios" : (view || appState.local.lastRoute || "dashboard");
+    appState.local.lastClientId = clientId !== undefined ? clientId : appState.local.lastClientId;
+    appState.local.lastWorkId = workId !== undefined ? workId : appState.local.lastWorkId;
+    appState.local.lastReportId = reportId !== undefined ? reportId : appState.local.lastReportId;
+    appState.local.updatedAt = new Date().toISOString();
+  }
+
+  function setLocalStatus_(message, kind) {
+    [localStatus, editorLocalStatus].forEach(function (target) {
+      if (!target) {
+        return;
+      }
+
+      target.textContent = message;
+      target.className = "local-status" + (kind ? " " + kind : "");
+    });
   }
 
   function scheduleCloudSync_(fullDraft) {
@@ -619,7 +779,10 @@
         users: state.users,
         clients: state.clients || [],
         works: state.works || [],
-        reports: []
+        reports: [],
+        local: Object.assign({}, appState.local || {}, {
+          updatedAt: new Date().toISOString()
+        })
       };
 
       for (let index = 0; index < (state.reports || []).length; index += 1) {
@@ -667,8 +830,13 @@
   }
 
   function getRouteFromHash_() {
-    const value = String(window.location.hash || "").replace("#app/", "");
+    const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     return ["dashboard", "clientes", "obras", "relatorios"].indexOf(value) >= 0 ? value : "dashboard";
+  }
+
+  function getReportIdFromHash_() {
+    const hash = String(window.location.hash || "");
+    return hash.indexOf("#report/") === 0 ? hash.replace("#report/", "") : "";
   }
 
   function showHomePanel_() {
@@ -1003,6 +1171,11 @@
     }
 
     activeReportId = report.id;
+    setLastOpened_("editor", report.clientId, report.workId, report.id);
+    saveLocalData({ syncCloud: false });
+    if (window.location.hash !== "#report/" + report.id) {
+      window.location.hash = "#report/" + report.id;
+    }
     resetEditorForm_();
     applyDraftToForm_(await getDraftRecord_() || report.draft);
     updateReportContext_();
@@ -1062,6 +1235,7 @@
       return;
     }
 
+    setLastOpened_("editor", report.clientId, report.workId, report.id);
     report.draft = cloneDraftWithoutImages_(draft);
     report.updatedAt = draft.updatedAt;
     report.status = report.pdfUrl ? "PDF gerado · em edição" : "Em edição";
@@ -1495,6 +1669,7 @@
   function initializeDraft_() {
     form.addEventListener("input", function (event) {
       if (event.target && event.target.type !== "file") {
+        setLocalStatus_("Alterações não salvas", "info");
         scheduleDraftSave_();
         updateReportMetrics_();
       }
@@ -1506,6 +1681,8 @@
       if (!target) {
         return;
       }
+
+      setLocalStatus_("Alterações não salvas", "info");
 
       if (target.type === "file" && target.dataset.imageInput === "true") {
         await handleFileInputChange_(target);
