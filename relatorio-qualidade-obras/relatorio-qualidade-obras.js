@@ -3,13 +3,32 @@
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
   const form = document.getElementById("qualityReportForm");
+  const homePanel = document.getElementById("homePanel");
+  const reportPanel = document.getElementById("reportPanel");
+  const openReportButton = document.getElementById("openReportButton");
   const fotosUnidadeContainer = document.getElementById("fotosUnidade");
   const inconformidadesContainer = document.getElementById("inconformidades");
   const log = document.getElementById("formLog");
+  const draftStatus = document.getElementById("draftStatus");
   const submitButton = document.getElementById("submitButton");
+  const progressFill = document.getElementById("progressFill");
+  const fotoCount = document.getElementById("fotoCount");
+  const inconformidadeCount = document.getElementById("inconformidadeCount");
+  const highRiskCount = document.getElementById("highRiskCount");
+  const reviewSummary = document.getElementById("reviewSummary");
+  const generationStatus = document.getElementById("generationStatus");
+  const stepOrder = ["dados", "fotos", "inconformidades", "revisao", "gerar"];
+  const stepPanels = Array.from(document.querySelectorAll("[data-step]"));
+  const stepButtons = Array.from(document.querySelectorAll("[data-step-target]"));
   const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  const allowedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
+  const heicExtensions = new Set(["heic", "heif"]);
   const maxFotosUnidade = config.maxFotosUnidade || 20;
   const maxInconformidades = config.maxInconformidades || 20;
+  const draftId = "relatorio-fiscalizacao-draft-v2";
+  const imageCache = new Map();
+  let draftSaveTimer = null;
+  let imageProcessingQueue = Promise.resolve();
 
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
@@ -18,13 +37,31 @@
 
   renderFotoUnidadeFields();
   renderInconformidadeFields();
+  initializeWizard_();
+  initializeDraft_();
+
+  if (openReportButton && homePanel && reportPanel) {
+    openReportButton.addEventListener("click", function () {
+      showReportPanel_();
+      const firstInput = form.querySelector("input, select, textarea");
+
+      if (firstInput) {
+        firstInput.focus();
+      }
+    });
+  }
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
 
     try {
+      if (!validateAllRequired_()) {
+        return;
+      }
+
       setBusy(true);
-      setLog("Preparando dados e convertendo imagens em Base64...");
+      setGenerationStatus_("Processando imagens...");
+      setLog("Processando imagens...");
 
       if (!config.appsScriptUrl || config.appsScriptUrl.includes("COLE_AQUI")) {
         throw new Error("Configure a URL do Web App em relatorio-config.js.");
@@ -62,7 +99,8 @@
         inconformidades: inconformidades
       };
 
-      setLog("Enviando relatório para o Google Apps Script...");
+      setGenerationStatus_("Enviando PDF...");
+      setLog("Enviando PDF...");
 
       const response = await fetch(config.appsScriptUrl, {
         method: "POST",
@@ -85,15 +123,19 @@
         throw new Error(result.error || "Falha ao gerar relatório.");
       }
 
+      setGenerationStatus_("Relatório gerado com sucesso.");
       setLog("Relatório enviado com sucesso. PDF: " + result.pdfUrl, "success");
-
       form.reset();
+      imageCache.clear();
+      clearAllImagePreviews_();
+      await clearDraft_();
 
       if (todayInput) {
         todayInput.valueAsDate = new Date();
       }
     } catch (error) {
       console.error(error);
+      setGenerationStatus_("Não foi possível gerar o relatório.");
       setLog(error.message || "Erro inesperado ao enviar relatório.", "error");
     } finally {
       setBusy(false);
@@ -106,14 +148,14 @@
     for (let index = 1; index <= maxFotosUnidade; index += 1) {
       const number = String(index).padStart(2, "0");
       const photoInput = form.querySelector("[name='fotoUnidade" + number + "']");
-      const file = photoInput && photoInput.files ? photoInput.files[0] : null;
+      const preparedImage = await getPreparedImage_(photoInput, "UNIDADE-" + number, "Foto da Unidade " + number);
       const descricao = clean(formData.get("descricaoFotoUnidade" + number));
 
-      if (!file && !descricao) {
+      if (!preparedImage && !descricao) {
         continue;
       }
 
-      if (!file) {
+      if (!preparedImage) {
         throw new Error("Anexe a Foto da Unidade " + number + ".");
       }
 
@@ -121,12 +163,10 @@
         throw new Error("Preencha a descrição da Foto da Unidade " + number + ".");
       }
 
-      validateImageFile_(file, "Foto da Unidade " + number);
-
       fotos.push({
         numero: number,
         descricao: descricao,
-        foto: await imageFileToOptimizedBase64(file, "UNIDADE-" + number)
+        foto: preparedImage
       });
     }
 
@@ -139,16 +179,16 @@
     for (let index = 1; index <= maxInconformidades; index += 1) {
       const number = String(index).padStart(2, "0");
       const photoInput = form.querySelector("[name='fotoInconformidade" + number + "']");
-      const file = photoInput && photoInput.files ? photoInput.files[0] : null;
+      const preparedImage = await getPreparedImage_(photoInput, "RQO-" + number, "Inconformidade " + number);
       const descricao = clean(formData.get("descricaoInconformidade" + number));
       const solucao = clean(formData.get("solucaoInconformidade" + number));
       const grauRisco = clean(formData.get("grauRisco" + number));
 
-      if (!file && !descricao && !solucao && !grauRisco) {
+      if (!preparedImage && !descricao && !solucao && !grauRisco) {
         continue;
       }
 
-      if (!file) {
+      if (!preparedImage) {
         throw new Error("Anexe a foto da Inconformidade " + number + ".");
       }
 
@@ -156,14 +196,12 @@
         throw new Error("Preencha descrição, solução e grau de risco da Inconformidade " + number + ".");
       }
 
-      validateImageFile_(file, "Inconformidade " + number);
-
       inconformidades.push({
         numero: number,
         descricaoTecnica: descricao,
         solucaoRecomendada: solucao,
         grauRisco: grauRisco,
-        foto: await imageFileToOptimizedBase64(file, "RQO-" + number)
+        foto: preparedImage
       });
     }
 
@@ -174,20 +212,216 @@
     return String(value || "").trim();
   }
 
-  function validateImageFile_(file, label) {
-    if (!allowedTypes.has(file.type)) {
-      throw new Error("Arquivo não permitido em " + label + ". Use PNG, JPG ou WEBP.");
-    }
+  function showReportPanel_() {
+    homePanel.classList.add("is-hidden");
+    reportPanel.classList.remove("is-hidden");
   }
 
   function setBusy(isBusy) {
     submitButton.disabled = isBusy;
-    submitButton.textContent = isBusy ? "Enviando..." : "Enviar Relatório";
+    submitButton.textContent = isBusy ? "Gerando relatório..." : "Gerar relatório";
+  }
+
+  function setGenerationStatus_(message) {
+    if (generationStatus) {
+      generationStatus.textContent = message;
+    }
   }
 
   function setLog(message, kind) {
     log.textContent = message;
     log.className = "form-log" + (kind ? " " + kind : "");
+  }
+
+  function setDraftStatus_(message, kind) {
+    if (!draftStatus) {
+      return;
+    }
+
+    draftStatus.textContent = message || "";
+    draftStatus.className = "draft-status" + (kind ? " " + kind : "");
+  }
+
+  function initializeWizard_() {
+    updateReportMetrics_();
+    goToStep_("dados", false);
+
+    stepButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        goToStep_(button.dataset.stepTarget, false);
+      });
+    });
+
+    form.addEventListener("click", function (event) {
+      const nextButton = event.target.closest("[data-next-step]");
+      const prevButton = event.target.closest("[data-prev-step]");
+
+      if (nextButton) {
+        if (validateCurrentStep_()) {
+          goToStep_(nextButton.dataset.nextStep, false);
+        }
+      }
+
+      if (prevButton) {
+        goToStep_(prevButton.dataset.prevStep, false);
+      }
+    });
+  }
+
+  function goToStep_(step, shouldFocus) {
+    const index = stepOrder.indexOf(step);
+    const safeStep = index >= 0 ? step : "dados";
+    const safeIndex = stepOrder.indexOf(safeStep);
+
+    stepPanels.forEach(function (panel) {
+      panel.classList.toggle("active", panel.dataset.step === safeStep);
+    });
+
+    stepButtons.forEach(function (button) {
+      const buttonIndex = stepOrder.indexOf(button.dataset.stepTarget);
+      button.classList.toggle("active", button.dataset.stepTarget === safeStep);
+      button.classList.toggle("done", buttonIndex >= 0 && buttonIndex < safeIndex);
+    });
+
+    if (progressFill) {
+      progressFill.style.width = ((safeIndex + 1) / stepOrder.length * 100) + "%";
+    }
+
+    updateReportMetrics_();
+    if (safeStep === "revisao") {
+      renderReviewSummary_();
+    }
+
+    if (shouldFocus !== false) {
+      const panel = stepPanels.find(function (item) {
+        return item.dataset.step === safeStep;
+      });
+      const focusable = panel && panel.querySelector("input, select, textarea, button");
+      if (focusable) {
+        focusable.focus();
+      }
+    }
+  }
+
+  function validateCurrentStep_() {
+    const activePanel = document.querySelector(".step-panel.active");
+    const requiredFields = activePanel ? Array.from(activePanel.querySelectorAll("[required]")) : [];
+
+    for (let index = 0; index < requiredFields.length; index += 1) {
+      if (!requiredFields[index].checkValidity()) {
+        requiredFields[index].reportValidity();
+        requiredFields[index].focus();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function validateAllRequired_() {
+    const requiredFields = Array.from(form.querySelectorAll("[required]"));
+
+    for (let index = 0; index < requiredFields.length; index += 1) {
+      if (!requiredFields[index].checkValidity()) {
+        const panel = requiredFields[index].closest("[data-step]");
+        if (panel) {
+          goToStep_(panel.dataset.step, false);
+        }
+        requiredFields[index].reportValidity();
+        requiredFields[index].focus();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  function updateReportMetrics_() {
+    const stats = getReportStats_();
+
+    if (fotoCount) {
+      fotoCount.textContent = String(stats.fotos);
+    }
+
+    if (inconformidadeCount) {
+      inconformidadeCount.textContent = String(stats.inconformidades);
+    }
+
+    if (highRiskCount) {
+      highRiskCount.textContent = String(stats.riscosAltos);
+    }
+  }
+
+  function getReportStats_() {
+    let fotos = 0;
+    let inconformidades = 0;
+    let riscosAltos = 0;
+
+    for (let index = 1; index <= maxFotosUnidade; index += 1) {
+      const number = String(index).padStart(2, "0");
+      if (hasImage_("fotoUnidade" + number)) {
+        fotos += 1;
+      }
+    }
+
+    for (let index = 1; index <= maxInconformidades; index += 1) {
+      const number = String(index).padStart(2, "0");
+      const imageName = "fotoInconformidade" + number;
+      const descricao = clean(form.elements["descricaoInconformidade" + number] && form.elements["descricaoInconformidade" + number].value);
+      const solucao = clean(form.elements["solucaoInconformidade" + number] && form.elements["solucaoInconformidade" + number].value);
+      const grau = clean(form.elements["grauRisco" + number] && form.elements["grauRisco" + number].value);
+
+      if (hasImage_(imageName) || descricao || solucao || grau) {
+        inconformidades += 1;
+      }
+
+      if (grau.indexOf("Alto") >= 0 || grau.indexOf("Interdicao") >= 0) {
+        riscosAltos += 1;
+      }
+    }
+
+    return {
+      fotos: fotos,
+      inconformidades: inconformidades,
+      riscosAltos: riscosAltos
+    };
+  }
+
+  function hasImage_(inputName) {
+    const input = form.elements[inputName];
+    return imageCache.has(inputName) || Boolean(input && input.files && input.files[0]);
+  }
+
+  function renderReviewSummary_() {
+    const stats = getReportStats_();
+    const items = [
+      ["Obra", clean(form.elements.obra && form.elements.obra.value) || "-"],
+      ["Local", clean(form.elements.local && form.elements.local.value) || "-"],
+      ["Data da vistoria", clean(form.elements.dataVistoria && form.elements.dataVistoria.value) || "-"],
+      ["Tipo de obra", clean(form.elements.tipoObra && form.elements.tipoObra.value) || "-"],
+      ["Fotos da unidade", stats.fotos + " foto(s)"],
+      ["Inconformidades", stats.inconformidades + " item(ns)"],
+      ["Riscos altos", stats.riscosAltos + " item(ns)"]
+    ];
+
+    if (!reviewSummary) {
+      return;
+    }
+
+    reviewSummary.innerHTML = "";
+    items.forEach(function (item) {
+      const card = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+
+      card.className = "review-card";
+      label.textContent = item[0];
+      value.textContent = item[1];
+
+      card.appendChild(label);
+      card.appendChild(value);
+      reviewSummary.appendChild(card);
+    });
   }
 
   function renderFotoUnidadeFields() {
@@ -198,7 +432,7 @@
       const section = document.createElement("section");
       section.className = "nonconformity-card";
 
-      section.appendChild(createTitle("Foto da Unidade " + number));
+      section.appendChild(createTitle("FOTO DA UNIDADE " + number));
       section.appendChild(createFileField("Foto da Unidade " + number, "fotoUnidade" + number));
       section.appendChild(createTextAreaField("Descrição da Foto " + number, "descricaoFotoUnidade" + number, 3));
 
@@ -217,7 +451,7 @@
       const section = document.createElement("section");
       section.className = "nonconformity-card";
 
-      section.appendChild(createTitle("Inconformidade " + number));
+      section.appendChild(createTitle("RQO " + number + " - INCONFORMIDADE IDENTIFICADA"));
       section.appendChild(createFileField("Foto da Inconformidade " + number, "fotoInconformidade" + number));
       section.appendChild(createRiskField("Grau de risco " + number, "grauRisco" + number));
       section.appendChild(createTextAreaField("Inconformidade " + number + " - Descrição Técnica", "descricaoInconformidade" + number, 4));
@@ -237,29 +471,49 @@
   }
 
   function createFileField(labelText, name) {
+    const wrapper = document.createElement("div");
     const label = document.createElement("label");
     const input = document.createElement("input");
+    const hint = document.createElement("small");
+    const preview = document.createElement("div");
+    const hidden = document.createElement("input");
 
+    wrapper.className = "image-upload-field";
     input.name = name;
     input.type = "file";
-    input.accept = "image/png,image/jpeg,image/webp";
+    input.accept = "image/*";
+    input.setAttribute("accept", "image/*");
+    input.dataset.imageInput = "true";
+
+    hint.className = "upload-hint";
+    hint.textContent = "No celular, selecione ou fotografe. A imagem será comprimida automaticamente antes do envio.";
+
+    preview.className = "image-preview is-empty";
+    preview.dataset.previewFor = name;
+    preview.setAttribute("aria-live", "polite");
+
+    hidden.type = "hidden";
+    hidden.name = name + "Base64Jpeg";
+    hidden.dataset.processedFor = name;
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(input);
-
-    return label;
+    wrapper.appendChild(label);
+    wrapper.appendChild(hint);
+    wrapper.appendChild(preview);
+    wrapper.appendChild(hidden);
+    return wrapper;
   }
 
   function createRiskField(labelText, name) {
     const label = document.createElement("label");
     const select = document.createElement("select");
-
     const options = [
       ["", "Escolher"],
       ["Baixo - acompanhar", "Baixo - acompanhar"],
-      ["Médio - corrigir com prioridade", "Médio - corrigir com prioridade"],
+      ["Medio - corrigir com prioridade", "Médio - corrigir com prioridade"],
       ["Alto - corrigir imediatamente", "Alto - corrigir imediatamente"],
-      ["Interdição - paralisar área", "Interdição - paralisar área"]
+      ["Interdicao - paralisar area", "Interdição - paralisar área"]
     ];
 
     select.name = name;
@@ -273,7 +527,6 @@
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(select);
-
     return label;
   }
 
@@ -286,54 +539,721 @@
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(textarea);
-
     return label;
   }
 
-  function imageFileToOptimizedBase64(file, prefix) {
+  function initializeDraft_() {
+    form.addEventListener("input", function (event) {
+      if (event.target && event.target.type !== "file") {
+        scheduleDraftSave_();
+        updateReportMetrics_();
+      }
+    });
+
+    form.addEventListener("change", async function (event) {
+      const target = event.target;
+
+      if (!target) {
+        return;
+      }
+
+      if (target.type === "file" && target.dataset.imageInput === "true") {
+        await handleFileInputChange_(target);
+        updateReportMetrics_();
+        return;
+      }
+
+      scheduleDraftSave_();
+      updateReportMetrics_();
+    });
+
+    restoreDraft_().catch(function (error) {
+      console.warn("Não foi possível restaurar o rascunho.", error);
+    });
+  }
+
+  async function handleFileInputChange_(input) {
+    const file = input.files && input.files[0] ? input.files[0] : null;
+    const meta = getImageInputMeta_(input);
+    const previewElement = getPreviewElement_(input.name);
+    const hiddenField = getHiddenImageField_(input.name);
+
+    if (!file || !meta) {
+      imageCache.delete(input.name);
+      if (hiddenField) {
+        hiddenField.value = "";
+      }
+      renderImageEmpty_(input.name);
+      scheduleDraftSave_();
+      return;
+    }
+
+    const record = await enqueueImageProcessing_(function () {
+      return processImageInput(input, previewElement, hiddenField);
+    });
+
+    await saveDraft_();
+
+    if (record) {
+      setDraftStatus_("Rascunho salvo automaticamente.", "success");
+    }
+  }
+
+  function enqueueImageProcessing_(task) {
+    const nextTask = imageProcessingQueue
+      .catch(function () {
+        return null;
+      })
+      .then(task);
+
+    imageProcessingQueue = nextTask;
+    return nextTask;
+  }
+
+  function getImageInputMeta_(input) {
+    if (!input || !input.name) {
+      return null;
+    }
+
+    if (input.name.indexOf("fotoUnidade") === 0) {
+      const number = input.name.replace("fotoUnidade", "");
+      return {
+        number: number,
+        prefix: "UNIDADE-" + number,
+        label: "Foto da Unidade " + number
+      };
+    }
+
+    if (input.name.indexOf("fotoInconformidade") === 0) {
+      const number = input.name.replace("fotoInconformidade", "");
+      return {
+        number: number,
+        prefix: "RQO-" + number,
+        label: "Inconformidade " + number
+      };
+    }
+
+    return null;
+  }
+
+  async function getPreparedImage_(input, prefix, label) {
+    if (!input) {
+      return null;
+    }
+
+    const file = input.files && input.files[0] ? input.files[0] : null;
+    const cached = imageCache.get(input.name);
+
+    if (!file && cached) {
+      return cached.payload;
+    }
+
+    if (!file) {
+      return null;
+    }
+
+    const signature = getFileSignature_(file);
+    if (cached && cached.signature === signature) {
+      return cached.payload;
+    }
+
+    try {
+      renderImageStatus_(input.name, "Otimizando " + label + "...");
+      const record = await imageFileToBase64Jpeg(file, prefix);
+      imageCache.set(input.name, record);
+      renderImagePreview_(input.name, record);
+      await saveDraft_();
+      return record.payload;
+    } catch (error) {
+      renderImageError_(input.name, error.message || "Imagem inválida.");
+      input.value = "";
+      throw error;
+    }
+  }
+
+  async function processImageInput(inputElement, previewElement, hiddenField) {
+    const file = inputElement.files && inputElement.files[0] ? inputElement.files[0] : null;
+    const meta = getImageInputMeta_(inputElement);
+
+    if (!file || !meta) {
+      return null;
+    }
+
+    try {
+      showImageStatus("Processando e comprimindo imagem...", "info", previewElement);
+      const record = await imageFileToBase64Jpeg(file, meta.prefix);
+      imageCache.set(inputElement.name, record);
+
+      if (hiddenField) {
+        hiddenField.value = record.payload.base64;
+      }
+
+      renderImagePreview_(inputElement.name, record);
+      return record;
+    } catch (error) {
+      imageCache.delete(inputElement.name);
+      inputElement.value = "";
+
+      if (hiddenField) {
+        hiddenField.value = "";
+      }
+
+      showImageStatus(error.message || "Não foi possível processar a imagem. Se estiver no celular, tente tirar a foto novamente em JPG.", "error", previewElement);
+      return null;
+    }
+  }
+
+  async function imageFileToBase64Jpeg(file, prefix) {
+    const compressed = await compressImageFile(file);
+    const base64 = await blobToBase64_(compressed.blob);
+
+    return {
+      signature: getFileSignature_(file),
+      originalSize: file.size || 0,
+      compressedSize: compressed.blob.size || 0,
+      previewDataUrl: "data:image/jpeg;base64," + base64,
+      updatedAt: new Date().toISOString(),
+      payload: {
+        originalName: file.name || "foto.jpg",
+        fileName: safeFileName(prefix + "-" + String(file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg"),
+        mimeType: "image/jpeg",
+        base64: base64,
+        width: compressed.width,
+        height: compressed.height
+      }
+    };
+  }
+
+  async function compressImageFile(file) {
+    validateImageFile_(file);
+
+    const sourceImage = await loadImage_(file);
+    const sourceWidth = sourceImage.naturalWidth || sourceImage.width;
+    const sourceHeight = sourceImage.naturalHeight || sourceImage.height;
+
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error("Não foi possível ler o tamanho da imagem.");
+    }
+
+    const maxSide = config.maxImageWidth || 1280;
+    const maxPixels = config.maxImagePixels || 1638400;
+    const sideRatio = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+    const pixelRatio = Math.min(1, Math.sqrt(maxPixels / (sourceWidth * sourceHeight)));
+    const ratio = Math.min(sideRatio, pixelRatio);
+    const canvas = document.createElement("canvas");
+    const width = Math.max(1, Math.round(sourceWidth * ratio));
+    const height = Math.max(1, Math.round(sourceHeight * ratio));
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) {
+      throw new Error("O navegador não conseguiu preparar a imagem.");
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(sourceImage, 0, 0, width, height);
+    if (typeof sourceImage.close === "function") {
+      sourceImage.close();
+    }
+
+    return {
+      blob: await canvasToBlob_(canvas, "image/jpeg", config.jpegQuality || 0.72),
+      width: width,
+      height: height
+    };
+  }
+
+  async function processImageFile_(file, prefix) {
+    return imageFileToBase64Jpeg(file, prefix);
+  }
+
+  function validateImageFile_(file) {
+    const extension = getFileExtension_(file.name);
+
+    if (heicExtensions.has(extension) || file.type === "image/heic" || file.type === "image/heif") {
+      throw new Error("Esta foto parece estar em HEIC/HEIF. No iPhone, use a câmera em 'Mais Compatível' ou envie uma imagem JPG/PNG.");
+    }
+
+    if (file.type && allowedTypes.has(file.type)) {
+      return;
+    }
+
+    if (!file.type && allowedExtensions.has(extension)) {
+      return;
+    }
+
+    throw new Error("Arquivo não permitido. Use JPG, PNG ou WEBP.");
+  }
+
+  async function loadImage_(file) {
+    if (window.createImageBitmap) {
+      try {
+        return await createImageBitmap(file, { imageOrientation: "from-image" });
+      } catch (error) {
+        console.warn("createImageBitmap falhou; tentando ObjectURL.", error);
+      }
+    }
+
+    try {
+      return await loadImageWithObjectUrl_(file);
+    } catch (error) {
+      console.warn("ObjectURL falhou; tentando DataURL.", error);
+      return loadImageWithDataUrl_(file);
+    }
+  }
+
+  function loadImageWithObjectUrl_(file) {
+    return new Promise(function (resolve, reject) {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      };
+
+      image.onerror = function () {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Falha ao abrir a imagem pelo navegador."));
+      };
+
+      image.src = objectUrl;
+    });
+  }
+
+  async function loadImageWithDataUrl_(file) {
+    const dataUrl = await fileToDataUrl_(file);
+
+    return new Promise(function (resolve, reject) {
+      const image = new Image();
+
+      image.onload = function () {
+        resolve(image);
+      };
+
+      image.onerror = function () {
+        reject(new Error("Não foi possível abrir esta imagem. No celular, tente tirar a foto novamente ou selecione uma imagem JPG/PNG."));
+      };
+
+      image.src = dataUrl;
+    });
+  }
+
+  function fileToDataUrl_(file) {
     return new Promise(function (resolve, reject) {
       const reader = new FileReader();
 
       reader.onerror = function () {
-        reject(new Error("Não foi possível ler a imagem: " + file.name));
+        reject(new Error("Não foi possível ler o arquivo da imagem no celular. Tente tirar a foto novamente ou escolha outra imagem."));
       };
 
       reader.onload = function () {
-        const image = new Image();
-
-        image.onerror = function () {
-          reject(new Error("Imagem inválida: " + file.name));
-        };
-
-        image.onload = function () {
-          const maxWidth = config.maxImageWidth || 1600;
-          const ratio = Math.min(1, maxWidth / image.width);
-          const canvas = document.createElement("canvas");
-
-          canvas.width = Math.round(image.width * ratio);
-          canvas.height = Math.round(image.height * ratio);
-
-          const context = canvas.getContext("2d");
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-          const mimeType = "image/jpeg";
-          const dataUrl = canvas.toDataURL(mimeType, config.jpegQuality || 0.84);
-
-          resolve({
-            originalName: file.name,
-            fileName: safeFileName(prefix + "-" + file.name.replace(/\.[^.]+$/, "") + ".jpg"),
-            mimeType: mimeType,
-            base64: dataUrl.split(",")[1],
-            width: canvas.width,
-            height: canvas.height
-          });
-        };
-
-        image.src = reader.result;
+        resolve(String(reader.result || ""));
       };
 
       reader.readAsDataURL(file);
     });
+  }
+
+  function canvasToBlob_(canvas, mimeType, quality) {
+    return new Promise(function (resolve, reject) {
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Não foi possível comprimir a imagem."));
+          }
+        }, mimeType, quality);
+        return;
+      }
+
+      try {
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        resolve(dataUrlToBlob_(dataUrl));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function dataUrlToBlob_(dataUrl) {
+    const parts = dataUrl.split(",");
+    const header = parts[0];
+    const base64 = parts[1];
+    const mime = header.match(/data:(.*?);base64/)[1];
+    const bytes = atob(base64);
+    const array = new Uint8Array(bytes.length);
+
+    for (let index = 0; index < bytes.length; index += 1) {
+      array[index] = bytes.charCodeAt(index);
+    }
+
+    return new Blob([array], { type: mime });
+  }
+
+  function blobToBase64_(blob) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+
+      reader.onerror = function () {
+        reject(new Error("Não foi possível ler a imagem comprimida."));
+      };
+
+      reader.onload = function () {
+        resolve(String(reader.result).split(",")[1]);
+      };
+
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function showImageStatus(message, type, previewElement) {
+    const target = previewElement || null;
+
+    if (!target) {
+      setLog(message, type === "error" ? "error" : "");
+      return;
+    }
+
+    target.className = "image-preview" + (type ? " " + type : "");
+    target.innerHTML = "";
+    target.appendChild(createPreviewMessage_(message));
+  }
+
+  function renderImageStatus_(inputName, message) {
+    const preview = getPreviewElement_(inputName);
+    if (!preview) {
+      return;
+    }
+
+    showImageStatus(message, "info", preview);
+  }
+
+  function renderImageEmpty_(inputName) {
+    const preview = getPreviewElement_(inputName);
+    if (!preview) {
+      return;
+    }
+
+    preview.className = "image-preview is-empty";
+    preview.innerHTML = "";
+  }
+
+  function renderImageError_(inputName, message) {
+    const preview = getPreviewElement_(inputName);
+    if (!preview) {
+      return;
+    }
+
+    showImageStatus(message, "error", preview);
+  }
+
+  function renderImagePreview_(inputName, record) {
+    const preview = getPreviewElement_(inputName);
+    const image = document.createElement("img");
+    const meta = document.createElement("p");
+
+    if (!preview) {
+      return;
+    }
+
+    image.src = record.previewDataUrl;
+    image.alt = "Prévia da imagem selecionada";
+    image.loading = "lazy";
+
+    meta.textContent =
+      "Imagem pronta para envio. Otimizada: " +
+      record.payload.width +
+      "x" +
+      record.payload.height +
+      " px · " +
+      formatBytes_(record.originalSize) +
+      " → " +
+      formatBytes_(record.compressedSize);
+
+    preview.className = "image-preview ready";
+    preview.innerHTML = "";
+    preview.appendChild(image);
+    preview.appendChild(meta);
+  }
+
+  function clearAllImagePreviews_() {
+    Array.from(document.querySelectorAll("[data-preview-for]")).forEach(function (preview) {
+      preview.className = "image-preview is-empty";
+      preview.innerHTML = "";
+    });
+  }
+
+  function createPreviewMessage_(message) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = message;
+    return paragraph;
+  }
+
+  function getPreviewElement_(inputName) {
+    return document.querySelector("[data-preview-for='" + inputName + "']");
+  }
+
+  function getHiddenImageField_(inputName) {
+    return document.querySelector("[data-processed-for='" + inputName + "']");
+  }
+
+  function scheduleDraftSave_() {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = window.setTimeout(function () {
+      saveDraft_().catch(function (error) {
+        console.warn("Não foi possível salvar o rascunho.", error);
+      });
+    }, 500);
+  }
+
+  async function saveDraft_() {
+    const draft = buildDraft_();
+    saveDraftTextFallback_(draft);
+    await putDraftRecord_(draft);
+    setDraftStatus_("Rascunho salvo automaticamente.", "success");
+  }
+
+  function buildDraft_() {
+    const values = {};
+    const images = {};
+
+    Array.from(form.elements).forEach(function (field) {
+      if (
+        !field.name ||
+        field.type === "file" ||
+        field.type === "hidden" ||
+        field.type === "submit" ||
+        field.tagName === "BUTTON"
+      ) {
+        return;
+      }
+
+      values[field.name] = field.value;
+    });
+
+    imageCache.forEach(function (record, inputName) {
+      images[inputName] = record;
+    });
+
+    return {
+      id: draftId,
+      version: 2,
+      updatedAt: new Date().toISOString(),
+      values: values,
+      images: images
+    };
+  }
+
+  async function restoreDraft_() {
+    const draft = await getDraftRecord_();
+
+    if (!draft || !draft.values) {
+      return;
+    }
+
+    Object.keys(draft.values).forEach(function (name) {
+      const field = form.elements[name];
+
+      if (field && field.type !== "file") {
+        field.value = draft.values[name];
+      }
+    });
+
+    if (draft.images) {
+      Object.keys(draft.images).forEach(function (inputName) {
+        const hiddenField = getHiddenImageField_(inputName);
+
+        imageCache.set(inputName, draft.images[inputName]);
+        if (hiddenField) {
+          hiddenField.value = draft.images[inputName].payload.base64;
+        }
+        renderImagePreview_(inputName, draft.images[inputName]);
+      });
+    }
+
+    showReportPanel_();
+    updateReportMetrics_();
+    renderReviewSummary_();
+    setDraftStatus_("Rascunho restaurado automaticamente.", "success");
+  }
+
+  async function clearDraft_() {
+    await deleteDraftRecord_();
+    setDraftStatus_("");
+  }
+
+  function openDraftDb_() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) {
+        reject(new Error("IndexedDB indisponível."));
+        return;
+      }
+
+      const request = window.indexedDB.open("icaro-amaral-relatorios", 1);
+
+      request.onerror = function () {
+        reject(request.error);
+      };
+
+      request.onupgradeneeded = function () {
+        const db = request.result;
+
+        if (!db.objectStoreNames.contains("drafts")) {
+          db.createObjectStore("drafts", { keyPath: "id" });
+        }
+      };
+
+      request.onsuccess = function () {
+        resolve(request.result);
+      };
+    });
+  }
+
+  async function putDraftRecord_(record) {
+    let db;
+
+    try {
+      db = await openDraftDb_();
+    } catch (error) {
+      saveDraftFallback_(record);
+      return;
+    }
+
+    return new Promise(function (resolve, reject) {
+      const transaction = db.transaction("drafts", "readwrite");
+      const store = transaction.objectStore("drafts");
+      const request = store.put(record);
+
+      request.onerror = function () {
+        reject(request.error);
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+        resolve();
+      };
+
+      transaction.onerror = function () {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  }
+
+  async function getDraftRecord_() {
+    let db;
+
+    try {
+      db = await openDraftDb_();
+    } catch (error) {
+      return getDraftFallback_();
+    }
+
+    return new Promise(function (resolve, reject) {
+      const transaction = db.transaction("drafts", "readonly");
+      const store = transaction.objectStore("drafts");
+      const request = store.get(draftId);
+
+      request.onerror = function () {
+        reject(request.error);
+      };
+
+      request.onsuccess = function () {
+        db.close();
+        resolve(request.result || null);
+      };
+    });
+  }
+
+  async function deleteDraftRecord_() {
+    let db;
+
+    window.localStorage.removeItem(draftId);
+
+    try {
+      db = await openDraftDb_();
+    } catch (error) {
+      return;
+    }
+
+    return new Promise(function (resolve, reject) {
+      const transaction = db.transaction("drafts", "readwrite");
+      const store = transaction.objectStore("drafts");
+      const request = store.delete(draftId);
+
+      request.onerror = function () {
+        reject(request.error);
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+        resolve();
+      };
+
+      transaction.onerror = function () {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  }
+
+  function saveDraftFallback_(record) {
+    saveDraftTextFallback_(record);
+    setDraftStatus_("Rascunho de texto salvo. As imagens dependem do navegador permitir IndexedDB.", "success");
+  }
+
+  function saveDraftTextFallback_(record) {
+    const textOnlyRecord = {
+      id: record.id,
+      version: record.version,
+      updatedAt: record.updatedAt,
+      values: record.values,
+      images: {}
+    };
+
+    try {
+      window.localStorage.setItem(draftId, JSON.stringify(textOnlyRecord));
+    } catch (error) {
+      console.warn("Fallback de rascunho indisponível.", error);
+    }
+  }
+
+  function getDraftFallback_() {
+    try {
+      const raw = window.localStorage.getItem(draftId);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      console.warn("Não foi possível ler o rascunho local.", error);
+      return null;
+    }
+  }
+
+  function getFileSignature_(file) {
+    return [file.name, file.size, file.lastModified].join("|");
+  }
+
+  function getFileExtension_(name) {
+    const parts = String(name || "").toLowerCase().split(".");
+    return parts.length > 1 ? parts.pop() : "";
+  }
+
+  function formatBytes_(bytes) {
+    if (!bytes) {
+      return "0 KB";
+    }
+
+    if (bytes < 1024 * 1024) {
+      return Math.max(1, Math.round(bytes / 1024)) + " KB";
+    }
+
+    return (bytes / (1024 * 1024)).toFixed(1).replace(".", ",") + " MB";
   }
 
   function safeFileName(name) {

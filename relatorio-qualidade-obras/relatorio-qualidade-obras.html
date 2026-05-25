@@ -3,135 +3,218 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ícaro Amaral Engenharia - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css">
+  <title>ObraReport - Relatório de Fiscalização</title>
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-fase2">
 </head>
-
 <body>
   <main class="page-shell">
     <header class="brand-header">
-      <h1>Ícaro Amaral Engenharia</h1>
-      <p>Sistema Inteligente de Relatórios de Fiscalização de Obras</p>
+      <h1>ObraReport</h1>
+      <p>Relatórios técnicos de obra por Ícaro Amaral Engenharia</p>
     </header>
 
-    <section class="form-panel" aria-labelledby="form-title">
-      <div class="section-title">
-        <span></span>
-        <h2 id="form-title">Relatório de Fiscalização</h2>
+    <section class="home-panel" id="homePanel" aria-labelledby="home-title">
+      <div class="home-copy">
+        <p class="eyebrow">SaaS de engenharia</p>
+        <h2 id="home-title">Relatório de Fiscalização</h2>
+        <p>
+          Gere relatórios profissionais com fotos, inconformidades, grau de risco,
+          matriz de prioridade, assinatura e envio automático por e-mail.
+        </p>
       </div>
 
-      <form id="qualityReportForm" class="report-form">
-        <div class="field-grid">
-          <label>
-            Obra
-            <input name="obra" type="text" required>
-          </label>
-
-          <label>
-            Data da vistoria
-            <input name="dataVistoria" type="date" required>
-          </label>
-
-          <label>
-            Responsável Técnico
-            <input name="responsavelTecnico" type="text" required>
-          </label>
-
-          <label>
-            Local
-            <input name="local" type="text" required>
-          </label>
-
-          <label>
-            Data de início da obra
-            <input name="dataInicioObra" type="date">
-          </label>
-
-          <label>
-            Link de câmeras
-            <input name="linkCameras" type="url">
-          </label>
-
-          <label>
-            Tipo de obra
-            <select name="tipoObra" required>
-              <option value="">Escolher</option>
-              <option value="Residencial">Residencial</option>
-              <option value="Comercial">Comercial</option>
-              <option value="Industrial">Industrial</option>
-              <option value="Infraestrutura">Infraestrutura</option>
-              <option value="Reforma">Reforma</option>
-            </select>
-          </label>
-
-          <label>
-            Avanço físico
-            <input name="avancoFisico" type="text">
-          </label>
-
-          <label>
-            Avanço financeiro
-            <input name="avancoFinanceiro" type="text">
-          </label>
-
-          <label>
-            Funcionários em campo
-            <input name="funcionariosCampo" type="text" inputmode="numeric">
-          </label>
-
-          <label>
-            Utilização de EPI
-            <input name="utilizacaoEpi" type="text">
-          </label>
-
-          <label>
-            Controle do concreto
-            <input name="controleConcreto" type="text">
-          </label>
-        </div>
-
-        <label class="full-width">
-          Observações
-          <textarea name="observacoes" rows="5"></textarea>
-        </label>
-
-        <div class="section-title subsection-title">
-          <span></span>
-          <h2>Fotos da unidade</h2>
-        </div>
-
-        <p class="section-helper">
-          Use esta parte para registrar fotos gerais da obra, ambiente, unidade, pavimento ou etapa fiscalizada.
-        </p>
-
-        <div id="fotosUnidade" class="nonconformities" aria-live="polite"></div>
-
-        <div class="section-title subsection-title">
-          <span></span>
-          <h2>Inconformidades identificadas</h2>
-        </div>
-
-        <p class="section-helper">
-          Use esta parte para registrar problemas encontrados, grau de risco, descrição técnica e solução recomendada.
-        </p>
-
-        <div id="inconformidades" class="nonconformities" aria-live="polite"></div>
-
-        <label class="full-width">
-          E-mail para envio do PDF
-          <input name="emailDestino" type="email" required>
-        </label>
-
-        <button id="submitButton" type="submit" class="send-button">
-          Enviar Relatório
+      <div class="home-actions" aria-label="Ações do sistema">
+        <button class="primary-action" type="button" id="openReportButton">
+          Abrir ObraReport
         </button>
+        <p>Preencha a vistoria, anexe imagens e receba o PDF final no e-mail.</p>
+      </div>
+    </section>
 
-        <output id="formLog" class="form-log" role="status" aria-live="polite"></output>
+    <section class="form-panel is-hidden" id="reportPanel" aria-labelledby="form-title">
+      <div class="section-title">
+        <span></span>
+        <h2 id="form-title">ObraReport</h2>
+      </div>
+
+      <form id="qualityReportForm" class="report-form" novalidate>
+        <div class="wizard-progress" aria-label="Progresso do relatório">
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <ol class="stepper" id="stepper">
+            <li><button type="button" data-step-target="dados" class="active">Dados</button></li>
+            <li><button type="button" data-step-target="fotos">Fotos</button></li>
+            <li><button type="button" data-step-target="inconformidades">Inconformidades</button></li>
+            <li><button type="button" data-step-target="revisao">Revisão</button></li>
+            <li><button type="button" data-step-target="gerar">Gerar</button></li>
+          </ol>
+        </div>
+
+        <div class="metrics-grid" aria-label="Resumo do relatório">
+          <div class="metric-card">
+            <strong id="fotoCount">0</strong>
+            <span>fotos</span>
+          </div>
+          <div class="metric-card">
+            <strong id="inconformidadeCount">0</strong>
+            <span>inconformidades</span>
+          </div>
+          <div class="metric-card risk">
+            <strong id="highRiskCount">0</strong>
+            <span>riscos altos</span>
+          </div>
+        </div>
+
+        <section class="step-panel active" data-step="dados" aria-label="Dados da obra">
+          <div class="step-heading">
+            <p class="eyebrow">Etapa 1</p>
+            <h3>Dados da obra</h3>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              Obra
+              <input name="obra" type="text" required>
+            </label>
+
+            <label>
+              Data da vistoria
+              <input name="dataVistoria" type="date" required>
+            </label>
+
+            <label>
+              Responsável Técnico
+              <input name="responsavelTecnico" type="text" required>
+            </label>
+
+            <label>
+              Local
+              <input name="local" type="text" required>
+            </label>
+
+            <label>
+              Data de início da obra
+              <input name="dataInicioObra" type="date">
+            </label>
+
+            <label>
+              Link de câmeras
+              <input name="linkCameras" type="url" placeholder="">
+            </label>
+
+            <label>
+              Tipo de obra
+              <select name="tipoObra" required>
+                <option value="">Escolher</option>
+                <option value="Residencial">Residencial</option>
+                <option value="Comercial">Comercial</option>
+                <option value="Industrial">Industrial</option>
+                <option value="Infraestrutura">Infraestrutura</option>
+                <option value="Reforma">Reforma</option>
+              </select>
+            </label>
+
+            <label>
+              Avanço físico
+              <input name="avancoFisico" type="text" placeholder="">
+            </label>
+
+            <label>
+              Avanço financeiro
+              <input name="avancoFinanceiro" type="text" placeholder="">
+            </label>
+
+            <label>
+              Funcionários em campo
+              <input name="funcionariosCampo" type="text" inputmode="numeric">
+            </label>
+
+            <label>
+              Utilização de EPI
+              <input name="utilizacaoEpi" type="text">
+            </label>
+
+            <label>
+              Controle do concreto
+              <input name="controleConcreto" type="text">
+            </label>
+          </div>
+
+          <label class="full-width">
+            Observações
+            <textarea name="observacoes" rows="5"></textarea>
+          </label>
+
+          <div class="step-actions">
+            <button type="button" class="next-action" data-next-step="fotos">Continuar para fotos</button>
+          </div>
+        </section>
+
+        <section class="step-panel" data-step="fotos" aria-label="Fotos da unidade">
+          <div class="step-heading">
+            <p class="eyebrow">Etapa 2</p>
+            <h3>Fotos da unidade</h3>
+          </div>
+          <div id="fotosUnidade" class="nonconformities" aria-live="polite"></div>
+          <div class="step-actions two">
+            <button type="button" class="secondary-action" data-prev-step="dados">Voltar</button>
+            <button type="button" class="next-action" data-next-step="inconformidades">Continuar</button>
+          </div>
+        </section>
+
+        <section class="step-panel" data-step="inconformidades" aria-label="Inconformidades">
+          <div class="step-heading">
+            <p class="eyebrow">Etapa 3</p>
+            <h3>Inconformidades identificadas</h3>
+          </div>
+          <div id="inconformidades" class="nonconformities" aria-live="polite"></div>
+          <div class="step-actions two">
+            <button type="button" class="secondary-action" data-prev-step="fotos">Voltar</button>
+            <button type="button" class="next-action" data-next-step="revisao">Revisar relatório</button>
+          </div>
+        </section>
+
+        <section class="step-panel" data-step="revisao" aria-label="Revisão final">
+          <div class="step-heading">
+            <p class="eyebrow">Etapa 4</p>
+            <h3>Revisão final</h3>
+          </div>
+          <div class="review-grid" id="reviewSummary"></div>
+          <div class="step-actions two">
+            <button type="button" class="secondary-action" data-prev-step="inconformidades">Voltar</button>
+            <button type="button" class="next-action" data-next-step="gerar">Ir para envio</button>
+          </div>
+        </section>
+
+        <section class="step-panel" data-step="gerar" aria-label="Gerar relatório">
+          <div class="step-heading">
+            <p class="eyebrow">Etapa 5</p>
+            <h3>Gerar relatório</h3>
+          </div>
+
+          <label class="full-width">
+            E-mail para envio do PDF
+            <input name="emailDestino" type="email" required>
+          </label>
+
+          <div class="generation-panel">
+            <p id="generationStatus">Pronto para gerar o PDF técnico.</p>
+          </div>
+
+          <div class="step-actions two">
+            <button type="button" class="secondary-action" data-prev-step="revisao">Voltar</button>
+            <button id="submitButton" type="submit" class="send-button">Gerar relatório</button>
+          </div>
+
+          <output id="formLog" class="form-log" role="status" aria-live="polite"></output>
+          <p id="draftStatus" class="draft-status" aria-live="polite"></p>
+        </section>
       </form>
     </section>
   </main>
 
-  <script src="./relatorio-config.js"></script>
-  <script src="./relatorio-qualidade-obras.js"></script>
+  <script src="./relatorio-config.js?v=20260525-fase2"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-fase2"></script>
 </body>
 </html>
