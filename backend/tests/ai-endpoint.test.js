@@ -81,6 +81,39 @@ test("sem chave retorna erro amigável para fallback local", async () => {
   assert.match(data.error, /OPENAI_API_KEY/);
 });
 
+test("análise visual exige imagem processada", async () => {
+  const response = await postImage_({
+    image: {},
+    context: {}
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(data.ok, false);
+});
+
+test("análise visual sem chave retorna erro amigável", async () => {
+  const response = await postImage_({
+    image: {
+      base64: tinyJpegBase64_(),
+      mimeType: "image/jpeg",
+      fileName: "teste.jpg",
+      width: 1,
+      height: 1
+    },
+    context: {
+      report: {
+        obra: "Obra teste"
+      }
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.match(data.error, /OPENAI_API_KEY/);
+});
+
 function postAi_(body) {
   return fetch(baseUrl + "/api/ai/improve-text", {
     method: "POST",
@@ -90,4 +123,19 @@ function postAi_(body) {
     },
     body: JSON.stringify(body)
   });
+}
+
+function postImage_(body) {
+  return fetch(baseUrl + "/api/ai/analyze-image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function tinyJpegBase64_() {
+  return "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/ASP/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/ASP/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Al//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IV//2gAMAwEAAgADAAAAEP/EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EFBQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EFBABAQAAAAAAAAAAAAAAAAAAARD/2gAIAQEAAT8QH//Z";
 }

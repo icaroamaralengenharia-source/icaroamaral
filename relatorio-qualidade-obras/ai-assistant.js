@@ -75,6 +75,26 @@
     };
   }
 
+  async function analyzeImage(image, context) {
+    const payload = {
+      image: {
+        base64: cleanBase64_(image && image.base64),
+        mimeType: image && image.mimeType ? image.mimeType : "image/jpeg",
+        fileName: image && image.fileName ? image.fileName : "foto.jpg",
+        width: image && image.width ? image.width : 0,
+        height: image && image.height ? image.height : 0
+      },
+      context: context || {}
+    };
+
+    const remote = await tryRemoteImageAssistant_(payload);
+    if (remote) {
+      return remote;
+    }
+
+    return buildLocalImageFallback_(payload);
+  }
+
   async function tryRemoteAssistant_(payload) {
     if (!config.aiAssistantUrl) {
       return null;
@@ -108,6 +128,59 @@
         note: "A API de IA não respondeu. O ObraReport usou o modo local para não interromper o trabalho."
       };
     }
+  }
+
+  async function tryRemoteImageAssistant_(payload) {
+    const endpoint = config.aiImageAnalysisUrl || "";
+    if (!endpoint) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result || !result.suggestion) {
+        throw new Error(result && result.error ? result.error : "Resposta inválida da IA visual.");
+      }
+
+      return {
+        mode: result.mode || "remote",
+        title: result.title || "Análise visual da foto",
+        suggestion: cleanMultiline_(result.suggestion),
+        note: result.note || "Análise visual gerada pelo backend seguro.",
+        analysis: result.analysis || null
+      };
+    } catch (error) {
+      return buildLocalImageFallback_(payload, "O backend de IA visual não respondeu. O ObraReport manteve o fluxo seguro sem alterar o upload ou o PDF.");
+    }
+  }
+
+  function buildLocalImageFallback_(payload, note) {
+    const image = payload.image || {};
+    const context = payload.context || {};
+    const label = context.imageLabel || context.targetName || "foto anexada";
+    const dimensions = image.width && image.height ? " (" + image.width + "x" + image.height + " px)" : "";
+    const suggestion = [
+      "DESCRIÇÃO TÉCNICA: A " + label + dimensions + " foi processada e está pronta para análise visual real pelo backend seguro.",
+      "POSSÍVEIS INCONFORMIDADES: A análise visual automática não foi executada neste momento. Revise manualmente a imagem e descreva apenas condições visíveis.",
+      "RECOMENDAÇÃO DE AÇÃO: Configure ou religue o backend de IA visual para obter uma análise multimodal. Enquanto isso, mantenha a descrição técnica manual.",
+      "TEXTO PARA O RELATÓRIO: Registro fotográfico anexado ao relatório. Recomenda-se revisão técnica da imagem antes da emissão do PDF."
+    ].join("\n\n");
+
+    return {
+      mode: "local",
+      title: "Análise visual local de contingência",
+      suggestion: suggestion,
+      note: note || "Modo local ativo. Nenhuma informação visual foi inferida sem o backend de IA.",
+      analysis: null
+    };
   }
 
   function buildImprovedText_(text, context) {
@@ -188,6 +261,14 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function cleanMultiline_(value) {
+    return String(value || "").replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").trim();
+  }
+
+  function cleanBase64_(value) {
+    return String(value || "").replace(/^data:[^,]+,/, "").replace(/\s+/g, "").trim();
+  }
+
   function ensureFinalPeriod_(value) {
     if (!value) {
       return "";
@@ -207,6 +288,7 @@
   window.ObraReportAI = {
     improveTechnicalText: improveTechnicalText,
     generateConclusion: generateConclusion,
-    reviewReport: reviewReport
+    reviewReport: reviewReport,
+    analyzeImage: analyzeImage
   };
 })();

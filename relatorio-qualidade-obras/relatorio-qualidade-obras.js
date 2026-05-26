@@ -51,6 +51,9 @@
   const aiOriginalText = document.getElementById("aiOriginalText");
   const aiSuggestedText = document.getElementById("aiSuggestedText");
   const aiSuggestionNote = document.getElementById("aiSuggestionNote");
+  const aiImageReview = document.getElementById("aiImageReview");
+  const aiReviewedImage = document.getElementById("aiReviewedImage");
+  const aiReviewedImageMeta = document.getElementById("aiReviewedImageMeta");
   const aiAcceptButton = document.getElementById("aiAcceptButton");
   const aiRejectButton = document.getElementById("aiRejectButton");
   const aiCloseButton = document.getElementById("aiCloseButton");
@@ -1797,6 +1800,30 @@
     return "technical";
   }
 
+  function getAiImageTextTarget_(inputName) {
+    if (inputName.indexOf("fotoUnidade") === 0) {
+      return "descricaoFotoUnidade" + inputName.replace("fotoUnidade", "");
+    }
+
+    if (inputName.indexOf("fotoInconformidade") === 0) {
+      return "descricaoInconformidade" + inputName.replace("fotoInconformidade", "");
+    }
+
+    return "";
+  }
+
+  function getImageLabelForInput_(inputName) {
+    if (inputName.indexOf("fotoUnidade") === 0) {
+      return "Foto da Unidade " + inputName.replace("fotoUnidade", "");
+    }
+
+    if (inputName.indexOf("fotoInconformidade") === 0) {
+      return "Foto da Inconformidade " + inputName.replace("fotoInconformidade", "");
+    }
+
+    return "Foto anexada";
+  }
+
   function createAiFieldAction_(targetName, kind) {
     const toolbar = document.createElement("div");
     const button = document.createElement("button");
@@ -1866,6 +1893,11 @@
     setAiButtonBusy_(button, true);
 
     try {
+      if (action === "analyze-image") {
+        await handleAiImageAction_(button);
+        return;
+      }
+
       if (action === "conclusion") {
         result = await assistant.generateConclusion(context);
       } else if (action === "review") {
@@ -1878,6 +1910,35 @@
     }
 
     showAiSuggestion_(result, original, target);
+  }
+
+  async function handleAiImageAction_(button) {
+    const assistant = window.ObraReportAI;
+    const imageInputName = button.dataset.aiImageTarget || "";
+    const record = imageCache.get(imageInputName);
+    const target = form.elements[button.dataset.aiTarget];
+    const original = target ? clean(target.value) : "";
+
+    if (!assistant || !assistant.analyzeImage) {
+      throw new Error("Assistente visual de IA não foi carregado.");
+    }
+
+    if (!record || !record.payload || !record.payload.base64) {
+      throw new Error("A foto precisa estar processada antes da análise visual.");
+    }
+
+    const context = buildAiContext_(button);
+    context.imageInputName = imageInputName;
+    context.imageLabel = getImageLabelForInput_(imageInputName);
+    context.imageMeta = {
+      fileName: record.payload.fileName,
+      originalName: record.payload.originalName,
+      width: record.payload.width,
+      height: record.payload.height
+    };
+
+    const result = await assistant.analyzeImage(record.payload, context);
+    showAiSuggestion_(result, original, target, record);
   }
 
   function buildAiContext_(button) {
@@ -1928,7 +1989,7 @@
     return clean(field && field.value);
   }
 
-  function showAiSuggestion_(result, original, target) {
+  function showAiSuggestion_(result, original, target, imageRecord) {
     if (!aiSuggestionPanel || !aiOriginalText || !aiSuggestedText) {
       return;
     }
@@ -1945,6 +2006,7 @@
 
     aiOriginalText.value = original || "Campo ainda vazio.";
     aiSuggestedText.value = suggestion;
+    renderAiImageReview_(imageRecord);
 
     if (aiSuggestionNote) {
       aiSuggestionNote.textContent = result && result.note ? result.note : "";
@@ -1956,6 +2018,7 @@
 
   function closeAiSuggestion_() {
     activeAiTarget = null;
+    renderAiImageReview_(null);
 
     if (aiSuggestionPanel) {
       aiSuggestionPanel.classList.add("is-hidden");
@@ -1993,6 +2056,29 @@
 
     button.textContent = button.dataset.originalText || button.textContent;
     button.disabled = false;
+  }
+
+  function renderAiImageReview_(record) {
+    if (!aiImageReview || !aiReviewedImage || !aiReviewedImageMeta) {
+      return;
+    }
+
+    if (!record || !record.previewDataUrl || !record.payload) {
+      aiImageReview.classList.add("is-hidden");
+      aiReviewedImage.removeAttribute("src");
+      aiReviewedImageMeta.textContent = "";
+      return;
+    }
+
+    aiReviewedImage.src = record.previewDataUrl;
+    aiReviewedImageMeta.textContent =
+      (record.payload.originalName || record.payload.fileName || "Foto") +
+      " · " +
+      record.payload.width +
+      "x" +
+      record.payload.height +
+      " px";
+    aiImageReview.classList.remove("is-hidden");
   }
 
   function initializeDraft_() {
@@ -2412,6 +2498,9 @@
     const preview = getPreviewElement_(inputName);
     const image = document.createElement("img");
     const meta = document.createElement("p");
+    const toolbar = document.createElement("div");
+    const aiButton = document.createElement("button");
+    const targetName = getAiImageTextTarget_(inputName);
 
     if (!preview) {
       return;
@@ -2435,6 +2524,19 @@
     preview.innerHTML = "";
     preview.appendChild(image);
     preview.appendChild(meta);
+
+    if (targetName) {
+      toolbar.className = "ai-field-toolbar";
+      aiButton.type = "button";
+      aiButton.className = "mini-button ai-button";
+      aiButton.textContent = "Analisar foto com IA";
+      aiButton.dataset.aiAction = "analyze-image";
+      aiButton.dataset.aiImageTarget = inputName;
+      aiButton.dataset.aiTarget = targetName;
+      aiButton.dataset.aiKind = inputName.indexOf("fotoInconformidade") === 0 ? "visual-nonconformity" : "visual-photo";
+      toolbar.appendChild(aiButton);
+      preview.appendChild(toolbar);
+    }
   }
 
   function clearAllImagePreviews_() {

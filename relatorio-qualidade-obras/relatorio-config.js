@@ -5,5 +5,6 @@ window.RELATORIO_QUALIDADE_CONFIG = {
   maxImageWidth: 1280,
   maxImagePixels: 1638400,
   jpegQuality: 0.72,
-  aiAssistantUrl: "http://localhost:3000/api/ai/improve-text"
+  aiAssistantUrl: "http://localhost:3000/api/ai/improve-text",
+  aiImageAnalysisUrl: "http://localhost:3000/api/ai/analyze-image"
 };

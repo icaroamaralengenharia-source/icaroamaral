@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-ia2">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-ia3">
 </head>
 <body>
   <main class="page-shell">
@@ -476,6 +476,12 @@
         </div>
 
         <div class="ai-preview-grid">
+          <div class="ai-image-review is-hidden" id="aiImageReview">
+            <span>Foto analisada</span>
+            <img id="aiReviewedImage" alt="Foto analisada pela IA">
+            <p id="aiReviewedImageMeta"></p>
+          </div>
+
           <label>
             Texto original
             <textarea id="aiOriginalText" rows="7" readonly></textarea>
@@ -496,8 +502,8 @@
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-ia2"></script>
-  <script src="./ai-assistant.js?v=20260525-ia2"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-ia2"></script>
+  <script src="./relatorio-config.js?v=20260525-ia3"></script>
+  <script src="./ai-assistant.js?v=20260525-ia3"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-ia3"></script>
 </body>
 </html>

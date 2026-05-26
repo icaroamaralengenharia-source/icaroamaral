@@ -60,6 +60,7 @@ Endpoint:
 
 ```text
 POST http://localhost:3000/api/ai/improve-text
+POST http://localhost:3000/api/ai/analyze-image
 ```
 
 Actions aceitas:
@@ -71,6 +72,33 @@ review
 ```
 
 Se o backend estiver desligado, sem `.env` ou sem `OPENAI_API_KEY`, o frontend continua usando a IA local/mock automaticamente.
+
+### IA visual de fotos
+
+A análise visual usa a foto já comprimida pelo frontend do ObraReport. O upload original não é alterado.
+
+Fluxo:
+
+```text
+foto do usuário -> compressão local JPEG/base64 -> botão "Analisar foto com IA" -> backend seguro -> sugestão revisável
+```
+
+O backend recebe:
+
+```json
+{
+  "image": {
+    "base64": "...",
+    "mimeType": "image/jpeg",
+    "fileName": "foto.jpg",
+    "width": 1280,
+    "height": 720
+  },
+  "context": {}
+}
+```
+
+A IA visual retorna descrição técnica, possíveis inconformidades, recomendação e texto pronto para inserir no relatório. O usuário sempre revisa e aceita ou recusa.
 
 ## Rodar frontend e backend juntos
 

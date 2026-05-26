@@ -702,6 +702,37 @@ textarea:focus {
   gap: 14px;
 }
 
+.ai-image-review {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #dbe0e7;
+  border-radius: 8px;
+}
+
+.ai-image-review span {
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.ai-image-review img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #eef1f4;
+}
+
+.ai-image-review p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
 .ai-preview-grid textarea {
   min-height: 180px;
   background: #fbfcfd;
