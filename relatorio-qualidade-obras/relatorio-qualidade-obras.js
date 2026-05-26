@@ -46,6 +46,14 @@
   const highRiskCount = document.getElementById("highRiskCount");
   const reviewSummary = document.getElementById("reviewSummary");
   const generationStatus = document.getElementById("generationStatus");
+  const aiSuggestionPanel = document.getElementById("aiSuggestionPanel");
+  const aiSuggestionTitle = document.getElementById("aiSuggestionTitle");
+  const aiOriginalText = document.getElementById("aiOriginalText");
+  const aiSuggestedText = document.getElementById("aiSuggestedText");
+  const aiSuggestionNote = document.getElementById("aiSuggestionNote");
+  const aiAcceptButton = document.getElementById("aiAcceptButton");
+  const aiRejectButton = document.getElementById("aiRejectButton");
+  const aiCloseButton = document.getElementById("aiCloseButton");
   const stepOrder = ["dados", "fotos", "inconformidades", "revisao", "gerar"];
   const stepPanels = Array.from(document.querySelectorAll("[data-step]"));
   const stepButtons = Array.from(document.querySelectorAll("[data-step-target]"));
@@ -68,6 +76,7 @@
   let cloudSyncTimer = null;
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
+  let activeAiTarget = null;
 
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
@@ -78,6 +87,7 @@
   renderInconformidadeFields();
   initializeWizard_();
   initializeDraft_();
+  initializeAiAssistant_();
   initializeSaas_();
 
   if (openReportButton && homePanel && reportPanel) {
@@ -1745,15 +1755,244 @@
   }
 
   function createTextAreaField(labelText, name, rows) {
+    const wrapper = document.createElement("div");
     const label = document.createElement("label");
     const textarea = document.createElement("textarea");
 
+    wrapper.className = "technical-text-field";
     textarea.name = name;
     textarea.rows = rows || 4;
 
     label.appendChild(document.createTextNode(labelText));
     label.appendChild(textarea);
-    return label;
+    wrapper.appendChild(label);
+
+    if (shouldOfferAiForField_(name)) {
+      wrapper.appendChild(createAiFieldAction_(name, getAiKindForField_(name)));
+    }
+
+    return wrapper;
+  }
+
+  function shouldOfferAiForField_(name) {
+    return (
+      name.indexOf("descricaoInconformidade") === 0 ||
+      name.indexOf("solucaoInconformidade") === 0
+    );
+  }
+
+  function getAiKindForField_(name) {
+    if (name.indexOf("solucaoInconformidade") === 0) {
+      return "solution";
+    }
+
+    if (name.indexOf("descricaoFotoUnidade") === 0) {
+      return "photo";
+    }
+
+    if (name === "observacoes") {
+      return "general";
+    }
+
+    return "technical";
+  }
+
+  function createAiFieldAction_(targetName, kind) {
+    const toolbar = document.createElement("div");
+    const button = document.createElement("button");
+
+    toolbar.className = "ai-field-toolbar";
+    button.type = "button";
+    button.className = "mini-button ai-button";
+    button.textContent = "Melhorar com IA";
+    button.dataset.aiAction = "improve";
+    button.dataset.aiTarget = targetName;
+    button.dataset.aiKind = kind || "technical";
+
+    toolbar.appendChild(button);
+    return toolbar;
+  }
+
+  function initializeAiAssistant_() {
+    if (!form) {
+      return;
+    }
+
+    form.addEventListener("click", function (event) {
+      const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+      const button = target && target.closest ? target.closest("[data-ai-action]") : null;
+
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+      handleAiAction_(button).catch(function (error) {
+        console.error(error);
+        setDraftStatus_(error.message || "Não foi possível gerar a sugestão da IA.", "error");
+      });
+    });
+
+    [aiRejectButton, aiCloseButton].forEach(function (button) {
+      if (!button) {
+        return;
+      }
+
+      button.addEventListener("click", function () {
+        closeAiSuggestion_();
+      });
+    });
+
+    if (aiAcceptButton) {
+      aiAcceptButton.addEventListener("click", function () {
+        acceptAiSuggestion_();
+      });
+    }
+  }
+
+  async function handleAiAction_(button) {
+    const assistant = window.ObraReportAI;
+
+    if (!assistant) {
+      throw new Error("Assistente local de IA não foi carregado.");
+    }
+
+    const action = button.dataset.aiAction;
+    const target = form.elements[button.dataset.aiTarget];
+    const context = buildAiContext_(button);
+    const original = target ? clean(target.value) : "";
+    let result;
+
+    setAiButtonBusy_(button, true);
+
+    try {
+      if (action === "conclusion") {
+        result = await assistant.generateConclusion(context);
+      } else if (action === "review") {
+        result = await assistant.reviewReport(context);
+      } else {
+        result = await assistant.improveTechnicalText(original, context);
+      }
+    } finally {
+      setAiButtonBusy_(button, false);
+    }
+
+    showAiSuggestion_(result, original, target);
+  }
+
+  function buildAiContext_(button) {
+    const report = {
+      obra: getFieldValue_("obra"),
+      local: getFieldValue_("local"),
+      dataVistoria: getFieldValue_("dataVistoria"),
+      responsavelTecnico: getFieldValue_("responsavelTecnico"),
+      tipoObra: getFieldValue_("tipoObra"),
+      observacoes: getFieldValue_("observacoes"),
+      emailDestino: getFieldValue_("emailDestino")
+    };
+    const stats = getReportStats_();
+
+    return {
+      kind: button.dataset.aiKind || getAiKindForField_(button.dataset.aiTarget || ""),
+      targetName: button.dataset.aiTarget || "",
+      report: report,
+      stats: stats,
+      inconformidades: collectAiInconformities_()
+    };
+  }
+
+  function collectAiInconformities_() {
+    const items = [];
+
+    for (let index = 1; index <= maxInconformidades; index += 1) {
+      const number = String(index).padStart(2, "0");
+      const descricao = getFieldValue_("descricaoInconformidade" + number);
+      const solucao = getFieldValue_("solucaoInconformidade" + number);
+      const grau = getFieldValue_("grauRisco" + number);
+
+      if (descricao || solucao || grau) {
+        items.push({
+          numero: number,
+          descricao: descricao,
+          solucao: solucao,
+          grauRisco: grau
+        });
+      }
+    }
+
+    return items;
+  }
+
+  function getFieldValue_(name) {
+    const field = form.elements[name];
+    return clean(field && field.value);
+  }
+
+  function showAiSuggestion_(result, original, target) {
+    if (!aiSuggestionPanel || !aiOriginalText || !aiSuggestedText) {
+      return;
+    }
+
+    const suggestion = result && result.suggestion ? result.suggestion : "";
+    activeAiTarget = {
+      field: target || null,
+      suggestion: suggestion
+    };
+
+    if (aiSuggestionTitle) {
+      aiSuggestionTitle.textContent = result && result.title ? result.title : "Sugestão da IA";
+    }
+
+    aiOriginalText.value = original || "Campo ainda vazio.";
+    aiSuggestedText.value = suggestion;
+
+    if (aiSuggestionNote) {
+      aiSuggestionNote.textContent = result && result.note ? result.note : "";
+    }
+
+    aiSuggestionPanel.classList.remove("is-hidden");
+    aiSuggestionPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function closeAiSuggestion_() {
+    activeAiTarget = null;
+
+    if (aiSuggestionPanel) {
+      aiSuggestionPanel.classList.add("is-hidden");
+    }
+  }
+
+  function acceptAiSuggestion_() {
+    if (!activeAiTarget || !activeAiTarget.field) {
+      closeAiSuggestion_();
+      return;
+    }
+
+    activeAiTarget.field.value = activeAiTarget.suggestion;
+    activeAiTarget.field.dispatchEvent(new Event("input", { bubbles: true }));
+    updateReportMetrics_();
+    renderReviewSummary_();
+    saveDraft_().catch(function (error) {
+      console.warn("Não foi possível salvar a sugestão da IA imediatamente.", error);
+    });
+    setDraftStatus_("Sugestão da IA aplicada. Revise o texto antes de gerar o PDF.", "success");
+    closeAiSuggestion_();
+  }
+
+  function setAiButtonBusy_(button, isBusy) {
+    if (!button) {
+      return;
+    }
+
+    if (isBusy) {
+      button.dataset.originalText = button.textContent;
+      button.textContent = "Gerando sugestão...";
+      button.disabled = true;
+      return;
+    }
+
+    button.textContent = button.dataset.originalText || button.textContent;
+    button.disabled = false;
   }
 
   function initializeDraft_() {

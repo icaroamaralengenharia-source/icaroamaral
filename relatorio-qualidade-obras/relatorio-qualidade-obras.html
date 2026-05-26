@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-dashboard1">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-ia1b">
 </head>
 <body>
   <main class="page-shell">
@@ -366,10 +366,17 @@
             </label>
           </div>
 
-          <label class="full-width">
-            Observações
-            <textarea name="observacoes" rows="5"></textarea>
-          </label>
+          <div class="technical-text-field full-width">
+            <label>
+              Observações
+              <textarea name="observacoes" rows="5"></textarea>
+            </label>
+            <div class="ai-field-toolbar">
+              <button type="button" class="mini-button ai-button" data-ai-action="improve" data-ai-target="observacoes" data-ai-kind="general">
+                Melhorar com IA
+              </button>
+            </div>
+          </div>
 
           <div class="step-actions">
             <button type="button" class="next-action" data-next-step="fotos">Continuar para fotos</button>
@@ -406,6 +413,17 @@
             <h3>Revisão final</h3>
           </div>
           <div class="review-grid" id="reviewSummary"></div>
+          <div class="technical-text-field full-width">
+            <label>
+              Conclusão técnica
+              <textarea name="conclusaoTecnica" rows="5"></textarea>
+            </label>
+            <div class="ai-field-toolbar">
+              <button type="button" class="mini-button ai-button primary" data-ai-action="conclusion" data-ai-target="conclusaoTecnica">
+                Gerar conclusão com IA
+              </button>
+            </div>
+          </div>
           <div class="step-actions two">
             <button type="button" class="secondary-action" data-prev-step="inconformidades">Voltar</button>
             <button type="button" class="next-action" data-next-step="gerar">Ir para envio</button>
@@ -426,6 +444,17 @@
           <div class="generation-panel">
             <p id="generationStatus">Pronto para gerar o PDF técnico.</p>
           </div>
+          <div class="technical-text-field full-width">
+            <label>
+              Revisão técnica da IA
+              <textarea name="revisaoTecnicaIa" rows="5"></textarea>
+            </label>
+            <div class="ai-field-toolbar">
+              <button type="button" class="mini-button ai-button primary" data-ai-action="review" data-ai-target="revisaoTecnicaIa">
+                Revisar relatório com IA
+              </button>
+            </div>
+          </div>
 
           <div class="step-actions two">
             <button type="button" class="secondary-action" data-prev-step="revisao">Voltar</button>
@@ -436,10 +465,39 @@
           <p id="draftStatus" class="draft-status" aria-live="polite"></p>
         </section>
       </form>
+
+      <section class="ai-suggestion-panel is-hidden" id="aiSuggestionPanel" aria-live="polite" aria-label="Sugestão da IA">
+        <div class="ai-suggestion-header">
+          <div>
+            <p class="eyebrow">Assistente de texto</p>
+            <h3 id="aiSuggestionTitle">Sugestão da IA</h3>
+          </div>
+          <button type="button" class="mini-button" id="aiCloseButton">Fechar</button>
+        </div>
+
+        <div class="ai-preview-grid">
+          <label>
+            Texto original
+            <textarea id="aiOriginalText" rows="7" readonly></textarea>
+          </label>
+          <label>
+            Sugestão da IA
+            <textarea id="aiSuggestedText" rows="7" readonly></textarea>
+          </label>
+        </div>
+
+        <p class="ai-suggestion-note" id="aiSuggestionNote"></p>
+
+        <div class="step-actions two">
+          <button type="button" class="secondary-action" id="aiRejectButton">Recusar</button>
+          <button type="button" class="next-action" id="aiAcceptButton">Aceitar sugestão</button>
+        </div>
+      </section>
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-dashboard1"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-dashboard1"></script>
+  <script src="./relatorio-config.js?v=20260525-ia1b"></script>
+  <script src="./ai-assistant.js?v=20260525-ia1b"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-ia1b"></script>
 </body>
 </html>

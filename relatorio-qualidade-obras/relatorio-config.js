@@ -4,5 +4,6 @@ window.RELATORIO_QUALIDADE_CONFIG = {
   maxInconformidades: 20,
   maxImageWidth: 1280,
   maxImagePixels: 1638400,
-  jpegQuality: 0.72
+  jpegQuality: 0.72,
+  aiAssistantUrl: ""
 };

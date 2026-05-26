@@ -649,6 +649,71 @@ textarea:focus {
   width: 100%;
 }
 
+.technical-text-field {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-field-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ai-button {
+  border-color: rgba(12, 91, 140, 0.35);
+  color: #0c4f78;
+  background: #eef7fb;
+}
+
+.ai-button.primary {
+  border-color: rgba(216, 171, 56, 0.75);
+  color: var(--navy);
+  background: rgba(216, 171, 56, 0.18);
+}
+
+.ai-suggestion-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #dbe0e7;
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(10, 31, 51, 0.12);
+}
+
+.ai-suggestion-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ai-suggestion-header h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.15rem;
+}
+
+.ai-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ai-preview-grid textarea {
+  min-height: 180px;
+  background: #fbfcfd;
+}
+
+.ai-suggestion-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .nonconformities {
   display: grid;
   gap: 20px;
@@ -847,9 +912,16 @@ textarea:focus {
   }
 
   .metrics-grid,
+  .ai-preview-grid,
   .review-grid,
   .step-actions.two {
     grid-template-columns: 1fr;
+  }
+
+  .ai-suggestion-header,
+  .ai-field-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   input,
