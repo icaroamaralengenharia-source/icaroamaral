@@ -209,6 +209,31 @@ body {
   border-color: rgba(216, 171, 56, 0.42);
 }
 
+.plan-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(216, 171, 56, 0.45);
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--navy);
+  background: rgba(216, 171, 56, 0.18);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.billing-alert {
+  padding: 14px 16px;
+  color: #6f3f00;
+  background: #fff8e7;
+  border: 1px solid rgba(216, 171, 56, 0.48);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .session-box strong,
 .report-context-bar strong {
   color: var(--navy);
@@ -224,7 +249,7 @@ body {
 
 .saas-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -288,6 +313,80 @@ body {
 
 .dashboard-card .mini-button {
   width: 100%;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.plan-card {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+  min-height: 310px;
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #dfe5eb;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(10, 31, 51, 0.06);
+}
+
+.plan-card.current {
+  border-color: rgba(216, 171, 56, 0.9);
+  box-shadow: 0 16px 34px rgba(216, 171, 56, 0.16);
+}
+
+.plan-card h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.15rem;
+}
+
+.plan-price {
+  margin: 0;
+  color: var(--gold);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.plan-features {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.usage-item {
+  display: grid;
+  gap: 8px;
+  min-height: 84px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+}
+
+.usage-item span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.usage-item strong {
+  color: var(--navy);
+  font-size: 1.05rem;
 }
 
 .workspace-card {
@@ -943,6 +1042,8 @@ textarea:focus {
   }
 
   .metrics-grid,
+  .plan-grid,
+  .usage-grid,
   .ai-preview-grid,
   .review-grid,
   .step-actions.two {

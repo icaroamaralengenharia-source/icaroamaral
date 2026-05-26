@@ -11,6 +11,8 @@
   const loginForm = document.getElementById("loginForm");
   const logoutButton = document.getElementById("logoutButton");
   const userBadge = document.getElementById("userBadge");
+  const currentPlanBadge = document.getElementById("currentPlanBadge");
+  const billingAlert = document.getElementById("billingAlert");
   const localStatus = document.getElementById("localStatus");
   const editorLocalStatus = document.getElementById("editorLocalStatus");
   const cloudStatus = document.getElementById("cloudStatus");
@@ -32,6 +34,9 @@
   const reportMetric = document.getElementById("reportMetric");
   const photoMetric = document.getElementById("photoMetric");
   const pdfMetric = document.getElementById("pdfMetric");
+  const billingDemoStatus = document.getElementById("billingDemoStatus");
+  const plansGrid = document.getElementById("plansGrid");
+  const usageSummary = document.getElementById("usageSummary");
   const currentReportLabel = document.getElementById("currentReportLabel");
   const saveReportButton = document.getElementById("saveReportButton");
   const backToDashboardButton = document.getElementById("backToDashboardButton");
@@ -77,6 +82,7 @@
   let draftSaveTimer = null;
   let localSaveTimer = null;
   let cloudSyncTimer = null;
+  let billingAlertTimer = null;
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
   let activeAiTarget = null;
@@ -149,7 +155,8 @@
           emailDestino: clean(formData.get("emailDestino"))
         },
         fotosUnidade: fotosUnidade,
-        inconformidades: inconformidades
+        inconformidades: inconformidades,
+        billing: buildBillingExportSnapshot_()
       };
 
       setGenerationStatus_("Enviando PDF...");
@@ -390,6 +397,10 @@
           return;
         }
 
+        if (!canCreateByBilling_("clients")) {
+          return;
+        }
+
         appState.clients.push(client);
         setLastOpened_("clientes", client.id, "", "");
         saveAppState_();
@@ -417,6 +428,10 @@
         };
 
         if (!work.clientId || !work.name || !work.address || !work.type) {
+          return;
+        }
+
+        if (!canCreateByBilling_("works")) {
           return;
         }
 
@@ -460,6 +475,10 @@
         const title = clean(formData.get("reportTitle")) || "Relatório de Fiscalização";
 
         if (!work) {
+          return;
+        }
+
+        if (!canCreateByBilling_("reports")) {
           return;
         }
 
@@ -567,7 +586,8 @@
       users: [],
       clients: [],
       works: [],
-      reports: []
+      reports: [],
+      billing: {}
     });
   }
 
@@ -579,6 +599,19 @@
     state.local.lastWorkId = state.local.lastWorkId || "";
     state.local.lastReportId = state.local.lastReportId || "";
     state.local.updatedAt = state.local.updatedAt || new Date().toISOString();
+
+    if (window.ObraReportBillingDemo) {
+      window.ObraReportBillingDemo.ensureBillingState(
+        state,
+        window.ObraReportPlans ? window.ObraReportPlans.defaultPlanId : "gratuito"
+      );
+    } else {
+      state.billing = state.billing || {};
+      state.billing.planId = state.billing.planId || "gratuito";
+      state.billing.usageEvents = Array.isArray(state.billing.usageEvents) ? state.billing.usageEvents : [];
+      state.billing.updatedAt = state.billing.updatedAt || new Date().toISOString();
+    }
+
     return state;
   }
 
@@ -784,7 +817,8 @@
       version: 1,
       clients: appState.clients,
       works: appState.works,
-      reports: reports
+      reports: reports,
+      billing: appState.billing || {}
     };
   }
 
@@ -848,6 +882,7 @@
         clients: state.clients || [],
         works: state.works || [],
         reports: [],
+        billing: state.billing || appState.billing || {},
         local: Object.assign({}, appState.local || {}, {
           updatedAt: new Date().toISOString()
         })
@@ -899,7 +934,7 @@
 
   function getRouteFromHash_() {
     const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
-    return ["dashboard", "clientes", "obras", "relatorios"].indexOf(value) >= 0 ? value : "dashboard";
+    return ["dashboard", "clientes", "obras", "relatorios", "planos"].indexOf(value) >= 0 ? value : "dashboard";
   }
 
   function getReportIdFromHash_() {
@@ -1031,7 +1066,255 @@
     renderWorksList_(works);
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
+    renderBillingState_();
     updateReportContext_();
+  }
+
+  function getPlansApi_() {
+    return window.ObraReportPlans || null;
+  }
+
+  function getUsageApi_() {
+    return window.ObraReportUsageLimits || null;
+  }
+
+  function getBillingApi_() {
+    return window.ObraReportBillingDemo || null;
+  }
+
+  function getCurrentPlan_() {
+    const plans = getPlansApi_();
+    const billing = getBillingApi_();
+    const defaultPlanId = plans ? plans.defaultPlanId : "gratuito";
+    const planId = billing ? billing.getCurrentPlanId(appState, defaultPlanId) : ((appState.billing && appState.billing.planId) || defaultPlanId);
+
+    return plans ? plans.getPlan(planId) : {
+      id: "gratuito",
+      name: "Gratuito",
+      priceLabel: "R$ 0/mês",
+      limits: {
+        clients: 2,
+        works: 2,
+        reportsPerMonth: 5,
+        photosPerReport: 10,
+        aiCallsPerMonth: 10
+      },
+      features: []
+    };
+  }
+
+  function getCurrentUsage_() {
+    const usage = getUsageApi_();
+
+    if (!currentUser || !usage) {
+      return {
+        monthKey: "",
+        clients: 0,
+        works: 0,
+        reportsThisMonth: 0,
+        aiCallsThisMonth: 0
+      };
+    }
+
+    return usage.getUsage(appState, currentUser.id);
+  }
+
+  function renderBillingState_() {
+    if (!currentUser) {
+      return;
+    }
+
+    const plan = getCurrentPlan_();
+    const usage = getCurrentUsage_();
+
+    if (currentPlanBadge) {
+      currentPlanBadge.textContent = "Plano " + plan.name;
+    }
+
+    renderPlansGrid_(plan);
+    renderUsageSummary_(plan, usage);
+  }
+
+  function renderPlansGrid_(currentPlan) {
+    const plans = getPlansApi_();
+    const billing = getBillingApi_();
+
+    if (!plansGrid || !plans) {
+      return;
+    }
+
+    const demoEnabled = billing ? billing.isDemoEnabled() : false;
+    plansGrid.innerHTML = "";
+
+    if (billingDemoStatus) {
+      billingDemoStatus.textContent = demoEnabled
+        ? "Modo demo local ativo: você pode alternar planos para testar limites sem pagamento real."
+        : "Troca de plano desativada neste ambiente. Checkout real será conectado em fase futura.";
+    }
+
+    plans.listPlans().forEach(function (plan) {
+      const card = document.createElement("article");
+      card.className = "plan-card" + (plan.id === currentPlan.id ? " current" : "");
+
+      const title = document.createElement("h4");
+      title.textContent = plan.name;
+
+      const price = document.createElement("p");
+      price.className = "plan-price";
+      price.textContent = plan.priceLabel;
+
+      const features = document.createElement("ul");
+      features.className = "plan-features";
+      (plan.features || []).forEach(function (feature) {
+        const item = document.createElement("li");
+        item.textContent = feature;
+        features.appendChild(item);
+      });
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = plan.id === currentPlan.id ? "secondary-action" : "next-action";
+      button.textContent = plan.id === currentPlan.id ? "Plano atual" : (demoEnabled ? "Usar neste demo" : "Checkout em breve");
+      button.disabled = plan.id === currentPlan.id || !demoEnabled;
+      button.addEventListener("click", function () {
+        setDemoPlan_(plan.id);
+      });
+
+      card.appendChild(title);
+      card.appendChild(price);
+      card.appendChild(features);
+      card.appendChild(button);
+      plansGrid.appendChild(card);
+    });
+  }
+
+  function renderUsageSummary_(plan, usage) {
+    const plans = getPlansApi_();
+    const formatLimit = plans ? plans.formatLimit : function (value) {
+      return value === null ? "Ilimitado" : String(value);
+    };
+
+    if (!usageSummary || !plan.limits) {
+      return;
+    }
+
+    usageSummary.innerHTML = "";
+    usageSummary.appendChild(createUsageItem_("Clientes", usage.clients, formatLimit(plan.limits.clients)));
+    usageSummary.appendChild(createUsageItem_("Obras", usage.works, formatLimit(plan.limits.works)));
+    usageSummary.appendChild(createUsageItem_("Relatórios no mês", usage.reportsThisMonth, formatLimit(plan.limits.reportsPerMonth)));
+    usageSummary.appendChild(createUsageItem_("Usos de IA no mês", usage.aiCallsThisMonth, formatLimit(plan.limits.aiCallsPerMonth)));
+    usageSummary.appendChild(createUsageItem_("Fotos por relatório", imageCache.size, formatLimit(plan.limits.photosPerReport)));
+  }
+
+  function createUsageItem_(label, current, limit) {
+    const item = document.createElement("div");
+    item.className = "usage-item";
+
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = String(current) + " / " + limit;
+
+    item.appendChild(labelElement);
+    item.appendChild(valueElement);
+    return item;
+  }
+
+  function setDemoPlan_(planId) {
+    const plans = getPlansApi_();
+    const billing = getBillingApi_();
+
+    if (!plans || !billing || !billing.isDemoEnabled()) {
+      showBillingAlert_("A troca de plano demo só fica ativa em ambiente local de desenvolvimento.");
+      return;
+    }
+
+    const plan = plans.getPlan(planId);
+    billing.setPlan(appState, plan.id, plans.defaultPlanId);
+    saveAppState_();
+    renderSaasState_();
+    showBillingAlert_("Plano demo alterado para " + plan.name + ".");
+  }
+
+  function canCreateByBilling_(type) {
+    const usage = getUsageApi_();
+
+    if (!usage || !currentUser) {
+      return true;
+    }
+
+    const plan = getCurrentPlan_();
+    const result = usage.checkLimit(plan, getCurrentUsage_(), type);
+
+    if (result.ok) {
+      return true;
+    }
+
+    showBillingAlert_(result.message);
+    return false;
+  }
+
+  function canUseAi_() {
+    return canCreateByBilling_("ai");
+  }
+
+  function registerBillingUsage_(type, meta) {
+    const billing = getBillingApi_();
+
+    if (!billing || !currentUser) {
+      return;
+    }
+
+    billing.registerUsage(appState, type, currentUser.id, meta || {});
+    saveLocalData({ syncCloud: true });
+    renderBillingState_();
+  }
+
+  function canAddPhotoToReport_(inputName) {
+    const usage = getUsageApi_();
+
+    if (!usage) {
+      return true;
+    }
+
+    const plan = getCurrentPlan_();
+    const isReplacing = imageCache.has(inputName);
+    const result = usage.checkPhotoLimit(plan, imageCache.size, isReplacing);
+
+    if (result.ok) {
+      return true;
+    }
+
+    showBillingAlert_(result.message);
+    setDraftStatus_(result.message, "error");
+    renderImageError_(inputName, result.message);
+    return false;
+  }
+
+  function buildBillingExportSnapshot_() {
+    const plan = getCurrentPlan_();
+
+    return {
+      planId: plan.id,
+      planName: plan.name,
+      pdfWatermark: Boolean(plan.pdfWatermark),
+      companyLogo: Boolean(plan.companyLogo)
+    };
+  }
+
+  function showBillingAlert_(message) {
+    if (!billingAlert) {
+      setCloudStatus_(message, "error");
+      return;
+    }
+
+    billingAlert.textContent = message;
+    billingAlert.classList.remove("is-hidden");
+    window.clearTimeout(billingAlertTimer);
+    billingAlertTimer = window.setTimeout(function () {
+      billingAlert.classList.add("is-hidden");
+    }, 7000);
   }
 
   function getReportPhotoCount_(report) {
@@ -1363,7 +1646,8 @@
     report.lastExport = {
       submittedAt: payload.submittedAt,
       fotosUnidade: payload.fotosUnidade.length,
-      inconformidades: payload.inconformidades.length
+      inconformidades: payload.inconformidades.length,
+      billing: payload.billing || {}
     };
     report.updatedAt = new Date().toISOString();
     report.summary = getReportStats_();
@@ -1890,11 +2174,20 @@
     const original = target ? clean(target.value) : "";
     let result;
 
+    if (!canUseAi_()) {
+      return;
+    }
+
     setAiButtonBusy_(button, true);
 
     try {
       if (action === "analyze-image") {
         await handleAiImageAction_(button);
+        registerBillingUsage_("ai", {
+          action: action,
+          target: button.dataset.aiTarget || "",
+          imageTarget: button.dataset.aiImageTarget || ""
+        });
         return;
       }
 
@@ -1910,6 +2203,10 @@
     }
 
     showAiSuggestion_(result, original, target);
+    registerBillingUsage_("ai", {
+      action: action || "improve",
+      target: button.dataset.aiTarget || ""
+    });
   }
 
   async function handleAiImageAction_(button) {
@@ -2125,6 +2422,11 @@
       }
       renderImageEmpty_(input.name);
       scheduleDraftSave_();
+      return;
+    }
+
+    if (!canAddPhotoToReport_(input.name)) {
+      input.value = "";
       return;
     }
 

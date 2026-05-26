@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-ia3">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-comercial1b">
 </head>
 <body>
   <main class="page-shell">
@@ -74,6 +74,7 @@
         </div>
         <div class="session-box">
           <strong id="userBadge">Usuário</strong>
+          <span class="plan-badge" id="currentPlanBadge">Plano Gratuito</span>
           <span class="local-status" id="localStatus">Salvo localmente</span>
           <span class="cloud-status" id="cloudStatus">Nuvem aguardando login</span>
           <button type="button" class="secondary-action compact" id="saveNowButton">Salvar agora</button>
@@ -86,7 +87,10 @@
         <button type="button" data-route-target="clientes">Clientes</button>
         <button type="button" data-route-target="obras">Obras</button>
         <button type="button" data-route-target="relatorios">Relatórios</button>
+        <button type="button" data-route-target="planos">Planos</button>
       </nav>
+
+      <div class="billing-alert is-hidden" id="billingAlert" role="status" aria-live="polite"></div>
 
       <section class="route-panel active" data-route="dashboard" aria-label="Dashboard principal">
         <div class="dashboard-actions-grid">
@@ -128,6 +132,21 @@
           </div>
           <div id="recentReportsList" class="entity-list empty-list">Nenhum relatório criado ainda.</div>
         </section>
+      </section>
+
+      <section class="route-panel" data-route="planos" aria-label="Planos do ObraReport">
+        <div class="workspace-card">
+          <div class="section-row">
+            <h3>Planos</h3>
+            <span class="local-status" id="billingDemoStatus">Modo demo local</span>
+          </div>
+          <div class="plan-grid" id="plansGrid"></div>
+        </div>
+
+        <div class="workspace-card">
+          <h3>Uso atual</h3>
+          <div class="usage-grid" id="usageSummary"></div>
+        </div>
       </section>
 
       <section class="route-panel" data-route="clientes" aria-label="Cadastro de clientes">
@@ -502,8 +521,11 @@
     </section>
   </main>
 
-  <script src="./relatorio-config.js?v=20260525-ia3"></script>
-  <script src="./ai-assistant.js?v=20260525-ia3"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-ia3"></script>
+  <script src="./relatorio-config.js?v=20260525-comercial1b"></script>
+  <script src="./plans.js?v=20260525-comercial1b"></script>
+  <script src="./usage-limits.js?v=20260525-comercial1b"></script>
+  <script src="./billing-demo.js?v=20260525-comercial1b"></script>
+  <script src="./ai-assistant.js?v=20260525-comercial1b"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260525-comercial1b"></script>
 </body>
 </html>

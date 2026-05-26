@@ -115,6 +115,38 @@ cd backend
 npm run dev
 ```
 
+## Planos e limites em modo demo
+
+A camada comercial local fica em:
+
+```text
+relatorio-qualidade-obras/plans.js
+relatorio-qualidade-obras/usage-limits.js
+relatorio-qualidade-obras/billing-demo.js
+```
+
+Planos disponíveis:
+
+```text
+Gratuito: até 2 clientes, 2 obras, 5 relatórios/mês, 10 fotos/relatório, IA limitada e PDF marcado para marca d'água.
+Profissional: clientes/obras ilimitados, 100 relatórios/mês, 50 fotos/relatório, IA liberada e PDF sem marca d'água.
+Empresa: estrutura preparada para relatórios ilimitados e múltiplos usuários futuramente.
+```
+
+No ambiente local (`127.0.0.1` ou `localhost`), a aba **Planos** permite trocar o plano em modo demo, sem pagamento real. Em produção, essa troca fica bloqueada até integrar checkout.
+
+Os limites bloqueiam de forma amigável:
+
+```text
+criação de clientes
+criação de obras
+criação de relatórios mensais
+adição de fotos por relatório
+uso de IA
+```
+
+Pagamentos reais com Stripe ou Mercado Pago ainda não foram implementados.
+
 ## Testes
 
 Frontend:
