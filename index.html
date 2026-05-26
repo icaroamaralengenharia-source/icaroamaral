@@ -110,7 +110,7 @@
     }
 
     .site-shell {
-      display: none;
+      display: block;
       min-height: 100vh;
       background: #f5f7fa;
     }
@@ -340,26 +340,6 @@
 </head>
 
 <body>
-  <section class="login-screen" id="loginScreen">
-    <form class="login-card" id="loginForm">
-      <h1>Ícaro Amaral Engenharia</h1>
-      <p>Acesso interno ao sistema técnico de relatórios e fiscalização.</p>
-
-      <label>
-        Login
-        <input id="loginUser" type="text" autocomplete="username" required>
-      </label>
-
-      <label>
-        Senha
-        <input id="loginPassword" type="password" autocomplete="current-password" required>
-      </label>
-
-      <button type="submit">Entrar</button>
-      <div class="login-error" id="loginError"></div>
-    </form>
-  </section>
-
   <div class="site-shell" id="siteShell">
     <section class="hero">
       <div class="topbar">
@@ -368,7 +348,6 @@
           <span>Engenharia & Arquitetura</span>
         </div>
 
-        <button class="logout-button" type="button" id="logoutButton">Sair</button>
       </div>
 
       <div class="hero-content">
@@ -380,11 +359,11 @@
         </p>
 
         <div class="actions">
-          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
             Abrir Relatório de Fiscalização
           </a>
 
-          <a class="secondary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+          <a class="secondary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
             Gerar Relatório Técnico
           </a>
 
@@ -426,59 +405,12 @@
             grau de risco, matriz de prioridade e gerar o PDF final automaticamente.
           </p>
 
-          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=21">
+          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
             Abrir Relatório de Fiscalização
           </a>
         </aside>
       </div>
     </section>
   </div>
-
-  <script>
-    const loginScreen = document.getElementById("loginScreen");
-    const siteShell = document.getElementById("siteShell");
-    const loginForm = document.getElementById("loginForm");
-    const loginError = document.getElementById("loginError");
-    const logoutButton = document.getElementById("logoutButton");
-
-    const ACCESS_KEY = "icaro_site_access";
-
-    function showSite() {
-      loginScreen.style.display = "none";
-      siteShell.style.display = "block";
-    }
-
-    function showLogin() {
-      loginScreen.style.display = "grid";
-      siteShell.style.display = "none";
-    }
-
-    if (sessionStorage.getItem(ACCESS_KEY) === "ok") {
-      showSite();
-    } else {
-      showLogin();
-    }
-
-    loginForm.addEventListener("submit", function (event) {
-      event.preventDefault();
-
-      const user = document.getElementById("loginUser").value.trim();
-      const password = document.getElementById("loginPassword").value.trim();
-
-      if (user === "visitante" && password === "1234") {
-        sessionStorage.setItem(ACCESS_KEY, "ok");
-        loginError.textContent = "";
-        showSite();
-        return;
-      }
-
-      loginError.textContent = "Login ou senha incorretos.";
-    });
-
-    logoutButton.addEventListener("click", function () {
-      sessionStorage.removeItem(ACCESS_KEY);
-      showLogin();
-    });
-  </script>
 </body>
 </html>
