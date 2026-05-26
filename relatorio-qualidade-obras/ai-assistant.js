@@ -5,7 +5,7 @@
 
   async function improveTechnicalText(text, context) {
     const payload = {
-      action: "improveTechnicalText",
+      action: "improve",
       text: clean_(text),
       context: context || {}
     };
@@ -25,7 +25,7 @@
 
   async function generateConclusion(context) {
     const payload = {
-      action: "generateConclusion",
+      action: "conclusion",
       text: "",
       context: context || {}
     };
@@ -57,7 +57,7 @@
 
   async function reviewReport(context) {
     const payload = {
-      action: "reviewReport",
+      action: "review",
       text: "",
       context: context || {}
     };
@@ -95,7 +95,7 @@
       }
 
       return {
-        mode: "remote",
+        mode: result.mode || "remote",
         title: result.title || "Sugestão da IA",
         suggestion: clean_(result.suggestion),
         note: result.note || "Sugestão gerada pela IA configurada no backend."
