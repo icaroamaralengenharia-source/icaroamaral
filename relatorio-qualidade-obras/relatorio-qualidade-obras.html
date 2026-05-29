@@ -202,11 +202,29 @@
       <section class="route-panel client-route-panel" data-route="cliente" aria-label="Painel do cliente">
         <div class="workspace-card client-portal-hero">
           <div>
-            <p class="eyebrow">Painel do Cliente</p>
-            <h3>Resumo dos seus documentos de obra</h3>
-            <p>Visualização simplificada com dados vinculados de forma clara ao seu cadastro.</p>
+            <p class="eyebrow">Página do Cliente Premium</p>
+            <h3>Documentos, RDOs e PDFs da sua obra em um só lugar</h3>
+            <p>Área de acompanhamento para consultar obras vinculadas, relatórios, diários de obra e documentos técnicos compartilhados pela equipe responsável.</p>
           </div>
-          <span class="local-status">Acesso cliente</span>
+          <div class="client-portal-badges" aria-label="Sinais de confiança do acesso do cliente">
+            <span class="local-status">Acesso cliente</span>
+            <span class="cloud-status info">Visualização protegida</span>
+          </div>
+        </div>
+
+        <div class="client-trust-grid">
+          <article>
+            <strong>Consulta organizada</strong>
+            <span>Obras, relatórios, RDOs e PDFs separados por vínculo do cliente.</span>
+          </article>
+          <article>
+            <strong>Histórico técnico</strong>
+            <span>Documentos importantes ficam reunidos para acompanhamento e revisão.</span>
+          </article>
+          <article>
+            <strong>Confiança e backup</strong>
+            <span>Dados salvos localmente e preparados para rotina de backup assistido.</span>
+          </article>
         </div>
 
         <div class="dashboard-actions-grid client-summary-grid">
@@ -233,6 +251,17 @@
             <h3>Últimos documentos</h3>
           </div>
           <div id="clientPortalRecentDocs" class="entity-list empty-list">Nenhum documento vinculado com segurança ao seu acesso.</div>
+        </section>
+
+        <section class="workspace-card client-confidence-card">
+          <p class="eyebrow">Backup e confiança</p>
+          <h3>Rotina segura para documentos de obra</h3>
+          <p>O ObraReport mantém a experiência organizada para conferência dos documentos e orienta uma rotina de salvamento, exportação e backup assistido dos arquivos importantes.</p>
+          <div class="client-confidence-list">
+            <span>Salvamento local visível</span>
+            <span>Histórico técnico centralizado</span>
+            <span>Exportação de documentos</span>
+          </div>
         </section>
       </section>
 
@@ -268,7 +297,7 @@
         <div class="workspace-card client-support-card">
           <p class="eyebrow">Suporte</p>
           <h3>Precisa falar sobre sua obra?</h3>
-          <p>Entre em contato com a equipe responsável pelo seu acompanhamento técnico. Esta área não exibe dados administrativos.</p>
+          <p>Entre em contato com a equipe responsável pelo seu acompanhamento técnico. Esta área prioriza clareza para o cliente e não exibe dados administrativos.</p>
         </div>
       </section>
 
@@ -303,7 +332,69 @@
             <strong id="pdfMetric">0</strong>
             <button type="button" class="mini-button" data-dashboard-action="exportar-pdf">Exportar PDF</button>
           </article>
+
+          <article class="dashboard-card example-work-card">
+            <span>Demonstração guiada</span>
+            <strong>Teste o ObraReport em 30 segundos</strong>
+            <p>Carregue uma obra completa com cliente, relatório, Diário de Obras, materiais, produção executada e PDF profissional.</p>
+            <button type="button" class="mini-button primary" data-dashboard-action="obra-exemplo">Carregar Obra Exemplo</button>
+          </article>
         </div>
+
+        <section id="exampleSalesGuide" class="workspace-card example-sales-guide is-hidden">
+          <div class="section-row">
+            <div>
+              <p class="eyebrow">Demonstração comercial</p>
+              <h3>Veja o valor do ObraReport na prática</h3>
+            </div>
+            <span class="local-status">Obra Exemplo carregada</span>
+          </div>
+
+          <div class="example-guide-grid">
+            <article>
+              <span>PASSO 1</span>
+              <strong>Abrir Diário de Obras</strong>
+            </article>
+            <article>
+              <span>PASSO 2</span>
+              <strong>Visualizar Produção Executada</strong>
+            </article>
+            <article>
+              <span>PASSO 3</span>
+              <strong>Visualizar Materiais Consumidos</strong>
+            </article>
+            <article>
+              <span>PASSO 4</span>
+              <strong>Visualizar Auditoria de Consumo</strong>
+            </article>
+            <article class="example-pdf-step">
+              <span>PASSO 5</span>
+              <strong>Veja o resultado final</strong>
+              <p>Este é o documento profissional que normalmente é entregue ao cliente, síndico, construtora ou responsável pela obra.</p>
+              <button type="button" class="mini-button primary" data-dashboard-action="obra-exemplo-pdf">Gerar PDF da Obra Exemplo</button>
+            </article>
+            <article>
+              <span>PASSO 6</span>
+              <strong>Solicitar implantação pelo WhatsApp</strong>
+            </article>
+          </div>
+
+          <p id="examplePdfStatus" class="example-pdf-status is-hidden">Pronto. Este é o padrão de documento que sua empresa pode entregar.</p>
+
+          <div class="example-benefits-card">
+            <h4>O que sua empresa ganha</h4>
+            <ul>
+              <li>Relatórios profissionais</li>
+              <li>Diário de Obras digital</li>
+              <li>Controle de materiais</li>
+              <li>Histórico técnico</li>
+              <li>PDF premium</li>
+              <li>Compartilhamento com cliente</li>
+            </ul>
+          </div>
+
+          <button type="button" class="example-whatsapp-button" data-dashboard-action="obra-exemplo-whatsapp">Quero usar o ObraReport na minha obra</button>
+        </section>
 
         <section class="workspace-card recent-report-card">
           <div class="section-row">
@@ -842,8 +933,9 @@
                 <div class="share-actions">
                   <button type="button" class="mini-button primary" id="dailyLogPdfButton" data-diary-action="generate-pdf">Gerar PDF do Diário</button>
                   <button type="button" class="mini-button primary" id="dailyLogShareWhatsapp">Enviar resumo por WhatsApp</button>
-                  <button type="button" class="mini-button" id="dailyLogShareEmail">Enviar resumo por e-mail</button>
+                  <button type="button" class="mini-button" id="dailyLogShareEmail">Abrir e-mail preenchido</button>
                 </div>
+                <p class="auth-note">O e-mail será aberto no aplicativo de e-mail do dispositivo para revisão e envio.</p>
               </div>
 
               <button class="next-action diary-save-button" type="submit" id="dailyLogSaveButton">Salvar diário</button>

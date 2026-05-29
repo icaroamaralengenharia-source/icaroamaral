@@ -34,6 +34,8 @@
   const reportMetric = document.getElementById("reportMetric");
   const photoMetric = document.getElementById("photoMetric");
   const pdfMetric = document.getElementById("pdfMetric");
+  const exampleSalesGuide = document.getElementById("exampleSalesGuide");
+  const examplePdfStatus = document.getElementById("examplePdfStatus");
   const billingDemoStatus = document.getElementById("billingDemoStatus");
   const plansGrid = document.getElementById("plansGrid");
   const usageSummary = document.getElementById("usageSummary");
@@ -769,7 +771,200 @@
         console.error(error);
         setCloudStatus_("Não foi possível abrir o relatório para exportar PDF.", "error");
       }
+      return;
     }
+
+    if (action === "obra-exemplo") {
+      createExampleWork_();
+      return;
+    }
+
+    if (action === "obra-exemplo-pdf") {
+      openExampleWorkPdf_();
+      return;
+    }
+
+    if (action === "obra-exemplo-whatsapp") {
+      openExampleWorkWhatsapp_();
+    }
+  }
+
+  function getExampleWork_() {
+    if (!currentUser) {
+      return null;
+    }
+
+    return appState.works.find(function (work) {
+      return work.userId === currentUser.id && work.demoOnly && work.name === "Obra Exemplo - Residência Modelo";
+    }) || null;
+  }
+
+  function getExampleDailyLog_() {
+    const exampleWork = getExampleWork_();
+    if (!exampleWork) {
+      return null;
+    }
+
+    return (appState.dailyLogs || []).find(function (logItem) {
+      return logItem.userId === currentUser.id && logItem.demoOnly && logItem.workId === exampleWork.id;
+    }) || null;
+  }
+
+  function createExampleWork_() {
+    if (!currentUser) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const existingWork = getExampleWork_();
+
+    if (existingWork) {
+      setLastOpened_("diario", existingWork.clientId, existingWork.id, "");
+      renderSaasState_();
+      showDashboardPanel_("diario");
+      setCloudStatus_("Obra Exemplo já carregada. Ela está marcada como demonstração.", "success");
+      return;
+    }
+
+    const clientId = createId_("cli_demo");
+    const workId = createId_("obr_demo");
+    const reportId = createId_("rep_demo");
+    const dailyLogId = createId_("dia_demo");
+
+    appState.clients.push({
+      id: clientId,
+      userId: currentUser.id,
+      name: "Cliente Exemplo (demonstração)",
+      document: "",
+      phone: "",
+      email: "",
+      notes: "Registro demonstrativo criado para apresentação. Não misturar com dados reais.",
+      demoOnly: true,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    appState.works.push({
+      id: workId,
+      userId: currentUser.id,
+      clientId: clientId,
+      name: "Obra Exemplo - Residência Modelo",
+      address: "Endereço demonstrativo",
+      type: "Residencial",
+      status: "Em andamento",
+      notes: "Obra de demonstração para testar RDO, materiais e PDF sem usar dados reais.",
+      demoOnly: true,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    appState.reports.push({
+      id: reportId,
+      userId: currentUser.id,
+      clientId: clientId,
+      workId: workId,
+      title: "Relatório Exemplo - Vistoria Inicial",
+      status: "Demonstração",
+      pdfUrl: "",
+      demoOnly: true,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    appState.dailyLogs.push({
+      id: dailyLogId,
+      userId: currentUser.id,
+      workId: workId,
+      date: today,
+      responsible: currentUser.name || "Responsável técnico",
+      weather: "Sol",
+      impact: "Sem impacto",
+      impactNote: "Condições adequadas para execução dos serviços previstos.",
+      startTime: "07:30",
+      endTime: "17:00",
+      teamPresent: "Pedreiros, serventes e encarregado",
+      employeeCount: "6",
+      teamNotes: "Equipe completa e orientada no início das atividades.",
+      services: "Execução de alvenaria, chapisco em área molhada e conferência de materiais.",
+      progress: "42",
+      interferences: "Sem interferências críticas registradas.",
+      visits: "Visita técnica de acompanhamento no período da manhã.",
+      productions: [
+        { id: createId_("prd_demo"), service: "Alvenaria", quantity: 18, unit: "m²", note: "Paredes internas do pavimento térreo." },
+        { id: createId_("prd_demo"), service: "Chapisco", quantity: 12, unit: "m²", note: "Área molhada preparada para revestimento." }
+      ],
+      materials: [
+        { id: createId_("mat_demo"), name: "Bloco cerâmico", quantity: 260, unit: "un", unitValue: 1.4, totalValue: 364, note: "Consumo demonstrativo do dia." },
+        { id: createId_("mat_demo"), name: "Cimento", quantity: 5, unit: "saco", unitValue: 38, totalValue: 190, note: "Uso em argamassa e chapisco." }
+      ],
+      tools: [
+        { id: createId_("too_demo"), name: "Betoneira", status: "Em uso", note: "Operação normal." },
+        { id: createId_("too_demo"), name: "Andaime", status: "Disponível", note: "Sem restrições observadas." }
+      ],
+      safety: {
+        occurrence: "Nenhuma ocorrência",
+        description: "Equipe orientada sobre organização da frente de serviço e uso de EPIs.",
+        actions: "Manter sinalização e limpeza da área.",
+        responsible: currentUser.name || "Responsável técnico"
+      },
+      occurrences: "Registro demonstrativo sem ocorrência crítica.",
+      stoppedEquipment: "Nenhum equipamento parado.",
+      generalNotes: "Dados de exemplo para apresentação comercial e testes internos.",
+      photos: [],
+      summary: "RDO demonstrativo com produção executada, materiais consumidos e auditoria simples de consumo.",
+      demoOnly: true,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    setLastOpened_("diario", clientId, workId, "");
+    saveLocalData({ syncCloud: false });
+    renderSaasState_();
+    showDashboardPanel_("diario");
+    setCloudStatus_("Obra Exemplo carregada como demonstração. Não use como dado real.", "success");
+  }
+
+  function openExampleWorkPdf_() {
+    const exampleLog = getExampleDailyLog_();
+
+    if (!exampleLog) {
+      setCloudStatus_("Carregue a Obra Exemplo antes de gerar o PDF.", "info");
+      return;
+    }
+
+    try {
+      openDailyLogPdf_(exampleLog);
+      if (examplePdfStatus) {
+        examplePdfStatus.classList.remove("is-hidden");
+      }
+      setCloudStatus_("Pronto. Este é o padrão de documento que sua empresa pode entregar.", "success");
+    } catch (error) {
+      console.error(error);
+      setCloudStatus_(error.message || "Não foi possível gerar o PDF da Obra Exemplo.", "error");
+    }
+  }
+
+  function openExampleWorkWhatsapp_() {
+    const message = [
+      "🏗️ *OBRAREPORT — IMPLANTAÇÃO ASSISTIDA*",
+      "",
+      "Olá. Acabei de visualizar o PDF da Obra Exemplo do ObraReport e gostaria de implantar o sistema na minha empresa.",
+      "",
+      "━━━━━━━━━━━━━━",
+      "",
+      "📌 *Interesse*",
+      "• Quero usar o ObraReport para organizar relatórios, RDOs, materiais e documentos técnicos da obra.",
+      "",
+      "👤 *Meus dados*",
+      "Nome:",
+      "Empresa:",
+      "Cidade:",
+      "Quantidade de obras:",
+      "",
+      "Mensagem enviada por *ObraReport*."
+    ].join("\n");
+    window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
   }
 
   function loadLocalData() {
@@ -1524,10 +1719,23 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     renderDailyLogModule_(dailyLogs);
+    renderExampleSalesGuide_();
     renderClientPortal_(works, reports, dailyLogs, exportedPdfs);
     renderAdminOverview_();
     renderBillingState_();
     updateReportContext_();
+  }
+
+  function renderExampleSalesGuide_() {
+    if (!exampleSalesGuide) {
+      return;
+    }
+
+    exampleSalesGuide.classList.toggle("is-hidden", !getExampleWork_());
+
+    if (examplePdfStatus) {
+      examplePdfStatus.classList.add("is-hidden");
+    }
   }
 
   function renderClientPortal_(works, reports, dailyLogs, exportedPdfs) {
@@ -1690,7 +1898,22 @@
 
   function openPlanWhatsapp_(plan) {
     const planName = plan && plan.name ? plan.name : "Gratuito";
-    const message = "Olá, quero contratar o ObraReport no plano " + planName + ".";
+    const message = [
+      "🏗️ *OBRAREPORT — CONTRATAÇÃO ASSISTIDA*",
+      "",
+      "Olá. Quero contratar o ObraReport no plano *" + planName + "*.",
+      "",
+      "━━━━━━━━━━━━━━",
+      "",
+      "👤 *Dados para atendimento*",
+      "Nome:",
+      "Empresa:",
+      "Cidade:",
+      "Quantidade de obras:",
+      "Principal necessidade:",
+      "",
+      "Mensagem enviada por *ObraReport*."
+    ].join("\n");
     const url = "https://wa.me/?text=" + encodeURIComponent(message);
     window.open(url, "_blank", "noopener,noreferrer");
   }
@@ -4118,7 +4341,7 @@
 
   function shareDailyLogSummary_(channel) {
     const snapshot = collectDailyLogSnapshot_();
-    const message = buildDailyLogExecutiveSummary_(snapshot);
+    const message = channel === "email" ? buildDailyLogEmailBody_(snapshot) : buildDailyLogWhatsappMessage_(snapshot);
     const subject = buildDailyLogShareSubject_(snapshot);
 
     if (channel === "whatsapp") {
@@ -4141,7 +4364,7 @@
 
       copyTextFallback_(message);
       window.location.href = url;
-      setDailyLogStatus_("Resumo executivo preparado no aplicativo de e-mail. Se o app nao abrir, o texto esta pronto para copiar/colar.", "success");
+      setDailyLogStatus_("O e-mail será aberto no aplicativo de e-mail do dispositivo para revisão e envio. Se o app não abrir, confira a configuração; o texto foi copiado para colar manualmente.", "success");
     }
   }
 
@@ -4210,6 +4433,7 @@
     const estimated = buildEstimatedMaterialsForProductions_(logItem.productions || [], logItem.materials || []);
     const title = "RDO - " + (workName || "Diário de Obras") + " - " + formatDateOnly_(logItem.date);
     const sections = [
+      buildDailyLogPdfExecutiveSummary_(logItem, estimated),
       buildDailyLogPdfInfoSection_(logItem, workName, clientName),
       buildDailyLogPdfTextSection_("Clima e impactos", [
         ["Condição climática", logItem.weather],
@@ -4301,6 +4525,7 @@
       "<span>Relatório Diário de Obra</span>",
       "</div>",
       "<div class=\"rdo-cover-main\">",
+      "<p class=\"rdo-kicker\">Documento técnico profissional</p>",
       "<h1>Diário de Obras</h1>",
       "<p>Registro técnico diário para acompanhamento executivo, produção, consumo de materiais, segurança e ocorrências da obra.</p>",
       "</div>",
@@ -4311,6 +4536,29 @@
       buildDailyLogPdfInfoItem_("Responsável", logItem.responsible),
       "</div>",
       "<div class=\"rdo-seal\">Gerado com ObraReport</div>",
+      "</section>"
+    ].join("");
+  }
+
+  function buildDailyLogPdfExecutiveSummary_(logItem, estimated) {
+    const productions = logItem.productions || [];
+    const materials = logItem.materials || [];
+    const auditItems = estimated && estimated.audit ? estimated.audit : [];
+    const differentItems = auditItems.filter(function (item) {
+      return Number(item.difference || 0) !== 0;
+    }).length;
+
+    return [
+      "<section class=\"rdo-summary-panel\">",
+      "<div>",
+      "<span>Resumo executivo</span>",
+      "<strong>" + escapeHtml_(safePdfText_(logItem.summary || buildDailyLogSummary_(logItem))) + "</strong>",
+      "</div>",
+      "<ul>",
+      "<li><span>Produção</span><strong>" + productions.length + "</strong></li>",
+      "<li><span>Materiais</span><strong>" + materials.length + "</strong></li>",
+      "<li><span>Auditoria</span><strong>" + differentItems + "</strong></li>",
+      "</ul>",
       "</section>"
     ].join("");
   }
@@ -4414,8 +4662,8 @@
       "*{box-sizing:border-box;}",
       "body{margin:0;background:#eef2f6;color:#17202c;font-family:Arial,'Segoe UI',sans-serif;line-height:1.45;}",
       ".rdo-page{max-width:920px;margin:0 auto;background:#fff;min-height:100vh;padding:28px 32px 72px;}",
-      ".rdo-cover{min-height:92vh;display:flex;flex-direction:column;justify-content:space-between;border:1px solid #dbe4ee;padding:34px;background:linear-gradient(180deg,#ffffff 0%,#f7fafc 100%);page-break-after:always;}",
-      ".rdo-brand{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0f766e;padding-bottom:18px;color:#0b1724;}",
+      ".rdo-cover{min-height:92vh;display:flex;flex-direction:column;justify-content:space-between;border:1px solid #cbd8e6;padding:36px;background:radial-gradient(circle at top right,rgba(15,118,110,.14),transparent 18rem),linear-gradient(180deg,#ffffff 0%,#f7fafc 100%);page-break-after:always;}",
+      ".rdo-brand{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #0f766e;padding-bottom:18px;color:#0b1724;}",
       ".rdo-brand strong{font-size:26px;letter-spacing:.02em;}",
       ".rdo-brand span{font-size:12px;text-transform:uppercase;font-weight:800;color:#0f766e;}",
       ".rdo-cover-main{max-width:640px;}",
@@ -4427,6 +4675,13 @@
       ".rdo-info-item span{display:block;font-size:10px;text-transform:uppercase;font-weight:800;color:#64748b;margin-bottom:4px;}",
       ".rdo-info-item strong{font-size:13px;color:#111827;white-space:pre-wrap;}",
       ".rdo-seal{align-self:flex-start;padding:8px 12px;border:1px solid #0f766e;border-radius:999px;color:#0f766e;font-size:12px;font-weight:800;}",
+      ".rdo-summary-panel{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(240px,.65fr);gap:16px;margin:0 0 18px;padding:18px;border:1px solid #0f766e;border-radius:12px;background:#f3fbfa;break-inside:avoid;}",
+      ".rdo-summary-panel div{display:grid;gap:6px;}",
+      ".rdo-summary-panel span{color:#0f766e;font-size:10px;font-weight:900;text-transform:uppercase;}",
+      ".rdo-summary-panel strong{color:#0b1724;font-size:14px;}",
+      ".rdo-summary-panel ul{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none;}",
+      ".rdo-summary-panel li{display:grid;gap:4px;padding:10px;border-radius:8px;background:#fff;border:1px solid #dbe4ee;text-align:center;}",
+      ".rdo-summary-panel li strong{font-size:20px;}",
       ".rdo-section{margin:0 0 18px;padding:18px;border:1px solid #dbe4ee;border-radius:10px;break-inside:avoid;}",
       ".rdo-section h2{margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0;color:#0b1724;font-size:18px;}",
       "table{width:100%;border-collapse:collapse;font-size:11px;}",
@@ -4465,9 +4720,7 @@
 
   function buildDailyLogShareSubject_(logItem) {
     const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
-    return "Resumo do Diário de Obras" +
-      (workName ? " - " + workName : "") +
-      (logItem.date ? " - " + formatDateOnly_(logItem.date) : "");
+    return "ObraReport | Resumo técnico da obra " + (workName || "sem nome informado");
   }
 
   function buildDailyLogExecutiveSummary_(logItem) {
@@ -4503,6 +4756,115 @@
     }
 
     return lines.join("\n");
+  }
+
+  function buildDailyLogWhatsappMessage_(logItem) {
+    const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
+    const clientName = logItem.client ? logItem.client.name : "";
+    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+
+    return [
+      "🏗️ *OBRAREPORT — RESUMO DA OBRA*",
+      "",
+      "📍 *Obra:* " + (workName || "Obra não informada"),
+      "👤 *Cliente:* " + (clientName || "Cliente não informado"),
+      "📅 *Data:* " + (logItem.date ? formatDateOnly_(logItem.date) : "Data não informada"),
+      "",
+      "━━━━━━━━━━━━━━",
+      "",
+      "📌 *Resumo do dia*",
+      limitShareText_(summary, 520),
+      "",
+      "✅ *Produção executada*",
+      formatShareBulletList_(logItem.productions, formatProductionSummary_, "Nenhuma produção executada foi registrada."),
+      "",
+      "🧱 *Materiais consumidos*",
+      formatShareBulletList_(logItem.materials, formatMaterialSummary_, "Nenhum material consumido foi registrado."),
+      "",
+      "⚠️ *Ocorrências*",
+      "• " + (logItem.occurrences || "Nenhuma ocorrência registrada."),
+      "",
+      "🦺 *Segurança*",
+      "• " + formatDailyLogSafetyLine_(logItem),
+      "",
+      "📄 *Documento técnico*",
+      "Relatório/RDO gerado pelo ObraReport.",
+      "",
+      "━━━━━━━━━━━━━━",
+      "",
+      "Mensagem enviada por *ObraReport*."
+    ].join("\n");
+  }
+
+  function buildDailyLogEmailBody_(logItem) {
+    const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
+    const clientName = logItem.client ? logItem.client.name : "";
+    const responsible = logItem.responsible || (currentUser && currentUser.name) || "Responsável técnico";
+    const summary = logItem.summary || buildDailyLogSummary_(logItem);
+
+    return [
+      "Olá, " + (clientName || "cliente") + ".",
+      "",
+      "Segue o resumo técnico registrado no ObraReport.",
+      "",
+      "Obra: " + (workName || "Obra não informada"),
+      "Data: " + (logItem.date ? formatDateOnly_(logItem.date) : "Data não informada"),
+      "Responsável: " + responsible,
+      "",
+      "Resumo executivo:",
+      limitShareText_(summary, 700),
+      "",
+      "Produção executada:",
+      formatPlainShareList_(logItem.productions, formatProductionSummary_, "Nenhuma produção executada foi registrada."),
+      "",
+      "Materiais consumidos:",
+      formatPlainShareList_(logItem.materials, formatMaterialSummary_, "Nenhum material consumido foi registrado."),
+      "",
+      "Ocorrências:",
+      "* " + (logItem.occurrences || "Nenhuma ocorrência registrada."),
+      "",
+      "Segurança:",
+      "* " + formatDailyLogSafetyLine_(logItem),
+      "",
+      "Este registro foi organizado pelo ObraReport para acompanhamento técnico da obra.",
+      "",
+      "Atenciosamente,",
+      responsible
+    ].join("\n");
+  }
+
+  function formatShareBulletList_(items, formatter, emptyText) {
+    const safeItems = (items || []).slice(0, 5);
+
+    if (!safeItems.length) {
+      return "• " + emptyText;
+    }
+
+    return safeItems.map(function (item) {
+      return "• " + formatter(item);
+    }).join("\n") + ((items || []).length > safeItems.length ? "\n• Outros registros disponíveis no RDO." : "");
+  }
+
+  function formatPlainShareList_(items, formatter, emptyText) {
+    const safeItems = (items || []).slice(0, 8);
+
+    if (!safeItems.length) {
+      return "* " + emptyText;
+    }
+
+    return safeItems.map(function (item) {
+      return "* " + formatter(item);
+    }).join("\n") + ((items || []).length > safeItems.length ? "\n* Outros registros disponíveis no RDO." : "");
+  }
+
+  function limitShareText_(text, maxLength) {
+    const value = clean(text) || "Resumo técnico não informado.";
+
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return value.slice(0, maxLength - 1).trim() + "…";
   }
 
   function formatDailyLogTeamLine_(logItem) {

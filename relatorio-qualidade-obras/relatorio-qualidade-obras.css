@@ -3129,13 +3129,224 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(33, 115, 189, 0.12), transparent 18rem),
+    linear-gradient(135deg, #ffffff, #f7fbff);
 }
 
 .client-portal-hero p:last-child,
-.client-support-card p:last-child {
+.client-support-card p:last-child,
+.client-confidence-card p {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.client-portal-badges,
+.client-confidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.client-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.client-trust-grid article {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(6, 26, 50, 0.05);
+}
+
+.client-trust-grid strong {
+  color: var(--navy);
+  font-size: 0.98rem;
+}
+
+.client-trust-grid span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.client-confidence-card {
+  display: grid;
+  gap: 12px;
+  border-color: rgba(15, 95, 143, 0.22);
+  background: linear-gradient(180deg, #f6fbff, #ffffff);
+}
+
+.client-confidence-list {
+  justify-content: flex-start;
+}
+
+.client-confidence-list span {
+  padding: 9px 11px;
+  border: 1px solid #d8e3ee;
+  border-radius: 999px;
+  color: var(--navy);
+  background: #f8fbfd;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.example-work-card {
+  grid-template-rows: auto auto 1fr auto;
+  grid-column: span 2;
+  border-color: rgba(15, 118, 110, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 10rem),
+    linear-gradient(135deg, #ffffff, #f3fbfa);
+}
+
+.example-work-card::before {
+  background: linear-gradient(90deg, #0f766e, #d5a642);
+}
+
+.example-work-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  text-transform: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.example-work-card strong {
+  align-self: start;
+  max-width: 520px;
+  font-size: 1.55rem;
+  line-height: 1.12;
+}
+
+.example-sales-guide {
+  display: grid;
+  gap: 18px;
+  border-color: rgba(15, 118, 110, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(213, 166, 66, 0.13), transparent 14rem),
+    #ffffff;
+}
+
+.example-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.example-guide-grid article {
+  display: grid;
+  gap: 8px;
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.example-guide-grid span {
+  color: #0f766e;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.example-guide-grid strong {
+  color: var(--navy);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.example-guide-grid .example-pdf-step {
+  grid-column: span 2;
+  min-height: 168px;
+  border-color: rgba(15, 118, 110, 0.32);
+  background:
+    radial-gradient(circle at top right, rgba(213, 166, 66, 0.16), transparent 11rem),
+    #f3fbfa;
+}
+
+.example-pdf-step p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.example-pdf-step .mini-button {
+  align-self: end;
+}
+
+.example-pdf-status {
+  margin: 0;
+  padding: 13px 16px;
+  border: 1px solid rgba(15, 118, 110, 0.26);
+  border-radius: 8px;
+  color: #0f5f8f;
+  background: #f3fbfa;
+  font-weight: 800;
+}
+
+.example-benefits-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.example-benefits-card h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+
+.example-benefits-card ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.example-benefits-card li {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.example-benefits-card li::before {
+  content: "✓";
+  margin-right: 8px;
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.example-whatsapp-button {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+  color: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 118, 110, 0.22);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.example-whatsapp-button:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
 }
 
 .client-summary-grid .dashboard-card {
@@ -3155,6 +3366,27 @@ body {
 @media (max-width: 760px) {
   .client-portal-hero {
     grid-template-columns: 1fr;
+  }
+
+  .client-portal-badges {
+    justify-content: flex-start;
+  }
+
+  .client-trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .example-work-card {
+    grid-column: auto;
+  }
+
+  .example-guide-grid,
+  .example-benefits-card ul {
+    grid-template-columns: 1fr;
+  }
+
+  .example-guide-grid .example-pdf-step {
+    grid-column: auto;
   }
 
   [data-user-role="client"] .session-box {
