@@ -500,6 +500,44 @@
       background: linear-gradient(180deg, #eff7ff, #ffffff);
     }
 
+    .plan-features-public,
+    .contracting-flow {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plan-features-public li,
+    .contracting-flow li {
+      padding: 9px 11px;
+      border-radius: 10px;
+      color: #43546a;
+      background: #f7fafc;
+      font-size: 0.9rem;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .plan-action {
+      width: fit-content;
+      min-height: 42px;
+      margin-top: 4px;
+      padding-inline: 14px;
+      font-size: 0.86rem;
+    }
+
+    .trust-note {
+      margin: 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--teal);
+      border-radius: 12px;
+      color: var(--navy);
+      background: #f4fbfa;
+      font-weight: 850;
+    }
+
     .final-cta {
       display: grid;
       justify-items: center;
@@ -771,15 +809,40 @@
       <div class="plans">
         <article><strong>Gratuito</strong><span>Para testar o fluxo e criar os primeiros registros.</span></article>
         <article class="featured"><strong>Profissional</strong><span>Para rotina real de campo, relatórios e RDOs comerciais.</span></article>
-        <article><strong>Empresa</strong><span>Para equipes, construtoras e operação com múltiplas obras.</span></article>
+        <article>
+          <strong>Empresa</strong>
+          <span>Para construtoras, escritórios e equipes que precisam centralizar obras, RDOs, relatórios e consumo de materiais.</span>
+          <ul class="plan-features-public">
+            <li>Múltiplas obras e múltiplos usuários</li>
+            <li>Relatórios centralizados e RDOs por obra</li>
+            <li>Controle de materiais e auditoria de consumo</li>
+            <li>Suporte prioritário e implantação assistida</li>
+          </ul>
+          <a class="button primary plan-action" href="https://wa.me/?text=Ol%C3%A1.%0A%0ATenho%20interesse%20no%20plano%20Empresa%20do%20ObraReport.%0A%0ANome%3A%0AEmpresa%3A%0ACidade%3A%0AQuantidade%20de%20obras%3A%0AQuantidade%20de%20usu%C3%A1rios%3A%0APrincipal%20necessidade%3A" target="_blank" rel="noopener">Solicitar proposta</a>
+        </article>
       </div>
+    </section>
+
+    <section class="section split" aria-labelledby="contracting-title">
+      <div>
+        <p class="eyebrow">Como contratar</p>
+        <h2 id="contracting-title">Contratação assistida, simples e orientada.</h2>
+        <p class="trust-note">Ativação assistida nesta fase inicial para garantir implantação correta e suporte próximo.</p>
+      </div>
+      <ol class="contracting-flow">
+        <li>1. Escolha o plano.</li>
+        <li>2. Fale conosco no WhatsApp.</li>
+        <li>3. Receba orientação inicial.</li>
+        <li>4. Ativamos seu acesso.</li>
+        <li>5. Comece a utilizar.</li>
+      </ol>
     </section>
 
     <section class="section split" aria-labelledby="onboarding-title">
       <div>
         <p class="eyebrow">Implantação assistida</p>
-        <h2 id="onboarding-title">Primeiros clientes com acompanhamento direto.</h2>
-        <p>Na fase inicial, a ativação é feita de forma assistida para garantir que o fluxo fique pronto para a rotina real da obra.</p>
+        <h2 id="onboarding-title">Acompanhamento direto para começar com segurança.</h2>
+        <p>Ajudamos você a configurar o primeiro acesso, cadastrar a primeira obra e gerar os primeiros relatórios.</p>
       </div>
       <div class="pdf-proof">
         <ul>
