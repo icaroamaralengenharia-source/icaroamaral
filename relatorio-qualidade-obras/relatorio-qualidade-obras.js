@@ -140,8 +140,15 @@
         tipoRelatorio: "fiscalizacao",
         report: {
           obra: clean(formData.get("obra")),
+          cliente: getActiveReportClientName_(),
           dataVistoria: clean(formData.get("dataVistoria")),
           responsavelTecnico: clean(formData.get("responsavelTecnico")),
+          nomeEmpresa: clean(formData.get("nomeEmpresa")),
+          creaCau: clean(formData.get("creaCau") || formData.get("registroProfissional")),
+          logoEmpresaUrl: clean(formData.get("logoEmpresaUrl")),
+          logoEmpresaBase64: clean(formData.get("logoEmpresaBase64")),
+          assinaturaUrl: clean(formData.get("assinaturaUrl")),
+          assinaturaBase64: clean(formData.get("assinaturaBase64")),
           local: clean(formData.get("local")),
           dataInicioObra: clean(formData.get("dataInicioObra")),
           linkCameras: clean(formData.get("linkCameras")),
@@ -152,6 +159,8 @@
           utilizacaoEpi: clean(formData.get("utilizacaoEpi")),
           controleConcreto: clean(formData.get("controleConcreto")),
           observacoes: clean(formData.get("observacoes")),
+          conclusaoTecnica: clean(formData.get("conclusaoTecnica")),
+          revisaoTecnicaIa: clean(formData.get("revisaoTecnicaIa")),
           emailDestino: clean(formData.get("emailDestino"))
         },
         fotosUnidade: fotosUnidade,
@@ -1686,6 +1695,13 @@
     ].filter(Boolean).join(" · ");
   }
 
+  function getActiveReportClientName_() {
+    const report = activeReportId ? findReport_(activeReportId) : null;
+    const client = report ? findClient_(report.clientId) : null;
+
+    return client ? clean(client.name) : "";
+  }
+
   function findClient_(clientId) {
     return appState.clients.find(function (client) {
       return client.id === clientId;
@@ -1941,9 +1957,9 @@
     for (let index = 1; index <= maxFotosUnidade; index += 1) {
       const number = String(index).padStart(2, "0");
       const section = document.createElement("section");
-      section.className = "nonconformity-card";
+      section.className = "nonconformity-card photo-card";
 
-      section.appendChild(createTitle("FOTO DA UNIDADE " + number));
+      section.appendChild(createTitle("Foto tecnica " + number));
       section.appendChild(createFileField("Foto da Unidade " + number, "fotoUnidade" + number));
       section.appendChild(createTextAreaField("Descrição da Foto " + number, "descricaoFotoUnidade" + number, 3));
 
@@ -1960,9 +1976,9 @@
     for (let index = 1; index <= maxInconformidades; index += 1) {
       const number = String(index).padStart(2, "0");
       const section = document.createElement("section");
-      section.className = "nonconformity-card";
+      section.className = "nonconformity-card occurrence-card";
 
-      section.appendChild(createTitle("RQO " + number + " - INCONFORMIDADE IDENTIFICADA"));
+      section.appendChild(createTitle("Ocorrencia tecnica " + number));
       section.appendChild(createFileField("Foto da Inconformidade " + number, "fotoInconformidade" + number));
       section.appendChild(createRiskField("Grau de risco " + number, "grauRisco" + number));
       section.appendChild(createTextAreaField("Inconformidade " + number + " - Descrição Técnica", "descricaoInconformidade" + number, 4));
