@@ -2299,6 +2299,258 @@ body {
   text-shadow: 0 10px 24px rgba(0, 0, 0, 0.26);
 }
 
+/* Acabamento comercial pre-tag estavel */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.page-shell {
+  max-width: 1280px;
+}
+
+.saas-panel {
+  max-width: 1240px;
+  padding: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 249, 252, 0.96)),
+    radial-gradient(circle at top right, rgba(14, 127, 115, 0.13), transparent 24rem);
+}
+
+.app-topbar {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 24px;
+  border: 1px solid rgba(188, 203, 219, 0.72);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(246, 251, 252, 0.96));
+}
+
+.app-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--gold), var(--teal));
+}
+
+.app-topbar .eyebrow,
+.workspace-card h3,
+.dashboard-card span,
+.section-row h3 {
+  letter-spacing: 0;
+}
+
+.session-box {
+  padding: 10px;
+  border: 1px solid rgba(216, 225, 235, 0.82);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.saas-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(216, 225, 235, 0.86);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 12px 28px rgba(6, 26, 50, 0.055);
+}
+
+.saas-tabs button {
+  min-width: 0;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.saas-tabs button:hover,
+.saas-tabs button:focus {
+  border-color: rgba(14, 127, 115, 0.18);
+  background: rgba(14, 127, 115, 0.08);
+  outline: none;
+}
+
+.saas-tabs button.active {
+  background: linear-gradient(135deg, #08223f, #0e7f73);
+  box-shadow: 0 12px 24px rgba(6, 26, 50, 0.18);
+}
+
+.dashboard-actions-grid {
+  gap: 16px;
+}
+
+.dashboard-card {
+  min-width: 0;
+  border-color: rgba(211, 222, 233, 0.9);
+  background:
+    linear-gradient(180deg, #ffffff, #f9fcfd);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(6, 26, 50, 0.1);
+}
+
+.dashboard-card::after {
+  background:
+    linear-gradient(145deg, #061a32, #0d4f72);
+}
+
+.dashboard-card .mini-button {
+  border-color: rgba(8, 32, 51, 0.08);
+}
+
+.recent-report-card {
+  border-color: rgba(211, 222, 233, 0.9);
+  background:
+    linear-gradient(180deg, #ffffff, #f8fbfd);
+}
+
+.recent-report-card .entity-list {
+  min-height: 92px;
+}
+
+.floating-pdf-button {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 142px;
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  padding: 0 22px;
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, #071c36, #0e7f73);
+  box-shadow: 0 18px 44px rgba(6, 26, 50, 0.28);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.floating-pdf-button:hover,
+.floating-pdf-button:focus {
+  background:
+    linear-gradient(135deg, #092646, #119283);
+  outline: 3px solid rgba(215, 161, 45, 0.28);
+  outline-offset: 2px;
+}
+
+.floating-pdf-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+@media (max-width: 900px) {
+  .saas-panel {
+    max-width: min(100%, 720px);
+  }
+
+  .saas-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    overflow: visible;
+    padding-inline: 12px;
+  }
+
+  .saas-panel {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .app-topbar {
+    align-items: stretch;
+  }
+
+  .session-box {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .session-box .plan-badge,
+  .session-box .local-status,
+  .session-box .cloud-status {
+    flex: 1 1 132px;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .saas-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 0 12px;
+    padding: 6px;
+    overflow: visible;
+  }
+
+  .saas-tabs button {
+    flex: initial;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .diary-jump-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 0 8px;
+    padding: 8px;
+    overflow: visible;
+    border: 1px solid rgba(216, 225, 235, 0.78);
+    border-radius: 12px;
+  }
+
+  .diary-jump-nav a {
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .dashboard-card {
+    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+  }
+
+  .dashboard-card .mini-button {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .workspace-card,
+  .form-subsection,
+  .report-context-bar,
+  .wizard-progress {
+    max-width: 100%;
+  }
+
+  .form-panel {
+    padding-bottom: 96px;
+  }
+
+  .floating-pdf-button {
+    right: 12px;
+    bottom: 12px;
+    min-width: 128px;
+    min-height: 44px;
+    padding: 0 18px;
+  }
+}
+
 .brand-header p {
   color: rgba(255, 255, 255, 0.78);
 }

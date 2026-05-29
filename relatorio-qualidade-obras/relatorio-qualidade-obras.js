@@ -71,6 +71,7 @@
   const currentReportLabel = document.getElementById("currentReportLabel");
   const saveReportButton = document.getElementById("saveReportButton");
   const backToDashboardButton = document.getElementById("backToDashboardButton");
+  const floatingPdfButton = document.getElementById("floatingPdfButton");
   const fotosUnidadeContainer = document.getElementById("fotosUnidade");
   const inconformidadesContainer = document.getElementById("inconformidades");
   const log = document.getElementById("formLog");
@@ -1976,7 +1977,8 @@
     }
 
     if (dailyLogPdfButton) {
-      dailyLogPdfButton.addEventListener("click", function () {
+      dailyLogPdfButton.addEventListener("click", function (event) {
+        event.stopPropagation();
         try {
           openDailyLogPdf_(collectDailyLogSnapshot_());
         } catch (error) {
@@ -3868,8 +3870,43 @@
         "?subject=" + encodeURIComponent(subject) +
         "&body=" + encodeURIComponent(message);
 
+      copyTextFallback_(message);
       window.location.href = url;
-      setDailyLogStatus_("Resumo executivo preparado no aplicativo de e-mail.", "success");
+      setDailyLogStatus_("Resumo executivo preparado no aplicativo de e-mail. Se o app nao abrir, o texto esta pronto para copiar/colar.", "success");
+    }
+  }
+
+  function copyTextFallback_(text) {
+    if (!text) {
+      return false;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {
+        copyTextWithTemporaryField_(text);
+      });
+      return true;
+    }
+
+    return copyTextWithTemporaryField_(text);
+  }
+
+  function copyTextWithTemporaryField_(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      return document.execCommand("copy");
+    } catch (error) {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
     }
   }
 
@@ -4559,6 +4596,26 @@
   function setBusy(isBusy) {
     submitButton.disabled = isBusy;
     submitButton.textContent = isBusy ? "Gerando relatório..." : "Gerar relatório";
+    if (floatingPdfButton) {
+      floatingPdfButton.disabled = isBusy;
+      floatingPdfButton.querySelector("span").textContent = isBusy ? "Gerando..." : "Gerar PDF";
+    }
+  }
+
+  function handleFloatingPdfClick_() {
+    if (!form || !submitButton || submitButton.disabled) {
+      return;
+    }
+
+    goToStep_("gerar", false);
+    setGenerationStatus_("Gerando PDF pelo atalho rapido...");
+
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit(submitButton);
+      return;
+    }
+
+    submitButton.click();
   }
 
   function setGenerationStatus_(message) {
@@ -4605,6 +4662,12 @@
         goToStep_(prevButton.dataset.prevStep, false);
       }
     });
+
+    if (floatingPdfButton) {
+      floatingPdfButton.addEventListener("click", function () {
+        handleFloatingPdfClick_();
+      });
+    }
   }
 
   function goToStep_(step, shouldFocus) {
