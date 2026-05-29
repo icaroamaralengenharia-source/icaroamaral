@@ -1643,19 +1643,14 @@
 
   function renderPlansGrid_(currentPlan) {
     const plans = getPlansApi_();
-    const billing = getBillingApi_();
-
     if (!plansGrid || !plans) {
       return;
     }
 
-    const demoEnabled = billing ? billing.isDemoEnabled() : false;
     plansGrid.innerHTML = "";
 
     if (billingDemoStatus) {
-      billingDemoStatus.textContent = demoEnabled
-        ? "Modo demo local ativo: você pode alternar planos para testar limites sem pagamento real."
-        : "Troca de plano desativada neste ambiente. Checkout real será conectado em fase futura.";
+      billingDemoStatus.textContent = "Pagamento e ativação feitos de forma assistida nesta fase inicial.";
     }
 
     plans.listPlans().forEach(function (plan) {
@@ -1680,10 +1675,9 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = plan.id === currentPlan.id ? "secondary-action" : "next-action";
-      button.textContent = plan.id === currentPlan.id ? "Plano atual" : (demoEnabled ? "Usar neste demo" : "Checkout em breve");
-      button.disabled = plan.id === currentPlan.id || !demoEnabled;
+      button.textContent = plan.cta || "Falar no WhatsApp";
       button.addEventListener("click", function () {
-        setDemoPlan_(plan.id);
+        openPlanWhatsapp_(plan);
       });
 
       card.appendChild(title);
@@ -1692,6 +1686,13 @@
       card.appendChild(button);
       plansGrid.appendChild(card);
     });
+  }
+
+  function openPlanWhatsapp_(plan) {
+    const planName = plan && plan.name ? plan.name : "Gratuito";
+    const message = "Olá, quero contratar o ObraReport no plano " + planName + ".";
+    const url = "https://wa.me/?text=" + encodeURIComponent(message);
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function renderUsageSummary_(plan, usage) {

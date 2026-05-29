@@ -7,7 +7,7 @@
       id: "gratuito",
       name: "Gratuito",
       priceLabel: "R$ 0/mês",
-      cta: "Plano atual",
+      cta: "Solicitar acesso",
       limits: {
         clients: 2,
         works: 2,
@@ -30,7 +30,7 @@
       id: "profissional",
       name: "Profissional",
       priceLabel: "R$ 49,90/mês",
-      cta: "Simular Profissional",
+      cta: "Contratar plano",
       limits: {
         clients: unlimited,
         works: unlimited,
@@ -54,7 +54,7 @@
       id: "empresa",
       name: "Empresa",
       priceLabel: "R$ 149,90/mês",
-      cta: "Simular Empresa",
+      cta: "Falar no WhatsApp",
       limits: {
         clients: unlimited,
         works: unlimited,
