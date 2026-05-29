@@ -304,6 +304,7 @@
     }
 
     .cards,
+    .value-grid,
     .plans {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -311,6 +312,7 @@
     }
 
     .cards article,
+    .value-grid article,
     .plans article,
     .steps article {
       display: grid;
@@ -324,6 +326,7 @@
     }
 
     .cards strong,
+    .value-grid strong,
     .plans strong,
     .steps strong {
       color: var(--navy);
@@ -331,10 +334,59 @@
     }
 
     .cards span,
+    .value-grid span,
     .plans span,
     .section p {
       color: var(--muted);
       line-height: 1.55;
+    }
+
+    .value-grid article {
+      border-color: rgba(15, 95, 143, 0.24);
+      background: linear-gradient(180deg, #f5fbff, #ffffff);
+    }
+
+    .pdf-proof,
+    .dashboard-preview {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid #dbe4ee;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 16px 38px rgba(6, 26, 50, 0.08);
+    }
+
+    .pdf-proof header,
+    .dashboard-preview header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5edf5;
+      color: var(--navy);
+      font-weight: 900;
+    }
+
+    .pdf-proof ul,
+    .dashboard-preview ul {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pdf-proof li,
+    .dashboard-preview li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f7fafc;
+      color: #43546a;
+      font-weight: 750;
     }
 
     .split,
@@ -412,6 +464,37 @@
       color: rgba(255, 255, 255, 0.74);
     }
 
+    .dashboard-preview {
+      background: linear-gradient(180deg, #ffffff, #f4f8fc);
+      box-shadow: 0 22px 54px rgba(6, 26, 50, 0.12);
+    }
+
+    .dashboard-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .dashboard-kpis div {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #eef6ff;
+    }
+
+    .dashboard-kpis span {
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .dashboard-kpis strong {
+      color: var(--navy);
+      font-size: 1.45rem;
+    }
+
     .plans .featured {
       border-color: rgba(15, 95, 143, 0.38);
       background: linear-gradient(180deg, #eff7ff, #ffffff);
@@ -448,6 +531,7 @@
       }
 
       .cards,
+      .value-grid,
       .plans,
       .steps {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -510,7 +594,9 @@
       }
 
       .mockup-metrics,
+      .dashboard-kpis,
       .cards,
+      .value-grid,
       .plans,
       .steps {
         grid-template-columns: 1fr;
@@ -546,6 +632,7 @@
         </p>
         <div class="hero-actions">
           <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Testar ObraReport</a>
+          <a class="button light" href="#pdf-example">Ver exemplo de PDF</a>
           <a class="button light" href="#demo">Ver demonstração</a>
         </div>
         <div class="hero-proof">
@@ -579,6 +666,23 @@
       </aside>
     </section>
 
+    <section class="section demo" id="pdf-example" aria-labelledby="pdf-example-title">
+      <div>
+        <p class="eyebrow">Prova de valor</p>
+        <h2 id="pdf-example-title">Veja o que o cliente recebe no final.</h2>
+        <p>O ObraReport organiza fotos, descrições, RDO e dados de campo em um documento técnico com aparência profissional.</p>
+      </div>
+      <div class="pdf-proof" aria-label="Resumo de exemplo de PDF">
+        <header><span>PDF Técnico</span><span>ObraReport</span></header>
+        <ul>
+          <li><span>Capa com dados da obra</span><strong>01</strong></li>
+          <li><span>Fotos e evidências de campo</span><strong>02</strong></li>
+          <li><span>Inconformidades e recomendações</span><strong>03</strong></li>
+          <li><span>Resumo do RDO e materiais</span><strong>04</strong></li>
+        </ul>
+      </div>
+    </section>
+
     <section class="section" aria-labelledby="features-title">
       <p class="eyebrow">O que o ObraReport faz</p>
       <h2 id="features-title">Tudo para registrar, organizar e entregar informação técnica de obra.</h2>
@@ -594,8 +698,9 @@
 
     <section class="section split" aria-labelledby="audience-title">
       <div>
-        <p class="eyebrow">Para quem é</p>
-        <h2 id="audience-title">Feito para quem precisa registrar obra com padrão profissional.</h2>
+        <p class="eyebrow">Público ideal</p>
+        <h2 id="audience-title">Ideal para engenheiros, arquitetos e construtoras.</h2>
+        <p>Feito para profissionais que precisam transformar rotina de campo em relatórios, RDOs e histórico técnico confiável.</p>
       </div>
       <ul class="pills">
         <li>Engenheiros</li>
@@ -610,23 +715,41 @@
       <p class="eyebrow">Como funciona</p>
       <h2 id="steps-title">Do campo ao PDF em um fluxo simples.</h2>
       <div class="steps">
-        <article><span>1</span><strong>Cadastre cliente e obra</strong></article>
-        <article><span>2</span><strong>Registre fotos, serviços e materiais</strong></article>
-        <article><span>3</span><strong>Gere relatório/PDF</strong></article>
-        <article><span>4</span><strong>Envie ao cliente</strong></article>
+        <article><span>1</span><strong>Cadastre cliente, obra e responsáveis</strong></article>
+        <article><span>2</span><strong>Registre fotos, serviços e produção executada</strong></article>
+        <article><span>3</span><strong>Confira materiais consumidos e estimados</strong></article>
+        <article><span>4</span><strong>Gere PDF e envie ao cliente</strong></article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="materials-title">
+      <p class="eyebrow">Controle financeiro da obra</p>
+      <h2 id="materials-title">Materiais, consumo e produção em destaque.</h2>
+      <div class="value-grid">
+        <article><strong>Controle de Materiais</strong><span>Registre materiais consumidos, ferramentas, equipamentos e observações do dia.</span></article>
+        <article><strong>Auditoria de Consumo</strong><span>Compare consumo estimado com consumo informado para enxergar desperdícios e desvios.</span></article>
+        <article><strong>Produção Executada</strong><span>Relacione serviços executados com quantitativos e composições usadas na obra.</span></article>
       </div>
     </section>
 
     <section class="section demo" id="demo" aria-labelledby="demo-title">
       <div>
-        <p class="eyebrow">Demonstração visual</p>
-        <h2 id="demo-title">Painel premium para acompanhar obras, relatórios e RDOs.</h2>
-        <p>Uma experiência organizada para escritório e campo, com navegação clara e dados centralizados.</p>
+        <p class="eyebrow">Exemplo real do dashboard</p>
+        <h2 id="demo-title">Uma visão clara de clientes, obras, relatórios e RDOs.</h2>
+        <p>O painel centraliza os dados que normalmente ficam espalhados em fotos, mensagens, planilhas e documentos soltos.</p>
       </div>
-      <div class="browser-frame">
-        <div></div>
-        <strong>Painel ObraReport</strong>
-        <span>Clientes • Obras • Relatórios • Diário de Obras • Planos</span>
+      <div class="dashboard-preview" aria-label="Exemplo real do dashboard ObraReport">
+        <header><span>Painel ObraReport</span><span>Visão da operação</span></header>
+        <div class="dashboard-kpis">
+          <div><span>Clientes</span><strong>12</strong></div>
+          <div><span>Obras</span><strong>18</strong></div>
+          <div><span>RDOs</span><strong>7</strong></div>
+        </div>
+        <ul>
+          <li><span>Relatório técnico</span><strong>PDF pronto</strong></li>
+          <li><span>Diário de obra</span><strong>RDO salvo</strong></li>
+          <li><span>Materiais</span><strong>Consumo conferido</strong></li>
+        </ul>
       </div>
     </section>
 
@@ -649,6 +772,21 @@
         <article><strong>Gratuito</strong><span>Para testar o fluxo e criar os primeiros registros.</span></article>
         <article class="featured"><strong>Profissional</strong><span>Para rotina real de campo, relatórios e RDOs comerciais.</span></article>
         <article><strong>Empresa</strong><span>Para equipes, construtoras e operação com múltiplas obras.</span></article>
+      </div>
+    </section>
+
+    <section class="section split" aria-labelledby="onboarding-title">
+      <div>
+        <p class="eyebrow">Implantação assistida</p>
+        <h2 id="onboarding-title">Primeiros clientes com acompanhamento direto.</h2>
+        <p>Na fase inicial, a ativação é feita de forma assistida para garantir que o fluxo fique pronto para a rotina real da obra.</p>
+      </div>
+      <div class="pdf-proof">
+        <ul>
+          <li><span>Configuração inicial do uso</span><strong>Assistida</strong></li>
+          <li><span>Primeiro relatório acompanhado</span><strong>Incluído</strong></li>
+          <li><span>Ajuste do fluxo para sua rotina</span><strong>Guiado</strong></li>
+        </ul>
       </div>
     </section>
 
