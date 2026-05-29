@@ -43,6 +43,11 @@ test("fallback local melhora 20 textos reais de obra", async () => {
     assert.ok(result.suggestion.length > input.length, input);
     assert.doesNotMatch(result.suggestion, /\bundefined\b|\bnull\b/i, input);
     assert.match(result.suggestion, /Foi (identificada|identificado|observada|observado|constatada|constatado)/, input);
+    assert.doesNotMatch(
+      result.suggestion,
+      /\b(manifestacao|investigacao|adocao|necessarias|peca|aderencia|execucao|instalacao|eletrica|hidraulica|verificacao|correcao|exposicao|tecnico|recomposicao|pendencia|condicoes|seguranca|liberacao|divergencia|nivel)\b/i,
+      input
+    );
 
     expectedTerms.forEach((term) => {
       assert.ok(

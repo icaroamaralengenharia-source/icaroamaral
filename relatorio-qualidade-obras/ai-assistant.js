@@ -5,88 +5,88 @@
   const LOCAL_TEXT_PATTERNS = [
     {
       terms: ["infiltracao", "infiltração", "umidade", "mofo"],
-      description: "Foi identificada manifestacao de umidade{local}",
-      recommendation: "recomendando-se a investigacao da origem da umidade e a adocao das medidas corretivas necessarias"
+      description: "Foi identificada manifestação de umidade{local}",
+      recommendation: "recomendando-se a investigação da origem da umidade e a adoção das medidas corretivas necessárias"
     },
     {
       terms: ["vazamento"],
-      description: "Foi identificado indicio de vazamento{local}",
-      recommendation: "recomendando-se a verificacao da instalacao relacionada e a correcao do ponto de perda de agua"
+      description: "Foi identificado indício de vazamento{local}",
+      recommendation: "recomendando-se a verificação da instalação relacionada e a correção do ponto de perda de água"
     },
     {
       terms: ["gesso", "drywall"],
       description: "Foi constatada irregularidade em elemento de gesso ou sistema de fechamento interno{local}",
-      recommendation: "recomendando-se verificar juntas, fixacoes e acabamento antes da liberacao final"
+      recommendation: "recomendando-se verificar juntas, fixações e acabamento antes da liberação final"
     },
     {
       terms: ["fissura", "trinca", "rachadura"],
       description: "Foi observada fissura ou trinca{local}",
-      recommendation: "recomendando-se avaliar a evolucao da manifestacao e definir o tratamento adequado conforme verificacao tecnica"
+      recommendation: "recomendando-se avaliar a evolução da manifestação e definir o tratamento adequado conforme verificação técnica"
     },
     {
       terms: ["reboco", "argamassa", "revestimento soltando", "soltando"],
       description: "Foi observado desplacamento do revestimento argamassado{local}",
-      recommendation: "sendo recomendada a verificacao da aderencia do material e a execucao dos reparos necessarios"
+      recommendation: "sendo recomendada a verificação da aderência do material e a execução dos reparos necessários"
     },
     {
       terms: ["pintura", "mancha", "manchada", "descascando"],
       description: "Foi constatada irregularidade no acabamento de pintura{local}",
-      recommendation: "recomendando-se corrigir a base afetada e recompor o acabamento apos eliminada a causa da manifestacao"
+      recommendation: "recomendando-se corrigir a base afetada e recompor o acabamento após eliminada a causa da manifestação"
     },
     {
       terms: ["piso", "ceramica", "porcelanato", "oca", "quebrado", "quebrada"],
-      description: "Foi constatada irregularidade em peca de piso ou revestimento{local}",
-      recommendation: "recomendando-se verificar a aderencia e executar a substituicao ou recomposicao necessaria"
+      description: "Foi constatada irregularidade em peça de piso ou revestimento{local}",
+      recommendation: "recomendando-se verificar a aderência e executar a substituição ou recomposição necessária"
     },
     {
-      terms: ["tomada", "eletrica", "fiação", "fiacao", "interruptor"],
-      description: "Foi observada pendencia em ponto de instalacao eletrica{local}",
-      recommendation: "recomendando-se regularizar o acabamento e conferir as condicoes de seguranca antes da liberacao de uso"
+      terms: ["tomada", "eletrica", "elétrica", "fiação", "fiacao", "interruptor"],
+      description: "Foi observada pendência em ponto de instalação elétrica{local}",
+      recommendation: "recomendando-se regularizar o acabamento e conferir as condições de segurança antes da liberação de uso"
     },
     {
       terms: ["hidraulica", "hidráulica", "ralo", "caimento", "banheiro"],
-      description: "Foi identificada pendencia relacionada a instalacao hidraulica ou ao escoamento{local}",
-      recommendation: "recomendando-se verificar o funcionamento, o caimento e a estanqueidade antes da finalizacao do servico"
+      description: "Foi identificada pendência relacionada à instalação hidráulica ou ao escoamento{local}",
+      recommendation: "recomendando-se verificar o funcionamento, o caimento e a estanqueidade antes da finalização do serviço"
     },
     {
       terms: ["porta", "janela", "esquadria", "vedacao", "vedação", "desalinhada", "desalinhado"],
       description: "Foi observada irregularidade em esquadria ou elemento de fechamento{local}",
-      recommendation: "recomendando-se ajustar alinhamento, fixacao e vedacao conforme a condicao verificada"
+      recommendation: "recomendando-se ajustar alinhamento, fixação e vedação conforme a condição verificada"
     },
     {
       terms: ["limpeza", "entulho", "sujeira", "corredor"],
-      description: "Foi constatada pendencia de organizacao e limpeza{local}",
-      recommendation: "recomendando-se remover residuos, liberar a area de circulacao e manter o ambiente em condicoes adequadas de seguranca"
+      description: "Foi constatada pendência de organização e limpeza{local}",
+      recommendation: "recomendando-se remover resíduos, liberar a área de circulação e manter o ambiente em condições adequadas de segurança"
     },
     {
       terms: ["prumo", "nivel", "nível", "alinhamento"],
-      description: "Foi identificada possivel divergencia de prumo, nivel ou alinhamento{local}",
-      recommendation: "recomendando-se conferir geometricamente o elemento e executar os ajustes necessarios"
+      description: "Foi identificada possível divergência de prumo, nível ou alinhamento{local}",
+      recommendation: "recomendando-se conferir geometricamente o elemento e executar os ajustes necessários"
     },
     {
       terms: ["ferragem", "armadura", "aco", "aço", "exposta"],
-      description: "Foi constatada exposicao de armadura ou elemento metalico{local}",
-      recommendation: "recomendando-se proteger o elemento, verificar a causa da exposicao e recompor o cobrimento conforme orientacao tecnica"
+      description: "Foi constatada exposição de armadura ou elemento metálico{local}",
+      recommendation: "recomendando-se proteger o elemento, verificar a causa da exposição e recompor o cobrimento conforme orientação técnica"
     },
     {
       terms: ["concreto", "ninho", "segregacao", "segregação"],
       description: "Foi observada falha de concretagem ou acabamento em concreto{local}",
-      recommendation: "recomendando-se avaliar a extensao da falha e definir o reparo tecnico adequado antes da continuidade dos servicos"
+      recommendation: "recomendando-se avaliar a extensão da falha e definir o reparo técnico adequado antes da continuidade dos serviços"
     },
     {
       terms: ["gesso", "drywall"],
       description: "Foi constatada irregularidade em elemento de gesso ou sistema de fechamento interno{local}",
-      recommendation: "recomendando-se verificar juntas, fixacoes e acabamento antes da liberacao final"
+      recommendation: "recomendando-se verificar juntas, fixações e acabamento antes da liberação final"
     },
     {
       terms: ["rodape", "rodapé"],
-      description: "Foi observada irregularidade na execucao do rodape{local}",
-      recommendation: "recomendando-se ajustar fixacao, alinhamento e acabamento do elemento"
+      description: "Foi observada irregularidade na execução do rodapé{local}",
+      recommendation: "recomendando-se ajustar fixação, alinhamento e acabamento do elemento"
     },
     {
       terms: ["impermeabilizacao", "impermeabilização", "manta"],
-      description: "Foi identificada falha ou ponto de atencao no sistema de impermeabilizacao{local}",
-      recommendation: "recomendando-se revisar a estanqueidade e corrigir o sistema antes do fechamento ou liberacao da area"
+      description: "Foi identificada falha ou ponto de atenção no sistema de impermeabilização{local}",
+      recommendation: "recomendando-se revisar a estanqueidade e corrigir o sistema antes do fechamento ou liberação da área"
     }
   ];
 
@@ -309,7 +309,7 @@
     }
 
     if (kind === "photo") {
-      return "Registro fotografico do local verificado. " + description + ", " + pattern.recommendation + ".";
+      return "Registro fotográfico do local verificado. " + description + ", " + pattern.recommendation + ".";
     }
 
     return description + ", " + pattern.recommendation + ".";
