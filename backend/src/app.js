@@ -333,6 +333,14 @@ async function callOpenAiVision_(payload, env) {
 
 function buildSystemPrompt_() {
   return [
+    "Voce e um assistente tecnico do ObraReport para relatorios de fiscalizacao de obras.",
+    "Escreva como um engenheiro civil experiente: linguagem tecnica, clara, natural, objetiva e revisavel.",
+    "Corrija gramatica, concordancia, pontuacao e clareza sem alterar o sentido original.",
+    "Transforme texto simples em texto tecnico profissional, mas sem exagerar e sem soar robotico.",
+    "Nao invente fatos, medicoes, normas, datas, locais, causas, responsaveis, imagens ou conclusoes que o usuario nao informou.",
+    "Quando faltar local ou elemento, use termos neutros como ambiente inspecionado, local verificado, elemento observado ou manifestacao identificada.",
+    "Evite repeticao, frases longas demais, promessas de conformidade legal e linguagem comercial.",
+    "Prefira frases curtas ou um paragrafo de ate tres frases, conforme o campo.",
     "Você é um assistente técnico do ObraReport para relatórios de fiscalização de obras.",
     "Escreva em português do Brasil, com linguagem objetiva, profissional e própria de engenharia.",
     "Não invente fatos, medições, normas, datas, locais, responsáveis ou imagens.",
@@ -359,6 +367,9 @@ function buildUserPrompt_(payload) {
 
   if (payload.action === "conclusion") {
     return [
+      "Modo: melhorar conclusao tecnica.",
+      "Use tom profissional, prudente e proprio de laudo de acompanhamento de obra.",
+      "Nao crie fatos que nao estejam nos dados abaixo.",
       "Gere uma conclusão técnica para o relatório.",
       "Obra: " + safeValue_(report.obra),
       "Local: " + safeValue_(report.local),
@@ -389,7 +400,18 @@ function buildUserPrompt_(payload) {
   }
 
   return [
-    "Melhore o texto técnico abaixo mantendo o sentido original.",
+    "Modo: " + getTextModeInstruction_(context.kind),
+    "Corrija gramatica e concordancia.",
+    "Nao acrescente causa, medida, norma ou local que nao esteja informado.",
+    "Se o texto for curto, use termos neutros sem inventar detalhes.",
+    "Exemplos de estilo esperado:",
+    "Entrada: Infiltracao na parede do quarto",
+    "Saida: Foi identificada infiltracao localizada na parede do quarto, recomendando-se a investigacao da origem da umidade e a adocao das medidas corretivas necessarias.",
+    "Entrada: Reboco soltando perto da janela",
+    "Saida: Foi observado desplacamento do revestimento argamassado proximo a janela, sendo recomendada a verificacao da aderencia do material e a execucao dos reparos necessarios.",
+    "Entrada: Piso quebrado",
+    "Saida: Foi constatada peca de piso danificada no ambiente inspecionado, recomendando-se sua substituicao para restabelecer as condicoes adequadas de uso e acabamento.",
+    "Melhore o texto tecnico abaixo mantendo o sentido original.",
     "Tipo do campo: " + safeValue_(context.kind),
     "Obra: " + safeValue_(report.obra),
     "Local: " + safeValue_(report.local),
@@ -397,6 +419,26 @@ function buildUserPrompt_(payload) {
     payload.text,
     "Texto esperado: linguagem técnica, objetiva, sem inventar informações."
   ].join("\n");
+}
+
+function getTextModeInstruction_(kind) {
+  if (kind === "solution") {
+    return "gerar recomendacao tecnica objetiva para a ocorrencia informada";
+  }
+
+  if (kind === "photo") {
+    return "melhorar legenda ou descricao curta de foto tecnica";
+  }
+
+  if (kind === "general") {
+    return "reescrever observacao em linguagem mais objetiva e tecnica";
+  }
+
+  if (kind === "conclusion") {
+    return "melhorar conclusao tecnica";
+  }
+
+  return "melhorar descricao da ocorrencia em linguagem tecnica";
 }
 
 function buildVisionUserPrompt_(payload) {

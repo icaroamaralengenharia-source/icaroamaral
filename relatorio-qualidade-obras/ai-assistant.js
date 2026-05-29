@@ -2,6 +2,93 @@
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+  const LOCAL_TEXT_PATTERNS = [
+    {
+      terms: ["infiltracao", "infiltração", "umidade", "mofo"],
+      description: "Foi identificada manifestacao de umidade{local}",
+      recommendation: "recomendando-se a investigacao da origem da umidade e a adocao das medidas corretivas necessarias"
+    },
+    {
+      terms: ["vazamento"],
+      description: "Foi identificado indicio de vazamento{local}",
+      recommendation: "recomendando-se a verificacao da instalacao relacionada e a correcao do ponto de perda de agua"
+    },
+    {
+      terms: ["gesso", "drywall"],
+      description: "Foi constatada irregularidade em elemento de gesso ou sistema de fechamento interno{local}",
+      recommendation: "recomendando-se verificar juntas, fixacoes e acabamento antes da liberacao final"
+    },
+    {
+      terms: ["fissura", "trinca", "rachadura"],
+      description: "Foi observada fissura ou trinca{local}",
+      recommendation: "recomendando-se avaliar a evolucao da manifestacao e definir o tratamento adequado conforme verificacao tecnica"
+    },
+    {
+      terms: ["reboco", "argamassa", "revestimento soltando", "soltando"],
+      description: "Foi observado desplacamento do revestimento argamassado{local}",
+      recommendation: "sendo recomendada a verificacao da aderencia do material e a execucao dos reparos necessarios"
+    },
+    {
+      terms: ["pintura", "mancha", "manchada", "descascando"],
+      description: "Foi constatada irregularidade no acabamento de pintura{local}",
+      recommendation: "recomendando-se corrigir a base afetada e recompor o acabamento apos eliminada a causa da manifestacao"
+    },
+    {
+      terms: ["piso", "ceramica", "porcelanato", "oca", "quebrado", "quebrada"],
+      description: "Foi constatada irregularidade em peca de piso ou revestimento{local}",
+      recommendation: "recomendando-se verificar a aderencia e executar a substituicao ou recomposicao necessaria"
+    },
+    {
+      terms: ["tomada", "eletrica", "fiação", "fiacao", "interruptor"],
+      description: "Foi observada pendencia em ponto de instalacao eletrica{local}",
+      recommendation: "recomendando-se regularizar o acabamento e conferir as condicoes de seguranca antes da liberacao de uso"
+    },
+    {
+      terms: ["hidraulica", "hidráulica", "ralo", "caimento", "banheiro"],
+      description: "Foi identificada pendencia relacionada a instalacao hidraulica ou ao escoamento{local}",
+      recommendation: "recomendando-se verificar o funcionamento, o caimento e a estanqueidade antes da finalizacao do servico"
+    },
+    {
+      terms: ["porta", "janela", "esquadria", "vedacao", "vedação", "desalinhada", "desalinhado"],
+      description: "Foi observada irregularidade em esquadria ou elemento de fechamento{local}",
+      recommendation: "recomendando-se ajustar alinhamento, fixacao e vedacao conforme a condicao verificada"
+    },
+    {
+      terms: ["limpeza", "entulho", "sujeira", "corredor"],
+      description: "Foi constatada pendencia de organizacao e limpeza{local}",
+      recommendation: "recomendando-se remover residuos, liberar a area de circulacao e manter o ambiente em condicoes adequadas de seguranca"
+    },
+    {
+      terms: ["prumo", "nivel", "nível", "alinhamento"],
+      description: "Foi identificada possivel divergencia de prumo, nivel ou alinhamento{local}",
+      recommendation: "recomendando-se conferir geometricamente o elemento e executar os ajustes necessarios"
+    },
+    {
+      terms: ["ferragem", "armadura", "aco", "aço", "exposta"],
+      description: "Foi constatada exposicao de armadura ou elemento metalico{local}",
+      recommendation: "recomendando-se proteger o elemento, verificar a causa da exposicao e recompor o cobrimento conforme orientacao tecnica"
+    },
+    {
+      terms: ["concreto", "ninho", "segregacao", "segregação"],
+      description: "Foi observada falha de concretagem ou acabamento em concreto{local}",
+      recommendation: "recomendando-se avaliar a extensao da falha e definir o reparo tecnico adequado antes da continuidade dos servicos"
+    },
+    {
+      terms: ["gesso", "drywall"],
+      description: "Foi constatada irregularidade em elemento de gesso ou sistema de fechamento interno{local}",
+      recommendation: "recomendando-se verificar juntas, fixacoes e acabamento antes da liberacao final"
+    },
+    {
+      terms: ["rodape", "rodapé"],
+      description: "Foi observada irregularidade na execucao do rodape{local}",
+      recommendation: "recomendando-se ajustar fixacao, alinhamento e acabamento do elemento"
+    },
+    {
+      terms: ["impermeabilizacao", "impermeabilização", "manta"],
+      description: "Foi identificada falha ou ponto de atencao no sistema de impermeabilizacao{local}",
+      recommendation: "recomendando-se revisar a estanqueidade e corrigir o sistema antes do fechamento ou liberacao da area"
+    }
+  ];
 
   async function improveTechnicalText(text, context) {
     const payload = {
@@ -191,6 +278,11 @@
       return buildEmptyTemplate_(kind, context || {});
     }
 
+    const localText = buildPatternBasedText_(normalized, kind);
+    if (localText) {
+      return localText;
+    }
+
     if (kind === "solution") {
       return "Recomenda-se " + lowerFirst_(normalized) + " A execução deve ser registrada por evidência fotográfica e acompanhada pela equipe técnica responsável até a conclusão da correção.";
     }
@@ -200,6 +292,63 @@
     }
 
     return "Durante a vistoria, foi verificado que " + lowerFirst_(normalized) + " A situação deve ser acompanhada tecnicamente, mantendo-se o registro das providências adotadas e das evidências de correção.";
+  }
+
+  function buildPatternBasedText_(text, kind) {
+    const pattern = findLocalPattern_(text);
+
+    if (!pattern) {
+      return "";
+    }
+
+    const local = extractLocation_(text);
+    const description = pattern.description.replace("{local}", local);
+
+    if (kind === "solution") {
+      return capitalize_(pattern.recommendation) + ".";
+    }
+
+    if (kind === "photo") {
+      return "Registro fotografico do local verificado. " + description + ", " + pattern.recommendation + ".";
+    }
+
+    return description + ", " + pattern.recommendation + ".";
+  }
+
+  function findLocalPattern_(text) {
+    const normalized = normalizeSearchText_(text);
+
+    return LOCAL_TEXT_PATTERNS.find(function (pattern) {
+      return pattern.terms.some(function (term) {
+        return normalized.indexOf(normalizeSearchText_(term)) !== -1;
+      });
+    }) || null;
+  }
+
+  function extractLocation_(text) {
+    const raw = clean_(text).replace(/[.!?]+$/g, "");
+    const match = raw.match(/\b(perto da|perto do|proximo a|pr[oó]ximo a|junto a|na|no|nas|nos|da|do|das|dos|em)\s+(.+)$/i);
+
+    if (!match || !match[2]) {
+      return " no ambiente inspecionado";
+    }
+
+    return " " + match[1].toLowerCase() + " " + match[2].trim();
+  }
+
+  function normalizeSearchText_(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
+
+  function capitalize_(value) {
+    if (!value) {
+      return "";
+    }
+
+    return value.charAt(0).toUpperCase() + value.slice(1);
   }
 
   function buildEmptyTemplate_(kind, context) {
