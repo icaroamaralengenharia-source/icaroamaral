@@ -37,6 +37,20 @@
   const billingDemoStatus = document.getElementById("billingDemoStatus");
   const plansGrid = document.getElementById("plansGrid");
   const usageSummary = document.getElementById("usageSummary");
+  const clientPortalWorkMetric = document.getElementById("clientPortalWorkMetric");
+  const clientPortalReportMetric = document.getElementById("clientPortalReportMetric");
+  const clientPortalRdoMetric = document.getElementById("clientPortalRdoMetric");
+  const clientPortalPdfMetric = document.getElementById("clientPortalPdfMetric");
+  const clientPortalRecentDocs = document.getElementById("clientPortalRecentDocs");
+  const clientPortalWorksList = document.getElementById("clientPortalWorksList");
+  const clientPortalReportsList = document.getElementById("clientPortalReportsList");
+  const clientPortalRdosList = document.getElementById("clientPortalRdosList");
+  const clientPortalDocumentsList = document.getElementById("clientPortalDocumentsList");
+  const adminUsersMetric = document.getElementById("adminUsersMetric");
+  const adminClientsMetric = document.getElementById("adminClientsMetric");
+  const adminWorksMetric = document.getElementById("adminWorksMetric");
+  const adminReportsMetric = document.getElementById("adminReportsMetric");
+  const adminRdosMetric = document.getElementById("adminRdosMetric");
   const dailyLogForm = document.getElementById("dailyLogForm");
   const dailyLogWorkSelect = document.getElementById("dailyLogWorkSelect");
   const dailyLogStatus = document.getElementById("dailyLogStatus");
@@ -833,7 +847,7 @@
         id: createId_("usr"),
         name: name,
         email: email,
-        role: "Responsável técnico",
+        role: "admin",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -1261,12 +1275,42 @@
 
   function getRouteFromHash_() {
     const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos"].indexOf(value) >= 0 ? value : "dashboard";
+    return getAllRoutes_().indexOf(value) >= 0 ? value : getDefaultRouteForRole_();
   }
 
   function getReportIdFromHash_() {
     const hash = String(window.location.hash || "");
     return hash.indexOf("#report/") === 0 ? hash.replace("#report/", "") : "";
+  }
+
+  function getAllRoutes_() {
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+  }
+
+  function getAdminRoutes_() {
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos", "administracao"];
+  }
+
+  function getClientRoutes_() {
+    return ["cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+  }
+
+  function getUserRole_(user) {
+    const role = String(user && user.role || "").toLowerCase();
+    return role === "client" ? "client" : "admin";
+  }
+
+  function isAdminUser_() {
+    return getUserRole_(currentUser) === "admin";
+  }
+
+  function getDefaultRouteForRole_() {
+    return isAdminUser_() ? "dashboard" : "cliente";
+  }
+
+  function coerceRouteForRole_(route) {
+    const allowedRoutes = isAdminUser_() ? getAdminRoutes_() : getClientRoutes_();
+    return allowedRoutes.indexOf(route) >= 0 ? route : getDefaultRouteForRole_();
   }
 
   function showHomePanel_() {
@@ -1285,7 +1329,7 @@
   }
 
   function showDashboardPanel_(route) {
-    const safeRoute = route || "dashboard";
+    const safeRoute = coerceRouteForRole_(route || getDefaultRouteForRole_());
     showOnlyPanel_(dashboardPanel);
     window.location.hash = "#app/" + safeRoute;
     renderRoute_(safeRoute);
@@ -1301,13 +1345,28 @@
   }
 
   function renderRoute_(route) {
+    const safeRoute = coerceRouteForRole_(route || getDefaultRouteForRole_());
+
     routePanels.forEach(function (panel) {
-      panel.classList.toggle("active", panel.dataset.route === route);
+      panel.classList.toggle("active", panel.dataset.route === safeRoute);
     });
 
     routeButtons.forEach(function (button) {
-      button.classList.toggle("active", button.dataset.routeTarget === route);
+      button.classList.toggle("active", button.dataset.routeTarget === safeRoute);
     });
+  }
+
+  function renderRoleNavigation_() {
+    const role = getUserRole_(currentUser);
+
+    routeButtons.forEach(function (button) {
+      const navRole = button.dataset.navRole || "admin";
+      button.classList.toggle("is-hidden", navRole !== role);
+    });
+
+    if (dashboardPanel) {
+      dashboardPanel.dataset.userRole = role;
+    }
   }
 
   function getUserClients_() {
@@ -1315,8 +1374,12 @@
       return [];
     }
 
+    if (isAdminUser_()) {
+      return appState.clients.slice();
+    }
+
     return appState.clients.filter(function (client) {
-      return client.userId === currentUser.id;
+      return isClientLinkedToCurrentUser_(client);
     });
   }
 
@@ -1325,8 +1388,13 @@
       return [];
     }
 
+    if (isAdminUser_()) {
+      return appState.works.slice();
+    }
+
+    const clientIds = getClientScopeIds_();
     return appState.works.filter(function (work) {
-      return work.userId === currentUser.id;
+      return work.userId === currentUser.id || clientIds.indexOf(work.clientId) >= 0;
     });
   }
 
@@ -1335,9 +1403,24 @@
       return [];
     }
 
+    if (isAdminUser_()) {
+      return appState.reports
+        .slice()
+        .sort(function (a, b) {
+          return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+        });
+    }
+
+    const clientIds = getClientScopeIds_();
+    const workIds = getUserWorks_().map(function (work) {
+      return work.id;
+    });
+
     return appState.reports
       .filter(function (report) {
-        return report.userId === currentUser.id;
+        return report.userId === currentUser.id ||
+          clientIds.indexOf(report.clientId) >= 0 ||
+          workIds.indexOf(report.workId) >= 0;
       })
       .sort(function (a, b) {
         return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
@@ -1349,13 +1432,43 @@
       return [];
     }
 
+    if (isAdminUser_()) {
+      return (appState.dailyLogs || [])
+        .slice()
+        .sort(function (a, b) {
+          return String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || ""));
+        });
+    }
+
+    const workIds = getUserWorks_().map(function (work) {
+      return work.id;
+    });
+
     return (appState.dailyLogs || [])
       .filter(function (logItem) {
-        return logItem.userId === currentUser.id;
+        return logItem.userId === currentUser.id || workIds.indexOf(logItem.workId) >= 0;
       })
       .sort(function (a, b) {
         return String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || ""));
       });
+  }
+
+  function getClientScopeIds_() {
+    return (appState.clients || [])
+      .filter(isClientLinkedToCurrentUser_)
+      .map(function (client) {
+        return client.id;
+      });
+  }
+
+  function isClientLinkedToCurrentUser_(client) {
+    if (!client || !currentUser) {
+      return false;
+    }
+
+    const userEmail = clean(currentUser.email).toLowerCase();
+    const clientEmail = clean(client.email).toLowerCase();
+    return client.userId === currentUser.id || (userEmail && clientEmail && userEmail === clientEmail);
   }
 
   function renderSaasState_() {
@@ -1363,6 +1476,7 @@
       return;
     }
 
+    renderRoleNavigation_();
     const clients = getUserClients_();
     const works = getUserWorks_();
     const reports = getUserReports_();
@@ -1378,7 +1492,7 @@
     });
 
     if (userBadge) {
-      userBadge.textContent = currentUser.name + " · " + currentUser.email;
+      userBadge.textContent = currentUser.name + " · " + currentUser.email + " · " + (isAdminUser_() ? "Admin" : "Cliente");
     }
 
     if (clientMetric) {
@@ -1410,8 +1524,56 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     renderDailyLogModule_(dailyLogs);
+    renderClientPortal_(works, reports, dailyLogs, exportedPdfs);
+    renderAdminOverview_();
     renderBillingState_();
     updateReportContext_();
+  }
+
+  function renderClientPortal_(works, reports, dailyLogs, exportedPdfs) {
+    if (clientPortalWorkMetric) {
+      clientPortalWorkMetric.textContent = String(works.length);
+    }
+
+    if (clientPortalReportMetric) {
+      clientPortalReportMetric.textContent = String(reports.length);
+    }
+
+    if (clientPortalRdoMetric) {
+      clientPortalRdoMetric.textContent = String(dailyLogs.length);
+    }
+
+    if (clientPortalPdfMetric) {
+      clientPortalPdfMetric.textContent = String(exportedPdfs.length);
+    }
+
+    renderClientWorksList_(clientPortalWorksList, works);
+    renderClientReportsList_(clientPortalReportsList, reports);
+    renderClientRdosList_(clientPortalRdosList, dailyLogs);
+    renderClientDocumentsList_(clientPortalDocumentsList, exportedPdfs);
+    renderClientDocumentsList_(clientPortalRecentDocs, exportedPdfs.slice(0, 5));
+  }
+
+  function renderAdminOverview_() {
+    if (adminUsersMetric) {
+      adminUsersMetric.textContent = String((appState.users || []).length);
+    }
+
+    if (adminClientsMetric) {
+      adminClientsMetric.textContent = String((appState.clients || []).length);
+    }
+
+    if (adminWorksMetric) {
+      adminWorksMetric.textContent = String((appState.works || []).length);
+    }
+
+    if (adminReportsMetric) {
+      adminReportsMetric.textContent = String((appState.reports || []).length);
+    }
+
+    if (adminRdosMetric) {
+      adminRdosMetric.textContent = String((appState.dailyLogs || []).length);
+    }
   }
 
   function getPlansApi_() {
@@ -1832,6 +1994,112 @@
         ].filter(Boolean)
       );
       target.appendChild(item);
+    });
+  }
+
+  function renderClientWorksList_(target, works) {
+    if (!target) {
+      return;
+    }
+
+    target.innerHTML = "";
+    if (!works.length) {
+      target.textContent = "Nenhuma obra vinculada com segurança ao seu acesso.";
+      target.className = "entity-list empty-list";
+      return;
+    }
+
+    target.className = "entity-list";
+    works.forEach(function (work) {
+      const client = findClient_(work.clientId);
+      target.appendChild(createEntityItem_(
+        work.name,
+        [client && client.name, work.address, work.status].filter(Boolean).join(" · "),
+        []
+      ));
+    });
+  }
+
+  function renderClientReportsList_(target, reports) {
+    if (!target) {
+      return;
+    }
+
+    target.innerHTML = "";
+    if (!reports.length) {
+      target.textContent = "Nenhum relatório vinculado com segurança ao seu acesso.";
+      target.className = "entity-list empty-list";
+      return;
+    }
+
+    target.className = "entity-list";
+    reports.forEach(function (report) {
+      const work = findWork_(report.workId);
+      const actions = report.pdfUrl ? [
+        createMiniButton_("PDF", "primary", function () {
+          window.open(report.pdfUrl, "_blank", "noopener");
+        })
+      ] : [];
+
+      target.appendChild(createEntityItem_(
+        report.title,
+        [work && work.name, report.status, "Atualizado em " + formatDateTime_(report.updatedAt)].filter(Boolean).join(" · "),
+        actions
+      ));
+    });
+  }
+
+  function renderClientRdosList_(target, dailyLogs) {
+    if (!target) {
+      return;
+    }
+
+    target.innerHTML = "";
+    if (!dailyLogs.length) {
+      target.textContent = "Nenhum RDO vinculado com segurança ao seu acesso.";
+      target.className = "entity-list empty-list";
+      return;
+    }
+
+    target.className = "entity-list";
+    dailyLogs.forEach(function (logItem) {
+      const work = findWork_(logItem.workId);
+      target.appendChild(createEntityItem_(
+        logItem.summary || logItem.services || "RDO",
+        [work && work.name, formatDateOnly_(logItem.date), logItem.weather].filter(Boolean).join(" · "),
+        [
+          createMiniButton_("PDF", "primary", function () {
+            openDailyLogPdf_(decorateDailyLogForExport_(logItem));
+          })
+        ]
+      ));
+    });
+  }
+
+  function renderClientDocumentsList_(target, reports) {
+    if (!target) {
+      return;
+    }
+
+    target.innerHTML = "";
+    if (!reports.length) {
+      target.textContent = "Nenhum PDF vinculado com segurança ao seu acesso.";
+      target.className = "entity-list empty-list";
+      return;
+    }
+
+    target.className = "entity-list";
+    reports.forEach(function (report) {
+      const work = findWork_(report.workId);
+      target.appendChild(createEntityItem_(
+        report.title,
+        [work && work.name, "PDF disponível", "Atualizado em " + formatDateTime_(report.updatedAt)].filter(Boolean).join(" · "),
+        [
+          createMiniButton_("Abrir PDF", "primary", function () {
+            window.open(report.pdfUrl, "_blank", "noopener");
+          })
+        ]
+      ));
     });
   }
 

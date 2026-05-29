@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-pretag-polish">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-role-visual-a">
 </head>
 <body>
   <main class="page-shell">
@@ -182,15 +182,95 @@
       </div>
 
       <nav class="saas-tabs" aria-label="Navegação do SaaS">
-        <button type="button" data-route-target="dashboard" class="active">Dashboard</button>
-        <button type="button" data-route-target="clientes">Clientes</button>
-        <button type="button" data-route-target="obras">Obras</button>
-        <button type="button" data-route-target="relatorios">Relatórios</button>
-        <button type="button" data-route-target="diario">Diário de Obras</button>
-        <button type="button" data-route-target="planos">Planos</button>
+        <button type="button" data-route-target="dashboard" data-nav-role="admin" class="active">Dashboard</button>
+        <button type="button" data-route-target="clientes" data-nav-role="admin">Clientes</button>
+        <button type="button" data-route-target="obras" data-nav-role="admin">Obras</button>
+        <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
+        <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
+        <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
+        <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
+        <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
+        <button type="button" data-route-target="minha-obra" data-nav-role="client">Minha Obra</button>
+        <button type="button" data-route-target="meus-relatorios" data-nav-role="client">Meus Relatórios</button>
+        <button type="button" data-route-target="meus-rdos" data-nav-role="client">Meus RDOs</button>
+        <button type="button" data-route-target="documentos" data-nav-role="client">Documentos/PDFs</button>
+        <button type="button" data-route-target="suporte" data-nav-role="client">Suporte</button>
       </nav>
 
       <div class="billing-alert is-hidden" id="billingAlert" role="status" aria-live="polite"></div>
+
+      <section class="route-panel client-route-panel" data-route="cliente" aria-label="Painel do cliente">
+        <div class="workspace-card client-portal-hero">
+          <div>
+            <p class="eyebrow">Painel do Cliente</p>
+            <h3>Resumo dos seus documentos de obra</h3>
+            <p>Visualização simplificada com dados vinculados de forma clara ao seu cadastro.</p>
+          </div>
+          <span class="local-status">Acesso cliente</span>
+        </div>
+
+        <div class="dashboard-actions-grid client-summary-grid">
+          <article class="dashboard-card">
+            <span>Obras vinculadas</span>
+            <strong id="clientPortalWorkMetric">0</strong>
+          </article>
+          <article class="dashboard-card">
+            <span>Relatórios disponíveis</span>
+            <strong id="clientPortalReportMetric">0</strong>
+          </article>
+          <article class="dashboard-card">
+            <span>RDOs disponíveis</span>
+            <strong id="clientPortalRdoMetric">0</strong>
+          </article>
+          <article class="dashboard-card">
+            <span>PDFs disponíveis</span>
+            <strong id="clientPortalPdfMetric">0</strong>
+          </article>
+        </div>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Últimos documentos</h3>
+          </div>
+          <div id="clientPortalRecentDocs" class="entity-list empty-list">Nenhum documento vinculado com segurança ao seu acesso.</div>
+        </section>
+      </section>
+
+      <section class="route-panel client-route-panel" data-route="minha-obra" aria-label="Minha obra">
+        <div class="workspace-card">
+          <h3>Minha Obra</h3>
+          <div id="clientPortalWorksList" class="entity-list empty-list">Nenhuma obra vinculada com segurança ao seu acesso.</div>
+        </div>
+      </section>
+
+      <section class="route-panel client-route-panel" data-route="meus-relatorios" aria-label="Meus relatórios">
+        <div class="workspace-card">
+          <h3>Meus Relatórios</h3>
+          <div id="clientPortalReportsList" class="entity-list empty-list">Nenhum relatório vinculado com segurança ao seu acesso.</div>
+        </div>
+      </section>
+
+      <section class="route-panel client-route-panel" data-route="meus-rdos" aria-label="Meus RDOs">
+        <div class="workspace-card">
+          <h3>Meus RDOs</h3>
+          <div id="clientPortalRdosList" class="entity-list empty-list">Nenhum RDO vinculado com segurança ao seu acesso.</div>
+        </div>
+      </section>
+
+      <section class="route-panel client-route-panel" data-route="documentos" aria-label="Documentos e PDFs">
+        <div class="workspace-card">
+          <h3>Documentos/PDFs</h3>
+          <div id="clientPortalDocumentsList" class="entity-list empty-list">Nenhum PDF vinculado com segurança ao seu acesso.</div>
+        </div>
+      </section>
+
+      <section class="route-panel client-route-panel" data-route="suporte" aria-label="Suporte">
+        <div class="workspace-card client-support-card">
+          <p class="eyebrow">Suporte</p>
+          <h3>Precisa falar sobre sua obra?</h3>
+          <p>Entre em contato com a equipe responsável pelo seu acompanhamento técnico. Esta área não exibe dados administrativos.</p>
+        </div>
+      </section>
 
       <section class="route-panel active" data-route="dashboard" aria-label="Dashboard principal">
         <div class="dashboard-actions-grid">
@@ -246,6 +326,21 @@
         <div class="workspace-card">
           <h3>Uso atual</h3>
           <div class="usage-grid" id="usageSummary"></div>
+        </div>
+      </section>
+
+      <section class="route-panel" data-route="administracao" aria-label="Administração do ObraReport">
+        <div class="workspace-card">
+          <p class="eyebrow">Administração</p>
+          <h3>Administração comercial</h3>
+          <p class="auth-note">Esta fase é separação visual inicial. Segurança final exige validação no Apps Script/backend.</p>
+          <div class="usage-grid">
+            <div class="usage-item"><span>Usuários</span><strong id="adminUsersMetric">0</strong></div>
+            <div class="usage-item"><span>Clientes</span><strong id="adminClientsMetric">0</strong></div>
+            <div class="usage-item"><span>Obras</span><strong id="adminWorksMetric">0</strong></div>
+            <div class="usage-item"><span>Relatórios</span><strong id="adminReportsMetric">0</strong></div>
+            <div class="usage-item"><span>RDOs</span><strong id="adminRdosMetric">0</strong></div>
+          </div>
         </div>
       </section>
 
@@ -1090,6 +1185,6 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260529-pretag-polish"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260529-role-visual-a"></script>
 </body>
 </html>

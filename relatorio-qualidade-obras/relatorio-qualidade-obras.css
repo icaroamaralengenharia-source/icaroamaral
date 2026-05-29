@@ -2966,3 +2966,57 @@ body {
     height: 120px;
   }
 }
+
+/* Fase A - separacao visual inicial Admin x Cliente.
+   Seguranca final exige validacao no Apps Script/backend. */
+.saas-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.client-route-panel .dashboard-card .mini-button {
+  display: none;
+}
+
+.client-portal-hero,
+.client-support-card {
+  border-left: 4px solid var(--teal);
+}
+
+.client-portal-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.client-portal-hero p:last-child,
+.client-support-card p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.client-summary-grid .dashboard-card {
+  min-height: 126px;
+}
+
+[data-user-role="client"] #currentPlanBadge,
+[data-user-role="client"] #saveNowButton,
+[data-user-role="client"] .billing-alert {
+  display: none !important;
+}
+
+[data-user-role="client"] .session-box {
+  grid-template-columns: repeat(2, max-content);
+}
+
+@media (max-width: 760px) {
+  .client-portal-hero {
+    grid-template-columns: 1fr;
+  }
+
+  [data-user-role="client"] .session-box {
+    display: flex;
+    grid-template-columns: none;
+  }
+}
