@@ -278,6 +278,10 @@
       return buildEmptyTemplate_(kind, context || {});
     }
 
+    if (kind === "daily-services") {
+      return buildDailyServicesText_(normalized);
+    }
+
     const localText = buildPatternBasedText_(normalized, kind);
     if (localText) {
       return localText;
@@ -292,6 +296,21 @@
     }
 
     return "Durante a vistoria, foi verificado que " + lowerFirst_(normalized) + " A situação deve ser acompanhada tecnicamente, mantendo-se o registro das providências adotadas e das evidências de correção.";
+  }
+
+  function buildDailyServicesText_(text) {
+    return capitalize_(ensureFinalPeriod_(
+      text
+        .replace(/\s+(execucao|execução|execu[cç][aã]o)\s+/gi, ". Execução ")
+        .replace(/\b(execucao|execução|execu[cç][aã]o)\b/gi, "Execução")
+        .replace(/\bblocos?\s+estrutural\b/gi, "blocos estruturais")
+        .replace(/(\d+(?:[,.]\d+)?)\s*(m2|m²)\b/gi, "$1 m²")
+        .replace(/(\d+(?:[,.]\d+)?)\s*(m3|m³)\b/gi, "$1 m³")
+        .replace(/(\d+(?:[,.]\d+)?)\s*(m)\b/gi, "$1 m")
+        .replace(/\s+/g, " ")
+        .replace(/\.\s*\./g, ".")
+        .trim()
+    ));
   }
 
   function buildPatternBasedText_(text, kind) {

@@ -399,6 +399,24 @@ function buildUserPrompt_(payload) {
     ].join("\n");
   }
 
+  if (context.kind === "daily-services") {
+    return [
+      "Modo: melhorar serviços executados do Diário de Obras.",
+      "Ajuste apenas gramática, concordância, pontuação, unidades e clareza.",
+      "Pode usar sinônimos técnicos simples quando melhorar a leitura.",
+      "Não trate o texto como inconformidade, patologia, falha ou ocorrência.",
+      "Não inclua recomendações, causas, diagnóstico, solução, risco, aderência, correção ou providências.",
+      "Não crie resumo do dia. Não acrescente dados que o usuário não escreveu.",
+      "Mantenha o sentido original e escreva como registro objetivo de produção/serviço executado.",
+      "Exemplo:",
+      "Entrada: revestimento argamassado em alvenaria Execução de 80m² de muro de alvenaria em blocos estrutural",
+      "Saída: Revestimento argamassado em alvenaria. Execução de 80 m² de muro de alvenaria em blocos estruturais.",
+      "Texto original:",
+      payload.text,
+      "Texto esperado: apenas o texto revisado, sem comentário adicional."
+    ].join("\n");
+  }
+
   return [
     "Modo: " + getTextModeInstruction_(context.kind),
     "Corrija gramatica e concordancia.",
@@ -422,6 +440,10 @@ function buildUserPrompt_(payload) {
 }
 
 function getTextModeInstruction_(kind) {
+  if (kind === "daily-services") {
+    return "melhorar serviços executados do Diário de Obras sem diagnosticar inconformidade nem criar recomendação";
+  }
+
   if (kind === "solution") {
     return "gerar recomendacao tecnica objetiva para a ocorrencia informada";
   }

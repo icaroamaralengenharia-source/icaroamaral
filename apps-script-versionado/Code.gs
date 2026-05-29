@@ -160,10 +160,14 @@ function handleSyncSave_(payload, store, requestId) {
   const clients = Array.isArray(state.clients) ? state.clients : [];
   const works = Array.isArray(state.works) ? state.works : [];
   const reports = Array.isArray(state.reports) ? state.reports : [];
+  const dailyLogs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
+  const compositions = Array.isArray(state.compositions) ? state.compositions : [];
 
   store.clients = replaceUserItems_(store.clients, user.id, clients);
   store.works = replaceUserItems_(store.works, user.id, works);
   store.reports = replaceUserItems_(store.reports, user.id, reports, true);
+  store.dailyLogs = replaceUserItems_(store.dailyLogs, user.id, dailyLogs);
+  store.compositions = replaceUserItems_(store.compositions, user.id, compositions);
   store.updatedAt = new Date().toISOString();
 
   return {
@@ -221,6 +225,8 @@ function buildUserState_(store, userId) {
     clients: filterByUser_(store.clients, userId),
     works: filterByUser_(store.works, userId),
     reports: filterByUser_(store.reports, userId),
+    dailyLogs: filterByUser_(store.dailyLogs, userId),
+    compositions: filterByUser_(store.compositions, userId),
     syncedAt: new Date().toISOString()
   };
 }
@@ -275,6 +281,8 @@ function getAppStore_() {
   store.clients = Array.isArray(store.clients) ? store.clients : [];
   store.works = Array.isArray(store.works) ? store.works : [];
   store.reports = Array.isArray(store.reports) ? store.reports : [];
+  store.dailyLogs = Array.isArray(store.dailyLogs) ? store.dailyLogs : [];
+  store.compositions = Array.isArray(store.compositions) ? store.compositions : [];
   store.updatedAt = store.updatedAt || new Date().toISOString();
 
   return store;
@@ -303,6 +311,8 @@ function getAppDataFile_() {
       clients: [],
       works: [],
       reports: [],
+      dailyLogs: [],
+      compositions: [],
       updatedAt: new Date().toISOString()
     }, null, 2),
     MimeType.PLAIN_TEXT
