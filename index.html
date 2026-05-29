@@ -3,414 +3,658 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ícaro Amaral Engenharia</title>
+  <title>ObraReport | Relatórios técnicos e diário de obras</title>
+  <meta name="description" content="ObraReport é uma plataforma para engenheiros, arquitetos, técnicos e construtoras criarem relatórios técnicos, RDOs, PDFs profissionais e registros de obra em poucos minutos.">
 
   <style>
     :root {
-      --navy: #071b31;
-      --navy-2: #0d2b47;
-      --gold: #d8ab38;
-      --white: #ffffff;
-      --soft: #f4f6f8;
+      color-scheme: light;
+      --navy: #061a32;
+      --navy-2: #0b315b;
+      --blue: #0f5f8f;
+      --teal: #0e7f73;
+      --gold: #d7a12d;
+      --bg: #f4f7fb;
+      --card: #ffffff;
       --text: #102033;
-      --muted: #647184;
-      --line: rgba(255, 255, 255, 0.24);
-      --shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+      --muted: #5c6b7d;
+      --line: #d8e1eb;
+      --shadow: 0 22px 54px rgba(6, 26, 50, 0.12);
+      --radius: 18px;
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       margin: 0;
-      min-height: 100vh;
-      font-family: Arial, Helvetica, sans-serif;
       color: var(--text);
-      background: var(--navy);
-    }
-
-    .login-screen {
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
       background:
-        linear-gradient(rgba(7, 27, 49, 0.72), rgba(7, 27, 49, 0.86)),
-        url("imagens/projeto2.jpg") center / cover no-repeat;
+        radial-gradient(circle at 14% 0%, rgba(33, 115, 189, 0.4), transparent 18rem),
+        linear-gradient(180deg, #04172e 0, #0a315d 170px, #0f5f8f 320px, #edf3f8 321px, #f7fafc 100%);
+      font-family: Inter, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
     }
 
-    .login-card {
-      width: min(100%, 420px);
-      padding: 34px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.94);
-      box-shadow: var(--shadow);
-    }
-
-    .login-card h1 {
-      margin: 0 0 8px;
-      color: var(--navy);
-      font-size: 1.75rem;
-      letter-spacing: 0;
-      text-align: center;
-    }
-
-    .login-card p {
-      margin: 0 0 26px;
-      color: var(--muted);
-      text-align: center;
-      line-height: 1.45;
-    }
-
-    .login-card label {
-      display: grid;
-      gap: 7px;
-      margin-bottom: 14px;
-      color: var(--navy);
-      font-size: 0.86rem;
-      font-weight: 700;
-    }
-
-    .login-card input {
-      width: 100%;
-      min-height: 44px;
-      padding: 10px 12px;
-      border: 1px solid #cfd6df;
-      border-radius: 6px;
-      font: inherit;
-    }
-
-    .login-card button,
-    .primary-button,
-    .secondary-button {
-      min-height: 46px;
-      border: 0;
-      border-radius: 6px;
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
-      text-decoration: none;
-    }
-
-    .login-card button {
-      width: 100%;
-      margin-top: 8px;
-      color: var(--white);
-      background: var(--gold);
-    }
-
-    .login-error {
-      min-height: 20px;
-      margin: 12px 0 0;
-      color: #b42318;
-      font-size: 0.9rem;
-      text-align: center;
+    a {
+      color: inherit;
     }
 
     .site-shell {
-      display: block;
-      min-height: 100vh;
-      background: #f5f7fa;
-    }
-
-    .hero {
-      position: relative;
-      min-height: 76vh;
-      display: grid;
-      align-items: end;
-      padding: 28px;
-      color: var(--white);
-      background:
-        linear-gradient(90deg, rgba(7, 27, 49, 0.92) 0%, rgba(7, 27, 49, 0.74) 42%, rgba(7, 27, 49, 0.18) 100%),
-        url("imagens/projeto2.jpg") center / cover no-repeat;
+      width: min(1240px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0 54px;
     }
 
     .topbar {
-      position: absolute;
-      inset: 0 0 auto 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 18px;
-      padding: 24px 32px;
-      z-index: 2;
+      gap: 20px;
+      margin-bottom: 26px;
+      color: #ffffff;
     }
 
     .brand {
       display: grid;
-      gap: 3px;
+      gap: 2px;
     }
 
     .brand strong {
-      color: var(--gold);
-      font-size: 1.35rem;
-      letter-spacing: 0;
+      font-size: 1.6rem;
+      font-weight: 950;
+      letter-spacing: -0.02em;
     }
 
     .brand span {
-      color: rgba(255, 255, 255, 0.84);
+      color: rgba(255, 255, 255, 0.74);
       font-size: 0.86rem;
     }
 
-    .logout-button {
-      min-height: 38px;
-      padding: 0 14px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      color: var(--white);
-      background: rgba(255, 255, 255, 0.08);
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
+    .top-actions {
+      display: flex;
+      gap: 10px;
     }
 
-    .hero-content {
-      width: min(100%, 900px);
-      padding: 120px 0 44px;
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      padding: 0 20px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 850;
+      text-decoration: none;
+      transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    .button.primary {
+      color: #ffffff;
+      background: linear-gradient(135deg, #08223f, #0d3a65);
+      box-shadow: 0 14px 30px rgba(6, 26, 50, 0.22);
+    }
+
+    .button.secondary {
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.26);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .button.light {
+      color: var(--navy);
+      border-color: var(--line);
+      background: #ffffff;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 34px rgba(6, 26, 50, 0.18);
+    }
+
+    .hero,
+    .section,
+    .final-cta {
+      border: 1px solid rgba(216, 225, 235, 0.92);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.98fr);
+      gap: 36px;
+      align-items: center;
+      min-height: 560px;
+      padding: clamp(30px, 5vw, 62px);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top right, rgba(33, 115, 189, 0.13), transparent 25rem),
+        linear-gradient(135deg, #ffffff, #f8fbfe);
     }
 
     .eyebrow {
-      margin: 0 0 14px;
-      color: var(--gold);
-      font-size: 0.82rem;
-      font-weight: 800;
+      margin: 0 0 12px;
+      color: var(--teal);
+      font-size: 0.78rem;
+      font-weight: 900;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    .hero h1 {
-      max-width: 760px;
+    h1,
+    h2 {
       margin: 0;
-      font-size: clamp(2.35rem, 6vw, 5.5rem);
-      line-height: 0.96;
-      letter-spacing: 0;
+      color: var(--navy);
+      font-weight: 950;
+      letter-spacing: -0.035em;
+      line-height: 1.02;
+    }
+
+    h1 {
+      max-width: 720px;
+      font-size: clamp(2.5rem, 5vw, 4.8rem);
+    }
+
+    h2 {
+      max-width: 780px;
+      font-size: clamp(1.5rem, 3vw, 2.35rem);
     }
 
     .hero-text {
       max-width: 660px;
-      margin: 22px 0 0;
-      color: rgba(255, 255, 255, 0.88);
-      font-size: 1.08rem;
-      line-height: 1.55;
+      margin: 20px 0 0;
+      color: #43546a;
+      font-size: clamp(1rem, 1.5vw, 1.2rem);
+      line-height: 1.65;
     }
 
-    .actions {
+    .hero-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
       margin-top: 30px;
     }
 
-    .primary-button,
-    .secondary-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 20px;
+    .hero-proof {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
     }
 
-    .primary-button {
+    .hero-proof span {
+      padding: 9px 12px;
+      border: 1px solid #dbe4ee;
+      border-radius: 999px;
       color: var(--navy);
-      background: var(--gold);
+      background: #f8fbfd;
+      font-size: 0.86rem;
+      font-weight: 800;
     }
 
-    .secondary-button {
-      color: var(--white);
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    .dashboard {
-      padding: 34px 28px 46px;
-      background: var(--soft);
-    }
-
-    .dashboard-inner {
-      width: min(1160px, 100%);
-      margin: 0 auto;
+    .mockup {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 22px;
-      align-items: stretch;
+      gap: 16px;
+      padding: 18px;
+      border: 1px solid #dbe4ee;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #ffffff, #f4f8fc);
+      box-shadow: 0 26px 70px rgba(6, 26, 50, 0.18);
     }
 
-    .panel {
-      padding: 26px;
-      border-radius: 8px;
-      background: var(--white);
-      box-shadow: 0 10px 28px rgba(16, 32, 51, 0.08);
+    .mockup-top,
+    .mockup-metrics,
+    .mockup-list p {
+      border: 1px solid #dbe4ee;
+      border-radius: 12px;
+      background: #ffffff;
     }
 
-    .panel h2 {
-      margin: 0 0 12px;
-      color: var(--navy);
-      font-size: 1.45rem;
+    .mockup-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
     }
 
-    .panel p {
-      margin: 0;
+    .mockup-top span,
+    .mockup-metrics span,
+    .mockup-list span {
       color: var(--muted);
-      line-height: 1.55;
+      font-size: 0.74rem;
+      font-weight: 850;
+      text-transform: uppercase;
     }
 
-    .tool-card {
+    .mockup-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .mockup-metrics div {
+      display: grid;
+      gap: 6px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f7fafc;
+    }
+
+    .mockup-metrics strong {
+      color: var(--navy);
+      font-size: 1.9rem;
+      line-height: 1;
+    }
+
+    .mockup-chart {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: end;
+      gap: 12px;
+      height: 150px;
+      padding: 18px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #eef6ff, #ffffff);
+    }
+
+    .mockup-chart span {
+      display: block;
+      border-radius: 999px 999px 8px 8px;
+      background: linear-gradient(180deg, var(--blue), var(--navy));
+    }
+
+    .mockup-chart span:nth-child(1) { height: 44%; }
+    .mockup-chart span:nth-child(2) { height: 70%; }
+    .mockup-chart span:nth-child(3) { height: 58%; }
+    .mockup-chart span:nth-child(4) { height: 84%; }
+
+    .mockup-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mockup-list p {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0;
+      padding: 12px 14px;
+    }
+
+    .mockup-list strong {
+      color: var(--navy);
+    }
+
+    .section {
       display: grid;
       gap: 18px;
-      padding: 24px;
-      border-radius: 8px;
-      color: var(--white);
-      background: linear-gradient(135deg, var(--navy), var(--navy-2));
-      box-shadow: 0 10px 28px rgba(16, 32, 51, 0.12);
+      margin-top: 28px;
+      padding: clamp(24px, 4vw, 38px);
     }
 
-    .tool-card h2 {
-      margin: 0;
-      color: var(--white);
-      font-size: 1.35rem;
-    }
-
-    .tool-card p {
-      margin: 0;
-      color: rgba(255, 255, 255, 0.82);
-      line-height: 1.55;
-    }
-
-    .portfolio-grid {
-      margin-top: 22px;
+    .cards,
+    .plans {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 14px;
     }
 
-    .portfolio-item {
-      overflow: hidden;
-      min-height: 180px;
-      border-radius: 8px;
-      background: #dce2e8;
+    .cards article,
+    .plans article,
+    .steps article {
+      display: grid;
+      gap: 10px;
+      min-height: 150px;
+      padding: 18px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 12px 28px rgba(6, 26, 50, 0.06);
     }
 
-    .portfolio-item img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: cover;
+    .cards strong,
+    .plans strong,
+    .steps strong {
+      color: var(--navy);
+      font-size: 1rem;
     }
 
-    @media (max-width: 860px) {
-      .hero {
-        min-height: 70vh;
-        padding: 22px;
-      }
+    .cards span,
+    .plans span,
+    .section p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
 
-      .topbar {
-        padding: 18px 22px;
-      }
+    .split,
+    .demo {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      align-items: center;
+    }
 
-      .dashboard-inner,
-      .portfolio-grid {
+    .pills,
+    .benefits {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pills li,
+    .benefits span {
+      padding: 10px 13px;
+      border: 1px solid #d8e3ee;
+      border-radius: 999px;
+      color: var(--navy);
+      background: #f8fbfd;
+      font-weight: 850;
+      font-size: 0.9rem;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .steps article {
+      min-height: 124px;
+    }
+
+    .steps span {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+      font-weight: 900;
+    }
+
+    .browser-frame {
+      display: grid;
+      gap: 12px;
+      min-height: 240px;
+      padding: 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(6, 26, 50, 0.98), rgba(15, 95, 143, 0.9));
+      box-shadow: 0 22px 54px rgba(6, 26, 50, 0.18);
+    }
+
+    .browser-frame div {
+      width: 64px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .browser-frame strong {
+      align-self: end;
+      color: #ffffff;
+      font-size: 1.6rem;
+    }
+
+    .browser-frame span {
+      color: rgba(255, 255, 255, 0.74);
+    }
+
+    .plans .featured {
+      border-color: rgba(15, 95, 143, 0.38);
+      background: linear-gradient(180deg, #eff7ff, #ffffff);
+    }
+
+    .final-cta {
+      display: grid;
+      justify-items: center;
+      gap: 18px;
+      margin-top: 28px;
+      padding: clamp(30px, 5vw, 52px);
+      text-align: center;
+      background:
+        radial-gradient(circle at top, rgba(33, 115, 189, 0.24), transparent 26rem),
+        linear-gradient(135deg, var(--navy), var(--blue));
+    }
+
+    .final-cta h2 {
+      color: #ffffff;
+    }
+
+    .site-footer {
+      padding: 28px 0 0;
+      color: rgba(255, 255, 255, 0.72);
+      text-align: center;
+      font-size: 0.86rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .split,
+      .demo {
         grid-template-columns: 1fr;
       }
 
-      .portfolio-item {
-        min-height: 220px;
+      .cards,
+      .plans,
+      .steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
-    @media (max-width: 520px) {
+    @media (max-width: 640px) {
+      body {
+        background:
+          radial-gradient(circle at 12% 0%, rgba(33, 115, 189, 0.4), transparent 14rem),
+          linear-gradient(180deg, #04172e 0, #0a315d 116px, #0f5f8f 218px, #edf3f8 219px, #f7fafc 100%);
+      }
+
+      .site-shell {
+        width: min(100% - 20px, 1240px);
+        padding: 16px 0 36px;
+      }
+
       .topbar {
         align-items: flex-start;
         flex-direction: column;
       }
 
-      .hero-content {
-        padding-top: 150px;
-      }
-
-      .actions a {
+      .top-actions {
         width: 100%;
       }
 
-      .login-card {
-        padding: 26px 20px;
+      .top-actions .button {
+        flex: 1;
+      }
+
+      .hero,
+      .section,
+      .final-cta {
+        border-radius: 14px;
+      }
+
+      .hero {
+        min-height: 0;
+        padding: 22px;
+      }
+
+      h1 {
+        font-size: 2.15rem;
+        line-height: 1.04;
+      }
+
+      .hero-actions,
+      .mockup-list p {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .button {
+        width: 100%;
+      }
+
+      .mockup {
+        padding: 12px;
+      }
+
+      .mockup-metrics,
+      .cards,
+      .plans,
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      .mockup-chart {
+        height: 120px;
       }
     }
   </style>
 </head>
 
 <body>
-  <div class="site-shell" id="siteShell">
+  <main class="site-shell">
+    <header class="topbar">
+      <div class="brand">
+        <strong>ObraReport</strong>
+        <span>Sistema de gestão técnica de obras</span>
+      </div>
+      <nav class="top-actions" aria-label="Ações principais">
+        <a class="button secondary" href="#demo">Demonstração</a>
+        <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar</a>
+      </nav>
+    </header>
+
     <section class="hero">
-      <div class="topbar">
-        <div class="brand">
-          <strong>Ícaro Amaral Engenharia</strong>
-          <span>Engenharia & Arquitetura</span>
-        </div>
-
-      </div>
-
-      <div class="hero-content">
-        <p class="eyebrow">Projetos, fiscalização e tecnologia aplicada</p>
-        <h1>Engenharia com precisão técnica e apresentação profissional.</h1>
+      <div>
+        <p class="eyebrow">Software profissional para obras</p>
+        <h1>ObraReport: relatórios técnicos e diário de obras em poucos minutos</h1>
         <p class="hero-text">
-          Um ambiente digital para organizar vistorias, registrar evidências,
-          classificar riscos e gerar relatórios técnicos com padrão profissional.
+          Organize clientes, obras, fotos, RDOs, materiais e relatórios técnicos em uma plataforma
+          simples, profissional e pronta para uso em campo.
         </p>
-
-        <div class="actions">
-          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
-            Abrir Relatório de Fiscalização
-          </a>
-
-          <a class="secondary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
-            Gerar Relatório Técnico
-          </a>
-
-          <a class="secondary-button" href="#projetos">
-            Ver projetos
-          </a>
+        <div class="hero-actions">
+          <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Testar ObraReport</a>
+          <a class="button light" href="#demo">Ver demonstração</a>
+        </div>
+        <div class="hero-proof">
+          <span>PDF profissional</span>
+          <span>RDO em campo</span>
+          <span>IA para texto técnico</span>
         </div>
       </div>
+
+      <aside class="mockup" aria-label="Mockup do dashboard ObraReport">
+        <div class="mockup-top">
+          <span>ObraReport</span>
+          <strong>Dashboard Premium</strong>
+        </div>
+        <div class="mockup-metrics">
+          <div><span>Obras</span><strong>18</strong></div>
+          <div><span>RDOs</span><strong>7</strong></div>
+          <div><span>Relatórios</span><strong>24</strong></div>
+        </div>
+        <div class="mockup-chart">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="mockup-list">
+          <p><strong>Residência Alfa</strong><span>RDO sincronizado</span></p>
+          <p><strong>Edifício Vista Verde</strong><span>Relatório técnico</span></p>
+          <p><strong>Centro Comercial</strong><span>Materiais conferidos</span></p>
+        </div>
+      </aside>
     </section>
 
-    <section class="dashboard">
-      <div class="dashboard-inner">
-        <article class="panel">
-          <h2>Sistema de Relatórios Técnicos</h2>
-          <p>
-            Gere relatórios com dados da obra, fotos da unidade, inconformidades,
-            grau de risco, matriz de prioridade, assinatura e envio automático por e-mail.
-          </p>
-
-          <div class="portfolio-grid" id="projetos">
-            <figure class="portfolio-item">
-              <img src="imagens/projeto2.jpg" alt="Projeto arquitetônico residencial">
-            </figure>
-
-            <figure class="portfolio-item">
-              <img src="imagens2/imagem3.jpg" alt="Fachada de empreendimento">
-            </figure>
-
-            <figure class="portfolio-item">
-              <img src="projeto3.jpeg" alt="Projeto de engenharia e arquitetura">
-            </figure>
-          </div>
-        </article>
-
-        <aside class="tool-card">
-          <h2>Relatório de Fiscalização</h2>
-          <p>
-            Acesse o formulário técnico para registrar fotos da obra, inconformidades,
-            grau de risco, matriz de prioridade e gerar o PDF final automaticamente.
-          </p>
-
-          <a class="primary-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?v=20260525-estavel1">
-            Abrir Relatório de Fiscalização
-          </a>
-        </aside>
+    <section class="section" aria-labelledby="features-title">
+      <p class="eyebrow">O que o ObraReport faz</p>
+      <h2 id="features-title">Tudo para registrar, organizar e entregar informação técnica de obra.</h2>
+      <div class="cards">
+        <article><strong>Relatórios técnicos com fotos</strong><span>Registre evidências, descrições e conclusões com aparência profissional.</span></article>
+        <article><strong>Diário de Obras/RDO</strong><span>Acompanhe clima, equipe, produção, ocorrências e segurança do trabalho.</span></article>
+        <article><strong>Controle de materiais</strong><span>Compare materiais consumidos com produção executada e composições estimadas.</span></article>
+        <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
+        <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
+        <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
       </div>
     </section>
-  </div>
+
+    <section class="section split" aria-labelledby="audience-title">
+      <div>
+        <p class="eyebrow">Para quem é</p>
+        <h2 id="audience-title">Feito para quem precisa registrar obra com padrão profissional.</h2>
+      </div>
+      <ul class="pills">
+        <li>Engenheiros</li>
+        <li>Arquitetos</li>
+        <li>Técnicos</li>
+        <li>Construtoras</li>
+        <li>Fiscalização de obras</li>
+      </ul>
+    </section>
+
+    <section class="section" aria-labelledby="steps-title">
+      <p class="eyebrow">Como funciona</p>
+      <h2 id="steps-title">Do campo ao PDF em um fluxo simples.</h2>
+      <div class="steps">
+        <article><span>1</span><strong>Cadastre cliente e obra</strong></article>
+        <article><span>2</span><strong>Registre fotos, serviços e materiais</strong></article>
+        <article><span>3</span><strong>Gere relatório/PDF</strong></article>
+        <article><span>4</span><strong>Envie ao cliente</strong></article>
+      </div>
+    </section>
+
+    <section class="section demo" id="demo" aria-labelledby="demo-title">
+      <div>
+        <p class="eyebrow">Demonstração visual</p>
+        <h2 id="demo-title">Painel premium para acompanhar obras, relatórios e RDOs.</h2>
+        <p>Uma experiência organizada para escritório e campo, com navegação clara e dados centralizados.</p>
+      </div>
+      <div class="browser-frame">
+        <div></div>
+        <strong>Painel ObraReport</strong>
+        <span>Clientes • Obras • Relatórios • Diário de Obras • Planos</span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="benefits-title">
+      <p class="eyebrow">Benefícios</p>
+      <h2 id="benefits-title">Mais tempo para a obra, menos tempo perdido com documento solto.</h2>
+      <div class="benefits">
+        <span>Menos tempo escrevendo relatórios</span>
+        <span>Mais organização por obra</span>
+        <span>Menos perda de informação</span>
+        <span>Aparência profissional para o cliente</span>
+        <span>Histórico técnico centralizado</span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="plans-title">
+      <p class="eyebrow">Planos</p>
+      <h2 id="plans-title">Comece simples e evolua quando a rotina pedir mais controle.</h2>
+      <div class="plans">
+        <article><strong>Gratuito</strong><span>Para testar o fluxo e criar os primeiros registros.</span></article>
+        <article class="featured"><strong>Profissional</strong><span>Para rotina real de campo, relatórios e RDOs comerciais.</span></article>
+        <article><strong>Empresa</strong><span>Para equipes, construtoras e operação com múltiplas obras.</span></article>
+      </div>
+    </section>
+
+    <section class="final-cta" aria-labelledby="final-title">
+      <h2 id="final-title">Pronto para transformar sua rotina de obra?</h2>
+      <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar ObraReport</a>
+    </section>
+
+    <footer class="site-footer">
+      ObraReport por Ícaro Amaral Engenharia. Sistema de gestão de obras e relatórios técnicos.
+    </footer>
+  </main>
 </body>
 </html>
