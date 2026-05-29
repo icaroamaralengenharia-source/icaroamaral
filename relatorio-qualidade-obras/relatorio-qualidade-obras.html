@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-role-visual-a">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-rdo-ux43">
 </head>
 <body>
   <main class="page-shell">
@@ -460,19 +460,18 @@
           <div>
             <p class="eyebrow">Diário de Obras</p>
             <h3>Registro técnico diário da obra</h3>
+            <p>Preencha por macroseções. Identificação e Execução já começam abertas.</p>
           </div>
           <span class="local-status" id="dailyLogStatus">Diários salvos neste navegador</span>
         </div>
 
         <nav class="diary-jump-nav" aria-label="Atalhos do Diário de Obras">
-          <a href="#diary-basic">Dados</a>
-          <a href="#diary-production">Produção</a>
-          <a href="#diary-materials">Materiais</a>
-          <a href="#diary-safety">Segurança</a>
-          <a href="#diary-photos">Fotos</a>
-          <a href="#diary-summary">Resumo</a>
-          <a href="#diary-records">Registros</a>
-          <a href="#diary-compositions">Composições</a>
+          <a href="#rdo-identificacao">Identificação</a>
+          <a href="#rdo-execucao">Execução</a>
+          <a href="#rdo-materiais">Materiais</a>
+          <a href="#rdo-intercorrencias">Intercorrências</a>
+          <a href="#rdo-fotos">Fotos</a>
+          <a href="#rdo-encerramento">Encerramento</a>
         </nav>
 
         <div class="diary-workspace">
@@ -485,6 +484,12 @@
             <form id="dailyLogForm" class="entity-form diary-form">
               <input type="hidden" name="dailyLogId">
 
+              <details class="rdo-macro-section" id="rdo-identificacao" open>
+                <summary>
+                  <span>1</span>
+                  <strong>Identificação</strong>
+                  <small>Data, obra, responsável, clima e horários.</small>
+                </summary>
               <div class="form-subsection" id="diary-basic">
                 <h4>Dados básicos</h4>
                 <div class="field-grid">
@@ -536,8 +541,8 @@
                 </div>
               </div>
 
-              <div class="form-subsection" id="diary-team">
-                <h4>Horários, equipe e serviços</h4>
+              <div class="form-subsection" id="diary-schedule">
+                <h4>Horários</h4>
                 <div class="field-grid">
                   <label>
                     Horário de início
@@ -547,6 +552,19 @@
                     Horário de término
                     <input name="endTime" type="time">
                   </label>
+                </div>
+              </div>
+              </details>
+
+              <details class="rdo-macro-section" id="rdo-execucao" open>
+                <summary>
+                  <span>2</span>
+                  <strong>Execução</strong>
+                  <small>Equipe, serviços, produção e avanço do dia.</small>
+                </summary>
+              <div class="form-subsection" id="diary-team">
+                <h4>Horários, equipe e serviços</h4>
+                <div class="field-grid">
                   <label>
                     Equipe presente
                     <input name="teamPresent" type="text">
@@ -634,6 +652,14 @@
                 <button type="button" class="mini-button primary" id="dailyLogCalculateMaterials">Calcular materiais estimados</button>
                 <div id="dailyLogEstimatePanel" class="estimate-panel is-hidden"></div>
               </div>
+              </details>
+
+              <details class="rdo-macro-section" id="rdo-materiais">
+                <summary>
+                  <span>3</span>
+                  <strong>Materiais</strong>
+                  <small>Materiais, ferramentas, equipamentos e consumo estimado.</small>
+                </summary>
 
               <div class="form-subsection" id="diary-materials">
                 <div class="section-row">
@@ -704,6 +730,14 @@
                 <button type="button" class="mini-button primary" id="dailyLogAddTool">Adicionar equipamento</button>
                 <div id="dailyLogToolsList" class="diary-item-list"></div>
               </div>
+              </details>
+
+              <details class="rdo-macro-section" id="rdo-intercorrencias">
+                <summary>
+                  <span>4</span>
+                  <strong>Intercorrências</strong>
+                  <small>Segurança, ocorrências, impedimentos e problemas do dia.</small>
+                </summary>
 
               <div class="form-subsection" id="diary-safety">
                 <h4>Segurança do Trabalho</h4>
@@ -745,8 +779,8 @@
                 </div>
               </div>
 
-              <div class="form-subsection" id="diary-photos">
-                <h4>Ocorrências, fotos e observações</h4>
+              <div class="form-subsection" id="diary-occurrences">
+                <h4>Ocorrências, impedimentos e observações</h4>
                 <div class="field-grid">
                   <label class="full-width">
                     Ocorrências do dia
@@ -763,6 +797,20 @@
                     Observações gerais
                     <textarea name="generalNotes" rows="3"></textarea>
                   </label>
+                </div>
+              </div>
+              </details>
+
+              <details class="rdo-macro-section" id="rdo-fotos">
+                <summary>
+                  <span>5</span>
+                  <strong>Fotos</strong>
+                  <small>Upload, legenda e pré-visualização das fotos do diário.</small>
+                </summary>
+
+              <div class="form-subsection" id="diary-photos">
+                <h4>Fotos do Diário</h4>
+                <div class="field-grid">
                   <label>
                     Fotos do dia (até 30)
                     <input name="dailyPhoto" id="dailyLogPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple>
@@ -775,6 +823,14 @@
                 <button type="button" class="mini-button primary" id="dailyLogAddPhoto">Adicionar foto</button>
                 <div id="dailyLogPhotosList" class="diary-photo-grid"></div>
               </div>
+              </details>
+
+              <details class="rdo-macro-section" id="rdo-encerramento">
+                <summary>
+                  <span>6</span>
+                  <strong>Encerramento</strong>
+                  <small>Resumo, PDF, compartilhamento e salvamento.</small>
+                </summary>
 
               <div class="form-subsection" id="diary-summary">
                 <div class="section-row">
@@ -790,6 +846,7 @@
               </div>
 
               <button class="next-action diary-save-button" type="submit" id="dailyLogSaveButton">Salvar diário</button>
+              </details>
             </form>
           </section>
 
