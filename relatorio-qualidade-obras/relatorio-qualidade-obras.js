@@ -37,6 +37,36 @@
   const billingDemoStatus = document.getElementById("billingDemoStatus");
   const plansGrid = document.getElementById("plansGrid");
   const usageSummary = document.getElementById("usageSummary");
+  const dailyLogForm = document.getElementById("dailyLogForm");
+  const dailyLogWorkSelect = document.getElementById("dailyLogWorkSelect");
+  const dailyLogStatus = document.getElementById("dailyLogStatus");
+  const dailyLogResetButton = document.getElementById("dailyLogResetButton");
+  const dailyLogAddProductionButton = document.getElementById("dailyLogAddProduction");
+  const dailyLogCalculateMaterialsButton = document.getElementById("dailyLogCalculateMaterials");
+  const dailyLogEstimatePanel = document.getElementById("dailyLogEstimatePanel");
+  const dailyLogAddMaterialButton = document.getElementById("dailyLogAddMaterial");
+  const dailyLogAddToolButton = document.getElementById("dailyLogAddTool");
+  const dailyLogAddPhotoButton = document.getElementById("dailyLogAddPhoto");
+  const dailyLogProductionsList = document.getElementById("dailyLogProductionsList");
+  const dailyLogProductionSummary = document.getElementById("dailyLogProductionSummary");
+  const dailyLogMaterialsList = document.getElementById("dailyLogMaterialsList");
+  const dailyLogToolsList = document.getElementById("dailyLogToolsList");
+  const dailyLogPhotosList = document.getElementById("dailyLogPhotosList");
+  const dailyLogRecordsList = document.getElementById("dailyLogRecordsList");
+  const dailyLogMaterialSummary = document.getElementById("dailyLogMaterialSummary");
+  const dailyLogMaterialTotal = document.getElementById("dailyLogMaterialTotal");
+  const dailyLogAuditPanel = document.getElementById("dailyLogAuditPanel");
+  const dailyLogIndicators = document.getElementById("dailyLogIndicators");
+  const dailyLogPhotoInput = document.getElementById("dailyLogPhotoInput");
+  const dailyLogSearchInput = document.getElementById("dailyLogSearchInput");
+  const dailyLogShareWhatsappButton = document.getElementById("dailyLogShareWhatsapp");
+  const dailyLogShareEmailButton = document.getElementById("dailyLogShareEmail");
+  const compositionForm = document.getElementById("compositionForm");
+  const compositionAddMaterialButton = document.getElementById("compositionAddMaterial");
+  const compositionMaterialsList = document.getElementById("compositionMaterialsList");
+  const compositionLibraryList = document.getElementById("compositionLibraryList");
+  const compositionResetButton = document.getElementById("compositionResetButton");
+  const compositionRestoreDefaultsButton = document.getElementById("compositionRestoreDefaults");
   const currentReportLabel = document.getElementById("currentReportLabel");
   const saveReportButton = document.getElementById("saveReportButton");
   const backToDashboardButton = document.getElementById("backToDashboardButton");
@@ -86,6 +116,15 @@
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
   let activeAiTarget = null;
+  let dailyLogDraft = createEmptyDailyLogDraft_();
+  let dailyLogSearchTerm = "";
+  let compositionDraft = createEmptyCompositionDraft_();
+  let dailyLogEstimateDraft = {
+    items: [],
+    audit: [],
+    missing: [],
+    editable: false
+  };
 
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
@@ -97,6 +136,7 @@
   initializeWizard_();
   initializeDraft_();
   initializeAiAssistant_();
+  initializeDailyLogModule_();
   initializeSaas_();
 
   if (openReportButton && homePanel && reportPanel) {
@@ -287,6 +327,136 @@
     return String(value || "").trim();
   }
 
+  function ensureCompositionLibrary_(items) {
+    const current = Array.isArray(items) ? items : [];
+    const defaultById = {};
+
+    getDefaultCompositions_().forEach(function (composition) {
+      defaultById[composition.id] = composition;
+    });
+
+    const normalized = current
+      .filter(Boolean)
+      .map(normalizeComposition_);
+    const existingIds = new Set(normalized.map(function (composition) {
+      return composition.id;
+    }));
+
+    Object.keys(defaultById).forEach(function (id) {
+      if (!existingIds.has(id)) {
+        normalized.push(cloneComposition_(defaultById[id]));
+      }
+    });
+
+    return normalized;
+  }
+
+  function getDefaultCompositions_() {
+    return [
+      createDefaultComposition_("std_alvenaria", "Alvenaria", "m²", 5, [
+        ["Bloco cerâmico", 13, "un", ""],
+        ["Cimento", 0.1, "saco", ""],
+        ["Areia", 0.018, "m³", ""]
+      ]),
+      createDefaultComposition_("std_chapisco", "Chapisco", "m²", 5, [
+        ["Cimento", 0.05, "saco", ""],
+        ["Areia", 0.006, "m³", ""]
+      ]),
+      createDefaultComposition_("std_reboco", "Reboco", "m²", 5, [
+        ["Cimento", 0.08, "saco", ""],
+        ["Areia", 0.02, "m³", ""]
+      ]),
+      createDefaultComposition_("std_emboco", "Emboço", "m²", 5, [
+        ["Cimento", 0.07, "saco", ""],
+        ["Areia", 0.018, "m³", ""]
+      ]),
+      createDefaultComposition_("std_contrapiso", "Contrapiso", "m²", 5, [
+        ["Cimento", 0.12, "saco", ""],
+        ["Areia", 0.025, "m³", ""]
+      ]),
+      createDefaultComposition_("std_piso", "Piso", "m²", 3, [
+        ["Piso cerâmico", 1.05, "m²", ""],
+        ["Argamassa colante", 0.25, "saco", ""],
+        ["Rejunte", 0.2, "kg", ""]
+      ]),
+      createDefaultComposition_("std_revestimento", "Revestimento", "m²", 3, [
+        ["Revestimento cerâmico", 1.05, "m²", ""],
+        ["Argamassa colante", 0.25, "saco", ""],
+        ["Rejunte", 0.18, "kg", ""]
+      ]),
+      createDefaultComposition_("std_pintura", "Pintura", "m²", 5, [
+        ["Tinta", 0.12, "litro", ""],
+        ["Massa corrida", 0.18, "kg", ""]
+      ]),
+      createDefaultComposition_("std_esgoto", "Tubulação de esgoto", "m", 3, [
+        ["Tubo PVC esgoto", 1.03, "m", ""],
+        ["Conexões PVC", 0.25, "un", ""]
+      ]),
+      createDefaultComposition_("std_agua", "Tubulação de água", "m", 3, [
+        ["Tubo PVC água", 1.03, "m", ""],
+        ["Conexões PVC", 0.2, "un", ""]
+      ]),
+      createDefaultComposition_("std_eletroduto", "Eletroduto", "m", 3, [
+        ["Eletroduto", 1.03, "m", ""],
+        ["Conexões elétricas", 0.15, "un", ""]
+      ])
+    ];
+  }
+
+  function createDefaultComposition_(id, service, productionUnit, lossPercent, materials) {
+    return {
+      id: id,
+      service: service,
+      productionUnit: productionUnit,
+      lossPercent: lossPercent,
+      note: "Composição padrão editável do ObraReport.",
+      source: "ObraReport",
+      sinapiCode: "",
+      state: "",
+      competence: "",
+      externalSource: "",
+      materials: materials.map(function (item, index) {
+        return {
+          id: id + "_mat_" + index,
+          name: item[0],
+          quantityPerUnit: item[1],
+          unit: item[2],
+          note: item[3] || ""
+        };
+      })
+    };
+  }
+
+  function normalizeComposition_(composition) {
+    const copy = cloneComposition_(composition);
+    copy.id = copy.id || createId_("cmp");
+    copy.service = clean(copy.service || copy.name) || "Serviço";
+    copy.productionUnit = clean(copy.productionUnit) || "m²";
+    copy.lossPercent = parseNumber_(copy.lossPercent);
+    copy.note = clean(copy.note);
+    copy.source = clean(copy.source) || "Personalizada";
+    copy.sinapiCode = clean(copy.sinapiCode);
+    copy.state = clean(copy.state);
+    copy.competence = clean(copy.competence);
+    copy.externalSource = clean(copy.externalSource);
+    copy.materials = Array.isArray(copy.materials) ? copy.materials.map(function (material) {
+      return {
+        id: material.id || createId_("cmt"),
+        name: clean(material.name),
+        quantityPerUnit: parseNumber_(material.quantityPerUnit),
+        unit: clean(material.unit) || "un",
+        note: clean(material.note)
+      };
+    }).filter(function (material) {
+      return material.name && material.quantityPerUnit > 0;
+    }) : [];
+    return copy;
+  }
+
+  function cloneComposition_(composition) {
+    return JSON.parse(JSON.stringify(composition || {}));
+  }
+
   function initializeSaas_() {
     bindSaasEvents_();
     renderSaasState_();
@@ -365,6 +535,23 @@
         });
       });
     });
+
+    if (dashboardPanel) {
+      dashboardPanel.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const diaryRouteButton = target && target.closest ? target.closest("[data-route-target='diario']") : null;
+
+        if (!diaryRouteButton) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setLastOpened_("diario");
+        scheduleLocalDataSave_();
+        showDashboardPanel_("diario");
+      }, true);
+    }
 
     routeButtons.forEach(function (button) {
       button.addEventListener("click", function () {
@@ -583,6 +770,8 @@
         parsed.clients = Array.isArray(parsed.clients) ? parsed.clients : [];
         parsed.works = Array.isArray(parsed.works) ? parsed.works : [];
         parsed.reports = Array.isArray(parsed.reports) ? parsed.reports : [];
+        parsed.dailyLogs = Array.isArray(parsed.dailyLogs) ? parsed.dailyLogs : [];
+        parsed.compositions = Array.isArray(parsed.compositions) ? parsed.compositions : [];
         return ensureLocalState_(parsed);
       }
     } catch (error) {
@@ -596,11 +785,19 @@
       clients: [],
       works: [],
       reports: [],
+      dailyLogs: [],
+      compositions: [],
       billing: {}
     });
   }
 
   function ensureLocalState_(state) {
+    state.users = Array.isArray(state.users) ? state.users : [];
+    state.clients = Array.isArray(state.clients) ? state.clients : [];
+    state.works = Array.isArray(state.works) ? state.works : [];
+    state.reports = Array.isArray(state.reports) ? state.reports : [];
+    state.dailyLogs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
+    state.compositions = ensureCompositionLibrary_(state.compositions);
     state.local = state.local || {};
     state.local.lastRoute = state.local.lastRoute || "dashboard";
     state.local.lastView = state.local.lastView || state.local.lastRoute;
@@ -891,6 +1088,8 @@
         clients: state.clients || [],
         works: state.works || [],
         reports: [],
+        dailyLogs: Array.isArray(appState.dailyLogs) ? appState.dailyLogs : [],
+        compositions: ensureCompositionLibrary_(appState.compositions),
         billing: state.billing || appState.billing || {},
         local: Object.assign({}, appState.local || {}, {
           updatedAt: new Date().toISOString()
@@ -943,7 +1142,7 @@
 
   function getRouteFromHash_() {
     const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
-    return ["dashboard", "clientes", "obras", "relatorios", "planos"].indexOf(value) >= 0 ? value : "dashboard";
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos"].indexOf(value) >= 0 ? value : "dashboard";
   }
 
   function getReportIdFromHash_() {
@@ -1026,6 +1225,20 @@
       });
   }
 
+  function getUserDailyLogs_() {
+    if (!currentUser) {
+      return [];
+    }
+
+    return (appState.dailyLogs || [])
+      .filter(function (logItem) {
+        return logItem.userId === currentUser.id;
+      })
+      .sort(function (a, b) {
+        return String(b.date || b.updatedAt || "").localeCompare(String(a.date || a.updatedAt || ""));
+      });
+  }
+
   function renderSaasState_() {
     if (!currentUser) {
       return;
@@ -1034,6 +1247,7 @@
     const clients = getUserClients_();
     const works = getUserWorks_();
     const reports = getUserReports_();
+    const dailyLogs = getUserDailyLogs_();
     const activeWorks = works.filter(function (work) {
       return String(work.status || "").toLowerCase().indexOf("andamento") >= 0;
     });
@@ -1071,10 +1285,12 @@
     renderClientOptions_(workClientSelect, clients);
     renderClientOptions_(reportClientSelect, clients);
     renderReportWorkOptions_(reportClientSelect ? reportClientSelect.value : "");
+    renderDailyLogWorkOptions_(works);
     renderClientsList_(clients);
     renderWorksList_(works);
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
+    renderDailyLogModule_(dailyLogs);
     renderBillingState_();
     updateReportContext_();
   }
@@ -1445,6 +1661,13 @@
             if (reportWorkSelect) {
               reportWorkSelect.value = work.id;
             }
+          }),
+          createMiniButton_("Novo diário", "", function () {
+            showDashboardPanel_("diario");
+            if (dailyLogWorkSelect) {
+              dailyLogWorkSelect.value = work.id;
+            }
+            setLastOpened_("diario", work.clientId, work.id, "");
           })
         ]
       );
@@ -1523,6 +1746,2074 @@
     button.textContent = label;
     button.addEventListener("click", onClick);
     return button;
+  }
+
+  function initializeDailyLogModule_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    const dailyLogRouteButton = document.querySelector("[data-route-target='diario']");
+
+    if (dailyLogRouteButton) {
+      dailyLogRouteButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setLastOpened_("diario");
+        scheduleLocalDataSave_();
+        showDashboardPanel_("diario");
+      }, true);
+    }
+
+    dailyLogForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      saveDailyLogFromForm_();
+    });
+
+    dailyLogForm.addEventListener("click", function (event) {
+      const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+      const actionButton = target && target.closest ? target.closest("[data-diary-action]") : null;
+      const aiButton = target && target.closest ? target.closest("[data-diary-ai-action]") : null;
+
+      if (aiButton) {
+        event.preventDefault();
+        handleDiaryAiAction_(aiButton).catch(function (error) {
+          console.error(error);
+          setDailyLogStatus_(error.message || "Não foi possível gerar o texto com IA.", "error");
+        });
+        return;
+      }
+
+      if (!actionButton) {
+        return;
+      }
+
+      event.preventDefault();
+      handleDailyLogDraftAction_(actionButton);
+    });
+
+    if (dailyLogResetButton) {
+      dailyLogResetButton.addEventListener("click", function () {
+        resetDailyLogForm_();
+      });
+    }
+
+    if (dailyLogAddProductionButton) {
+      dailyLogAddProductionButton.addEventListener("click", function () {
+        addDailyLogProduction_();
+      });
+    }
+
+    if (dailyLogCalculateMaterialsButton) {
+      dailyLogCalculateMaterialsButton.addEventListener("click", function () {
+        calculateDailyLogEstimatedMaterials_();
+      });
+    }
+
+    if (dailyLogEstimatePanel) {
+      dailyLogEstimatePanel.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const button = target && target.closest ? target.closest("[data-estimate-action]") : null;
+
+        if (!button) {
+          return;
+        }
+
+        event.preventDefault();
+        handleEstimateAction_(button);
+      });
+    }
+
+    if (dailyLogAddMaterialButton) {
+      dailyLogAddMaterialButton.addEventListener("click", function () {
+        addDailyLogMaterial_();
+      });
+    }
+
+    if (dailyLogAddToolButton) {
+      dailyLogAddToolButton.addEventListener("click", function () {
+        addDailyLogTool_();
+      });
+    }
+
+    if (dailyLogAddPhotoButton) {
+      dailyLogAddPhotoButton.addEventListener("click", function () {
+        addDailyLogPhoto_().catch(function (error) {
+          console.error(error);
+          setDailyLogStatus_(error.message || "Não foi possível adicionar a foto.", "error");
+        });
+      });
+    }
+
+    if (dailyLogShareWhatsappButton) {
+      dailyLogShareWhatsappButton.addEventListener("click", function () {
+        shareDailyLogSummary_("whatsapp");
+      });
+    }
+
+    if (dailyLogShareEmailButton) {
+      dailyLogShareEmailButton.addEventListener("click", function () {
+        shareDailyLogSummary_("email");
+      });
+    }
+
+    if (dailyLogWorkSelect) {
+      dailyLogWorkSelect.addEventListener("change", function () {
+        const work = findWork_(dailyLogWorkSelect.value);
+        setLastOpened_("diario", work ? work.clientId : "", dailyLogWorkSelect.value, "");
+        scheduleLocalDataSave_({ syncCloud: false });
+      });
+    }
+
+    if (dailyLogRecordsList) {
+      dailyLogRecordsList.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const button = target && target.closest ? target.closest("[data-daily-log-record-action]") : null;
+
+        if (!button) {
+          return;
+        }
+
+        event.preventDefault();
+        if (button.dataset.dailyLogRecordAction === "edit") {
+          loadDailyLogIntoForm_(button.dataset.dailyLogId);
+          showDashboardPanel_("diario");
+        }
+
+        if (button.dataset.dailyLogRecordAction === "remove") {
+          removeDailyLog_(button.dataset.dailyLogId);
+        }
+      });
+    }
+
+    if (dailyLogSearchInput) {
+      dailyLogSearchInput.addEventListener("input", function () {
+        dailyLogSearchTerm = clean(dailyLogSearchInput.value).toLowerCase();
+        renderDailyLogRecords_(getUserDailyLogs_());
+      });
+    }
+
+    initializeCompositionLibrary_();
+    resetDailyLogForm_();
+  }
+
+  function createEmptyDailyLogDraft_() {
+    return {
+      productions: [],
+      materials: [],
+      tools: [],
+      photos: [],
+      editingProductionId: "",
+      editingMaterialId: "",
+      editingToolId: ""
+    };
+  }
+
+  function createEmptyCompositionDraft_() {
+    return {
+      materials: [],
+      editingMaterialId: ""
+    };
+  }
+
+  function initializeCompositionLibrary_() {
+    if (!compositionForm) {
+      return;
+    }
+
+    compositionForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      saveCompositionFromForm_();
+    });
+
+    if (compositionAddMaterialButton) {
+      compositionAddMaterialButton.addEventListener("click", function () {
+        addCompositionMaterial_();
+      });
+    }
+
+    if (compositionResetButton) {
+      compositionResetButton.addEventListener("click", function () {
+        resetCompositionForm_();
+      });
+    }
+
+    if (compositionRestoreDefaultsButton) {
+      compositionRestoreDefaultsButton.addEventListener("click", function () {
+        restoreDefaultCompositions_();
+      });
+    }
+
+    if (compositionMaterialsList) {
+      compositionMaterialsList.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const button = target && target.closest ? target.closest("[data-composition-material-action]") : null;
+
+        if (!button) {
+          return;
+        }
+
+        event.preventDefault();
+        handleCompositionMaterialAction_(button);
+      });
+    }
+
+    if (compositionLibraryList) {
+      compositionLibraryList.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const button = target && target.closest ? target.closest("[data-composition-action]") : null;
+
+        if (!button) {
+          return;
+        }
+
+        event.preventDefault();
+        handleCompositionAction_(button);
+      });
+    }
+
+    resetCompositionForm_();
+  }
+
+  function renderCompositionModule_() {
+    renderCompositionMaterialsDraft_();
+    renderCompositionLibraryList_();
+  }
+
+  function saveCompositionFromForm_() {
+    if (!compositionForm) {
+      return;
+    }
+
+    const formData = new FormData(compositionForm);
+    const id = clean(formData.get("compositionId")) || createId_("cmp");
+    const composition = normalizeComposition_({
+      id: id,
+      service: clean(formData.get("compositionService")),
+      productionUnit: clean(formData.get("compositionProductionUnit")) || "m²",
+      lossPercent: parseNumber_(formData.get("compositionLossPercent")),
+      source: clean(formData.get("compositionSource")) || "Personalizada",
+      sinapiCode: clean(formData.get("compositionSinapiCode")),
+      state: clean(formData.get("compositionState")),
+      competence: clean(formData.get("compositionCompetence")),
+      externalSource: clean(formData.get("compositionExternalSource")),
+      note: clean(formData.get("compositionNote")),
+      materials: cloneDailyLogItems_(compositionDraft.materials)
+    });
+
+    if (!composition.service || !composition.materials.length) {
+      setDailyLogStatus_("Informe serviço e pelo menos um material da composição.", "error");
+      return;
+    }
+
+    const existingIndex = appState.compositions.findIndex(function (item) {
+      return item.id === composition.id;
+    });
+
+    if (existingIndex >= 0) {
+      appState.compositions[existingIndex] = composition;
+    } else {
+      appState.compositions.push(composition);
+    }
+
+    saveLocalData({ syncCloud: false });
+    resetCompositionForm_();
+    renderCompositionModule_();
+    setDailyLogStatus_("Composição salva localmente.", "success");
+  }
+
+  function addCompositionMaterial_() {
+    if (!compositionForm) {
+      return;
+    }
+
+    const name = clean(compositionForm.elements.compositionMaterialName && compositionForm.elements.compositionMaterialName.value);
+    const quantityPerUnit = parseNumber_(compositionForm.elements.compositionMaterialQuantity && compositionForm.elements.compositionMaterialQuantity.value);
+    const unit = clean(compositionForm.elements.compositionMaterialUnit && compositionForm.elements.compositionMaterialUnit.value) || "un";
+    const note = clean(compositionForm.elements.compositionMaterialNote && compositionForm.elements.compositionMaterialNote.value);
+
+    if (!name || quantityPerUnit <= 0) {
+      setDailyLogStatus_("Informe material e quantidade por unidade.", "error");
+      return;
+    }
+
+    const item = {
+      id: compositionDraft.editingMaterialId || createId_("cmt"),
+      name: name,
+      quantityPerUnit: quantityPerUnit,
+      unit: unit,
+      note: note
+    };
+    const existingIndex = compositionDraft.materials.findIndex(function (material) {
+      return material.id === item.id;
+    });
+
+    if (existingIndex >= 0) {
+      compositionDraft.materials[existingIndex] = item;
+    } else {
+      compositionDraft.materials.push(item);
+    }
+
+    compositionDraft.editingMaterialId = "";
+    compositionForm.elements.compositionMaterialName.value = "";
+    compositionForm.elements.compositionMaterialQuantity.value = "";
+    compositionForm.elements.compositionMaterialUnit.value = "un";
+    compositionForm.elements.compositionMaterialNote.value = "";
+    if (compositionAddMaterialButton) {
+      compositionAddMaterialButton.textContent = "Adicionar material da composição";
+    }
+    renderCompositionMaterialsDraft_();
+  }
+
+  function resetCompositionForm_() {
+    if (!compositionForm) {
+      return;
+    }
+
+    compositionForm.reset();
+    compositionDraft = createEmptyCompositionDraft_();
+    compositionForm.elements.compositionId.value = "";
+    compositionForm.elements.compositionSource.value = "Personalizada";
+    compositionForm.elements.compositionProductionUnit.value = "m²";
+    compositionForm.elements.compositionMaterialUnit.value = "un";
+    if (compositionAddMaterialButton) {
+      compositionAddMaterialButton.textContent = "Adicionar material da composição";
+    }
+    renderCompositionMaterialsDraft_();
+  }
+
+  function restoreDefaultCompositions_() {
+    const custom = appState.compositions.filter(function (composition) {
+      return composition.source !== "ObraReport";
+    });
+
+    appState.compositions = getDefaultCompositions_().concat(custom);
+    saveLocalData({ syncCloud: false });
+    resetCompositionForm_();
+    renderCompositionModule_();
+    setDailyLogStatus_("Composições padrão ObraReport restauradas.", "success");
+  }
+
+  function renderCompositionMaterialsDraft_() {
+    if (!compositionMaterialsList) {
+      return;
+    }
+
+    compositionMaterialsList.innerHTML = "";
+    if (!compositionDraft.materials.length) {
+      compositionMaterialsList.textContent = "Nenhum material na composição.";
+      compositionMaterialsList.className = "diary-item-list empty-list";
+      return;
+    }
+
+    compositionMaterialsList.className = "diary-item-list";
+    compositionDraft.materials.forEach(function (material) {
+      compositionMaterialsList.appendChild(createDiaryListItem_(
+        material.name,
+        formatQuantity_(material.quantityPerUnit) + " " + material.unit + " por unidade",
+        material.note,
+        [
+          createCompositionMaterialButton_("Editar", "edit", material.id),
+          createCompositionMaterialButton_("Remover", "remove", material.id)
+        ]
+      ));
+    });
+  }
+
+  function renderCompositionLibraryList_() {
+    if (!compositionLibraryList) {
+      return;
+    }
+
+    const compositions = ensureCompositionLibrary_(appState.compositions).sort(function (a, b) {
+      return String(a.service || "").localeCompare(String(b.service || ""));
+    });
+
+    appState.compositions = compositions;
+    compositionLibraryList.innerHTML = "";
+
+    if (!compositions.length) {
+      compositionLibraryList.textContent = "Nenhuma composição cadastrada.";
+      compositionLibraryList.className = "diary-item-list empty-list";
+      return;
+    }
+
+    compositionLibraryList.className = "diary-item-list";
+    compositions.forEach(function (composition) {
+      const actions = [
+        createCompositionButton_("Editar", "edit", composition.id),
+        createCompositionButton_("Duplicar", "duplicate", composition.id)
+      ];
+
+      if (composition.source !== "ObraReport") {
+        actions.push(createCompositionButton_("Remover", "remove", composition.id));
+      }
+
+      compositionLibraryList.appendChild(createDiaryListItem_(
+        composition.service,
+        [
+          composition.productionUnit,
+          "Perda " + formatQuantity_(composition.lossPercent || 0) + "%",
+          composition.source
+        ].join(" · "),
+        composition.materials.length + " material(is) · " + (composition.note || "Sem observação."),
+        actions
+      ));
+    });
+  }
+
+  function createCompositionMaterialButton_(label, action, materialId) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = action === "remove" ? "mini-button danger" : "mini-button";
+    button.textContent = label;
+    button.dataset.compositionMaterialAction = action;
+    button.dataset.materialId = materialId;
+    return button;
+  }
+
+  function createCompositionButton_(label, action, compositionId) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = action === "remove" ? "mini-button danger" : "mini-button";
+    button.textContent = label;
+    button.dataset.compositionAction = action;
+    button.dataset.compositionId = compositionId;
+    return button;
+  }
+
+  function handleCompositionMaterialAction_(button) {
+    const materialId = button.dataset.materialId;
+
+    if (button.dataset.compositionMaterialAction === "remove") {
+      compositionDraft.materials = compositionDraft.materials.filter(function (material) {
+        return material.id !== materialId;
+      });
+      renderCompositionMaterialsDraft_();
+      return;
+    }
+
+    const material = compositionDraft.materials.find(function (item) {
+      return item.id === materialId;
+    });
+
+    if (!material || !compositionForm) {
+      return;
+    }
+
+    compositionDraft.editingMaterialId = material.id;
+    compositionForm.elements.compositionMaterialName.value = material.name || "";
+    compositionForm.elements.compositionMaterialQuantity.value = material.quantityPerUnit || "";
+    compositionForm.elements.compositionMaterialUnit.value = material.unit || "un";
+    compositionForm.elements.compositionMaterialNote.value = material.note || "";
+    if (compositionAddMaterialButton) {
+      compositionAddMaterialButton.textContent = "Atualizar material da composição";
+    }
+  }
+
+  function handleCompositionAction_(button) {
+    const composition = findComposition_(button.dataset.compositionId);
+
+    if (!composition) {
+      return;
+    }
+
+    if (button.dataset.compositionAction === "edit") {
+      loadCompositionIntoForm_(composition);
+      return;
+    }
+
+    if (button.dataset.compositionAction === "duplicate") {
+      loadCompositionIntoForm_(Object.assign(cloneComposition_(composition), {
+        id: "",
+        service: composition.service + " personalizada",
+        source: "Personalizada"
+      }));
+      setDailyLogStatus_("Composição duplicada para personalização. Revise e salve.", "info");
+      return;
+    }
+
+    if (button.dataset.compositionAction === "remove" && composition.source !== "ObraReport") {
+      appState.compositions = appState.compositions.filter(function (item) {
+        return item.id !== composition.id;
+      });
+      saveLocalData({ syncCloud: false });
+      renderCompositionModule_();
+      setDailyLogStatus_("Composição personalizada removida.", "success");
+    }
+  }
+
+  function loadCompositionIntoForm_(composition) {
+    if (!compositionForm) {
+      return;
+    }
+
+    compositionForm.reset();
+    compositionForm.elements.compositionId.value = composition.id || "";
+    compositionForm.elements.compositionService.value = composition.service || "";
+    compositionForm.elements.compositionProductionUnit.value = composition.productionUnit || "m²";
+    compositionForm.elements.compositionLossPercent.value = composition.lossPercent || "";
+    compositionForm.elements.compositionSource.value = composition.source || "Personalizada";
+    compositionForm.elements.compositionSinapiCode.value = composition.sinapiCode || "";
+    compositionForm.elements.compositionState.value = composition.state || "";
+    compositionForm.elements.compositionCompetence.value = composition.competence || "";
+    compositionForm.elements.compositionExternalSource.value = composition.externalSource || "";
+    compositionForm.elements.compositionNote.value = composition.note || "";
+    compositionDraft = createEmptyCompositionDraft_();
+    compositionDraft.materials = cloneDailyLogItems_(composition.materials);
+    renderCompositionMaterialsDraft_();
+    compositionForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function findComposition_(compositionId) {
+    return ensureCompositionLibrary_(appState.compositions).find(function (composition) {
+      return composition.id === compositionId;
+    }) || null;
+  }
+
+  function clearDailyLogEstimate_() {
+    dailyLogEstimateDraft = {
+      items: [],
+      audit: [],
+      missing: [],
+      editable: false
+    };
+    renderEstimatePanel_();
+  }
+
+  function calculateDailyLogEstimatedMaterials_() {
+    if (!dailyLogDraft.productions.length) {
+      setDailyLogStatus_("Adicione produção executada antes de calcular materiais estimados.", "error");
+      return;
+    }
+
+    const result = buildEstimatedMaterialsForProductions_(dailyLogDraft.productions);
+    dailyLogEstimateDraft = {
+      items: result.items,
+      audit: result.audit,
+      missing: result.missing,
+      editable: false
+    };
+    renderEstimatePanel_();
+
+    if (!result.items.length) {
+      setDailyLogStatus_("Nenhuma composição encontrada para a produção registrada.", "error");
+      return;
+    }
+
+    setDailyLogStatus_("Consumo estimado calculado. Revise antes de aplicar ao diário.", "success");
+  }
+
+  function buildEstimatedMaterialsForProductions_(productions) {
+    const grouped = {};
+    const missing = [];
+
+    productions.forEach(function (production) {
+      const composition = findCompositionForProduction_(production);
+      const productionQuantity = parseNumber_(production.quantity);
+
+      if (!composition || productionQuantity <= 0) {
+        missing.push(production);
+        return;
+      }
+
+      const lossMultiplier = 1 + (parseNumber_(composition.lossPercent) / 100);
+      (composition.materials || []).forEach(function (material) {
+        const estimatedQuantity = productionQuantity * parseNumber_(material.quantityPerUnit) * lossMultiplier;
+        const key = normalizeCompositionKey_(material.name) + "|" + (material.unit || "un");
+
+        if (!grouped[key]) {
+          grouped[key] = {
+            id: createId_("est"),
+            name: material.name,
+            quantity: 0,
+            unit: material.unit || "un",
+            note: "Consumo calculado por composição estimada. Revise antes de aplicar.",
+            sources: []
+          };
+        }
+
+        grouped[key].quantity += estimatedQuantity;
+        grouped[key].sources.push(
+          production.service + " " + formatQuantity_(productionQuantity) + " " + (production.unit || composition.productionUnit)
+        );
+      });
+    });
+
+    const items = Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.quantity = roundQuantity_(item.quantity);
+      item.note += " Origem: " + item.sources.join("; ") + ".";
+      return item;
+    }).sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+
+    return {
+      items: items,
+      missing: missing,
+      audit: buildEstimatedConsumptionAudit_(items)
+    };
+  }
+
+  function findCompositionForProduction_(production) {
+    const serviceKey = normalizeCompositionKey_(production.service);
+    const unitKey = normalizeUnitKey_(production.unit);
+    const compositions = ensureCompositionLibrary_(appState.compositions).filter(function (composition) {
+      return normalizeCompositionKey_(composition.service) === serviceKey;
+    });
+
+    if (!compositions.length) {
+      return null;
+    }
+
+    return compositions.find(function (composition) {
+      return composition.source !== "ObraReport" && normalizeUnitKey_(composition.productionUnit) === unitKey;
+    }) || compositions.find(function (composition) {
+      return normalizeUnitKey_(composition.productionUnit) === unitKey;
+    }) || compositions.find(function (composition) {
+      return composition.source !== "ObraReport";
+    }) || compositions[0];
+  }
+
+  function buildEstimatedConsumptionAudit_(estimatedItems) {
+    const registered = {};
+
+    dailyLogDraft.materials.forEach(function (material) {
+      const key = normalizeCompositionKey_(material.name) + "|" + (material.unit || "un");
+
+      if (!registered[key]) {
+        registered[key] = {
+          quantity: 0,
+          unit: material.unit || "un"
+        };
+      }
+
+      registered[key].quantity += parseNumber_(material.quantity);
+    });
+
+    return estimatedItems.map(function (item) {
+      const key = normalizeCompositionKey_(item.name) + "|" + (item.unit || "un");
+      const registeredQuantity = registered[key] ? registered[key].quantity : 0;
+
+      return {
+        name: item.name,
+        unit: item.unit,
+        estimated: item.quantity,
+        registered: roundQuantity_(registeredQuantity),
+        difference: roundQuantity_(registeredQuantity - item.quantity)
+      };
+    });
+  }
+
+  function renderEstimatePanel_() {
+    if (!dailyLogEstimatePanel) {
+      return;
+    }
+
+    const items = dailyLogEstimateDraft.items || [];
+    const missing = dailyLogEstimateDraft.missing || [];
+
+    dailyLogEstimatePanel.innerHTML = "";
+    if (!items.length && !missing.length) {
+      dailyLogEstimatePanel.className = "estimate-panel is-hidden";
+      return;
+    }
+
+    dailyLogEstimatePanel.className = "estimate-panel";
+    dailyLogEstimatePanel.appendChild(createEstimateTitle_("Consumo estimado"));
+    dailyLogEstimatePanel.appendChild(createEstimateWarning_());
+
+    if (items.length) {
+      const list = document.createElement("div");
+      list.className = dailyLogEstimateDraft.editable ? "estimate-edit-list" : "diary-item-list";
+
+      items.forEach(function (item, index) {
+        if (dailyLogEstimateDraft.editable) {
+          list.appendChild(createEstimateEditRow_(item, index));
+        } else {
+          list.appendChild(createDiaryListItem_(
+            item.name,
+            formatQuantity_(item.quantity) + " " + item.unit,
+            item.note,
+            []
+          ));
+        }
+      });
+
+      dailyLogEstimatePanel.appendChild(list);
+      dailyLogEstimatePanel.appendChild(createEstimateTitle_("Auditoria simples"));
+      dailyLogEstimatePanel.appendChild(createEstimateAuditList_(dailyLogEstimateDraft.audit || []));
+    }
+
+    if (missing.length) {
+      const missingNote = document.createElement("p");
+      missingNote.className = "estimate-warning";
+      missingNote.textContent = "Sem composição para: " + missing.map(function (production) {
+        return production.service;
+      }).join(", ") + ".";
+      dailyLogEstimatePanel.appendChild(missingNote);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "button-row";
+    actions.appendChild(createEstimateActionButton_("Aplicar ao diário", "apply", "next-action compact"));
+    actions.appendChild(createEstimateActionButton_("Editar antes de aplicar", "edit", "secondary-action compact"));
+    actions.appendChild(createEstimateActionButton_("Cancelar", "cancel", "mini-button danger"));
+    dailyLogEstimatePanel.appendChild(actions);
+  }
+
+  function createEstimateTitle_(text) {
+    const title = document.createElement("h5");
+    title.textContent = text;
+    return title;
+  }
+
+  function createEstimateWarning_() {
+    const warning = document.createElement("p");
+    warning.className = "estimate-warning";
+    warning.textContent = "Consumo calculado por composição estimada. Revise antes de aplicar.";
+    return warning;
+  }
+
+  function createEstimateEditRow_(item, index) {
+    const row = document.createElement("div");
+    row.className = "inline-editor-grid estimate-edit-grid";
+
+    row.appendChild(createEstimateInput_("estimateName", "Material", item.name, index, "text"));
+    row.appendChild(createEstimateInput_("estimateQuantity", "Quantidade", item.quantity, index, "number"));
+    row.appendChild(createEstimateInput_("estimateUnit", "Unidade", item.unit, index, "text"));
+    row.appendChild(createEstimateInput_("estimateNote", "Observação", item.note, index, "text"));
+    return row;
+  }
+
+  function createEstimateInput_(name, label, value, index, type) {
+    const wrapper = document.createElement("label");
+    const caption = document.createElement("span");
+    const input = document.createElement("input");
+
+    caption.textContent = label;
+    input.name = name;
+    input.value = value || "";
+    input.type = type;
+    input.dataset.estimateIndex = index;
+    if (type === "number") {
+      input.min = "0";
+      input.step = "0.001";
+    }
+
+    wrapper.appendChild(caption);
+    wrapper.appendChild(input);
+    return wrapper;
+  }
+
+  function createEstimateAuditList_(auditItems) {
+    const list = document.createElement("div");
+    list.className = "diary-item-list";
+
+    if (!auditItems.length) {
+      list.className = "diary-item-list empty-list";
+      list.textContent = "Nenhum item para comparar.";
+      return list;
+    }
+
+    auditItems.forEach(function (item) {
+      list.appendChild(createDiaryListItem_(
+        item.name,
+        "Estimado: " + formatQuantity_(item.estimated) + " " + item.unit +
+          " · Registrado: " + formatQuantity_(item.registered) + " " + item.unit +
+          " · Diferença: " + formatSignedQuantity_(item.difference) + " " + item.unit,
+        "",
+        []
+      ));
+    });
+
+    return list;
+  }
+
+  function createEstimateActionButton_(label, action, className) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.textContent = label;
+    button.dataset.estimateAction = action;
+    return button;
+  }
+
+  function handleEstimateAction_(button) {
+    const action = button.dataset.estimateAction;
+
+    if (action === "cancel") {
+      clearDailyLogEstimate_();
+      setDailyLogStatus_("Estimativa cancelada. Nenhum material foi alterado.", "info");
+      return;
+    }
+
+    if (action === "edit") {
+      dailyLogEstimateDraft.editable = true;
+      renderEstimatePanel_();
+      setDailyLogStatus_("Ajuste os materiais estimados antes de aplicar ao diário.", "info");
+      return;
+    }
+
+    if (action === "apply") {
+      applyEstimatedMaterialsToDailyLog_();
+    }
+  }
+
+  function applyEstimatedMaterialsToDailyLog_() {
+    const items = dailyLogEstimateDraft.editable ? collectEstimatedItemsFromPanel_() : cloneDailyLogItems_(dailyLogEstimateDraft.items);
+
+    if (!items.length) {
+      setDailyLogStatus_("Nenhum material estimado para aplicar.", "error");
+      return;
+    }
+
+    items.forEach(function (item) {
+      dailyLogDraft.materials.push({
+        id: createId_("mat"),
+        name: item.name,
+        quantity: roundQuantity_(item.quantity),
+        unit: item.unit || "un",
+        unitValue: 0,
+        totalValue: 0,
+        note: item.note || "Consumo calculado por composição estimada. Revise antes de aplicar."
+      });
+    });
+
+    clearDailyLogEstimate_();
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Materiais estimados aplicados ao diário. Revise e salve o registro.", "success");
+  }
+
+  function collectEstimatedItemsFromPanel_() {
+    if (!dailyLogEstimatePanel) {
+      return [];
+    }
+
+    return (dailyLogEstimateDraft.items || []).map(function (item, index) {
+      const name = dailyLogEstimatePanel.querySelector("[name='estimateName'][data-estimate-index='" + index + "']");
+      const quantity = dailyLogEstimatePanel.querySelector("[name='estimateQuantity'][data-estimate-index='" + index + "']");
+      const unit = dailyLogEstimatePanel.querySelector("[name='estimateUnit'][data-estimate-index='" + index + "']");
+      const note = dailyLogEstimatePanel.querySelector("[name='estimateNote'][data-estimate-index='" + index + "']");
+
+      return {
+        name: clean(name && name.value) || item.name,
+        quantity: parseNumber_(quantity && quantity.value),
+        unit: clean(unit && unit.value) || item.unit || "un",
+        note: clean(note && note.value) || item.note
+      };
+    }).filter(function (item) {
+      return item.name && item.quantity > 0;
+    });
+  }
+
+  function normalizeCompositionKey_(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function normalizeUnitKey_(value) {
+    return normalizeCompositionKey_(value);
+  }
+
+  function roundQuantity_(value) {
+    return Math.round(Number(value || 0) * 1000) / 1000;
+  }
+
+  function formatSignedQuantity_(value) {
+    const number = Number(value || 0);
+    return (number > 0 ? "+" : "") + formatQuantity_(number);
+  }
+
+  function renderDailyLogWorkOptions_(works) {
+    if (!dailyLogWorkSelect) {
+      return;
+    }
+
+    const previous = dailyLogWorkSelect.value || (appState.local && appState.local.lastWorkId) || "";
+    dailyLogWorkSelect.innerHTML = "";
+    dailyLogWorkSelect.appendChild(createOption_("", works.length ? "Escolher obra" : "Cadastre uma obra primeiro"));
+
+    works.forEach(function (work) {
+      dailyLogWorkSelect.appendChild(createOption_(work.id, work.name));
+    });
+
+    if (works.some(function (work) { return work.id === previous; })) {
+      dailyLogWorkSelect.value = previous;
+    }
+  }
+
+  function renderDailyLogModule_(dailyLogs) {
+    renderDailyLogDraftLists_();
+    renderCompositionModule_();
+    renderDailyLogRecords_(dailyLogs);
+    renderDailyLogAudit_(dailyLogs);
+    renderDailyLogIndicators_(dailyLogs);
+
+    if (dailyLogStatus) {
+      dailyLogStatus.textContent = dailyLogs.length
+        ? dailyLogs.length + " diário(s) salvos neste navegador"
+        : "Diários salvos neste navegador";
+    }
+  }
+
+  function saveDailyLogFromForm_() {
+    if (!currentUser || !dailyLogForm) {
+      return;
+    }
+
+    const logItem = collectDailyLogForm_();
+
+    if (!logItem.workId || !logItem.date || !logItem.responsible) {
+      setDailyLogStatus_("Informe obra, data e responsável pelo registro.", "error");
+      return;
+    }
+
+    ensureLocalState_(appState);
+    const existingIndex = appState.dailyLogs.findIndex(function (item) {
+      return item.id === logItem.id;
+    });
+
+    if (existingIndex >= 0) {
+      logItem.createdAt = appState.dailyLogs[existingIndex].createdAt || logItem.createdAt;
+      appState.dailyLogs[existingIndex] = logItem;
+    } else {
+      appState.dailyLogs.push(logItem);
+    }
+
+    const work = findWork_(logItem.workId);
+    setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
+    saveLocalData({ syncCloud: false });
+    renderSaasState_();
+    resetDailyLogForm_();
+    setDailyLogStatus_("Diário salvo localmente.", "success");
+  }
+
+  function collectDailyLogForm_() {
+    const formData = new FormData(dailyLogForm);
+    const id = clean(formData.get("dailyLogId")) || createId_("dia");
+    const now = new Date().toISOString();
+
+    return {
+      id: id,
+      userId: currentUser.id,
+      workId: clean(formData.get("workId")),
+      date: clean(formData.get("date")),
+      responsible: clean(formData.get("responsible")),
+      weather: clean(formData.get("weather")) || "Sol",
+      impact: clean(formData.get("impact")) || "Sem impacto",
+      impactNote: clean(formData.get("impactNote")),
+      startTime: clean(formData.get("startTime")),
+      endTime: clean(formData.get("endTime")),
+      teamPresent: clean(formData.get("teamPresent")),
+      employeeCount: clean(formData.get("employeeCount")),
+      teamNotes: clean(formData.get("teamNotes")),
+      services: clean(formData.get("services")),
+      progress: clean(formData.get("progress")),
+      interferences: clean(formData.get("interferences")),
+      visits: clean(formData.get("visits")),
+      productions: cloneDailyLogItems_(dailyLogDraft.productions),
+      materials: cloneDailyLogItems_(dailyLogDraft.materials),
+      tools: cloneDailyLogItems_(dailyLogDraft.tools),
+      safety: {
+        occurrence: clean(formData.get("safetyOccurrence")) || "Nenhuma ocorrência",
+        description: clean(formData.get("safetyDescription")),
+        actions: clean(formData.get("safetyActions")),
+        responsible: clean(formData.get("safetyResponsible"))
+      },
+      occurrences: clean(formData.get("occurrences")),
+      stoppedEquipment: clean(formData.get("stoppedEquipment")),
+      generalNotes: clean(formData.get("generalNotes")),
+      photos: cloneDailyLogItems_(dailyLogDraft.photos),
+      summary: clean(formData.get("summary")),
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  function cloneDailyLogItems_(items) {
+    return JSON.parse(JSON.stringify(items || []));
+  }
+
+  function resetDailyLogForm_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    dailyLogForm.reset();
+    dailyLogForm.elements.dailyLogId.value = "";
+    dailyLogDraft = createEmptyDailyLogDraft_();
+    clearDailyLogEstimate_();
+
+    if (dailyLogForm.elements.date) {
+      dailyLogForm.elements.date.value = new Date().toISOString().slice(0, 10);
+    }
+
+    if (dailyLogForm.elements.responsible && currentUser) {
+      dailyLogForm.elements.responsible.value = currentUser.name || "";
+    }
+
+    if (dailyLogWorkSelect && appState.local && appState.local.lastWorkId) {
+      dailyLogWorkSelect.value = appState.local.lastWorkId;
+    }
+
+    if (dailyLogAddProductionButton) {
+      dailyLogAddProductionButton.textContent = "Adicionar produção";
+    }
+
+    if (dailyLogAddMaterialButton) {
+      dailyLogAddMaterialButton.textContent = "Adicionar material";
+    }
+
+    if (dailyLogAddToolButton) {
+      dailyLogAddToolButton.textContent = "Adicionar equipamento";
+    }
+
+    renderDailyLogDraftLists_();
+  }
+
+  function loadDailyLogIntoForm_(dailyLogId) {
+    const logItem = findDailyLog_(dailyLogId);
+
+    if (!logItem || !dailyLogForm) {
+      return;
+    }
+
+    dailyLogForm.reset();
+    dailyLogForm.elements.dailyLogId.value = logItem.id;
+    setDailyLogField_("workId", logItem.workId);
+    setDailyLogField_("date", logItem.date);
+    setDailyLogField_("responsible", logItem.responsible);
+    setDailyLogField_("weather", logItem.weather);
+    setDailyLogField_("impact", logItem.impact);
+    setDailyLogField_("impactNote", logItem.impactNote);
+    setDailyLogField_("startTime", logItem.startTime);
+    setDailyLogField_("endTime", logItem.endTime);
+    setDailyLogField_("teamPresent", logItem.teamPresent);
+    setDailyLogField_("employeeCount", logItem.employeeCount);
+    setDailyLogField_("teamNotes", logItem.teamNotes);
+    setDailyLogField_("services", logItem.services);
+    setDailyLogField_("progress", logItem.progress);
+    setDailyLogField_("interferences", logItem.interferences);
+    setDailyLogField_("visits", logItem.visits);
+    setDailyLogField_("safetyOccurrence", logItem.safety && logItem.safety.occurrence);
+    setDailyLogField_("safetyDescription", logItem.safety && logItem.safety.description);
+    setDailyLogField_("safetyActions", logItem.safety && logItem.safety.actions);
+    setDailyLogField_("safetyResponsible", logItem.safety && logItem.safety.responsible);
+    setDailyLogField_("occurrences", logItem.occurrences);
+    setDailyLogField_("stoppedEquipment", logItem.stoppedEquipment);
+    setDailyLogField_("generalNotes", logItem.generalNotes);
+    setDailyLogField_("summary", logItem.summary);
+
+    dailyLogDraft = createEmptyDailyLogDraft_();
+    dailyLogDraft.productions = cloneDailyLogItems_(logItem.productions);
+    dailyLogDraft.materials = cloneDailyLogItems_(logItem.materials);
+    dailyLogDraft.tools = cloneDailyLogItems_(logItem.tools);
+    dailyLogDraft.photos = cloneDailyLogItems_(logItem.photos);
+    clearDailyLogEstimate_();
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Diário carregado para edição.", "info");
+    dailyLogForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function setDailyLogField_(name, value) {
+    if (dailyLogForm && dailyLogForm.elements[name]) {
+      dailyLogForm.elements[name].value = value || "";
+    }
+  }
+
+  function addDailyLogProduction_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    const service = clean(dailyLogForm.elements.productionService && dailyLogForm.elements.productionService.value) || "Outro";
+    const quantity = parseNumber_(dailyLogForm.elements.productionQuantity && dailyLogForm.elements.productionQuantity.value);
+    const unit = clean(dailyLogForm.elements.productionUnit && dailyLogForm.elements.productionUnit.value) || "m²";
+    const note = clean(dailyLogForm.elements.productionNote && dailyLogForm.elements.productionNote.value);
+
+    if (!service || quantity <= 0) {
+      setDailyLogStatus_("Informe o serviço produzido e uma quantidade válida.", "error");
+      return;
+    }
+
+    const item = {
+      id: dailyLogDraft.editingProductionId || createId_("prd"),
+      service: service,
+      quantity: quantity,
+      unit: unit,
+      note: note
+    };
+    const existingIndex = dailyLogDraft.productions.findIndex(function (production) {
+      return production.id === item.id;
+    });
+
+    if (existingIndex >= 0) {
+      dailyLogDraft.productions[existingIndex] = item;
+    } else {
+      dailyLogDraft.productions.push(item);
+    }
+
+    dailyLogDraft.editingProductionId = "";
+    dailyLogForm.elements.productionService.value = "Alvenaria";
+    dailyLogForm.elements.productionQuantity.value = "";
+    dailyLogForm.elements.productionUnit.value = "m²";
+    dailyLogForm.elements.productionNote.value = "";
+    if (dailyLogAddProductionButton) {
+      dailyLogAddProductionButton.textContent = "Adicionar produção";
+    }
+    clearDailyLogEstimate_();
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Produção adicionada ao diário.", "success");
+  }
+
+  function addDailyLogMaterial_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    const name = clean(dailyLogForm.elements.materialName && dailyLogForm.elements.materialName.value);
+    const quantity = parseNumber_(dailyLogForm.elements.materialQuantity && dailyLogForm.elements.materialQuantity.value);
+    const unit = clean(dailyLogForm.elements.materialUnit && dailyLogForm.elements.materialUnit.value) || "un";
+    const unitValue = parseNumber_(dailyLogForm.elements.materialUnitValue && dailyLogForm.elements.materialUnitValue.value);
+    const note = clean(dailyLogForm.elements.materialNote && dailyLogForm.elements.materialNote.value);
+
+    if (!name || quantity <= 0) {
+      setDailyLogStatus_("Informe o material e uma quantidade válida.", "error");
+      return;
+    }
+
+    const item = {
+      id: dailyLogDraft.editingMaterialId || createId_("mat"),
+      name: name,
+      quantity: quantity,
+      unit: unit,
+      unitValue: unitValue,
+      totalValue: quantity * unitValue,
+      note: note
+    };
+    const existingIndex = dailyLogDraft.materials.findIndex(function (material) {
+      return material.id === item.id;
+    });
+
+    if (existingIndex >= 0) {
+      dailyLogDraft.materials[existingIndex] = item;
+    } else {
+      dailyLogDraft.materials.push(item);
+    }
+
+    dailyLogDraft.editingMaterialId = "";
+    dailyLogForm.elements.materialName.value = "";
+    dailyLogForm.elements.materialQuantity.value = "";
+    dailyLogForm.elements.materialUnit.value = "un";
+    dailyLogForm.elements.materialUnitValue.value = "";
+    dailyLogForm.elements.materialNote.value = "";
+    if (dailyLogAddMaterialButton) {
+      dailyLogAddMaterialButton.textContent = "Adicionar material";
+    }
+    clearDailyLogEstimate_();
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Material adicionado ao diário.", "success");
+  }
+
+  function addDailyLogTool_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    const name = clean(dailyLogForm.elements.toolName && dailyLogForm.elements.toolName.value);
+    const status = clean(dailyLogForm.elements.toolStatus && dailyLogForm.elements.toolStatus.value) || "Em uso";
+    const note = clean(dailyLogForm.elements.toolNote && dailyLogForm.elements.toolNote.value);
+
+    if (!name) {
+      setDailyLogStatus_("Informe o nome da ferramenta ou equipamento.", "error");
+      return;
+    }
+
+    const item = {
+      id: dailyLogDraft.editingToolId || createId_("eqp"),
+      name: name,
+      status: status,
+      note: note
+    };
+    const existingIndex = dailyLogDraft.tools.findIndex(function (tool) {
+      return tool.id === item.id;
+    });
+
+    if (existingIndex >= 0) {
+      dailyLogDraft.tools[existingIndex] = item;
+    } else {
+      dailyLogDraft.tools.push(item);
+    }
+
+    dailyLogDraft.editingToolId = "";
+    dailyLogForm.elements.toolName.value = "";
+    dailyLogForm.elements.toolStatus.value = "Em uso";
+    dailyLogForm.elements.toolNote.value = "";
+    if (dailyLogAddToolButton) {
+      dailyLogAddToolButton.textContent = "Adicionar equipamento";
+    }
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Equipamento adicionado ao diário.", "success");
+  }
+
+  async function addDailyLogPhoto_() {
+    if (!dailyLogPhotoInput || !dailyLogForm) {
+      return;
+    }
+
+    const file = dailyLogPhotoInput.files && dailyLogPhotoInput.files[0] ? dailyLogPhotoInput.files[0] : null;
+    const caption = clean(dailyLogForm.elements.dailyPhotoCaption && dailyLogForm.elements.dailyPhotoCaption.value);
+
+    if (!file) {
+      setDailyLogStatus_("Selecione uma foto antes de adicionar ao diário.", "error");
+      return;
+    }
+
+    const record = await enqueueImageProcessing_(function () {
+      return processImageFile_(file, "DIARIO-" + String(dailyLogDraft.photos.length + 1).padStart(2, "0"));
+    });
+
+    dailyLogDraft.photos.push({
+      id: createId_("fot"),
+      caption: caption || "Foto do dia",
+      previewDataUrl: record.previewDataUrl,
+      payload: record.payload,
+      updatedAt: record.updatedAt
+    });
+
+    dailyLogPhotoInput.value = "";
+    dailyLogForm.elements.dailyPhotoCaption.value = "";
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Foto adicionada ao diário.", "success");
+  }
+
+  function handleDailyLogDraftAction_(button) {
+    const action = button.dataset.diaryAction;
+    const id = button.dataset.itemId;
+
+    if (action === "edit-production") {
+      editDailyLogProduction_(id);
+    } else if (action === "remove-production") {
+      dailyLogDraft.productions = dailyLogDraft.productions.filter(function (item) {
+        return item.id !== id;
+      });
+      clearDailyLogEstimate_();
+      renderDailyLogDraftLists_();
+    } else if (action === "edit-material") {
+      editDailyLogMaterial_(id);
+    } else if (action === "remove-material") {
+      dailyLogDraft.materials = dailyLogDraft.materials.filter(function (item) {
+        return item.id !== id;
+      });
+      clearDailyLogEstimate_();
+      renderDailyLogDraftLists_();
+    } else if (action === "edit-tool") {
+      editDailyLogTool_(id);
+    } else if (action === "remove-tool") {
+      dailyLogDraft.tools = dailyLogDraft.tools.filter(function (item) {
+        return item.id !== id;
+      });
+      renderDailyLogDraftLists_();
+    } else if (action === "remove-photo") {
+      dailyLogDraft.photos = dailyLogDraft.photos.filter(function (item) {
+        return item.id !== id;
+      });
+      renderDailyLogDraftLists_();
+    }
+  }
+
+  function editDailyLogProduction_(id) {
+    const item = dailyLogDraft.productions.find(function (production) {
+      return production.id === id;
+    });
+
+    if (!item || !dailyLogForm) {
+      return;
+    }
+
+    dailyLogDraft.editingProductionId = item.id;
+    dailyLogForm.elements.productionService.value = item.service || "Alvenaria";
+    dailyLogForm.elements.productionQuantity.value = item.quantity || "";
+    dailyLogForm.elements.productionUnit.value = item.unit || "m²";
+    dailyLogForm.elements.productionNote.value = item.note || "";
+    if (dailyLogAddProductionButton) {
+      dailyLogAddProductionButton.textContent = "Atualizar produção";
+    }
+  }
+
+  function editDailyLogMaterial_(id) {
+    const item = dailyLogDraft.materials.find(function (material) {
+      return material.id === id;
+    });
+
+    if (!item || !dailyLogForm) {
+      return;
+    }
+
+    dailyLogDraft.editingMaterialId = item.id;
+    dailyLogForm.elements.materialName.value = item.name || "";
+    dailyLogForm.elements.materialQuantity.value = item.quantity || "";
+    dailyLogForm.elements.materialUnit.value = item.unit || "un";
+    dailyLogForm.elements.materialUnitValue.value = item.unitValue || "";
+    dailyLogForm.elements.materialNote.value = item.note || "";
+    if (dailyLogAddMaterialButton) {
+      dailyLogAddMaterialButton.textContent = "Atualizar material";
+    }
+  }
+
+  function editDailyLogTool_(id) {
+    const item = dailyLogDraft.tools.find(function (tool) {
+      return tool.id === id;
+    });
+
+    if (!item || !dailyLogForm) {
+      return;
+    }
+
+    dailyLogDraft.editingToolId = item.id;
+    dailyLogForm.elements.toolName.value = item.name || "";
+    dailyLogForm.elements.toolStatus.value = item.status || "Em uso";
+    dailyLogForm.elements.toolNote.value = item.note || "";
+    if (dailyLogAddToolButton) {
+      dailyLogAddToolButton.textContent = "Atualizar equipamento";
+    }
+  }
+
+  function renderDailyLogDraftLists_() {
+    renderDailyLogProductionsDraft_();
+    renderDailyLogMaterialsDraft_();
+    renderEstimatePanel_();
+    renderDailyLogToolsDraft_();
+    renderDailyLogPhotosDraft_();
+  }
+
+  function renderDailyLogProductionsDraft_() {
+    if (dailyLogProductionSummary) {
+      if (!dailyLogDraft.productions.length) {
+        dailyLogProductionSummary.textContent = "Nenhuma produção registrada.";
+        dailyLogProductionSummary.className = "material-summary empty-list";
+      } else {
+        dailyLogProductionSummary.className = "material-summary";
+        dailyLogProductionSummary.textContent = "Produção executada no dia: " + dailyLogDraft.productions.map(formatProductionSummary_).join("; ") + ".";
+      }
+    }
+
+    if (!dailyLogProductionsList) {
+      return;
+    }
+
+    dailyLogProductionsList.innerHTML = "";
+    if (!dailyLogDraft.productions.length) {
+      dailyLogProductionsList.className = "diary-item-list empty-list";
+      dailyLogProductionsList.textContent = "Nenhuma produção executada registrada.";
+      return;
+    }
+
+    dailyLogProductionsList.className = "diary-item-list";
+    dailyLogDraft.productions.forEach(function (item) {
+      dailyLogProductionsList.appendChild(createDiaryListItem_(
+        item.service,
+        formatQuantity_(item.quantity) + " " + item.unit,
+        item.note,
+        [
+          createDiaryActionButton_("Editar", "edit-production", item.id),
+          createDiaryActionButton_("Remover", "remove-production", item.id)
+        ]
+      ));
+    });
+  }
+
+  function renderDailyLogMaterialsDraft_() {
+    const total = (dailyLogDraft.materials || []).reduce(function (sum, item) {
+      return sum + Number(item.totalValue || 0);
+    }, 0);
+
+    if (dailyLogMaterialTotal) {
+      dailyLogMaterialTotal.textContent = formatCurrency_(total);
+    }
+
+    if (dailyLogMaterialSummary) {
+      if (!dailyLogDraft.materials.length) {
+        dailyLogMaterialSummary.textContent = "Nenhum material registrado.";
+        dailyLogMaterialSummary.className = "material-summary empty-list";
+      } else {
+        dailyLogMaterialSummary.className = "material-summary";
+        dailyLogMaterialSummary.textContent = "Materiais consumidos no dia: " + dailyLogDraft.materials.map(formatMaterialSummary_).join("; ") + ".";
+      }
+    }
+
+    if (!dailyLogMaterialsList) {
+      return;
+    }
+
+    dailyLogMaterialsList.innerHTML = "";
+    dailyLogDraft.materials.forEach(function (item) {
+      dailyLogMaterialsList.appendChild(createDiaryListItem_(
+        item.name,
+        formatQuantity_(item.quantity) + " " + item.unit + " · Total: " + formatCurrency_(item.totalValue || 0),
+        item.note,
+        [
+          createDiaryActionButton_("Editar", "edit-material", item.id),
+          createDiaryActionButton_("Remover", "remove-material", item.id)
+        ]
+      ));
+    });
+  }
+
+  function renderDailyLogToolsDraft_() {
+    if (!dailyLogToolsList) {
+      return;
+    }
+
+    dailyLogToolsList.innerHTML = "";
+    if (!dailyLogDraft.tools.length) {
+      dailyLogToolsList.className = "diary-item-list empty-list";
+      dailyLogToolsList.textContent = "Nenhuma ferramenta ou equipamento registrado.";
+      return;
+    }
+
+    dailyLogToolsList.className = "diary-item-list";
+    dailyLogDraft.tools.forEach(function (item) {
+      dailyLogToolsList.appendChild(createDiaryListItem_(
+        item.name,
+        item.status,
+        item.note,
+        [
+          createDiaryActionButton_("Editar", "edit-tool", item.id),
+          createDiaryActionButton_("Remover", "remove-tool", item.id)
+        ]
+      ));
+    });
+  }
+
+  function renderDailyLogPhotosDraft_() {
+    if (!dailyLogPhotosList) {
+      return;
+    }
+
+    dailyLogPhotosList.innerHTML = "";
+    if (!dailyLogDraft.photos.length) {
+      dailyLogPhotosList.className = "diary-photo-grid empty-list";
+      dailyLogPhotosList.textContent = "Nenhuma foto adicionada ao diário.";
+      return;
+    }
+
+    dailyLogPhotosList.className = "diary-photo-grid";
+    dailyLogDraft.photos.forEach(function (item) {
+      const card = document.createElement("article");
+      const image = document.createElement("img");
+      const caption = document.createElement("span");
+      const remove = createDiaryActionButton_("Remover", "remove-photo", item.id);
+
+      card.className = "diary-photo-card";
+      image.src = item.previewDataUrl || ("data:image/jpeg;base64," + (item.payload && item.payload.base64 || ""));
+      image.alt = item.caption || "Foto do diário";
+      caption.textContent = item.caption || "Foto do dia";
+      card.appendChild(image);
+      card.appendChild(caption);
+      card.appendChild(remove);
+      dailyLogPhotosList.appendChild(card);
+    });
+  }
+
+  function createDiaryListItem_(title, detail, note, actions) {
+    const item = document.createElement("article");
+    const content = document.createElement("div");
+    const titleElement = document.createElement("strong");
+    const detailElement = document.createElement("span");
+    const actionsElement = document.createElement("div");
+
+    item.className = "diary-list-item";
+    titleElement.textContent = title || "-";
+    detailElement.textContent = detail || "-";
+    actionsElement.className = "entity-actions";
+
+    content.appendChild(titleElement);
+    content.appendChild(detailElement);
+    if (note) {
+      const noteElement = document.createElement("p");
+      noteElement.textContent = note;
+      content.appendChild(noteElement);
+    }
+
+    actions.forEach(function (action) {
+      actionsElement.appendChild(action);
+    });
+
+    item.appendChild(content);
+    item.appendChild(actionsElement);
+    return item;
+  }
+
+  function createDiaryActionButton_(label, action, itemId) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = action.indexOf("remove") === 0 ? "mini-button danger" : "mini-button";
+    button.textContent = label;
+    button.dataset.diaryAction = action;
+    button.dataset.itemId = itemId;
+    return button;
+  }
+
+  function renderDailyLogRecords_(dailyLogs) {
+    if (!dailyLogRecordsList) {
+      return;
+    }
+
+    const visibleLogs = filterDailyLogsByProductionSearch_(dailyLogs);
+
+    dailyLogRecordsList.innerHTML = "";
+    if (!visibleLogs.length) {
+      dailyLogRecordsList.textContent = dailyLogSearchTerm ? "Nenhum diário encontrado para esta produção." : "Nenhum diário registrado.";
+      dailyLogRecordsList.className = "entity-list empty-list";
+      return;
+    }
+
+    dailyLogRecordsList.className = "entity-list";
+    visibleLogs.forEach(function (logItem) {
+      const work = findWork_(logItem.workId);
+      const productionDetail = formatProductionCollection_(logItem.productions);
+      const detail = [
+        work && work.name,
+        formatDateOnly_(logItem.date),
+        logItem.weather,
+        logItem.impact,
+        productionDetail && "Produção: " + productionDetail
+      ].filter(Boolean).join(" · ");
+      const item = createEntityItem_(
+        logItem.summary || logItem.services || productionDetail || "Diário de obras",
+        detail,
+        [
+          createDailyLogRecordButton_("Editar", "edit", logItem.id, "primary"),
+          createDailyLogRecordButton_("Remover", "remove", logItem.id, "")
+        ]
+      );
+      dailyLogRecordsList.appendChild(item);
+    });
+  }
+
+  function createDailyLogRecordButton_(label, action, dailyLogId, kind) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mini-button" + (kind ? " " + kind : "");
+    button.textContent = label;
+    button.dataset.dailyLogRecordAction = action;
+    button.dataset.dailyLogId = dailyLogId;
+    return button;
+  }
+
+  function filterDailyLogsByProductionSearch_(dailyLogs) {
+    if (!dailyLogSearchTerm) {
+      return dailyLogs;
+    }
+
+    return dailyLogs.filter(function (logItem) {
+      return (logItem.productions || []).some(function (production) {
+        return String(production.service || "").toLowerCase().indexOf(dailyLogSearchTerm) >= 0;
+      });
+    });
+  }
+
+  function renderDailyLogAudit_(dailyLogs) {
+    if (!dailyLogAuditPanel) {
+      return;
+    }
+
+    const grouped = {};
+    dailyLogs.forEach(function (logItem) {
+      (logItem.materials || []).forEach(function (material) {
+        const key = [String(material.name || "").toLowerCase(), material.unit || "un"].join("|");
+        if (!grouped[key]) {
+          grouped[key] = {
+            name: material.name,
+            unit: material.unit || "un",
+            quantity: 0,
+            totalValue: 0
+          };
+        }
+        grouped[key].quantity += Number(material.quantity || 0);
+        grouped[key].totalValue += Number(material.totalValue || 0);
+      });
+    });
+
+    const items = Object.keys(grouped).map(function (key) {
+      return grouped[key];
+    }).sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+
+    dailyLogAuditPanel.innerHTML = "";
+    if (!items.length) {
+      dailyLogAuditPanel.textContent = "Nenhum consumo registrado.";
+      dailyLogAuditPanel.className = "diary-audit empty-list";
+      return;
+    }
+
+    dailyLogAuditPanel.className = "diary-audit";
+    items.forEach(function (item) {
+      dailyLogAuditPanel.appendChild(createDiaryListItem_(
+        item.name,
+        formatQuantity_(item.quantity) + " " + item.unit,
+        item.totalValue ? "Custo registrado: " + formatCurrency_(item.totalValue) : "",
+        []
+      ));
+    });
+  }
+
+  function renderDailyLogIndicators_(dailyLogs) {
+    if (!dailyLogIndicators) {
+      return;
+    }
+
+    const totalMaterials = dailyLogs.reduce(function (sum, logItem) {
+      return sum + (logItem.materials || []).reduce(function (materialSum, material) {
+        return materialSum + Number(material.totalValue || 0);
+      }, 0);
+    }, 0);
+    const photos = dailyLogs.reduce(function (sum, logItem) {
+      return sum + (logItem.photos || []).length;
+    }, 0);
+    const safetyOccurrences = dailyLogs.filter(function (logItem) {
+      return logItem.safety && logItem.safety.occurrence && logItem.safety.occurrence !== "Nenhuma ocorrência";
+    }).length;
+    const progressValues = dailyLogs
+      .map(function (logItem) { return parseNumber_(logItem.progress); })
+      .filter(function (value) { return value > 0; });
+    const averageProgress = progressValues.length
+      ? Math.round(progressValues.reduce(function (sum, value) { return sum + value; }, 0) / progressValues.length)
+      : 0;
+    const productionStats = getProductionPeriodStats_(dailyLogs);
+
+    dailyLogIndicators.innerHTML = "";
+    dailyLogIndicators.appendChild(createIndicatorItem_("Diários", dailyLogs.length));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Produção do dia", productionStats.day + " item(ns)"));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Produção da semana", productionStats.week + " item(ns)"));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Produção do mês", productionStats.month + " item(ns)"));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Materiais", formatCurrency_(totalMaterials)));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Fotos", photos));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Segurança", safetyOccurrences));
+    dailyLogIndicators.appendChild(createIndicatorItem_("Avanço médio", averageProgress ? averageProgress + "%" : "-"));
+  }
+
+  function createIndicatorItem_(label, value) {
+    const item = document.createElement("div");
+    const labelElement = document.createElement("span");
+    const valueElement = document.createElement("strong");
+
+    item.className = "indicator-item";
+    labelElement.textContent = label;
+    valueElement.textContent = String(value);
+    item.appendChild(labelElement);
+    item.appendChild(valueElement);
+    return item;
+  }
+
+  function getProductionPeriodStats_(dailyLogs) {
+    const referenceDate = getProductionReferenceDate_(dailyLogs);
+    const referenceEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate(), 23, 59, 59, 999);
+    const referenceKey = toDateKey_(referenceDate);
+    const weekStart = getWeekStart_(referenceDate);
+    const monthKey = referenceKey.slice(0, 7);
+    const stats = {
+      day: 0,
+      week: 0,
+      month: 0
+    };
+
+    dailyLogs.forEach(function (logItem) {
+      const logDate = parseLocalDate_(logItem.date);
+      const productionCount = (logItem.productions || []).length;
+
+      if (!logDate || !productionCount) {
+        return;
+      }
+
+      const logKey = toDateKey_(logDate);
+
+      if (logKey === referenceKey) {
+        stats.day += productionCount;
+      }
+
+      if (logDate >= weekStart && logDate <= referenceEnd) {
+        stats.week += productionCount;
+      }
+
+      if (logKey.slice(0, 7) === monthKey) {
+        stats.month += productionCount;
+      }
+    });
+
+    return stats;
+  }
+
+  function getProductionReferenceDate_(dailyLogs) {
+    const dates = dailyLogs
+      .map(function (logItem) {
+        return parseLocalDate_(logItem.date);
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return b.getTime() - a.getTime();
+      });
+
+    return dates[0] || new Date();
+  }
+
+  function parseLocalDate_(value) {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(String(value) + "T12:00:00");
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function toDateKey_(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0")
+    ].join("-");
+  }
+
+  function getWeekStart_(date) {
+    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    const day = start.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - diff);
+    return start;
+  }
+
+  function findDailyLog_(dailyLogId) {
+    return (appState.dailyLogs || []).find(function (logItem) {
+      return logItem.id === dailyLogId;
+    }) || null;
+  }
+
+  function removeDailyLog_(dailyLogId) {
+    ensureLocalState_(appState);
+    appState.dailyLogs = appState.dailyLogs.filter(function (logItem) {
+      return logItem.id !== dailyLogId;
+    });
+    saveLocalData({ syncCloud: false });
+    renderSaasState_();
+    setDailyLogStatus_("Diário removido.", "success");
+  }
+
+  async function handleDiaryAiAction_(button) {
+    const assistant = window.ObraReportAI;
+    const target = dailyLogForm && dailyLogForm.elements[button.dataset.diaryAiTarget];
+
+    if (!assistant || !assistant.improveTechnicalText) {
+      throw new Error("Assistente de IA de texto não foi carregado.");
+    }
+
+    if (!target) {
+      return;
+    }
+
+    if (!canUseAi_()) {
+      return;
+    }
+
+    const action = button.dataset.diaryAiAction;
+    const snapshot = collectDailyLogSnapshot_();
+    const original = action === "summary"
+      ? buildDailyLogSummary_(snapshot)
+      : clean(target.value);
+    const context = buildDailyLogAiContext_(button, snapshot);
+    let result;
+
+    setAiButtonBusy_(button, true);
+    try {
+      result = await assistant.improveTechnicalText(original, context);
+    } finally {
+      setAiButtonBusy_(button, false);
+    }
+
+    target.value = result && result.suggestion ? result.suggestion : original;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    setDailyLogStatus_("Texto gerado com IA. Revise antes de salvar o diário.", "success");
+    registerBillingUsage_("ai", {
+      action: "diario-" + action,
+      target: button.dataset.diaryAiTarget || ""
+    });
+  }
+
+  function collectDailyLogSnapshot_() {
+    const snapshot = collectDailyLogForm_();
+    snapshot.work = findWork_(snapshot.workId);
+    snapshot.client = snapshot.work ? findClient_(snapshot.work.clientId) : null;
+    return snapshot;
+  }
+
+  function buildDailyLogAiContext_(button, snapshot) {
+    return {
+      kind: button.dataset.diaryAiKind || "technical",
+      targetName: button.dataset.diaryAiTarget || "",
+      report: {
+        obra: snapshot.work ? snapshot.work.name : "",
+        local: snapshot.work ? snapshot.work.address : "",
+        dataVistoria: snapshot.date,
+        responsavelTecnico: snapshot.responsible,
+        tipoObra: snapshot.work ? snapshot.work.type : "",
+        observacoes: snapshot.generalNotes
+      },
+      diary: snapshot
+    };
+  }
+
+  function buildDailyLogSummary_(logItem) {
+    const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
+    const parts = [];
+    const intro = "No dia " + formatDateOnly_(logItem.date) +
+      (workName ? ", na obra " + workName : "") +
+      ", foi registrado diário de obra";
+
+    parts.push(intro + ".");
+
+    if (logItem.services) {
+      parts.push("Serviços executados: " + logItem.services + ".");
+    }
+
+    if (logItem.productions && logItem.productions.length) {
+      parts.push("Produção executada: " + formatProductionCollection_(logItem.productions) + ".");
+    }
+
+    if (logItem.employeeCount || logItem.teamPresent) {
+      parts.push("A equipe contou com " + [logItem.employeeCount && logItem.employeeCount + " funcionário(s)", logItem.teamPresent].filter(Boolean).join(" e ") + ".");
+    }
+
+    if (logItem.weather || logItem.impact) {
+      parts.push("Condição climática: " + (logItem.weather || "-") + "; impacto informado: " + (logItem.impact || "Sem impacto") + ".");
+    }
+
+    if (logItem.materials && logItem.materials.length) {
+      parts.push("Materiais consumidos: " + logItem.materials.map(formatMaterialSummary_).join("; ") + ".");
+    }
+
+    if (logItem.tools && logItem.tools.length) {
+      parts.push("Ferramentas e equipamentos registrados: " + logItem.tools.map(function (tool) {
+        return tool.name + " (" + tool.status + ")";
+      }).join("; ") + ".");
+    }
+
+    if (logItem.occurrences) {
+      parts.push("Ocorrências do dia: " + logItem.occurrences + ".");
+    }
+
+    if (logItem.safety && logItem.safety.occurrence && logItem.safety.occurrence !== "Nenhuma ocorrência") {
+      parts.push("Segurança do trabalho: " + logItem.safety.occurrence + ".");
+    }
+
+    if (logItem.generalNotes) {
+      parts.push("Observações gerais: " + logItem.generalNotes + ".");
+    }
+
+    return parts.join(" ");
+  }
+
+  function shareDailyLogSummary_(channel) {
+    const snapshot = collectDailyLogSnapshot_();
+    const message = buildDailyLogExecutiveSummary_(snapshot);
+    const subject = buildDailyLogShareSubject_(snapshot);
+
+    if (channel === "whatsapp") {
+      const url = "https://wa.me/?text=" + encodeURIComponent(message);
+      const opened = window.open(url, "_blank", "noopener");
+
+      if (!opened) {
+        window.location.href = url;
+      }
+
+      setDailyLogStatus_("Resumo executivo aberto para envio no WhatsApp.", "success");
+      return;
+    }
+
+    if (channel === "email") {
+      const recipient = snapshot.client && snapshot.client.email ? snapshot.client.email : "";
+      const url = "mailto:" + encodeURIComponent(recipient) +
+        "?subject=" + encodeURIComponent(subject) +
+        "&body=" + encodeURIComponent(message);
+
+      window.location.href = url;
+      setDailyLogStatus_("Resumo executivo preparado no aplicativo de e-mail.", "success");
+    }
+  }
+
+  function buildDailyLogShareSubject_(logItem) {
+    const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
+    return "Resumo do Diário de Obras" +
+      (workName ? " - " + workName : "") +
+      (logItem.date ? " - " + formatDateOnly_(logItem.date) : "");
+  }
+
+  function buildDailyLogExecutiveSummary_(logItem) {
+    const workName = logItem.work ? logItem.work.name : getWorkName_(logItem.workId);
+    const clientName = logItem.client ? logItem.client.name : "";
+    const estimated = buildEstimatedMaterialsForProductions_(logItem.productions || []);
+    const lines = [
+      "Resumo executivo do Diário de Obras",
+      "",
+      "Obra: " + (workName || "-"),
+      clientName ? "Cliente: " + clientName : "",
+      "Data: " + formatDateOnly_(logItem.date),
+      "Responsável: " + (logItem.responsible || "-"),
+      "",
+      "Equipe: " + formatDailyLogTeamLine_(logItem),
+      "Produção executada: " + ((logItem.productions || []).length ? formatProductionCollection_(logItem.productions) : "-"),
+      "Materiais registrados: " + ((logItem.materials || []).length ? logItem.materials.map(formatMaterialSummary_).join("; ") : "-"),
+      "Consumo estimado: " + (estimated.items.length ? estimated.items.map(formatEstimatedMaterialSummary_).join("; ") : "-"),
+      "Diferença identificada: " + (estimated.audit.length ? estimated.audit.map(formatEstimatedAuditSummary_).join("; ") : "-"),
+      "Ocorrências: " + (logItem.occurrences || "-"),
+      "Segurança: " + formatDailyLogSafetyLine_(logItem),
+      "Fotos: " + formatDailyLogPhotosLine_(logItem),
+      "",
+      logItem.summary ? "Resumo do dia: " + logItem.summary : buildDailyLogSummary_(logItem)
+    ].filter(function (line) {
+      return line !== "";
+    });
+
+    if (estimated.missing && estimated.missing.length) {
+      lines.splice(lines.length - 1, 0, "Sem composição cadastrada para: " + estimated.missing.map(function (production) {
+        return production.service;
+      }).join(", ") + ".");
+    }
+
+    return lines.join("\n");
+  }
+
+  function formatDailyLogTeamLine_(logItem) {
+    return [
+      logItem.employeeCount ? logItem.employeeCount + " funcionário(s)" : "",
+      logItem.teamPresent || "",
+      logItem.teamNotes || ""
+    ].filter(Boolean).join(" · ") || "-";
+  }
+
+  function formatDailyLogSafetyLine_(logItem) {
+    if (!logItem.safety) {
+      return "-";
+    }
+
+    return [
+      logItem.safety.occurrence || "Nenhuma ocorrência",
+      logItem.safety.description,
+      logItem.safety.actions,
+      logItem.safety.responsible && "Responsável: " + logItem.safety.responsible
+    ].filter(Boolean).join(" · ");
+  }
+
+  function formatDailyLogPhotosLine_(logItem) {
+    const photos = logItem.photos || [];
+
+    if (!photos.length) {
+      return "Nenhuma foto registrada.";
+    }
+
+    return photos.length + " foto(s)" + (photos.some(function (photo) { return photo.caption; })
+      ? " · " + photos.map(function (photo) {
+        return photo.caption || "Sem legenda";
+      }).join("; ")
+      : ".");
+  }
+
+  function formatEstimatedMaterialSummary_(item) {
+    return item.name + " - " + formatQuantity_(item.quantity) + " " + item.unit;
+  }
+
+  function formatEstimatedAuditSummary_(item) {
+    return item.name + " " + formatSignedQuantity_(item.difference) + " " + item.unit;
+  }
+
+  function getWorkName_(workId) {
+    const work = findWork_(workId);
+    return work ? work.name : "";
+  }
+
+  function formatProductionSummary_(production) {
+    return production.service + ": " + formatQuantity_(production.quantity) + " " + production.unit;
+  }
+
+  function formatProductionCollection_(productions) {
+    return (productions || []).map(formatProductionSummary_).join("; ");
+  }
+
+  function formatMaterialSummary_(material) {
+    return formatQuantity_(material.quantity) + " " + formatMaterialUnit_(material.unit, material.quantity) + " de " + material.name;
+  }
+
+  function formatMaterialUnit_(unit, quantity) {
+    const value = Number(quantity || 0);
+    const safeUnit = unit || "un";
+    const pluralUnits = {
+      un: "unidades",
+      saco: "sacos",
+      lata: "latas",
+      caixa: "caixas",
+      barra: "barras",
+      rolo: "rolos",
+      litro: "litros"
+    };
+
+    if (value === 1) {
+      return safeUnit;
+    }
+
+    return pluralUnits[safeUnit] || safeUnit;
+  }
+
+  function parseNumber_(value) {
+    const number = Number(String(value || "0").replace(",", "."));
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function formatQuantity_(value) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) {
+      return "0";
+    }
+
+    return number.toLocaleString("pt-BR", {
+      maximumFractionDigits: 3
+    });
+  }
+
+  function formatCurrency_(value) {
+    return Number(value || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    });
+  }
+
+  function formatDateOnly_(value) {
+    if (!value) {
+      return "-";
+    }
+
+    try {
+      return new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short"
+      }).format(new Date(value + "T12:00:00"));
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function setDailyLogStatus_(message, kind) {
+    if (!dailyLogStatus) {
+      setLocalStatus_(message, kind);
+      return;
+    }
+
+    dailyLogStatus.textContent = message;
+    dailyLogStatus.className = "local-status" + (kind ? " " + kind : "");
   }
 
   function createReport_(work, title) {

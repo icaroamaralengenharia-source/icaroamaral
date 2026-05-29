@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport - Relatório de Fiscalização</title>
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260525-comercial1b">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-compartilhamento33">
 </head>
 <body>
   <main class="page-shell">
@@ -87,6 +87,7 @@
         <button type="button" data-route-target="clientes">Clientes</button>
         <button type="button" data-route-target="obras">Obras</button>
         <button type="button" data-route-target="relatorios">Relatórios</button>
+        <button type="button" data-route-target="diario">Diário de Obras</button>
         <button type="button" data-route-target="planos">Planos</button>
       </nav>
 
@@ -257,6 +258,454 @@
         <div class="workspace-card">
           <h3>Histórico de relatórios</h3>
           <div id="reportsList" class="entity-list empty-list">Nenhum relatório criado.</div>
+        </div>
+      </section>
+
+      <section class="route-panel" data-route="diario" aria-label="Diário de obras">
+        <div class="workspace-card diary-hero">
+          <div>
+            <p class="eyebrow">Diário de Obras</p>
+            <h3>Registro técnico diário da obra</h3>
+          </div>
+          <span class="local-status" id="dailyLogStatus">Diários salvos neste navegador</span>
+        </div>
+
+        <div class="diary-workspace">
+          <section class="workspace-card">
+            <div class="section-row">
+              <h3>Novo Diário</h3>
+              <button type="button" class="mini-button" id="dailyLogResetButton">Novo registro</button>
+            </div>
+
+            <form id="dailyLogForm" class="entity-form diary-form">
+              <input type="hidden" name="dailyLogId">
+
+              <div class="form-subsection">
+                <h4>Dados básicos</h4>
+                <div class="field-grid">
+                  <label>
+                    Obra vinculada
+                    <select name="workId" id="dailyLogWorkSelect" required></select>
+                  </label>
+                  <label>
+                    Data do diário
+                    <input name="date" type="date" required>
+                  </label>
+                  <label class="full-width">
+                    Responsável pelo registro
+                    <input name="responsible" type="text" required>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Condição climática e impactos</h4>
+                <div class="field-grid">
+                  <label>
+                    Condição climática
+                    <select name="weather">
+                      <option value="Sol">Sol</option>
+                      <option value="Parcialmente nublado">Parcialmente nublado</option>
+                      <option value="Nublado">Nublado</option>
+                      <option value="Chuva leve">Chuva leve</option>
+                      <option value="Chuva intensa">Chuva intensa</option>
+                    </select>
+                  </label>
+                  <label>
+                    Impacto do dia
+                    <select name="impact">
+                      <option value="Sem impacto">Sem impacto</option>
+                      <option value="Chuva">Chuva</option>
+                      <option value="Falta de material">Falta de material</option>
+                      <option value="Falta de energia">Falta de energia</option>
+                      <option value="Equipamento parado">Equipamento parado</option>
+                      <option value="Equipe reduzida">Equipe reduzida</option>
+                      <option value="Área interditada">Área interditada</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                  <label class="full-width">
+                    Observação sobre impactos
+                    <textarea name="impactNote" rows="2"></textarea>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Horários, equipe e serviços</h4>
+                <div class="field-grid">
+                  <label>
+                    Horário de início
+                    <input name="startTime" type="time">
+                  </label>
+                  <label>
+                    Horário de término
+                    <input name="endTime" type="time">
+                  </label>
+                  <label>
+                    Equipe presente
+                    <input name="teamPresent" type="text">
+                  </label>
+                  <label>
+                    Quantidade de funcionários
+                    <input name="employeeCount" type="number" min="0" step="1">
+                  </label>
+                  <label class="full-width">
+                    Observações da equipe
+                    <textarea name="teamNotes" rows="2"></textarea>
+                  </label>
+                  <label class="full-width">
+                    Serviços executados
+                    <textarea name="services" rows="4"></textarea>
+                    <span class="ai-field-toolbar">
+                      <button type="button" class="mini-button ai-button" data-diary-ai-action="improve" data-diary-ai-target="services" data-diary-ai-kind="technical">Melhorar serviços executados</button>
+                    </span>
+                  </label>
+                  <label>
+                    Avanço físico estimado (%)
+                    <input name="progress" type="number" min="0" max="100" step="1">
+                  </label>
+                  <label>
+                    Visitas recebidas
+                    <input name="visits" type="text">
+                  </label>
+                  <label class="full-width">
+                    Interferências
+                    <textarea name="interferences" rows="2"></textarea>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Produção Executada</h4>
+                <div class="inline-editor-grid production-editor-grid">
+                  <label>
+                    Serviço
+                    <select name="productionService">
+                      <option value="Alvenaria">Alvenaria</option>
+                      <option value="Chapisco">Chapisco</option>
+                      <option value="Reboco">Reboco</option>
+                      <option value="Emboço">Emboço</option>
+                      <option value="Contrapiso">Contrapiso</option>
+                      <option value="Piso">Piso</option>
+                      <option value="Revestimento">Revestimento</option>
+                      <option value="Pintura">Pintura</option>
+                      <option value="Tubulação de esgoto">Tubulação de esgoto</option>
+                      <option value="Tubulação de água">Tubulação de água</option>
+                      <option value="Ralos">Ralos</option>
+                      <option value="Caixas de inspeção">Caixas de inspeção</option>
+                      <option value="Eletrodutos">Eletrodutos</option>
+                      <option value="Cabeamento">Cabeamento</option>
+                      <option value="Tomadas">Tomadas</option>
+                      <option value="Interruptores">Interruptores</option>
+                      <option value="Estrutura">Estrutura</option>
+                      <option value="Fundação">Fundação</option>
+                      <option value="Impermeabilização">Impermeabilização</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                  <label>
+                    Quantidade
+                    <input name="productionQuantity" type="number" min="0" step="0.01">
+                  </label>
+                  <label>
+                    Unidade
+                    <select name="productionUnit">
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="m">m</option>
+                      <option value="un">un</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </label>
+                  <label class="full-width">
+                    Observação
+                    <input name="productionNote" type="text">
+                  </label>
+                </div>
+                <button type="button" class="mini-button primary" id="dailyLogAddProduction">Adicionar produção</button>
+                <div id="dailyLogProductionSummary" class="material-summary empty-list">Nenhuma produção registrada.</div>
+                <div id="dailyLogProductionsList" class="diary-item-list"></div>
+                <button type="button" class="mini-button primary" id="dailyLogCalculateMaterials">Calcular materiais estimados</button>
+                <div id="dailyLogEstimatePanel" class="estimate-panel is-hidden"></div>
+              </div>
+
+              <div class="form-subsection">
+                <div class="section-row">
+                  <h4>Materiais consumidos no dia</h4>
+                  <strong id="dailyLogMaterialTotal">R$ 0,00</strong>
+                </div>
+                <div class="inline-editor-grid">
+                  <label>
+                    Material
+                    <input name="materialName" type="text">
+                  </label>
+                  <label>
+                    Quantidade
+                    <input name="materialQuantity" type="number" min="0" step="0.01">
+                  </label>
+                  <label>
+                    Unidade
+                    <select name="materialUnit">
+                      <option value="un">un</option>
+                      <option value="m">m</option>
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="kg">kg</option>
+                      <option value="saco">saco</option>
+                      <option value="lata">lata</option>
+                      <option value="caixa">caixa</option>
+                      <option value="barra">barra</option>
+                      <option value="rolo">rolo</option>
+                      <option value="litro">litro</option>
+                    </select>
+                  </label>
+                  <label>
+                    Valor unitário
+                    <input name="materialUnitValue" type="number" min="0" step="0.01">
+                  </label>
+                  <label class="full-width">
+                    Observação
+                    <input name="materialNote" type="text">
+                  </label>
+                </div>
+                <button type="button" class="mini-button primary" id="dailyLogAddMaterial">Adicionar material</button>
+                <div id="dailyLogMaterialSummary" class="material-summary empty-list">Nenhum material registrado.</div>
+                <div id="dailyLogMaterialsList" class="diary-item-list"></div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Ferramentas e equipamentos</h4>
+                <div class="inline-editor-grid">
+                  <label>
+                    Nome
+                    <input name="toolName" type="text">
+                  </label>
+                  <label>
+                    Situação
+                    <select name="toolStatus">
+                      <option value="Em uso">Em uso</option>
+                      <option value="Parado">Parado</option>
+                      <option value="Com problema">Com problema</option>
+                      <option value="Alugado">Alugado</option>
+                      <option value="Devolvido">Devolvido</option>
+                    </select>
+                  </label>
+                  <label class="full-width">
+                    Observação
+                    <input name="toolNote" type="text">
+                  </label>
+                </div>
+                <button type="button" class="mini-button primary" id="dailyLogAddTool">Adicionar equipamento</button>
+                <div id="dailyLogToolsList" class="diary-item-list"></div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Segurança do Trabalho</h4>
+                <div class="field-grid">
+                  <label class="full-width">
+                    Ocorrência de segurança
+                    <select name="safetyOccurrence">
+                      <option value="Nenhuma ocorrência">Nenhuma ocorrência</option>
+                      <option value="Funcionário sem EPI">Funcionário sem EPI</option>
+                      <option value="Funcionário utilizando EPI inadequadamente">Funcionário utilizando EPI inadequadamente</option>
+                      <option value="Área sem sinalização">Área sem sinalização</option>
+                      <option value="Trabalho em altura sem proteção">Trabalho em altura sem proteção</option>
+                      <option value="Escavação sem proteção">Escavação sem proteção</option>
+                      <option value="Equipamento sem proteção">Equipamento sem proteção</option>
+                      <option value="Ferramenta com defeito">Ferramenta com defeito</option>
+                      <option value="Risco elétrico identificado">Risco elétrico identificado</option>
+                      <option value="Queda de material">Queda de material</option>
+                      <option value="Acidente sem afastamento">Acidente sem afastamento</option>
+                      <option value="Acidente com afastamento">Acidente com afastamento</option>
+                      <option value="Quase acidente">Quase acidente</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                  <label class="full-width">
+                    Descrição da ocorrência de segurança
+                    <textarea name="safetyDescription" rows="3"></textarea>
+                    <span class="ai-field-toolbar">
+                      <button type="button" class="mini-button ai-button" data-diary-ai-action="improve" data-diary-ai-target="safetyDescription" data-diary-ai-kind="technical">Melhorar descrição de segurança</button>
+                    </span>
+                  </label>
+                  <label class="full-width">
+                    Providências adotadas
+                    <textarea name="safetyActions" rows="2"></textarea>
+                  </label>
+                  <label class="full-width">
+                    Responsável pela orientação
+                    <input name="safetyResponsible" type="text">
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-subsection">
+                <h4>Ocorrências, fotos e observações</h4>
+                <div class="field-grid">
+                  <label class="full-width">
+                    Ocorrências do dia
+                    <textarea name="occurrences" rows="3"></textarea>
+                    <span class="ai-field-toolbar">
+                      <button type="button" class="mini-button ai-button" data-diary-ai-action="improve" data-diary-ai-target="occurrences" data-diary-ai-kind="technical">Melhorar ocorrências</button>
+                    </span>
+                  </label>
+                  <label class="full-width">
+                    Equipamentos parados ou com problema
+                    <textarea name="stoppedEquipment" rows="2"></textarea>
+                  </label>
+                  <label class="full-width">
+                    Observações gerais
+                    <textarea name="generalNotes" rows="3"></textarea>
+                  </label>
+                  <label>
+                    Foto do dia
+                    <input name="dailyPhoto" id="dailyLogPhotoInput" type="file" accept="image/jpeg,image/png,image/webp">
+                  </label>
+                  <label>
+                    Legenda da foto
+                    <input name="dailyPhotoCaption" type="text">
+                  </label>
+                </div>
+                <button type="button" class="mini-button primary" id="dailyLogAddPhoto">Adicionar foto</button>
+                <div id="dailyLogPhotosList" class="diary-photo-grid"></div>
+              </div>
+
+              <div class="form-subsection">
+                <div class="section-row">
+                  <h4>Resumo do dia</h4>
+                  <button type="button" class="mini-button ai-button" data-diary-ai-action="summary" data-diary-ai-target="summary" data-diary-ai-kind="conclusion">Gerar resumo do dia</button>
+                </div>
+                <textarea name="summary" rows="5"></textarea>
+                <div class="share-actions">
+                  <button type="button" class="mini-button primary" id="dailyLogShareWhatsapp">Enviar resumo por WhatsApp</button>
+                  <button type="button" class="mini-button" id="dailyLogShareEmail">Enviar resumo por e-mail</button>
+                </div>
+              </div>
+
+              <button class="next-action" type="submit" id="dailyLogSaveButton">Salvar diário</button>
+            </form>
+          </section>
+
+          <aside class="diary-side-panels">
+            <section class="workspace-card">
+              <h3>Registros do Diário</h3>
+              <label class="compact-search">
+                Buscar produção
+                <input id="dailyLogSearchInput" type="search" placeholder="Ex.: alvenaria">
+              </label>
+              <div id="dailyLogRecordsList" class="entity-list empty-list">Nenhum diário registrado.</div>
+            </section>
+
+            <section class="workspace-card composition-library-card">
+              <div class="section-row">
+                <h3>Biblioteca de Composições</h3>
+                <button type="button" class="mini-button" id="compositionRestoreDefaults">Restaurar padrão</button>
+              </div>
+
+              <form id="compositionForm" class="entity-form composition-form">
+                <input type="hidden" name="compositionId">
+                <div class="field-grid">
+                  <label>
+                    Nome do serviço
+                    <input name="compositionService" type="text" required>
+                  </label>
+                  <label>
+                    Unidade de produção
+                    <select name="compositionProductionUnit">
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="m">m</option>
+                      <option value="un">un</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </label>
+                  <label>
+                    Perda (%)
+                    <input name="compositionLossPercent" type="number" min="0" step="0.01">
+                  </label>
+                  <label>
+                    Fonte
+                    <select name="compositionSource">
+                      <option value="Personalizada">Personalizada</option>
+                      <option value="ObraReport">ObraReport</option>
+                      <option value="SINAPI futura">SINAPI futura</option>
+                    </select>
+                  </label>
+                  <label>
+                    Código SINAPI
+                    <input name="compositionSinapiCode" type="text">
+                  </label>
+                  <label>
+                    Estado
+                    <input name="compositionState" type="text">
+                  </label>
+                  <label>
+                    Competência
+                    <input name="compositionCompetence" type="text" placeholder="MM/AAAA">
+                  </label>
+                  <label>
+                    Fonte externa
+                    <input name="compositionExternalSource" type="text">
+                  </label>
+                  <label class="full-width">
+                    Observação
+                    <textarea name="compositionNote" rows="2"></textarea>
+                  </label>
+                </div>
+
+                <div class="inline-editor-grid composition-material-grid">
+                  <label>
+                    Material
+                    <input name="compositionMaterialName" type="text">
+                  </label>
+                  <label>
+                    Quantidade por unidade
+                    <input name="compositionMaterialQuantity" type="number" min="0" step="0.001">
+                  </label>
+                  <label>
+                    Unidade
+                    <select name="compositionMaterialUnit">
+                      <option value="un">un</option>
+                      <option value="m">m</option>
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="kg">kg</option>
+                      <option value="saco">saco</option>
+                      <option value="lata">lata</option>
+                      <option value="caixa">caixa</option>
+                      <option value="barra">barra</option>
+                      <option value="rolo">rolo</option>
+                      <option value="litro">litro</option>
+                    </select>
+                  </label>
+                  <label class="full-width">
+                    Observação do material
+                    <input name="compositionMaterialNote" type="text">
+                  </label>
+                </div>
+
+                <button type="button" class="mini-button primary" id="compositionAddMaterial">Adicionar material da composição</button>
+                <div id="compositionMaterialsList" class="diary-item-list empty-list">Nenhum material na composição.</div>
+                <div class="entity-actions">
+                  <button type="submit" class="next-action compact" id="compositionSaveButton">Salvar composição</button>
+                  <button type="button" class="secondary-action compact" id="compositionResetButton">Nova composição</button>
+                </div>
+              </form>
+
+              <div id="compositionLibraryList" class="diary-item-list empty-list">Nenhuma composição cadastrada.</div>
+            </section>
+
+            <section class="workspace-card">
+              <h3>Auditoria de Materiais</h3>
+              <div id="dailyLogAuditPanel" class="diary-audit empty-list">Nenhum consumo registrado.</div>
+            </section>
+
+            <section class="workspace-card">
+              <h3>Indicadores</h3>
+              <div id="dailyLogIndicators" class="indicator-grid"></div>
+            </section>
+          </aside>
         </div>
       </section>
     </section>
@@ -526,6 +975,6 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260525-comercial1b"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260525-comercial1b"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260529-compartilhamento33"></script>
 </body>
 </html>

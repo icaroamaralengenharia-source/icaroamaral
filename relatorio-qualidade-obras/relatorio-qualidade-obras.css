@@ -264,7 +264,7 @@ body {
 
 .saas-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -432,6 +432,221 @@ body {
   font-size: 1.12rem;
 }
 
+.diary-hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-left: 4px solid var(--teal);
+}
+
+.diary-hero .eyebrow {
+  margin: 0 0 4px;
+}
+
+.diary-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.diary-side-panels {
+  display: grid;
+  gap: 18px;
+}
+
+.diary-form {
+  gap: 20px;
+}
+
+.form-subsection {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.form-subsection h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 0.98rem;
+}
+
+.inline-editor-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.75fr 0.7fr 0.8fr;
+  gap: 12px;
+}
+
+.production-editor-grid {
+  grid-template-columns: 1.3fr 0.75fr 0.65fr 1.1fr;
+}
+
+.composition-material-grid {
+  grid-template-columns: 1.25fr 0.85fr 0.7fr 1.1fr;
+}
+
+.composition-form {
+  gap: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.composition-library-card {
+  align-content: start;
+}
+
+.compact-search {
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.estimate-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #fffaf0;
+  border: 1px solid rgba(216, 171, 56, 0.34);
+  border-radius: 8px;
+}
+
+.estimate-panel h5 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.estimate-warning {
+  margin: 0;
+  color: var(--navy);
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.estimate-edit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.estimate-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 0.7fr 0.65fr minmax(0, 1fr);
+  gap: 10px;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.material-summary {
+  padding: 12px 14px;
+  color: var(--navy);
+  background: #eef9f7;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.diary-item-list,
+.diary-audit {
+  display: grid;
+  gap: 10px;
+}
+
+.diary-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.diary-list-item strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.94rem;
+}
+
+.diary-list-item span,
+.diary-list-item p {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.diary-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.diary-photo-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.diary-photo-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #edf2f7;
+}
+
+.diary-photo-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.indicator-item {
+  display: grid;
+  gap: 7px;
+  min-height: 82px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+}
+
+.indicator-item span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.indicator-item strong {
+  color: var(--navy);
+  font-size: 1.18rem;
+  line-height: 1.15;
+}
+
 .recent-report-card {
   align-content: start;
 }
@@ -497,6 +712,12 @@ body {
   color: #ffffff;
   border-color: var(--teal);
   background: var(--teal);
+}
+
+.mini-button.danger {
+  color: var(--danger);
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #fff7f6;
 }
 
 .empty-list {
@@ -1063,6 +1284,21 @@ textarea:focus {
 
   .saas-tabs {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .diary-hero,
+  .diary-workspace,
+  .diary-list-item {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-editor-grid,
+  .production-editor-grid,
+  .composition-material-grid,
+  .estimate-edit-grid,
+  .diary-photo-grid,
+  .indicator-grid {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-actions-grid,
