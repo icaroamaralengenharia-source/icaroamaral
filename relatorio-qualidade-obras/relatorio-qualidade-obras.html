@@ -194,7 +194,7 @@
     <section class="auth-panel is-hidden" id="loginPanel" aria-labelledby="login-title">
       <div class="section-title">
         <span></span>
-        <h2 id="login-title">Acesso do usuário</h2>
+          <h2 id="login-title">Acesso restrito — ObraReport</h2>
       </div>
 
       <form id="loginForm" class="auth-form">
@@ -219,9 +219,11 @@
           <button class="primary-action" type="submit">Entrar</button>
         </div>
 
+        <p class="auth-note login-access-status is-hidden" id="loginAccessStatus" role="status" aria-live="polite"></p>
+
         <p class="auth-note">
           O acesso sincroniza clientes, obras e relatórios pela nuvem do ObraReport.
-          Este navegador mantém um cache local para continuar protegido contra quedas de internet.
+          Em modo local, a entrada também exige a senha simples configurada no projeto.
         </p>
       </form>
     </section>
@@ -248,6 +250,7 @@
         <button type="button" data-route-target="obras" data-nav-role="admin">Obras</button>
         <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
         <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
+        <button type="button" data-route-target="stock-ia" data-nav-role="admin">Stock IA</button>
         <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
         <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
         <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
@@ -1152,6 +1155,137 @@
             </section>
           </aside>
         </div>
+      </section>
+
+      <section class="route-panel" data-route="stock-ia" aria-label="Stock IA">
+        <div class="workspace-card stock-ia-hero">
+          <div>
+            <p class="eyebrow">Stock IA 0.2</p>
+            <h3>Estoque real básico conectado ao RDO</h3>
+            <p>Controle local com cadastro mestre, saldo inicial, entradas, saídas manuais e consumo derivado dos materiais registrados nos Diários de Obras.</p>
+          </div>
+          <div class="stock-ia-badges" aria-label="Status do Stock IA">
+            <span class="local-status">Local</span>
+            <span class="cloud-status info">Origem: RDO</span>
+          </div>
+        </div>
+
+        <div class="stock-ia-cards" id="stockIaSummaryCards" aria-live="polite"></div>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Cadastro de materiais</h3>
+            <button type="button" class="mini-button primary" data-stock-action="new-item">Novo material</button>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table">
+              <thead>
+                <tr>
+                  <th>Material</th>
+                  <th>Unidade</th>
+                  <th>Categoria</th>
+                  <th>Saldo inicial</th>
+                  <th>Entradas</th>
+                  <th>Consumo RDO</th>
+                  <th>Saídas manuais</th>
+                  <th>Saldo real</th>
+                  <th>Estoque mínimo</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="stockMasterRows">
+                <tr><td colspan="11">Nenhum item mestre cadastrado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Consumos do RDO não vinculados</h3>
+            <span class="auth-note">Consumos derivados que ainda não possuem item mestre.</span>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Material</th>
+                  <th>Unidade</th>
+                  <th>Quantidade</th>
+                  <th>Custo</th>
+                  <th>Obra</th>
+                  <th>Diário</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="stockUnlinkedRows">
+                <tr><td colspan="8">Nenhum consumo do RDO pendente de vínculo.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Movimentações manuais</h3>
+            <span class="auth-note">Entradas e saídas criadas dentro do Stock IA.</span>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Material</th>
+                  <th>Tipo</th>
+                  <th>Quantidade</th>
+                  <th>Custo total</th>
+                  <th>Fornecedor</th>
+                  <th>Documento</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody id="stockManualMovementsRows">
+                <tr><td colspan="8">Nenhuma movimentação manual registrada.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Movimentos derivados do RDO</h3>
+            <span class="auth-note">Histórico somente leitura do consumo registrado nos diários.</span>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Material</th>
+                  <th>Qtd.</th>
+                  <th>Un.</th>
+                  <th>Custo</th>
+                  <th>Origem</th>
+                  <th>Diário</th>
+                  <th>Obra</th>
+                </tr>
+              </thead>
+              <tbody id="stockIaMovements">
+                <tr><td colspan="8">Nenhum movimento derivado encontrado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card stock-ia-insight">
+          <h3>Resumo inteligente local</h3>
+          <p id="stockIaInsight">Cadastre materiais e vincule consumos do RDO para calcular o saldo real.</p>
+        </section>
+
+        <div class="stock-ia-toast is-hidden" id="stockIaActionMessage" role="status" aria-live="polite"></div>
+        <div class="stock-ia-modal is-hidden" id="stockIaModal" role="dialog" aria-modal="true" aria-labelledby="stockIaModalTitle"></div>
       </section>
     </section>
 

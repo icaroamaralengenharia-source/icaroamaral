@@ -10,6 +10,7 @@
   const openReportButton = document.getElementById("openReportButton");
   const homeActionStatus = document.getElementById("homeActionStatus");
   const loginForm = document.getElementById("loginForm");
+  const loginAccessStatus = document.getElementById("loginAccessStatus");
   const logoutButton = document.getElementById("logoutButton");
   const userBadge = document.getElementById("userBadge");
   const currentPlanBadge = document.getElementById("currentPlanBadge");
@@ -74,6 +75,15 @@
   const dailyLogMaterialTotal = document.getElementById("dailyLogMaterialTotal");
   const dailyLogAuditPanel = document.getElementById("dailyLogAuditPanel");
   const dailyLogIndicators = document.getElementById("dailyLogIndicators");
+  const stockIaSummaryCards = document.getElementById("stockIaSummaryCards");
+  const stockMasterRows = document.getElementById("stockMasterRows");
+  const stockUnlinkedRows = document.getElementById("stockUnlinkedRows");
+  const stockManualMovementsRows = document.getElementById("stockManualMovementsRows");
+  const stockIaRows = document.getElementById("stockIaRows");
+  const stockIaMovements = document.getElementById("stockIaMovements");
+  const stockIaInsight = document.getElementById("stockIaInsight");
+  const stockIaActionMessage = document.getElementById("stockIaActionMessage");
+  const stockIaModal = document.getElementById("stockIaModal");
   const dailyLogPhotoInput = document.getElementById("dailyLogPhotoInput");
   const dailyLogSearchInput = document.getElementById("dailyLogSearchInput");
   const dailyLogPdfButton = document.getElementById("dailyLogPdfButton");
@@ -125,6 +135,8 @@
   const maxInconformidades = config.maxInconformidades || 20;
   const defaultDraftId = "relatorio-fiscalizacao-draft-v2";
   const saasStoreKey = "obrareport-saas-v1";
+  const STOCK_MASTER_STORAGE_KEY = "obrareport_stock_master_v1";
+  const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
   let currentUser = getCurrentUser_();
@@ -356,6 +368,14 @@
     return String(value || "").trim();
   }
 
+  function getLocalStorage_() {
+    try {
+      return window.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   function ensureCompositionLibrary_(items) {
     const current = Array.isArray(items) ? items : [];
     const defaultById = {};
@@ -504,6 +524,13 @@
       return;
     }
 
+    if (isRestrictedRouteHash_()) {
+      setCloudStatus_("Informe a senha para acessar a area interna.", "info");
+      setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+      showLoginPanel_();
+      return;
+    }
+
     showHomePanel_();
   }
 
@@ -517,10 +544,12 @@
         const password = clean(formData.get("userPassword"));
 
         if (!name || !email || !password) {
+          setLoginAccessStatus_("Preencha nome, email e senha para entrar.", "error");
           return;
         }
 
         try {
+          setLoginAccessStatus_("Verificando acesso...", "info");
           setCloudStatus_("Conectando à nuvem...", "info");
           const result = await cloudApi_("auth.login", {
             name: name,
@@ -533,11 +562,18 @@
           renderSaasState_();
           showDashboardPanel_("dashboard");
           setCloudStatus_("Sincronizado na nuvem", "success");
+          setLoginAccessStatus_("", "");
           runPendingHomeAction_();
         } catch (error) {
           console.error(error);
+          if (!isLocalAccessPasswordValid_(password)) {
+            setCloudStatus_("Senha incorreta para acesso local.", "error");
+            setLoginAccessStatus_("Senha incorreta para acesso local.", "error");
+            return;
+          }
           loginLocalFallback_(name, email);
           setCloudStatus_("Modo local ativo. Publique o Apps Script novo para sincronizar na nuvem.", "error");
+          setLoginAccessStatus_("", "");
           runPendingHomeAction_();
         }
       });
@@ -598,9 +634,43 @@
       });
     });
 
+    if (dashboardPanel) {
+      dashboardPanel.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const actionButton = target && target.closest ? target.closest("[data-stock-action]") : null;
+
+        if (!actionButton) {
+          return;
+        }
+
+        event.preventDefault();
+        handleStockIaAction_(actionButton);
+      });
+    }
+
+    if (stockIaModal) {
+      stockIaModal.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+
+        if (target && target.closest && target.closest("[data-stock-modal-close]")) {
+          event.preventDefault();
+          closeStockIaModal_();
+        }
+      });
+
+      stockIaModal.addEventListener("submit", handleStockIaFormSubmit_);
+    }
+
     window.addEventListener("hashchange", function () {
       if (currentUser && window.location.hash.indexOf("#app/") === 0) {
         showDashboardPanel_(getRouteFromHash_());
+        return;
+      }
+
+      if (!currentUser && isRestrictedRouteHash_()) {
+        setCloudStatus_("Informe a senha para acessar a area interna.", "info");
+        setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+        showLoginPanel_();
       }
     });
 
@@ -1430,6 +1500,16 @@
     });
   }
 
+  function setLoginAccessStatus_(message, kind) {
+    if (!loginAccessStatus) {
+      return;
+    }
+
+    loginAccessStatus.textContent = message || "";
+    loginAccessStatus.className = "auth-note login-access-status" + (kind ? " " + kind : "");
+    loginAccessStatus.classList.toggle("is-hidden", !message);
+  }
+
   function scheduleCloudSync_(fullDraft) {
     if (isApplyingCloudState || !appState.session || !appState.session.token) {
       return;
@@ -1733,17 +1813,26 @@
     return getAllRoutes_().indexOf(value) >= 0 ? value : getDefaultRouteForRole_();
   }
 
+  function isRestrictedRouteHash_() {
+    const hash = String(window.location.hash || "");
+    return hash.indexOf("#app/") === 0 || hash.indexOf("#report/") === 0;
+  }
+
+  function isLocalAccessPasswordValid_(password) {
+    return clean(password).toLowerCase() === localAccessPassword.toLowerCase();
+  }
+
   function getReportIdFromHash_() {
     const hash = String(window.location.hash || "");
     return hash.indexOf("#report/") === 0 ? hash.replace("#report/", "") : "";
   }
 
   function getAllRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
   }
 
   function getAdminRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "planos", "administracao"];
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "planos", "administracao"];
   }
 
   function getClientRoutes_() {
@@ -1979,6 +2068,7 @@
     renderReportsList_(reportsList, reports);
     renderReportsList_(recentReportsList, reports.slice(0, 5));
     renderDailyLogModule_(dailyLogs);
+    renderStockIaPanel_(dailyLogs);
     renderExampleSalesGuide_();
     renderClientPortal_(works, reports, dailyLogs, exportedPdfs);
     renderAdminOverview_();
@@ -4367,6 +4457,1192 @@
     dailyLogIndicators.appendChild(createIndicatorItem_("Fotos", photos));
     dailyLogIndicators.appendChild(createIndicatorItem_("Segurança", safetyOccurrences));
     dailyLogIndicators.appendChild(createIndicatorItem_("Avanço médio", averageProgress ? averageProgress + "%" : "-"));
+  }
+
+  function normalizeStockMaterialKey_(name, unit) {
+    return normalizeCompositionKey_(name) + "|" + normalizeUnitKey_(unit || "un");
+  }
+
+  function buildStockMovementsFromDailyLogs_(dailyLogs) {
+    const movements = [];
+
+    (dailyLogs || []).forEach(function (logItem) {
+      const workName = getWorkName_(logItem.workId) || "Obra nao informada";
+
+      (logItem.materials || []).forEach(function (material) {
+        const name = clean(material.name);
+        const quantity = parseNumber_(material.quantity);
+
+        if (!name || quantity <= 0) {
+          return;
+        }
+
+        const unit = clean(material.unit) || "un";
+        const unitValue = parseNumber_(material.unitValue);
+        const totalValue = parseNumber_(material.totalValue) || quantity * unitValue;
+
+        movements.push({
+          id: createId_("stk_mov"),
+          type: "consumo_rdo",
+          source: "rdo",
+          dailyLogId: logItem.id,
+          workId: logItem.workId,
+          workName: workName,
+          date: logItem.date,
+          materialId: material.id,
+          name: name,
+          key: normalizeStockMaterialKey_(name, unit),
+          quantity: quantity,
+          unit: unit,
+          unitValue: unitValue,
+          totalValue: totalValue,
+          note: clean(material.note)
+        });
+      });
+    });
+
+    return movements.sort(function (a, b) {
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    });
+  }
+
+  function buildStockBalanceFromMovements_(movements) {
+    const grouped = {};
+
+    (movements || []).forEach(function (movement) {
+      if (!grouped[movement.key]) {
+        grouped[movement.key] = {
+          key: movement.key,
+          name: movement.name,
+          unit: movement.unit,
+          totalQuantity: 0,
+          totalCost: 0,
+          dailyLogIds: [],
+          workNames: [],
+          lastDate: "",
+          movements: 0
+        };
+      }
+
+      const balance = grouped[movement.key];
+      balance.totalQuantity += movement.quantity;
+      balance.totalCost += movement.totalValue;
+      balance.movements += 1;
+
+      if (movement.dailyLogId && balance.dailyLogIds.indexOf(movement.dailyLogId) < 0) {
+        balance.dailyLogIds.push(movement.dailyLogId);
+      }
+
+      if (movement.workName && balance.workNames.indexOf(movement.workName) < 0) {
+        balance.workNames.push(movement.workName);
+      }
+
+      if (!balance.lastDate || String(movement.date || "").localeCompare(balance.lastDate) > 0) {
+        balance.lastDate = movement.date || "";
+      }
+    });
+
+    return Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.totalQuantity = roundQuantity_(item.totalQuantity);
+      return item;
+    }).sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+  }
+
+  function buildStockSummaryFromBalances_(balances, movements) {
+    const dailyLogIds = [];
+    const totalCost = (balances || []).reduce(function (sum, balance) {
+      (balance.dailyLogIds || []).forEach(function (dailyLogId) {
+        if (dailyLogIds.indexOf(dailyLogId) < 0) {
+          dailyLogIds.push(dailyLogId);
+        }
+      });
+      return sum + Number(balance.totalCost || 0);
+    }, 0);
+
+    return {
+      materialCount: (balances || []).length,
+      movementCount: (movements || []).length,
+      totalCost: totalCost,
+      dailyLogCount: dailyLogIds.length
+    };
+  }
+
+  function renderStockIaPanel_(dailyLogs) {
+    const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+    const balances = buildStockBalanceFromMovements_(movements);
+    const summary = buildStockSummaryFromBalances_(balances, movements);
+
+    renderStockIaSummaryCards_(summary);
+    renderStockIaRows_(balances);
+    renderStockIaMovements_(movements);
+
+    if (stockIaInsight) {
+      stockIaInsight.textContent = buildStockIaInsightFromDailyLogs_(balances, movements);
+    }
+  }
+
+  function renderStockIaSummaryCards_(summary) {
+    if (!stockIaSummaryCards) {
+      return;
+    }
+
+    stockIaSummaryCards.innerHTML = "";
+    [
+      ["Materiais identificados", summary.materialCount],
+      ["Consumo registrado", summary.movementCount + " movimento(s)"],
+      ["Custo total consumido", formatCurrency_(summary.totalCost)],
+      ["Diarios com materiais", summary.dailyLogCount]
+    ].forEach(function (item) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      card.className = "stock-ia-card";
+      label.textContent = item[0];
+      value.textContent = String(item[1]);
+      card.appendChild(label);
+      card.appendChild(value);
+      stockIaSummaryCards.appendChild(card);
+    });
+  }
+
+  function renderStockIaRows_(balances) {
+    if (!stockIaRows) {
+      return;
+    }
+
+    stockIaRows.innerHTML = "";
+    if (!balances.length) {
+      appendStockIaEmptyRow_(stockIaRows, 7, "Nenhum material registrado nos RDOs.");
+      return;
+    }
+
+    balances.forEach(function (balance) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, balance.name);
+      appendStockIaCell_(row, balance.unit);
+      appendStockIaCell_(row, formatQuantity_(balance.totalQuantity));
+      appendStockIaCell_(row, formatCurrency_(balance.totalCost));
+      appendStockIaCell_(row, String(balance.dailyLogIds.length));
+      appendStockIaCell_(row, summarizeStockIaList_(balance.workNames, 3));
+      appendStockIaCell_(row, balance.lastDate ? formatDateOnly_(balance.lastDate) : "-");
+      stockIaRows.appendChild(row);
+    });
+  }
+
+  function renderStockIaMovements_(movements) {
+    if (!stockIaMovements) {
+      return;
+    }
+
+    stockIaMovements.innerHTML = "";
+    if (!movements.length) {
+      appendStockIaEmptyRow_(stockIaMovements, 8, "Nenhum movimento derivado encontrado.");
+      return;
+    }
+
+    movements.slice(0, 80).forEach(function (movement) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
+      appendStockIaCell_(row, movement.name);
+      appendStockIaCell_(row, formatQuantity_(movement.quantity));
+      appendStockIaCell_(row, movement.unit);
+      appendStockIaCell_(row, formatCurrency_(movement.totalValue));
+      appendStockIaCell_(row, "RDO");
+      appendStockIaCell_(row, movement.dailyLogId || "-");
+      appendStockIaCell_(row, movement.workName || "-");
+      stockIaMovements.appendChild(row);
+    });
+  }
+
+  function buildStockIaInsightFromDailyLogs_(balances, movements) {
+    if (!movements.length) {
+      return "Ainda nao ha materiais registrados nos RDOs. Quando um diario tiver material consumido, o Stock IA vai mostrar o consumo derivado aqui.";
+    }
+
+    const topItems = balances.slice().sort(function (a, b) {
+      return Number(b.totalCost || 0) - Number(a.totalCost || 0);
+    }).slice(0, 3).map(function (item) {
+      return item.name;
+    });
+
+    return "Com base nos diarios de obra, foram identificados " + balances.length +
+      " material(is) consumido(s) em " + movements.length + " movimento(s) derivados do RDO. " +
+      (topItems.length ? "Os principais itens por custo registrado sao: " + topItems.join(", ") + ". " : "") +
+      "Esta ainda e uma visao derivada do RDO; para virar estoque real, o proximo passo sera criar entradas e saldo inicial.";
+  }
+
+  function appendStockIaCell_(row, text) {
+    const cell = document.createElement("td");
+    cell.textContent = text || "-";
+    row.appendChild(cell);
+  }
+
+  function appendStockIaEmptyRow_(tbody, colSpan, text) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = colSpan;
+    cell.textContent = text;
+    row.appendChild(cell);
+    tbody.appendChild(row);
+  }
+
+  function summarizeStockIaList_(items, limit) {
+    const safeItems = (items || []).filter(Boolean);
+
+    if (!safeItems.length) {
+      return "-";
+    }
+
+    return safeItems.slice(0, limit).join(", ") + (safeItems.length > limit ? " +" + (safeItems.length - limit) : "");
+  }
+
+  function loadStockMasterState_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(STOCK_MASTER_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return {
+        items: Array.isArray(parsed.items) ? parsed.items : [],
+        manualMovements: Array.isArray(parsed.manualMovements) ? parsed.manualMovements : [],
+        links: Array.isArray(parsed.links) ? parsed.links : [],
+        updatedAt: parsed.updatedAt || new Date().toISOString()
+      };
+    } catch (error) {
+      console.warn("Nao foi possivel carregar o estoque local.", error);
+      return {
+        items: [],
+        manualMovements: [],
+        links: [],
+        updatedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  function saveStockMasterState_(state) {
+    const storage = getLocalStorage_();
+    const safeState = {
+      items: Array.isArray(state.items) ? state.items : [],
+      manualMovements: Array.isArray(state.manualMovements) ? state.manualMovements : [],
+      links: Array.isArray(state.links) ? state.links : [],
+      updatedAt: new Date().toISOString()
+    };
+    if (storage) {
+      storage.setItem(STOCK_MASTER_STORAGE_KEY, JSON.stringify(safeState));
+    }
+    return safeState;
+  }
+
+  function generateStockId_(prefix) {
+    return createId_(prefix || "stk");
+  }
+
+  function createStockMasterItem_(data) {
+    const state = loadStockMasterState_();
+    const now = new Date().toISOString();
+    const name = clean(data.name);
+    const unit = clean(data.unit) || "un";
+    const item = {
+      id: generateStockId_("sti"),
+      name: name,
+      normalizedKey: normalizeStockMaterialKey_(name, unit),
+      unit: unit,
+      category: clean(data.category) || "Geral",
+      minimumStock: parseNumber_(data.minimumStock),
+      initialBalance: parseNumber_(data.initialBalance),
+      unitCost: parseNumber_(data.unitCost),
+      workId: clean(data.workId) || null,
+      notes: clean(data.notes),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (!item.name) {
+      return null;
+    }
+
+    state.items.push(item);
+    saveStockMasterState_(state);
+    return item;
+  }
+
+  function updateStockMasterItem_(itemId, data) {
+    const state = loadStockMasterState_();
+    const item = state.items.find(function (candidate) {
+      return candidate.id === itemId;
+    });
+
+    if (!item) {
+      return null;
+    }
+
+    item.name = clean(data.name) || item.name;
+    item.unit = clean(data.unit) || item.unit || "un";
+    item.category = clean(data.category) || item.category || "Geral";
+    item.minimumStock = parseNumber_(data.minimumStock);
+    item.initialBalance = parseNumber_(data.initialBalance);
+    item.unitCost = parseNumber_(data.unitCost);
+    item.workId = clean(data.workId) || null;
+    item.notes = clean(data.notes);
+    item.normalizedKey = normalizeStockMaterialKey_(item.name, item.unit);
+    item.updatedAt = new Date().toISOString();
+    saveStockMasterState_(state);
+    return item;
+  }
+
+  function deleteStockMasterItem_(itemId) {
+    const state = loadStockMasterState_();
+    state.items = state.items.filter(function (item) {
+      return item.id !== itemId;
+    });
+    state.manualMovements = state.manualMovements.filter(function (movement) {
+      return movement.stockItemId !== itemId;
+    });
+    state.links = state.links.filter(function (link) {
+      return link.stockItemId !== itemId;
+    });
+    saveStockMasterState_(state);
+  }
+
+  function addManualStockMovement_(data) {
+    const state = loadStockMasterState_();
+    const item = state.items.find(function (candidate) {
+      return candidate.id === data.stockItemId;
+    });
+
+    if (!item) {
+      return null;
+    }
+
+    const quantity = parseNumber_(data.quantity);
+    if (quantity <= 0) {
+      return null;
+    }
+
+    const unitCost = parseNumber_(data.unitCost);
+    const movement = {
+      id: generateStockId_("stm"),
+      stockItemId: item.id,
+      type: data.type === "saida" || data.type === "ajuste" ? data.type : "entrada",
+      quantity: quantity,
+      unitCost: unitCost,
+      totalCost: quantity * unitCost,
+      date: clean(data.date) || toDateKey_(new Date()),
+      workId: clean(data.workId) || item.workId || null,
+      supplier: clean(data.supplier),
+      documentNumber: clean(data.documentNumber),
+      notes: clean(data.notes),
+      createdAt: new Date().toISOString()
+    };
+
+    state.manualMovements.push(movement);
+    saveStockMasterState_(state);
+    return movement;
+  }
+
+  function registerStockEntry_(data) {
+    return addManualStockMovement_(Object.assign({}, data, {
+      type: "entrada"
+    }));
+  }
+
+  function registerManualStockExit_(data) {
+    return addManualStockMovement_(Object.assign({}, data, {
+      type: "saida"
+    }));
+  }
+
+  function buildRdoMaterialStockKey_(rdoMaterial, dailyLog) {
+    const unit = clean(rdoMaterial && rdoMaterial.unit) || "un";
+    return [
+      dailyLog && dailyLog.id,
+      rdoMaterial && rdoMaterial.id,
+      normalizeStockMaterialKey_(rdoMaterial && rdoMaterial.name, unit)
+    ].filter(Boolean).join("|");
+  }
+
+  function linkRdoMaterialToStockItem_(rdoMaterial, dailyLog, stockItemId) {
+    const state = loadStockMasterState_();
+    const rdoMaterialKey = buildRdoMaterialStockKey_(rdoMaterial, dailyLog);
+    const unit = clean(rdoMaterial && rdoMaterial.unit) || "un";
+    const existing = state.links.find(function (link) {
+      return link.rdoMaterialKey === rdoMaterialKey;
+    });
+    const payload = {
+      id: existing ? existing.id : generateStockId_("stl"),
+      stockItemId: stockItemId,
+      rdoMaterialKey: rdoMaterialKey,
+      normalizedName: normalizeCompositionKey_(rdoMaterial && rdoMaterial.name),
+      unit: unit,
+      workId: dailyLog && dailyLog.workId ? dailyLog.workId : null,
+      createdAt: existing ? existing.createdAt : new Date().toISOString()
+    };
+
+    if (existing) {
+      Object.assign(existing, payload);
+    } else {
+      state.links.push(payload);
+    }
+
+    saveStockMasterState_(state);
+    return payload;
+  }
+
+  function findLinkedStockItemForRdoMaterial_(rdoMaterial, dailyLog) {
+    const state = loadStockMasterState_();
+    const rdoMaterialKey = buildRdoMaterialStockKey_(rdoMaterial, dailyLog);
+    const link = state.links.find(function (candidate) {
+      return candidate.rdoMaterialKey === rdoMaterialKey;
+    });
+
+    if (!link) {
+      return null;
+    }
+
+    return state.items.find(function (item) {
+      return item.id === link.stockItemId;
+    }) || null;
+  }
+
+  function findMatchingStockItemForRdoMaterial_(rdoMaterial, dailyLog) {
+    const state = loadStockMasterState_();
+    const key = normalizeStockMaterialKey_(rdoMaterial && rdoMaterial.name, rdoMaterial && rdoMaterial.unit);
+    const workId = dailyLog && dailyLog.workId ? dailyLog.workId : null;
+
+    return state.items.find(function (item) {
+      return item.normalizedKey === key && item.workId && workId && item.workId === workId;
+    }) || state.items.find(function (item) {
+      return item.normalizedKey === key && !item.workId;
+    }) || state.items.find(function (item) {
+      return item.normalizedKey === key;
+    }) || null;
+  }
+
+  function buildUnlinkedRdoMaterials_() {
+    const dailyLogs = getUserDailyLogs_();
+    const items = [];
+
+    dailyLogs.forEach(function (logItem) {
+      (logItem.materials || []).forEach(function (material) {
+        const linked = findLinkedStockItemForRdoMaterial_(material, logItem);
+        const matched = findMatchingStockItemForRdoMaterial_(material, logItem);
+
+        if (linked || matched) {
+          return;
+        }
+
+        items.push({
+          rdoMaterialKey: buildRdoMaterialStockKey_(material, logItem),
+          material: material,
+          dailyLog: logItem,
+          date: logItem.date,
+          workName: getWorkName_(logItem.workId) || "Obra nao informada"
+        });
+      });
+    });
+
+    return items.sort(function (a, b) {
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    });
+  }
+
+  function buildRealStockMovements_() {
+    const state = loadStockMasterState_();
+    const movements = [];
+
+    state.manualMovements.forEach(function (movement) {
+      const item = state.items.find(function (candidate) {
+        return candidate.id === movement.stockItemId;
+      });
+
+      if (!item) {
+        return;
+      }
+
+      movements.push(Object.assign({}, movement, {
+        source: "manual",
+        itemName: item.name,
+        unit: item.unit
+      }));
+    });
+
+    getUserDailyLogs_().forEach(function (logItem) {
+      (logItem.materials || []).forEach(function (material) {
+        const stockItem = findLinkedStockItemForRdoMaterial_(material, logItem) || findMatchingStockItemForRdoMaterial_(material, logItem);
+
+        if (!stockItem) {
+          return;
+        }
+
+        const quantity = parseNumber_(material.quantity);
+        const unitCost = parseNumber_(material.unitValue);
+        movements.push({
+          id: buildRdoMaterialStockKey_(material, logItem),
+          stockItemId: stockItem.id,
+          type: "consumo_rdo",
+          source: "rdo",
+          itemName: stockItem.name,
+          quantity: quantity,
+          unit: clean(material.unit) || stockItem.unit,
+          unitCost: unitCost,
+          totalCost: parseNumber_(material.totalValue) || quantity * unitCost,
+          date: logItem.date,
+          workId: logItem.workId || null,
+          dailyLogId: logItem.id,
+          notes: clean(material.note),
+          createdAt: logItem.updatedAt || logItem.createdAt || ""
+        });
+      });
+    });
+
+    return movements.sort(function (a, b) {
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    });
+  }
+
+  function calculateRealStockBalances_() {
+    const state = loadStockMasterState_();
+    const movements = buildRealStockMovements_();
+
+    return state.items.map(function (item) {
+      const itemMovements = movements.filter(function (movement) {
+        return movement.stockItemId === item.id;
+      });
+      const entries = itemMovements.filter(function (movement) {
+        return movement.type === "entrada" || movement.type === "ajuste";
+      }).reduce(function (sum, movement) {
+        return sum + parseNumber_(movement.quantity);
+      }, 0);
+      const exits = itemMovements.filter(function (movement) {
+        return movement.type === "saida";
+      }).reduce(function (sum, movement) {
+        return sum + parseNumber_(movement.quantity);
+      }, 0);
+      const rdoConsumption = itemMovements.filter(function (movement) {
+        return movement.type === "consumo_rdo";
+      }).reduce(function (sum, movement) {
+        return sum + parseNumber_(movement.quantity);
+      }, 0);
+      const realBalance = roundQuantity_(parseNumber_(item.initialBalance) + entries - exits - rdoConsumption);
+
+      return {
+        item: item,
+        entries: roundQuantity_(entries),
+        manualExits: roundQuantity_(exits),
+        rdoConsumption: roundQuantity_(rdoConsumption),
+        realBalance: realBalance,
+        estimatedValue: Math.max(realBalance, 0) * parseNumber_(item.unitCost),
+        movements: itemMovements,
+        status: getRealStockStatus_({
+          realBalance: realBalance,
+          minimumStock: parseNumber_(item.minimumStock)
+        })
+      };
+    }).sort(function (a, b) {
+      return String(a.item.name || "").localeCompare(String(b.item.name || ""));
+    });
+  }
+
+  function buildRealStockSummary_() {
+    const balances = calculateRealStockBalances_();
+    const movements = buildRealStockMovements_();
+    const unlinked = buildUnlinkedRdoMaterials_();
+
+    return {
+      itemCount: balances.length,
+      estimatedStockValue: balances.reduce(function (sum, balance) {
+        return sum + balance.estimatedValue;
+      }, 0),
+      lowStockCount: balances.filter(function (balance) {
+        return balance.status === "Baixo";
+      }).length,
+      negativeCount: balances.filter(function (balance) {
+        return balance.status === "Negativo";
+      }).length,
+      rdoConsumptionCount: movements.filter(function (movement) {
+        return movement.type === "consumo_rdo";
+      }).length,
+      manualEntriesCount: movements.filter(function (movement) {
+        return movement.type === "entrada";
+      }).length,
+      unlinkedCount: unlinked.length
+    };
+  }
+
+  function buildRealStockIaInsight_() {
+    const summary = buildRealStockSummary_();
+
+    if (!summary.itemCount && !summary.unlinkedCount) {
+      return "Cadastre materiais ou registre materiais no RDO para iniciar o Stock IA. O saldo real sera calculado com saldo inicial, entradas, saidas manuais e consumo vindo do RDO.";
+    }
+
+    return "Seu estoque possui " + summary.itemCount + " item(ns) cadastrado(s). " +
+      summary.lowStockCount + " estao abaixo do minimo e " + summary.negativeCount + " ficaram negativos. " +
+      "Existem " + summary.unlinkedCount + " consumo(s) do RDO ainda nao vinculado(s). " +
+      "Proximo passo recomendado: revisar itens negativos, vincular consumos pendentes e registrar entradas iniciais.";
+  }
+
+  function getRealStockStatus_(balance) {
+    const realBalance = parseNumber_(balance.realBalance);
+    const minimumStock = parseNumber_(balance.minimumStock);
+
+    if (realBalance < 0) {
+      return "Negativo";
+    }
+
+    if (realBalance === 0) {
+      return "Zerado";
+    }
+
+    if (minimumStock > 0 && realBalance <= minimumStock) {
+      return "Baixo";
+    }
+
+    return "OK";
+  }
+
+  function renderStockIaPanel_(dailyLogs) {
+    const rdoMovements = buildStockMovementsFromDailyLogs_(dailyLogs || getUserDailyLogs_());
+    const rdoBalances = buildStockBalanceFromMovements_(rdoMovements);
+    const summary = buildRealStockSummary_();
+    const realMovements = buildRealStockMovements_();
+    const unlinked = buildUnlinkedRdoMaterials_();
+
+    renderStockIaSummaryCards_(summary);
+    renderStockMasterItems_();
+    renderUnlinkedRdoMaterials_(unlinked);
+    renderManualStockMovements_();
+    renderStockIaRows_(rdoBalances);
+    renderStockIaMovements_(rdoMovements);
+    renderStockIaActionMessage_();
+
+    if (stockIaInsight) {
+      stockIaInsight.textContent = buildRealStockIaInsight_(realMovements);
+    }
+  }
+
+  function renderStockIaSummaryCards_(summary) {
+    if (!stockIaSummaryCards) {
+      return;
+    }
+
+    stockIaSummaryCards.innerHTML = "";
+    [
+      ["Itens cadastrados", summary.itemCount],
+      ["Valor estimado em estoque", formatCurrency_(summary.estimatedStockValue)],
+      ["Abaixo do minimo", summary.lowStockCount],
+      ["Itens negativos", summary.negativeCount],
+      ["Consumo vindo do RDO", summary.rdoConsumptionCount],
+      ["Entradas manuais", summary.manualEntriesCount]
+    ].forEach(function (item) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      card.className = "stock-ia-card";
+      label.textContent = item[0];
+      value.textContent = String(item[1]);
+      card.appendChild(label);
+      card.appendChild(value);
+      stockIaSummaryCards.appendChild(card);
+    });
+  }
+
+  function renderStockMasterItems_() {
+    if (!stockMasterRows) {
+      return;
+    }
+
+    const balances = calculateRealStockBalances_();
+    stockMasterRows.innerHTML = "";
+
+    if (!balances.length) {
+      appendStockIaEmptyRow_(stockMasterRows, 11, "Nenhum item mestre cadastrado.");
+      return;
+    }
+
+    balances.forEach(function (balance) {
+      const item = balance.item;
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, item.name);
+      appendStockIaCell_(row, item.unit);
+      appendStockIaCell_(row, item.category || "Geral");
+      appendStockIaCell_(row, formatQuantity_(item.initialBalance));
+      appendStockIaCell_(row, formatQuantity_(balance.entries));
+      appendStockIaCell_(row, formatQuantity_(balance.rdoConsumption));
+      appendStockIaCell_(row, formatQuantity_(balance.manualExits));
+      appendStockIaCell_(row, formatQuantity_(balance.realBalance));
+      appendStockIaCell_(row, formatQuantity_(item.minimumStock));
+      appendStockIaCell_(row, balance.status);
+      appendStockIaActions_(row, [
+        ["Editar", "edit-item", item.id],
+        ["Excluir", "delete-item", item.id],
+        ["Entrada", "entry", item.id],
+        ["Saida", "exit", item.id]
+      ]);
+      stockMasterRows.appendChild(row);
+    });
+  }
+
+  function renderManualStockMovements_() {
+    if (!stockManualMovementsRows) {
+      return;
+    }
+
+    const state = loadStockMasterState_();
+    stockManualMovementsRows.innerHTML = "";
+
+    if (!state.manualMovements.length) {
+      appendStockIaEmptyRow_(stockManualMovementsRows, 8, "Nenhuma movimentacao manual registrada.");
+      return;
+    }
+
+    state.manualMovements.slice().sort(function (a, b) {
+      return String(b.date || "").localeCompare(String(a.date || ""));
+    }).forEach(function (movement) {
+      const item = state.items.find(function (candidate) {
+        return candidate.id === movement.stockItemId;
+      });
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
+      appendStockIaCell_(row, item ? item.name : "Item removido");
+      appendStockIaCell_(row, movement.type);
+      appendStockIaCell_(row, formatQuantity_(movement.quantity));
+      appendStockIaCell_(row, formatCurrency_(movement.totalCost));
+      appendStockIaCell_(row, movement.supplier || "-");
+      appendStockIaCell_(row, movement.documentNumber || "-");
+      appendStockIaCell_(row, movement.notes || "-");
+      stockManualMovementsRows.appendChild(row);
+    });
+  }
+
+  function renderUnlinkedRdoMaterials_(items) {
+    if (!stockUnlinkedRows) {
+      return;
+    }
+
+    stockUnlinkedRows.innerHTML = "";
+
+    if (!items.length) {
+      appendStockIaEmptyRow_(stockUnlinkedRows, 8, "Nenhum consumo do RDO pendente de vinculo.");
+      return;
+    }
+
+    items.forEach(function (entry) {
+      const material = entry.material;
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, entry.date ? formatDateOnly_(entry.date) : "-");
+      appendStockIaCell_(row, material.name);
+      appendStockIaCell_(row, material.unit || "un");
+      appendStockIaCell_(row, formatQuantity_(material.quantity));
+      appendStockIaCell_(row, formatCurrency_(material.totalValue || 0));
+      appendStockIaCell_(row, entry.workName);
+      appendStockIaCell_(row, entry.dailyLog.id || "-");
+      appendStockIaActions_(row, [
+        ["Criar item", "create-from-rdo", entry.rdoMaterialKey],
+        ["Vincular", "link-rdo", entry.rdoMaterialKey]
+      ]);
+      stockUnlinkedRows.appendChild(row);
+    });
+  }
+
+  function renderStockIaRows_(balances) {
+    if (!stockIaRows) {
+      return;
+    }
+
+    stockIaRows.innerHTML = "";
+    if (!balances.length) {
+      appendStockIaEmptyRow_(stockIaRows, 7, "Nenhum material registrado nos RDOs.");
+      return;
+    }
+  }
+
+  function renderStockIaMovements_(movements) {
+    if (!stockIaMovements) {
+      return;
+    }
+
+    stockIaMovements.innerHTML = "";
+    if (!movements.length) {
+      appendStockIaEmptyRow_(stockIaMovements, 8, "Nenhum movimento derivado encontrado.");
+      return;
+    }
+
+    movements.slice(0, 100).forEach(function (movement) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
+      appendStockIaCell_(row, movement.name);
+      appendStockIaCell_(row, formatQuantity_(movement.quantity));
+      appendStockIaCell_(row, movement.unit);
+      appendStockIaCell_(row, formatCurrency_(movement.totalValue));
+      appendStockIaCell_(row, "RDO");
+      appendStockIaCell_(row, movement.dailyLogId || "-");
+      appendStockIaCell_(row, movement.workName || "-");
+      stockIaMovements.appendChild(row);
+    });
+  }
+
+  function appendStockIaActions_(row, actions) {
+    const cell = document.createElement("td");
+    const wrapper = document.createElement("div");
+    wrapper.className = "stock-ia-actions";
+    actions.forEach(function (action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mini-button compact";
+      button.dataset.stockAction = action[1];
+      button.dataset.stockId = action[2];
+      button.textContent = action[0];
+      wrapper.appendChild(button);
+    });
+    cell.appendChild(wrapper);
+    row.appendChild(cell);
+  }
+
+  function handleStockIaAction_(button) {
+    const action = button.dataset.stockAction;
+    const stockId = button.dataset.stockId || "";
+
+    if (action === "new-item") {
+      openStockIaModal_("item", {});
+    } else if (action === "edit-item") {
+      openStockIaModal_("item", {
+        itemId: stockId
+      });
+    } else if (action === "delete-item") {
+      openStockIaModal_("delete-item", {
+        itemId: stockId
+      });
+    } else if (action === "entry") {
+      openStockIaModal_("movement", {
+        itemId: stockId,
+        movementType: "entrada"
+      });
+    } else if (action === "exit") {
+      openStockIaModal_("movement", {
+        itemId: stockId,
+        movementType: "saida"
+      });
+    } else if (action === "create-from-rdo") {
+      openStockIaModal_("create-from-rdo", {
+        rdoMaterialKey: stockId
+      });
+    } else if (action === "link-rdo") {
+      openStockIaModal_("link-rdo", {
+        rdoMaterialKey: stockId
+      });
+    }
+  }
+
+  function openStockIaModal_(type, payload) {
+    if (!stockIaModal) {
+      return;
+    }
+
+    stockIaModal.dataset.stockModalType = type;
+    stockIaModal.dataset.stockPayload = JSON.stringify(payload || {});
+    renderStockIaModal_(type, payload || {});
+    stockIaModal.classList.remove("is-hidden");
+
+    const firstField = stockIaModal.querySelector("input, select, textarea, button");
+    if (firstField) {
+      firstField.focus();
+    }
+  }
+
+  function closeStockIaModal_() {
+    if (!stockIaModal) {
+      return;
+    }
+
+    stockIaModal.classList.add("is-hidden");
+    stockIaModal.innerHTML = "";
+    stockIaModal.dataset.stockModalType = "";
+    stockIaModal.dataset.stockPayload = "";
+  }
+
+  function renderStockIaModal_(type, payload) {
+    const state = loadStockMasterState_();
+    const item = payload.itemId ? state.items.find(function (candidate) {
+      return candidate.id === payload.itemId;
+    }) : null;
+    const rdoEntry = payload.rdoMaterialKey ? findUnlinkedRdoEntryByKey_(payload.rdoMaterialKey) : null;
+    const title = getStockIaModalTitle_(type, item, payload);
+    const content = document.createElement("div");
+    const card = document.createElement("div");
+    const header = document.createElement("div");
+    const heading = document.createElement("h3");
+    const closeButton = document.createElement("button");
+    const form = document.createElement("form");
+
+    stockIaModal.innerHTML = "";
+    content.className = "stock-ia-modal-backdrop";
+    card.className = "stock-ia-modal-card";
+    header.className = "stock-ia-modal-header";
+    heading.id = "stockIaModalTitle";
+    heading.textContent = title;
+    closeButton.type = "button";
+    closeButton.className = "mini-button compact";
+    closeButton.dataset.stockModalClose = "true";
+    closeButton.textContent = "Fechar";
+    form.className = "stock-ia-form";
+    form.dataset.stockFormType = type;
+
+    header.appendChild(heading);
+    header.appendChild(closeButton);
+    card.appendChild(header);
+
+    if (type === "item") {
+      appendStockItemFields_(form, item);
+    } else if (type === "movement") {
+      appendStockMovementFields_(form, state, item, payload.movementType);
+    } else if (type === "delete-item") {
+      appendStockIaNotice_(form, "Confirma excluir este item e suas movimentacoes locais?");
+    } else if (type === "create-from-rdo") {
+      appendStockItemFields_(form, null, rdoEntry);
+    } else if (type === "link-rdo") {
+      appendStockLinkFields_(form, state, rdoEntry);
+    }
+
+    appendHiddenField_(form, "itemId", payload.itemId || "");
+    appendHiddenField_(form, "rdoMaterialKey", payload.rdoMaterialKey || "");
+    appendHiddenField_(form, "movementType", payload.movementType || "");
+    appendStockIaFormActions_(form, type === "delete-item" ? "Excluir" : "Salvar");
+    card.appendChild(form);
+    content.appendChild(card);
+    stockIaModal.appendChild(content);
+  }
+
+  function getStockIaModalTitle_(type, item, payload) {
+    if (type === "item") {
+      return item ? "Editar material" : "Novo material";
+    }
+
+    if (type === "movement") {
+      return payload.movementType === "saida" ? "Registrar saida" : "Registrar entrada";
+    }
+
+    if (type === "delete-item") {
+      return "Excluir material";
+    }
+
+    if (type === "create-from-rdo") {
+      return "Criar item a partir do RDO";
+    }
+
+    if (type === "link-rdo") {
+      return "Vincular consumo do RDO";
+    }
+
+    return "Stock IA";
+  }
+
+  function appendStockItemFields_(form, item, rdoEntry) {
+    const material = rdoEntry ? rdoEntry.material : null;
+    appendStockIaField_(form, "name", "Nome", "text", item ? item.name : (material ? material.name : ""), true);
+    appendStockIaField_(form, "unit", "Unidade", "text", item ? item.unit : (material ? material.unit || "un" : "un"), true);
+    appendStockIaField_(form, "category", "Categoria", "text", item ? item.category : "Geral", false);
+    appendStockIaField_(form, "initialBalance", "Saldo inicial", "number", item ? item.initialBalance : 0, false, "0.001");
+    appendStockIaField_(form, "minimumStock", "Estoque minimo", "number", item ? item.minimumStock : 0, false, "0.001");
+    appendStockIaField_(form, "unitCost", "Custo unitario", "number", item ? item.unitCost : (material ? material.unitValue || 0 : 0), false, "0.01");
+    appendStockWorkSelect_(form, item ? item.workId : (rdoEntry && rdoEntry.dailyLog ? rdoEntry.dailyLog.workId : ""));
+    appendStockIaTextarea_(form, "notes", "Observacoes", item ? item.notes : (rdoEntry ? "Criado a partir de consumo do RDO." : ""));
+  }
+
+  function appendStockMovementFields_(form, state, selectedItem, type) {
+    appendStockItemSelect_(form, state.items, selectedItem ? selectedItem.id : "");
+    appendStockIaField_(form, "quantity", "Quantidade", "number", 0, true, "0.001");
+    if (type !== "saida") {
+      appendStockIaField_(form, "unitCost", "Custo unitario", "number", selectedItem ? selectedItem.unitCost || 0 : 0, false, "0.01");
+      appendStockIaField_(form, "supplier", "Fornecedor", "text", "", false);
+      appendStockIaField_(form, "documentNumber", "Numero do documento", "text", "", false);
+    }
+    appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+    appendStockIaTextarea_(form, "notes", "Observacao", "");
+  }
+
+  function appendStockLinkFields_(form, state, rdoEntry) {
+    if (rdoEntry) {
+      appendStockIaNotice_(form, "Material do RDO: " + rdoEntry.material.name + " | " + formatQuantity_(rdoEntry.material.quantity) + " " + (rdoEntry.material.unit || "un"));
+    }
+    appendStockItemSelect_(form, state.items, "");
+  }
+
+  function appendStockIaField_(form, name, label, type, value, required, step) {
+    const wrapper = document.createElement("label");
+    const input = document.createElement("input");
+    wrapper.textContent = label;
+    input.name = name;
+    input.type = type;
+    input.value = value === undefined || value === null ? "" : String(value);
+    input.required = Boolean(required);
+    if (step) {
+      input.step = step;
+    }
+    if (type === "number") {
+      input.min = "0";
+    }
+    wrapper.appendChild(input);
+    form.appendChild(wrapper);
+  }
+
+  function appendStockIaTextarea_(form, name, label, value) {
+    const wrapper = document.createElement("label");
+    const textarea = document.createElement("textarea");
+    wrapper.className = "full-width";
+    wrapper.textContent = label;
+    textarea.name = name;
+    textarea.rows = 3;
+    textarea.value = value || "";
+    wrapper.appendChild(textarea);
+    form.appendChild(wrapper);
+  }
+
+  function appendStockWorkSelect_(form, selectedWorkId) {
+    const wrapper = document.createElement("label");
+    const select = document.createElement("select");
+    wrapper.textContent = "Obra";
+    select.name = "workId";
+    appendOption_(select, "", "Geral / sem obra");
+    getUserWorks_().forEach(function (work) {
+      appendOption_(select, work.id, work.name);
+    });
+    select.value = selectedWorkId || "";
+    wrapper.appendChild(select);
+    form.appendChild(wrapper);
+  }
+
+  function appendStockItemSelect_(form, items, selectedItemId) {
+    const wrapper = document.createElement("label");
+    const select = document.createElement("select");
+    wrapper.textContent = "Item de estoque";
+    select.name = "stockItemId";
+    select.required = true;
+    appendOption_(select, "", "Escolha um item");
+    items.forEach(function (item) {
+      appendOption_(select, item.id, item.name + " (" + item.unit + ")");
+    });
+    select.value = selectedItemId || "";
+    wrapper.appendChild(select);
+    form.appendChild(wrapper);
+  }
+
+  function appendOption_(select, value, text) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    select.appendChild(option);
+  }
+
+  function appendHiddenField_(form, name, value) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value || "";
+    form.appendChild(input);
+  }
+
+  function appendStockIaNotice_(form, text) {
+    const note = document.createElement("p");
+    note.className = "stock-ia-modal-note full-width";
+    note.textContent = text;
+    form.appendChild(note);
+  }
+
+  function appendStockIaFormActions_(form, submitText) {
+    const actions = document.createElement("div");
+    const submit = document.createElement("button");
+    const cancel = document.createElement("button");
+    actions.className = "stock-ia-form-actions full-width";
+    submit.type = "submit";
+    submit.className = "mini-button primary";
+    submit.textContent = submitText;
+    cancel.type = "button";
+    cancel.className = "mini-button";
+    cancel.dataset.stockModalClose = "true";
+    cancel.textContent = "Cancelar";
+    actions.appendChild(submit);
+    actions.appendChild(cancel);
+    form.appendChild(actions);
+  }
+
+  function handleStockIaFormSubmit_(event) {
+    event.preventDefault();
+    const form = event.target;
+    const type = form.dataset.stockFormType;
+    const formData = new FormData(form);
+    const itemId = clean(formData.get("itemId"));
+    const rdoMaterialKey = clean(formData.get("rdoMaterialKey"));
+    const movementType = clean(formData.get("movementType"));
+
+    if (type === "item") {
+      if (itemId) {
+        updateStockMasterItem_(itemId, Object.fromEntries(formData.entries()));
+        showStockIaToast_("Material atualizado.", "success");
+      } else {
+        createStockMasterItem_(Object.fromEntries(formData.entries()));
+        showStockIaToast_("Material cadastrado.", "success");
+      }
+    } else if (type === "movement") {
+      const data = Object.fromEntries(formData.entries());
+      if (movementType === "saida") {
+        registerManualStockExit_(data);
+        showStockIaToast_("Saida registrada.", "success");
+      } else {
+        registerStockEntry_(data);
+        showStockIaToast_("Entrada registrada.", "success");
+      }
+    } else if (type === "delete-item") {
+      deleteStockMasterItem_(itemId);
+      showStockIaToast_("Material excluido.", "success");
+    } else if (type === "create-from-rdo") {
+      const entry = findUnlinkedRdoEntryByKey_(rdoMaterialKey);
+      const item = createStockMasterItem_(Object.fromEntries(formData.entries()));
+      if (entry && item) {
+        linkRdoMaterialToStockItem_(entry.material, entry.dailyLog, item.id);
+      }
+      showStockIaToast_("Item criado e vinculado ao RDO.", "success");
+    } else if (type === "link-rdo") {
+      const entry = findUnlinkedRdoEntryByKey_(rdoMaterialKey);
+      const stockItemId = clean(formData.get("stockItemId"));
+      if (entry && stockItemId) {
+        linkRdoMaterialToStockItem_(entry.material, entry.dailyLog, stockItemId);
+        showStockIaToast_("Consumo do RDO vinculado.", "success");
+      } else {
+        showStockIaToast_("Escolha um item para vincular.", "error");
+        return;
+      }
+    }
+
+    closeStockIaModal_();
+    renderStockIaPanel_(getUserDailyLogs_());
+  }
+
+  function showStockIaToast_(message, type) {
+    if (!stockIaActionMessage) {
+      return;
+    }
+
+    stockIaActionMessage.textContent = message;
+    stockIaActionMessage.className = "stock-ia-toast " + (type || "info");
+    window.clearTimeout(showStockIaToast_.timer);
+    showStockIaToast_.timer = window.setTimeout(function () {
+      stockIaActionMessage.classList.add("is-hidden");
+    }, 3600);
+  }
+
+  function renderStockIaActionMessage_() {
+    if (stockIaActionMessage && !stockIaActionMessage.textContent) {
+      stockIaActionMessage.classList.add("is-hidden");
+    }
+  }
+
+  function findUnlinkedRdoEntryByKey_(rdoMaterialKey) {
+    return buildUnlinkedRdoMaterials_().find(function (entry) {
+      return entry.rdoMaterialKey === rdoMaterialKey;
+    }) || null;
   }
 
   function createIndicatorItem_(label, value) {
