@@ -135,6 +135,7 @@
   const maxInconformidades = config.maxInconformidades || 20;
   const defaultDraftId = "relatorio-fiscalizacao-draft-v2";
   const saasStoreKey = "obrareport-saas-v1";
+  const localAccessSessionKey = "obrareport_local_access_granted_v1";
   const STOCK_MASTER_STORAGE_KEY = "obrareport_stock_master_v1";
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
@@ -152,6 +153,7 @@
   let dailyLogSearchTerm = "";
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
+  let localAccessGrantedInMemory = false;
   let dailyLogEstimateDraft = {
     items: [],
     audit: [],
@@ -174,7 +176,7 @@
 
   if (openReportButton && homePanel && reportPanel) {
     openReportButton.addEventListener("click", function () {
-      if (currentUser) {
+      if (currentUser && hasLocalAccessSession_()) {
         showDashboardPanel_("dashboard");
         return;
       }
@@ -376,6 +378,43 @@
     }
   }
 
+  function getSessionStorage_() {
+    try {
+      return window.sessionStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function hasLocalAccessSession_() {
+    const storage = getSessionStorage_();
+    if (!storage) {
+      return localAccessGrantedInMemory;
+    }
+
+    return Boolean(storage && storage.getItem(localAccessSessionKey) === "granted");
+  }
+
+  function grantLocalAccessSession_() {
+    const storage = getSessionStorage_();
+    localAccessGrantedInMemory = true;
+    if (!storage) {
+      return;
+    }
+
+    storage.setItem(localAccessSessionKey, "granted");
+  }
+
+  function revokeLocalAccessSession_() {
+    const storage = getSessionStorage_();
+    localAccessGrantedInMemory = false;
+    if (!storage) {
+      return;
+    }
+
+    storage.removeItem(localAccessSessionKey);
+  }
+
   function ensureCompositionLibrary_(items) {
     const current = Array.isArray(items) ? items : [];
     const defaultById = {};
@@ -508,6 +547,19 @@
 
   function initializeSaas_() {
     bindSaasEvents_();
+
+    if (!hasLocalAccessSession_()) {
+      if (isRestrictedRouteHash_()) {
+        setCloudStatus_("Informe a senha para acessar a area interna.", "info");
+        setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+        showLoginPanel_();
+        return;
+      }
+
+      showHomePanel_();
+      return;
+    }
+
     renderSaasState_();
 
     if (currentUser) {
@@ -539,12 +591,28 @@
       loginForm.addEventListener("submit", async function (event) {
         event.preventDefault();
         const formData = new FormData(loginForm);
-        const name = clean(formData.get("userName"));
-        const email = clean(formData.get("userEmail")).toLowerCase();
+        const informedName = clean(formData.get("userName"));
+        const informedEmail = clean(formData.get("userEmail")).toLowerCase();
+        const name = informedName || "Usuário ObraReport";
+        const email = informedEmail || "local@obrareport.app";
         const password = clean(formData.get("userPassword"));
 
-        if (!name || !email || !password) {
-          setLoginAccessStatus_("Preencha nome, email e senha para entrar.", "error");
+        if (!password) {
+          setLoginAccessStatus_("Informe a senha para entrar.", "error");
+          return;
+        }
+
+        if (!isLocalAccessPasswordValid_(password)) {
+          setCloudStatus_("Senha incorreta para acesso local.", "error");
+          setLoginAccessStatus_("Senha incorreta para acesso local.", "error");
+          return;
+        }
+
+        if (!informedName || !informedEmail) {
+          loginLocalFallback_(name, email);
+          setCloudStatus_("Modo local ativo", "info");
+          setLoginAccessStatus_("", "");
+          runPendingHomeAction_();
           return;
         }
 
@@ -558,19 +626,15 @@
           });
 
           await applyCloudLogin_(result);
+          grantLocalAccessSession_();
           loginForm.reset();
           renderSaasState_();
-          showDashboardPanel_("dashboard");
+          showDashboardPanel_(getRouteFromHash_());
           setCloudStatus_("Sincronizado na nuvem", "success");
           setLoginAccessStatus_("", "");
           runPendingHomeAction_();
         } catch (error) {
           console.error(error);
-          if (!isLocalAccessPasswordValid_(password)) {
-            setCloudStatus_("Senha incorreta para acesso local.", "error");
-            setLoginAccessStatus_("Senha incorreta para acesso local.", "error");
-            return;
-          }
           loginLocalFallback_(name, email);
           setCloudStatus_("Modo local ativo. Publique o Apps Script novo para sincronizar na nuvem.", "error");
           setLoginAccessStatus_("", "");
@@ -582,6 +646,7 @@
     if (logoutButton) {
       logoutButton.addEventListener("click", function () {
         activeReportId = null;
+        revokeLocalAccessSession_();
         appState.session = null;
         setLastOpened_("dashboard");
         saveAppState_();
@@ -662,12 +727,12 @@
     }
 
     window.addEventListener("hashchange", function () {
-      if (currentUser && window.location.hash.indexOf("#app/") === 0) {
+      if (currentUser && hasLocalAccessSession_() && window.location.hash.indexOf("#app/") === 0) {
         showDashboardPanel_(getRouteFromHash_());
         return;
       }
 
-      if (!currentUser && isRestrictedRouteHash_()) {
+      if (isRestrictedRouteHash_() && !hasLocalAccessSession_()) {
         setCloudStatus_("Informe a senha para acessar a area interna.", "info");
         setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
         showLoginPanel_();
@@ -843,7 +908,7 @@
       return;
     }
 
-    if (!currentUser) {
+    if (!currentUser || !hasLocalAccessSession_()) {
       pendingHomeAction = action;
       setHomeActionStatus_("Faça login para abrir essa ação diretamente no sistema.");
       showLoginPanel_();
@@ -1387,11 +1452,12 @@
       localOnly: true,
       signedInAt: new Date().toISOString()
     };
+    grantLocalAccessSession_();
     saveLocalData({ syncCloud: false });
     currentUser = user;
     loginForm.reset();
     renderSaasState_();
-    showDashboardPanel_("dashboard");
+    showDashboardPanel_(getRouteFromHash_());
   }
 
   function saveLocalData(options) {
@@ -1873,6 +1939,13 @@
   }
 
   function showDashboardPanel_(route) {
+    if (!hasLocalAccessSession_()) {
+      setCloudStatus_("Informe a senha para acessar a area interna.", "info");
+      setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+      showLoginPanel_();
+      return;
+    }
+
     const safeRoute = coerceRouteForRole_(route || getDefaultRouteForRole_());
     showOnlyPanel_(dashboardPanel);
     window.location.hash = "#app/" + safeRoute;

@@ -166,6 +166,12 @@ body {
   line-height: 1.5;
 }
 
+.auth-optional {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .login-access-status {
   padding: 10px 12px;
   border: 1px solid rgba(207, 216, 227, 0.95);

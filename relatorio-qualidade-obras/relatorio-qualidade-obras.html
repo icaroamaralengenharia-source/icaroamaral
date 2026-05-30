@@ -200,13 +200,13 @@
       <form id="loginForm" class="auth-form">
         <div class="field-grid">
           <label>
-            Nome
-            <input name="userName" type="text" autocomplete="name" required>
+            Nome <span class="auth-optional">(opcional)</span>
+            <input name="userName" type="text" autocomplete="name">
           </label>
 
           <label>
-            E-mail
-            <input name="userEmail" type="email" autocomplete="email" required>
+            E-mail <span class="auth-optional">(opcional)</span>
+            <input name="userEmail" type="email" autocomplete="email">
           </label>
 
           <label class="full-width">
@@ -222,8 +222,7 @@
         <p class="auth-note login-access-status is-hidden" id="loginAccessStatus" role="status" aria-live="polite"></p>
 
         <p class="auth-note">
-          O acesso sincroniza clientes, obras e relatórios pela nuvem do ObraReport.
-          Em modo local, a entrada também exige a senha simples configurada no projeto.
+          A senha protege a área interna neste navegador. A landing comercial permanece pública.
         </p>
       </form>
     </section>
@@ -1558,7 +1557,7 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260529-role-visual-a"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260530-access-guard-a"></script>
   <link rel="stylesheet" href="elo-assistente.css">
   <script src="elo-assistente.js" defer></script>
 </body>
