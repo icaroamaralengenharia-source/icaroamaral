@@ -2904,6 +2904,94 @@ body {
   padding: clamp(24px, 4vw, 38px);
 }
 
+.home-test-actions {
+  border-color: rgba(15, 118, 110, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 18rem),
+    linear-gradient(135deg, #ffffff, #f7fbfc);
+}
+
+.home-test-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.home-test-button {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 150px;
+  padding: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 12px;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 28px rgba(6, 26, 50, 0.065);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.home-test-button.primary {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: linear-gradient(180deg, #eefaf8, #ffffff);
+}
+
+.home-test-button strong {
+  color: var(--navy);
+  font-size: 1.04rem;
+  line-height: 1.25;
+}
+
+.home-test-button span {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.home-test-button:hover,
+.home-test-button:focus {
+  border-color: rgba(15, 118, 110, 0.36);
+  background: rgba(15, 118, 110, 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.home-feature-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.home-feature-actions button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #d8e3ee;
+  border-radius: 999px;
+  color: var(--navy);
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.home-feature-actions button:hover,
+.home-feature-actions button:focus {
+  color: #ffffff;
+  border-color: rgba(15, 118, 110, 0.42);
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+  outline: none;
+}
+
+.home-action-status {
+  min-height: 20px;
+  margin: 0;
+  color: var(--teal);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
 .landing-section h3,
 .landing-final h3 {
   max-width: 760px;
@@ -3054,6 +3142,7 @@ body {
 
   .landing-card-grid,
   .landing-plan-grid,
+  .home-test-grid,
   .landing-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3100,6 +3189,7 @@ body {
   .mockup-metrics,
   .landing-card-grid,
   .landing-plan-grid,
+  .home-test-grid,
   .landing-steps {
     grid-template-columns: 1fr;
   }
