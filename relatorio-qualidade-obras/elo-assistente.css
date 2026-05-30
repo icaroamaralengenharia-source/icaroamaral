@@ -370,6 +370,36 @@
   line-height: 1.4;
 }
 
+.elo-routine-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.elo-routine-card {
+  min-height: 48px;
+  padding: 10px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 12px;
+  color: #0f3f4a;
+  background: linear-gradient(180deg, #ffffff, #f3fbfa);
+  box-shadow: 0 8px 20px rgba(6, 26, 50, 0.06);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.elo-routine-card:hover,
+.elo-routine-card:focus {
+  color: #0f5f8f;
+  border-color: rgba(15, 118, 110, 0.36);
+  background: #ecfdf5;
+  outline: 3px solid rgba(15, 118, 110, 0.12);
+}
+
 @media (max-width: 760px) {
   .elo-widget {
     right: 14px;
@@ -409,6 +439,10 @@
   }
 
   .elo-library-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .elo-routine-actions {
     grid-template-columns: 1fr;
   }
 }
