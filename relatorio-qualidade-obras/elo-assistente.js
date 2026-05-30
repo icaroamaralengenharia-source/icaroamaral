@@ -698,6 +698,150 @@
     }
   }
 
+  // ELO_DAILY_ROUTINE
+  function isDailyRoutineQuestion(normalizedQuestion) {
+    return [
+      "bom dia",
+      "boa tarde",
+      "boa noite",
+      "rotina de hoje",
+      "comecar meu dia",
+      "começar meu dia"
+    ].some(function (phrase) {
+      const normalizedPhrase = normalizeText(phrase);
+      return normalizedQuestion === normalizedPhrase || normalizedQuestion.indexOf(normalizedPhrase + " ") === 0;
+    });
+  }
+
+  function getDailyRoutineGreeting(normalizedQuestion) {
+    if (normalizedQuestion.indexOf("bom dia") === 0) {
+      return "Bom dia";
+    }
+    if (normalizedQuestion.indexOf("boa tarde") === 0) {
+      return "Boa tarde";
+    }
+    if (normalizedQuestion.indexOf("boa noite") === 0) {
+      return "Boa noite";
+    }
+    return "Vamos começar";
+  }
+
+  function getDailyRoutineName() {
+    const nameMemory = findPersonalMemoryByLabel("meu nome");
+    return nameMemory && nameMemory.value ? nameMemory.value : "";
+  }
+
+  function getDailyRoutineMemories() {
+    const priority = ["projeto", "empresa", "cidade", "preferencia", "familia", "nome", "geral"];
+    return getPersonalMemories().slice().sort(function (first, second) {
+      return priority.indexOf(first.category) - priority.indexOf(second.category);
+    }).slice(0, 3);
+  }
+
+  function formatDailyRoutineMemory(memoryItem) {
+    const label = normalizeText(memoryItem.label);
+    if (label.indexOf("empresa") >= 0) {
+      return "sua empresa é " + memoryItem.value;
+    }
+    if (label.indexOf("projeto principal") >= 0) {
+      return "seu projeto principal é " + memoryItem.value;
+    }
+    if (label.indexOf("cidade") >= 0 || label.indexOf("moro") >= 0) {
+      return "sua cidade é " + memoryItem.value;
+    }
+    if (label.indexOf("gosto") >= 0) {
+      return "você gosta de " + memoryItem.value;
+    }
+    return memoryItem.label + ": " + memoryItem.value;
+  }
+
+  function getDailyRoutineLibraryItems() {
+    return getLibraryItems().slice(0, 3);
+  }
+
+  function getDailyRoutineUsefulAnswers() {
+    return getMemory().usefulAnswers.slice(0, 2);
+  }
+
+  function getDailyRoutineRecentQuestions() {
+    return getRecentQuestions().slice(0, 2);
+  }
+
+  function buildDailyRoutineResponse(question) {
+    const normalizedQuestion = normalizeText(question);
+    const greeting = getDailyRoutineGreeting(normalizedQuestion);
+    const name = getDailyRoutineName();
+    const greetingLine = name ? greeting + ", " + name + "." : greeting + ".";
+    const memories = getDailyRoutineMemories();
+    const libraryItems = getDailyRoutineLibraryItems();
+    const usefulAnswers = getDailyRoutineUsefulAnswers();
+    const recentQuestions = getDailyRoutineRecentQuestions();
+    const details = [
+      "Ainda não estou conectado ao clima real, mas posso te ajudar a começar o dia.",
+      "Você pode continuar gerando relatórios, abrir o RDO, revisar materiais ou consultar sua Biblioteca."
+    ];
+
+    if (memories.length) {
+      details.push("", "Pelo que lembro:");
+      memories.forEach(function (memoryItem) {
+        details.push("- " + formatDailyRoutineMemory(memoryItem) + ".");
+      });
+    }
+
+    if (libraryItems.length) {
+      details.push("", "Na sua Biblioteca, encontrei:");
+      libraryItems.forEach(function (item) {
+        details.push("- " + item.title);
+      });
+    }
+
+    if (usefulAnswers.length) {
+      details.push("", "Respostas úteis recentes:");
+      usefulAnswers.forEach(function (item) {
+        details.push("- " + item.question);
+      });
+    }
+
+    if (recentQuestions.length) {
+      details.push("", "Últimas dúvidas que apareceram por aqui:");
+      recentQuestions.forEach(function (item) {
+        details.push("- " + item.question);
+      });
+    }
+
+    if (!memories.length && !libraryItems.length) {
+      details.push("", "Ainda estou te conhecendo. Você pode me ensinar dizendo algo como: meu projeto principal é ObraReport.");
+    }
+
+    details.push("", "Clima, agenda, tarefas e lembretes já têm espaço reservado para uma próxima evolução, sem internet nesta versão.");
+
+    return {
+      shortAnswer: greetingLine,
+      fullAnswer: details.join("\n"),
+      nextAction: "Escolha um card rápido abaixo ou pergunte sobre PDF, RDO, materiais ou relatórios.",
+      canSave: false,
+      routineCards: [
+        { label: "Continuar ObraReport", action: "continue" },
+        { label: "Abrir RDO", action: "rdo" },
+        { label: "Gerar relatório", action: "report" },
+        { label: "Ver biblioteca", action: "library" },
+        { label: "Ver memórias", action: "memories" },
+        { label: "Perguntar sobre PDF", action: "pdf" }
+      ]
+    };
+  }
+
+  // ELO_DAILY_ROUTINE_FUTURE
+  // Espaço preparado para evoluções futuras sem ativar integrações externas agora:
+  // - clima real via internet;
+  // - agenda do usuário;
+  // - tarefas e lembretes do dia.
+  const ELO_DAILY_ROUTINE_FUTURE = {
+    weatherEnabled: false,
+    calendarEnabled: false,
+    tasksEnabled: false
+  };
+
   // ELO_WEB_SEARCH_FUTURE
   function shouldSearchWeb(question) {
     const text = normalizeText(question);
@@ -741,6 +885,10 @@
     const personalMemoryAnswer = answerPersonalMemoryQuestion(cleanQuestion);
     if (personalMemoryAnswer) {
       return personalMemoryAnswer;
+    }
+
+    if (isDailyRoutineQuestion(normalizedQuestion)) {
+      return buildDailyRoutineResponse(cleanQuestion);
     }
 
     const libraryAnswer = answerFromLibrary(cleanQuestion);
@@ -1051,6 +1199,19 @@
       actions.appendChild(fullButton);
     }
 
+    if (response && Array.isArray(response.routineCards)) {
+      const routineActions = createElement("div", "elo-routine-actions");
+      response.routineCards.forEach(function (card) {
+        const cardButton = createElement("button", "elo-routine-card", card.label);
+        cardButton.type = "button";
+        cardButton.addEventListener("click", function () {
+          handleRoutineAction(card.action);
+        });
+        routineActions.appendChild(cardButton);
+      });
+      message.appendChild(routineActions);
+    }
+
     if (canSave) {
       const saveQuestion = createElement("span", "elo-privacy", "Deseja guardar isso para eu lembrar depois?");
       message.appendChild(saveQuestion);
@@ -1117,6 +1278,56 @@
     actions.appendChild(noButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function handleRoutineAction(action) {
+    if (action === "library") {
+      showLibrary();
+      return;
+    }
+
+    if (action === "memories") {
+      showPersonalMemories();
+      return;
+    }
+
+    if (action === "pdf") {
+      askElo("Como gerar PDF?");
+      return;
+    }
+
+    if (action === "rdo") {
+      if (clickRouteButton("diario")) {
+        appendMessage("system", "Abri o Diário de Obras/RDO para você.");
+      } else {
+        appendMessage("system", "Não encontrei o atalho de RDO nesta tela. Pelo menu do ObraReport, procure por Diário de Obras.");
+      }
+      return;
+    }
+
+    if (action === "report") {
+      if (clickRouteButton("relatorios")) {
+        appendMessage("system", "Abri a área de Relatórios para você.");
+      } else {
+        appendMessage("system", "Não encontrei o atalho de Relatórios nesta tela. Pelo menu do ObraReport, procure por Relatórios.");
+      }
+      return;
+    }
+
+    if (clickRouteButton("dashboard")) {
+      appendMessage("system", "Voltei para o dashboard do ObraReport.");
+    } else {
+      appendMessage("system", "Continue pelo dashboard do ObraReport: você pode abrir RDO, Relatórios, Materiais ou Biblioteca pelo Elo.");
+    }
+  }
+
+  function clickRouteButton(route) {
+    const button = document.querySelector("[data-route-target='" + route + "']");
+    if (!button || typeof button.click !== "function") {
+      return false;
+    }
+    button.click();
+    return true;
   }
 
   function showRecentQuestions() {
