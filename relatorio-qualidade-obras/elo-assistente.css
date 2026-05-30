@@ -339,7 +339,8 @@
 }
 
 .elo-library-panel,
-.elo-documents-panel {
+.elo-documents-panel,
+.elo-real-questions-panel {
   display: grid;
   gap: 10px;
   margin-top: 4px;
@@ -440,13 +441,15 @@
 }
 
 .elo-library-list,
-.elo-documents-list {
+.elo-documents-list,
+.elo-real-question-list {
   display: grid;
   gap: 9px;
 }
 
 .elo-library-card,
-.elo-document-card {
+.elo-document-card,
+.elo-real-question-card {
   display: grid;
   gap: 8px;
   padding: 11px;
@@ -479,7 +482,8 @@
 }
 
 .elo-library-card strong,
-.elo-document-card strong {
+.elo-document-card strong,
+.elo-real-question-card strong {
   color: #0f172a;
   font-size: 0.9rem;
   line-height: 1.35;
@@ -493,7 +497,8 @@
 }
 
 .elo-library-card p,
-.elo-document-card p {
+.elo-document-card p,
+.elo-real-question-card p {
   margin: 0;
   color: #334155;
   font-size: 0.82rem;
@@ -527,6 +532,24 @@
   display: grid;
   gap: 12px;
   padding-top: 4px;
+}
+
+.elo-real-question-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.elo-real-question-stat {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #0f5f8f;
+  background: rgba(15, 95, 143, 0.1);
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .elo-projects-subtitle {

@@ -6,6 +6,7 @@
     storageKey: "obrareport_elo_assistente_v1",
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     documentsStorageKey: "obrareport_elo_documentos_v1",
+    realQuestionsStorageKey: "obrareport_elo_perguntas_reais_v1",
     maxHistory: 20,
     whatsappNumber: "",
     webSearchEnabled: false,
@@ -457,6 +458,216 @@
     });
     memory.feedback = memory.feedback.slice(0, ELO_CONFIG.maxHistory);
     setMemory(memory);
+  }
+
+  // ELO_REAL_QUESTIONS_LOCAL
+  function createRealQuestionId() {
+    return "real_q_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeRealQuestionsStorage(storage) {
+    return {
+      questions: Array.isArray(storage && storage.questions) ? storage.questions : []
+    };
+  }
+
+  function getRealQuestionsStorage() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.realQuestionsStorageKey);
+      return normalizeRealQuestionsStorage(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeRealQuestionsStorage(null);
+    }
+  }
+
+  function setRealQuestionsStorage(storage) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.realQuestionsStorageKey, JSON.stringify(normalizeRealQuestionsStorage(storage)));
+    } catch (error) {
+      // Perguntas reais ficam apenas no navegador. Se falhar, o Elo segue respondendo.
+    }
+  }
+
+  function clearRealQuestions() {
+    setRealQuestionsStorage({ questions: [] });
+  }
+
+  function getRealQuestions() {
+    return (getRealQuestionsStorage().questions || []).slice().sort(function (first, second) {
+      return new Date(second.createdAt || 0) - new Date(first.createdAt || 0);
+    });
+  }
+
+  function isRealQuestionEligible(question, response) {
+    const normalizedQuestion = normalizeText(question);
+    if (!normalizedQuestion || normalizedQuestion.length < 4) {
+      return false;
+    }
+    if (hasSensitiveMemoryTerm(question)) {
+      return false;
+    }
+    if (isDailyRoutineQuestion(normalizedQuestion)) {
+      return false;
+    }
+    if (response && response.sessionIntent === "conversa_humana") {
+      return false;
+    }
+    if (hasAnyTerm(normalizedQuestion, ["conte uma piada", "piada", "tchau", "obrigado", "obrigada", "valeu"])) {
+      return false;
+    }
+    return hasAnyTerm(normalizedQuestion, [
+      "obrareport",
+      "pdf",
+      "rdo",
+      "diario",
+      "diário",
+      "relatorio",
+      "relatório",
+      "materiais",
+      "material",
+      "plano",
+      "cliente",
+      "obra",
+      "foto",
+      "auditoria",
+      "consumo",
+      "salvar",
+      "whatsapp",
+      "elo"
+    ]);
+  }
+
+  function detectRealQuestionCategory(question, response) {
+    if (response && response.localDocumentResult) {
+      return "documentos";
+    }
+    if (response && response.sessionTheme) {
+      return response.sessionTheme;
+    }
+    const text = normalizeText(question);
+    if (hasAnyTerm(text, ["pdf", "relatorio", "relatório", "foto"])) {
+      return "relatorios";
+    }
+    if (hasAnyTerm(text, ["rdo", "diario", "diário", "materiais", "material", "auditoria", "consumo"])) {
+      return "rdo";
+    }
+    if (hasAnyTerm(text, ["plano", "contratar", "limite"])) {
+      return "planos";
+    }
+    if (hasAnyTerm(text, ["cliente", "obra"])) {
+      return "clientes_obras";
+    }
+    return "geral";
+  }
+
+  function registerRealQuestion(question, answer, response) {
+    if (!isRealQuestionEligible(question, response)) {
+      return "";
+    }
+    const storage = getRealQuestionsStorage();
+    const normalizedQuestion = normalizeText(question);
+    const existing = (storage.questions || []).find(function (item) {
+      return normalizeText(item.pergunta) === normalizedQuestion;
+    });
+    const now = new Date().toISOString();
+    const record = {
+      id: existing ? existing.id : createRealQuestionId(),
+      pergunta: sanitizeLibraryText(question, 280),
+      respostaGerada: sanitizeLibraryText(answer, 2000),
+      contexto: getCurrentScreenContext().label,
+      categoriaDetectada: detectRealQuestionCategory(question, response),
+      foiUtil: existing ? existing.foiUtil : null,
+      sugeridaParaTreino: existing ? Boolean(existing.sugeridaParaTreino) : false,
+      createdAt: existing ? existing.createdAt : now
+    };
+
+    storage.questions = (storage.questions || []).filter(function (item) {
+      return item.id !== record.id;
+    });
+    storage.questions.unshift(record);
+    storage.questions = storage.questions.slice(0, 120);
+    setRealQuestionsStorage(storage);
+    return record.id;
+  }
+
+  function updateRealQuestionFeedback(id, wasUseful) {
+    if (!id) {
+      return null;
+    }
+    const storage = getRealQuestionsStorage();
+    let updated = null;
+    storage.questions = (storage.questions || []).map(function (item) {
+      if (item.id !== id) {
+        return item;
+      }
+      updated = Object.assign({}, item, {
+        foiUtil: Boolean(wasUseful)
+      });
+      return updated;
+    });
+    setRealQuestionsStorage(storage);
+    return updated;
+  }
+
+  function markRealQuestionForTraining(id) {
+    const storage = getRealQuestionsStorage();
+    let updated = null;
+    storage.questions = (storage.questions || []).map(function (item) {
+      if (item.id !== id) {
+        return item;
+      }
+      updated = Object.assign({}, item, {
+        sugeridaParaTreino: true
+      });
+      return updated;
+    });
+    setRealQuestionsStorage(storage);
+    return updated;
+  }
+
+  function deleteRealQuestion(id) {
+    const storage = getRealQuestionsStorage();
+    storage.questions = (storage.questions || []).filter(function (item) {
+      return item.id !== id;
+    });
+    setRealQuestionsStorage(storage);
+  }
+
+  function getRealQuestionStats() {
+    const questions = getRealQuestions();
+    return {
+      total: questions.length,
+      useful: questions.filter(function (item) { return item.foiUtil === true; }).length,
+      notUseful: questions.filter(function (item) { return item.foiUtil === false; }).length,
+      training: questions.filter(function (item) { return item.sugeridaParaTreino; }).length
+    };
+  }
+
+  function exportRealQuestions(format) {
+    const questions = getRealQuestions();
+    const fileName = format === "txt" ? "elo-perguntas-reais.txt" : "elo-perguntas-reais.json";
+    const content = format === "txt"
+      ? questions.map(function (item, index) {
+        return [
+          (index + 1) + ". " + item.pergunta,
+          "Contexto: " + item.contexto,
+          "Categoria: " + item.categoriaDetectada,
+          "Útil: " + (item.foiUtil === null ? "sem feedback" : (item.foiUtil ? "sim" : "não")),
+          "Sugerida para treino: " + (item.sugeridaParaTreino ? "sim" : "não"),
+          "Resposta gerada:",
+          item.respostaGerada
+        ].join("\n");
+      }).join("\n\n---\n\n")
+      : JSON.stringify({ source: "obrareport-elo", exportedAt: new Date().toISOString(), questions: questions }, null, 2);
+
+    const blob = new Blob([content], { type: format === "txt" ? "text/plain" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    return { ok: true, fileName: fileName };
   }
 
   function clearMemory() {
@@ -2393,9 +2604,9 @@
       return libraryAnswer;
     }
 
-    const greeting = getGreetingResponse(normalizedQuestion);
-    if (greeting) {
-      return greeting;
+    const conversational = getConversationalResponse(normalizedQuestion);
+    if (conversational) {
+      return conversational;
     }
 
     const visibleDataAnswer = getVisibleDataKnowledgeResponse(normalizedQuestion);
@@ -3250,23 +3461,280 @@
     };
   }
 
-  function getGreetingResponse(normalizedQuestion) {
-    const greetings = ["bom dia", "boa tarde", "boa noite", "ola", "oi"];
-    const match = greetings.find(function (item) {
-      return normalizedQuestion === item || normalizedQuestion.indexOf(item + " ") === 0;
-    });
+  const ELO_CONVERSATION_INTENTS = [
+    {
+      intent: "saudacao",
+      phrases: ["oi", "ola", "olá", "e ai", "e aí", "opa", "salve", "alo", "alô"]
+    },
+    {
+      intent: "como_esta",
+      phrases: ["como voce esta", "como você está", "como esta", "como está", "como vai", "tudo bem", "tudo certo", "voce esta bem", "você está bem", "tudo tranquilo", "como esta hoje"]
+    },
+    {
+      intent: "agradecimento",
+      phrases: ["obrigado", "obrigada", "valeu", "muito obrigado", "muito obrigada", "agradecido", "perfeito obrigado", "show obrigado"]
+    },
+    {
+      intent: "despedida",
+      phrases: ["tchau", "ate mais", "até mais", "ate logo", "até logo", "falou", "encerrar", "vou sair", "bom descanso", "boa noite ate amanha", "boa noite até amanhã"]
+    },
+    {
+      intent: "identidade",
+      phrases: ["quem e voce", "quem é você", "qual seu nome", "qual e seu nome", "qual é seu nome", "o que e o elo", "o que é o elo", "voce e quem", "você é quem", "quem esta falando", "quem está falando"]
+    },
+    {
+      intent: "capacidades",
+      phrases: ["o que voce faz", "o que você faz", "o que voce consegue fazer", "o que você consegue fazer", "em que voce ajuda", "em que você ajuda", "para que serve"]
+    },
+    {
+      intent: "funcionamento",
+      phrases: ["como funciona o elo", "como voce funciona", "como você funciona", "como o elo funciona", "como usar o elo", "voce usa ia", "você usa ia"]
+    },
+    {
+      intent: "apoio_pratico",
+      phrases: ["estou cansado", "estou cansada", "estou com pressa", "estou perdido", "estou perdida", "nao entendi", "não entendi", "estou confuso", "estou confusa", "ta dificil", "tá difícil", "esta complicado", "está complicado"]
+    }
+  ];
 
-    if (!match) {
+  const ELO_CONVERSATION_VARIATION_STATE = {};
+
+  function getConversationalResponse(normalizedQuestion) {
+    const intent = detectConversationalIntent(normalizedQuestion);
+    if (!intent) {
       return null;
     }
 
-    const label = match === "ola" ? "Olá" : match.charAt(0).toUpperCase() + match.slice(1);
+    const variant = chooseConversationVariant(intent, getConversationVariants()[intent] || getConversationVariants().saudacao);
+    const contextHint = getConversationContextHint(intent);
+
+    return Object.assign({
+      canSave: false,
+      sessionIntent: "conversa_humana"
+    }, variant, {
+      fullAnswer: [variant.fullAnswer, contextHint.fullAnswer].filter(Boolean).join("\n\n"),
+      nextAction: contextHint.nextAction || variant.nextAction
+    });
+  }
+
+  function chooseConversationVariant(intent, variants) {
+    const currentIndex = ELO_CONVERSATION_VARIATION_STATE[intent] || 0;
+    ELO_CONVERSATION_VARIATION_STATE[intent] = currentIndex + 1;
+    return variants[currentIndex % variants.length];
+  }
+
+  function getConversationVariants() {
     return {
-      shortAnswer: label + ", Ícaro.",
-      fullAnswer: label + ", Ícaro. Ainda não estou conectado à previsão do tempo real, mas em breve poderei consultar a internet, ver sua agenda e lembrar suas prioridades do dia.",
-      nextAction: "Por enquanto, posso ajudar você a usar relatórios, PDF, RDO, materiais e planos do ObraReport.",
-      canSave: false
+      saudacao: [
+        {
+          shortAnswer: "Olá. Como posso ajudar você no ObraReport hoje?",
+          fullAnswer: "Posso orientar relatórios, RDO, materiais, planos e revisão da tela atual.",
+          nextAction: "Diga se quer revisar algo ou tirar uma dúvida.",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Oi. Estou por aqui para ajudar com o ObraReport.",
+          fullAnswer: "Consigo responder dúvidas, sugerir próximos passos e consultar documentos locais do Elo.",
+          nextAction: "Você pode perguntar: o que devo fazer agora?",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Olá. Quer revisar algo no sistema ou tirar uma dúvida?",
+          fullAnswer: "Eu mantenho o foco no ObraReport: RDO, relatórios, PDF, materiais, planos e documentos locais.",
+          nextAction: "Escolha uma área ou escreva sua dúvida.",
+          sessionTheme: "suporte"
+        }
+      ],
+      como_esta: [
+        {
+          shortAnswer: "Estou funcionando normalmente aqui no ObraReport.",
+          fullAnswer: "Não tenho emoções ou consciência, mas consigo acompanhar a tela atual e responder de forma prática.",
+          nextAction: "Quer que eu revise a tela atual?",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Tudo certo por aqui. Posso te ajudar com o próximo passo.",
+          fullAnswer: "Eu trabalho com regras locais, contexto da tela e bases salvas neste navegador.",
+          nextAction: "Pergunte: o que falta preencher?",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Estou pronto para ajudar no uso do ObraReport.",
+          fullAnswer: "Posso orientar em passos curtos, sem mexer nos seus dados por conta própria.",
+          nextAction: "Diga se precisa de ajuda com PDF, RDO ou materiais.",
+          sessionTheme: "suporte"
+        }
+      ],
+      agradecimento: [
+        {
+          shortAnswer: "De nada. Fico à disposição para ajudar no ObraReport.",
+          fullAnswer: "Quando quiser, posso revisar RDO, relatório, PDF, materiais, planos ou documentos locais do Elo.",
+          nextAction: "Você pode perguntar: o que devo fazer agora?",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Por nada. Vamos mantendo o fluxo simples.",
+          fullAnswer: "Se precisar, eu posso organizar a próxima ação em passos curtos.",
+          nextAction: "Pergunte sobre a tela atual quando quiser.",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Perfeito. Continuo aqui para apoiar o uso do ObraReport.",
+          fullAnswer: "Posso revisar pendências, explicar recursos ou consultar sua base local.",
+          nextAction: "Use uma pergunta direta, como: posso gerar PDF?",
+          sessionTheme: "suporte"
+        }
+      ],
+      despedida: [
+        {
+          shortAnswer: "Até mais. Quando voltar, posso continuar ajudando no ObraReport.",
+          fullAnswer: "As informações locais do Elo ficam neste navegador. Para dados importantes, use as ferramentas de backup quando necessário.",
+          nextAction: "Antes de sair, confira se salvou o que precisava no ObraReport.",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Até logo. Bom trabalho com o ObraReport.",
+          fullAnswer: "Eu não envio nada sozinho e não altero seus dados sem ação sua.",
+          nextAction: "Quando voltar, pergunte: resuma esta tela.",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Certo. Encerrando por aqui, sem alterar nada.",
+          fullAnswer: "Se precisar retomar depois, posso ajudar com RDO, relatório, PDF e materiais.",
+          nextAction: "Salve seu trabalho no ObraReport antes de fechar a página.",
+          sessionTheme: "suporte"
+        }
+      ],
+      identidade: [
+        {
+          shortAnswer: "Eu sou o Elo, assistente local do ObraReport.",
+          fullAnswer: "Não sou uma pessoa nem tenho consciência. Sou um assistente do sistema para orientar uso, revisar informações visíveis e consultar bases locais.",
+          nextAction: "Pergunte: o que você consegue fazer?",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "Meu nome é Elo. Eu ajudo dentro do ObraReport.",
+          fullAnswer: "Minha função é tornar o uso do sistema mais claro: relatórios, RDO, PDF, materiais, planos e documentos locais.",
+          nextAction: "Pergunte sobre a tela atual ou sobre um recurso.",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "Sou o assistente do ObraReport para suporte e orientação operacional.",
+          fullAnswer: "Eu uso regras locais e contexto visível. Não sou IA em nuvem nesta versão.",
+          nextAction: "Experimente perguntar: como funciona o Elo?",
+          sessionTheme: "elo"
+        }
+      ],
+      capacidades: [
+        {
+          shortAnswer: "Eu ajudo você a usar o ObraReport com mais clareza.",
+          fullAnswer: "Consigo orientar relatórios, PDF, RDO, materiais, planos, revisar a tela atual, sugerir próximos passos e consultar documentos locais.",
+          nextAction: "Experimente: resuma esta tela.",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "Posso funcionar como um suporte rápido dentro do sistema.",
+          fullAnswer: "Eu respondo dúvidas, faço checklists simples e ajudo a entender o que está pendente na tela atual.",
+          nextAction: "Pergunte: o que falta preencher?",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "Eu organizo dúvidas e próximos passos do ObraReport.",
+          fullAnswer: "Também posso guardar memórias importantes locais e consultar textos adicionados em Documentos do Elo.",
+          nextAction: "Abra Ferramentas do Elo para ver Biblioteca e Documentos.",
+          sessionTheme: "elo"
+        }
+      ],
+      funcionamento: [
+        {
+          shortAnswer: "O Elo funciona com regras locais, contexto da tela e dados salvos neste navegador.",
+          fullAnswer: "Nesta fase, eu não uso backend, nuvem ou IA real. Leio o que está visível e consulto bases locais.",
+          nextAction: "Abra Ferramentas do Elo para ver Biblioteca, Documentos, Memórias e Projetos.",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "Eu funciono como uma camada de ajuda dentro do ObraReport.",
+          fullAnswer: "Quando você pergunta, eu identifico a intenção, considero a tela atual e procuro em bases locais antes de responder.",
+          nextAction: "Pergunte algo sobre PDF, RDO ou materiais.",
+          sessionTheme: "elo"
+        },
+        {
+          shortAnswer: "O Elo é local e controlado nesta versão.",
+          fullAnswer: "Nada é enviado para backend por esta conversa. As bases locais ficam no navegador.",
+          nextAction: "Use Documentos do Elo para adicionar textos de consulta.",
+          sessionTheme: "elo"
+        }
+      ],
+      apoio_pratico: [
+        {
+          shortAnswer: "Entendi. Vamos simplificar.",
+          fullAnswer: "Posso te orientar em passos curtos, sem tentar resolver tudo de uma vez.",
+          nextAction: "Escolha um foco: PDF, RDO, materiais ou relatório.",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Sem problema. Posso deixar isso mais direto.",
+          fullAnswer: "Eu não faço aconselhamento emocional, mas posso reduzir o fluxo para uma próxima ação prática.",
+          nextAction: "Pergunte: o que devo fazer agora?",
+          sessionTheme: "suporte"
+        },
+        {
+          shortAnswer: "Vamos por partes.",
+          fullAnswer: "Se estiver com pressa, eu posso revisar rapidamente a tela atual e apontar só o próximo passo.",
+          nextAction: "Pergunte: resuma esta tela.",
+          sessionTheme: "suporte"
+        }
+      ]
     };
+  }
+
+  function getConversationContextHint(intent) {
+    const context = getCurrentScreenContext();
+    const label = context.label;
+    const hints = {
+      "Diário de Obras": {
+        fullAnswer: "Vejo que você está no Diário de Obras. Posso ajudar a revisar o RDO, materiais, produção ou pendências.",
+        nextAction: "Pergunte: revisar RDO."
+      },
+      "Relatórios": {
+        fullAnswer: "Você está na área de Relatórios. Posso ajudar a revisar antes do PDF ou verificar fotos e conclusão.",
+        nextAction: "Pergunte: posso gerar PDF?"
+      },
+      "Planos": {
+        fullAnswer: "Você está nos Planos. Posso explicar limites, contratação assistida ou plano Empresa.",
+        nextAction: "Pergunte: qual plano escolher?"
+      },
+      "Dashboard": {
+        fullAnswer: "Você está no Dashboard. Posso sugerir o próximo passo ou resumir os indicadores visíveis.",
+        nextAction: "Pergunte: o que devo fazer agora?"
+      },
+      "Página do Cliente": {
+        fullAnswer: "Você está na Página do Cliente. Posso ajudar a localizar relatórios, RDOs e documentos visíveis.",
+        nextAction: "Pergunte: resuma esta tela."
+      }
+    };
+
+    if (intent === "despedida" || intent === "identidade" || intent === "funcionamento") {
+      return {};
+    }
+
+    return hints[label] || {};
+  }
+
+  function detectConversationalIntent(normalizedQuestion) {
+    const compactQuestion = normalizedQuestion.replace(/[?!.,;:]+/g, "").trim();
+    for (let index = 0; index < ELO_CONVERSATION_INTENTS.length; index += 1) {
+      const group = ELO_CONVERSATION_INTENTS[index];
+      const matched = group.phrases.some(function (phrase) {
+        const normalizedPhrase = normalizeText(phrase);
+        return compactQuestion === normalizedPhrase ||
+          compactQuestion.indexOf(normalizedPhrase + " ") === 0 ||
+          compactQuestion.indexOf(" " + normalizedPhrase + " ") >= 0;
+      });
+      if (matched) {
+        return group.intent;
+      }
+    }
+    return "";
   }
 
   function getContextualHelpResponse(normalizedQuestion) {
@@ -4004,6 +4472,10 @@
     documentsButton.type = "button";
     documentsButton.addEventListener("click", showLocalDocuments);
     container.appendChild(documentsButton);
+    const realQuestionsButton = createElement("button", "elo-inline-button", "Perguntas reais");
+    realQuestionsButton.type = "button";
+    realQuestionsButton.addEventListener("click", showRealQuestions);
+    container.appendChild(realQuestionsButton);
     const projectsButton = createElement("button", "elo-inline-button", "Projetos");
     projectsButton.type = "button";
     projectsButton.addEventListener("click", showProjects);
@@ -4093,6 +4565,7 @@
 
     const response = buildResponse(cleanQuestion);
     const answer = formatResponse(response);
+    response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
     appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
     saveConversation(cleanQuestion, answer);
     rememberSessionTurn(cleanQuestion, response, answer);
@@ -4182,6 +4655,32 @@
     });
     buttons.push(cancelButton);
     actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function appendTrainingSuggestion(realQuestion) {
+    const message = appendMessage("system", "Quer registrar esta pergunta para melhorar o Elo depois?");
+    const actions = createElement("div", "elo-message-actions");
+    const yesButton = createElement("button", "elo-inline-button", "Sim, guardar para treino");
+    const noButton = createElement("button", "elo-inline-button", "Não agora");
+
+    yesButton.type = "button";
+    noButton.type = "button";
+    yesButton.addEventListener("click", function () {
+      markRealQuestionForTraining(realQuestion.id);
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      appendMessage("system", "Pergunta marcada para treinamento manual local. Ela não altera a base do Elo sem revisão.");
+    });
+    noButton.addEventListener("click", function () {
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      appendMessage("system", "Tudo bem. Não vou marcar essa pergunta para treino agora.");
+    });
+
+    actions.appendChild(yesButton);
+    actions.appendChild(noButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
@@ -4365,13 +4864,18 @@
     noButton.type = "button";
     yesButton.addEventListener("click", function () {
       saveFeedback(question, answer, "positive");
+      updateRealQuestionFeedback(response && response.realQuestionId, true);
       yesButton.disabled = true;
       noButton.disabled = true;
     });
     noButton.addEventListener("click", function () {
       saveFeedback(question, answer, "negative");
+      const realQuestion = updateRealQuestionFeedback(response && response.realQuestionId, false);
       yesButton.disabled = true;
       noButton.disabled = true;
+      if (realQuestion) {
+        appendTrainingSuggestion(realQuestion);
+      }
     });
 
     actions.appendChild(yesButton);
@@ -4886,6 +5390,222 @@
       card.appendChild(actions);
       list.appendChild(card);
     });
+  }
+
+  function showRealQuestions() {
+    const message = appendMessage("system", "Perguntas reais");
+    const panel = createElement("div", "elo-real-questions-panel");
+    const status = createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador nesta versão. Treinamento manual local.");
+    const stats = createElement("div", "elo-real-question-stats");
+    const controls = createElement("div", "elo-library-controls");
+    const filterSelect = createElement("select", "elo-library-select");
+    const exportJsonButton = createElement("button", "elo-inline-button", "Exportar JSON");
+    const exportTextButton = createElement("button", "elo-inline-button", "Exportar texto");
+    const clearButton = createElement("button", "elo-inline-button", "Limpar perguntas");
+    const list = createElement("div", "elo-real-question-list");
+
+    filterSelect.setAttribute("aria-label", "Filtrar perguntas reais");
+    appendSimpleOptions(filterSelect, ["Todas", "Úteis", "Não úteis", "Sugeridas para treino"]);
+    exportJsonButton.type = "button";
+    exportTextButton.type = "button";
+    clearButton.type = "button";
+
+    function refresh() {
+      renderRealQuestionStats(stats);
+      renderRealQuestionList(list, filterSelect.value, status, refresh);
+    }
+
+    filterSelect.addEventListener("change", refresh);
+    exportJsonButton.addEventListener("click", function () {
+      const result = exportRealQuestions("json");
+      status.textContent = "Exportação preparada: " + result.fileName + ".";
+    });
+    exportTextButton.addEventListener("click", function () {
+      const result = exportRealQuestions("txt");
+      status.textContent = "Exportação preparada: " + result.fileName + ".";
+    });
+    clearButton.addEventListener("click", function () {
+      confirmClearRealQuestions(status, refresh);
+    });
+
+    controls.appendChild(filterSelect);
+    controls.appendChild(exportJsonButton);
+    controls.appendChild(exportTextButton);
+    controls.appendChild(clearButton);
+    panel.appendChild(status);
+    panel.appendChild(stats);
+    panel.appendChild(controls);
+    panel.appendChild(list);
+    message.appendChild(panel);
+    refresh();
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function renderRealQuestionStats(statsElement) {
+    const stats = getRealQuestionStats();
+    statsElement.textContent = "";
+    [
+      ["Total", stats.total],
+      ["Úteis", stats.useful],
+      ["Não úteis", stats.notUseful],
+      ["Para treino", stats.training]
+    ].forEach(function (item) {
+      const stat = createElement("span", "elo-real-question-stat", item[0] + ": " + item[1]);
+      statsElement.appendChild(stat);
+    });
+  }
+
+  function filterRealQuestions(questions, filter) {
+    if (filter === "Úteis") {
+      return questions.filter(function (item) { return item.foiUtil === true; });
+    }
+    if (filter === "Não úteis") {
+      return questions.filter(function (item) { return item.foiUtil === false; });
+    }
+    if (filter === "Sugeridas para treino") {
+      return questions.filter(function (item) { return item.sugeridaParaTreino; });
+    }
+    return questions;
+  }
+
+  function renderRealQuestionList(list, filter, status, refresh) {
+    list.textContent = "";
+    const questions = filterRealQuestions(getRealQuestions(), filter);
+    if (!questions.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhuma pergunta real encontrada neste filtro."));
+      return;
+    }
+
+    questions.forEach(function (questionItem) {
+      const card = createElement("article", "elo-real-question-card");
+      const header = createElement("div", "elo-library-card-header");
+      const title = createElement("strong", "", questionItem.pergunta);
+      const meta = createElement("span", "elo-library-meta", [
+        questionItem.contexto,
+        questionItem.categoriaDetectada,
+        questionItem.foiUtil === null ? "sem feedback" : (questionItem.foiUtil ? "útil" : "não útil"),
+        questionItem.sugeridaParaTreino ? "para treino" : "não marcada",
+        formatDateTime(questionItem.createdAt)
+      ].join(" · "));
+      const response = createElement("p", "", summarizeLibraryContent(questionItem.respostaGerada || "Sem resposta registrada."));
+      const actions = createElement("div", "elo-library-actions");
+      const trainButton = createElement("button", "elo-inline-button", "Adicionar à base de respostas");
+      const markButton = createElement("button", "elo-inline-button", questionItem.sugeridaParaTreino ? "Marcada para treino" : "Marcar para treino");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      trainButton.type = "button";
+      markButton.type = "button";
+      deleteButton.type = "button";
+      markButton.disabled = Boolean(questionItem.sugeridaParaTreino);
+
+      trainButton.addEventListener("click", function () {
+        appendRealQuestionTrainingForm(questionItem, status, refresh);
+      });
+      markButton.addEventListener("click", function () {
+        markRealQuestionForTraining(questionItem.id);
+        status.textContent = "Pergunta marcada para treinamento manual local.";
+        refresh();
+      });
+      deleteButton.addEventListener("click", function () {
+        deleteRealQuestion(questionItem.id);
+        status.textContent = "Pergunta real excluída.";
+        refresh();
+      });
+
+      header.appendChild(title);
+      header.appendChild(meta);
+      actions.appendChild(trainButton);
+      actions.appendChild(markButton);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(response);
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+  }
+
+  function appendRealQuestionTrainingForm(questionItem, status, refresh) {
+    const message = appendMessage("system", "Treinamento manual local");
+    const form = createElement("form", "elo-library-form");
+    const questionInput = createElement("input", "elo-library-field");
+    const answerInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const categorySelect = createElement("select", "elo-library-field");
+    const keywordsInput = createElement("input", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Adicionar à base de respostas");
+
+    questionInput.type = "text";
+    questionInput.maxLength = 180;
+    questionInput.value = questionItem.pergunta;
+    questionInput.placeholder = "Pergunta";
+    answerInput.maxLength = 3000;
+    answerInput.rows = 5;
+    answerInput.value = questionItem.respostaGerada || "";
+    answerInput.placeholder = "Resposta corrigida/manual";
+    categorySelect.setAttribute("aria-label", "Categoria da resposta");
+    appendCategoryOptions(categorySelect, false);
+    categorySelect.value = suggestLibraryCategory(questionItem.pergunta);
+    keywordsInput.type = "text";
+    keywordsInput.maxLength = 220;
+    keywordsInput.value = extractDocumentKeywords(questionItem.pergunta).join(", ");
+    keywordsInput.placeholder = "Palavras-chave, separadas por vírgula";
+    saveButton.type = "submit";
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveLibraryItem({
+        title: questionInput.value,
+        content: answerInput.value,
+        category: categorySelect.value,
+        tags: keywordsInput.value,
+        source: "treinamento_manual_local"
+      });
+      if (result.ok) {
+        markRealQuestionForTraining(questionItem.id);
+        status.textContent = "Pergunta adicionada à base local do Elo após revisão manual.";
+        appendMessage("system", "Item salvo na Biblioteca do Elo. A base principal não foi alterada automaticamente.");
+        refresh();
+      } else if (result.reason === "sensitive") {
+        appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
+      } else {
+        appendMessage("system", "Preencha pergunta e resposta corrigida para adicionar à base.");
+      }
+    });
+
+    form.appendChild(createElement("p", "elo-privacy", "Revise antes de salvar. O Elo não aprende sozinho nem substitui respostas existentes automaticamente."));
+    form.appendChild(questionInput);
+    form.appendChild(answerInput);
+    form.appendChild(categorySelect);
+    form.appendChild(keywordsInput);
+    form.appendChild(saveButton);
+    message.appendChild(form);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function confirmClearRealQuestions(status, refresh) {
+    const message = appendMessage("system", "Tem certeza? Isso limpa apenas as perguntas reais salvas neste navegador.");
+    const actions = createElement("div", "elo-message-actions");
+    const confirmButton = createElement("button", "elo-memory-delete", "Confirmar limpeza");
+    const cancelButton = createElement("button", "elo-inline-button", "Cancelar");
+
+    confirmButton.type = "button";
+    cancelButton.type = "button";
+    confirmButton.addEventListener("click", function () {
+      clearRealQuestions();
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      status.textContent = "Perguntas reais limpas. Dados do ObraReport não foram alterados.";
+      refresh();
+    });
+    cancelButton.addEventListener("click", function () {
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Limpeza de perguntas reais cancelada.");
+    });
+
+    actions.appendChild(confirmButton);
+    actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
   function showLocalDocuments() {
