@@ -7,6 +7,9 @@
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     documentsStorageKey: "obrareport_elo_documentos_v1",
     realQuestionsStorageKey: "obrareport_elo_perguntas_reais_v1",
+    userProfileStorageKey: "obrareport_elo_perfil_usuario_v1",
+    initialProfileStorageKey: "obrareport_elo_perfil_inicial_v1",
+    timelineStorageKey: "obrareport_elo_timeline_v1",
     maxHistory: 20,
     whatsappNumber: "",
     webSearchEnabled: false,
@@ -24,6 +27,21 @@
   const ELO_FLOW = {
     current: ["memoria_local", "base_local", "resposta"],
     future: ["busca_externa", "resumo", "guardar_conhecimento"]
+  };
+
+  const ELO_PROFILE = {
+    name: "Elo",
+    identity: "Assistente digital do ObraReport.",
+    personality: "calmo, educado, paciente, prestativo, claro e levemente humano",
+    mission: "ajudar o usuário a organizar relatórios, RDOs, materiais, decisões e próximos passos.",
+    limits: [
+      "não finjo ser humano",
+      "não finjo consciência",
+      "não digo que sinto emoções",
+      "não invento dados",
+      "não atuo como terapeuta",
+      "quando não sei, oriento o usuário com segurança"
+    ]
   };
 
   // ELO_KNOWLEDGE_BASE
@@ -1274,6 +1292,240 @@
     }).join("\n\n");
   }
 
+  // ELO_TIMELINE_LOCAL
+  const ELO_TIMELINE_TYPES = ["marco", "conversa", "ideia", "conquista", "dificuldade", "objetivo", "reflexao", "carta_futuro"];
+  const ELO_TIMELINE_IMPORTANCE = ["baixa", "media", "alta"];
+
+  function createTimelineEventId() {
+    return "timeline_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeTimelineType(type) {
+    const normalizedType = normalizeText(type || "");
+    return ELO_TIMELINE_TYPES.find(function (item) {
+      return normalizeText(item) === normalizedType;
+    }) || "marco";
+  }
+
+  function normalizeTimelineImportance(importance) {
+    const normalizedImportance = normalizeText(importance || "");
+    return ELO_TIMELINE_IMPORTANCE.find(function (item) {
+      return normalizeText(item) === normalizedImportance;
+    }) || "media";
+  }
+
+  function normalizeTimelineTags(tags) {
+    if (Array.isArray(tags)) {
+      return tags.map(function (tag) {
+        return sanitizeLibraryText(tag, 40);
+      }).filter(Boolean).slice(0, 12);
+    }
+    return String(tags || "").split(",").map(function (tag) {
+      return sanitizeLibraryText(tag, 40);
+    }).filter(Boolean).slice(0, 12);
+  }
+
+  function normalizeTimelineEvent(event) {
+    const now = new Date().toISOString();
+    return {
+      id: sanitizeLibraryText(event && event.id, 80) || createTimelineEventId(),
+      type: normalizeTimelineType(event && event.type),
+      title: sanitizeLibraryText(event && event.title, 140) || "Evento da Linha do Tempo",
+      content: sanitizeLibraryText(event && event.content, 1200),
+      tags: normalizeTimelineTags(event && event.tags),
+      mood: sanitizeLibraryText(event && event.mood, 80),
+      project: sanitizeLibraryText(event && event.project, 120),
+      importance: normalizeTimelineImportance(event && event.importance),
+      createdAt: sanitizeLibraryText(event && event.createdAt, 40) || now,
+      source: sanitizeLibraryText(event && event.source, 80) || "manual",
+      targetDate: sanitizeLibraryText(event && event.targetDate, 40),
+      status: event && event.type === "carta_futuro" ? (sanitizeLibraryText(event.status, 40) || "pendente") : sanitizeLibraryText(event && event.status, 40)
+    };
+  }
+
+  function normalizeTimelineStorage(storage) {
+    return {
+      events: Array.isArray(storage && storage.events) ? storage.events.map(normalizeTimelineEvent).slice(0, 200) : []
+    };
+  }
+
+  function getTimelineStorage() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.timelineStorageKey);
+      return normalizeTimelineStorage(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeTimelineStorage(null);
+    }
+  }
+
+  function setTimelineStorage(storage) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.timelineStorageKey, JSON.stringify(normalizeTimelineStorage(storage)));
+    } catch (error) {
+      // A Linha do Tempo e local. Se o navegador bloquear storage, o Elo segue sem salvar.
+    }
+  }
+
+  function saveTimelineEvent(input) {
+    const event = normalizeTimelineEvent(input || {});
+    if (!event.title || !event.content) {
+      return { ok: false, reason: "missing" };
+    }
+    if (hasSensitiveMemoryTerm(event.title + " " + event.content + " " + event.tags.join(" "))) {
+      return { ok: false, reason: "sensitive" };
+    }
+    const storage = getTimelineStorage();
+    storage.events = [event].concat(storage.events || []).slice(0, 200);
+    setTimelineStorage(storage);
+    return { ok: true, event: event };
+  }
+
+  function deleteTimelineEvent(id) {
+    const storage = getTimelineStorage();
+    storage.events = (storage.events || []).filter(function (event) {
+      return event.id !== id;
+    });
+    setTimelineStorage(storage);
+  }
+
+  function getTimelineEvents(filters) {
+    const storage = getTimelineStorage();
+    const type = filters && filters.type ? normalizeTimelineType(filters.type) : "";
+    const project = normalizeText(filters && filters.project);
+    return (storage.events || []).filter(function (event) {
+      const typeMatch = !type || event.type === type;
+      const projectMatch = !project || normalizeText(event.project).indexOf(project) >= 0;
+      return typeMatch && projectMatch;
+    }).sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+  }
+
+  function formatTimelineType(type) {
+    const labels = {
+      marco: "Marco",
+      conversa: "Conversa",
+      ideia: "Ideia",
+      conquista: "Conquista",
+      dificuldade: "Dificuldade",
+      objetivo: "Objetivo",
+      reflexao: "Reflexao",
+      carta_futuro: "Carta para o futuro"
+    };
+    return labels[type] || "Evento";
+  }
+
+  function formatTimelineEventLine(event) {
+    const project = event.project ? " - " + event.project : "";
+    return "- " + formatTimelineType(event.type) + ": " + event.title + project + " - " + formatDateTime(event.createdAt);
+  }
+
+  function exportTimelineAsText(events) {
+    const list = events || getTimelineEvents();
+    return [
+      "LINHA DO TEMPO - ELO ASSISTENTE OBRAREPORT",
+      "",
+      "Total de eventos: " + list.length,
+      "",
+      list.length ? list.map(function (event) {
+        return [
+          formatTimelineType(event.type).toUpperCase() + " - " + event.title,
+          "Data: " + formatDateTime(event.createdAt),
+          "Projeto: " + (event.project || "nao informado"),
+          "Importancia: " + event.importance,
+          "Humor: " + (event.mood || "nao informado"),
+          "Tags: " + (event.tags.length ? event.tags.join(", ") : "sem tags"),
+          "Conteudo: " + event.content
+        ].join("\n");
+      }).join("\n\n---\n\n") : "Nenhum evento registrado."
+    ].join("\n");
+  }
+
+  function detectTimelineLetterCommand(question) {
+    const cleanQuestion = sanitizeUserText(question);
+    const text = normalizeText(cleanQuestion);
+    if (!hasAnyTerm(text, ["guarde uma carta para o futuro", "guardar uma carta para o futuro", "carta para o futuro"])) {
+      return null;
+    }
+    let content = cleanQuestion.replace(/^\s*elo,?\s*/i, "").replace(/guarde uma carta para o futuro[:\-]?\s*/i, "").trim();
+    if (!content || normalizeText(content) === "carta para o futuro") {
+      content = "Carta para o futuro registrada pelo chat. Edite ou complemente pela Linha do Tempo quando quiser.";
+    }
+    return {
+      type: "carta_futuro",
+      title: "Carta para o futuro",
+      content: content,
+      importance: "alta",
+      tags: ["carta", "futuro"],
+      source: "chat",
+      status: "pendente"
+    };
+  }
+
+  function isTodayTimelineEvent(event) {
+    if (!event.createdAt) {
+      return false;
+    }
+    const eventDate = new Date(event.createdAt);
+    const today = new Date();
+    return eventDate.toDateString() === today.toDateString();
+  }
+
+  function answerTimelineQuestion(question) {
+    const text = normalizeText(question);
+    const events = getTimelineEvents();
+
+    if (hasAnyTerm(text, ["o que aconteceu hoje", "aconteceu hoje", "resumo de hoje"])) {
+      const todayEvents = events.filter(isTodayTimelineEvent);
+      return {
+        shortAnswer: todayEvents.length ? "Eventos registrados hoje:" : "Ainda nao ha eventos registrados hoje na sua Linha do Tempo.",
+        fullAnswer: todayEvents.length ? todayEvents.slice(0, 8).map(formatTimelineEventLine).join("\n") : "Use Ferramentas do Elo > Linha do tempo para registrar marcos, ideias, conquistas ou dificuldades.",
+        nextAction: todayEvents.length ? "Voce pode exportar a Linha do Tempo em texto pelas ferramentas." : "Adicione um evento manual quando algo importante acontecer.",
+        canSave: false,
+        sessionTheme: "timeline"
+      };
+    }
+
+    const typeQuestions = [
+      { terms: ["quais foram meus marcos", "meus marcos"], type: "marco", label: "Marcos registrados", empty: "Ainda nao ha marcos registrados na sua Linha do Tempo." },
+      { terms: ["quais ideias eu tive", "minhas ideias", "ideias eu tive"], type: "ideia", label: "Ideias registradas", empty: "Ainda nao ha ideias registradas na sua Linha do Tempo." },
+      { terms: ["quais conquistas registrei", "minhas conquistas", "conquistas registrei"], type: "conquista", label: "Conquistas registradas", empty: "Ainda nao ha conquistas registradas na sua Linha do Tempo." }
+    ];
+
+    for (let index = 0; index < typeQuestions.length; index += 1) {
+      const item = typeQuestions[index];
+      if (hasAnyTerm(text, item.terms)) {
+        const filtered = events.filter(function (event) {
+          return event.type === item.type;
+        });
+        return {
+          shortAnswer: filtered.length ? item.label + ":" : item.empty,
+          fullAnswer: filtered.length ? filtered.slice(0, 8).map(formatTimelineEventLine).join("\n") : "Use Ferramentas do Elo > Linha do tempo para registrar manualmente.",
+          nextAction: "Abra Linha do tempo para adicionar, excluir ou exportar eventos.",
+          canSave: false,
+          sessionTheme: "timeline"
+        };
+      }
+    }
+
+    const projectMatch = text.match(/o que aconteceu (?:no|com o|com a)\s+(.+?)\??$/);
+    if (projectMatch && projectMatch[1]) {
+      const project = projectMatch[1].replace(/^projeto\s+/, "").trim();
+      const filtered = events.filter(function (event) {
+        return normalizeText(event.project).indexOf(project) >= 0 || normalizeText(event.title).indexOf(project) >= 0 || normalizeText(event.content).indexOf(project) >= 0;
+      });
+      return {
+        shortAnswer: filtered.length ? "Eventos encontrados sobre " + project + ":" : "Nao encontrei eventos sobre " + project + " na sua Linha do Tempo.",
+        fullAnswer: filtered.length ? filtered.slice(0, 8).map(formatTimelineEventLine).join("\n") : "Registre eventos manualmente em Ferramentas do Elo > Linha do tempo.",
+        nextAction: filtered.length ? "Se quiser, exporte a Linha do Tempo para revisar fora do navegador." : "Adicione um evento e informe o projeto relacionado.",
+        canSave: false,
+        sessionTheme: "timeline"
+      };
+    }
+
+    return null;
+  }
+
   // ELO_DOCUMENTS_LOCAL
   function createDocumentId() {
     return "doc_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
@@ -2245,6 +2497,415 @@
     }
   }
 
+  // ELO_USER_PROFILE_LOCAL
+  function normalizeUserProfile(profile) {
+    return {
+      userName: sanitizeLibraryText(profile && profile.userName, 80),
+      mainProject: sanitizeLibraryText(profile && profile.mainProject, 140),
+      weeklyGoal: sanitizeLibraryText(profile && profile.weeklyGoal, 180),
+      expectedHelp: sanitizeLibraryText(profile && profile.expectedHelp, 260),
+      answerStyle: normalizeText(profile && profile.answerStyle).indexOf("detal") >= 0 ? "detalhadas" : "curtas",
+      updatedAt: sanitizeUserText(profile && profile.updatedAt)
+    };
+  }
+
+  function getUserProfile() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.userProfileStorageKey);
+      return normalizeUserProfile(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeUserProfile(null);
+    }
+  }
+
+  function setUserProfile(profile) {
+    try {
+      const normalizedProfile = normalizeUserProfile(Object.assign({}, profile, {
+        updatedAt: new Date().toISOString()
+      }));
+      window.localStorage.setItem(ELO_CONFIG.userProfileStorageKey, JSON.stringify(normalizedProfile));
+      return normalizedProfile;
+    } catch (error) {
+      return normalizeUserProfile(null);
+    }
+  }
+
+  function normalizeInitialProfile(profile) {
+    return {
+      nome: sanitizeLibraryText(profile && profile.nome, 80),
+      profissao: sanitizeLibraryText(profile && profile.profissao, 120),
+      empresa: sanitizeLibraryText(profile && profile.empresa, 160),
+      cidade: sanitizeLibraryText(profile && profile.cidade, 140),
+      areas: Array.isArray(profile && profile.areas) ? profile.areas.map(function (item) {
+        return sanitizeLibraryText(item, 100);
+      }).filter(Boolean).slice(0, 20) : [],
+      projetos: Array.isArray(profile && profile.projetos) ? profile.projetos.map(function (item) {
+        return sanitizeLibraryText(item, 120);
+      }).filter(Boolean).slice(0, 20) : [],
+      objetivos: Array.isArray(profile && profile.objetivos) ? profile.objetivos.map(function (item) {
+        return sanitizeLibraryText(item, 180);
+      }).filter(Boolean).slice(0, 20) : [],
+      preferencias: Array.isArray(profile && profile.preferencias) ? profile.preferencias.map(function (item) {
+        return sanitizeLibraryText(item, 180);
+      }).filter(Boolean).slice(0, 20) : [],
+      fonte: sanitizeUserText(profile && profile.fonte) || "importacao_manual",
+      createdAt: sanitizeUserText(profile && profile.createdAt),
+      updatedAt: sanitizeUserText(profile && profile.updatedAt)
+    };
+  }
+
+  function getInitialProfile() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.initialProfileStorageKey);
+      return normalizeInitialProfile(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeInitialProfile(null);
+    }
+  }
+
+  function setInitialProfile(profile) {
+    const current = getInitialProfile();
+    const now = new Date().toISOString();
+    const normalizedProfile = normalizeInitialProfile(Object.assign({}, profile, {
+      fonte: "importacao_manual",
+      createdAt: current.createdAt || now,
+      updatedAt: now
+    }));
+    try {
+      window.localStorage.setItem(ELO_CONFIG.initialProfileStorageKey, JSON.stringify(normalizedProfile));
+    } catch (error) {
+      // Perfil inicial fica apenas no navegador. Se falhar, o Elo segue sem salvar.
+    }
+    return normalizedProfile;
+  }
+
+  function mergeUniqueTextItems() {
+    const values = Array.prototype.slice.call(arguments).reduce(function (accumulator, value) {
+      if (Array.isArray(value)) {
+        return accumulator.concat(value);
+      }
+      if (value) {
+        accumulator.push(value);
+      }
+      return accumulator;
+    }, []);
+    const seen = {};
+    return values.map(function (item) {
+      return sanitizeLibraryText(item, 180);
+    }).filter(function (item) {
+      const normalized = normalizeText(item);
+      if (!normalized || seen[normalized]) {
+        return false;
+      }
+      seen[normalized] = true;
+      return true;
+    });
+  }
+
+  function extractInitialProfileFromText(rawText) {
+    const cleanText = sanitizeLibraryText(rawText, 8000);
+    const normalized = normalizeText(cleanText);
+    const profile = normalizeInitialProfile(null);
+    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ÿ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ÿ]+){0,3})/i);
+    if (match && match[1]) {
+      profile.nome = sanitizeLibraryText(match[1], 80).replace(/[.,;:]+$/g, "");
+    }
+
+    const professionMap = [
+      ["engenheiro civil", "Engenheiro Civil"],
+      ["engenheira civil", "Engenheira Civil"],
+      ["arquiteto", "Arquiteto"],
+      ["arquiteta", "Arquiteta"],
+      ["técnico em edificações", "Técnico em Edificações"],
+      ["tecnico em edificacoes", "Técnico em Edificações"],
+      ["perito", "Perito"],
+      ["perita", "Perita"]
+    ];
+    const profession = professionMap.find(function (item) {
+      return normalized.indexOf(normalizeText(item[0])) >= 0;
+    });
+    if (profession) {
+      profile.profissao = profession[1];
+    } else {
+      match = cleanText.match(/\bsou\s+([^.\n]{4,80})/i);
+      if (match && match[1] && !hasAnyTerm(normalizeText(match[1]), ["desenvolvendo", "trabalhando com", "com pressa"])) {
+        profile.profissao = sanitizeLibraryText(match[1], 120).replace(/[.,;:]+$/g, "");
+      }
+    }
+
+    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\n]{3,120})/i);
+    if (match && match[1]) {
+      profile.empresa = sanitizeLibraryText(match[1], 160).replace(/[.,;:]+$/g, "");
+    } else if (hasAnyTerm(normalized, ["empresa propria", "empresa própria", "tenho empresa"])) {
+      profile.empresa = "empresa própria";
+    }
+
+    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\n]{3,100})/i);
+    if (match && match[1]) {
+      profile.cidade = sanitizeLibraryText(match[1], 140).replace(/[.,;:]+$/g, "");
+    }
+
+    const areaCandidates = [
+      ["pericias", "perícias"],
+      ["perícias", "perícias"],
+      ["projetos", "projetos"],
+      ["obras", "obras"],
+      ["relatorios", "relatórios"],
+      ["relatórios", "relatórios"],
+      ["rdo", "RDO"],
+      ["materiais", "materiais"],
+      ["auditoria de consumo", "auditoria de consumo"],
+      ["laudos", "laudos"],
+      ["engenharia", "engenharia"],
+      ["construcao", "construção"],
+      ["construção", "construção"]
+    ];
+    profile.areas = areaCandidates.filter(function (item) {
+      return normalized.indexOf(normalizeText(item[0])) >= 0;
+    }).map(function (item) {
+      return item[1];
+    });
+
+    const knownProjects = ["ObraReport", "Stock IA", "CADISTA IA", "Elo"];
+    profile.projetos = knownProjects.filter(function (project) {
+      return normalized.indexOf(normalizeText(project)) >= 0;
+    });
+    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\n]{3,100})/i);
+    if (projectMatch && projectMatch[1]) {
+      profile.projetos = mergeUniqueTextItems(profile.projetos, extractImportantTitle(projectMatch[1]));
+    }
+
+    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\n]{4,180})/gi) || [];
+    profile.objetivos = objectiveMatches.map(function (item) {
+      return item.replace(/^(meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+/i, "").replace(/[.,;:]+$/g, "");
+    });
+    if (hasAnyTerm(normalized, ["primeiros clientes", "vender saas", "vender o obrareport"])) {
+      profile.objetivos = mergeUniqueTextItems(profile.objetivos, "conseguir os primeiros clientes");
+    }
+    if (hasAnyTerm(normalized, ["desenvolvimento de software", "desenvolvendo software", "desenvolver software"])) {
+      profile.objetivos = mergeUniqueTextItems(profile.objetivos, "desenvolvimento de software");
+    }
+
+    const preferenceMatches = cleanText.match(/(?:prefiro|gosto de)\s+([^.\n]{4,180})/gi) || [];
+    profile.preferencias = preferenceMatches.map(function (item) {
+      return item.replace(/^(prefiro|gosto de)\s+/i, "").replace(/[.,;:]+$/g, "");
+    });
+
+    profile.areas = mergeUniqueTextItems(profile.areas);
+    profile.projetos = mergeUniqueTextItems(profile.projetos);
+    profile.objetivos = mergeUniqueTextItems(profile.objetivos);
+    profile.preferencias = mergeUniqueTextItems(profile.preferencias);
+    return profile;
+  }
+
+  function formatUnknown(value) {
+    if (Array.isArray(value)) {
+      return value.length ? value.join(", ") : "não identificado";
+    }
+    return value || "não identificado";
+  }
+
+  function formatInitialProfileExtraction(profile) {
+    return [
+      "Encontrei estas informações:",
+      "",
+      "Nome: " + formatUnknown(profile.nome),
+      "Profissão: " + formatUnknown(profile.profissao),
+      "Empresa: " + formatUnknown(profile.empresa),
+      "Cidade/local: " + formatUnknown(profile.cidade),
+      "Áreas: " + formatUnknown(profile.areas),
+      "Projetos: " + formatUnknown(profile.projetos),
+      "Objetivos: " + formatUnknown(profile.objetivos),
+      "Preferências: " + formatUnknown(profile.preferencias)
+    ].join("\n");
+  }
+
+  function saveInitialProfileExtraction(profile, options) {
+    const current = getInitialProfile();
+    const selected = options || {
+      profile: true,
+      projects: true,
+      goals: true,
+      preferences: true
+    };
+    const mergedProfile = setInitialProfile({
+      nome: selected.profile ? (profile.nome || current.nome) : current.nome,
+      profissao: selected.profile ? (profile.profissao || current.profissao) : current.profissao,
+      empresa: selected.profile ? (profile.empresa || current.empresa) : current.empresa,
+      cidade: selected.profile ? (profile.cidade || current.cidade) : current.cidade,
+      areas: selected.profile ? mergeUniqueTextItems(current.areas, profile.areas) : current.areas,
+      projetos: selected.projects ? mergeUniqueTextItems(current.projetos, profile.projetos) : current.projetos,
+      objetivos: selected.goals ? mergeUniqueTextItems(current.objetivos, profile.objetivos) : current.objetivos,
+      preferencias: selected.preferences ? mergeUniqueTextItems(current.preferencias, profile.preferencias) : current.preferencias
+    });
+
+    if (selected.projects) {
+      (profile.projetos || []).forEach(function (project) {
+        saveImportantMemory({
+          tipo: "projeto",
+          titulo: project,
+          descricao: "Projeto detectado na importação inicial de perfil.",
+          status: "ativo",
+          sourceQuestion: "importação inicial de perfil"
+        }, "projeto");
+      });
+    }
+    if (selected.goals) {
+      (profile.objetivos || []).forEach(function (goal) {
+        saveImportantMemory({
+          tipo: "objetivo",
+          titulo: goal,
+          descricao: goal,
+          status: "ativo",
+          sourceQuestion: "importação inicial de perfil"
+        }, "objetivo");
+      });
+    }
+    if (selected.preferences) {
+      (profile.preferencias || []).forEach(function (preference) {
+        saveImportantMemory({
+          tipo: "preferencia",
+          titulo: preference,
+          descricao: preference,
+          status: "ativo",
+          sourceQuestion: "importação inicial de perfil"
+        }, "preferencia");
+      });
+    }
+
+    const userProfile = getUserProfile();
+    setUserProfile({
+      userName: userProfile.userName || mergedProfile.nome,
+      mainProject: userProfile.mainProject || (mergedProfile.projetos[0] || ""),
+      weeklyGoal: userProfile.weeklyGoal || (mergedProfile.objetivos[0] || ""),
+      expectedHelp: userProfile.expectedHelp || (mergedProfile.areas.length ? "ajuda com " + mergedProfile.areas.join(", ") : ""),
+      answerStyle: userProfile.answerStyle || "curtas"
+    });
+
+    return mergedProfile;
+  }
+
+  function getInitialProfileSummary() {
+    const profile = getInitialProfile();
+    const lines = [];
+    if (profile.nome) {
+      lines.push("você se chama " + profile.nome);
+    }
+    if (profile.profissao) {
+      lines.push("é " + profile.profissao);
+    }
+    if (profile.empresa) {
+      lines.push("trabalha com " + profile.empresa);
+    }
+    if (profile.areas.length) {
+      lines.push("atua com " + profile.areas.join(", "));
+    }
+    if (profile.projetos.length) {
+      lines.push("tem como projeto " + profile.projetos.join(", "));
+    }
+    if (profile.objetivos.length) {
+      lines.push("tem como objetivo " + profile.objetivos.join(", "));
+    }
+    if (!lines.length) {
+      return "";
+    }
+    return "Pelo que você me autorizou a guardar, " + lines.join(", ") + ".";
+  }
+
+  function getPreferredUserName() {
+    const profile = getUserProfile();
+    if (profile.userName) {
+      return profile.userName;
+    }
+    const personalName = findPersonalMemoryByLabel("meu nome");
+    return personalName && personalName.value ? personalName.value : "";
+  }
+
+  function prefixWithUserName(text) {
+    const name = getPreferredUserName();
+    if (!name || !text) {
+      return text;
+    }
+    return name + ", " + text.charAt(0).toLowerCase() + text.slice(1);
+  }
+
+  function getUserProfileContextLine() {
+    const profile = getUserProfile();
+    const lines = [];
+    if (profile.mainProject) {
+      lines.push("Seu projeto principal informado é " + profile.mainProject + ".");
+    }
+    if (profile.weeklyGoal) {
+      lines.push("Seu objetivo principal desta semana é " + profile.weeklyGoal + ".");
+    }
+    if (profile.expectedHelp) {
+      lines.push("Você espera minha ajuda principalmente com: " + profile.expectedHelp + ".");
+    }
+    if (profile.answerStyle) {
+      lines.push("Preferência de resposta: " + profile.answerStyle + ".");
+    }
+    return lines.join("\n");
+  }
+
+  function answerUserProfileQuestion(question) {
+    const text = normalizeText(question);
+    const profile = getUserProfile();
+    const initialProfile = getInitialProfile();
+    const initialSummary = getInitialProfileSummary();
+    const hasProfile = Boolean(profile.userName || profile.mainProject || profile.weeklyGoal || profile.expectedHelp);
+
+    if (hasAnyTerm(text, ["como me chamo", "qual meu nome", "qual e meu nome", "qual é meu nome"])) {
+      return {
+        shortAnswer: profile.userName || initialProfile.nome ? "Você me pediu para chamar você de " + (profile.userName || initialProfile.nome) + "." : "Ainda não sei como devo chamar você.",
+        fullAnswer: profile.userName || initialProfile.nome ? "Esse nome está salvo apenas neste navegador." : "Abra Ferramentas do Elo > Configurar meu Elo para salvar seu nome localmente.",
+        nextAction: "Use Configurar meu Elo para revisar essa informação.",
+        canSave: false,
+        sessionTheme: "elo"
+      };
+    }
+
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "qual minha profissao", "qual minha profissão", "qual e minha profissao", "qual é minha profissão"])) {
+      if (hasAnyTerm(text, ["qual minha profissao", "qual minha profissão", "qual e minha profissao", "qual é minha profissão"])) {
+        return {
+          shortAnswer: initialProfile.profissao ? "Sua profissão salva é " + initialProfile.profissao + "." : "Ainda não tenho uma profissão salva no seu perfil inicial.",
+          fullAnswer: initialProfile.profissao ? initialSummary : "Use Importar perfil inicial para colar uma bio ou currículo e revisar antes de guardar.",
+          nextAction: "Abra Ferramentas do Elo > Importar perfil inicial para atualizar.",
+          canSave: false,
+          sessionTheme: "elo"
+        };
+      }
+      return {
+        shortAnswer: initialSummary ? "Tenho um resumo local sobre você." : "Ainda não tenho um perfil inicial salvo sobre você.",
+        fullAnswer: initialSummary || "Use Importar perfil inicial para colar uma bio, currículo ou descrição profissional. Eu vou pedir aprovação antes de guardar.",
+        nextAction: "Abra Ferramentas do Elo > Importar perfil inicial para revisar ou preencher.",
+        canSave: false,
+        sessionTheme: "elo"
+      };
+    }
+
+    if (hasAnyTerm(text, ["qual e meu projeto atual", "qual é meu projeto atual", "qual meu projeto atual", "meu projeto atual", "qual meu principal projeto"])) {
+      return {
+        shortAnswer: profile.mainProject || initialProfile.projetos[0] ? "Seu projeto atual informado é " + (profile.mainProject || initialProfile.projetos[0]) + "." : "Ainda não tenho um projeto atual salvo no seu perfil do Elo.",
+        fullAnswer: profile.mainProject || initialProfile.projetos[0] ? (getUserProfileContextLine() || initialSummary) : "Você pode salvar isso em Ferramentas do Elo > Configurar meu Elo.",
+        nextAction: profile.mainProject || initialProfile.projetos[0] ? "Posso ajudar você a definir o próximo passo desse projeto." : "Abra Configurar meu Elo e preencha o projeto principal.",
+        canSave: false,
+        sessionTheme: "elo"
+      };
+    }
+
+    if (hasAnyTerm(text, ["voce lembra de mim", "você lembra de mim"])) {
+      return {
+        shortAnswer: hasProfile ? "Lembro algumas informações locais que você autorizou neste navegador." : "Ainda não tenho um perfil configurado sobre você.",
+        fullAnswer: hasProfile ? getUserProfileContextLine() : "Nesta versão, posso guardar nome, projeto, objetivo, tipo de ajuda e preferência de resposta, sempre localmente.",
+        nextAction: "Use Configurar meu Elo para criar ou revisar seu perfil.",
+        canSave: false,
+        sessionTheme: "elo"
+      };
+    }
+
+    return null;
+  }
+
   // ELO_DAILY_ROUTINE
   function isDailyRoutineQuestion(normalizedQuestion) {
     return [
@@ -2274,8 +2935,7 @@
   }
 
   function getDailyRoutineName() {
-    const nameMemory = findPersonalMemoryByLabel("meu nome");
-    return nameMemory && nameMemory.value ? nameMemory.value : "";
+    return getPreferredUserName();
   }
 
   function getDailyRoutineMemories() {
@@ -2324,6 +2984,7 @@
     const usefulAnswers = getDailyRoutineUsefulAnswers();
     const recentQuestions = getDailyRoutineRecentQuestions();
     const mainProject = getMainProject();
+    const userProfile = getUserProfile();
     const activeProjects = getProjects().filter(function (project) {
       return project.status === "ativo";
     }).slice(0, 3);
@@ -2332,7 +2993,15 @@
       "Você pode continuar gerando relatórios, abrir o RDO, revisar materiais ou consultar sua Biblioteca."
     ];
 
-    if (mainProject) {
+    if (userProfile.mainProject) {
+      details.push("", "Seu projeto principal informado é " + userProfile.mainProject + ".");
+      if (userProfile.weeklyGoal) {
+        details.push("Objetivo principal desta semana: " + userProfile.weeklyGoal + ".");
+      }
+      if (userProfile.expectedHelp) {
+        details.push("Posso ajudar principalmente com: " + userProfile.expectedHelp + ".");
+      }
+    } else if (mainProject) {
       details.push("", "Seu projeto principal hoje é " + mainProject.name + ".");
       if (activeProjects.length) {
         details.push("Projetos ativos: " + activeProjects.map(function (project) {
@@ -2570,9 +3239,19 @@
       };
     }
 
+    const userProfileAnswer = answerUserProfileQuestion(cleanQuestion);
+    if (userProfileAnswer) {
+      return userProfileAnswer;
+    }
+
     const importantMemoryAnswer = answerImportantMemoryQuestion(cleanQuestion);
     if (importantMemoryAnswer) {
       return importantMemoryAnswer;
+    }
+
+    const timelineAnswer = answerTimelineQuestion(cleanQuestion);
+    if (timelineAnswer) {
+      return timelineAnswer;
     }
 
     const goalAnswer = answerGoalQuestion(cleanQuestion);
@@ -3480,11 +4159,11 @@
     },
     {
       intent: "identidade",
-      phrases: ["quem e voce", "quem é você", "qual seu nome", "qual e seu nome", "qual é seu nome", "o que e o elo", "o que é o elo", "voce e quem", "você é quem", "quem esta falando", "quem está falando"]
+      phrases: ["quem e voce", "quem é você", "qual seu nome", "qual e seu nome", "qual é seu nome", "o que e o elo", "o que é o elo", "voce e quem", "você é quem", "quem esta falando", "quem está falando", "voce e uma pessoa", "você é uma pessoa", "voce e humano", "você é humano"]
     },
     {
       intent: "capacidades",
-      phrases: ["o que voce faz", "o que você faz", "o que voce consegue fazer", "o que você consegue fazer", "em que voce ajuda", "em que você ajuda", "para que serve"]
+      phrases: ["o que voce faz", "o que você faz", "o que voce consegue fazer", "o que você consegue fazer", "em que voce ajuda", "em que você ajuda", "para que serve", "voce pode me ajudar", "você pode me ajudar", "como voce pode me ajudar", "como você pode me ajudar", "o que voce sabe sobre o obrareport", "o que você sabe sobre o obrareport"]
     },
     {
       intent: "funcionamento",
@@ -3506,14 +4185,23 @@
 
     const variant = chooseConversationVariant(intent, getConversationVariants()[intent] || getConversationVariants().saudacao);
     const contextHint = getConversationContextHint(intent);
+    const profileLine = intent === "saudacao" || intent === "apoio_pratico" || intent === "capacidades" ? getUserProfileContextLine() : "";
 
     return Object.assign({
       canSave: false,
       sessionIntent: "conversa_humana"
     }, variant, {
-      fullAnswer: [variant.fullAnswer, contextHint.fullAnswer].filter(Boolean).join("\n\n"),
+      shortAnswer: personalizeConversationShortAnswer(variant.shortAnswer, intent),
+      fullAnswer: [variant.fullAnswer, profileLine, contextHint.fullAnswer].filter(Boolean).join("\n\n"),
       nextAction: contextHint.nextAction || variant.nextAction
     });
+  }
+
+  function personalizeConversationShortAnswer(shortAnswer, intent) {
+    if (intent === "saudacao" || intent === "apoio_pratico") {
+      return prefixWithUserName(shortAnswer);
+    }
+    return shortAnswer;
   }
 
   function chooseConversationVariant(intent, variants) {
@@ -3607,7 +4295,7 @@
       identidade: [
         {
           shortAnswer: "Eu sou o Elo, assistente local do ObraReport.",
-          fullAnswer: "Não sou uma pessoa nem tenho consciência. Sou um assistente do sistema para orientar uso, revisar informações visíveis e consultar bases locais.",
+          fullAnswer: "Não sou uma pessoa nem tenho consciência. Sou um assistente digital do sistema para orientar uso, revisar informações visíveis e consultar bases locais.",
           nextAction: "Pergunte: o que você consegue fazer?",
           sessionTheme: "elo"
         },
@@ -3619,7 +4307,7 @@
         },
         {
           shortAnswer: "Sou o assistente do ObraReport para suporte e orientação operacional.",
-          fullAnswer: "Eu uso regras locais e contexto visível. Não sou IA em nuvem nesta versão.",
+          fullAnswer: "Tenho um perfil calmo, educado, paciente e direto. Uso regras locais e contexto visível. Não sou IA em nuvem nesta versão.",
           nextAction: "Experimente perguntar: como funciona o Elo?",
           sessionTheme: "elo"
         }
@@ -4464,6 +5152,14 @@
     details.appendChild(summary);
     container.appendChild(buildQuickButtons());
 
+    const configureButton = createElement("button", "elo-inline-button", "Configurar meu Elo");
+    configureButton.type = "button";
+    configureButton.addEventListener("click", showUserProfileSetup);
+    container.appendChild(configureButton);
+    const importProfileButton = createElement("button", "elo-inline-button", "Importar perfil inicial");
+    importProfileButton.type = "button";
+    importProfileButton.addEventListener("click", showInitialProfileImport);
+    container.appendChild(importProfileButton);
     const libraryButton = createElement("button", "elo-inline-button", "Biblioteca");
     libraryButton.type = "button";
     libraryButton.addEventListener("click", showLibrary);
@@ -4484,6 +5180,10 @@
     importantMemoriesButton.type = "button";
     importantMemoriesButton.addEventListener("click", showImportantMemories);
     container.appendChild(importantMemoriesButton);
+    const timelineButton = createElement("button", "elo-inline-button", "Linha do tempo");
+    timelineButton.type = "button";
+    timelineButton.addEventListener("click", showTimeline);
+    container.appendChild(timelineButton);
     const backupButton = createElement("button", "elo-inline-button", "Backup do Elo");
     backupButton.type = "button";
     backupButton.addEventListener("click", showEloBackup);
@@ -4529,6 +5229,25 @@
     }
 
     appendMessage("user", cleanQuestion);
+
+    const timelineLetter = detectTimelineLetterCommand(cleanQuestion);
+    if (timelineLetter) {
+      const result = saveTimelineEvent(timelineLetter);
+      const answer = result.ok ? "Guardei sua carta para o futuro." : "Por segurança, não consegui guardar essa carta. Confira se ela não contém dados sensíveis.";
+      appendAssistantMessage(cleanQuestion, answer, false, {
+        shortAnswer: answer,
+        fullAnswer: result.ok ? "Ela ficou salva apenas neste navegador, na Linha do Tempo do Elo. Ainda não há lembrete automático." : "A Linha do Tempo não salva senhas, CPF, cartão, tokens, chaves API ou dados bancários.",
+        nextAction: "Abra Ferramentas do Elo > Linha do tempo para revisar.",
+        canSave: false,
+        sessionTheme: "timeline"
+      });
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Abra Linha do tempo para revisar a carta.",
+        sessionIntent: "timeline"
+      }, answer);
+      return;
+    }
 
     const personalMemoryCandidate = detectPersonalMemory(cleanQuestion);
     if (personalMemoryCandidate && personalMemoryCandidate.blocked) {
@@ -5065,6 +5784,181 @@
       select.appendChild(allOption);
     }
     appendSimpleOptions(select, ELO_LIBRARY_CATEGORIES);
+  }
+
+  function showUserProfileSetup() {
+    const profile = getUserProfile();
+    const message = appendMessage("system", "Configurar meu Elo");
+    const panel = createElement("div", "elo-user-profile-panel");
+    const status = createElement("p", "elo-privacy", "Este perfil fica salvo apenas neste navegador. Ele ajuda o Elo a responder de forma mais útil.");
+    const form = createElement("form", "elo-library-form");
+    const nameInput = createElement("input", "elo-library-field");
+    const projectInput = createElement("input", "elo-library-field");
+    const goalInput = createElement("input", "elo-library-field");
+    const helpInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const styleSelect = createElement("select", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Salvar configuração");
+
+    nameInput.type = "text";
+    nameInput.maxLength = 80;
+    nameInput.placeholder = "Como devo chamar você?";
+    nameInput.value = profile.userName;
+    projectInput.type = "text";
+    projectInput.maxLength = 140;
+    projectInput.placeholder = "Qual seu principal projeto agora?";
+    projectInput.value = profile.mainProject;
+    goalInput.type = "text";
+    goalInput.maxLength = 180;
+    goalInput.placeholder = "Qual seu objetivo principal esta semana?";
+    goalInput.value = profile.weeklyGoal;
+    helpInput.maxLength = 260;
+    helpInput.rows = 3;
+    helpInput.placeholder = "Que tipo de ajuda você espera do Elo?";
+    helpInput.value = profile.expectedHelp;
+    styleSelect.setAttribute("aria-label", "Preferência de resposta");
+    appendSimpleOptions(styleSelect, ["curtas", "detalhadas"]);
+    styleSelect.value = profile.answerStyle || "curtas";
+    saveButton.type = "submit";
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const savedProfile = setUserProfile({
+        userName: nameInput.value,
+        mainProject: projectInput.value,
+        weeklyGoal: goalInput.value,
+        expectedHelp: helpInput.value,
+        answerStyle: styleSelect.value
+      });
+      status.textContent = "Perfil local salvo para o Elo.";
+      appendMessage("system", [
+        "Configuração salva.",
+        savedProfile.userName ? "Vou chamar você de " + savedProfile.userName + "." : "",
+        savedProfile.mainProject ? "Projeto atual: " + savedProfile.mainProject + "." : "",
+        savedProfile.weeklyGoal ? "Objetivo da semana: " + savedProfile.weeklyGoal + "." : ""
+      ].filter(Boolean).join("\n"));
+    });
+
+    form.appendChild(nameInput);
+    form.appendChild(projectInput);
+    form.appendChild(goalInput);
+    form.appendChild(helpInput);
+    form.appendChild(styleSelect);
+    form.appendChild(saveButton);
+    panel.appendChild(status);
+    panel.appendChild(createElement("p", "elo-backup-note", "Perguntas: 1. Como devo chamar você? 2. Qual seu principal projeto agora? 3. Qual seu objetivo principal esta semana? 4. Que tipo de ajuda espera? 5. Respostas curtas ou detalhadas?"));
+    panel.appendChild(form);
+    message.appendChild(panel);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showInitialProfileImport() {
+    const message = appendMessage("system", "Importar perfil inicial");
+    const panel = createElement("div", "elo-user-profile-panel");
+    const status = createElement("p", "elo-privacy", "Cole aqui um texto sobre você, currículo, bio profissional ou perfil copiado do LinkedIn. O Elo vai tentar extrair informações importantes e pedir sua aprovação antes de guardar.");
+    const form = createElement("form", "elo-library-form");
+    const textInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const analyzeButton = createElement("button", "elo-send-button", "Analisar perfil");
+    const resultPanel = createElement("div", "elo-profile-import-result is-hidden");
+
+    textInput.maxLength = 8000;
+    textInput.rows = 7;
+    textInput.placeholder = "Exemplo: Sou engenheiro civil. Tenho empresa própria. Trabalho com perícias e projetos. Estou desenvolvendo o ObraReport.";
+    analyzeButton.type = "submit";
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const extractedProfile = extractInitialProfileFromText(textInput.value);
+      if (!textInput.value.trim()) {
+        status.textContent = "Cole um texto antes de analisar.";
+        return;
+      }
+      renderInitialProfileReview(resultPanel, extractedProfile, status);
+    });
+
+    form.appendChild(textInput);
+    form.appendChild(analyzeButton);
+    panel.appendChild(status);
+    panel.appendChild(createElement("p", "elo-backup-note", "As informações ficam salvas apenas neste navegador nesta versão. Revise antes de guardar."));
+    panel.appendChild(form);
+    panel.appendChild(resultPanel);
+    message.appendChild(panel);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function renderInitialProfileReview(resultPanel, extractedProfile, status) {
+    resultPanel.textContent = "";
+    resultPanel.classList.remove("is-hidden");
+    const summary = createElement("pre", "elo-profile-import-summary", formatInitialProfileExtraction(extractedProfile));
+    const question = createElement("p", "elo-privacy", "Deseja guardar essas informações nas memórias importantes do Elo?");
+    const actions = createElement("div", "elo-message-actions");
+    const saveAllButton = createElement("button", "elo-inline-button", "Guardar tudo");
+    const chooseButton = createElement("button", "elo-inline-button", "Escolher o que guardar");
+    const cancelButton = createElement("button", "elo-inline-button", "Cancelar");
+    const chooser = createElement("div", "elo-profile-import-chooser is-hidden");
+
+    saveAllButton.type = "button";
+    chooseButton.type = "button";
+    cancelButton.type = "button";
+    saveAllButton.addEventListener("click", function () {
+      saveInitialProfileExtraction(extractedProfile);
+      status.textContent = "Perfil inicial salvo localmente.";
+      appendMessage("system", "Perfil inicial salvo. Projetos, objetivos e preferências detectados também foram enviados para Memórias importantes.");
+    });
+    chooseButton.addEventListener("click", function () {
+      chooser.classList.toggle("is-hidden");
+    });
+    cancelButton.addEventListener("click", function () {
+      resultPanel.classList.add("is-hidden");
+      status.textContent = "Importação cancelada. Nada foi salvo.";
+    });
+
+    actions.appendChild(saveAllButton);
+    actions.appendChild(chooseButton);
+    actions.appendChild(cancelButton);
+    resultPanel.appendChild(summary);
+    resultPanel.appendChild(question);
+    resultPanel.appendChild(actions);
+    buildInitialProfileChooser(chooser, extractedProfile, status);
+    resultPanel.appendChild(chooser);
+  }
+
+  function buildInitialProfileChooser(container, extractedProfile, status) {
+    const options = [
+      ["profile", "Perfil: nome, profissão, empresa, cidade e áreas"],
+      ["projects", "Projetos detectados"],
+      ["goals", "Objetivos detectados"],
+      ["preferences", "Preferências detectadas"]
+    ];
+    const form = createElement("form", "elo-library-form");
+    options.forEach(function (option) {
+      const label = createElement("label", "elo-profile-import-option");
+      const checkbox = createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      checkbox.value = option[0];
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" " + option[1]));
+      form.appendChild(label);
+    });
+    const saveSelectedButton = createElement("button", "elo-send-button", "Guardar selecionados");
+    saveSelectedButton.type = "submit";
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const selected = {
+        profile: false,
+        projects: false,
+        goals: false,
+        preferences: false
+      };
+      Array.prototype.slice.call(form.querySelectorAll("input[type='checkbox']")).forEach(function (checkbox) {
+        selected[checkbox.value] = checkbox.checked;
+      });
+      saveInitialProfileExtraction(extractedProfile, selected);
+      status.textContent = "Informações selecionadas salvas localmente.";
+      appendMessage("system", "Importação seletiva concluída. Nada foi enviado para servidor.");
+    });
+    form.appendChild(saveSelectedButton);
+    container.appendChild(form);
   }
 
   function showProjects() {
@@ -5967,6 +6861,197 @@
 
     message.appendChild(list);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showTimeline() {
+    const message = appendMessage("system", "Linha do tempo");
+    const panel = createElement("div", "elo-timeline-panel");
+    const status = createElement("p", "elo-privacy", "A Linha do Tempo fica salva apenas neste navegador.");
+    const controls = createElement("div", "elo-timeline-controls");
+    const typeSelect = createElement("select", "elo-library-select");
+    const projectInput = createElement("input", "elo-library-search");
+    const addButton = createElement("button", "elo-inline-button", "Adicionar evento");
+    const exportButton = createElement("button", "elo-inline-button", "Exportar texto");
+    const form = buildTimelineForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Evento salvo na Linha do Tempo.";
+        form.classList.add("is-hidden");
+        renderTimelineList(list, typeSelect.value, projectInput.value);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
+      } else {
+        status.textContent = "Preencha título e conteúdo para salvar o evento.";
+      }
+    });
+    const list = createElement("div", "elo-timeline-list");
+
+    typeSelect.appendChild(createElement("option", "", "Todos"));
+    ELO_TIMELINE_TYPES.forEach(function (type) {
+      const option = createElement("option", "", formatTimelineType(type));
+      option.value = type;
+      typeSelect.appendChild(option);
+    });
+    projectInput.type = "search";
+    projectInput.placeholder = "Filtrar por projeto";
+    addButton.type = "button";
+    exportButton.type = "button";
+
+    typeSelect.addEventListener("change", function () {
+      renderTimelineList(list, typeSelect.value, projectInput.value);
+    });
+    projectInput.addEventListener("input", function () {
+      renderTimelineList(list, typeSelect.value, projectInput.value);
+    });
+    addButton.addEventListener("click", function () {
+      form.classList.toggle("is-hidden");
+    });
+    exportButton.addEventListener("click", function () {
+      const exported = exportTimelineAsText(getTimelineEvents({
+        type: typeSelect.value === "Todos" ? "" : typeSelect.value,
+        project: projectInput.value
+      }));
+      const blob = new Blob([exported], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "elo-linha-do-tempo.txt";
+      link.click();
+      URL.revokeObjectURL(url);
+      status.textContent = "Linha do Tempo exportada em texto.";
+    });
+
+    controls.appendChild(typeSelect);
+    controls.appendChild(projectInput);
+    controls.appendChild(addButton);
+    controls.appendChild(exportButton);
+    panel.appendChild(status);
+    panel.appendChild(controls);
+    panel.appendChild(form);
+    panel.appendChild(list);
+    message.appendChild(panel);
+    renderTimelineList(list, "Todos", "");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function buildTimelineForm(onSave) {
+    const form = createElement("form", "elo-library-form elo-timeline-form is-hidden");
+    const titleInput = createElement("input", "elo-library-field");
+    const contentInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const typeSelect = createElement("select", "elo-library-field");
+    const projectInput = createElement("input", "elo-library-field");
+    const importanceSelect = createElement("select", "elo-library-field");
+    const tagsInput = createElement("input", "elo-library-field");
+    const moodInput = createElement("input", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Salvar evento");
+
+    titleInput.type = "text";
+    titleInput.maxLength = 140;
+    titleInput.placeholder = "Título";
+    contentInput.maxLength = 1200;
+    contentInput.placeholder = "Conteúdo do evento";
+    projectInput.type = "text";
+    projectInput.maxLength = 120;
+    projectInput.placeholder = "Projeto relacionado";
+    tagsInput.type = "text";
+    tagsInput.maxLength = 160;
+    tagsInput.placeholder = "Tags separadas por vírgula";
+    moodInput.type = "text";
+    moodInput.maxLength = 80;
+    moodInput.placeholder = "Humor/mood opcional";
+    saveButton.type = "submit";
+
+    ELO_TIMELINE_TYPES.forEach(function (type) {
+      const option = createElement("option", "", formatTimelineType(type));
+      option.value = type;
+      typeSelect.appendChild(option);
+    });
+    ELO_TIMELINE_IMPORTANCE.forEach(function (importance) {
+      const option = createElement("option", "", importance);
+      option.value = importance;
+      importanceSelect.appendChild(option);
+    });
+    importanceSelect.value = "media";
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveTimelineEvent({
+        title: titleInput.value,
+        content: contentInput.value,
+        type: typeSelect.value,
+        project: projectInput.value,
+        importance: importanceSelect.value,
+        tags: tagsInput.value,
+        mood: moodInput.value,
+        source: "manual"
+      });
+      if (result.ok) {
+        titleInput.value = "";
+        contentInput.value = "";
+        projectInput.value = "";
+        tagsInput.value = "";
+        moodInput.value = "";
+        typeSelect.value = "marco";
+        importanceSelect.value = "media";
+      }
+      onSave(result);
+    });
+
+    form.appendChild(titleInput);
+    form.appendChild(contentInput);
+    form.appendChild(typeSelect);
+    form.appendChild(projectInput);
+    form.appendChild(importanceSelect);
+    form.appendChild(tagsInput);
+    form.appendChild(moodInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderTimelineList(list, type, project) {
+    list.textContent = "";
+    const filters = {
+      type: type === "Todos" ? "" : type,
+      project: project
+    };
+    const events = getTimelineEvents(filters);
+
+    if (!events.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Ainda não há eventos registrados na sua Linha do Tempo."));
+      return;
+    }
+
+    events.slice(0, 40).forEach(function (event) {
+      const card = createElement("article", "elo-timeline-card");
+      const header = createElement("div", "elo-project-card-header");
+      const title = createElement("strong", "", event.title);
+      const badges = createElement("div", "elo-project-badges");
+      const typeBadge = createElement("span", "elo-timeline-badge", formatTimelineType(event.type));
+      const importanceBadge = createElement("span", "elo-timeline-importance is-" + event.importance, event.importance);
+      const content = createElement("p", "", event.content);
+      const meta = createElement("span", "elo-library-meta", formatDateTime(event.createdAt) + (event.project ? " · Projeto: " + event.project : "") + (event.mood ? " · Humor: " + event.mood : ""));
+      const tags = createElement("span", "elo-library-tags", event.tags.length ? "Tags: " + event.tags.join(", ") : "Sem tags");
+      const actions = createElement("div", "elo-library-actions");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      deleteButton.type = "button";
+      deleteButton.addEventListener("click", function () {
+        deleteTimelineEvent(event.id);
+        renderTimelineList(list, type, project);
+        appendMessage("system", "Evento excluído da Linha do Tempo.");
+      });
+
+      badges.appendChild(typeBadge);
+      badges.appendChild(importanceBadge);
+      header.appendChild(title);
+      header.appendChild(badges);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(content);
+      card.appendChild(meta);
+      card.appendChild(tags);
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
   }
 
   function showImportantMemories() {

@@ -340,7 +340,9 @@
 
 .elo-library-panel,
 .elo-documents-panel,
-.elo-real-questions-panel {
+.elo-real-questions-panel,
+.elo-user-profile-panel,
+.elo-timeline-panel {
   display: grid;
   gap: 10px;
   margin-top: 4px;
@@ -362,7 +364,8 @@
   margin-top: 4px;
 }
 
-.elo-library-controls {
+.elo-library-controls,
+.elo-timeline-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
@@ -429,7 +432,10 @@
 }
 
 .elo-library-form.is-hidden,
-.elo-project-form.is-hidden {
+.elo-project-form.is-hidden,
+.elo-timeline-form.is-hidden,
+.elo-profile-import-result.is-hidden,
+.elo-profile-import-chooser.is-hidden {
   display: none;
 }
 
@@ -442,14 +448,16 @@
 
 .elo-library-list,
 .elo-documents-list,
-.elo-real-question-list {
+.elo-real-question-list,
+.elo-timeline-list {
   display: grid;
   gap: 9px;
 }
 
 .elo-library-card,
 .elo-document-card,
-.elo-real-question-card {
+.elo-real-question-card,
+.elo-timeline-card {
   display: grid;
   gap: 8px;
   padding: 11px;
@@ -483,7 +491,8 @@
 
 .elo-library-card strong,
 .elo-document-card strong,
-.elo-real-question-card strong {
+.elo-real-question-card strong,
+.elo-timeline-card strong {
   color: #0f172a;
   font-size: 0.9rem;
   line-height: 1.35;
@@ -498,7 +507,8 @@
 
 .elo-library-card p,
 .elo-document-card p,
-.elo-real-question-card p {
+.elo-real-question-card p,
+.elo-timeline-card p {
   margin: 0;
   color: #334155;
   font-size: 0.82rem;
@@ -519,6 +529,49 @@
   color: #64748b;
   font-size: 0.76rem;
   line-height: 1.35;
+}
+
+.elo-timeline-badge,
+.elo-timeline-importance {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.elo-timeline-badge {
+  color: #0f5f8f;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.18);
+}
+
+.elo-timeline-importance {
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.elo-timeline-importance.is-alta {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.elo-timeline-importance.is-media {
+  color: #155e75;
+  background: #cffafe;
+  border-color: #a5f3fc;
+}
+
+.elo-timeline-importance.is-baixa {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
 }
 
 .elo-project-list,
@@ -550,6 +603,36 @@
   background: rgba(15, 95, 143, 0.1);
   font-size: 0.72rem;
   font-weight: 900;
+}
+
+.elo-profile-import-result,
+.elo-profile-import-chooser {
+  display: grid;
+  gap: 10px;
+}
+
+.elo-profile-import-summary {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  color: #0f172a;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.elo-profile-import-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .elo-projects-subtitle {
@@ -717,7 +800,8 @@
     grid-template-columns: 1fr;
   }
 
-  .elo-library-controls {
+  .elo-library-controls,
+  .elo-timeline-controls {
     grid-template-columns: 1fr;
   }
 
