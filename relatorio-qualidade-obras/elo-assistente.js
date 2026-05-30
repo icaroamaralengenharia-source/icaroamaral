@@ -1571,6 +1571,16 @@
       return greeting;
     }
 
+    const diagnostic = getDiagnosticStepResponse(normalizedQuestion);
+    if (diagnostic) {
+      return diagnostic;
+    }
+
+    const guided = getGuidedStepResponse(normalizedQuestion);
+    if (guided) {
+      return guided;
+    }
+
     const contextualHelp = getContextualHelpResponse(normalizedQuestion);
     if (contextualHelp) {
       return contextualHelp;
@@ -1605,6 +1615,265 @@
       fullAnswer: "Na próxima evolução, vou poder buscar na internet, resumir e salvar para você.",
       nextAction: "Tente perguntar sobre relatórios, PDF, RDO, materiais, fotos, planos ou suporte.",
       canSave: false
+    };
+  }
+
+  function getGuidedStepResponse(normalizedQuestion) {
+    if (hasAnyTerm(normalizedQuestion, ["como gerar pdf", "gerar pdf", "criar pdf", "baixar pdf", "exportar pdf"])) {
+      return buildStepResponse(
+        "Para gerar um PDF:",
+        [
+          "Abra o relatório ou o Diário de Obras desejado.",
+          "Confira cliente, obra, fotos, produção, materiais e conclusão.",
+          "Clique em Gerar PDF ou Gerar PDF do Diário.",
+          "Aguarde a visualização ou janela de impressão do navegador.",
+          "Salve o arquivo ou envie ao cliente pelo fluxo de compartilhamento."
+        ],
+        "Se a janela não abrir, verifique se o navegador bloqueou pop-ups.",
+        "Quer que eu explique também como enviar o resumo por WhatsApp?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como criar relatorio", "criar relatorio", "novo relatorio", "fazer relatorio"])) {
+      return buildStepResponse(
+        "Para criar um relatório técnico:",
+        [
+          "Cadastre ou selecione um cliente.",
+          "Cadastre ou selecione a obra vinculada.",
+          "Abra Relatórios e preencha o nome do relatório.",
+          "Adicione fotos, ocorrências, análise técnica e conclusão.",
+          "Revise o conteúdo e gere o PDF profissional."
+        ],
+        "O relatório precisa estar vinculado a uma obra para ficar organizado corretamente.",
+        "Se quiser testar rápido, use a Obra Exemplo."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como criar rdo", "criar rdo", "novo rdo", "fazer rdo", "diario de obra", "diario de obras"])) {
+      return buildStepResponse(
+        "Para criar um RDO:",
+        [
+          "Abra Diário de Obras.",
+          "Selecione a obra vinculada.",
+          "Preencha data, responsável, clima, equipe e serviços.",
+          "Registre produção executada, materiais, ocorrências e fotos.",
+          "Salve o diário e gere o PDF do Diário se precisar entregar."
+        ],
+        "O RDO funciona melhor quando produção e materiais são preenchidos no mesmo registro.",
+        "Quer que eu explique como lançar materiais no RDO?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como adicionar materiais", "adicionar material", "registrar materiais", "lancar materiais", "lançar materiais"])) {
+      return buildStepResponse(
+        "Para adicionar materiais:",
+        [
+          "Abra Diário de Obras.",
+          "Vá até a seção Materiais.",
+          "Informe material, quantidade, unidade, valor unitário e observação.",
+          "Clique em Adicionar material.",
+          "Confira o resumo e o total de materiais consumidos."
+        ],
+        "Se você também registrar Produção Executada, o ObraReport ajuda na auditoria de consumo.",
+        "Depois disso, pergunte: como funciona auditoria de consumo?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como enviar whatsapp", "enviar whatsapp", "resumo por whatsapp", "whatsapp"])) {
+      return buildStepResponse(
+        "Para enviar por WhatsApp:",
+        [
+          "Abra o RDO ou relatório que deseja compartilhar.",
+          "Confira obra, cliente, produção, materiais e ocorrências.",
+          "Clique no botão de WhatsApp.",
+          "Revise a mensagem pronta antes de enviar.",
+          "Envie pelo WhatsApp Web ou aplicativo do dispositivo."
+        ],
+        "O ObraReport abre uma mensagem preenchida. Não há API oficial de WhatsApp integrada nesta versão.",
+        "Quer que eu explique também o envio por e-mail preenchido?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como funciona auditoria", "auditoria de consumo", "usar auditoria", "auditoria materiais"])) {
+      return buildStepResponse(
+        "A auditoria de consumo funciona assim:",
+        [
+          "Registre a Produção Executada no RDO.",
+          "Cadastre ou use composições de materiais.",
+          "Lance os materiais realmente consumidos.",
+          "Clique para calcular materiais estimados, quando disponível.",
+          "Compare estimado, registrado e diferença na auditoria."
+        ],
+        "Ela é uma conferência operacional simples, não substitui orçamento técnico completo ou medição formal.",
+        "Para testar, carregue a Obra Exemplo e abra Diário de Obras."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["plano profissional", "como funciona o plano profissional"])) {
+      return buildStepResponse(
+        "O plano Profissional é indicado para uso individual ou equipe pequena:",
+        [
+          "Você usa o ObraReport para clientes, obras, relatórios e RDOs.",
+          "Gera PDFs profissionais para entrega.",
+          "Usa materiais, produção executada e apoio do Elo.",
+          "Solicita acesso pelo WhatsApp.",
+          "A ativação é assistida nesta fase inicial."
+        ],
+        "Não existe checkout automático ativo nesta fase.",
+        "Abra Planos para confirmar limites e solicitar acesso."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["plano empresa", "como funciona o plano empresa"])) {
+      return buildStepResponse(
+        "O plano Empresa é indicado para construtoras, escritórios e equipes:",
+        [
+          "Organiza múltiplas obras e usuários.",
+          "Centraliza relatórios, RDOs e materiais.",
+          "Apoia auditoria de consumo e histórico técnico.",
+          "Inclui suporte prioritário e implantação assistida.",
+          "A contratação começa por proposta via WhatsApp."
+        ],
+        "A ativação é assistida para configurar o primeiro acesso corretamente.",
+        "Abra Planos e use Solicitar proposta."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como ver minha obra", "ver minha obra", "onde vejo obra", "abrir obra"])) {
+      return buildStepResponse(
+        "Para ver sua obra:",
+        [
+          "Abra o menu Obras para consultar obras cadastradas.",
+          "No Dashboard, confira o card de obras em andamento.",
+          "Em Relatórios ou Diário de Obras, selecione a obra vinculada.",
+          "Use a Obra Exemplo se quiser testar sem dados reais.",
+          "Se a obra não aparecer, verifique se ela foi cadastrada no cliente correto."
+        ],
+        "O Elo também consegue ler a obra selecionada quando ela está visível na tela.",
+        "Pergunte: qual obra estou vendo?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["como salvar", "sincronizar", "salvar dados", "salvamento", "sincronizacao", "sincronização"])) {
+      return buildStepResponse(
+        "Sobre salvar e sincronizar:",
+        [
+          "Preencha os dados da tela atual.",
+          "Use o botão Salvar quando ele aparecer no formulário.",
+          "Aguarde o status de salvamento/local da tela.",
+          "Confira se o item aparece na lista ou histórico.",
+          "Evite limpar o navegador se estiver usando dados locais."
+        ],
+        "Algumas informações do Elo ficam apenas neste navegador. Exporte backup do Elo quando quiser preservar memórias, biblioteca, projetos e objetivos.",
+        "Se algo não salvar, pergunte: não consigo salvar."
+      );
+    }
+
+    return null;
+  }
+
+  function getDiagnosticStepResponse(normalizedQuestion) {
+    if (hasAnyTerm(normalizedQuestion, ["pdf nao gerou", "pdf não gerou", "pdf nao abre", "pdf não abre", "erro no pdf"])) {
+      return buildStepResponse(
+        "Se o PDF não gerou:",
+        [
+          "Verifique se há cliente e obra selecionados.",
+          "Confira se o relatório ou RDO possui conteúdo preenchido.",
+          "Libere pop-ups ou janelas novas no navegador.",
+          "Tente gerar novamente.",
+          "Se persistir, entre em contato pelo suporte."
+        ],
+        "A falha ao abrir o PDF normalmente não apaga o conteúdo preenchido.",
+        "Quer que eu explique o fluxo correto para gerar PDF?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["nao consigo salvar", "não consigo salvar", "erro ao salvar", "nao salvou", "não salvou"])) {
+      return buildStepResponse(
+        "Se não conseguiu salvar:",
+        [
+          "Confira se os campos obrigatórios estão preenchidos.",
+          "Verifique se cliente e obra foram selecionados.",
+          "Observe a mensagem de status da tela.",
+          "Tente salvar novamente sem recarregar a página.",
+          "Se o problema continuar, copie as informações importantes antes de fechar."
+        ],
+        "Eu não altero seus dados; apenas oriento com base na tela atual.",
+        "Pergunte qual obra ou RDO estou vendo para conferir o contexto."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["foto nao aparece", "foto não aparece", "foto sumiu", "imagem nao aparece", "imagem não aparece"])) {
+      return buildStepResponse(
+        "Se a foto não aparece:",
+        [
+          "Confirme se o arquivo é JPEG, PNG ou WebP.",
+          "Veja se a foto foi adicionada depois da seleção.",
+          "Confira se está na etapa correta de Fotos.",
+          "Evite arquivos muito pesados.",
+          "Tente adicionar novamente e salvar o relatório ou RDO."
+        ],
+        "Fotos locais dependem do navegador enquanto o registro está sendo preparado.",
+        "Quer que eu explique como adicionar fotos?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["rdo sumiu", "diario sumiu", "não acho o rdo", "nao acho o rdo", "rdo nao aparece"])) {
+      return buildStepResponse(
+        "Se o RDO não aparece:",
+        [
+          "Abra Diário de Obras.",
+          "Confira se a obra correta está selecionada.",
+          "Veja a lista Registros do Diário.",
+          "Limpe o campo de busca de produção, se estiver preenchido.",
+          "Se usou outro navegador/dispositivo, o dado local pode não estar disponível ali."
+        ],
+        "Nesta fase, alguns dados podem depender do armazenamento local do navegador.",
+        "Pergunte: qual RDO estou vendo?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["whatsapp nao abriu", "whatsapp não abriu", "erro whatsapp", "whatsapp nao funciona"])) {
+      return buildStepResponse(
+        "Se o WhatsApp não abriu:",
+        [
+          "Confira se o navegador permitiu abrir nova aba.",
+          "Verifique se há WhatsApp Web ou aplicativo configurado.",
+          "Revise se o RDO possui informações para montar a mensagem.",
+          "Tente clicar novamente no botão de WhatsApp.",
+          "Se necessário, copie o resumo manualmente."
+        ],
+        "O ObraReport usa abertura de mensagem pronta, não API oficial do WhatsApp.",
+        "Quer que eu explique o envio por WhatsApp?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["plano nao mudou", "plano não mudou", "upgrade nao mudou", "upgrade não mudou", "plano nao atualizou"])) {
+      return buildStepResponse(
+        "Se o plano não mudou:",
+        [
+          "Abra a tela Planos.",
+          "Confira o plano e o uso atual exibidos.",
+          "Lembre que a ativação é assistida nesta fase.",
+          "Fale pelo WhatsApp para solicitar ajuste de acesso.",
+          "Aguarde confirmação antes de considerar o plano ativo."
+        ],
+        "Não há checkout automático integrado nesta versão.",
+        "Abra Planos e use o botão de contratação assistida."
+      );
+    }
+
+    return null;
+  }
+
+  function buildStepResponse(shortAnswer, steps, note, nextAction) {
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: steps.map(function (step, index) {
+        return (index + 1) + ". " + step;
+      }).join("\n") + (note ? "\n\nObservação: " + note : ""),
+      nextAction: nextAction,
+      canSave: true
     };
   }
 
@@ -1650,20 +1919,38 @@
     const answers = {
       "Planos": {
         shortAnswer: "Você está em Planos.",
-        fullAnswer: "Aqui o mais importante é entender limites, plano gratuito, contratação assistida e qual plano combina com seu uso.",
-        nextAction: "Pergunte: o plano gratuito tem limite? ou como funcionam os planos?",
+        fullAnswer: [
+          "1. Compare Gratuito, Profissional e Empresa.",
+          "2. Veja os limites e o uso atual.",
+          "3. Escolha o plano adequado ao volume de obras e relatórios.",
+          "4. Use o WhatsApp para contratação assistida.",
+          "5. Aguarde ativação orientada pela equipe."
+        ].join("\n"),
+        nextAction: "Pergunte: como funciona o plano Profissional? ou como funciona o plano Empresa?",
         canSave: false
       },
       "Diário de Obras": {
         shortAnswer: "Você está no Diário de Obras.",
-        fullAnswer: "Aqui eu priorizo RDO, produção executada, materiais consumidos, ocorrências, segurança e PDF do diário.",
-        nextAction: "Pergunte: como registrar materiais? ou como gerar PDF do RDO?",
+        fullAnswer: [
+          "1. Selecione a obra vinculada.",
+          "2. Preencha data, responsável, clima, equipe e serviços.",
+          "3. Lance produção executada e materiais consumidos.",
+          "4. Registre ocorrências, segurança e fotos.",
+          "5. Salve o diário e gere o PDF quando estiver pronto."
+        ].join("\n"),
+        nextAction: "Pergunte: como adicionar materiais? ou como gerar PDF?",
         canSave: false
       },
       "Relatórios": {
         shortAnswer: "Você está em Relatórios.",
-        fullAnswer: "Aqui eu priorizo criação de relatório, fotos, inconformidades, revisão técnica e PDF profissional.",
-        nextAction: "Pergunte: como criar meu primeiro relatório? ou como adicionar fotos?",
+        fullAnswer: [
+          "1. Escolha cliente e obra.",
+          "2. Crie ou abra o relatório técnico.",
+          "3. Adicione fotos, ocorrências e análise.",
+          "4. Revise a conclusão e os dados principais.",
+          "5. Gere o PDF profissional para entrega."
+        ].join("\n"),
+        nextAction: "Pergunte: como criar relatório? ou como gerar PDF?",
         canSave: false
       },
       "Clientes": {
