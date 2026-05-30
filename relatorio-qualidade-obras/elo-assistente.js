@@ -192,6 +192,7 @@
       conversations: Array.isArray(memory && memory.conversations) ? memory.conversations.slice(0, ELO_CONFIG.maxHistory) : [],
       usefulAnswers: Array.isArray(memory && memory.usefulAnswers) ? memory.usefulAnswers.slice(0, ELO_CONFIG.maxHistory) : [],
       personalMemories: Array.isArray(memory && memory.personalMemories) ? memory.personalMemories.slice(0, ELO_CONFIG.maxHistory) : [],
+      libraryItems: Array.isArray(memory && memory.libraryItems) ? memory.libraryItems : [],
       feedback: Array.isArray(memory && memory.feedback) ? memory.feedback.slice(0, ELO_CONFIG.maxHistory) : [],
       isOpen: Boolean(memory && memory.isOpen)
     };
@@ -248,8 +249,11 @@
   }
 
   function clearMemory() {
+    const currentMemory = getMemory();
     const memory = normalizeMemory(null);
     memory.isOpen = getWidgetState();
+    memory.personalMemories = currentMemory.personalMemories || [];
+    memory.libraryItems = currentMemory.libraryItems || [];
     setMemory(memory);
   }
 
@@ -406,6 +410,256 @@
     return null;
   }
 
+  // ELO_LIBRARY_LOCAL
+  const ELO_LIBRARY_CATEGORIES = [
+    "ObraReport",
+    "Relatórios",
+    "RDO",
+    "Materiais",
+    "Receitas",
+    "Procedimentos",
+    "Checklists",
+    "Ideias",
+    "Pessoal",
+    "Geral"
+  ];
+
+  function createLibraryItemId() {
+    return "lib_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function sanitizeLibraryText(value, limit) {
+    return String(value || "")
+      .replace(/[<>]/g, "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      .slice(0, limit || 3000);
+  }
+
+  function normalizeLibraryCategory(category) {
+    const normalizedCategory = normalizeText(category);
+    return ELO_LIBRARY_CATEGORIES.find(function (item) {
+      return normalizeText(item) === normalizedCategory;
+    }) || "Geral";
+  }
+
+  function parseLibraryTags(tags) {
+    if (Array.isArray(tags)) {
+      return tags.map(function (tag) {
+        return sanitizeUserText(tag);
+      }).filter(Boolean).slice(0, 12);
+    }
+
+    return String(tags || "")
+      .split(",")
+      .map(function (tag) {
+        return sanitizeUserText(tag);
+      })
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+
+  function getLibraryItems() {
+    return (getMemory().libraryItems || []).slice().sort(function (first, second) {
+      if (Boolean(first.favorite) !== Boolean(second.favorite)) {
+        return first.favorite ? -1 : 1;
+      }
+      return new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0);
+    });
+  }
+
+  function isSensitiveLibraryContent() {
+    return Array.prototype.slice.call(arguments).some(function (value) {
+      return hasSensitiveMemoryTerm(value);
+    });
+  }
+
+  function saveLibraryItem(input) {
+    const title = sanitizeLibraryText(input && input.title, 120);
+    const content = sanitizeLibraryText(input && input.content, 3000);
+    const category = normalizeLibraryCategory(input && input.category);
+    const tags = parseLibraryTags(input && input.tags);
+    const source = sanitizeUserText(input && input.source) || "manual";
+
+    if (!title || !content) {
+      return { ok: false, reason: "missing" };
+    }
+
+    if (isSensitiveLibraryContent(title, content, tags.join(" "))) {
+      return { ok: false, reason: "sensitive" };
+    }
+
+    const memory = getMemory();
+    const now = new Date().toISOString();
+    const item = {
+      id: input && input.id ? sanitizeUserText(input.id) : createLibraryItemId(),
+      title: title,
+      content: content,
+      category: category,
+      tags: tags,
+      source: source,
+      createdAt: input && input.createdAt ? input.createdAt : now,
+      updatedAt: now,
+      favorite: Boolean(input && input.favorite)
+    };
+
+    memory.libraryItems = (memory.libraryItems || []).filter(function (savedItem) {
+      return savedItem.id !== item.id;
+    });
+    memory.libraryItems.unshift(item);
+    setMemory(memory);
+    return { ok: true, item: item };
+  }
+
+  function deleteLibraryItem(id) {
+    const memory = getMemory();
+    memory.libraryItems = (memory.libraryItems || []).filter(function (item) {
+      return item.id !== id;
+    });
+    setMemory(memory);
+  }
+
+  function toggleLibraryFavorite(id) {
+    const memory = getMemory();
+    let updatedItem = null;
+    memory.libraryItems = (memory.libraryItems || []).map(function (item) {
+      if (item.id !== id) {
+        return item;
+      }
+      updatedItem = Object.assign({}, item, {
+        favorite: !item.favorite,
+        updatedAt: new Date().toISOString()
+      });
+      return updatedItem;
+    });
+    setMemory(memory);
+    return updatedItem;
+  }
+
+  function summarizeLibraryContent(content) {
+    const cleanContent = sanitizeLibraryText(content, 3000).replace(/\s+/g, " ");
+    if (cleanContent.length <= 220) {
+      return cleanContent;
+    }
+    return cleanContent.slice(0, 217).trim() + "...";
+  }
+
+  function suggestLibraryTitle(question) {
+    const cleanQuestion = sanitizeUserText(question);
+    if (!cleanQuestion) {
+      return "Resposta do Elo";
+    }
+    return cleanQuestion.charAt(0).toUpperCase() + cleanQuestion.slice(1).replace(/[?.!]+$/g, "");
+  }
+
+  function suggestLibraryCategory(question) {
+    const text = normalizeText(question);
+    const categoryMap = [
+      { category: "Relatórios", keywords: ["relatorio", "pdf", "foto", "qualidade"] },
+      { category: "RDO", keywords: ["rdo", "diario", "diario de obras"] },
+      { category: "Materiais", keywords: ["material", "materiais", "consumo", "auditoria"] },
+      { category: "Receitas", keywords: ["receita", "bolo", "cozinhar", "ingrediente"] },
+      { category: "Procedimentos", keywords: ["procedimento", "passo", "processo", "como fazer"] },
+      { category: "Checklists", keywords: ["checklist", "lista", "verificar", "conferir"] },
+      { category: "Ideias", keywords: ["ideia", "sugestao", "planejar"] },
+      { category: "Pessoal", keywords: ["pessoal", "familia", "filho", "gosto"] },
+      { category: "ObraReport", keywords: ["obrareport", "elo", "plano", "cliente", "obra"] }
+    ];
+
+    const match = categoryMap.find(function (item) {
+      return item.keywords.some(function (keyword) {
+        return text.indexOf(keyword) >= 0;
+      });
+    });
+    return match ? match.category : "Geral";
+  }
+
+  function createLibraryItemFromAnswer(question, answer) {
+    return saveLibraryItem({
+      title: suggestLibraryTitle(question),
+      content: answer,
+      category: suggestLibraryCategory(question),
+      tags: [suggestLibraryCategory(question), "Elo"],
+      source: "resposta_elo"
+    });
+  }
+
+  function scoreLibraryItem(item, normalizedQuestion) {
+    const normalizedParts = normalizedQuestion.split(" ").filter(function (part) {
+      return part.length > 2;
+    });
+    const searchable = normalizeText([
+      item.title,
+      item.content,
+      item.category,
+      (item.tags || []).join(" ")
+    ].join(" "));
+    let score = item.favorite ? 1 : 0;
+
+    if (!searchable || !normalizedQuestion) {
+      return 0;
+    }
+
+    if (searchable.indexOf(normalizedQuestion) >= 0) {
+      score += 8;
+    }
+
+    normalizedParts.forEach(function (part) {
+      if (searchable.indexOf(part) >= 0) {
+        score += part.length > 5 ? 3 : 1;
+      }
+    });
+
+    if (normalizeText(item.title).indexOf(normalizedQuestion) >= 0) {
+      score += 5;
+    }
+
+    return score;
+  }
+
+  function searchLibraryItems(question, category) {
+    const normalizedQuestion = normalizeText(question);
+    const normalizedCategory = category && category !== "Todas" ? normalizeText(category) : "";
+
+    return getLibraryItems().map(function (item) {
+      return {
+        item: item,
+        score: scoreLibraryItem(item, normalizedQuestion)
+      };
+    }).filter(function (entry) {
+      const categoryMatches = !normalizedCategory || normalizeText(entry.item.category) === normalizedCategory;
+      const queryMatches = !normalizedQuestion || entry.score > 0;
+      return categoryMatches && queryMatches;
+    }).sort(function (first, second) {
+      if (second.score !== first.score) {
+        return second.score - first.score;
+      }
+      if (Boolean(first.item.favorite) !== Boolean(second.item.favorite)) {
+        return first.item.favorite ? -1 : 1;
+      }
+      return new Date(second.item.updatedAt || second.item.createdAt || 0) - new Date(first.item.updatedAt || first.item.createdAt || 0);
+    }).map(function (entry) {
+      return entry.item;
+    });
+  }
+
+  function answerFromLibrary(question) {
+    const results = searchLibraryItems(question, "");
+    const item = results[0];
+    if (!item || scoreLibraryItem(item, normalizeText(question)) < 4) {
+      return null;
+    }
+
+    return {
+      shortAnswer: "Encontrei isso na sua Biblioteca do Elo:",
+      fullAnswer: item.title + "\n\n" + summarizeLibraryContent(item.content) + "\n\nCategoria: " + item.category,
+      nextAction: "Use o botao Ver completo ou abra Biblioteca para revisar esse item.",
+      canSave: false,
+      libraryItem: item
+    };
+  }
+
   // ELO_TEXT_UTILS
   function sanitizeUserText(value) {
     return String(value || "")
@@ -487,6 +741,11 @@
     const personalMemoryAnswer = answerPersonalMemoryQuestion(cleanQuestion);
     if (personalMemoryAnswer) {
       return personalMemoryAnswer;
+    }
+
+    const libraryAnswer = answerFromLibrary(cleanQuestion);
+    if (libraryAnswer) {
+      return libraryAnswer;
     }
 
     const greeting = getGreetingResponse(normalizedQuestion);
@@ -627,6 +886,7 @@
     inputRow.appendChild(sendButton);
 
     footer.appendChild(inputRow);
+    footer.appendChild(createElement("p", "elo-privacy", "A Biblioteca do Elo fica salva apenas neste navegador."));
     footer.appendChild(createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador."));
     footer.appendChild(createElement("p", "elo-privacy", "As memórias pessoais ficam salvas apenas neste navegador."));
 
@@ -677,6 +937,10 @@
 
   function buildTools() {
     const container = createElement("div", "elo-tools");
+    const libraryButton = createElement("button", "elo-inline-button", "Biblioteca");
+    libraryButton.type = "button";
+    libraryButton.addEventListener("click", showLibrary);
+    container.appendChild(libraryButton);
     [
       ["Dúvidas recentes", showRecentQuestions],
       ["Minhas memórias", showPersonalMemories],
@@ -733,7 +997,7 @@
 
     const response = buildResponse(cleanQuestion);
     const answer = formatResponse(response);
-    appendAssistantMessage(cleanQuestion, answer, response.canSave !== false);
+    appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
     saveConversation(cleanQuestion, answer);
   }
 
@@ -774,9 +1038,18 @@
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
-  function appendAssistantMessage(question, answer, canSave) {
+  function appendAssistantMessage(question, answer, canSave, response) {
     const message = appendMessage("assistant", answer);
     const actions = createElement("div", "elo-message-actions");
+
+    if (response && response.libraryItem) {
+      const fullButton = createElement("button", "elo-inline-button", "Ver completo");
+      fullButton.type = "button";
+      fullButton.addEventListener("click", function () {
+        appendMessage("system", response.libraryItem.title + "\n\n" + response.libraryItem.content);
+      });
+      actions.appendChild(fullButton);
+    }
 
     if (canSave) {
       const saveQuestion = createElement("span", "elo-privacy", "Deseja guardar isso para eu lembrar depois?");
@@ -795,8 +1068,32 @@
         saveButton.disabled = true;
         dontSaveButton.disabled = true;
       });
+      const libraryQuestion = createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca do Elo?");
+      const libraryButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
+      const dontSaveLibraryButton = createElement("button", "elo-inline-button", "NÃ£o guardar na Biblioteca");
+      libraryButton.type = "button";
+      dontSaveLibraryButton.type = "button";
+      libraryButton.addEventListener("click", function () {
+        const result = createLibraryItemFromAnswer(question, answer);
+        libraryButton.disabled = true;
+        dontSaveLibraryButton.disabled = true;
+        if (result.ok) {
+          appendMessage("system", "Guardado na Biblioteca do Elo: " + result.item.title + ".");
+        } else if (result.reason === "sensitive") {
+          appendMessage("system", "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.");
+        } else {
+          appendMessage("system", "NÃ£o consegui guardar na Biblioteca porque faltou tÃ­tulo ou conteÃºdo.");
+        }
+      });
+      dontSaveLibraryButton.addEventListener("click", function () {
+        libraryButton.disabled = true;
+        dontSaveLibraryButton.disabled = true;
+      });
       actions.appendChild(saveButton);
       actions.appendChild(dontSaveButton);
+      message.appendChild(libraryQuestion);
+      actions.appendChild(libraryButton);
+      actions.appendChild(dontSaveLibraryButton);
     }
 
     const feedbackText = createElement("span", "elo-privacy", "Essa resposta ajudou?");
@@ -838,6 +1135,163 @@
   function clearEloHistory() {
     clearMemory();
     appendMessage("system", "Histórico local do Elo limpo. Nenhum dado do SaaS foi alterado.");
+  }
+
+  function appendCategoryOptions(select, includeAll) {
+    if (includeAll) {
+      select.appendChild(createElement("option", "", "Todas"));
+    }
+    ELO_LIBRARY_CATEGORIES.forEach(function (category) {
+      select.appendChild(createElement("option", "", category));
+    });
+  }
+
+  function showLibrary() {
+    const message = appendMessage("system", "Biblioteca do Elo");
+    const panel = createElement("div", "elo-library-panel");
+    const status = createElement("p", "elo-privacy", "Esta biblioteca fica salva apenas neste navegador.");
+    const controls = createElement("div", "elo-library-controls");
+    const searchInput = createElement("input", "elo-library-search");
+    const categorySelect = createElement("select", "elo-library-select");
+    const addButton = createElement("button", "elo-inline-button", "Adicionar item");
+    const form = buildLibraryForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Item salvo na Biblioteca do Elo.";
+        renderLibraryList(list, searchInput.value, categorySelect.value);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+      } else {
+        status.textContent = "Preencha tÃ­tulo e conteÃºdo para salvar.";
+      }
+    });
+    const list = createElement("div", "elo-library-list");
+
+    searchInput.type = "search";
+    searchInput.placeholder = "Buscar na biblioteca";
+    addButton.type = "button";
+    categorySelect.setAttribute("aria-label", "Filtrar categoria da Biblioteca");
+    appendCategoryOptions(categorySelect, true);
+
+    searchInput.addEventListener("input", function () {
+      renderLibraryList(list, searchInput.value, categorySelect.value);
+    });
+    categorySelect.addEventListener("change", function () {
+      renderLibraryList(list, searchInput.value, categorySelect.value);
+    });
+    addButton.addEventListener("click", function () {
+      form.classList.toggle("is-hidden");
+    });
+
+    controls.appendChild(searchInput);
+    controls.appendChild(categorySelect);
+    controls.appendChild(addButton);
+    panel.appendChild(status);
+    panel.appendChild(controls);
+    panel.appendChild(form);
+    panel.appendChild(list);
+    message.appendChild(panel);
+
+    renderLibraryList(list, "", "Todas");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function buildLibraryForm(onSave) {
+    const form = createElement("form", "elo-library-form is-hidden");
+    const titleInput = createElement("input", "elo-library-field");
+    const contentInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const categorySelect = createElement("select", "elo-library-field");
+    const tagsInput = createElement("input", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Salvar na Biblioteca");
+
+    titleInput.type = "text";
+    titleInput.maxLength = 120;
+    titleInput.placeholder = "TÃ­tulo";
+    contentInput.maxLength = 3000;
+    contentInput.rows = 4;
+    contentInput.placeholder = "ConteÃºdo";
+    tagsInput.type = "text";
+    tagsInput.maxLength = 180;
+    tagsInput.placeholder = "Tags opcionais, separadas por vÃ­rgula";
+    saveButton.type = "submit";
+    categorySelect.setAttribute("aria-label", "Categoria do item");
+    appendCategoryOptions(categorySelect, false);
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveLibraryItem({
+        title: titleInput.value,
+        content: contentInput.value,
+        category: categorySelect.value,
+        tags: tagsInput.value,
+        source: "manual"
+      });
+      if (result.ok) {
+        titleInput.value = "";
+        contentInput.value = "";
+        tagsInput.value = "";
+        categorySelect.value = "Geral";
+        form.classList.add("is-hidden");
+      }
+      onSave(result);
+    });
+
+    form.appendChild(titleInput);
+    form.appendChild(contentInput);
+    form.appendChild(categorySelect);
+    form.appendChild(tagsInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderLibraryList(list, query, category) {
+    list.textContent = "";
+    const items = searchLibraryItems(query, category);
+
+    if (!items.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhum item encontrado na Biblioteca do Elo."));
+      return;
+    }
+
+    items.forEach(function (libraryItem) {
+      const card = createElement("article", "elo-library-card");
+      const header = createElement("div", "elo-library-card-header");
+      const title = createElement("strong", "", (libraryItem.favorite ? "★ " : "") + libraryItem.title);
+      const meta = createElement("span", "elo-library-meta", libraryItem.category + " Â· " + formatDateTime(libraryItem.updatedAt || libraryItem.createdAt));
+      const summary = createElement("p", "", summarizeLibraryContent(libraryItem.content));
+      const tags = createElement("span", "elo-library-tags", (libraryItem.tags || []).length ? "Tags: " + libraryItem.tags.join(", ") : "Sem tags");
+      const actions = createElement("div", "elo-library-actions");
+      const favoriteButton = createElement("button", "elo-inline-button", libraryItem.favorite ? "Desfavoritar" : "Favoritar");
+      const viewButton = createElement("button", "elo-inline-button", "Ver completo");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      favoriteButton.type = "button";
+      viewButton.type = "button";
+      deleteButton.type = "button";
+
+      favoriteButton.addEventListener("click", function () {
+        toggleLibraryFavorite(libraryItem.id);
+        renderLibraryList(list, query, category);
+      });
+      viewButton.addEventListener("click", function () {
+        appendMessage("system", libraryItem.title + "\n\n" + libraryItem.content);
+      });
+      deleteButton.addEventListener("click", function () {
+        deleteLibraryItem(libraryItem.id);
+        renderLibraryList(list, query, category);
+        appendMessage("system", "Item excluÃ­do da Biblioteca do Elo.");
+      });
+
+      header.appendChild(title);
+      header.appendChild(meta);
+      actions.appendChild(favoriteButton);
+      actions.appendChild(viewButton);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(summary);
+      card.appendChild(tags);
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
   }
 
   function showPersonalMemories() {
