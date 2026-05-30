@@ -137,7 +137,8 @@
 }
 
 .elo-message-actions,
-.elo-feedback-actions {
+.elo-feedback-actions,
+.elo-web-search-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -398,6 +399,18 @@
   border-color: rgba(15, 118, 110, 0.36);
   background: #ecfdf5;
   outline: 3px solid rgba(15, 118, 110, 0.12);
+}
+
+.elo-web-search-notice {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(213, 166, 66, 0.28);
+  border-radius: 10px;
+  color: #6b4f0a;
+  background: #fffbeb;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 @media (max-width: 760px) {

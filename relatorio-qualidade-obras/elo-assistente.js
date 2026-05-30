@@ -5,7 +5,10 @@
   const ELO_CONFIG = {
     storageKey: "obrareport_elo_assistente_v1",
     maxHistory: 20,
-    whatsappNumber: ""
+    whatsappNumber: "",
+    webSearchEnabled: false,
+    webSearchEndpoint: "",
+    webSearchRequiresConfirmation: true
   };
 
   // ELO_FLOW
@@ -843,16 +846,113 @@
   };
 
   // ELO_WEB_SEARCH_FUTURE
+  // A busca real deve acontecer somente por backend/API configuravel.
+  // O endpoint futuro devera retornar:
+  // {
+  //   answer,
+  //   sources,
+  //   confidence,
+  //   shouldSave
+  // }
+  const ELO_WEB_SEARCH = {
+    requestSearch: function (question, context) {
+      const cleanQuestion = sanitizeUserText(question);
+      const safeContext = sanitizeUserText(context);
+
+      if (!ELO_CONFIG.webSearchEnabled || !ELO_CONFIG.webSearchEndpoint) {
+        return Promise.resolve({
+          ok: false,
+          reason: "disabled",
+          query: buildSearchQuery(cleanQuestion)
+        });
+      }
+
+      if (hasSensitiveMemoryTerm(cleanQuestion) || hasSensitiveMemoryTerm(safeContext)) {
+        return Promise.resolve({
+          ok: false,
+          reason: "sensitive",
+          query: buildSearchQuery(cleanQuestion)
+        });
+      }
+
+      if (typeof window.fetch !== "function") {
+        return Promise.resolve({
+          ok: false,
+          reason: "fetch_unavailable",
+          query: buildSearchQuery(cleanQuestion)
+        });
+      }
+
+      return window.fetch(ELO_CONFIG.webSearchEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          question: cleanQuestion,
+          context: safeContext,
+          source: "obrareport-elo",
+          timestamp: new Date().toISOString()
+        })
+      }).then(function (response) {
+        if (!response.ok) {
+          throw new Error("web_search_http_" + response.status);
+        }
+        return response.json();
+      }).then(function (data) {
+        return {
+          ok: true,
+          answer: sanitizeLibraryText(data && data.answer, 3000),
+          sources: Array.isArray(data && data.sources) ? data.sources.slice(0, 5).map(sanitizeUserText) : [],
+          confidence: sanitizeUserText(data && data.confidence),
+          shouldSave: Boolean(data && data.shouldSave),
+          query: buildSearchQuery(cleanQuestion)
+        };
+      }).catch(function () {
+        return {
+          ok: false,
+          reason: "request_failed",
+          query: buildSearchQuery(cleanQuestion)
+        };
+      });
+    }
+  };
+
+  function isWeatherQuestion(question) {
+    const text = normalizeText(question);
+    return ["previsao do tempo", "tempo hoje", "como esta o tempo", "vai chover", "chuva hoje", "clima hoje"].some(function (keyword) {
+      return text.indexOf(keyword) >= 0;
+    });
+  }
+
   function shouldSearchWeb(question) {
     const text = normalizeText(question);
-    return ["previsao", "tempo hoje", "noticia", "restaurante", "receita", "preco atual", "cotacao", "dolar", "publica"].some(function (keyword) {
+    return [
+      "previsao",
+      "tempo hoje",
+      "vai chover",
+      "noticia",
+      "noticias",
+      "restaurante",
+      "receita",
+      "preco atual",
+      "cotacao",
+      "dolar",
+      "informacao recente",
+      "informacoes recentes",
+      "agenda publica",
+      "evento",
+      "eventos",
+      "legislacao atual",
+      "lei atual"
+    ].some(function (keyword) {
       return text.indexOf(keyword) >= 0;
     });
   }
 
   function buildSearchQuery(question) {
     const cleanQuestion = sanitizeUserText(question);
-    if (normalizeText(cleanQuestion).indexOf("previsao") >= 0 || normalizeText(cleanQuestion).indexOf("tempo") >= 0) {
+    if (isWeatherQuestion(cleanQuestion)) {
       return "previsão do tempo hoje em Vitória da Conquista";
     }
     return cleanQuestion || "pesquisa relacionada ao ObraReport";
@@ -860,11 +960,39 @@
 
   function explainFutureSearch(question) {
     const query = buildSearchQuery(question);
+    if (hasSensitiveMemoryTerm(question)) {
+      return {
+        shortAnswer: "Por segurança, não vou buscar nem guardar esse tipo de informação.",
+        fullAnswer: "Senhas, CPF, cartão, tokens, chaves API e dados bancários não devem ser enviados para busca externa.",
+        nextAction: "Faça uma pergunta sem dados sensíveis.",
+        canSave: false
+      };
+    }
+
+    if (isWeatherQuestion(question)) {
+      return {
+        shortAnswer: "Eu ainda não estou conectado ao clima real.",
+        fullAnswer: "Mas essa pergunta já está pronta para a busca controlada. Quando ativada, vou consultar a previsão do tempo, resumir e te responder de forma natural.\n\nConsulta sugerida: " + query,
+        nextAction: "Use Preparar busca para ver como esse fluxo ficará quando estiver ativado.",
+        canSave: false,
+        webSearch: {
+          question: sanitizeUserText(question),
+          query: query,
+          context: "clima"
+        }
+      };
+    }
+
     return {
-      shortAnswer: "Eu ainda não estou conectado à internet nesta versão.",
-      fullAnswer: "No futuro eu pesquisaria por: " + query + ". Depois eu poderia resumir, responder com segurança e guardar o aprendizado para você.",
-      nextAction: "Por enquanto, posso ajudar com a base local do ObraReport.",
-      canSave: false
+      shortAnswer: "Não encontrei isso na minha memória nem na Biblioteca.",
+      fullAnswer: "Posso buscar na internet quando a busca estiver ativada.\n\nConsulta sugerida: " + query,
+      nextAction: "Use Preparar busca para deixar a consulta pronta, sem chamar endpoint nesta versão.",
+      canSave: false,
+      webSearch: {
+        question: sanitizeUserText(question),
+        query: query,
+        context: "busca_controlada"
+      }
     };
   }
 
@@ -1212,6 +1340,30 @@
       message.appendChild(routineActions);
     }
 
+    if (response && response.webSearch) {
+      const webNotice = createElement("p", "elo-web-search-notice", "Busca real controlada: desativada por padrão nesta versão.");
+      const webActions = createElement("div", "elo-web-search-actions");
+      const prepareButton = createElement("button", "elo-inline-button", "Preparar busca");
+      const cancelButton = createElement("button", "elo-inline-button", "Não buscar");
+
+      prepareButton.type = "button";
+      cancelButton.type = "button";
+
+      prepareButton.addEventListener("click", function () {
+        prepareControlledWebSearch(response.webSearch, prepareButton, cancelButton);
+      });
+      cancelButton.addEventListener("click", function () {
+        prepareButton.disabled = true;
+        cancelButton.disabled = true;
+        appendMessage("system", "Tudo bem. Não vou preparar busca externa para essa pergunta.");
+      });
+
+      webActions.appendChild(prepareButton);
+      webActions.appendChild(cancelButton);
+      message.appendChild(webNotice);
+      message.appendChild(webActions);
+    }
+
     if (canSave) {
       const saveQuestion = createElement("span", "elo-privacy", "Deseja guardar isso para eu lembrar depois?");
       message.appendChild(saveQuestion);
@@ -1276,6 +1428,91 @@
     message.appendChild(feedbackText);
     actions.appendChild(yesButton);
     actions.appendChild(noButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function prepareControlledWebSearch(webSearch, prepareButton, cancelButton) {
+    const question = sanitizeUserText(webSearch && webSearch.question);
+    const context = sanitizeUserText(webSearch && webSearch.context);
+    const query = sanitizeUserText(webSearch && webSearch.query) || buildSearchQuery(question);
+
+    prepareButton.disabled = true;
+    cancelButton.disabled = true;
+
+    if (hasSensitiveMemoryTerm(question) || hasSensitiveMemoryTerm(context)) {
+      appendMessage("system", "Por segurança, não vou buscar nem guardar esse tipo de informação.");
+      return;
+    }
+
+    ELO_WEB_SEARCH.requestSearch(question, context).then(function (result) {
+      if (!result.ok && (result.reason === "disabled" || result.reason === "request_failed")) {
+        appendMessage(
+          "system",
+          "A busca real ainda está desativada nesta versão. Quando ativada, eu vou consultar uma fonte externa segura, resumir a resposta e perguntar se você quer guardar na Biblioteca.\n\nConsulta sugerida: " + (result.query || query)
+        );
+        return;
+      }
+
+      if (!result.ok && result.reason === "sensitive") {
+        appendMessage("system", "Por segurança, não vou buscar nem guardar esse tipo de informação.");
+        return;
+      }
+
+      if (!result.ok || !result.answer) {
+        appendMessage("system", "Não consegui preparar a busca agora. Nenhum dado foi enviado para servidor.");
+        return;
+      }
+
+      appendExternalSearchResult(question, result);
+    });
+  }
+
+  function appendExternalSearchResult(question, result) {
+    const answerParts = [
+      "Resposta externa recebida pela busca controlada:",
+      "",
+      result.answer
+    ];
+
+    if (result.sources && result.sources.length) {
+      answerParts.push("", "Fontes:", result.sources.map(function (source) {
+        return "- " + source;
+      }).join("\n"));
+    }
+
+    if (result.confidence) {
+      answerParts.push("", "Confiança: " + result.confidence);
+    }
+
+    const message = appendMessage("assistant", answerParts.join("\n"));
+    const actions = createElement("div", "elo-message-actions");
+    const saveButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
+    const dontSaveButton = createElement("button", "elo-inline-button", "Não guardar");
+
+    message.appendChild(createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca?"));
+
+    saveButton.type = "button";
+    dontSaveButton.type = "button";
+    saveButton.addEventListener("click", function () {
+      const saveResult = saveLibraryItem({
+        title: suggestLibraryTitle(question),
+        content: result.answer,
+        category: suggestLibraryCategory(question),
+        tags: ["Busca controlada", "Elo"],
+        source: "busca_controlada"
+      });
+      saveButton.disabled = true;
+      dontSaveButton.disabled = true;
+      appendMessage("system", saveResult.ok ? "Guardado na Biblioteca do Elo." : "Não consegui guardar essa resposta na Biblioteca.");
+    });
+    dontSaveButton.addEventListener("click", function () {
+      saveButton.disabled = true;
+      dontSaveButton.disabled = true;
+    });
+
+    actions.appendChild(saveButton);
+    actions.appendChild(dontSaveButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
