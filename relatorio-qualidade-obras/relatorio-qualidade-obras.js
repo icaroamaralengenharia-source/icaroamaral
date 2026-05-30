@@ -8,6 +8,7 @@
   const dashboardPanel = document.getElementById("dashboardPanel");
   const reportPanel = document.getElementById("reportPanel");
   const openReportButton = document.getElementById("openReportButton");
+  const homeActionStatus = document.getElementById("homeActionStatus");
   const loginForm = document.getElementById("loginForm");
   const logoutButton = document.getElementById("logoutButton");
   const userBadge = document.getElementById("userBadge");
@@ -116,6 +117,7 @@
   const routePanels = Array.from(document.querySelectorAll("[data-route]"));
   const routeButtons = Array.from(document.querySelectorAll("[data-route-target]"));
   const dashboardActionButtons = Array.from(document.querySelectorAll("[data-dashboard-action]"));
+  const homeActionButtons = Array.from(document.querySelectorAll("[data-home-action]"));
   const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
   const allowedExtensions = new Set(["jpg", "jpeg", "png", "webp"]);
   const heicExtensions = new Set(["heic", "heif"]);
@@ -137,6 +139,7 @@
   let dailyLogDraft = createEmptyDailyLogDraft_();
   let dailyLogSearchTerm = "";
   let compositionDraft = createEmptyCompositionDraft_();
+  let pendingHomeAction = "";
   let dailyLogEstimateDraft = {
     items: [],
     audit: [],
@@ -167,6 +170,12 @@
       showLoginPanel_();
     });
   }
+
+  homeActionButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      handleHomeAction_(button.dataset.homeAction);
+    });
+  });
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
@@ -522,10 +531,12 @@
           renderSaasState_();
           showDashboardPanel_("dashboard");
           setCloudStatus_("Sincronizado na nuvem", "success");
+          runPendingHomeAction_();
         } catch (error) {
           console.error(error);
           loginLocalFallback_(name, email);
           setCloudStatus_("Modo local ativo. Publique o Apps Script novo para sincronizar na nuvem.", "error");
+          runPendingHomeAction_();
         }
       });
     }
@@ -729,6 +740,118 @@
     }
   }
 
+  function handleHomeAction_(action) {
+    if (!action) {
+      return;
+    }
+
+    if (action === "pdf-info") {
+      scrollToHomeSection_("landing-steps-title");
+      setHomeActionStatus_("Veja o fluxo do campo ao PDF profissional.");
+      return;
+    }
+
+    if (action === "elo-auditoria") {
+      askEloFromHome_("Como funciona a auditoria de consumo?");
+      return;
+    }
+
+    if (action === "elo-ia") {
+      askEloFromHome_("Como funciona a IA técnica?");
+      return;
+    }
+
+    if (action === "elo-nuvem") {
+      askEloFromHome_("Como funciona a sincronização em nuvem?");
+      return;
+    }
+
+    if (!currentUser) {
+      pendingHomeAction = action;
+      setHomeActionStatus_("Faça login para abrir essa ação diretamente no sistema.");
+      showLoginPanel_();
+      return;
+    }
+
+    runHomeAction_(action);
+  }
+
+  function runPendingHomeAction_() {
+    if (!pendingHomeAction || !currentUser) {
+      return;
+    }
+
+    const action = pendingHomeAction;
+    pendingHomeAction = "";
+    window.setTimeout(function () {
+      runHomeAction_(action);
+    }, 120);
+  }
+
+  function runHomeAction_(action) {
+    if (action === "rdo") {
+      startQuickDailyLog_();
+      return;
+    }
+
+    if (action === "relatorio") {
+      startQuickQualityReport_();
+      return;
+    }
+
+    if (action === "materiais") {
+      startQuickMaterials_();
+      return;
+    }
+
+    if (action === "obra-exemplo") {
+      createExampleWork_();
+      return;
+    }
+
+    showDashboardPanel_("dashboard");
+  }
+
+  function setHomeActionStatus_(message) {
+    if (homeActionStatus) {
+      homeActionStatus.textContent = message || "";
+    }
+  }
+
+  function scrollToHomeSection_(id) {
+    const target = document.getElementById(id);
+    if (!target || !target.scrollIntoView) {
+      return;
+    }
+
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  function askEloFromHome_(question) {
+    const cleanQuestion = clean(question);
+    const floatButton = document.querySelector(".elo-float-button");
+    const panel = document.querySelector(".elo-panel");
+    const input = document.querySelector(".elo-input");
+    const sendButton = document.querySelector(".elo-send-button");
+
+    if (!floatButton || !input || !sendButton) {
+      setHomeActionStatus_("O Elo será aberto dentro do sistema. Acesse o ObraReport para perguntar: " + cleanQuestion);
+      return;
+    }
+
+    if (panel && panel.classList.contains("is-hidden")) {
+      floatButton.click();
+    }
+
+    input.value = cleanQuestion;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    sendButton.click();
+    setHomeActionStatus_("Pergunta enviada ao Elo Assistente.");
+  }
+
   async function handleDashboardAction_(action) {
     if (action === "clientes") {
       setLastOpened_("clientes");
@@ -856,6 +979,41 @@
 
     setCloudStatus_("Novo relatório preparado. Confirme obra e nome para criar e abrir o preenchimento.", "info");
     focusElementSoon_(reportCreateForm && reportCreateForm.elements.reportTitle);
+  }
+
+  function startQuickMaterials_() {
+    const works = getUserWorks_();
+    const exampleWork = getExampleWork_();
+    const selectedWork = exampleWork || works[0];
+
+    setLastOpened_("diario", selectedWork ? selectedWork.clientId : "", selectedWork ? selectedWork.id : "", "");
+    scheduleLocalDataSave_();
+    showDashboardPanel_("diario");
+    resetDailyLogForm_();
+
+    if (selectedWork && dailyLogWorkSelect) {
+      dailyLogWorkSelect.value = selectedWork.id;
+    }
+
+    const materialsSection = document.getElementById("rdo-materiais");
+    const materialsForm = document.getElementById("diary-materials");
+    if (materialsSection) {
+      materialsSection.open = true;
+    }
+
+    if (!works.length) {
+      setDailyLogStatus_("Carregue a Obra Exemplo para testar materiais.", "info");
+      focusElementSoon_(dailyLogWorkSelect);
+      return;
+    }
+
+    setDailyLogStatus_("Lançamento de materiais pronto. Informe material, quantidade, unidade e valor se desejar.", "info");
+    window.setTimeout(function () {
+      if (materialsForm && materialsForm.scrollIntoView) {
+        materialsForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 80);
+    focusElementSoon_(dailyLogForm && dailyLogForm.elements.materialName);
   }
 
   function focusElementSoon_(element) {

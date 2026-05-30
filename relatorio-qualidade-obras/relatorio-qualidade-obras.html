@@ -51,6 +51,47 @@
         </div>
       </div>
 
+      <section class="landing-section home-test-actions" aria-labelledby="home-test-actions-title">
+        <div class="section-row">
+          <div>
+            <p class="eyebrow">Teste guiado</p>
+            <h3 id="home-test-actions-title">O que você quer testar agora?</h3>
+            <p>Escolha uma ação e teste o ObraReport em menos de 1 minuto.</p>
+          </div>
+          <span class="local-status">Ações reais do sistema</span>
+        </div>
+
+        <div class="home-test-grid" aria-label="Ações rápidas para testar o ObraReport">
+          <button type="button" class="home-test-button primary" data-home-action="rdo">
+            <strong>Gerar RDO agora</strong>
+            <span>Abrir Diário de Obras e preparar um novo registro do dia.</span>
+          </button>
+          <button type="button" class="home-test-button" data-home-action="relatorio">
+            <strong>Gerar relatório agora</strong>
+            <span>Abrir Relatórios e preparar um novo relatório de qualidade.</span>
+          </button>
+          <button type="button" class="home-test-button" data-home-action="materiais">
+            <strong>Testar lançamento de materiais</strong>
+            <span>Abrir o RDO na área de materiais consumidos.</span>
+          </button>
+          <button type="button" class="home-test-button" data-home-action="obra-exemplo">
+            <strong>Carregar obra exemplo</strong>
+            <span>Usar uma obra pronta com cliente, RDO, materiais e relatório.</span>
+          </button>
+        </div>
+
+        <div class="home-feature-actions" aria-label="Recursos do ObraReport">
+          <button type="button" data-home-action="pdf-info">PDF Profissional</button>
+          <button type="button" data-home-action="rdo">RDO em Campo</button>
+          <button type="button" data-home-action="materiais">Controle de Materiais</button>
+          <button type="button" data-home-action="elo-auditoria">Auditoria de Consumo</button>
+          <button type="button" data-home-action="elo-ia">IA Técnica</button>
+          <button type="button" data-home-action="elo-nuvem">Sincronização em Nuvem</button>
+        </div>
+
+        <p class="home-action-status" id="homeActionStatus" aria-live="polite"></p>
+      </section>
+
       <section class="landing-section" aria-labelledby="landing-features-title">
         <p class="eyebrow">O que o ObraReport faz</p>
         <h3 id="landing-features-title">Tudo para registrar, organizar e entregar informação técnica de obra.</h3>
@@ -1364,5 +1405,7 @@
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
   <script src="./relatorio-qualidade-obras.js?v=20260529-role-visual-a"></script>
+  <link rel="stylesheet" href="elo-assistente.css">
+  <script src="elo-assistente.js" defer></script>
 </body>
 </html>

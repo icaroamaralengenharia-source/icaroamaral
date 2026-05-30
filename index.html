@@ -469,6 +469,90 @@
       box-shadow: 0 22px 54px rgba(6, 26, 50, 0.12);
     }
 
+    .elo-commercial {
+      grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+      align-items: center;
+      background:
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 20rem),
+        linear-gradient(135deg, #ffffff, #f6fbfc);
+    }
+
+    .elo-points {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .elo-points li {
+      padding: 11px 13px;
+      border: 1px solid #dbe4ee;
+      border-radius: 12px;
+      color: #334155;
+      background: #ffffff;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .elo-preview {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid rgba(15, 118, 110, 0.22);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 22px 54px rgba(6, 26, 50, 0.11);
+    }
+
+    .elo-preview header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5edf5;
+    }
+
+    .elo-preview header strong {
+      color: var(--navy);
+      font-size: 1rem;
+    }
+
+    .elo-preview header span {
+      padding: 6px 9px;
+      border-radius: 999px;
+      color: var(--teal);
+      background: #eefaf8;
+      font-size: 0.74rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .elo-chat {
+      display: grid;
+      gap: 10px;
+    }
+
+    .elo-chat p {
+      width: fit-content;
+      max-width: 92%;
+      margin: 0;
+      padding: 11px 13px;
+      border-radius: 13px;
+      color: #334155;
+      background: #f4f8fc;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .elo-chat p:nth-child(2),
+    .elo-chat p:nth-child(4) {
+      justify-self: end;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+    }
+
     .dashboard-kpis {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -564,7 +648,8 @@
     @media (max-width: 900px) {
       .hero,
       .split,
-      .demo {
+      .demo,
+      .elo-commercial {
         grid-template-columns: 1fr;
       }
 
@@ -642,6 +727,10 @@
 
       .mockup-chart {
         height: 120px;
+      }
+
+      .elo-preview {
+        padding: 14px;
       }
     }
   </style>
@@ -731,6 +820,28 @@
         <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
         <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
         <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
+      </div>
+    </section>
+
+    <section class="section elo-commercial" aria-labelledby="elo-title">
+      <div>
+        <p class="eyebrow">Elo Assistente</p>
+        <h2 id="elo-title">Assistente local para ajudar no uso do sistema.</h2>
+        <p>O Elo orienta o usuÃ¡rio dentro do ObraReport, responde dÃºvidas sobre PDF, RDO, fotos, materiais e planos, e guarda memÃ³rias locais apenas neste navegador.</p>
+        <ul class="elo-points">
+          <li>Ajuda rÃ¡pida para quem estÃ¡ comeÃ§ando a usar o sistema.</li>
+          <li>Biblioteca local para salvar respostas, checklists e procedimentos.</li>
+          <li>Sem envio de dados para servidor e sem integraÃ§Ã£o externa nesta fase.</li>
+        </ul>
+      </div>
+      <div class="elo-preview" aria-label="Exemplo do Elo Assistente no ObraReport">
+        <header><strong>Elo â€” Assistente ObraReport</strong><span>Local</span></header>
+        <div class="elo-chat">
+          <p>OlÃ¡, eu sou o Elo. Posso ajudar com relatÃ³rios, PDF, RDO, fotos, materiais e planos.</p>
+          <p>Como gerar PDF?</p>
+          <p>Abra o relatÃ³rio ou RDO e use o botÃ£o de gerar PDF. O documento fica pronto para revisar e enviar ao cliente.</p>
+          <p>Guardar na Biblioteca</p>
+        </div>
       </div>
     </section>
 
