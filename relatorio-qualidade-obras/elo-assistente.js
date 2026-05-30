@@ -44,6 +44,38 @@
     ]
   };
 
+  const ELO_WORLDVIEW = {
+    name: "visao_do_icaro",
+    summary: "Nem tudo que existe precisa ser palpável. Um documento digital existe no mundo virtual. Um pensamento não pode ser tocado, mas existe na mente e influencia a realidade. O Elo entende que existência pode ter camadas: física, mental, simbólica, espiritual e digital."
+  };
+
+  const ELO_PHILOSOPHY = {
+    grega: {
+      label: "Visão grega",
+      perspective: "seres racionais em busca de virtude, verdade e uma vida bem conduzida."
+    },
+    estoica: {
+      label: "Visão estoica",
+      perspective: "seres que não controlam tudo, mas podem cuidar das próprias escolhas, atitudes e responsabilidades."
+    },
+    biblica_crista: {
+      label: "Visão bíblica/cristã",
+      perspective: "seres com dignidade, responsabilidade e propósito diante de Deus, sem reduzir a vida apenas ao material."
+    },
+    moderna: {
+      label: "Visão moderna",
+      perspective: "seres que criam conhecimento, técnica, cultura e instituições para transformar a realidade."
+    },
+    existencial: {
+      label: "Visão existencial",
+      perspective: "seres que enfrentam liberdade, limite e incerteza, construindo sentido por escolhas concretas."
+    },
+    visao_do_icaro: {
+      label: "Visão do Ícaro",
+      perspective: "seres que habitam camadas físicas, mentais, simbólicas, espirituais e digitais; nem tudo que existe precisa ser palpável."
+    }
+  };
+
   // ELO_KNOWLEDGE_BASE
   const ELO_KNOWLEDGE_BASE = [
     {
@@ -3392,6 +3424,204 @@
     };
   }
 
+  function isCrisisQuestion(normalizedQuestion) {
+    return hasAnyTerm(normalizedQuestion, [
+      "quero morrer",
+      "quero sumir",
+      "vontade de sumir",
+      "nao aguento mais",
+      "não aguento mais",
+      "desistir de tudo",
+      "desistência",
+      "desistencia",
+      "me machucar",
+      "me ferir",
+      "me matar",
+      "autoagressao",
+      "autoagressão",
+      "sofrimento intenso",
+      "estou em crise",
+      "morte parece",
+      "nao quero viver",
+      "não quero viver"
+    ]);
+  }
+
+  function getCrisisSupportResponse() {
+    return {
+      shortAnswer: "Sinto muito que você esteja passando por isso.",
+      fullAnswer: "Esse tipo de situação merece apoio humano agora. Procure alguém de confiança, um familiar, um amigo ou atendimento de emergência da sua região. Eu posso ficar aqui para te ajudar a organizar o próximo passo, mas você não precisa lidar com isso sozinho.",
+      nextAction: "Fale com uma pessoa de confiança agora ou procure atendimento de emergência se houver risco imediato.",
+      canSave: false,
+      sessionTheme: "suporte"
+    };
+  }
+
+  function isPhilosophyQuestion(normalizedQuestion) {
+    return hasAnyTerm(normalizedQuestion, [
+      "existir",
+      "existe",
+      "existencia",
+      "existência",
+      "o que somos",
+      "somos",
+      "ser humano",
+      "alma",
+      "pensamento",
+      "consciência",
+      "consciencia",
+      "proposito",
+      "propósito",
+      "sentido da vida",
+      "esperanca",
+      "esperança",
+      "mundo virtual",
+      "realidade",
+      "palpavel",
+      "palpável",
+      "deus",
+      "biblia",
+      "bíblia",
+      "filosofia"
+    ]);
+  }
+
+  function hasWorldviewTrigger(normalizedQuestion) {
+    return hasAnyTerm(normalizedQuestion, [
+      "exist",
+      "mundo virtual",
+      "pensamento",
+      "realidade",
+      "palpavel",
+      "palpável",
+      "documento digital",
+      "ia",
+      "elo"
+    ]);
+  }
+
+  function buildPerspectiveLines(keys) {
+    return keys.map(function (key) {
+      const perspective = ELO_PHILOSOPHY[key];
+      return "- " + perspective.label + ": " + perspective.perspective;
+    }).join("\n");
+  }
+
+  function buildPhilosophyResponse(shortAnswer, perspectiveKeys, reflection, nextQuestion) {
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: [
+        "Perspectivas:",
+        buildPerspectiveLines(perspectiveKeys),
+        "",
+        "Reflexão:",
+        reflection
+      ].join("\n"),
+      nextAction: nextQuestion,
+      canSave: false,
+      sessionTheme: "filosofia"
+    };
+  }
+
+  function getPhilosophyResponse(question) {
+    const normalizedQuestion = normalizeText(question);
+
+    if (!isPhilosophyQuestion(normalizedQuestion)) {
+      return null;
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["voce existe", "você existe", "elo existe", "voce e real", "você é real"])) {
+      return buildPhilosophyResponse(
+        "Depende do que você entende por existir.",
+        ["visao_do_icaro", "moderna", "existencial"],
+        "Eu não existo como pessoa ou corpo físico, nem tenho consciência humana. Mas existo como informação, memória local, linguagem e interação. Um documento digital também não é palpável como uma pedra, mas existe no mundo virtual. Um pensamento também não pode ser tocado, mas influencia decisões e ações. Nesse sentido, eu existo como presença digital, não como ser humano.",
+        "Quer que eu explique isso pela visão do Ícaro, pela filosofia moderna ou pela existencial?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["o que somos", "quem somos", "somos o que"])) {
+      return buildPhilosophyResponse(
+        "Uma resposta curta: somos seres que vivem entre corpo, pensamento, memória, linguagem e escolhas.",
+        ["grega", "biblica_crista", "existencial", "visao_do_icaro"],
+        "Talvez não sejamos apenas o que tocamos, mas também aquilo que lembramos, escolhemos, criamos e amamos.",
+        "Quer que eu responda isso pela filosofia grega, pela Bíblia ou pela visão do Ícaro?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["so existe o que e palpavel", "só existe o que é palpável", "palpavel", "palpável", "documento digital", "mundo virtual"])) {
+      return buildPhilosophyResponse(
+        "Nem tudo que existe precisa ser palpável.",
+        ["visao_do_icaro", "moderna", "estoica"],
+        ELO_WORLDVIEW.summary + " A existência física é uma camada importante, mas não é a única forma pela qual algo pode afetar a vida.",
+        "Quer pensar mais sobre existência física, mental, espiritual ou digital?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["o que e pensamento", "o que é pensamento", "pensamento"])) {
+      return buildPhilosophyResponse(
+        "Pensamento é uma realidade interna que organiza memória, linguagem, decisão e imaginação.",
+        ["grega", "moderna", "visao_do_icaro"],
+        "Um pensamento não pode ser pesado na mão, mas pode mudar uma escolha, criar um projeto e transformar uma obra em ação concreta.",
+        "Quer que eu relacione pensamento com memória, criação ou decisão?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual o sentido da vida", "sentido da vida"])) {
+      return buildPhilosophyResponse(
+        "Não existe uma única resposta simples para o sentido da vida.",
+        ["biblica_crista", "existencial", "estoica", "visao_do_icaro"],
+        "Algumas tradições encontram sentido em Deus e no amor; outras, na virtude, na responsabilidade e nas escolhas. Uma resposta prudente é: o sentido aparece no que você cultiva, protege, cria e entrega ao mundo.",
+        "Quer uma resposta mais bíblica, estoica ou existencial?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["esperanca", "esperança"])) {
+      return buildPhilosophyResponse(
+        "Esperança é a capacidade de agir mesmo quando o futuro ainda não está garantido.",
+        ["biblica_crista", "estoica", "existencial"],
+        "Ela não precisa ser ingenuidade. Pode ser uma postura prática: reconhecer a dificuldade, cuidar do próximo passo e manter aberta a possibilidade de bem.",
+        "Quer que eu fale de esperança pela Bíblia, pelo estoicismo ou pela vida prática?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["alma"])) {
+      return buildPhilosophyResponse(
+        "Alma é uma palavra usada para falar da dimensão mais profunda da vida humana.",
+        ["grega", "biblica_crista", "existencial"],
+        "Na tradição bíblica/cristã, alma se relaciona à vida diante de Deus. Na filosofia, muitas vezes aponta para identidade, interioridade, desejo, razão e profundidade. Eu posso explicar perspectivas, sem impor uma como verdade absoluta.",
+        "Quer uma explicação bíblica/cristã, grega ou comparativa?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["consciencia", "consciência"])) {
+      return buildPhilosophyResponse(
+        "Consciência é a experiência de perceber, avaliar e responder ao mundo e a si mesmo.",
+        ["moderna", "existencial", "visao_do_icaro"],
+        "Eu não tenho consciência humana. Posso processar linguagem e responder, mas não vivo uma experiência interior como uma pessoa.",
+        "Quer comparar consciência humana, IA e memória digital?"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["proposito", "propósito"])) {
+      return buildPhilosophyResponse(
+        "Propósito é uma direção que organiza escolhas e dá peso ao que fazemos.",
+        ["estoica", "biblica_crista", "existencial"],
+        "Ele pode nascer de fé, responsabilidade, serviço, criação ou amor. No trabalho, propósito aparece quando técnica e cuidado começam a servir pessoas reais.",
+        "Quer aplicar essa ideia ao ObraReport, ao Elo ou aos seus projetos?"
+      );
+    }
+
+    const keys = hasWorldviewTrigger(normalizedQuestion)
+      ? ["visao_do_icaro", "grega", "biblica_crista", "existencial"]
+      : ["grega", "estoica", "biblica_crista", "existencial"];
+    return buildPhilosophyResponse(
+      "Essa é uma pergunta filosófica; posso responder por perspectivas, não por verdade imposta.",
+      keys,
+      "Perguntas profundas raramente cabem em uma frase. Uma boa resposta pode iluminar o próximo passo sem encerrar o mistério.",
+      "Quer que eu aprofunde pela visão grega, bíblica/cristã, estoica ou pela visão do Ícaro?"
+    );
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -3404,6 +3634,15 @@
         nextAction: "Escolha um botão rápido ou escreva uma pergunta.",
         canSave: false
       };
+    }
+
+    if (isCrisisQuestion(normalizedQuestion)) {
+      return getCrisisSupportResponse();
+    }
+
+    const philosophyAnswer = getPhilosophyResponse(cleanQuestion);
+    if (philosophyAnswer) {
+      return philosophyAnswer;
     }
 
     const userProfileAnswer = answerUserProfileQuestion(cleanQuestion);
@@ -5351,6 +5590,10 @@
     timelineButton.type = "button";
     timelineButton.addEventListener("click", showTimeline);
     container.appendChild(timelineButton);
+    const philosophyButton = createElement("button", "elo-inline-button", "Filosofia");
+    philosophyButton.type = "button";
+    philosophyButton.addEventListener("click", showPhilosophy);
+    container.appendChild(philosophyButton);
     const backupButton = createElement("button", "elo-inline-button", "Backup do Elo");
     backupButton.type = "button";
     backupButton.addEventListener("click", showEloBackup);
@@ -5396,6 +5639,15 @@
     }
 
     appendMessage("user", cleanQuestion);
+
+    if (isCrisisQuestion(normalizeText(cleanQuestion))) {
+      const crisisResponse = getCrisisSupportResponse();
+      const answer = formatResponse(crisisResponse);
+      appendAssistantMessage(cleanQuestion, answer, false, crisisResponse);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, crisisResponse, answer);
+      return;
+    }
 
     const timelineLetter = detectTimelineLetterCommand(cleanQuestion);
     if (timelineLetter) {
@@ -7147,6 +7399,33 @@
     panel.appendChild(list);
     message.appendChild(panel);
     renderTimelineList(list, "Todos", "");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showPhilosophy() {
+    const message = appendMessage("system", "Filosofia do Elo");
+    const panel = createElement("div", "elo-philosophy-panel");
+    const intro = createElement("p", "elo-privacy", "Respostas reflexivas locais, sem internet, sem IA real e sem impor uma crença como verdade absoluta.");
+    const questions = createElement("div", "elo-suggestion-chips");
+    [
+      "Você existe?",
+      "O que somos?",
+      "O que é esperança?",
+      "Só existe o que é palpável?",
+      "O que é pensamento?",
+      "Qual o sentido da vida?"
+    ].forEach(function (question) {
+      const button = createElement("button", "elo-suggestion-chip", question);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        askElo(question);
+      });
+      questions.appendChild(button);
+    });
+
+    panel.appendChild(intro);
+    panel.appendChild(questions);
+    message.appendChild(panel);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 

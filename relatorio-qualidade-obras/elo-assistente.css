@@ -342,7 +342,8 @@
 .elo-documents-panel,
 .elo-real-questions-panel,
 .elo-user-profile-panel,
-.elo-timeline-panel {
+.elo-timeline-panel,
+.elo-philosophy-panel {
   display: grid;
   gap: 10px;
   margin-top: 4px;
