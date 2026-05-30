@@ -3046,6 +3046,268 @@
     return lines.join("\n");
   }
 
+  function getConnectedMemorySnapshot() {
+    const userProfile = getUserProfile();
+    const initialProfile = getInitialProfile();
+    const important = getImportantMemoriesStorage();
+    const timeline = getTimelineStorage();
+    const events = (timeline.events || []).slice().sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+    const projects = [];
+    const goals = [];
+    const preferences = [];
+
+    function addUnique(list, value) {
+      const cleanValue = sanitizeLibraryText(value, 180);
+      if (!cleanValue) {
+        return;
+      }
+      const exists = list.some(function (item) {
+        return normalizeText(item) === normalizeText(cleanValue);
+      });
+      if (!exists) {
+        list.push(cleanValue);
+      }
+    }
+
+    addUnique(projects, userProfile.mainProject);
+    (initialProfile.projetos || []).forEach(function (item) { addUnique(projects, item); });
+    (important.projetos || []).forEach(function (item) { addUnique(projects, item.titulo); });
+    events.forEach(function (event) { addUnique(projects, event.project); });
+
+    addUnique(goals, userProfile.weeklyGoal);
+    (initialProfile.objetivos || []).forEach(function (item) { addUnique(goals, item); });
+    (important.objetivos || []).filter(function (item) {
+      return item.status !== "concluido" && item.status !== "arquivado";
+    }).forEach(function (item) { addUnique(goals, item.titulo || item.descricao); });
+
+    (initialProfile.preferencias || []).forEach(function (item) { addUnique(preferences, item); });
+    (important.preferencias || []).forEach(function (item) { addUnique(preferences, item.titulo || item.descricao); });
+
+    const projectCounts = {};
+    projects.forEach(function (project) {
+      projectCounts[project] = (projectCounts[project] || 0) + 1;
+    });
+    events.forEach(function (event) {
+      if (event.project) {
+        projectCounts[event.project] = (projectCounts[event.project] || 0) + 2;
+      }
+      ["ObraReport", "Elo", "Stock IA", "CADISTA IA"].forEach(function (projectName) {
+        const haystack = normalizeText([event.title, event.content, event.tags && event.tags.join(" ")].join(" "));
+        if (haystack.indexOf(normalizeText(projectName)) >= 0) {
+          projectCounts[projectName] = (projectCounts[projectName] || 0) + 1;
+        }
+      });
+    });
+
+    let mostMentionedProject = "";
+    Object.keys(projectCounts).forEach(function (project) {
+      if (!mostMentionedProject || projectCounts[project] > projectCounts[mostMentionedProject]) {
+        mostMentionedProject = project;
+      }
+    });
+
+    return {
+      userName: userProfile.userName || initialProfile.nome || getPreferredUserName(),
+      profession: initialProfile.profissao,
+      company: initialProfile.empresa,
+      areas: initialProfile.areas || [],
+      mainProject: userProfile.mainProject || initialProfile.projetos[0] || projects[0] || "",
+      goals: goals,
+      preferences: preferences,
+      projects: projects,
+      recentMilestones: events.filter(function (event) { return event.type === "marco"; }).slice(0, 3),
+      mostMentionedProject: mostMentionedProject,
+      latestAchievement: events.find(function (event) { return event.type === "conquista"; }) || null,
+      latestImportantEvent: events.find(function (event) { return event.importance === "alta"; }) || events[0] || null,
+      recentEvents: events.slice(0, 5),
+      important: important
+    };
+  }
+
+  function hasConnectedMemoryData(snapshot) {
+    return Boolean(
+      snapshot.userName ||
+      snapshot.profession ||
+      snapshot.company ||
+      snapshot.mainProject ||
+      snapshot.goals.length ||
+      snapshot.preferences.length ||
+      snapshot.projects.length ||
+      snapshot.recentEvents.length
+    );
+  }
+
+  function formatMissingConnectedInfo(label, value) {
+    return value ? value : label + ": Ainda não tenho essa informação salva.";
+  }
+
+  function formatConnectedProfileSummary(snapshot) {
+    const intro = [];
+    if (snapshot.userName) {
+      intro.push(snapshot.userName);
+    }
+    const facts = [];
+    if (snapshot.profession) {
+      facts.push("você é " + snapshot.profession);
+    }
+    if (snapshot.company) {
+      facts.push("trabalha com " + snapshot.company);
+    }
+    if (snapshot.areas.length) {
+      facts.push("atua com " + snapshot.areas.slice(0, 4).join(", "));
+    }
+    if (snapshot.mainProject) {
+      facts.push("está desenvolvendo " + snapshot.mainProject);
+    }
+    if (snapshot.goals.length) {
+      facts.push("tem como foco " + snapshot.goals.slice(0, 2).join(", "));
+    }
+
+    if (!facts.length) {
+      return "Ainda não tenho essa informação salva.";
+    }
+
+    return (intro.length ? intro[0] + ", pelo que você autorizou guardar, " : "Pelo que você autorizou guardar, ") + facts.join(", ") + ".";
+  }
+
+  function formatTimelineMemoryLine(event) {
+    if (!event) {
+      return "Ainda não tenho essa informação salva.";
+    }
+    return event.title + (event.project ? " (" + event.project + ")" : "") + " - " + formatDateTime(event.createdAt);
+  }
+
+  function buildConnectedJourneyAnswer(snapshot) {
+    if (!hasConnectedMemoryData(snapshot)) {
+      return {
+        shortAnswer: "Ainda não tenho memória conectada suficiente sobre sua jornada.",
+        fullAnswer: "Ainda não tenho essa informação salva. Use Perfil inicial, Memórias importantes e Linha do tempo para me ensinar aos poucos.",
+        nextAction: "Você pode importar um perfil inicial ou registrar um marco na Linha do Tempo.",
+        canSave: false,
+        sessionTheme: "memoria"
+      };
+    }
+
+    return {
+      shortAnswer: "Conectei o que está salvo localmente sobre sua jornada.",
+      fullAnswer: [
+        formatConnectedProfileSummary(snapshot),
+        "",
+        "Projetos:",
+        snapshot.projects.length ? snapshot.projects.slice(0, 6).map(function (project) { return "- " + project; }).join("\n") : "- Ainda não tenho essa informação salva.",
+        "",
+        "Objetivos ativos:",
+        snapshot.goals.length ? snapshot.goals.slice(0, 5).map(function (goal) { return "- " + goal; }).join("\n") : "- Ainda não tenho essa informação salva.",
+        "",
+        "Linha do tempo:",
+        "- Projeto mais citado: " + formatMissingConnectedInfo("", snapshot.mostMentionedProject).replace(/^: /, ""),
+        "- Última conquista: " + formatTimelineMemoryLine(snapshot.latestAchievement),
+        "- Último evento importante: " + formatTimelineMemoryLine(snapshot.latestImportantEvent),
+        "",
+        "Essas informações vêm das memórias locais salvas neste navegador."
+      ].join("\n"),
+      nextAction: "Se quiser, posso ajudar você a transformar isso em próximo passo prático.",
+      canSave: false,
+      sessionTheme: "memoria"
+    };
+  }
+
+  function answerConnectedMemoryQuestion(question) {
+    const text = normalizeText(question);
+    const snapshot = getConnectedMemorySnapshot();
+
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim"])) {
+      return buildConnectedJourneyAnswer(snapshot);
+    }
+
+    if (hasAnyTerm(text, ["quais sao meus projetos", "quais são meus projetos", "quais projetos voce lembra", "quais projetos você lembra"])) {
+      return {
+        shortAnswer: snapshot.projects.length ? "Estes são os projetos que encontrei nas suas memórias locais:" : "Ainda não tenho projetos salvos sobre você.",
+        fullAnswer: snapshot.projects.length ? snapshot.projects.slice(0, 8).map(function (project) { return "- " + project; }).join("\n") : "Ainda não tenho essa informação salva.",
+        nextAction: "Você pode registrar projetos em Memórias importantes ou na Linha do Tempo.",
+        canSave: false,
+        sessionTheme: "memoria"
+      };
+    }
+
+    if (hasAnyTerm(text, ["como esta minha jornada", "como está minha jornada", "minha jornada"])) {
+      return buildConnectedJourneyAnswer(snapshot);
+    }
+
+    if (hasAnyTerm(text, ["o que aconteceu recentemente", "aconteceu recentemente", "ultimos acontecimentos", "últimos acontecimentos"])) {
+      return {
+        shortAnswer: snapshot.recentEvents.length ? "Estes são os registros recentes da sua Linha do Tempo:" : "Ainda não há eventos recentes salvos na Linha do Tempo.",
+        fullAnswer: snapshot.recentEvents.length ? snapshot.recentEvents.map(formatTimelineEventLine).join("\n") : "Ainda não tenho essa informação salva.",
+        nextAction: "Registre marcos, ideias ou conquistas para eu acompanhar melhor sua jornada.",
+        canSave: false,
+        sessionTheme: "timeline"
+      };
+    }
+
+    if (hasAnyTerm(text, ["qual meu foco agora", "meu foco agora", "qual e meu foco", "qual é meu foco"])) {
+      return {
+        shortAnswer: snapshot.goals.length || snapshot.mainProject ? "Seu foco salvo aparece nestes pontos:" : "Ainda não tenho foco atual salvo.",
+        fullAnswer: [
+          "Projeto principal: " + (snapshot.mainProject || "Ainda não tenho essa informação salva."),
+          "Objetivos ativos:",
+          snapshot.goals.length ? snapshot.goals.slice(0, 5).map(function (goal) { return "- " + goal; }).join("\n") : "- Ainda não tenho essa informação salva.",
+          "",
+          "Essas informações vêm das memórias locais salvas neste navegador."
+        ].join("\n"),
+        nextAction: "Se esse foco mudou, atualize em Configurar meu Elo ou Memórias importantes.",
+        canSave: false,
+        sessionTheme: "memoria"
+      };
+    }
+
+    const projectMemoryMatch = text.match(/o que voce lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)|o que você lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)/);
+    const projectName = projectMemoryMatch && (projectMemoryMatch[1] || projectMemoryMatch[2]);
+    if (projectName) {
+      const normalizedProjectName = normalizeText(projectName);
+      const label = projectName.split(" ").map(function (part) {
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      }).join(" ").replace("Ia", "IA").replace("Pdf", "PDF").replace("Rdo", "RDO");
+      const knownLabel = {
+        obrareport: "ObraReport",
+        elo: "Elo",
+        "stock ia": "Stock IA",
+        "cadista ia": "CADISTA IA",
+        rdo: "RDO",
+        pdf: "PDF"
+      }[normalizedProjectName] || label;
+      const relatedEvents = snapshot.recentEvents.filter(function (event) {
+        const haystack = normalizeText([event.project, event.title, event.content, event.tags && event.tags.join(" ")].join(" "));
+        return haystack.indexOf(normalizedProjectName) >= 0;
+      });
+      const relatedImportant = []
+        .concat(snapshot.important.projetos || [])
+        .concat(snapshot.important.objetivos || [])
+        .concat(snapshot.important.preferencias || [])
+        .filter(function (item) {
+          return normalizeText([item.titulo, item.descricao].join(" ")).indexOf(normalizedProjectName) >= 0;
+        });
+      return {
+        shortAnswer: relatedEvents.length || relatedImportant.length ? "Encontrei memórias locais sobre " + knownLabel + "." : "Ainda não tenho memórias salvas sobre " + knownLabel + ".",
+        fullAnswer: [
+          "Memórias importantes:",
+          relatedImportant.length ? relatedImportant.slice(0, 5).map(function (item) { return "- " + item.titulo + " — " + item.status; }).join("\n") : "- Ainda não tenho essa informação salva.",
+          "",
+          "Linha do tempo:",
+          relatedEvents.length ? relatedEvents.slice(0, 5).map(formatTimelineEventLine).join("\n") : "- Ainda não tenho essa informação salva.",
+          "",
+          "Essas informações vêm das memórias locais salvas neste navegador."
+        ].join("\n"),
+        nextAction: "Registre novos eventos na Linha do Tempo para eu acompanhar melhor esse projeto.",
+        canSave: false,
+        sessionTheme: "memoria"
+      };
+    }
+
+    return null;
+  }
+
   function answerUserProfileQuestion(question) {
     const text = normalizeText(question);
     const profile = getUserProfile();
@@ -3643,6 +3905,11 @@
     const philosophyAnswer = getPhilosophyResponse(cleanQuestion);
     if (philosophyAnswer) {
       return philosophyAnswer;
+    }
+
+    const connectedMemoryAnswer = answerConnectedMemoryQuestion(cleanQuestion);
+    if (connectedMemoryAnswer) {
+      return connectedMemoryAnswer;
     }
 
     const userProfileAnswer = answerUserProfileQuestion(cleanQuestion);
