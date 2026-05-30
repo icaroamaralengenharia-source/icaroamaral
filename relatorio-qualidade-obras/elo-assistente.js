@@ -4,6 +4,7 @@
   // ELO_CONFIG
   const ELO_CONFIG = {
     storageKey: "obrareport_elo_assistente_v1",
+    importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     maxHistory: 20,
     whatsappNumber: "",
     webSearchEnabled: false,
@@ -699,6 +700,366 @@
     }
 
     return null;
+  }
+
+  // ELO_IMPORTANT_MEMORY
+  const ELO_IMPORTANT_MEMORY_TYPES = ["projeto", "objetivo", "preferencia"];
+  const ELO_IMPORTANT_MEMORY_STATUSES = ["ativo", "pausado", "concluido", "arquivado"];
+
+  function createImportantMemoryId(type) {
+    return "important_" + (type || "memoria") + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeImportantMemories(storage) {
+    return {
+      projetos: Array.isArray(storage && storage.projetos) ? storage.projetos : [],
+      objetivos: Array.isArray(storage && storage.objetivos) ? storage.objetivos : [],
+      preferencias: Array.isArray(storage && storage.preferencias) ? storage.preferencias : []
+    };
+  }
+
+  function getImportantMemoriesStorage() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.importantMemoryStorageKey);
+      return normalizeImportantMemories(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeImportantMemories(null);
+    }
+  }
+
+  function setImportantMemoriesStorage(storage) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.importantMemoryStorageKey, JSON.stringify(normalizeImportantMemories(storage)));
+    } catch (error) {
+      // Memorias importantes sao locais. Se o navegador bloquear, o Elo segue sem salvar.
+    }
+  }
+
+  function getImportantMemoryBucket(type) {
+    if (type === "projeto") {
+      return "projetos";
+    }
+    if (type === "objetivo") {
+      return "objetivos";
+    }
+    return "preferencias";
+  }
+
+  function normalizeImportantMemoryStatus(status) {
+    const normalizedStatus = normalizeText(status);
+    return ELO_IMPORTANT_MEMORY_STATUSES.find(function (item) {
+      return normalizeText(item) === normalizedStatus;
+    }) || "ativo";
+  }
+
+  function sanitizeImportantMemoryTitle(title, fallback) {
+    return sanitizeLibraryText(title || fallback || "Memória importante", 120).replace(/\.$/, "");
+  }
+
+  function buildImportantMemoryItem(candidate, typeOverride) {
+    const type = ELO_IMPORTANT_MEMORY_TYPES.indexOf(typeOverride || candidate.tipo) >= 0 ? (typeOverride || candidate.tipo) : "objetivo";
+    const now = new Date().toISOString();
+    return {
+      id: createImportantMemoryId(type),
+      tipo: type,
+      titulo: sanitizeImportantMemoryTitle(candidate.titulo, candidate.descricao),
+      descricao: sanitizeLibraryText(candidate.descricao || candidate.sourceQuestion || candidate.titulo, 360),
+      status: normalizeImportantMemoryStatus(candidate.status || "ativo"),
+      origem: "usuario",
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  function saveImportantMemory(candidate, typeOverride) {
+    const item = buildImportantMemoryItem(candidate, typeOverride);
+    if (!item.titulo || hasSensitiveMemoryTerm(item.titulo + " " + item.descricao)) {
+      return { ok: false, reason: "sensitive" };
+    }
+
+    const storage = getImportantMemoriesStorage();
+    const bucket = getImportantMemoryBucket(item.tipo);
+    storage[bucket] = (storage[bucket] || []).filter(function (existing) {
+      return normalizeText(existing.titulo) !== normalizeText(item.titulo);
+    });
+    storage[bucket].unshift(item);
+    storage[bucket] = storage[bucket].slice(0, 30);
+    setImportantMemoriesStorage(storage);
+    return { ok: true, item: item };
+  }
+
+  function getAllImportantMemories() {
+    const storage = getImportantMemoriesStorage();
+    return []
+      .concat(storage.projetos || [])
+      .concat(storage.objetivos || [])
+      .concat(storage.preferencias || []);
+  }
+
+  function findImportantMemoryByTitle(title, type) {
+    const normalizedTitle = normalizeText(title);
+    const list = type ? (getImportantMemoriesStorage()[getImportantMemoryBucket(type)] || []) : getAllImportantMemories();
+    return list.find(function (item) {
+      return normalizeText(item.titulo).indexOf(normalizedTitle) >= 0 || normalizedTitle.indexOf(normalizeText(item.titulo)) >= 0;
+    }) || null;
+  }
+
+  function updateImportantMemoryStatus(title, status) {
+    const item = findImportantMemoryByTitle(title);
+    if (!item) {
+      return { ok: false, reason: "not_found" };
+    }
+
+    const storage = getImportantMemoriesStorage();
+    const bucket = getImportantMemoryBucket(item.tipo);
+    storage[bucket] = (storage[bucket] || []).map(function (memoryItem) {
+      if (memoryItem.id !== item.id) {
+        return memoryItem;
+      }
+      return Object.assign({}, memoryItem, {
+        status: normalizeImportantMemoryStatus(status),
+        updatedAt: new Date().toISOString()
+      });
+    });
+    setImportantMemoriesStorage(storage);
+    return { ok: true, item: Object.assign({}, item, { status: normalizeImportantMemoryStatus(status) }) };
+  }
+
+  function updateImportantObjective(title, newDescription) {
+    const item = findImportantMemoryByTitle(title, "objetivo");
+    if (!item) {
+      return { ok: false, reason: "not_found" };
+    }
+
+    const storage = getImportantMemoriesStorage();
+    storage.objetivos = (storage.objetivos || []).map(function (memoryItem) {
+      if (memoryItem.id !== item.id) {
+        return memoryItem;
+      }
+      return Object.assign({}, memoryItem, {
+        descricao: sanitizeLibraryText(newDescription, 360),
+        titulo: sanitizeImportantMemoryTitle(newDescription, memoryItem.titulo),
+        updatedAt: new Date().toISOString()
+      });
+    });
+    setImportantMemoriesStorage(storage);
+    return { ok: true };
+  }
+
+  function deleteImportantMemory(id) {
+    const storage = getImportantMemoriesStorage();
+    storage.projetos = (storage.projetos || []).filter(function (item) { return item.id !== id; });
+    storage.objetivos = (storage.objetivos || []).filter(function (item) { return item.id !== id; });
+    storage.preferencias = (storage.preferencias || []).filter(function (item) { return item.id !== id; });
+    setImportantMemoriesStorage(storage);
+  }
+
+  function clearImportantMemories() {
+    setImportantMemoriesStorage(null);
+  }
+
+  function isSimpleSupportQuestion(text) {
+    return hasAnyTerm(text, [
+      "como gerar pdf",
+      "como criar rdo",
+      "como criar relatorio",
+      "como adicionar materiais",
+      "conte uma piada",
+      "piada",
+      "o que falta",
+      "posso gerar",
+      "resuma esta tela"
+    ]);
+  }
+
+  function extractImportantTitle(value) {
+    const text = sanitizeLibraryText(value, 140);
+    const projectMatch = text.match(/\b(ObraReport|Stock IA|CADISTA IA|Elo)\b/i);
+    if (projectMatch) {
+      return projectMatch[1];
+    }
+    return text.replace(/^(o|a|os|as|meu|minha|meus|minhas)\s+/i, "").slice(0, 80);
+  }
+
+  function detectImportantMemoryCandidate(question) {
+    if (hasSensitiveMemoryTerm(question)) {
+      return null;
+    }
+
+    const cleanQuestion = sanitizeUserText(question);
+    const text = normalizeText(cleanQuestion);
+    if (!cleanQuestion || isSimpleSupportQuestion(text)) {
+      return null;
+    }
+
+    const projectPatterns = [
+      { regex: /^estou desenvolvendo (?:o |a )?(.+)$/i, titleGroup: 1 },
+      { regex: /^quero lembrar do projeto (.+)$/i, titleGroup: 1 },
+      { regex: /^meu projeto (?:é|e) (.+)$/i, titleGroup: 1 }
+    ];
+
+    for (let index = 0; index < projectPatterns.length; index += 1) {
+      const match = cleanQuestion.match(projectPatterns[index].regex);
+      if (match && match[projectPatterns[index].titleGroup]) {
+        const title = extractImportantTitle(match[projectPatterns[index].titleGroup]);
+        return {
+          tipo: "projeto",
+          titulo: title,
+          descricao: "Usuário está desenvolvendo " + title + ".",
+          status: "ativo",
+          sourceQuestion: cleanQuestion
+        };
+      }
+    }
+
+    const objectivePatterns = [
+      /^meu objetivo (?:é|e) (.+)$/i,
+      /^quero (conseguir .+|finalizar .+|terminar .+|vender .+|publicar .+|testar .+)$/i,
+      /^meu foco agora (?:é|e) (.+)$/i
+    ];
+
+    for (let goalIndex = 0; goalIndex < objectivePatterns.length; goalIndex += 1) {
+      const goalMatch = cleanQuestion.match(objectivePatterns[goalIndex]);
+      if (goalMatch && goalMatch[1]) {
+        return {
+          tipo: "objetivo",
+          titulo: extractImportantTitle(goalMatch[1]),
+          descricao: sanitizeLibraryText(goalMatch[1], 360),
+          status: "ativo",
+          sourceQuestion: cleanQuestion
+        };
+      }
+    }
+
+    const preferencePatterns = [
+      /^prefiro (.+)$/i,
+      /^gosto de (.+)$/i,
+      /^eu gosto de (.+)$/i
+    ];
+
+    for (let prefIndex = 0; prefIndex < preferencePatterns.length; prefIndex += 1) {
+      const prefMatch = cleanQuestion.match(preferencePatterns[prefIndex]);
+      if (prefMatch && prefMatch[1]) {
+        return {
+          tipo: "preferencia",
+          titulo: extractImportantTitle(prefMatch[1]),
+          descricao: sanitizeLibraryText(prefMatch[1], 360),
+          status: "ativo",
+          sourceQuestion: cleanQuestion
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function answerImportantMemoryQuestion(question) {
+    const text = normalizeText(question);
+    const storage = getImportantMemoriesStorage();
+    const projects = storage.projetos || [];
+    const goals = storage.objetivos || [];
+    const preferences = storage.preferencias || [];
+    const hasAnyMemory = projects.length || goals.length || preferences.length;
+
+    const statusMatch = text.match(/^marque (.+) como (ativo|pausado|concluido|concluida|arquivado|arquivada)[.!?]?$/);
+    if (statusMatch && statusMatch[1]) {
+      const result = updateImportantMemoryStatus(statusMatch[1], statusMatch[2].replace("concluida", "concluido").replace("arquivada", "arquivado"));
+      return {
+        shortAnswer: result.ok ? "Atualizei essa memória importante." : "Não encontrei essa memória importante.",
+        fullAnswer: result.ok ? result.item.titulo + " agora está como " + result.item.status + "." : "Abra Memórias importantes para conferir o nome salvo ou escolha o item certo.",
+        nextAction: result.ok ? "Você pode consultar suas memórias importantes quando quiser." : "Me diga exatamente qual projeto, objetivo ou preferência deseja atualizar.",
+        canSave: false
+      };
+    }
+
+    const objectiveUpdateMatch = text.match(/^atualize meu objetivo para (.+?)[.!?]?$/);
+    if (objectiveUpdateMatch && objectiveUpdateMatch[1]) {
+      const firstGoal = goals[0];
+      if (!firstGoal) {
+        return {
+          shortAnswer: "Ainda não encontrei objetivo salvo para atualizar.",
+          fullAnswer: "Diga algo como: Meu objetivo é conseguir 3 clientes. Eu vou perguntar antes de guardar.",
+          nextAction: "Crie um objetivo importante primeiro.",
+          canSave: false
+        };
+      }
+      updateImportantObjective(firstGoal.titulo, objectiveUpdateMatch[1]);
+      return {
+        shortAnswer: "Objetivo atualizado.",
+        fullAnswer: "Atualizei seu objetivo para: " + objectiveUpdateMatch[1] + ".",
+        nextAction: "Consulte 'Quais objetivos eu tenho?' para revisar.",
+        canSave: false
+      };
+    }
+
+    if (hasAnyTerm(text, ["quais projetos voce lembra", "quais projetos você lembra", "o que voce sabe sobre meus projetos", "o que você sabe sobre meus projetos"])) {
+      return {
+        shortAnswer: projects.length ? "Projetos importantes salvos:" : "Ainda não tenho projetos importantes salvos.",
+        fullAnswer: projects.length ? projects.map(function (item) {
+          return "- " + item.titulo + " — " + item.status;
+        }).join("\n") : "Quando você disser algo como 'Estou desenvolvendo o ObraReport', eu posso perguntar se deseja guardar como projeto.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
+        canSave: false
+      };
+    }
+
+    if (hasAnyTerm(text, ["quais objetivos eu tenho", "quais sao meus objetivos", "quais são meus objetivos"])) {
+      return {
+        shortAnswer: goals.length ? "Objetivos importantes salvos:" : "Ainda não tenho objetivos importantes salvos.",
+        fullAnswer: goals.length ? goals.map(function (item) {
+          return "- " + item.titulo + " — " + item.status + (item.descricao ? "\n  " + item.descricao : "");
+        }).join("\n") : "Quando você disser algo como 'Quero conseguir meus primeiros clientes', eu posso perguntar se deseja guardar como objetivo.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
+        canSave: false
+      };
+    }
+
+    if (hasAnyTerm(text, ["quais preferencias voce lembra", "quais preferências você lembra", "quais preferencias você lembra", "quais preferências voce lembra"])) {
+      return {
+        shortAnswer: preferences.length ? "Preferências importantes salvas:" : "Ainda não tenho preferências importantes salvas.",
+        fullAnswer: preferences.length ? preferences.map(function (item) {
+          return "- " + item.titulo + " — " + item.descricao;
+        }).join("\n") : "Quando você disser algo como 'Prefiro relatórios técnicos', eu posso perguntar antes de guardar.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
+        canSave: false
+      };
+    }
+
+    if (hasAnyTerm(text, ["o que voce lembra de mim", "o que você lembra de mim"])) {
+      if (!hasAnyMemory) {
+        return {
+          shortAnswer: "Ainda não tenho memórias importantes salvas.",
+          fullAnswer: "Quando você me disser algo relevante sobre projetos, objetivos ou preferências, eu vou perguntar antes de guardar.",
+          nextAction: "Exemplo: Estou desenvolvendo o ObraReport.",
+          canSave: false
+        };
+      }
+
+      return {
+        shortAnswer: "Estas são suas memórias importantes salvas neste navegador:",
+        fullAnswer: formatImportantMemoriesForAnswer(storage),
+        nextAction: "Abra Memórias importantes para revisar, excluir ou limpar.",
+        canSave: false
+      };
+    }
+
+    return null;
+  }
+
+  function formatImportantMemoriesForAnswer(storage) {
+    const sections = [
+      ["Projetos", storage.projetos || []],
+      ["Objetivos", storage.objetivos || []],
+      ["Preferências", storage.preferencias || []]
+    ];
+
+    return sections.map(function (section) {
+      const title = section[0];
+      const items = section[1];
+      return title + ":\n" + (items.length ? items.map(function (item) {
+        return "- " + item.titulo + " — " + item.status;
+      }).join("\n") : "- Nenhum item salvo.");
+    }).join("\n\n");
   }
 
   // ELO_LIBRARY_LOCAL
@@ -1746,9 +2107,9 @@
       };
     }
 
-    const personalMemoryAnswer = answerPersonalMemoryQuestion(cleanQuestion);
-    if (personalMemoryAnswer) {
-      return personalMemoryAnswer;
+    const importantMemoryAnswer = answerImportantMemoryQuestion(cleanQuestion);
+    if (importantMemoryAnswer) {
+      return importantMemoryAnswer;
     }
 
     const goalAnswer = answerGoalQuestion(cleanQuestion);
@@ -1759,6 +2120,11 @@
     const projectAnswer = answerProjectQuestion(cleanQuestion);
     if (projectAnswer) {
       return projectAnswer;
+    }
+
+    const personalMemoryAnswer = answerPersonalMemoryQuestion(cleanQuestion);
+    if (personalMemoryAnswer) {
+      return personalMemoryAnswer;
     }
 
     if (isDailyRoutineQuestion(normalizedQuestion)) {
@@ -3381,6 +3747,10 @@
     projectsButton.type = "button";
     projectsButton.addEventListener("click", showProjects);
     container.appendChild(projectsButton);
+    const importantMemoriesButton = createElement("button", "elo-inline-button", "Memórias importantes");
+    importantMemoriesButton.type = "button";
+    importantMemoriesButton.addEventListener("click", showImportantMemories);
+    container.appendChild(importantMemoriesButton);
     const backupButton = createElement("button", "elo-inline-button", "Backup do Elo");
     backupButton.type = "button";
     backupButton.addEventListener("click", showEloBackup);
@@ -3439,6 +3809,17 @@
       return;
     }
 
+    const importantMemoryCandidate = detectImportantMemoryCandidate(cleanQuestion);
+    if (importantMemoryCandidate) {
+      appendImportantMemoryPrompt(cleanQuestion, importantMemoryCandidate);
+      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória importante.");
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Escolha se deseja guardar como projeto, objetivo ou preferência.",
+        sessionIntent: "memoria_importante"
+      }, "O Elo perguntou se deve guardar uma memória importante.");
+      return;
+    }
+
     if (personalMemoryCandidate) {
       appendPersonalMemoryPrompt(cleanQuestion, personalMemoryCandidate);
       saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória pessoal.");
@@ -3489,6 +3870,57 @@
 
     actions.appendChild(yesButton);
     actions.appendChild(noButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function appendImportantMemoryPrompt(question, candidate) {
+    const typeLabel = {
+      projeto: "projeto",
+      objetivo: "objetivo",
+      preferencia: "preferência"
+    };
+    const message = appendMessage(
+      "assistant",
+      "Isso parece " + (candidate.tipo === "preferencia" ? "uma preferência importante" : "um " + typeLabel[candidate.tipo] + " importante") + ".\n\n" +
+      candidate.titulo + "\n\nDeseja guardar como projeto, objetivo ou preferência?"
+    );
+    const actions = createElement("div", "elo-message-actions");
+    const options = [
+      ["projeto", "Guardar como projeto"],
+      ["objetivo", "Guardar como objetivo"],
+      ["preferencia", "Guardar como preferência"]
+    ];
+    const buttons = [];
+
+    options.forEach(function (option) {
+      const button = createElement("button", "elo-inline-button", option[1]);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        const result = saveImportantMemory(candidate, option[0]);
+        buttons.forEach(function (item) {
+          item.disabled = true;
+        });
+        if (result.ok) {
+          appendMessage("system", "Memória importante salva como " + typeLabel[option[0]] + ": " + result.item.titulo + ".");
+        } else {
+          appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
+        }
+      });
+      buttons.push(button);
+      actions.appendChild(button);
+    });
+
+    const cancelButton = createElement("button", "elo-inline-button", "Não guardar");
+    cancelButton.type = "button";
+    cancelButton.addEventListener("click", function () {
+      buttons.concat([cancelButton]).forEach(function (item) {
+        item.disabled = true;
+      });
+      appendMessage("system", "Tudo bem. Não vou guardar essa memória importante.");
+    });
+    buttons.push(cancelButton);
+    actions.appendChild(cancelButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
@@ -4363,6 +4795,92 @@
     });
 
     message.appendChild(list);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showImportantMemories() {
+    const storage = getImportantMemoriesStorage();
+    const message = appendMessage("system", "Memórias importantes");
+    const panel = createElement("div", "elo-important-memory-panel");
+    const status = createElement("p", "elo-privacy", "Essas memórias ficam salvas apenas neste navegador nesta versão.");
+    const list = createElement("div", "elo-important-memory-list");
+    const actions = createElement("div", "elo-message-actions");
+    const exportButton = createElement("button", "elo-inline-button", "Exportar JSON");
+    const clearButton = createElement("button", "elo-inline-button", "Limpar memórias importantes");
+
+    function render() {
+      list.innerHTML = "";
+      [
+        ["Projetos", storage.projetos || []],
+        ["Objetivos", storage.objetivos || []],
+        ["Preferências", storage.preferencias || []]
+      ].forEach(function (section) {
+        list.appendChild(createElement("h3", "elo-projects-subtitle", section[0]));
+        if (!section[1].length) {
+          list.appendChild(createElement("p", "elo-library-empty", "Nenhum item salvo."));
+          return;
+        }
+
+        section[1].forEach(function (item) {
+          const card = createElement("article", "elo-important-memory-card");
+          const header = createElement("div", "elo-project-card-header");
+          const title = createElement("strong", "", item.titulo);
+          const badge = createElement("span", "elo-status-badge is-" + item.status, item.status);
+          const description = createElement("p", "", item.descricao || "Sem descrição.");
+          const meta = createElement("span", "elo-library-meta", "Criado em " + formatDateTime(item.createdAt));
+          const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+          deleteButton.type = "button";
+          deleteButton.addEventListener("click", function () {
+            deleteImportantMemory(item.id);
+            status.textContent = "Memória importante excluída.";
+            const updated = getImportantMemoriesStorage();
+            storage.projetos = updated.projetos;
+            storage.objetivos = updated.objetivos;
+            storage.preferencias = updated.preferencias;
+            render();
+          });
+
+          header.appendChild(title);
+          header.appendChild(badge);
+          card.appendChild(header);
+          card.appendChild(description);
+          card.appendChild(meta);
+          card.appendChild(deleteButton);
+          list.appendChild(card);
+        });
+      });
+    }
+
+    exportButton.type = "button";
+    clearButton.type = "button";
+    exportButton.addEventListener("click", function () {
+      const exported = JSON.stringify(getImportantMemoriesStorage(), null, 2);
+      const blob = new Blob([exported], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "elo-memorias-importantes.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      status.textContent = "Arquivo JSON das memórias importantes preparado.";
+    });
+    clearButton.addEventListener("click", function () {
+      clearImportantMemories();
+      status.textContent = "Memórias importantes limpas. Dados do ObraReport não foram alterados.";
+      storage.projetos = [];
+      storage.objetivos = [];
+      storage.preferencias = [];
+      render();
+    });
+
+    actions.appendChild(exportButton);
+    actions.appendChild(clearButton);
+    render();
+    panel.appendChild(status);
+    panel.appendChild(list);
+    panel.appendChild(actions);
+    message.appendChild(panel);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
