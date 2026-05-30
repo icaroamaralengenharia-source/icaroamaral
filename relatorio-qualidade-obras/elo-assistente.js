@@ -1571,6 +1571,11 @@
       return greeting;
     }
 
+    const operational = getOperationalAssistantResponse(normalizedQuestion);
+    if (operational) {
+      return operational;
+    }
+
     const diagnostic = getDiagnosticStepResponse(normalizedQuestion);
     if (diagnostic) {
       return diagnostic;
@@ -1616,6 +1621,298 @@
       nextAction: "Tente perguntar sobre relatórios, PDF, RDO, materiais, fotos, planos ou suporte.",
       canSave: false
     };
+  }
+
+  function getOperationalAssistantResponse(normalizedQuestion) {
+    const context = getOperationalScreenContext();
+    const reviewQuestion = hasAnyTerm(normalizedQuestion, [
+      "revisar",
+      "revisar rdo",
+      "revisar relatorio",
+      "verificar antes",
+      "antes do pdf",
+      "antes de salvar"
+    ]);
+    const missingQuestion = hasAnyTerm(normalizedQuestion, [
+      "o que falta",
+      "falta preencher",
+      "o que esta pendente",
+      "o que está pendente",
+      "pendente",
+      "incompleto",
+      "esta incompleto",
+      "está incompleto"
+    ]);
+    const nextStepQuestion = hasAnyTerm(normalizedQuestion, [
+      "o que devo fazer agora",
+      "proximo passo",
+      "próximo passo",
+      "o que faco agora",
+      "o que faço agora"
+    ]);
+    const canGeneratePdfQuestion = hasAnyTerm(normalizedQuestion, [
+      "posso gerar o pdf",
+      "posso gerar pdf",
+      "esta pronto para pdf",
+      "está pronto para pdf",
+      "pode gerar pdf"
+    ]);
+    const canSaveQuestion = hasAnyTerm(normalizedQuestion, [
+      "posso salvar",
+      "pode salvar",
+      "esta pronto para salvar",
+      "está pronto para salvar",
+      "revisar antes de salvar"
+    ]);
+
+    if (reviewQuestion || missingQuestion || nextStepQuestion || canGeneratePdfQuestion || canSaveQuestion) {
+      return buildOperationalChecklistResponse(context, {
+        review: reviewQuestion,
+        missing: missingQuestion,
+        nextStep: nextStepQuestion,
+        pdf: canGeneratePdfQuestion,
+        save: canSaveQuestion
+      });
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho materiais registrados", "material registrado", "materiais registrados"])) {
+      return buildOperationalPresenceResponse(
+        "materiais",
+        context.materials,
+        ["nenhum material registrado", "nenhum consumo registrado", "r$ 0,00"],
+        "➡️ Próximo passo: registre materiais no RDO ou carregue a Obra Exemplo para testar."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produção lançada", "producao lancada", "produção lançada"])) {
+      return buildOperationalPresenceResponse(
+        "produção executada",
+        context.production,
+        ["nenhuma producao registrada", "nenhuma producao executada registrada"],
+        "➡️ Próximo passo: registre a produção executada antes de revisar materiais e PDF."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho fotos anexadas", "foto anexada", "fotos anexadas", "tem foto"])) {
+      return buildOperationalPresenceResponse(
+        "fotos anexadas",
+        context.photos,
+        ["nenhuma foto", "0 fotos", "0"],
+        "➡️ Próximo passo: adicione fotos para deixar o relatório ou RDO mais completo."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["existe ocorrencia", "existe ocorrência", "tem ocorrencia", "tem ocorrência", "ocorrencia registrada", "ocorrência registrada"])) {
+      return buildOperationalPresenceResponse(
+        "ocorrência registrada",
+        context.occurrences,
+        ["nenhuma ocorrencia", "nenhuma ocorrência", "sem ocorrencia", "sem ocorrência"],
+        "➡️ Próximo passo: se houve intercorrência, registre a descrição e as providências."
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo relatorio", "último relatório", "ultimo relatorio"])) {
+      return {
+        shortAnswer: context.report ? "Último relatório visível: " + context.report : "Não encontrei relatório visível nesta tela.",
+        fullAnswer: context.report ? "✅ Relatório encontrado na tela atual." : getMissingVisibleDataMessage(),
+        nextAction: context.report ? "Abra Relatórios para revisar ou gerar PDF." : "Abra Dashboard ou Relatórios para eu ler o histórico visível.",
+        canSave: false
+      };
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo rdo", "último rdo", "ultimo rdo", "ultimo diario", "último diário"])) {
+      return {
+        shortAnswer: context.diary ? "Último RDO visível: " + context.diary : "Não encontrei RDO visível nesta tela.",
+        fullAnswer: context.diary ? "✅ RDO encontrado na tela atual." : getMissingVisibleDataMessage(),
+        nextAction: context.diary ? "Abra o RDO para revisar produção, materiais, fotos e PDF." : "Abra Diário de Obras para eu ler os registros visíveis.",
+        canSave: false
+      };
+    }
+
+    return null;
+  }
+
+  function buildOperationalPresenceResponse(label, value, emptyTerms, emptyNextAction) {
+    const hasValue = value && !isEmptyScreenText(value, emptyTerms || []);
+    return {
+      shortAnswer: hasValue ? "Sim. Encontrei " + label + " na tela." : "Não encontrei " + label + " visível agora.",
+      fullAnswer: hasValue ? "✅ " + value : getMissingVisibleDataMessage(),
+      nextAction: hasValue ? "➡️ Revise essa informação antes de salvar ou gerar PDF." : emptyNextAction,
+      canSave: false
+    };
+  }
+
+  function buildOperationalChecklistResponse(context, intent) {
+    const checklist = buildScreenChecklist(context);
+    if (!checklist.items.length) {
+      return {
+        shortAnswer: "Não encontrei dados suficientes para revisar esta tela.",
+        fullAnswer: getMissingVisibleDataMessage(),
+        nextAction: "Abra a seção correspondente ou confira se os dados foram preenchidos.",
+        canSave: false
+      };
+    }
+
+    const found = checklist.items.filter(function (item) { return item.done; });
+    const pending = checklist.items.filter(function (item) { return !item.done; });
+    const foundLines = found.length ? found.map(function (item) {
+      return "✅ " + item.label;
+    }) : ["⚠️ Não encontrei itens preenchidos visíveis."];
+    const pendingLines = pending.length ? pending.map(function (item) {
+      return "⚠️ " + item.label;
+    }) : ["✅ Não encontrei pendências visíveis."];
+    let shortAnswer = "Revisei o que está visível.";
+    if (intent.pdf) {
+      shortAnswer = pending.length ? "Ainda recomendo revisar antes do PDF." : "Pelo que está visível, você pode avançar para o PDF.";
+    } else if (intent.save) {
+      shortAnswer = pending.length ? "Você pode salvar, mas há pontos para revisar." : "Pelo que está visível, está pronto para salvar.";
+    } else if (intent.nextStep) {
+      shortAnswer = "Próximo passo sugerido:";
+    } else if (intent.missing) {
+      shortAnswer = pending.length ? "Ainda há itens pendentes." : "Não encontrei pendências visíveis.";
+    }
+
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: [
+        "Você está em: " + context.screen,
+        "",
+        "Encontrei:",
+        foundLines.join("\n"),
+        "",
+        "Pendências:",
+        pendingLines.join("\n"),
+        "",
+        "➡️ Próximo passo recomendado:",
+        checklist.nextAction
+      ].join("\n"),
+      nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
+      canSave: false
+    };
+  }
+
+  function buildScreenChecklist(context) {
+    const label = context.screen;
+    if (label === "Diário de Obras") {
+      const items = [
+        { label: "Data do RDO", done: hasUsefulValue(context.dailyDate) },
+        { label: "Obra vinculada", done: hasUsefulValue(context.work) },
+        { label: "Responsável preenchido", done: hasUsefulValue(context.dailyResponsible) },
+        { label: "Equipe registrada", done: hasUsefulValue(context.team) },
+        { label: "Serviços executados", done: hasUsefulValue(context.services) },
+        { label: "Produção executada", done: hasUsefulValue(context.production) && !isEmptyScreenText(context.production, ["nenhuma producao"]) },
+        { label: "Materiais consumidos", done: hasUsefulValue(context.materials) && !isEmptyScreenText(context.materials, ["nenhum material", "r$ 0,00"]) },
+        { label: "Ocorrências/segurança revisadas", done: hasUsefulValue(context.occurrences) },
+        { label: "Fotos anexadas", done: hasUsefulValue(context.photos) && !isEmptyScreenText(context.photos, ["nenhuma foto", "0 fotos"]) },
+        { label: "Resumo preenchido", done: hasUsefulValue(context.summary) }
+      ];
+      return {
+        items: items,
+        nextAction: getFirstPendingAction(items, {
+          "Produção executada": "➡️ Próximo passo: registre a produção executada antes de gerar o resumo.",
+          "Materiais consumidos": "➡️ Próximo passo: lance os materiais consumidos para apoiar a auditoria.",
+          "Resumo preenchido": "➡️ Próximo passo: gere ou escreva o resumo executivo antes do PDF.",
+          "Fotos anexadas": "➡️ Próximo passo: adicione fotos se quiser uma entrega mais completa."
+        }, "➡️ Próximo passo: salvar o diário e gerar o PDF do RDO.")
+      };
+    }
+
+    if (label === "Relatórios") {
+      const items = [
+        { label: "Cliente selecionado", done: hasUsefulValue(context.client) },
+        { label: "Obra vinculada", done: hasUsefulValue(context.work) || hasUsefulValue(context.reportWork) },
+        { label: "Título/dados do relatório", done: hasUsefulValue(context.report) || hasUsefulValue(context.reportWork) },
+        { label: "Fotos adicionadas", done: hasUsefulValue(context.photos) && !isEmptyScreenText(context.photos, ["0 fotos", "nenhuma foto"]) },
+        { label: "Conclusão técnica", done: hasUsefulValue(context.conclusion) },
+        { label: "Botão de PDF disponível", done: context.pdfAvailable }
+      ];
+      return {
+        items: items,
+        nextAction: getFirstPendingAction(items, {
+          "Fotos adicionadas": "➡️ Próximo passo: adicione fotos antes de gerar o PDF para deixar o relatório mais completo.",
+          "Conclusão técnica": "➡️ Próximo passo: revise ou gere a conclusão técnica.",
+          "Botão de PDF disponível": "➡️ Próximo passo: avance até a etapa Gerar."
+        }, "➡️ Próximo passo: gerar o PDF profissional.")
+      };
+    }
+
+    if (label === "Planos") {
+      const items = [
+        { label: "Plano atual/uso visível", done: hasUsefulValue(context.usage) },
+        { label: "Limites visíveis", done: hasUsefulValue(context.usage) || hasUsefulValue(context.plans) },
+        { label: "Contratação assistida visível", done: hasUsefulValue(context.contracting) },
+        { label: "WhatsApp/proposta disponível", done: hasUsefulValue(context.plans) && hasAnyTerm(normalizeText(context.plans), ["whatsapp", "solicitar", "contratar", "proposta"]) }
+      ];
+      return {
+        items: items,
+        nextAction: "➡️ Próximo passo: se quiser vender manualmente, use o botão de WhatsApp do plano desejado."
+      };
+    }
+
+    if (label === "Dashboard" || label === "Home") {
+      const items = [
+        { label: "Clientes visíveis", done: hasMetricValue(context, "Clientes") },
+        { label: "Obras visíveis", done: hasMetricValue(context, "Obras") },
+        { label: "Relatórios visíveis", done: hasMetricValue(context, "Relatorios") },
+        { label: "RDOs visíveis", done: hasMetricValue(context, "RDOs") },
+        { label: "Fotos/PDFs visíveis", done: hasUsefulValue(context.indicators.join(" ")) },
+        { label: "Ações rápidas disponíveis", done: hasUsefulValue(context.quickActions) }
+      ];
+      return {
+        items: items,
+        nextAction: "➡️ Próximo passo: escolha RDO, Relatório ou Obra Exemplo para testar o fluxo."
+      };
+    }
+
+    if (label === "Página do Cliente") {
+      const items = [
+        { label: "Obra vinculada", done: hasUsefulValue(context.clientWorks) || hasMetricValue(context, "Obras cliente") },
+        { label: "Último relatório visível", done: hasUsefulValue(context.clientReports) || hasMetricValue(context, "Relatorios cliente") },
+        { label: "Último RDO visível", done: hasUsefulValue(context.clientRdos) || hasMetricValue(context, "RDOs cliente") },
+        { label: "Documentos/PDFs visíveis", done: hasUsefulValue(context.clientDocs) || hasMetricValue(context, "PDFs cliente") },
+        { label: "Suporte visível", done: hasUsefulValue(context.supportText) }
+      ];
+      return {
+        items: items,
+        nextAction: "➡️ Próximo passo: abra Minha obra, Meus relatórios ou Documentos para consultar o material disponível."
+      };
+    }
+
+    return {
+      items: [
+        { label: "Contexto atual identificado", done: hasUsefulValue(context.screen) },
+        { label: "Dados visíveis suficientes", done: hasUsefulValue(context.work) || hasUsefulValue(context.client) || hasUsefulValue(context.report) || context.indicators.length > 0 }
+      ],
+      nextAction: "➡️ Próximo passo: abra Relatórios, Diário de Obras, Dashboard ou Planos para uma revisão mais completa."
+    };
+  }
+
+  function getFirstPendingAction(items, actionMap, fallback) {
+    const pending = items.find(function (item) {
+      return !item.done;
+    });
+    if (!pending) {
+      return fallback;
+    }
+    return actionMap[pending.label] || "➡️ Próximo passo: preencher " + pending.label.toLowerCase() + ".";
+  }
+
+  function hasMetricValue(context, label) {
+    const item = context.indicators.find(function (entry) {
+      return normalizeText(entry).indexOf(normalizeText(label)) === 0;
+    });
+    if (!item) {
+      return false;
+    }
+    return !/:\s*0$/.test(item);
+  }
+
+  function hasUsefulValue(value) {
+    return !isEmptyScreenText(value || "", ["escolher", "cadastre", "nenhum", "nenhuma", "sem vinculo"]);
+  }
+
+  function getMissingVisibleDataMessage() {
+    return "Não encontrei essa informação na tela atual. Abra a seção correspondente ou confira se os dados foram preenchidos.";
   }
 
   function getGuidedStepResponse(normalizedQuestion) {
@@ -2011,6 +2308,30 @@
       administracao: {
         label: "Administração",
         categories: ["planos", "limites", "suporte"]
+      },
+      cliente: {
+        label: "Página do Cliente",
+        categories: ["clientes", "obras", "relatorios", "rdo", "pdf", "suporte"]
+      },
+      "minha-obra": {
+        label: "Página do Cliente",
+        categories: ["clientes", "obras", "relatorios", "rdo"]
+      },
+      "meus-relatorios": {
+        label: "Página do Cliente",
+        categories: ["relatorios", "pdf", "suporte"]
+      },
+      "meus-rdos": {
+        label: "Página do Cliente",
+        categories: ["rdo", "pdf", "suporte"]
+      },
+      documentos: {
+        label: "Página do Cliente",
+        categories: ["pdf", "relatorios", "rdo"]
+      },
+      suporte: {
+        label: "Página do Cliente",
+        categories: ["suporte", "clientes"]
       }
     };
 
@@ -2108,15 +2429,31 @@
     const dailyDate = getInputValue("#dailyLogForm [name='date']");
     const dailyResponsible = getInputValue("#dailyLogForm [name='responsible']");
     const dailyStatus = getVisibleText("#dailyLogStatus");
+    const reportPhotoCount = getVisibleText("#fotoCount");
+    const dailyPhotoText = getVisibleText("#dailyLogPhotosList");
+    const dailyPhotoInput = getFileInputSummary("#dailyLogPhotoInput");
+    const reportConclusion = getInputValue("#qualityReportForm [name='conclusaoTecnica']");
+    const dailySummary = getInputValue("#dailyLogForm [name='summary']");
+    const safetyOccurrence = getSelectedOptionText("#dailyLogForm [name='safetyOccurrence']");
+    const occurrenceText = firstUsefulText([
+      getInputValue("#dailyLogForm [name='occurrences']"),
+      getInputValue("#dailyLogForm [name='safetyDescription']"),
+      safetyOccurrence
+    ], ["nenhuma ocorrencia", "nenhuma ocorrência"]);
 
     return {
       screen: screen.label,
       work: firstUsefulText([
         getSelectedOptionText("#dailyLogWorkSelect"),
         getSelectedOptionText("#reportWorkSelect"),
+        getInputValue("#qualityReportForm [name='obra']"),
         getInputValue("#workForm [name='workName']"),
         getFirstVisibleListText("#worksList")
       ], ["escolher", "cadastre", "nenhuma obra"]),
+      reportWork: firstUsefulText([
+        getInputValue("#qualityReportForm [name='obra']"),
+        getInputValue("#qualityReportForm [name='local']")
+      ], ["escolher", "cadastre"]),
       client: firstUsefulText([
         getSelectedOptionText("#reportClientSelect"),
         getSelectedOptionText("#workClientSelect"),
@@ -2134,6 +2471,13 @@
         getFirstVisibleListText("#dailyLogRecordsList"),
         dailyStatus
       ], ["nenhum diario", "diarios salvos"]),
+      dailyDate: dailyDate,
+      dailyResponsible: dailyResponsible,
+      team: firstUsefulText([
+        getInputValue("#dailyLogForm [name='teamPresent']"),
+        getInputValue("#dailyLogForm [name='employeeCount']")
+      ], []),
+      services: getInputValue("#dailyLogForm [name='services']"),
       materials: firstUsefulText([
         getVisibleText("#dailyLogMaterialSummary"),
         getVisibleText("#dailyLogMaterialsList"),
@@ -2144,6 +2488,38 @@
         getVisibleText("#dailyLogProductionSummary"),
         getVisibleText("#dailyLogProductionsList")
       ], []),
+      photos: firstUsefulText([
+        dailyPhotoText,
+        dailyPhotoInput,
+        reportPhotoCount ? reportPhotoCount + " fotos" : "",
+        getVisibleText("#fotosUnidade")
+      ], []),
+      occurrences: occurrenceText,
+      summary: dailySummary,
+      conclusion: reportConclusion,
+      pdfAvailable: Boolean(
+        isSelectorVisible("#dailyLogPdfButton") ||
+        isSelectorVisible("#submitButton") ||
+        isSelectorVisible("[data-diary-action='generate-pdf']")
+      ),
+      plans: getVisibleText("#plansGrid"),
+      usage: getVisibleText("#usageSummary"),
+      contracting: getVisibleText(".auth-note"),
+      quickActions: getVisibleText(".quick-actions-grid"),
+      clientWorks: firstUsefulText([
+        getVisibleText("#clientPortalWorksList"),
+        getVisibleText("#clientPortalRecentDocs")
+      ], ["nenhuma obra", "nenhum documento"]),
+      clientReports: firstUsefulText([
+        getVisibleText("#clientPortalReportsList"),
+        getVisibleText("#clientPortalRecentDocs")
+      ], ["nenhum relatorio", "nenhum relatório", "nenhum documento"]),
+      clientRdos: getVisibleText("#clientPortalRdosList"),
+      clientDocs: firstUsefulText([
+        getVisibleText("#clientPortalDocumentsList"),
+        getVisibleText("#clientPortalRecentDocs")
+      ], ["nenhum pdf", "nenhum documento"]),
+      supportText: getVisibleText("[data-route='suporte']"),
       indicators: collectVisibleIndicators()
     };
   }
@@ -2221,6 +2597,19 @@
       return isElementVisible(child) && cleanScreenText(child.textContent || "");
     });
     return cleanScreenText((firstChild || list).textContent || "");
+  }
+
+  function getFileInputSummary(selector) {
+    const el = document.querySelector(selector);
+    if (!el || !isElementVisible(el) || !el.files || !el.files.length) {
+      return "";
+    }
+    return String(el.files.length) + " arquivo(s) selecionado(s)";
+  }
+
+  function isSelectorVisible(selector) {
+    const el = document.querySelector(selector);
+    return Boolean(el && isElementVisible(el));
   }
 
   function firstUsefulText(values, ignoredTerms) {
