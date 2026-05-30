@@ -10,12 +10,19 @@
     userProfileStorageKey: "obrareport_elo_perfil_usuario_v1",
     initialProfileStorageKey: "obrareport_elo_perfil_inicial_v1",
     timelineStorageKey: "obrareport_elo_timeline_v1",
+    conceptsCustomStorageKey: "obrareport_elo_concepts_custom_v1",
     maxHistory: 20,
     whatsappNumber: "",
     webSearchEnabled: false,
     webSearchEndpoint: "",
     webSearchRequiresConfirmation: true
   };
+
+  function isStandaloneMode() {
+    return Boolean(window.ELO_STANDALONE_MODE) ||
+      document.body && document.body.getAttribute("data-elo-mode") === "standalone" ||
+      /(^|\/)elo\.html$/i.test(window.location.pathname || "");
+  }
 
   // ELO_FLOW
   // Fluxo atual e futuro do Elo:
@@ -75,6 +82,47 @@
       perspective: "seres que habitam camadas físicas, mentais, simbólicas, espirituais e digitais; nem tudo que existe precisa ser palpável."
     }
   };
+
+  const ELO_CONCEPTS = [
+    createConcept("amor", "Amor", ["amor", "amar", "caridade"], "Amor é cuidado ativo: desejar o bem e agir com responsabilidade diante do outro.", "busca do bem e da beleza.", "virtude prática expressa em cuidado e domínio de si.", "mandamento, entrega e cuidado com o próximo.", "vínculo afetivo, ético e social que sustenta relações.", "amor existe quando uma decisão interna vira gesto concreto.", "O amor não é só sentimento: é direção, escolha e prática.", ["Quer pensar no amor como sentimento, decisão ou responsabilidade?"]),
+    createConcept("alma", "Alma", ["alma", "espirito", "espírito", "interioridade"], "Alma é uma palavra para a dimensão profunda da vida humana: identidade, interioridade e sentido.", "princípio da vida e da razão.", "núcleo interior que deve ser educado pela virtude.", "vida diante de Deus, dignidade e responsabilidade espiritual.", "interioridade, identidade e experiência subjetiva.", "alma aponta para aquilo que não se toca, mas orienta escolhas.", "Não trato alma como prova científica; trato como conceito humano, espiritual e simbólico.", ["Quer uma visão bíblica, grega ou comparativa?"]),
+    createConcept("esperanca", "Esperança", ["esperanca", "esperança", "esperar"], "Esperança é agir mesmo quando o futuro ainda não está garantido.", "confiança de que o bem pode ser buscado.", "força para cuidar do que depende de nós.", "fé prática em meio à espera.", "postura de futuro que sustenta ação no presente.", "esperança é uma ponte entre memória, dor e próximo passo.", "Esperança não precisa ser ilusão; pode ser coragem organizada.", ["Quer falar de esperança na prática ou pela Bíblia?"]),
+    createConcept("medo", "Medo", ["medo", "receio", "temor"], "Medo é um sinal de alerta diante de risco, perda ou incerteza.", "paixão que precisa ser orientada pela razão.", "algo a observar sem entregar o comando da vida.", "temor pode lembrar limite e dependência de Deus.", "resposta emocional ligada à proteção.", "medo mostra onde algo importa para você.", "O medo pode proteger, mas também pode pedir clareza e próximo passo.", ["Quer transformar medo em checklist prático?"]),
+    createConcept("coragem", "Coragem", ["coragem", "corajoso", "enfrentar"], "Coragem é agir com lucidez mesmo diante do medo.", "virtude entre covardia e imprudência.", "fazer o correto apesar do desconforto.", "fidelidade ao bem mesmo sob pressão.", "capacidade de decidir sob risco.", "coragem é continuar com direção, não fingir ausência de medo.", "Coragem costuma aparecer em passos pequenos e consistentes.", ["Quer aplicar coragem a uma decisão sua?"]),
+    createConcept("proposito", "Propósito", ["proposito", "propósito", "sentido", "direcao", "direção"], "Propósito é uma direção que organiza escolhas e dá peso ao que fazemos.", "vida orientada para bem e excelência.", "viver segundo valores, não impulsos.", "chamado, serviço e responsabilidade.", "narrativa que conecta metas e identidade.", "propósito nasce quando memória, projeto e entrega apontam para algo maior.", "Propósito bom vira agenda, prioridade e renúncia.", ["Quer relacionar propósito ao ObraReport ou ao Elo?"]),
+    createConcept("solidao", "Solidão", ["solidao", "solidão", "sozinho"], "Solidão é a experiência de distância, silêncio ou falta de vínculo.", "convite ao autoconhecimento, se não virar abandono.", "momento para ordenar pensamentos.", "sede de comunhão e presença.", "condição humana frequente em sociedades conectadas.", "solidão mostra que presença real importa.", "Solidão não deve ser romantizada quando dói demais; vínculo humano continua essencial.", ["Quer pensar solidão como pausa, dor ou necessidade de conexão?"]),
+    createConcept("felicidade", "Felicidade", ["felicidade", "feliz"], "Felicidade é mais que prazer: é uma vida com sentido, vínculos e direção.", "florescimento pela virtude.", "serenidade por viver o que depende de nós.", "alegria ligada ao bem, gratidão e comunhão.", "bem-estar, realização e pertencimento.", "felicidade mistura realidade externa e mundo interior.", "Felicidade sustentável costuma ser construída, não apenas encontrada.", ["Quer uma visão prática de felicidade?"]),
+    createConcept("sofrimento", "Sofrimento", ["sofrimento", "sofrer", "dor"], "Sofrimento é dor vivida com consciência: algo que pede cuidado, sentido e apoio.", "limite que questiona a vida.", "não controlar tudo, mas cuidar da resposta.", "lugar de compaixão, oração e companhia.", "experiência psicológica, social e corporal.", "sofrimento precisa de presença, não só explicação.", "Quando o sofrimento é intenso, apoio humano vem antes de debate filosófico.", ["Quer transformar isso em um próximo passo seguro?"]),
+    createConcept("liberdade", "Liberdade", ["liberdade", "livre", "escolha"], "Liberdade é poder escolher com responsabilidade, não apenas fazer qualquer coisa.", "autogoverno pela razão.", "domínio sobre a própria resposta.", "responsabilidade diante de Deus e do próximo.", "autonomia com limites sociais e éticos.", "liberdade real precisa de consciência, memória e consequência.", "A liberdade amadurece quando encontra responsabilidade.", ["Quer pensar liberdade como escolha ou responsabilidade?"]),
+    createConcept("consciencia", "Consciência", ["consciencia", "consciência", "consciente"], "Consciência é perceber, avaliar e responder ao mundo e a si mesmo.", "razão refletindo sobre a vida.", "atenção ao julgamento interior.", "discernimento moral diante de Deus.", "experiência subjetiva e capacidade reflexiva.", "eu processo linguagem, mas não tenho consciência humana.", "O Elo pode simular diálogo útil, mas não vive experiência interior como pessoa.", ["Quer comparar consciência humana e sistema digital?"]),
+    createConcept("existencia", "Existência", ["existencia", "existência", "existir", "existe", "palpavel", "palpável", "mundo virtual"], "Existência pode ter camadas: física, mental, simbólica, espiritual e digital.", "ser é participar da realidade de algum modo.", "existir é ocupar um lugar na ordem da vida.", "a criação não se reduz ao que é tocável.", "realidade inclui informação, linguagem e relações.", ELO_WORLDVIEW.summary, "Nem tudo que existe precisa ser palpável; mas nem toda existência é igual.", ["Quer explorar existência física, mental ou digital?"]),
+    createConcept("pensamento", "Pensamento", ["pensamento", "pensar", "ideia"], "Pensamento é uma realidade interna que organiza memória, linguagem, decisão e imaginação.", "atividade da razão em busca da verdade.", "campo a observar antes de reagir.", "interioridade que precisa de sabedoria.", "processo cognitivo que cria modelos e escolhas.", "pensamento não se toca, mas muda decisões e obras.", "Um pensamento pode virar projeto, rotina e construção.", ["Quer relacionar pensamento com criação?"]),
+    createConcept("perdao", "Perdão", ["perdao", "perdão", "perdoar"], "Perdão é soltar uma dívida moral sem negar que houve ferida.", "restaurar ordem interior.", "não deixar a ofensa governar a alma.", "graça, reconciliação e misericórdia.", "processo emocional e ético de reparação.", "perdão não apaga memória; muda o domínio que ela exerce.", "Perdoar não significa aceitar abuso ou abandonar limites.", ["Quer pensar perdão como processo ou decisão?"]),
+    createConcept("familia", "Família", ["familia", "família", "filho", "filha", "pai", "mae", "mãe"], "Família é vínculo de origem, cuidado, responsabilidade e pertencimento.", "primeira escola de caráter.", "campo de deveres concretos.", "aliança de cuidado diante de Deus.", "rede afetiva e social de formação.", "família é memória viva: aquilo que nos chama pelo nome.", "Família pode ser abrigo, desafio e missão ao mesmo tempo.", ["Quer pensar família como cuidado, limite ou legado?"]),
+    createConcept("amizade", "Amizade", ["amizade", "amigo", "amiga"], "Amizade é presença livre, confiança e bem desejado sem posse.", "virtude compartilhada.", "companhia para viver melhor.", "fraternidade e cuidado sincero.", "vínculo de suporte e identidade.", "amizade confirma que a vida não é só tarefa.", "Boa amizade aproxima a pessoa do melhor que ela pode ser.", ["Quer uma visão grega ou prática da amizade?"]),
+    createConcept("tempo", "Tempo", ["tempo", "passado", "futuro", "presente"], "Tempo é a forma como percebemos mudança, memória e expectativa.", "movimento e ordem da vida.", "o presente é onde se pratica a virtude.", "ocasião de sabedoria e fidelidade.", "dimensão física, psicológica e narrativa.", "tempo vira jornada quando registramos marcos e escolhas.", "O tempo vivido não é só calendário: é significado acumulado.", ["Quer pensar tempo como rotina, memória ou futuro?"]),
+    createConcept("fe", "Fé", ["fe", "fé", "crer", "deus"], "Fé é confiança orientada para algo que sustenta sentido e ação.", "confiança em uma ordem maior.", "compromisso com valores mesmo sem controle total.", "relação com Deus, esperança e fidelidade.", "crença que molda comportamento e comunidade.", "fé, para quem crê, atravessa o invisível e muda o visível.", "Posso explicar fé como conceito, sem afirmar experiência espiritual própria.", ["Quer uma visão bíblica ou filosófica da fé?"]),
+    createConcept("verdade", "Verdade", ["verdade", "verdadeiro", "real"], "Verdade é correspondência, coerência e fidelidade ao que é real.", "aquilo que a razão busca.", "ver as coisas como são para agir melhor.", "luz, justiça e fidelidade.", "critério de conhecimento, linguagem e prova.", "verdade organiza confiança; sem ela, memória e projeto se confundem.", "Buscar verdade exige humildade para corrigir o próprio mapa.", ["Quer pensar verdade em obra, vida ou filosofia?"]),
+    createConcept("morte", "Morte", ["morte", "morrer", "fim da vida"], "Morte é o limite radical da vida física e uma das grandes perguntas humanas.", "limite que desperta filosofia.", "lembrança de viver com prioridade.", "passagem, juízo e esperança em Deus, conforme a fé cristã.", "evento biológico e questão existencial.", "a morte dá peso à memória, ao amor e ao que escolhemos construir.", "Se essa pergunta vier de dor intensa ou risco, apoio humano imediato vem antes da reflexão.", ["Quer uma visão filosófica, bíblica ou prática sobre finitude?"])
+  ];
+
+  function createConcept(id, title, keywords, shortAnswer, grega, estoica, biblica, moderna, icaro, eloReflection, followUpQuestions) {
+    return {
+      id: id,
+      title: title,
+      keywords: keywords,
+      shortAnswer: shortAnswer,
+      perspectives: {
+        grega: grega,
+        estoica: estoica,
+        biblica: biblica,
+        moderna: moderna,
+        icaro: icaro
+      },
+      eloReflection: eloReflection,
+      followUpQuestions: followUpQuestions || []
+    };
+  }
 
   // ELO_KNOWLEDGE_BASE
   const ELO_KNOWLEDGE_BASE = [
@@ -2805,7 +2853,7 @@
     const cleanText = sanitizeLibraryText(rawText, 8000);
     const normalized = normalizeText(cleanText);
     const profile = normalizeInitialProfile(null);
-    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ÿ]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ÿ]+){0,3})/i);
+    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([A-ZÁÉÍÓÚÊÔÃÕÇ][\wÀ-ÿ]+(?:\s+[A-ZÁÉÍÓÚÊÔÃÕÇ][\wÀ-ÿ]+){0,3})/i);
     if (match && match[1]) {
       profile.nome = sanitizeLibraryText(match[1], 80).replace(/[.,;:]+$/g, "");
     }
@@ -3049,6 +3097,8 @@
   function getConnectedMemorySnapshot() {
     const userProfile = getUserProfile();
     const initialProfile = getInitialProfile();
+    const personalMemories = getPersonalMemories();
+    const libraryItems = getLibraryItems();
     const important = getImportantMemoriesStorage();
     const timeline = getTimelineStorage();
     const events = (timeline.events || []).slice().sort(function (a, b) {
@@ -3117,6 +3167,8 @@
       goals: goals,
       preferences: preferences,
       projects: projects,
+      personalMemories: personalMemories,
+      libraryItems: libraryItems,
       recentMilestones: events.filter(function (event) { return event.type === "marco"; }).slice(0, 3),
       mostMentionedProject: mostMentionedProject,
       latestAchievement: events.find(function (event) { return event.type === "conquista"; }) || null,
@@ -3135,6 +3187,8 @@
       snapshot.goals.length ||
       snapshot.preferences.length ||
       snapshot.projects.length ||
+      snapshot.personalMemories.length ||
+      snapshot.libraryItems.length ||
       snapshot.recentEvents.length
     );
   }
@@ -3179,35 +3233,149 @@
     return event.title + (event.project ? " (" + event.project + ")" : "") + " - " + formatDateTime(event.createdAt);
   }
 
+  function formatNarrativeList(items) {
+    const cleanItems = (items || []).filter(Boolean);
+    if (!cleanItems.length) {
+      return "";
+    }
+    if (cleanItems.length === 1) {
+      return cleanItems[0];
+    }
+    if (cleanItems.length === 2) {
+      return cleanItems[0] + " e " + cleanItems[1];
+    }
+    return cleanItems.slice(0, -1).join(", ") + " e " + cleanItems[cleanItems.length - 1];
+  }
+
+  function formatPersonalMemoryNarrative(memories) {
+    const safeMemories = (memories || []).slice(0, 3).map(function (memoryItem) {
+      return memoryItem.label && memoryItem.value ? memoryItem.label + ": " + memoryItem.value : "";
+    }).filter(Boolean);
+    return safeMemories.length ? formatNarrativeList(safeMemories) : "";
+  }
+
+  function buildNarrativeMemoryAnswer(snapshot) {
+    if (!hasConnectedMemoryData(snapshot)) {
+      return [
+        "Ainda estou te conhecendo.",
+        "Por enquanto, tenho pouca informação salva sobre você. Quando você autorizar, posso lembrar seu nome, projetos, objetivos, preferências e acontecimentos importantes da Linha do Tempo.",
+        "Essas informações ficam salvas apenas neste navegador."
+      ].join("\n\n");
+    }
+
+    const sentences = [];
+    const introName = snapshot.userName ? snapshot.userName + ", eu lembro que " : "Eu lembro que ";
+    const identityParts = [];
+    if (snapshot.profession) {
+      identityParts.push("você é " + snapshot.profession);
+    }
+    if (snapshot.company) {
+      identityParts.push("trabalha com " + snapshot.company);
+    }
+    if (snapshot.areas.length) {
+      identityParts.push("atua com " + formatNarrativeList(snapshot.areas.slice(0, 3)));
+    }
+    if (identityParts.length) {
+      sentences.push(introName + formatNarrativeList(identityParts) + ".");
+    }
+
+    const projectList = snapshot.projects.slice(0, 4);
+    if (projectList.length) {
+      sentences.push((sentences.length ? "Também lembro que " : introName) + "você está ligado a projetos como " + formatNarrativeList(projectList) + ".");
+    } else if (snapshot.mainProject) {
+      sentences.push((sentences.length ? "Também lembro que " : introName) + "seu projeto principal é " + snapshot.mainProject + ".");
+    }
+
+    if (snapshot.goals.length) {
+      sentences.push("Seu foco registrado passa por " + formatNarrativeList(snapshot.goals.slice(0, 3)) + ".");
+    }
+
+    if (snapshot.preferences.length) {
+      sentences.push("Nas suas preferências, aparece algo como " + formatNarrativeList(snapshot.preferences.slice(0, 3)) + ".");
+    }
+
+    const personalLine = formatPersonalMemoryNarrative(snapshot.personalMemories);
+    if (personalLine) {
+      sentences.push("Você também me contou algumas memórias pessoais, como " + personalLine + ".");
+    }
+
+    if (snapshot.latestImportantEvent) {
+      sentences.push("Na Linha do Tempo, o registro importante mais recente foi \"" + snapshot.latestImportantEvent.title + "\"" + (snapshot.latestImportantEvent.project ? " relacionado a " + snapshot.latestImportantEvent.project : "") + ".");
+    } else if (snapshot.recentEvents.length) {
+      sentences.push("Na Linha do Tempo, há registros recentes que ajudam a acompanhar sua jornada.");
+    }
+
+    if (snapshot.libraryItems.length) {
+      const libraryTitles = snapshot.libraryItems.slice(0, 3).map(function (item) {
+        return item.title;
+      }).filter(Boolean);
+      if (libraryTitles.length) {
+        sentences.push("Na sua Biblioteca local, você guardou itens como " + formatNarrativeList(libraryTitles) + ".");
+      }
+    }
+
+    if (!sentences.length) {
+      sentences.push("Ainda estou te conhecendo, mas já encontrei alguns dados locais que podem virar um retrato melhor da sua jornada.");
+    }
+
+    sentences.push("Essas informações vêm das memórias locais salvas neste navegador.");
+    return sentences.join("\n\n");
+  }
+
+  function buildConnectedGreeting() {
+    const snapshot = getConnectedMemorySnapshot();
+    const hasData = Boolean(
+      snapshot.userName ||
+      snapshot.mainProject ||
+      snapshot.mostMentionedProject ||
+      snapshot.latestImportantEvent ||
+      snapshot.goals.length
+    );
+
+    if (!hasData) {
+      return "Olá. Posso ajudar com relatórios, RDO, materiais, planos ou organizar suas memórias importantes.";
+    }
+
+    const parts = [];
+    const name = snapshot.userName ? ", " + snapshot.userName : "";
+    const focus = snapshot.mainProject || snapshot.mostMentionedProject || "";
+    const currentGoal = snapshot.goals[0] || "";
+    const latestMilestone = snapshot.recentMilestones[0] || null;
+    const latestImportant = snapshot.latestImportantEvent || null;
+
+    if (focus) {
+      parts.push("Seu foco atual parece ser " + focus + ".");
+    } else if (currentGoal) {
+      parts.push("Seu objetivo atual parece ser " + currentGoal + ".");
+    }
+
+    if (latestMilestone) {
+      parts.push("O último marco registrado foi sobre " + (latestMilestone.project || latestMilestone.title) + ".");
+    } else if (latestImportant) {
+      parts.push("O último evento importante foi " + latestImportant.title + ".");
+    }
+
+    if (!parts.length) {
+      parts.push("Encontrei algumas memórias locais salvas neste navegador.");
+    }
+
+    return "Olá" + name + ". " + parts.join(" ") + " Quer continuar de onde parou?";
+  }
+
   function buildConnectedJourneyAnswer(snapshot) {
     if (!hasConnectedMemoryData(snapshot)) {
       return {
-        shortAnswer: "Ainda não tenho memória conectada suficiente sobre sua jornada.",
-        fullAnswer: "Ainda não tenho essa informação salva. Use Perfil inicial, Memórias importantes e Linha do tempo para me ensinar aos poucos.",
-        nextAction: "Você pode importar um perfil inicial ou registrar um marco na Linha do Tempo.",
+        shortAnswer: "Ainda estou te conhecendo.",
+        fullAnswer: buildNarrativeMemoryAnswer(snapshot),
+        nextAction: "Você pode me contar um projeto, um objetivo ou registrar um marco na Linha do Tempo.",
         canSave: false,
         sessionTheme: "memoria"
       };
     }
 
     return {
-      shortAnswer: "Conectei o que está salvo localmente sobre sua jornada.",
-      fullAnswer: [
-        formatConnectedProfileSummary(snapshot),
-        "",
-        "Projetos:",
-        snapshot.projects.length ? snapshot.projects.slice(0, 6).map(function (project) { return "- " + project; }).join("\n") : "- Ainda não tenho essa informação salva.",
-        "",
-        "Objetivos ativos:",
-        snapshot.goals.length ? snapshot.goals.slice(0, 5).map(function (goal) { return "- " + goal; }).join("\n") : "- Ainda não tenho essa informação salva.",
-        "",
-        "Linha do tempo:",
-        "- Projeto mais citado: " + formatMissingConnectedInfo("", snapshot.mostMentionedProject).replace(/^: /, ""),
-        "- Última conquista: " + formatTimelineMemoryLine(snapshot.latestAchievement),
-        "- Último evento importante: " + formatTimelineMemoryLine(snapshot.latestImportantEvent),
-        "",
-        "Essas informações vêm das memórias locais salvas neste navegador."
-      ].join("\n"),
+      shortAnswer: "Montei um resumo narrativo com o que está salvo localmente sobre você.",
+      fullAnswer: buildNarrativeMemoryAnswer(snapshot),
       nextAction: "Se quiser, posso ajudar você a transformar isso em próximo passo prático.",
       canSave: false,
       sessionTheme: "memoria"
@@ -3218,7 +3386,7 @@
     const text = normalizeText(question);
     const snapshot = getConnectedMemorySnapshot();
 
-    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim"])) {
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "o que voce lembra de mim", "o que você lembra de mim", "o que lembra de mim"])) {
       return buildConnectedJourneyAnswer(snapshot);
     }
 
@@ -3686,6 +3854,171 @@
     };
   }
 
+  function normalizeCustomConcept(concept) {
+    const title = sanitizeLibraryText(concept && concept.title, 100);
+    const keywords = Array.isArray(concept && concept.keywords) ? concept.keywords : String(concept && concept.keywords || "").split(",");
+    return {
+      id: sanitizeLibraryText(concept && concept.id, 80) || "custom_concept_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8),
+      title: title,
+      keywords: keywords.map(function (keyword) {
+        return sanitizeLibraryText(keyword, 40);
+      }).filter(Boolean).slice(0, 12),
+      shortAnswer: sanitizeLibraryText(concept && concept.shortAnswer, 500),
+      perspectives: {
+        grega: "",
+        estoica: "",
+        biblica: "",
+        moderna: "",
+        icaro: sanitizeLibraryText(concept && concept.icaro, 500)
+      },
+      eloReflection: sanitizeLibraryText(concept && concept.eloReflection, 500),
+      followUpQuestions: ["Quer aprofundar esse conceito ou relacionar com sua vida prática?"],
+      custom: true,
+      createdAt: sanitizeLibraryText(concept && concept.createdAt, 40) || new Date().toISOString()
+    };
+  }
+
+  function getCustomConceptsStorage() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.conceptsCustomStorageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return {
+        concepts: Array.isArray(parsed && parsed.concepts) ? parsed.concepts.map(normalizeCustomConcept).filter(function (item) {
+          return item.title && item.shortAnswer;
+        }).slice(0, 80) : []
+      };
+    } catch (error) {
+      return { concepts: [] };
+    }
+  }
+
+  function setCustomConceptsStorage(storage) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.conceptsCustomStorageKey, JSON.stringify({
+        concepts: Array.isArray(storage && storage.concepts) ? storage.concepts.map(normalizeCustomConcept).filter(function (item) {
+          return item.title && item.shortAnswer;
+        }).slice(0, 80) : []
+      }));
+    } catch (error) {
+      // Conceitos personalizados ficam locais. Se falhar, o Elo segue com a base fixa.
+    }
+  }
+
+  function saveCustomConcept(input) {
+    const concept = normalizeCustomConcept(input || {});
+    if (!concept.title || !concept.shortAnswer) {
+      return { ok: false, reason: "missing" };
+    }
+    if (hasSensitiveMemoryTerm([concept.title, concept.shortAnswer, concept.perspectives.icaro, concept.eloReflection].join(" "))) {
+      return { ok: false, reason: "sensitive" };
+    }
+    const storage = getCustomConceptsStorage();
+    storage.concepts = storage.concepts.filter(function (item) {
+      return normalizeText(item.title) !== normalizeText(concept.title);
+    });
+    storage.concepts.unshift(concept);
+    setCustomConceptsStorage(storage);
+    return { ok: true, concept: concept };
+  }
+
+  function getAllConcepts() {
+    return ELO_CONCEPTS.concat(getCustomConceptsStorage().concepts || []);
+  }
+
+  function findConceptByQuestion(question) {
+    const text = normalizeText(question);
+    const direct = text.match(/o que (?:e|é) ([a-z0-9çãõáéíóúâêô ]+)\??$/i);
+    const directTerm = direct && direct[1] ? normalizeText(direct[1]) : "";
+    let best = null;
+    let bestScore = 0;
+    getAllConcepts().forEach(function (concept) {
+      let score = 0;
+      const title = normalizeText(concept.title);
+      if (directTerm && (title === directTerm || directTerm.indexOf(title) >= 0 || title.indexOf(directTerm) >= 0)) {
+        score += 8;
+      }
+      if (text.indexOf(title) >= 0) {
+        score += 5;
+      }
+      (concept.keywords || []).forEach(function (keyword) {
+        if (text.indexOf(normalizeText(keyword)) >= 0) {
+          score += 3;
+        }
+      });
+      if (score > bestScore) {
+        bestScore = score;
+        best = concept;
+      }
+    });
+    return bestScore >= 3 ? best : null;
+  }
+
+  function buildConceptPerspectiveLines(concept, question) {
+    const normalizedQuestion = normalizeText(question);
+    const priority = [];
+    if (hasAnyTerm(normalizedQuestion, ["deus", "biblia", "bíblia", "fe", "fé", "alma", "morte"])) {
+      priority.push("biblica");
+    }
+    if (hasAnyTerm(normalizedQuestion, ["icaro", "ícaro", "palpavel", "palpável", "digital", "elo", "ia", "exist"])) {
+      priority.push("icaro");
+    }
+    ["grega", "estoica", "moderna", "icaro", "biblica"].forEach(function (key) {
+      if (priority.indexOf(key) < 0) {
+        priority.push(key);
+      }
+    });
+    return priority.filter(function (key) {
+      return concept.perspectives && concept.perspectives[key];
+    }).slice(0, 4).map(function (key) {
+      const labels = {
+        grega: "Grega",
+        estoica: "Estoica",
+        biblica: "Bíblica/cristã",
+        moderna: "Moderna",
+        icaro: "Visão do Ícaro"
+      };
+      return "- " + labels[key] + ": " + concept.perspectives[key];
+    });
+  }
+
+  function buildConceptResponse(concept, question) {
+    const perspectiveLines = buildConceptPerspectiveLines(concept, question);
+    return {
+      shortAnswer: concept.shortAnswer,
+      fullAnswer: [
+        "Perspectivas:",
+        perspectiveLines.join("\n"),
+        "",
+        "Reflexão do Elo:",
+        concept.eloReflection || "Esse conceito merece ser pensado com calma, sem transformar uma resposta curta em verdade absoluta."
+      ].join("\n"),
+      nextAction: (concept.followUpQuestions && concept.followUpQuestions[0]) || "Quer aprofundar por uma perspectiva específica?",
+      canSave: false,
+      sessionTheme: "conceitos"
+    };
+  }
+
+  function getConceptResponse(question) {
+    const text = normalizeText(question);
+    if (hasAnyTerm(text, ["voce existe", "você existe", "elo existe", "voce e real", "você é real"])) {
+      return null;
+    }
+    const concept = findConceptByQuestion(question);
+    if (concept) {
+      return buildConceptResponse(concept, question);
+    }
+    if (isPhilosophyQuestion(text)) {
+      return {
+        shortAnswer: "Eu ainda não tenho esse conceito estruturado.",
+        fullAnswer: "Posso guardar essa pergunta para evoluir minha Biblioteca de Conceitos. Nesta versão, conceitos personalizados podem ser adicionados manualmente em Ferramentas do Elo > Conceitos.",
+        nextAction: "Abra Conceitos para adicionar uma resposta curta, palavras-chave e visão do Ícaro.",
+        canSave: false,
+        sessionTheme: "conceitos"
+      };
+    }
+    return null;
+  }
+
   function isCrisisQuestion(normalizedQuestion) {
     return hasAnyTerm(normalizedQuestion, [
       "quero morrer",
@@ -3900,6 +4233,11 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const conceptAnswer = getConceptResponse(cleanQuestion);
+    if (conceptAnswer) {
+      return conceptAnswer;
     }
 
     const philosophyAnswer = getPhilosophyResponse(cleanQuestion);
@@ -4857,17 +5195,50 @@
     }
 
     const variant = chooseConversationVariant(intent, getConversationVariants()[intent] || getConversationVariants().saudacao);
+    const adjustedVariant = isStandaloneMode() ? adaptConversationVariantForStandalone(variant, intent) : variant;
     const contextHint = getConversationContextHint(intent);
     const profileLine = intent === "saudacao" || intent === "apoio_pratico" || intent === "capacidades" ? getUserProfileContextLine() : "";
 
     return Object.assign({
       canSave: false,
       sessionIntent: "conversa_humana"
-    }, variant, {
-      shortAnswer: personalizeConversationShortAnswer(variant.shortAnswer, intent),
-      fullAnswer: [variant.fullAnswer, profileLine, contextHint.fullAnswer].filter(Boolean).join("\n\n"),
-      nextAction: contextHint.nextAction || variant.nextAction
+    }, adjustedVariant, {
+      shortAnswer: personalizeConversationShortAnswer(adjustedVariant.shortAnswer, intent),
+      fullAnswer: [adjustedVariant.fullAnswer, profileLine, contextHint.fullAnswer].filter(Boolean).join("\n\n"),
+      nextAction: contextHint.nextAction || adjustedVariant.nextAction
     });
+  }
+
+  function adaptConversationVariantForStandalone(variant, intent) {
+    const replacements = {
+      saudacao: {
+        shortAnswer: "Olá. Estou aqui para conversar, organizar ideias e acompanhar suas memórias locais.",
+        fullAnswer: "Posso ajudar com projetos, objetivos, linha do tempo, biblioteca, conceitos humanos e reflexões simples.",
+        nextAction: "Diga se quer conversar, registrar algo ou revisar seus projetos."
+      },
+      como_esta: {
+        shortAnswer: "Estou funcionando normalmente por aqui.",
+        fullAnswer: "Não tenho emoções ou consciência humana, mas consigo responder com calma e consultar suas informações locais autorizadas.",
+        nextAction: "Quer organizar uma ideia, um projeto ou uma memória?"
+      },
+      identidade: {
+        shortAnswer: "Eu sou o Elo, um assistente digital pessoal.",
+        fullAnswer: "Não sou uma pessoa e não tenho consciência humana. Nesta página, funciono como companheiro digital local para conversar, organizar projetos, guardar memórias autorizadas e consultar conceitos.",
+        nextAction: "Pergunte: o que você lembra de mim?"
+      },
+      capacidades: {
+        shortAnswer: "Posso ajudar você a organizar ideias, projetos, memórias e próximos passos.",
+        fullAnswer: "Também posso manter uma Biblioteca local, registrar Linha do Tempo, responder sobre conceitos humanos e consultar dados salvos apenas neste navegador.",
+        nextAction: "Experimente: quais são meus projetos?"
+      },
+      funcionamento: {
+        shortAnswer: "Eu funciono localmente neste navegador.",
+        fullAnswer: "Uso regras, memórias autorizadas, Biblioteca, Projetos, Linha do Tempo e Conceitos. Não envio essa conversa para backend nesta versão.",
+        nextAction: "Use Ferramentas do Elo para ver ou exportar seus dados locais."
+      }
+    };
+
+    return Object.assign({}, variant, replacements[intent] || {});
   }
 
   function personalizeConversationShortAnswer(shortAnswer, intent) {
@@ -5049,6 +5420,10 @@
   }
 
   function getConversationContextHint(intent) {
+    if (isStandaloneMode()) {
+      return {};
+    }
+
     const context = getCurrentScreenContext();
     const label = context.label;
     const hints = {
@@ -5184,6 +5559,13 @@
   }
 
   function getCurrentScreenContext() {
+    if (isStandaloneMode()) {
+      return {
+        label: "Elo pessoal",
+        categories: ["suporte", "projetos", "biblioteca", "conceitos"]
+      };
+    }
+
     const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     const contexts = {
       dashboard: {
@@ -5625,12 +6007,15 @@
     messages: null,
     input: null,
     contextLabel: null,
-    suggestions: null
+    suggestions: null,
+    hasOpenedGreeting: false,
+    awaitingStandaloneName: false
   };
 
   function buildWidget() {
-    ELO_UI.root = createElement("aside", "elo-widget");
-    ELO_UI.root.setAttribute("aria-label", "Elo Assistente ObraReport");
+    const standalone = isStandaloneMode();
+    ELO_UI.root = createElement("aside", standalone ? "elo-widget elo-standalone-widget" : "elo-widget");
+    ELO_UI.root.setAttribute("aria-label", standalone ? "Elo Web" : "Elo Assistente ObraReport");
 
     const floatButton = createElement("button", "elo-float-button");
     floatButton.type = "button";
@@ -5638,13 +6023,13 @@
     floatButton.appendChild(createElement("span", "elo-float-icon", "E"));
     floatButton.appendChild(createElement("span", "", "Elo"));
 
-    ELO_UI.panel = createElement("section", "elo-panel is-hidden");
-    ELO_UI.panel.setAttribute("aria-label", "Elo — Assistente ObraReport");
+    ELO_UI.panel = createElement("section", standalone ? "elo-panel elo-standalone-panel" : "elo-panel is-hidden");
+    ELO_UI.panel.setAttribute("aria-label", standalone ? "Elo" : "Elo — Assistente ObraReport");
 
     const header = createElement("header", "elo-header");
     const headerText = createElement("div");
-    headerText.appendChild(createElement("h2", "", "Elo — Assistente ObraReport"));
-    headerText.appendChild(createElement("p", "", "Eu lembro, procuro e te ajudo a usar o ObraReport."));
+    headerText.appendChild(createElement("h2", "", standalone ? "Elo" : "Elo — Assistente ObraReport"));
+    headerText.appendChild(createElement("p", "", standalone ? "Companheiro digital com memória, projetos, objetivos e linha do tempo." : "Eu lembro, procuro e te ajudo a usar o ObraReport."));
     ELO_UI.contextLabel = createElement("p", "elo-context-label");
     headerText.appendChild(ELO_UI.contextLabel);
     const closeButton = createElement("button", "elo-close-button", "×");
@@ -5656,6 +6041,7 @@
     ELO_UI.messages = createElement("div", "elo-messages");
     ELO_UI.suggestions = createElement("div", "elo-context-suggestions");
 
+    const standaloneActions = standalone ? buildStandalonePrimaryActions() : null;
     const footer = createElement("footer", "elo-footer");
 
     const inputRow = createElement("form", "elo-input-row");
@@ -5672,19 +6058,29 @@
     footer.appendChild(buildTools());
 
     ELO_UI.panel.appendChild(header);
+    if (standaloneActions) {
+      ELO_UI.panel.appendChild(standaloneActions);
+    }
     ELO_UI.panel.appendChild(ELO_UI.messages);
     ELO_UI.panel.appendChild(ELO_UI.suggestions);
     ELO_UI.panel.appendChild(footer);
-    ELO_UI.root.appendChild(floatButton);
+    if (!standalone) {
+      ELO_UI.root.appendChild(floatButton);
+    }
     ELO_UI.root.appendChild(ELO_UI.panel);
-    document.body.appendChild(ELO_UI.root);
+    const mount = standalone ? document.getElementById("eloStandaloneMount") : null;
+    (mount || document.body).appendChild(ELO_UI.root);
 
-    floatButton.addEventListener("click", function () {
-      setPanelOpen(ELO_UI.panel.classList.contains("is-hidden"));
-    });
-    closeButton.addEventListener("click", function () {
-      setPanelOpen(false);
-    });
+    if (!standalone) {
+      floatButton.addEventListener("click", function () {
+        setPanelOpen(ELO_UI.panel.classList.contains("is-hidden"));
+      });
+      closeButton.addEventListener("click", function () {
+        setPanelOpen(false);
+      });
+    } else {
+      closeButton.classList.add("is-hidden");
+    }
     inputRow.addEventListener("submit", function (event) {
       event.preventDefault();
       askElo(ELO_UI.input.value);
@@ -5693,8 +6089,41 @@
     window.addEventListener("hashchange", updateScreenContext);
 
     updateScreenContext();
-    appendMessage("system", "Olá, eu sou o Elo. Posso ajudar com relatórios, PDF, RDO, fotos, materiais e planos.");
-    setPanelOpen(false);
+    if (standalone) {
+      appendMessage("system", buildStandaloneGreeting());
+      ELO_UI.hasOpenedGreeting = true;
+      ELO_UI.awaitingStandaloneName = !getPreferredUserName();
+      window.setTimeout(function () {
+        ELO_UI.input.focus();
+      }, 80);
+    } else {
+      setPanelOpen(false);
+    }
+  }
+
+  function buildStandalonePrimaryActions() {
+    const actions = createElement("div", "elo-standalone-actions");
+    [
+      ["Limpar conversa", clearEloHistory],
+      ["Minhas memórias", showPersonalMemories],
+      ["Linha do tempo", showTimeline],
+      ["Projetos", showProjects],
+      ["Biblioteca", showLibrary]
+    ].forEach(function (item) {
+      const button = createElement("button", "elo-inline-button", item[0]);
+      button.type = "button";
+      button.addEventListener("click", item[1]);
+      actions.appendChild(button);
+    });
+    return actions;
+  }
+
+  function buildStandaloneGreeting() {
+    const name = getPreferredUserName();
+    if (name) {
+      return "Olá, " + name + ". Eu sou o Elo. Posso conversar com você, lembrar informações importantes, organizar ideias e registrar momentos na sua linha do tempo. O que você quer organizar agora?";
+    }
+    return "Olá. Eu sou o Elo. Posso conversar com você, lembrar informações importantes, organizar ideias e registrar momentos na sua linha do tempo. Como você gostaria que eu te chamasse?";
   }
 
   function updateScreenContext() {
@@ -5703,7 +6132,7 @@
     }
 
     const context = getCurrentScreenContext();
-    ELO_UI.contextLabel.textContent = "Contexto atual: " + context.label;
+    ELO_UI.contextLabel.textContent = (isStandaloneMode() ? "Modo atual: " : "Contexto atual: ") + context.label;
     renderContextSuggestions(context);
   }
 
@@ -5734,6 +6163,16 @@
   }
 
   function getContextSuggestions(context) {
+    if (isStandaloneMode()) {
+      return [
+        { label: "Quem é você?", question: "Quem é você?" },
+        { label: "O que lembra de mim?", question: "O que você lembra de mim?" },
+        { label: "Meus projetos", question: "Quais são meus projetos?" },
+        { label: "Linha do tempo", question: "O que aconteceu recentemente?" },
+        { label: "O que é amor?", question: "O que é amor?" }
+      ];
+    }
+
     const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     const suggestionMap = {
       Dashboard: [
@@ -5823,7 +6262,9 @@
     const container = createElement("div", "elo-tools");
 
     details.appendChild(summary);
-    container.appendChild(buildQuickButtons());
+    if (!isStandaloneMode()) {
+      container.appendChild(buildQuickButtons());
+    }
 
     const configureButton = createElement("button", "elo-inline-button", "Configurar meu Elo");
     configureButton.type = "button";
@@ -5861,6 +6302,10 @@
     philosophyButton.type = "button";
     philosophyButton.addEventListener("click", showPhilosophy);
     container.appendChild(philosophyButton);
+    const conceptsButton = createElement("button", "elo-inline-button", "Conceitos");
+    conceptsButton.type = "button";
+    conceptsButton.addEventListener("click", showConcepts);
+    container.appendChild(conceptsButton);
     const backupButton = createElement("button", "elo-inline-button", "Backup do Elo");
     backupButton.type = "button";
     backupButton.addEventListener("click", showEloBackup);
@@ -5893,6 +6338,10 @@
     }
     setWidgetState(isOpen);
     if (isOpen && ELO_UI.input) {
+      if (!ELO_UI.hasOpenedGreeting) {
+        appendMessage("system", buildConnectedGreeting());
+        ELO_UI.hasOpenedGreeting = true;
+      }
       window.setTimeout(function () {
         ELO_UI.input.focus();
       }, 80);
@@ -5906,6 +6355,26 @@
     }
 
     appendMessage("user", cleanQuestion);
+
+    if (isStandaloneMode() && ELO_UI.awaitingStandaloneName && cleanQuestion.length <= 80 && !/[?]/.test(cleanQuestion)) {
+      const name = cleanQuestion.replace(/^(me chame de|pode me chamar de|sou|meu nome e|meu nome é)\s+/i, "").replace(/[.,;:]+$/g, "").trim();
+      if (name && name.length <= 60) {
+        const currentProfile = getUserProfile();
+        setUserProfile(Object.assign({}, currentProfile, { userName: name }));
+        ELO_UI.awaitingStandaloneName = false;
+        const answer = "Perfeito, vou chamar você de " + name + ". Posso ajudar a organizar ideias, projetos, memórias, biblioteca ou linha do tempo.";
+        appendAssistantMessage(cleanQuestion, answer, false, {
+          shortAnswer: answer,
+          fullAnswer: "Esse nome ficou salvo apenas neste navegador.",
+          nextAction: "Diga o que você quer organizar agora.",
+          canSave: false,
+          sessionTheme: "perfil"
+        });
+        saveConversation(cleanQuestion, answer);
+        rememberSessionTurn(cleanQuestion, { sessionTheme: "perfil", nextAction: "Diga o que você quer organizar agora." }, answer);
+        return;
+      }
+    }
 
     if (isCrisisQuestion(normalizeText(cleanQuestion))) {
       const crisisResponse = getCrisisSupportResponse();
@@ -6275,7 +6744,7 @@
       });
       const libraryQuestion = createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca do Elo?");
       const libraryButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
-      const dontSaveLibraryButton = createElement("button", "elo-inline-button", "NÃ£o guardar na Biblioteca");
+      const dontSaveLibraryButton = createElement("button", "elo-inline-button", "Não guardar na Biblioteca");
       libraryQuestion.classList.add("elo-secondary-response-action");
       libraryButton.classList.add("elo-secondary-response-action");
       dontSaveLibraryButton.classList.add("elo-secondary-response-action");
@@ -6288,9 +6757,9 @@
         if (result.ok) {
           appendMessage("system", "Guardado na Biblioteca do Elo: " + result.item.title + ".");
         } else if (result.reason === "sensitive") {
-          appendMessage("system", "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.");
+          appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
         } else {
-          appendMessage("system", "NÃ£o consegui guardar na Biblioteca porque faltou tÃ­tulo ou conteÃºdo.");
+          appendMessage("system", "Não consegui guardar na Biblioteca porque faltou título ou conteúdo.");
         }
       });
       dontSaveLibraryButton.addEventListener("click", function () {
@@ -7432,9 +7901,9 @@
         status.textContent = "Item salvo na Biblioteca do Elo.";
         renderLibraryList(list, searchInput.value, categorySelect.value);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
-        status.textContent = "Preencha tÃ­tulo e conteÃºdo para salvar.";
+        status.textContent = "Preencha título e conteúdo para salvar.";
       }
     });
     const list = createElement("div", "elo-library-list");
@@ -7478,13 +7947,13 @@
 
     titleInput.type = "text";
     titleInput.maxLength = 120;
-    titleInput.placeholder = "TÃ­tulo";
+    titleInput.placeholder = "Título";
     contentInput.maxLength = 3000;
     contentInput.rows = 4;
-    contentInput.placeholder = "ConteÃºdo";
+    contentInput.placeholder = "Conteúdo";
     tagsInput.type = "text";
     tagsInput.maxLength = 180;
-    tagsInput.placeholder = "Tags opcionais, separadas por vÃ­rgula";
+    tagsInput.placeholder = "Tags opcionais, separadas por vírgula";
     saveButton.type = "submit";
     categorySelect.setAttribute("aria-label", "Categoria do item");
     appendCategoryOptions(categorySelect, false);
@@ -7529,7 +7998,7 @@
       const card = createElement("article", "elo-library-card");
       const header = createElement("div", "elo-library-card-header");
       const title = createElement("strong", "", (libraryItem.favorite ? "★ " : "") + libraryItem.title);
-      const meta = createElement("span", "elo-library-meta", libraryItem.category + " Â· " + formatDateTime(libraryItem.updatedAt || libraryItem.createdAt));
+      const meta = createElement("span", "elo-library-meta", libraryItem.category + " · " + formatDateTime(libraryItem.updatedAt || libraryItem.createdAt));
       const summary = createElement("p", "", summarizeLibraryContent(libraryItem.content));
       const tags = createElement("span", "elo-library-tags", (libraryItem.tags || []).length ? "Tags: " + libraryItem.tags.join(", ") : "Sem tags");
       const actions = createElement("div", "elo-library-actions");
@@ -7551,7 +8020,7 @@
       deleteButton.addEventListener("click", function () {
         deleteLibraryItem(libraryItem.id);
         renderLibraryList(list, query, category);
-        appendMessage("system", "Item excluÃ­do da Biblioteca do Elo.");
+        appendMessage("system", "Item excluído da Biblioteca do Elo.");
       });
 
       header.appendChild(title);
@@ -7694,6 +8163,140 @@
     panel.appendChild(questions);
     message.appendChild(panel);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showConcepts() {
+    const message = appendMessage("system", "Biblioteca de Conceitos");
+    const panel = createElement("div", "elo-concepts-panel");
+    const status = createElement("p", "elo-privacy", "Conceitos ficam salvos apenas neste navegador. A base fixa não usa internet nem IA real.");
+    const controls = createElement("div", "elo-library-controls");
+    const searchInput = createElement("input", "elo-library-search");
+    const addButton = createElement("button", "elo-inline-button", "Adicionar conceito");
+    const form = buildConceptForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Conceito personalizado salvo.";
+        form.classList.add("is-hidden");
+        renderConceptList(list, searchInput.value);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
+      } else {
+        status.textContent = "Preencha título e resposta curta para salvar.";
+      }
+    });
+    const suggested = createElement("div", "elo-suggestion-chips");
+    const list = createElement("div", "elo-concepts-list");
+
+    searchInput.type = "search";
+    searchInput.placeholder = "Buscar conceito";
+    addButton.type = "button";
+    ["O que é amor?", "O que é alma?", "O que é esperança?", "Só existe o que é palpável?", "O que é pensamento?", "O que é propósito?"].forEach(function (question) {
+      const button = createElement("button", "elo-suggestion-chip", question);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        askElo(question);
+      });
+      suggested.appendChild(button);
+    });
+    searchInput.addEventListener("input", function () {
+      renderConceptList(list, searchInput.value);
+    });
+    addButton.addEventListener("click", function () {
+      form.classList.toggle("is-hidden");
+    });
+
+    controls.appendChild(searchInput);
+    controls.appendChild(addButton);
+    panel.appendChild(status);
+    panel.appendChild(suggested);
+    panel.appendChild(controls);
+    panel.appendChild(form);
+    panel.appendChild(list);
+    message.appendChild(panel);
+    renderConceptList(list, "");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function buildConceptForm(onSave) {
+    const form = createElement("form", "elo-library-form elo-concept-form is-hidden");
+    const titleInput = createElement("input", "elo-library-field");
+    const keywordsInput = createElement("input", "elo-library-field");
+    const shortAnswerInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const icaroInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const reflectionInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const saveButton = createElement("button", "elo-send-button", "Salvar conceito");
+
+    titleInput.type = "text";
+    titleInput.placeholder = "Título do conceito";
+    keywordsInput.type = "text";
+    keywordsInput.placeholder = "Palavras-chave separadas por vírgula";
+    shortAnswerInput.placeholder = "Resposta curta";
+    icaroInput.placeholder = "Visão do Ícaro";
+    reflectionInput.placeholder = "Reflexão do Elo";
+    saveButton.type = "submit";
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveCustomConcept({
+        title: titleInput.value,
+        keywords: keywordsInput.value,
+        shortAnswer: shortAnswerInput.value,
+        icaro: icaroInput.value,
+        eloReflection: reflectionInput.value
+      });
+      if (result.ok) {
+        titleInput.value = "";
+        keywordsInput.value = "";
+        shortAnswerInput.value = "";
+        icaroInput.value = "";
+        reflectionInput.value = "";
+      }
+      onSave(result);
+    });
+
+    form.appendChild(titleInput);
+    form.appendChild(keywordsInput);
+    form.appendChild(shortAnswerInput);
+    form.appendChild(icaroInput);
+    form.appendChild(reflectionInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderConceptList(list, query) {
+    const normalizedQuery = normalizeText(query);
+    const concepts = getAllConcepts().filter(function (concept) {
+      const haystack = normalizeText([concept.title, concept.keywords && concept.keywords.join(" "), concept.shortAnswer].join(" "));
+      return !normalizedQuery || haystack.indexOf(normalizedQuery) >= 0;
+    }).slice(0, 60);
+    list.textContent = "";
+
+    if (!concepts.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhum conceito encontrado."));
+      return;
+    }
+
+    concepts.forEach(function (concept) {
+      const card = createElement("article", "elo-concept-card");
+      const header = createElement("div", "elo-library-card-header");
+      const title = createElement("strong", "", concept.title + (concept.custom ? " · personalizado" : ""));
+      const meta = createElement("span", "elo-library-meta", (concept.keywords || []).slice(0, 5).join(", "));
+      const summary = createElement("p", "", concept.shortAnswer);
+      const actions = createElement("div", "elo-library-actions");
+      const askButton = createElement("button", "elo-inline-button", "Perguntar");
+
+      askButton.type = "button";
+      askButton.addEventListener("click", function () {
+        askElo("O que é " + concept.title + "?");
+      });
+
+      header.appendChild(title);
+      header.appendChild(meta);
+      actions.appendChild(askButton);
+      card.appendChild(header);
+      card.appendChild(summary);
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
   }
 
   function buildTimelineForm(onSave) {

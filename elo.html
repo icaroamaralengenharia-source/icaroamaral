@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elo | Companheiro digital</title>
+  <meta name="description" content="Converse com o Elo, um companheiro digital com memória local, projetos, objetivos e linha do tempo.">
+  <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
+  <link rel="stylesheet" href="elo.css">
+</head>
+<body data-elo-mode="standalone">
+  <main class="elo-web-shell">
+    <section class="elo-web-hero" aria-labelledby="elo-web-title">
+      <a class="elo-web-back" href="index.html">Voltar ao site</a>
+      <p class="elo-web-eyebrow">Companheiro digital local</p>
+      <h1 id="elo-web-title">Elo</h1>
+      <p class="elo-web-subtitle">Um companheiro digital com memória, projetos, objetivos e linha do tempo.</p>
+      <p class="elo-web-text">
+        Converse com o Elo. Ele pode lembrar informações importantes, organizar ideias,
+        registrar projetos, guardar memórias e ajudar você a refletir.
+      </p>
+      <div class="elo-web-points" aria-label="Recursos principais">
+        <span>Memórias locais</span>
+        <span>Projetos</span>
+        <span>Linha do tempo</span>
+        <span>Biblioteca</span>
+        <span>Conceitos</span>
+      </div>
+    </section>
+
+    <section class="elo-web-chat-card" aria-label="Conversa com o Elo">
+      <div id="eloStandaloneMount"></div>
+      <p class="elo-web-privacy">Nesta versão, as informações ficam salvas apenas neste navegador.</p>
+    </section>
+  </main>
+
+  <script>
+    window.ELO_STANDALONE_MODE = true;
+  </script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js" defer></script>
+</body>
+</html>
