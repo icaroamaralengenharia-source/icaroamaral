@@ -168,6 +168,52 @@
     }
   };
 
+  const ELO_PATTERN_QUESTIONS = {
+    insistence: [
+      "no que eu estou insistindo",
+      "estou insistindo em que",
+      "estou insistindo em quê",
+      "o que eu venho repetindo",
+      "o que aparece muito na minha historia",
+      "o que aparece muito na minha história"
+    ],
+    evolution: [
+      "o que mudou em mim",
+      "eu evolui",
+      "eu evoluí",
+      "minha evolucao",
+      "minha evolução"
+    ],
+    abandoned: [
+      "quais projetos eu abandonei",
+      "projetos abandonados",
+      "o que eu abandonei",
+      "quais projetos parei"
+    ],
+    overfocus: [
+      "em que estou focando demais",
+      "estou focando demais",
+      "estou espalhando energia",
+      "estou tentando fazer coisa demais",
+      "coisa demais",
+      "frentes demais"
+    ],
+    pattern: [
+      "qual padrao voce percebe em mim",
+      "qual padrão você percebe em mim",
+      "qual padrao percebe em mim",
+      "qual padrão percebe em mim",
+      "que padrao voce percebe",
+      "que padrão você percebe"
+    ],
+    construction: [
+      "o que eu tenho tentado construir",
+      "o que estou tentando construir",
+      "o que venho tentando construir",
+      "o que estou construindo"
+    ]
+  };
+
   // ELO_KNOWLEDGE_BASE
   const ELO_KNOWLEDGE_BASE = [
     {
@@ -4447,6 +4493,345 @@
     return buildHumanQuestionAnswer(core, buildHumanQuestionContext());
   }
 
+  function normalizeWakeCallText(message) {
+    return normalizeText(message)
+      .replace(/[?!.,;:()\[\]{}"']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function detectEloWakeCall(message) {
+    const text = normalizeWakeCallText(message);
+    if (!text) {
+      return false;
+    }
+    const repeatedElo = text.replace(/\belo\b/g, "").trim();
+    if (!repeatedElo) {
+      return true;
+    }
+    return [
+      "oi elo",
+      "ola elo",
+      "olá elo",
+      "ei elo",
+      "e ai elo",
+      "e aí elo"
+    ].some(function (call) {
+      return text === normalizeWakeCallText(call);
+    });
+  }
+
+  function stripEloAddress(message) {
+    return normalizeWakeCallText(message)
+      .replace(/^elo\s+/, "")
+      .replace(/\s+elo$/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function detectSocialGreeting(message) {
+    const text = stripEloAddress(message);
+    if (!text) {
+      return null;
+    }
+    const greetings = {
+      saudacao: ["oi", "ola", "olá", "e ai", "e aí", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
+      checkin: ["tudo bem", "tudo certo", "como vai", "beleza", "tudo tranquilo", "como voce esta", "como você está", "como esta", "como está", "como voce esta hoje", "como você está hoje", "voce esta bem", "você está bem"]
+    };
+    if (greetings.saudacao.some(function (item) { return text === normalizeWakeCallText(item); })) {
+      return "saudacao";
+    }
+    if (greetings.checkin.some(function (item) { return text === normalizeWakeCallText(item); })) {
+      return "checkin";
+    }
+    return null;
+  }
+
+  function buildSocialPresenceContext() {
+    const snapshot = getConnectedMemorySnapshot();
+    return {
+      snapshot: snapshot,
+      hasMemory: hasConnectedMemoryData(snapshot),
+      userName: snapshot.userName || "",
+      focusProject: snapshot.mainProject || snapshot.mostMentionedProject || "",
+      latestAdvance: snapshot.latestImportantEvent || snapshot.latestAchievement || snapshot.recentMilestones[0] || snapshot.recentEvents[0] || null
+    };
+  }
+
+  function getSocialGreetingOpening(message, kind, userName) {
+    const text = stripEloAddress(message);
+    const name = userName ? ", " + userName : "";
+    if (text === "bom dia") {
+      return "Bom dia" + name + ".";
+    }
+    if (text === "boa tarde") {
+      return "Boa tarde" + name + ".";
+    }
+    if (text === "boa noite") {
+      return "Boa noite" + name + ".";
+    }
+    if (kind === "checkin") {
+      return (userName ? userName + ", " : "") + "tudo certo por aqui.";
+    }
+    return (userName ? userName + ", " : "") + "estou aqui.";
+  }
+
+  function buildSocialPresenceAnswer(message, context) {
+    const kind = detectSocialGreeting(message);
+    if (!kind) {
+      return null;
+    }
+    const currentContext = context || buildSocialPresenceContext();
+    const focus = currentContext.focusProject || "";
+    const latestAdvance = formatHumanRecentEvent(currentContext.latestAdvance);
+    const opening = getSocialGreetingOpening(message, kind, currentContext.userName);
+    const isCheckin = kind === "checkin";
+    let fullAnswer = "";
+
+    if (currentContext.hasMemory && focus && latestAdvance) {
+      fullAnswer = "Pelo que venho acompanhando, seu foco atual parece ser " + focus + ". O último registro importante foi: " + latestAdvance + ". Quer continuar de onde parou ou organizar o próximo passo?";
+    } else if (currentContext.hasMemory && focus) {
+      fullAnswer = "Pelo que venho acompanhando, " + focus + " aparece como seu foco atual. Quer continuar de onde parou ou organizar o próximo passo?";
+    } else if (currentContext.hasMemory && latestAdvance) {
+      fullAnswer = "Pelo que venho acompanhando, seu último avanço registrado foi sobre " + latestAdvance + ". Quer retomar isso ou começar por outra frente?";
+    } else {
+      fullAnswer = isCheckin
+        ? "Tudo bem por aqui. Quer conversar sobre suas memórias, projetos ou o ObraReport?"
+        : "Estou aqui com você. Quer começar por onde?";
+    }
+
+    return {
+      shortAnswer: opening,
+      fullAnswer: fullAnswer,
+      nextAction: "Diga se quer continuar de onde parou, revisar algo ou pedir uma orientação rápida.",
+      canSave: false,
+      sessionTheme: "conversa",
+      sessionIntent: "cumprimento_social"
+    };
+  }
+
+  function buildSocialGreetingAnswer(kind) {
+    const snapshot = getConnectedMemorySnapshot();
+    const name = snapshot.userName ? snapshot.userName + ", " : "";
+    const focus = snapshot.mainProject || snapshot.mostMentionedProject || "";
+    const focusLine = focus ? " Quer continuar de onde parou em " + focus + "?" : "";
+    const isCheckin = kind === "checkin";
+    return {
+      shortAnswer: isCheckin ? name + "tudo certo por aqui." : name + "estou aqui.",
+      fullAnswer: isStandaloneMode()
+        ? (isCheckin
+          ? "Tudo bem por aqui. Posso conversar sobre suas memórias, projetos, linha do tempo ou biblioteca." + focusLine
+          : "Estou pronto para conversar, organizar ideias, revisar seus projetos ou consultar suas memórias locais." + focusLine)
+        : (isCheckin
+          ? "Tudo certo por aqui. Posso ajudar com suas memórias, projetos ou com o uso do ObraReport." + focusLine
+          : "Estou pronto para ajudar com ObraReport, RDO, relatórios, materiais, memórias ou projetos." + focusLine),
+      nextAction: "Diga se quer conversar, revisar algo ou pedir uma orientação rápida.",
+      canSave: false,
+      sessionTheme: "conversa",
+      sessionIntent: "cumprimento_social"
+    };
+  }
+
+  function getSocialGreetingResponse(question) {
+    const kind = detectSocialGreeting(question);
+    if (!kind) {
+      return null;
+    }
+    return buildSocialPresenceAnswer(question, buildSocialPresenceContext());
+  }
+
+  function buildEloWakeCallAnswer() {
+    const snapshot = getConnectedMemorySnapshot();
+    const name = snapshot.userName ? snapshot.userName + ", " : "";
+    const focus = snapshot.mainProject || snapshot.mostMentionedProject || "";
+    const focusLine = focus ? " Posso também retomar " + focus + " se esse ainda for seu foco." : "";
+    return {
+      shortAnswer: name + "estou aqui.",
+      fullAnswer: "Estou te ouvindo. Posso ajudar com suas memórias, projetos, linha do tempo, biblioteca ou com o uso do ObraReport." + focusLine,
+      nextAction: "Pergunte algo como: o que você lembra de mim? ou o que devo fazer agora?",
+      canSave: false,
+      sessionTheme: "elo",
+      sessionIntent: "chamado_elo"
+    };
+  }
+
+  function detectPersonalPatternIntent(message) {
+    const text = normalizeText(message);
+    const intentKeys = ["insistence", "evolution", "abandoned", "overfocus", "pattern", "construction"];
+    for (let index = 0; index < intentKeys.length; index += 1) {
+      const intent = intentKeys[index];
+      if (hasAnyTerm(text, ELO_PATTERN_QUESTIONS[intent])) {
+        return intent;
+      }
+    }
+    return null;
+  }
+
+  function collectProjectSignals(snapshot) {
+    const signals = {};
+    function add(project, weight) {
+      const cleanProject = sanitizeLibraryText(project, 80);
+      if (!cleanProject) {
+        return;
+      }
+      const key = normalizeText(cleanProject);
+      if (!signals[key]) {
+        signals[key] = {
+          name: cleanProject,
+          count: 0
+        };
+      }
+      signals[key].count += weight || 1;
+    }
+
+    (snapshot.projects || []).forEach(function (project) { add(project, 2); });
+    (snapshot.important.projetos || []).forEach(function (project) { add(project.titulo, 3); });
+    (snapshot.recentEvents || []).forEach(function (event) {
+      add(event.project, 2);
+      ["ObraReport", "Elo", "Stock IA", "CADISTA IA", "RDO", "PDF"].forEach(function (name) {
+        const haystack = normalizeText([event.title, event.content, event.tags && event.tags.join(" ")].join(" "));
+        if (haystack.indexOf(normalizeText(name)) >= 0) {
+          add(name, 1);
+        }
+      });
+    });
+
+    return Object.keys(signals).map(function (key) {
+      return signals[key];
+    }).sort(function (a, b) {
+      return b.count - a.count;
+    });
+  }
+
+  function getInactiveProjectSignals(snapshot) {
+    return (snapshot.important.projetos || []).filter(function (project) {
+      const status = normalizeText(project.status);
+      return status === "pausado" || status === "arquivado" || status === "concluido";
+    }).map(function (project) {
+      return project.titulo + " — " + project.status;
+    });
+  }
+
+  function buildPatternProjectLines(projectSignals) {
+    if (!projectSignals.length) {
+      return "";
+    }
+    return projectSignals.slice(0, 5).map(function (signal) {
+      return "- " + signal.name;
+    }).join("\n");
+  }
+
+  function getPatternDataQuality(snapshot, projectSignals) {
+    return hasConnectedMemoryData(snapshot) && (projectSignals.length || snapshot.recentEvents.length || snapshot.goals.length);
+  }
+
+  function buildPatternFallback(intent) {
+    const base = {
+      insistence: "Ainda tenho poucos registros para afirmar no que você vem insistindo há meses.",
+      evolution: "Ainda tenho poucos registros para comparar sua evolução com segurança.",
+      abandoned: "Ainda não tenho histórico suficiente para dizer quais projetos foram abandonados.",
+      overfocus: "Ainda tenho poucos dados para afirmar se você está espalhando energia.",
+      pattern: "Ainda estou juntando contexto para perceber padrões reais em você.",
+      construction: "Ainda tenho poucos registros para dizer exatamente o que você vem tentando construir."
+    };
+    return {
+      shortAnswer: base[intent] || "Ainda tenho poucos dados para perceber esse padrão.",
+      fullAnswer: [
+        base[intent] || "Ainda estou te conhecendo.",
+        "Para eu responder melhor, registre projetos, objetivos e marcos na Linha do Tempo. Com alguns registros, eu consigo comparar recorrência, foco e evolução sem inventar dados.",
+        "Mesmo assim, uma boa pergunta agora é: qual frente precisa virar uma entrega pequena e concluída?"
+      ].join("\n\n"),
+      nextAction: "Registre um marco ou atualize seus projetos em Ferramentas do Elo.",
+      canSave: false,
+      sessionTheme: "padroes",
+      sessionIntent: "padrao_pessoal"
+    };
+  }
+
+  function buildPersonalPatternAnswer(intent) {
+    const snapshot = getConnectedMemorySnapshot();
+    const projectSignals = collectProjectSignals(snapshot);
+    const hasData = getPatternDataQuality(snapshot, projectSignals);
+    if (!hasData) {
+      return buildPatternFallback(intent);
+    }
+
+    const projectLines = buildPatternProjectLines(projectSignals);
+    const inactiveProjects = getInactiveProjectSignals(snapshot);
+    const goals = (snapshot.goals || []).slice(0, 3);
+    const recentEvents = (snapshot.recentEvents || []).slice(0, 3).map(formatTimelineEventLine);
+    const dominantProject = projectSignals[0] && projectSignals[0].name;
+    const manyFronts = projectSignals.length >= 4;
+
+    const sharedEvidence = [
+      projectLines ? "Temas recorrentes nos registros locais:\n" + projectLines : "",
+      goals.length ? "Objetivos ativos:\n" + goals.map(function (goal) { return "- " + goal; }).join("\n") : "",
+      recentEvents.length ? "Registros recentes:\n" + recentEvents.join("\n") : ""
+    ].filter(Boolean).join("\n\n");
+
+    const answers = {
+      insistence: {
+        shortAnswer: "Você parece estar insistindo em transformar ideias em projetos reais.",
+        insight: manyFronts
+          ? "O padrão não parece ser falta de capacidade. Parece ser excesso de frentes abertas ao mesmo tempo."
+          : "O padrão principal parece ser continuidade: voltar aos mesmos temas e tentar deixá-los mais concretos.",
+        nextAction: "Concluir uma entrega vendável antes de abrir outra frente."
+      },
+      evolution: {
+        shortAnswer: "Pelos registros locais, sua evolução aparece na passagem de ideia para estrutura.",
+        insight: "O que mudou é que os temas deixaram de ser apenas intenção e começaram a virar página, memória, linha do tempo e produto.",
+        nextAction: "Escolher um marco recente e registrar o que ele destravou."
+      },
+      abandoned: {
+        shortAnswer: inactiveProjects.length ? "Encontrei projetos pausados, concluídos ou arquivados." : "Não posso afirmar abandono; encontrei apenas sinais de foco e pausa.",
+        insight: inactiveProjects.length
+          ? "Projetos com status não ativo:\n" + inactiveProjects.slice(0, 5).map(function (item) { return "- " + item; }).join("\n")
+          : "Sem registro claro de abandono, é mais seguro falar em frentes menos recentes ou menos ativas.",
+        nextAction: "Marcar projetos como ativo, pausado ou arquivado para eu acompanhar melhor."
+      },
+      overfocus: {
+        shortAnswer: manyFronts ? "Há sinais de energia espalhada em várias frentes." : "Não vejo sinal forte de dispersão pelos registros locais.",
+        insight: manyFronts
+          ? "Quando muitos projetos aparecem juntos, o risco não é falta de ideia: é dividir energia antes de fechar uma entrega."
+          : "O foco mais forte parece estar em " + (dominantProject || "um projeto principal") + ".",
+        nextAction: "Definir uma frente principal para os próximos 7 dias."
+      },
+      pattern: {
+        shortAnswer: "O padrão que aparece é construção técnica com busca de sentido.",
+        insight: "Você tende a transformar problemas práticos em sistemas: produto, memória, automação, relatório, rotina e organização.",
+        nextAction: "Separar o que é produto vendável do que é expansão futura."
+      },
+      construction: {
+        shortAnswer: "Você parece estar tentando construir uma base de produtos técnicos e assistentes inteligentes.",
+        insight: dominantProject ? "O centro mais recorrente agora parece ser " + dominantProject + "." : "Os registros apontam para projetos técnicos, organização e memória.",
+        nextAction: "Escolher uma entrega pequena que prove valor para outra pessoa."
+      }
+    };
+
+    const answer = answers[intent] || answers.pattern;
+    return {
+      shortAnswer: answer.shortAnswer,
+      fullAnswer: [
+        answer.shortAnswer,
+        sharedEvidence,
+        answer.insight,
+        "Próxima ação sugerida:\n" + answer.nextAction
+      ].filter(Boolean).join("\n\n"),
+      nextAction: answer.nextAction,
+      canSave: false,
+      sessionTheme: "padroes",
+      sessionIntent: "padrao_pessoal"
+    };
+  }
+
+  function getPersonalPatternResponse(question) {
+    const intent = detectPersonalPatternIntent(question);
+    if (!intent) {
+      return null;
+    }
+    return buildPersonalPatternAnswer(intent);
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -4463,6 +4848,20 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const socialGreetingAnswer = getSocialGreetingResponse(cleanQuestion);
+    if (socialGreetingAnswer) {
+      return socialGreetingAnswer;
+    }
+
+    if (detectEloWakeCall(cleanQuestion)) {
+      return buildEloWakeCallAnswer();
+    }
+
+    const personalPatternAnswer = getPersonalPatternResponse(cleanQuestion);
+    if (personalPatternAnswer) {
+      return personalPatternAnswer;
     }
 
     const humanQuestionAnswer = getHumanQuestionResponse(cleanQuestion);
