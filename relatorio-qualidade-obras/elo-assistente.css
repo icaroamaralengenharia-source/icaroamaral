@@ -1,0 +1,251 @@
+.elo-widget {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 80;
+  font-family: inherit;
+}
+
+.elo-float-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid rgba(15, 118, 110, 0.36);
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+  box-shadow: 0 16px 38px rgba(6, 26, 50, 0.24);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.elo-float-button:hover,
+.elo-float-button:focus {
+  filter: brightness(1.04);
+  outline: 3px solid rgba(15, 118, 110, 0.16);
+}
+
+.elo-float-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #0f5f8f;
+  background: #ffffff;
+  font-size: 0.95rem;
+}
+
+.elo-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 84px;
+  display: grid;
+  grid-template-rows: auto minmax(220px, 1fr) auto;
+  width: min(420px, calc(100vw - 28px));
+  max-height: min(720px, calc(100vh - 112px));
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 28px 70px rgba(6, 26, 50, 0.24);
+}
+
+.elo-panel.is-hidden {
+  display: none;
+}
+
+.elo-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 18px 18px 14px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at top right, rgba(213, 166, 66, 0.24), transparent 10rem),
+    linear-gradient(135deg, #061a32, #0f5f8f);
+}
+
+.elo-header h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.elo-header p {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.elo-close-button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.elo-messages {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.06), transparent 14rem),
+    #f8fbfd;
+}
+
+.elo-message {
+  display: grid;
+  gap: 8px;
+  max-width: 92%;
+}
+
+.elo-message-bubble {
+  padding: 12px 13px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  color: #334155;
+  background: #ffffff;
+  line-height: 1.48;
+  white-space: pre-wrap;
+}
+
+.elo-message.user {
+  justify-self: end;
+}
+
+.elo-message.user .elo-message-bubble {
+  color: #ffffff;
+  border-color: rgba(15, 95, 143, 0.24);
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+}
+
+.elo-message.system .elo-message-bubble {
+  border-color: rgba(15, 118, 110, 0.18);
+  background: #f3fbfa;
+}
+
+.elo-message-actions,
+.elo-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.elo-inline-button,
+.elo-chip-button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  color: #334155;
+  background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.elo-inline-button:hover,
+.elo-chip-button:hover {
+  color: #0f5f8f;
+  border-color: rgba(15, 118, 110, 0.28);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.elo-footer {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.elo-quick-buttons,
+.elo-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.elo-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.elo-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  color: #0f172a;
+  background: #ffffff;
+  font: inherit;
+}
+
+.elo-send-button {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 10px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.elo-privacy {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .elo-widget {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .elo-panel {
+    right: 12px;
+    bottom: 72px;
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 92px);
+    border-radius: 14px;
+  }
+
+  .elo-header {
+    padding: 16px;
+  }
+
+  .elo-messages {
+    padding: 14px;
+  }
+
+  .elo-message {
+    max-width: 100%;
+  }
+
+  .elo-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .elo-send-button {
+    width: 100%;
+  }
+}
