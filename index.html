@@ -247,28 +247,57 @@
       justify-content: space-between;
       gap: 14px;
       margin-top: 10px;
-      padding: 11px;
-      border: 1px solid rgba(15, 95, 143, 0.22);
-      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid rgba(213, 166, 66, 0.45);
+      border-radius: 16px;
       background:
-        radial-gradient(circle at right, rgba(213, 166, 66, 0.14), transparent 12rem),
-        linear-gradient(135deg, #ffffff, #f4fbfa);
-      box-shadow: 0 12px 28px rgba(6, 26, 50, 0.07);
+        radial-gradient(circle at right top, rgba(213, 166, 66, 0.28), transparent 13rem),
+        linear-gradient(135deg, #061a32 0%, #0b2c50 52%, #0f5f8f 100%);
+      box-shadow: 0 18px 40px rgba(6, 26, 50, 0.22);
     }
 
     .hero-elo-card div {
       display: grid;
-      gap: 4px;
+      gap: 6px;
     }
 
     .hero-elo-card strong {
-      color: var(--navy);
+      color: #ffffff;
+      font-size: 1rem;
+      line-height: 1.15;
     }
 
     .hero-elo-card span {
-      color: #5c6b7d;
+      color: rgba(255, 255, 255, 0.82);
       font-size: 0.86rem;
       line-height: 1.35;
+    }
+
+    .hero-elo-badge {
+      width: fit-content;
+      padding: 4px 8px;
+      border: 1px solid rgba(213, 166, 66, 0.42);
+      border-radius: 999px;
+      color: #ffd978;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 0.66rem;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero-elo-card .button {
+      min-width: 154px;
+      color: #061a32;
+      border-color: rgba(255, 217, 120, 0.68);
+      background: linear-gradient(135deg, #ffd978, #d5a642);
+      box-shadow: 0 12px 26px rgba(213, 166, 66, 0.28);
+      font-weight: 950;
+    }
+
+    .hero-elo-card .button:hover {
+      background: linear-gradient(135deg, #ffe59b, #d5a642);
+      box-shadow: 0 16px 34px rgba(213, 166, 66, 0.34);
     }
 
     .mockup {
@@ -967,10 +996,11 @@
         </div>
         <div class="hero-elo-card">
           <div>
+            <small class="hero-elo-badge">Memória local</small>
             <strong>Elo Assistente</strong>
             <span>Ajuda integrada com memória local, biblioteca, projetos e objetivos para orientar o uso do sistema.</span>
           </div>
-          <a class="button secondary" href="elo.html">Conhecer o Elo</a>
+          <a class="button" href="elo.html">Conversar com Elo</a>
         </div>
       </div>
 

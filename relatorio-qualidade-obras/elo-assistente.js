@@ -124,6 +124,50 @@
     };
   }
 
+  // ELO_HUMAN_QUESTIONS
+  const ELO_HUMAN_QUESTIONS = {
+    purpose: {
+      title: "Propósito",
+      description: "Perguntas sobre caminho, sentido, construção e valor do esforço.",
+      relatedQuestions: ["O que eu vou ser?", "Estou no caminho certo?", "Qual meu propósito?", "Isso vale a pena?"],
+      keywords: ["o que eu vou ser", "estou no caminho certo", "qual meu proposito", "qual meu propósito", "meu proposito", "meu propósito", "o que estou tentando construir", "isso vale a pena", "vale a pena continuar"],
+      baseAnswer: "Você parece estar perguntando sobre propósito, não só sobre produtividade.",
+      memoryAnswer: "Pelo que está salvo localmente, seu caminho aparece ligado a projetos, objetivos e escolhas que você vem tentando transformar em algo concreto."
+    },
+    capacity: {
+      title: "Capacidade",
+      description: "Perguntas sobre conseguir, falhar, atraso, medo e confiança prática.",
+      relatedQuestions: ["Será que vou dar conta?", "Tenho capacidade?", "Vou conseguir?", "E se eu falhar?"],
+      keywords: ["vou dar conta", "será que vou dar conta", "sera que vou dar conta", "tenho capacidade", "estou atrasado", "vou conseguir", "e se eu falhar", "se eu falhar", "nao vou conseguir", "não vou conseguir"],
+      baseAnswer: "Essa pergunta costuma aparecer quando algo importante começa a ficar real.",
+      memoryAnswer: "Pelo que existe nas suas memórias locais, você não está parado: há sinais de construção, projeto e continuidade."
+    },
+    belonging: {
+      title: "Pertencimento",
+      description: "Perguntas sobre aceitação, respeito, vínculo, solidão e cuidado humano.",
+      relatedQuestions: ["Sou aceito?", "Sou amado?", "Estou sozinho?", "Alguém se importa comigo?"],
+      keywords: ["sou aceito", "sou amado", "as pessoas me respeitam", "estou sozinho", "alguem se importa comigo", "alguém se importa comigo", "as pessoas gostam de mim", "realmente gostam de mim", "ninguem se importa", "ninguém se importa"],
+      baseAnswer: "Você parece estar perguntando sobre pertencimento, não apenas sobre uma opinião rápida.",
+      memoryAnswer: "Eu posso usar suas memórias para lembrar projetos e vínculos registrados, mas não consigo medir o afeto real das pessoas por você."
+    },
+    direction: {
+      title: "Direção",
+      description: "Perguntas sobre próximo passo, começo, continuidade e sensação de estar perdido.",
+      relatedQuestions: ["Para onde vou agora?", "Qual o próximo passo?", "Por onde começo?", "Estou perdido."],
+      keywords: ["para onde vou agora", "qual o proximo passo", "qual o próximo passo", "o que faco depois", "o que faço depois", "por onde começo", "por onde comeco", "estou perdido", "estou perdida", "o que faço agora", "o que faco agora"],
+      baseAnswer: "Você parece estar procurando direção, não apenas uma resposta rápida.",
+      memoryAnswer: "Pelo que já está salvo, você costuma avançar melhor quando transforma uma ideia grande em uma próxima ação pequena."
+    },
+    legacy: {
+      title: "Legado",
+      description: "Perguntas sobre vida, futuro, orgulho, obra pessoal e o que ficará depois.",
+      relatedQuestions: ["Minha vida está valendo a pena?", "O que vai ficar de mim?", "Estou construindo algo importante?", "O que estou deixando para o mundo?"],
+      keywords: ["minha vida esta valendo a pena", "minha vida está valendo a pena", "o que vai ficar de mim", "estou construindo algo importante", "vou me orgulhar disso", "vou me orgulhar disso no futuro", "o que estou deixando para o mundo", "o que vai restar de mim"],
+      baseAnswer: "Essa é uma pergunta maior do que produtividade.",
+      memoryAnswer: "Nas suas memórias locais, legado aparece mais claramente quando projetos, objetivos e marcos começam a formar uma jornada."
+    }
+  };
+
   // ELO_KNOWLEDGE_BASE
   const ELO_KNOWLEDGE_BASE = [
     {
@@ -4217,6 +4261,192 @@
     );
   }
 
+  function detectHumanQuestionCore(message) {
+    const text = normalizeText(message);
+    if (!text || isCrisisQuestion(text)) {
+      return null;
+    }
+
+    const directSystemQuestions = [
+      "como gerar pdf",
+      "como criar rdo",
+      "como criar relatorio",
+      "como criar relatório",
+      "como adicionar materiais",
+      "como funciona o plano",
+      "posso gerar pdf",
+      "resuma esta tela",
+      "o que falta preencher"
+    ];
+    if (hasAnyTerm(text, directSystemQuestions)) {
+      return null;
+    }
+
+    const orderedCores = ["purpose", "capacity", "belonging", "direction", "legacy"];
+    for (let index = 0; index < orderedCores.length; index += 1) {
+      const coreKey = orderedCores[index];
+      if (hasAnyTerm(text, ELO_HUMAN_QUESTIONS[coreKey].keywords)) {
+        return coreKey;
+      }
+    }
+    return null;
+  }
+
+  function buildHumanQuestionContext() {
+    const snapshot = getConnectedMemorySnapshot();
+    return {
+      snapshot: snapshot,
+      hasMemory: hasConnectedMemoryData(snapshot),
+      userName: snapshot.userName || "",
+      focusProject: snapshot.mainProject || snapshot.mostMentionedProject || snapshot.projects[0] || "",
+      activeGoal: snapshot.goals[0] || "",
+      recentEvent: snapshot.latestImportantEvent || snapshot.latestAchievement || snapshot.recentEvents[0] || null,
+      preferences: snapshot.preferences || [],
+      projects: snapshot.projects || [],
+      goals: snapshot.goals || [],
+      libraryItems: snapshot.libraryItems || []
+    };
+  }
+
+  function formatHumanRecentEvent(event) {
+    if (!event) {
+      return "";
+    }
+    return event.title + (event.project ? " em " + event.project : "");
+  }
+
+  function buildHumanMemoryLine(core, context) {
+    const coreData = ELO_HUMAN_QUESTIONS[core];
+    const focus = context.focusProject;
+    const goal = context.activeGoal;
+    const recentEvent = formatHumanRecentEvent(context.recentEvent);
+
+    if (!context.hasMemory) {
+      return "Ainda estou te conhecendo. Então vou responder com cuidado, sem fingir que sei mais sobre você do que está salvo.";
+    }
+
+    if (core === "purpose") {
+      if (focus && goal) {
+        return "Pelo que está salvo localmente, " + focus + " aparece como um foco importante, e seu objetivo atual passa por " + goal + ".";
+      }
+      if (focus) {
+        return "Pelo que está salvo localmente, " + focus + " aparece como um dos seus focos mais importantes.";
+      }
+    }
+
+    if (core === "capacity") {
+      if (recentEvent) {
+        return "Pelo que já foi registrado, você tem avanços concretos na jornada, incluindo: " + recentEvent + ".";
+      }
+      if (focus) {
+        return "Pelo que está salvo, você não está parado: há construção em torno de " + focus + ".";
+      }
+    }
+
+    if (core === "belonging") {
+      const personalLine = formatPersonalMemoryNarrative(context.snapshot.personalMemories);
+      if (personalLine) {
+        return "Eu lembro de algumas informações pessoais que você autorizou guardar, como " + personalLine + ". Isso ajuda a conversar com mais contexto, mas não substitui a presença de pessoas reais.";
+      }
+      return "Eu tenho algumas memórias locais sobre seus projetos e objetivos, mas pertencimento real precisa de gente real, conversa e presença.";
+    }
+
+    if (core === "direction") {
+      if (goal) {
+        return "Pelo que está salvo, seu próximo eixo pode estar ligado a este objetivo: " + goal + ".";
+      }
+      if (focus) {
+        return "Pelo que eu já sei, talvez o melhor seja transformar " + focus + " em uma próxima ação pequena e executável.";
+      }
+    }
+
+    if (core === "legacy") {
+      if (focus && recentEvent) {
+        return "Na sua jornada local, " + focus + " e o registro \"" + recentEvent + "\" parecem formar parte do que você está tentando construir.";
+      }
+      if (focus) {
+        return "Pelo que está salvo, " + focus + " aparece como algo que você está tentando deixar mais real e mais útil.";
+      }
+    }
+
+    return coreData.memoryAnswer;
+  }
+
+  function buildHumanQuestionAnswer(core, context) {
+    const data = ELO_HUMAN_QUESTIONS[core];
+    if (!data) {
+      return null;
+    }
+
+    const namePrefix = context.userName ? context.userName + ", " : "";
+    const memoryLine = buildHumanMemoryLine(core, context);
+    const answers = {
+      purpose: {
+        shortAnswer: namePrefix + "essa pergunta parece ser sobre propósito.",
+        fullAnswer: [
+          data.baseAnswer,
+          memoryLine,
+          "Talvez a pergunta não seja apenas \"isso vai dar certo?\", mas: isso está me aproximando do tipo de pessoa e de obra que quero construir?"
+        ],
+        nextAction: "Quer que eu transforme isso em um próximo passo prático?"
+      },
+      capacity: {
+        shortAnswer: namePrefix + "essa pergunta aparece quando algo importante começa a ficar real.",
+        fullAnswer: [
+          "Dar conta não significa saber tudo agora.",
+          memoryLine,
+          "Significa continuar com lucidez, pedir ajuda quando necessário e reduzir o tamanho da próxima etapa."
+        ],
+        nextAction: "Qual é a menor ação que você consegue fazer ainda hoje?"
+      },
+      belonging: {
+        shortAnswer: namePrefix + "essa pergunta toca pertencimento.",
+        fullAnswer: [
+          "Eu não consigo provar se as pessoas gostam de você, nem devo substituir uma conversa humana real.",
+          memoryLine,
+          "Mas uma coisa é segura: perguntas assim merecem cuidado, presença e relações concretas, não uma conclusão apressada."
+        ],
+        nextAction: "Se isso estiver pesando, fale com alguém de confiança e me diga qual próximo passo você quer organizar."
+      },
+      direction: {
+        shortAnswer: namePrefix + "você parece estar procurando direção.",
+        fullAnswer: [
+          "Você parece estar procurando direção, não apenas uma resposta rápida.",
+          memoryLine,
+          "Agora, talvez a pergunta não seja \"qual é o plano inteiro?\", mas: qual é o próximo passo que destrava o resto?"
+        ],
+        nextAction: "Escreva uma opção de próximo passo e eu ajudo a simplificar."
+      },
+      legacy: {
+        shortAnswer: namePrefix + "essa é uma pergunta maior do que produtividade.",
+        fullAnswer: [
+          "Quando alguém pergunta se a vida está valendo a pena, normalmente não está perguntando sobre tarefas.",
+          memoryLine,
+          "Talvez o ponto seja observar o que você está tentando deixar melhor do que encontrou."
+        ],
+        nextAction: "Quer registrar isso na Linha do Tempo como reflexão ou marco?"
+      }
+    };
+
+    const answer = answers[core];
+    return {
+      shortAnswer: answer.shortAnswer,
+      fullAnswer: answer.fullAnswer.join("\n\n"),
+      nextAction: answer.nextAction,
+      canSave: false,
+      sessionTheme: "perguntas_humanas",
+      sessionIntent: "pergunta_humana"
+    };
+  }
+
+  function getHumanQuestionResponse(question) {
+    const core = detectHumanQuestionCore(question);
+    if (!core) {
+      return null;
+    }
+    return buildHumanQuestionAnswer(core, buildHumanQuestionContext());
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -4233,6 +4463,11 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const humanQuestionAnswer = getHumanQuestionResponse(cleanQuestion);
+    if (humanQuestionAnswer) {
+      return humanQuestionAnswer;
     }
 
     const conceptAnswer = getConceptResponse(cleanQuestion);
