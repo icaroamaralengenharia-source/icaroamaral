@@ -1462,6 +1462,173 @@
     };
   }
 
+  function isSimpleTimelineIgnoredQuestion(normalizedQuestion) {
+    if (!normalizedQuestion || normalizedQuestion.length < 8) {
+      return true;
+    }
+    if (["oi", "ola", "olá", "tudo bem", "obrigado", "obrigada", "valeu", "tchau"].indexOf(normalizedQuestion) >= 0) {
+      return true;
+    }
+    if (/[?]$/.test(normalizedQuestion) || normalizedQuestion.indexOf("como ") === 0 || normalizedQuestion.indexOf("qual ") === 0) {
+      return true;
+    }
+    return hasAnyTerm(normalizedQuestion, [
+      "como gerar pdf",
+      "como criar rdo",
+      "como criar relatorio",
+      "conte uma piada",
+      "piada",
+      "git ",
+      "commit",
+      "push",
+      "npm ",
+      "node --check"
+    ]);
+  }
+
+  function detectTimelineProject(text) {
+    const projects = [
+      ["ObraReport", ["obrareport", "obra report"]],
+      ["Elo", ["elo"]],
+      ["Stock IA", ["stock ia"]],
+      ["CADISTA IA", ["cadista ia"]],
+      ["livro", ["livro"]],
+      ["RDO", ["rdo", "diario de obra", "diário de obra"]],
+      ["PDF", ["pdf"]]
+    ];
+    for (let index = 0; index < projects.length; index += 1) {
+      if (hasAnyTerm(text, projects[index][1])) {
+        return projects[index][0];
+      }
+    }
+    return "";
+  }
+
+  function detectTimelineMood(text) {
+    if (hasAnyTerm(text, ["animado", "animada", "empolgado", "empolgada"])) {
+      return "animado";
+    }
+    if (hasAnyTerm(text, ["cansado", "cansada"])) {
+      return "cansado";
+    }
+    if (hasAnyTerm(text, ["preocupado", "preocupada", "preocupacao", "preocupação"])) {
+      return "preocupado";
+    }
+    if (hasAnyTerm(text, ["triste"])) {
+      return "triste";
+    }
+    if (hasAnyTerm(text, ["produtivo", "produtiva"])) {
+      return "produtivo";
+    }
+    return "neutro";
+  }
+
+  function detectTimelineType(text) {
+    if (hasAnyTerm(text, ["consegui", "terminei", "finalizei", "primeira venda", "primeiro cliente"])) {
+      return "conquista";
+    }
+    if (hasAnyTerm(text, ["tive uma ideia", "ideia para", "ideia de"])) {
+      return "ideia";
+    }
+    if (hasAnyTerm(text, ["cansado", "cansada", "triste", "preocupado", "preocupada", "dificil", "difícil", "hoje foi dificil", "hoje foi difícil"])) {
+      return "dificuldade";
+    }
+    if (hasAnyTerm(text, ["quero", "objetivo", "meta"])) {
+      return "objetivo";
+    }
+    if (hasAnyTerm(text, ["marco", "importante", "avancei", "avancamos", "avançamos", "avancou", "comecei", "lembre que hoje"])) {
+      return "marco";
+    }
+    return "marco";
+  }
+
+  function detectTimelineImportance(text, type) {
+    if (hasAnyTerm(text, ["avancei", "avancamos", "avançamos"])) {
+      return "media";
+    }
+    if (type === "marco" || hasAnyTerm(text, ["primeira venda", "primeiro cliente", "marco", "terminei", "finalizei", "consegui"])) {
+      return "alta";
+    }
+    if (type === "ideia" || type === "objetivo" || hasAnyTerm(text, ["avancei", "avancamos", "avançamos", "objetivo", "meta"])) {
+      return "media";
+    }
+    return "baixa";
+  }
+
+  function buildTimelineTitleFromQuestion(cleanQuestion, type) {
+    const text = cleanQuestion
+      .replace(/^\s*elo,?\s*/i, "")
+      .replace(/^lembre que\s+/i, "")
+      .replace(/^hoje\s+/i, "")
+      .replace(/^isso\s+/i, "")
+      .trim();
+    if (type === "ideia") {
+      return "Ideia registrada";
+    }
+    if (type === "conquista") {
+      return "Conquista registrada";
+    }
+    if (type === "dificuldade") {
+      return "Dificuldade registrada";
+    }
+    if (type === "objetivo") {
+      return "Objetivo registrado";
+    }
+    return sanitizeLibraryText(text, 90) || "Marco registrado";
+  }
+
+  function detectTimelineEventCandidate(question) {
+    if (hasSensitiveMemoryTerm(question)) {
+      return null;
+    }
+    const cleanQuestion = sanitizeUserText(question);
+    const text = normalizeText(cleanQuestion);
+    if (isSimpleTimelineIgnoredQuestion(text)) {
+      return null;
+    }
+    const important = hasAnyTerm(text, [
+      "lembre que hoje",
+      "isso foi importante",
+      "consegui",
+      "terminei",
+      "finalizei",
+      "comecei",
+      "tive uma ideia",
+      "primeiro cliente",
+      "primeira venda",
+      "estou cansado",
+      "estou cansada",
+      "estou triste",
+      "estou animado",
+      "estou animada",
+      "estou preocupado",
+      "estou preocupada",
+      "hoje foi dificil",
+      "hoje foi difícil",
+      "hoje foi produtivo",
+      "avancamos no obrareport",
+      "avançamos no obrareport",
+      "avancei no elo",
+      "quero registrar isso",
+      "isso e um marco",
+      "isso é um marco"
+    ]);
+    if (!important) {
+      return null;
+    }
+    const type = detectTimelineType(text);
+    return {
+      type: type,
+      title: buildTimelineTitleFromQuestion(cleanQuestion, type),
+      content: cleanQuestion,
+      tags: [type].concat(detectTimelineProject(text) ? [detectTimelineProject(text)] : []),
+      mood: detectTimelineMood(text),
+      project: detectTimelineProject(text),
+      importance: detectTimelineImportance(text, type),
+      source: "detecção automática confirmada"
+    };
+  }
+
   function isTodayTimelineEvent(event) {
     if (!event.createdAt) {
       return false;
@@ -5249,6 +5416,17 @@
       return;
     }
 
+    const timelineCandidate = detectTimelineEventCandidate(cleanQuestion);
+    if (timelineCandidate) {
+      appendTimelineEventPrompt(cleanQuestion, timelineCandidate);
+      saveConversation(cleanQuestion, "O Elo perguntou se deve registrar um evento na Linha do Tempo.");
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Escolha Registrar ou Não registrar.",
+        sessionIntent: "timeline"
+      }, "O Elo perguntou se deve registrar um evento na Linha do Tempo.");
+      return;
+    }
+
     const personalMemoryCandidate = detectPersonalMemory(cleanQuestion);
     if (personalMemoryCandidate && personalMemoryCandidate.blocked) {
       const blockedAnswer = "Por segurança, não vou guardar esse tipo de informação.";
@@ -5373,6 +5551,45 @@
       appendMessage("system", "Tudo bem. Não vou guardar essa memória importante.");
     });
     buttons.push(cancelButton);
+    actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function appendTimelineEventPrompt(question, candidate) {
+    const message = appendMessage(
+      "assistant",
+      "Isso parece importante. Deseja registrar na sua Linha do Tempo?\n\n" +
+      "Tipo sugerido: " + formatTimelineType(candidate.type) + "\n" +
+      "Projeto: " + (candidate.project || "não identificado") + "\n" +
+      "Humor: " + (candidate.mood || "neutro") + "\n" +
+      "Importância: " + candidate.importance
+    );
+    const actions = createElement("div", "elo-message-actions");
+    const registerButton = createElement("button", "elo-inline-button", "Registrar");
+    const cancelButton = createElement("button", "elo-inline-button", "Não registrar");
+
+    registerButton.type = "button";
+    cancelButton.type = "button";
+
+    registerButton.addEventListener("click", function () {
+      const result = saveTimelineEvent(candidate);
+      registerButton.disabled = true;
+      cancelButton.disabled = true;
+      if (result.ok) {
+        appendMessage("system", "Registrei isso na sua Linha do Tempo.");
+      } else {
+        appendMessage("system", "Por segurança, não consegui registrar esse evento.");
+      }
+    });
+
+    cancelButton.addEventListener("click", function () {
+      registerButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Tudo bem. Não registrei.");
+    });
+
+    actions.appendChild(registerButton);
     actions.appendChild(cancelButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
