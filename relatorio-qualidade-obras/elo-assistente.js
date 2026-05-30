@@ -264,6 +264,86 @@
     setMemory(memory);
   }
 
+  // ELO_BACKUP_LOCAL
+  function buildBackupPayload() {
+    return {
+      version: "1.0",
+      source: "obrareport-elo",
+      exportedAt: new Date().toISOString(),
+      storageKey: ELO_CONFIG.storageKey,
+      data: getMemory()
+    };
+  }
+
+  function exportEloData() {
+    const payload = buildBackupPayload();
+    const json = JSON.stringify(payload, null, 2);
+    const date = new Date().toISOString().slice(0, 10);
+    const fileName = "obrareport-elo-backup-" + date + ".json";
+
+    try {
+      const blob = new Blob([json], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(function () {
+        window.URL.revokeObjectURL(url);
+      }, 800);
+      return { ok: true, fileName: fileName };
+    } catch (error) {
+      return { ok: false, reason: "download" };
+    }
+  }
+
+  function importEloDataObject(payload) {
+    const candidate = payload && payload.data ? payload.data : payload;
+    const importedMemory = normalizeMemory(candidate);
+    importedMemory.isOpen = getWidgetState();
+    setMemory(importedMemory);
+    return importedMemory;
+  }
+
+  function importEloDataFromFile(file, onDone) {
+    if (!file) {
+      onDone({ ok: false, reason: "missing" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        const parsed = JSON.parse(String(reader.result || ""));
+        const importedMemory = importEloDataObject(parsed);
+        onDone({
+          ok: true,
+          counts: {
+            conversations: importedMemory.conversations.length,
+            personalMemories: importedMemory.personalMemories.length,
+            libraryItems: importedMemory.libraryItems.length,
+            projects: importedMemory.projects.length,
+            goals: importedMemory.goals.length
+          }
+        });
+      } catch (error) {
+        onDone({ ok: false, reason: "invalid" });
+      }
+    };
+    reader.onerror = function () {
+      onDone({ ok: false, reason: "read" });
+    };
+    reader.readAsText(file);
+  }
+
+  function clearAllEloData() {
+    const memory = normalizeMemory(null);
+    memory.isOpen = getWidgetState();
+    setMemory(memory);
+  }
+
   function getWidgetState() {
     return getMemory().isOpen;
   }
@@ -1683,6 +1763,10 @@
     projectsButton.type = "button";
     projectsButton.addEventListener("click", showProjects);
     container.appendChild(projectsButton);
+    const backupButton = createElement("button", "elo-inline-button", "Backup do Elo");
+    backupButton.type = "button";
+    backupButton.addEventListener("click", showEloBackup);
+    container.appendChild(backupButton);
     [
       ["Dúvidas recentes", showRecentQuestions],
       ["Minhas memórias", showPersonalMemories],
@@ -2606,6 +2690,86 @@
       confirmButton.disabled = true;
       cancelButton.disabled = true;
       appendMessage("system", "Limpeza de memórias pessoais cancelada.");
+    });
+
+    actions.appendChild(confirmButton);
+    actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function showEloBackup() {
+    const message = appendMessage("system", "Backup do Elo");
+    const panel = createElement("div", "elo-backup-panel");
+    const status = createElement("p", "elo-privacy", "Backup do Elo fica no seu dispositivo. Nada e enviado ao servidor.");
+    const actions = createElement("div", "elo-backup-actions");
+    const exportButton = createElement("button", "elo-inline-button", "Exportar JSON");
+    const importButton = createElement("button", "elo-inline-button", "Importar JSON");
+    const clearButton = createElement("button", "elo-memory-delete", "Limpar dados do Elo");
+    const fileInput = createElement("input", "elo-backup-file");
+
+    exportButton.type = "button";
+    importButton.type = "button";
+    clearButton.type = "button";
+    fileInput.type = "file";
+    fileInput.accept = ".json,application/json";
+
+    exportButton.addEventListener("click", function () {
+      const result = exportEloData();
+      status.textContent = result.ok
+        ? "Backup gerado: " + result.fileName + "."
+        : "Nao consegui gerar o arquivo neste navegador.";
+    });
+
+    importButton.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", function () {
+      importEloDataFromFile(fileInput.files && fileInput.files[0], function (result) {
+        if (result.ok) {
+          status.textContent = "Backup importado. Memorias: " + result.counts.personalMemories + ", Biblioteca: " + result.counts.libraryItems + ", Projetos: " + result.counts.projects + ", Objetivos: " + result.counts.goals + ".";
+          appendMessage("system", "Dados locais do Elo importados com sucesso. Dados do ObraReport nao foram alterados.");
+        } else {
+          status.textContent = "Nao consegui importar. Selecione um JSON de backup valido do Elo.";
+        }
+        fileInput.value = "";
+      });
+    });
+
+    clearButton.addEventListener("click", confirmClearAllEloData);
+
+    actions.appendChild(exportButton);
+    actions.appendChild(importButton);
+    actions.appendChild(clearButton);
+    panel.appendChild(status);
+    panel.appendChild(actions);
+    panel.appendChild(createElement("p", "elo-backup-note", "O arquivo inclui historico do Elo, memorias pessoais, Biblioteca, Projetos, Objetivos e feedback local."));
+    panel.appendChild(fileInput);
+    message.appendChild(panel);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function confirmClearAllEloData() {
+    const message = appendMessage("system", "Tem certeza? Isso apaga memorias, Biblioteca, Projetos, Objetivos, historico e feedback locais do Elo. Nao afeta dados do ObraReport.");
+    const actions = createElement("div", "elo-message-actions");
+    const confirmButton = createElement("button", "elo-memory-delete", "Confirmar limpeza");
+    const cancelButton = createElement("button", "elo-inline-button", "Cancelar");
+
+    confirmButton.type = "button";
+    cancelButton.type = "button";
+
+    confirmButton.addEventListener("click", function () {
+      clearAllEloData();
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Dados locais do Elo limpos. Dados do ObraReport nao foram alterados.");
+    });
+
+    cancelButton.addEventListener("click", function () {
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Limpeza completa do Elo cancelada.");
     });
 
     actions.appendChild(confirmButton);

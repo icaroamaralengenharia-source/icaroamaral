@@ -426,6 +426,60 @@
       min-height: 124px;
     }
 
+    .guided-demo {
+      display: grid;
+      gap: 22px;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.09), rgba(33, 115, 189, 0.08)),
+        #ffffff;
+    }
+
+    .guided-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .guided-step {
+      display: grid;
+      gap: 8px;
+      min-height: 132px;
+      padding: 15px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 14px 34px rgba(6, 26, 50, 0.08);
+    }
+
+    .guided-step span {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      font-weight: 900;
+    }
+
+    .guided-step strong {
+      color: var(--navy);
+      line-height: 1.25;
+    }
+
+    .guided-step small {
+      color: var(--muted);
+      font-weight: 750;
+      line-height: 1.4;
+    }
+
+    .guided-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
     .steps span {
       display: grid;
       place-items: center;
@@ -622,6 +676,59 @@
       font-weight: 850;
     }
 
+    .pilot-offer {
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(280px, 1fr);
+      gap: 22px;
+      align-items: center;
+      background:
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 22rem),
+        linear-gradient(135deg, #061a32, #0f5f8f);
+    }
+
+    .pilot-offer .eyebrow,
+    .pilot-offer h2,
+    .pilot-offer p {
+      color: #ffffff;
+    }
+
+    .pilot-offer p {
+      opacity: 0.86;
+    }
+
+    .pilot-card {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 22px 54px rgba(6, 26, 50, 0.16);
+      backdrop-filter: blur(10px);
+    }
+
+    .pilot-card strong {
+      color: #ffffff;
+      font-size: 1.7rem;
+    }
+
+    .pilot-card ul {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pilot-card li {
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: #eaf5ff;
+      background: rgba(255, 255, 255, 0.12);
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
     .final-cta {
       display: grid;
       justify-items: center;
@@ -656,8 +763,13 @@
       .cards,
       .value-grid,
       .plans,
-      .steps {
+      .steps,
+      .guided-flow {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .pilot-offer {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -703,6 +815,7 @@
       }
 
       .hero-actions,
+      .guided-actions,
       .mockup-list p {
         align-items: stretch;
         flex-direction: column;
@@ -721,7 +834,8 @@
       .cards,
       .value-grid,
       .plans,
-      .steps {
+      .steps,
+      .guided-flow {
         grid-template-columns: 1fr;
       }
 
@@ -820,6 +934,25 @@
         <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
         <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
         <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
+      </div>
+    </section>
+
+    <section class="section guided-demo" aria-labelledby="guided-demo-title">
+      <div>
+        <p class="eyebrow">Demonstra&ccedil;&atilde;o guiada</p>
+        <h2 id="guided-demo-title">Teste em 2 minutos: Obra Exemplo &rarr; RDO &rarr; Materiais &rarr; PDF &rarr; WhatsApp.</h2>
+        <p>Um caminho direto para entender o valor do ObraReport sem configurar nada antes. A ideia &eacute; ver o fluxo completo, do registro em campo at&eacute; o documento e o contato comercial.</p>
+      </div>
+      <div class="guided-flow" aria-label="Fluxo de teste em 2 minutos">
+        <article class="guided-step"><span>1</span><strong>Carregue a Obra Exemplo</strong><small>Abra uma demonstra&ccedil;&atilde;o pronta com dados t&eacute;cnicos.</small></article>
+        <article class="guided-step"><span>2</span><strong>Abra o RDO</strong><small>Veja clima, equipe, servi&ccedil;os, ocorr&ecirc;ncias e seguran&ccedil;a.</small></article>
+        <article class="guided-step"><span>3</span><strong>Revise Materiais</strong><small>Confira consumo, produ&ccedil;&atilde;o executada e auditoria.</small></article>
+        <article class="guided-step"><span>4</span><strong>Gere o PDF</strong><small>Veja o documento profissional que pode ser entregue ao cliente.</small></article>
+        <article class="guided-step"><span>5</span><strong>Chame no WhatsApp</strong><small>Solicite implanta&ccedil;&atilde;o assistida para sua obra real.</small></article>
+      </div>
+      <div class="guided-actions">
+        <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Testar demonstra&ccedil;&atilde;o guiada</a>
+        <a class="button secondary" href="https://wa.me/?text=Ola.%20Quero%20testar%20a%20demonstracao%20guiada%20do%20ObraReport%20e%20entender%20a%20implantacao%20assistida." target="_blank" rel="noopener">Falar no WhatsApp</a>
       </div>
     </section>
 
@@ -931,6 +1064,24 @@
           </ul>
           <a class="button primary plan-action" href="https://wa.me/?text=Ol%C3%A1.%0A%0ATenho%20interesse%20no%20plano%20Empresa%20do%20ObraReport.%0A%0ANome%3A%0AEmpresa%3A%0ACidade%3A%0AQuantidade%20de%20obras%3A%0AQuantidade%20de%20usu%C3%A1rios%3A%0APrincipal%20necessidade%3A" target="_blank" rel="noopener">Solicitar proposta</a>
         </article>
+      </div>
+    </section>
+
+    <section class="section pilot-offer" aria-labelledby="pilot-title">
+      <div>
+        <p class="eyebrow">Piloto pago</p>
+        <h2 id="pilot-title">Comece com implanta&ccedil;&atilde;o assistida por R$49/m&ecirc;s.</h2>
+        <p>Oferta simples para validar o ObraReport em obra real, com acompanhamento direto e sem checkout autom&aacute;tico nesta fase.</p>
+      </div>
+      <div class="pilot-card">
+        <strong>R$49/m&ecirc;s</strong>
+        <ul>
+          <li>Implanta&ccedil;&atilde;o assistida no primeiro acesso</li>
+          <li>WhatsApp direto para orientar o come&ccedil;o</li>
+          <li>Configuramos sua primeira obra e primeiro relat&oacute;rio</li>
+          <li>Pagamento e ativa&ccedil;&atilde;o feitos de forma assistida</li>
+        </ul>
+        <a class="button primary" href="https://wa.me/?text=Ola.%20Quero%20participar%20do%20piloto%20pago%20do%20ObraReport%20por%20R%2449%2Fmes%20com%20implantacao%20assistida." target="_blank" rel="noopener">Quero entrar no piloto</a>
       </div>
     </section>
 
