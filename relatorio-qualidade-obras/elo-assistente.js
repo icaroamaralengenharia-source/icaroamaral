@@ -203,6 +203,210 @@
     };
   }
 
+  // ELO_SESSION_MEMORY
+  const ELO_SESSION_MEMORY = {
+    lastQuestion: "",
+    lastAnswer: "",
+    lastTheme: "",
+    lastContext: "",
+    recentIntents: [],
+    lastRecommendation: ""
+  };
+
+  function rememberSessionTurn(question, response, answer) {
+    const normalizedQuestion = normalizeText(question);
+    const detectedTheme = response.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
+    const detectedIntent = response.sessionIntent || detectConversationIntent(normalizedQuestion);
+    ELO_SESSION_MEMORY.lastQuestion = sanitizeUserText(question).slice(0, 220);
+    ELO_SESSION_MEMORY.lastAnswer = sanitizeUserText(answer || "").slice(0, 900);
+    ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
+    ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
+    ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(response.nextAction || "").slice(0, 260);
+    if (detectedIntent) {
+      ELO_SESSION_MEMORY.recentIntents = [detectedIntent].concat(ELO_SESSION_MEMORY.recentIntents.filter(function (item) {
+        return item !== detectedIntent;
+      })).slice(0, 3);
+    }
+  }
+
+  function getSessionContinuationResponse(normalizedQuestion) {
+    if (!isSessionContinuationQuestion(normalizedQuestion)) {
+      return null;
+    }
+
+    const theme = getContinuationTheme(normalizedQuestion);
+    if (!theme) {
+      return {
+        shortAnswer: "Posso continuar, mas preciso de um tema.",
+        fullAnswer: "Me diga sobre qual parte do ObraReport você quer continuar: PDF, RDO, materiais, planos ou relatórios?",
+        nextAction: "Escreva, por exemplo: continuar sobre PDF ou continuar sobre materiais.",
+        canSave: false,
+        sessionTheme: "",
+        sessionIntent: "continuidade"
+      };
+    }
+
+    if (theme === "planos" && hasAnyTerm(normalizedQuestion, ["empresa", "plano empresa"])) {
+      const planAnswer = getGuidedStepResponse("plano empresa");
+      planAnswer.sessionTheme = "planos";
+      planAnswer.sessionIntent = "continuidade";
+      return planAnswer;
+    }
+
+    if (theme === "materiais" && hasAnyTerm(normalizedQuestion, ["audito", "auditoria", "auditar", "comparo", "comparar"])) {
+      const auditAnswer = getGuidedStepResponse("auditoria de consumo");
+      auditAnswer.sessionTheme = "auditoria";
+      auditAnswer.sessionIntent = "continuidade";
+      return auditAnswer;
+    }
+
+    const context = getCurrentScreenContext().label;
+    const themeAnswers = {
+      pdf: {
+        shortAnswer: "Depois do PDF, revise a entrega.",
+        fullAnswer: "Depois de gerar o PDF, você pode baixar o arquivo, enviar ao cliente ou compartilhar um resumo por WhatsApp, se essa opção estiver disponível.",
+        nextAction: "Abra o PDF gerado e confira se obra, fotos, conclusão e identificação estão corretas."
+      },
+      relatorio: {
+        shortAnswer: "Depois do relatório, revise antes de entregar.",
+        fullAnswer: "Confira cliente, obra, fotos, inconformidades, conclusão técnica e a etapa Gerar. Se estiver completo, avance para o PDF.",
+        nextAction: "Pergunte: posso gerar o PDF?"
+      },
+      rdo: {
+        shortAnswer: "No RDO, avance pelo que falta preencher.",
+        fullAnswer: "Confira data, obra, responsável, equipe, serviços, produção, materiais, ocorrências, fotos e resumo. Depois salve e gere o PDF do diário.",
+        nextAction: "Pergunte: revisar RDO."
+      },
+      materiais: {
+        shortAnswer: "Agora revise os materiais lançados.",
+        fullAnswer: "Confira se material, quantidade, unidade e valor fazem sentido. Se houver produção executada, compare o consumo registrado com o consumo estimado.",
+        nextAction: "Pergunte: como funciona auditoria de consumo?"
+      },
+      auditoria: {
+        shortAnswer: "Na auditoria, compare estimado e registrado.",
+        fullAnswer: "Veja se há produção executada, composições e materiais consumidos. A diferença ajuda a identificar consumo acima ou abaixo do previsto.",
+        nextAction: "Revise a auditoria antes de gerar o resumo do RDO."
+      },
+      planos: {
+        shortAnswer: "Nos planos, escolha o caminho comercial.",
+        fullAnswer: "Compare Gratuito, Profissional e Empresa. Para vender manualmente nesta fase, use o WhatsApp do plano adequado e siga com ativação assistida.",
+        nextAction: "Se for equipe ou construtora, avalie o plano Empresa."
+      },
+      whatsapp: {
+        shortAnswer: "Depois do WhatsApp, revise a mensagem.",
+        fullAnswer: "O ObraReport abre uma mensagem pronta. Revise obra, cliente, produção, materiais e ocorrências antes de enviar.",
+        nextAction: "Se o WhatsApp não abrir, verifique pop-ups e WhatsApp Web/app."
+      },
+      fotos: {
+        shortAnswer: "Depois das fotos, revise legendas e contexto.",
+        fullAnswer: "Confira se as fotos mostram claramente o problema, etapa da obra ou evidência. Use legenda objetiva antes de gerar o PDF.",
+        nextAction: "Depois avance para revisão/conclusão."
+      },
+      salvamento: {
+        shortAnswer: "Depois de salvar, confira o histórico.",
+        fullAnswer: "Veja se o item aparece na lista, histórico ou status da tela. Evite recarregar antes de confirmar o salvamento.",
+        nextAction: "Se houver dúvida, pergunte: o que está pendente?"
+      },
+      sincronizacao: {
+        shortAnswer: "Na sincronização, acompanhe o status da tela.",
+        fullAnswer: "Use o status local/nuvem exibido pelo ObraReport. Se algo não sincronizar, mantenha a página aberta e tente salvar novamente.",
+        nextAction: "Não limpe o navegador antes de confirmar os dados."
+      },
+      cliente: {
+        shortAnswer: "Depois do cliente, vincule uma obra.",
+        fullAnswer: "O cliente organiza obras, relatórios e RDOs. Depois de cadastrar, crie a obra vinculada e siga para relatório ou diário.",
+        nextAction: "Abra Obras para cadastrar ou revisar a obra vinculada."
+      },
+      obra: {
+        shortAnswer: "Depois da obra, escolha o documento.",
+        fullAnswer: "Com a obra cadastrada, você pode criar relatório técnico, RDO, lançar materiais e gerar PDFs profissionais.",
+        nextAction: "Escolha Relatórios ou Diário de Obras."
+      },
+      suporte: {
+        shortAnswer: "No suporte, descreva o problema de forma objetiva.",
+        fullAnswer: "Informe a tela, o que tentou fazer e a mensagem exibida. Isso ajuda a orientar a implantação ou correção.",
+        nextAction: "Use WhatsApp de suporte quando estiver configurado."
+      }
+    };
+
+    const answer = themeAnswers[theme] || {
+      shortAnswer: "Vamos continuar pelo contexto atual.",
+      fullAnswer: "Você estava falando sobre " + theme + " em " + (ELO_SESSION_MEMORY.lastContext || context) + ".",
+      nextAction: ELO_SESSION_MEMORY.lastRecommendation || "Pergunte o que falta preencher ou o que devo fazer agora."
+    };
+
+    return Object.assign({}, answer, {
+      canSave: false,
+      sessionTheme: theme,
+      sessionIntent: "continuidade"
+    });
+  }
+
+  function isSessionContinuationQuestion(normalizedQuestion) {
+    const exact = [
+      "e depois",
+      "e agora",
+      "como faco isso",
+      "como faço isso",
+      "pode explicar melhor",
+      "me diga o proximo passo",
+      "me diga o próximo passo",
+      "continua",
+      "sim",
+      "nao entendi",
+      "não entendi",
+      "o que falta"
+    ];
+    return exact.some(function (item) {
+      const normalizedItem = normalizeText(item);
+      return normalizedQuestion === normalizedItem || normalizedQuestion.indexOf(normalizedItem + " ") === 0;
+    }) || (normalizedQuestion.indexOf("e ") === 0 && normalizedQuestion.length <= 80);
+  }
+
+  function getContinuationTheme(normalizedQuestion) {
+    return detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
+  }
+
+  function detectConversationTheme(normalizedQuestion) {
+    const themes = [
+      ["pdf", ["pdf", "gerar pdf", "baixar pdf", "documento"]],
+      ["relatorio", ["relatorio", "relatórios", "relatorio tecnico", "qualidade"]],
+      ["rdo", ["rdo", "diario", "diário", "diario de obra"]],
+      ["materiais", ["material", "materiais", "consumo"]],
+      ["auditoria", ["auditoria", "audito", "auditar", "comparar consumo"]],
+      ["planos", ["plano", "planos", "profissional", "empresa", "gratuito"]],
+      ["whatsapp", ["whatsapp", "zap", "mensagem"]],
+      ["fotos", ["foto", "fotos", "imagem", "imagens"]],
+      ["salvamento", ["salvar", "salvamento", "salvo"]],
+      ["sincronizacao", ["sincronizar", "sincronizacao", "sincronização", "nuvem"]],
+      ["cliente", ["cliente", "clientes"]],
+      ["obra", ["obra", "obras"]],
+      ["suporte", ["suporte", "ajuda", "problema"]]
+    ];
+    const match = themes.find(function (item) {
+      return item[1].some(function (term) {
+        return normalizedQuestion.indexOf(normalizeText(term)) >= 0;
+      });
+    });
+    return match ? match[0] : "";
+  }
+
+  function detectConversationIntent(normalizedQuestion) {
+    if (isSessionContinuationQuestion(normalizedQuestion)) {
+      return "continuidade";
+    }
+    if (hasAnyTerm(normalizedQuestion, ["como", "passo", "fazer", "criar", "gerar"])) {
+      return "orientacao";
+    }
+    if (hasAnyTerm(normalizedQuestion, ["revisar", "pendente", "falta", "posso"])) {
+      return "revisao";
+    }
+    if (hasAnyTerm(normalizedQuestion, ["nao", "não", "erro", "sumiu", "nao abre", "não abre"])) {
+      return "diagnostico";
+    }
+    return "pergunta";
+  }
+
   function saveConversation(question, answer) {
     const memory = getMemory();
     memory.conversations.unshift({
@@ -1571,6 +1775,16 @@
       return greeting;
     }
 
+    const sessionContinuation = getSessionContinuationResponse(normalizedQuestion);
+    if (sessionContinuation) {
+      return sessionContinuation;
+    }
+
+    const visibleDataAnswer = getVisibleDataKnowledgeResponse(normalizedQuestion);
+    if (visibleDataAnswer) {
+      return visibleDataAnswer;
+    }
+
     const operational = getOperationalAssistantResponse(normalizedQuestion);
     if (operational) {
       return operational;
@@ -1636,6 +1850,9 @@
     const missingQuestion = hasAnyTerm(normalizedQuestion, [
       "o que falta",
       "falta preencher",
+      "faltando",
+      "o que esta faltando",
+      "o que está faltando",
       "o que esta pendente",
       "o que está pendente",
       "pendente",
@@ -1730,6 +1947,203 @@
     }
 
     return null;
+  }
+
+  function getVisibleDataKnowledgeResponse(normalizedQuestion) {
+    const context = getOperationalScreenContext();
+
+    if (hasAnyTerm(normalizedQuestion, ["resuma esta tela", "resumo desta tela", "o que estou vendo", "o que tem aqui", "me de um resumo", "me dê um resumo"])) {
+      return buildCurrentScreenSummaryResponse(context);
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["posso gerar pdf", "posso gerar o pdf", "esta pronto para pdf", "está pronto para pdf", "posso exportar", "falta algo antes do pdf"])) {
+      return buildPdfReadinessResponse(context);
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual obra estou vendo", "qual obra", "obra atual", "ultima obra", "última obra"])) {
+      return buildVisibleSingleDataResponse("obra", context.work || context.clientWorks, "Abra Obras, Relatórios ou Diário de Obras para eu ler a obra visível.", "obra");
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual cliente estou vendo", "qual cliente", "cliente atual"])) {
+      return buildVisibleSingleDataResponse("cliente", context.client, "Abra Clientes, Obras ou Relatórios para eu ler o cliente visível.", "cliente");
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual relatorio estou vendo", "qual relatório estou vendo", "qual relatorio", "qual relatório", "ultimo relatorio", "último relatório", "qual foi o ultimo relatorio", "qual foi o último relatório", "ultimo documento", "último documento"])) {
+      return buildVisibleSingleDataResponse("relatório", context.report || context.clientReports || context.clientDocs, "Não encontrei uma lista visível de relatórios nesta tela.", "relatorio");
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["qual rdo estou vendo", "qual rdo", "ultimo rdo", "último rdo", "qual foi o ultimo rdo", "qual foi o último rdo"])) {
+      return buildVisibleSingleDataResponse("RDO", context.diary || context.clientRdos, "Não encontrei uma lista visível de RDOs nesta tela.", "rdo");
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho materiais registrados", "material registrado", "materiais registrados", "quantos materiais", "quantos materiais aparecem"])) {
+      return buildVisibleCollectionResponse(
+        "materiais",
+        context.materials,
+        context.materialCount,
+        ["nenhum material registrado", "nenhum consumo registrado", "r$ 0,00"],
+        "Abra a seção Materiais do RDO ou confira se os materiais foram preenchidos.",
+        "materiais"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produção lançada", "producao lancada", "produção lançada", "quantos registros de producao", "quantos registros de produção"])) {
+      return buildVisibleCollectionResponse(
+        "produção executada",
+        context.production,
+        context.productionCount,
+        ["nenhuma producao registrada", "nenhuma producao executada registrada"],
+        "Abra Produção Executada no RDO ou confira se os dados foram preenchidos.",
+        "materiais"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["tenho fotos anexadas", "foto anexada", "fotos anexadas", "quantas fotos", "tem foto"])) {
+      return buildVisibleCollectionResponse(
+        "fotos",
+        context.photos,
+        context.photoCount,
+        ["nenhuma foto", "0 fotos", "0"],
+        "Abra Fotos no relatório ou RDO para eu ler anexos visíveis.",
+        "fotos"
+      );
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["existem ocorrencias", "existem ocorrências", "existe ocorrencia", "existe ocorrência", "ocorrencias registradas", "ocorrências registradas"])) {
+      const hasOccurrences = hasUsefulValue(context.occurrences) && !isEmptyScreenText(context.occurrences, ["nenhuma ocorrencia", "nenhuma ocorrência"]);
+      return {
+        shortAnswer: hasOccurrences ? "✅ Encontrei ocorrência registrada visível." : "⚠️ Não encontrei ocorrência registrada visível.",
+        fullAnswer: hasOccurrences ? context.occurrences : getMissingVisibleDataMessage(),
+        nextAction: hasOccurrences ? "Revise descrição, providências e segurança antes de salvar." : "Abra Intercorrências/Segurança e confira se algo foi preenchido.",
+        canSave: false,
+        sessionTheme: "rdo",
+        sessionIntent: "dados_visiveis"
+      };
+    }
+
+    if (hasAnyTerm(normalizedQuestion, ["quais indicadores aparecem", "indicadores aparecem", "quais indicadores", "indicadores visiveis", "indicadores visíveis"])) {
+      return {
+        shortAnswer: context.indicators.length ? "✅ Encontrei indicadores visíveis." : "⚠️ Não encontrei indicadores visíveis.",
+        fullAnswer: context.indicators.length ? context.indicators.join("\n") : getMissingVisibleDataMessage(),
+        nextAction: context.indicators.length ? "Use esses números para decidir o próximo registro ou revisão." : "Abra Dashboard, Diário ou Página do Cliente para ver indicadores.",
+        canSave: false,
+        sessionTheme: "relatorio",
+        sessionIntent: "dados_visiveis"
+      };
+    }
+
+    return null;
+  }
+
+  function buildCurrentScreenSummaryResponse(context) {
+    const checklist = buildScreenChecklist(context);
+    const found = checklist.items.filter(function (item) { return item.done; }).slice(0, 5);
+    const pending = checklist.items.filter(function (item) { return !item.done; }).slice(0, 5);
+    const foundLines = found.length ? found.map(function (item) { return "✅ " + item.label; }) : ["⚠️ Não encontrei dados preenchidos visíveis."];
+    const pendingLines = pending.length ? pending.map(function (item) { return "⚠️ " + item.label; }) : ["✅ Não encontrei pendências visíveis."];
+    return {
+      shortAnswer: "Resumo da tela atual.",
+      fullAnswer: [
+        "Você está em: " + context.screen,
+        "",
+        "Encontrei:",
+        foundLines.join("\n"),
+        "",
+        "Pendências ou observações:",
+        pendingLines.join("\n")
+      ].join("\n"),
+      nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
+      canSave: false,
+      sessionTheme: detectThemeFromScreen(context.screen),
+      sessionIntent: "resumo_tela"
+    };
+  }
+
+  function buildPdfReadinessResponse(context) {
+    const checklist = buildScreenChecklist(context);
+    const relevant = checklist.items.filter(function (item) {
+      return hasAnyTerm(normalizeText(item.label), ["cliente", "obra", "relatorio", "relatório", "rdo", "fotos", "conclusao", "conclusão", "resumo", "botao", "botão"]);
+    });
+    const pending = (relevant.length ? relevant : checklist.items).filter(function (item) {
+      return !item.done;
+    });
+
+    if (!pending.length && context.pdfAvailable) {
+      return {
+        shortAnswer: "✅ Pronto para gerar PDF.",
+        fullAnswer: "Pelo que está visível, não encontrei pendências críticas antes do PDF.",
+        nextAction: "Gere o PDF e revise o arquivo antes de entregar ao cliente.",
+        canSave: false,
+        sessionTheme: "pdf",
+        sessionIntent: "revisao_pdf"
+      };
+    }
+
+    return {
+      shortAnswer: "⚠️ Ainda recomendo revisar antes do PDF.",
+      fullAnswer: pending.length ? pending.map(function (item) {
+        return "⚠️ " + item.label;
+      }).join("\n") : "⚠️ Não encontrei o botão/etapa de PDF visível nesta tela.",
+      nextAction: context.pdfAvailable ? "Revise os itens pendentes e então gere o PDF." : "Abra a etapa Gerar/Encerramento para confirmar o botão de PDF.",
+      canSave: false,
+      sessionTheme: "pdf",
+      sessionIntent: "revisao_pdf"
+    };
+  }
+
+  function buildVisibleSingleDataResponse(label, value, fallback, theme) {
+    const hasValue = hasUsefulValue(value);
+    return {
+      shortAnswer: hasValue ? "✅ " + capitalizeFirst(label) + " visível: " + value : "⚠️ Não encontrei " + label + " visível nesta tela.",
+      fullAnswer: hasValue ? "Estou lendo apenas o que aparece na tela atual." : fallback,
+      nextAction: hasValue ? "Use essa informação para revisar o fluxo atual." : "Abra a seção correspondente ou confira se os dados foram preenchidos.",
+      canSave: false,
+      sessionTheme: theme,
+      sessionIntent: "dados_visiveis"
+    };
+  }
+
+  function buildVisibleCollectionResponse(label, value, count, emptyTerms, fallback, theme) {
+    const hasValue = value && !isEmptyScreenText(value, emptyTerms || []);
+    let shortAnswer = "⚠️ Não encontrei " + label + " visível nesta tela.";
+    let fullAnswer = fallback || getMissingVisibleDataMessage();
+    if (count > 0) {
+      shortAnswer = "✅ Encontrei " + count + " item(ns) de " + label + " visíveis.";
+      fullAnswer = value || "A contagem foi feita pelos itens visíveis da tela atual.";
+    } else if (hasValue) {
+      shortAnswer = "✅ Encontrei sinais de " + label + " na tela.";
+      fullAnswer = "Encontrei informação visível, mas não consegui contar com segurança.\n\n" + value;
+    }
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: fullAnswer,
+      nextAction: hasValue || count > 0 ? "Revise os itens antes de salvar ou gerar PDF." : "Abra a seção correspondente ou confira se os dados foram preenchidos.",
+      canSave: false,
+      sessionTheme: theme,
+      sessionIntent: "dados_visiveis"
+    };
+  }
+
+  function detectThemeFromScreen(screenLabel) {
+    const normalized = normalizeText(screenLabel || "");
+    if (normalized.indexOf("diario") >= 0) {
+      return "rdo";
+    }
+    if (normalized.indexOf("relatorio") >= 0) {
+      return "relatorio";
+    }
+    if (normalized.indexOf("plano") >= 0) {
+      return "planos";
+    }
+    if (normalized.indexOf("cliente") >= 0) {
+      return "cliente";
+    }
+    return "relatorio";
+  }
+
+  function capitalizeFirst(text) {
+    const value = String(text || "");
+    return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
   }
 
   function buildOperationalPresenceResponse(label, value, emptyTerms, emptyNextAction) {
@@ -1961,7 +2375,7 @@
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["como adicionar materiais", "adicionar material", "registrar materiais", "lancar materiais", "lançar materiais"])) {
+    if (hasAnyTerm(normalizedQuestion, ["como adicionar materiais", "como adiciono materiais", "adicionar material", "registrar materiais", "lancar materiais", "lançar materiais"])) {
       return buildStepResponse(
         "Para adicionar materiais:",
         [
@@ -1991,7 +2405,7 @@
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["como funciona auditoria", "auditoria de consumo", "usar auditoria", "auditoria materiais"])) {
+    if (hasAnyTerm(normalizedQuestion, ["como funciona auditoria", "como audito", "audito", "auditar", "auditoria de consumo", "usar auditoria", "auditoria materiais"])) {
       return buildStepResponse(
         "A auditoria de consumo funciona assim:",
         [
@@ -2484,16 +2898,19 @@
         getVisibleText("#dailyLogAuditPanel"),
         getVisibleText("#dailyLogMaterialTotal")
       ], []),
+      materialCount: getVisibleItemCount("#dailyLogMaterialsList"),
       production: firstUsefulText([
         getVisibleText("#dailyLogProductionSummary"),
         getVisibleText("#dailyLogProductionsList")
       ], []),
+      productionCount: getVisibleItemCount("#dailyLogProductionsList"),
       photos: firstUsefulText([
         dailyPhotoText,
         dailyPhotoInput,
         reportPhotoCount ? reportPhotoCount + " fotos" : "",
         getVisibleText("#fotosUnidade")
       ], []),
+      photoCount: getVisibleItemCount("#dailyLogPhotosList") || parseVisibleNumber(reportPhotoCount) || getVisibleItemCount("#fotosUnidade"),
       occurrences: occurrenceText,
       summary: dailySummary,
       conclusion: reportConclusion,
@@ -2597,6 +3014,21 @@
       return isElementVisible(child) && cleanScreenText(child.textContent || "");
     });
     return cleanScreenText((firstChild || list).textContent || "");
+  }
+
+  function getVisibleItemCount(selector) {
+    const list = document.querySelector(selector);
+    if (!list || !isElementVisible(list) || list.classList.contains("empty-list")) {
+      return 0;
+    }
+    return Array.prototype.filter.call(list.children || [], function (child) {
+      return isElementVisible(child) && cleanScreenText(child.textContent || "");
+    }).length;
+  }
+
+  function parseVisibleNumber(text) {
+    const match = String(text || "").match(/\d+/);
+    return match ? Number(match[0]) : 0;
   }
 
   function getFileInputSummary(selector) {
@@ -2869,12 +3301,20 @@
       const blockedAnswer = "Por segurança, não vou guardar esse tipo de informação.";
       appendAssistantMessage(cleanQuestion, blockedAnswer, false);
       saveConversation(cleanQuestion, blockedAnswer);
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Faça uma pergunta sem dados sensíveis.",
+        sessionIntent: "seguranca"
+      }, blockedAnswer);
       return;
     }
 
     if (personalMemoryCandidate) {
       appendPersonalMemoryPrompt(cleanQuestion, personalMemoryCandidate);
       saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória pessoal.");
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Escolha Sim, lembrar ou Não.",
+        sessionIntent: "memoria_pessoal"
+      }, "O Elo perguntou se deve guardar uma memória pessoal.");
       return;
     }
 
@@ -2882,6 +3322,7 @@
     const answer = formatResponse(response);
     appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
     saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
   }
 
   function appendMessage(kind, text) {
