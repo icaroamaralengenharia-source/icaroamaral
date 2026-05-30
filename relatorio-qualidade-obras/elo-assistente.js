@@ -196,6 +196,8 @@
       usefulAnswers: Array.isArray(memory && memory.usefulAnswers) ? memory.usefulAnswers.slice(0, ELO_CONFIG.maxHistory) : [],
       personalMemories: Array.isArray(memory && memory.personalMemories) ? memory.personalMemories.slice(0, ELO_CONFIG.maxHistory) : [],
       libraryItems: Array.isArray(memory && memory.libraryItems) ? memory.libraryItems : [],
+      projects: Array.isArray(memory && memory.projects) ? memory.projects : [],
+      goals: Array.isArray(memory && memory.goals) ? memory.goals : [],
       feedback: Array.isArray(memory && memory.feedback) ? memory.feedback.slice(0, ELO_CONFIG.maxHistory) : [],
       isOpen: Boolean(memory && memory.isOpen)
     };
@@ -257,6 +259,8 @@
     memory.isOpen = getWidgetState();
     memory.personalMemories = currentMemory.personalMemories || [];
     memory.libraryItems = currentMemory.libraryItems || [];
+    memory.projects = currentMemory.projects || [];
+    memory.goals = currentMemory.goals || [];
     setMemory(memory);
   }
 
@@ -663,6 +667,438 @@
     };
   }
 
+  // ELO_PROJECTS
+  const ELO_PROJECT_STATUSES = ["ativo", "pausado", "concluido", "ideia"];
+  const ELO_PROJECT_PRIORITIES = ["alta", "media", "baixa"];
+  const ELO_PROJECT_SUGGESTIONS = [
+    {
+      name: "ObraReport",
+      status: "ativo",
+      priority: "alta",
+      description: "SaaS de relatórios, RDO, materiais, PDF e Elo Assistente.",
+      nextAction: "Continuar evolução comercial e validar com clientes.",
+      notes: ""
+    },
+    {
+      name: "Stock IA",
+      status: "ideia",
+      priority: "media",
+      description: "App/controle inteligente de almoxarifado com OCR, IA e estoque offline.",
+      nextAction: "Definir MVP e primeiro fluxo de estoque.",
+      notes: ""
+    },
+    {
+      name: "CADISTA IA",
+      status: "pausado",
+      priority: "media",
+      description: "Copiloto técnico para transformar croquis/PDFs em plantas, cortes e pranchas.",
+      nextAction: "Retomar motor geométrico quando ObraReport estabilizar.",
+      notes: ""
+    },
+    {
+      name: "Elo",
+      status: "ativo",
+      priority: "alta",
+      description: "Companheiro digital com memória, biblioteca, rotina e futura busca/voz/hardware.",
+      nextAction: "Evoluir projetos, objetivos e contexto pessoal.",
+      notes: ""
+    }
+  ];
+
+  function createProjectId() {
+    return "proj_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeProjectStatus(status) {
+    const normalizedStatus = normalizeText(status);
+    return ELO_PROJECT_STATUSES.find(function (item) {
+      return normalizeText(item) === normalizedStatus;
+    }) || "ativo";
+  }
+
+  function normalizeProjectPriority(priority) {
+    const normalizedPriority = normalizeText(priority);
+    return ELO_PROJECT_PRIORITIES.find(function (item) {
+      return normalizeText(item) === normalizedPriority;
+    }) || "media";
+  }
+
+  function getProjects() {
+    const priorityScore = {
+      alta: 0,
+      media: 1,
+      baixa: 2
+    };
+    const statusScore = {
+      ativo: 0,
+      ideia: 1,
+      pausado: 2,
+      concluido: 3
+    };
+
+    return (getMemory().projects || []).slice().sort(function (first, second) {
+      const firstPriority = priorityScore[first.priority] !== undefined ? priorityScore[first.priority] : 9;
+      const secondPriority = priorityScore[second.priority] !== undefined ? priorityScore[second.priority] : 9;
+      if (firstPriority !== secondPriority) {
+        return firstPriority - secondPriority;
+      }
+
+      const firstStatus = statusScore[first.status] !== undefined ? statusScore[first.status] : 9;
+      const secondStatus = statusScore[second.status] !== undefined ? statusScore[second.status] : 9;
+      if (firstStatus !== secondStatus) {
+        return firstStatus - secondStatus;
+      }
+
+      return new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0);
+    });
+  }
+
+  function getProjectById(id) {
+    return getProjects().find(function (project) {
+      return project.id === id;
+    }) || null;
+  }
+
+  function findProjectByName(name) {
+    const normalizedName = normalizeText(name);
+    return getProjects().find(function (project) {
+      return normalizeText(project.name) === normalizedName || normalizeText(project.name).indexOf(normalizedName) >= 0;
+    }) || null;
+  }
+
+  function getMainProject() {
+    return getProjects().find(function (project) {
+      return project.status === "ativo" && project.priority === "alta";
+    }) || getProjects().find(function (project) {
+      return project.priority === "alta";
+    }) || getProjects()[0] || null;
+  }
+
+  function saveProject(input) {
+    const name = sanitizeLibraryText(input && input.name, 120);
+    const description = sanitizeLibraryText(input && input.description, 600);
+    const nextAction = sanitizeLibraryText(input && input.nextAction, 300);
+    const notes = sanitizeLibraryText(input && input.notes, 1000);
+    const status = normalizeProjectStatus(input && input.status);
+    const priority = normalizeProjectPriority(input && input.priority);
+
+    if (!name) {
+      return { ok: false, reason: "missing" };
+    }
+
+    if (isSensitiveLibraryContent(name, description, nextAction, notes)) {
+      return { ok: false, reason: "sensitive" };
+    }
+
+    const memory = getMemory();
+    const now = new Date().toISOString();
+    const existing = input && input.id ? getProjectById(input.id) : null;
+    const project = {
+      id: existing ? existing.id : createProjectId(),
+      name: name,
+      status: status,
+      priority: priority,
+      description: description,
+      nextAction: nextAction,
+      notes: notes,
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now
+    };
+
+    memory.projects = (memory.projects || []).filter(function (item) {
+      return item.id !== project.id;
+    });
+    memory.projects.unshift(project);
+    setMemory(memory);
+    return { ok: true, project: project };
+  }
+
+  function deleteProject(id) {
+    const memory = getMemory();
+    memory.projects = (memory.projects || []).filter(function (project) {
+      return project.id !== id;
+    });
+    memory.goals = (memory.goals || []).map(function (goal) {
+      if (goal.projectId !== id) {
+        return goal;
+      }
+      return Object.assign({}, goal, {
+        projectId: "",
+        updatedAt: new Date().toISOString()
+      });
+    });
+    setMemory(memory);
+  }
+
+  function updateProjectStatus(id, status) {
+    const memory = getMemory();
+    memory.projects = (memory.projects || []).map(function (project) {
+      if (project.id !== id) {
+        return project;
+      }
+      return Object.assign({}, project, {
+        status: normalizeProjectStatus(status),
+        updatedAt: new Date().toISOString()
+      });
+    });
+    setMemory(memory);
+  }
+
+  function addSuggestedProjects() {
+    let added = 0;
+    ELO_PROJECT_SUGGESTIONS.forEach(function (suggestion) {
+      if (!findProjectByName(suggestion.name)) {
+        const result = saveProject(suggestion);
+        if (result.ok) {
+          added += 1;
+        }
+      }
+    });
+    return added;
+  }
+
+  function answerProjectQuestion(question) {
+    const text = normalizeText(question);
+    const projects = getProjects();
+
+    if (!projects.length) {
+      if (text.indexOf("projeto") >= 0 || text.indexOf("objetivo") >= 0) {
+        return {
+          shortAnswer: "Ainda não há projetos salvos no Elo.",
+          fullAnswer: "Abra Projetos para adicionar seus projetos ou usar a lista sugerida com ObraReport, Stock IA, CADISTA IA e Elo.",
+          nextAction: "Clique em Projetos no painel do Elo.",
+          canSave: false
+        };
+      }
+      return null;
+    }
+
+    if (text.indexOf("quais sao meus projetos") >= 0 || text.indexOf("quais são meus projetos") >= 0) {
+      return {
+        shortAnswer: "Seus projetos salvos são:",
+        fullAnswer: projects.map(function (project) {
+          return "- " + project.name + " (" + project.status + ", prioridade " + project.priority + ")";
+        }).join("\n"),
+        nextAction: "Abra Projetos para revisar, editar ou mudar status.",
+        canSave: false
+      };
+    }
+
+    if (text.indexOf("qual meu projeto principal") >= 0) {
+      const mainProject = getMainProject();
+      return {
+        shortAnswer: "Seu projeto de maior prioridade é " + mainProject.name + ".",
+        fullAnswer: mainProject.description || "Ele está salvo na área Projetos do Elo.",
+        nextAction: mainProject.nextAction || "Defina uma próxima ação para esse projeto.",
+        canSave: false
+      };
+    }
+
+    if (text.indexOf("quais projetos estao ativos") >= 0 || text.indexOf("quais projetos estão ativos") >= 0) {
+      const activeProjects = projects.filter(function (project) {
+        return project.status === "ativo";
+      });
+      return {
+        shortAnswer: activeProjects.length ? "Seus projetos ativos são: " + activeProjects.map(function (project) { return project.name; }).join(", ") + "." : "Você não tem projetos ativos salvos agora.",
+        fullAnswer: activeProjects.map(function (project) {
+          return "- " + project.name + ": " + (project.nextAction || "sem próxima ação definida");
+        }).join("\n") || "Marque um projeto como ativo na área Projetos.",
+        nextAction: "Abra Projetos para escolher o foco atual.",
+        canSave: false
+      };
+    }
+
+    if (text.indexOf("quais estao pausados") >= 0 || text.indexOf("quais estão pausados") >= 0) {
+      const pausedProjects = projects.filter(function (project) {
+        return project.status === "pausado";
+      });
+      return {
+        shortAnswer: pausedProjects.length ? "Projetos pausados: " + pausedProjects.map(function (project) { return project.name; }).join(", ") + "." : "Não há projetos pausados salvos.",
+        fullAnswer: pausedProjects.map(function (project) {
+          return "- " + project.name + ": " + (project.description || "sem descrição");
+        }).join("\n") || "Nada pausado por enquanto.",
+        nextAction: "Você pode reativar um projeto pela área Projetos.",
+        canSave: false
+      };
+    }
+
+    if (text.indexOf("o que devo continuar") >= 0) {
+      const mainProject = getMainProject();
+      return {
+        shortAnswer: "Eu continuaria por " + mainProject.name + ".",
+        fullAnswer: mainProject.description || "Esse parece ser seu projeto mais importante agora.",
+        nextAction: mainProject.nextAction || "Defina uma próxima ação objetiva para avançar.",
+        canSave: false
+      };
+    }
+
+    const remindMatch = text.match(/me lembre do (.+)$/);
+    if (remindMatch && remindMatch[1]) {
+      const project = findProjectByName(remindMatch[1]);
+      if (project) {
+        return {
+          shortAnswer: project.name + " está registrado como " + project.status + ".",
+          fullAnswer: project.description || "Sem descrição salva.",
+          nextAction: project.nextAction || "Defina a próxima ação desse projeto.",
+          canSave: false
+        };
+      }
+    }
+
+    return null;
+  }
+
+  // ELO_GOALS
+  const ELO_GOAL_STATUSES = ["aberto", "em_andamento", "concluido"];
+  const ELO_GOAL_SUGGESTIONS = [
+    "vender o ObraReport",
+    "terminar Stock IA",
+    "comprar ESP32",
+    "publicar landing",
+    "testar com cliente"
+  ];
+
+  function createGoalId() {
+    return "goal_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeGoalStatus(status) {
+    const normalizedStatus = normalizeText(status);
+    return ELO_GOAL_STATUSES.find(function (item) {
+      return normalizeText(item) === normalizedStatus;
+    }) || "aberto";
+  }
+
+  function getGoals() {
+    const statusScore = {
+      em_andamento: 0,
+      aberto: 1,
+      concluido: 2
+    };
+
+    return (getMemory().goals || []).slice().sort(function (first, second) {
+      const firstStatus = statusScore[first.status] !== undefined ? statusScore[first.status] : 9;
+      const secondStatus = statusScore[second.status] !== undefined ? statusScore[second.status] : 9;
+      if (firstStatus !== secondStatus) {
+        return firstStatus - secondStatus;
+      }
+      return new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0);
+    });
+  }
+
+  function saveGoal(input) {
+    const title = sanitizeLibraryText(input && input.title, 160);
+    const projectId = sanitizeUserText(input && input.projectId);
+    const status = normalizeGoalStatus(input && input.status);
+    const targetDate = sanitizeUserText(input && input.targetDate);
+
+    if (!title) {
+      return { ok: false, reason: "missing" };
+    }
+
+    if (isSensitiveLibraryContent(title, targetDate)) {
+      return { ok: false, reason: "sensitive" };
+    }
+
+    const memory = getMemory();
+    const now = new Date().toISOString();
+    const existing = input && input.id ? getGoals().find(function (goal) { return goal.id === input.id; }) : null;
+    const goal = {
+      id: existing ? existing.id : createGoalId(),
+      title: title,
+      projectId: projectId,
+      status: status,
+      targetDate: targetDate,
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now
+    };
+
+    memory.goals = (memory.goals || []).filter(function (item) {
+      return item.id !== goal.id;
+    });
+    memory.goals.unshift(goal);
+    setMemory(memory);
+    return { ok: true, goal: goal };
+  }
+
+  function deleteGoal(id) {
+    const memory = getMemory();
+    memory.goals = (memory.goals || []).filter(function (goal) {
+      return goal.id !== id;
+    });
+    setMemory(memory);
+  }
+
+  function updateGoalStatus(id, status) {
+    const memory = getMemory();
+    memory.goals = (memory.goals || []).map(function (goal) {
+      if (goal.id !== id) {
+        return goal;
+      }
+      return Object.assign({}, goal, {
+        status: normalizeGoalStatus(status),
+        updatedAt: new Date().toISOString()
+      });
+    });
+    setMemory(memory);
+  }
+
+  function addSuggestedGoals() {
+    let added = 0;
+    ELO_GOAL_SUGGESTIONS.forEach(function (title) {
+      const exists = getGoals().some(function (goal) {
+        return normalizeText(goal.title) === normalizeText(title);
+      });
+      if (!exists && saveGoal({ title: title, status: "aberto", projectId: "" }).ok) {
+        added += 1;
+      }
+    });
+    return added;
+  }
+
+  function answerGoalQuestion(question) {
+    const text = normalizeText(question);
+    const goals = getGoals();
+    const openGoals = goals.filter(function (goal) {
+      return goal.status !== "concluido";
+    });
+
+    if (!goals.length) {
+      if (text.indexOf("objetivo") >= 0 || text.indexOf("pendente") >= 0) {
+        return {
+          shortAnswer: "Ainda não há objetivos salvos no Elo.",
+          fullAnswer: "Abra Projetos > Objetivos para adicionar objetivos ou usar a lista sugerida.",
+          nextAction: "Clique em Projetos no painel do Elo.",
+          canSave: false
+        };
+      }
+      return null;
+    }
+
+    if (text.indexOf("quais sao meus objetivos") >= 0 || text.indexOf("quais são meus objetivos") >= 0 || text.indexOf("o que esta pendente") >= 0 || text.indexOf("o que está pendente") >= 0) {
+      return {
+        shortAnswer: openGoals.length ? "Seus objetivos abertos/em andamento são:" : "Você não tem objetivos pendentes agora.",
+        fullAnswer: openGoals.map(function (goal) {
+          return "- " + goal.title + " (" + goal.status + ")" + (goal.targetDate ? " até " + goal.targetDate : "");
+        }).join("\n") || "Os objetivos salvos estão concluídos.",
+        nextAction: "Abra Projetos para marcar objetivos como concluídos ou adicionar novos.",
+        canSave: false
+      };
+    }
+
+    if (text.indexOf("qual meu proximo objetivo") >= 0 || text.indexOf("qual meu próximo objetivo") >= 0 || text.indexOf("o que quero fazer com o obrareport") >= 0) {
+      const goal = openGoals[0] || goals[0];
+      return {
+        shortAnswer: "Seu próximo objetivo é: " + goal.title + ".",
+        fullAnswer: "Status: " + goal.status + (goal.targetDate ? "\nPrazo: " + goal.targetDate : ""),
+        nextAction: "Avance uma pequena etapa desse objetivo hoje.",
+        canSave: false
+      };
+    }
+
+    return null;
+  }
+
   // ELO_TEXT_UTILS
   function sanitizeUserText(value) {
     return String(value || "")
@@ -779,10 +1215,26 @@
     const libraryItems = getDailyRoutineLibraryItems();
     const usefulAnswers = getDailyRoutineUsefulAnswers();
     const recentQuestions = getDailyRoutineRecentQuestions();
+    const mainProject = getMainProject();
+    const activeProjects = getProjects().filter(function (project) {
+      return project.status === "ativo";
+    }).slice(0, 3);
     const details = [
       "Ainda não estou conectado ao clima real, mas posso te ajudar a começar o dia.",
       "Você pode continuar gerando relatórios, abrir o RDO, revisar materiais ou consultar sua Biblioteca."
     ];
+
+    if (mainProject) {
+      details.push("", "Seu projeto principal hoje é " + mainProject.name + ".");
+      if (activeProjects.length) {
+        details.push("Projetos ativos: " + activeProjects.map(function (project) {
+          return project.name;
+        }).join(", ") + ".");
+      }
+      if (mainProject.nextAction) {
+        details.push("Próxima ação sugerida: " + mainProject.nextAction);
+      }
+    }
 
     if (memories.length) {
       details.push("", "Pelo que lembro:");
@@ -1015,6 +1467,16 @@
       return personalMemoryAnswer;
     }
 
+    const goalAnswer = answerGoalQuestion(cleanQuestion);
+    if (goalAnswer) {
+      return goalAnswer;
+    }
+
+    const projectAnswer = answerProjectQuestion(cleanQuestion);
+    if (projectAnswer) {
+      return projectAnswer;
+    }
+
     if (isDailyRoutineQuestion(normalizedQuestion)) {
       return buildDailyRoutineResponse(cleanQuestion);
     }
@@ -1217,6 +1679,10 @@
     libraryButton.type = "button";
     libraryButton.addEventListener("click", showLibrary);
     container.appendChild(libraryButton);
+    const projectsButton = createElement("button", "elo-inline-button", "Projetos");
+    projectsButton.type = "button";
+    projectsButton.addEventListener("click", showProjects);
+    container.appendChild(projectsButton);
     [
       ["Dúvidas recentes", showRecentQuestions],
       ["Minhas memórias", showPersonalMemories],
@@ -1585,12 +2051,358 @@
     appendMessage("system", "Histórico local do Elo limpo. Nenhum dado do SaaS foi alterado.");
   }
 
+  function appendSimpleOptions(select, options) {
+    options.forEach(function (optionValue) {
+      const option = createElement("option", "", optionValue);
+      option.value = optionValue;
+      select.appendChild(option);
+    });
+  }
+
+  function appendProjectOptions(select, includeEmpty) {
+    if (includeEmpty) {
+      const emptyOption = createElement("option", "", "Sem projeto vinculado");
+      emptyOption.value = "";
+      select.appendChild(emptyOption);
+    }
+    getProjects().forEach(function (project) {
+      const option = createElement("option", "", project.name);
+      option.value = project.id;
+      select.appendChild(option);
+    });
+  }
+
   function appendCategoryOptions(select, includeAll) {
     if (includeAll) {
-      select.appendChild(createElement("option", "", "Todas"));
+      const allOption = createElement("option", "", "Todas");
+      allOption.value = "Todas";
+      select.appendChild(allOption);
     }
-    ELO_LIBRARY_CATEGORIES.forEach(function (category) {
-      select.appendChild(createElement("option", "", category));
+    appendSimpleOptions(select, ELO_LIBRARY_CATEGORIES);
+  }
+
+  function showProjects() {
+    const message = appendMessage("system", "Projetos e Objetivos do Elo");
+    const panel = createElement("div", "elo-projects-panel");
+    const status = createElement("p", "elo-privacy", "Projetos e objetivos ficam salvos apenas neste navegador.");
+    const controls = createElement("div", "elo-projects-controls");
+    const suggestedProjectsButton = createElement("button", "elo-inline-button", "Adicionar projetos sugeridos");
+    const addProjectButton = createElement("button", "elo-inline-button", "Adicionar projeto");
+    const suggestedGoalsButton = createElement("button", "elo-inline-button", "Adicionar objetivos sugeridos");
+    const addGoalButton = createElement("button", "elo-inline-button", "Adicionar objetivo");
+    const projectList = createElement("div", "elo-project-list");
+    const goalTitle = createElement("h3", "elo-projects-subtitle", "Objetivos");
+    const goalList = createElement("div", "elo-goal-list");
+    const goalForm = buildGoalForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Objetivo salvo no Elo.";
+        renderGoalList(goalList, goalForm);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
+      } else {
+        status.textContent = "Preencha o título do objetivo para salvar.";
+      }
+    });
+    const projectForm = buildProjectForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Projeto salvo no Elo.";
+        renderProjectList(projectList, projectForm, goalList, goalForm);
+        renderGoalList(goalList, goalForm);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
+      } else {
+        status.textContent = "Preencha o nome do projeto para salvar.";
+      }
+    });
+
+    suggestedProjectsButton.type = "button";
+    addProjectButton.type = "button";
+    suggestedGoalsButton.type = "button";
+    addGoalButton.type = "button";
+
+    suggestedProjectsButton.addEventListener("click", function () {
+      const added = addSuggestedProjects();
+      status.textContent = added ? "Projetos sugeridos adicionados: " + added + "." : "Os projetos sugeridos já estavam salvos.";
+      renderProjectList(projectList, projectForm, goalList, goalForm);
+      renderGoalList(goalList, goalForm);
+    });
+    addProjectButton.addEventListener("click", function () {
+      projectForm.classList.toggle("is-hidden");
+    });
+    suggestedGoalsButton.addEventListener("click", function () {
+      const added = addSuggestedGoals();
+      status.textContent = added ? "Objetivos sugeridos adicionados: " + added + "." : "Os objetivos sugeridos já estavam salvos.";
+      renderGoalList(goalList, goalForm);
+    });
+    addGoalButton.addEventListener("click", function () {
+      goalForm.classList.toggle("is-hidden");
+    });
+
+    controls.appendChild(suggestedProjectsButton);
+    controls.appendChild(addProjectButton);
+    controls.appendChild(suggestedGoalsButton);
+    controls.appendChild(addGoalButton);
+    panel.appendChild(status);
+    panel.appendChild(controls);
+    panel.appendChild(projectForm);
+    panel.appendChild(projectList);
+    panel.appendChild(goalTitle);
+    panel.appendChild(goalForm);
+    panel.appendChild(goalList);
+    message.appendChild(panel);
+
+    renderProjectList(projectList, projectForm, goalList, goalForm);
+    renderGoalList(goalList, goalForm);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function buildProjectForm(onSave) {
+    const form = createElement("form", "elo-project-form is-hidden");
+    const nameInput = createElement("input", "elo-library-field");
+    const descriptionInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const statusSelect = createElement("select", "elo-library-field");
+    const prioritySelect = createElement("select", "elo-library-field");
+    const nextActionInput = createElement("input", "elo-library-field");
+    const notesInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const saveButton = createElement("button", "elo-send-button", "Salvar projeto");
+    let editingProjectId = "";
+
+    nameInput.type = "text";
+    nameInput.maxLength = 120;
+    nameInput.placeholder = "Nome do projeto";
+    descriptionInput.maxLength = 600;
+    descriptionInput.rows = 3;
+    descriptionInput.placeholder = "Descrição";
+    nextActionInput.type = "text";
+    nextActionInput.maxLength = 300;
+    nextActionInput.placeholder = "Próxima ação";
+    notesInput.maxLength = 1000;
+    notesInput.rows = 3;
+    notesInput.placeholder = "Notas";
+    saveButton.type = "submit";
+    appendSimpleOptions(statusSelect, ELO_PROJECT_STATUSES);
+    appendSimpleOptions(prioritySelect, ELO_PROJECT_PRIORITIES);
+
+    form.setProject = function (project) {
+      editingProjectId = project && project.id ? project.id : "";
+      nameInput.value = project && project.name ? project.name : "";
+      descriptionInput.value = project && project.description ? project.description : "";
+      statusSelect.value = project && project.status ? project.status : "ativo";
+      prioritySelect.value = project && project.priority ? project.priority : "media";
+      nextActionInput.value = project && project.nextAction ? project.nextAction : "";
+      notesInput.value = project && project.notes ? project.notes : "";
+      form.classList.remove("is-hidden");
+      saveButton.textContent = editingProjectId ? "Salvar edição" : "Salvar projeto";
+    };
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveProject({
+        id: editingProjectId,
+        name: nameInput.value,
+        description: descriptionInput.value,
+        status: statusSelect.value,
+        priority: prioritySelect.value,
+        nextAction: nextActionInput.value,
+        notes: notesInput.value
+      });
+      if (result.ok) {
+        editingProjectId = "";
+        nameInput.value = "";
+        descriptionInput.value = "";
+        statusSelect.value = "ativo";
+        prioritySelect.value = "media";
+        nextActionInput.value = "";
+        notesInput.value = "";
+        saveButton.textContent = "Salvar projeto";
+        form.classList.add("is-hidden");
+      }
+      onSave(result);
+    });
+
+    form.appendChild(nameInput);
+    form.appendChild(descriptionInput);
+    form.appendChild(statusSelect);
+    form.appendChild(prioritySelect);
+    form.appendChild(nextActionInput);
+    form.appendChild(notesInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderProjectList(list, projectForm, goalList, goalForm) {
+    list.textContent = "";
+    const projects = getProjects();
+
+    if (!projects.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhum projeto salvo. Use os projetos sugeridos ou adicione um projeto manualmente."));
+      return;
+    }
+
+    projects.forEach(function (project) {
+      const card = createElement("article", "elo-project-card");
+      const header = createElement("div", "elo-project-card-header");
+      const title = createElement("strong", "", project.name);
+      const badges = createElement("div", "elo-project-badges");
+      const statusBadge = createElement("span", "elo-status-badge is-" + project.status, project.status);
+      const priorityBadge = createElement("span", "elo-priority-badge is-" + project.priority, "prioridade " + project.priority);
+      const description = createElement("p", "", project.description || "Sem descrição salva.");
+      const nextAction = createElement("p", "elo-project-next", "Próxima ação: " + (project.nextAction || "não definida"));
+      const actions = createElement("div", "elo-library-actions");
+      const editButton = createElement("button", "elo-inline-button", "Editar");
+      const activeButton = createElement("button", "elo-inline-button", "Ativo");
+      const pauseButton = createElement("button", "elo-inline-button", "Pausado");
+      const doneButton = createElement("button", "elo-inline-button", "Concluído");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      editButton.type = "button";
+      activeButton.type = "button";
+      pauseButton.type = "button";
+      doneButton.type = "button";
+      deleteButton.type = "button";
+
+      editButton.addEventListener("click", function () {
+        projectForm.setProject(project);
+      });
+      activeButton.addEventListener("click", function () {
+        updateProjectStatus(project.id, "ativo");
+        renderProjectList(list, projectForm, goalList, goalForm);
+      });
+      pauseButton.addEventListener("click", function () {
+        updateProjectStatus(project.id, "pausado");
+        renderProjectList(list, projectForm, goalList, goalForm);
+      });
+      doneButton.addEventListener("click", function () {
+        updateProjectStatus(project.id, "concluido");
+        renderProjectList(list, projectForm, goalList, goalForm);
+      });
+      deleteButton.addEventListener("click", function () {
+        deleteProject(project.id);
+        renderProjectList(list, projectForm, goalList, goalForm);
+        renderGoalList(goalList, goalForm);
+        appendMessage("system", "Projeto excluído do Elo.");
+      });
+
+      badges.appendChild(statusBadge);
+      badges.appendChild(priorityBadge);
+      header.appendChild(title);
+      header.appendChild(badges);
+      actions.appendChild(editButton);
+      actions.appendChild(activeButton);
+      actions.appendChild(pauseButton);
+      actions.appendChild(doneButton);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(description);
+      card.appendChild(nextAction);
+      if (project.notes) {
+        card.appendChild(createElement("p", "elo-project-notes", "Notas: " + project.notes));
+      }
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+  }
+
+  function buildGoalForm(onSave) {
+    const form = createElement("form", "elo-project-form is-hidden");
+    const titleInput = createElement("input", "elo-library-field");
+    const projectSelect = createElement("select", "elo-library-field");
+    const statusSelect = createElement("select", "elo-library-field");
+    const targetInput = createElement("input", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Salvar objetivo");
+
+    titleInput.type = "text";
+    titleInput.maxLength = 160;
+    titleInput.placeholder = "Título do objetivo";
+    targetInput.type = "date";
+    saveButton.type = "submit";
+    appendProjectOptions(projectSelect, true);
+    appendSimpleOptions(statusSelect, ELO_GOAL_STATUSES);
+
+    form.refreshProjects = function () {
+      const currentValue = projectSelect.value;
+      projectSelect.textContent = "";
+      appendProjectOptions(projectSelect, true);
+      projectSelect.value = currentValue;
+    };
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveGoal({
+        title: titleInput.value,
+        projectId: projectSelect.value,
+        status: statusSelect.value,
+        targetDate: targetInput.value
+      });
+      if (result.ok) {
+        titleInput.value = "";
+        projectSelect.value = "";
+        statusSelect.value = "aberto";
+        targetInput.value = "";
+        form.classList.add("is-hidden");
+      }
+      onSave(result);
+    });
+
+    form.appendChild(titleInput);
+    form.appendChild(projectSelect);
+    form.appendChild(statusSelect);
+    form.appendChild(targetInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderGoalList(list, goalForm) {
+    list.textContent = "";
+    if (goalForm && typeof goalForm.refreshProjects === "function") {
+      goalForm.refreshProjects();
+    }
+    const goals = getGoals();
+
+    if (!goals.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhum objetivo salvo. Use os objetivos sugeridos ou adicione um objetivo manualmente."));
+      return;
+    }
+
+    goals.forEach(function (goal) {
+      const project = goal.projectId ? getProjectById(goal.projectId) : null;
+      const card = createElement("article", "elo-goal-card");
+      const header = createElement("div", "elo-project-card-header");
+      const title = createElement("strong", "", goal.title);
+      const meta = createElement("span", "elo-library-meta", (project ? project.name : "Sem projeto") + (goal.targetDate ? " · " + goal.targetDate : ""));
+      const status = createElement("span", "elo-status-badge is-" + goal.status, goal.status);
+      const actions = createElement("div", "elo-library-actions");
+      const progressButton = createElement("button", "elo-inline-button", "Em andamento");
+      const doneButton = createElement("button", "elo-inline-button", "Concluir");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      progressButton.type = "button";
+      doneButton.type = "button";
+      deleteButton.type = "button";
+
+      progressButton.addEventListener("click", function () {
+        updateGoalStatus(goal.id, "em_andamento");
+        renderGoalList(list, goalForm);
+      });
+      doneButton.addEventListener("click", function () {
+        updateGoalStatus(goal.id, "concluido");
+        renderGoalList(list, goalForm);
+      });
+      deleteButton.addEventListener("click", function () {
+        deleteGoal(goal.id);
+        renderGoalList(list, goalForm);
+        appendMessage("system", "Objetivo excluído do Elo.");
+      });
+
+      header.appendChild(title);
+      header.appendChild(status);
+      actions.appendChild(progressButton);
+      actions.appendChild(doneButton);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(meta);
+      card.appendChild(actions);
+      list.appendChild(card);
     });
   }
 

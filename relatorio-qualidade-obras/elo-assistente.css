@@ -274,11 +274,23 @@
   margin-top: 4px;
 }
 
+.elo-projects-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 .elo-library-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
+}
+
+.elo-projects-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .elo-library-search,
@@ -304,7 +316,17 @@
   background: #f8fbfd;
 }
 
-.elo-library-form.is-hidden {
+.elo-project-form {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+
+.elo-library-form.is-hidden,
+.elo-project-form.is-hidden {
   display: none;
 }
 
@@ -329,12 +351,36 @@
   background: #ffffff;
 }
 
+.elo-project-card,
+.elo-goal-card {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
 .elo-library-card-header {
   display: grid;
   gap: 3px;
 }
 
+.elo-project-card-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
 .elo-library-card strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.elo-project-card strong,
+.elo-goal-card strong {
   color: #0f172a;
   font-size: 0.9rem;
   line-height: 1.35;
@@ -347,11 +393,93 @@
   line-height: 1.45;
 }
 
+.elo-project-card p,
+.elo-goal-card p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .elo-library-meta,
 .elo-library-tags {
   color: #64748b;
   font-size: 0.76rem;
   line-height: 1.35;
+}
+
+.elo-project-list,
+.elo-goal-list {
+  display: grid;
+  gap: 9px;
+}
+
+.elo-projects-subtitle {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 0.94rem;
+  line-height: 1.2;
+}
+
+.elo-project-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.elo-status-badge,
+.elo-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.elo-status-badge {
+  color: #0f5f8f;
+  background: rgba(15, 95, 143, 0.1);
+}
+
+.elo-status-badge.is-ativo,
+.elo-status-badge.is-em_andamento {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.12);
+}
+
+.elo-status-badge.is-pausado,
+.elo-status-badge.is-aberto {
+  color: #6b4f0a;
+  background: #fffbeb;
+}
+
+.elo-status-badge.is-concluido {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.elo-priority-badge.is-alta {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.elo-priority-badge.is-media {
+  color: #6b4f0a;
+  background: #fef3c7;
+}
+
+.elo-priority-badge.is-baixa {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.elo-project-next,
+.elo-project-notes {
+  color: #475569;
 }
 
 .elo-library-actions {
@@ -453,6 +581,14 @@
 
   .elo-library-controls {
     grid-template-columns: 1fr;
+  }
+
+  .elo-project-card-header {
+    grid-template-columns: 1fr;
+  }
+
+  .elo-project-badges {
+    justify-content: flex-start;
   }
 
   .elo-routine-actions {
