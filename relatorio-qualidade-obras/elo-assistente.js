@@ -191,6 +191,7 @@
     return {
       conversations: Array.isArray(memory && memory.conversations) ? memory.conversations.slice(0, ELO_CONFIG.maxHistory) : [],
       usefulAnswers: Array.isArray(memory && memory.usefulAnswers) ? memory.usefulAnswers.slice(0, ELO_CONFIG.maxHistory) : [],
+      personalMemories: Array.isArray(memory && memory.personalMemories) ? memory.personalMemories.slice(0, ELO_CONFIG.maxHistory) : [],
       feedback: Array.isArray(memory && memory.feedback) ? memory.feedback.slice(0, ELO_CONFIG.maxHistory) : [],
       isOpen: Boolean(memory && memory.isOpen)
     };
@@ -260,6 +261,149 @@
     const memory = getMemory();
     memory.isOpen = Boolean(isOpen);
     setMemory(memory);
+  }
+
+  // ELO_PERSONAL_MEMORY
+  function createPersonalMemoryId() {
+    return "mem_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function hasSensitiveMemoryTerm(question) {
+    const text = normalizeText(question);
+    return ["senha", "cpf", "cartao", "cartao de credito", "token", "chave api", "api key", "banco", "dados bancarios", "pix"].some(function (term) {
+      return text.indexOf(term) >= 0;
+    });
+  }
+
+  function detectPersonalMemory(question) {
+    if (hasSensitiveMemoryTerm(question)) {
+      return {
+        blocked: true
+      };
+    }
+
+    const cleanQuestion = sanitizeUserText(question);
+    const patterns = [
+      { regex: /^meu nome (?:é|e) (.+)$/i, label: "meu nome", category: "nome" },
+      { regex: /^eu me chamo (.+)$/i, label: "meu nome", category: "nome" },
+      { regex: /^meu filho se chama (.+)$/i, label: "nome do meu filho", category: "familia" },
+      { regex: /^minha filha se chama (.+)$/i, label: "nome da minha filha", category: "familia" },
+      { regex: /^minha empresa (?:é|e) (.+)$/i, label: "minha empresa", category: "empresa" },
+      { regex: /^eu moro em (.+)$/i, label: "onde eu moro", category: "cidade" },
+      { regex: /^minha cidade (?:é|e) (.+)$/i, label: "minha cidade", category: "cidade" },
+      { regex: /^meu projeto principal (?:é|e) (.+)$/i, label: "meu projeto principal", category: "projeto" },
+      { regex: /^eu gosto de (.+)$/i, label: "algo que eu gosto", category: "preferencia" },
+      { regex: /^lembre que (.+)$/i, label: "lembrete", category: "geral" }
+    ];
+
+    for (let index = 0; index < patterns.length; index += 1) {
+      const match = cleanQuestion.match(patterns[index].regex);
+      if (match && match[1]) {
+        return {
+          id: createPersonalMemoryId(),
+          label: patterns[index].label,
+          value: sanitizeUserText(match[1]),
+          category: patterns[index].category,
+          createdAt: new Date().toISOString(),
+          sourceQuestion: cleanQuestion
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function savePersonalMemory(memoryItem) {
+    const memory = getMemory();
+    memory.personalMemories = (memory.personalMemories || []).filter(function (item) {
+      return !(item.category === memoryItem.category && normalizeText(item.label) === normalizeText(memoryItem.label));
+    });
+    memory.personalMemories.unshift(memoryItem);
+    memory.personalMemories = memory.personalMemories.slice(0, ELO_CONFIG.maxHistory);
+    setMemory(memory);
+  }
+
+  function getPersonalMemories() {
+    return getMemory().personalMemories || [];
+  }
+
+  function deletePersonalMemory(id) {
+    const memory = getMemory();
+    memory.personalMemories = (memory.personalMemories || []).filter(function (item) {
+      return item.id !== id;
+    });
+    setMemory(memory);
+  }
+
+  function clearPersonalMemories() {
+    const memory = getMemory();
+    memory.personalMemories = [];
+    setMemory(memory);
+  }
+
+  function findPersonalMemoryByLabel(label) {
+    const normalizedLabel = normalizeText(label);
+    return getPersonalMemories().find(function (item) {
+      return normalizeText(item.label) === normalizedLabel;
+    }) || null;
+  }
+
+  function answerPersonalMemoryQuestion(question) {
+    const text = normalizeText(question);
+    const memories = getPersonalMemories();
+
+    if (!memories.length) {
+      if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que você lembra de mim") >= 0) {
+        return {
+          shortAnswer: "Ainda não tenho memórias pessoais salvas.",
+          fullAnswer: "Quando você me disser algo como 'meu filho se chama Davi', eu vou perguntar se devo lembrar antes de salvar.",
+          nextAction: "Você pode me ensinar uma memória simples agora.",
+          canSave: false
+        };
+      }
+      return null;
+    }
+
+    const queryMap = [
+      { tests: ["qual meu nome", "como eu me chamo"], label: "meu nome", response: "Você me disse que seu nome é " },
+      { tests: ["qual o nome do meu filho"], label: "nome do meu filho", response: "Você me disse que seu filho se chama " },
+      { tests: ["qual o nome da minha filha"], label: "nome da minha filha", response: "Você me disse que sua filha se chama " },
+      { tests: ["qual minha empresa"], label: "minha empresa", response: "Você me disse que sua empresa é " },
+      { tests: ["onde eu moro", "qual minha cidade"], label: "minha cidade", fallbackLabel: "onde eu moro", response: "Você me disse que sua cidade é " },
+      { tests: ["qual meu projeto principal"], label: "meu projeto principal", response: "Eu lembro que seu projeto principal é " },
+      { tests: ["do que eu gosto"], label: "algo que eu gosto", response: "Você me disse que gosta de " }
+    ];
+
+    for (let index = 0; index < queryMap.length; index += 1) {
+      const query = queryMap[index];
+      const matched = query.tests.some(function (test) {
+        return text.indexOf(test) >= 0;
+      });
+      if (matched) {
+        const memoryItem = findPersonalMemoryByLabel(query.label) || (query.fallbackLabel ? findPersonalMemoryByLabel(query.fallbackLabel) : null);
+        if (memoryItem) {
+          return {
+            shortAnswer: query.response + memoryItem.value + ".",
+            fullAnswer: "Essa memória está salva apenas neste navegador, na categoria " + memoryItem.category + ".",
+            nextAction: "Use Minhas memórias para revisar ou excluir quando quiser.",
+            canSave: false
+          };
+        }
+      }
+    }
+
+    if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que você lembra de mim") >= 0) {
+      return {
+        shortAnswer: "Eu lembro destas informações pessoais salvas neste navegador:",
+        fullAnswer: memories.map(function (item) {
+          return "- " + item.label + ": " + item.value;
+        }).join("\n"),
+        nextAction: "Use Minhas memórias para revisar, excluir ou limpar tudo.",
+        canSave: false
+      };
+    }
+
+    return null;
   }
 
   // ELO_TEXT_UTILS
@@ -338,6 +482,11 @@
         nextAction: "Escolha um botão rápido ou escreva uma pergunta.",
         canSave: false
       };
+    }
+
+    const personalMemoryAnswer = answerPersonalMemoryQuestion(cleanQuestion);
+    if (personalMemoryAnswer) {
+      return personalMemoryAnswer;
     }
 
     const greeting = getGreetingResponse(normalizedQuestion);
@@ -479,6 +628,7 @@
 
     footer.appendChild(inputRow);
     footer.appendChild(createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador."));
+    footer.appendChild(createElement("p", "elo-privacy", "As memórias pessoais ficam salvas apenas neste navegador."));
 
     ELO_UI.panel.appendChild(header);
     ELO_UI.panel.appendChild(ELO_UI.messages);
@@ -529,7 +679,9 @@
     const container = createElement("div", "elo-tools");
     [
       ["Dúvidas recentes", showRecentQuestions],
+      ["Minhas memórias", showPersonalMemories],
       ["Limpar histórico", clearEloHistory],
+      ["Limpar memórias pessoais", confirmClearPersonalMemories],
       ["Suporte WhatsApp", openSupportWhatsapp]
     ].forEach(function (item) {
       const button = createElement("button", "elo-inline-button", item[0]);
@@ -564,6 +716,21 @@
     }
 
     appendMessage("user", cleanQuestion);
+
+    const personalMemoryCandidate = detectPersonalMemory(cleanQuestion);
+    if (personalMemoryCandidate && personalMemoryCandidate.blocked) {
+      const blockedAnswer = "Por segurança, não vou guardar esse tipo de informação.";
+      appendAssistantMessage(cleanQuestion, blockedAnswer, false);
+      saveConversation(cleanQuestion, blockedAnswer);
+      return;
+    }
+
+    if (personalMemoryCandidate) {
+      appendPersonalMemoryPrompt(cleanQuestion, personalMemoryCandidate);
+      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória pessoal.");
+      return;
+    }
+
     const response = buildResponse(cleanQuestion);
     const answer = formatResponse(response);
     appendAssistantMessage(cleanQuestion, answer, response.canSave !== false);
@@ -577,6 +744,34 @@
     ELO_UI.messages.appendChild(message);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
     return message;
+  }
+
+  function appendPersonalMemoryPrompt(question, memoryItem) {
+    const message = appendMessage("assistant", "Deseja que eu lembre disso?\n\n" + memoryItem.label + ": " + memoryItem.value);
+    const actions = createElement("div", "elo-message-actions");
+    const yesButton = createElement("button", "elo-inline-button", "Sim, lembrar");
+    const noButton = createElement("button", "elo-inline-button", "Não");
+
+    yesButton.type = "button";
+    noButton.type = "button";
+
+    yesButton.addEventListener("click", function () {
+      savePersonalMemory(memoryItem);
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      appendMessage("system", "Memória pessoal salva apenas neste navegador.");
+    });
+
+    noButton.addEventListener("click", function () {
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      appendMessage("system", "Tudo bem. Não vou guardar essa informação.");
+    });
+
+    actions.appendChild(yesButton);
+    actions.appendChild(noButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
   function appendAssistantMessage(question, answer, canSave) {
@@ -643,6 +838,66 @@
   function clearEloHistory() {
     clearMemory();
     appendMessage("system", "Histórico local do Elo limpo. Nenhum dado do SaaS foi alterado.");
+  }
+
+  function showPersonalMemories() {
+    const memories = getPersonalMemories();
+    const message = appendMessage("system", memories.length ? "Minhas memórias pessoais:" : "Ainda não há memórias pessoais salvas neste navegador.");
+
+    if (!memories.length) {
+      return;
+    }
+
+    const list = createElement("div", "elo-memory-list");
+    memories.forEach(function (memoryItem) {
+      const item = createElement("article", "elo-memory-item");
+      const text = createElement("div");
+      text.appendChild(createElement("strong", "", memoryItem.label + ": " + memoryItem.value));
+      text.appendChild(createElement("span", "", "Categoria: " + memoryItem.category + " · " + formatDateTime(memoryItem.createdAt)));
+
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+      deleteButton.type = "button";
+      deleteButton.addEventListener("click", function () {
+        deletePersonalMemory(memoryItem.id);
+        item.remove();
+        appendMessage("system", "Memória pessoal excluída.");
+      });
+
+      item.appendChild(text);
+      item.appendChild(deleteButton);
+      list.appendChild(item);
+    });
+
+    message.appendChild(list);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function confirmClearPersonalMemories() {
+    const message = appendMessage("system", "Tem certeza? Isso não afeta dados do ObraReport, apenas memórias locais do Elo.");
+    const actions = createElement("div", "elo-message-actions");
+    const confirmButton = createElement("button", "elo-inline-button", "Limpar memórias pessoais");
+    const cancelButton = createElement("button", "elo-inline-button", "Cancelar");
+
+    confirmButton.type = "button";
+    cancelButton.type = "button";
+
+    confirmButton.addEventListener("click", function () {
+      clearPersonalMemories();
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Memórias pessoais limpas. Dados do ObraReport não foram alterados.");
+    });
+
+    cancelButton.addEventListener("click", function () {
+      confirmButton.disabled = true;
+      cancelButton.disabled = true;
+      appendMessage("system", "Limpeza de memórias pessoais cancelada.");
+    });
+
+    actions.appendChild(confirmButton);
+    actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
   function openSupportWhatsapp() {

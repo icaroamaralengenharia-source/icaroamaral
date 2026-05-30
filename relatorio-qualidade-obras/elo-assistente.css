@@ -215,6 +215,58 @@
   line-height: 1.35;
 }
 
+.elo-memory-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.elo-memory-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.elo-memory-item strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.elo-memory-item span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.elo-memory-delete {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(185, 28, 28, 0.18);
+  border-radius: 999px;
+  color: #991b1b;
+  background: #fff7f7;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.elo-memory-delete:hover,
+.elo-memory-delete:focus {
+  border-color: rgba(185, 28, 28, 0.34);
+  background: #fee2e2;
+  outline: none;
+}
+
 @media (max-width: 760px) {
   .elo-widget {
     right: 14px;
@@ -247,5 +299,9 @@
 
   .elo-send-button {
     width: 100%;
+  }
+
+  .elo-memory-item {
+    grid-template-columns: 1fr;
   }
 }
