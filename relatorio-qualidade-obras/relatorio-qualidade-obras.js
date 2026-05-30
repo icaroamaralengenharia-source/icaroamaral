@@ -774,6 +774,16 @@
       return;
     }
 
+    if (action === "quick-rdo") {
+      startQuickDailyLog_();
+      return;
+    }
+
+    if (action === "quick-report") {
+      startQuickQualityReport_();
+      return;
+    }
+
     if (action === "obra-exemplo") {
       createExampleWork_();
       return;
@@ -787,6 +797,75 @@
     if (action === "obra-exemplo-whatsapp") {
       openExampleWorkWhatsapp_();
     }
+  }
+
+  function startQuickDailyLog_() {
+    const works = getUserWorks_();
+    const firstWork = works[0];
+
+    setLastOpened_("diario", firstWork ? firstWork.clientId : "", firstWork ? firstWork.id : "", "");
+    scheduleLocalDataSave_();
+    showDashboardPanel_("diario");
+    resetDailyLogForm_();
+
+    if (firstWork && dailyLogWorkSelect) {
+      dailyLogWorkSelect.value = firstWork.id;
+    }
+
+    const identification = document.getElementById("rdo-identificacao");
+    if (identification) {
+      identification.open = true;
+    }
+
+    if (!works.length) {
+      setDailyLogStatus_("Crie uma obra rápida para vincular este RDO.", "info");
+      focusElementSoon_(dailyLogWorkSelect);
+      return;
+    }
+
+    setDailyLogStatus_("Novo Diário de Obra pronto. Comece confirmando a obra, a data e o responsável.", "info");
+    focusElementSoon_(dailyLogWorkSelect || (dailyLogForm && dailyLogForm.elements.date));
+  }
+
+  function startQuickQualityReport_() {
+    const works = getUserWorks_();
+    const firstWork = works[0];
+
+    setLastOpened_("relatorios", firstWork ? firstWork.clientId : "", firstWork ? firstWork.id : "", "");
+    scheduleLocalDataSave_();
+    showDashboardPanel_("relatorios");
+
+    if (!works.length) {
+      setCloudStatus_("Crie uma obra rápida para vincular este relatório.", "info");
+      focusElementSoon_(reportClientSelect);
+      return;
+    }
+
+    if (reportClientSelect) {
+      reportClientSelect.value = firstWork.clientId;
+      renderReportWorkOptions_(firstWork.clientId);
+    }
+
+    if (reportWorkSelect) {
+      reportWorkSelect.value = firstWork.id;
+    }
+
+    if (reportCreateForm && reportCreateForm.elements.reportTitle && !reportCreateForm.elements.reportTitle.value) {
+      reportCreateForm.elements.reportTitle.value = "Relatório de Qualidade - " + firstWork.name;
+    }
+
+    setCloudStatus_("Novo relatório preparado. Confirme obra e nome para criar e abrir o preenchimento.", "info");
+    focusElementSoon_(reportCreateForm && reportCreateForm.elements.reportTitle);
+  }
+
+  function focusElementSoon_(element) {
+    if (!element || !element.focus) {
+      return;
+    }
+
+    window.setTimeout(function () {
+      element.focus();
+    }, 80);
   }
 
   function getExampleWork_() {

@@ -3113,6 +3113,96 @@ body {
    Seguranca final exige validacao no Apps Script/backend. */
 .saas-tabs {
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  border-color: rgba(216, 225, 235, 0.86);
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.1), transparent 13rem),
+    rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 28px rgba(6, 26, 50, 0.08);
+}
+
+.saas-tabs::before {
+  color: var(--navy);
+}
+
+.saas-tabs button {
+  color: #334155;
+  border-color: rgba(203, 213, 225, 0.86);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.saas-tabs button:hover,
+.saas-tabs button:focus {
+  color: var(--navy);
+  border-color: rgba(15, 118, 110, 0.22);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.saas-tabs button.active {
+  color: #ffffff;
+  border-color: rgba(15, 118, 110, 0.42);
+  background: linear-gradient(135deg, #0f766e, #0f5f8f);
+}
+
+.quick-actions-panel {
+  display: grid;
+  gap: 16px;
+  border-color: rgba(15, 118, 110, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 14rem),
+    linear-gradient(135deg, #ffffff, #f8fbfd);
+}
+
+.quick-actions-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.quick-actions-heading p:last-child {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quick-action-button {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.92);
+  border-radius: 8px;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(6, 26, 50, 0.055);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.quick-action-button strong {
+  color: var(--navy);
+  font-size: 1.08rem;
+  line-height: 1.25;
+}
+
+.quick-action-button span {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.quick-action-button:hover,
+.quick-action-button:focus {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.08);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .client-route-panel .dashboard-card .mini-button {
@@ -3387,6 +3477,14 @@ body {
 
   .example-guide-grid .example-pdf-step {
     grid-column: auto;
+  }
+
+  .quick-actions-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
   }
 
   [data-user-role="client"] .session-box {
