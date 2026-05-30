@@ -5,6 +5,7 @@
   const ELO_CONFIG = {
     storageKey: "obrareport_elo_assistente_v1",
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
+    documentsStorageKey: "obrareport_elo_documentos_v1",
     maxHistory: 20,
     whatsappNumber: "",
     webSearchEnabled: false,
@@ -1060,6 +1061,257 @@
         return "- " + item.titulo + " — " + item.status;
       }).join("\n") : "- Nenhum item salvo.");
     }).join("\n\n");
+  }
+
+  // ELO_DOCUMENTS_LOCAL
+  function createDocumentId() {
+    return "doc_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function createDocumentChunkId(documentId, index) {
+    return documentId + "_chunk_" + index;
+  }
+
+  function normalizeDocumentsStorage(storage) {
+    return {
+      documents: Array.isArray(storage && storage.documents) ? storage.documents : []
+    };
+  }
+
+  function getDocumentsStorage() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.documentsStorageKey);
+      return normalizeDocumentsStorage(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return normalizeDocumentsStorage(null);
+    }
+  }
+
+  function setDocumentsStorage(storage) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.documentsStorageKey, JSON.stringify(normalizeDocumentsStorage(storage)));
+    } catch (error) {
+      // Documentos locais podem falhar em modo privado. O Elo segue sem consultar essa base.
+    }
+  }
+
+  function splitDocumentIntoChunks(text) {
+    const cleanText = sanitizeLibraryText(text, 60000).replace(/\n{2,}/g, "\n\n");
+    const paragraphs = cleanText.split(/\n\s*\n/).map(function (paragraph) {
+      return paragraph.replace(/\s+/g, " ").trim();
+    }).filter(Boolean);
+    const chunks = [];
+    let current = "";
+
+    paragraphs.forEach(function (paragraph) {
+      if ((current + " " + paragraph).trim().length > 900 && current) {
+        chunks.push(current);
+        current = paragraph;
+      } else {
+        current = (current + " " + paragraph).trim();
+      }
+    });
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    if (!chunks.length && cleanText) {
+      for (let index = 0; index < cleanText.length; index += 900) {
+        chunks.push(cleanText.slice(index, index + 900));
+      }
+    }
+
+    return chunks.slice(0, 80);
+  }
+
+  function buildDocumentChunks(documentId, text) {
+    return splitDocumentIntoChunks(text).map(function (chunkText, index) {
+      return {
+        id: createDocumentChunkId(documentId, index + 1),
+        text: chunkText,
+        keywords: extractDocumentKeywords(chunkText)
+      };
+    });
+  }
+
+  function extractDocumentKeywords(text) {
+    const ignored = ["para", "com", "uma", "das", "dos", "que", "por", "como", "esta", "este", "essa", "esse", "permite"];
+    const words = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(function (word) {
+      return word.length > 3 && ignored.indexOf(word) === -1;
+    });
+    const counts = {};
+    words.forEach(function (word) {
+      counts[word] = (counts[word] || 0) + 1;
+    });
+    return Object.keys(counts).sort(function (first, second) {
+      return counts[second] - counts[first];
+    }).slice(0, 12);
+  }
+
+  function normalizeDocumentType(type) {
+    const normalizedType = normalizeText(type);
+    if (normalizedType === "md" || normalizedType === "markdown") {
+      return "md";
+    }
+    return "txt";
+  }
+
+  function saveLocalDocument(input) {
+    const title = sanitizeLibraryText(input && input.title, 140);
+    const text = sanitizeLibraryText(input && input.text, 60000);
+    const type = normalizeDocumentType(input && input.type);
+
+    if (!title || !text) {
+      return { ok: false, reason: "missing" };
+    }
+
+    if (isSensitiveLibraryContent(title, text)) {
+      return { ok: false, reason: "sensitive" };
+    }
+
+    const storage = getDocumentsStorage();
+    const now = new Date().toISOString();
+    const id = input && input.id ? sanitizeUserText(input.id) : createDocumentId();
+    const documentItem = {
+      id: id,
+      title: title,
+      type: type,
+      text: text,
+      size: text.length,
+      chunks: buildDocumentChunks(id, text),
+      createdAt: input && input.createdAt ? input.createdAt : now,
+      updatedAt: now
+    };
+
+    storage.documents = (storage.documents || []).filter(function (item) {
+      return item.id !== documentItem.id;
+    });
+    storage.documents.unshift(documentItem);
+    storage.documents = storage.documents.slice(0, 40);
+    setDocumentsStorage(storage);
+    return { ok: true, document: documentItem };
+  }
+
+  function getLocalDocuments() {
+    return (getDocumentsStorage().documents || []).slice().sort(function (first, second) {
+      return new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0);
+    });
+  }
+
+  function deleteLocalDocument(id) {
+    const storage = getDocumentsStorage();
+    storage.documents = (storage.documents || []).filter(function (item) {
+      return item.id !== id;
+    });
+    setDocumentsStorage(storage);
+  }
+
+  function clearLocalDocuments() {
+    setDocumentsStorage({ documents: [] });
+  }
+
+  function scoreDocumentChunk(documentItem, chunk, normalizedQuestion) {
+    const parts = normalizedQuestion.split(/\s+/).filter(function (part) {
+      return part.length > 2;
+    });
+    const searchable = normalizeText([
+      documentItem.title,
+      documentItem.type,
+      chunk.text,
+      (chunk.keywords || []).join(" ")
+    ].join(" "));
+    let score = 0;
+
+    if (!parts.length || !searchable) {
+      return 0;
+    }
+
+    if (searchable.indexOf(normalizedQuestion) >= 0) {
+      score += 12;
+    }
+
+    parts.forEach(function (part) {
+      if (searchable.indexOf(part) >= 0) {
+        score += part.length > 5 ? 3 : 1;
+      }
+    });
+
+    if (normalizeText(documentItem.title).indexOf(normalizedQuestion) >= 0) {
+      score += 6;
+    }
+
+    return score;
+  }
+
+  function searchLocalDocuments(question) {
+    const normalizedQuestion = normalizeText(question);
+    if (!normalizedQuestion) {
+      return [];
+    }
+
+    const results = [];
+    getLocalDocuments().forEach(function (documentItem) {
+      (documentItem.chunks || []).forEach(function (chunk) {
+        const score = scoreDocumentChunk(documentItem, chunk, normalizedQuestion);
+        if (score > 0) {
+          results.push({
+            document: documentItem,
+            chunk: chunk,
+            score: score
+          });
+        }
+      });
+    });
+
+    return results.sort(function (first, second) {
+      return second.score - first.score;
+    });
+  }
+
+  function summarizeDocumentChunk(text) {
+    const cleanText = sanitizeLibraryText(text, 1200).replace(/\s+/g, " ");
+    if (cleanText.length <= 360) {
+      return cleanText;
+    }
+    return cleanText.slice(0, 357).trim() + "...";
+  }
+
+  function isDocumentSearchQuestion(question) {
+    const text = normalizeText(question);
+    return hasAnyTerm(text, ["documento local", "documentos locais", "documentos do elo", "manual", "base de conhecimento"]);
+  }
+
+  function answerFromLocalDocuments(question) {
+    const documents = getLocalDocuments();
+    if (!documents.length) {
+      return null;
+    }
+
+    const results = searchLocalDocuments(question);
+    const best = results[0];
+    if (!best || best.score < 4) {
+      if (isDocumentSearchQuestion(question)) {
+        return {
+          shortAnswer: "Não encontrei essa informação nos documentos locais.",
+          fullAnswer: "A base local tem " + documents.length + " documento(s), mas nenhum trecho teve relação suficiente com a pergunta.",
+          nextAction: "Abra Documentos do Elo para revisar textos importados ou adicionar um documento mais específico.",
+          canSave: false
+        };
+      }
+      return null;
+    }
+
+    return {
+      shortAnswer: "Resposta baseada em documento local: " + best.document.title,
+      fullAnswer: summarizeDocumentChunk(best.chunk.text),
+      nextAction: "Abra Documentos do Elo para revisar o documento completo ou adicionar novos textos.",
+      canSave: false,
+      localDocumentResult: {
+        document: best.document,
+        chunk: best.chunk
+      }
+    };
   }
 
   // ELO_LIBRARY_LOCAL
@@ -2129,6 +2381,11 @@
 
     if (isDailyRoutineQuestion(normalizedQuestion)) {
       return buildDailyRoutineResponse(cleanQuestion);
+    }
+
+    const localDocumentAnswer = answerFromLocalDocuments(cleanQuestion);
+    if (localDocumentAnswer) {
+      return localDocumentAnswer;
     }
 
     const libraryAnswer = answerFromLibrary(cleanQuestion);
@@ -3743,6 +4000,10 @@
     libraryButton.type = "button";
     libraryButton.addEventListener("click", showLibrary);
     container.appendChild(libraryButton);
+    const documentsButton = createElement("button", "elo-inline-button", "Documentos do Elo");
+    documentsButton.type = "button";
+    documentsButton.addEventListener("click", showLocalDocuments);
+    container.appendChild(documentsButton);
     const projectsButton = createElement("button", "elo-inline-button", "Projetos");
     projectsButton.type = "button";
     projectsButton.addEventListener("click", showProjects);
@@ -3987,6 +4248,15 @@
       });
       fullButton.classList.add("elo-secondary-response-action");
       actions.appendChild(fullButton);
+    }
+
+    if (response && response.localDocumentResult) {
+      const documentButton = createElement("button", "elo-inline-button", "Ver documento local");
+      documentButton.type = "button";
+      documentButton.addEventListener("click", function () {
+        appendMessage("system", response.localDocumentResult.document.title + "\n\n" + response.localDocumentResult.document.text);
+      });
+      actions.appendChild(documentButton);
     }
 
     if (response && Array.isArray(response.routineCards)) {
@@ -4613,6 +4883,187 @@
       actions.appendChild(deleteButton);
       card.appendChild(header);
       card.appendChild(meta);
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+  }
+
+  function showLocalDocuments() {
+    const message = appendMessage("system", "Documentos do Elo");
+    const panel = createElement("div", "elo-documents-panel");
+    const status = createElement("p", "elo-privacy", "Documentos ficam salvos apenas neste navegador. PDFs e OCR ainda não foram ativados.");
+    const controls = createElement("div", "elo-library-controls");
+    const searchInput = createElement("input", "elo-library-search");
+    const addButton = createElement("button", "elo-inline-button", "Adicionar documento");
+    const exportButton = createElement("button", "elo-inline-button", "Exportar documentos");
+    const clearButton = createElement("button", "elo-inline-button", "Limpar documentos");
+    const form = buildLocalDocumentForm(function (result) {
+      if (result.ok) {
+        status.textContent = "Documento salvo: " + result.document.title + ".";
+        renderLocalDocumentList(list, searchInput.value);
+      } else if (result.reason === "sensitive") {
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
+      } else {
+        status.textContent = "Preencha título e texto, ou importe um arquivo .txt/.md.";
+      }
+    });
+    const list = createElement("div", "elo-documents-list");
+
+    searchInput.type = "search";
+    searchInput.placeholder = "Buscar nos documentos";
+    addButton.type = "button";
+    exportButton.type = "button";
+    clearButton.type = "button";
+
+    searchInput.addEventListener("input", function () {
+      renderLocalDocumentList(list, searchInput.value);
+    });
+    addButton.addEventListener("click", function () {
+      form.classList.toggle("is-hidden");
+    });
+    exportButton.addEventListener("click", function () {
+      const exported = JSON.stringify(getDocumentsStorage(), null, 2);
+      const blob = new Blob([exported], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "elo-documentos-locais.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      status.textContent = "Arquivo JSON dos documentos preparado.";
+    });
+    clearButton.addEventListener("click", function () {
+      clearLocalDocuments();
+      status.textContent = "Documentos locais limpos. Dados do ObraReport não foram alterados.";
+      renderLocalDocumentList(list, searchInput.value);
+    });
+
+    controls.appendChild(searchInput);
+    controls.appendChild(addButton);
+    controls.appendChild(exportButton);
+    controls.appendChild(clearButton);
+    panel.appendChild(status);
+    panel.appendChild(controls);
+    panel.appendChild(form);
+    panel.appendChild(list);
+    message.appendChild(panel);
+
+    renderLocalDocumentList(list, "");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function buildLocalDocumentForm(onSave) {
+    const form = createElement("form", "elo-library-form elo-document-form is-hidden");
+    const titleInput = createElement("input", "elo-library-field");
+    const typeSelect = createElement("select", "elo-library-field");
+    const textInput = createElement("textarea", "elo-library-field elo-library-textarea");
+    const fileInput = createElement("input", "elo-library-field");
+    const saveButton = createElement("button", "elo-send-button", "Salvar documento");
+
+    titleInput.type = "text";
+    titleInput.maxLength = 140;
+    titleInput.placeholder = "Título do documento";
+    typeSelect.setAttribute("aria-label", "Tipo do documento");
+    appendSimpleOptions(typeSelect, ["txt", "md"]);
+    textInput.maxLength = 60000;
+    textInput.rows = 6;
+    textInput.placeholder = "Cole aqui o texto do documento";
+    fileInput.type = "file";
+    fileInput.accept = ".txt,.md,text/plain,text/markdown";
+    saveButton.type = "submit";
+
+    fileInput.addEventListener("change", function () {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        return;
+      }
+      const extension = (file.name.split(".").pop() || "txt").toLowerCase();
+      if (["txt", "md"].indexOf(extension) === -1) {
+        onSave({ ok: false, reason: "missing" });
+        fileInput.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function () {
+        titleInput.value = titleInput.value || file.name.replace(/\.[^.]+$/g, "");
+        typeSelect.value = extension === "md" ? "md" : "txt";
+        textInput.value = sanitizeLibraryText(reader.result, 60000);
+      };
+      reader.readAsText(file);
+    });
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const result = saveLocalDocument({
+        title: titleInput.value,
+        type: typeSelect.value,
+        text: textInput.value
+      });
+      if (result.ok) {
+        titleInput.value = "";
+        typeSelect.value = "txt";
+        textInput.value = "";
+        fileInput.value = "";
+        form.classList.add("is-hidden");
+      }
+      onSave(result);
+    });
+
+    form.appendChild(titleInput);
+    form.appendChild(typeSelect);
+    form.appendChild(textInput);
+    form.appendChild(fileInput);
+    form.appendChild(saveButton);
+    return form;
+  }
+
+  function renderLocalDocumentList(list, query) {
+    list.textContent = "";
+    const documents = getLocalDocuments();
+    const results = query ? searchLocalDocuments(query).map(function (entry) {
+      return entry.document;
+    }) : documents;
+    const seen = {};
+    const filtered = results.filter(function (documentItem) {
+      if (seen[documentItem.id]) {
+        return false;
+      }
+      seen[documentItem.id] = true;
+      return true;
+    });
+
+    if (!filtered.length) {
+      list.appendChild(createElement("p", "elo-library-empty", "Nenhum documento local encontrado."));
+      return;
+    }
+
+    filtered.forEach(function (documentItem) {
+      const card = createElement("article", "elo-document-card");
+      const header = createElement("div", "elo-library-card-header");
+      const title = createElement("strong", "", documentItem.title);
+      const meta = createElement("span", "elo-library-meta", documentItem.type.toUpperCase() + " · " + documentItem.size + " caracteres · " + (documentItem.chunks || []).length + " chunk(s) · " + formatDateTime(documentItem.createdAt));
+      const summary = createElement("p", "", summarizeDocumentChunk(documentItem.text));
+      const actions = createElement("div", "elo-library-actions");
+      const viewButton = createElement("button", "elo-inline-button", "Ver texto");
+      const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
+
+      viewButton.type = "button";
+      deleteButton.type = "button";
+      viewButton.addEventListener("click", function () {
+        appendMessage("system", documentItem.title + "\n\n" + documentItem.text);
+      });
+      deleteButton.addEventListener("click", function () {
+        deleteLocalDocument(documentItem.id);
+        renderLocalDocumentList(list, query);
+        appendMessage("system", "Documento local excluído.");
+      });
+
+      header.appendChild(title);
+      header.appendChild(meta);
+      actions.appendChild(viewButton);
+      actions.appendChild(deleteButton);
+      card.appendChild(header);
+      card.appendChild(summary);
       card.appendChild(actions);
       list.appendChild(card);
     });
