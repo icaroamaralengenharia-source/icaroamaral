@@ -1571,6 +1571,16 @@
       return greeting;
     }
 
+    const contextualHelp = getContextualHelpResponse(normalizedQuestion);
+    if (contextualHelp) {
+      return contextualHelp;
+    }
+
+    const screenDataAnswer = answerScreenDataQuestion(cleanQuestion, normalizedQuestion);
+    if (screenDataAnswer) {
+      return screenDataAnswer;
+    }
+
     const saved = searchSavedKnowledge(cleanQuestion);
     if (saved) {
       return {
@@ -1617,12 +1627,362 @@
     };
   }
 
+  function getContextualHelpResponse(normalizedQuestion) {
+    const genericQuestions = [
+      "como funciona",
+      "me ajuda",
+      "ajuda",
+      "o que faco",
+      "o que faço",
+      "por onde comeco",
+      "por onde começo"
+    ];
+    const isGeneric = genericQuestions.some(function (item) {
+      const normalizedItem = normalizeText(item);
+      return normalizedQuestion === normalizedItem || normalizedQuestion.indexOf(normalizedItem) === 0;
+    });
+
+    if (!isGeneric) {
+      return null;
+    }
+
+    const context = getCurrentScreenContext();
+    const answers = {
+      "Planos": {
+        shortAnswer: "Você está em Planos.",
+        fullAnswer: "Aqui o mais importante é entender limites, plano gratuito, contratação assistida e qual plano combina com seu uso.",
+        nextAction: "Pergunte: o plano gratuito tem limite? ou como funcionam os planos?",
+        canSave: false
+      },
+      "Diário de Obras": {
+        shortAnswer: "Você está no Diário de Obras.",
+        fullAnswer: "Aqui eu priorizo RDO, produção executada, materiais consumidos, ocorrências, segurança e PDF do diário.",
+        nextAction: "Pergunte: como registrar materiais? ou como gerar PDF do RDO?",
+        canSave: false
+      },
+      "Relatórios": {
+        shortAnswer: "Você está em Relatórios.",
+        fullAnswer: "Aqui eu priorizo criação de relatório, fotos, inconformidades, revisão técnica e PDF profissional.",
+        nextAction: "Pergunte: como criar meu primeiro relatório? ou como adicionar fotos?",
+        canSave: false
+      },
+      "Clientes": {
+        shortAnswer: "Você está em Clientes.",
+        fullAnswer: "Aqui eu priorizo cadastro de cliente e organização dos vínculos com obras, relatórios e RDOs.",
+        nextAction: "Pergunte: como cadastrar cliente?",
+        canSave: false
+      },
+      "Obras": {
+        shortAnswer: "Você está em Obras.",
+        fullAnswer: "Aqui eu priorizo cadastro de obra, vínculo com cliente e organização dos documentos técnicos.",
+        nextAction: "Pergunte: como cadastrar obra?",
+        canSave: false
+      },
+      "Administração": {
+        shortAnswer: "Você está em Administração.",
+        fullAnswer: "Aqui eu priorizo visão geral de uso, limites, planos e suporte operacional.",
+        nextAction: "Pergunte sobre limites, planos ou suporte.",
+        canSave: false
+      }
+    };
+
+    return answers[context.label] || {
+      shortAnswer: "Você está no " + context.label + ".",
+      fullAnswer: "Posso orientar o próximo passo com base nesta tela do ObraReport.",
+      nextAction: "Pergunte sobre PDF, RDO, materiais, relatórios ou planos.",
+      canSave: false
+    };
+  }
+
+  function getCurrentScreenContext() {
+    const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
+    const contexts = {
+      dashboard: {
+        label: "Dashboard",
+        categories: ["primeiros_passos", "relatorios", "rdo", "materiais", "planos"]
+      },
+      clientes: {
+        label: "Clientes",
+        categories: ["clientes", "obras", "primeiros_passos"]
+      },
+      obras: {
+        label: "Obras",
+        categories: ["obras", "clientes", "relatorios", "rdo"]
+      },
+      relatorios: {
+        label: "Relatórios",
+        categories: ["relatorios", "fotos", "pdf", "ia"]
+      },
+      diario: {
+        label: "Diário de Obras",
+        categories: ["rdo", "materiais", "pdf", "ia"]
+      },
+      planos: {
+        label: "Planos",
+        categories: ["planos", "limites", "suporte"]
+      },
+      administracao: {
+        label: "Administração",
+        categories: ["planos", "limites", "suporte"]
+      }
+    };
+
+    return contexts[route] || {
+      label: "Home",
+      categories: ["primeiros_passos", "relatorios", "rdo", "pdf"]
+    };
+  }
+
+  function answerScreenDataQuestion(question, normalizedQuestion) {
+    const context = getOperationalScreenContext();
+    const wantsWork = hasAnyTerm(normalizedQuestion, ["qual obra", "obra atual", "obra estou vendo", "obra vinculada"]);
+    const wantsClient = hasAnyTerm(normalizedQuestion, ["qual cliente", "cliente atual", "cliente estou vendo"]);
+    const wantsReport = hasAnyTerm(normalizedQuestion, ["qual relatorio", "relatorio atual", "ultimo relatorio", "ultima relatorio"]);
+    const wantsDiary = hasAnyTerm(normalizedQuestion, ["qual rdo", "rdo atual", "diario atual", "diario estou vendo"]);
+    const wantsMaterials = hasAnyTerm(normalizedQuestion, ["existe material", "tem material", "material registrado", "materiais registrados", "materiais visiveis"]);
+    const wantsProduction = hasAnyTerm(normalizedQuestion, ["tenho producao", "existe producao", "producao lancada", "producao executada", "tem producao"]);
+    const wantsIndicators = hasAnyTerm(normalizedQuestion, ["indicadores", "metricas", "numeros", "status da tela"]);
+
+    if (wantsWork) {
+      return buildScreenDataResponse(
+        context.work ? "A obra visivel agora e " + context.work + "." : "Nao identifiquei uma obra selecionada nesta tela.",
+        context.work ? "Estou lendo a obra selecionada ou exibida na tela atual do ObraReport." : "Se voce estiver no RDO ou em Relatorios, selecione uma obra para eu conseguir ler esse contexto.",
+        context.work ? "Continue o registro nessa obra ou pergunte sobre materiais, producao ou PDF." : "Selecione uma obra ou carregue a Obra Exemplo."
+      );
+    }
+
+    if (wantsClient) {
+      return buildScreenDataResponse(
+        context.client ? "O cliente visivel agora e " + context.client + "." : "Nao identifiquei um cliente selecionado nesta tela.",
+        context.client ? "Estou lendo o cliente selecionado ou exibido no formulario/lista atual." : "Em Relatorios ou Obras, selecione um cliente para eu conseguir informar com seguranca.",
+        context.client ? "Voce pode continuar cadastrando obra, relatorio ou RDO para esse cliente." : "Abra Clientes, Obras ou Relatorios e selecione um cliente."
+      );
+    }
+
+    if (wantsReport) {
+      return buildScreenDataResponse(
+        context.report ? "O relatorio visivel mais relevante e " + context.report + "." : "Nao encontrei relatorio visivel nesta tela.",
+        context.report ? "Eu li o relatorio ativo, o titulo preenchido ou o primeiro item do historico visivel." : "Se houver relatorios salvos, abra Relatorios ou o Dashboard para eu ler o historico visivel.",
+        context.report ? "Abra o relatorio ou gere o PDF se quiser revisar a entrega." : "Crie ou carregue um relatorio para eu acompanhar."
+      );
+    }
+
+    if (wantsDiary) {
+      return buildScreenDataResponse(
+        context.diary ? "O RDO visivel agora e " + context.diary + "." : "Nao encontrei um RDO salvo visivel nesta tela.",
+        context.diary ? "Estou lendo o formulario do Diario de Obras e a lista de registros visiveis." : "No Diario, preencha ou selecione um registro para eu conseguir contextualizar melhor.",
+        context.diary ? "Revise producao, materiais e encerramento antes de gerar o PDF do diario." : "Comece um novo Diario de Obras ou carregue a Obra Exemplo."
+      );
+    }
+
+    if (wantsMaterials) {
+      const hasMaterials = context.materials && !isEmptyScreenText(context.materials, ["nenhum material registrado", "nenhum consumo registrado"]);
+      return buildScreenDataResponse(
+        hasMaterials ? "Sim. Existe material registrado ou consumo visivel na tela." : "Nao vejo material registrado nesta tela agora.",
+        hasMaterials ? context.materials : "A area de materiais esta vazia ou ainda nao foi aberta/preenchida.",
+        hasMaterials ? "Revise a auditoria de consumo e gere o PDF quando estiver pronto." : "Adicione um material no RDO ou carregue a Obra Exemplo para testar."
+      );
+    }
+
+    if (wantsProduction) {
+      const hasProduction = context.production && !isEmptyScreenText(context.production, ["nenhuma producao registrada", "nenhuma producao executada registrada"]);
+      return buildScreenDataResponse(
+        hasProduction ? "Sim. Existe producao executada visivel na tela." : "Nao vejo producao executada lancada nesta tela agora.",
+        hasProduction ? context.production : "A area de Producao Executada esta vazia ou ainda nao foi preenchida.",
+        hasProduction ? "Voce pode calcular materiais estimados e revisar a auditoria de consumo." : "Adicione um servico em Producao Executada para iniciar o controle."
+      );
+    }
+
+    if (wantsIndicators) {
+      return buildScreenDataResponse(
+        context.indicators.length ? "Encontrei indicadores visiveis nesta tela." : "Nao encontrei indicadores visiveis nesta tela.",
+        context.indicators.length ? context.indicators.join("\n") : "Os indicadores aparecem principalmente no Dashboard, Diario de Obras e Administracao.",
+        context.indicators.length ? "Use esses numeros para revisar andamento, relatorios, fotos, PDFs, materiais ou RDOs." : "Abra o Dashboard ou o Diario para ver metricas."
+      );
+    }
+
+    return null;
+  }
+
+  function buildScreenDataResponse(shortAnswer, fullAnswer, nextAction) {
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: fullAnswer,
+      nextAction: nextAction,
+      canSave: false
+    };
+  }
+
+  function getOperationalScreenContext() {
+    const screen = getCurrentScreenContext();
+    const reportTitle = getInputValue("[name='reportTitle']");
+    const currentReport = getVisibleText("#currentReportLabel");
+    const recentReport = getFirstVisibleListText("#recentReportsList, #reportsList");
+    const dailyDate = getInputValue("#dailyLogForm [name='date']");
+    const dailyResponsible = getInputValue("#dailyLogForm [name='responsible']");
+    const dailyStatus = getVisibleText("#dailyLogStatus");
+
+    return {
+      screen: screen.label,
+      work: firstUsefulText([
+        getSelectedOptionText("#dailyLogWorkSelect"),
+        getSelectedOptionText("#reportWorkSelect"),
+        getInputValue("#workForm [name='workName']"),
+        getFirstVisibleListText("#worksList")
+      ], ["escolher", "cadastre", "nenhuma obra"]),
+      client: firstUsefulText([
+        getSelectedOptionText("#reportClientSelect"),
+        getSelectedOptionText("#workClientSelect"),
+        getInputValue("#clientForm [name='clientName']"),
+        getFirstVisibleListText("#clientsList")
+      ], ["escolher", "cadastre", "nenhum cliente"]),
+      report: firstUsefulText([
+        currentReport,
+        reportTitle,
+        recentReport
+      ], ["sem vinculo", "nenhum relatorio"]),
+      diary: firstUsefulText([
+        dailyDate && dailyResponsible ? "Diario de " + dailyDate + " registrado por " + dailyResponsible : "",
+        dailyDate ? "Diario de " + dailyDate : "",
+        getFirstVisibleListText("#dailyLogRecordsList"),
+        dailyStatus
+      ], ["nenhum diario", "diarios salvos"]),
+      materials: firstUsefulText([
+        getVisibleText("#dailyLogMaterialSummary"),
+        getVisibleText("#dailyLogMaterialsList"),
+        getVisibleText("#dailyLogAuditPanel"),
+        getVisibleText("#dailyLogMaterialTotal")
+      ], []),
+      production: firstUsefulText([
+        getVisibleText("#dailyLogProductionSummary"),
+        getVisibleText("#dailyLogProductionsList")
+      ], []),
+      indicators: collectVisibleIndicators()
+    };
+  }
+
+  function collectVisibleIndicators() {
+    const pairs = [
+      ["Clientes", "#clientMetric"],
+      ["Obras", "#workMetric"],
+      ["Relatorios", "#reportMetric"],
+      ["Fotos", "#photoMetric"],
+      ["PDFs", "#pdfMetric"],
+      ["Usuarios", "#adminUsersMetric"],
+      ["Clientes admin", "#adminClientsMetric"],
+      ["Obras admin", "#adminWorksMetric"],
+      ["Relatorios admin", "#adminReportsMetric"],
+      ["RDOs admin", "#adminRdosMetric"],
+      ["Obras cliente", "#clientPortalWorkMetric"],
+      ["Relatorios cliente", "#clientPortalReportMetric"],
+      ["RDOs cliente", "#clientPortalRdoMetric"],
+      ["PDFs cliente", "#clientPortalPdfMetric"]
+    ];
+    const indicators = pairs.reduce(function (items, pair) {
+      const el = document.querySelector(pair[1]);
+      if (el && isElementVisible(el)) {
+        items.push(pair[0] + ": " + cleanScreenText(el.textContent));
+      }
+      return items;
+    }, []);
+    const diaryIndicators = document.querySelector("#dailyLogIndicators");
+    if (diaryIndicators && isElementVisible(diaryIndicators)) {
+      const text = cleanScreenText(diaryIndicators.textContent);
+      if (text) {
+        indicators.push("Diario: " + text);
+      }
+    }
+    return indicators.slice(0, 10);
+  }
+
+  function hasAnyTerm(normalizedQuestion, terms) {
+    return terms.some(function (term) {
+      return normalizedQuestion.indexOf(normalizeText(term)) >= 0;
+    });
+  }
+
+  function getInputValue(selector) {
+    const el = document.querySelector(selector);
+    if (!el || !isElementVisible(el)) {
+      return "";
+    }
+    return cleanScreenText(el.value || "");
+  }
+
+  function getSelectedOptionText(selector) {
+    const el = document.querySelector(selector);
+    if (!el || !isElementVisible(el) || el.selectedIndex < 0) {
+      return "";
+    }
+    return cleanScreenText(el.options[el.selectedIndex].textContent || "");
+  }
+
+  function getVisibleText(selector) {
+    const el = document.querySelector(selector);
+    if (!el || !isElementVisible(el)) {
+      return "";
+    }
+    return cleanScreenText(el.textContent || "");
+  }
+
+  function getFirstVisibleListText(selector) {
+    const list = document.querySelector(selector);
+    if (!list || !isElementVisible(list)) {
+      return "";
+    }
+    const firstChild = Array.prototype.find.call(list.children || [], function (child) {
+      return isElementVisible(child) && cleanScreenText(child.textContent || "");
+    });
+    return cleanScreenText((firstChild || list).textContent || "");
+  }
+
+  function firstUsefulText(values, ignoredTerms) {
+    const ignored = ignoredTerms || [];
+    for (let index = 0; index < values.length; index += 1) {
+      const text = cleanScreenText(values[index] || "");
+      if (text && !isEmptyScreenText(text, ignored)) {
+        return text;
+      }
+    }
+    return "";
+  }
+
+  function isEmptyScreenText(text, ignoredTerms) {
+    const normalized = normalizeText(text || "");
+    if (!normalized) {
+      return true;
+    }
+    return (ignoredTerms || []).some(function (term) {
+      return normalized.indexOf(normalizeText(term)) >= 0;
+    });
+  }
+
+  function cleanScreenText(text) {
+    return sanitizeUserText(String(text || "").replace(/\s+/g, " ").trim()).slice(0, 420);
+  }
+
+  function isElementVisible(el) {
+    if (!el) {
+      return false;
+    }
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
   function searchKnowledgeBase(normalizedQuestion) {
     let bestItem = null;
     let bestScore = 0;
+    const context = getCurrentScreenContext();
 
     ELO_KNOWLEDGE_BASE.forEach(function (item) {
       let score = 0;
+      if (context.categories.indexOf(item.category) >= 0) {
+        score += 3;
+      }
       item.keywords.forEach(function (keyword) {
         const normalizedKeyword = normalizeText(keyword);
         if (normalizedQuestion.indexOf(normalizedKeyword) >= 0) {
@@ -1637,13 +1997,16 @@
       if (normalizeText(item.title).indexOf(normalizedQuestion) >= 0) {
         score += 4;
       }
+      if (context.categories.indexOf(item.category) < 0 && score <= 3) {
+        score = 0;
+      }
       if (score > bestScore) {
         bestScore = score;
         bestItem = item;
       }
     });
 
-    return bestScore > 0 ? bestItem : null;
+    return bestScore > 3 ? bestItem : null;
   }
 
   function formatResponse(response) {
@@ -1661,7 +2024,8 @@
     root: null,
     panel: null,
     messages: null,
-    input: null
+    input: null,
+    contextLabel: null
   };
 
   function buildWidget() {
@@ -1681,6 +2045,8 @@
     const headerText = createElement("div");
     headerText.appendChild(createElement("h2", "", "Elo — Assistente ObraReport"));
     headerText.appendChild(createElement("p", "", "Eu lembro, procuro e te ajudo a usar o ObraReport."));
+    ELO_UI.contextLabel = createElement("p", "elo-context-label");
+    headerText.appendChild(ELO_UI.contextLabel);
     const closeButton = createElement("button", "elo-close-button", "×");
     closeButton.type = "button";
     closeButton.setAttribute("aria-label", "Fechar Elo");
@@ -1690,8 +2056,6 @@
     ELO_UI.messages = createElement("div", "elo-messages");
 
     const footer = createElement("footer", "elo-footer");
-    footer.appendChild(buildQuickButtons());
-    footer.appendChild(buildTools());
 
     const inputRow = createElement("form", "elo-input-row");
     ELO_UI.input = createElement("input", "elo-input");
@@ -1704,9 +2068,7 @@
     inputRow.appendChild(sendButton);
 
     footer.appendChild(inputRow);
-    footer.appendChild(createElement("p", "elo-privacy", "A Biblioteca do Elo fica salva apenas neste navegador."));
-    footer.appendChild(createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador."));
-    footer.appendChild(createElement("p", "elo-privacy", "As memórias pessoais ficam salvas apenas neste navegador."));
+    footer.appendChild(buildTools());
 
     ELO_UI.panel.appendChild(header);
     ELO_UI.panel.appendChild(ELO_UI.messages);
@@ -1726,9 +2088,20 @@
       askElo(ELO_UI.input.value);
       ELO_UI.input.value = "";
     });
+    window.addEventListener("hashchange", updateScreenContext);
 
+    updateScreenContext();
     appendMessage("system", "Olá, eu sou o Elo. Posso ajudar com relatórios, PDF, RDO, fotos, materiais e planos.");
     setPanelOpen(false);
+  }
+
+  function updateScreenContext() {
+    if (!ELO_UI.contextLabel) {
+      return;
+    }
+
+    const context = getCurrentScreenContext();
+    ELO_UI.contextLabel.textContent = "Contexto atual: " + context.label;
   }
 
   function buildQuickButtons() {
@@ -1754,7 +2127,13 @@
   }
 
   function buildTools() {
+    const details = createElement("details", "elo-tools-menu");
+    const summary = createElement("summary", "", "⚙ Ferramentas do Elo");
     const container = createElement("div", "elo-tools");
+
+    details.appendChild(summary);
+    container.appendChild(buildQuickButtons());
+
     const libraryButton = createElement("button", "elo-inline-button", "Biblioteca");
     libraryButton.type = "button";
     libraryButton.addEventListener("click", showLibrary);
@@ -1779,7 +2158,9 @@
       button.addEventListener("click", item[1]);
       container.appendChild(button);
     });
-    return container;
+    container.appendChild(createElement("p", "elo-privacy", "Biblioteca, histórico e memórias ficam salvos apenas neste navegador."));
+    details.appendChild(container);
+    return details;
   }
 
   function setPanelOpen(isOpen) {
@@ -1874,6 +2255,7 @@
       fullButton.addEventListener("click", function () {
         appendMessage("system", response.libraryItem.title + "\n\n" + response.libraryItem.content);
       });
+      fullButton.classList.add("elo-secondary-response-action");
       actions.appendChild(fullButton);
     }
 
@@ -1887,6 +2269,7 @@
         });
         routineActions.appendChild(cardButton);
       });
+      routineActions.classList.add("elo-secondary-response-action");
       message.appendChild(routineActions);
     }
 
@@ -1910,15 +2293,20 @@
 
       webActions.appendChild(prepareButton);
       webActions.appendChild(cancelButton);
+      webNotice.classList.add("elo-secondary-response-action");
+      webActions.classList.add("elo-secondary-response-action");
       message.appendChild(webNotice);
       message.appendChild(webActions);
     }
 
     if (canSave) {
       const saveQuestion = createElement("span", "elo-privacy", "Deseja guardar isso para eu lembrar depois?");
+      saveQuestion.classList.add("elo-secondary-response-action");
       message.appendChild(saveQuestion);
       const saveButton = createElement("button", "elo-inline-button", "Guardar");
       const dontSaveButton = createElement("button", "elo-inline-button", "Não guardar");
+      saveButton.classList.add("elo-secondary-response-action");
+      dontSaveButton.classList.add("elo-secondary-response-action");
       saveButton.type = "button";
       dontSaveButton.type = "button";
       saveButton.addEventListener("click", function () {
@@ -1934,6 +2322,9 @@
       const libraryQuestion = createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca do Elo?");
       const libraryButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
       const dontSaveLibraryButton = createElement("button", "elo-inline-button", "NÃ£o guardar na Biblioteca");
+      libraryQuestion.classList.add("elo-secondary-response-action");
+      libraryButton.classList.add("elo-secondary-response-action");
+      dontSaveLibraryButton.classList.add("elo-secondary-response-action");
       libraryButton.type = "button";
       dontSaveLibraryButton.type = "button";
       libraryButton.addEventListener("click", function () {
@@ -1959,9 +2350,8 @@
       actions.appendChild(dontSaveLibraryButton);
     }
 
-    const feedbackText = createElement("span", "elo-privacy", "Essa resposta ajudou?");
-    const yesButton = createElement("button", "elo-inline-button", "Sim");
-    const noButton = createElement("button", "elo-inline-button", "Não");
+    const yesButton = createElement("button", "elo-inline-button elo-feedback-button", "👍 Útil");
+    const noButton = createElement("button", "elo-inline-button elo-feedback-button", "👎 Não útil");
     yesButton.type = "button";
     noButton.type = "button";
     yesButton.addEventListener("click", function () {
@@ -1975,7 +2365,6 @@
       noButton.disabled = true;
     });
 
-    message.appendChild(feedbackText);
     actions.appendChild(yesButton);
     actions.appendChild(noButton);
     message.appendChild(actions);

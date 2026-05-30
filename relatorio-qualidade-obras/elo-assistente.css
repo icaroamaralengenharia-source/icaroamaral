@@ -82,6 +82,19 @@
   line-height: 1.4;
 }
 
+.elo-header .elo-context-label {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 9px;
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: #ffe8b3;
+  background: rgba(3, 17, 33, 0.28);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
 .elo-close-button {
   width: 34px;
   height: 34px;
@@ -718,5 +731,123 @@
   .elo-tools {
     max-height: 112px;
     overflow: auto;
+  }
+}
+
+/* Elo simples: conversa em primeiro plano, ferramentas recolhidas */
+.elo-panel {
+  grid-template-rows: auto minmax(320px, 1fr) auto;
+  width: min(540px, calc(100vw - 28px));
+  max-height: min(760px, calc(100vh - 112px));
+  border-radius: 18px;
+}
+
+.elo-header {
+  padding: 18px 20px 15px;
+}
+
+.elo-messages {
+  gap: 14px;
+  padding: 18px 20px;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.035), transparent 14rem),
+    #fbfdff;
+}
+
+.elo-message {
+  gap: 7px;
+  max-width: 88%;
+}
+
+.elo-message-bubble {
+  padding: 13px 15px;
+  border-radius: 16px;
+  line-height: 1.58;
+}
+
+.elo-message-actions,
+.elo-feedback-actions,
+.elo-web-search-actions {
+  gap: 7px;
+}
+
+.elo-secondary-response-action {
+  display: none !important;
+}
+
+.elo-feedback-button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.elo-footer {
+  gap: 9px;
+  padding: 14px 16px 15px;
+}
+
+.elo-tools-menu {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.elo-tools-menu summary {
+  min-height: 36px;
+  padding: 0 12px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 36px;
+  list-style: none;
+}
+
+.elo-tools-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.elo-tools-menu[open] summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.elo-tools-menu:not([open]) .elo-tools {
+  display: none;
+}
+
+.elo-tools-menu .elo-tools {
+  padding: 10px;
+}
+
+.elo-tools-menu .elo-quick-buttons {
+  width: 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.elo-input-row {
+  gap: 10px;
+}
+
+.elo-input {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 14px;
+}
+
+.elo-send-button {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 14px;
+}
+
+@media (max-width: 760px) {
+  .elo-panel {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: min(78vh, calc(100vh - 82px));
   }
 }
