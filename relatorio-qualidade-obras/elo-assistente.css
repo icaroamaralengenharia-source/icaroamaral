@@ -186,6 +186,51 @@
   background: #ffffff;
 }
 
+.elo-context-suggestions {
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.elo-context-suggestions.is-hidden {
+  display: none;
+}
+
+.elo-suggestions-label {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.elo-suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.elo-suggestion-chip {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  color: #334155;
+  background: #f8fbfd;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.elo-suggestion-chip:hover {
+  color: #0f5f8f;
+  border-color: rgba(15, 118, 110, 0.28);
+  background: rgba(15, 118, 110, 0.08);
+}
+
 .elo-quick-buttons,
 .elo-tools {
   display: flex;

@@ -1775,11 +1775,6 @@
       return greeting;
     }
 
-    const sessionContinuation = getSessionContinuationResponse(normalizedQuestion);
-    if (sessionContinuation) {
-      return sessionContinuation;
-    }
-
     const visibleDataAnswer = getVisibleDataKnowledgeResponse(normalizedQuestion);
     if (visibleDataAnswer) {
       return visibleDataAnswer;
@@ -1788,6 +1783,11 @@
     const operational = getOperationalAssistantResponse(normalizedQuestion);
     if (operational) {
       return operational;
+    }
+
+    const sessionContinuation = getSessionContinuationResponse(normalizedQuestion);
+    if (sessionContinuation) {
+      return sessionContinuation;
     }
 
     const diagnostic = getDiagnosticStepResponse(normalizedQuestion);
@@ -3133,7 +3133,8 @@
     panel: null,
     messages: null,
     input: null,
-    contextLabel: null
+    contextLabel: null,
+    suggestions: null
   };
 
   function buildWidget() {
@@ -3162,6 +3163,7 @@
     header.appendChild(closeButton);
 
     ELO_UI.messages = createElement("div", "elo-messages");
+    ELO_UI.suggestions = createElement("div", "elo-context-suggestions");
 
     const footer = createElement("footer", "elo-footer");
 
@@ -3180,6 +3182,7 @@
 
     ELO_UI.panel.appendChild(header);
     ELO_UI.panel.appendChild(ELO_UI.messages);
+    ELO_UI.panel.appendChild(ELO_UI.suggestions);
     ELO_UI.panel.appendChild(footer);
     ELO_UI.root.appendChild(floatButton);
     ELO_UI.root.appendChild(ELO_UI.panel);
@@ -3210,6 +3213,95 @@
 
     const context = getCurrentScreenContext();
     ELO_UI.contextLabel.textContent = "Contexto atual: " + context.label;
+    renderContextSuggestions(context);
+  }
+
+  function renderContextSuggestions(context) {
+    if (!ELO_UI.suggestions) {
+      return;
+    }
+
+    ELO_UI.suggestions.innerHTML = "";
+    const suggestions = getContextSuggestions(context).slice(0, 5);
+    if (!suggestions.length) {
+      ELO_UI.suggestions.classList.add("is-hidden");
+      return;
+    }
+
+    ELO_UI.suggestions.classList.remove("is-hidden");
+    ELO_UI.suggestions.appendChild(createElement("span", "elo-suggestions-label", "Sugestões nesta tela"));
+    const list = createElement("div", "elo-suggestion-chips");
+    suggestions.forEach(function (item) {
+      const button = createElement("button", "elo-suggestion-chip", item.label);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        askElo(item.question);
+      });
+      list.appendChild(button);
+    });
+    ELO_UI.suggestions.appendChild(list);
+  }
+
+  function getContextSuggestions(context) {
+    const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
+    const suggestionMap = {
+      Dashboard: [
+        ["O que devo fazer agora?", "O que devo fazer agora?"],
+        ["Resuma esta tela", "Resuma esta tela"],
+        ["Quais indicadores aparecem?", "Quais indicadores aparecem?"],
+        ["Como começar?", "Como começar?"]
+      ],
+      Relatórios: [
+        ["Posso gerar o PDF?", "Posso gerar o PDF?"],
+        ["O que falta no relatório?", "O que falta no relatório?"],
+        ["Tenho fotos anexadas?", "Tenho fotos anexadas?"],
+        ["Como melhorar este relatório?", "Como melhorar este relatório?"]
+      ],
+      "Diário de Obras": [
+        ["O que falta preencher?", "O que falta preencher?"],
+        ["Tenho materiais registrados?", "Tenho materiais registrados?"],
+        ["Tenho produção lançada?", "Tenho produção lançada?"],
+        ["Posso gerar o PDF do Diário?", "Posso gerar o PDF do Diário?"],
+        ["Revisar RDO", "Revisar RDO"]
+      ],
+      Planos: [
+        ["Qual plano escolher?", "Qual plano escolher?"],
+        ["Como contratar?", "Como contratar?"],
+        ["Quais são os limites?", "Quais são os limites?"],
+        ["Plano Empresa", "Como funciona o plano Empresa?"]
+      ],
+      Administração: [
+        ["O que posso gerenciar aqui?", "O que posso gerenciar aqui?"],
+        ["Como cadastrar cliente?", "Como cadastrar cliente?"],
+        ["Separar admin e cliente", "Como separar admin e cliente?"]
+      ],
+      "Página do Cliente": [
+        ["Último relatório", "Onde está meu último relatório?"],
+        ["Último RDO", "Onde está meu último RDO?"],
+        ["Documentos disponíveis", "Quais documentos estão disponíveis?"],
+        ["Falar com suporte", "Como falar com suporte?"]
+      ]
+    };
+
+    const materialsSuggestions = [
+      ["Tenho consumo registrado?", "Tenho consumo registrado?"],
+      ["Diferença de consumo", "Existe diferença de consumo?"],
+      ["Como funciona auditoria?", "Como funciona a auditoria?"],
+      ["O que falta lançar?", "O que falta lançar?"]
+    ];
+    const rawItems = route === "diario" && isMaterialsContextVisible() ? materialsSuggestions : (suggestionMap[context.label] || suggestionMap.Dashboard);
+    return rawItems.map(function (item) {
+      return {
+        label: item[0],
+        question: item[1]
+      };
+    });
+  }
+
+  function isMaterialsContextVisible() {
+    const hash = String(window.location.hash || "");
+    return hash.indexOf("rdo-materiais") >= 0 &&
+      (isSelectorVisible("#dailyLogMaterialSummary") || isSelectorVisible("#dailyLogAuditPanel"));
   }
 
   function buildQuickButtons() {
