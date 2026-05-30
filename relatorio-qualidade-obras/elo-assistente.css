@@ -626,3 +626,97 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Redesign premium: Elo discreto na primeira dobra */
+.elo-widget {
+  right: 18px;
+  bottom: 18px;
+  z-index: 90;
+}
+
+.elo-float-button {
+  min-height: 42px;
+  padding: 0 13px;
+  gap: 7px;
+  border-color: rgba(255, 255, 255, 0.24);
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.24), transparent 1.6rem),
+    linear-gradient(135deg, #061a32, #0f5f8f);
+  box-shadow: 0 14px 34px rgba(3, 19, 38, 0.24);
+  font-size: 0.86rem;
+}
+
+.elo-float-icon {
+  width: 24px;
+  height: 24px;
+  color: #061a32;
+  font-size: 0.82rem;
+}
+
+.elo-panel {
+  right: 18px;
+  bottom: 72px;
+  grid-template-rows: auto minmax(180px, 1fr) auto;
+  width: min(380px, calc(100vw - 28px));
+  max-height: min(620px, calc(100vh - 96px));
+  border-radius: 18px;
+  box-shadow: 0 28px 74px rgba(3, 19, 38, 0.28);
+}
+
+.elo-header {
+  padding: 16px 16px 13px;
+  background:
+    radial-gradient(circle at top right, rgba(215, 161, 45, 0.26), transparent 9rem),
+    linear-gradient(135deg, #04172e, #0f5f8f);
+}
+
+.elo-header h2 {
+  font-size: 1rem;
+}
+
+.elo-header p {
+  font-size: 0.8rem;
+}
+
+.elo-messages {
+  padding: 14px;
+}
+
+.elo-footer {
+  gap: 10px;
+  padding: 12px;
+}
+
+.elo-chip-button,
+.elo-inline-button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .elo-widget {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .elo-float-button {
+    min-height: 40px;
+    padding: 0 12px;
+  }
+
+  .elo-panel {
+    left: 10px;
+    right: 10px;
+    bottom: 64px;
+    width: auto;
+    max-height: min(78vh, calc(100vh - 82px));
+    border-radius: 16px;
+  }
+
+  .elo-quick-buttons,
+  .elo-tools {
+    max-height: 112px;
+    overflow: auto;
+  }
+}

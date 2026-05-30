@@ -177,6 +177,8 @@
     });
   });
 
+  initializeHomeQueryActions_();
+
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
 
@@ -766,6 +768,11 @@
       return;
     }
 
+    if (action === "elo-capabilities") {
+      askEloFromHome_("O que você consegue fazer?");
+      return;
+    }
+
     if (!currentUser) {
       pendingHomeAction = action;
       setHomeActionStatus_("Faça login para abrir essa ação diretamente no sistema.");
@@ -850,6 +857,22 @@
     input.dispatchEvent(new Event("input", { bubbles: true }));
     sendButton.click();
     setHomeActionStatus_("Pergunta enviada ao Elo Assistente.");
+  }
+
+  function initializeHomeQueryActions_() {
+    let params;
+
+    try {
+      params = new URLSearchParams(window.location.search || "");
+    } catch (error) {
+      return;
+    }
+
+    if (params.get("elo") === "capabilities") {
+      window.setTimeout(function () {
+        askEloFromHome_("O que você consegue fazer?");
+      }, 700);
+    }
   }
 
   async function handleDashboardAction_(action) {

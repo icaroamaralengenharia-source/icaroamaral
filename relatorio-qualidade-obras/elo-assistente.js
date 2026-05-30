@@ -1728,7 +1728,7 @@
     });
 
     appendMessage("system", "Olá, eu sou o Elo. Posso ajudar com relatórios, PDF, RDO, fotos, materiais e planos.");
-    setPanelOpen(getWidgetState());
+    setPanelOpen(false);
   }
 
   function buildQuickButtons() {
