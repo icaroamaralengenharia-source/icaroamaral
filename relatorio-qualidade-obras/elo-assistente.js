@@ -2055,7 +2055,8 @@
       nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
       canSave: false,
       sessionTheme: detectThemeFromScreen(context.screen),
-      sessionIntent: "resumo_tela"
+      sessionIntent: "resumo_tela",
+      diagnosticText: buildDiagnosticText(context, checklist)
     };
   }
 
@@ -2075,7 +2076,8 @@
         nextAction: "Gere o PDF e revise o arquivo antes de entregar ao cliente.",
         canSave: false,
         sessionTheme: "pdf",
-        sessionIntent: "revisao_pdf"
+        sessionIntent: "revisao_pdf",
+        diagnosticText: buildDiagnosticText(context, checklist)
       };
     }
 
@@ -2087,7 +2089,8 @@
       nextAction: context.pdfAvailable ? "Revise os itens pendentes e então gere o PDF." : "Abra a etapa Gerar/Encerramento para confirmar o botão de PDF.",
       canSave: false,
       sessionTheme: "pdf",
-      sessionIntent: "revisao_pdf"
+      sessionIntent: "revisao_pdf",
+      diagnosticText: buildDiagnosticText(context, checklist)
     };
   }
 
@@ -2201,8 +2204,44 @@
         checklist.nextAction
       ].join("\n"),
       nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
-      canSave: false
+      canSave: false,
+      diagnosticText: buildDiagnosticText(context, checklist)
     };
+  }
+
+  function buildDiagnosticText(context, checklist) {
+    const items = checklist && Array.isArray(checklist.items) ? checklist.items : [];
+    const found = items.filter(function (item) { return item.done; });
+    const pending = items.filter(function (item) { return !item.done; });
+    const foundLines = found.length ? found.map(function (item) {
+      return "✅ " + item.label;
+    }) : ["⚠️ Nenhum item preenchido visível."];
+    const pendingLines = pending.length ? pending.map(function (item) {
+      return "⚠️ " + item.label;
+    }) : ["✅ Nenhuma pendência visível."];
+    const nextAction = checklist && checklist.nextAction ? checklist.nextAction : "➡️ Revise a tela atual antes de finalizar.";
+
+    return [
+      "DIAGNÓSTICO — ELO ASSISTENTE OBRAREPORT",
+      "",
+      "Contexto atual:",
+      context && context.screen ? context.screen : "Tela atual não identificada",
+      "",
+      "Data/hora:",
+      new Date().toLocaleString("pt-BR"),
+      "",
+      "Itens encontrados:",
+      foundLines.join("\n"),
+      "",
+      "Pendências:",
+      pendingLines.join("\n"),
+      "",
+      "Próximo passo recomendado:",
+      nextAction,
+      "",
+      "Origem:",
+      "Gerado pelo Elo Assistente ObraReport"
+    ].join("\n");
   }
 
   function buildScreenChecklist(context) {
@@ -3454,6 +3493,56 @@
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
+  function copyDiagnosticToClipboard(diagnosticText, button) {
+    const originalLabel = button.textContent;
+    copyTextToClipboard(diagnosticText).then(function () {
+      button.textContent = "✅ Diagnóstico copiado";
+    }).catch(function () {
+      button.textContent = "⚠️ Copiar manualmente";
+      appendMessage("system", "⚠️ Não consegui copiar automaticamente. Selecione e copie o texto manualmente.\n\n" + diagnosticText);
+    }).finally(function () {
+      window.setTimeout(function () {
+        button.textContent = originalLabel;
+      }, 2600);
+    });
+  }
+
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).catch(function () {
+        return copyTextWithTemporaryTextarea(text);
+      });
+    }
+
+    return copyTextWithTemporaryTextarea(text);
+  }
+
+  function copyTextWithTemporaryTextarea(text) {
+    return new Promise(function (resolve, reject) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "readonly");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+
+      try {
+        if (document.execCommand("copy")) {
+          resolve();
+        } else {
+          reject(new Error("copy_failed"));
+        }
+      } catch (error) {
+        reject(error);
+      } finally {
+        textarea.remove();
+      }
+    });
+  }
+
   function appendAssistantMessage(question, answer, canSave, response) {
     const message = appendMessage("assistant", answer);
     const actions = createElement("div", "elo-message-actions");
@@ -3557,6 +3646,15 @@
       message.appendChild(libraryQuestion);
       actions.appendChild(libraryButton);
       actions.appendChild(dontSaveLibraryButton);
+    }
+
+    if (response && response.diagnosticText) {
+      const copyDiagnosticButton = createElement("button", "elo-inline-button elo-copy-diagnostic-button", "📋 Copiar Diagnóstico");
+      copyDiagnosticButton.type = "button";
+      copyDiagnosticButton.addEventListener("click", function () {
+        copyDiagnosticToClipboard(response.diagnosticText, copyDiagnosticButton);
+      });
+      actions.appendChild(copyDiagnosticButton);
     }
 
     const yesButton = createElement("button", "elo-inline-button elo-feedback-button", "👍 Útil");

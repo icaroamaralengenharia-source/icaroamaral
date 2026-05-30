@@ -178,6 +178,18 @@
   background: rgba(15, 118, 110, 0.08);
 }
 
+.elo-copy-diagnostic-button {
+  color: #0f5f8f;
+  border-color: rgba(15, 118, 110, 0.28);
+  background: #f3fbfa;
+}
+
+.elo-copy-diagnostic-button:hover {
+  color: #0b4f73;
+  border-color: rgba(15, 95, 143, 0.36);
+  background: #e8f7f5;
+}
+
 .elo-footer {
   display: grid;
   gap: 12px;
