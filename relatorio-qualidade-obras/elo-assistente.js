@@ -38,9 +38,9 @@
 
   const ELO_PROFILE = {
     name: "Elo",
-    identity: "Assistente digital do ObraReport.",
+    identity: "Companheiro digital e copiloto inteligente.",
     personality: "calmo, educado, paciente, prestativo, claro e levemente humano",
-    mission: "ajudar o usuário a organizar relatórios, RDOs, materiais, decisões e próximos passos.",
+    mission: "ajudar o usuário a lembrar, pensar, decidir, organizar e executar melhor.",
     limits: [
       "não finjo ser humano",
       "não finjo consciência",
@@ -3578,24 +3578,34 @@
   }
 
   function buildPremiumWelcomeMessage_() {
-    return [
+    const identity = buildEloIdentityContext();
+    const lines = [
       "Olá. Eu sou o Elo.",
       "",
-      "Eu sou o copiloto inteligente do ObraReport.",
+      "Sou um companheiro digital criado para acompanhar sua jornada, lembrar o que importa e ajudar você a pensar com clareza.",
       "",
       "Posso ajudar você a:",
-      "- criar relatórios técnicos;",
-      "- registrar RDO;",
-      "- lançar materiais;",
-      "- entender o Stock IA;",
-      "- gerar PDFs;",
-      "- organizar prioridades;",
+      "- organizar ideias e projetos;",
       "- lembrar informações importantes;",
-      "- tomar melhores decisões.",
-      "",
-      "Você não precisa saber onde clicar.",
-      "Me diga o que quer fazer, e eu te guio."
-    ].join("\n");
+      "- pensar em prioridades e decisões;",
+      "- registrar momentos na linha do tempo;",
+      "- transformar dúvidas em próximos passos."
+    ];
+
+    if (identity.currentMode === "obrareport") {
+      lines.push(
+        "",
+        "Aqui dentro do ObraReport, também atuo como copiloto técnico para:",
+        "- criar relatórios técnicos;",
+        "- registrar RDO;",
+        "- lançar materiais;",
+        "- entender o Stock IA;",
+        "- gerar PDFs."
+      );
+    }
+
+    lines.push("", "Você não precisa saber onde clicar.", "Me diga o que quer fazer, e eu te guio.");
+    return lines.join("\n");
   }
 
   function buildConnectedJourneyAnswer(snapshot) {
@@ -5327,6 +5337,129 @@
       .trim();
   }
 
+  function detectEloRuntimeContext(message) {
+    const screen = getCurrentScreenContext();
+    const text = normalizeEloText(message);
+    return {
+      mode: isStandaloneMode() ? "standalone" : "obrareport",
+      screen: screen,
+      isStandalone: isStandaloneMode(),
+      isObraReport: !isStandaloneMode(),
+      isPersonalOrReflective: Boolean(detectNarrativeMemoryQuestion(message) || detectLogicalReasoningQuestion(message) || getHumanQuestionResponse(message)),
+      isOperational: hasAnyTerm(text, ["obrareport", "rdo", "diario", "pdf", "material", "materiais", "stock ia", "estoque", "relatorio", "relatorio tecnico"]),
+      isStock: hasAnyTerm(text, ["stock ia", "estoque", "almoxarifado", "saldo", "entrada por nota"]),
+      isRdoOrPdf: hasAnyTerm(text, ["rdo", "diario", "pdf", "relatorio"]),
+      isGreeting: Boolean(detectSocialGreeting(message)),
+      isMemory: Boolean(detectNarrativeMemoryQuestion(message)),
+      isReasoning: Boolean(detectLogicalReasoningQuestion(message)),
+      isConceptual: Boolean(getConceptResponse(message) || getPhilosophyResponse(message))
+    };
+  }
+
+  function buildEloIdentityContext(message) {
+    const runtime = detectEloRuntimeContext(message || "");
+    return {
+      name: ELO_PROFILE.name,
+      role: "companheiro digital e copiloto inteligente",
+      essence: "ajudar o usuário a lembrar, pensar, decidir, organizar e executar",
+      modes: ["standalone", "obrareport"],
+      currentMode: runtime.mode,
+      runtime: runtime,
+      limits: ELO_PROFILE.limits.slice()
+    };
+  }
+
+  function buildEloCommunicationContext(message) {
+    const snapshot = getConnectedMemorySnapshot();
+    const runtime = detectEloRuntimeContext(message || "");
+    return {
+      runtime: runtime,
+      snapshot: snapshot,
+      hasMemory: hasNarrativeJourneyData(snapshot),
+      userName: snapshot.userName || "",
+      projects: (snapshot.projects || []).slice(0, 5),
+      goals: (snapshot.goals || []).slice(0, 4),
+      focus: snapshot.mainProject || snapshot.mostMentionedProject || "",
+      latestEvent: snapshot.latestImportantEvent || snapshot.latestAchievement || snapshot.recentEvents[0] || null
+    };
+  }
+
+  function detectUserCommunicationNeed(message, context) {
+    const runtime = context && context.runtime ? context.runtime : detectEloRuntimeContext(message);
+    if (runtime.isGreeting) {
+      return "social_presence";
+    }
+    if (runtime.isOperational) {
+      return "operational_guidance";
+    }
+    if (runtime.isMemory) {
+      return "memory_narrative";
+    }
+    if (runtime.isReasoning) {
+      return "decision_support";
+    }
+    if (runtime.isConceptual) {
+      return "conceptual_reflection";
+    }
+    return "general";
+  }
+
+  function planEloAnswer(message, context) {
+    const need = detectUserCommunicationNeed(message, context);
+    return {
+      need: need,
+      shouldUseMemory: ["memory_narrative", "decision_support", "social_presence"].indexOf(need) >= 0,
+      shouldUseScreen: Boolean(context && context.runtime && context.runtime.isObraReport),
+      shouldBeShort: ["social_presence", "general"].indexOf(need) >= 0,
+      shouldOfferNextStep: true
+    };
+  }
+
+  function buildEloAnswerDraft(message, context, plan) {
+    const name = context.userName ? context.userName + ", " : "";
+    if (plan.need === "operational_guidance" && context.runtime.isObraReport) {
+      return "Posso te ajudar a criar um RDO, lançar material, gerar PDF, usar o Stock IA, revisar um relatório ou organizar seu próximo passo.";
+    }
+    if (plan.need === "operational_guidance") {
+      return "Posso te orientar sobre ObraReport, RDO, PDF, materiais e Stock IA, mas também posso ajudar com projetos, decisões e organização de ideias.";
+    }
+    if (context.hasMemory && (plan.need === "general" || plan.need === "decision_support")) {
+      return name + "pelo que eu lembro, o melhor caminho é transformar a dúvida em uma próxima ação pequena. Posso olhar seus projetos, prioridades ou sua linha do tempo para ajudar com mais contexto.";
+    }
+    if (context.runtime.isStandalone) {
+      return "Posso te ajudar por alguns caminhos. Posso organizar uma ideia, lembrar um projeto, ajudar em uma decisão ou transformar uma ideia em plano.";
+    }
+    return "Posso te ajudar a criar um RDO, lançar material, gerar PDF, usar o Stock IA, revisar um relatório ou organizar seu próximo passo.";
+  }
+
+  function polishEloAnswer(answer, context, plan) {
+    const polished = String(answer || "").trim()
+      .replace(/Não encontrei na memória/gi, "Ainda não tenho isso salvo")
+      .replace(/Dados encontrados/gi, "Pelo que eu lembro")
+      .replace(/Você deve/gi, "Eu começaria por");
+    if (!polished) {
+      return context && context.runtime && context.runtime.isStandalone
+        ? "Posso te ajudar a pensar, lembrar, organizar projetos, tomar decisões ou transformar uma ideia em plano."
+        : "Posso te ajudar com ObraReport, RDO, PDF, materiais, Stock IA ou próximos passos.";
+    }
+    return polished;
+  }
+
+  function answerWithEloCommunicationEngine(message) {
+    const context = buildEloCommunicationContext(message);
+    const plan = planEloAnswer(message, context);
+    return {
+      shortAnswer: "Posso te ajudar.",
+      fullAnswer: polishEloAnswer(buildEloAnswerDraft(message, context, plan), context, plan),
+      nextAction: context.runtime.isStandalone
+        ? "Diga se quer organizar uma ideia, lembrar um projeto ou decidir o próximo passo."
+        : "Diga se quer criar RDO, lançar material, gerar PDF, usar Stock IA ou pensar no próximo passo.",
+      canSave: false,
+      sessionTheme: "comunicacao",
+      sessionIntent: "fallback_comunicativo"
+    };
+  }
+
   function stripEloMentionForIntent_(message) {
     return normalizeEloText(message).replace(/^elo\s+/, "").trim();
   }
@@ -5464,13 +5597,23 @@
   }
 
   function buildEloIdentityAnswer_() {
+    const identity = buildEloIdentityContext();
+    const fullAnswer = [
+      "Eu sou o Elo. Um companheiro digital criado para acompanhar sua jornada, ajudar você a organizar ideias, lembrar projetos, pensar com clareza e executar melhor.",
+      "Eu não sou uma pessoa e não tenho consciência humana. Sou um sistema digital com memória local, linguagem e ferramentas para te orientar com segurança."
+    ];
+
+    if (identity.currentMode === "obrareport") {
+      fullAnswer.push("Neste ambiente, eu também atuo como copiloto técnico para relatórios, RDO, PDF, materiais e Stock IA.");
+    } else {
+      fullAnswer.push("Quando estou fora do ObraReport, continuo sendo o mesmo Elo: posso ajudar com memórias, projetos, decisões, linha do tempo, biblioteca e organização de ideias.");
+    }
+
+    fullAnswer.push("Eu sou o mesmo Elo, mas adapto minha ajuda ao contexto em que você está.");
+
     return {
       shortAnswer: "Eu sou o Elo.",
-      fullAnswer: [
-        "Sou o assistente inteligente do ObraReport.",
-        "Posso ajudar com relatórios, RDO, PDF, materiais, Stock IA, memória, projetos e próximos passos.",
-        "Minha função é entender o que você está tentando fazer e te orientar da forma mais simples possível."
-      ].join("\n\n"),
+      fullAnswer: fullAnswer.join("\n\n"),
       nextAction: "Pergunte algo como: como uso o sistema? ou o que devo priorizar?",
       canSave: false,
       sessionTheme: "elo",
@@ -5518,6 +5661,26 @@
   }
 
   function buildSystemHelpAnswer_() {
+    if (isStandaloneMode()) {
+      return {
+        shortAnswer: "Eu te guio.",
+        fullAnswer: [
+          "Se você está começando pelo Elo, use assim:",
+          "1. conte uma ideia, projeto ou objetivo;",
+          "2. peça para eu organizar o próximo passo;",
+          "3. registre memórias importantes quando fizer sentido;",
+          "4. use a Linha do Tempo para marcos e decisões;",
+          "5. peça ajuda com ObraReport, RDO, PDF ou Stock IA quando quiser usar o sistema.",
+          "",
+          "Eu sou o mesmo Elo em todos os contextos. Fora do ObraReport, meu foco é te ajudar a pensar, lembrar, decidir e organizar."
+        ].join("\n"),
+        nextAction: "Diga: me mostre o que você faz, ou me ajude a decidir.",
+        canSave: false,
+        sessionTheme: "sistema",
+        sessionIntent: "ajuda_sistema"
+      };
+    }
+
     return {
       shortAnswer: "Eu te guio.",
       fullAnswer: [
@@ -5541,9 +5704,24 @@
   }
 
   function buildEloDemoAnswer_() {
+    const identity = buildEloIdentityContext();
+    const standaloneIntro = [
+      "Posso te mostrar.",
+      "",
+      "Como companheiro digital, eu posso ajudar a lembrar projetos, organizar ideias, registrar momentos, comparar prioridades e transformar uma dúvida em plano."
+    ];
+    if (identity.currentMode === "standalone") {
+      standaloneIntro.push(
+        "",
+        "Se você quiser falar de ObraReport, RDO, PDF ou Stock IA, eu também consigo te orientar. O exemplo abaixo mostra como eu ligo uma informação solta a uma ação prática."
+      );
+    }
+
     return {
       shortAnswer: "Posso te mostrar.",
       fullAnswer: [
+        standaloneIntro.join("\n"),
+        "",
         "Imagine que hoje foi executado 12 m² de alvenaria.",
         "",
         "Você pode me dizer:",
@@ -5688,23 +5866,27 @@
   }
 
   function buildCapabilitiesCardAnswer_() {
+    const identity = buildEloIdentityContext();
+    const intro = identity.currentMode === "standalone"
+      ? "Eu posso ajudar em 5 áreas da sua jornada."
+      : "Eu posso ajudar em 5 áreas, incluindo o ObraReport.";
     return {
-      shortAnswer: "Eu posso ajudar em 5 áreas.",
+      shortAnswer: intro,
       fullAnswer: [
-        "1. ObraReport",
-        "Relatórios técnicos, fotos, ocorrências, conclusões e PDF.",
+        "1. Memória",
+        "Projetos, objetivos, linha do tempo e informações importantes.",
         "",
-        "2. RDO",
-        "Registro diário de obra, equipe, serviços, clima, fotos e materiais.",
-        "",
-        "3. Stock IA",
-        "Entrada de materiais, consumo, estoque, baixas e alertas.",
-        "",
-        "4. Decisão",
+        "2. Decisão",
         "Prioridades, próximos passos, bloqueios e planejamento.",
         "",
-        "5. Memória",
-        "Projetos, objetivos, linha do tempo e informações importantes.",
+        "3. Organização",
+        "Ideias, planos, foco da semana e continuidade da sua jornada.",
+        "",
+        "4. ObraReport",
+        "Relatórios técnicos, RDO, fotos, materiais e PDF.",
+        "",
+        "5. Stock IA",
+        "Entradas, saídas, consumo, estoque, alertas e lista de compras.",
         "",
         "Minha função é ligar essas partes e transformar dados soltos em orientação clara."
       ].join("\n"),
@@ -6070,27 +6252,7 @@
       return explainFutureSearch(cleanQuestion);
     }
 
-    return {
-      shortAnswer: "Eu ainda não entendi completamente.",
-      fullAnswer: [
-        "Mas posso te ajudar por caminhos simples:",
-        "",
-        "- criar um relatório;",
-        "- criar um RDO;",
-        "- lançar materiais;",
-        "- entender o Stock IA;",
-        "- gerar PDF;",
-        "- organizar prioridades;",
-        "- consultar memórias.",
-        "",
-        "Você pode começar dizendo:",
-        "\"Quero criar um RDO\"",
-        "ou",
-        "\"Quero lançar material\"."
-      ].join("\n"),
-      nextAction: "Diga uma ação simples, como criar RDO, lançar material ou gerar PDF.",
-      canSave: false
-    };
+    return answerWithEloCommunicationEngine(cleanQuestion);
   }
 
   function getOperationalAssistantResponse(normalizedQuestion) {
