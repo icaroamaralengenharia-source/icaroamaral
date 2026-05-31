@@ -852,6 +852,64 @@ body {
   line-height: 1.15;
 }
 
+.stock-ia-quick-example {
+  border-color: rgba(216, 171, 56, 0.42);
+  background:
+    linear-gradient(135deg, rgba(255, 250, 235, 0.96), rgba(255, 255, 255, 0.98)),
+    radial-gradient(circle at top right, rgba(216, 171, 56, 0.18), transparent 18rem);
+}
+
+.stock-ia-quick-example h3 {
+  color: var(--navy);
+}
+
+.stock-ia-quick-example p:last-child {
+  max-width: 760px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.stock-ia-empty-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.stock-ia-empty-action span {
+  line-height: 1.45;
+}
+
+.stock-guided-section {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.stock-guided-section h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 0.94rem;
+}
+
+.stock-guided-section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.stock-guided-section .stock-ia-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .stock-ia-table-wrap {
   overflow-x: auto;
   border: 1px solid #dfe7ef;
@@ -1177,6 +1235,15 @@ body {
 
   .stock-ia-periods {
     justify-content: flex-start;
+  }
+
+  .stock-ia-empty-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stock-guided-section .stock-ia-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -76,6 +76,8 @@
   const dailyLogAuditPanel = document.getElementById("dailyLogAuditPanel");
   const dailyLogIndicators = document.getElementById("dailyLogIndicators");
   const stockIaSummaryCards = document.getElementById("stockIaSummaryCards");
+  const stockQuickExamplePanel = document.getElementById("stockQuickExamplePanel");
+  const stockQuickExampleText = document.getElementById("stockQuickExampleText");
   const stockMasterRows = document.getElementById("stockMasterRows");
   const stockUnlinkedRows = document.getElementById("stockUnlinkedRows");
   const stockManualMovementsRows = document.getElementById("stockManualMovementsRows");
@@ -152,6 +154,7 @@
   const STOCK_MASTER_STORAGE_KEY = "obrareport_stock_master_v1";
   const STOCK_PURCHASE_REVIEWED_STORAGE_KEY = "obrareport_stock_purchase_reviewed_v1";
   const STOCK_NOTES_STORAGE_KEY = "obrareport_stock_notes_v1";
+  const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
   const STOCK_NOTE_FILE_PREVIEW_LIMIT = 1024 * 1024;
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
@@ -433,6 +436,12 @@
     storage.removeItem(localAccessSessionKey);
   }
 
+  function getRestrictedAccessMessage_() {
+    return loadStockQuickExample_()
+      ? "Entre para salvar este exemplo no Stock IA."
+      : "Informe a senha para acessar a area interna.";
+  }
+
   function ensureCompositionLibrary_(items) {
     const current = Array.isArray(items) ? items : [];
     const defaultById = {};
@@ -568,8 +577,9 @@
 
     if (!hasLocalAccessSession_()) {
       if (isRestrictedRouteHash_()) {
-        setCloudStatus_("Informe a senha para acessar a area interna.", "info");
-        setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+        const accessMessage = getRestrictedAccessMessage_();
+        setCloudStatus_(accessMessage, "info");
+        setLoginAccessStatus_(accessMessage, "info");
         showLoginPanel_();
         return;
       }
@@ -595,8 +605,9 @@
     }
 
     if (isRestrictedRouteHash_()) {
-      setCloudStatus_("Informe a senha para acessar a area interna.", "info");
-      setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+      const accessMessage = getRestrictedAccessMessage_();
+      setCloudStatus_(accessMessage, "info");
+      setLoginAccessStatus_(accessMessage, "info");
       showLoginPanel_();
       return;
     }
@@ -753,6 +764,14 @@
       });
     }
 
+    Array.from(document.querySelectorAll("[data-stock-question]")).forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleStockIaQuestion_(button.dataset.stockQuestion || button.textContent || "");
+      });
+    });
+
     if (stockIaModal) {
       stockIaModal.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
@@ -773,8 +792,9 @@
       }
 
       if (isRestrictedRouteHash_() && !hasLocalAccessSession_()) {
-        setCloudStatus_("Informe a senha para acessar a area interna.", "info");
-        setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+        const accessMessage = getRestrictedAccessMessage_();
+        setCloudStatus_(accessMessage, "info");
+        setLoginAccessStatus_(accessMessage, "info");
         showLoginPanel_();
       }
     });
@@ -1980,8 +2000,9 @@
 
   function showDashboardPanel_(route) {
     if (!hasLocalAccessSession_()) {
-      setCloudStatus_("Informe a senha para acessar a area interna.", "info");
-      setLoginAccessStatus_("Informe a senha para acessar a area interna.", "info");
+      const accessMessage = getRestrictedAccessMessage_();
+      setCloudStatus_(accessMessage, "info");
+      setLoginAccessStatus_(accessMessage, "info");
       showLoginPanel_();
       return;
     }
@@ -4802,6 +4823,407 @@
     tbody.appendChild(row);
   }
 
+  function appendStockIaEmptyActionRow_(tbody, colSpan, text, actionLabel, action) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    const wrapper = document.createElement("div");
+    const message = document.createElement("span");
+
+    cell.colSpan = colSpan;
+    wrapper.className = "stock-ia-empty-action";
+    message.textContent = text;
+    wrapper.appendChild(message);
+
+    if (actionLabel && action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mini-button compact primary";
+      button.dataset.stockAction = action;
+      button.textContent = actionLabel;
+      wrapper.appendChild(button);
+    }
+
+    cell.appendChild(wrapper);
+    row.appendChild(cell);
+    tbody.appendChild(row);
+  }
+
+  function loadStockQuickExample_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(STOCK_QUICK_EXAMPLE_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : null;
+
+      if (!parsed || parsed.origem !== "home_demo_stock_ia") {
+        return null;
+      }
+
+      return {
+        servico: clean(parsed.servico) || "Alvenaria",
+        quantidadeExecutada: parseNumber_(parsed.quantidadeExecutada) || 12,
+        unidadeExecutada: clean(parsed.unidadeExecutada) || "m²",
+        material: clean(parsed.material) || "Bloco cerâmico",
+        quantidadeMaterial: parseNumber_(parsed.quantidadeMaterial) || 30,
+        unidadeMaterial: clean(parsed.unidadeMaterial) || "un",
+        observacao: clean(parsed.observacao),
+        origem: "home_demo_stock_ia",
+        criadoEm: parsed.criadoEm || new Date().toISOString()
+      };
+    } catch (error) {
+      console.warn("Nao foi possivel carregar o exemplo rapido do Stock IA.", error);
+      return null;
+    }
+  }
+
+  function clearStockQuickExample_() {
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.removeItem(STOCK_QUICK_EXAMPLE_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel descartar o exemplo rapido do Stock IA.", error);
+    }
+  }
+
+  function findStockItemForQuickExample_(example) {
+    const state = loadStockMasterState_();
+    const key = normalizeStockMaterialKey_(example && example.material, example && example.unidadeMaterial);
+    return state.items.find(function (item) {
+      return normalizeStockMaterialKey_(item.name, item.unit) === key;
+    }) || null;
+  }
+
+  function buildStockQuickExampleItemData_(example) {
+    return {
+      name: clean(example && example.material) || "Bloco cerâmico",
+      unit: clean(example && example.unidadeMaterial) || "un",
+      category: "Demonstração",
+      initialBalance: 0,
+      minimumStock: parseNumber_(example && example.quantidadeMaterial),
+      unitCost: 0,
+      workId: null,
+      notes: "Criado a partir da demonstração rápida do Stock IA. Serviço: " + (clean(example && example.servico) || "Alvenaria") + " " + formatQuantity_(parseNumber_(example && example.quantidadeExecutada) || 12) + " " + (clean(example && example.unidadeExecutada) || "m²") + "."
+    };
+  }
+
+  function renderStockQuickExamplePanel_() {
+    if (!stockQuickExamplePanel) {
+      return;
+    }
+
+    const example = loadStockQuickExample_();
+    stockQuickExamplePanel.classList.toggle("is-hidden", !example);
+
+    if (!example || !stockQuickExampleText) {
+      return;
+    }
+
+    stockQuickExampleText.textContent = "Serviço: " + example.servico + " " + formatQuantity_(example.quantidadeExecutada) + " " + example.unidadeExecutada + ". Material: " + example.material + " " + formatQuantity_(example.quantidadeMaterial) + " " + example.unidadeMaterial + ". Escolha uma ação para transformar a demonstração em dado real do Stock IA.";
+  }
+
+  function handleStockQuickCreateMaterial_() {
+    const example = loadStockQuickExample_();
+    if (!example) {
+      showStockIaToast_("Nenhum exemplo pendente encontrado.", "info");
+      renderStockQuickExamplePanel_();
+      return;
+    }
+
+    const existingItem = findStockItemForQuickExample_(example);
+    if (existingItem) {
+      showStockIaToast_("Este material já existe no cadastro mestre.", "info");
+      return;
+    }
+
+    createStockMasterItem_(buildStockQuickExampleItemData_(example));
+    renderStockIaPanel_(getUserDailyLogs_());
+    showStockIaToast_("Material criado a partir da demonstração.", "success");
+  }
+
+  function handleStockQuickRegisterEntry_() {
+    const example = loadStockQuickExample_();
+    if (!example) {
+      showStockIaToast_("Nenhum exemplo pendente encontrado.", "info");
+      renderStockQuickExamplePanel_();
+      return;
+    }
+
+    let item = findStockItemForQuickExample_(example);
+    if (!item) {
+      item = createStockMasterItem_(buildStockQuickExampleItemData_(example));
+    }
+
+    registerStockEntry_({
+      stockItemId: item.id,
+      quantity: example.quantidadeMaterial,
+      unitCost: 0,
+      date: toDateKey_(new Date()),
+      workId: null,
+      supplier: "Demonstração Stock IA",
+      documentNumber: "HOME-DEMO",
+      notes: "Entrada criada a partir da demonstração rápida da home. " + (example.observacao || ""),
+      source: "manual"
+    });
+    renderStockIaPanel_(getUserDailyLogs_());
+    showStockIaToast_("Entrada registrada a partir da demonstração.", "success");
+  }
+
+  function handleStockQuickLinkRdo_() {
+    const example = loadStockQuickExample_();
+    if (!example) {
+      showStockIaToast_("Nenhum exemplo pendente encontrado.", "info");
+      renderStockQuickExamplePanel_();
+      return;
+    }
+
+    showDashboardPanel_("diario");
+    if (dailyLogForm) {
+      if (dailyLogForm.elements.productionService) {
+        dailyLogForm.elements.productionService.value = example.servico;
+      }
+      if (dailyLogForm.elements.productionQuantity) {
+        dailyLogForm.elements.productionQuantity.value = example.quantidadeExecutada || "";
+      }
+      if (dailyLogForm.elements.productionUnit) {
+        dailyLogForm.elements.productionUnit.value = example.unidadeExecutada || "m²";
+      }
+      if (dailyLogForm.elements.materialName) {
+        dailyLogForm.elements.materialName.value = example.material;
+      }
+      if (dailyLogForm.elements.materialQuantity) {
+        dailyLogForm.elements.materialQuantity.value = example.quantidadeMaterial || "";
+      }
+      if (dailyLogForm.elements.materialUnit) {
+        dailyLogForm.elements.materialUnit.value = example.unidadeMaterial || "un";
+      }
+    }
+    setDailyLogStatus_("Exemplo carregado da home. Revise e adicione a produção/material ao RDO para vincular ao Stock IA.", "info");
+  }
+
+  function handleStockFirstEntry_() {
+    const state = loadStockMasterState_();
+    const firstItem = state.items[0];
+    if (!firstItem) {
+      openStockIaModal_("item", {});
+      showStockIaToast_("Cadastre um material antes de registrar uma entrada.", "info");
+      return;
+    }
+
+    openStockIaModal_("movement", {
+      itemId: firstItem.id,
+      movementType: "entrada"
+    });
+  }
+
+  function getGuidedStockExamplePayload_() {
+    const example = loadStockQuickExample_();
+    if (!example) {
+      return {};
+    }
+
+    return {
+      useQuickExample: true,
+      materialName: example.material,
+      unit: example.unidadeMaterial,
+      entryQuantity: example.quantidadeMaterial,
+      serviceContext: example.servico + " " + formatQuantity_(example.quantidadeExecutada) + " " + example.unidadeExecutada,
+      exitNotes: "Consumo relacionado a " + example.servico + " " + formatQuantity_(example.quantidadeExecutada) + " " + example.unidadeExecutada + "."
+    };
+  }
+
+  function appendStockGuidedFields_(form, payload) {
+    const safePayload = payload || {};
+    const sectionOne = createStockGuidedSection_("Passo 1 — Cadastrar material", "Informe o material que o cliente quer controlar no estoque.");
+    const sectionTwo = createStockGuidedSection_("Passo 2 — Registrar entrada", "Registre a quantidade recebida para formar saldo.");
+    const sectionThree = createStockGuidedSection_("Passo 3 — Registrar consumo/saída", "Opcional: lance uma baixa para testar saldo, alerta e histórico.");
+    const gridOne = sectionOne.querySelector(".stock-ia-form-grid");
+    const gridTwo = sectionTwo.querySelector(".stock-ia-form-grid");
+    const gridThree = sectionThree.querySelector(".stock-ia-form-grid");
+
+    appendStockIaField_(gridOne, "guidedMaterialName", "Nome do material", "text", safePayload.materialName || "", true);
+    appendStockIaField_(gridOne, "guidedUnit", "Unidade", "text", safePayload.unit || "un", true);
+    appendStockIaField_(gridOne, "guidedMinimumStock", "Estoque mínimo", "number", safePayload.minimumStock || 0, false, "0.001");
+    appendStockIaField_(gridOne, "guidedUnitCost", "Custo unitário opcional", "number", safePayload.unitCost || 0, false, "0.01");
+    appendStockWorkSelect_(gridOne, safePayload.workId || "");
+
+    appendStockIaField_(gridTwo, "guidedEntryQuantity", "Quantidade recebida", "number", safePayload.entryQuantity || 0, true, "0.001");
+    appendStockIaField_(gridTwo, "guidedSupplier", "Fornecedor opcional", "text", safePayload.supplier || "", false);
+    appendStockIaField_(gridTwo, "guidedDocumentNumber", "Nota fiscal opcional", "text", safePayload.documentNumber || "", false);
+    appendStockIaField_(gridTwo, "guidedEntryDate", "Data", "date", safePayload.date || toDateKey_(new Date()), true);
+
+    appendStockIaField_(gridThree, "guidedExitQuantity", "Quantidade consumida", "number", safePayload.exitQuantity || 0, false, "0.001");
+    appendStockIaField_(gridThree, "guidedServiceContext", "Obra/serviço opcional", "text", safePayload.serviceContext || "", false);
+    appendStockIaTextarea_(gridThree, "guidedExitNotes", "Observação", safePayload.exitNotes || "");
+
+    form.appendChild(sectionOne);
+    form.appendChild(sectionTwo);
+    form.appendChild(sectionThree);
+  }
+
+  function createStockGuidedSection_(title, description) {
+    const section = document.createElement("section");
+    const heading = document.createElement("h4");
+    const paragraph = document.createElement("p");
+    const grid = document.createElement("div");
+
+    section.className = "stock-guided-section";
+    heading.textContent = title;
+    paragraph.textContent = description;
+    grid.className = "stock-ia-form-grid";
+    section.appendChild(heading);
+    section.appendChild(paragraph);
+    section.appendChild(grid);
+    return section;
+  }
+
+  function findStockItemByNameUnit_(name, unit) {
+    const state = loadStockMasterState_();
+    const key = normalizeStockMaterialKey_(name, unit);
+    return state.items.find(function (item) {
+      return normalizeStockMaterialKey_(item.name, item.unit) === key;
+    }) || null;
+  }
+
+  function getStockCycleStatus_(balance) {
+    const realBalance = parseNumber_(balance && balance.realBalance);
+    const minimumStock = parseNumber_(balance && balance.minimumStock);
+
+    if (realBalance <= 0) {
+      return "Crítico";
+    }
+
+    if (minimumStock > 0 && realBalance < minimumStock) {
+      return "Atenção";
+    }
+
+    return "OK";
+  }
+
+  function handleGuidedStockSubmit_(formData) {
+    const name = clean(formData.get("guidedMaterialName"));
+    const unit = clean(formData.get("guidedUnit")) || "un";
+    const entryQuantity = parseNumber_(formData.get("guidedEntryQuantity"));
+    const exitQuantity = parseNumber_(formData.get("guidedExitQuantity"));
+    const minimumStock = parseNumber_(formData.get("guidedMinimumStock"));
+    const unitCost = parseNumber_(formData.get("guidedUnitCost"));
+    const workId = clean(formData.get("workId")) || null;
+
+    if (!name || entryQuantity <= 0) {
+      return {
+        ok: false,
+        message: "Preencha material e quantidade de entrada para concluir o assistente."
+      };
+    }
+
+    let item = findStockItemByNameUnit_(name, unit);
+    if (!item) {
+      item = createStockMasterItem_({
+        name: name,
+        unit: unit,
+        category: "Geral",
+        initialBalance: 0,
+        minimumStock: minimumStock,
+        unitCost: unitCost,
+        workId: workId,
+        notes: "Criado pelo assistente guiado do Stock IA."
+      });
+    } else {
+      updateStockMasterItem_(item.id, {
+        name: item.name,
+        unit: item.unit,
+        category: item.category,
+        initialBalance: item.initialBalance,
+        minimumStock: minimumStock || item.minimumStock,
+        unitCost: unitCost || item.unitCost,
+        workId: workId || item.workId,
+        notes: item.notes
+      });
+    }
+
+    if (!item) {
+      return {
+        ok: false,
+        message: "Não foi possível criar o material."
+      };
+    }
+
+    registerStockEntry_({
+      stockItemId: item.id,
+      quantity: entryQuantity,
+      unitCost: unitCost,
+      date: clean(formData.get("guidedEntryDate")) || toDateKey_(new Date()),
+      workId: workId,
+      supplier: clean(formData.get("guidedSupplier")),
+      documentNumber: clean(formData.get("guidedDocumentNumber")),
+      notes: "Entrada registrada pelo assistente guiado.",
+      source: "manual"
+    });
+
+    if (exitQuantity > 0) {
+      registerManualStockExit_({
+        stockItemId: item.id,
+        quantity: exitQuantity,
+        unitCost: unitCost,
+        date: clean(formData.get("guidedEntryDate")) || toDateKey_(new Date()),
+        workId: workId,
+        notes: (clean(formData.get("guidedExitNotes")) || "Consumo registrado pelo assistente guiado.") + (clean(formData.get("guidedServiceContext")) ? " Serviço/obra: " + clean(formData.get("guidedServiceContext")) + "." : ""),
+        source: "manual"
+      });
+    }
+
+    const balance = calculateRealStockBalances_().find(function (candidate) {
+      return candidate.item.id === item.id;
+    });
+    const status = getStockCycleStatus_({
+      realBalance: balance ? balance.realBalance : 0,
+      minimumStock: minimumStock
+    });
+    const message = "Material cadastrado com sucesso. Entrada registrada. " +
+      (exitQuantity > 0 ? "Consumo lançado. " : "Consumo não informado. ") +
+      "Saldo atual: " + formatQuantity_(balance ? balance.realBalance : 0) + " " + unit + ". Status: " + status + ".";
+
+    stockIaLastAnswer = message;
+    if (stockIaQuestionAnswer) {
+      stockIaQuestionAnswer.textContent = message;
+    }
+
+    return {
+      ok: true,
+      message: message
+    };
+  }
+
+  function buildStockPlainSummary_() {
+    const balances = calculateRealStockBalances_();
+    const totalMaterials = balances.length;
+    const attentionItems = balances.filter(function (balance) {
+      const status = getStockCycleStatus_({
+        realBalance: balance.realBalance,
+        minimumStock: balance.item.minimumStock
+      });
+      return status === "Atenção" || status === "Crítico";
+    });
+    const estimatedTotal = balances.reduce(function (sum, balance) {
+      return sum + parseNumber_(balance.estimatedValue);
+    }, 0);
+    const topAttention = attentionItems[0];
+
+    return "Hoje o estoque possui " + totalMaterials + " materiais cadastrados, " +
+      attentionItems.length + " em atenção/crítico e valor estimado de " + formatCurrency_(estimatedTotal) + ". " +
+      "O material com maior atenção é " + (topAttention ? topAttention.item.name : "nenhum material crítico no momento") + ".";
+  }
+
+  function generateStockPlainSummary_() {
+    const summary = buildStockPlainSummary_();
+    stockIaLastAnswer = summary;
+    if (stockIaQuestionAnswer) {
+      stockIaQuestionAnswer.textContent = summary;
+    }
+    const copied = copyTextFallback_(summary);
+    showStockIaToast_(copied ? "Resumo do estoque gerado e copiado." : "Resumo gerado. Copie o texto na resposta do assistente.", copied ? "success" : "info");
+  }
+
   function summarizeStockIaList_(items, limit) {
     const safeItems = (items || []).filter(Boolean);
 
@@ -5172,6 +5594,9 @@
       }, 0),
       lowStockCount: balances.filter(function (balance) {
         return balance.status === "Baixo";
+      }).length,
+      criticalCount: balances.filter(function (balance) {
+        return balance.status === "Negativo" || balance.status === "Zerado";
       }).length,
       negativeCount: balances.filter(function (balance) {
         return balance.status === "Negativo";
@@ -6407,7 +6832,7 @@
       return "Zerado";
     }
 
-    if (minimumStock > 0 && realBalance <= minimumStock) {
+    if (minimumStock > 0 && realBalance < minimumStock) {
       return "Baixo";
     }
 
@@ -6435,6 +6860,7 @@
     const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
 
     renderStockIaSummaryCards_(summary);
+    renderStockQuickExamplePanel_();
     renderStockPeriodControls_();
     renderStockOperationalAlerts_(alerts);
     renderStockPurchasePanel_(purchaseSuggestions, purchaseSummary);
@@ -6468,7 +6894,7 @@
       ["Itens cadastrados", summary.itemCount],
       ["Valor estimado em estoque", formatCurrency_(summary.estimatedStockValue)],
       ["Abaixo do minimo", summary.lowStockCount],
-      ["Itens negativos", summary.negativeCount],
+      ["Materiais críticos", summary.criticalCount],
       ["Consumo vindo do RDO", summary.rdoConsumptionCount],
       ["Entradas manuais", summary.manualEntriesCount]
     ].forEach(function (item) {
@@ -6690,7 +7116,7 @@
     stockMasterRows.innerHTML = "";
 
     if (!balances.length) {
-      appendStockIaEmptyRow_(stockMasterRows, 11, "Nenhum item mestre cadastrado.");
+      appendStockIaEmptyActionRow_(stockMasterRows, 11, "Você ainda não tem materiais cadastrados.", "Começar agora", "start-guided-stock");
       return;
     }
 
@@ -6726,7 +7152,7 @@
     stockManualMovementsRows.innerHTML = "";
 
     if (!state.manualMovements.length) {
-      appendStockIaEmptyRow_(stockManualMovementsRows, 8, "Nenhuma movimentacao manual registrada.");
+      appendStockIaEmptyActionRow_(stockManualMovementsRows, 8, "Registre uma entrada para formar saldo.", "Registrar entrada", "first-entry");
       return;
     }
 
@@ -6786,7 +7212,7 @@
 
     stockIaRows.innerHTML = "";
     if (!balances.length) {
-      appendStockIaEmptyRow_(stockIaRows, 7, "Nenhum material registrado nos RDOs.");
+      appendStockIaEmptyRow_(stockIaRows, 7, "Comece registrando materiais no RDO para acompanhar o consumo por obra.");
       return;
     }
   }
@@ -6798,7 +7224,7 @@
 
     stockIaMovements.innerHTML = "";
     if (!movements.length) {
-      appendStockIaEmptyRow_(stockIaMovements, 8, "Nenhum movimento derivado encontrado.");
+      appendStockIaEmptyActionRow_(stockIaMovements, 8, "As entradas, saídas e consumos aparecerão aqui.", "Registrar movimentação", "first-movement");
       return;
     }
 
@@ -6839,6 +7265,24 @@
 
     if (action === "new-item") {
       openStockIaModal_("item", {});
+    } else if (action === "start-guided-stock") {
+      openStockIaModal_("guided-stock", {});
+    } else if (action === "quick-use-guided") {
+      openStockIaModal_("guided-stock", getGuidedStockExamplePayload_());
+    } else if (action === "generate-stock-summary") {
+      generateStockPlainSummary_();
+    } else if (action === "first-entry" || action === "first-movement") {
+      handleStockFirstEntry_();
+    } else if (action === "quick-create-material") {
+      handleStockQuickCreateMaterial_();
+    } else if (action === "quick-register-entry") {
+      handleStockQuickRegisterEntry_();
+    } else if (action === "quick-link-rdo") {
+      handleStockQuickLinkRdo_();
+    } else if (action === "quick-dismiss") {
+      clearStockQuickExample_();
+      renderStockQuickExamplePanel_();
+      showStockIaToast_("Exemplo da demonstração descartado.", "success");
     } else if (action === "edit-item") {
       openStockIaModal_("item", {
         itemId: stockId
@@ -6969,6 +7413,8 @@
 
     if (type === "item") {
       appendStockItemFields_(form, item);
+    } else if (type === "guided-stock") {
+      appendStockGuidedFields_(form, payload);
     } else if (type === "movement") {
       appendStockMovementFields_(form, state, item, payload.movementType);
     } else if (type === "delete-item") {
@@ -7000,7 +7446,7 @@
     appendHiddenField_(form, "rdoMaterialKey", payload.rdoMaterialKey || "");
     appendHiddenField_(form, "movementType", payload.movementType || "");
     appendHiddenField_(form, "noteId", payload.noteId || "");
-    appendStockIaFormActions_(form, type === "delete-item" || type === "delete-note" ? "Excluir" : (type === "confirm-note" ? "Confirmar entrada" : (type === "cancel-note" ? "Cancelar nota" : "Salvar")));
+    appendStockIaFormActions_(form, type === "delete-item" || type === "delete-note" ? "Excluir" : (type === "confirm-note" ? "Confirmar entrada" : (type === "cancel-note" ? "Cancelar nota" : (type === "guided-stock" ? "Concluir assistente" : "Salvar"))));
     card.appendChild(form);
     content.appendChild(card);
     stockIaModal.appendChild(content);
@@ -7009,6 +7455,10 @@
   function getStockIaModalTitle_(type, item, payload) {
     if (type === "item") {
       return item ? "Editar material" : "Novo material";
+    }
+
+    if (type === "guided-stock") {
+      return "Começar agora";
     }
 
     if (type === "movement") {
@@ -7257,6 +7707,12 @@
       } else {
         createStockMasterItem_(Object.fromEntries(formData.entries()));
         showStockIaToast_("Material cadastrado.", "success");
+      }
+    } else if (type === "guided-stock") {
+      const result = handleGuidedStockSubmit_(formData);
+      showStockIaToast_(result.message, result.ok ? "success" : "error");
+      if (!result.ok) {
+        return;
       }
     } else if (type === "movement") {
       const data = Object.fromEntries(formData.entries());

@@ -855,6 +855,18 @@
       grid-column: 1 / -1;
     }
 
+    .stock-demo-warning {
+      display: grid;
+      gap: 4px;
+      padding: 12px 14px;
+      border: 1px solid rgba(213, 166, 66, 0.38);
+      border-radius: 12px;
+      color: #513a09;
+      background: #fff8e6;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
     .stock-simulation-result {
       display: none;
       gap: 12px;
@@ -1641,6 +1653,9 @@
           <p class="eyebrow">Simulação rápida</p>
           <h2 id="stock-modal-title">Estoque Inteligente</h2>
           <p>Preencha um exemplo de serviço executado e material utilizado. Esta simulação é comercial e não altera dados reais do sistema.</p>
+          <p class="stock-demo-warning">
+            Demonstração rápida. Para salvar no estoque real, acesse o sistema e registre o material no Stock IA.
+          </p>
         </div>
         <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simulação">×</button>
       </header>
@@ -1676,6 +1691,7 @@
         </label>
         <div class="stock-form-full guided-actions">
           <button class="button stock-cta" type="submit">Simular consumo</button>
+          <button class="button primary" type="button" data-stock-use-example>Usar exemplo no Stock IA</button>
           <button class="button light" type="button" data-stock-close>Fechar</button>
         </div>
       </form>
@@ -1702,8 +1718,25 @@
       const summary = document.querySelector("[data-stock-summary]");
       const openButtons = document.querySelectorAll("[data-stock-demo]");
       const closeButtons = document.querySelectorAll("[data-stock-close]");
+      const useExampleButton = document.querySelector("[data-stock-use-example]");
+      const quickExampleKey = "obraReportStockIaQuickExample";
 
       if (!modal || !form || !result || !summary) return;
+
+      const getStockExampleData = () => {
+        const data = new FormData(form);
+        return {
+          servico: String(data.get("service") || "Alvenaria").trim(),
+          quantidadeExecutada: Number(data.get("serviceQuantity") || 12),
+          unidadeExecutada: String(data.get("serviceUnit") || "m²").trim(),
+          material: String(data.get("material") || "Bloco cerâmico").trim(),
+          quantidadeMaterial: Number(data.get("materialQuantity") || 30),
+          unidadeMaterial: String(data.get("materialUnit") || "un").trim(),
+          observacao: String(data.get("note") || "").trim(),
+          origem: "home_demo_stock_ia",
+          criadoEm: new Date().toISOString()
+        };
+      };
 
       const setModalOpen = (isOpen) => {
         modal.classList.toggle("is-open", isOpen);
@@ -1746,6 +1779,17 @@
         summary.textContent = `O sistema registraria ${serviceQuantity} ${serviceUnit} de ${service}, baixaria ${materialQuantity} ${materialUnit} de ${material}, atualizaria o estoque e recalcularia alertas e lista de compras.`;
         result.classList.add("is-visible");
       });
+
+      if (useExampleButton) {
+        useExampleButton.addEventListener("click", () => {
+          try {
+            window.localStorage.setItem(quickExampleKey, JSON.stringify(getStockExampleData()));
+          } catch (error) {
+            console.warn("Não foi possível salvar o exemplo rápido do Stock IA.", error);
+          }
+          window.location.href = "relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia";
+        });
+      }
     })();
   </script>
 </body>
