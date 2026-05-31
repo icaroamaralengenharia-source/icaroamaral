@@ -250,6 +250,7 @@
         <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
         <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
         <button type="button" data-route-target="stock-ia" data-nav-role="admin">Stock IA</button>
+        <button type="button" data-route-target="almoxarifado" data-nav-role="admin">📦 Almoxarifado</button>
         <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
         <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
         <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
@@ -1464,6 +1465,86 @@
 
         <div class="stock-ia-toast is-hidden" id="stockIaActionMessage" role="status" aria-live="polite"></div>
         <div class="stock-ia-modal is-hidden" id="stockIaModal" role="dialog" aria-modal="true" aria-labelledby="stockIaModalTitle"></div>
+      </section>
+
+      <section class="route-panel" data-route="almoxarifado" aria-label="Almoxarifado">
+        <div class="workspace-card stock-ia-hero">
+          <div>
+            <p class="eyebrow">Controle interno</p>
+            <h3>Almoxarifado</h3>
+            <p>Controle entradas, entregas, setores e saldos em poucos cliques.</p>
+          </div>
+          <div class="stock-ia-badges" aria-label="Status do Almoxarifado">
+            <span class="local-status">Local</span>
+            <span class="cloud-status info">Prefeitura / secretaria / loja</span>
+            <button type="button" class="mini-button primary" id="almoxSummaryButton">Gerar resumo</button>
+          </div>
+        </div>
+
+        <div class="stock-ia-cards" id="almoxSummaryCards" aria-live="polite"></div>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Ações rápidas</h3>
+            <span class="auth-note">Use o fluxo simples: cadastrar item, registrar entrada ou registrar saída.</span>
+          </div>
+          <div class="almox-action-grid">
+            <button type="button" class="almox-action-button" data-almox-action="item">
+              <strong>Cadastrar item</strong>
+              <span>Ex.: tenho 200 máscaras no almoxarifado.</span>
+            </button>
+            <button type="button" class="almox-action-button" data-almox-action="entry">
+              <strong>Registrar entrada</strong>
+              <span>Adicione itens recebidos por compra, doação ou remessa.</span>
+            </button>
+            <button type="button" class="almox-action-button" data-almox-action="exit">
+              <strong>Registrar saída</strong>
+              <span>Registre entregas para pessoa, setor e finalidade.</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Buscar</h3>
+            <span class="auth-note">Filtre itens, destinatários, setores ou finalidades.</span>
+          </div>
+          <input class="almox-search-input" id="almoxSearchInput" type="search" placeholder="Buscar item, destinatário, setor ou finalidade">
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Itens cadastrados</h3>
+            <span class="auth-note">Cards com saldo, mínimo, local e ações rápidas.</span>
+          </div>
+          <div class="almox-card-grid" id="almoxItemsCards">
+            <div class="stock-ia-empty-action">
+              <p>Nenhum item cadastrado.</p>
+              <button type="button" class="mini-button primary" data-almox-action="item">Cadastrar item</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Histórico do almoxarifado</h3>
+            <span class="auth-note">Entradas e entregas em linguagem simples.</span>
+          </div>
+          <div class="almox-history-list" id="almoxHistoryList">
+            <div class="stock-ia-empty-action">
+              <p>Nenhuma movimentação registrada.</p>
+              <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-card stock-ia-insight">
+          <h3>Resumo do almoxarifado</h3>
+          <p id="almoxSummaryText">Cadastre um item para iniciar o controle do almoxarifado.</p>
+        </section>
+
+        <div class="stock-ia-toast is-hidden" id="almoxActionMessage" role="status" aria-live="polite"></div>
+        <div class="stock-ia-modal is-hidden" id="almoxModal" role="dialog" aria-modal="true" aria-labelledby="almoxModalTitle"></div>
       </section>
     </section>
 

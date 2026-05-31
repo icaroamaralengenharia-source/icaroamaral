@@ -86,6 +86,8 @@
   const stockIaInsight = document.getElementById("stockIaInsight");
   const stockIaOperationalInsight = document.getElementById("stockIaOperationalInsight");
   const stockIaPeriodControls = document.getElementById("stockIaPeriodControls");
+  const stockIaModeControls = document.getElementById("stockIaModeControls");
+  const stockIaModeDescription = document.getElementById("stockIaModeDescription");
   const stockIaAlertsList = document.getElementById("stockIaAlertsList");
   const stockPurchasePanelNote = document.getElementById("stockPurchasePanelNote");
   const stockPurchaseSummaryCards = document.getElementById("stockPurchaseSummaryCards");
@@ -99,6 +101,21 @@
   const stockIaQuestionAnswer = document.getElementById("stockIaQuestionAnswer");
   const stockIaActionMessage = document.getElementById("stockIaActionMessage");
   const stockIaModal = document.getElementById("stockIaModal");
+  const almoxSummaryCards = document.getElementById("almoxSummaryCards");
+  const almoxItemForm = document.getElementById("almoxItemForm");
+  const almoxEntryForm = document.getElementById("almoxEntryForm");
+  const almoxExitForm = document.getElementById("almoxExitForm");
+  const almoxEntryItemSelect = document.getElementById("almoxEntryItemSelect");
+  const almoxExitItemSelect = document.getElementById("almoxExitItemSelect");
+  const almoxItemsRows = document.getElementById("almoxItemsRows");
+  const almoxHistoryRows = document.getElementById("almoxHistoryRows");
+  const almoxSearchInput = document.getElementById("almoxSearchInput");
+  const almoxItemsCards = document.getElementById("almoxItemsCards");
+  const almoxHistoryList = document.getElementById("almoxHistoryList");
+  const almoxSummaryText = document.getElementById("almoxSummaryText");
+  const almoxSummaryButton = document.getElementById("almoxSummaryButton");
+  const almoxActionMessage = document.getElementById("almoxActionMessage");
+  const almoxModal = document.getElementById("almoxModal");
   const dailyLogPhotoInput = document.getElementById("dailyLogPhotoInput");
   const dailyLogSearchInput = document.getElementById("dailyLogSearchInput");
   const dailyLogPdfButton = document.getElementById("dailyLogPdfButton");
@@ -155,6 +172,8 @@
   const STOCK_PURCHASE_REVIEWED_STORAGE_KEY = "obrareport_stock_purchase_reviewed_v1";
   const STOCK_NOTES_STORAGE_KEY = "obrareport_stock_notes_v1";
   const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
+  const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
+  const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const STOCK_NOTE_FILE_PREVIEW_LIMIT = 1024 * 1024;
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
@@ -173,8 +192,10 @@
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
   let localAccessGrantedInMemory = false;
+  let stockIaCurrentMode = "obra";
   let stockIaCurrentPeriod = "30d";
   let stockIaLastAnswer = "";
+  let almoxSearchTerm = "";
   let dailyLogEstimateDraft = {
     items: [],
     audit: [],
@@ -732,8 +753,17 @@
       dashboardPanel.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
         const periodButton = target && target.closest ? target.closest("[data-stock-period]") : null;
+        const modeButton = target && target.closest ? target.closest("[data-stock-mode]") : null;
         const questionButton = target && target.closest ? target.closest("[data-stock-question]") : null;
         const actionButton = target && target.closest ? target.closest("[data-stock-action]") : null;
+
+        if (modeButton) {
+          event.preventDefault();
+          stockIaCurrentMode = modeButton.dataset.stockMode === "almoxarifado" ? "almoxarifado" : "obra";
+          saveStockIaMode_(stockIaCurrentMode);
+          renderStockIaPanel_(getUserDailyLogs_());
+          return;
+        }
 
         if (periodButton) {
           event.preventDefault();
@@ -783,6 +813,58 @@
       });
 
       stockIaModal.addEventListener("submit", handleStockIaFormSubmit_);
+    }
+
+    document.addEventListener("click", function (event) {
+      const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+      const actionButton = target && target.closest ? target.closest("[data-almox-action]") : null;
+
+      if (!actionButton) {
+        return;
+      }
+
+      event.preventDefault();
+      openAlmoxModal_(actionButton.dataset.almoxAction || "item", {
+        itemId: actionButton.dataset.almoxItemId || ""
+      });
+    });
+
+    if (almoxModal) {
+      almoxModal.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+
+        if (target && target.closest && target.closest("[data-almox-modal-close]")) {
+          event.preventDefault();
+          closeAlmoxModal_();
+        }
+      });
+
+      almoxModal.addEventListener("submit", handleAlmoxModalSubmit_);
+    }
+
+    if (almoxSearchInput) {
+      almoxSearchInput.addEventListener("input", function () {
+        almoxSearchTerm = clean(almoxSearchInput.value);
+        renderAlmoxarifadoPanel_();
+      });
+    }
+
+    if (almoxItemForm) {
+      almoxItemForm.addEventListener("submit", handleAlmoxItemSubmit_);
+    }
+
+    if (almoxEntryForm) {
+      almoxEntryForm.addEventListener("submit", handleAlmoxEntrySubmit_);
+    }
+
+    if (almoxExitForm) {
+      almoxExitForm.addEventListener("submit", handleAlmoxExitSubmit_);
+    }
+
+    if (almoxSummaryButton) {
+      almoxSummaryButton.addEventListener("click", function () {
+        generateAlmoxSummary_();
+      });
     }
 
     window.addEventListener("hashchange", function () {
@@ -1954,11 +2036,11 @@
   }
 
   function getAllRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao", "cliente", "minha-obra", "meus-relatorios", "meus-rdos", "documentos", "suporte"];
   }
 
   function getAdminRoutes_() {
-    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "planos", "administracao"];
+    return ["dashboard", "clientes", "obras", "relatorios", "diario", "stock-ia", "almoxarifado", "planos", "administracao"];
   }
 
   function getClientRoutes_() {
@@ -2032,6 +2114,10 @@
     routeButtons.forEach(function (button) {
       button.classList.toggle("active", button.dataset.routeTarget === safeRoute);
     });
+
+    if (safeRoute === "almoxarifado") {
+      renderAlmoxarifadoPanel_();
+    }
   }
 
   function renderRoleNavigation_() {
@@ -4886,6 +4972,27 @@
     }
   }
 
+  function loadStockIaMode_() {
+    try {
+      const storage = getLocalStorage_();
+      const value = storage ? storage.getItem(STOCK_MODE_STORAGE_KEY) : "";
+      return value === "almoxarifado" ? "almoxarifado" : "obra";
+    } catch (error) {
+      return "obra";
+    }
+  }
+
+  function saveStockIaMode_(mode) {
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.setItem(STOCK_MODE_STORAGE_KEY, mode === "almoxarifado" ? "almoxarifado" : "obra");
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel salvar o modo do Stock IA.", error);
+    }
+  }
+
   function findStockItemForQuickExample_(example) {
     const state = loadStockMasterState_();
     const key = normalizeStockMaterialKey_(example && example.material, example && example.unidadeMaterial);
@@ -5014,6 +5121,33 @@
       itemId: firstItem.id,
       movementType: "entrada"
     });
+  }
+
+  function appendWarehouseGuidedFields_(form) {
+    const sectionOne = createStockGuidedSection_("Passo 1 — Cadastrar item", "Cadastre o item de almoxarifado que será controlado.");
+    const sectionTwo = createStockGuidedSection_("Passo 2 — Registrar entrada", "Informe a quantidade recebida para formar saldo.");
+    const sectionThree = createStockGuidedSection_("Passo 3 — Registrar saída", "Registre para quem saiu, o setor e a finalidade.");
+    const gridOne = sectionOne.querySelector(".stock-ia-form-grid");
+    const gridTwo = sectionTwo.querySelector(".stock-ia-form-grid");
+    const gridThree = sectionThree.querySelector(".stock-ia-form-grid");
+
+    appendStockIaField_(gridOne, "warehouseItemName", "Item", "text", "", true);
+    appendStockIaField_(gridOne, "warehouseUnit", "Unidade", "text", "un", true);
+    appendStockIaField_(gridOne, "warehouseMinimumStock", "Estoque mínimo", "number", 0, false, "0.001");
+    appendStockIaField_(gridOne, "warehouseUnitCost", "Custo unitário opcional", "number", 0, false, "0.01");
+
+    appendStockIaField_(gridTwo, "warehouseEntryQuantity", "Quantidade recebida", "number", 0, true, "0.001");
+    appendStockIaField_(gridTwo, "warehouseEntryDate", "Data", "date", toDateKey_(new Date()), true);
+
+    appendStockIaField_(gridThree, "warehouseExitQuantity", "Quantidade entregue", "number", 0, false, "0.001");
+    appendStockIaField_(gridThree, "warehouseRecipientName", "Destinatário", "text", "", false);
+    appendStockIaField_(gridThree, "warehouseSector", "Setor/obra/unidade", "text", "", false);
+    appendStockIaField_(gridThree, "warehousePurpose", "Finalidade", "text", "", false);
+    appendStockIaTextarea_(gridThree, "warehouseNotes", "Observação", "");
+
+    form.appendChild(sectionOne);
+    form.appendChild(sectionTwo);
+    form.appendChild(sectionThree);
   }
 
   function getGuidedStockExamplePayload_() {
@@ -5194,6 +5328,113 @@
     };
   }
 
+  function handleWarehouseGuidedSubmit_(formData) {
+    const name = clean(formData.get("warehouseItemName"));
+    const unit = clean(formData.get("warehouseUnit")) || "un";
+    const entryQuantity = parseNumber_(formData.get("warehouseEntryQuantity"));
+    const exitQuantity = parseNumber_(formData.get("warehouseExitQuantity"));
+    const minimumStock = parseNumber_(formData.get("warehouseMinimumStock"));
+    const unitCost = parseNumber_(formData.get("warehouseUnitCost"));
+    const movementDate = clean(formData.get("warehouseEntryDate")) || toDateKey_(new Date());
+    const recipientName = clean(formData.get("warehouseRecipientName"));
+    const sector = clean(formData.get("warehouseSector"));
+    const purpose = clean(formData.get("warehousePurpose"));
+    const notes = clean(formData.get("warehouseNotes"));
+
+    if (!name || entryQuantity <= 0) {
+      return {
+        ok: false,
+        message: "Preencha o item e a quantidade recebida para concluir o almoxarifado."
+      };
+    }
+
+    let item = findStockItemByNameUnit_(name, unit);
+    if (!item) {
+      item = createStockMasterItem_({
+        name: name,
+        unit: unit,
+        category: "Almoxarifado",
+        initialBalance: 0,
+        minimumStock: minimumStock,
+        unitCost: unitCost,
+        workId: null,
+        notes: "Criado no Modo Almoxarifado do Stock IA."
+      });
+    } else {
+      updateStockMasterItem_(item.id, {
+        name: item.name,
+        unit: item.unit,
+        category: item.category || "Almoxarifado",
+        initialBalance: item.initialBalance,
+        minimumStock: minimumStock || item.minimumStock,
+        unitCost: unitCost || item.unitCost,
+        workId: item.workId,
+        notes: item.notes
+      });
+    }
+
+    if (!item) {
+      return {
+        ok: false,
+        message: "Não foi possível criar o item de almoxarifado."
+      };
+    }
+
+    registerStockEntry_({
+      stockItemId: item.id,
+      quantity: entryQuantity,
+      unitCost: unitCost,
+      date: movementDate,
+      supplier: "Entrada de almoxarifado",
+      documentNumber: "",
+      notes: "Entrada registrada no Modo Almoxarifado.",
+      source: "manual",
+      mode: "almoxarifado"
+    });
+
+    if (exitQuantity > 0) {
+      registerManualStockExit_({
+        stockItemId: item.id,
+        quantity: exitQuantity,
+        unitCost: unitCost,
+        date: movementDate,
+        notes: notes || "Saída registrada no Modo Almoxarifado.",
+        source: "manual",
+        mode: "almoxarifado",
+        recipientName: recipientName,
+        sector: sector,
+        purpose: purpose
+      });
+    }
+
+    const balance = calculateRealStockBalances_().find(function (candidate) {
+      return candidate.item.id === item.id;
+    });
+    const status = getStockCycleStatus_({
+      realBalance: balance ? balance.realBalance : 0,
+      minimumStock: minimumStock
+    });
+    const details = [
+      recipientName ? "Destinatário: " + recipientName : "",
+      sector ? "Setor: " + sector : "",
+      purpose ? "Finalidade: " + purpose : ""
+    ].filter(Boolean).join(". ");
+    const message = "Item de almoxarifado cadastrado. Entrada registrada. " +
+      (exitQuantity > 0 ? "Saída registrada. " : "Saída não informada. ") +
+      "Saldo atual: " + formatQuantity_(balance ? balance.realBalance : 0) + " " + unit + ". Status: " + status + "." +
+      (details ? " " + details + "." : "");
+
+    stockIaLastAnswer = message;
+    if (stockIaQuestionAnswer) {
+      stockIaQuestionAnswer.textContent = message;
+    }
+
+    return {
+      ok: true,
+      message: message
+    };
+  }
+
   function buildStockPlainSummary_() {
     const balances = calculateRealStockBalances_();
     const totalMaterials = balances.length;
@@ -5208,10 +5449,11 @@
       return sum + parseNumber_(balance.estimatedValue);
     }, 0);
     const topAttention = attentionItems[0];
+    const itemLabel = stockIaCurrentMode === "almoxarifado" ? "itens cadastrados" : "materiais cadastrados";
 
-    return "Hoje o estoque possui " + totalMaterials + " materiais cadastrados, " +
+    return "Hoje o estoque possui " + totalMaterials + " " + itemLabel + ", " +
       attentionItems.length + " em atenção/crítico e valor estimado de " + formatCurrency_(estimatedTotal) + ". " +
-      "O material com maior atenção é " + (topAttention ? topAttention.item.name : "nenhum material crítico no momento") + ".";
+      (stockIaCurrentMode === "almoxarifado" ? "O item" : "O material") + " com maior atenção é " + (topAttention ? topAttention.item.name : "nenhum item crítico no momento") + ".";
   }
 
   function generateStockPlainSummary_() {
@@ -5222,6 +5464,799 @@
     }
     const copied = copyTextFallback_(summary);
     showStockIaToast_(copied ? "Resumo do estoque gerado e copiado." : "Resumo gerado. Copie o texto na resposta do assistente.", copied ? "success" : "info");
+  }
+
+  function loadAlmoxState_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(ALMOX_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : {};
+      return {
+        items: Array.isArray(parsed.items) ? parsed.items : [],
+        movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+        updatedAt: parsed.updatedAt || new Date().toISOString()
+      };
+    } catch (error) {
+      console.warn("Nao foi possivel carregar o almoxarifado.", error);
+      return {
+        items: [],
+        movements: [],
+        updatedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  function saveAlmoxState_(state) {
+    const safeState = {
+      items: Array.isArray(state.items) ? state.items : [],
+      movements: Array.isArray(state.movements) ? state.movements : [],
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.setItem(ALMOX_STORAGE_KEY, JSON.stringify(safeState));
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel salvar o almoxarifado.", error);
+    }
+
+    return safeState;
+  }
+
+  function calculateAlmoxBalances_() {
+    const state = loadAlmoxState_();
+    return state.items.filter(function (item) {
+      return String(item.category || "").toLowerCase() !== "almoxarifado" &&
+        String(item.notes || "").toLowerCase().indexOf("modo almoxarifado") < 0;
+    }).map(function (item) {
+      const movements = state.movements.filter(function (movement) {
+        return movement.itemId === item.id;
+      });
+      const entries = movements.filter(function (movement) {
+        return movement.type === "entrada";
+      }).reduce(function (sum, movement) {
+        return sum + parseNumber_(movement.quantity);
+      }, 0);
+      const exits = movements.filter(function (movement) {
+        return movement.type === "saida";
+      }).reduce(function (sum, movement) {
+        return sum + parseNumber_(movement.quantity);
+      }, 0);
+      const balance = roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
+      return {
+        item: item,
+        entries: roundQuantity_(entries),
+        exits: roundQuantity_(exits),
+        balance: balance,
+        status: getStockCycleStatus_({
+          realBalance: balance,
+          minimumStock: item.minimumStock
+        })
+      };
+    }).sort(function (a, b) {
+      return String(a.item.name || "").localeCompare(String(b.item.name || ""));
+    });
+  }
+
+  function handleAlmoxItemSubmit_(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const result = saveAlmoxItemFromFormData_(formData);
+    if (!result.ok) {
+      showAlmoxToast_(result.message, "error");
+      return;
+    }
+
+    event.target.reset();
+    if (event.target.elements.unit) {
+      event.target.elements.unit.value = "un";
+    }
+    renderAlmoxarifadoPanel_();
+    [almoxEntryItemSelect, almoxExitItemSelect].forEach(function (select) {
+      if (select) {
+        select.value = result.item.id;
+      }
+    });
+    showAlmoxToast_("Item cadastrado com sucesso.", "success");
+  }
+
+  function handleAlmoxEntrySubmit_(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const result = saveAlmoxEntryFromFormData_(formData);
+    if (!result.ok) {
+      showAlmoxToast_(result.message, "error");
+      return;
+    }
+
+    event.target.reset();
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_("Entrada registrada. Saldo atualizado.", "success");
+  }
+
+  function handleAlmoxExitSubmit_(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const result = saveAlmoxExitFromFormData_(formData);
+    if (!result.ok) {
+      showAlmoxToast_(result.message, "error");
+      return;
+    }
+
+    event.target.reset();
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_("Entrega registrada. Saldo atualizado.", "success");
+  }
+
+  function saveAlmoxItemFromFormData_(formData) {
+    const state = loadAlmoxState_();
+    const name = clean(formData.get("name"));
+    const initialQuantity = parseNumber_(formData.get("initialQuantity"));
+
+    if (!name) {
+      return {
+        ok: false,
+        message: "Informe o nome do item."
+      };
+    }
+
+    const item = {
+      id: createId_("alm"),
+      name: name,
+      category: clean(formData.get("category")) || "Geral",
+      unit: clean(formData.get("unit")) || "un",
+      initialQuantity: 0,
+      minimumStock: parseNumber_(formData.get("minimumStock")),
+      location: clean(formData.get("location")),
+      notes: clean(formData.get("notes")),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    state.items.push(item);
+
+    if (initialQuantity > 0) {
+      state.movements.push({
+        id: createId_("almmov"),
+        itemId: item.id,
+        type: "entrada",
+        quantity: initialQuantity,
+        responsible: "Saldo inicial",
+        documentNumber: "",
+        date: toDateKey_(new Date()),
+        notes: "Entrada inicial do cadastro.",
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    saveAlmoxState_(state);
+    return {
+      ok: true,
+      item: item
+    };
+  }
+
+  function saveAlmoxEntryFromFormData_(formData) {
+    const state = loadAlmoxState_();
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe a quantidade de entrada."
+      };
+    }
+
+    state.movements.push({
+      id: createId_("almmov"),
+      itemId: itemId,
+      type: "entrada",
+      quantity: quantity,
+      responsible: clean(formData.get("responsible")),
+      documentNumber: clean(formData.get("documentNumber")),
+      date: clean(formData.get("date")) || toDateKey_(new Date()),
+      notes: clean(formData.get("notes")),
+      createdAt: new Date().toISOString()
+    });
+    saveAlmoxState_(state);
+    return {
+      ok: true
+    };
+  }
+
+  function saveAlmoxExitFromFormData_(formData) {
+    const state = loadAlmoxState_();
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe a quantidade de saída."
+      };
+    }
+
+    state.movements.push({
+      id: createId_("almmov"),
+      itemId: itemId,
+      type: "saida",
+      quantity: quantity,
+      recipient: clean(formData.get("recipient")),
+      sector: clean(formData.get("sector")),
+      purpose: clean(formData.get("purpose")),
+      responsible: clean(formData.get("responsible")),
+      date: clean(formData.get("date")) || toDateKey_(new Date()),
+      notes: clean(formData.get("notes")),
+      createdAt: new Date().toISOString()
+    });
+    saveAlmoxState_(state);
+    return {
+      ok: true
+    };
+  }
+
+  function renderAlmoxarifadoPanel_() {
+    renderAlmoxSelects_();
+    renderAlmoxSummaryCards_();
+    renderAlmoxItems_();
+    renderAlmoxHistory_();
+
+    if (almoxSummaryText) {
+      almoxSummaryText.textContent = buildAlmoxSummaryText_();
+    }
+
+    [almoxEntryForm, almoxExitForm].forEach(function (form) {
+      if (form && form.elements.date && !form.elements.date.value) {
+        form.elements.date.value = toDateKey_(new Date());
+      }
+    });
+  }
+
+  function openAlmoxModal_(type, payload) {
+    if (type === "history") {
+      const state = loadAlmoxState_();
+      const item = state.items.find(function (candidate) {
+        return candidate.id === (payload && payload.itemId);
+      });
+
+      if (item) {
+        almoxSearchTerm = item.name || "";
+        if (almoxSearchInput) {
+          almoxSearchInput.value = almoxSearchTerm;
+        }
+        renderAlmoxarifadoPanel_();
+        showAlmoxToast_("Histórico filtrado por " + item.name + ".", "info");
+      }
+      return;
+    }
+
+    if (!almoxModal) {
+      return;
+    }
+
+    almoxModal.dataset.almoxModalType = type;
+    almoxModal.dataset.almoxPayload = JSON.stringify(payload || {});
+    renderAlmoxModal_(type, payload || {});
+    almoxModal.classList.remove("is-hidden");
+
+    const firstField = almoxModal.querySelector("input, select, textarea, button");
+    if (firstField) {
+      firstField.focus();
+    }
+  }
+
+  function closeAlmoxModal_() {
+    if (!almoxModal) {
+      return;
+    }
+
+    almoxModal.classList.add("is-hidden");
+    almoxModal.innerHTML = "";
+    almoxModal.dataset.almoxModalType = "";
+    almoxModal.dataset.almoxPayload = "";
+  }
+
+  function renderAlmoxModal_(type, payload) {
+    const state = loadAlmoxState_();
+    const title = type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item");
+    const content = document.createElement("div");
+    const card = document.createElement("div");
+    const header = document.createElement("div");
+    const heading = document.createElement("h3");
+    const closeButton = document.createElement("button");
+    const form = document.createElement("form");
+
+    almoxModal.innerHTML = "";
+    content.className = "stock-ia-modal-backdrop";
+    card.className = "stock-ia-modal-card";
+    header.className = "stock-ia-modal-header";
+    heading.id = "almoxModalTitle";
+    heading.textContent = title;
+    closeButton.type = "button";
+    closeButton.className = "mini-button compact";
+    closeButton.dataset.almoxModalClose = "true";
+    closeButton.textContent = "Fechar";
+    form.className = "stock-ia-form";
+    form.dataset.almoxFormType = type;
+
+    header.appendChild(heading);
+    header.appendChild(closeButton);
+    card.appendChild(header);
+
+    if (type === "entry") {
+      appendAlmoxItemSelect_(form, state.items, payload.itemId);
+      appendStockIaField_(form, "quantity", "Quantidade", "number", "", true, "0.001");
+      appendStockIaField_(form, "responsible", "Responsável", "text", "", false);
+      appendStockIaField_(form, "documentNumber", "Documento/nota opcional", "text", "", false);
+      appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+      appendStockIaTextarea_(form, "notes", "Observação", "");
+    } else if (type === "exit") {
+      appendAlmoxItemSelect_(form, state.items, payload.itemId);
+      appendStockIaField_(form, "quantity", "Quantidade", "number", "", true, "0.001");
+      appendStockIaField_(form, "recipient", "Destinatário", "text", "", true);
+      appendStockIaField_(form, "sector", "Setor", "text", "", false);
+      appendStockIaField_(form, "purpose", "Finalidade/uso", "text", "", false);
+      appendStockIaField_(form, "responsible", "Responsável pela entrega", "text", "", false);
+      appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+      appendStockIaTextarea_(form, "notes", "Observação", "");
+    } else {
+      appendStockIaField_(form, "name", "Nome do item", "text", "", true);
+      appendStockIaField_(form, "category", "Categoria", "text", "", false);
+      appendStockIaField_(form, "unit", "Unidade", "text", "un", true);
+      appendStockIaField_(form, "initialQuantity", "Quantidade inicial", "number", "", false, "0.001");
+      appendStockIaField_(form, "minimumStock", "Estoque mínimo", "number", "", false, "0.001");
+      appendStockIaField_(form, "location", "Local/almoxarifado", "text", "", false);
+      appendStockIaTextarea_(form, "notes", "Observação", "");
+    }
+
+    appendAlmoxFormActions_(form, type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item"));
+    card.appendChild(form);
+    content.appendChild(card);
+    almoxModal.appendChild(content);
+  }
+
+  function appendAlmoxItemSelect_(form, items, selectedItemId) {
+    const wrapper = document.createElement("label");
+    const select = document.createElement("select");
+    wrapper.textContent = "Item";
+    select.name = "itemId";
+    select.required = true;
+    appendOption_(select, "", items.length ? "Escolha um item" : "Cadastre um item primeiro");
+    items.forEach(function (item) {
+      appendOption_(select, item.id, item.name + " (" + (item.unit || "un") + ")");
+    });
+    select.value = selectedItemId || (items.length === 1 ? items[0].id : "");
+    wrapper.appendChild(select);
+    form.appendChild(wrapper);
+  }
+
+  function appendAlmoxFormActions_(form, submitText) {
+    const actions = document.createElement("div");
+    const submit = document.createElement("button");
+    const cancel = document.createElement("button");
+    actions.className = "stock-ia-form-actions full-width";
+    submit.type = "submit";
+    submit.className = "mini-button primary";
+    submit.textContent = submitText;
+    cancel.type = "button";
+    cancel.className = "mini-button";
+    cancel.dataset.almoxModalClose = "true";
+    cancel.textContent = "Cancelar";
+    actions.appendChild(submit);
+    actions.appendChild(cancel);
+    form.appendChild(actions);
+  }
+
+  function handleAlmoxModalSubmit_(event) {
+    event.preventDefault();
+    const form = event.target;
+    const type = form.dataset.almoxFormType || "item";
+    const formData = new FormData(form);
+    const result = type === "entry"
+      ? saveAlmoxEntryFromFormData_(formData)
+      : (type === "exit" ? saveAlmoxExitFromFormData_(formData) : saveAlmoxItemFromFormData_(formData));
+
+    if (!result.ok) {
+      showAlmoxToast_(result.message, "error");
+      return;
+    }
+
+    closeAlmoxModal_();
+    renderAlmoxarifadoPanel_();
+    if (type === "entry") {
+      showAlmoxToast_("Entrada registrada. Saldo atualizado.", "success");
+    } else if (type === "exit") {
+      showAlmoxToast_("Entrega registrada. Saldo atualizado.", "success");
+    } else {
+      showAlmoxToast_("Item cadastrado com sucesso.", "success");
+    }
+  }
+
+  function renderAlmoxSelects_() {
+    const state = loadAlmoxState_();
+    [almoxEntryItemSelect, almoxExitItemSelect].forEach(function (select) {
+      if (!select) {
+        return;
+      }
+
+      const current = select.value;
+      select.innerHTML = "";
+      appendOption_(select, "", state.items.length ? "Escolha um item" : "Cadastre um item primeiro");
+      state.items.forEach(function (item) {
+        appendOption_(select, item.id, item.name + " (" + (item.unit || "un") + ")");
+      });
+      select.value = state.items.some(function (item) { return item.id === current; })
+        ? current
+        : (state.items.length === 1 ? state.items[0].id : "");
+    });
+  }
+
+  function renderAlmoxSummaryCards_() {
+    if (!almoxSummaryCards) {
+      return;
+    }
+
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const totalBalance = balances.reduce(function (sum, balance) {
+      return sum + parseNumber_(balance.balance);
+    }, 0);
+    const critical = balances.filter(function (balance) {
+      return balance.status === "Crítico" || balance.status === "Atenção";
+    }).length;
+    const lastDelivery = state.movements.filter(function (movement) {
+      return movement.type === "saida";
+    }).sort(function (a, b) {
+      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
+    })[0];
+
+    almoxSummaryCards.innerHTML = "";
+    [
+      ["Itens cadastrados", balances.length],
+      ["Saldo total", formatQuantity_(totalBalance)],
+      ["Itens críticos", critical],
+      ["Última entrega", lastDelivery ? formatDateOnly_(lastDelivery.date || lastDelivery.createdAt) : "Nenhuma"]
+    ].forEach(function (item) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      card.className = "stock-ia-card";
+      label.textContent = item[0];
+      value.textContent = String(item[1]);
+      card.appendChild(label);
+      card.appendChild(value);
+      almoxSummaryCards.appendChild(card);
+    });
+  }
+
+  function renderAlmoxItems_() {
+    if (!almoxItemsCards && !almoxItemsRows) {
+      return;
+    }
+
+    const balances = filterAlmoxBalances_(calculateAlmoxBalances_());
+    if (almoxItemsCards) {
+      almoxItemsCards.innerHTML = "";
+      if (!balances.length) {
+        almoxItemsCards.appendChild(createAlmoxEmptyAction_(
+          almoxSearchTerm ? "Nenhum item encontrado para esta busca." : "Você ainda não tem itens cadastrados.",
+          "Cadastrar item",
+          "item"
+        ));
+        return;
+      }
+
+      balances.forEach(function (balance) {
+        almoxItemsCards.appendChild(createAlmoxItemCard_(balance));
+      });
+      return;
+    }
+
+    almoxItemsRows.innerHTML = "";
+    if (!balances.length) {
+      appendStockIaEmptyRow_(almoxItemsRows, 7, "Nenhum item cadastrado.");
+      return;
+    }
+
+    balances.forEach(function (balance) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, balance.item.name);
+      appendStockIaCell_(row, balance.item.category || "Geral");
+      appendStockIaCell_(row, balance.item.unit || "un");
+      appendStockIaCell_(row, balance.item.location || "-");
+      appendStockIaCell_(row, formatQuantity_(balance.balance));
+      appendStockIaCell_(row, formatQuantity_(balance.item.minimumStock));
+      appendStockIaCell_(row, balance.status);
+      almoxItemsRows.appendChild(row);
+    });
+  }
+
+  function renderAlmoxHistory_() {
+    if (!almoxHistoryList && !almoxHistoryRows) {
+      return;
+    }
+
+    const state = loadAlmoxState_();
+    const itemsById = {};
+    state.items.forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const movements = filterAlmoxMovements_(state.movements.slice().sort(function (a, b) {
+      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
+    }), itemsById);
+
+    if (almoxHistoryList) {
+      almoxHistoryList.innerHTML = "";
+      if (!movements.length) {
+        almoxHistoryList.appendChild(createAlmoxEmptyAction_(
+          almoxSearchTerm ? "Nenhuma movimentação encontrada para esta busca." : "As entradas, saídas e entregas aparecerão aqui.",
+          "Registrar entrada",
+          "entry"
+        ));
+        return;
+      }
+
+      movements.forEach(function (movement) {
+        almoxHistoryList.appendChild(createAlmoxHistoryCard_(movement, itemsById[movement.itemId] || {}));
+      });
+      return;
+    }
+
+    almoxHistoryRows.innerHTML = "";
+    if (!movements.length) {
+      appendStockIaEmptyRow_(almoxHistoryRows, 4, "Nenhuma movimentação registrada.");
+      return;
+    }
+
+    movements.forEach(function (movement) {
+      const item = itemsById[movement.itemId] || {};
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
+      appendStockIaCell_(row, formatAlmoxMovementText_(movement, item));
+      appendStockIaCell_(row, movement.responsible || "-");
+      appendStockIaCell_(row, movement.notes || "-");
+      almoxHistoryRows.appendChild(row);
+    });
+  }
+
+  function filterAlmoxBalances_(balances) {
+    const term = normalizeCompositionKey_(almoxSearchTerm);
+    if (!term) {
+      return balances;
+    }
+
+    const state = loadAlmoxState_();
+    const matchingItemIds = {};
+    state.movements.forEach(function (movement) {
+      const haystack = normalizeCompositionKey_([
+        movement.recipient,
+        movement.sector,
+        movement.purpose,
+        movement.responsible,
+        movement.notes
+      ].join(" "));
+      if (haystack.indexOf(term) >= 0) {
+        matchingItemIds[movement.itemId] = true;
+      }
+    });
+
+    return balances.filter(function (balance) {
+      const haystack = normalizeCompositionKey_([
+        balance.item.name,
+        balance.item.category,
+        balance.item.location,
+        balance.item.notes
+      ].join(" "));
+      return haystack.indexOf(term) >= 0 || matchingItemIds[balance.item.id];
+    });
+  }
+
+  function filterAlmoxMovements_(movements, itemsById) {
+    const term = normalizeCompositionKey_(almoxSearchTerm);
+    if (!term) {
+      return movements;
+    }
+
+    return movements.filter(function (movement) {
+      const item = itemsById[movement.itemId] || {};
+      const haystack = normalizeCompositionKey_([
+        item.name,
+        item.category,
+        item.location,
+        movement.recipient,
+        movement.sector,
+        movement.purpose,
+        movement.responsible,
+        movement.documentNumber,
+        movement.notes
+      ].join(" "));
+      return haystack.indexOf(term) >= 0;
+    });
+  }
+
+  function createAlmoxEmptyAction_(message, buttonText, action) {
+    const empty = document.createElement("div");
+    const text = document.createElement("p");
+    const button = document.createElement("button");
+    empty.className = "stock-ia-empty-action";
+    text.textContent = message;
+    button.type = "button";
+    button.className = "mini-button primary";
+    button.dataset.almoxAction = action;
+    button.textContent = buttonText;
+    empty.appendChild(text);
+    empty.appendChild(button);
+    return empty;
+  }
+
+  function createAlmoxItemCard_(balance) {
+    const card = document.createElement("article");
+    const header = document.createElement("header");
+    const title = document.createElement("h4");
+    const status = document.createElement("span");
+    const meta = document.createElement("div");
+    const actions = document.createElement("div");
+
+    card.className = "almox-item-card";
+    title.textContent = balance.item.name || "Item";
+    status.className = "almox-status " + (balance.status === "Crítico" ? "critical" : (balance.status === "Atenção" ? "warning" : ""));
+    status.textContent = balance.status;
+    header.appendChild(title);
+    header.appendChild(status);
+    card.appendChild(header);
+
+    meta.className = "almox-meta-grid";
+    [
+      "Categoria: " + (balance.item.category || "Geral"),
+      "Local: " + (balance.item.location || "Não informado"),
+      "Saldo atual: " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un"),
+      "Estoque mínimo: " + formatQuantity_(balance.item.minimumStock) + " " + (balance.item.unit || "un")
+    ].forEach(function (text) {
+      const item = document.createElement("span");
+      item.textContent = text;
+      meta.appendChild(item);
+    });
+    card.appendChild(meta);
+
+    actions.className = "stock-ia-actions";
+    [
+      ["Entrada", "entry"],
+      ["Saída", "exit"],
+      ["Histórico", "history"]
+    ].forEach(function (action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mini-button";
+      button.dataset.almoxAction = action[1];
+      button.dataset.almoxItemId = balance.item.id;
+      button.textContent = action[0];
+      actions.appendChild(button);
+    });
+    card.appendChild(actions);
+    return card;
+  }
+
+  function createAlmoxHistoryCard_(movement, item) {
+    const card = document.createElement("article");
+    const header = document.createElement("header");
+    const title = document.createElement("h4");
+    const date = document.createElement("span");
+    const details = document.createElement("div");
+
+    card.className = "almox-history-item " + (movement.type === "entrada" ? "is-entry" : "is-exit");
+    title.textContent = movement.type === "entrada" ? "Entrada" : "Saída";
+    date.className = "auth-note";
+    date.textContent = movement.date ? formatDateOnly_(movement.date) : "-";
+    header.appendChild(title);
+    header.appendChild(date);
+    card.appendChild(header);
+
+    details.appendChild(createAlmoxHistoryLine_(formatAlmoxMovementText_(movement, item)));
+    if (movement.recipient) {
+      details.appendChild(createAlmoxHistoryLine_("Para: " + movement.recipient));
+    }
+    if (movement.sector) {
+      details.appendChild(createAlmoxHistoryLine_("Setor: " + movement.sector));
+    }
+    if (movement.purpose) {
+      details.appendChild(createAlmoxHistoryLine_("Finalidade: " + movement.purpose));
+    }
+    if (movement.responsible) {
+      details.appendChild(createAlmoxHistoryLine_("Responsável: " + movement.responsible));
+    }
+    if (movement.documentNumber) {
+      details.appendChild(createAlmoxHistoryLine_("Documento: " + movement.documentNumber));
+    }
+    if (movement.notes) {
+      details.appendChild(createAlmoxHistoryLine_("Observação: " + movement.notes));
+    }
+    card.appendChild(details);
+    return card;
+  }
+
+  function createAlmoxHistoryLine_(text) {
+    const line = document.createElement("p");
+    line.textContent = text;
+    return line;
+  }
+
+  function formatAlmoxMovementText_(movement, item) {
+    const quantity = formatQuantity_(movement.quantity) + " " + (item.unit || "un");
+    if (movement.type === "entrada") {
+      return "Entrada — " + quantity + " de " + (item.name || "item") + (movement.documentNumber ? " — " + movement.documentNumber : "") + ".";
+    }
+
+    return "Saída — " + quantity + " de " + (item.name || "item") +
+      (movement.recipient ? " para " + movement.recipient : "") +
+      (movement.sector ? " — " + movement.sector : "") +
+      (movement.purpose ? " — " + movement.purpose : "") + ".";
+  }
+
+  function buildAlmoxSummaryText_() {
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const critical = balances.filter(function (balance) {
+      return balance.status === "Crítico" || balance.status === "Atenção";
+    });
+    const exits = state.movements.filter(function (movement) {
+      return movement.type === "saida";
+    });
+
+    if (!balances.length) {
+      return "Cadastre um item para iniciar o controle do almoxarifado.";
+    }
+
+    const mainBalance = critical[0] || balances[0];
+    const itemsById = {};
+    state.items.forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const lastExit = exits.slice().sort(function (a, b) {
+      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
+    })[0];
+
+    let summary = "O almoxarifado possui " + balances.length + " item(ns) cadastrado(s). " +
+      "O item " + mainBalance.item.name + " possui saldo atual de " +
+      formatQuantity_(mainBalance.balance) + " " + (mainBalance.item.unit || "un") + ".";
+
+    if (lastExit) {
+      const item = itemsById[lastExit.itemId] || {};
+      summary += " A última entrega foi de " + formatQuantity_(lastExit.quantity) + " " +
+        (item.unit || "un") + " de " + (item.name || "item") +
+        (lastExit.recipient ? " para " + lastExit.recipient : "") +
+        (lastExit.sector ? ", setor " + lastExit.sector : "") +
+        (lastExit.purpose ? ", finalidade " + lastExit.purpose : "") + ".";
+    } else if (critical.length) {
+      summary += " Existem " + critical.length + " item(ns) em atenção ou crítico.";
+    } else {
+      summary += " Nenhuma entrega foi registrada ainda.";
+    }
+
+    return summary;
+  }
+
+  function generateAlmoxSummary_() {
+    const summary = buildAlmoxSummaryText_();
+    if (almoxSummaryText) {
+      almoxSummaryText.textContent = summary;
+    }
+    const copied = copyTextFallback_(summary);
+    showAlmoxToast_(copied ? "Resumo do almoxarifado gerado e copiado." : "Resumo gerado.", copied ? "success" : "info");
+  }
+
+  function showAlmoxToast_(message, type) {
+    if (!almoxActionMessage) {
+      return;
+    }
+
+    almoxActionMessage.textContent = message;
+    almoxActionMessage.className = "stock-ia-toast " + (type || "info");
+    window.clearTimeout(showAlmoxToast_.timer);
+    showAlmoxToast_.timer = window.setTimeout(function () {
+      almoxActionMessage.classList.add("is-hidden");
+    }, 4200);
   }
 
   function summarizeStockIaList_(items, limit) {
@@ -5371,6 +6406,10 @@
       notes: clean(data.notes),
       source: clean(data.source) || "manual",
       noteId: clean(data.noteId) || null,
+      mode: clean(data.mode) || "obra",
+      recipientName: clean(data.recipientName),
+      sector: clean(data.sector),
+      purpose: clean(data.purpose),
       createdAt: new Date().toISOString()
     };
 
@@ -5490,6 +6529,10 @@
     const movements = [];
 
     state.manualMovements.forEach(function (movement) {
+      if (movement.mode === "almoxarifado") {
+        return;
+      }
+
       const item = state.items.find(function (candidate) {
         return candidate.id === movement.stockItemId;
       });
@@ -5543,7 +6586,10 @@
     const state = loadStockMasterState_();
     const movements = buildRealStockMovements_();
 
-    return state.items.map(function (item) {
+    return state.items.filter(function (item) {
+      return String(item.category || "").toLowerCase() !== "almoxarifado" &&
+        String(item.notes || "").toLowerCase().indexOf("modo almoxarifado") < 0;
+    }).map(function (item) {
       const itemMovements = movements.filter(function (movement) {
         return movement.stockItemId === item.id;
       });
@@ -6860,6 +7906,7 @@
     const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
 
     renderStockIaSummaryCards_(summary);
+    renderStockIaModeControls_();
     renderStockQuickExamplePanel_();
     renderStockPeriodControls_();
     renderStockOperationalAlerts_(alerts);
@@ -6918,6 +7965,20 @@
     Array.from(stockIaPeriodControls.querySelectorAll("[data-stock-period]")).forEach(function (button) {
       button.classList.toggle("active", button.dataset.stockPeriod === stockIaCurrentPeriod);
     });
+  }
+
+  function renderStockIaModeControls_() {
+    if (stockIaModeControls) {
+      Array.from(stockIaModeControls.querySelectorAll("[data-stock-mode]")).forEach(function (button) {
+        button.classList.toggle("active", button.dataset.stockMode === stockIaCurrentMode);
+      });
+    }
+
+    if (stockIaModeDescription) {
+      stockIaModeDescription.textContent = stockIaCurrentMode === "almoxarifado"
+        ? "Modo Almoxarifado: controle itens entregues para pessoas, setores e finalidades, usando o mesmo saldo real do Stock IA."
+        : "Modo Obra: controle materiais usados em obras, RDOs e serviços executados.";
+    }
   }
 
   function renderStockOperationalAlerts_(alerts) {
@@ -7151,12 +8212,16 @@
     const state = loadStockMasterState_();
     stockManualMovementsRows.innerHTML = "";
 
-    if (!state.manualMovements.length) {
+    const visibleMovements = state.manualMovements.filter(function (movement) {
+      return movement.mode !== "almoxarifado";
+    });
+
+    if (!visibleMovements.length) {
       appendStockIaEmptyActionRow_(stockManualMovementsRows, 8, "Registre uma entrada para formar saldo.", "Registrar entrada", "first-entry");
       return;
     }
 
-    state.manualMovements.slice().sort(function (a, b) {
+    visibleMovements.slice().sort(function (a, b) {
       return String(b.date || "").localeCompare(String(a.date || ""));
     }).forEach(function (movement) {
       const item = state.items.find(function (candidate) {
@@ -7170,9 +8235,31 @@
       appendStockIaCell_(row, formatCurrency_(movement.totalCost));
       appendStockIaCell_(row, movement.supplier || "-");
       appendStockIaCell_(row, movement.documentNumber || "-");
-      appendStockIaCell_(row, movement.notes || "-");
+      appendStockIaCell_(row, formatStockMovementNotes_(movement));
       stockManualMovementsRows.appendChild(row);
     });
+  }
+
+  function formatStockMovementNotes_(movement) {
+    const parts = [];
+
+    if (movement.recipientName) {
+      parts.push("Destinatário: " + movement.recipientName);
+    }
+
+    if (movement.sector) {
+      parts.push("Setor: " + movement.sector);
+    }
+
+    if (movement.purpose) {
+      parts.push("Finalidade: " + movement.purpose);
+    }
+
+    if (movement.notes) {
+      parts.push(movement.notes);
+    }
+
+    return parts.length ? parts.join(" | ") : "-";
   }
 
   function renderUnlinkedRdoMaterials_(items) {
@@ -7415,6 +8502,8 @@
       appendStockItemFields_(form, item);
     } else if (type === "guided-stock") {
       appendStockGuidedFields_(form, payload);
+    } else if (type === "warehouse-guided") {
+      appendWarehouseGuidedFields_(form);
     } else if (type === "movement") {
       appendStockMovementFields_(form, state, item, payload.movementType);
     } else if (type === "delete-item") {
@@ -7446,7 +8535,7 @@
     appendHiddenField_(form, "rdoMaterialKey", payload.rdoMaterialKey || "");
     appendHiddenField_(form, "movementType", payload.movementType || "");
     appendHiddenField_(form, "noteId", payload.noteId || "");
-    appendStockIaFormActions_(form, type === "delete-item" || type === "delete-note" ? "Excluir" : (type === "confirm-note" ? "Confirmar entrada" : (type === "cancel-note" ? "Cancelar nota" : (type === "guided-stock" ? "Concluir assistente" : "Salvar"))));
+    appendStockIaFormActions_(form, type === "delete-item" || type === "delete-note" ? "Excluir" : (type === "confirm-note" ? "Confirmar entrada" : (type === "cancel-note" ? "Cancelar nota" : (type === "guided-stock" || type === "warehouse-guided" ? "Concluir assistente" : "Salvar"))));
     card.appendChild(form);
     content.appendChild(card);
     stockIaModal.appendChild(content);
@@ -7459,6 +8548,10 @@
 
     if (type === "guided-stock") {
       return "Começar agora";
+    }
+
+    if (type === "warehouse-guided") {
+      return "Começar Almoxarifado";
     }
 
     if (type === "movement") {
@@ -7521,6 +8614,12 @@
       appendStockIaField_(form, "documentNumber", "Numero do documento", "text", "", false);
     }
     appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+    if (stockIaCurrentMode === "almoxarifado" && type === "saida") {
+      appendStockIaField_(form, "recipientName", "Destinatário", "text", "", false);
+      appendStockIaField_(form, "sector", "Setor/obra/unidade", "text", "", false);
+      appendStockIaField_(form, "purpose", "Finalidade", "text", "", false);
+    }
+    appendHiddenField_(form, "mode", stockIaCurrentMode);
     appendStockIaTextarea_(form, "notes", "Observacao", "");
   }
 
@@ -7710,6 +8809,12 @@
       }
     } else if (type === "guided-stock") {
       const result = handleGuidedStockSubmit_(formData);
+      showStockIaToast_(result.message, result.ok ? "success" : "error");
+      if (!result.ok) {
+        return;
+      }
+    } else if (type === "warehouse-guided") {
+      const result = handleWarehouseGuidedSubmit_(formData);
       showStockIaToast_(result.message, result.ok ? "success" : "error");
       if (!result.ok) {
         return;
