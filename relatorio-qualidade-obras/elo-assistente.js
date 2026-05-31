@@ -6558,6 +6558,114 @@
     };
   }
 
+  function detectDayClosingRequest(message) {
+    const text = normalizeText(message);
+    if (!text) {
+      return false;
+    }
+    const closingTerms = [
+      "vou dormir",
+      "boa noite",
+      "ate amanha",
+      "ate amanhã",
+      "encerrar por hoje",
+      "fechar por hoje",
+      "continuar amanha",
+      "continuar amanhã",
+      "cansado por hoje",
+      "cansada por hoje"
+    ];
+    const tiredTerms = [
+      "estou cansado",
+      "estou cansada",
+      "to cansado",
+      "to cansada",
+      "tô cansado",
+      "tô cansada",
+      "cansado",
+      "cansada"
+    ];
+    if (hasAnyTerm(text, closingTerms)) {
+      return true;
+    }
+    return hasAnyTerm(text, ["e agora"]) && hasAnyTerm(text, tiredTerms);
+  }
+
+  function formatShortEventTitle_(event) {
+    if (!event) {
+      return "";
+    }
+    return sanitizeLibraryText(event.title || event.content || "", 100);
+  }
+
+  function buildDayClosingAnswer(message, context) {
+    const synthesisContext = buildEloSynthesisContext(message, context);
+    const recentEvent = synthesisContext.recentEvents[0] || null;
+    const recentDecision = synthesisContext.decisions[0] || null;
+    const focus = synthesisContext.focus || (synthesisContext.rankedProjects[0] && synthesisContext.rankedProjects[0].name) || "";
+    const didToday = formatShortEventTitle_(recentEvent) || formatShortEventTitle_(recentDecision);
+    const lines = [
+      "Boa noite. Hoje voce avancou bastante.",
+      "",
+      didToday
+        ? "O registro que mais aparece agora e: " + didToday + "."
+        : "O Elo ja esta com memoria, biblioteca, jornada, decisoes e sintese trabalhando juntos.",
+      "",
+      "Minha sugestao:",
+      "encerre com tudo salvo e amanha retome " + (focus ? "por " + focus : "pela frente principal") + ", sem abrir uma frente nova."
+    ];
+    const text = normalizeText(message);
+    if (hasAnyTerm(text, ["e agora", "cansado", "cansada", "vou dormir", "encerrar por hoje", "fechar por hoje"])) {
+      lines.push("", "Agora e salvar, confirmar que o Git esta limpo e descansar.");
+    }
+    return {
+      shortAnswer: "Boa noite. Encerrar bem tambem faz parte do projeto.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Amanha, retome pela proxima acao pequena ja definida.",
+      canSave: false,
+      sessionTheme: "fechamento",
+      sessionIntent: "day_closing"
+    };
+  }
+
+  function detectDaySummaryRequest(message) {
+    const text = normalizeText(message);
+    return hasAnyTerm(text, [
+      "resumo do dia",
+      "resumo de hoje",
+      "o que fizemos hoje",
+      "o que avancou hoje",
+      "o que avançou hoje",
+      "fechamento do dia"
+    ]);
+  }
+
+  function buildDaySummaryAnswer(message, context) {
+    const synthesisContext = buildEloSynthesisContext(message, context);
+    const todayEvents = getTimelineEvents().filter(isTodayTimelineEvent);
+    const latestEvent = todayEvents[0] || synthesisContext.recentEvents[0] || null;
+    const latestDecision = synthesisContext.decisions[0] || null;
+    const focus = synthesisContext.focus || (synthesisContext.rankedProjects[0] && synthesisContext.rankedProjects[0].name) || "";
+    const mainAdvance = formatShortEventTitle_(latestEvent) || formatShortEventTitle_(latestDecision) || (focus ? "organizacao do foco em " + focus : "organizacao do Elo e da jornada");
+    const avoidedRisk = synthesisContext.dispersionSignals
+      ? "evitar abrir frentes demais ao mesmo tempo"
+      : "manter o escopo pequeno e nao mexer fora do Elo";
+    const tomorrow = String(synthesisContext.nextProjectAction || "retomar pela proxima acao pequena").replace(/[.!?]+$/g, "");
+    return {
+      shortAnswer: "Fechamento de hoje.",
+      fullAnswer: [
+        "Fechamento de hoje:",
+        "- avanco principal: " + mainAdvance + ".",
+        "- risco evitado: " + avoidedRisk + ".",
+        "- proximo passo de amanha: " + tomorrow + "."
+      ].join("\n"),
+      nextAction: "Se for encerrar agora, salve o trabalho e descanse.",
+      canSave: false,
+      sessionTheme: "fechamento",
+      sessionIntent: "day_summary"
+    };
+  }
+
   function getLogicalReasoningResponse(question) {
     const intent = detectLogicalReasoningQuestion(question);
     if (!intent) {
@@ -6966,6 +7074,12 @@
     }
     if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "qual o seu nome", "qual e o seu nome", "qual é o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual é o nome do elo", "seu nome e qual", "seu nome é qual", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
       return "elo_identity";
+    }
+    if (detectDayClosingRequest(message)) {
+      return "day_closing";
+    }
+    if (detectDaySummaryRequest(message)) {
+      return "day_summary";
     }
     if (detectSocialGreeting(message)) {
       return "greeting";
@@ -7534,6 +7648,12 @@
     }
     if (intent === "save_user_name") {
       return buildSaveUserNameAnswer_(message);
+    }
+    if (intent === "day_closing") {
+      return buildDayClosingAnswer(message, context);
+    }
+    if (intent === "day_summary") {
+      return buildDaySummaryAnswer(message, context);
     }
     if (intent === "greeting") {
       return getSocialGreetingResponse(message);
