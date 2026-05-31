@@ -1281,6 +1281,28 @@
     return text.replace(/^(o|a|os|as|meu|minha|meus|minhas)\s+/i, "").slice(0, 80);
   }
 
+  function detectImportantMemoryType_(text) {
+    if (hasAnyTerm(text, ["roadmap", "plano", "o plano e", "o plano Ã©"])) {
+      return "objetivo";
+    }
+    if (hasAnyTerm(text, ["projeto", "produto", "desenvolver", "construir", "minha ideia", "ideia e", "ideia Ã©"])) {
+      return "projeto";
+    }
+    if (hasAnyTerm(text, ["objetivo", "meta", "foco", "precisa virar", "preciso", "quero"])) {
+      return "objetivo";
+    }
+    if (hasAnyTerm(text, ["aprendi", "percebi", "prefiro", "gosto", "nao posso esquecer", "nÃ£o posso esquecer"])) {
+      return "preferencia";
+    }
+    return "objetivo";
+  }
+
+  function summarizeImportantMemoryCandidate_(value) {
+    return sanitizeLibraryText(value, 360)
+      .replace(/^(quero lembrar que|guarde isso:?|isso e importante:?|isso Ã© importante:?|minha ideia e|minha ideia Ã©|o objetivo e|o objetivo Ã©|decidi que|o plano e|o plano Ã©|o roadmap e|o roadmap Ã©|nao posso esquecer que|nÃ£o posso esquecer que|aprendi que|percebi que)\s*/i, "")
+      .trim();
+  }
+
   function detectImportantMemoryCandidate(question) {
     if (hasSensitiveMemoryTerm(question)) {
       return null;
@@ -1290,6 +1312,57 @@
     const text = normalizeText(cleanQuestion);
     if (!cleanQuestion || isSimpleSupportQuestion(text)) {
       return null;
+    }
+
+    const normalizedImportantPrefixes = [
+      "quero lembrar que ",
+      "guarde isso ",
+      "guarde isso: ",
+      "isso e importante ",
+      "minha ideia e ",
+      "o objetivo e ",
+      "decidi que ",
+      "o plano e ",
+      "o roadmap e ",
+      "nao posso esquecer que ",
+      "aprendi que ",
+      "percebi que "
+    ];
+    for (let prefixIndex = 0; prefixIndex < normalizedImportantPrefixes.length; prefixIndex += 1) {
+      const prefix = normalizedImportantPrefixes[prefixIndex];
+      if (text.indexOf(prefix) === 0) {
+        const description = summarizeImportantMemoryCandidate_(cleanQuestion.slice(prefix.length));
+        if (!description) {
+          return null;
+        }
+        const type = detectImportantMemoryType_(text);
+        return {
+          tipo: type,
+          titulo: extractImportantTitle(description),
+          descricao: description,
+          status: "ativo",
+          sourceQuestion: cleanQuestion,
+          suggestedKind: hasAnyTerm(text, ["roadmap"]) ? "roadmap" : (type === "projeto" ? "ideia/projeto" : type)
+        };
+      }
+    }
+
+    if (isInvalidUserNameAnswer_(cleanQuestion) || detectSocialGreeting(cleanQuestion)) {
+      return null;
+    }
+
+    const explicitImportantMatch = cleanQuestion.match(/^(?:quero lembrar que|guarde isso:?|isso (?:e|Ã©) importante:?|minha ideia (?:e|Ã©)|o objetivo (?:e|Ã©)|decidi que|o plano (?:e|Ã©)|o roadmap (?:e|Ã©)|n(?:a|Ã£)o posso esquecer que|aprendi que|percebi que)\s+(.+)$/i);
+    if (explicitImportantMatch && explicitImportantMatch[1]) {
+      const description = summarizeImportantMemoryCandidate_(explicitImportantMatch[1]);
+      const type = detectImportantMemoryType_(text);
+      return {
+        tipo: type,
+        titulo: extractImportantTitle(description),
+        descricao: description,
+        status: "ativo",
+        sourceQuestion: cleanQuestion,
+        suggestedKind: hasAnyTerm(text, ["roadmap"]) ? "roadmap" : (type === "projeto" ? "ideia/projeto" : type)
+      };
     }
 
     const projectPatterns = [
@@ -1446,6 +1519,48 @@
     return null;
   }
 
+  function buildMemorySuggestion(message, context) {
+    const suggestion = detectImportantMemoryCandidate(message);
+    if (!suggestion) {
+      return null;
+    }
+    return Object.assign({}, suggestion, {
+      suggestedLabel: suggestion.suggestedKind || suggestion.tipo || "memoria",
+      summary: sanitizeLibraryText(suggestion.descricao || suggestion.titulo || message, 360)
+    });
+  }
+
+  function saveImportantMemorySuggestion(suggestion, typeOverride) {
+    if (!suggestion) {
+      return { ok: false, reason: "missing" };
+    }
+    return saveImportantMemory(suggestion, typeOverride || suggestion.tipo);
+  }
+
+  function buildImportantMemoryAnswer(suggestion) {
+    if (!suggestion) {
+      return null;
+    }
+    return {
+      shortAnswer: "Isso parece importante.",
+      fullAnswer: [
+        "Posso guardar como:",
+        "- memoria",
+        "- ideia",
+        "- projeto",
+        "- objetivo",
+        "- roadmap",
+        "",
+        "Sugestao:",
+        suggestion.summary || suggestion.descricao || suggestion.titulo
+      ].join("\n"),
+      nextAction: "Escolha onde guardar quando eu mostrar as opcoes. Nada e salvo automaticamente.",
+      canSave: false,
+      sessionTheme: "memoria",
+      sessionIntent: "sugestao_memoria_importante"
+    };
+  }
+
   function formatImportantMemoriesForAnswer(storage) {
     const sections = [
       ["Projetos", storage.projetos || []],
@@ -1568,6 +1683,44 @@
       return typeMatch && projectMatch;
     }).sort(function (a, b) {
       return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+  }
+
+  function loadEloTimeline() {
+    return getTimelineStorage();
+  }
+
+  function saveEloTimeline(timeline) {
+    setTimelineStorage(timeline || { events: [] });
+    return getTimelineStorage();
+  }
+
+  function addEloTimelineEvent(event) {
+    return saveTimelineEvent(event);
+  }
+
+  function searchEloTimeline(query) {
+    const text = normalizeText(query);
+    if (!text) {
+      return [];
+    }
+    const parts = text.split(/\s+/).filter(function (part) { return part.length > 2; });
+    return getTimelineEvents().map(function (event) {
+      const haystack = normalizeText([event.title, event.content, event.project, event.type, event.tags.join(" ")].join(" "));
+      let score = 0;
+      if (haystack.indexOf(text) >= 0) {
+        score += 10;
+      }
+      parts.forEach(function (part) {
+        if (haystack.indexOf(part) >= 0) {
+          score += part.length > 5 ? 3 : 1;
+        }
+      });
+      return { event: event, score: score };
+    }).filter(function (entry) {
+      return entry.score > 0;
+    }).sort(function (first, second) {
+      return second.score - first.score;
     });
   }
 
@@ -1697,13 +1850,13 @@
     if (hasAnyTerm(text, ["consegui", "terminei", "finalizei", "primeira venda", "primeiro cliente"])) {
       return "conquista";
     }
-    if (hasAnyTerm(text, ["tive uma ideia", "ideia para", "ideia de"])) {
+    if (hasAnyTerm(text, ["tive uma ideia", "ideia para", "ideia de", "minha ideia", "percebi que", "aprendi que"])) {
       return "ideia";
     }
     if (hasAnyTerm(text, ["cansado", "cansada", "triste", "preocupado", "preocupada", "dificil", "difícil", "hoje foi dificil", "hoje foi difícil"])) {
       return "dificuldade";
     }
-    if (hasAnyTerm(text, ["quero", "objetivo", "meta"])) {
+    if (hasAnyTerm(text, ["quero", "objetivo", "meta", "roadmap", "o plano e", "o plano Ã©"])) {
       return "objetivo";
     }
     if (hasAnyTerm(text, ["marco", "importante", "avancei", "avancamos", "avançamos", "avancou", "comecei", "lembre que hoje"])) {
@@ -1780,6 +1933,11 @@
       "avançamos no obrareport",
       "avancei no elo",
       "quero registrar isso",
+      "decidi que",
+      "o plano e",
+      "roadmap",
+      "aprendi que",
+      "percebi que",
       "isso e um marco",
       "isso é um marco"
     ]);
@@ -1861,6 +2019,178 @@
     }
 
     return null;
+  }
+
+  function isTimelineEventInCurrentMonth_(event) {
+    if (!event || !event.createdAt) {
+      return false;
+    }
+    const date = new Date(event.createdAt);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  }
+
+  function isTimelineEventInLastDays_(event, days) {
+    if (!event || !event.createdAt) {
+      return false;
+    }
+    const created = new Date(event.createdAt).getTime();
+    return Number.isFinite(created) && Date.now() - created <= days * 24 * 60 * 60 * 1000;
+  }
+
+  function buildTimelineAnswer(question, context) {
+    const text = normalizeText(question);
+    const events = getTimelineEvents();
+
+    if (hasAnyTerm(text, ["o que aconteceu este mes", "o que aconteceu esse mes", "aconteceu este mes", "aconteceu esse mes"])) {
+      const monthEvents = events.filter(isTimelineEventInCurrentMonth_);
+      return {
+        shortAnswer: monthEvents.length ? "Este mes teve alguns registros na sua jornada." : "Eu ainda tenho poucos marcos registrados deste mes.",
+        fullAnswer: monthEvents.length ? monthEvents.slice(0, 8).map(formatTimelineEventLine).join("\n") : "Posso comecar a montar sua Linha do Tempo a partir das proximas decisoes importantes.",
+        nextAction: monthEvents.length ? "Se quiser, posso transformar isso em um relatorio de jornada." : "Quando algo importante acontecer, diga: quero lembrar que...",
+        canSave: false,
+        sessionTheme: "timeline",
+        sessionIntent: "timeline_mes"
+      };
+    }
+
+    if (hasAnyTerm(text, ["quais foram meus ultimos avancos", "quais foram meus ultimos avanÃ§os", "ultimos avancos", "Ãºltimos avanÃ§os", "ultimos marcos", "Ãºltimos marcos"])) {
+      return {
+        shortAnswer: events.length ? "Seus ultimos avancos registrados aparecem aqui:" : "Ainda tenho poucos avancos registrados.",
+        fullAnswer: events.length ? events.slice(0, 6).map(formatTimelineEventLine).join("\n") : "Quando voce registrar marcos, ideias ou conquistas, eu consigo montar essa leitura com mais precisao.",
+        nextAction: events.length ? "Posso resumir isso como relatorio de jornada." : "Diga algo como: avancei no Elo hoje.",
+        canSave: false,
+        sessionTheme: "timeline",
+        sessionIntent: "timeline_avancos"
+      };
+    }
+
+    if (hasAnyTerm(text, ["qual foi meu maior marco", "maior marco", "principal marco"])) {
+      const important = events.find(function (event) { return event.importance === "alta"; }) || events[0];
+      return {
+        shortAnswer: important ? "O maior marco registrado parece ser: " + important.title + "." : "Ainda nao tenho marcos suficientes para apontar um maior.",
+        fullAnswer: important ? formatTimelineEventLine(important) + "\n\nConteudo: " + important.content : "Posso comecar a perceber isso quando voce registrar conquistas, decisoes e ideias importantes.",
+        nextAction: important ? "Se esse marco mudou, registre um novo evento na Linha do Tempo." : "Diga: isso foi importante, para eu sugerir registro.",
+        canSave: false,
+        sessionTheme: "timeline",
+        sessionIntent: "timeline_marco"
+      };
+    }
+
+    const startedMatch = text.match(/quando (?:comecei|surgiu|criei|nasceu)\s+(?:o |a )?(.+?)\??$/);
+    if (startedMatch && startedMatch[1]) {
+      const topic = startedMatch[1].replace(/^projeto\s+/, "").trim();
+      const found = searchEloTimeline(topic).map(function (entry) { return entry.event; });
+      const first = found.slice().sort(function (a, b) {
+        return String(a.createdAt).localeCompare(String(b.createdAt));
+      })[0];
+      return {
+        shortAnswer: first ? "O primeiro registro que encontrei sobre " + topic + " foi em " + formatDateTime(first.createdAt) + "." : "Ainda nao encontrei quando " + topic + " surgiu na Linha do Tempo.",
+        fullAnswer: first ? formatTimelineEventLine(first) + "\n\n" + first.content : "Eu ainda tenho poucos marcos registrados, mas posso comecar a montar essa historia a partir das proximas decisoes importantes.",
+        nextAction: first ? "Posso listar os outros eventos relacionados a esse projeto." : "Registre um marco dizendo quando esse projeto comecou.",
+        canSave: false,
+        sessionTheme: "timeline",
+        sessionIntent: "timeline_origem"
+      };
+    }
+
+    return null;
+  }
+
+  function detectJourneyReportRequest(message) {
+    const text = normalizeText(message);
+    if (hasAnyTerm(text, ["faca um relatorio da minha jornada", "faÃ§a um relatÃ³rio da minha jornada", "relatorio da minha jornada", "relatÃ³rio da minha jornada", "o que aconteceu comigo este mes", "o que aconteceu comigo esse mes", "qual foi meu avanco", "qual foi meu avanÃ§o", "no que eu evolui", "no que eu evoluÃ­", "quais projetos estao mais ativos", "quais projetos estÃ£o mais ativos", "qual meu foco atual", "o que voce percebe da minha semana", "o que vocÃª percebe da minha semana"])) {
+      return hasAnyTerm(text, ["semana"]) ? "weekly" : (hasAnyTerm(text, ["mes", "mÃªs"]) ? "monthly" : "general");
+    }
+    return null;
+  }
+
+  function rankJourneyProjects_(snapshot) {
+    const counts = {};
+    function add(name, weight) {
+      const clean = sanitizeLibraryText(name, 120);
+      if (!clean) {
+        return;
+      }
+      counts[clean] = (counts[clean] || 0) + weight;
+    }
+    (snapshot.projects || []).forEach(function (project) { add(project, 2); });
+    (snapshot.recentEvents || []).forEach(function (event) {
+      add(event.project, 3);
+      ["ObraReport", "Elo", "Stock IA", "CADISTA IA"].forEach(function (projectName) {
+        const haystack = normalizeText([event.title, event.content, event.tags && event.tags.join(" ")].join(" "));
+        if (haystack.indexOf(normalizeText(projectName)) >= 0) {
+          add(projectName, 1);
+        }
+      });
+    });
+    return Object.keys(counts).sort(function (a, b) {
+      return counts[b] - counts[a];
+    });
+  }
+
+  function buildJourneyReport(context) {
+    const snapshot = context && context.snapshot ? context.snapshot : getConnectedMemorySnapshot();
+    const events = snapshot.recentEvents || [];
+    const activeProjects = rankJourneyProjects_(snapshot).slice(0, 5);
+    const biggestAdvance = snapshot.latestAchievement || snapshot.latestImportantEvent || events[0] || null;
+    const focus = snapshot.mainProject || snapshot.mostMentionedProject || activeProjects[0] || "";
+    const hasData = hasNarrativeJourneyData(snapshot) || events.length;
+
+    if (!hasData) {
+      return {
+        shortAnswer: "Ainda estou montando sua jornada.",
+        fullAnswer: "Eu ainda tenho poucos marcos registrados, mas posso comecar a montar sua linha do tempo a partir das proximas decisoes importantes.",
+        nextAction: "Diga algo como: quero lembrar que o Stock IA deve controlar entrada e saida de materiais.",
+        canSave: false,
+        sessionTheme: "jornada",
+        sessionIntent: "relatorio_jornada"
+      };
+    }
+
+    return {
+      shortAnswer: "Relatorio da sua jornada.",
+      fullAnswer: [
+        "Relatorio da sua jornada",
+        "",
+        "Projetos mais ativos:",
+        activeProjects.length ? activeProjects.map(function (project) { return "- " + project; }).join("\n") : "- Ainda nao tenho projetos suficientes registrados.",
+        "",
+        "Maior avanco:",
+        biggestAdvance ? "- " + biggestAdvance.title + " (" + formatDateTime(biggestAdvance.createdAt) + ")" : "- Ainda nao tenho um marco principal registrado.",
+        "",
+        "Padrao percebido:",
+        focus ? "- Voce tem concentrado energia em transformar " + focus + " em algo mais concreto." : "- Voce vem registrando ideias, mas ainda falta um foco dominante salvo.",
+        "",
+        "Risco atual:",
+        activeProjects.length > 2 ? "- Muitas frentes abertas ao mesmo tempo." : "- Poucos registros para medir risco com seguranca.",
+        "",
+        "Proxima acao:",
+        "- Escolher uma entrega pequena e concluir antes de abrir outra frente."
+      ].join("\n"),
+      nextAction: "Se quiser, posso transformar esse relatorio em plano de proximos passos.",
+      canSave: false,
+      sessionTheme: "jornada",
+      sessionIntent: "relatorio_jornada"
+    };
+  }
+
+  function buildWeeklyJourneyReport(context) {
+    const snapshot = context && context.snapshot ? context.snapshot : getConnectedMemorySnapshot();
+    const weeklyEvents = (snapshot.recentEvents || []).filter(function (event) {
+      return isTimelineEventInLastDays_(event, 7);
+    });
+    const base = buildJourneyReport({ snapshot: Object.assign({}, snapshot, { recentEvents: weeklyEvents.length ? weeklyEvents : snapshot.recentEvents }) });
+    base.shortAnswer = weeklyEvents.length ? "Resumo da sua semana." : "Ainda tenho poucos registros desta semana.";
+    return base;
+  }
+
+  function buildMonthlyJourneyReport(context) {
+    const snapshot = context && context.snapshot ? context.snapshot : getConnectedMemorySnapshot();
+    const monthlyEvents = (snapshot.recentEvents || getTimelineEvents()).filter(isTimelineEventInCurrentMonth_);
+    const base = buildJourneyReport({ snapshot: Object.assign({}, snapshot, { recentEvents: monthlyEvents.length ? monthlyEvents : snapshot.recentEvents }) });
+    base.shortAnswer = monthlyEvents.length ? "Resumo do seu mes." : "Ainda tenho poucos registros deste mes.";
+    return base;
   }
 
   // ELO_DOCUMENTS_LOCAL
@@ -6057,6 +6387,12 @@
     if (detectLogicalReasoningQuestion(message)) {
       return "logical_reasoning";
     }
+    if (detectJourneyReportRequest(message)) {
+      return "journey_report";
+    }
+    if (buildTimelineAnswer(message)) {
+      return "timeline_question";
+    }
     if (detectNarrativeMemoryQuestion(message) || hasAnyTerm(text, ["meus projetos", "linha do tempo", "o que voce lembra", "o que você lembra"])) {
       return "memory_question";
     }
@@ -6628,6 +6964,19 @@
       }
       return getNarrativeMemoryResponse(message) || answerConnectedMemoryQuestion(message) || answerTimelineQuestion(message) || answerProjectQuestion(message);
     }
+    if (intent === "journey_report") {
+      const reportType = detectJourneyReportRequest(message);
+      if (reportType === "weekly") {
+        return buildWeeklyJourneyReport();
+      }
+      if (reportType === "monthly") {
+        return buildMonthlyJourneyReport();
+      }
+      return buildJourneyReport();
+    }
+    if (intent === "timeline_question") {
+      return buildTimelineAnswer(message);
+    }
     if (intent === "library_question") {
       return buildEloLibraryAnswer(message);
     }
@@ -6684,6 +7033,17 @@
       return logicalReasoningAnswer;
     }
 
+    const journeyReportType = detectJourneyReportRequest(cleanQuestion);
+    if (journeyReportType) {
+      if (journeyReportType === "weekly") {
+        return buildWeeklyJourneyReport();
+      }
+      if (journeyReportType === "monthly") {
+        return buildMonthlyJourneyReport();
+      }
+      return buildJourneyReport();
+    }
+
     const personalPatternAnswer = getPersonalPatternResponse(cleanQuestion);
     if (personalPatternAnswer) {
       return personalPatternAnswer;
@@ -6722,6 +7082,11 @@
     const timelineAnswer = answerTimelineQuestion(cleanQuestion);
     if (timelineAnswer) {
       return timelineAnswer;
+    }
+
+    const extendedTimelineAnswer = buildTimelineAnswer(cleanQuestion);
+    if (extendedTimelineAnswer) {
+      return extendedTimelineAnswer;
     }
 
     const goalAnswer = answerGoalQuestion(cleanQuestion);
@@ -8977,6 +9342,7 @@
   }
 
   function appendImportantMemoryPrompt(question, candidate) {
+    return appendImportantMemoryPromptV2(question, candidate);
     const typeLabel = {
       projeto: "projeto",
       objetivo: "objetivo",
@@ -9022,6 +9388,90 @@
       appendMessage("system", "Tudo bem. Não vou guardar essa memória importante.");
     });
     buttons.push(cancelButton);
+    actions.appendChild(cancelButton);
+    message.appendChild(actions);
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function appendImportantMemoryPromptV2(question, candidate) {
+    const typeLabel = {
+      projeto: "projeto",
+      objetivo: "objetivo",
+      preferencia: "preferencia"
+    };
+    const suggestion = buildMemorySuggestion(question) || candidate;
+    const message = appendMessage(
+      "assistant",
+      [
+        "Isso parece importante.",
+        "",
+        "Posso guardar como:",
+        "- memoria",
+        "- ideia",
+        "- projeto",
+        "- objetivo",
+        "- roadmap",
+        "",
+        "Sugestao:",
+        suggestion.summary || candidate.descricao || candidate.titulo,
+        "",
+        "Deseja guardar como projeto, objetivo, preferencia ou registrar como marco da Linha do Tempo?"
+      ].join("\n")
+    );
+    const actions = createElement("div", "elo-message-actions");
+    const options = [
+      ["projeto", "Guardar como projeto"],
+      ["objetivo", "Guardar como objetivo"],
+      ["preferencia", "Guardar como preferencia"]
+    ];
+    const buttons = [];
+
+    options.forEach(function (option) {
+      const button = createElement("button", "elo-inline-button", option[1]);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        const result = saveImportantMemorySuggestion(candidate, option[0]);
+        buttons.forEach(function (item) {
+          item.disabled = true;
+        });
+        if (result.ok) {
+          appendMessage("system", "Memoria importante salva como " + typeLabel[option[0]] + ": " + result.item.titulo + ".");
+        } else {
+          appendMessage("system", "Por seguranca, nao vou guardar esse tipo de informacao.");
+        }
+      });
+      buttons.push(button);
+      actions.appendChild(button);
+    });
+
+    const timelineButton = createElement("button", "elo-inline-button", "Registrar marco");
+    const cancelButton = createElement("button", "elo-inline-button", "Nao guardar");
+    timelineButton.type = "button";
+    cancelButton.type = "button";
+    timelineButton.addEventListener("click", function () {
+      const result = addEloTimelineEvent({
+        type: candidate.tipo === "projeto" ? "ideia" : "objetivo",
+        title: candidate.titulo,
+        content: candidate.descricao || candidate.sourceQuestion || candidate.titulo,
+        project: detectTimelineProject(normalizeText(candidate.sourceQuestion || candidate.descricao || candidate.titulo)),
+        importance: "media",
+        tags: [candidate.tipo, candidate.suggestedKind || "memoria"],
+        source: "memoria_importante_confirmada"
+      });
+      buttons.concat([timelineButton, cancelButton]).forEach(function (item) {
+        item.disabled = true;
+      });
+      appendMessage("system", result.ok ? "Marco registrado na Linha do Tempo." : "Nao consegui registrar esse marco.");
+    });
+    cancelButton.addEventListener("click", function () {
+      buttons.concat([timelineButton, cancelButton]).forEach(function (item) {
+        item.disabled = true;
+      });
+      appendMessage("system", "Tudo bem. Nao vou guardar essa memoria importante.");
+    });
+    buttons.push(timelineButton);
+    buttons.push(cancelButton);
+    actions.appendChild(timelineButton);
     actions.appendChild(cancelButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
