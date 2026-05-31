@@ -922,6 +922,19 @@ body {
   background: #f6c85f;
 }
 
+.stock-ia-purchase-cards {
+  margin: 14px 0;
+}
+
+.stock-ia-table td:last-child .stock-ia-actions {
+  min-width: 110px;
+}
+
+.stock-ia-table td:first-child {
+  font-weight: 800;
+  color: var(--navy);
+}
+
 .stock-ia-alert-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

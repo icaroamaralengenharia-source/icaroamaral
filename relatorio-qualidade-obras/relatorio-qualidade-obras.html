@@ -1159,9 +1159,9 @@
       <section class="route-panel" data-route="stock-ia" aria-label="Stock IA">
         <div class="workspace-card stock-ia-hero">
           <div>
-            <p class="eyebrow">Stock IA 0.3</p>
-            <h3>Estoque real com alertas operacionais</h3>
-            <p>Controle local com saldo real, consumo derivado do RDO, alertas de atenção, ranking de materiais e análise operacional por obra.</p>
+            <p class="eyebrow">Stock IA 0.4</p>
+            <h3>Estoque real com lista de compras</h3>
+            <p>Controle local com saldo real, alertas operacionais, reposição sugerida, ranking de materiais e análise por obra.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Stock IA">
             <span class="local-status">Local</span>
@@ -1192,6 +1192,46 @@
             <span class="auth-note">Alertas calculados localmente com base no saldo real e no consumo do RDO.</span>
           </div>
           <div class="stock-ia-alert-list" id="stockIaAlertsList" aria-live="polite"></div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <div>
+              <h3>Lista de compras sugerida</h3>
+              <span class="auth-note" id="stockPurchasePanelNote">Baseada no saldo real, estoque mínimo e custo unitário.</span>
+            </div>
+            <div class="stock-ia-actions">
+              <button type="button" class="mini-button compact primary" data-stock-action="generate-purchase-list">Gerar lista de compras</button>
+              <button type="button" class="mini-button compact" data-stock-action="copy-purchase-list">Copiar lista</button>
+              <button type="button" class="mini-button compact" data-stock-action="export-purchase-csv">Exportar CSV</button>
+              <button type="button" class="mini-button compact" data-stock-action="whatsapp-purchase-list">Preparar WhatsApp</button>
+              <button type="button" class="mini-button compact" data-stock-action="mark-all-purchase-reviewed">Marcar tudo revisado</button>
+            </div>
+          </div>
+          <div class="stock-ia-cards stock-ia-purchase-cards" id="stockPurchaseSummaryCards" aria-live="polite"></div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Prioridade</th>
+                  <th>Material</th>
+                  <th>Un.</th>
+                  <th>Saldo atual</th>
+                  <th>Estoque mínimo</th>
+                  <th>Qtd. sugerida</th>
+                  <th>Custo un.</th>
+                  <th>Valor estimado</th>
+                  <th>Obra</th>
+                  <th>Motivo</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="stockPurchaseRows">
+                <tr><td colspan="12">Nenhuma compra sugerida no momento.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="workspace-card">
@@ -1646,7 +1686,7 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-03-a"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-04-a"></script>
   <link rel="stylesheet" href="elo-assistente.css">
   <script src="elo-assistente.js" defer></script>
 </body>

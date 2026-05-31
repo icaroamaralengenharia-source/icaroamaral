@@ -85,6 +85,9 @@
   const stockIaOperationalInsight = document.getElementById("stockIaOperationalInsight");
   const stockIaPeriodControls = document.getElementById("stockIaPeriodControls");
   const stockIaAlertsList = document.getElementById("stockIaAlertsList");
+  const stockPurchasePanelNote = document.getElementById("stockPurchasePanelNote");
+  const stockPurchaseSummaryCards = document.getElementById("stockPurchaseSummaryCards");
+  const stockPurchaseRows = document.getElementById("stockPurchaseRows");
   const stockTopMaterialsRows = document.getElementById("stockTopMaterialsRows");
   const stockConsumptionByWorkRows = document.getElementById("stockConsumptionByWorkRows");
   const stockIaQuestionForm = document.getElementById("stockIaQuestionForm");
@@ -145,6 +148,7 @@
   const saasStoreKey = "obrareport-saas-v1";
   const localAccessSessionKey = "obrareport_local_access_granted_v1";
   const STOCK_MASTER_STORAGE_KEY = "obrareport_stock_master_v1";
+  const STOCK_PURCHASE_REVIEWED_STORAGE_KEY = "obrareport_stock_purchase_reviewed_v1";
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
@@ -5464,6 +5468,400 @@
       "Proximo passo recomendado: revisar itens negativos, zerados e abaixo do minimo antes de novas compras.";
   }
 
+  function loadStockPurchaseReviewedState_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(STOCK_PURCHASE_REVIEWED_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : [];
+
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn("Nao foi possivel carregar revisoes da lista de compras.", error);
+      return [];
+    }
+  }
+
+  function saveStockPurchaseReviewedState_(ids) {
+    const storage = getLocalStorage_();
+    const safeIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+
+    if (storage) {
+      storage.setItem(STOCK_PURCHASE_REVIEWED_STORAGE_KEY, JSON.stringify(safeIds));
+    }
+
+    return safeIds;
+  }
+
+  function getStockPurchasePriority_(balance) {
+    const realBalance = parseNumber_(balance && balance.realBalance);
+    const minimumStock = parseNumber_(balance && balance.item && balance.item.minimumStock);
+
+    if (realBalance < 0) {
+      return {
+        priority: "critica",
+        reason: "Saldo negativo apos consumos e saidas."
+      };
+    }
+
+    if (realBalance === 0 && minimumStock > 0) {
+      return {
+        priority: "alta",
+        reason: "Material zerado."
+      };
+    }
+
+    if (realBalance > 0 && minimumStock > 0 && realBalance < minimumStock) {
+      return {
+        priority: "media",
+        reason: "Material abaixo do estoque minimo."
+      };
+    }
+
+    if (realBalance > 0 && minimumStock > 0 && realBalance <= minimumStock * 1.25) {
+      return {
+        priority: "baixa",
+        reason: "Material proximo do limite minimo."
+      };
+    }
+
+    return null;
+  }
+
+  function getStockPurchasePriorityRank_(priority) {
+    if (priority === "critica") {
+      return 4;
+    }
+
+    if (priority === "alta") {
+      return 3;
+    }
+
+    if (priority === "media") {
+      return 2;
+    }
+
+    return 1;
+  }
+
+  function getStockPurchasePriorityLabel_(priority) {
+    if (priority === "critica") {
+      return "Critica";
+    }
+
+    if (priority === "alta") {
+      return "Alta";
+    }
+
+    if (priority === "media") {
+      return "Media";
+    }
+
+    return "Baixa";
+  }
+
+  function buildStockPurchaseSuggestions_(balances, masterState, options) {
+    const reviewedIds = loadStockPurchaseReviewedState_();
+    const state = masterState || loadStockMasterState_();
+    const settings = options || {};
+
+    return (balances || []).map(function (balance) {
+      const item = balance.item || {};
+      const minimumStock = parseNumber_(item.minimumStock);
+      const currentBalance = roundQuantity_(parseNumber_(balance.realBalance));
+      const priorityInfo = getStockPurchasePriority_(balance);
+      const unit = clean(item.unit) || "un";
+      let suggestedQuantity = 0;
+
+      if (!priorityInfo || minimumStock <= 0) {
+        return null;
+      }
+
+      if (currentBalance < 0) {
+        suggestedQuantity = minimumStock + Math.abs(currentBalance);
+      } else if (currentBalance === 0) {
+        suggestedQuantity = minimumStock;
+      } else if (currentBalance < minimumStock) {
+        suggestedQuantity = minimumStock - currentBalance;
+      } else {
+        suggestedQuantity = 0;
+      }
+
+      suggestedQuantity = roundQuantity_(Math.max(suggestedQuantity, 0));
+
+      const unitCost = parseNumber_(item.unitCost);
+      const estimatedTotal = suggestedQuantity * unitCost;
+      const workName = item.workId ? getWorkName_(item.workId) : "Geral / sem obra";
+      const suggestionId = "stock_purchase_" + item.id;
+
+      return {
+        id: suggestionId,
+        stockItemId: item.id,
+        materialName: item.name || "Material",
+        unit: unit,
+        currentBalance: currentBalance,
+        minimumStock: minimumStock,
+        suggestedQuantity: suggestedQuantity,
+        unitCost: unitCost,
+        estimatedTotal: estimatedTotal,
+        priority: priorityInfo.priority,
+        reason: priorityInfo.reason,
+        workId: item.workId || null,
+        workName: workName,
+        reviewed: reviewedIds.indexOf(suggestionId) >= 0,
+        statusLabel: suggestedQuantity > 0 ? "Comprar agora" : "Monitorar",
+        sourceUpdatedAt: state.updatedAt || "",
+        period: settings.period || stockIaCurrentPeriod
+      };
+    }).filter(Boolean).sort(function (a, b) {
+      const priorityDiff = getStockPurchasePriorityRank_(b.priority) - getStockPurchasePriorityRank_(a.priority);
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      return parseNumber_(b.estimatedTotal) - parseNumber_(a.estimatedTotal);
+    });
+  }
+
+  function buildStockPurchaseSummary_(suggestions) {
+    const items = suggestions || [];
+    const criticalItems = items.filter(function (item) {
+      return item.priority === "critica";
+    }).length;
+    const highPriorityItems = items.filter(function (item) {
+      return item.priority === "alta";
+    }).length;
+    const mediumPriorityItems = items.filter(function (item) {
+      return item.priority === "media";
+    }).length;
+    const lowPriorityItems = items.filter(function (item) {
+      return item.priority === "baixa";
+    }).length;
+    const estimatedTotal = items.reduce(function (sum, item) {
+      return sum + parseNumber_(item.estimatedTotal);
+    }, 0);
+    const topPriorityNames = items.slice(0, 3).map(function (item) {
+      return item.materialName;
+    });
+    const message = items.length
+      ? "Existem " + items.length + " material(is) que precisam de reposicao. Valor estimado: " + formatCurrency_(estimatedTotal) + ". Itens mais urgentes: " + summarizeStockIaList_(topPriorityNames, 3) + "."
+      : "Nao ha materiais criticos para compra neste momento. Continue acompanhando o consumo pelos diarios de obra.";
+
+    return {
+      totalItems: items.length,
+      criticalItems: criticalItems,
+      highPriorityItems: highPriorityItems,
+      mediumPriorityItems: mediumPriorityItems,
+      lowPriorityItems: lowPriorityItems,
+      estimatedTotal: estimatedTotal,
+      topPriorityNames: topPriorityNames,
+      message: message
+    };
+  }
+
+  function renderStockPurchasePanel_(suggestions, summary) {
+    renderStockPurchaseSummaryCards_(summary);
+
+    if (stockPurchasePanelNote) {
+      stockPurchasePanelNote.textContent = summary && summary.totalItems
+        ? summary.message
+        : "Baseada no saldo real, estoque minimo e custo unitario.";
+    }
+
+    if (!stockPurchaseRows) {
+      return;
+    }
+
+    stockPurchaseRows.innerHTML = "";
+
+    if (!suggestions.length) {
+      appendStockIaEmptyRow_(stockPurchaseRows, 12, "Nenhuma compra sugerida no momento.");
+      return;
+    }
+
+    suggestions.forEach(function (suggestion) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, getStockPurchasePriorityLabel_(suggestion.priority));
+      appendStockIaCell_(row, suggestion.materialName);
+      appendStockIaCell_(row, suggestion.unit || "un");
+      appendStockIaCell_(row, formatQuantity_(suggestion.currentBalance));
+      appendStockIaCell_(row, formatQuantity_(suggestion.minimumStock));
+      appendStockIaCell_(row, suggestion.suggestedQuantity > 0 ? formatQuantity_(suggestion.suggestedQuantity) : "Monitorar");
+      appendStockIaCell_(row, suggestion.unitCost > 0 ? formatCurrency_(suggestion.unitCost) : "Nao informado");
+      appendStockIaCell_(row, suggestion.unitCost > 0 ? formatCurrency_(suggestion.estimatedTotal) : "Nao informado");
+      appendStockIaCell_(row, suggestion.workName || "Geral / sem obra");
+      appendStockIaCell_(row, suggestion.reason);
+      appendStockIaCell_(row, suggestion.reviewed ? "Revisado" : suggestion.statusLabel);
+      appendStockIaActions_(row, [
+        [suggestion.reviewed ? "Revisado" : "Marcar revisado", "mark-purchase-reviewed", suggestion.id]
+      ]);
+      stockPurchaseRows.appendChild(row);
+    });
+  }
+
+  function renderStockPurchaseSummaryCards_(summary) {
+    if (!stockPurchaseSummaryCards) {
+      return;
+    }
+
+    stockPurchaseSummaryCards.innerHTML = "";
+    [
+      ["Itens para comprar", summary.totalItems],
+      ["Itens criticos", summary.criticalItems],
+      ["Valor estimado", formatCurrency_(summary.estimatedTotal)],
+      ["Prioridade maxima", summary.criticalItems ? "Critica" : (summary.highPriorityItems ? "Alta" : (summary.mediumPriorityItems ? "Media" : "Monitorar"))]
+    ].forEach(function (item) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      card.className = "stock-ia-card";
+      label.textContent = item[0];
+      value.textContent = String(item[1]);
+      card.appendChild(label);
+      card.appendChild(value);
+      stockPurchaseSummaryCards.appendChild(card);
+    });
+  }
+
+  function buildStockPurchaseListText_(suggestions, summary) {
+    const lines = [
+      "LISTA DE COMPRAS - STOCK IA",
+      "",
+      summary.message,
+      ""
+    ];
+
+    if (!suggestions.length) {
+      lines.push("Nenhuma compra sugerida no momento.");
+      return lines.join("\n");
+    }
+
+    suggestions.forEach(function (item, index) {
+      lines.push(String(index + 1) + ". " + item.materialName);
+      lines.push("   Prioridade: " + getStockPurchasePriorityLabel_(item.priority));
+      lines.push("   Saldo atual: " + formatQuantity_(item.currentBalance) + " " + item.unit);
+      lines.push("   Minimo: " + formatQuantity_(item.minimumStock) + " " + item.unit);
+      lines.push("   Comprar: " + (item.suggestedQuantity > 0 ? formatQuantity_(item.suggestedQuantity) : "Monitorar") + " " + item.unit);
+      lines.push("   Valor estimado: " + (item.unitCost > 0 ? formatCurrency_(item.estimatedTotal) : "Nao informado"));
+      lines.push("   Obra: " + (item.workName || "Geral / sem obra"));
+      lines.push("   Motivo: " + item.reason);
+      lines.push("");
+    });
+
+    return lines.join("\n");
+  }
+
+  function getCurrentStockPurchaseSuggestions_() {
+    const masterState = loadStockMasterState_();
+    const balances = calculateRealStockBalances_();
+    const suggestions = buildStockPurchaseSuggestions_(balances, masterState, {
+      period: stockIaCurrentPeriod
+    });
+
+    return {
+      suggestions: suggestions,
+      summary: buildStockPurchaseSummary_(suggestions)
+    };
+  }
+
+  function copyStockPurchaseList_() {
+    const data = getCurrentStockPurchaseSuggestions_();
+    const copied = copyTextFallback_(buildStockPurchaseListText_(data.suggestions, data.summary));
+
+    showStockIaToast_(copied ? "Lista de compras copiada." : "Nao consegui copiar automaticamente.", copied ? "success" : "error");
+  }
+
+  function exportStockPurchaseCsv_() {
+    const data = getCurrentStockPurchaseSuggestions_();
+    const rows = [[
+      "prioridade",
+      "material",
+      "unidade",
+      "saldo_atual",
+      "estoque_minimo",
+      "quantidade_sugerida",
+      "custo_unitario",
+      "valor_estimado",
+      "obra",
+      "motivo"
+    ]];
+
+    data.suggestions.forEach(function (item) {
+      rows.push([
+        getStockPurchasePriorityLabel_(item.priority),
+        item.materialName,
+        item.unit,
+        item.currentBalance,
+        item.minimumStock,
+        item.suggestedQuantity,
+        item.unitCost,
+        item.estimatedTotal,
+        item.workName,
+        item.reason
+      ]);
+    });
+
+    const csv = rows.map(function (row) {
+      return row.map(function (cell) {
+        return '"' + String(cell === undefined || cell === null ? "" : cell).replace(/"/g, '""') + '"';
+      }).join(",");
+    }).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "stock-ia-lista-compras.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showStockIaToast_("CSV da lista de compras gerado.", "success");
+  }
+
+  function buildStockPurchaseWhatsappMessage_() {
+    const data = getCurrentStockPurchaseSuggestions_();
+    const message = buildStockPurchaseListText_(data.suggestions, data.summary);
+    const copied = copyTextFallback_(message);
+    const url = "https://wa.me/?text=" + encodeURIComponent(message);
+    const opened = window.open(url, "_blank", "noopener");
+
+    if (!opened) {
+      showStockIaToast_(copied ? "Mensagem copiada para WhatsApp." : "Copie a lista manualmente para enviar.", copied ? "success" : "error");
+      return;
+    }
+
+    showStockIaToast_("Mensagem preparada para WhatsApp.", "success");
+  }
+
+  function markStockPurchaseItemReviewed_(suggestionId) {
+    if (!suggestionId) {
+      return;
+    }
+
+    const reviewed = loadStockPurchaseReviewedState_();
+    if (reviewed.indexOf(suggestionId) < 0) {
+      reviewed.push(suggestionId);
+      saveStockPurchaseReviewedState_(reviewed);
+    }
+
+    renderStockIaPanel_(getUserDailyLogs_());
+    showStockIaToast_("Item marcado como revisado.", "success");
+  }
+
+  function markAllStockPurchaseReviewed_() {
+    const data = getCurrentStockPurchaseSuggestions_();
+    const reviewed = loadStockPurchaseReviewedState_();
+
+    data.suggestions.forEach(function (item) {
+      if (reviewed.indexOf(item.id) < 0) {
+        reviewed.push(item.id);
+      }
+    });
+
+    saveStockPurchaseReviewedState_(reviewed);
+    renderStockIaPanel_(getUserDailyLogs_());
+    showStockIaToast_("Lista marcada como revisada.", "success");
+  }
+
   function buildRealStockIaInsight_() {
     const summary = buildRealStockSummary_();
 
@@ -5511,10 +5909,15 @@
       sortBy: "cost",
       limit: 8
     });
+    const purchaseSuggestions = buildStockPurchaseSuggestions_(realBalances, masterState, {
+      period: stockIaCurrentPeriod
+    });
+    const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
 
     renderStockIaSummaryCards_(summary);
     renderStockPeriodControls_();
     renderStockOperationalAlerts_(alerts);
+    renderStockPurchasePanel_(purchaseSuggestions, purchaseSummary);
     renderTopConsumedMaterials_(topMaterials);
     renderStockConsumptionByWork_(byWork);
     renderStockIaQuestionAnswer_();
@@ -5690,13 +6093,35 @@
     const negativeItems = balances.filter(function (balance) {
       return balance.status === "Negativo";
     });
+    const purchaseSuggestions = buildStockPurchaseSuggestions_(balances, loadStockMasterState_(), {
+      period: stockIaCurrentPeriod
+    });
+    const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
+
+    if (normalized.indexOf("valor") >= 0 && (normalized.indexOf("reposicao") >= 0 || normalized.indexOf("compra") >= 0)) {
+      return purchaseSuggestions.length
+        ? "O valor estimado da reposição é " + formatCurrency_(purchaseSummary.estimatedTotal) + " para " + purchaseSummary.totalItems + " item(ns). Itens urgentes: " + summarizeStockIaList_(purchaseSummary.topPriorityNames, 3) + "."
+        : purchaseSummary.message;
+    }
+
+    if ((normalized.indexOf("lista") >= 0 && normalized.indexOf("compra") >= 0) || normalized.indexOf("preciso comprar") >= 0 || normalized.indexOf("materiais comprar") >= 0 || normalized.indexOf("em falta") >= 0 || normalized.indexOf("reposicao") >= 0 || normalized.indexOf("repor") >= 0) {
+      return purchaseSuggestions.length
+        ? "Reposição sugerida: " + purchaseSummary.message + " Comprar primeiro: " + summarizeStockIaList_(purchaseSummary.topPriorityNames, 3) + "."
+        : purchaseSummary.message;
+    }
+
+    if (normalized.indexOf("critico") >= 0 || normalized.indexOf("critica") >= 0) {
+      const critical = purchaseSuggestions.filter(function (item) {
+        return item.priority === "critica";
+      });
+      return critical.length
+        ? "Prioridade crítica: " + summarizeStockIaList_(critical.map(function (item) { return item.materialName; }), 6) + ". Esses itens estão negativos e devem ser resolvidos primeiro."
+        : "Não encontrei itens críticos na lista de compras neste momento.";
+    }
 
     if (normalized.indexOf("acabando") >= 0 || normalized.indexOf("baixo") >= 0 || normalized.indexOf("comprar") >= 0) {
-      const purchaseItems = negativeItems.concat(zeroItems).concat(lowItems).map(function (balance) {
-        return balance.item.name + " (" + balance.status + ")";
-      });
-      return purchaseItems.length
-        ? "Itens que precisam de atenção para compra: " + summarizeStockIaList_(purchaseItems, 6) + ". Priorize negativos, zerados e abaixo do mínimo."
+      return purchaseSuggestions.length
+        ? "Itens que precisam de atenção para compra: " + summarizeStockIaList_(purchaseSuggestions.map(function (item) { return item.materialName + " (" + getStockPurchasePriorityLabel_(item.priority) + ")"; }), 6) + ". Valor estimado: " + formatCurrency_(purchaseSummary.estimatedTotal) + "."
         : "Não encontrei itens abaixo do mínimo, zerados ou negativos. Próximo passo: revisar consumos sem vínculo e manter entradas atualizadas.";
     }
 
@@ -5915,6 +6340,19 @@
       openStockIaModal_("link-rdo", {
         rdoMaterialKey: stockId
       });
+    } else if (action === "generate-purchase-list") {
+      renderStockIaPanel_(getUserDailyLogs_());
+      showStockIaToast_("Lista de compras recalculada.", "success");
+    } else if (action === "copy-purchase-list") {
+      copyStockPurchaseList_();
+    } else if (action === "export-purchase-csv") {
+      exportStockPurchaseCsv_();
+    } else if (action === "whatsapp-purchase-list") {
+      buildStockPurchaseWhatsappMessage_();
+    } else if (action === "mark-purchase-reviewed") {
+      markStockPurchaseItemReviewed_(stockId);
+    } else if (action === "mark-all-purchase-reviewed") {
+      markAllStockPurchaseReviewed_();
     }
   }
 
