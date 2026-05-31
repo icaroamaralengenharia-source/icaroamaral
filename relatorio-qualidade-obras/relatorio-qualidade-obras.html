@@ -1159,9 +1159,9 @@
       <section class="route-panel" data-route="stock-ia" aria-label="Stock IA">
         <div class="workspace-card stock-ia-hero">
           <div>
-            <p class="eyebrow">Stock IA 0.2</p>
-            <h3>Estoque real básico conectado ao RDO</h3>
-            <p>Controle local com cadastro mestre, saldo inicial, entradas, saídas manuais e consumo derivado dos materiais registrados nos Diários de Obras.</p>
+            <p class="eyebrow">Stock IA 0.3</p>
+            <h3>Estoque real com alertas operacionais</h3>
+            <p>Controle local com saldo real, consumo derivado do RDO, alertas de atenção, ranking de materiais e análise operacional por obra.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Stock IA">
             <span class="local-status">Local</span>
@@ -1170,6 +1170,47 @@
         </div>
 
         <div class="stock-ia-cards" id="stockIaSummaryCards" aria-live="polite"></div>
+
+        <section class="workspace-card stock-ia-insight">
+          <div class="section-row">
+            <div>
+              <h3>Insight operacional local</h3>
+              <p id="stockIaOperationalInsight">Cadastre materiais e vincule consumos do RDO para calcular o saldo real.</p>
+            </div>
+            <div class="stock-ia-periods" id="stockIaPeriodControls" aria-label="Filtro de período do Stock IA">
+              <button type="button" class="mini-button compact active" data-stock-period="30d">30 dias</button>
+              <button type="button" class="mini-button compact" data-stock-period="7d">7 dias</button>
+              <button type="button" class="mini-button compact" data-stock-period="month">Mês atual</button>
+              <button type="button" class="mini-button compact" data-stock-period="all">Todos</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>O que precisa de atenção</h3>
+            <span class="auth-note">Alertas calculados localmente com base no saldo real e no consumo do RDO.</span>
+          </div>
+          <div class="stock-ia-alert-list" id="stockIaAlertsList" aria-live="polite"></div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Pergunte ao Stock IA</h3>
+            <span class="auth-note">Respostas locais, sem API externa.</span>
+          </div>
+          <form class="stock-ia-question" id="stockIaQuestionForm">
+            <input id="stockIaQuestionInput" type="text" placeholder="Ex.: O que preciso comprar?">
+            <button type="submit" class="mini-button primary">Perguntar</button>
+          </form>
+          <div class="stock-ia-quick-questions" aria-label="Perguntas rápidas do Stock IA">
+            <button type="button" class="mini-button compact" data-stock-question="O que está acabando?">O que está acabando?</button>
+            <button type="button" class="mini-button compact" data-stock-question="O que está negativo?">O que está negativo?</button>
+            <button type="button" class="mini-button compact" data-stock-question="Qual material mais consumiu?">Material mais consumido</button>
+            <button type="button" class="mini-button compact" data-stock-question="O que preciso comprar?">O que comprar?</button>
+          </div>
+          <p class="stock-ia-answer" id="stockIaQuestionAnswer">Faça uma pergunta para receber uma orientação local do estoque.</p>
+        </section>
 
         <section class="workspace-card">
           <div class="section-row">
@@ -1195,6 +1236,54 @@
               </thead>
               <tbody id="stockMasterRows">
                 <tr><td colspan="11">Nenhum item mestre cadastrado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Top materiais consumidos</h3>
+            <span class="auth-note">Ranking por consumo, custo e frequência nos diários.</span>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Material</th>
+                  <th>Un.</th>
+                  <th>Total consumido</th>
+                  <th>Custo total</th>
+                  <th>Diários</th>
+                  <th>Último uso</th>
+                </tr>
+              </thead>
+              <tbody id="stockTopMaterialsRows">
+                <tr><td colspan="7">Nenhum consumo encontrado no período.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <h3>Consumo por obra</h3>
+            <span class="auth-note">Agrupamento operacional dos consumos derivados do RDO.</span>
+          </div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Obra</th>
+                  <th>Materiais</th>
+                  <th>Custo consumido</th>
+                  <th>Principais itens</th>
+                  <th>Diários</th>
+                </tr>
+              </thead>
+              <tbody id="stockConsumptionByWorkRows">
+                <tr><td colspan="5">Nenhum consumo por obra encontrado no período.</td></tr>
               </tbody>
             </table>
           </div>
@@ -1557,7 +1646,7 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260530-access-guard-a"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-03-a"></script>
   <link rel="stylesheet" href="elo-assistente.css">
   <script src="elo-assistente.js" defer></script>
 </body>

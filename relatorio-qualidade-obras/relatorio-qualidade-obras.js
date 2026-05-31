@@ -82,6 +82,14 @@
   const stockIaRows = document.getElementById("stockIaRows");
   const stockIaMovements = document.getElementById("stockIaMovements");
   const stockIaInsight = document.getElementById("stockIaInsight");
+  const stockIaOperationalInsight = document.getElementById("stockIaOperationalInsight");
+  const stockIaPeriodControls = document.getElementById("stockIaPeriodControls");
+  const stockIaAlertsList = document.getElementById("stockIaAlertsList");
+  const stockTopMaterialsRows = document.getElementById("stockTopMaterialsRows");
+  const stockConsumptionByWorkRows = document.getElementById("stockConsumptionByWorkRows");
+  const stockIaQuestionForm = document.getElementById("stockIaQuestionForm");
+  const stockIaQuestionInput = document.getElementById("stockIaQuestionInput");
+  const stockIaQuestionAnswer = document.getElementById("stockIaQuestionAnswer");
   const stockIaActionMessage = document.getElementById("stockIaActionMessage");
   const stockIaModal = document.getElementById("stockIaModal");
   const dailyLogPhotoInput = document.getElementById("dailyLogPhotoInput");
@@ -154,6 +162,8 @@
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
   let localAccessGrantedInMemory = false;
+  let stockIaCurrentPeriod = "30d";
+  let stockIaLastAnswer = "";
   let dailyLogEstimateDraft = {
     items: [],
     audit: [],
@@ -702,7 +712,22 @@
     if (dashboardPanel) {
       dashboardPanel.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const periodButton = target && target.closest ? target.closest("[data-stock-period]") : null;
+        const questionButton = target && target.closest ? target.closest("[data-stock-question]") : null;
         const actionButton = target && target.closest ? target.closest("[data-stock-action]") : null;
+
+        if (periodButton) {
+          event.preventDefault();
+          stockIaCurrentPeriod = periodButton.dataset.stockPeriod || "30d";
+          renderStockIaPanel_(getUserDailyLogs_());
+          return;
+        }
+
+        if (questionButton) {
+          event.preventDefault();
+          handleStockIaQuestion_(questionButton.dataset.stockQuestion || "");
+          return;
+        }
 
         if (!actionButton) {
           return;
@@ -710,6 +735,13 @@
 
         event.preventDefault();
         handleStockIaAction_(actionButton);
+      });
+    }
+
+    if (stockIaQuestionForm) {
+      stockIaQuestionForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        handleStockIaQuestion_(stockIaQuestionInput ? stockIaQuestionInput.value : "");
       });
     }
 
@@ -5144,6 +5176,294 @@
     };
   }
 
+  function getStockPeriodLabel_(period) {
+    if (period === "7d") {
+      return "nos ultimos 7 dias";
+    }
+
+    if (period === "month") {
+      return "no mes atual";
+    }
+
+    if (period === "all") {
+      return "em todo o historico";
+    }
+
+    return "nos ultimos 30 dias";
+  }
+
+  function getStockPeriodStartDate_(period) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (period === "7d") {
+      return new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+    }
+
+    if (period === "month") {
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    if (period === "all") {
+      return null;
+    }
+
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29);
+  }
+
+  function filterStockMovementsByPeriod_(movements, period) {
+    const start = getStockPeriodStartDate_(period);
+    if (!start) {
+      return movements || [];
+    }
+
+    const startTime = start.getTime();
+    return (movements || []).filter(function (movement) {
+      const date = parseLocalDate_(movement.date);
+      return date && date.getTime() >= startTime;
+    });
+  }
+
+  function filterUnlinkedRdoMaterialsByPeriod_(items, period) {
+    const start = getStockPeriodStartDate_(period);
+    if (!start) {
+      return items || [];
+    }
+
+    const startTime = start.getTime();
+    return (items || []).filter(function (entry) {
+      const date = parseLocalDate_(entry.date);
+      return date && date.getTime() >= startTime;
+    });
+  }
+
+  function buildStockOperationalAlerts_(balances, movements, masterState) {
+    const now = new Date().toISOString();
+    const alerts = [];
+    const state = masterState || loadStockMasterState_();
+    const unlinked = filterUnlinkedRdoMaterialsByPeriod_(buildUnlinkedRdoMaterials_(), stockIaCurrentPeriod);
+    const rdoMovements = (movements || []).filter(function (movement) {
+      return movement.type === "consumo_rdo" || movement.source === "rdo";
+    });
+    const topByQuantity = buildTopConsumedMaterials_(rdoMovements, {
+      sortBy: "quantity",
+      limit: 3
+    });
+    const topByCost = buildTopConsumedMaterials_(rdoMovements, {
+      sortBy: "cost",
+      limit: 3
+    });
+    const highQuantityLimit = topByQuantity.length ? Math.max(10, topByQuantity[0].totalQuantity * 0.7) : 0;
+    const highCostLimit = topByCost.length ? Math.max(250, topByCost[0].totalCost * 0.7) : 0;
+
+    (balances || []).forEach(function (balance) {
+      const item = balance.item || {};
+      const unit = item.unit || "un";
+
+      if (balance.realBalance < 0) {
+        alerts.push(createStockAlert_("negativo", "critica", item.name + " esta negativo", item.name + " ficou com saldo " + formatQuantity_(balance.realBalance) + " " + unit + ". Revise entradas, saldo inicial ou consumos do RDO.", item.id, item.workId, now));
+      } else if (balance.realBalance === 0) {
+        alerts.push(createStockAlert_("zerado", "alta", item.name + " esta zerado", "O saldo atual esta zerado. Registre uma entrada ou revise o consumo antes de novas saidas.", item.id, item.workId, now));
+      } else if (parseNumber_(item.minimumStock) > 0 && balance.realBalance <= parseNumber_(item.minimumStock)) {
+        alerts.push(createStockAlert_("baixo", "alta", item.name + " esta abaixo do minimo", "Saldo atual: " + formatQuantity_(balance.realBalance) + " " + unit + ". Minimo: " + formatQuantity_(item.minimumStock) + " " + unit + ".", item.id, item.workId, now));
+      }
+
+      if (parseNumber_(balance.entries) <= 0) {
+        alerts.push(createStockAlert_("sem_entrada", "media", item.name + " ainda nao tem entrada manual", "O saldo depende do saldo inicial ou do cadastro mestre. Registre entradas para melhorar a rastreabilidade.", item.id, item.workId, now));
+      }
+    });
+
+    unlinked.forEach(function (entry) {
+      alerts.push(createStockAlert_("sem_vinculo", "media", "Consumo do RDO sem vinculo", entry.material.name + " foi consumido no RDO, mas ainda nao esta vinculado a um item mestre.", null, entry.dailyLog.workId || null, now));
+    });
+
+    topByQuantity.forEach(function (item) {
+      if (item.totalQuantity >= highQuantityLimit && highQuantityLimit > 0) {
+        alerts.push(createStockAlert_("alto_consumo", "media", "Alto consumo de " + item.name, "Foram consumidos " + formatQuantity_(item.totalQuantity) + " " + item.unit + " " + getStockPeriodLabel_(stockIaCurrentPeriod) + ".", item.stockItemId || null, item.workId || null, now));
+      }
+    });
+
+    topByCost.forEach(function (item) {
+      if (item.totalCost >= highCostLimit && highCostLimit > 0) {
+        alerts.push(createStockAlert_("alto_custo", "media", "Custo consumido alto em " + item.name, "Custo consumido: " + formatCurrency_(item.totalCost) + " " + getStockPeriodLabel_(stockIaCurrentPeriod) + ".", item.stockItemId || null, item.workId || null, now));
+      }
+    });
+
+    return alerts.sort(function (a, b) {
+      return getStockAlertSeverityRank_(b.severity) - getStockAlertSeverityRank_(a.severity);
+    });
+  }
+
+  function createStockAlert_(type, severity, title, message, stockItemId, workId, createdAt) {
+    return {
+      id: "stock_alert_" + type + "_" + normalizeCompositionKey_(title),
+      type: type,
+      severity: severity,
+      title: title,
+      message: message,
+      materialName: title || null,
+      stockItemId: stockItemId || null,
+      workId: workId || null,
+      createdAt: createdAt || new Date().toISOString()
+    };
+  }
+
+  function getStockAlertSeverityRank_(severity) {
+    if (severity === "critica") {
+      return 4;
+    }
+
+    if (severity === "alta") {
+      return 3;
+    }
+
+    if (severity === "media") {
+      return 2;
+    }
+
+    return 1;
+  }
+
+  function buildStockConsumptionByWork_(movements) {
+    const grouped = {};
+
+    (movements || []).filter(function (movement) {
+      return movement.type === "consumo_rdo" || movement.source === "rdo";
+    }).forEach(function (movement) {
+      const workId = movement.workId || "";
+      const key = workId || "sem_obra";
+      const name = getWorkName_(workId) || movement.workName || "Obra nao informada";
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          workId: workId || null,
+          workName: name,
+          materialKeys: [],
+          materialTotals: {},
+          totalCost: 0,
+          dailyLogIds: []
+        };
+      }
+
+      const item = grouped[key];
+      const materialKey = normalizeStockMaterialKey_(movement.name || movement.itemName, movement.unit);
+      item.totalCost += parseNumber_(movement.totalCost || movement.totalValue);
+
+      if (item.materialKeys.indexOf(materialKey) < 0) {
+        item.materialKeys.push(materialKey);
+      }
+
+      if (!item.materialTotals[materialKey]) {
+        item.materialTotals[materialKey] = {
+          name: movement.name || movement.itemName,
+          quantity: 0,
+          unit: movement.unit || "un",
+          cost: 0
+        };
+      }
+
+      item.materialTotals[materialKey].quantity += parseNumber_(movement.quantity);
+      item.materialTotals[materialKey].cost += parseNumber_(movement.totalCost || movement.totalValue);
+
+      if (movement.dailyLogId && item.dailyLogIds.indexOf(movement.dailyLogId) < 0) {
+        item.dailyLogIds.push(movement.dailyLogId);
+      }
+    });
+
+    return Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.topMaterials = Object.keys(item.materialTotals).map(function (materialKey) {
+        return item.materialTotals[materialKey];
+      }).sort(function (a, b) {
+        return parseNumber_(b.cost) - parseNumber_(a.cost);
+      }).slice(0, 3);
+      return item;
+    }).sort(function (a, b) {
+      return parseNumber_(b.totalCost) - parseNumber_(a.totalCost);
+    });
+  }
+
+  function buildTopConsumedMaterials_(movements, options) {
+    const settings = options || {};
+    const sortBy = settings.sortBy || "cost";
+    const limit = settings.limit || 10;
+    const grouped = {};
+
+    (movements || []).filter(function (movement) {
+      return movement.type === "consumo_rdo" || movement.source === "rdo";
+    }).forEach(function (movement) {
+      const name = movement.name || movement.itemName || "Material";
+      const unit = movement.unit || "un";
+      const key = normalizeStockMaterialKey_(name, unit);
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          key: key,
+          name: name,
+          unit: unit,
+          stockItemId: movement.stockItemId || null,
+          totalQuantity: 0,
+          totalCost: 0,
+          dailyLogIds: [],
+          lastDate: "",
+          frequency: 0
+        };
+      }
+
+      grouped[key].totalQuantity += parseNumber_(movement.quantity);
+      grouped[key].totalCost += parseNumber_(movement.totalCost || movement.totalValue);
+      grouped[key].frequency += 1;
+
+      if (movement.dailyLogId && grouped[key].dailyLogIds.indexOf(movement.dailyLogId) < 0) {
+        grouped[key].dailyLogIds.push(movement.dailyLogId);
+      }
+
+      if (!grouped[key].lastDate || String(movement.date || "").localeCompare(grouped[key].lastDate) > 0) {
+        grouped[key].lastDate = movement.date || "";
+      }
+    });
+
+    return Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.totalQuantity = roundQuantity_(item.totalQuantity);
+      return item;
+    }).sort(function (a, b) {
+      if (sortBy === "quantity") {
+        return parseNumber_(b.totalQuantity) - parseNumber_(a.totalQuantity);
+      }
+
+      if (sortBy === "frequency") {
+        return parseNumber_(b.frequency) - parseNumber_(a.frequency);
+      }
+
+      return parseNumber_(b.totalCost) - parseNumber_(a.totalCost);
+    }).slice(0, limit);
+  }
+
+  function buildStockOperationalInsights_(summary, alerts, byWork, topMaterials, period) {
+    const label = getStockPeriodLabel_(period);
+    const criticalCount = (alerts || []).filter(function (alert) {
+      return alert.severity === "critica";
+    }).length;
+    const highCount = (alerts || []).filter(function (alert) {
+      return alert.severity === "alta";
+    }).length;
+    const topNames = (topMaterials || []).slice(0, 3).map(function (item) {
+      return item.name;
+    });
+    const topWork = byWork && byWork.length ? byWork[0] : null;
+
+    if (!summary.itemCount && !summary.unlinkedCount && !topNames.length) {
+      return "Cadastre materiais ou registre materiais no RDO para iniciar a inteligencia operacional do Stock IA.";
+    }
+
+    return "No periodo " + label + ", " +
+      (topNames.length ? "o maior consumo registrado foi de " + topNames.join(", ") + ". " : "ainda nao ha consumo suficiente para ranking. ") +
+      "Existem " + criticalCount + " alerta(s) critico(s) e " + highCount + " alerta(s) alto(s). " +
+      (topWork ? "A obra com maior custo consumido foi " + topWork.workName + " (" + formatCurrency_(topWork.totalCost) + "). " : "") +
+      "Proximo passo recomendado: revisar itens negativos, zerados e abaixo do minimo antes de novas compras.";
+  }
+
   function buildRealStockIaInsight_() {
     const summary = buildRealStockSummary_();
 
@@ -5182,8 +5502,22 @@
     const summary = buildRealStockSummary_();
     const realMovements = buildRealStockMovements_();
     const unlinked = buildUnlinkedRdoMaterials_();
+    const masterState = loadStockMasterState_();
+    const realBalances = calculateRealStockBalances_();
+    const periodRdoMovements = filterStockMovementsByPeriod_(rdoMovements, stockIaCurrentPeriod);
+    const alerts = buildStockOperationalAlerts_(realBalances, periodRdoMovements, masterState);
+    const byWork = buildStockConsumptionByWork_(periodRdoMovements);
+    const topMaterials = buildTopConsumedMaterials_(periodRdoMovements, {
+      sortBy: "cost",
+      limit: 8
+    });
 
     renderStockIaSummaryCards_(summary);
+    renderStockPeriodControls_();
+    renderStockOperationalAlerts_(alerts);
+    renderTopConsumedMaterials_(topMaterials);
+    renderStockConsumptionByWork_(byWork);
+    renderStockIaQuestionAnswer_();
     renderStockMasterItems_();
     renderUnlinkedRdoMaterials_(unlinked);
     renderManualStockMovements_();
@@ -5193,6 +5527,10 @@
 
     if (stockIaInsight) {
       stockIaInsight.textContent = buildRealStockIaInsight_(realMovements);
+    }
+
+    if (stockIaOperationalInsight) {
+      stockIaOperationalInsight.textContent = buildStockOperationalInsights_(summary, alerts, byWork, topMaterials, stockIaCurrentPeriod);
     }
   }
 
@@ -5220,6 +5558,177 @@
       card.appendChild(value);
       stockIaSummaryCards.appendChild(card);
     });
+  }
+
+  function renderStockPeriodControls_() {
+    if (!stockIaPeriodControls) {
+      return;
+    }
+
+    Array.from(stockIaPeriodControls.querySelectorAll("[data-stock-period]")).forEach(function (button) {
+      button.classList.toggle("active", button.dataset.stockPeriod === stockIaCurrentPeriod);
+    });
+  }
+
+  function renderStockOperationalAlerts_(alerts) {
+    if (!stockIaAlertsList) {
+      return;
+    }
+
+    stockIaAlertsList.innerHTML = "";
+    if (!alerts.length) {
+      const empty = document.createElement("p");
+      empty.className = "auth-note";
+      empty.textContent = "Nenhum alerta operacional encontrado no periodo selecionado.";
+      stockIaAlertsList.appendChild(empty);
+      return;
+    }
+
+    alerts.slice(0, 10).forEach(function (alert) {
+      const card = document.createElement("article");
+      const title = document.createElement("strong");
+      const badge = document.createElement("span");
+      const message = document.createElement("p");
+      card.className = "stock-ia-alert severity-" + alert.severity;
+      title.textContent = alert.title;
+      badge.className = "stock-ia-alert-badge";
+      badge.textContent = alert.severity;
+      message.textContent = alert.message;
+      card.appendChild(badge);
+      card.appendChild(title);
+      card.appendChild(message);
+      stockIaAlertsList.appendChild(card);
+    });
+  }
+
+  function renderTopConsumedMaterials_(items) {
+    if (!stockTopMaterialsRows) {
+      return;
+    }
+
+    stockTopMaterialsRows.innerHTML = "";
+    if (!items.length) {
+      appendStockIaEmptyRow_(stockTopMaterialsRows, 7, "Nenhum consumo encontrado no periodo.");
+      return;
+    }
+
+    items.forEach(function (item, index) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, String(index + 1));
+      appendStockIaCell_(row, item.name);
+      appendStockIaCell_(row, item.unit);
+      appendStockIaCell_(row, formatQuantity_(item.totalQuantity));
+      appendStockIaCell_(row, formatCurrency_(item.totalCost));
+      appendStockIaCell_(row, String(item.dailyLogIds.length));
+      appendStockIaCell_(row, item.lastDate ? formatDateOnly_(item.lastDate) : "-");
+      stockTopMaterialsRows.appendChild(row);
+    });
+  }
+
+  function renderStockConsumptionByWork_(items) {
+    if (!stockConsumptionByWorkRows) {
+      return;
+    }
+
+    stockConsumptionByWorkRows.innerHTML = "";
+    if (!items.length) {
+      appendStockIaEmptyRow_(stockConsumptionByWorkRows, 5, "Nenhum consumo por obra encontrado no periodo.");
+      return;
+    }
+
+    items.forEach(function (item) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, item.workName || "Obra nao informada");
+      appendStockIaCell_(row, String(item.materialKeys.length));
+      appendStockIaCell_(row, formatCurrency_(item.totalCost));
+      appendStockIaCell_(row, summarizeStockIaList_(item.topMaterials.map(function (material) {
+        return material.name;
+      }), 3));
+      appendStockIaCell_(row, String(item.dailyLogIds.length));
+      stockConsumptionByWorkRows.appendChild(row);
+    });
+  }
+
+  function handleStockIaQuestion_(question) {
+    const cleanQuestion = clean(question);
+    if (!cleanQuestion) {
+      return;
+    }
+
+    stockIaLastAnswer = answerStockIaQuestion_(cleanQuestion);
+    if (stockIaQuestionInput) {
+      stockIaQuestionInput.value = "";
+    }
+    renderStockIaQuestionAnswer_();
+  }
+
+  function renderStockIaQuestionAnswer_() {
+    if (!stockIaQuestionAnswer) {
+      return;
+    }
+
+    stockIaQuestionAnswer.textContent = stockIaLastAnswer || "Faça uma pergunta para receber uma orientação local do estoque.";
+  }
+
+  function answerStockIaQuestion_(question) {
+    const normalized = normalizeCompositionKey_(question);
+    const balances = calculateRealStockBalances_();
+    const summary = buildRealStockSummary_();
+    const rdoMovements = filterStockMovementsByPeriod_(buildStockMovementsFromDailyLogs_(getUserDailyLogs_()), stockIaCurrentPeriod);
+    const alerts = buildStockOperationalAlerts_(balances, rdoMovements, loadStockMasterState_());
+    const topMaterials = buildTopConsumedMaterials_(rdoMovements, {
+      sortBy: "cost",
+      limit: 5
+    });
+    const byWork = buildStockConsumptionByWork_(rdoMovements);
+    const lowItems = balances.filter(function (balance) {
+      return balance.status === "Baixo";
+    });
+    const zeroItems = balances.filter(function (balance) {
+      return balance.status === "Zerado";
+    });
+    const negativeItems = balances.filter(function (balance) {
+      return balance.status === "Negativo";
+    });
+
+    if (normalized.indexOf("acabando") >= 0 || normalized.indexOf("baixo") >= 0 || normalized.indexOf("comprar") >= 0) {
+      const purchaseItems = negativeItems.concat(zeroItems).concat(lowItems).map(function (balance) {
+        return balance.item.name + " (" + balance.status + ")";
+      });
+      return purchaseItems.length
+        ? "Itens que precisam de atenção para compra: " + summarizeStockIaList_(purchaseItems, 6) + ". Priorize negativos, zerados e abaixo do mínimo."
+        : "Não encontrei itens abaixo do mínimo, zerados ou negativos. Próximo passo: revisar consumos sem vínculo e manter entradas atualizadas.";
+    }
+
+    if (normalized.indexOf("zerado") >= 0) {
+      return zeroItems.length
+        ? "Itens zerados: " + summarizeStockIaList_(zeroItems.map(function (balance) { return balance.item.name; }), 6) + "."
+        : "Nenhum item zerado encontrado no estoque real.";
+    }
+
+    if (normalized.indexOf("negativo") >= 0) {
+      return negativeItems.length
+        ? "Itens negativos: " + summarizeStockIaList_(negativeItems.map(function (balance) { return balance.item.name; }), 6) + ". Revise saldo inicial, entradas e consumos do RDO."
+        : "Nenhum item negativo encontrado no estoque real.";
+    }
+
+    if (normalized.indexOf("material") >= 0 && (normalized.indexOf("mais") >= 0 || normalized.indexOf("consumiu") >= 0)) {
+      return topMaterials.length
+        ? "Material com maior consumo por custo " + getStockPeriodLabel_(stockIaCurrentPeriod) + ": " + topMaterials[0].name + " (" + formatCurrency_(topMaterials[0].totalCost) + ", " + formatQuantity_(topMaterials[0].totalQuantity) + " " + topMaterials[0].unit + ")."
+        : "Ainda não há consumo suficiente no período para apontar o material mais consumido.";
+    }
+
+    if (normalized.indexOf("obra") >= 0 && (normalized.indexOf("mais") >= 0 || normalized.indexOf("consumiu") >= 0)) {
+      return byWork.length
+        ? "Obra com maior custo consumido " + getStockPeriodLabel_(stockIaCurrentPeriod) + ": " + byWork[0].workName + " (" + formatCurrency_(byWork[0].totalCost) + ")."
+        : "Ainda não há consumo por obra suficiente no período selecionado.";
+    }
+
+    if (normalized.indexOf("proximo") >= 0 || normalized.indexOf("passo") >= 0 || normalized.indexOf("resumo") >= 0) {
+      return buildStockOperationalInsights_(summary, alerts, byWork, topMaterials, stockIaCurrentPeriod);
+    }
+
+    return "Posso responder sobre itens acabando, zerados, negativos, material mais consumido, obra que mais consumiu, compras e próximo passo do estoque.";
   }
 
   function renderStockMasterItems_() {
