@@ -10529,7 +10529,7 @@
 
     emailButton.type = "button";
     emailButton.className = "mini-button";
-    emailButton.textContent = "Preparar e-mail";
+    emailButton.textContent = "Enviar por e-mail";
     emailButton.addEventListener("click", function () {
       handlePrepareAlmoxEmail_(emailInput.value);
     });
@@ -10615,7 +10615,7 @@
       "&body=" + encodeURIComponent(body);
     copyTextFallback_(body);
     window.location.href = url;
-    showAlmoxToast_("E-mail preparado. Confirme o envio no seu aplicativo de e-mail.", "success");
+    showAlmoxToast_("E-mail aberto no seu aplicativo. Confirme o envio para finalizar.", "success");
   }
 
   function buildAlmoxEmailSubject_() {
@@ -12910,6 +12910,10 @@
       openStockIaModal_("item", {});
     } else if (action === "start-guided-stock") {
       openStockIaModal_("guided-stock", {});
+    } else if (action === "view-stock-obras") {
+      if (stockIaSummaryCards) {
+        stockIaSummaryCards.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     } else if (action === "quick-use-guided") {
       openStockIaModal_("guided-stock", getGuidedStockExamplePayload_());
     } else if (action === "generate-stock-summary") {

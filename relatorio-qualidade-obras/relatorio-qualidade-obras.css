@@ -829,6 +829,70 @@ body {
   gap: 12px;
 }
 
+.stock-ia-mode-gateway {
+  border-color: rgba(15, 95, 143, 0.2);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%),
+    radial-gradient(circle at top right, rgba(14, 127, 115, 0.08), transparent 18rem);
+}
+
+.stock-ia-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stock-ia-mode-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(8, 32, 51, 0.06);
+}
+
+.stock-ia-mode-card.featured {
+  border-color: rgba(216, 171, 56, 0.52);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fffaf0 100%);
+}
+
+.stock-ia-mode-card > span {
+  width: fit-content;
+  padding: 5px 9px;
+  color: #0f5f8f;
+  background: rgba(15, 95, 143, 0.08);
+  border: 1px solid rgba(15, 95, 143, 0.16);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.stock-ia-mode-card.featured > span {
+  color: #6d4300;
+  background: rgba(216, 171, 56, 0.16);
+  border-color: rgba(216, 171, 56, 0.3);
+}
+
+.stock-ia-mode-card h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.15rem;
+}
+
+.stock-ia-mode-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.stock-ia-mode-card .stock-ia-actions {
+  align-self: end;
+}
+
 .stock-ia-card {
   display: grid;
   gap: 7px;
@@ -2287,7 +2351,8 @@ body {
   .almox-note-options,
   .almox-report-stats,
   .almox-report-list,
-  .almox-meta-grid {
+  .almox-meta-grid,
+  .stock-ia-mode-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6260,11 +6325,11 @@ body {
 }
 
 .route-panel[data-route="almoxarifado"] .almox-note-grid {
-  grid-template-columns: minmax(260px, 1fr) minmax(190px, 0.75fr);
+  grid-template-columns: 1fr;
 }
 
 .route-panel[data-route="almoxarifado"] .almox-note-grid .full-width {
-  grid-row: span 3;
+  grid-row: auto;
 }
 
 .route-panel[data-route="almoxarifado"] .almox-note-grid input,
@@ -6274,12 +6339,26 @@ body {
   max-width: 100%;
 }
 
+.route-panel[data-route="almoxarifado"] .almox-note-grid input[type="file"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+}
+
 .route-panel[data-route="almoxarifado"] .almox-note-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   min-width: 0;
+  max-width: 100%;
 }
 
 .route-panel[data-route="almoxarifado"] .almox-note-actions .mini-button {
-  flex: 1 1 150px;
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
 }
 
 .route-panel[data-route="almoxarifado"] .almox-note-table-wrap {
@@ -6421,7 +6500,7 @@ body {
   }
 
   .route-panel[data-route="almoxarifado"] .almox-note-grid {
-    grid-template-columns: minmax(280px, 1.15fr) minmax(190px, 0.85fr);
+    grid-template-columns: 1fr;
   }
 }
 
@@ -6478,5 +6557,67 @@ body {
 
   .almox-generated-actions .mini-button {
     width: 100%;
+  }
+}
+
+/* Stock IA antigo - tabelas legiveis sem arrastar no desktop */
+.route-panel[data-route="stock-ia"] .stock-ia-table-wrap {
+  max-width: 100%;
+  overflow-x: visible;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table,
+.route-panel[data-route="stock-ia"] .stock-ia-table.compact {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table th,
+.route-panel[data-route="stock-ia"] .stock-ia-table td {
+  padding: 9px 8px;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table th {
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table td {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table td:last-child .stock-ia-actions {
+  min-width: 0;
+}
+
+.route-panel[data-route="stock-ia"] .stock-ia-table .mini-button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="stock-ia"] .stock-ia-table-wrap {
+    overflow-x: visible;
+  }
+
+  .route-panel[data-route="stock-ia"] .stock-ia-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .route-panel[data-route="stock-ia"] .stock-ia-table.compact {
+    min-width: 0;
+  }
+
+  .route-panel[data-route="stock-ia"] .stock-ia-table th,
+  .route-panel[data-route="stock-ia"] .stock-ia-table td {
+    padding: 8px 5px;
+    font-size: 0.68rem;
+    line-height: 1.25;
   }
 }

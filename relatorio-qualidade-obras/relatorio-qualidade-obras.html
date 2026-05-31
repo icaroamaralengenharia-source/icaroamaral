@@ -1160,17 +1160,47 @@
       <section class="route-panel" data-route="stock-ia" aria-label="Stock IA">
         <div class="workspace-card stock-ia-hero">
           <div>
-            <p class="eyebrow">Stock IA 0.5</p>
-            <h3>Estoque real com entrada por nota</h3>
-            <p>Controle local com saldo real, alertas, lista de compras e entrada manual por nota, foto ou PDF.</p>
+            <p class="eyebrow">Stock IA</p>
+            <h3>Escolha o modo de controle de estoque</h3>
+            <p>Use Stock IA Obras para materiais ligados ao RDO ou Almoxarifado AI para clientes, unidades, setores, XML, auditoria e ambientes separados.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Stock IA">
             <span class="local-status">Local</span>
-            <span class="cloud-status info">Origem: RDO</span>
+            <span class="cloud-status info">Obras + Almoxarifado</span>
             <button type="button" class="mini-button primary" data-stock-action="start-guided-stock">Começar agora</button>
-            <button type="button" class="mini-button" data-stock-action="generate-stock-summary">Gerar resumo do estoque</button>
+            <button type="button" class="mini-button" data-route-target="almoxarifado">Abrir Almoxarifado AI</button>
           </div>
         </div>
+
+        <section class="workspace-card stock-ia-mode-gateway" aria-label="Modos do Stock IA">
+          <div class="section-row">
+            <div>
+              <p class="eyebrow">Navegacao do Stock IA</p>
+              <h3>Dois modos, sem misturar dados</h3>
+              <span class="auth-note">Escolha o fluxo correto antes de cadastrar materiais. Clientes, unidades e ambientes separados ficam no Almoxarifado AI.</span>
+            </div>
+          </div>
+          <div class="stock-ia-mode-grid">
+            <article class="stock-ia-mode-card">
+              <span>Modo obra / RDO</span>
+              <h4>Stock IA Obras</h4>
+              <p>Controle materiais vinculados aos diarios de obra, consumos executados, entradas manuais e lista de compras sugerida.</p>
+              <div class="stock-ia-actions">
+                <button type="button" class="mini-button primary" data-stock-action="view-stock-obras">Ver painel de obra</button>
+                <button type="button" class="mini-button" data-stock-action="start-guided-stock">Cadastrar material</button>
+              </div>
+            </article>
+            <article class="stock-ia-mode-card featured">
+              <span>Clientes / unidades / setores</span>
+              <h4>Almoxarifado AI</h4>
+              <p>Use ambientes separados por cliente, obra, unidade ou setor, com XML NF-e/NFC-e, responsaveis, auditoria, PDF e e-mail para o gestor.</p>
+              <div class="stock-ia-actions">
+                <button type="button" class="mini-button primary" data-route-target="almoxarifado">Abrir Almoxarifado AI</button>
+                <button type="button" class="mini-button" data-route-target="almoxarifado">Gerenciar ambientes</button>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <div class="stock-ia-cards" id="stockIaSummaryCards" aria-live="polite"></div>
 
@@ -1640,7 +1670,7 @@
               E-mail de destino
               <input id="almoxEmailInput" type="email" autocomplete="email" placeholder="gestor@empresa.com.br">
             </label>
-            <button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Preparar e-mail</button>
+            <button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Enviar por e-mail</button>
           </div>
           <div class="almox-manager-report">
             <article>
