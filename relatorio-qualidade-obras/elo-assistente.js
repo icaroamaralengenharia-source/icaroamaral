@@ -5958,6 +5958,403 @@
     };
   }
 
+  function detectProjectAdvisorRequest(message) {
+    const text = normalizeText(message);
+    if (!text || hasAnyTerm(text, ["como gerar pdf", "como criar rdo", "como usar stock ia", "como registrar materiais"])) {
+      return false;
+    }
+    return hasAnyTerm(text, [
+      "o que eu deveria priorizar",
+      "o que devo priorizar",
+      "qual projeto devo focar",
+      "qual projeto devo terminar primeiro",
+      "estou fazendo coisa demais",
+      "estou tentando fazer coisa demais",
+      "estou mexendo em muita coisa",
+      "qual projeto esta mais perto de vender",
+      "qual projeto esta mais proximo de vender",
+      "o que devo concluir primeiro",
+      "onde esta meu maior potencial",
+      "qual meu proximo passo nos projetos",
+      "proximo passo nos projetos"
+    ]);
+  }
+
+  function scoreProjectForAdvisor_(projectName, context) {
+    const text = normalizeText(projectName);
+    let score = 0;
+    if (text.indexOf("obrareport") >= 0) {
+      score += 12;
+    }
+    if (text.indexOf("stock ia") >= 0) {
+      score += 10;
+    }
+    if (text.indexOf("elo") >= 0) {
+      score += 7;
+    }
+    if (text.indexOf("cadista") >= 0) {
+      score += 5;
+    }
+    (context.projectSignals || []).forEach(function (signal) {
+      if (normalizeText(signal.name) === text) {
+        score += signal.score || 1;
+      }
+    });
+    (context.recentEvents || []).forEach(function (event) {
+      const haystack = normalizeText([event.title, event.content, event.project].join(" "));
+      if (haystack.indexOf(text) >= 0) {
+        score += event.importance === "alta" ? 4 : 2;
+      }
+    });
+    (context.goals || []).forEach(function (goal) {
+      if (normalizeText(goal).indexOf(text) >= 0) {
+        score += 3;
+      }
+    });
+    return score;
+  }
+
+  function rankActiveProjects(context) {
+    const currentContext = context || buildLogicalReasoningContext();
+    const seen = {};
+    const projects = [];
+    (currentContext.projects || []).forEach(function (project) {
+      const clean = sanitizeLibraryText(project, 100);
+      const key = normalizeText(clean);
+      if (clean && !seen[key]) {
+        seen[key] = true;
+        projects.push({
+          name: clean,
+          score: scoreProjectForAdvisor_(clean, currentContext)
+        });
+      }
+    });
+    return projects.sort(function (first, second) {
+      return second.score - first.score;
+    });
+  }
+
+  function suggestNextProjectAction(projects, context) {
+    const main = projects && projects[0] ? projects[0].name : (context && context.mainProject) || "";
+    const text = normalizeText(main);
+    if (!main) {
+      return "registrar seus projetos principais e escolher uma entrega pequena para validar primeiro.";
+    }
+    if (text.indexOf("obrareport") >= 0) {
+      return "fechar uma demonstracao simples do ObraReport com fluxo vendavel.";
+    }
+    if (text.indexOf("stock ia") >= 0) {
+      return "validar o ciclo real: entrada, consumo, saldo, alerta e resumo.";
+    }
+    if (text.indexOf("elo") >= 0) {
+      return "testar respostas reais do Elo e registrar os ajustes mais importantes.";
+    }
+    if (text.indexOf("cadista") >= 0) {
+      return "manter como frente planejada ate a entrega comercial mais proxima ficar estavel.";
+    }
+    return "definir uma entrega verificavel para " + main + ".";
+  }
+
+  function buildProjectAdvisorAnswer(context) {
+    const currentContext = context || buildLogicalReasoningContext();
+    const ranked = rankActiveProjects(currentContext);
+    if (!ranked.length) {
+      return {
+        shortAnswer: "Ainda tenho poucos projetos registrados para priorizar com firmeza.",
+        fullAnswer: [
+          "Pelo que eu tenho salvo, ainda falta uma lista clara de projetos ativos.",
+          "",
+          "Criterio que eu usaria:",
+          "1. proximidade de venda;",
+          "2. maturidade tecnica;",
+          "3. risco de dispersao;",
+          "4. dependencia de outras fases.",
+          "",
+          "Minha recomendacao:",
+          "registre 2 ou 3 projetos e escolha uma entrega pequena para validar primeiro."
+        ].join("\n"),
+        nextAction: "Diga: meus projetos ativos sao ObraReport, Stock IA e Elo.",
+        canSave: false,
+        sessionTheme: "projetos",
+        sessionIntent: "project_advisor"
+      };
+    }
+
+    const top = ranked.slice(0, 4);
+    const main = top[0].name;
+    const commercial = top.find(function (item) {
+      const text = normalizeText(item.name);
+      return text.indexOf("obrareport") >= 0 || text.indexOf("stock ia") >= 0;
+    }) || top[0];
+    const experimental = top.slice().reverse().find(function (item) {
+      const text = normalizeText(item.name);
+      return text.indexOf("elo") >= 0 || text.indexOf("cadista") >= 0;
+    }) || top[top.length - 1];
+
+    return {
+      shortAnswer: "Eu priorizaria o que esta mais perto de virar entrega real.",
+      fullAnswer: [
+        "Pelo que aparece na sua jornada, os projetos mais fortes agora sao:",
+        top.map(function (item, index) {
+          return (index + 1) + ". " + item.name;
+        }).join("\n"),
+        "",
+        "Minha leitura:",
+        commercial.name + " parece mais perto de gerar resultado pratico.",
+        experimental.name + " parece mais evolutivo ou experimental.",
+        "",
+        "Conclusao:",
+        "priorize " + commercial.name + " se o criterio for venda, validacao e entrega mais rapida.",
+        "",
+        "Proxima acao:",
+        suggestNextProjectAction(top, currentContext)
+      ].join("\n"),
+      nextAction: "Escolha uma entrega principal e evite abrir outra frente grande agora.",
+      canSave: false,
+      sessionTheme: "projetos",
+      sessionIntent: "project_advisor"
+    };
+  }
+
+  function detectDecisionCandidate(message) {
+    const cleanQuestion = sanitizeUserText(message);
+    const text = normalizeText(cleanQuestion);
+    if (!text || detectSocialGreeting(cleanQuestion)) {
+      return null;
+    }
+    const decisionText = text.replace(/[.!?]+$/g, "").trim();
+    const normalizedDecisionMatch = decisionText.match(/^(?:decidi(?: que)?|decidimos(?: que)?|a decisao e|vou focar em|vou pausar|nao vou mexer em|prioridade agora e|fica decidido)\s+(.+)$/);
+    if (normalizedDecisionMatch && normalizedDecisionMatch[1]) {
+      const decision = sanitizeLibraryText(normalizedDecisionMatch[1], 360);
+      return {
+        title: extractImportantTitle(decision),
+        decision: decision,
+        relatedProject: detectTimelineProject(decisionText),
+        sourceQuestion: cleanQuestion
+      };
+    }
+    const patterns = [
+      /^decidi\s+(.+)$/i,
+      /^decidi que\s+(.+)$/i,
+      /^decidimos que\s+(.+)$/i,
+      /^a decisao e\s+(.+)$/i,
+      /^a decisao é\s+(.+)$/i,
+      /^vou focar em\s+(.+)$/i,
+      /^vou pausar\s+(.+)$/i,
+      /^nao vou mexer em\s+(.+)$/i,
+      /^não vou mexer em\s+(.+)$/i,
+      /^prioridade agora e\s+(.+)$/i,
+      /^prioridade agora é\s+(.+)$/i,
+      /^fica decidido\s+(.+)$/i
+    ];
+    for (let index = 0; index < patterns.length; index += 1) {
+      const match = cleanQuestion.match(patterns[index]);
+      if (match && match[1]) {
+        const decision = sanitizeLibraryText(match[1], 360);
+        if (!decision) {
+          return null;
+        }
+        return {
+          title: extractImportantTitle(decision),
+          decision: decision,
+          relatedProject: detectTimelineProject(text),
+          sourceQuestion: cleanQuestion
+        };
+      }
+    }
+    if ((decisionText.indexOf("decisao") >= 0 || decisionText.indexOf("decisão") >= 0) && hasAnyTerm(decisionText, ["importante", "obrareport", "stock ia", "elo", "cadista ia"])) {
+      return {
+        title: "Decisao importante",
+        decision: cleanQuestion,
+        relatedProject: detectTimelineProject(text),
+        sourceQuestion: cleanQuestion
+      };
+    }
+    return null;
+  }
+
+  function buildDecisionSuggestion(message, context) {
+    const candidate = detectDecisionCandidate(message);
+    if (!candidate) {
+      return null;
+    }
+    const project = candidate.relatedProject || detectTimelineProject(normalizeText(candidate.decision));
+    return {
+      type: "reflexao",
+      title: candidate.title || "Decisao registrada",
+      content: candidate.decision,
+      project: project,
+      importance: "alta",
+      mood: "neutro",
+      tags: ["decisao"].concat(project ? [project] : []),
+      source: "decisao_confirmada"
+    };
+  }
+
+  function isDecisionLikeRecord_(value) {
+    const text = normalizeText(value);
+    return hasAnyTerm(text, [
+      "decidi",
+      "decisao",
+      "decisão",
+      "vou focar",
+      "vou pausar",
+      "prioridade",
+      "fica decidido",
+      "nao vou mexer",
+      "não vou mexer"
+    ]);
+  }
+
+  function searchDecisionEvents(query) {
+    const queryText = normalizeText(query);
+    const timelineMatches = getTimelineEvents().filter(function (event) {
+      const haystack = [event.title, event.content, event.project, event.tags.join(" ")].join(" ");
+      return isDecisionLikeRecord_(haystack) && (!queryText || normalizeText(haystack).indexOf(queryText) >= 0 || searchEloTimeline(queryText).some(function (entry) { return entry.event.id === event.id; }));
+    });
+    const important = getImportantMemoriesStorage();
+    const memoryMatches = []
+      .concat(important.projetos || [], important.objetivos || [], important.preferencias || [])
+      .filter(function (item) {
+        const haystack = [item.titulo, item.descricao, item.status].join(" ");
+        return isDecisionLikeRecord_(haystack) && (!queryText || normalizeText(haystack).indexOf(queryText) >= 0);
+      })
+      .map(function (item) {
+        return {
+          id: item.id,
+          title: item.titulo,
+          content: item.descricao || item.titulo,
+          project: item.titulo,
+          createdAt: item.createdAt || item.updatedAt || "",
+          source: "memoria_importante"
+        };
+      });
+    return timelineMatches.concat(memoryMatches).sort(function (first, second) {
+      return String(second.createdAt || "").localeCompare(String(first.createdAt || ""));
+    });
+  }
+
+  function buildDecisionMemoryAnswer(question, context) {
+    const text = normalizeText(question);
+    if (!hasAnyTerm(text, [
+      "quais decisoes eu tomei",
+      "quais decisões eu tomei",
+      "minhas decisoes",
+      "minhas decisões",
+      "qual foi minha ultima decisao",
+      "qual foi minha última decisão",
+      "ultima decisao importante",
+      "última decisão importante",
+      "o que eu tinha decidido antes",
+      "o que decidi sobre",
+      "por que eu pausei"
+    ])) {
+      return null;
+    }
+    let topic = "";
+    const topicMatch = text.match(/(?:sobre|pausei)\s+(.+?)\??$/);
+    if (topicMatch && topicMatch[1]) {
+      topic = topicMatch[1].trim();
+    }
+    const decisions = searchDecisionEvents(topic);
+    if (!decisions.length) {
+      return {
+        shortAnswer: "Ainda nao encontrei decisoes registradas.",
+        fullAnswer: "Quando voce disser algo como 'decidi focar no ObraReport', eu posso sugerir registrar isso como marco da sua Linha do Tempo.",
+        nextAction: "Diga uma decisao importante e eu pergunto antes de guardar.",
+        canSave: false,
+        sessionTheme: "decisoes",
+        sessionIntent: "decision_memory"
+      };
+    }
+    const latest = decisions[0];
+    return {
+      shortAnswer: hasAnyTerm(text, ["ultima", "última"]) ? "Sua ultima decisao registrada foi: " + latest.title + "." : "Encontrei estas decisoes na sua jornada.",
+      fullAnswer: decisions.slice(0, 6).map(function (item) {
+        const date = item.createdAt ? " - " + formatDateTime(item.createdAt) : "";
+        const project = item.project ? " (" + item.project + ")" : "";
+        return "- " + item.title + project + date + "\n  " + sanitizeLibraryText(item.content, 180);
+      }).join("\n"),
+      nextAction: "Se alguma decisao mudou, registre um novo marco na Linha do Tempo.",
+      canSave: false,
+      sessionTheme: "decisoes",
+      sessionIntent: "decision_memory"
+    };
+  }
+
+  function detectEloInitiativeOpportunity(message, context) {
+    const cleanQuestion = sanitizeUserText(message);
+    const text = normalizeText(cleanQuestion);
+    if (!text || isSimpleSupportQuestion(text) || detectSocialGreeting(cleanQuestion)) {
+      return null;
+    }
+    if (hasAnyTerm(text, ["como gerar pdf", "como criar rdo", "como usar stock ia", "como registrar materiais", "gerar pdf"])) {
+      return null;
+    }
+    const project = detectTimelineProject(text);
+    if (project && hasAnyTerm(text, ["estou trabalhando", "trabalhando no", "mexendo no", "continuando", "desenvolvendo"])) {
+      return {
+        type: "connect_project",
+        project: project,
+        message: "Isso parece relacionado ao projeto " + project + ". Quer conectar essa ideia a sua biblioteca ou Linha do Tempo?"
+      };
+    }
+    if (detectDecisionCandidate(cleanQuestion)) {
+      return {
+        type: "decision",
+        project: project,
+        message: "Isso parece uma decisao importante. Quer registrar como marco da sua jornada?"
+      };
+    }
+    if (hasAnyTerm(text, ["muita coisa ao mesmo tempo", "varias frentes", "muitas frentes", "coisa demais"])) {
+      return {
+        type: "focus",
+        project: project,
+        message: "Parece que voce esta com varias frentes abertas. Posso te ajudar a escolher uma prioridade agora."
+      };
+    }
+    if (hasAnyTerm(text, ["vamos continuar", "continuar", "segue", "seguimos"])) {
+      return {
+        type: "continue",
+        project: project,
+        message: "Podemos continuar por tres caminhos: ObraReport, Stock IA ou Elo. Qual deles voce quer destravar primeiro?"
+      };
+    }
+    return null;
+  }
+
+  function buildEloInitiativeSuggestion(opportunity, context) {
+    if (!opportunity) {
+      return "";
+    }
+    return opportunity.message || "";
+  }
+
+  function shouldSkipEloInitiative_(answer) {
+    if (!answer) {
+      return true;
+    }
+    const technicalThemes = ["pdf", "rdo", "materiais", "stock_ia", "relatorio", "sistema", "obra"];
+    const technicalIntents = ["ajuda_pdf", "ajuda_rdo", "ajuda_materiais", "ajuda_stock", "ajuda_relatorio", "construction_record", "initiative_opportunity"];
+    return technicalThemes.indexOf(answer.sessionTheme) >= 0 || technicalIntents.indexOf(answer.sessionIntent) >= 0;
+  }
+
+  function attachEloInitiativeToAnswer(answer, opportunity, context) {
+    if (!answer || !opportunity || shouldSkipEloInitiative_(answer)) {
+      return answer;
+    }
+    const next = Object.assign({}, answer);
+    const suggestion = buildEloInitiativeSuggestion(opportunity, context);
+    if (!suggestion) {
+      return next;
+    }
+    if (!next.nextAction || normalizeText(next.nextAction).indexOf(normalizeText(suggestion)) < 0) {
+      next.nextAction = suggestion;
+    }
+    next.eloInitiative = opportunity.type;
+    return next;
+  }
+
   function getLogicalReasoningResponse(question) {
     const intent = detectLogicalReasoningQuestion(question);
     if (!intent) {
@@ -6185,7 +6582,7 @@
 
   function shortenEloAnswerIfNeeded(answer, tone, context, plan) {
     const next = Object.assign({}, answer || {});
-    const protectedIntents = ["biblioteca_local", "conceptual_question", "pergunta_humana", "crise"];
+    const protectedIntents = ["biblioteca_local", "conceptual_question", "pergunta_humana", "crise", "project_advisor", "decision_memory", "initiative_opportunity"];
     const depth = plan && plan.depth ? plan.depth : "curta";
     if (depth === "profunda" || protectedIntents.indexOf(next.sessionIntent) >= 0) {
       return next;
@@ -6228,6 +6625,7 @@
     next.fullAnswer = humanizeEloAnswer(next.fullAnswer, tone, context, plan);
     next = addEloNextStep(next, context, plan);
     next = shortenEloAnswerIfNeeded(next, tone, context, plan);
+    next = attachEloInitiativeToAnswer(next, detectEloInitiativeOpportunity(message, context), context);
     next.communicationTone = tone;
     return next;
   }
@@ -6380,6 +6778,15 @@
     }
     if (hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "qual proximo passo", "o que faco"])) {
       return "continuity";
+    }
+    if (detectProjectAdvisorRequest(message)) {
+      return "project_advisor";
+    }
+    if (buildDecisionMemoryAnswer(message)) {
+      return "decision_memory";
+    }
+    if (detectEloInitiativeOpportunity(message, context)) {
+      return "initiative_opportunity";
     }
     if (hasAnyTerm(text, ["o que voce faz", "o que você faz", "suas funcoes", "suas funções", "capacidades do elo", "como voce ajuda", "como você ajuda"])) {
       return "capabilities";
@@ -6936,6 +7343,23 @@
     }
     if (intent === "continuity") {
       return buildContinuityAnswer_(message);
+    }
+    if (intent === "project_advisor") {
+      return buildProjectAdvisorAnswer(buildLogicalReasoningContext());
+    }
+    if (intent === "decision_memory") {
+      return buildDecisionMemoryAnswer(message);
+    }
+    if (intent === "initiative_opportunity") {
+      const initiative = detectEloInitiativeOpportunity(message, context);
+      return {
+        shortAnswer: "Percebi um ponto importante.",
+        fullAnswer: buildEloInitiativeSuggestion(initiative, context),
+        nextAction: "Se fizer sentido, registre isso na Linha do Tempo ou nas Memorias importantes.",
+        canSave: false,
+        sessionTheme: "iniciativa",
+        sessionIntent: "initiative_opportunity"
+      };
     }
     if (intent === "capabilities") {
       return buildCapabilitiesCardAnswer_();
@@ -9249,6 +9673,17 @@
         nextAction: "Abra Linha do tempo para revisar a carta.",
         sessionIntent: "timeline"
       }, answer);
+      return;
+    }
+
+    const decisionCandidate = buildDecisionSuggestion(cleanQuestion);
+    if (decisionCandidate) {
+      appendTimelineEventPrompt(cleanQuestion, decisionCandidate);
+      saveConversation(cleanQuestion, "O Elo perguntou se deve registrar uma decisao na Linha do Tempo.");
+      rememberSessionTurn(cleanQuestion, {
+        nextAction: "Escolha Registrar ou Nao registrar.",
+        sessionIntent: "decision_timeline"
+      }, "O Elo perguntou se deve registrar uma decisao na Linha do Tempo.");
       return;
     }
 
