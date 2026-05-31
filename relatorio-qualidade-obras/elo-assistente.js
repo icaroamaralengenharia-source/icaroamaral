@@ -5754,7 +5754,180 @@
     return polished;
   }
 
+  function classifyEloTone(message, intent, context) {
+    const text = normalizeEloText(message);
+    const runtime = context && context.runtime ? context.runtime : detectEloRuntimeContext(message);
+
+    if (intent === "greeting" || runtime.isGreeting) {
+      return "saudacao";
+    }
+    if (intent === "library_question" || isEloLibraryQuestion(message)) {
+      return "biblioteca";
+    }
+    if (intent === "memory_question" || runtime.isMemory) {
+      return "memoria";
+    }
+    if (intent === "logical_reasoning" || runtime.isReasoning || hasAnyTerm(text, ["priorizar", "decidir", "decisao", "decisão", "proximo passo", "próximo passo", "caminho certo"])) {
+      return "decisao";
+    }
+    if (hasAnyTerm(text, ["nao vou dar conta", "não vou dar conta", "estou cansado", "estou cansada", "estou perdido", "estou perdida", "medo", "inseguro", "insegura"])) {
+      return "desabafo";
+    }
+    if (intent === "pdf_help" || intent === "rdo_help" || intent === "materials_help" || intent === "stock_help" || intent === "report_help" || runtime.isOperational) {
+      return "duvida_tecnica";
+    }
+    if (intent === "continuity" || hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "o que faco", "o que faço"])) {
+      return "continuidade";
+    }
+    if (hasAnyTerm(text, ["projeto", "produtividade", "foco", "entrega", "vender", "concluir"])) {
+      return "projeto";
+    }
+    return "conversa";
+  }
+
+  function detectEloAnswerDepth_(message) {
+    const text = normalizeEloText(message);
+    if (hasAnyTerm(text, ["explique melhor", "aprofunde", "quero detalhes", "analise completa", "análise completa", "desenvolva melhor", "me de mais contexto", "me dê mais contexto", "resposta completa"])) {
+      return "profunda";
+    }
+    if (hasAnyTerm(text, ["explique", "detalhe", "analise", "análise"])) {
+      return "media";
+    }
+    return "curta";
+  }
+
+  function buildEloConversationPlan(message, context, intent) {
+    const currentContext = context || buildEloCommunicationContext(message);
+    const basePlan = planEloAnswer(message, currentContext);
+    const tone = classifyEloTone(message, intent || classifyEloIntent(message, currentContext), currentContext);
+    return Object.assign({}, basePlan, {
+      tone: tone,
+      intent: intent || "unknown",
+      depth: detectEloAnswerDepth_(message),
+      shouldBeShort: tone !== "duvida_tecnica" && tone !== "biblioteca" && detectEloAnswerDepth_(message) !== "profunda"
+    });
+  }
+
+  function avoidRoboticEloPhrases(answer) {
+    return String(answer || "")
+      .replace(/Como uma IA[, ]*/gi, "")
+      .replace(/Como inteligÃªncia artificial[, ]*/gi, "")
+      .replace(/Como inteligência artificial[, ]*/gi, "")
+      .replace(/NÃ£o tenho emoÃ§Ãµes ou consciÃªncia humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Não tenho emoções ou consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/NÃ£o tenho consciÃªncia humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Não tenho consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Com base nos dados disponÃ­veis/gi, "Pelo que aparece agora")
+      .replace(/Com base nos dados disponíveis/gi, "Pelo que aparece agora")
+      .replace(/NÃ£o encontrei cadastro/gi, "Ainda nao encontrei isso")
+      .replace(/Não encontrei cadastro/gi, "Ainda nao encontrei isso")
+      .replace(/Montei um resumo/gi, "O que aparece")
+      .replace(/Consultei sua base/gi, "Pelo que eu lembro")
+      .replace(/Segundo a estrutura interna/gi, "Na pratica")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function humanizeEloAnswer(answer, tone, context, plan) {
+    let text = avoidRoboticEloPhrases(answer);
+    if (!text) {
+      return text;
+    }
+    if (tone === "saudacao") {
+      text = text
+        .replace(/^estou aqui\./i, "Oi. Estou aqui.")
+        .replace(/^tudo certo por aqui\./i, "Tudo certo por aqui.");
+    }
+    if (tone === "continuidade" && context && !context.hasMemory && text.length < 80) {
+      text = "Posso ajudar por tres caminhos: organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo de um projeto.";
+    }
+    if (plan && plan.depth !== "profunda") {
+      text = text.replace(/^\s*PrÃ³xima aÃ§Ã£o:\s*/gim, "Proxima acao: ");
+    }
+    return text.trim();
+  }
+
+  function splitEloAnswerLines_(text) {
+    return String(text || "").split("\n").map(function (line) {
+      return line.trim();
+    }).filter(Boolean);
+  }
+
+  function shortenEloAnswerIfNeeded(answer, tone, context, plan) {
+    const next = Object.assign({}, answer || {});
+    const protectedIntents = ["biblioteca_local", "conceptual_question", "pergunta_humana", "crise"];
+    const depth = plan && plan.depth ? plan.depth : "curta";
+    if (depth === "profunda" || protectedIntents.indexOf(next.sessionIntent) >= 0) {
+      return next;
+    }
+    const maxLines = depth === "media" || tone === "duvida_tecnica" ? 10 : 5;
+    const lines = splitEloAnswerLines_(next.fullAnswer);
+    if (lines.length > maxLines) {
+      next.fullAnswer = lines.slice(0, maxLines).join("\n");
+    }
+    return next;
+  }
+
+  function addEloNextStep(answer, context, plan) {
+    const next = Object.assign({}, answer || {});
+    if (next.nextAction) {
+      next.nextAction = avoidRoboticEloPhrases(next.nextAction);
+      return next;
+    }
+    if (plan && plan.tone === "biblioteca") {
+      next.nextAction = "Abra Biblioteca do Elo para revisar ou adicionar mais contexto.";
+    } else if (context && context.runtime && context.runtime.isObraReport) {
+      next.nextAction = "Diga se quer criar RDO, lancar material, gerar PDF, usar Stock IA ou pensar no proximo passo.";
+    } else {
+      next.nextAction = "Diga se quer organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo.";
+    }
+    return next;
+  }
+
+  function applyEloCommunicationLayer(message, response) {
+    if (!response) {
+      return response;
+    }
+    const context = buildEloCommunicationContext(message);
+    const intent = response.sessionIntent || classifyEloIntent(message, context);
+    const plan = buildEloConversationPlan(message, context, intent);
+    const tone = classifyEloTone(message, intent, context);
+    let next = Object.assign({}, response);
+
+    next.shortAnswer = humanizeEloAnswer(next.shortAnswer, tone, context, plan);
+    next.fullAnswer = humanizeEloAnswer(next.fullAnswer, tone, context, plan);
+    next = addEloNextStep(next, context, plan);
+    next = shortenEloAnswerIfNeeded(next, tone, context, plan);
+    next.communicationTone = tone;
+    return next;
+  }
+
+  function buildHelpfulFallbackAnswer(message, context) {
+    const currentContext = context || buildEloCommunicationContext(message);
+    const runtime = currentContext.runtime || detectEloRuntimeContext(message);
+    const fullAnswer = runtime.isObraReport
+      ? "Posso te ajudar a criar um RDO, lancar material, gerar PDF, usar o Stock IA, revisar um relatorio ou organizar seu proximo passo."
+      : "Posso ajudar por tres caminhos: organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo de um projeto.";
+    return {
+      shortAnswer: "Ajudo sim.",
+      fullAnswer: fullAnswer,
+      nextAction: runtime.isObraReport
+        ? "Diga: quero criar um RDO, quero lancar material ou quero gerar PDF."
+        : "Diga se quer projeto, memoria, biblioteca ou decisao.",
+      canSave: false,
+      sessionTheme: "comunicacao",
+      sessionIntent: "fallback_comunicativo"
+    };
+  }
+
   function answerWithEloCommunicationEngine(message) {
+    const communicationContext = buildEloCommunicationContext(message);
+    const communicationIntent = classifyEloIntent(message, communicationContext);
+    const communicationPlan = buildEloConversationPlan(message, communicationContext, communicationIntent);
+    const communicationFallback = buildHelpfulFallbackAnswer(message, communicationContext);
+    communicationFallback.fullAnswer = polishEloAnswer(buildEloAnswerDraft(message, communicationContext, communicationPlan) || communicationFallback.fullAnswer, communicationContext, communicationPlan);
+    return applyEloCommunicationLayer(message, communicationFallback);
+
     const context = buildEloCommunicationContext(message);
     const plan = planEloAnswer(message, context);
     return {
@@ -5854,6 +6027,9 @@
     if (saveName) {
       return "save_user_name";
     }
+    if (hasAnyTerm(text, ["voce e humano", "voce esta vivo", "voce sente emocao", "voce sente emocoes", "voce tem consciencia"])) {
+      return "elo_limits";
+    }
     if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
       return "user_name_question";
     }
@@ -5871,6 +6047,9 @@
     }
     if (detectGuidedActionType_(text)) {
       return "guided_action";
+    }
+    if (hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "qual proximo passo", "o que faco"])) {
+      return "continuity";
     }
     if (hasAnyTerm(text, ["o que voce faz", "o que você faz", "suas funcoes", "suas funções", "capacidades do elo", "como voce ajuda", "como você ajuda"])) {
       return "capabilities";
@@ -5908,7 +6087,58 @@
     return "unknown";
   }
 
+  function buildEloLimitsAnswer_() {
+    return {
+      shortAnswer: "Nao sou uma pessoa.",
+      fullAnswer: "Fui criado para acompanhar sua jornada usando memoria, contexto e organizacao.",
+      nextAction: "Posso te ajudar a pensar uma decisao, revisar sua biblioteca ou organizar o proximo passo.",
+      canSave: false,
+      sessionTheme: "elo",
+      sessionIntent: "limites_elo"
+    };
+  }
+
+  function buildContinuityAnswer_(message) {
+    const context = buildEloCommunicationContext(message);
+    const focus = context.focus || (context.projects && context.projects[0]) || "";
+    let fullAnswer = "";
+
+    if (focus) {
+      fullAnswer = "Eu começaria pelo que destrava mais coisas agora: " + focus + ".\n\nSe a ideia é avançar sem abrir outra frente, escolha uma entrega pequena e conclua hoje.";
+    } else if (context.projects && context.projects.length) {
+      fullAnswer = "Vejo alguns projetos na sua jornada: " + formatNarrativeList(context.projects.slice(0, 3)) + ".\n\nO melhor próximo passo é escolher um deles e definir uma entrega pequena.";
+    } else {
+      fullAnswer = "Posso ajudar por tres caminhos: organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo de um projeto.";
+    }
+
+    return {
+      shortAnswer: "Vamos por partes.",
+      fullAnswer: fullAnswer,
+      nextAction: "Diga qual projeto ou ideia voce quer destravar primeiro.",
+      canSave: false,
+      sessionTheme: "continuidade",
+      sessionIntent: "continuidade"
+    };
+  }
+
   function buildEloIdentityAnswer_() {
+    const identityContext = buildEloIdentityContext();
+    const modeLine = identityContext.currentMode === "obrareport"
+      ? "Aqui dentro do ObraReport, tambem atuo como copiloto tecnico para relatorios, RDO, PDF, materiais e Stock IA."
+      : "Fora do ObraReport, continuo sendo o mesmo Elo: posso ajudar com memoria, projetos, decisoes, biblioteca e organizacao de ideias.";
+    return {
+      shortAnswer: "Eu sou o Elo.",
+      fullAnswer: [
+        "Fui criado para acompanhar ideias, memorias, projetos e decisoes ao longo do tempo.",
+        "Posso ajudar a organizar informacoes, encontrar padroes e conectar o que voce ja construiu.",
+        modeLine
+      ].join("\n\n"),
+      nextAction: "Diga se quer revisar memoria, biblioteca, projeto ou uma decisao.",
+      canSave: false,
+      sessionTheme: "elo",
+      sessionIntent: "identidade_elo"
+    };
+
     const identity = buildEloIdentityContext();
     const fullAnswer = [
       "Eu sou o Elo. Um companheiro digital criado para acompanhar sua jornada, ajudar você a organizar ideias, lembrar projetos, pensar com clareza e executar melhor.",
@@ -6178,6 +6408,15 @@
   }
 
   function buildCapabilitiesCardAnswer_() {
+    return {
+      shortAnswer: "Eu ajudo a lembrar, organizar e decidir melhor.",
+      fullAnswer: "Posso ajudar a lembrar informacoes importantes, organizar projetos, consultar sua biblioteca, comparar ideias e responder com base na sua jornada.",
+      nextAction: "Diga se quer ajuda com projeto, memoria, biblioteca, ObraReport ou uma decisao.",
+      canSave: false,
+      sessionTheme: "capacidades",
+      sessionIntent: "capabilities"
+    };
+
     const identity = buildEloIdentityContext();
     const intro = identity.currentMode === "standalone"
       ? "Eu posso ajudar em 5 áreas da sua jornada."
@@ -6335,6 +6574,9 @@
 
   function buildEloOperationalAnswer(message, context) {
     const intent = classifyEloIntent(message, context);
+    if (intent === "elo_limits") {
+      return buildEloLimitsAnswer_();
+    }
     if (intent === "elo_identity") {
       return buildEloIdentityAnswer_();
     }
@@ -6355,6 +6597,9 @@
     }
     if (intent === "guided_action") {
       return buildGuidedActionAnswer_(message);
+    }
+    if (intent === "continuity") {
+      return buildContinuityAnswer_(message);
     }
     if (intent === "capabilities") {
       return buildCapabilitiesCardAnswer_();
@@ -8686,7 +8931,7 @@
       return;
     }
 
-    const response = buildResponse(cleanQuestion);
+    const response = applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
     const answer = formatResponse(response);
     response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
     appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
