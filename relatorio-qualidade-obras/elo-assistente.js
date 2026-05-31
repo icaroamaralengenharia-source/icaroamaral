@@ -5085,6 +5085,559 @@
     return buildPersonalPatternAnswer(intent);
   }
 
+  function detectLogicalReasoningQuestion(message) {
+    const text = normalizeText(message);
+    if (hasAnyTerm(text, [
+      "como gerar pdf",
+      "gerar pdf",
+      "como criar rdo",
+      "como criar relatorio",
+      "como criar relatório",
+      "como adicionar materiais",
+      "como registrar materiais",
+      "qual plano",
+      "como contratar"
+    ])) {
+      return null;
+    }
+    if (hasAnyTerm(text, ["o que esta travando", "o que está travando", "o que esta me travando", "o que está me travando", "o que esta me atrasando", "o que está me atrasando", "travando", "atrasando", "bloqueio", "bloqueios"])) {
+      return "obstacle";
+    }
+    if (hasAnyTerm(text, ["o que devo priorizar", "devo priorizar", "qual projeto devo terminar primeiro", "projeto devo terminar", "onde devo focar", "em que devo focar", "prioridade", "priorizar"])) {
+      return "priority";
+    }
+    if (hasAnyTerm(text, ["o que devo fazer agora", "qual meu proximo passo", "qual meu próximo passo", "proximo passo", "próximo passo", "o que falta para vender", "o que falta concluir", "o que falta pra vender", "o que falta pra concluir"])) {
+      return "next_step";
+    }
+    if (/\bou\b/.test(text) || hasAnyTerm(text, ["me ajude a decidir", "decisao mais logica", "decisão mais lógica", "qual caminho seguir", "qual vale mais a pena", "decidir"])) {
+      return "decision";
+    }
+    if (hasAnyTerm(text, ["estou no caminho certo", "estou indo bem", "isso vale a pena", "faz sentido continuar", "caminho certo"])) {
+      return "direction";
+    }
+    return null;
+  }
+
+  function buildLogicalReasoningContext() {
+    const snapshot = getConnectedMemorySnapshot();
+    const projectSignals = collectProjectSignals(snapshot);
+    const projects = projectSignals.length
+      ? projectSignals.map(function (signal) { return signal.name; })
+      : (snapshot.projects || []);
+    return {
+      snapshot: snapshot,
+      hasMemory: hasNarrativeJourneyData(snapshot),
+      projects: projects.slice(0, 8),
+      goals: (snapshot.goals || []).slice(0, 5),
+      recentEvents: (snapshot.recentEvents || []).slice(0, 5),
+      projectSignals: projectSignals,
+      mainProject: snapshot.mainProject || snapshot.mostMentionedProject || projects[0] || "",
+      currentGoal: (snapshot.goals || [])[0] || "",
+      screen: getCurrentScreenContext()
+    };
+  }
+
+  function formatLogicalProjectOptions_(context) {
+    if (!context.projects.length) {
+      return "Ainda não tenho projetos suficientes registrados para comparar com segurança.";
+    }
+    return context.projects.slice(0, 5).map(function (project, index) {
+      return (index + 1) + ". " + project;
+    }).join("\n");
+  }
+
+  function getProjectCommercialHint_(projectName) {
+    const text = normalizeText(projectName);
+    if (text.indexOf("obrareport") >= 0 || text.indexOf("stock ia") >= 0) {
+      return "mais próximo de entrega comercial";
+    }
+    if (text.indexOf("elo") >= 0 || text.indexOf("cadista") >= 0) {
+      return "com potencial maior, mas provavelmente mais evolutivo";
+    }
+    return "precisa ser avaliado pelo próximo resultado concreto";
+  }
+
+  function buildProjectPriorityAnalysis_(context) {
+    if (!context.projects.length) {
+      return [
+        "Contexto percebido:\nAinda tenho poucos projetos registrados para montar uma prioridade real.",
+        "Opções encontradas:\nRegistre seus projetos, objetivos ou marcos na Linha do Tempo para eu comparar sem inventar dados.",
+        "Critério de comparação:\nproximidade de entrega, utilidade prática, potencial comercial e dependências.",
+        "Conclusão lógica:\ncomece pela frente que consegue virar uma entrega demonstrável mais rápido.",
+        "Próxima ação pequena:\nregistre 2 ou 3 projetos ativos e marque qual deles precisa vender primeiro."
+      ].join("\n\n");
+    }
+
+    const topProjects = context.projects.slice(0, 3);
+    const closest = topProjects[0];
+    const commercial = topProjects.find(function (project) {
+      const text = normalizeText(project);
+      return text.indexOf("obrareport") >= 0 || text.indexOf("stock ia") >= 0;
+    }) || closest;
+    const experimental = topProjects.find(function (project) {
+      const text = normalizeText(project);
+      return text.indexOf("elo") >= 0 || text.indexOf("cadista") >= 0;
+    }) || topProjects[topProjects.length - 1];
+
+    return [
+      "Contexto percebido:\nPelo que eu acompanho, existem frentes com pesos diferentes na sua jornada.",
+      "Opções encontradas:\n" + formatLogicalProjectOptions_(context),
+      "Critério de comparação:\nproximidade de conclusão, utilidade prática, potencial comercial, dependências e frequência de aparição nas suas memórias.",
+      "Projetos mais próximos de conclusão:\n" + topProjects.map(function (project, index) {
+        return (index + 1) + ". " + project + " — " + getProjectCommercialHint_(project) + ".";
+      }).join("\n"),
+      "Projeto mais próximo de gerar resultado:\n" + commercial + ".",
+      "Projeto mais experimental:\n" + experimental + ".",
+      "Conclusão lógica:\npriorizar " + commercial + " parece mais seguro se o critério for resultado prático no curto prazo.",
+      "Próxima ação pequena:\nfechar uma entrega demonstrável antes de abrir outra frente grande."
+    ].join("\n\n");
+  }
+
+  function buildNextStepRecommendation_(context) {
+    const focus = context.mainProject || context.projects[0] || "";
+    const goal = context.currentGoal || "";
+    if (!focus && !goal) {
+      return [
+        "Contexto percebido:\nAinda tenho pouco contexto salvo sobre seu foco atual.",
+        "Opções encontradas:\norganizar projetos, definir um objetivo da semana ou registrar um marco recente.",
+        "Critério de comparação:\na ação que desbloqueia mais decisões com menor esforço.",
+        "Conclusão lógica:\no melhor próximo passo é escolher uma única frente para terminar primeiro.",
+        "Próxima ação pequena:\nescreva o projeto principal e uma entrega que pode ser validada hoje."
+      ].join("\n\n");
+    }
+    return [
+      "Contexto percebido:\n" + (focus ? "Seu foco mais visível parece ser " + focus + "." : "Seu objetivo mais visível é " + goal + "."),
+      "Opções encontradas:\n" + [
+        focus ? "- continuar " + focus : "",
+        goal ? "- avançar no objetivo: " + goal : "",
+        "- revisar pendências antes de criar algo novo"
+      ].filter(Boolean).join("\n"),
+      "Critério de comparação:\na ação que deixa o projeto mais próximo de uso real ou venda.",
+      "Conclusão lógica:\neu começaria pela ação que destrava mais coisas e reduz dispersão.",
+      "Próxima ação pequena:\nvalidar o ciclo atual, registrar o que falta e concluir uma entrega testável."
+    ].join("\n\n");
+  }
+
+  function extractDecisionOptions_(message, context) {
+    const clean = sanitizeUserText(message).replace(/^elo[,.\s]+/i, "");
+    const match = clean.match(/(?:devo\s+)?(.+?)\s+ou\s+(.+?)(?:[?.!]|$)/i);
+    if (match) {
+      return [
+        sanitizeLibraryText(match[1], 80),
+        sanitizeLibraryText(match[2], 80)
+      ].filter(Boolean);
+    }
+    return context.projects.slice(0, 2);
+  }
+
+  function buildDecisionAnalysis_(context, message) {
+    const options = extractDecisionOptions_(message, context);
+    const optionA = options[0] || "opção A";
+    const optionB = options[1] || "opção B";
+    const hasRealOptions = options.length >= 2;
+
+    if (!hasRealOptions) {
+      return [
+        "Contexto percebido:\nVocê está pedindo ajuda para decidir, mas ainda não tenho duas opções explícitas para comparar.",
+        "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda não há opções suficientes registradas."),
+        "Critério principal:\ncompare retorno prático, risco, esforço e o que cada opção destrava agora.",
+        "Conclusão lógica:\nsem duas opções claras, a decisão mais segura é formular a escolha antes de escolher.",
+        "Próxima ação pequena:\nescreva no formato: devo fazer A ou B?"
+      ].join("\n\n");
+    }
+
+    return [
+      "Contexto percebido:\nVocê está pedindo uma decisão, não só uma resposta rápida.",
+      "Opções encontradas:\n- " + optionA + "\n- " + optionB,
+      "Vantagens da opção A:\n" + (hasRealOptions ? "pode ser melhor se estiver mais próxima de uma entrega concreta." : "preciso que você nomeie a primeira opção para comparar melhor."),
+      "Vantagens da opção B:\n" + (hasRealOptions ? "pode ser melhor se remover um bloqueio importante ou tiver maior retorno agora." : "preciso que você nomeie a segunda opção para comparar melhor."),
+      "Critério principal:\npriorize o caminho que gera aprendizado real, venda, validação ou redução de risco mais rápido.",
+      "Recomendação:\neu posso estar errado, mas escolheria a opção mais próxima de uma entrega testável, não necessariamente a mais empolgante.",
+      "Próxima ação pequena:\ndefina uma entrega de até 24 horas para a opção escolhida."
+    ].join("\n\n");
+  }
+
+  function buildObstacleAnalysis_(context) {
+    const manyFronts = context.projects.length >= 3;
+    const hasGoal = Boolean(context.currentGoal);
+    return [
+      "Contexto percebido:\n" + (context.hasMemory ? "Pelo que eu acompanho, já existem sinais suficientes para observar padrões com cuidado." : "Ainda tenho poucos dados salvos, então vou responder sem afirmar mais do que sei."),
+      "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda não há projetos suficientes registrados para comparar."),
+      "Critério de comparação:\nquantidade de frentes abertas, clareza do objetivo atual e proximidade de conclusão.",
+      "Conclusão lógica:\n" + (manyFronts
+        ? "o bloqueio principal parece menos técnico e mais ligado a foco: muitas possibilidades abertas ao mesmo tempo."
+        : (hasGoal ? "o bloqueio pode estar em transformar o objetivo em uma ação pequena e verificável." : "o bloqueio mais provável é falta de uma próxima ação claramente definida.")),
+      "Próxima ação pequena:\n" + (manyFronts ? "escolha uma frente principal para os próximos 7 dias." : "escreva uma tarefa pequena que possa ser concluída hoje.")
+    ].join("\n\n");
+  }
+
+  function buildPathDirectionAnalysis_(context) {
+    const focus = context.mainProject || context.currentGoal || "";
+    return [
+      "Contexto percebido:\n" + (focus ? "O foco que mais aparece agora é " + focus + "." : "Ainda tenho pouco contexto salvo para avaliar sua direção com firmeza."),
+      "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "organizar o foco, registrar objetivos e validar uma entrega pequena."),
+      "Critério de comparação:\nutilidade prática, potencial comercial, continuidade e redução de dispersão.",
+      "Conclusão lógica:\n" + (focus
+        ? "se o objetivo for construir algo útil e comercial, os avanços parecem apontar nessa direção. O maior risco é espalhar energia entre muitas frentes."
+        : "o caminho fica mais claro quando você transforma uma ideia grande em uma próxima entrega pequena."),
+      "Próxima ação pequena:\nvalidar o ciclo atual antes de abrir novas funcionalidades."
+    ].join("\n\n");
+  }
+
+  function buildLogicalReasoningAnswer(message, context) {
+    const intent = detectLogicalReasoningQuestion(message);
+    if (!intent) {
+      return null;
+    }
+    const currentContext = context || buildLogicalReasoningContext();
+    const answerMap = {
+      priority: buildProjectPriorityAnalysis_(currentContext),
+      next_step: buildNextStepRecommendation_(currentContext),
+      decision: buildDecisionAnalysis_(currentContext, message),
+      obstacle: buildObstacleAnalysis_(currentContext),
+      direction: buildPathDirectionAnalysis_(currentContext)
+    };
+    const nextActionMap = {
+      priority: "Escolha uma frente principal e uma entrega demonstrável.",
+      next_step: "Concluir uma ação pequena que destrave o ciclo atual.",
+      decision: "Compare as opções pelo resultado que cada uma destrava agora.",
+      obstacle: "Reduza a quantidade de frentes abertas por alguns dias.",
+      direction: "Valide o ciclo atual antes de abrir novas funcionalidades."
+    };
+    return {
+      shortAnswer: "Vou raciocinar por partes, sem fingir certeza.",
+      fullAnswer: answerMap[intent] || buildNextStepRecommendation_(currentContext),
+      nextAction: nextActionMap[intent] || "Escolha uma próxima ação pequena.",
+      canSave: false,
+      sessionTheme: "raciocinio",
+      sessionIntent: "raciocinio_logico"
+    };
+  }
+
+  function getLogicalReasoningResponse(question) {
+    const intent = detectLogicalReasoningQuestion(question);
+    if (!intent) {
+      return null;
+    }
+    return buildLogicalReasoningAnswer(question, buildLogicalReasoningContext());
+  }
+
+  function normalizeEloText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[?!.,;:]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function stripEloMentionForIntent_(message) {
+    return normalizeEloText(message).replace(/^elo\s+/, "").trim();
+  }
+
+  function detectUserNameSave_(message) {
+    const clean = sanitizeUserText(message).replace(/[.!?]+$/g, "").trim();
+    const match = clean.match(/^(?:meu nome (?:e|é)|pode me chamar de|me chame de|sou)\s+(.+)$/i);
+    if (!match) {
+      return "";
+    }
+    return sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
+  }
+
+  function classifyEloIntent(message, context) {
+    const text = stripEloMentionForIntent_(message);
+    const saveName = detectUserNameSave_(message);
+    if (saveName) {
+      return "save_user_name";
+    }
+    if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
+      return "user_name_question";
+    }
+    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
+      return "elo_identity";
+    }
+    if (detectSocialGreeting(message)) {
+      return "greeting";
+    }
+    if (detectLogicalReasoningQuestion(message)) {
+      return "logical_reasoning";
+    }
+    if (detectNarrativeMemoryQuestion(message) || hasAnyTerm(text, ["meus projetos", "linha do tempo", "o que voce lembra", "o que você lembra"])) {
+      return "memory_question";
+    }
+    if (hasAnyTerm(text, ["como uso o sistema", "como usar o sistema", "nunca usei", "por onde comeco", "por onde começo", "onde cadastro obra", "onde cadastrar obra", "onde cadastro cliente", "como envio para cliente", "como usar obrareport", "como funciona o obrareport", "o que e obrareport", "o que é obrareport"])) {
+      return "system_help";
+    }
+    if (hasAnyTerm(text, ["rdo", "diario de obra", "diario de obras", "diário de obra", "diário de obras", "servico executado", "serviço executado", "producao executada", "produção executada"])) {
+      return "rdo_help";
+    }
+    if (hasAnyTerm(text, ["stock ia", "estoque", "almoxarifado", "materiais acabando", "entrada por nota", "saldo de estoque"])) {
+      return "stock_help";
+    }
+    if (hasAnyTerm(text, ["material", "materiais", "consumo", "lancei", "alvenaria", "cimento", "bloco", "areia"])) {
+      return "materials_help";
+    }
+    if (hasAnyTerm(text, ["pdf", "gerar pdf", "exportar pdf"])) {
+      return "pdf_help";
+    }
+    if (hasAnyTerm(text, ["relatorio tecnico", "relatório técnico", "relatorio", "relatório", "vistoria", "laudo"])) {
+      return "report_help";
+    }
+    if (getConceptResponse(message) || getPhilosophyResponse(message)) {
+      return "conceptual_question";
+    }
+    return "unknown";
+  }
+
+  function buildEloIdentityAnswer_() {
+    return {
+      shortAnswer: "Eu sou o Elo.",
+      fullAnswer: [
+        "Sou o assistente inteligente do ObraReport.",
+        "Posso ajudar com relatórios, RDO, PDF, materiais, Stock IA, memória, projetos e próximos passos.",
+        "Minha função é entender o que você está tentando fazer e te orientar da forma mais simples possível."
+      ].join("\n\n"),
+      nextAction: "Pergunte algo como: como uso o sistema? ou o que devo priorizar?",
+      canSave: false,
+      sessionTheme: "elo",
+      sessionIntent: "identidade_elo"
+    };
+  }
+
+  function buildUserNameQuestionAnswer_() {
+    const name = getPreferredUserName();
+    return {
+      shortAnswer: name ? "Você me pediu para chamar você de " + name + "." : "Ainda não sei o seu nome.",
+      fullAnswer: name
+        ? "Esse nome fica salvo apenas neste navegador."
+        : "Se quiser, diga: Meu nome é Ícaro.\n\nDepois disso eu posso lembrar como devo chamar você.",
+      nextAction: name ? "Se quiser mudar, diga: pode me chamar de outro nome." : "Diga seu nome se quiser que eu personalize as respostas.",
+      canSave: false,
+      sessionTheme: "perfil",
+      sessionIntent: "nome_usuario"
+    };
+  }
+
+  function buildSaveUserNameAnswer_(message) {
+    const name = detectUserNameSave_(message);
+    if (!name || isInvalidUserNameAnswer_(name)) {
+      const greeting = getSocialGreetingResponse(message);
+      return greeting || {
+        shortAnswer: "Não vou salvar isso como nome.",
+        fullAnswer: "Para evitar confusão, eu não salvo cumprimentos ou comandos como nome. Se quiser, diga algo como: Meu nome é Ícaro.",
+        nextAction: "Diga apenas o nome que devo usar.",
+        canSave: false,
+        sessionTheme: "perfil",
+        sessionIntent: "nome_invalido"
+      };
+    }
+    const currentProfile = getUserProfile();
+    setUserProfile(Object.assign({}, currentProfile, { userName: name }));
+    return {
+      shortAnswer: "Perfeito, " + name + ".",
+      fullAnswer: "Vou me referir a você assim. Esse nome fica salvo apenas neste navegador.",
+      nextAction: "Agora posso responder com mais contexto quando você pedir memória, foco ou próximos passos.",
+      canSave: false,
+      sessionTheme: "perfil",
+      sessionIntent: "salvar_nome"
+    };
+  }
+
+  function buildSystemHelpAnswer_() {
+    return {
+      shortAnswer: "Eu te guio.",
+      fullAnswer: [
+        "Comece assim:",
+        "1. Cadastre ou selecione uma obra.",
+        "2. Crie um relatório técnico ou um RDO.",
+        "3. Registre fotos, ocorrências e serviços executados.",
+        "4. Lance materiais consumidos, se houver.",
+        "5. Gere o PDF ou resumo para enviar ao cliente.",
+        "",
+        "Se quiser testar rápido, use:",
+        "- Gerar RDO agora",
+        "- Testar materiais",
+        "- Ver exemplo de PDF"
+      ].join("\n"),
+      nextAction: "Se estiver começando, abra Diário de Obras ou Relatórios.",
+      canSave: false,
+      sessionTheme: "sistema",
+      sessionIntent: "ajuda_sistema"
+    };
+  }
+
+  function buildRdoHelpAnswer_() {
+    return {
+      shortAnswer: "O RDO é o registro diário da obra.",
+      fullAnswer: [
+        "Nele você registra:",
+        "- condições do tempo;",
+        "- equipe;",
+        "- serviços executados;",
+        "- ocorrências;",
+        "- fotos;",
+        "- materiais consumidos;",
+        "- observações.",
+        "",
+        "O mais importante é começar pelo que foi executado hoje.",
+        "Exemplo: 12 m² de alvenaria."
+      ].join("\n"),
+      nextAction: "Abra Diário de Obras e registre o serviço executado de hoje.",
+      canSave: false,
+      sessionTheme: "rdo",
+      sessionIntent: "ajuda_rdo"
+    };
+  }
+
+  function buildMaterialsHelpAnswer_() {
+    return {
+      shortAnswer: "Para registrar materiais, pense em produção e consumo.",
+      fullAnswer: [
+        "1. O que foi executado.",
+        "Exemplo: 12 m² de alvenaria.",
+        "",
+        "2. O que foi consumido.",
+        "Exemplo: 30 blocos cerâmicos, 1 saco de cimento e areia.",
+        "",
+        "Com isso, o sistema pode comparar produção, consumo real, consumo previsto e estoque disponível."
+      ].join("\n"),
+      nextAction: "No RDO, registre primeiro a produção executada e depois os materiais consumidos.",
+      canSave: false,
+      sessionTheme: "materiais",
+      sessionIntent: "ajuda_materiais"
+    };
+  }
+
+  function buildStockHelpAnswer_() {
+    return {
+      shortAnswer: "O Stock IA é o controle inteligente de materiais.",
+      fullAnswer: [
+        "Ele ajuda com:",
+        "- entrada por nota;",
+        "- saldo de estoque;",
+        "- baixa de consumo;",
+        "- materiais acabando;",
+        "- comparação entre o que entrou, o que saiu e o que foi executado na obra.",
+        "",
+        "Nesta versão, tudo funciona localmente e usa os dados do RDO e do cadastro de estoque."
+      ].join("\n"),
+      nextAction: "Abra Stock IA para ver saldo, alertas, lista de compras e entrada por nota.",
+      canSave: false,
+      sessionTheme: "stock_ia",
+      sessionIntent: "ajuda_stock"
+    };
+  }
+
+  function buildPdfHelpAnswer_() {
+    return {
+      shortAnswer: "O PDF é o documento final para apresentar ao cliente.",
+      fullAnswer: [
+        "Antes de gerar, confira:",
+        "- dados da obra;",
+        "- fotos;",
+        "- descrições;",
+        "- ocorrências;",
+        "- conclusão;",
+        "- responsável técnico.",
+        "",
+        "Depois use o botão de gerar PDF."
+      ].join("\n"),
+      nextAction: "Abra o relatório ou RDO, revise os campos principais e clique em Gerar PDF.",
+      canSave: false,
+      sessionTheme: "pdf",
+      sessionIntent: "ajuda_pdf"
+    };
+  }
+
+  function buildReportHelpAnswer_() {
+    return {
+      shortAnswer: "Um bom relatório técnico precisa ser claro, objetivo e ter evidências.",
+      fullAnswer: [
+        "Estrutura recomendada:",
+        "1. Identificação da obra.",
+        "2. Descrição do problema ou vistoria.",
+        "3. Fotos.",
+        "4. Análise técnica.",
+        "5. Recomendações.",
+        "6. Conclusão."
+      ].join("\n"),
+      nextAction: "Abra Relatórios, selecione cliente e obra, e comece pela descrição da vistoria.",
+      canSave: false,
+      sessionTheme: "relatorio",
+      sessionIntent: "ajuda_relatorio"
+    };
+  }
+
+  function buildTimelineOperationalAnswer_() {
+    const timeline = getTimelineStorage();
+    const events = (timeline.events || []).slice().sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    }).slice(0, 3);
+    return {
+      shortAnswer: "A Linha do Tempo guarda acontecimentos importantes da sua jornada.",
+      fullAnswer: events.length
+        ? [
+          "Ela serve para registrar marcos, ideias, conquistas, dificuldades, objetivos e cartas para o futuro.",
+          "",
+          "Registros recentes:",
+          events.map(formatTimelineEventLine).join("\n")
+        ].join("\n")
+        : "Ela serve para registrar marcos, ideias, conquistas, dificuldades, objetivos e cartas para o futuro.\n\nAinda não há eventos registrados na sua Linha do Tempo.",
+      nextAction: "Abra Ferramentas do Elo > Linha do tempo para adicionar ou exportar registros.",
+      canSave: false,
+      sessionTheme: "timeline",
+      sessionIntent: "ajuda_timeline"
+    };
+  }
+
+  function buildEloOperationalAnswer(message, context) {
+    const intent = classifyEloIntent(message, context);
+    if (intent === "elo_identity") {
+      return buildEloIdentityAnswer_();
+    }
+    if (intent === "user_name_question") {
+      return buildUserNameQuestionAnswer_();
+    }
+    if (intent === "save_user_name") {
+      return buildSaveUserNameAnswer_(message);
+    }
+    if (intent === "greeting") {
+      return getSocialGreetingResponse(message);
+    }
+    if (intent === "system_help") {
+      return buildSystemHelpAnswer_();
+    }
+    if (intent === "rdo_help") {
+      return buildRdoHelpAnswer_();
+    }
+    if (intent === "materials_help") {
+      return buildMaterialsHelpAnswer_();
+    }
+    if (intent === "stock_help") {
+      return buildStockHelpAnswer_();
+    }
+    if (intent === "pdf_help") {
+      return buildPdfHelpAnswer_();
+    }
+    if (intent === "report_help") {
+      return buildReportHelpAnswer_();
+    }
+    if (intent === "memory_question") {
+      if (hasAnyTerm(normalizeEloText(message), ["linha do tempo"])) {
+        return buildTimelineOperationalAnswer_();
+      }
+      return getNarrativeMemoryResponse(message) || answerConnectedMemoryQuestion(message) || answerTimelineQuestion(message) || answerProjectQuestion(message);
+    }
+    if (intent === "logical_reasoning") {
+      return getLogicalReasoningResponse(message);
+    }
+    if (intent === "conceptual_question") {
+      return getConceptResponse(message) || getPhilosophyResponse(message);
+    }
+    return null;
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -5103,6 +5656,13 @@
       return getCrisisSupportResponse();
     }
 
+    const operationalAnswer = buildEloOperationalAnswer(cleanQuestion, {
+      screen: getCurrentScreenContext()
+    });
+    if (operationalAnswer) {
+      return operationalAnswer;
+    }
+
     const socialGreetingAnswer = getSocialGreetingResponse(cleanQuestion);
     if (socialGreetingAnswer) {
       return socialGreetingAnswer;
@@ -5115,6 +5675,11 @@
     const narrativeMemoryAnswer = getNarrativeMemoryResponse(cleanQuestion);
     if (narrativeMemoryAnswer) {
       return narrativeMemoryAnswer;
+    }
+
+    const logicalReasoningAnswer = getLogicalReasoningResponse(cleanQuestion);
+    if (logicalReasoningAnswer) {
+      return logicalReasoningAnswer;
     }
 
     const personalPatternAnswer = getPersonalPatternResponse(cleanQuestion);
@@ -5246,9 +5811,16 @@
     }
 
     return {
-      shortAnswer: "Ainda não encontrei isso na minha memória nem na base do ObraReport.",
-      fullAnswer: "Na próxima evolução, vou poder buscar na internet, resumir e salvar para você.",
-      nextAction: "Tente perguntar sobre relatórios, PDF, RDO, materiais, fotos, planos ou suporte.",
+      shortAnswer: "Eu ainda não encontrei essa informação específica na memória.",
+      fullAnswer: [
+        "Mas posso ajudar de três formas:",
+        "1. Explicar como usar o ObraReport.",
+        "2. Ajudar com RDO, PDF, materiais ou Stock IA.",
+        "3. Guardar essa informação para lembrar depois.",
+        "",
+        "Se quiser, reformule com mais contexto."
+      ].join("\n"),
+      nextAction: "Pergunte: como uso o sistema? ou o que devo priorizar?",
       canSave: false
     };
   }
@@ -7057,21 +7629,22 @@
   function getContextSuggestions(context) {
     if (isStandaloneMode()) {
       return [
-        { label: "Quem é você?", question: "Quem é você?" },
-        { label: "O que lembra de mim?", question: "O que você lembra de mim?" },
-        { label: "Meus projetos", question: "Quais são meus projetos?" },
-        { label: "Linha do tempo", question: "O que aconteceu recentemente?" },
-        { label: "O que é amor?", question: "O que é amor?" }
+        { label: "Como usar o sistema?", question: "Como usar o sistema?" },
+        { label: "Como criar RDO?", question: "Como criar um RDO?" },
+        { label: "Registrar materiais", question: "Como registrar materiais?" },
+        { label: "Gerar PDF", question: "Como gerar PDF?" },
+        { label: "O que priorizar?", question: "O que devo priorizar?" }
       ];
     }
 
     const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     const suggestionMap = {
       Dashboard: [
-        ["O que devo fazer agora?", "O que devo fazer agora?"],
-        ["Resuma esta tela", "Resuma esta tela"],
-        ["Quais indicadores aparecem?", "Quais indicadores aparecem?"],
-        ["Como começar?", "Como começar?"]
+        ["Como usar o sistema?", "Como usar o sistema?"],
+        ["Criar RDO", "Como criar um RDO?"],
+        ["Registrar materiais", "Como registrar materiais?"],
+        ["O que priorizar?", "O que devo priorizar?"],
+        ["O que lembra de mim?", "O que você lembra de mim?"]
       ],
       Relatórios: [
         ["Posso gerar o PDF?", "Posso gerar o PDF?"],
@@ -7083,8 +7656,8 @@
         ["O que falta preencher?", "O que falta preencher?"],
         ["Tenho materiais registrados?", "Tenho materiais registrados?"],
         ["Tenho produção lançada?", "Tenho produção lançada?"],
-        ["Posso gerar o PDF do Diário?", "Posso gerar o PDF do Diário?"],
-        ["Revisar RDO", "Revisar RDO"]
+        ["Como registrar materiais?", "Como registrar materiais?"],
+        ["Gerar PDF", "Como gerar PDF?"]
       ],
       Planos: [
         ["Qual plano escolher?", "Qual plano escolher?"],
@@ -7281,6 +7854,16 @@
         rememberSessionTurn(cleanQuestion, response, answer);
         return;
       }
+    }
+
+    const directNameIntent = detectUserNameSave_(cleanQuestion);
+    if (directNameIntent) {
+      const response = buildSaveUserNameAnswer_(cleanQuestion);
+      const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      return;
     }
 
     if (isCrisisQuestion(normalizeText(cleanQuestion))) {
