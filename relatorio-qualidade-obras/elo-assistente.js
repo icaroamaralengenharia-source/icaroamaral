@@ -6355,6 +6355,209 @@
     return next;
   }
 
+  function isTechnicalSynthesisBlocker_(message) {
+    const text = normalizeText(message);
+    return hasAnyTerm(text, [
+      "como gerar pdf",
+      "gerar pdf",
+      "como abrir rdo",
+      "como criar rdo",
+      "como lancar material",
+      "como lançar material",
+      "como registrar material",
+      "como registrar materiais",
+      "como usar stock ia",
+      "como funciona stock ia",
+      "o que devo priorizar",
+      "qual projeto devo focar",
+      "qual projeto devo terminar primeiro"
+    ]);
+  }
+
+  function detectSynthesisRequest(message) {
+    const text = normalizeText(message);
+    if (!text || isTechnicalSynthesisBlocker_(message)) {
+      return false;
+    }
+    return hasAnyTerm(text, [
+      "o que voce acha que eu deveria fazer",
+      "o que você acha que eu deveria fazer",
+      "o que eu faco agora",
+      "o que eu faço agora",
+      "o que faco agora",
+      "o que faço agora",
+      "me de uma orientacao",
+      "me dê uma orientação",
+      "o que faz mais sentido agora",
+      "o que faz mais sentido",
+      "qual caminho eu devo seguir",
+      "estou perdido",
+      "estou perdida",
+      "me ajuda a pensar",
+      "qual meu proximo passo",
+      "qual meu próximo passo"
+    ]);
+  }
+
+  function detectRecommendationRequest(message) {
+    const text = normalizeText(message);
+    if (!text || isTechnicalSynthesisBlocker_(message)) {
+      return false;
+    }
+    return hasAnyTerm(text, [
+      "qual e sua recomendacao",
+      "qual é sua recomendação",
+      "sua recomendacao",
+      "sua recomendação",
+      "qual caminho eu devo seguir",
+      "qual e a melhor decisao",
+      "qual é a melhor decisão",
+      "o que voce recomenda",
+      "o que você recomenda",
+      "o que recomenda"
+    ]);
+  }
+
+  function buildEloSynthesisContext(message, context) {
+    const snapshot = getConnectedMemorySnapshot();
+    const logicalContext = buildLogicalReasoningContext();
+    const libraryContext = buildEloLibraryContext();
+    const communicationContext = context || buildEloCommunicationContext(message);
+    const rankedProjects = rankActiveProjects(logicalContext);
+    const decisions = searchDecisionEvents("").slice(0, 5);
+    const recentEvents = getTimelineEvents().slice(0, 6);
+    const libraryQuery = buildEloLibraryFocusedQuery(message) || (rankedProjects[0] && rankedProjects[0].name) || "";
+    const libraryResults = libraryQuery ? searchEloLibrary(libraryQuery).slice(0, 3) : [];
+    const projects = rankedProjects.map(function (item) { return item.name; });
+    const focus = communicationContext.focus || logicalContext.mainProject || snapshot.mainProject || snapshot.mostMentionedProject || projects[0] || "";
+    const text = normalizeText(message);
+    const dispersionSignals = projects.length >= 3 || hasAnyTerm(text, ["perdido", "perdida", "coisa demais", "muita coisa", "muitas frentes", "varias frentes"]);
+    const commercialProject = rankedProjects.find(function (item) {
+      const projectText = normalizeText(item.name);
+      return projectText.indexOf("obrareport") >= 0 || projectText.indexOf("stock ia") >= 0;
+    }) || rankedProjects[0] || null;
+
+    return {
+      message: message,
+      snapshot: snapshot,
+      logicalContext: logicalContext,
+      libraryContext: libraryContext,
+      communicationContext: communicationContext,
+      mode: communicationContext.runtime ? communicationContext.runtime.mode : (isStandaloneMode() ? "standalone" : "obrareport"),
+      projects: projects,
+      rankedProjects: rankedProjects,
+      goals: logicalContext.goals || [],
+      important: snapshot.important || getImportantMemoriesStorage(),
+      recentEvents: recentEvents,
+      decisions: decisions,
+      libraryResults: libraryResults,
+      focus: focus,
+      hasMemory: hasNarrativeJourneyData(snapshot),
+      hasLibrary: Boolean((libraryContext.documents || []).length || (libraryContext.memoryLibrary || []).length),
+      hasDecisions: Boolean(decisions.length),
+      hasCommercialSignal: Boolean(commercialProject),
+      commercialProject: commercialProject,
+      dispersionSignals: dispersionSignals,
+      nextProjectAction: suggestNextProjectAction(rankedProjects, logicalContext)
+    };
+  }
+
+  function synthesizeEloSituation(synthesisContext) {
+    const current = synthesisContext || buildEloSynthesisContext("");
+    const mainProject = current.rankedProjects[0] || null;
+    const commercial = current.commercialProject || mainProject;
+    const projectNames = current.projects.slice(0, 4);
+    const latestDecision = current.decisions[0] || null;
+    const latestEvent = current.recentEvents[0] || null;
+    const libraryItem = current.libraryResults[0] && current.libraryResults[0].item;
+    const reading = projectNames.length
+      ? "Voce esta girando em torno de " + formatNarrativeList(projectNames) + "."
+      : "Ainda tenho pouco contexto salvo, entao a melhor leitura e organizar uma frente principal antes de decidir.";
+    const weightParts = [];
+    if (commercial && commercial.name) {
+      weightParts.push(commercial.name + " parece ter o sinal mais pratico agora.");
+    }
+    if (current.dispersionSignals) {
+      weightParts.push("tambem aparece risco de dispersao entre frentes abertas");
+    }
+    if (latestDecision) {
+      weightParts.push("existe uma decisao recente registrada: " + latestDecision.title);
+    }
+    if (libraryItem) {
+      weightParts.push("a biblioteca tambem aponta para " + libraryItem.title);
+    }
+    if (latestEvent && !latestDecision) {
+      weightParts.push("o ultimo marco registrado foi " + latestEvent.title);
+    }
+
+    return {
+      mainProject: mainProject,
+      commercialProject: commercial,
+      reading: reading,
+      weight: weightParts.length ? weightParts.map(function (part) { return String(part).replace(/[.!?]+$/g, ""); }).join(". ") + "." : "o que pesa mais agora e escolher uma acao pequena e verificavel.",
+      recommendationTarget: commercial && commercial.name ? commercial.name : (mainProject && mainProject.name) || current.focus || "",
+      nextAction: current.nextProjectAction || "escolher uma entrega pequena e concluir antes de abrir outra frente.",
+      needsMoreContext: !projectNames.length && !current.goals.length && !current.recentEvents.length
+    };
+  }
+
+  function buildEloRecommendation(synthesis) {
+    if (!synthesis || synthesis.needsMoreContext) {
+      return "Minha recomendacao e simples: registre seus projetos principais, escolha uma frente e defina uma entrega pequena para hoje.";
+    }
+    if (synthesis.recommendationTarget) {
+      return "eu focaria em " + synthesis.recommendationTarget + " como frente principal agora, sem abrir uma nova frente grande.";
+    }
+    return "eu reduziria o escopo e escolheria uma proxima acao pequena, concreta e testavel.";
+  }
+
+  function buildEloSynthesisAnswer(message, context) {
+    if (!detectSynthesisRequest(message) && !detectRecommendationRequest(message)) {
+      return null;
+    }
+    const synthesisContext = buildEloSynthesisContext(message, context);
+    const synthesis = synthesizeEloSituation(synthesisContext);
+    const depth = detectEloAnswerDepth_(message);
+    const fullLines = [
+      "Minha leitura:",
+      synthesis.reading,
+      "",
+      "O que pesa mais agora:",
+      synthesis.weight,
+      "",
+      "Minha recomendacao:",
+      buildEloRecommendation(synthesis),
+      "",
+      "Proxima acao pequena:",
+      synthesis.nextAction
+    ];
+
+    if (depth === "profunda") {
+      const details = [];
+      if (synthesisContext.decisions.length) {
+        details.push("Decisoes recentes: " + synthesisContext.decisions.slice(0, 3).map(function (item) { return item.title; }).join(", ") + ".");
+      }
+      if (synthesisContext.libraryResults.length) {
+        details.push("Biblioteca relacionada: " + synthesisContext.libraryResults.slice(0, 3).map(function (entry) { return entry.item.title; }).join(", ") + ".");
+      }
+      if (synthesisContext.goals.length) {
+        details.push("Objetivos visiveis: " + synthesisContext.goals.slice(0, 3).join(", ") + ".");
+      }
+      if (details.length) {
+        fullLines.push("", "Contexto usado:", details.join("\n"));
+      }
+    }
+
+    return {
+      shortAnswer: "Minha recomendacao e escolher a frente que mais destrava resultado agora.",
+      fullAnswer: fullLines.join("\n"),
+      nextAction: synthesis.nextAction,
+      canSave: false,
+      sessionTheme: "sintese",
+      sessionIntent: "synthesis_recommendation"
+    };
+  }
+
   function getLogicalReasoningResponse(question) {
     const intent = detectLogicalReasoningQuestion(question);
     if (!intent) {
@@ -6582,7 +6785,7 @@
 
   function shortenEloAnswerIfNeeded(answer, tone, context, plan) {
     const next = Object.assign({}, answer || {});
-    const protectedIntents = ["biblioteca_local", "conceptual_question", "pergunta_humana", "crise", "project_advisor", "decision_memory", "initiative_opportunity"];
+    const protectedIntents = ["biblioteca_local", "conceptual_question", "pergunta_humana", "crise", "project_advisor", "decision_memory", "initiative_opportunity", "synthesis_recommendation"];
     const depth = plan && plan.depth ? plan.depth : "curta";
     if (depth === "profunda" || protectedIntents.indexOf(next.sessionIntent) >= 0) {
       return next;
@@ -6775,6 +6978,9 @@
     }
     if (detectGuidedActionType_(text)) {
       return "guided_action";
+    }
+    if (detectSynthesisRequest(message) || detectRecommendationRequest(message)) {
+      return "synthesis_recommendation";
     }
     if (hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "qual proximo passo", "o que faco"])) {
       return "continuity";
@@ -7343,6 +7549,9 @@
     }
     if (intent === "continuity") {
       return buildContinuityAnswer_(message);
+    }
+    if (intent === "synthesis_recommendation") {
+      return buildEloSynthesisAnswer(message, context);
     }
     if (intent === "project_advisor") {
       return buildProjectAdvisorAnswer(buildLogicalReasoningContext());
