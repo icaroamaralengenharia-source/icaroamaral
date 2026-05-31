@@ -835,6 +835,7 @@
     }
 
     .stock-simulation-form input,
+    .stock-simulation-form select,
     .stock-simulation-form textarea {
       width: 100%;
       min-height: 44px;
@@ -891,6 +892,101 @@
     .stock-simulation-result li {
       color: var(--navy);
       font-weight: 850;
+    }
+
+    .stock-demo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stock-demo-section {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #f8fbfd;
+    }
+
+    .stock-demo-section h3 {
+      margin: 0;
+      color: var(--navy);
+      font-size: 1.02rem;
+    }
+
+    .stock-demo-inventory {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-demo-inventory li,
+    .stock-demo-card {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border: 1px solid #dbe4ee;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .stock-demo-inventory strong,
+    .stock-demo-card strong {
+      color: var(--navy);
+      font-size: 0.92rem;
+    }
+
+    .stock-demo-inventory span,
+    .stock-demo-card span,
+    .stock-demo-history li {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    .stock-demo-history {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-demo-alert {
+      color: #8a5b00;
+      font-weight: 850;
+    }
+
+    .stock-audit-status {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 5px 10px;
+      border-radius: 999px;
+      color: #ffffff;
+      background: #0f766e;
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .stock-audit-status.warning {
+      background: #b7791f;
+    }
+
+    .stock-audit-status.critical {
+      background: #b42318;
+    }
+
+    .stock-audit-status.low {
+      background: #2563eb;
+    }
+
+    .stock-demo-roof-fields.is-hidden {
+      display: none;
     }
 
     .steps span {
@@ -1247,7 +1343,9 @@
       .stock-kpis,
       .stock-flow,
       .stock-proof-grid,
-      .stock-simulation-form {
+      .stock-simulation-form,
+      .stock-demo-grid,
+      .stock-demo-inventory {
         grid-template-columns: 1fr;
       }
 
@@ -1317,8 +1415,8 @@
         <div class="hero-actions">
           <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario">Gerar RDO agora</a>
           <a class="button light" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/relatorios">Gerar relatório agora</a>
-          <button class="button stock-cta" type="button" data-stock-demo>Testar Estoque Inteligente</button>
-          <button class="button light" type="button" data-stock-demo>Testar materiais</button>
+          <button class="button stock-cta" type="button" data-stock-demo="obras">Testar Estoque Inteligente</button>
+          <button class="button light" type="button" data-stock-demo="almoxarifado">Testar materiais</button>
           <a class="button light" href="#pdf-example">Ver exemplo de PDF</a>
         </div>
         <div class="hero-proof">
@@ -1406,7 +1504,7 @@
           <li>Integração com RDO</li>
         </ul>
         <div class="guided-actions" style="margin-top: 18px;">
-          <button class="button stock-cta" type="button" data-stock-demo>Simular consumo agora</button>
+          <button class="button stock-cta" type="button" data-stock-demo="obras">Simular consumo agora</button>
           <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Abrir Stock IA</a>
         </div>
       </div>
@@ -1790,6 +1888,478 @@
           window.location.href = "relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia";
         });
       }
+    })();
+  </script>
+  <script>
+    (() => {
+      const modal = document.querySelector("[data-stock-modal]");
+      const modalPanel = modal ? modal.querySelector(".stock-modal") : null;
+      const quickExampleKey = "obraReportStockIaQuickExample";
+
+      if (!modal || !modalPanel) return;
+
+      const createStockObrasState = () => ({
+        items: {
+          cimento: { name: "Cimento CP II", unit: "sacos", quantity: 100, min: 20 },
+          areia: { name: "Areia", unit: "m&sup3;", quantity: 20, min: 5 },
+          blocoCeramico: { name: "Bloco cer&acirc;mico", unit: "un", quantity: 2000, min: 400 },
+          cabo25: { name: "Cabo 2,5mm&sup2;", unit: "m", quantity: 300, min: 50 },
+          cabo4: { name: "Cabo 4mm&sup2;", unit: "m", quantity: 200, min: 40 },
+          cabo6: { name: "Cabo 6mm&sup2;", unit: "m", quantity: 150, min: 30 },
+          tuboPvc25: { name: "Tubo PVC 25mm", unit: "m", quantity: 100, min: 20 },
+          piso60: { name: "Piso cer&acirc;mico 60x60", unit: "pe&ccedil;as", quantity: 500, min: 80 },
+          argamassa: { name: "Argamassa colante", unit: "sacos", quantity: 80, min: 15 },
+          rejunte: { name: "Rejunte", unit: "kg", quantity: 40, min: 8 },
+          telhaPortuguesa: { name: "Telha cer&acirc;mica tipo portuguesa", unit: "un", quantity: 1000, min: 200 },
+          telhaFibrocimento: { name: "Telha de fibrocimento", unit: "un", quantity: 120, min: 20 },
+          telhaEcologica: { name: "Telha ecol&oacute;gica", unit: "un", quantity: 200, min: 40 }
+        },
+        history: []
+      });
+
+      let stockObrasDemoState = createStockObrasState();
+      let stockObrasPendingAudit = null;
+
+      const setLandingStockModalOpen = (isOpen) => {
+        modal.classList.toggle("is-open", isOpen);
+        modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        document.body.style.overflow = isOpen ? "hidden" : "";
+        if (isOpen) {
+          const firstField = modal.querySelector("input, select, textarea, button");
+          if (firstField) firstField.focus();
+        }
+      };
+
+      const formatStockDemoNumber = (value) => {
+        const number = Number(value) || 0;
+        return number.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+      };
+
+      const renderStockObrasInventory = () => Object.values(stockObrasDemoState.items).map((item) => `
+        <li>
+          <strong>${item.name}</strong>
+          <span>${formatStockDemoNumber(item.quantity)} ${item.unit} em estoque | m&iacute;nimo ${formatStockDemoNumber(item.min)} ${item.unit}</span>
+        </li>
+      `).join("");
+
+      const renderStockObrasHistory = () => {
+        if (!stockObrasDemoState.history.length) {
+          return "<li>Nenhuma baixa registrada nesta demonstra&ccedil;&atilde;o.</li>";
+        }
+
+        return stockObrasDemoState.history.slice(-4).reverse().map((entry) => `
+          <li><strong>${entry.service}</strong><br><span>${entry.summary}</span></li>
+        `).join("");
+      };
+
+      const updateRoofFieldsVisibility = () => {
+        const service = modalPanel.querySelector("[data-stock-service]");
+        const roofFields = modalPanel.querySelector("[data-roof-fields]");
+        if (!service || !roofFields) return;
+        roofFields.classList.toggle("is-hidden", service.value !== "roof");
+      };
+
+      const calculateStockObrasConsumption = (service, quantity, formData) => {
+        if (service === "masonry") {
+          return {
+            serviceLabel: "Alvenaria de bloco cer&acirc;mico",
+            unit: "m&sup2;",
+            items: [
+              ["blocoCeramico", Math.ceil(quantity * 13)],
+              ["cimento", quantity * 0.1],
+              ["areia", quantity * 0.018]
+            ]
+          };
+        }
+
+        if (service === "floor") {
+          return {
+            serviceLabel: "Piso cer&acirc;mico 60x60",
+            unit: "m&sup2;",
+            items: [
+              ["piso60", Math.ceil(quantity / 0.36)],
+              ["argamassa", Math.ceil(quantity / 4)],
+              ["rejunte", quantity * 0.25]
+            ]
+          };
+        }
+
+        if (service === "cable25" || service === "cable4" || service === "cable6") {
+          const labels = {
+            cable25: "Instala&ccedil;&atilde;o el&eacute;trica - cabo 2,5mm&sup2;",
+            cable4: "Instala&ccedil;&atilde;o el&eacute;trica - cabo 4mm&sup2;",
+            cable6: "Instala&ccedil;&atilde;o el&eacute;trica - cabo 6mm&sup2;"
+          };
+          const keys = { cable25: "cabo25", cable4: "cabo4", cable6: "cabo6" };
+          return { serviceLabel: labels[service], unit: "m", items: [[keys[service], quantity]] };
+        }
+
+        if (service === "pipe") {
+          return {
+            serviceLabel: "Instala&ccedil;&atilde;o hidr&aacute;ulica - tubo PVC 25mm",
+            unit: "m",
+            items: [["tuboPvc25", quantity]]
+          };
+        }
+
+        const roofType = String(formData.get("roofType") || "telhaPortuguesa");
+        const width = Number(formData.get("roofWidth") || 0.22);
+        const length = Number(formData.get("roofLength") || 0.4);
+        const loss = Number(formData.get("roofLoss") || 10);
+        const usefulArea = Math.max(width * length, 0.01);
+        const tileQuantity = Math.ceil((quantity / usefulArea) * (1 + (loss / 100)));
+
+        return {
+          serviceLabel: "Cobertura - telhas",
+          unit: "m&sup2;",
+          items: [[roofType, tileQuantity]],
+          note: `&Aacute;rea &uacute;til da telha: ${formatStockDemoNumber(usefulArea)} m&sup2;. Perda considerada: ${formatStockDemoNumber(loss)}%.`
+        };
+      };
+
+      const getStockObrasFormState = (formData) => ({
+        service: String(formData.get("service") || "masonry"),
+        quantity: Math.max(Number(formData.get("quantity") || 0), 0),
+        roofType: String(formData.get("roofType") || "telhaPortuguesa"),
+        roofWidth: Number(formData.get("roofWidth") || 0.22),
+        roofLength: Number(formData.get("roofLength") || 0.4),
+        roofLoss: Number(formData.get("roofLoss") || 10)
+      });
+
+      const buildStockObrasPredictionMarkup = (audit) => {
+        if (!audit) {
+          return `
+            <p>Calcule o consumo previsto para liberar os campos de consumo real da obra.</p>
+            <p class="stock-demo-warning">A auditoria compara produ&ccedil;&atilde;o executada, consumo previsto, consumo real e diferen&ccedil;a por material.</p>
+          `;
+        }
+
+        const predictedRows = audit.consumption.items.map(([key, amount]) => {
+          const item = stockObrasDemoState.items[key];
+          return item ? `<li>${item.name}: ${formatStockDemoNumber(amount)} ${item.unit}</li>` : "";
+        }).join("");
+        const realFields = audit.consumption.items.map(([key, amount]) => {
+          const item = stockObrasDemoState.items[key];
+          if (!item) return "";
+          return `
+            <label>
+              ${item.name} real
+              <input name="real_${key}" type="number" min="0" step="0.001" placeholder="Previsto: ${formatStockDemoNumber(amount)} ${item.unit}">
+            </label>
+          `;
+        }).join("");
+
+        return `
+          <div class="stock-demo-grid">
+            <article class="stock-demo-card">
+              <strong>Produ&ccedil;&atilde;o executada</strong>
+              <span>${audit.consumption.serviceLabel} - ${formatStockDemoNumber(audit.quantity)} ${audit.consumption.unit}</span>
+            </article>
+            <article class="stock-demo-card">
+              <strong>Consumo previsto</strong>
+              <ul class="stock-demo-history">${predictedRows}</ul>
+              ${audit.consumption.note ? `<span>${audit.consumption.note}</span>` : ""}
+            </article>
+          </div>
+          <form class="stock-simulation-form" data-stock-audit-form>
+            ${realFields}
+            <div class="stock-form-full guided-actions">
+              <button class="button stock-cta" type="submit">Registrar auditoria e baixa</button>
+            </div>
+          </form>
+        `;
+      };
+
+      const getStockAuditStatus = (predicted, real) => {
+        if (real < predicted) {
+          return {
+            label: "Abaixo do previsto",
+            className: "low",
+            message: "Consumo abaixo do previsto. Verificar se a execu&ccedil;&atilde;o foi conclu&iacute;da, se houve sobra reaproveitada ou se a medi&ccedil;&atilde;o est&aacute; correta."
+          };
+        }
+
+        const percentage = predicted > 0 ? ((real - predicted) / predicted) * 100 : 0;
+        if (percentage <= 5) {
+          return {
+            label: "Dentro do previsto",
+            className: "",
+            message: "Consumo dentro da margem esperada."
+          };
+        }
+
+        if (percentage <= 15) {
+          return {
+            label: "Aten&ccedil;&atilde;o",
+            className: "warning",
+            message: "Consumo acima do previsto. Avaliar perdas, recortes, transporte interno ou medi&ccedil;&atilde;o."
+          };
+        }
+
+        return {
+          label: "Cr&iacute;tico",
+          className: "critical",
+          message: "Consumo muito acima do previsto. Poss&iacute;vel desperd&iacute;cio, retrabalho, erro de medi&ccedil;&atilde;o ou retirada sem registro."
+        };
+      };
+
+      const getWorstStockAuditStatus = (statuses) => {
+        const rank = { "low": 3, "critical": 4, "warning": 2, "": 1 };
+        return statuses.reduce((worst, status) => {
+          return (rank[status.className] || 1) > (rank[worst.className] || 1) ? status : worst;
+        }, statuses[0] || getStockAuditStatus(1, 1));
+      };
+
+      const renderStockObrasLandingDemo = (options = {}) => {
+        const formState = options.formState || {
+          service: "masonry",
+          quantity: 12,
+          roofType: "telhaPortuguesa",
+          roofWidth: 0.22,
+          roofLength: 0.4,
+          roofLoss: 10
+        };
+        const resultMarkup = options.resultMarkup || "";
+        const audit = options.audit || stockObrasPendingAudit;
+        modalPanel.innerHTML = `
+          <header>
+            <div>
+              <p class="eyebrow">Stock Obras</p>
+              <h2 id="stock-modal-title">Stock Obras &mdash; Produ&ccedil;&atilde;o, desperd&iacute;cio e auditoria</h2>
+              <p>Controle materiais de constru&ccedil;&atilde;o a partir do servi&ccedil;o executado, comparando previsto, real e diferen&ccedil;a.</p>
+              <p class="stock-demo-warning">Demonstra&ccedil;&atilde;o da landing. Esta simula&ccedil;&atilde;o n&atilde;o persiste dados e n&atilde;o altera o Stock IA real.</p>
+            </div>
+            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simula&ccedil;&atilde;o">&times;</button>
+          </header>
+          <section class="stock-demo-section">
+            <h3>Estoque inicial da obra</h3>
+            <ul class="stock-demo-inventory">${renderStockObrasInventory()}</ul>
+          </section>
+          <section class="stock-demo-section">
+            <h3>Registrar servi&ccedil;o executado</h3>
+            <form class="stock-simulation-form" data-stock-obras-form>
+              <label class="stock-form-full">
+                Servi&ccedil;o
+                <select name="service" data-stock-service>
+                  <option value="masonry" ${formState.service === "masonry" ? "selected" : ""}>Alvenaria de bloco cer&acirc;mico</option>
+                  <option value="floor" ${formState.service === "floor" ? "selected" : ""}>Piso cer&acirc;mico 60x60</option>
+                  <option value="cable25" ${formState.service === "cable25" ? "selected" : ""}>Instala&ccedil;&atilde;o el&eacute;trica - cabo 2,5mm&sup2;</option>
+                  <option value="cable4" ${formState.service === "cable4" ? "selected" : ""}>Instala&ccedil;&atilde;o el&eacute;trica - cabo 4mm&sup2;</option>
+                  <option value="cable6" ${formState.service === "cable6" ? "selected" : ""}>Instala&ccedil;&atilde;o el&eacute;trica - cabo 6mm&sup2;</option>
+                  <option value="pipe" ${formState.service === "pipe" ? "selected" : ""}>Instala&ccedil;&atilde;o hidr&aacute;ulica - tubo PVC 25mm</option>
+                  <option value="roof" ${formState.service === "roof" ? "selected" : ""}>Cobertura - telhas</option>
+                </select>
+              </label>
+              <label>
+                Quantidade executada
+                <input name="quantity" type="number" min="0" step="0.01" value="${formState.quantity}">
+              </label>
+              <div class="stock-demo-roof-fields stock-form-full is-hidden" data-roof-fields>
+                <div class="stock-simulation-form">
+                  <label>Tipo de telha
+                    <select name="roofType">
+                      <option value="telhaPortuguesa" ${formState.roofType === "telhaPortuguesa" ? "selected" : ""}>Telha cer&acirc;mica tipo portuguesa</option>
+                      <option value="telhaFibrocimento" ${formState.roofType === "telhaFibrocimento" ? "selected" : ""}>Telha de fibrocimento</option>
+                      <option value="telhaEcologica" ${formState.roofType === "telhaEcologica" ? "selected" : ""}>Telha ecol&oacute;gica</option>
+                    </select>
+                  </label>
+                  <label>Largura &uacute;til (m)<input name="roofWidth" type="number" min="0.01" step="0.01" value="${formState.roofWidth}"></label>
+                  <label>Comprimento &uacute;til (m)<input name="roofLength" type="number" min="0.01" step="0.01" value="${formState.roofLength}"></label>
+                  <label>Perda (%)<input name="roofLoss" type="number" min="0" step="1" value="${formState.roofLoss}"></label>
+                </div>
+              </div>
+              <div class="stock-form-full guided-actions">
+                <button class="button stock-cta" type="submit">Calcular previsto</button>
+                <button class="button light" type="button" data-stock-reset-obras>Reiniciar demo</button>
+              </div>
+            </form>
+          </section>
+          <section class="stock-demo-section">
+            <h3>Auditoria de consumo</h3>
+            ${buildStockObrasPredictionMarkup(audit)}
+          </section>
+          <div class="stock-simulation-result ${resultMarkup ? "is-visible" : ""}" data-stock-result aria-live="polite">${resultMarkup}</div>
+          <section class="stock-demo-section">
+            <h3>Hist&oacute;rico demonstrativo</h3>
+            <ul class="stock-demo-history">${renderStockObrasHistory()}</ul>
+          </section>
+        `;
+
+        modalPanel.querySelector("[data-stock-obras-form]")?.addEventListener("submit", handleStockObrasSubmit);
+        modalPanel.querySelector("[data-stock-audit-form]")?.addEventListener("submit", handleStockObrasAuditSubmit);
+        modalPanel.querySelector("[data-stock-service]")?.addEventListener("change", updateRoofFieldsVisibility);
+        modalPanel.querySelector("[data-stock-reset-obras]")?.addEventListener("click", () => {
+          stockObrasDemoState = createStockObrasState();
+          stockObrasPendingAudit = null;
+          renderStockObrasLandingDemo();
+        });
+        updateRoofFieldsVisibility();
+      };
+
+      const handleStockObrasSubmit = (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const formState = getStockObrasFormState(formData);
+        const consumption = calculateStockObrasConsumption(formState.service, formState.quantity, formData);
+        stockObrasPendingAudit = {
+          formState: formState,
+          quantity: formState.quantity,
+          consumption: consumption,
+          createdAt: new Date().toISOString()
+        };
+        renderStockObrasLandingDemo({
+          formState: formState,
+          audit: stockObrasPendingAudit,
+          resultMarkup: `
+            <strong>Consumo previsto calculado.</strong>
+            <p>Informe o consumo real usado na obra para gerar diferen&ccedil;a, status e auditoria da baixa.</p>
+          `
+        });
+      };
+
+      const handleStockObrasAuditSubmit = (event) => {
+        event.preventDefault();
+        const audit = stockObrasPendingAudit;
+        if (!audit) {
+          return;
+        }
+
+        const formData = new FormData(event.target);
+        const consumedLines = [];
+        const predictedLines = [];
+        const realLines = [];
+        const differenceLines = [];
+        const afterLines = [];
+        const alertLines = [];
+        const auditStatuses = [];
+        const auditDate = new Date();
+
+        audit.consumption.items.forEach(([key, predictedAmount]) => {
+          const item = stockObrasDemoState.items[key];
+          if (!item) return;
+          const rawReal = String(formData.get("real_" + key) || "").trim();
+          const realAmount = rawReal ? Math.max(Number(rawReal) || 0, 0) : predictedAmount;
+          const difference = realAmount - predictedAmount;
+          const status = getStockAuditStatus(predictedAmount, realAmount);
+          const before = item.quantity;
+          item.quantity = Math.max(item.quantity - realAmount, 0);
+
+          predictedLines.push(`${item.name}: ${formatStockDemoNumber(predictedAmount)} ${item.unit}`);
+          realLines.push(`${item.name}: ${formatStockDemoNumber(realAmount)} ${item.unit}`);
+          differenceLines.push(`${item.name}: ${difference >= 0 ? "+" : ""}${formatStockDemoNumber(difference)} ${item.unit}`);
+          consumedLines.push(`${item.name}: ${formatStockDemoNumber(realAmount)} ${item.unit}`);
+          afterLines.push(`${item.name}: antes ${formatStockDemoNumber(before)} ${item.unit} | depois ${formatStockDemoNumber(item.quantity)} ${item.unit}`);
+          auditStatuses.push(status);
+          if (item.quantity < item.min) {
+            alertLines.push(`${item.name} abaixo do m&iacute;nimo (${formatStockDemoNumber(item.quantity)} ${item.unit}).`);
+          }
+        });
+
+        const finalStatus = getWorstStockAuditStatus(auditStatuses);
+        stockObrasDemoState.history.push({
+          service: audit.consumption.serviceLabel,
+          summary: `${formatStockDemoNumber(audit.quantity)} ${audit.consumption.unit} executados. Status: ${finalStatus.label}. Consumo real: ${consumedLines.join("; ")}.`
+        });
+
+        const resultMarkup = `
+          <strong>Auditoria registrada e baixa aplicada com consumo real.</strong>
+          <span class="stock-audit-status ${finalStatus.className}">${finalStatus.label}</span>
+          <ul>
+            <li>Servi&ccedil;o executado: ${audit.consumption.serviceLabel}</li>
+            <li>Quantidade executada: ${formatStockDemoNumber(audit.quantity)} ${audit.consumption.unit}</li>
+            <li>Data/hora: ${auditDate.toLocaleString("pt-BR")}</li>
+            <li>Materiais previstos: ${predictedLines.join("; ")}</li>
+            <li>Materiais reais: ${realLines.join("; ")}</li>
+            <li>Diferen&ccedil;a: ${differenceLines.join("; ")}</li>
+            <li>Status: ${finalStatus.label}. ${finalStatus.message}</li>
+            <li>Estoque antes/depois: ${afterLines.join("; ")}</li>
+            <li class="stock-demo-alert">${alertLines.length ? alertLines.join(" ") : "Nenhum item ficou abaixo do estoque m&iacute;nimo."}</li>
+            ${audit.consumption.note ? `<li>${audit.consumption.note}</li>` : ""}
+            <li>Hist&oacute;rico da auditoria: produ&ccedil;&atilde;o, previsto, real, diferen&ccedil;a e estoque final registrados nesta demonstra&ccedil;&atilde;o.</li>
+          </ul>
+          <p><strong>Agora o gestor n&atilde;o v&ecirc; apenas quanto foi executado. Ele v&ecirc; se o consumo est&aacute; coerente com a produ&ccedil;&atilde;o.</strong></p>
+        `;
+
+        stockObrasPendingAudit = null;
+        renderStockObrasLandingDemo({
+          formState: audit.formState,
+          resultMarkup: resultMarkup
+        });
+      };
+
+      const openStockObrasLandingDemo = () => {
+        renderStockObrasLandingDemo();
+        setLandingStockModalOpen(true);
+      };
+
+      const openStockAlmoxarifadoLandingDemo = () => {
+        const now = new Date().toLocaleString("pt-BR");
+        modalPanel.innerHTML = `
+          <header>
+            <div>
+              <p class="eyebrow">Stock IA Almoxarifado</p>
+              <h2 id="stock-modal-title">Stock IA Almoxarifado &mdash; Entrada, sa&iacute;da e alertas</h2>
+              <p>Controle simples de materiais, retiradas, respons&aacute;veis, setores, data/hora, estoque m&iacute;nimo e alertas.</p>
+              <p class="stock-demo-warning">Esta &eacute; uma vitrine da landing. O m&oacute;dulo real continua dentro do sistema, ap&oacute;s login, em Stock IA &gt; Almoxarifado.</p>
+            </div>
+            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simula&ccedil;&atilde;o">&times;</button>
+          </header>
+          <div class="stock-demo-grid">
+            <article class="stock-demo-card"><strong>Cadastro de material</strong><span>M&aacute;scaras descart&aacute;veis | 500 un | m&iacute;nimo 80 un</span></article>
+            <article class="stock-demo-card"><strong>Entrada de material</strong><span>Estoque inicial registrado para controle do almoxarifado.</span></article>
+            <article class="stock-demo-card"><strong>Sa&iacute;da de material</strong><span>125 un para Secretaria de Sa&uacute;de / Enfermaria.</span></article>
+            <article class="stock-demo-card"><strong>Hist&oacute;rico</strong><span>Respons&aacute;vel: Jos&eacute;. Data/hora: ${now}.</span></article>
+            <article class="stock-demo-card"><strong>Saldo final</strong><span>375 un dispon&iacute;veis ap&oacute;s a sa&iacute;da registrada.</span></article>
+            <article class="stock-demo-card"><strong>Alerta ao gestor</strong><span>O gestor acompanha em tempo real e recebe alertas quando algum item atinge o estoque m&iacute;nimo.</span></article>
+          </div>
+          <div class="stock-simulation-result is-visible" aria-live="polite">
+            <strong>Fluxo demonstrado</strong>
+            <ul>
+              <li>Item: M&aacute;scaras descart&aacute;veis</li>
+              <li>Estoque inicial: 500 un | Estoque m&iacute;nimo: 80 un</li>
+              <li>Sa&iacute;da registrada: 125 un</li>
+              <li>Respons&aacute;vel: Jos&eacute; | Setor: Secretaria de Sa&uacute;de / Enfermaria</li>
+              <li>Saldo final: 375 un</li>
+            </ul>
+          </div>
+          <div class="guided-actions">
+            <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/almoxarifado">Acessar sistema completo</a>
+            <button class="button light" type="button" data-stock-close>Fechar</button>
+          </div>
+        `;
+        setLandingStockModalOpen(true);
+      };
+
+      window.openStockObrasLandingDemo = openStockObrasLandingDemo;
+      window.openStockAlmoxarifadoLandingDemo = openStockAlmoxarifadoLandingDemo;
+
+      document.addEventListener("click", (event) => {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const button = target && target.closest ? target.closest("[data-stock-demo]") : null;
+        if (!button) return;
+
+        const mode = button.getAttribute("data-stock-demo");
+        if (mode !== "obras" && mode !== "almoxarifado") return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        if (mode === "obras") {
+          openStockObrasLandingDemo();
+          return;
+        }
+
+        openStockAlmoxarifadoLandingDemo();
+      }, true);
+
+      modal.addEventListener("click", (event) => {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        if (target && target.closest && target.closest("[data-stock-close]")) {
+          event.preventDefault();
+          setLandingStockModalOpen(false);
+        }
+      });
     })();
   </script>
 </body>

@@ -114,8 +114,46 @@
   const almoxHistoryList = document.getElementById("almoxHistoryList");
   const almoxSummaryText = document.getElementById("almoxSummaryText");
   const almoxSummaryButton = document.getElementById("almoxSummaryButton");
+  const almoxAuditButton = document.getElementById("almoxAuditButton");
+  const almoxViewPanelButton = document.getElementById("almoxViewPanelButton");
+  const almoxManagerAuditButton = document.getElementById("almoxManagerAuditButton");
+  const almoxEmailButton = document.getElementById("almoxEmailButton");
+  const almoxDownloadPdfButton = document.getElementById("almoxDownloadPdfButton");
+  const almoxMuteAlertsButton = document.getElementById("almoxMuteAlertsButton");
+  const almoxPrepareEmailButton = document.getElementById("almoxPrepareEmailButton");
+  const almoxEmailPanel = document.getElementById("almoxEmailPanel");
+  const almoxEmailInput = document.getElementById("almoxEmailInput");
+  const almoxManagerSummaryText = document.getElementById("almoxManagerSummaryText");
+  const almoxManagerAuditText = document.getElementById("almoxManagerAuditText");
+  const almoxManagerCards = document.getElementById("almoxManagerCards");
+  const almoxAlertsStatus = document.getElementById("almoxAlertsStatus");
+  const almoxGeneratedReport = document.getElementById("almoxGeneratedReport");
+  const almoxGeneratedReportTitle = document.getElementById("almoxGeneratedReportTitle");
+  const almoxGeneratedReportText = document.getElementById("almoxGeneratedReportText");
+  const almoxDashboardPanel = document.getElementById("almoxDashboardPanel");
+  const almoxDashboardCards = document.getElementById("almoxDashboardCards");
+  const almoxDashboardPeriodControls = document.getElementById("almoxDashboardPeriodControls");
+  const almoxDashboardConsumption = document.getElementById("almoxDashboardConsumption");
+  const almoxDashboardRisk = document.getElementById("almoxDashboardRisk");
+  const almoxDashboardExpiration = document.getElementById("almoxDashboardExpiration");
+  const almoxDashboardTrend = document.getElementById("almoxDashboardTrend");
   const almoxActionMessage = document.getElementById("almoxActionMessage");
   const almoxModal = document.getElementById("almoxModal");
+  const almoxNoteTextInput = document.getElementById("almoxNoteTextInput");
+  const almoxChooseNoteFileButton = document.getElementById("almoxChooseNoteFileButton");
+  const almoxImportXmlButton = document.getElementById("almoxImportXmlButton");
+  const almoxParseNoteButton = document.getElementById("almoxParseNoteButton");
+  const almoxClearNoteButton = document.getElementById("almoxClearNoteButton");
+  const almoxAddNoteItemsButton = document.getElementById("almoxAddNoteItemsButton");
+  const almoxXmlNoteFileInput = document.getElementById("almoxXmlNoteFileInput");
+  const almoxNoteFileInput = document.getElementById("almoxNoteFileInput");
+  const almoxNoteFilePreview = document.getElementById("almoxNoteFilePreview");
+  const almoxNfeKeyInput = document.getElementById("almoxNfeKeyInput");
+  const almoxValidateNfeKeyButton = document.getElementById("almoxValidateNfeKeyButton");
+  const almoxNfeKeyStatus = document.getElementById("almoxNfeKeyStatus");
+  const almoxNoteStatus = document.getElementById("almoxNoteStatus");
+  const almoxFiscalOcrReview = document.getElementById("almoxFiscalOcrReview");
+  const almoxNoteRows = document.getElementById("almoxNoteRows");
   const dailyLogPhotoInput = document.getElementById("dailyLogPhotoInput");
   const dailyLogSearchInput = document.getElementById("dailyLogSearchInput");
   const dailyLogPdfButton = document.getElementById("dailyLogPdfButton");
@@ -174,7 +212,13 @@
   const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
   const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
   const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
+  const DEFAULT_STOCK_ENVIRONMENT_ID = "env_almox_demo";
   const STOCK_NOTE_FILE_PREVIEW_LIMIT = 1024 * 1024;
+  const ALMOX_NOTE_FILE_MAX_SIZE = 10 * 1024 * 1024;
+  const ALMOX_OCR_TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js";
+  const ALMOX_OCR_PDFJS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+  const ALMOX_OCR_PDF_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  const ALMOX_OCR_PDF_MAX_PAGES = 3;
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
@@ -196,6 +240,22 @@
   let stockIaCurrentPeriod = "30d";
   let stockIaLastAnswer = "";
   let almoxSearchTerm = "";
+  let almoxLastSummaryText = "";
+  let almoxLastAuditText = "";
+  let almoxDashboardPeriod = "30d";
+  let activeStockEnvironmentId = "";
+  let almoxItemsVisible = false;
+  let almoxHistoryVisible = false;
+  let almoxHistoryFilter = "all";
+  let almoxParsedNoteItems = [];
+  let almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+  let almoxLastFiscalDiscardedDuplicates = [];
+  let almoxLastFiscalRejectedItems = [];
+  let almoxNoteImportSource = "";
+  let almoxNoteFileDraft = null;
+  let almoxNoteOcrReady = false;
+  let almoxOcrSequence = 0;
+  const externalScriptPromises = {};
   let dailyLogEstimateDraft = {
     items: [],
     audit: [],
@@ -756,6 +816,8 @@
         const modeButton = target && target.closest ? target.closest("[data-stock-mode]") : null;
         const questionButton = target && target.closest ? target.closest("[data-stock-question]") : null;
         const actionButton = target && target.closest ? target.closest("[data-stock-action]") : null;
+        const almoxDashboardPeriodButton = target && target.closest ? target.closest("[data-almox-dashboard-period]") : null;
+        const almoxDashboardClick = target && target.closest ? target.closest("[data-almox-dashboard-action]") : null;
 
         if (modeButton) {
           event.preventDefault();
@@ -775,6 +837,18 @@
         if (questionButton) {
           event.preventDefault();
           handleStockIaQuestion_(questionButton.dataset.stockQuestion || "");
+          return;
+        }
+
+        if (almoxDashboardPeriodButton) {
+          event.preventDefault();
+          handleAlmoxDashboardPeriodChange_(almoxDashboardPeriodButton.dataset.almoxDashboardPeriod || "30d");
+          return;
+        }
+
+        if (almoxDashboardClick) {
+          event.preventDefault();
+          handleAlmoxDashboardCardClick_(almoxDashboardClick);
           return;
         }
 
@@ -818,6 +892,30 @@
     document.addEventListener("click", function (event) {
       const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
       const actionButton = target && target.closest ? target.closest("[data-almox-action]") : null;
+      const summaryClose = target && target.closest ? target.closest("[data-almox-summary-close]") : null;
+      const summaryItem = target && target.closest ? target.closest("[data-almox-summary-item]") : null;
+      const summaryAction = target && target.closest ? target.closest("[data-almox-summary-action]") : null;
+
+      if (summaryClose) {
+        event.preventDefault();
+        closeAlmoxItemSummaryModal_();
+        return;
+      }
+
+      if (summaryAction) {
+        event.preventDefault();
+        closeAlmoxItemSummaryModal_();
+        openAlmoxModal_(summaryAction.dataset.almoxSummaryAction || "entry", {
+          itemId: summaryAction.dataset.almoxItemId || ""
+        });
+        return;
+      }
+
+      if (summaryItem) {
+        event.preventDefault();
+        openAlmoxItemSummary_(summaryItem.dataset.almoxItemId || "");
+        return;
+      }
 
       if (!actionButton) {
         return;
@@ -829,9 +927,25 @@
       });
     });
 
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        closeAlmoxItemSummaryModal_();
+      }
+    });
+
     if (almoxModal) {
       almoxModal.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const submitButton = target && target.closest ? target.closest("[data-almox-modal-submit]") : null;
+
+        if (submitButton) {
+          const modalForm = submitButton.form || submitButton.closest("form");
+          event.preventDefault();
+          if (modalForm && (!modalForm.reportValidity || modalForm.reportValidity())) {
+            submitAlmoxModalForm_(modalForm);
+          }
+          return;
+        }
 
         if (target && target.closest && target.closest("[data-almox-modal-close]")) {
           event.preventDefault();
@@ -863,9 +977,169 @@
 
     if (almoxSummaryButton) {
       almoxSummaryButton.addEventListener("click", function () {
-        generateAlmoxSummary_();
+        handleGenerateAlmoxSummary_();
       });
     }
+
+    if (almoxAuditButton) {
+      almoxAuditButton.addEventListener("click", function () {
+        handleGenerateAlmoxAudit_();
+      });
+    }
+
+    if (almoxViewPanelButton) {
+      almoxViewPanelButton.addEventListener("click", function () {
+        handleViewAlmoxManagerPanel_();
+      });
+    }
+
+    if (almoxManagerAuditButton) {
+      almoxManagerAuditButton.addEventListener("click", function () {
+        handleGenerateAlmoxAudit_();
+      });
+    }
+
+    if (almoxEmailButton) {
+      almoxEmailButton.addEventListener("click", function () {
+        if (almoxEmailPanel) {
+          almoxEmailPanel.classList.toggle("is-hidden");
+        }
+        if (almoxEmailInput && almoxEmailPanel && !almoxEmailPanel.classList.contains("is-hidden")) {
+          almoxEmailInput.focus();
+        }
+      });
+    }
+
+    if (almoxPrepareEmailButton) {
+      almoxPrepareEmailButton.addEventListener("click", function () {
+        handleSendAlmoxEmail_();
+      });
+    }
+
+    if (almoxDownloadPdfButton) {
+      almoxDownloadPdfButton.addEventListener("click", function () {
+        handleDownloadAlmoxPdf_();
+      });
+    }
+
+    if (almoxMuteAlertsButton) {
+      almoxMuteAlertsButton.addEventListener("click", function () {
+        handleToggleAlmoxAlerts_();
+      });
+    }
+
+    if (almoxParseNoteButton) {
+      almoxParseNoteButton.addEventListener("click", function () {
+        handleParseAlmoxNoteText_();
+      });
+    }
+
+    if (almoxClearNoteButton) {
+      almoxClearNoteButton.addEventListener("click", function () {
+        handleClearAlmoxNoteFile_();
+      });
+    }
+
+    if (almoxChooseNoteFileButton) {
+      almoxChooseNoteFileButton.addEventListener("click", function () {
+        if (almoxNoteFileInput) {
+          almoxNoteFileInput.click();
+        }
+      });
+    }
+
+    if (almoxImportXmlButton) {
+      almoxImportXmlButton.addEventListener("click", function () {
+        if (!almoxXmlNoteFileInput) {
+          return;
+        }
+
+        if (almoxXmlNoteFileInput.files && almoxXmlNoteFileInput.files[0]) {
+          handleImportAlmoxXmlNote_(almoxXmlNoteFileInput.files[0]);
+          return;
+        }
+
+        almoxXmlNoteFileInput.click();
+      });
+    }
+
+    if (almoxAddNoteItemsButton) {
+      almoxAddNoteItemsButton.addEventListener("click", function () {
+        handleAddAlmoxNoteItems_();
+      });
+    }
+
+    if (almoxValidateNfeKeyButton) {
+      almoxValidateNfeKeyButton.addEventListener("click", function () {
+        handleValidateAlmoxNfeKey_();
+      });
+    }
+
+    if (almoxNoteFileInput) {
+      almoxNoteFileInput.addEventListener("change", function () {
+        handleAlmoxNoteFileChange_();
+      });
+    }
+
+    if (almoxXmlNoteFileInput) {
+      almoxXmlNoteFileInput.addEventListener("change", function () {
+        const file = almoxXmlNoteFileInput.files && almoxXmlNoteFileInput.files[0];
+        if (file) {
+          handleImportAlmoxXmlNote_(file);
+        }
+      });
+    }
+
+    if (almoxNoteRows) {
+      almoxNoteRows.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const removeButton = target && target.closest ? target.closest("[data-almox-note-remove]") : null;
+
+        if (!removeButton) {
+          return;
+        }
+
+        event.preventDefault();
+        removeAlmoxParsedNoteItem_(removeButton.dataset.almoxNoteRemove);
+      });
+    }
+
+    if (almoxFiscalOcrReview) {
+      almoxFiscalOcrReview.addEventListener("click", function (event) {
+        const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
+        const copyButton = target && target.closest ? target.closest("[data-fiscal-review-copy]") : null;
+        const manualButton = target && target.closest ? target.closest("[data-fiscal-review-manual]") : null;
+        const clearButton = target && target.closest ? target.closest("[data-fiscal-review-clear]") : null;
+        const reprocessButton = target && target.closest ? target.closest("[data-fiscal-review-reprocess]") : null;
+
+        if (copyButton) {
+          event.preventDefault();
+          handleCopyFiscalPendingLines_();
+          return;
+        }
+
+        if (manualButton) {
+          event.preventDefault();
+          handleAddFiscalManualItem_();
+          return;
+        }
+
+        if (clearButton) {
+          event.preventDefault();
+          handleClearAlmoxNote_();
+          return;
+        }
+
+        if (reprocessButton) {
+          event.preventDefault();
+          handleParseAlmoxNoteText_();
+        }
+      });
+    }
+
+    bindAlmoxEntryCardsScroll_();
+    bindAlmoxItemsToggle_();
+    bindAlmoxHistoryControls_();
 
     window.addEventListener("hashchange", function () {
       if (currentUser && hasLocalAccessSession_() && window.location.hash.indexOf("#app/") === 0) {
@@ -4790,93 +5064,6 @@
     };
   }
 
-  function renderStockIaPanel_(dailyLogs) {
-    const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
-    const balances = buildStockBalanceFromMovements_(movements);
-    const summary = buildStockSummaryFromBalances_(balances, movements);
-
-    renderStockIaSummaryCards_(summary);
-    renderStockIaRows_(balances);
-    renderStockIaMovements_(movements);
-
-    if (stockIaInsight) {
-      stockIaInsight.textContent = buildStockIaInsightFromDailyLogs_(balances, movements);
-    }
-  }
-
-  function renderStockIaSummaryCards_(summary) {
-    if (!stockIaSummaryCards) {
-      return;
-    }
-
-    stockIaSummaryCards.innerHTML = "";
-    [
-      ["Materiais identificados", summary.materialCount],
-      ["Consumo registrado", summary.movementCount + " movimento(s)"],
-      ["Custo total consumido", formatCurrency_(summary.totalCost)],
-      ["Diarios com materiais", summary.dailyLogCount]
-    ].forEach(function (item) {
-      const card = document.createElement("article");
-      const label = document.createElement("span");
-      const value = document.createElement("strong");
-      card.className = "stock-ia-card";
-      label.textContent = item[0];
-      value.textContent = String(item[1]);
-      card.appendChild(label);
-      card.appendChild(value);
-      stockIaSummaryCards.appendChild(card);
-    });
-  }
-
-  function renderStockIaRows_(balances) {
-    if (!stockIaRows) {
-      return;
-    }
-
-    stockIaRows.innerHTML = "";
-    if (!balances.length) {
-      appendStockIaEmptyRow_(stockIaRows, 7, "Nenhum material registrado nos RDOs.");
-      return;
-    }
-
-    balances.forEach(function (balance) {
-      const row = document.createElement("tr");
-      appendStockIaCell_(row, balance.name);
-      appendStockIaCell_(row, balance.unit);
-      appendStockIaCell_(row, formatQuantity_(balance.totalQuantity));
-      appendStockIaCell_(row, formatCurrency_(balance.totalCost));
-      appendStockIaCell_(row, String(balance.dailyLogIds.length));
-      appendStockIaCell_(row, summarizeStockIaList_(balance.workNames, 3));
-      appendStockIaCell_(row, balance.lastDate ? formatDateOnly_(balance.lastDate) : "-");
-      stockIaRows.appendChild(row);
-    });
-  }
-
-  function renderStockIaMovements_(movements) {
-    if (!stockIaMovements) {
-      return;
-    }
-
-    stockIaMovements.innerHTML = "";
-    if (!movements.length) {
-      appendStockIaEmptyRow_(stockIaMovements, 8, "Nenhum movimento derivado encontrado.");
-      return;
-    }
-
-    movements.slice(0, 80).forEach(function (movement) {
-      const row = document.createElement("tr");
-      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
-      appendStockIaCell_(row, movement.name);
-      appendStockIaCell_(row, formatQuantity_(movement.quantity));
-      appendStockIaCell_(row, movement.unit);
-      appendStockIaCell_(row, formatCurrency_(movement.totalValue));
-      appendStockIaCell_(row, "RDO");
-      appendStockIaCell_(row, movement.dailyLogId || "-");
-      appendStockIaCell_(row, movement.workName || "-");
-      stockIaMovements.appendChild(row);
-    });
-  }
-
   function buildStockIaInsightFromDailyLogs_(balances, movements) {
     if (!movements.length) {
       return "Ainda nao ha materiais registrados nos RDOs. Quando um diario tiver material consumido, o Stock IA vai mostrar o consumo derivado aqui.";
@@ -5471,25 +5658,43 @@
       const storage = getLocalStorage_();
       const raw = storage ? storage.getItem(ALMOX_STORAGE_KEY) : "";
       const parsed = raw ? JSON.parse(raw) : {};
-      return {
+      const mutedUntil = clean(parsed.alertsMutedUntil) || (parsed.alertsMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "");
+      const alertsMuted = Boolean(parsed.alertsMuted) && (!mutedUntil || new Date(mutedUntil).getTime() > Date.now());
+      return normalizeAlmoxEnvironmentState_({
         items: Array.isArray(parsed.items) ? parsed.items : [],
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+        alertsMuted: alertsMuted,
+        alertsMutedUntil: alertsMuted ? mutedUntil : "",
+        alertHistory: Array.isArray(parsed.alertHistory) ? parsed.alertHistory : [],
+        stockEnvironments: Array.isArray(parsed.stockEnvironments) ? parsed.stockEnvironments : [],
+        activeStockEnvironmentId: clean(parsed.activeStockEnvironmentId),
         updatedAt: parsed.updatedAt || new Date().toISOString()
-      };
+      });
     } catch (error) {
       console.warn("Nao foi possivel carregar o almoxarifado.", error);
-      return {
+      return normalizeAlmoxEnvironmentState_({
         items: [],
         movements: [],
+        alertsMuted: false,
+        alertsMutedUntil: "",
+        alertHistory: [],
+        stockEnvironments: [],
+        activeStockEnvironmentId: "",
         updatedAt: new Date().toISOString()
-      };
+      });
     }
   }
 
   function saveAlmoxState_(state) {
+    const normalizedState = normalizeAlmoxEnvironmentState_(state || {});
     const safeState = {
-      items: Array.isArray(state.items) ? state.items : [],
-      movements: Array.isArray(state.movements) ? state.movements : [],
+      items: Array.isArray(normalizedState.items) ? normalizedState.items : [],
+      movements: Array.isArray(normalizedState.movements) ? normalizedState.movements : [],
+      alertsMuted: Boolean(normalizedState.alertsMuted),
+      alertsMutedUntil: clean(normalizedState.alertsMutedUntil),
+      alertHistory: Array.isArray(normalizedState.alertHistory) ? normalizedState.alertHistory.slice(0, 80) : [],
+      stockEnvironments: Array.isArray(normalizedState.stockEnvironments) ? normalizedState.stockEnvironments : [],
+      activeStockEnvironmentId: clean(normalizedState.activeStockEnvironmentId),
       updatedAt: new Date().toISOString()
     };
 
@@ -5502,16 +5707,268 @@
       console.warn("Nao foi possivel salvar o almoxarifado.", error);
     }
 
+    activeStockEnvironmentId = safeState.activeStockEnvironmentId;
     return safeState;
+  }
+
+  function normalizeAlmoxEnvironmentState_(state) {
+    const safeState = {
+      items: Array.isArray(state.items) ? state.items : [],
+      movements: Array.isArray(state.movements) ? state.movements : [],
+      alertsMuted: Boolean(state.alertsMuted),
+      alertsMutedUntil: clean(state.alertsMutedUntil),
+      alertHistory: Array.isArray(state.alertHistory) ? state.alertHistory : [],
+      stockEnvironments: Array.isArray(state.stockEnvironments) ? state.stockEnvironments : [],
+      activeStockEnvironmentId: clean(state.activeStockEnvironmentId),
+      updatedAt: state.updatedAt || new Date().toISOString()
+    };
+
+    safeState.stockEnvironments = safeState.stockEnvironments.filter(function (environment) {
+      return environment && clean(environment.id);
+    });
+
+    if (!safeState.stockEnvironments.length) {
+      safeState.stockEnvironments.push(createDefaultStockEnvironment_());
+    }
+
+    const environmentIds = new Set(safeState.stockEnvironments.map(function (environment) {
+      return environment.id;
+    }));
+
+    if (!safeState.activeStockEnvironmentId || !environmentIds.has(safeState.activeStockEnvironmentId)) {
+      safeState.activeStockEnvironmentId = safeState.stockEnvironments[0].id;
+    }
+
+    safeState.items = safeState.items.map(function (item) {
+      const environmentId = clean(item.environmentId);
+      if (environmentId && environmentIds.has(environmentId)) {
+        return item;
+      }
+
+      return Object.assign({}, item, {
+        environmentId: safeState.activeStockEnvironmentId
+      });
+    });
+
+    safeState.movements = safeState.movements.map(function (movement) {
+      const environmentId = clean(movement.environmentId);
+      if (environmentId && environmentIds.has(environmentId)) {
+        return movement;
+      }
+
+      const relatedItem = safeState.items.find(function (item) {
+        return item.id === movement.itemId;
+      });
+
+      return Object.assign({}, movement, {
+        environmentId: relatedItem && relatedItem.environmentId
+          ? relatedItem.environmentId
+          : safeState.activeStockEnvironmentId
+      });
+    });
+
+    safeState.alertHistory = safeState.alertHistory.map(function (alert) {
+      const environmentId = clean(alert.environmentId);
+      if (environmentId && environmentIds.has(environmentId)) {
+        return alert;
+      }
+
+      return Object.assign({}, alert, {
+        environmentId: safeState.activeStockEnvironmentId
+      });
+    });
+
+    activeStockEnvironmentId = safeState.activeStockEnvironmentId;
+    return safeState;
+  }
+
+  function needsAlmoxEnvironmentMigrationPersist_(rawState, normalizedState) {
+    const raw = rawState || {};
+    const normalized = normalizedState || normalizeAlmoxEnvironmentState_(raw);
+
+    if (!Array.isArray(raw.stockEnvironments) || !raw.stockEnvironments.length) {
+      return true;
+    }
+
+    if (!clean(raw.activeStockEnvironmentId)) {
+      return true;
+    }
+
+    if ((raw.items || []).some(function (item) { return !clean(item.environmentId); })) {
+      return true;
+    }
+
+    if ((raw.movements || []).some(function (movement) { return !clean(movement.environmentId); })) {
+      return true;
+    }
+
+    if ((raw.alertHistory || []).some(function (alert) { return !clean(alert.environmentId); })) {
+      return true;
+    }
+
+    return JSON.stringify(raw.stockEnvironments) !== JSON.stringify(normalized.stockEnvironments) ||
+      clean(raw.activeStockEnvironmentId) !== clean(normalized.activeStockEnvironmentId);
+  }
+
+  function ensureAlmoxEnvironmentMigrationPersisted_() {
+    try {
+      const storage = getLocalStorage_();
+      if (!storage) {
+        return;
+      }
+
+      const rawText = storage.getItem(ALMOX_STORAGE_KEY);
+      const rawState = rawText ? JSON.parse(rawText) : {};
+      const normalizedState = normalizeAlmoxEnvironmentState_(rawState);
+
+      if (needsAlmoxEnvironmentMigrationPersist_(rawState, normalizedState)) {
+        saveAlmoxState_(normalizedState);
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel persistir a migracao de ambientes do almoxarifado.", error);
+    }
+  }
+
+  function createDefaultStockEnvironment_() {
+    const now = new Date().toISOString();
+
+    return {
+      id: DEFAULT_STOCK_ENVIRONMENT_ID,
+      mode: "almoxarifado",
+      clientName: "Demonstração",
+      workName: "",
+      institutionType: "Prefeitura / secretaria / loja",
+      unitName: "Almoxarifado",
+      environmentName: "Almoxarifado demonstrativo",
+      responsible: "Gestor",
+      managerEmail: "",
+      createdAt: now
+    };
+  }
+
+  function getStockEnvironments_() {
+    return loadAlmoxState_().stockEnvironments;
+  }
+
+  function saveStockEnvironment_(environment) {
+    if (environment && environment.id) {
+      return updateStockEnvironment_(environment.id, environment);
+    }
+
+    return createStockEnvironment_(environment || {});
+  }
+
+  function getActiveStockEnvironmentId_() {
+    const state = loadAlmoxState_();
+    return clean(state.activeStockEnvironmentId) || DEFAULT_STOCK_ENVIRONMENT_ID;
+  }
+
+  function getActiveStockEnvironment_() {
+    const state = loadAlmoxState_();
+    return state.stockEnvironments.find(function (environment) {
+      return environment.id === state.activeStockEnvironmentId;
+    }) || state.stockEnvironments[0] || createDefaultStockEnvironment_();
+  }
+
+  function setActiveStockEnvironment_(environmentId) {
+    const state = loadAlmoxState_();
+    const exists = state.stockEnvironments.some(function (environment) {
+      return environment.id === environmentId;
+    });
+
+    if (!exists) {
+      return false;
+    }
+
+    state.activeStockEnvironmentId = environmentId;
+    saveAlmoxState_(state);
+    renderAlmoxarifadoPanel_();
+    return true;
+  }
+
+  function createStockEnvironment_(data) {
+    const state = loadAlmoxState_();
+    const now = new Date().toISOString();
+    const mode = data.mode === "obra" ? "obra" : "almoxarifado";
+    const environment = {
+      id: createId_("env"),
+      mode: mode,
+      clientName: clean(data.clientName) || "Cliente sem nome",
+      workName: mode === "obra" ? clean(data.workName || data.unitName) : "",
+      institutionType: clean(data.institutionType),
+      unitName: mode === "almoxarifado" ? clean(data.unitName || data.workName) : "",
+      environmentName: clean(data.environmentName) || "Ambiente Stock IA",
+      responsible: clean(data.responsible) || "Gestor",
+      managerEmail: clean(data.managerEmail),
+      createdAt: now
+    };
+
+    state.stockEnvironments.push(environment);
+    state.activeStockEnvironmentId = environment.id;
+    saveAlmoxState_(state);
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_("Ambiente Stock IA criado e ativado.", "success");
+    return environment;
+  }
+
+  function updateStockEnvironment_(environmentId, data) {
+    const state = loadAlmoxState_();
+    const index = state.stockEnvironments.findIndex(function (environment) {
+      return environment.id === environmentId;
+    });
+
+    if (index < 0) {
+      return false;
+    }
+
+    const current = state.stockEnvironments[index];
+    const mode = data.mode === "obra" ? "obra" : "almoxarifado";
+    state.stockEnvironments[index] = Object.assign({}, current, {
+      mode: mode,
+      clientName: clean(data.clientName) || current.clientName,
+      workName: mode === "obra" ? clean(data.workName || data.unitName) : "",
+      institutionType: clean(data.institutionType),
+      unitName: mode === "almoxarifado" ? clean(data.unitName || data.workName) : "",
+      environmentName: clean(data.environmentName) || current.environmentName,
+      responsible: clean(data.responsible) || current.responsible,
+      managerEmail: clean(data.managerEmail),
+      updatedAt: new Date().toISOString()
+    });
+
+    saveAlmoxState_(state);
+    renderAlmoxarifadoPanel_();
+    return true;
+  }
+
+  function filterAlmoxItemsByActiveEnvironment_(items) {
+    const environmentId = getActiveStockEnvironmentId_();
+    return (items || []).filter(function (item) {
+      return clean(item.environmentId) === environmentId;
+    });
+  }
+
+  function filterAlmoxMovementsByActiveEnvironment_(movements) {
+    const environmentId = getActiveStockEnvironmentId_();
+    return (movements || []).filter(function (movement) {
+      return clean(movement.environmentId) === environmentId;
+    });
+  }
+
+  function filterAlmoxAlertHistoryByActiveEnvironment_(alerts) {
+    const environmentId = getActiveStockEnvironmentId_();
+    return (alerts || []).filter(function (alert) {
+      return clean(alert.environmentId) === environmentId;
+    });
   }
 
   function calculateAlmoxBalances_() {
     const state = loadAlmoxState_();
-    return state.items.filter(function (item) {
-      return String(item.category || "").toLowerCase() !== "almoxarifado" &&
-        String(item.notes || "").toLowerCase().indexOf("modo almoxarifado") < 0;
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+    return activeItems.filter(function (item) {
+      return !item.archived && !item.isArchived && !item.inactive;
     }).map(function (item) {
-      const movements = state.movements.filter(function (movement) {
+      const movements = activeMovements.filter(function (movement) {
         return movement.itemId === item.id;
       });
       const entries = movements.filter(function (movement) {
@@ -5538,6 +5995,34 @@
     }).sort(function (a, b) {
       return String(a.item.name || "").localeCompare(String(b.item.name || ""));
     });
+  }
+
+  function getAlmoxItemBalance_(itemId, state) {
+    const safeState = state || loadAlmoxState_();
+    const item = safeState.items.find(function (candidate) {
+      return candidate.id === itemId;
+    });
+    const environmentId = item && item.environmentId ? item.environmentId : getActiveStockEnvironmentId_();
+
+    if (!item) {
+      return 0;
+    }
+
+    const movements = safeState.movements.filter(function (movement) {
+      return movement.itemId === itemId && clean(movement.environmentId) === clean(environmentId);
+    });
+    const entries = movements.filter(function (movement) {
+      return movement.type === "entrada";
+    }).reduce(function (sum, movement) {
+      return sum + parseNumber_(movement.quantity);
+    }, 0);
+    const exits = movements.filter(function (movement) {
+      return movement.type === "saida";
+    }).reduce(function (sum, movement) {
+      return sum + parseNumber_(movement.quantity);
+    }, 0);
+
+    return roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
   }
 
   function handleAlmoxItemSubmit_(event) {
@@ -5573,7 +6058,7 @@
 
     event.target.reset();
     renderAlmoxarifadoPanel_();
-    showAlmoxToast_("Entrada registrada. Saldo atualizado.", "success");
+    showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
   }
 
   function handleAlmoxExitSubmit_(event) {
@@ -5587,13 +6072,17 @@
 
     event.target.reset();
     renderAlmoxarifadoPanel_();
-    showAlmoxToast_("Entrega registrada. Saldo atualizado.", "success");
+    showAlmoxToast_("Saída registrada com responsável e setor.", "success");
   }
 
   function saveAlmoxItemFromFormData_(formData) {
     const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
     const name = clean(formData.get("name"));
     const initialQuantity = parseNumber_(formData.get("initialQuantity"));
+    const minimumStock = parseNumber_(formData.get("minimumStock"));
+    const defaultMovementDate = getDefaultAlmoxMovementDate_();
+    const defaultMovementTime = getDefaultAlmoxMovementTime_();
 
     if (!name) {
       return {
@@ -5602,14 +6091,24 @@
       };
     }
 
+    if (initialQuantity < 0 || minimumStock < 0) {
+      return {
+        ok: false,
+        message: "Informe quantidades iguais ou maiores que zero."
+      };
+    }
+
     const item = {
       id: createId_("alm"),
+      environmentId: environmentId,
+      fiscalCode: clean(formData.get("fiscalCode")),
       name: name,
       category: clean(formData.get("category")) || "Geral",
       unit: clean(formData.get("unit")) || "un",
       initialQuantity: 0,
-      minimumStock: parseNumber_(formData.get("minimumStock")),
+      minimumStock: minimumStock,
       location: clean(formData.get("location")),
+      expirationDate: clean(formData.get("expirationDate")),
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -5619,12 +6118,16 @@
     if (initialQuantity > 0) {
       state.movements.push({
         id: createId_("almmov"),
+        environmentId: environmentId,
         itemId: item.id,
         type: "entrada",
         quantity: initialQuantity,
         responsible: "Saldo inicial",
         documentNumber: "",
-        date: toDateKey_(new Date()),
+        date: defaultMovementDate,
+        movementDate: defaultMovementDate,
+        movementTime: defaultMovementTime,
+        movementDateTime: buildAlmoxMovementDateTime_(defaultMovementDate, defaultMovementTime),
         notes: "Entrada inicial do cadastro.",
         createdAt: new Date().toISOString()
       });
@@ -5639,8 +6142,12 @@
 
   function saveAlmoxEntryFromFormData_(formData) {
     const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
     const itemId = clean(formData.get("itemId"));
     const quantity = parseNumber_(formData.get("quantity"));
+    const movementDate = clean(formData.get("movementDate")) || clean(formData.get("date")) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(formData.get("movementTime")) || getDefaultAlmoxMovementTime_();
+    const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
 
     if (!itemId || quantity <= 0) {
       return {
@@ -5649,14 +6156,25 @@
       };
     }
 
+    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId; })) {
+      return {
+        ok: false,
+        message: "Material não encontrado no almoxarifado."
+      };
+    }
+
     state.movements.push({
       id: createId_("almmov"),
+      environmentId: environmentId,
       itemId: itemId,
       type: "entrada",
       quantity: quantity,
       responsible: clean(formData.get("responsible")),
       documentNumber: clean(formData.get("documentNumber")),
-      date: clean(formData.get("date")) || toDateKey_(new Date()),
+      date: movementDate,
+      movementDate: movementDate,
+      movementTime: movementTime,
+      movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
     });
@@ -5668,8 +6186,12 @@
 
   function saveAlmoxExitFromFormData_(formData) {
     const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
     const itemId = clean(formData.get("itemId"));
     const quantity = parseNumber_(formData.get("quantity"));
+    const movementDate = clean(formData.get("movementDate")) || clean(formData.get("date")) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(formData.get("movementTime")) || getDefaultAlmoxMovementTime_();
+    const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
 
     if (!itemId || quantity <= 0) {
       return {
@@ -5678,8 +6200,24 @@
       };
     }
 
+    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId; })) {
+      return {
+        ok: false,
+        message: "Material não encontrado no almoxarifado."
+      };
+    }
+
+    const balance = getAlmoxItemBalance_(itemId, state);
+    if (quantity > balance) {
+      return {
+        ok: false,
+        message: "Saldo insuficiente para esta saída."
+      };
+    }
+
     state.movements.push({
       id: createId_("almmov"),
+      environmentId: environmentId,
       itemId: itemId,
       type: "saida",
       quantity: quantity,
@@ -5687,7 +6225,10 @@
       sector: clean(formData.get("sector")),
       purpose: clean(formData.get("purpose")),
       responsible: clean(formData.get("responsible")),
-      date: clean(formData.get("date")) || toDateKey_(new Date()),
+      date: movementDate,
+      movementDate: movementDate,
+      movementTime: movementTime,
+      movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
     });
@@ -5697,11 +6238,1849 @@
     };
   }
 
+  function handleImportAlmoxXmlNote_(file) {
+    if (!file) {
+      setAlmoxNoteStatus_("Selecione um arquivo XML da NF-e/NFC-e para importar.", "error");
+      return;
+    }
+
+    if (!isValidAlmoxXmlFile_(file)) {
+      setAlmoxNoteStatus_("Arquivo XML invalido. Selecione um arquivo .xml da NF-e/NFC-e.", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      try {
+        const xmlText = String(event.target && event.target.result || "");
+        const parsed = parseAlmoxNfeXmlText_(xmlText);
+
+        if (!parsed.items.length) {
+          almoxParsedNoteItems = [];
+          almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+          renderAlmoxParsedNoteItems_();
+          renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+          setAlmoxNoteStatus_("Nenhum item encontrado no XML. Verifique se o arquivo e uma NF-e/NFC-e completa.", "error");
+          return;
+        }
+
+        almoxNoteImportSource = "xml";
+        almoxNoteOcrReady = false;
+        almoxNoteFileDraft = null;
+        almoxParsedNoteItems = parsed.items;
+        almoxFiscalOcrReviewData = buildAlmoxXmlReviewReport_(parsed);
+        if (almoxNoteTextInput) {
+          almoxNoteTextInput.value = "";
+        }
+        renderAlmoxNoteFilePreview_();
+        renderAlmoxParsedNoteItems_();
+        renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+        setAlmoxNoteStatus_("XML importado com seguranca. Confira os itens antes de adicionar ao estoque.", "success");
+      } catch (error) {
+        almoxNoteImportSource = "";
+        setAlmoxNoteStatus_((error && error.message) || "Erro ao ler XML da NF-e/NFC-e.", "error");
+      }
+    };
+    reader.onerror = function () {
+      setAlmoxNoteStatus_("Nao foi possivel ler o arquivo XML selecionado.", "error");
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  function isValidAlmoxXmlFile_(file) {
+    const extension = getFileExtension_(file.name);
+    return extension === "xml" || file.type === "text/xml" || file.type === "application/xml";
+  }
+
+  function parseAlmoxNfeXmlText_(xmlText) {
+    if (!clean(xmlText)) {
+      throw new Error("O arquivo XML esta vazio.");
+    }
+
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+    const parseError = xmlDoc.getElementsByTagName("parsererror")[0];
+    if (parseError) {
+      throw new Error("XML invalido. Verifique o arquivo exportado da nota fiscal.");
+    }
+
+    const dets = Array.prototype.slice.call(xmlDoc.getElementsByTagName("det"));
+    const items = [];
+    const skipped = [];
+
+    dets.forEach(function (det, index) {
+      const productNode = det.getElementsByTagName("prod")[0] || det;
+      const code = getAlmoxXmlText_(productNode, "cProd");
+      const product = cleanFiscalProductName_(getAlmoxXmlText_(productNode, "xProd"));
+      const quantity = parseNumber_(getAlmoxXmlText_(productNode, "qCom"));
+      const unit = normalizeAlmoxNoteUnit_(getAlmoxXmlText_(productNode, "uCom"));
+      const unitValue = parseNumber_(getAlmoxXmlText_(productNode, "vUnCom"));
+      const totalValue = parseNumber_(getAlmoxXmlText_(productNode, "vProd"));
+
+      if (!product || quantity <= 0 || !unit) {
+        skipped.push({
+          text: "Item " + (index + 1) + " do XML",
+          reason: "produto, quantidade ou unidade ausente"
+        });
+        return;
+      }
+
+      items.push({
+        id: createId_("almnote"),
+        sourceLine: index + 1,
+        code: code,
+        product: product,
+        quantity: quantity,
+        unit: unit,
+        unitValue: unitValue,
+        totalValue: totalValue,
+        category: suggestAlmoxNoteCategory_(product),
+        sourceText: [code, product, quantity, unit, unitValue, totalValue].filter(function (value) {
+          return value !== "" && value !== null && value !== undefined;
+        }).join(" ")
+      });
+    });
+
+    return {
+      items: items,
+      skipped: skipped,
+      issuer: getAlmoxXmlText_(xmlDoc, "xNome"),
+      number: getAlmoxXmlText_(xmlDoc, "nNF"),
+      accessKey: getAlmoxNfeAccessKey_(xmlDoc),
+      issuedAt: getAlmoxXmlText_(xmlDoc, "dhEmi") || getAlmoxXmlText_(xmlDoc, "dEmi")
+    };
+  }
+
+  function getAlmoxXmlText_(node, tagName) {
+    const found = node && node.getElementsByTagName ? node.getElementsByTagName(tagName)[0] : null;
+    return found && found.textContent ? clean(found.textContent) : "";
+  }
+
+  function getAlmoxNfeAccessKey_(xmlDoc) {
+    const infNfe = xmlDoc.getElementsByTagName("infNFe")[0] || xmlDoc.getElementsByTagName("infNFCe")[0];
+    const id = infNfe && infNfe.getAttribute ? clean(infNfe.getAttribute("Id")) : "";
+    return id.replace(/^NFe/i, "");
+  }
+
+  function buildAlmoxXmlReviewReport_(parsed) {
+    const skipped = parsed && parsed.skipped ? parsed.skipped : [];
+    const items = parsed && parsed.items ? parsed.items : [];
+    return {
+      totalLines: items.length + skipped.length,
+      interpretedTotal: items.length,
+      rejectedItems: skipped,
+      ignoredLines: [],
+      pendingLines: [],
+      lowConfidenceItems: [],
+      discardedDuplicates: [],
+      hasRisk: Boolean(skipped.length)
+    };
+  }
+
+  async function handleAlmoxNoteFileChange_() {
+    const file = almoxNoteFileInput && almoxNoteFileInput.files ? almoxNoteFileInput.files[0] : null;
+
+    if (!file) {
+      handleClearAlmoxNoteFile_();
+      return;
+    }
+
+    const validation = validateAlmoxNoteFile_(file);
+    if (!validation.ok) {
+      almoxNoteFileDraft = null;
+      if (almoxNoteFileInput) {
+        almoxNoteFileInput.value = "";
+      }
+      renderAlmoxNoteFilePreview_();
+      setAlmoxNoteStatus_(validation.message, "error");
+      return;
+    }
+
+    almoxNoteFileDraft = {
+      name: file.name || "nota-fiscal",
+      type: file.type || getAlmoxNoteFileTypeFromName_(file.name),
+      size: file.size || 0,
+      previewDataUrl: null,
+      ocrText: "",
+      ocrStatus: "pending"
+    };
+    almoxNoteOcrReady = false;
+    almoxNoteImportSource = "ocr";
+
+    if (/^image\//.test(almoxNoteFileDraft.type)) {
+      const selectedName = almoxNoteFileDraft.name;
+      readAlmoxNoteImagePreview_(file, function (dataUrl) {
+        if (!almoxNoteFileDraft || almoxNoteFileDraft.name !== selectedName) {
+          return;
+        }
+        almoxNoteFileDraft.previewDataUrl = dataUrl;
+        renderAlmoxNoteFilePreview_();
+      });
+    }
+
+    renderAlmoxNoteFilePreview_();
+    await runAlmoxNoteOcr_(file, almoxNoteFileDraft);
+  }
+
+  function handleClearAlmoxNoteFile_() {
+    almoxNoteFileDraft = null;
+    almoxNoteOcrReady = false;
+    if (almoxNoteImportSource === "ocr") {
+      almoxNoteImportSource = "";
+    }
+    almoxOcrSequence += 1;
+    if (almoxNoteFileInput) {
+      almoxNoteFileInput.value = "";
+    }
+    renderAlmoxNoteFilePreview_();
+    setAlmoxNoteStatus_("Arquivo removido. Cole o texto extraido ou digitado da nota para interpretar os itens.", "info");
+  }
+
+  function validateAlmoxNoteFile_(file) {
+    const type = file.type || getAlmoxNoteFileTypeFromName_(file.name);
+    const extension = getFileExtension_(file.name);
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    const allowedExtensions = ["jpg", "jpeg", "png", "webp", "pdf"];
+
+    if (file.size > ALMOX_NOTE_FILE_MAX_SIZE) {
+      return {
+        ok: false,
+        message: "Arquivo maior que 10 MB. Envie uma imagem ou PDF menor para anexar a nota."
+      };
+    }
+
+    if (allowedTypes.indexOf(type) < 0 && allowedExtensions.indexOf(extension) < 0) {
+      return {
+        ok: false,
+        message: "Tipo de arquivo nao aceito. Use JPG, JPEG, PNG, WEBP ou PDF."
+      };
+    }
+
+    return {
+      ok: true
+    };
+  }
+
+  function getAlmoxNoteFileTypeFromName_(name) {
+    const extension = getFileExtension_(name);
+    if (["jpg", "jpeg"].indexOf(extension) >= 0) {
+      return "image/jpeg";
+    }
+    if (extension === "png") {
+      return "image/png";
+    }
+    if (extension === "webp") {
+      return "image/webp";
+    }
+    if (extension === "pdf") {
+      return "application/pdf";
+    }
+    return "";
+  }
+
+  function readAlmoxNoteImagePreview_(file, callback) {
+    const reader = new FileReader();
+    reader.onload = function () {
+      callback(reader.result || null);
+    };
+    reader.onerror = function () {
+      callback(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderAlmoxNoteFilePreview_() {
+    if (!almoxNoteFilePreview) {
+      return;
+    }
+
+    almoxNoteFilePreview.innerHTML = "";
+
+    if (!almoxNoteFileDraft) {
+      almoxNoteFilePreview.className = "almox-note-file-preview is-empty";
+      almoxNoteFilePreview.textContent = "Nenhum arquivo carregado.";
+      return;
+    }
+
+    const meta = document.createElement("p");
+    const ocrMeta = document.createElement("p");
+    meta.textContent = almoxNoteFileDraft.name + " | " + formatBytes_(almoxNoteFileDraft.size);
+    ocrMeta.className = "almox-note-ocr-meta";
+    ocrMeta.textContent = getAlmoxOcrStatusText_(almoxNoteFileDraft);
+    almoxNoteFilePreview.className = "almox-note-file-preview ready";
+
+    if (/^image\//.test(almoxNoteFileDraft.type) && almoxNoteFileDraft.previewDataUrl) {
+      const image = document.createElement("img");
+      image.src = almoxNoteFileDraft.previewDataUrl;
+      image.alt = "Previa da nota fiscal";
+      image.loading = "lazy";
+      almoxNoteFilePreview.appendChild(image);
+      almoxNoteFilePreview.appendChild(meta);
+      almoxNoteFilePreview.appendChild(ocrMeta);
+      return;
+    }
+
+    const box = document.createElement("div");
+    const label = document.createElement("strong");
+    const hint = document.createElement("span");
+    box.className = "almox-note-file-box";
+    label.textContent = almoxNoteFileDraft.type === "application/pdf" ? "PDF" : "Arquivo";
+    hint.textContent = "Arquivo anexado para conferencia manual.";
+    box.appendChild(label);
+    box.appendChild(hint);
+    almoxNoteFilePreview.appendChild(box);
+    almoxNoteFilePreview.appendChild(meta);
+    almoxNoteFilePreview.appendChild(ocrMeta);
+  }
+
+  function getAlmoxOcrStatusText_(fileDraft) {
+    if (!fileDraft) {
+      return "";
+    }
+    if (fileDraft.ocrStatus === "running") {
+      return "OCR: extraindo texto...";
+    }
+    if (fileDraft.ocrStatus === "done") {
+      return "OCR: texto extraido. Confira antes de adicionar ao estoque.";
+    }
+    if (fileDraft.ocrStatus === "empty") {
+      return "OCR: nenhum texto confiavel encontrado.";
+    }
+    if (fileDraft.ocrStatus === "error") {
+      return "OCR: nao foi possivel concluir a leitura.";
+    }
+    return "OCR: aguardando leitura.";
+  }
+
+  async function runAlmoxNoteOcr_(file, fileDraft) {
+    const sequence = ++almoxOcrSequence;
+
+    if (!file || !fileDraft) {
+      return;
+    }
+
+    fileDraft.ocrStatus = "running";
+    renderAlmoxNoteFilePreview_();
+    setAlmoxNoteStatus_("Extraindo texto...", "info");
+
+    try {
+      const text = fileDraft.type === "application/pdf"
+        ? await extractAlmoxTextFromPdf_(file, sequence)
+        : await extractAlmoxTextFromImage_(fileDraft.previewDataUrl || file, sequence);
+
+      if (sequence !== almoxOcrSequence || !almoxNoteFileDraft || almoxNoteFileDraft.name !== fileDraft.name) {
+        return;
+      }
+
+      fileDraft.ocrText = cleanOcrText_(text);
+      fileDraft.ocrStatus = fileDraft.ocrText ? "done" : "empty";
+      almoxNoteOcrReady = Boolean(fileDraft.ocrText);
+      renderAlmoxNoteFilePreview_();
+
+      if (fileDraft.ocrText && almoxNoteTextInput) {
+        almoxNoteTextInput.value = fileDraft.ocrText;
+        almoxNoteTextInput.dispatchEvent(new Event("input", { bubbles: true }));
+        setAlmoxNoteStatus_("Texto extraido da nota. Confira antes de adicionar ao estoque.", "success");
+        return;
+      }
+
+      setAlmoxNoteStatus_("Nao foi possivel extrair texto com confianca. Cole o texto da nota ou confira manualmente.", "error");
+    } catch (error) {
+      if (sequence !== almoxOcrSequence) {
+        return;
+      }
+      fileDraft.ocrStatus = "error";
+      almoxNoteOcrReady = false;
+      almoxNoteImportSource = "";
+      renderAlmoxNoteFilePreview_();
+      setAlmoxNoteStatus_((error && error.message) || "Nao foi possivel executar OCR neste arquivo.", "error");
+    }
+  }
+
+  async function extractAlmoxTextFromImage_(imageSource, sequence) {
+    const Tesseract = await loadAlmoxTesseract_();
+    if (sequence !== almoxOcrSequence) {
+      return "";
+    }
+
+    const result = await Tesseract.recognize(imageSource, "por+eng", {
+      logger: function (info) {
+        if (sequence !== almoxOcrSequence || !info || info.status !== "recognizing text") {
+          return;
+        }
+        const progress = Math.round((info.progress || 0) * 100);
+        setAlmoxNoteStatus_("Extraindo texto... " + progress + "%", "info");
+      }
+    });
+
+    return result && result.data ? result.data.text : "";
+  }
+
+  async function extractAlmoxTextFromPdf_(file, sequence) {
+    const pdfjsLib = await loadAlmoxPdfJs_();
+    const buffer = await file.arrayBuffer();
+    if (sequence !== almoxOcrSequence) {
+      return "";
+    }
+
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const pageLimit = Math.min(pdf.numPages || 0, ALMOX_OCR_PDF_MAX_PAGES);
+    const texts = [];
+
+    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+      if (sequence !== almoxOcrSequence) {
+        return "";
+      }
+
+      setAlmoxNoteStatus_("Extraindo texto do PDF... pagina " + pageNumber + " de " + pageLimit + ".", "info");
+      const imageDataUrl = await renderAlmoxPdfPageToImage_(pdf, pageNumber);
+      texts.push(await extractAlmoxTextFromImage_(imageDataUrl, sequence));
+    }
+
+    return texts.join("\n");
+  }
+
+  async function renderAlmoxPdfPageToImage_(pdf, pageNumber) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1.8 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    return canvas.toDataURL("image/png");
+  }
+
+  async function loadAlmoxTesseract_() {
+    if (window.Tesseract && window.Tesseract.recognize) {
+      return window.Tesseract;
+    }
+    await loadExternalScript_(ALMOX_OCR_TESSERACT_URL);
+    if (!window.Tesseract || !window.Tesseract.recognize) {
+      throw new Error("Biblioteca OCR nao carregou. Verifique a conexao e tente novamente.");
+    }
+    return window.Tesseract;
+  }
+
+  async function loadAlmoxPdfJs_() {
+    if (window.pdfjsLib && window.pdfjsLib.getDocument) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = ALMOX_OCR_PDF_WORKER_URL;
+      return window.pdfjsLib;
+    }
+    await loadExternalScript_(ALMOX_OCR_PDFJS_URL);
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfjsLib || !pdfjsLib.getDocument) {
+      throw new Error("Biblioteca de leitura de PDF nao carregou. Verifique a conexao e tente novamente.");
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = ALMOX_OCR_PDF_WORKER_URL;
+    return pdfjsLib;
+  }
+
+  function loadExternalScript_(src) {
+    if (externalScriptPromises[src]) {
+      return externalScriptPromises[src];
+    }
+
+    externalScriptPromises[src] = new Promise(function (resolve, reject) {
+      const existing = document.querySelector("script[src='" + src + "']");
+      if (existing) {
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", function () {
+          reject(new Error("Nao foi possivel carregar biblioteca externa."));
+        }, { once: true });
+        if (existing.dataset.loaded === "true") {
+          resolve();
+        }
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      script.onload = function () {
+        script.dataset.loaded = "true";
+        resolve();
+      };
+      script.onerror = function () {
+        reject(new Error("Nao foi possivel carregar biblioteca externa."));
+      };
+      document.head.appendChild(script);
+    });
+
+    return externalScriptPromises[src];
+  }
+
+  function cleanOcrText_(text) {
+    return String(text || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map(function (line) { return clean(line).replace(/\s+/g, " "); })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  function handleParseAlmoxNoteText_() {
+    const text = clean(almoxNoteTextInput && almoxNoteTextInput.value);
+
+    if (!text) {
+      almoxParsedNoteItems = [];
+      almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+      renderAlmoxParsedNoteItems_();
+      renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+      setAlmoxNoteStatus_("Nenhum item foi reconhecido. Verifique o texto colado ou cadastre manualmente.", "error");
+      return;
+    }
+
+    almoxParsedNoteItems = parseAlmoxFiscalText_(text);
+    almoxNoteImportSource = almoxNoteOcrReady ? "ocr" : "text";
+    almoxFiscalOcrReviewData = buildFiscalOcrReviewReport_(text, almoxParsedNoteItems);
+
+    renderAlmoxParsedNoteItems_();
+    renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+
+    if (!almoxParsedNoteItems.length) {
+      setAlmoxNoteStatus_("Nenhum item foi reconhecido. Verifique o texto colado ou cadastre manualmente.", "error");
+      return;
+    }
+
+    if (almoxParsedNoteItems.length < 5) {
+      setAlmoxNoteStatus_("Atencao: poucos itens foram interpretados. Confira o texto extraido ou ajuste manualmente antes de adicionar ao estoque.", "warning");
+      return;
+    }
+
+    setAlmoxNoteStatus_("Confira os itens antes de lancar no estoque.", "success");
+  }
+
+  function handleClearAlmoxNote_() {
+    almoxParsedNoteItems = [];
+    almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+    almoxNoteImportSource = "";
+    almoxNoteFileDraft = null;
+    if (almoxNoteTextInput) {
+      almoxNoteTextInput.value = "";
+    }
+    if (almoxNoteFileInput) {
+      almoxNoteFileInput.value = "";
+    }
+    if (almoxXmlNoteFileInput) {
+      almoxXmlNoteFileInput.value = "";
+    }
+    if (almoxNfeKeyInput) {
+      almoxNfeKeyInput.value = "";
+    }
+    if (almoxNfeKeyStatus) {
+      almoxNfeKeyStatus.textContent = "Consulta por chave NF-e preparada para integracao futura.";
+    }
+    renderAlmoxNoteFilePreview_();
+    renderAlmoxParsedNoteItems_();
+    renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+    setAlmoxNoteStatus_("Cole o texto da nota para iniciar a leitura.", "info");
+  }
+
+  function handleValidateAlmoxNfeKey_() {
+    const digits = clean(almoxNfeKeyInput && almoxNfeKeyInput.value).replace(/\D/g, "");
+    const valid = digits.length === 44;
+    const message = valid
+      ? "Chave NF-e reconhecida. Consulta real via API/certificado sera ativada futuramente."
+      : "Chave NF-e invalida.";
+
+    if (almoxNfeKeyStatus) {
+      almoxNfeKeyStatus.textContent = message;
+    }
+
+    setAlmoxNoteStatus_(message, valid ? "success" : "error");
+  }
+
+  function handleAddAlmoxNoteItems_() {
+    syncAlmoxParsedNoteItemsFromTable_();
+
+    const validItems = almoxParsedNoteItems.filter(function (item) {
+      return clean(item.product) && parseNumber_(item.quantity) > 0 && clean(item.unit);
+    });
+
+    if (!validItems.length) {
+      setAlmoxNoteStatus_("Nenhum item foi reconhecido. Verifique o texto colado ou cadastre manualmente.", "error");
+      return;
+    }
+
+    if (hasFiscalOcrReviewRisk_(almoxFiscalOcrReviewData) &&
+        !window.confirm("Existem linhas pendentes. Confirme que revisou antes de lancar.")) {
+      setAlmoxNoteStatus_("Lancamento cancelado para conferencia das linhas pendentes.", "warning");
+      return;
+    }
+
+    const movementDate = getDefaultAlmoxMovementDate_();
+    const movementTime = getDefaultAlmoxMovementTime_();
+    const responsible = clean(currentUser && currentUser.name) || "Sistema Stock IA";
+    const entryOrigin = almoxNoteImportSource === "xml"
+      ? "Nota fiscal XML"
+      : (almoxNoteOcrReady
+      ? "Nota fiscal por OCR"
+      : (almoxNoteFileDraft ? "Nota fiscal por imagem/PDF - conferida manualmente" : "Nota fiscal interpretada"));
+    let addedCount = 0;
+
+    validItems.forEach(function (noteItem) {
+      let state = loadAlmoxState_();
+      let item = findAlmoxItemFromNote_(state, noteItem);
+
+      if (!item) {
+        const itemFormData = new FormData();
+        itemFormData.append("name", clean(noteItem.product));
+        itemFormData.append("fiscalCode", clean(noteItem.code));
+        itemFormData.append("category", clean(noteItem.category) || suggestAlmoxNoteCategory_(noteItem.product));
+        itemFormData.append("unit", normalizeAlmoxNoteUnit_(noteItem.unit));
+        itemFormData.append("initialQuantity", "0");
+        itemFormData.append("minimumStock", "0");
+        itemFormData.append("location", "");
+        itemFormData.append("expirationDate", "");
+        itemFormData.append("notes", "Criado a partir de nota fiscal interpretada.");
+
+        const itemResult = saveAlmoxItemFromFormData_(itemFormData);
+        if (!itemResult.ok) {
+          return;
+        }
+        item = itemResult.item;
+      }
+
+      const entryFormData = new FormData();
+      entryFormData.append("itemId", item.id);
+      entryFormData.append("quantity", String(parseNumber_(noteItem.quantity)));
+      entryFormData.append("documentNumber", entryOrigin);
+      entryFormData.append("responsible", responsible);
+      entryFormData.append("movementDate", movementDate);
+      entryFormData.append("movementTime", movementTime);
+      entryFormData.append("notes", buildAlmoxNoteEntryNotes_(noteItem, entryOrigin));
+
+      const entryResult = saveAlmoxEntryFromFormData_(entryFormData);
+      if (entryResult.ok) {
+        addedCount += 1;
+      }
+    });
+
+    if (!addedCount) {
+      setAlmoxNoteStatus_("Nenhum item foi reconhecido. Verifique o texto colado ou cadastre manualmente.", "error");
+      return;
+    }
+
+    almoxParsedNoteItems = [];
+    almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+    almoxNoteImportSource = "";
+    almoxNoteOcrReady = false;
+    renderAlmoxarifadoPanel_();
+    renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+    setAlmoxNoteStatus_("Itens adicionados ao estoque a partir da nota fiscal.", "success");
+    showAlmoxToast_("Itens adicionados ao estoque a partir da nota fiscal.", "success");
+  }
+
+  function parseAlmoxFiscalText_(text) {
+    almoxLastFiscalRejectedItems = [];
+    almoxLastFiscalDiscardedDuplicates = [];
+    return dedupeFiscalItems_(parseFiscalNoteItems_(text));
+  }
+
+  function normalizeFiscalNoteText_(text) {
+    return cleanOcrText_(text)
+      .split("\n")
+      .map(function (line) {
+        return normalizeAlmoxFiscalLine_(line)
+          .replace(/[\u00A3ªº&%]+/g, " ")
+          .replace(/[_]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  function normalizeFiscalNoteLineForParsing_(line) {
+    return normalizeAlmoxFiscalLine_(line)
+      .replace(/[\u2014\u2013]/g, "-")
+      .replace(/^[^\dA-Za-zÀ-ÿ]+(?=\S)/, "")
+      .replace(/\bU[NM]\b/ig, "UN")
+      .replace(/\bUNID(?:ADE)?S?\b/ig, "UN")
+      .replace(/\bLT\b/ig, "L")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function rebuildFiscalStructuredLines_(text) {
+    const lines = normalizeFiscalNoteText_(text)
+      .split("\n")
+      .map(normalizeFiscalNoteLineForParsing_)
+      .filter(Boolean);
+    const rebuilt = [];
+    let pending = "";
+
+    lines.forEach(function (line) {
+      if (isFiscalNoiseLine_(line)) {
+        return;
+      }
+
+      const startsWithCode = /^\d{3}\b/.test(line);
+      if (startsWithCode) {
+        if (pending) {
+          rebuilt.push(pending);
+        }
+        pending = line;
+      } else if (pending) {
+        pending = pending + " " + line;
+      } else {
+        registerFiscalRejectedLine_(line, getFiscalPendingLineReason_(line));
+      }
+
+      if (pending && hasStrictFiscalItemShape_(pending)) {
+        rebuilt.push(pending);
+        pending = "";
+      }
+    });
+
+    if (pending) {
+      rebuilt.push(pending);
+    }
+
+    return rebuilt;
+  }
+
+  function hasStrictFiscalItemShape_(line) {
+    return /^\d{3}\b/.test(line) &&
+      /(?:\d+(?:[.,]\d{2})\b)/.test(line) &&
+      /[\d.,]+\s*(UN|UND|UNID|KG|G|L|ML|LT|CX|PC|PCT|RL)\b/i.test(line);
+  }
+
+  function parseFiscalNoteItems_(text) {
+    return rebuildFiscalStructuredLines_(text)
+      .filter(function (line) {
+        return line && !isFiscalNoiseLine_(line);
+      })
+      .map(parseFiscalNoteLine_)
+      .filter(Boolean);
+  }
+
+  function parseFiscalNoteLine_(line, index) {
+    const strictItem = parseStrictFiscalNoteLine_(line, index);
+    if (strictItem) {
+      return strictItem;
+    }
+
+    registerFiscalRejectedLine_(line, getFiscalPendingLineReason_(normalizeFiscalNoteLineForParsing_(line)));
+    return null;
+
+    const normalizedLine = normalizeAlmoxFiscalLine_(line).replace(/[—–]/g, "-");
+    const codeMatch = normalizedLine.match(/^\s*(\d{1,8})\s+(.+)$/);
+    if (!codeMatch) {
+      return null;
+    }
+
+    const code = codeMatch[1];
+    const rest = clean(codeMatch[2]);
+    const moneyMatches = Array.from(rest.matchAll(/(?:R\$\s*)?\d+(?:[.,]\d{2})\b/g));
+    if (moneyMatches.length < 2) {
+      return null;
+    }
+
+    const unitValueMatch = moneyMatches[moneyMatches.length - 2];
+    const totalValueMatch = moneyMatches[moneyMatches.length - 1];
+    const beforeValues = clean(rest.slice(0, unitValueMatch.index));
+    const quantityUnitMatch = beforeValues.match(/^(.*?)\s+([\d.,]+)\s*(UN|UND|UNID|KG|G|L|ML|M2|M3|M|CX|PC|PCT|SC|LT|RL)\s*$/i);
+    if (!quantityUnitMatch) {
+      return null;
+    }
+
+    const product = cleanAlmoxParsedProduct_(quantityUnitMatch[1]);
+    const quantity = parseNumber_(quantityUnitMatch[2]);
+    const unit = normalizeAlmoxNoteUnit_(quantityUnitMatch[3]);
+    const unitValue = parseNumber_(unitValueMatch[0]);
+    const totalValue = parseNumber_(totalValueMatch[0]);
+
+    if (!isValidAlmoxParsedProduct_(product) || quantity <= 0 || !unit) {
+      return null;
+    }
+
+    return {
+      id: createId_("almnote"),
+      sourceLine: index + 1,
+      code: code,
+      product: product,
+      quantity: quantity,
+      unit: unit,
+      unitValue: unitValue,
+      totalValue: totalValue,
+      sourceText: normalizedLine,
+      category: suggestAlmoxNoteCategory_(product)
+    };
+  }
+
+  function parseStrictFiscalNoteLine_(line, index) {
+    const normalizedLine = normalizeFiscalNoteLineForParsing_(line);
+    const codeMatch = normalizedLine.match(/^\s*(\d{3})\b\s+(.+)$/);
+    if (!codeMatch) {
+      return null;
+    }
+
+    const code = codeMatch[1];
+    const rest = clean(codeMatch[2]);
+    const moneyMatches = Array.from(rest.matchAll(/(?:R\$\s*)?\d+(?:[.,]\d{2})\b/g));
+    if (!moneyMatches.length) {
+      return null;
+    }
+
+    const unitValueMatch = moneyMatches.length >= 2 ? moneyMatches[moneyMatches.length - 2] : moneyMatches[0];
+    const totalValueMatch = moneyMatches.length >= 2 ? moneyMatches[moneyMatches.length - 1] : null;
+    const beforeValues = clean(rest.slice(0, unitValueMatch.index));
+    const quantityUnitMatch = beforeValues.match(/^(.*?)\s+([\d.,]+)\s*(UN|KG|G|L|ML|LT|CX|PC|PCT|RL)\s*$/i);
+    if (!quantityUnitMatch) {
+      return null;
+    }
+
+    const product = cleanFiscalProductName_(quantityUnitMatch[1]);
+    const quantity = parseNumber_(quantityUnitMatch[2]);
+    const unit = normalizeAlmoxNoteUnit_(quantityUnitMatch[3]);
+    const unitValue = parseNumber_(unitValueMatch[0]);
+    const totalValue = totalValueMatch ? parseNumber_(totalValueMatch[0]) : 0;
+    const item = {
+      id: createId_("almnote"),
+      sourceLine: index + 1,
+      code: code,
+      product: product,
+      quantity: quantity,
+      unit: unit,
+      unitValue: unitValue,
+      totalValue: totalValue,
+      sourceText: normalizedLine,
+      category: suggestAlmoxNoteCategory_(product)
+    };
+
+    return isHighConfidenceFiscalItem_(item) ? item : null;
+  }
+
+  function isHighConfidenceFiscalItem_(item) {
+    const product = clean(item && item.product);
+    const letters = (product.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+    return /^\d{3}$/.test(clean(item && item.code)) &&
+      letters >= 4 &&
+      !hasFiscalProductNoise_(product) &&
+      parseNumber_(item && item.quantity) > 0 &&
+      /^(un|kg|g|L|ml|caixa|pacote|rolo)$/i.test(clean(item && item.unit)) &&
+      (parseNumber_(item && item.unitValue) > 0 || parseNumber_(item && item.totalValue) > 0) &&
+      getFiscalItemQualityScore_(item) >= 90;
+  }
+
+  function hasFiscalProductNoise_(product) {
+    const value = clean(product);
+    return !value ||
+      /[£ªº&%_*]+/.test(value) ||
+      /^[^A-Za-zÀ-ÿ]*$/.test(value) ||
+      /\b(?:danfe|nfc|cnpj|cpf|consulta|chave|troco|pago)\b/i.test(value);
+  }
+
+  function parseFlexibleFiscalNoteItems_(text, candidateLines) {
+    const rawLines = normalizeFiscalNoteText_(text).split("\n");
+    const lines = rawLines.concat(candidateLines || [])
+      .map(normalizeFiscalNoteLineForParsing_)
+      .filter(function (line, index, list) {
+        return line && list.indexOf(line) === index && !isIgnoredAlmoxFiscalLine_(line);
+      });
+
+    return lines.map(parseFiscalNoteFlexibleLine_).filter(Boolean);
+  }
+
+  function parseFiscalNoteFlexibleLine_(line, index) {
+    const normalizedLine = normalizeFiscalNoteLineForParsing_(line);
+    const codeMatch = normalizedLine.match(/^\s*.{0,10}?\b(\d{2,8})\b\s+(.+)$/);
+    if (!codeMatch) {
+      return null;
+    }
+
+    const code = codeMatch[1];
+    const rest = clean(codeMatch[2]);
+    const moneyMatches = Array.from(rest.matchAll(/(?:R\$\s*)?\d+(?:[.,]\d{2})\b/g));
+    const unitValueMatch = moneyMatches.length >= 2 ? moneyMatches[moneyMatches.length - 2] : (moneyMatches[0] || null);
+    const totalValueMatch = moneyMatches.length >= 2 ? moneyMatches[moneyMatches.length - 1] : null;
+    const beforeValues = clean(unitValueMatch ? rest.slice(0, unitValueMatch.index) : rest);
+    const quantityInfo = extractFlexibleFiscalQuantity_(beforeValues);
+
+    if (!quantityInfo) {
+      return null;
+    }
+
+    const product = cleanFiscalProductName_(quantityInfo.product);
+    const quantity = parseNumber_(quantityInfo.quantity);
+    const unit = normalizeAlmoxNoteUnit_(quantityInfo.unit || "un");
+    const unitValue = unitValueMatch ? parseNumber_(unitValueMatch[0]) : 0;
+    const totalValue = totalValueMatch ? parseNumber_(totalValueMatch[0]) : 0;
+
+    if (!isValidAlmoxParsedProduct_(product) || quantity <= 0 || !unit) {
+      return null;
+    }
+
+    return {
+      id: createId_("almnote"),
+      sourceLine: index + 1,
+      code: code,
+      product: product,
+      quantity: quantity,
+      unit: unit,
+      unitValue: unitValue,
+      totalValue: totalValue,
+      sourceText: normalizedLine,
+      category: suggestAlmoxNoteCategory_(product)
+    };
+  }
+
+  function extractFlexibleFiscalQuantity_(text) {
+    const unitPattern = "(UN|UND|UNID|KG|G|L|ML|LT|M2|M3|M|CX|PC|PCT|SC|RL)";
+    const quantityBeforeUnit = new RegExp("^(.*?)\\s+([\\d.,]+)\\s*" + unitPattern + "\\b\\s*$", "i");
+    const unitBeforeQuantity = new RegExp("^(.*?)\\s+" + unitPattern + "\\s*([\\d.,]+)\\s*$", "i");
+    const withQuantityBeforeUnit = text.match(quantityBeforeUnit);
+    if (withQuantityBeforeUnit) {
+      return {
+        product: withQuantityBeforeUnit[1],
+        quantity: withQuantityBeforeUnit[2],
+        unit: withQuantityBeforeUnit[3]
+      };
+    }
+
+    const withUnitBeforeQuantity = text.match(unitBeforeQuantity);
+    if (withUnitBeforeQuantity) {
+      return {
+        product: withUnitBeforeQuantity[1],
+        quantity: withUnitBeforeQuantity[3],
+        unit: withUnitBeforeQuantity[2]
+      };
+    }
+
+    const probableQuantity = text.match(/^(.*?)\s+([\d.,]+)\s*$/);
+    if (!probableQuantity || !/[a-zA-ZÀ-ÿ]/.test(probableQuantity[1])) {
+      return null;
+    }
+
+    return {
+      product: probableQuantity[1],
+      quantity: probableQuantity[2],
+      unit: "un"
+    };
+  }
+
+  function dedupeFiscalItems_(items) {
+    const seen = {};
+    const seenDetails = {};
+    almoxLastFiscalDiscardedDuplicates = [];
+    return items.filter(function (item) {
+      const code = clean(item.code);
+      const codeKey = code ? "code:" + code : "";
+      const productKey = "item:" + normalizeCompositionKey_(item.product) + ":" + normalizeUnitKey_(item.unit || "un") + ":" + parseNumber_(item.quantity);
+      const duplicateKey = codeKey && seen[codeKey] ? codeKey : (seen[productKey] ? productKey : "");
+      if (duplicateKey) {
+        const previous = seenDetails[duplicateKey] || {};
+        const currentText = item.sourceText || [item.code, item.product, item.quantity, item.unit].filter(Boolean).join(" ");
+        const previousText = previous.sourceText || [previous.code, previous.product, previous.quantity, previous.unit].filter(Boolean).join(" ");
+        if (normalizeCompositionKey_(currentText) !== normalizeCompositionKey_(previousText)) {
+          almoxLastFiscalDiscardedDuplicates.push({
+            text: currentText,
+            reason: "possivel duplicata",
+            item: item
+          });
+        }
+        return false;
+      }
+      if (codeKey) {
+        seen[codeKey] = true;
+        seenDetails[codeKey] = item;
+      }
+      seen[productKey] = true;
+      seenDetails[productKey] = item;
+      return true;
+    });
+  }
+
+  function dedupeAlmoxFiscalNoteItems_(items) {
+    return dedupeFiscalItems_(items);
+  }
+
+  function createEmptyFiscalOcrReviewReport_() {
+    return {
+      totalLines: 0,
+      interpretedTotal: 0,
+      rejectedItems: [],
+      ignoredLines: [],
+      pendingLines: [],
+      lowConfidenceItems: [],
+      discardedDuplicates: [],
+      hasRisk: false
+    };
+  }
+
+  function buildFiscalOcrReviewReport_(text, items) {
+    const safeItems = items || [];
+    const ignoredLines = [];
+    const sourceLines = normalizeFiscalNoteText_(text)
+      .split("\n")
+      .map(function (line, index) {
+        return {
+          number: index + 1,
+          original: line,
+          normalized: normalizeFiscalNoteLineForParsing_(line)
+        };
+      })
+      .filter(function (line) {
+        return clean(line.original);
+      });
+
+    sourceLines.forEach(function (line) {
+      if (isFiscalNoiseLine_(line.normalized)) {
+        ignoredLines.push({
+          text: line.original,
+          reason: "texto de cabecalho/rodape"
+        });
+      }
+    });
+
+    const pendingLines = getUnparsedFiscalLines_(sourceLines, safeItems);
+    const rejectedItems = (almoxLastFiscalRejectedItems || []).slice();
+    const lowConfidenceItems = getLowConfidenceFiscalItems_(safeItems);
+    const discardedDuplicates = (almoxLastFiscalDiscardedDuplicates || []).slice();
+    return {
+      totalLines: sourceLines.length,
+      interpretedTotal: safeItems.length,
+      rejectedItems: rejectedItems,
+      ignoredLines: ignoredLines,
+      pendingLines: pendingLines,
+      lowConfidenceItems: lowConfidenceItems,
+      discardedDuplicates: discardedDuplicates,
+      hasRisk: Boolean(pendingLines.length || rejectedItems.length || discardedDuplicates.length)
+    };
+  }
+
+  function getUnparsedFiscalLines_(sourceLines, items) {
+    const parsedCodes = {};
+    const parsedProductKeys = {};
+    (items || []).forEach(function (item) {
+      if (clean(item.code)) {
+        parsedCodes[clean(item.code)] = true;
+      }
+      parsedProductKeys[normalizeCompositionKey_(item.product)] = true;
+    });
+
+    return (sourceLines || []).filter(function (line) {
+      if (!line.normalized || isFiscalNoiseLine_(line.normalized)) {
+        return false;
+      }
+      const codeMatch = line.normalized.match(/\b(\d{2,8})\b/);
+      if (codeMatch && parsedCodes[codeMatch[1]]) {
+        return false;
+      }
+      const productKey = normalizeCompositionKey_(cleanFiscalProductName_(line.normalized));
+      return productKey && !parsedProductKeys[productKey];
+    }).map(function (line) {
+      return {
+        text: line.original,
+        reason: getFiscalPendingLineReason_(line.normalized)
+      };
+    });
+  }
+
+  function getFiscalPendingLineReason_(line) {
+    if (isFiscalNoiseLine_(line)) {
+      return "texto de cabecalho/rodape";
+    }
+    if (!/\b\d{2,8}\b/.test(line)) {
+      return "linha sem codigo";
+    }
+    if (!/[a-zA-ZÀ-ÿ]{3,}/.test(line)) {
+      return "produto incompleto";
+    }
+    if (!/([\d.,]+)\s*(UN|UND|UNID|KG|G|L|ML|LT|M2|M3|M|CX|PC|PCT|SC|RL)\b/i.test(line) &&
+        !/\b(UN|UND|UNID|KG|G|L|ML|LT|M2|M3|M|CX|PC|PCT|SC|RL)\s*([\d.,]+)/i.test(line)) {
+      return "quantidade nao identificada";
+    }
+    if (!/\d+(?:[.,]\d{2})\b/.test(line)) {
+      return "valor nao identificado";
+    }
+    if (/[^0-9A-Za-zÀ-ÿ\s.,()/\-]/.test(line)) {
+      return "baixa confianca do OCR";
+    }
+    return "produto incompleto";
+  }
+
+  function getFiscalItemQualityScore_(item) {
+    let score = 0;
+    const product = clean(item && item.product);
+    if (clean(item && item.code)) {
+      score += 20;
+    }
+    if (product.length >= 4 && isValidAlmoxParsedProduct_(product)) {
+      score += 25;
+    }
+    if (parseNumber_(item && item.quantity) > 0) {
+      score += 20;
+    }
+    if (clean(item && item.unit)) {
+      score += 10;
+    }
+    if (parseNumber_(item && item.unitValue) > 0) {
+      score += 10;
+    }
+    if (parseNumber_(item && item.totalValue) > 0) {
+      score += 10;
+    }
+    if (product && !/[^0-9A-Za-zÀ-ÿ\s.,()/\-]/.test(product)) {
+      score += 5;
+    }
+    return score;
+  }
+
+  function getUnparsedFiscalLineText_() {
+    const pending = (almoxFiscalOcrReviewData.pendingLines || []).concat(almoxFiscalOcrReviewData.rejectedItems || []);
+    return pending.map(function (line) {
+      return line.text;
+    }).join("\n");
+  }
+
+  function registerFiscalRejectedLine_(line, reason) {
+    const text = clean(line);
+    if (!text || isFiscalNoiseLine_(text)) {
+      return;
+    }
+    const key = normalizeCompositionKey_(text);
+    if ((almoxLastFiscalRejectedItems || []).some(function (item) {
+      return normalizeCompositionKey_(item.text) === key;
+    })) {
+      return;
+    }
+    almoxLastFiscalRejectedItems.push({
+      text: text,
+      reason: reason || "baixa confianca do OCR"
+    });
+  }
+
+  function getLowConfidenceFiscalItems_(items) {
+    return (items || []).map(function (item) {
+      return {
+        item: item,
+        score: getFiscalItemQualityScore_(item)
+      };
+    }).filter(function (entry) {
+      return entry.score < 90;
+    });
+  }
+
+  function hasFiscalOcrReviewRisk_(report) {
+    return Boolean(report && report.hasRisk);
+  }
+
+  function renderFiscalOcrReviewReport_(report) {
+    if (!almoxFiscalOcrReview) {
+      return;
+    }
+
+    const safeReport = report || createEmptyFiscalOcrReviewReport_();
+    almoxFiscalOcrReview.innerHTML = "";
+    almoxFiscalOcrReview.className = "almox-ocr-review" + (!safeReport.totalLines ? " is-empty" : "") + (safeReport.hasRisk ? " has-risk" : "");
+
+    const title = document.createElement("strong");
+    title.textContent = "Conferencia da leitura da nota";
+    almoxFiscalOcrReview.appendChild(title);
+
+    if (!safeReport.totalLines) {
+      const empty = document.createElement("p");
+      empty.textContent = "Interprete uma nota para ver linhas pendentes, duplicatas e itens de baixa confianca.";
+      almoxFiscalOcrReview.appendChild(empty);
+      return;
+    }
+
+    const summary = document.createElement("div");
+    summary.className = "almox-ocr-review-summary";
+    [
+      ["Linhas analisadas", safeReport.totalLines],
+      ["Itens aceitos", safeReport.interpretedTotal],
+      ["Itens rejeitados", safeReport.rejectedItems.length],
+      ["Linhas ignoradas", safeReport.ignoredLines.length],
+      ["Pendentes", safeReport.pendingLines.length],
+      ["Duplicatas descartadas", safeReport.discardedDuplicates.length]
+    ].forEach(function (item) {
+      const card = document.createElement("span");
+      card.innerHTML = "<small>" + item[0] + "</small><b>" + item[1] + "</b>";
+      summary.appendChild(card);
+    });
+    almoxFiscalOcrReview.appendChild(summary);
+
+    if (safeReport.hasRisk) {
+      const warning = document.createElement("p");
+      warning.className = "almox-ocr-review-warning";
+      warning.textContent = "Por seguranca, itens com baixa confianca nao foram lancados na tabela principal. Revise as pendencias e adicione manualmente, se necessario.";
+      almoxFiscalOcrReview.appendChild(warning);
+    }
+
+    appendFiscalReviewList_(almoxFiscalOcrReview, "Itens rejeitados", safeReport.rejectedItems.map(function (line) {
+      return line.text + " - " + line.reason;
+    }), "Nenhum item rejeitado.");
+
+    appendFiscalReviewList_(almoxFiscalOcrReview, "Linhas possivelmente nao interpretadas", safeReport.pendingLines.map(function (line) {
+      return line.text + " - " + line.reason;
+    }), "Nenhuma linha pendente.");
+
+    appendFiscalReviewList_(almoxFiscalOcrReview, "Duplicatas descartadas", safeReport.discardedDuplicates.map(function (line) {
+      return line.text + " - " + line.reason;
+    }), "Nenhuma duplicata descartada.");
+
+    const actions = document.createElement("div");
+    actions.className = "almox-ocr-review-actions";
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "mini-button";
+    copyButton.dataset.fiscalReviewCopy = "true";
+    copyButton.textContent = "Copiar pendencias";
+    const manualButton = document.createElement("button");
+    manualButton.type = "button";
+    manualButton.className = "mini-button primary";
+    manualButton.dataset.fiscalReviewManual = "true";
+    manualButton.textContent = "Adicionar item manualmente";
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.className = "mini-button";
+    clearButton.dataset.fiscalReviewClear = "true";
+    clearButton.textContent = "Limpar leitura";
+    const reprocessButton = document.createElement("button");
+    reprocessButton.type = "button";
+    reprocessButton.className = "mini-button";
+    reprocessButton.dataset.fiscalReviewReprocess = "true";
+    reprocessButton.textContent = "Reprocessar texto colado";
+    actions.appendChild(copyButton);
+    actions.appendChild(manualButton);
+    actions.appendChild(clearButton);
+    actions.appendChild(reprocessButton);
+    almoxFiscalOcrReview.appendChild(actions);
+  }
+
+  function appendFiscalReviewList_(container, title, items, emptyText) {
+    const section = document.createElement("div");
+    section.className = "almox-ocr-review-list";
+    const heading = document.createElement("b");
+    heading.textContent = title;
+    section.appendChild(heading);
+    const list = document.createElement("ul");
+    (items.length ? items : [emptyText]).forEach(function (item) {
+      const row = document.createElement("li");
+      row.textContent = item;
+      list.appendChild(row);
+    });
+    section.appendChild(list);
+    container.appendChild(section);
+  }
+
+  function handleCopyFiscalPendingLines_() {
+    const text = getUnparsedFiscalLineText_();
+    if (!text) {
+      setAlmoxNoteStatus_("Nao ha linhas pendentes para copiar.", "info");
+      return;
+    }
+    copyTextFallback_(text);
+    setAlmoxNoteStatus_("Linhas pendentes copiadas para conferencia.", "success");
+  }
+
+  function handleAddFiscalManualItem_() {
+    syncAlmoxParsedNoteItemsFromTable_();
+    almoxParsedNoteItems.push({
+      id: createId_("almnote"),
+      sourceLine: 0,
+      code: "",
+      product: "",
+      quantity: 1,
+      unit: "un",
+      unitValue: 0,
+      totalValue: 0,
+      category: "Geral",
+      sourceText: "Item manual"
+    });
+    renderAlmoxParsedNoteItems_();
+    setAlmoxNoteStatus_("Linha manual adicionada. Preencha produto, quantidade e unidade antes de lancar.", "info");
+  }
+
+  function buildAlmoxFiscalCandidateLines_(text) {
+    const lines = cleanOcrText_(text).split("\n").filter(Boolean);
+    const candidates = [];
+    let pending = "";
+
+    lines.forEach(function (line) {
+      const normalized = normalizeAlmoxFiscalLine_(line);
+      if (!normalized || isIgnoredAlmoxFiscalLine_(normalized)) {
+        return;
+      }
+
+      const joined = pending ? pending + " " + normalized : normalized;
+      if (hasAlmoxFiscalQuantitySignal_(normalized) || hasAlmoxFiscalQuantitySignal_(joined)) {
+        candidates.push(joined);
+        pending = "";
+        return;
+      }
+
+      if (looksLikeAlmoxProductLine_(normalized)) {
+        if (pending) {
+          candidates.push(pending);
+        }
+        pending = normalized;
+      } else if (pending) {
+        pending += " " + normalized;
+      }
+    });
+
+    if (pending && hasAlmoxFiscalQuantitySignal_(pending)) {
+      candidates.push(pending);
+    }
+
+    return candidates.length ? candidates : lines.map(normalizeAlmoxFiscalLine_).filter(function (line) {
+      return line && !isIgnoredAlmoxFiscalLine_(line);
+    });
+  }
+
+  function normalizeAlmoxFiscalLine_(line) {
+    return clean(line)
+      .replace(/[|]+/g, " ")
+      .replace(/[;]+/g, " ")
+      .replace(/\b0CR\b/ig, "OCR")
+      .replace(/\bQTO\b/ig, "QTD")
+      .replace(/\bQTDE\b/ig, "QTD")
+      .replace(/\bQUANT(?:IDADE)?\b/ig, "QTD")
+      .replace(/\bV(?:AL)?\.?\s*UNIT(?:ARIO)?\b/ig, "VLR UNIT")
+      .replace(/\bVL(?:R)?\.?\s*UN(?:IT)?\b/ig, "VLR UNIT")
+      .replace(/\bV(?:AL)?\.?\s*TOTAL\b/ig, "VLR TOTAL")
+      .replace(/\bM\s*3\b/ig, "M3")
+      .replace(/\bM\s*2\b/ig, "M2")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isFiscalNoiseLine_(line) {
+    const key = normalizeCompositionKey_(line);
+    if (!key) {
+      return true;
+    }
+
+    return [
+      "danfe",
+      "documento auxiliar",
+      "nota fiscal",
+      "chave de acesso",
+      "emitente",
+      "destinatario",
+      "inscricao estadual",
+      "cnpj",
+      "cpf",
+      "protocolo",
+      "natureza da operacao",
+      "base de calculo",
+      "valor do icms",
+      "valor total",
+      "valor total da nota",
+      "dados do produto",
+      "descricao dos produtos",
+      "cod descricao",
+      "cod descri",
+      "coddescr",
+      "qtd total de itens",
+      "forma de pagamento",
+      "pagamento",
+      "troco",
+      "pago",
+      "qr code",
+      "consulta pela chave",
+      "codigo descricao ncm",
+      "ncm cst cfop"
+    ].some(function (token) {
+      return key.indexOf(token) >= 0;
+    });
+  }
+
+  function isIgnoredAlmoxFiscalLine_(line) {
+    return isFiscalNoiseLine_(line);
+  }
+
+  function hasAlmoxFiscalQuantitySignal_(line) {
+    const normalized = normalizeAlmoxFiscalLine_(line);
+    return /\bQTD\.?\s*:?\s*[\d.,]+/i.test(normalized) ||
+      /\b(?:UN|UND|UNID|M2|M3|M|KG|G|L|LT|SC|SACO|SACOS|PCT|PC|CX)\b\s+[\d.,]+(?:\s+(?:R\$\s*)?[\d.,]+){0,3}\s*$/i.test(normalized) ||
+      /[\d.,]+\s*\b(?:UN|UND|UNID|M2|M3|M|KG|G|L|LT|SC|SACO|SACOS|PCT|PC|CX)\b/i.test(normalized);
+  }
+
+  function looksLikeAlmoxProductLine_(line) {
+    const key = normalizeCompositionKey_(line);
+    return key.length >= 4 &&
+      /[a-zA-ZÀ-ÿ]/.test(line) &&
+      !/^\d{6,}/.test(line) &&
+      !isIgnoredAlmoxFiscalLine_(line);
+  }
+
+  function parseAlmoxFiscalLine_(line, index) {
+    const originalLine = normalizeAlmoxFiscalLine_(line);
+    const parsed = parseAlmoxExplicitQuantityLine_(originalLine, index) ||
+      parseAlmoxTrailingQuantityLine_(originalLine, index) ||
+      parseAlmoxTableQuantityLine_(originalLine, index);
+
+    return parsed && clean(parsed.product) && parseNumber_(parsed.quantity) > 0 && clean(parsed.unit) ? parsed : null;
+  }
+
+  function parseAlmoxExplicitQuantityLine_(line, index) {
+    const quantityMatch = line.match(/\bQTD\.?\s*:?\s*([\d.,]+)\s*([a-zA-ZÀ-ÿ0-9²³]+)?/i);
+    if (!quantityMatch) {
+      return null;
+    }
+
+    const product = cleanAlmoxParsedProduct_(line.slice(0, quantityMatch.index));
+    const quantity = parseNumber_(quantityMatch[1]);
+    const unit = normalizeAlmoxNoteUnit_(quantityMatch[2] || findAlmoxUnitNearQuantity_(line, quantityMatch.index + quantityMatch[0].length) || "un");
+    return createAlmoxParsedFiscalItem_(line, index, product, quantity, unit);
+  }
+
+  function parseAlmoxTableQuantityLine_(line, index) {
+    const tokens = line.split(" ").filter(Boolean);
+    const unitIndex = tokens.findIndex(function (token, tokenIndex) {
+      return isAlmoxFiscalUnitToken_(token) && tokenIndex + 1 < tokens.length && parseNumber_(tokens[tokenIndex + 1]) > 0;
+    });
+
+    if (unitIndex <= 0) {
+      return null;
+    }
+
+    const product = cleanAlmoxParsedProduct_(tokens.slice(0, unitIndex).join(" "));
+    const unit = normalizeAlmoxNoteUnit_(tokens[unitIndex]);
+    const quantity = parseNumber_(tokens[unitIndex + 1]);
+    return createAlmoxParsedFiscalItem_(line, index, product, quantity, unit);
+  }
+
+  function parseAlmoxTrailingQuantityLine_(line, index) {
+    const match = line.match(/^(.*?)\s+([\d.,]+)\s*(UN|UND|UNID|M2|M3|M|KG|G|L|LT|SC|SACO|SACOS|PCT|PC|CX)\b/i);
+    if (!match) {
+      return null;
+    }
+
+    const product = cleanAlmoxParsedProduct_(match[1]);
+    const quantity = parseNumber_(match[2]);
+    const unit = normalizeAlmoxNoteUnit_(match[3]);
+    return createAlmoxParsedFiscalItem_(line, index, product, quantity, unit);
+  }
+
+  function createAlmoxParsedFiscalItem_(line, index, product, quantity, unit) {
+    const unitValueMatch = line.match(/\bVLR\s*UNIT\.?\s*(?:R\$\s*)?([\d.,]+)/i) ||
+      line.match(/\bUNITARIO\.?\s*(?:R\$\s*)?([\d.,]+)/i);
+    const totalValueMatch = line.match(/\bVLR\s*TOTAL\.?\s*(?:R\$\s*)?([\d.,]+)/i) ||
+      line.match(/\bTOTAL\.?\s*(?:R\$\s*)?([\d.,]+)\s*$/i);
+    const trailingNumbers = extractAlmoxFiscalTrailingNumbers_(line);
+    const unitValue = unitValueMatch ? parseNumber_(unitValueMatch[1]) : 0;
+    const fallbackUnitValue = !unitValue && trailingNumbers.length >= 2
+      ? trailingNumbers[trailingNumbers.length - 2]
+      : (!unitValue && trailingNumbers.length === 1 ? trailingNumbers[0] : 0);
+    const safeUnitValue = unitValue || fallbackUnitValue;
+    const totalValue = totalValueMatch
+      ? parseNumber_(totalValueMatch[1])
+      : (!unitValueMatch && trailingNumbers.length >= 2 ? trailingNumbers[trailingNumbers.length - 1] : roundQuantity_(quantity * safeUnitValue));
+
+    if (!product || quantity <= 0) {
+      return null;
+    }
+
+    return {
+      id: createId_("almnote"),
+      sourceLine: index + 1,
+      code: "",
+      product: product,
+      quantity: quantity,
+      unit: unit,
+      unitValue: safeUnitValue,
+      totalValue: totalValue,
+      category: suggestAlmoxNoteCategory_(product)
+    };
+  }
+
+  function findAlmoxUnitNearQuantity_(line, startIndex) {
+    const rest = line.slice(startIndex);
+    const match = rest.match(/\b(UN|UND|UNID|M2|M3|M|KG|G|L|LT|SC|SACO|SACOS|PCT|PC|CX)\b/i);
+    return match ? match[1] : "";
+  }
+
+  function isAlmoxFiscalUnitToken_(token) {
+    return /^(UN|UND|UNID|M2|M3|M|KG|G|L|LT|SC|SACO|SACOS|PCT|PC|CX)$/i.test(clean(token));
+  }
+
+  function cleanFiscalProductName_(product) {
+    return clean(product)
+      .replace(/^[^\dA-Za-zÀ-ÿ]+/, "")
+      .replace(/^[wWfij%\s-]+(?=\d{2,8}\s+)/, "")
+      .replace(/^\d+\s+/, "")
+      .replace(/\b(?:COD|CODIGO|CÓDIGO|NCM|CEST|CFOP|CST|CSOSN)\b.*$/i, "")
+      .replace(/\b\d{7,14}\b/g, "")
+      .replace(/(?:\s+\d{2,}(?:[./-]?\d+)*){2,}$/g, "")
+      .replace(/[£ªº&%_]+/g, " ")
+      .replace(/\s+[-:.,;]+/g, " ")
+      .replace(/[-:.,;]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function cleanAlmoxParsedProduct_(product) {
+    return cleanFiscalProductName_(product);
+    return clean(product)
+      .replace(/^\d+\s+/, "")
+      .replace(/\b(?:COD|CODIGO|CÓDIGO|NCM|CEST|CFOP|CST|CSOSN)\b.*$/i, "")
+      .replace(/\b\d{7,14}\b/g, "")
+      .replace(/(?:\s+\d{2,}(?:[./-]?\d+)*){2,}$/g, "")
+      .replace(/[-:.,;]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isValidAlmoxParsedProduct_(product) {
+    const value = clean(product);
+    const key = normalizeCompositionKey_(value);
+    return value.length >= 3 &&
+      /[a-zA-ZÀ-ÿ]/.test(value) &&
+      key.indexOf("cod descricao") < 0 &&
+      key.indexOf("descricao qtd") < 0 &&
+      key.indexOf("valor total") < 0 &&
+      key.indexOf("pagamento") < 0 &&
+      !/^[\W\d_]+$/.test(value);
+  }
+
+  function extractAlmoxFiscalTrailingNumbers_(line) {
+    const matches = clean(line).match(/(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}|\d+\.\d{2}/g) || [];
+    return matches.map(parseNumber_).filter(function (value) {
+      return value > 0;
+    });
+  }
+
+  function renderAlmoxParsedNoteItems_() {
+    if (!almoxNoteRows) {
+      return;
+    }
+
+    almoxNoteRows.innerHTML = "";
+
+    if (!almoxParsedNoteItems.length) {
+      appendStockIaEmptyRow_(almoxNoteRows, 6, "Nenhum item interpretado.");
+      return;
+    }
+
+    almoxParsedNoteItems.forEach(function (item) {
+      const row = document.createElement("tr");
+      row.dataset.almoxNoteId = item.id;
+
+      appendAlmoxNoteInputCell_(row, "code", item.code || "", "text");
+      appendAlmoxNoteInputCell_(row, "product", item.product, "text");
+      appendAlmoxNoteInputCell_(row, "quantity", String(item.quantity), "number", "0.001");
+      appendAlmoxNoteInputCell_(row, "unit", item.unit, "text");
+      appendAlmoxNoteInputCell_(row, "unitValue", item.unitValue ? String(item.unitValue).replace(".", ",") : "", "text");
+      appendAlmoxNoteInputCell_(row, "totalValue", item.totalValue ? String(item.totalValue).replace(".", ",") : "", "text");
+
+      almoxNoteRows.appendChild(row);
+    });
+  }
+
+  function appendAlmoxNoteInputCell_(row, field, value, type, step) {
+    const cell = document.createElement("td");
+    const input = document.createElement("input");
+    input.type = type || "text";
+    input.value = value || "";
+    input.dataset.almoxNoteField = field;
+    if (step) {
+      input.step = step;
+    }
+    cell.appendChild(input);
+    row.appendChild(cell);
+  }
+
+  function syncAlmoxParsedNoteItemsFromTable_() {
+    if (!almoxNoteRows) {
+      return;
+    }
+
+    const rows = Array.prototype.slice.call(almoxNoteRows.querySelectorAll("tr[data-almox-note-id]"));
+    almoxParsedNoteItems = rows.map(function (row) {
+      const current = almoxParsedNoteItems.find(function (item) {
+        return item.id === row.dataset.almoxNoteId;
+      }) || {};
+
+      return {
+        id: row.dataset.almoxNoteId,
+        sourceLine: current.sourceLine || 0,
+        code: getAlmoxNoteFieldValue_(row, "code"),
+        product: getAlmoxNoteFieldValue_(row, "product"),
+        quantity: parseNumber_(getAlmoxNoteFieldValue_(row, "quantity")),
+        unit: normalizeAlmoxNoteUnit_(getAlmoxNoteFieldValue_(row, "unit")),
+        unitValue: parseNumber_(getAlmoxNoteFieldValue_(row, "unitValue")),
+        totalValue: parseNumber_(getAlmoxNoteFieldValue_(row, "totalValue")),
+        category: clean(getAlmoxNoteFieldValue_(row, "category")) || suggestAlmoxNoteCategory_(getAlmoxNoteFieldValue_(row, "product"))
+      };
+    }).filter(function (item) {
+      return clean(item.product) && parseNumber_(item.quantity) > 0 && clean(item.unit);
+    });
+  }
+
+  function getAlmoxNoteFieldValue_(row, field) {
+    const input = row.querySelector("[data-almox-note-field='" + field + "']");
+    return clean(input && input.value);
+  }
+
+  function removeAlmoxParsedNoteItem_(itemId) {
+    syncAlmoxParsedNoteItemsFromTable_();
+    almoxParsedNoteItems = almoxParsedNoteItems.filter(function (item) {
+      return item.id !== itemId;
+    });
+    renderAlmoxParsedNoteItems_();
+    setAlmoxNoteStatus_(almoxParsedNoteItems.length ? "Confira os itens antes de lancar no estoque." : "Nenhum item interpretado.", "info");
+  }
+
+  function findAlmoxItemFromNote_(state, noteItem) {
+    const productKey = normalizeCompositionKey_(noteItem.product);
+    const unitKey = normalizeUnitKey_(noteItem.unit || "un");
+    const code = clean(noteItem.code);
+    const environmentId = getActiveStockEnvironmentId_();
+
+    return (state.items || []).find(function (item) {
+      return clean(item.environmentId) === environmentId &&
+        ((code && clean(item.fiscalCode) === code) ||
+          (normalizeCompositionKey_(item.name) === productKey &&
+            normalizeUnitKey_(item.unit || "un") === unitKey));
+    }) || null;
+  }
+
+  function suggestAlmoxNoteCategory_(product) {
+    const key = normalizeCompositionKey_(product);
+
+    if (key.indexOf("cimento") >= 0) {
+      return "Cimento";
+    }
+    if (key.indexOf("areia") >= 0 || key.indexOf("brita") >= 0) {
+      return "Agregado";
+    }
+    if (key.indexOf("bloco") >= 0 || key.indexOf("tijolo") >= 0) {
+      return "Alvenaria";
+    }
+    if (key.indexOf("piso") >= 0 || key.indexOf("revestimento") >= 0) {
+      return "Revestimento";
+    }
+    if (key.indexOf("argamassa") >= 0 || key.indexOf("rejunte") >= 0) {
+      return "Acabamento";
+    }
+    if (key.indexOf("cabo") >= 0 || key.indexOf("fio") >= 0) {
+      return "Eletrica";
+    }
+    if (key.indexOf("tubo") >= 0 || key.indexOf("pvc") >= 0) {
+      return "Hidraulica";
+    }
+    if (key.indexOf("telha") >= 0) {
+      return "Cobertura";
+    }
+
+    return "Geral";
+  }
+
+  function normalizeAlmoxNoteUnit_(unit) {
+    const key = normalizeUnitKey_(unit || "un");
+    const units = {
+      un: "un",
+      und: "un",
+      unidade: "un",
+      unidades: "un",
+      m: "m",
+      metro: "m",
+      metros: "m",
+      m2: "m2",
+      m3: "m3",
+      kg: "kg",
+      g: "g",
+      l: "L",
+      lt: "L",
+      ml: "ml",
+      saco: "saco",
+      sacos: "saco",
+      sc: "saco",
+      pc: "un",
+      pct: "pacote",
+      pacote: "pacote",
+      cx: "caixa",
+      rl: "rolo"
+    };
+
+    return units[key] || clean(unit) || "un";
+  }
+
+  function buildAlmoxNoteEntryNotes_(noteItem, origin) {
+    const parts = ["Entrada criada por " + (origin || "nota fiscal interpretada") + "."];
+
+    if (parseNumber_(noteItem.unitValue) > 0) {
+      parts.push("Valor unitario: " + formatCurrency_(noteItem.unitValue) + ".");
+    }
+    if (parseNumber_(noteItem.totalValue) > 0) {
+      parts.push("Valor total: " + formatCurrency_(noteItem.totalValue) + ".");
+    }
+    if (clean(noteItem.code)) {
+      parts.push("Codigo fiscal/produto: " + clean(noteItem.code) + ".");
+    }
+    if (clean(noteItem.category)) {
+      parts.push("Categoria sugerida: " + clean(noteItem.category) + ".");
+    }
+    if (almoxNoteFileDraft) {
+      parts.push("Arquivo: " + almoxNoteFileDraft.name + " (" + formatBytes_(almoxNoteFileDraft.size) + ").");
+    }
+
+    return parts.join(" ");
+  }
+
+  function setAlmoxNoteStatus_(message, type) {
+    if (!almoxNoteStatus) {
+      return;
+    }
+
+    almoxNoteStatus.textContent = message;
+    almoxNoteStatus.className = "almox-note-status " + (type || "info");
+  }
+
+  function renderStockEnvironmentHome_() {
+    renderActiveStockEnvironmentHeader_();
+  }
+
+  function renderActiveStockEnvironmentHeader_() {
+    const container = document.getElementById("almoxEnvironmentHeader");
+    if (!container) {
+      return;
+    }
+
+    const environment = getActiveStockEnvironment_();
+    const environments = getStockEnvironments_();
+    container.innerHTML = "";
+
+    const info = document.createElement("div");
+    const eyebrow = document.createElement("p");
+    const title = document.createElement("h3");
+    const subtitle = document.createElement("span");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = "Ambiente ativo";
+    title.textContent = formatStockEnvironmentTitle_(environment);
+    subtitle.className = "auth-note";
+    subtitle.textContent = environment.mode === "obra"
+      ? "Stock IA Obra filtrando itens, histórico, dashboard e auditoria deste ambiente."
+      : "Almoxarifado IA filtrando itens, histórico, dashboard e auditoria desta unidade.";
+    info.appendChild(eyebrow);
+    info.appendChild(title);
+    info.appendChild(subtitle);
+
+    const actions = document.createElement("div");
+    const select = document.createElement("select");
+    const createButton = document.createElement("button");
+    actions.className = "almox-environment-actions";
+    select.id = "almoxEnvironmentSelect";
+    environments.forEach(function (item) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = formatStockEnvironmentTitle_(item);
+      option.selected = item.id === environment.id;
+      select.appendChild(option);
+    });
+    select.addEventListener("change", function () {
+      setActiveStockEnvironment_(select.value);
+    });
+    createButton.type = "button";
+    createButton.className = "mini-button";
+    createButton.textContent = "Novo ambiente";
+    createButton.addEventListener("click", function () {
+      renderStockEnvironmentForm_();
+    });
+    actions.appendChild(select);
+    actions.appendChild(createButton);
+
+    container.appendChild(info);
+    container.appendChild(actions);
+  }
+
+  function renderStockEnvironmentForm_() {
+    const container = document.getElementById("almoxEnvironmentHeader");
+    if (!container) {
+      return;
+    }
+
+    const form = document.createElement("form");
+    const heading = document.createElement("div");
+    const eyebrow = document.createElement("p");
+    const title = document.createElement("h3");
+    const modeLabel = document.createElement("label");
+    const modeSelect = document.createElement("select");
+    const actions = document.createElement("div");
+    const submit = document.createElement("button");
+    const cancel = document.createElement("button");
+    form.className = "almox-environment-form";
+    form.id = "almoxEnvironmentForm";
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = "Novo ambiente";
+    title.textContent = "Criar ambiente Stock IA";
+    heading.appendChild(eyebrow);
+    heading.appendChild(title);
+
+    modeLabel.textContent = "Tipo";
+    modeSelect.name = "mode";
+    appendOption_(modeSelect, "almoxarifado", "Almoxarifado IA");
+    appendOption_(modeSelect, "obra", "Stock IA Obra");
+    modeLabel.appendChild(modeSelect);
+
+    actions.className = "almox-environment-actions";
+    submit.type = "submit";
+    submit.className = "mini-button primary";
+    submit.textContent = "Salvar ambiente";
+    cancel.type = "button";
+    cancel.className = "mini-button";
+    cancel.textContent = "Cancelar";
+    cancel.addEventListener("click", renderActiveStockEnvironmentHeader_);
+    actions.appendChild(submit);
+    actions.appendChild(cancel);
+
+    form.appendChild(heading);
+    form.appendChild(modeLabel);
+    appendStockIaField_(form, "clientName", "Cliente / instituição", "text", "", true);
+    appendStockIaField_(form, "unitName", "Obra ou unidade/setor", "text", "", false);
+    appendStockIaField_(form, "environmentName", "Nome do ambiente", "text", "", true);
+    appendStockIaField_(form, "responsible", "Responsável", "text", "", false);
+    appendStockIaField_(form, "managerEmail", "E-mail do gestor", "email", "", false);
+    form.appendChild(actions);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const formData = new FormData(form);
+      createStockEnvironment_({
+        mode: formData.get("mode"),
+        clientName: formData.get("clientName"),
+        workName: formData.get("mode") === "obra" ? formData.get("unitName") : "",
+        institutionType: "",
+        unitName: formData.get("mode") === "almoxarifado" ? formData.get("unitName") : "",
+        environmentName: formData.get("environmentName"),
+        responsible: formData.get("responsible"),
+        managerEmail: formData.get("managerEmail")
+      });
+    });
+
+    container.innerHTML = "";
+    container.appendChild(form);
+  }
+
+  function formatStockEnvironmentTitle_(environment) {
+    const main = clean(environment && environment.clientName) || "Cliente";
+    const location = environment && environment.mode === "obra"
+      ? clean(environment.workName)
+      : clean(environment && environment.unitName);
+    const name = clean(environment && environment.environmentName);
+
+    return [main, location, name].filter(Boolean).join(" - ");
+  }
+
   function renderAlmoxarifadoPanel_() {
+    ensureAlmoxEnvironmentMigrationPersisted_();
+    renderActiveStockEnvironmentHeader_();
     renderAlmoxSelects_();
     renderAlmoxSummaryCards_();
+    renderAlmoxDashboard_();
+    renderAlmoxTopManagerPanel_();
     renderAlmoxItems_();
     renderAlmoxHistory_();
+    renderAlmoxParsedNoteItems_();
 
     if (almoxSummaryText) {
       almoxSummaryText.textContent = buildAlmoxSummaryText_();
@@ -5709,7 +8088,13 @@
 
     [almoxEntryForm, almoxExitForm].forEach(function (form) {
       if (form && form.elements.date && !form.elements.date.value) {
-        form.elements.date.value = toDateKey_(new Date());
+        form.elements.date.value = getDefaultAlmoxMovementDate_();
+      }
+      if (form && form.elements.movementDate && !form.elements.movementDate.value) {
+        form.elements.movementDate.value = getDefaultAlmoxMovementDate_();
+      }
+      if (form && form.elements.movementTime && !form.elements.movementTime.value) {
+        form.elements.movementTime.value = getDefaultAlmoxMovementTime_();
       }
     });
   }
@@ -5760,6 +8145,7 @@
 
   function renderAlmoxModal_(type, payload) {
     const state = loadAlmoxState_();
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
     const title = type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item");
     const content = document.createElement("div");
     const card = document.createElement("div");
@@ -5786,20 +8172,22 @@
     card.appendChild(header);
 
     if (type === "entry") {
-      appendAlmoxItemSelect_(form, state.items, payload.itemId);
+      appendAlmoxItemSelect_(form, activeItems, payload.itemId);
       appendStockIaField_(form, "quantity", "Quantidade", "number", "", true, "0.001");
-      appendStockIaField_(form, "responsible", "Responsável", "text", "", false);
-      appendStockIaField_(form, "documentNumber", "Documento/nota opcional", "text", "", false);
-      appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+      appendStockIaField_(form, "documentNumber", "Origem/fornecedor/nota fiscal", "text", "", false);
+      appendStockIaField_(form, "responsible", "Responsavel pelo recebimento", "text", "", false);
+      appendStockIaField_(form, "movementDate", "Data da movimentacao", "date", getDefaultAlmoxMovementDate_(), true);
+      appendStockIaField_(form, "movementTime", "Hora da movimentacao", "time", getDefaultAlmoxMovementTime_(), true);
       appendStockIaTextarea_(form, "notes", "Observação", "");
     } else if (type === "exit") {
-      appendAlmoxItemSelect_(form, state.items, payload.itemId);
+      appendAlmoxItemSelect_(form, activeItems, payload.itemId);
       appendStockIaField_(form, "quantity", "Quantidade", "number", "", true, "0.001");
-      appendStockIaField_(form, "recipient", "Destinatário", "text", "", true);
-      appendStockIaField_(form, "sector", "Setor", "text", "", false);
+      appendStockIaField_(form, "recipient", "Pessoa que retirou", "text", "", true);
+      appendStockIaField_(form, "sector", "Setor/destino", "text", "", false);
       appendStockIaField_(form, "purpose", "Finalidade/uso", "text", "", false);
       appendStockIaField_(form, "responsible", "Responsável pela entrega", "text", "", false);
-      appendStockIaField_(form, "date", "Data", "date", toDateKey_(new Date()), true);
+      appendStockIaField_(form, "movementDate", "Data da movimentacao", "date", getDefaultAlmoxMovementDate_(), true);
+      appendStockIaField_(form, "movementTime", "Hora da movimentacao", "time", getDefaultAlmoxMovementTime_(), true);
       appendStockIaTextarea_(form, "notes", "Observação", "");
     } else {
       appendStockIaField_(form, "name", "Nome do item", "text", "", true);
@@ -5808,6 +8196,7 @@
       appendStockIaField_(form, "initialQuantity", "Quantidade inicial", "number", "", false, "0.001");
       appendStockIaField_(form, "minimumStock", "Estoque mínimo", "number", "", false, "0.001");
       appendStockIaField_(form, "location", "Local/almoxarifado", "text", "", false);
+      appendStockIaField_(form, "expirationDate", "Data de vencimento", "date", "", false);
       appendStockIaTextarea_(form, "notes", "Observação", "");
     }
 
@@ -5836,9 +8225,14 @@
     const actions = document.createElement("div");
     const submit = document.createElement("button");
     const cancel = document.createElement("button");
+    const formType = form.dataset.almoxFormType || "item";
     actions.className = "stock-ia-form-actions full-width";
     submit.type = "submit";
     submit.className = "mini-button primary";
+    submit.dataset.almoxModalSubmit = "true";
+    submit.id = formType === "exit"
+      ? "almoxModalExitSubmitButton"
+      : (formType === "entry" ? "almoxModalEntrySubmitButton" : "almoxModalItemSubmitButton");
     submit.textContent = submitText;
     cancel.type = "button";
     cancel.className = "mini-button";
@@ -5851,7 +8245,14 @@
 
   function handleAlmoxModalSubmit_(event) {
     event.preventDefault();
-    const form = event.target;
+    submitAlmoxModalForm_(event.target);
+  }
+
+  function submitAlmoxModalForm_(form) {
+    if (!form) {
+      return;
+    }
+
     const type = form.dataset.almoxFormType || "item";
     const formData = new FormData(form);
     const result = type === "entry"
@@ -5866,9 +8267,9 @@
     closeAlmoxModal_();
     renderAlmoxarifadoPanel_();
     if (type === "entry") {
-      showAlmoxToast_("Entrada registrada. Saldo atualizado.", "success");
+      showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
     } else if (type === "exit") {
-      showAlmoxToast_("Entrega registrada. Saldo atualizado.", "success");
+      showAlmoxToast_("Saída registrada com responsável e setor.", "success");
     } else {
       showAlmoxToast_("Item cadastrado com sucesso.", "success");
     }
@@ -5876,6 +8277,7 @@
 
   function renderAlmoxSelects_() {
     const state = loadAlmoxState_();
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
     [almoxEntryItemSelect, almoxExitItemSelect].forEach(function (select) {
       if (!select) {
         return;
@@ -5883,13 +8285,13 @@
 
       const current = select.value;
       select.innerHTML = "";
-      appendOption_(select, "", state.items.length ? "Escolha um item" : "Cadastre um item primeiro");
-      state.items.forEach(function (item) {
+      appendOption_(select, "", activeItems.length ? "Escolha um item" : "Cadastre um item primeiro");
+      activeItems.forEach(function (item) {
         appendOption_(select, item.id, item.name + " (" + (item.unit || "un") + ")");
       });
-      select.value = state.items.some(function (item) { return item.id === current; })
+      select.value = activeItems.some(function (item) { return item.id === current; })
         ? current
-        : (state.items.length === 1 ? state.items[0].id : "");
+        : (activeItems.length === 1 ? activeItems[0].id : "");
     });
   }
 
@@ -5900,24 +8302,22 @@
 
     const state = loadAlmoxState_();
     const balances = calculateAlmoxBalances_();
-    const totalBalance = balances.reduce(function (sum, balance) {
-      return sum + parseNumber_(balance.balance);
-    }, 0);
-    const critical = balances.filter(function (balance) {
-      return balance.status === "Crítico" || balance.status === "Atenção";
+    const belowMinimum = balances.filter(function (balance) {
+      return parseNumber_(balance.item.minimumStock) > 0 &&
+        parseNumber_(balance.balance) > 0 &&
+        parseNumber_(balance.balance) < parseNumber_(balance.item.minimumStock);
     }).length;
-    const lastDelivery = state.movements.filter(function (movement) {
-      return movement.type === "saida";
-    }).sort(function (a, b) {
-      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
-    })[0];
+    const zeroItems = balances.filter(function (balance) {
+      return parseNumber_(balance.balance) <= 0;
+    }).length;
+    const recentMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements).length;
 
     almoxSummaryCards.innerHTML = "";
     [
       ["Itens cadastrados", balances.length],
-      ["Saldo total", formatQuantity_(totalBalance)],
-      ["Itens críticos", critical],
-      ["Última entrega", lastDelivery ? formatDateOnly_(lastDelivery.date || lastDelivery.createdAt) : "Nenhuma"]
+      ["Itens abaixo do minimo", belowMinimum],
+      ["Itens zerados", zeroItems],
+      ["Movimentacoes recentes", recentMovements]
     ].forEach(function (item) {
       const card = document.createElement("article");
       const label = document.createElement("span");
@@ -5931,17 +8331,1296 @@
     });
   }
 
+  function renderAlmoxDashboard_() {
+    if (!almoxDashboardPanel) {
+      return;
+    }
+
+    const viewModel = buildAlmoxDashboardViewModel_();
+    renderAlmoxDashboardPeriodControls_(viewModel.period);
+    renderAlmoxDashboardCards_(viewModel);
+    renderAlmoxDashboardConsumption_(viewModel);
+    renderAlmoxDashboardRisk_(viewModel);
+    renderAlmoxDashboardExpiration_(viewModel);
+    renderAlmoxDashboardTrend_(viewModel);
+  }
+
+  function buildAlmoxDashboardViewModel_() {
+    const data = collectAlmoxManagerData_();
+    const periodMovements = getAlmoxMovementsByPeriod_(data.movements, almoxDashboardPeriod);
+    const periodEntries = periodMovements.filter(function (movement) {
+      return movement.type === "entrada";
+    });
+    const periodExits = periodMovements.filter(function (movement) {
+      return movement.type === "saida";
+    });
+    const totalBalance = data.balances.reduce(function (sum, balance) {
+      return sum + parseNumber_(balance.balance);
+    }, 0);
+    const shortage = getAlmoxShortageRisk_(data.balances);
+    const expiration = getAlmoxExpirationSummary_(data.balances);
+    const topMovedItems = getAlmoxTopMovedItems_(periodMovements, data.itemsById);
+    const trend = getAlmoxOperationalTrend_({
+      shortage: shortage,
+      periodExits: periodExits,
+      activeAlerts: data.activeAlerts,
+      topMovedItems: topMovedItems
+    });
+
+    return {
+      period: almoxDashboardPeriod,
+      periodLabel: getAlmoxDashboardPeriodLabel_(almoxDashboardPeriod),
+      data: data,
+      totalBalance: totalBalance,
+      periodMovements: periodMovements,
+      periodEntries: periodEntries,
+      periodExits: periodExits,
+      topMovedItems: topMovedItems,
+      shortage: shortage,
+      expiration: expiration,
+      trend: trend,
+      cards: [
+        { label: "Total de itens cadastrados", value: data.balances.length, className: "status-muted" },
+        { label: "Saldo total", value: formatQuantity_(totalBalance), suffix: "unidades", className: "status-muted" },
+        { label: "Itens abaixo do minimo", value: shortage.belowMinimum.length, className: shortage.belowMinimum.length ? "status-warning" : "status-ok", action: "filtered", filter: "below" },
+        { label: "Itens zerados", value: shortage.zeroItems.length, className: shortage.zeroItems.length ? "status-danger" : "status-ok", action: "filtered", filter: "zero" },
+        { label: "Itens proximos do vencimento", value: expiration.expired.length + expiration.until30.length + expiration.until60.length, className: expiration.expired.length || expiration.until30.length ? "status-danger" : (expiration.until60.length ? "status-warning" : "status-ok"), action: "filtered", filter: "expiration" },
+        { label: "Movimentacoes recentes", value: periodMovements.length, suffix: getAlmoxDashboardPeriodLabel_(almoxDashboardPeriod), className: "status-muted" },
+        { label: "Saidas no periodo", value: periodExits.length, className: periodExits.length ? "status-warning" : "status-muted" },
+        { label: "Entradas no periodo", value: periodEntries.length, className: periodEntries.length ? "status-ok" : "status-muted" },
+        { label: "Risco geral do almoxarifado", value: shortage.label, className: shortage.className, action: "filtered", filter: "shortage" }
+      ]
+    };
+  }
+
+  function getAlmoxMovementsByPeriod_(movements, period) {
+    const safePeriod = period || "30d";
+    const list = Array.isArray(movements) ? movements : [];
+    if (safePeriod === "all") {
+      return list.slice();
+    }
+
+    const now = new Date();
+    const todayKey = toDateKey_(now);
+    const days = safePeriod === "today" ? 1 : (safePeriod === "7d" ? 7 : 30);
+    const cutoff = new Date(todayKey + "T00:00:00");
+    cutoff.setDate(cutoff.getDate() - (days - 1));
+
+    return list.filter(function (movement) {
+      const sortKey = getAlmoxMovementSortKey_(movement);
+      if (!sortKey) {
+        return false;
+      }
+      if (safePeriod === "today") {
+        return String(sortKey).slice(0, 10) === todayKey;
+      }
+
+      const movementDate = new Date(sortKey);
+      return !Number.isNaN(movementDate.getTime()) && movementDate.getTime() >= cutoff.getTime();
+    });
+  }
+
+  function getAlmoxTopMovedItems_(movements, itemsById) {
+    const grouped = {};
+    (movements || []).forEach(function (movement) {
+      if (movement.type !== "saida") {
+        return;
+      }
+      const item = (itemsById || {})[movement.itemId] || {};
+      const key = movement.itemId || item.name || "item";
+      grouped[key] = grouped[key] || {
+        item: item,
+        quantity: 0,
+        movements: 0
+      };
+      grouped[key].quantity += parseNumber_(movement.quantity);
+      grouped[key].movements += 1;
+    });
+
+    const ranked = Object.keys(grouped).map(function (key) {
+      return grouped[key];
+    }).sort(function (a, b) {
+      return b.quantity - a.quantity;
+    }).slice(0, 5);
+    const maxQuantity = ranked.reduce(function (max, item) {
+      return Math.max(max, item.quantity);
+    }, 0);
+
+    return ranked.map(function (entry, index) {
+      return {
+        position: index + 1,
+        itemId: entry.item.id || "",
+        name: entry.item.name || "Item sem cadastro",
+        unit: entry.item.unit || "un",
+        quantity: roundQuantity_(entry.quantity),
+        movements: entry.movements,
+        percent: maxQuantity > 0 ? Math.max(8, Math.round((entry.quantity / maxQuantity) * 100)) : 0
+      };
+    });
+  }
+
+  function getAlmoxShortageRisk_(balances) {
+    const zeroItems = buildAlmoxZeroItems_(balances);
+    const belowMinimum = buildAlmoxCriticalItems_(balances);
+    const okItems = (balances || []).filter(function (balance) {
+      return zeroItems.indexOf(balance) < 0 && belowMinimum.indexOf(balance) < 0;
+    });
+
+    if (zeroItems.length) {
+      return {
+        label: "Critico",
+        className: "status-danger",
+        message: "Ha item(ns) com saldo zerado.",
+        recommendation: "Priorize a reposicao dos itens criticos antes de novas retiradas.",
+        zeroItems: zeroItems,
+        belowMinimum: belowMinimum,
+        okItems: okItems
+      };
+    }
+
+    if (belowMinimum.length) {
+      return {
+        label: "Atencao",
+        className: "status-warning",
+        message: "Ha item(ns) abaixo do estoque minimo.",
+        recommendation: "Reponha os itens em atencao antes que cheguem a saldo zero.",
+        zeroItems: zeroItems,
+        belowMinimum: belowMinimum,
+        okItems: okItems
+      };
+    }
+
+    return {
+      label: "OK",
+      className: "status-ok",
+      message: "Saldos acima do minimo cadastrado.",
+      recommendation: "Almoxarifado dentro do controle.",
+      zeroItems: zeroItems,
+      belowMinimum: belowMinimum,
+      okItems: okItems
+    };
+  }
+
+  function getAlmoxExpirationSummary_(balances) {
+    const result = {
+      expired: [],
+      until30: [],
+      until60: [],
+      noDate: []
+    };
+
+    (balances || []).forEach(function (balance) {
+      const info = getAlmoxExpirationInfo_(balance.item);
+      if (!info) {
+        result.noDate.push(balance);
+        return;
+      }
+      if (info.days < 0) {
+        result.expired.push({ balance: balance, info: info });
+      } else if (info.days <= 30) {
+        result.until30.push({ balance: balance, info: info });
+      } else if (info.days <= 60) {
+        result.until60.push({ balance: balance, info: info });
+      }
+    });
+
+    return result;
+  }
+
+  function getAlmoxOperationalTrend_(data) {
+    if (data.shortage && data.shortage.zeroItems.length) {
+      return {
+        label: "Reposicao urgente.",
+        className: "status-danger",
+        message: "Existe saldo zerado. Priorize compra, transferencia ou bloqueio de novas retiradas."
+      };
+    }
+
+    if (data.shortage && data.shortage.belowMinimum.length && data.periodExits && data.periodExits.length >= 3) {
+      return {
+        label: "Tendencia de falta nos proximos dias.",
+        className: "status-warning",
+        message: "Ha muitas saidas recentes e saldo baixo em item(ns) critico(s)."
+      };
+    }
+
+    if (!data.activeAlerts || !data.activeAlerts.length) {
+      return {
+        label: "Almoxarifado dentro do controle.",
+        className: "status-ok",
+        message: "Sem alertas criticos no periodo analisado."
+      };
+    }
+
+    return {
+      label: "Acompanhar alertas.",
+      className: "status-warning",
+      message: "Existem alertas ativos. Revise reposicao, validade e retiradas recentes."
+    };
+  }
+
+  function handleAlmoxDashboardPeriodChange_(period) {
+    almoxDashboardPeriod = period || "30d";
+    renderAlmoxDashboard_();
+  }
+
+  function renderAlmoxDashboardPeriodControls_(period) {
+    if (!almoxDashboardPeriodControls) {
+      return;
+    }
+
+    Array.from(almoxDashboardPeriodControls.querySelectorAll("[data-almox-dashboard-period]")).forEach(function (button) {
+      button.classList.toggle("active", button.dataset.almoxDashboardPeriod === period);
+    });
+  }
+
+  function renderAlmoxDashboardCards_(viewModel) {
+    if (!almoxDashboardCards) {
+      return;
+    }
+
+    almoxDashboardCards.innerHTML = "";
+    viewModel.cards.forEach(function (cardData) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      const suffix = document.createElement("small");
+      card.className = "almox-dashboard-card " + (cardData.className || "status-muted");
+      if (cardData.action) {
+        card.className += " almox-clickable-card";
+        card.dataset.almoxDashboardAction = cardData.action;
+        card.dataset.almoxDashboardFilter = cardData.filter || "";
+        card.setAttribute("role", "button");
+        card.tabIndex = 0;
+      }
+      label.textContent = cardData.label;
+      value.textContent = String(cardData.value);
+      suffix.textContent = cardData.suffix || "";
+      card.appendChild(label);
+      card.appendChild(value);
+      if (cardData.suffix) {
+        card.appendChild(suffix);
+      }
+      if (cardData.action) {
+        const hint = document.createElement("small");
+        hint.textContent = "Clique para ver detalhes";
+        card.appendChild(hint);
+      }
+      almoxDashboardCards.appendChild(card);
+    });
+  }
+
+  function renderAlmoxDashboardConsumption_(viewModel) {
+    if (!almoxDashboardConsumption) {
+      return;
+    }
+
+    almoxDashboardConsumption.innerHTML = "";
+    appendAlmoxDashboardBlockHeader_(almoxDashboardConsumption, "Materiais mais movimentados", "Ranking por saidas em " + viewModel.periodLabel + ".");
+    if (!viewModel.topMovedItems.length) {
+      appendAlmoxDashboardEmpty_(almoxDashboardConsumption, "Nenhuma saida registrada neste periodo.");
+      return;
+    }
+
+    const list = document.createElement("div");
+    list.className = "almox-dashboard-ranking";
+    viewModel.topMovedItems.forEach(function (entry) {
+      const row = document.createElement("div");
+      const text = document.createElement("span");
+      const bar = document.createElement("i");
+      row.className = "almox-dashboard-bar-row almox-clickable-row";
+      row.dataset.almoxDashboardAction = "item";
+      row.dataset.almoxItemId = entry.itemId || "";
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+      text.textContent = entry.position + ". " + entry.name + " - " + formatQuantity_(entry.quantity) + " " + entry.unit + " retiradas";
+      bar.style.width = entry.percent + "%";
+      row.appendChild(text);
+      row.appendChild(bar);
+      list.appendChild(row);
+    });
+    almoxDashboardConsumption.appendChild(list);
+  }
+
+  function renderAlmoxDashboardRisk_(viewModel) {
+    if (!almoxDashboardRisk) {
+      return;
+    }
+
+    const shortage = viewModel.shortage;
+    const total = Math.max(1, viewModel.data.balances.length);
+    almoxDashboardRisk.innerHTML = "";
+    appendAlmoxDashboardBlockHeader_(almoxDashboardRisk, "Risco de falta", shortage.message);
+    [
+      ["Critico", shortage.zeroItems.length, "status-danger"],
+      ["Atencao", shortage.belowMinimum.length, "status-warning"],
+      ["OK", shortage.okItems.length, "status-ok"]
+    ].forEach(function (item) {
+      almoxDashboardRisk.appendChild(createAlmoxDashboardMetricBar_(item[0], item[1], Math.round((item[1] / total) * 100), item[2], "shortage"));
+    });
+    appendAlmoxDashboardNote_(almoxDashboardRisk, shortage.recommendation, shortage.className);
+  }
+
+  function renderAlmoxDashboardExpiration_(viewModel) {
+    if (!almoxDashboardExpiration) {
+      return;
+    }
+
+    const expiration = viewModel.expiration;
+    const total = Math.max(1, viewModel.data.balances.length);
+    almoxDashboardExpiration.innerHTML = "";
+    appendAlmoxDashboardBlockHeader_(almoxDashboardExpiration, "Itens por vencimento", "Controle de validade dos itens cadastrados.");
+    [
+      ["Vencidos", expiration.expired.length, "status-danger"],
+      ["Vencem em ate 30 dias", expiration.until30.length, "status-danger"],
+      ["Vencem em ate 60 dias", expiration.until60.length, "status-warning"],
+      ["Sem data de vencimento", expiration.noDate.length, "status-muted"]
+    ].forEach(function (item) {
+      almoxDashboardExpiration.appendChild(createAlmoxDashboardMetricBar_(item[0], item[1], Math.round((item[1] / total) * 100), item[2], "expiration"));
+    });
+  }
+
+  function renderAlmoxDashboardTrend_(viewModel) {
+    if (!almoxDashboardTrend) {
+      return;
+    }
+
+    const topItem = viewModel.topMovedItems[0];
+    almoxDashboardTrend.innerHTML = "";
+    appendAlmoxDashboardBlockHeader_(almoxDashboardTrend, "Tendencia operacional", "Leitura simples por regra de negocio.");
+    appendAlmoxDashboardNote_(almoxDashboardTrend, viewModel.trend.label, viewModel.trend.className);
+    appendAlmoxDashboardNote_(almoxDashboardTrend, viewModel.trend.message, "status-muted");
+    appendAlmoxDashboardNote_(almoxDashboardTrend, "Periodo analisado: " + viewModel.periodLabel + ".", "status-muted");
+    appendAlmoxDashboardNote_(almoxDashboardTrend, topItem ? ("Material mais movimentado: " + topItem.name + " - " + formatQuantity_(topItem.quantity) + " " + topItem.unit + ".") : "Material mais movimentado: sem saidas no periodo.", "status-muted");
+  }
+
+  function appendAlmoxDashboardBlockHeader_(container, title, subtitle) {
+    const heading = document.createElement("h4");
+    const text = document.createElement("p");
+    heading.textContent = title;
+    text.textContent = subtitle;
+    container.appendChild(heading);
+    container.appendChild(text);
+  }
+
+  function appendAlmoxDashboardEmpty_(container, message) {
+    const empty = document.createElement("p");
+    empty.className = "almox-dashboard-empty";
+    empty.textContent = message;
+    container.appendChild(empty);
+  }
+
+  function appendAlmoxDashboardNote_(container, message, className) {
+    const note = document.createElement("p");
+    note.className = "almox-dashboard-note " + (className || "status-muted");
+    note.textContent = message;
+    container.appendChild(note);
+  }
+
+  function createAlmoxDashboardMetricBar_(label, value, percent, className, filter) {
+    const row = document.createElement("div");
+    const header = document.createElement("div");
+    const text = document.createElement("span");
+    const number = document.createElement("strong");
+    const track = document.createElement("div");
+    const fill = document.createElement("i");
+    row.className = "almox-dashboard-metric";
+    if (filter) {
+      row.className += " almox-clickable-row";
+      row.dataset.almoxDashboardAction = "filtered";
+      row.dataset.almoxDashboardFilter = filter;
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+    }
+    header.className = "almox-dashboard-metric-header";
+    track.className = "almox-dashboard-track";
+    fill.className = className || "status-muted";
+    text.textContent = label;
+    number.textContent = String(value);
+    fill.style.width = Math.max(4, Math.min(100, percent || 0)) + "%";
+    header.appendChild(text);
+    header.appendChild(number);
+    track.appendChild(fill);
+    row.appendChild(header);
+    row.appendChild(track);
+    return row;
+  }
+
+  function handleAlmoxDashboardCardClick_(target) {
+    if (!target) {
+      return;
+    }
+
+    if (target.dataset.almoxDashboardAction === "item") {
+      openAlmoxItemSummary_(target.dataset.almoxItemId || "");
+      return;
+    }
+
+    if (target.dataset.almoxDashboardAction === "filtered") {
+      openAlmoxFilteredItemsSummary_(target.dataset.almoxDashboardFilter || "shortage");
+    }
+  }
+
+  function openAlmoxItemSummary_(itemId) {
+    const viewModel = buildAlmoxItemSummaryViewModel_(itemId);
+    if (!viewModel) {
+      showAlmoxToast_("Item nao encontrado no almoxarifado.", "error");
+      return;
+    }
+    renderAlmoxItemSummaryModal_({
+      mode: "item",
+      title: viewModel.item.name || "Resumo do item",
+      item: viewModel
+    });
+  }
+
+  function openAlmoxFilteredItemsSummary_(filter) {
+    const data = collectAlmoxManagerData_();
+    const shortage = getAlmoxShortageRisk_(data.balances);
+    const expiration = getAlmoxExpirationSummary_(data.balances);
+    let title = "Itens do almoxarifado";
+    let groups = [];
+
+    if (filter === "zero") {
+      title = "Itens zerados";
+      groups = [{ title: "Critico", items: shortage.zeroItems }];
+    } else if (filter === "below") {
+      title = "Itens abaixo do minimo";
+      groups = [{ title: "Atencao", items: shortage.belowMinimum }];
+    } else if (filter === "expiration") {
+      title = "Itens proximos do vencimento";
+      groups = [
+        { title: "Vencidos", items: expiration.expired.map(function (entry) { return entry.balance; }) },
+        { title: "Vencem em ate 30 dias", items: expiration.until30.map(function (entry) { return entry.balance; }) },
+        { title: "Vencem em ate 60 dias", items: expiration.until60.map(function (entry) { return entry.balance; }) }
+      ];
+    } else {
+      title = "Risco de falta";
+      groups = [
+        { title: "Critico", items: shortage.zeroItems },
+        { title: "Atencao", items: shortage.belowMinimum },
+        { title: "OK", items: shortage.okItems }
+      ];
+    }
+
+    renderAlmoxItemSummaryModal_({
+      mode: "list",
+      title: title,
+      groups: groups
+    });
+  }
+
+  function buildAlmoxItemSummaryViewModel_(itemId) {
+    const data = collectAlmoxManagerData_();
+    const item = data.itemsById[itemId];
+    if (!item) {
+      return null;
+    }
+
+    const balance = data.balances.find(function (entry) {
+      return entry.item.id === itemId;
+    }) || {
+      item: item,
+      entries: 0,
+      exits: 0,
+      balance: getAlmoxItemBalance_(itemId, data.state),
+      status: "OK"
+    };
+    const movements = data.movements.filter(function (movement) {
+      return movement.itemId === itemId;
+    });
+    const lastMovements = movements.slice(0, 8);
+    return {
+      item: item,
+      balance: balance,
+      currentBalance: balance.balance,
+      totalEntries: balance.entries,
+      totalExits: balance.exits,
+      risk: balance.status,
+      lastMovements: lastMovements,
+      movements: movements
+    };
+  }
+
+  function renderAlmoxItemSummaryModal_(viewModel) {
+    closeAlmoxItemSummaryModal_();
+
+    const modal = document.createElement("div");
+    const backdrop = document.createElement("div");
+    const card = document.createElement("section");
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    const closeButton = document.createElement("button");
+
+    modal.className = "almox-item-summary-modal";
+    modal.dataset.almoxSummaryModal = "true";
+    backdrop.className = "almox-item-summary-backdrop";
+    card.className = "almox-item-summary-card";
+    header.className = "stock-ia-modal-header";
+    title.textContent = viewModel.title || "Resumo do item";
+    closeButton.type = "button";
+    closeButton.className = "mini-button compact";
+    closeButton.dataset.almoxSummaryClose = "true";
+    closeButton.textContent = "Fechar";
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    card.appendChild(header);
+
+    if (viewModel.mode === "item") {
+      renderAlmoxItemSummaryDetails_(card, viewModel.item);
+    } else {
+      renderAlmoxFilteredItemsSummary_(card, viewModel.groups || []);
+    }
+
+    backdrop.appendChild(card);
+    modal.appendChild(backdrop);
+    document.body.appendChild(modal);
+    closeButton.focus();
+  }
+
+  function renderAlmoxItemSummaryDetails_(container, viewModel) {
+    const item = viewModel.item;
+    const grid = document.createElement("div");
+    const actions = document.createElement("div");
+    const history = document.createElement("div");
+    grid.className = "almox-item-summary-grid";
+    actions.className = "almox-item-summary-actions";
+    history.className = "almox-item-summary-history";
+
+    [
+      ["Codigo", item.fiscalCode || item.code || "-"],
+      ["Saldo atual", formatQuantity_(viewModel.currentBalance) + " " + (item.unit || "un")],
+      ["Total de entradas", formatQuantity_(viewModel.totalEntries) + " " + (item.unit || "un")],
+      ["Total de saidas", formatQuantity_(viewModel.totalExits) + " " + (item.unit || "un")],
+      ["Estoque minimo", formatQuantity_(item.minimumStock || 0) + " " + (item.unit || "un")],
+      ["Risco atual", viewModel.risk || "-"]
+    ].forEach(function (entry) {
+      const cell = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      label.textContent = entry[0];
+      value.textContent = entry[1];
+      cell.appendChild(label);
+      cell.appendChild(value);
+      grid.appendChild(cell);
+    });
+
+    ["entry", "exit"].forEach(function (type) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mini-button" + (type === "entry" ? " primary" : "");
+      button.dataset.almoxSummaryAction = type;
+      button.dataset.almoxItemId = item.id;
+      button.textContent = type === "entry" ? "Registrar entrada" : "Registrar saida";
+      actions.appendChild(button);
+    });
+
+    const historyTitle = document.createElement("h4");
+    historyTitle.textContent = "Ultimas movimentacoes";
+    history.appendChild(historyTitle);
+    if (!viewModel.lastMovements.length) {
+      const empty = document.createElement("p");
+      empty.textContent = "Nenhuma movimentacao registrada para este item.";
+      history.appendChild(empty);
+    } else {
+      viewModel.lastMovements.forEach(function (movement) {
+        const row = document.createElement("article");
+        const main = document.createElement("strong");
+        const meta = document.createElement("p");
+        row.className = "almox-summary-history-row";
+        main.textContent = getAlmoxMovementDisplayDateTime_(movement) + " - " + (movement.type === "entrada" ? "Entrada" : "Saida") + " - " + formatQuantity_(movement.quantity) + " " + (item.unit || "un");
+        meta.textContent = [
+          movement.responsible ? "Responsavel: " + movement.responsible : "",
+          movement.recipient ? "Destino/pessoa: " + movement.recipient : "",
+          movement.sector ? "Setor: " + movement.sector : "",
+          movement.documentNumber ? "Origem/nota: " + movement.documentNumber : ""
+        ].filter(Boolean).join(" | ") || "Sem detalhes adicionais.";
+        row.appendChild(main);
+        row.appendChild(meta);
+        history.appendChild(row);
+      });
+    }
+
+    container.appendChild(grid);
+    container.appendChild(actions);
+    container.appendChild(history);
+  }
+
+  function renderAlmoxFilteredItemsSummary_(container, groups) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "almox-item-summary-history";
+    (groups || []).forEach(function (group) {
+      const title = document.createElement("h4");
+      title.textContent = group.title + " (" + (group.items || []).length + ")";
+      wrapper.appendChild(title);
+
+      if (!group.items || !group.items.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "Nenhum item nesta classificacao.";
+        wrapper.appendChild(empty);
+        return;
+      }
+
+      group.items.forEach(function (balance) {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "almox-clickable-row almox-summary-list-row";
+        row.dataset.almoxSummaryItem = "true";
+        row.dataset.almoxItemId = balance.item.id;
+        row.textContent = (balance.item.name || "Item") + " - saldo " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + " - " + (balance.status || "OK");
+        wrapper.appendChild(row);
+      });
+    });
+    container.appendChild(wrapper);
+  }
+
+  function closeAlmoxItemSummaryModal_() {
+    const existing = document.querySelector("[data-almox-summary-modal]");
+    if (existing && existing.parentElement) {
+      existing.parentElement.removeChild(existing);
+    }
+  }
+
+  function getAlmoxDashboardPeriodLabel_(period) {
+    if (period === "today") {
+      return "hoje";
+    }
+    if (period === "7d") {
+      return "7 dias";
+    }
+    if (period === "all") {
+      return "todo o historico";
+    }
+    return "30 dias";
+  }
+
+  function renderAlmoxManagerPanel_() {
+    if (!almoxManagerCards && !almoxManagerSummaryText && !almoxManagerAuditText) {
+      return;
+    }
+
+    checkAlmoxAlertStatus_();
+    const state = loadAlmoxState_();
+    const data = collectAlmoxManagerData_();
+    const alertHistory = (data.alertHistory || []).slice(0, 6);
+
+    if (almoxManagerSummaryText) {
+      almoxManagerSummaryText.textContent = almoxLastSummaryText || "Clique em Gerar resumo para registrar uma visao gerencial.";
+    }
+
+    if (almoxManagerAuditText) {
+      almoxManagerAuditText.textContent = almoxLastAuditText || "Clique em Gerar auditoria para registrar uma analise critica.";
+    }
+
+    if (almoxAlertsStatus) {
+      almoxAlertsStatus.textContent = state.alertsMuted
+        ? "Alertas silenciados ate " + formatAlmoxAlertMuteUntil_(state.alertsMutedUntil)
+        : "Alertas ativos";
+      almoxAlertsStatus.classList.toggle("muted", Boolean(state.alertsMuted));
+    }
+
+    if (almoxMuteAlertsButton) {
+      almoxMuteAlertsButton.textContent = state.alertsMuted ? "Reativar alertas" : "Silenciar alertas";
+    }
+
+    if (!almoxManagerCards) {
+      return;
+    }
+
+    almoxManagerCards.innerHTML = "";
+    [
+      {
+        title: "Itens criticos para acabar",
+        value: data.criticalItems.length,
+        className: data.criticalItems.length ? "status-danger" : "status-ok",
+        lines: data.criticalItems.length ? data.criticalItems.map(function (balance) {
+          return balance.item.name + " esta abaixo do minimo. Saldo: " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + ".";
+        }) : ["Nenhum item critico no momento."]
+      },
+      {
+        title: "Itens zerados",
+        value: data.zeroItems.length,
+        className: data.zeroItems.length ? "status-danger" : "status-ok",
+        lines: data.zeroItems.length ? data.zeroItems.map(function (balance) {
+          return balance.item.name + " esta zerado. Reposicao urgente.";
+        }) : ["Nenhum item zerado."]
+      },
+      {
+        title: "Itens proximos do vencimento",
+        value: data.expiringItems.length,
+        className: data.expiringItems.length ? "status-warning" : "status-ok",
+        lines: data.expiringItems.length ? data.expiringItems.map(function (info) {
+          return info.item.name + " " + info.message;
+        }) : ["Nenhum vencimento critico cadastrado."]
+      },
+      {
+        title: "Ultimas saidas",
+        value: data.recentExits.length,
+        className: "status-muted",
+        lines: data.recentExits.length ? data.recentExits.map(function (movement) {
+          return formatAlmoxMovementText_(movement, data.itemsById[movement.itemId] || {});
+        }) : ["Nenhuma saida recente."]
+      },
+      {
+        title: "Entradas recentes",
+        value: data.recentEntries.length,
+        className: "status-muted",
+        lines: data.recentEntries.length ? data.recentEntries.map(function (movement) {
+          return formatAlmoxMovementText_(movement, data.itemsById[movement.itemId] || {});
+        }) : ["Nenhuma entrada recente."]
+      },
+      {
+        title: "Resumo atual",
+        value: data.balances.length,
+        className: data.zeroItems.length ? "status-danger" : (data.criticalItems.length || data.expiringItems.length ? "status-warning" : "status-ok"),
+        lines: [
+          data.balances.length + " item(ns) cadastrado(s).",
+          data.zeroItems.length + " zerado(s), " + data.criticalItems.length + " abaixo do minimo.",
+          state.alertsMuted ? "Alertas silenciados temporariamente." : "Alertas ativos para acompanhamento."
+        ]
+      },
+      {
+        title: "Historico de alertas",
+        value: alertHistory.length,
+        className: alertHistory.length ? "status-warning" : "status-ok",
+        lines: alertHistory.length ? alertHistory.map(function (alert) {
+          return formatDateTime_(alert.createdAt) + " - " + alert.message;
+        }) : ["Nenhum alerta disparado nesta sessao."]
+      }
+    ].forEach(function (cardData) {
+      almoxManagerCards.appendChild(createAlmoxManagerCard_(cardData));
+    });
+  }
+
+  function createAlmoxManagerCard_(cardData) {
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("strong");
+    const value = document.createElement("span");
+    const list = document.createElement("ul");
+    card.className = "almox-manager-card " + (cardData.className || "status-muted");
+    if (loadAlmoxState_().alertsMuted) {
+      card.classList.add("is-muted");
+    }
+    header.className = "almox-manager-card-header";
+    title.textContent = cardData.title;
+    value.textContent = String(cardData.value);
+    header.appendChild(title);
+    header.appendChild(value);
+    card.appendChild(header);
+    (cardData.lines || []).slice(0, 4).forEach(function (line) {
+      const item = document.createElement("li");
+      item.textContent = line;
+      list.appendChild(item);
+    });
+    card.appendChild(list);
+    return card;
+  }
+
+  function renderAlmoxTopManagerPanel_() {
+    renderAlmoxManagerPanel_();
+  }
+
+  function renderAlmoxAlertCards_() {
+    renderAlmoxManagerPanel_();
+  }
+
+  function checkAlmoxAlertStatus_() {
+    const state = loadAlmoxState_();
+    const alerts = generateAlmoxAlerts_();
+    const addedAlerts = [];
+
+    alerts.forEach(function (alert) {
+      const added = addAlmoxAlertHistory_(state, alert);
+      if (added) {
+        addedAlerts.push(added);
+      }
+    });
+
+    if (addedAlerts.length) {
+      saveAlmoxState_(state);
+      addedAlerts.forEach(function (alert) {
+        sendAlmoxAlertNotification_(alert, state);
+      });
+    }
+
+    return {
+      alerts: alerts,
+      addedAlerts: addedAlerts,
+      muted: Boolean(state.alertsMuted)
+    };
+  }
+
+  function generateAlmoxAlerts_() {
+    const balances = calculateAlmoxBalances_();
+    const alerts = [];
+
+    balances.forEach(function (balance) {
+      const item = balance.item || {};
+      const itemId = item.id || normalizeCompositionKey_(item.name);
+      const expiration = getAlmoxExpirationInfo_(item);
+
+      if (parseNumber_(balance.balance) <= 0) {
+        alerts.push({
+          key: "zero:" + itemId,
+          type: "zerado",
+          severity: "critical",
+          itemId: item.id || "",
+          itemName: item.name || "Item",
+          message: formatAlmoxAlertMessage_("zero", balance, expiration)
+        });
+      } else if (parseNumber_(item.minimumStock) > 0 && parseNumber_(balance.balance) < parseNumber_(item.minimumStock)) {
+        alerts.push({
+          key: "critical:" + itemId,
+          type: "critico",
+          severity: "warning",
+          itemId: item.id || "",
+          itemName: item.name || "Item",
+          message: formatAlmoxAlertMessage_("critical", balance, expiration)
+        });
+      }
+
+      if (expiration && expiration.status !== "valid") {
+        alerts.push({
+          key: "expiration:" + itemId + ":" + (item.expirationDate || ""),
+          type: "vencimento",
+          severity: expiration.status === "expired" || expiration.status === "near" ? "critical" : "warning",
+          itemId: item.id || "",
+          itemName: item.name || "Item",
+          message: formatAlmoxAlertMessage_("expiration", balance, expiration)
+        });
+      }
+    });
+
+    return alerts;
+  }
+
+  function addAlmoxAlertHistory_(state, alert) {
+    const now = new Date().toISOString();
+    const history = Array.isArray(state.alertHistory) ? state.alertHistory : [];
+    const environmentId = getActiveStockEnvironmentId_();
+    const recentCutoff = Date.now() - (12 * 60 * 60 * 1000);
+    const alreadyRecent = history.some(function (item) {
+      return item.key === alert.key &&
+        clean(item.environmentId) === environmentId &&
+        new Date(item.createdAt || 0).getTime() >= recentCutoff;
+    });
+
+    if (alreadyRecent) {
+      state.alertHistory = history;
+      return null;
+    }
+
+    const record = {
+      id: createId_("almalert"),
+      environmentId: environmentId,
+      key: alert.key,
+      type: alert.type,
+      severity: alert.severity,
+      itemId: alert.itemId || "",
+      itemName: alert.itemName || "",
+      message: alert.message,
+      createdAt: now
+    };
+    state.alertHistory = [record].concat(history).slice(0, 80);
+    return record;
+  }
+
+  function sendAlmoxAlertNotification_(alert, state) {
+    if (!alert || state.alertsMuted) {
+      return;
+    }
+
+    showAlmoxToast_(alert.message, alert.severity === "critical" ? "error" : "info");
+
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    const title = "Alerta Stock IA";
+    const options = {
+      body: alert.message.replace(/^Alerta Stock IA:\s*/i, ""),
+      tag: alert.key
+    };
+
+    try {
+      if (Notification.permission === "granted") {
+        new Notification(title, options);
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel disparar notificacao do almoxarifado.", error);
+    }
+  }
+
+  function formatAlmoxAlertMessage_(kind, balance, expiration) {
+    const item = balance && balance.item ? balance.item : {};
+    const name = item.name || "Item";
+
+    if (kind === "zero") {
+      return "Alerta Stock IA: " + name + " esta zerado. Reposicao urgente.";
+    }
+    if (kind === "critical") {
+      return "Alerta Stock IA: " + name + " esta abaixo do estoque minimo. Saldo atual: " +
+        formatQuantity_(balance.balance) + " " + (item.unit || "un") + ".";
+    }
+    if (kind === "expiration" && expiration) {
+      return "Alerta Stock IA: " + name + " " + expiration.message;
+    }
+
+    return "Alerta Stock IA: verificar item critico no almoxarifado.";
+  }
+
+  function formatAlmoxAlertMuteUntil_(value) {
+    if (!value) {
+      return "reativacao manual";
+    }
+
+    return formatDateTime_(value);
+  }
+
+  function collectAlmoxManagerData_() {
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+    const activeAlertHistory = filterAlmoxAlertHistoryByActiveEnvironment_(state.alertHistory);
+    const itemsById = {};
+    activeItems.forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const movements = activeMovements.slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
+    });
+    const zeroItems = buildAlmoxZeroItems_(balances);
+    const criticalItems = buildAlmoxCriticalItems_(balances);
+    const expiringItems = buildAlmoxExpirationItems_(balances);
+    const activeAlerts = generateAlmoxAlerts_();
+
+    return {
+      state: Object.assign({}, state, {
+        items: activeItems,
+        movements: activeMovements,
+        alertHistory: activeAlertHistory
+      }),
+      profile: getAlmoxReportProfile_(),
+      balances: balances,
+      itemsById: itemsById,
+      movements: movements,
+      zeroItems: zeroItems,
+      criticalItems: criticalItems,
+      expiringItems: expiringItems,
+      activeAlerts: activeAlerts,
+      alertHistory: activeAlertHistory,
+      recentMovements: buildAlmoxRecentMovements_(movements, itemsById),
+      recentExits: movements.filter(function (movement) { return movement.type === "saida"; }).slice(0, 5),
+      recentEntries: movements.filter(function (movement) { return movement.type === "entrada"; }).slice(0, 5)
+    };
+  }
+
+  function buildAlmoxCriticalItems_(balances) {
+    return (balances || []).filter(function (balance) {
+      return parseNumber_(balance.item.minimumStock) > 0 &&
+        parseNumber_(balance.balance) > 0 &&
+        parseNumber_(balance.balance) < parseNumber_(balance.item.minimumStock);
+    });
+  }
+
+  function buildAlmoxZeroItems_(balances) {
+    return (balances || []).filter(function (balance) {
+      return parseNumber_(balance.balance) <= 0;
+    });
+  }
+
+  function buildAlmoxExpirationItems_(balances) {
+    return (balances || []).map(function (balance) {
+      const expiration = getAlmoxExpirationInfo_(balance.item);
+      return expiration && expiration.status !== "valid" ? {
+        item: balance.item,
+        balance: balance.balance,
+        expirationDate: balance.item.expirationDate,
+        days: expiration.days,
+        status: expiration.status,
+        label: expiration.label,
+        message: expiration.message
+      } : null;
+    }).filter(Boolean);
+  }
+
+  function buildAlmoxRecentMovements_(movements, itemsById) {
+    return (movements || []).slice(0, 8).map(function (movement) {
+      const item = (itemsById || {})[movement.itemId] || {};
+      return {
+        movement: movement,
+        item: item,
+        dateTime: formatAlmoxDateTime_(movement),
+        type: movement.type === "entrada" ? "Entrada" : "Saida",
+        material: item.name || "Item",
+        quantity: formatQuantity_(movement.quantity) + " " + (item.unit || "un"),
+        responsible: movement.responsible || movement.recipient || "-",
+        sectorOrOrigin: movement.type === "entrada"
+          ? (movement.documentNumber || "Origem/nota nao informada")
+          : (movement.sector || "Setor/destino nao informado")
+      };
+    });
+  }
+
+  function buildAlmoxRiskLevel_(data) {
+    if (data && data.zeroItems && data.zeroItems.length) {
+      return {
+        label: "Critico",
+        className: "status-danger",
+        message: "Ha item(ns) zerado(s). Reposicao urgente."
+      };
+    }
+
+    if (data && data.criticalItems && data.criticalItems.length) {
+      return {
+        label: "Atencao",
+        className: "status-warning",
+        message: "Ha item(ns) abaixo do estoque minimo."
+      };
+    }
+
+    return {
+      label: "Baixo",
+      className: "status-ok",
+      message: "Sem itens zerados ou abaixo do minimo."
+    };
+  }
+
+  function buildAlmoxReportViewModel_() {
+    const data = collectAlmoxManagerData_();
+    const totalBalance = data.balances.reduce(function (sum, balance) {
+      return sum + parseNumber_(balance.balance);
+    }, 0);
+    const risk = buildAlmoxRiskLevel_(data);
+    const dashboard = buildAlmoxDashboardViewModel_();
+    const dashboardTopMoved = dashboard.topMovedItems[0];
+    const exits = data.movements.filter(function (movement) { return movement.type === "saida"; });
+    const entries = data.movements.filter(function (movement) { return movement.type === "entrada"; });
+    const exitsWithoutResponsible = exits.filter(function (movement) {
+      return !clean(movement.responsible) && !clean(movement.recipient);
+    });
+    const exitsWithoutSector = exits.filter(function (movement) {
+      return !clean(movement.sector);
+    });
+    const entriesWithoutOrigin = entries.filter(function (movement) {
+      return !clean(movement.documentNumber);
+    });
+    const invalidMovements = data.movements.filter(function (movement) {
+      return parseNumber_(movement.quantity) <= 0 || !data.itemsById[movement.itemId];
+    });
+    const lastEntry = entries[0];
+    const lastExit = exits[0];
+    const describeMovement = function (movement) {
+      if (!movement) {
+        return "Nenhuma registrada.";
+      }
+
+      return getAlmoxMovementDisplayDateTime_(movement) + ": " +
+        formatAlmoxMovementText_(movement, data.itemsById[movement.itemId] || {});
+    };
+
+    return {
+      type: "Relatorio",
+      profile: data.profile,
+      stats: [
+        { label: "Itens cadastrados", value: data.balances.length, className: "status-muted" },
+        { label: "Saldo total", value: formatQuantity_(totalBalance), suffix: "unidades", className: "status-muted" },
+        { label: "Itens abaixo do minimo", value: data.criticalItems.length, className: data.criticalItems.length ? "status-warning" : "status-ok" },
+        { label: "Itens zerados", value: data.zeroItems.length, className: data.zeroItems.length ? "status-danger" : "status-ok" },
+        { label: "Movimentacoes recentes", value: data.movements.length, className: "status-muted" },
+        { label: "Saidas no periodo", value: dashboard.periodExits.length, suffix: dashboard.periodLabel, className: dashboard.periodExits.length ? "status-warning" : "status-muted" },
+        { label: "Entradas no periodo", value: dashboard.periodEntries.length, suffix: dashboard.periodLabel, className: dashboard.periodEntries.length ? "status-ok" : "status-muted" },
+        { label: "Alertas ativos", value: data.activeAlerts.length, className: data.activeAlerts.some(function (alert) { return alert.severity === "critical"; }) ? "status-danger" : (data.activeAlerts.length ? "status-warning" : "status-ok") },
+        { label: "Risco geral", value: risk.label, className: risk.className }
+      ],
+      risk: risk,
+      summaryItems: [
+        ["Itens cadastrados", data.balances.length],
+        ["Saldo total", formatQuantity_(totalBalance) + " unidades"],
+        ["Itens abaixo do minimo", data.criticalItems.length],
+        ["Itens zerados", data.zeroItems.length],
+        ["Alertas ativos", data.activeAlerts.length ? summarizeStockIaList_(data.activeAlerts.map(function (alert) { return alert.message; }), 3) : "Nenhum alerta ativo."],
+        ["Material mais movimentado", dashboardTopMoved ? dashboardTopMoved.name + " - " + formatQuantity_(dashboardTopMoved.quantity) + " " + dashboardTopMoved.unit + " em " + dashboard.periodLabel : "Nenhuma saida no periodo."],
+        ["Tendencia operacional", dashboard.trend.label],
+        ["Ultima entrada", describeMovement(lastEntry)],
+        ["Ultima saida", describeMovement(lastExit)],
+        ["Recomendacao", data.zeroItems.length || data.criticalItems.length ? "Priorizar reposicao e revisar retiradas recentes." : "Manter acompanhamento periodico do estoque."]
+      ],
+      auditItems: [
+        ["Risco de falta", risk.message],
+        ["Risco geral do dashboard", dashboard.shortage.label],
+        ["Itens zerados", data.zeroItems.length ? summarizeStockIaList_(data.zeroItems.map(function (balance) { return balance.item.name; }), 6) : "Nenhum item zerado."],
+        ["Itens abaixo do minimo", data.criticalItems.length ? summarizeStockIaList_(data.criticalItems.map(function (balance) { return balance.item.name; }), 6) : "Nenhum item abaixo do minimo."],
+        ["Entradas sem origem/nota", entriesWithoutOrigin.length],
+        ["Saidas sem responsavel", exitsWithoutResponsible.length],
+        ["Saidas sem setor/destino", exitsWithoutSector.length],
+        ["Movimentacoes invalidas", invalidMovements.length],
+        ["Alertas gerados", data.alertHistory.length ? summarizeStockIaList_(data.alertHistory.slice(0, 4).map(function (alert) { return alert.message; }), 4) : "Nenhum alerta registrado."],
+        ["Recomendacao de reposicao", data.zeroItems.length ? "Comprar/repor itens zerados imediatamente." : (data.criticalItems.length ? "Repor itens abaixo do minimo antes da proxima retirada." : "Nao ha reposicao urgente no momento.")],
+        ["Recomendacao de controle", "Bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada."]
+      ],
+      tables: {
+        criticalItems: data.criticalItems.map(function (balance) {
+          return [
+            balance.item.name || "Item",
+            formatQuantity_(balance.balance) + " " + (balance.item.unit || "un"),
+            formatQuantity_(balance.item.minimumStock) + " " + (balance.item.unit || "un"),
+            "Atencao",
+            "Repor ate o estoque minimo e revisar consumo recente."
+          ];
+        }),
+        zeroItems: data.zeroItems.map(function (balance) {
+          return [
+            balance.item.name || "Item",
+            "Zerado",
+            "Reposicao urgente antes de nova retirada."
+          ];
+        }),
+        expirationItems: data.expiringItems.map(function (info) {
+          return [
+            info.item.name || "Item",
+            formatDateOnly_(info.expirationDate),
+            String(info.days),
+            info.label
+          ];
+        }),
+        recentMovements: data.recentMovements.map(function (entry) {
+          return [
+            entry.dateTime,
+            entry.type,
+            entry.material,
+            entry.quantity,
+            entry.responsible,
+            entry.sectorOrOrigin
+          ];
+        }),
+        alerts: data.activeAlerts.map(function (alert) {
+          return [
+            alert.severity === "critical" ? "Critico" : "Atencao",
+            alert.itemName || "Item",
+            alert.type || "alerta",
+            alert.message
+          ];
+        }),
+        alertHistory: data.alertHistory.slice(0, 8).map(function (alert) {
+          return [
+            formatDateTime_(alert.createdAt),
+            alert.severity === "critical" ? "Critico" : "Atencao",
+            alert.itemName || "Item",
+            alert.message
+          ];
+        })
+      }
+    };
+  }
+
+  function getAlmoxReportProfile_() {
+    const environment = getActiveStockEnvironment_();
+    const client = (appState.clients || [])[0] || {};
+    const work = (appState.works || [])[0] || {};
+    const environmentUnit = environment.mode === "obra"
+      ? clean(environment.workName)
+      : clean(environment.unitName);
+    return {
+      clientName: clean(environment.clientName) || clean(client.name) || "Cliente demonstrativo",
+      unitName: environmentUnit || clean(work.name) || clean(work.address) || "Almoxarifado Central",
+      environmentName: clean(environment.environmentName) || "Ambiente Stock IA",
+      responsibleName: clean(environment.responsible) || clean(currentUser && currentUser.name) || "Gestor responsavel",
+      systemName: "Stock IA / ObraReport",
+      emittedAt: formatDateTime_(new Date().toISOString())
+    };
+  }
+
+  function buildAlmoxReportIntro_() {
+    const profile = getAlmoxReportProfile_();
+    return "Relatorio gerado pelo Stock IA para " + profile.clientName +
+      ", unidade " + profile.unitName + ", ambiente " + profile.environmentName + ", em " + profile.emittedAt + ".";
+  }
+
+  function getAlmoxExpirationInfo_(item) {
+    const expirationDate = clean(item && item.expirationDate);
+    if (!expirationDate) {
+      return null;
+    }
+
+    const today = new Date(toDateKey_(new Date()) + "T00:00:00");
+    const target = new Date(expirationDate + "T00:00:00");
+    if (Number.isNaN(target.getTime())) {
+      return null;
+    }
+
+    const days = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+    if (days < 0) {
+      return {
+        status: "expired",
+        label: "vencido",
+        days: days,
+        message: "esta vencido ha " + Math.abs(days) + " dia(s)."
+      };
+    }
+
+    if (days <= 30) {
+      return {
+        status: "near",
+        label: "proximo do vencimento",
+        days: days,
+        message: "vence em " + days + " dia(s)."
+      };
+    }
+
+    if (days <= 60) {
+      return {
+        status: "attention",
+        label: "atencao",
+        days: days,
+        message: "vence em " + days + " dia(s)."
+      };
+    }
+
+    return {
+      status: "valid",
+      label: "valido",
+      days: days,
+      message: "validade em " + formatDateOnly_(expirationDate) + "."
+    };
+  }
+
+  function handleViewAlmoxManagerPanel_() {
+    renderAlmoxTopManagerPanel_();
+    if (almoxManagerCards) {
+      almoxManagerCards.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    showAlmoxToast_("Painel do gestor atualizado para visualizacao.", "info");
+  }
+
+  function handleToggleAlmoxAlerts_() {
+    const state = loadAlmoxState_();
+    const nextMuted = !state.alertsMuted;
+    state.alertsMuted = nextMuted;
+    state.alertsMutedUntil = nextMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "";
+    saveAlmoxState_(state);
+    renderAlmoxTopManagerPanel_();
+    showAlmoxToast_(
+      state.alertsMuted ? "Alertas silenciados por 2 horas. O gestor ainda pode consultar a Central quando quiser." : "Alertas ativos novamente.",
+      "info"
+    );
+  }
+
   function renderAlmoxItems_() {
     if (!almoxItemsCards && !almoxItemsRows) {
       return;
     }
 
+    updateAlmoxItemsCount_();
     const balances = filterAlmoxBalances_(calculateAlmoxBalances_());
     if (almoxItemsCards) {
       almoxItemsCards.innerHTML = "";
       if (!balances.length) {
         almoxItemsCards.appendChild(createAlmoxEmptyAction_(
-          almoxSearchTerm ? "Nenhum item encontrado para esta busca." : "Você ainda não tem itens cadastrados.",
+          almoxSearchTerm ? "Nenhum item encontrado para esta busca." : "Nenhum item cadastrado ainda.",
           "Cadastrar item",
           "item"
         ));
@@ -5973,6 +9652,132 @@
     });
   }
 
+  function toggleAlmoxItemsVisibility_() {
+    almoxItemsVisible = !almoxItemsVisible;
+
+    const section = document.getElementById("almoxItemsSection");
+    const button = document.getElementById("almoxToggleItemsButton");
+
+    if (!section || !button) {
+      return;
+    }
+
+    section.classList.toggle("almox-items-expanded", almoxItemsVisible);
+    section.classList.toggle("almox-items-collapsed", !almoxItemsVisible);
+    button.textContent = almoxItemsVisible ? "Ocultar itens" : "Ver itens";
+  }
+
+  function bindAlmoxItemsToggle_() {
+    const toggleButton = document.getElementById("almoxToggleItemsButton");
+
+    if (toggleButton) {
+      toggleButton.addEventListener("click", toggleAlmoxItemsVisibility_);
+    }
+  }
+
+  function updateAlmoxItemsCount_() {
+    const counter = document.getElementById("almoxItemsCount");
+    const state = loadAlmoxState_();
+    const total = state && Array.isArray(state.items) ? filterAlmoxItemsByActiveEnvironment_(state.items).length : 0;
+
+    if (!counter) {
+      return;
+    }
+
+    counter.textContent = total === 1 ? "1 item cadastrado" : total + " itens cadastrados";
+  }
+
+  function toggleAlmoxHistoryVisibility_() {
+    almoxHistoryVisible = !almoxHistoryVisible;
+
+    const section = document.getElementById("almoxHistorySection");
+    const button = document.getElementById("almoxToggleHistoryButton");
+
+    if (!section || !button) {
+      return;
+    }
+
+    section.classList.toggle("almox-history-expanded", almoxHistoryVisible);
+    section.classList.toggle("almox-history-collapsed", !almoxHistoryVisible);
+    button.textContent = almoxHistoryVisible ? "Ocultar histórico" : "Ver histórico";
+  }
+
+  function bindAlmoxEntryCardsScroll_() {
+    Array.from(document.querySelectorAll("[data-almox-entry-target]")).forEach(function (card) {
+      const scrollToTarget = function () {
+        const targetId = card.getAttribute("data-almox-entry-target");
+        const target = targetId ? document.getElementById(targetId) : null;
+
+        if (!target) {
+          return;
+        }
+
+        const scrollTarget = target.closest ? target.closest("label") || target : target;
+        const rect = scrollTarget.getBoundingClientRect();
+        const targetTop = window.scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2);
+        window.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: "smooth"
+        });
+
+        if (typeof target.focus === "function") {
+          window.setTimeout(function () {
+            target.focus({ preventScroll: true });
+          }, 350);
+        }
+      };
+
+      card.addEventListener("click", scrollToTarget);
+      card.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          scrollToTarget();
+        }
+      });
+    });
+  }
+
+  function bindAlmoxHistoryControls_() {
+    const toggleButton = document.getElementById("almoxToggleHistoryButton");
+
+    if (toggleButton) {
+      toggleButton.addEventListener("click", toggleAlmoxHistoryVisibility_);
+    }
+
+    Array.from(document.querySelectorAll("[data-almox-history-filter]")).forEach(function (button) {
+      button.addEventListener("click", function () {
+        almoxHistoryFilter = button.getAttribute("data-almox-history-filter") || "all";
+
+        Array.from(document.querySelectorAll("[data-almox-history-filter]")).forEach(function (item) {
+          item.classList.toggle("active", item === button);
+        });
+
+        renderAlmoxHistory_();
+      });
+    });
+  }
+
+  function filterAlmoxMovementsByType_(movements) {
+    if (almoxHistoryFilter === "entrada" || almoxHistoryFilter === "saida") {
+      return movements.filter(function (movement) {
+        return movement.type === almoxHistoryFilter;
+      });
+    }
+
+    return movements;
+  }
+
+  function updateAlmoxHistoryCount_(movements) {
+    const counter = document.getElementById("almoxHistoryCount");
+    const total = Array.isArray(movements) ? movements.length : 0;
+
+    if (!counter) {
+      return;
+    }
+
+    counter.textContent = total === 1 ? "1 movimentação" : total + " movimentações";
+  }
+
   function renderAlmoxHistory_() {
     if (!almoxHistoryList && !almoxHistoryRows) {
       return;
@@ -5980,12 +9785,14 @@
 
     const state = loadAlmoxState_();
     const itemsById = {};
-    state.items.forEach(function (item) {
+    filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
       itemsById[item.id] = item;
     });
-    const movements = filterAlmoxMovements_(state.movements.slice().sort(function (a, b) {
-      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
-    }), itemsById);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+    const movements = filterAlmoxMovementsByType_(filterAlmoxMovements_(activeMovements.slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
+    }), itemsById));
+    updateAlmoxHistoryCount_(movements);
 
     if (almoxHistoryList) {
       almoxHistoryList.innerHTML = "";
@@ -6013,7 +9820,7 @@
     movements.forEach(function (movement) {
       const item = itemsById[movement.itemId] || {};
       const row = document.createElement("tr");
-      appendStockIaCell_(row, movement.date ? formatDateOnly_(movement.date) : "-");
+      appendStockIaCell_(row, formatAlmoxDateTime_(movement));
       appendStockIaCell_(row, formatAlmoxMovementText_(movement, item));
       appendStockIaCell_(row, movement.responsible || "-");
       appendStockIaCell_(row, movement.notes || "-");
@@ -6029,12 +9836,15 @@
 
     const state = loadAlmoxState_();
     const matchingItemIds = {};
-    state.movements.forEach(function (movement) {
+    filterAlmoxMovementsByActiveEnvironment_(state.movements).forEach(function (movement) {
       const haystack = normalizeCompositionKey_([
         movement.recipient,
         movement.sector,
         movement.purpose,
         movement.responsible,
+        movement.movementDate,
+        movement.movementTime,
+        movement.movementDateTime,
         movement.notes
       ].join(" "));
       if (haystack.indexOf(term) >= 0) {
@@ -6070,6 +9880,9 @@
         movement.purpose,
         movement.responsible,
         movement.documentNumber,
+        movement.movementDate,
+        movement.movementTime,
+        movement.movementDateTime,
         movement.notes
       ].join(" "));
       return haystack.indexOf(term) >= 0;
@@ -6091,6 +9904,102 @@
     return empty;
   }
 
+  function getAlmoxAlertMessage_(balance) {
+    const current = parseNumber_(balance && balance.balance);
+    const minimum = parseNumber_(balance && balance.item && balance.item.minimumStock);
+
+    if (current <= 0) {
+      return "Item zerado. Reposicao urgente.";
+    }
+
+    if (minimum > 0 && current < minimum) {
+      return "Item abaixo do estoque minimo.";
+    }
+
+    return "Saldo dentro do previsto.";
+  }
+
+  function getDefaultAlmoxMovementDate_() {
+    return toDateKey_(new Date());
+  }
+
+  function getDefaultAlmoxMovementTime_() {
+    const now = new Date();
+    return [
+      String(now.getHours()).padStart(2, "0"),
+      String(now.getMinutes()).padStart(2, "0")
+    ].join(":");
+  }
+
+  function buildAlmoxMovementDateTime_(dateValue, timeValue) {
+    const movementDate = clean(dateValue) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(timeValue) || getDefaultAlmoxMovementTime_();
+    return movementDate + "T" + movementTime + ":00";
+  }
+
+  function formatAlmoxMovementDateTime_(dateTimeValue) {
+    if (!dateTimeValue) {
+      return "";
+    }
+
+    try {
+      return new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short"
+      }).format(new Date(dateTimeValue));
+    } catch (error) {
+      return String(dateTimeValue);
+    }
+  }
+
+  function getAlmoxMovementDisplayDateTime_(movement) {
+    if (!movement) {
+      return "-";
+    }
+
+    if (movement.movementDateTime) {
+      return formatAlmoxMovementDateTime_(movement.movementDateTime);
+    }
+
+    if (movement.movementDate && movement.movementTime) {
+      return formatAlmoxMovementDateTime_(buildAlmoxMovementDateTime_(movement.movementDate, movement.movementTime));
+    }
+
+    if (movement.movementDate || movement.date) {
+      return formatDateOnly_(movement.movementDate || movement.date) + ", horario nao informado";
+    }
+
+    if (movement.createdAt) {
+      return formatDateTime_(movement.createdAt);
+    }
+
+    return "-";
+  }
+
+  function getAlmoxMovementSortKey_(movement) {
+    if (!movement) {
+      return "";
+    }
+
+    if (movement.movementDateTime) {
+      return movement.movementDateTime;
+    }
+
+    if (movement.movementDate && movement.movementTime) {
+      return buildAlmoxMovementDateTime_(movement.movementDate, movement.movementTime);
+    }
+
+    if (movement.movementDate || movement.date) {
+      return (movement.movementDate || movement.date) + "T00:00:00";
+    }
+
+    return movement.createdAt || "";
+  }
+
+  function formatAlmoxDateTime_(movement) {
+    return getAlmoxMovementDisplayDateTime_(movement);
+  }
+
   function createAlmoxItemCard_(balance) {
     const card = document.createElement("article");
     const header = document.createElement("header");
@@ -6108,12 +10017,15 @@
     card.appendChild(header);
 
     meta.className = "almox-meta-grid";
+    const expiration = getAlmoxExpirationInfo_(balance.item);
     [
       "Categoria: " + (balance.item.category || "Geral"),
       "Local: " + (balance.item.location || "Não informado"),
       "Saldo atual: " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un"),
-      "Estoque mínimo: " + formatQuantity_(balance.item.minimumStock) + " " + (balance.item.unit || "un")
-    ].forEach(function (text) {
+      "Estoque mínimo: " + formatQuantity_(balance.item.minimumStock) + " " + (balance.item.unit || "un"),
+      expiration ? "Validade: " + formatDateOnly_(balance.item.expirationDate) + " - " + expiration.label : "",
+      getAlmoxAlertMessage_(balance)
+    ].filter(Boolean).forEach(function (text) {
       const item = document.createElement("span");
       item.textContent = text;
       meta.appendChild(item);
@@ -6148,7 +10060,7 @@
     card.className = "almox-history-item " + (movement.type === "entrada" ? "is-entry" : "is-exit");
     title.textContent = movement.type === "entrada" ? "Entrada" : "Saída";
     date.className = "auth-note";
-    date.textContent = movement.date ? formatDateOnly_(movement.date) : "-";
+    date.textContent = formatAlmoxDateTime_(movement);
     header.appendChild(title);
     header.appendChild(date);
     card.appendChild(header);
@@ -6167,7 +10079,7 @@
       details.appendChild(createAlmoxHistoryLine_("Responsável: " + movement.responsible));
     }
     if (movement.documentNumber) {
-      details.appendChild(createAlmoxHistoryLine_("Documento: " + movement.documentNumber));
+      details.appendChild(createAlmoxHistoryLine_("Origem/nota: " + movement.documentNumber));
     }
     if (movement.notes) {
       details.appendChild(createAlmoxHistoryLine_("Observação: " + movement.notes));
@@ -6185,7 +10097,7 @@
   function formatAlmoxMovementText_(movement, item) {
     const quantity = formatQuantity_(movement.quantity) + " " + (item.unit || "un");
     if (movement.type === "entrada") {
-      return "Entrada — " + quantity + " de " + (item.name || "item") + (movement.documentNumber ? " — " + movement.documentNumber : "") + ".";
+      return "Entrada — " + quantity + " de " + (item.name || "item") + (movement.documentNumber ? " — origem/nota: " + movement.documentNumber : "") + ".";
     }
 
     return "Saída — " + quantity + " de " + (item.name || "item") +
@@ -6200,7 +10112,9 @@
     const critical = balances.filter(function (balance) {
       return balance.status === "Crítico" || balance.status === "Atenção";
     });
-    const exits = state.movements.filter(function (movement) {
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+    const exits = activeMovements.filter(function (movement) {
       return movement.type === "saida";
     });
 
@@ -6210,11 +10124,12 @@
 
     const mainBalance = critical[0] || balances[0];
     const itemsById = {};
-    state.items.forEach(function (item) {
+    activeItems.forEach(function (item) {
       itemsById[item.id] = item;
     });
+    const activeAlerts = generateAlmoxAlerts_();
     const lastExit = exits.slice().sort(function (a, b) {
-      return String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""));
+      return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
     })[0];
 
     let summary = "O almoxarifado possui " + balances.length + " item(ns) cadastrado(s). " +
@@ -6228,10 +10143,15 @@
         (lastExit.recipient ? " para " + lastExit.recipient : "") +
         (lastExit.sector ? ", setor " + lastExit.sector : "") +
         (lastExit.purpose ? ", finalidade " + lastExit.purpose : "") + ".";
+      summary += " Data/hora da ultima saida: " + getAlmoxMovementDisplayDateTime_(lastExit) + ".";
     } else if (critical.length) {
       summary += " Existem " + critical.length + " item(ns) em atenção ou crítico.";
     } else {
       summary += " Nenhuma entrega foi registrada ainda.";
+    }
+
+    if (activeAlerts.length) {
+      summary += " Alertas ativos: " + summarizeStockIaList_(activeAlerts.map(function (alert) { return alert.message; }), 3) + ".";
     }
 
     return summary;
@@ -6244,6 +10164,587 @@
     }
     const copied = copyTextFallback_(summary);
     showAlmoxToast_(copied ? "Resumo do almoxarifado gerado e copiado." : "Resumo gerado.", copied ? "success" : "info");
+  }
+
+  function buildAlmoxGeneratedSummaryText_() {
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+
+    if (!balances.length) {
+      return "Nenhum item cadastrado ainda. Cadastre materiais para gerar um resumo do almoxarifado.";
+    }
+
+    const itemsById = {};
+    activeItems.forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const totalBalance = balances.reduce(function (sum, balance) {
+      return sum + parseNumber_(balance.balance);
+    }, 0);
+    const belowMinimum = balances.filter(function (balance) {
+      return parseNumber_(balance.item.minimumStock) > 0 &&
+        parseNumber_(balance.balance) > 0 &&
+        parseNumber_(balance.balance) < parseNumber_(balance.item.minimumStock);
+    }).length;
+    const zeroItems = balances.filter(function (balance) {
+      return parseNumber_(balance.balance) <= 0;
+    }).length;
+    const movements = activeMovements.slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
+    });
+    const activeAlerts = generateAlmoxAlerts_();
+    const lastEntry = movements.find(function (movement) {
+      return movement.type === "entrada";
+    });
+    const lastExit = movements.find(function (movement) {
+      return movement.type === "saida";
+    });
+    const describeMovement = function (movement) {
+      if (!movement) {
+        return "nenhuma";
+      }
+
+      const item = itemsById[movement.itemId] || {};
+      const base = formatQuantity_(movement.quantity) + " " + (item.unit || "un") + " de " + (item.name || "item");
+      const datePrefix = "em " + getAlmoxMovementDisplayDateTime_(movement) + ": ";
+      if (movement.type === "entrada") {
+        return datePrefix + base + (movement.documentNumber ? " com origem/nota " + movement.documentNumber : "");
+      }
+
+      return datePrefix + base +
+        (movement.recipient ? " para " + movement.recipient : "") +
+        (movement.sector ? ", setor " + movement.sector : "") +
+        (movement.responsible ? ", responsavel " + movement.responsible : "");
+    };
+    const dashboard = buildAlmoxDashboardViewModel_();
+    const topMoved = dashboard.topMovedItems[0];
+
+    return buildAlmoxReportIntro_() + " O almoxarifado possui " + balances.length + " item(ns) cadastrado(s), com saldo total de " +
+      formatQuantity_(totalBalance) + " unidade(s). Ha " + belowMinimum + " item(ns) abaixo do minimo e " +
+      zeroItems + " item(ns) zerado(s). Foram registradas " + activeMovements.length +
+      " movimentacao(oes) recentes. A ultima entrada foi " + describeMovement(lastEntry) +
+      ". A ultima saida foi " + describeMovement(lastExit) +
+      ". No dashboard, o material mais movimentado em " + dashboard.periodLabel + " e " +
+      (topMoved ? topMoved.name + " (" + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + ")" : "nenhum item com saida no periodo") +
+      ". Risco geral: " + dashboard.shortage.label + ". Tendencia: " + dashboard.trend.label +
+      ". Alertas ativos: " + (activeAlerts.length ? summarizeStockIaList_(activeAlerts.map(function (alert) { return alert.message; }), 3) : "nenhum alerta ativo") +
+      ". Mensagem ao gestor: acompanhe os itens criticos e programe reposicao antes da falta em campo.";
+  }
+
+  function buildAlmoxAuditText_() {
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+
+    if (!balances.length) {
+      return "Nenhum item cadastrado ainda. Nao ha dados suficientes para auditar o almoxarifado.";
+    }
+
+    const itemsById = {};
+    activeItems.forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const zeroItems = balances.filter(function (balance) {
+      return parseNumber_(balance.balance) <= 0;
+    });
+    const belowMinimum = balances.filter(function (balance) {
+      return parseNumber_(balance.item.minimumStock) > 0 &&
+        parseNumber_(balance.balance) > 0 &&
+        parseNumber_(balance.balance) < parseNumber_(balance.item.minimumStock);
+    });
+    const exits = activeMovements.filter(function (movement) {
+      return movement.type === "saida";
+    });
+    const entries = activeMovements.filter(function (movement) {
+      return movement.type === "entrada";
+    });
+    const exitsWithoutResponsible = exits.filter(function (movement) {
+      return !clean(movement.responsible) && !clean(movement.recipient);
+    });
+    const exitsWithoutSector = exits.filter(function (movement) {
+      return !clean(movement.sector);
+    });
+    const entriesWithoutOrigin = entries.filter(function (movement) {
+      return !clean(movement.documentNumber);
+    });
+    const invalidMovements = activeMovements.filter(function (movement) {
+      return parseNumber_(movement.quantity) <= 0 || !itemsById[movement.itemId];
+    });
+    const expirationIssues = balances.map(function (balance) {
+      const expiration = getAlmoxExpirationInfo_(balance.item);
+      return expiration && expiration.status !== "valid" ? balance.item.name + " " + expiration.message : "";
+    }).filter(Boolean);
+    const activeAlerts = generateAlmoxAlerts_();
+    const dashboard = buildAlmoxDashboardViewModel_();
+    const topMoved = dashboard.topMovedItems[0];
+    const issues = [];
+
+    if (zeroItems.length) {
+      issues.push(zeroItems.length + " item(ns) zerado(s) exigem reposicao urgente: " + summarizeStockIaList_(zeroItems.map(function (balance) { return balance.item.name; }), 5) + ".");
+    }
+
+    if (belowMinimum.length) {
+      issues.push(belowMinimum.length + " item(ns) abaixo do estoque minimo: " + summarizeStockIaList_(belowMinimum.map(function (balance) { return balance.item.name; }), 5) + ".");
+    }
+
+    if (exitsWithoutResponsible.length) {
+      issues.push("Foram identificadas " + exitsWithoutResponsible.length + " saida(s) sem responsavel ou pessoa que retirou.");
+    }
+
+    if (exitsWithoutSector.length) {
+      issues.push("Foram identificadas " + exitsWithoutSector.length + " saida(s) sem setor/destino.");
+    }
+
+    if (entriesWithoutOrigin.length) {
+      issues.push("Foram identificadas " + entriesWithoutOrigin.length + " entrada(s) sem origem, fornecedor ou nota.");
+    }
+
+    if (invalidMovements.length) {
+      issues.push("Foram identificadas " + invalidMovements.length + " movimentacao(oes) com quantidade invalida ou item inexistente.");
+    }
+
+    if (expirationIssues.length) {
+      issues.push("Itens com vencimento critico ou em atencao: " + summarizeStockIaList_(expirationIssues, 5) + ".");
+    }
+
+    if (activeAlerts.length) {
+      issues.push("Alertas automaticos ativos: " + summarizeStockIaList_(activeAlerts.map(function (alert) { return alert.message; }), 5) + ".");
+    }
+
+    const dashboardInsight = " Dashboard: risco geral " + dashboard.shortage.label +
+      ", tendencia operacional: " + dashboard.trend.label +
+      ", material mais movimentado em " + dashboard.periodLabel + ": " +
+      (topMoved ? topMoved.name + " com " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + " retiradas." : "sem saidas no periodo.");
+
+    if (!issues.length) {
+      return buildAlmoxReportIntro_() + " Nao foram encontradas inconsistencias criticas. O almoxarifado esta dentro dos parametros cadastrados. Tendencia operacional: " + dashboard.trend.label;
+    }
+
+    return buildAlmoxReportIntro_() + " Auditoria do almoxarifado: " + issues.join(" ") +
+      dashboardInsight +
+      " Risco de falta: " + (zeroItems.length || belowMinimum.length ? "alto para itens criticos." : "baixo no momento.") +
+      " Recomendacao de reposicao: priorize itens zerados e abaixo do minimo." +
+      " Recomendacao de controle: bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada.";
+  }
+
+  function renderAlmoxGeneratedReport_(type, data) {
+    if (!almoxGeneratedReport) {
+      return;
+    }
+
+    const viewModel = data && data.stats ? data : buildAlmoxReportViewModel_();
+    const header = document.createElement("div");
+    const titleBlock = document.createElement("div");
+    const eyebrow = document.createElement("p");
+    const title = document.createElement("h3");
+    const subtitle = document.createElement("p");
+    const risk = document.createElement("span");
+
+    almoxGeneratedReport.innerHTML = "";
+    almoxGeneratedReport.classList.remove("is-hidden");
+    almoxGeneratedReport.classList.add("almox-generated-report");
+
+    header.className = "almox-report-header";
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = type || "Relatorio gerencial";
+    title.textContent = "Relatorio Stock IA - Almoxarifado";
+    subtitle.textContent = viewModel.profile.clientName + " | " +
+      viewModel.profile.unitName + " | " +
+      viewModel.profile.emittedAt + " | " +
+      viewModel.profile.responsibleName;
+    risk.className = "almox-report-risk " + viewModel.risk.className;
+    risk.textContent = "Risco geral: " + viewModel.risk.label;
+
+    titleBlock.appendChild(eyebrow);
+    titleBlock.appendChild(title);
+    titleBlock.appendChild(subtitle);
+    header.appendChild(titleBlock);
+    header.appendChild(risk);
+    almoxGeneratedReport.appendChild(header);
+    almoxGeneratedReport.appendChild(createAlmoxReportStats_(viewModel.stats));
+    almoxGeneratedReport.appendChild(createAlmoxDefinitionSection_("Resumo gerencial", viewModel.summaryItems));
+    almoxGeneratedReport.appendChild(createAlmoxDefinitionSection_("Auditoria", viewModel.auditItems));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Itens criticos",
+      ["Material", "Saldo", "Minimo", "Status", "Acao recomendada"],
+      viewModel.tables.criticalItems,
+      "Nenhum item critico encontrado."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Itens zerados",
+      ["Material", "Status", "Acao recomendada"],
+      viewModel.tables.zeroItems,
+      "Nenhum item zerado encontrado."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Itens proximos do vencimento",
+      ["Material", "Vencimento", "Dias restantes", "Status"],
+      viewModel.tables.expirationItems,
+      "Nenhum vencimento critico cadastrado."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Alertas ativos",
+      ["Status", "Material", "Tipo", "Mensagem"],
+      viewModel.tables.alerts,
+      "Nenhum alerta ativo."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Historico de alertas",
+      ["Data/hora", "Status", "Material", "Mensagem"],
+      viewModel.tables.alertHistory,
+      "Nenhum alerta disparado."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxTableSection_(
+      "Ultimas movimentacoes",
+      ["Data/hora", "Tipo", "Material", "Quantidade", "Responsavel", "Setor/origem"],
+      viewModel.tables.recentMovements,
+      "Nenhuma movimentacao recente registrada."
+    ));
+    almoxGeneratedReport.appendChild(createAlmoxReportFooter_());
+  }
+
+  function createAlmoxReportStats_(stats) {
+    const grid = document.createElement("div");
+    grid.className = "almox-report-stats";
+    (stats || []).forEach(function (stat) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      const suffix = document.createElement("small");
+      card.className = "almox-report-stat " + (stat.className || "status-muted");
+      label.textContent = stat.label;
+      value.textContent = String(stat.value);
+      suffix.textContent = stat.suffix || "";
+      card.appendChild(label);
+      card.appendChild(value);
+      if (stat.suffix) {
+        card.appendChild(suffix);
+      }
+      grid.appendChild(card);
+    });
+    return grid;
+  }
+
+  function createAlmoxDefinitionSection_(title, items) {
+    const section = document.createElement("section");
+    const heading = document.createElement("h4");
+    const list = document.createElement("dl");
+    section.className = "almox-report-section";
+    heading.textContent = title;
+    list.className = "almox-report-list";
+    (items || []).forEach(function (item) {
+      const term = document.createElement("dt");
+      const detail = document.createElement("dd");
+      term.textContent = item[0];
+      detail.textContent = item[1];
+      list.appendChild(term);
+      list.appendChild(detail);
+    });
+    section.appendChild(heading);
+    section.appendChild(list);
+    return section;
+  }
+
+  function createAlmoxTableSection_(title, headers, rows, emptyText) {
+    const section = document.createElement("section");
+    const heading = document.createElement("h4");
+    const wrap = document.createElement("div");
+    section.className = "almox-report-section";
+    heading.textContent = title;
+    wrap.className = "almox-report-table-wrap";
+    section.appendChild(heading);
+
+    if (!rows || !rows.length) {
+      const empty = document.createElement("p");
+      empty.className = "almox-report-empty";
+      empty.textContent = emptyText;
+      section.appendChild(empty);
+      return section;
+    }
+
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
+    const headerRow = document.createElement("tr");
+    table.className = "almox-report-table";
+    headers.forEach(function (header) {
+      const th = document.createElement("th");
+      th.textContent = header;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    rows.forEach(function (row) {
+      const tr = document.createElement("tr");
+      row.forEach(function (cell, index) {
+        const td = document.createElement("td");
+        td.textContent = cell;
+        if (headers[index] && normalizeCompositionKey_(headers[index]).indexOf("status") >= 0) {
+          td.className = getAlmoxStatusClass_(cell);
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    section.appendChild(wrap);
+    return section;
+  }
+
+  function createAlmoxReportFooter_() {
+    const footer = document.createElement("p");
+    footer.className = "almox-report-footer";
+    footer.textContent = "Gerado por Stock IA / ObraReport.";
+    return footer;
+  }
+
+  function getAlmoxStatusClass_(status) {
+    const key = normalizeCompositionKey_(status);
+    if (key.indexOf("zerado") >= 0 || key.indexOf("critico") >= 0 || key.indexOf("vencido") >= 0) {
+      return "status-danger";
+    }
+    if (key.indexOf("atencao") >= 0 || key.indexOf("proximo") >= 0) {
+      return "status-warning";
+    }
+    if (key.indexOf("baixo") >= 0 || key.indexOf("ok") >= 0 || key.indexOf("valido") >= 0) {
+      return "status-ok";
+    }
+    return "status-muted";
+  }
+
+  function handleGenerateAlmoxSummary_() {
+    const summary = buildAlmoxGeneratedSummaryText_();
+    almoxLastSummaryText = summary;
+    if (almoxSummaryText) {
+      almoxSummaryText.textContent = summary;
+    }
+
+    renderAlmoxGeneratedReport_("Resumo gerencial", buildAlmoxReportViewModel_());
+    renderAlmoxTopManagerPanel_();
+    if (almoxGeneratedReport) {
+      almoxGeneratedReport.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    showAlmoxToast_("Resumo gerencial gerado.", "success");
+  }
+
+  function handleGenerateAlmoxAudit_() {
+    const audit = buildAlmoxAuditText_();
+    almoxLastAuditText = audit;
+    renderAlmoxGeneratedReport_("Auditoria do almoxarifado", buildAlmoxReportViewModel_());
+    renderAlmoxTopManagerPanel_();
+    if (almoxGeneratedReport) {
+      almoxGeneratedReport.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    showAlmoxToast_("Auditoria do almoxarifado gerada.", "success");
+  }
+
+  function handleDownloadAlmoxPdf_() {
+    printAlmoxReport_();
+  }
+
+  function handleSendAlmoxEmail_() {
+    handlePrepareAlmoxEmail_();
+  }
+
+  function handlePrepareAlmoxEmail_() {
+    const email = clean(almoxEmailInput && almoxEmailInput.value);
+    if (!isValidEmail_(email)) {
+      showAlmoxToast_("Informe um e-mail valido para enviar o relatorio.", "error");
+      return;
+    }
+
+    if (!almoxLastSummaryText) {
+      almoxLastSummaryText = buildAlmoxGeneratedSummaryText_();
+    }
+    if (!almoxLastAuditText) {
+      almoxLastAuditText = buildAlmoxAuditText_();
+    }
+
+    renderAlmoxTopManagerPanel_();
+    const subject = buildAlmoxEmailSubject_();
+    const body = buildAlmoxEmailBody_();
+    const url = "mailto:" + encodeURIComponent(email) +
+      "?subject=" + encodeURIComponent(subject) +
+      "&body=" + encodeURIComponent(body);
+    copyTextFallback_(body);
+    window.location.href = url;
+    showAlmoxToast_("E-mail preparado. Confirme o envio no seu aplicativo de e-mail.", "success");
+  }
+
+  function buildAlmoxEmailSubject_() {
+    return "Relatorio Stock IA - Almoxarifado";
+  }
+
+  function buildAlmoxEmailBody_() {
+    const data = collectAlmoxManagerData_();
+    const dashboard = buildAlmoxDashboardViewModel_();
+    const topMoved = dashboard.topMovedItems[0];
+    const profile = data.profile;
+    return [
+      "Relatorio Stock IA - Almoxarifado",
+      "",
+      "Cliente/unidade: " + profile.clientName + " - " + profile.unitName,
+      "Responsavel: " + profile.responsibleName,
+      "Data/hora: " + profile.emittedAt,
+      "",
+      "Resumo:",
+      limitShareText_(almoxLastSummaryText || buildAlmoxGeneratedSummaryText_(), 900),
+      "",
+      "Auditoria:",
+      limitShareText_(almoxLastAuditText || buildAlmoxAuditText_(), 1100),
+      "",
+      "Dashboard inteligente:",
+      "Periodo: " + dashboard.periodLabel,
+      "Risco geral: " + dashboard.shortage.label,
+      "Tendencia: " + dashboard.trend.label,
+      "Material mais movimentado: " + (topMoved ? topMoved.name + " - " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit : "sem saidas no periodo"),
+      "Entradas no periodo: " + dashboard.periodEntries.length,
+      "Saidas no periodo: " + dashboard.periodExits.length,
+      "",
+      "Itens criticos:",
+      formatAlmoxPlainList_(data.criticalItems, function (balance) {
+        return balance.item.name + " - saldo " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + ", minimo " + formatQuantity_(balance.item.minimumStock) + ".";
+      }, "Nenhum item critico."),
+      "",
+      "Itens zerados:",
+      formatAlmoxPlainList_(data.zeroItems, function (balance) {
+        return balance.item.name + " - reposicao urgente.";
+      }, "Nenhum item zerado."),
+      "",
+      "Itens proximos do vencimento:",
+      formatAlmoxPlainList_(data.expiringItems, function (info) {
+        return info.item.name + " - " + info.message;
+      }, "Nenhum vencimento critico cadastrado."),
+      "",
+      "Alertas ativos:",
+      formatAlmoxPlainList_(data.activeAlerts, function (alert) {
+        return alert.message;
+      }, "Nenhum alerta ativo."),
+      "",
+      "Historico de alertas:",
+      formatAlmoxPlainList_(data.alertHistory.slice(0, 6), function (alert) {
+        return formatDateTime_(alert.createdAt) + " - " + alert.message;
+      }, "Nenhum alerta disparado."),
+      "",
+      "Ultimas movimentacoes:",
+      formatAlmoxPlainList_(data.movements.slice(0, 6), function (movement) {
+        return formatAlmoxDateTime_(movement) + " - " + formatAlmoxMovementText_(movement, data.itemsById[movement.itemId] || {});
+      }, "Nenhuma movimentacao registrada."),
+      "",
+      "Gerado por Stock IA / ObraReport."
+    ].join("\n");
+  }
+
+  function isValidEmail_(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(email));
+  }
+
+  function printAlmoxReport_() {
+    if (!almoxLastSummaryText) {
+      almoxLastSummaryText = buildAlmoxGeneratedSummaryText_();
+    }
+    if (!almoxLastAuditText) {
+      almoxLastAuditText = buildAlmoxAuditText_();
+    }
+
+    renderAlmoxTopManagerPanel_();
+    const html = buildAlmoxReportPdfHtml_();
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    showAlmoxToast_("PDF do almoxarifado aberto. Use Imprimir/Salvar como PDF no navegador.", "success");
+  }
+
+  function buildAlmoxReportPdfHtml_() {
+    const viewModel = buildAlmoxReportViewModel_();
+    const profile = viewModel.profile;
+    const title = "Relatorio Stock IA - Almoxarifado";
+    return "<!doctype html><html><head><meta charset=\"utf-8\">" +
+      "<title>" + escapeHtml_(title) + "</title>" +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#102033;background:#f6f8fb}" +
+      ".page{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbe4ee;padding:28px}" +
+      "h1{margin:0 0 6px;font-size:24px}h2{margin:24px 0 10px;font-size:16px;color:#0f5f8f}.sub{color:#607080;margin:0}" +
+      ".meta,.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.meta div,.stat{border:1px solid #e2e8f0;padding:10px;border-radius:8px}.stat span{display:block;color:#607080;font-size:11px;text-transform:uppercase;font-weight:700}.stat strong{display:block;font-size:20px;margin-top:4px}" +
+      ".section{border-top:1px solid #e2e8f0;margin-top:18px;padding-top:14px}.list{display:grid;grid-template-columns:210px 1fr;gap:6px 12px}.list dt{font-weight:700}.list dd{margin:0;color:#405062}" +
+      "table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #e2e8f0;padding:8px;text-align:left;font-size:12px}th{background:#f6f9fc;color:#102033}.empty{color:#607080}.status-danger{color:#9f1d18;font-weight:700}.status-warning{color:#8a5a00;font-weight:700}.status-ok{color:#126c3a;font-weight:700}.status-muted{color:#607080}footer{margin-top:22px;color:#607080;font-size:12px}@media print{body{background:#fff;padding:0}.page{border:0}.section{break-inside:avoid}}" +
+      "</style></head><body><main class=\"page\">" +
+      "<h1>" + escapeHtml_(title) + "</h1>" +
+      "<p class=\"sub\">" + escapeHtml_(profile.clientName) + " | " + escapeHtml_(profile.unitName) + " | " + escapeHtml_(profile.emittedAt) + " | " + escapeHtml_(profile.responsibleName) + "</p>" +
+      "<section class=\"meta\">" +
+      "<div><strong>Cliente</strong><br>" + escapeHtml_(profile.clientName) + "</div>" +
+      "<div><strong>Unidade</strong><br>" + escapeHtml_(profile.unitName) + "</div>" +
+      "<div><strong>Responsavel</strong><br>" + escapeHtml_(profile.responsibleName) + "</div>" +
+      "</section>" +
+      "<section class=\"stats\">" + viewModel.stats.map(function (stat) {
+        return "<article class=\"stat " + escapeAttribute_(stat.className || "status-muted") + "\"><span>" + escapeHtml_(stat.label) + "</span><strong>" + escapeHtml_(stat.value) + "</strong>" + (stat.suffix ? "<small>" + escapeHtml_(stat.suffix) + "</small>" : "") + "</article>";
+      }).join("") + "</section>" +
+      "<section class=\"section\"><h2>Resumo gerencial</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summaryItems) + "</section>" +
+      "<section class=\"section\"><h2>Auditoria</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.auditItems) + "</section>" +
+      "<section class=\"section\"><h2>Itens criticos</h2>" + formatAlmoxHtmlTable_(["Material", "Saldo", "Minimo", "Status", "Acao recomendada"], viewModel.tables.criticalItems, "Nenhum item critico encontrado.") + "</section>" +
+      "<section class=\"section\"><h2>Itens zerados</h2>" + formatAlmoxHtmlTable_(["Material", "Status", "Acao recomendada"], viewModel.tables.zeroItems, "Nenhum item zerado encontrado.") + "</section>" +
+      "<section class=\"section\"><h2>Itens proximos do vencimento</h2>" + formatAlmoxHtmlTable_(["Material", "Vencimento", "Dias restantes", "Status"], viewModel.tables.expirationItems, "Nenhum vencimento critico cadastrado.") + "</section>" +
+      "<section class=\"section\"><h2>Alertas ativos</h2>" + formatAlmoxHtmlTable_(["Status", "Material", "Tipo", "Mensagem"], viewModel.tables.alerts, "Nenhum alerta ativo.") + "</section>" +
+      "<section class=\"section\"><h2>Historico de alertas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Status", "Material", "Mensagem"], viewModel.tables.alertHistory, "Nenhum alerta disparado.") + "</section>" +
+      "<section class=\"section\"><h2>Ultimas movimentacoes</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Material", "Quantidade", "Responsavel", "Setor/origem"], viewModel.tables.recentMovements, "Nenhuma movimentacao recente registrada.") + "</section>" +
+      "<footer>Gerado por Stock IA / ObraReport.</footer>" +
+      "<script>window.onload=function(){window.print();};</script>" +
+      "</main></body></html>";
+  }
+
+  function formatAlmoxHtmlDefinitionList_(items) {
+    return "<dl class=\"list\">" + (items || []).map(function (item) {
+      return "<dt>" + escapeHtml_(item[0]) + "</dt><dd>" + escapeHtml_(item[1]) + "</dd>";
+    }).join("") + "</dl>";
+  }
+
+  function formatAlmoxHtmlTable_(headers, rows, emptyText) {
+    if (!rows || !rows.length) {
+      return "<p class=\"empty\">" + escapeHtml_(emptyText) + "</p>";
+    }
+
+    return "<table><thead><tr>" + headers.map(function (header) {
+      return "<th>" + escapeHtml_(header) + "</th>";
+    }).join("") + "</tr></thead><tbody>" + rows.map(function (row) {
+      return "<tr>" + row.map(function (cell, index) {
+        const className = headers[index] && normalizeCompositionKey_(headers[index]).indexOf("status") >= 0 ? getAlmoxStatusClass_(cell) : "";
+        return "<td" + (className ? " class=\"" + escapeAttribute_(className) + "\"" : "") + ">" + escapeHtml_(cell) + "</td>";
+      }).join("") + "</tr>";
+    }).join("") + "</tbody></table>";
+  }
+
+  function formatAlmoxPlainList_(items, formatter, emptyText) {
+    const safeItems = (items || []).slice(0, 8);
+    if (!safeItems.length) {
+      return "* " + emptyText;
+    }
+
+    return safeItems.map(function (item) {
+      return "* " + formatter(item);
+    }).join("\n") + ((items || []).length > safeItems.length ? "\n* Outros registros disponiveis na Central do Gestor." : "");
+  }
+
+  function formatAlmoxHtmlList_(items, formatter, emptyText) {
+    const safeItems = (items || []).slice(0, 8);
+    if (!safeItems.length) {
+      return "<p>" + escapeHtml_(emptyText) + "</p>";
+    }
+
+    return "<ul>" + safeItems.map(function (item) {
+      return "<li>" + escapeHtml_(formatter(item)) + "</li>";
+    }).join("") + "</ul>";
   }
 
   function showAlmoxToast_(message, type) {
@@ -8302,6 +12803,18 @@
       appendStockIaEmptyRow_(stockIaRows, 7, "Comece registrando materiais no RDO para acompanhar o consumo por obra.");
       return;
     }
+
+    balances.forEach(function (balance) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, balance.name);
+      appendStockIaCell_(row, balance.unit);
+      appendStockIaCell_(row, formatQuantity_(balance.totalQuantity));
+      appendStockIaCell_(row, formatCurrency_(balance.totalCost));
+      appendStockIaCell_(row, String((balance.dailyLogIds || []).length));
+      appendStockIaCell_(row, summarizeStockIaList_(balance.workNames || [], 3));
+      appendStockIaCell_(row, balance.lastDate ? formatDateOnly_(balance.lastDate) : "-");
+      stockIaRows.appendChild(row);
+    });
   }
 
   function renderStockIaMovements_(movements) {
@@ -9762,7 +14275,22 @@
   }
 
   function parseNumber_(value) {
-    const number = Number(String(value || "0").replace(",", "."));
+    let normalized = String(value || "0")
+      .replace(/[^\d,.-]/g, "")
+      .trim();
+
+    if (normalized.indexOf(",") >= 0) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else {
+      const dotParts = normalized.split(".");
+      if (dotParts.length > 2) {
+        normalized = dotParts.join("");
+      } else if (dotParts.length === 2 && dotParts[1].length === 3 && dotParts[0] !== "0") {
+        normalized = dotParts.join("");
+      }
+    }
+
+    const number = Number(normalized);
     return Number.isFinite(number) ? number : 0;
   }
 

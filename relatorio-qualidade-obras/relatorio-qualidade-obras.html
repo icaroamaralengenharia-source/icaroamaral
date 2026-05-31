@@ -1472,18 +1472,20 @@
           <div>
             <p class="eyebrow">Controle interno</p>
             <h3>Almoxarifado</h3>
-            <p>Controle entradas, entregas, setores e saldos em poucos cliques.</p>
+            <p>Controle entradas, sa&iacute;das, respons&aacute;veis, setores e alertas de estoque m&iacute;nimo.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Almoxarifado">
             <span class="local-status">Local</span>
             <span class="cloud-status info">Prefeitura / secretaria / loja</span>
             <button type="button" class="mini-button primary" id="almoxSummaryButton">Gerar resumo</button>
+            <button type="button" class="mini-button" id="almoxAuditButton">Gerar auditoria</button>
           </div>
         </div>
 
-        <div class="stock-ia-cards" id="almoxSummaryCards" aria-live="polite"></div>
+        <section class="workspace-card almox-environment-header" id="almoxEnvironmentHeader" aria-live="polite"></section>
 
-        <section class="workspace-card">
+        <div class="almox-primary-flow">
+          <section class="workspace-card almox-priority-card">
           <div class="section-row">
             <h3>Ações rápidas</h3>
             <span class="auth-note">Use o fluxo simples: cadastrar item, registrar entrada ou registrar saída.</span>
@@ -1502,7 +1504,163 @@
               <span>Registre entregas para pessoa, setor e finalidade.</span>
             </button>
           </div>
+          </section>
+
+          <section class="workspace-card almox-note-panel almox-priority-card">
+          <div class="section-row">
+            <div>
+              <p class="eyebrow">Entrada assistida</p>
+              <h3>Entrada por nota fiscal</h3>
+              <span class="auth-note">Comece pelo modo seguro: cole o texto da nota, confira os itens e lance no estoque.</span>
+            </div>
+          </div>
+
+          <div class="almox-note-options" aria-label="Op&ccedil;&otilde;es de entrada por nota fiscal">
+            <article class="almox-note-option almox-entry-card active" data-almox-entry-target="almoxNoteTextInput" role="button" tabindex="0">
+              <strong>Colar texto da nota</strong>
+              <span>Interpreta produtos, quantidades, unidades e valores para confer&ecirc;ncia.</span>
+            </article>
+            <article class="almox-note-option almox-entry-card" data-almox-entry-target="almoxXmlNoteFileInput" role="button" tabindex="0">
+              <strong>Importar XML NF-e/NFC-e</strong>
+              <span>L&ecirc; os itens estruturados da nota e preenche a tabela com mais seguran&ccedil;a.</span>
+            </article>
+            <article class="almox-note-option almox-entry-card" data-almox-entry-target="almoxNoteFileInput" role="button" tabindex="0">
+              <strong>Enviar imagem/PDF da nota</strong>
+              <span>OCR no navegador com confer&ecirc;ncia manual antes da entrada.</span>
+            </article>
+            <article class="almox-note-option almox-entry-card" data-almox-entry-target="almoxNfeKeyInput" role="button" tabindex="0">
+              <strong>Informar chave NF-e</strong>
+              <span>Consulta por chave preparada para integra&ccedil;&atilde;o futura.</span>
+            </article>
+          </div>
+
+          <div class="almox-note-grid">
+            <label class="full-width">
+              Texto extra&iacute;do ou digitado da nota
+              <textarea id="almoxNoteTextInput" rows="6" placeholder="Cimento CP II 50kg QTD 20 UN VLR UNIT 32,90"></textarea>
+            </label>
+            <label>
+              Importar XML NF-e/NFC-e
+              <input id="almoxXmlNoteFileInput" type="file" accept=".xml,text/xml,application/xml">
+              <span class="auth-note">Use o XML da nota quando dispon&iacute;vel. &Eacute; o modo mais confi&aacute;vel para entrada no estoque.</span>
+            </label>
+            <label>
+              Enviar imagem/PDF da nota
+              <input id="almoxNoteFileInput" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf">
+              <span class="auth-note">O OCR preenche o texto abaixo. Confira antes de adicionar ao estoque.</span>
+            </label>
+            <label>
+              Chave NF-e
+              <input id="almoxNfeKeyInput" type="text" inputmode="numeric" maxlength="60" placeholder="44 d&iacute;gitos">
+              <span class="auth-note" id="almoxNfeKeyStatus">Consulta por chave NF-e preparada para integra&ccedil;&atilde;o futura.</span>
+            </label>
+          </div>
+
+          <div class="almox-note-actions">
+            <button type="button" class="mini-button primary" id="almoxImportXmlButton">Importar XML</button>
+            <button type="button" class="mini-button" id="almoxChooseNoteFileButton">Carregar arquivo</button>
+            <button type="button" class="mini-button primary" id="almoxParseNoteButton">Interpretar nota</button>
+            <button type="button" class="mini-button" id="almoxClearNoteButton">Limpar arquivo</button>
+            <button type="button" class="mini-button" id="almoxValidateNfeKeyButton">Validar chave NF-e</button>
+            <button type="button" class="mini-button primary" id="almoxAddNoteItemsButton">Adicionar itens ao estoque</button>
+          </div>
+
+          <p class="almox-note-status" id="almoxNoteStatus">Cole o texto da nota para iniciar a leitura.</p>
+          <div class="almox-note-file-preview is-empty" id="almoxNoteFilePreview" aria-live="polite">
+            Nenhum arquivo carregado.
+          </div>
+          <div class="almox-ocr-review is-empty" id="almoxFiscalOcrReview" aria-live="polite">
+            <strong>Confer&ecirc;ncia da leitura da nota</strong>
+            <p>Interprete uma nota para ver linhas pendentes, duplicatas e itens de baixa confian&ccedil;a.</p>
+          </div>
+          <p class="almox-note-commercial">Na vers&atilde;o com OCR, o Stock IA ler&aacute; fotos e PDFs de notas para sugerir automaticamente os itens de entrada.</p>
+
+          <div class="almox-note-table-wrap">
+            <table class="stock-ia-table compact almox-note-table">
+              <thead>
+                <tr>
+                  <th>C&oacute;digo</th>
+                  <th>Produto</th>
+                  <th>Quantidade</th>
+                  <th>Unidade</th>
+                  <th>Valor unit&aacute;rio</th>
+                  <th>Valor total</th>
+                </tr>
+              </thead>
+              <tbody id="almoxNoteRows">
+                <tr><td colspan="6">Nenhum item interpretado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          </section>
+        </div>
+
+        <section class="workspace-card almox-dashboard-panel" id="almoxDashboardPanel" aria-live="polite">
+          <div class="section-row almox-dashboard-heading">
+            <div>
+              <p class="eyebrow">Intelig&ecirc;ncia operacional</p>
+              <h3>Dashboard inteligente</h3>
+              <span class="auth-note">Entenda consumo, risco de falta, itens cr&iacute;ticos e movimenta&ccedil;&otilde;es do almoxarifado.</span>
+            </div>
+            <div class="almox-dashboard-periods" id="almoxDashboardPeriodControls" aria-label="Per&iacute;odo do dashboard">
+              <button type="button" class="mini-button compact" data-almox-dashboard-period="today">Hoje</button>
+              <button type="button" class="mini-button compact" data-almox-dashboard-period="7d">7 dias</button>
+              <button type="button" class="mini-button compact" data-almox-dashboard-period="30d">30 dias</button>
+              <button type="button" class="mini-button compact" data-almox-dashboard-period="all">Tudo</button>
+            </div>
+          </div>
+          <div class="almox-dashboard-cards" id="almoxDashboardCards"></div>
+          <div class="almox-dashboard-grid">
+            <article class="almox-dashboard-block" id="almoxDashboardConsumption"></article>
+            <article class="almox-dashboard-block" id="almoxDashboardRisk"></article>
+            <article class="almox-dashboard-block" id="almoxDashboardExpiration"></article>
+            <article class="almox-dashboard-block" id="almoxDashboardTrend"></article>
+          </div>
         </section>
+
+        <section class="workspace-card almox-manager-panel" id="almoxManagerPanel" aria-live="polite">
+          <div class="section-row almox-manager-heading">
+            <div>
+              <p class="eyebrow">Vis&atilde;o do gestor</p>
+              <h3>Central do Gestor</h3>
+              <span class="auth-note">Voc&ecirc; pode apenas visualizar o painel, gerar uma auditoria cr&iacute;tica ou enviar o relat&oacute;rio para seu e-mail ou para um superior.</span>
+            </div>
+            <span class="almox-manager-status" id="almoxAlertsStatus">Alertas ativos</span>
+          </div>
+          <p class="almox-manager-note">Equipe do almoxarifado registra as movimenta&ccedil;&otilde;es. O gestor acompanha saldos, alertas e auditorias em tempo real.</p>
+          <div class="almox-manager-actions">
+            <button type="button" class="mini-button primary" id="almoxViewPanelButton">Visualizar painel</button>
+            <button type="button" class="mini-button" id="almoxManagerAuditButton">Gerar auditoria</button>
+            <button type="button" class="mini-button" id="almoxEmailButton">Enviar por e-mail</button>
+            <button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button>
+            <button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button>
+          </div>
+          <div class="almox-email-panel is-hidden" id="almoxEmailPanel">
+            <label>
+              E-mail de destino
+              <input id="almoxEmailInput" type="email" autocomplete="email" placeholder="gestor@empresa.com.br">
+            </label>
+            <button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Preparar e-mail</button>
+          </div>
+          <div class="almox-manager-report">
+            <article>
+              <span>&Uacute;ltimo resumo gerado</span>
+              <p id="almoxManagerSummaryText">Clique em Gerar resumo para registrar uma vis&atilde;o gerencial.</p>
+            </article>
+            <article>
+              <span>&Uacute;ltima auditoria gerada</span>
+              <p id="almoxManagerAuditText">Clique em Gerar auditoria para registrar uma an&aacute;lise cr&iacute;tica.</p>
+            </article>
+          </div>
+          <div class="almox-manager-grid" id="almoxManagerCards"></div>
+        </section>
+
+        <section class="workspace-card stock-ia-insight is-hidden" id="almoxGeneratedReport" aria-live="polite">
+          <h3 id="almoxGeneratedReportTitle">Resumo gerencial</h3>
+          <p id="almoxGeneratedReportText"></p>
+        </section>
+
+        <div class="stock-ia-cards" id="almoxSummaryCards" aria-live="polite"></div>
 
         <section class="workspace-card">
           <div class="section-row">
@@ -1512,28 +1670,50 @@
           <input class="almox-search-input" id="almoxSearchInput" type="search" placeholder="Buscar item, destinatário, setor ou finalidade">
         </section>
 
-        <section class="workspace-card">
-          <div class="section-row">
-            <h3>Itens cadastrados</h3>
-            <span class="auth-note">Cards com saldo, mínimo, local e ações rápidas.</span>
+        <section class="workspace-card almox-items-section almox-items-collapsed" id="almoxItemsSection">
+          <div class="almox-items-header">
+            <div>
+              <h3>Itens cadastrados</h3>
+              <span class="auth-note">Cards com saldo, m&iacute;nimo, local e a&ccedil;&otilde;es r&aacute;pidas.</span>
+            </div>
+            <div class="almox-items-actions">
+              <span class="almox-items-count" id="almoxItemsCount">0 itens cadastrados</span>
+              <button type="button" class="mini-button almox-items-toggle" id="almoxToggleItemsButton">Ver itens</button>
+            </div>
           </div>
-          <div class="almox-card-grid" id="almoxItemsCards">
-            <div class="stock-ia-empty-action">
-              <p>Nenhum item cadastrado.</p>
-              <button type="button" class="mini-button primary" data-almox-action="item">Cadastrar item</button>
+          <div class="almox-items-content" id="almoxItemsContent">
+            <div class="almox-card-grid" id="almoxItemsCards">
+              <div class="stock-ia-empty-action">
+                <p>Nenhum item cadastrado ainda.</p>
+                <button type="button" class="mini-button primary" data-almox-action="item">Cadastrar item</button>
+              </div>
             </div>
           </div>
         </section>
 
-        <section class="workspace-card">
-          <div class="section-row">
-            <h3>Histórico do almoxarifado</h3>
-            <span class="auth-note">Entradas e entregas em linguagem simples.</span>
+        <section class="workspace-card almox-history-section almox-history-collapsed" id="almoxHistorySection">
+          <div class="almox-history-header">
+            <div>
+              <p class="eyebrow">Hist&oacute;rico</p>
+              <h3>Hist&oacute;rico do almoxarifado</h3>
+              <span class="auth-note">Entradas, sa&iacute;das, respons&aacute;veis, setores, origem e data/hora.</span>
+            </div>
+            <div class="almox-history-actions">
+              <span class="almox-history-count" id="almoxHistoryCount">0 movimenta&ccedil;&otilde;es</span>
+              <div class="almox-history-filters" aria-label="Filtrar hist&oacute;rico">
+                <button type="button" class="almox-history-filter active" data-almox-history-filter="all">Todas</button>
+                <button type="button" class="almox-history-filter" data-almox-history-filter="entrada">Entradas</button>
+                <button type="button" class="almox-history-filter" data-almox-history-filter="saida">Sa&iacute;das</button>
+              </div>
+              <button type="button" class="mini-button" id="almoxToggleHistoryButton">Ver hist&oacute;rico</button>
+            </div>
           </div>
-          <div class="almox-history-list" id="almoxHistoryList">
-            <div class="stock-ia-empty-action">
-              <p>Nenhuma movimentação registrada.</p>
-              <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
+          <div class="almox-history-body" id="almoxHistoryBody">
+            <div class="almox-history-list" id="almoxHistoryList">
+              <div class="stock-ia-empty-action">
+                <p>Nenhuma movimenta&ccedil;&atilde;o registrada.</p>
+                <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
+              </div>
             </div>
           </div>
         </section>
