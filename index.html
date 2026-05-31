@@ -113,6 +113,13 @@
       background: #ffffff;
     }
 
+    .button.stock-cta {
+      color: #061a32;
+      border-color: rgba(255, 217, 120, 0.72);
+      background: linear-gradient(135deg, #ffd978, #d5a642);
+      box-shadow: 0 14px 28px rgba(213, 166, 66, 0.24);
+    }
+
     .button:hover {
       transform: translateY(-1px);
       box-shadow: 0 16px 34px rgba(6, 26, 50, 0.18);
@@ -176,9 +183,29 @@
       line-height: 1.5;
     }
 
+    .hero-feature-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .hero-feature-line li {
+      padding: 8px 10px;
+      border: 1px solid rgba(15, 95, 143, 0.18);
+      border-radius: 999px;
+      color: var(--navy);
+      background: #f5fbff;
+      font-size: 0.82rem;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
     .hero-actions {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
       margin-top: 18px;
     }
@@ -578,6 +605,282 @@
       align-items: center;
     }
 
+    .stock-showcase {
+      grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+      align-items: center;
+      background:
+        radial-gradient(circle at 92% 8%, rgba(213, 166, 66, 0.24), transparent 20rem),
+        linear-gradient(135deg, #061a32 0%, #0b315b 56%, #0f5f8f 100%);
+    }
+
+    .stock-showcase .eyebrow,
+    .stock-showcase h2,
+    .stock-showcase p {
+      color: #ffffff;
+    }
+
+    .stock-showcase p {
+      opacity: 0.84;
+    }
+
+    .stock-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-badges li {
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 217, 120, 0.36);
+      border-radius: 999px;
+      color: #ffe7a2;
+      background: rgba(255, 255, 255, 0.09);
+      font-size: 0.82rem;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .stock-panel {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid rgba(255, 217, 120, 0.34);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(12px);
+    }
+
+    .stock-panel header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: #ffffff;
+      font-weight: 950;
+    }
+
+    .stock-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stock-kpis div,
+    .stock-panel li {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .stock-kpis span,
+    .stock-panel li span {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.75rem;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .stock-kpis strong,
+    .stock-panel li strong {
+      color: #ffffff;
+      font-size: 1.35rem;
+      line-height: 1.1;
+    }
+
+    .stock-panel ul {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stock-flow-step {
+      display: grid;
+      gap: 9px;
+      min-height: 128px;
+      padding: 14px;
+      border: 1px solid rgba(15, 95, 143, 0.2);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #f5fbff, #ffffff);
+      box-shadow: 0 12px 28px rgba(6, 26, 50, 0.055);
+    }
+
+    .stock-flow-step span {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      color: #061a32;
+      background: linear-gradient(135deg, #ffd978, #d5a642);
+      font-weight: 950;
+    }
+
+    .stock-flow-step strong {
+      color: var(--navy);
+      line-height: 1.2;
+    }
+
+    .stock-flow-step small {
+      color: var(--muted);
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .stock-proof-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stock-proof-grid article,
+    .stock-feature-card {
+      border-color: rgba(213, 166, 66, 0.38) !important;
+      background:
+        radial-gradient(circle at top right, rgba(213, 166, 66, 0.12), transparent 12rem),
+        linear-gradient(180deg, #ffffff, #f8fbfe) !important;
+    }
+
+    .stock-proof-grid article {
+      display: grid;
+      gap: 8px;
+      min-height: 116px;
+      padding: 16px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      box-shadow: 0 12px 28px rgba(6, 26, 50, 0.06);
+    }
+
+    .stock-proof-grid strong {
+      color: var(--navy);
+      font-size: 1rem;
+    }
+
+    .stock-proof-grid span {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .stock-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(4, 23, 46, 0.68);
+    }
+
+    .stock-modal-backdrop.is-open {
+      display: flex;
+    }
+
+    .stock-modal {
+      width: min(760px, 100%);
+      max-height: min(92vh, 820px);
+      overflow: auto;
+      display: grid;
+      gap: 18px;
+      padding: clamp(18px, 4vw, 28px);
+      border: 1px solid rgba(213, 166, 66, 0.42);
+      border-radius: 18px;
+      background: #ffffff;
+      box-shadow: 0 34px 90px rgba(0, 0, 0, 0.32);
+    }
+
+    .stock-modal header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .stock-modal h2 {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+    }
+
+    .stock-modal-close {
+      flex: 0 0 auto;
+      width: 40px;
+      min-height: 40px;
+      border-radius: 12px;
+      padding: 0;
+    }
+
+    .stock-simulation-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stock-simulation-form label {
+      display: grid;
+      gap: 6px;
+      color: var(--navy);
+      font-size: 0.86rem;
+      font-weight: 850;
+    }
+
+    .stock-simulation-form input,
+    .stock-simulation-form textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #d8e3ee;
+      border-radius: 11px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: #f8fbfd;
+      font: inherit;
+    }
+
+    .stock-simulation-form textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    .stock-form-full {
+      grid-column: 1 / -1;
+    }
+
+    .stock-simulation-result {
+      display: none;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      border-radius: 14px;
+      background: #f4fbfa;
+    }
+
+    .stock-simulation-result.is-visible {
+      display: grid;
+    }
+
+    .stock-simulation-result ul {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-simulation-result li {
+      color: var(--navy);
+      font-weight: 850;
+    }
+
     .steps span {
       display: grid;
       place-items: center;
@@ -854,7 +1157,8 @@
       .hero,
       .split,
       .demo,
-      .elo-commercial {
+      .elo-commercial,
+      .stock-showcase {
         grid-template-columns: 1fr;
       }
 
@@ -863,6 +1167,8 @@
       .plans,
       .steps,
       .guided-flow,
+      .stock-flow,
+      .stock-proof-grid,
       .hero-proof {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -890,11 +1196,13 @@
       }
 
       .top-actions {
+        display: grid;
+        grid-template-columns: 1fr;
         width: 100%;
       }
 
       .top-actions .button {
-        flex: 1;
+        width: 100%;
       }
 
       .hero,
@@ -921,6 +1229,13 @@
       }
 
       .hero-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .stock-kpis,
+      .stock-flow,
+      .stock-proof-grid,
+      .stock-simulation-form {
         grid-template-columns: 1fr;
       }
 
@@ -976,22 +1291,31 @@
     <section class="hero">
       <div>
         <p class="eyebrow">Software profissional para obras</p>
-        <h1>Relatórios, RDO, Materiais e IA em uma única plataforma</h1>
+        <h1>Relat&oacute;rios, Di&aacute;rio de Obras, Estoque Inteligente e IA em uma &uacute;nica plataforma</h1>
         <p class="hero-text">
-          Gere relatórios técnicos, registre diários de obra, controle materiais, organize fotos e crie PDFs profissionais em poucos minutos.
+          Gere relat&oacute;rios t&eacute;cnicos, registre RDOs, acompanhe consumo, controle estoque, receba alertas autom&aacute;ticos e crie PDFs profissionais em poucos minutos.
         </p>
+        <ul class="hero-feature-line" aria-label="Recursos principais do ObraReport">
+          <li>Relat&oacute;rios T&eacute;cnicos</li>
+          <li>Di&aacute;rio de Obras</li>
+          <li>Estoque Inteligente</li>
+          <li>Intelig&ecirc;ncia Artificial</li>
+          <li>Entrada por Nota Fiscal</li>
+        </ul>
         <div class="hero-actions">
           <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario">Gerar RDO agora</a>
           <a class="button light" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/relatorios">Gerar relatório agora</a>
-          <a class="button light" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario">Testar materiais</a>
+          <button class="button stock-cta" type="button" data-stock-demo>Testar Estoque Inteligente</button>
+          <button class="button light" type="button" data-stock-demo>Testar materiais</button>
           <a class="button light" href="#pdf-example">Ver exemplo de PDF</a>
         </div>
         <div class="hero-proof">
           <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?elo=capabilities"><span>IA</span><strong>IA Técnica</strong><small>Textos e orientação técnica.</small></a>
           <a href="#pdf-example"><span>PDF</span><strong>PDF Profissional</strong><small>Documento pronto para cliente.</small></a>
           <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario"><span>RDO</span><strong>RDO em Campo</strong><small>Registro diário da obra.</small></a>
-          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario"><span>MAT</span><strong>Materiais e Quantitativos</strong><small>Consumo e produção.</small></a>
-          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?elo=capabilities"><span>AUD</span><strong>Auditoria de Consumo</strong><small>Previsto x executado.</small></a>
+          <a href="#materials-title"><span>MAT</span><strong>Materiais e Quantitativos</strong><small>Produção e consumo.</small></a>
+          <a href="#stock-ia-title"><span>STK</span><strong>Estoque Inteligente</strong><small>Saldo, alertas e compras.</small></a>
+          <a href="#stock-flow-title"><span>NF</span><strong>Entrada por Nota</strong><small>Notas fiscais e saldo real.</small></a>
           <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?elo=capabilities"><span>Elo</span><strong>Elo Assistente</strong><small>Memória e biblioteca local.</small></a>
         </div>
         <div class="hero-elo-card">
@@ -1048,10 +1372,76 @@
       <div class="cards">
         <article><strong>Relatórios técnicos com fotos</strong><span>Registre evidências, descrições e conclusões com aparência profissional.</span></article>
         <article><strong>Diário de Obras/RDO</strong><span>Acompanhe clima, equipe, produção, ocorrências e segurança do trabalho.</span></article>
-        <article><strong>Controle de materiais</strong><span>Compare materiais consumidos com produção executada e composições estimadas.</span></article>
+        <article><strong>Materiais e Quantitativos</strong><span>Acompanhe produção executada, quantitativos e consumo registrado.</span></article>
+        <article class="stock-feature-card"><strong>Estoque Inteligente</strong><span>Controle entradas, saídas, saldo real, consumo por obra, alertas automáticos, lista de compras e notas fiscais em um único lugar.</span></article>
         <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
         <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
         <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
+      </div>
+    </section>
+
+    <section class="section stock-showcase" aria-labelledby="stock-ia-title">
+      <div>
+        <p class="eyebrow">Stock IA</p>
+        <h2 id="stock-ia-title">Estoque inteligente integrado ao Diário de Obras.</h2>
+        <p>Controle entradas, saídas, saldo real, consumo por obra, alertas automáticos, lista de compras e notas fiscais sem separar o estoque da rotina de campo.</p>
+        <ul class="stock-badges" aria-label="Recursos do Stock IA">
+          <li>Saldo real</li>
+          <li>Entradas e saídas</li>
+          <li>Alertas automáticos</li>
+          <li>Lista de compras</li>
+          <li>Entrada por nota fiscal</li>
+          <li>Integração com RDO</li>
+        </ul>
+        <div class="guided-actions" style="margin-top: 18px;">
+          <button class="button stock-cta" type="button" data-stock-demo>Simular consumo agora</button>
+          <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Abrir Stock IA</a>
+        </div>
+      </div>
+      <aside class="stock-panel" aria-label="Painel ilustrativo do Stock IA">
+        <header><span>Stock IA</span><span>Visão operacional</span></header>
+        <div class="stock-kpis">
+          <div><span>Estoque monitorado</span><strong>42 materiais</strong></div>
+          <div><span>Alertas críticos</span><strong>3 materiais</strong></div>
+          <div><span>Notas registradas</span><strong>12</strong></div>
+          <div><span>Compras sugeridas</span><strong>R$ 1.850</strong></div>
+        </div>
+        <ul>
+          <li><span>Maior consumo</span><strong>Cimento CP-II</strong></li>
+          <li><span>Próxima ação</span><strong>Repor itens críticos</strong></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="stock-flow-title">
+      <div>
+        <p class="eyebrow">Como funciona o Estoque Inteligente</p>
+        <h2 id="stock-flow-title">Transforme registros de obra em controle real de materiais.</h2>
+        <p>O consumo registrado no Diário de Obras alimenta a visão de estoque, gera alertas e ajuda a preparar reposições com base no saldo real.</p>
+      </div>
+      <div class="stock-flow" aria-label="Fluxo do Estoque Inteligente">
+        <article class="stock-flow-step"><span>1</span><strong>Diário de Obras</strong><small>O RDO registra o que aconteceu em campo.</small></article>
+        <article class="stock-flow-step"><span>2</span><strong>Consumo registrado</strong><small>Materiais usados entram como consumo da obra.</small></article>
+        <article class="stock-flow-step"><span>3</span><strong>Estoque atualizado</strong><small>O saldo real considera entradas, saídas e RDO.</small></article>
+        <article class="stock-flow-step"><span>4</span><strong>Alertas automáticos</strong><small>Itens baixos, zerados ou negativos ficam em destaque.</small></article>
+        <article class="stock-flow-step"><span>5</span><strong>Lista de compras</strong><small>O sistema sugere o que precisa comprar.</small></article>
+        <article class="stock-flow-step"><span>6</span><strong>Entrada por nota</strong><small>Notas fiscais alimentam novas entradas no estoque.</small></article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="stock-proof-title">
+      <p class="eyebrow">Prova visual</p>
+      <h2 id="stock-proof-title">O que o Estoque Inteligente já faz.</h2>
+      <div class="stock-proof-grid">
+        <article><strong>Controle de estoque</strong><span>Itens cadastrados com unidade, custo, saldo inicial e mínimo.</span></article>
+        <article><strong>Entradas e saídas</strong><span>Movimentações manuais e entradas geradas por nota.</span></article>
+        <article><strong>Consumo por obra</strong><span>Leitura do consumo lançado no Diário de Obras.</span></article>
+        <article><strong>Alertas automáticos</strong><span>Materiais críticos, baixos, zerados ou negativos.</span></article>
+        <article><strong>Lista de compras</strong><span>Reposição sugerida com prioridade e valor estimado.</span></article>
+        <article><strong>Entrada por nota fiscal</strong><span>Anexo, itens da nota e entrada no estoque sem OCR real.</span></article>
+        <article><strong>Saldo real</strong><span>Saldo inicial + entradas - saídas - consumo do RDO.</span></article>
+        <article><strong>Integração com Diário de Obras</strong><span>O RDO continua sendo a origem do consumo de campo.</span></article>
+        <article><strong>Histórico de movimentações</strong><span>Registro de entradas, saídas e origem dos consumos.</span></article>
       </div>
     </section>
 
@@ -1124,11 +1514,12 @@
 
     <section class="section" aria-labelledby="materials-title">
       <p class="eyebrow">Controle financeiro da obra</p>
-      <h2 id="materials-title">Materiais, consumo e produção em destaque.</h2>
+      <h2 id="materials-title">Materiais e Quantitativos: produção e consumo em campo.</h2>
       <div class="value-grid">
-        <article><strong>Controle de Materiais</strong><span>Registre materiais consumidos, ferramentas, equipamentos e observações do dia.</span></article>
+        <article><strong>Produção e consumo</strong><span>Acompanhe produção executada, quantitativos e consumo registrado.</span></article>
         <article><strong>Auditoria de Consumo</strong><span>Compare consumo estimado com consumo informado para enxergar desperdícios e desvios.</span></article>
         <article><strong>Produção Executada</strong><span>Relacione serviços executados com quantitativos e composições usadas na obra.</span></article>
+        <article class="stock-feature-card"><strong>Estoque Inteligente</strong><span>Saldo, entradas, saídas, alertas, reposição e notas fiscais ficam no módulo Stock IA.</span></article>
       </div>
     </section>
 
@@ -1242,5 +1633,120 @@
       ObraReport por Ícaro Amaral Engenharia. Sistema de gestão de obras e relatórios técnicos.
     </footer>
   </main>
+
+  <div class="stock-modal-backdrop" data-stock-modal aria-hidden="true">
+    <section class="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
+      <header>
+        <div>
+          <p class="eyebrow">Simulação rápida</p>
+          <h2 id="stock-modal-title">Estoque Inteligente</h2>
+          <p>Preencha um exemplo de serviço executado e material utilizado. Esta simulação é comercial e não altera dados reais do sistema.</p>
+        </div>
+        <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simulação">×</button>
+      </header>
+
+      <form class="stock-simulation-form" data-stock-form>
+        <label>
+          Serviço executado
+          <input name="service" type="text" value="Alvenaria" placeholder="Ex.: Alvenaria">
+        </label>
+        <label>
+          Quantidade executada
+          <input name="serviceQuantity" type="number" min="0" step="0.01" value="12" placeholder="Ex.: 12">
+        </label>
+        <label>
+          Unidade
+          <input name="serviceUnit" type="text" value="m²" placeholder="Ex.: m²">
+        </label>
+        <label>
+          Material utilizado
+          <input name="material" type="text" value="Bloco cerâmico" placeholder="Ex.: Bloco cerâmico">
+        </label>
+        <label>
+          Quantidade utilizada
+          <input name="materialQuantity" type="number" min="0" step="0.01" value="30" placeholder="Ex.: 30">
+        </label>
+        <label>
+          Unidade do material
+          <input name="materialUnit" type="text" value="un" placeholder="Ex.: un">
+        </label>
+        <label class="stock-form-full">
+          Observação opcional
+          <textarea name="note" placeholder="Ex.: consumo lançado para demonstração"></textarea>
+        </label>
+        <div class="stock-form-full guided-actions">
+          <button class="button stock-cta" type="submit">Simular consumo</button>
+          <button class="button light" type="button" data-stock-close>Fechar</button>
+        </div>
+      </form>
+
+      <div class="stock-simulation-result" data-stock-result aria-live="polite">
+        <strong>Resultado da simulação</strong>
+        <ul>
+          <li>Produção registrada</li>
+          <li>Consumo registrado</li>
+          <li>Estoque atualizado</li>
+          <li>Alertas verificados</li>
+          <li>Lista de compras recalculada</li>
+        </ul>
+        <p data-stock-summary>O sistema registraria automaticamente este consumo, atualizaria o estoque e verificaria necessidades de reposição.</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const modal = document.querySelector("[data-stock-modal]");
+      const form = document.querySelector("[data-stock-form]");
+      const result = document.querySelector("[data-stock-result]");
+      const summary = document.querySelector("[data-stock-summary]");
+      const openButtons = document.querySelectorAll("[data-stock-demo]");
+      const closeButtons = document.querySelectorAll("[data-stock-close]");
+
+      if (!modal || !form || !result || !summary) return;
+
+      const setModalOpen = (isOpen) => {
+        modal.classList.toggle("is-open", isOpen);
+        modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        document.body.style.overflow = isOpen ? "hidden" : "";
+        if (isOpen) {
+          const firstInput = modal.querySelector("input");
+          if (firstInput) firstInput.focus();
+        }
+      };
+
+      openButtons.forEach((button) => {
+        button.addEventListener("click", () => setModalOpen(true));
+      });
+
+      closeButtons.forEach((button) => {
+        button.addEventListener("click", () => setModalOpen(false));
+      });
+
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) setModalOpen(false);
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && modal.classList.contains("is-open")) {
+          setModalOpen(false);
+        }
+      });
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+        const service = data.get("service") || "serviço";
+        const serviceQuantity = data.get("serviceQuantity") || "0";
+        const serviceUnit = data.get("serviceUnit") || "";
+        const material = data.get("material") || "material";
+        const materialQuantity = data.get("materialQuantity") || "0";
+        const materialUnit = data.get("materialUnit") || "";
+
+        summary.textContent = `O sistema registraria ${serviceQuantity} ${serviceUnit} de ${service}, baixaria ${materialQuantity} ${materialUnit} de ${material}, atualizaria o estoque e recalcularia alertas e lista de compras.`;
+        result.classList.add("is-visible");
+      });
+    })();
+  </script>
 </body>
 </html>

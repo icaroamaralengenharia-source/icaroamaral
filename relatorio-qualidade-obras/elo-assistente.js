@@ -3574,43 +3574,28 @@
   }
 
   function buildConnectedGreeting() {
-    const snapshot = getConnectedMemorySnapshot();
-    const hasData = Boolean(
-      snapshot.userName ||
-      snapshot.mainProject ||
-      snapshot.mostMentionedProject ||
-      snapshot.latestImportantEvent ||
-      snapshot.goals.length
-    );
+    return buildPremiumWelcomeMessage_();
+  }
 
-    if (!hasData) {
-      return "Olá. Posso ajudar com relatórios, RDO, materiais, planos ou organizar suas memórias importantes.";
-    }
-
-    const parts = [];
-    const name = snapshot.userName ? ", " + snapshot.userName : "";
-    const focus = snapshot.mainProject || snapshot.mostMentionedProject || "";
-    const currentGoal = snapshot.goals[0] || "";
-    const latestMilestone = snapshot.recentMilestones[0] || null;
-    const latestImportant = snapshot.latestImportantEvent || null;
-
-    if (focus) {
-      parts.push("Seu foco atual parece ser " + focus + ".");
-    } else if (currentGoal) {
-      parts.push("Seu objetivo atual parece ser " + currentGoal + ".");
-    }
-
-    if (latestMilestone) {
-      parts.push("O último marco registrado foi sobre " + (latestMilestone.project || latestMilestone.title) + ".");
-    } else if (latestImportant) {
-      parts.push("O último evento importante foi " + latestImportant.title + ".");
-    }
-
-    if (!parts.length) {
-      parts.push("Encontrei algumas memórias locais salvas neste navegador.");
-    }
-
-    return "Olá" + name + ". " + parts.join(" ") + " Quer continuar de onde parou?";
+  function buildPremiumWelcomeMessage_() {
+    return [
+      "Olá. Eu sou o Elo.",
+      "",
+      "Eu sou o copiloto inteligente do ObraReport.",
+      "",
+      "Posso ajudar você a:",
+      "- criar relatórios técnicos;",
+      "- registrar RDO;",
+      "- lançar materiais;",
+      "- entender o Stock IA;",
+      "- gerar PDFs;",
+      "- organizar prioridades;",
+      "- lembrar informações importantes;",
+      "- tomar melhores decisões.",
+      "",
+      "Você não precisa saber onde clicar.",
+      "Me diga o que quer fazer, e eu te guio."
+    ].join("\n");
   }
 
   function buildConnectedJourneyAnswer(snapshot) {
@@ -4718,7 +4703,9 @@
       "tanto faz",
       "pode ser",
       "nao sei",
-      "não sei"
+      "não sei",
+      "sou novo aqui",
+      "sou nova aqui"
     ].map(normalizeWakeCallText);
 
     if (!cleanText || cleanText.length < 2 || cleanText.length > 40) {
@@ -4738,6 +4725,10 @@
       "como criar",
       "como salvar",
       "como funciona",
+      "quero",
+      "sou novo",
+      "sou nova",
+      "por onde",
       "o que",
       "quem",
       "qual",
@@ -4778,7 +4769,11 @@
       "projeto",
       "linha do tempo",
       "conceito",
-      "filosofia"
+      "filosofia",
+      "quero",
+      "sou novo",
+      "sou nova",
+      "por onde"
     ]);
   }
 
@@ -5338,11 +5333,77 @@
 
   function detectUserNameSave_(message) {
     const clean = sanitizeUserText(message).replace(/[.!?]+$/g, "").trim();
-    const match = clean.match(/^(?:meu nome (?:e|é)|pode me chamar de|me chame de|sou)\s+(.+)$/i);
+    const match = clean.match(/^(?:meu nome (?:e|é)|pode me chamar de|me chame de)\s+(.+)$/i);
     if (!match) {
       return "";
     }
     return sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
+  }
+
+  function detectEloDemoQuestion_(text) {
+    return hasAnyTerm(text, [
+      "modo demonstracao",
+      "modo demonstração",
+      "demonstrar o elo",
+      "mostrar demonstracao",
+      "mostrar demonstração",
+      "apresentacao do sistema",
+      "apresentação do sistema",
+      "me mostre o que voce faz",
+      "me mostre o que você faz",
+      "o que voce consegue fazer",
+      "o que você consegue fazer",
+      "como voce pode ajudar",
+      "como você pode ajudar"
+    ]);
+  }
+
+  function detectGuidedActionType_(text) {
+    if (hasAnyTerm(text, ["quero criar um rdo", "quero fazer um rdo", "quero registrar rdo", "criar um rdo"])) {
+      return "rdo";
+    }
+    if (hasAnyTerm(text, ["quero fazer um relatorio", "quero fazer um relatório", "quero criar um relatorio", "quero criar um relatório"])) {
+      return "relatorio";
+    }
+    if (hasAnyTerm(text, ["quero lancar material", "quero lançar material", "quero registrar material", "quero lancar materiais", "quero lançar materiais", "quero lançar material", "quero lancar material"])) {
+      return "material";
+    }
+    if (hasAnyTerm(text, ["quero gerar pdf", "quero gerar um pdf", "quero exportar pdf"])) {
+      return "pdf";
+    }
+    if (hasAnyTerm(text, ["quero controlar estoque", "quero testar estoque", "quero usar stock ia"])) {
+      return "estoque";
+    }
+    if (hasAnyTerm(text, ["quero testar o sistema", "sou novo aqui", "sou nova aqui", "por onde comeco", "por onde começo"])) {
+      return "inicio";
+    }
+    return "";
+  }
+
+  function detectConstructionRecord(message) {
+    const clean = sanitizeUserText(message);
+    const text = normalizeEloText(clean);
+    const productionMatch = text.match(/(?:foram executados|foi executado|fizemos|hoje executamos|executamos)\s+([\d]+(?:[,.]\d+)?)\s*(m2|m²|metros|metro|sacos|un|unidades)?\s+de\s+([a-z0-9\sçãõáéíóúâêô]+?)(?:\s+e\s+|$)/);
+    const materialMatches = [];
+    const materialRegex = /(?:usados|usamos|gastamos|foram usados|foi usado)\s+([\d]+(?:[,.]\d+)?)\s+(?:(sacos|saco|kg|m2|m²|un|unidades?)\s+de\s+)?([a-z0-9\sçãõáéíóúâêô]+?)(?:\s+e\s+|$)/g;
+    let match = materialRegex.exec(text);
+    while (match) {
+      materialMatches.push({
+        quantity: match[1],
+        unit: match[2] || "",
+        name: sanitizeLibraryText(match[3], 80)
+      });
+      match = materialRegex.exec(text);
+    }
+    if (!productionMatch && !materialMatches.length) {
+      return null;
+    }
+    return {
+      service: productionMatch ? sanitizeLibraryText(productionMatch[3], 80) : "",
+      quantity: productionMatch ? productionMatch[1] : "",
+      unit: productionMatch ? (productionMatch[2] || "") : "",
+      materials: materialMatches
+    };
   }
 
   function classifyEloIntent(message, context) {
@@ -5354,11 +5415,23 @@
     if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
       return "user_name_question";
     }
-    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
+    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "qual o seu nome", "qual e o seu nome", "qual é o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual é o nome do elo", "seu nome e qual", "seu nome é qual", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
       return "elo_identity";
     }
     if (detectSocialGreeting(message)) {
       return "greeting";
+    }
+    if (detectConstructionRecord(message)) {
+      return "construction_record";
+    }
+    if (detectEloDemoQuestion_(text)) {
+      return "elo_demo";
+    }
+    if (detectGuidedActionType_(text)) {
+      return "guided_action";
+    }
+    if (hasAnyTerm(text, ["o que voce faz", "o que você faz", "suas funcoes", "suas funções", "capacidades do elo", "como voce ajuda", "como você ajuda"])) {
+      return "capabilities";
     }
     if (detectLogicalReasoningQuestion(message)) {
       return "logical_reasoning";
@@ -5464,6 +5537,181 @@
       canSave: false,
       sessionTheme: "sistema",
       sessionIntent: "ajuda_sistema"
+    };
+  }
+
+  function buildEloDemoAnswer_() {
+    return {
+      shortAnswer: "Posso te mostrar.",
+      fullAnswer: [
+        "Imagine que hoje foi executado 12 m² de alvenaria.",
+        "",
+        "Você pode me dizer:",
+        "\"Foram executados 12 m² de alvenaria e usados 30 blocos.\"",
+        "",
+        "A partir disso, eu posso ajudar a:",
+        "1. registrar a produção do dia;",
+        "2. organizar o material consumido;",
+        "3. relacionar com o RDO;",
+        "4. comparar com o estoque;",
+        "5. preparar um resumo para o cliente;",
+        "6. orientar a geração do PDF.",
+        "",
+        "O objetivo é simples:",
+        "transformar informações soltas da obra em registro organizado."
+      ].join("\n"),
+      nextAction: "Teste dizendo: Foram executados 12 m² de alvenaria e usados 30 blocos.",
+      canSave: false,
+      sessionTheme: "demo",
+      sessionIntent: "elo_demo"
+    };
+  }
+
+  function buildGuidedActionAnswer_(message) {
+    const type = detectGuidedActionType_(stripEloMentionForIntent_(message));
+    const answers = {
+      material: {
+        shortAnswer: "Vamos fazer isso de forma simples.",
+        fullAnswer: [
+          "Me diga três coisas:",
+          "1. O que foi executado?",
+          "2. Quanto foi executado?",
+          "3. Qual material foi usado?",
+          "",
+          "Exemplo:",
+          "\"Foram executados 12 m² de alvenaria e usados 30 blocos cerâmicos.\"",
+          "",
+          "Depois disso, você pode salvar esse registro no módulo de materiais ou usar no RDO."
+        ].join("\n"),
+        nextAction: "Escreva a produção e o material usado."
+      },
+      rdo: {
+        shortAnswer: "Vamos criar um RDO.",
+        fullAnswer: [
+          "Comece registrando:",
+          "1. data;",
+          "2. obra;",
+          "3. condições do tempo;",
+          "4. equipe;",
+          "5. serviços executados;",
+          "6. materiais utilizados;",
+          "7. fotos;",
+          "8. ocorrências.",
+          "",
+          "O mais importante é começar pelo serviço executado hoje."
+        ].join("\n"),
+        nextAction: "Abra Diário de Obras e registre o serviço executado."
+      },
+      relatorio: {
+        shortAnswer: "Vamos montar um relatório técnico.",
+        fullAnswer: [
+          "Comece pelo básico:",
+          "1. selecione cliente e obra;",
+          "2. descreva o que foi vistoriado;",
+          "3. adicione fotos;",
+          "4. registre análise técnica;",
+          "5. escreva conclusão e recomendações;",
+          "6. gere o PDF para entrega."
+        ].join("\n"),
+        nextAction: "Abra Relatórios e comece pela identificação da obra."
+      },
+      pdf: {
+        shortAnswer: "Vamos preparar o PDF.",
+        fullAnswer: [
+          "Antes de gerar:",
+          "1. confira dados da obra;",
+          "2. revise fotos e descrições;",
+          "3. verifique ocorrências e conclusão;",
+          "4. confirme responsável técnico;",
+          "5. clique em Gerar PDF."
+        ].join("\n"),
+        nextAction: "Abra o relatório ou RDO que deseja exportar."
+      },
+      estoque: {
+        shortAnswer: "Vamos controlar o estoque pelo Stock IA.",
+        fullAnswer: [
+          "Comece assim:",
+          "1. cadastre materiais principais;",
+          "2. informe saldo inicial;",
+          "3. registre entradas por nota;",
+          "4. use o RDO para baixar consumo;",
+          "5. acompanhe alertas e lista de compras."
+        ].join("\n"),
+        nextAction: "Abra Stock IA e cadastre o primeiro material."
+      },
+      inicio: {
+        shortAnswer: "Vamos começar pelo caminho mais simples.",
+        fullAnswer: buildSystemHelpAnswer_().fullAnswer,
+        nextAction: "Escolha uma ação: criar RDO, lançar material ou gerar PDF."
+      }
+    };
+    const answer = answers[type] || answers.inicio;
+    return {
+      shortAnswer: answer.shortAnswer,
+      fullAnswer: answer.fullAnswer,
+      nextAction: answer.nextAction,
+      canSave: false,
+      sessionTheme: "acao_guiada",
+      sessionIntent: "guided_action"
+    };
+  }
+
+  function buildConstructionRecordAnswer_(record) {
+    const lines = [];
+    if (record.service) {
+      lines.push("Produção identificada:", "- Serviço: " + record.service, "- Quantidade: " + record.quantity + (record.unit ? " " + record.unit : ""));
+    }
+    if (record.materials.length) {
+      if (lines.length) {
+        lines.push("");
+      }
+      lines.push("Material identificado:");
+      record.materials.forEach(function (item) {
+        lines.push("- " + item.quantity + (item.unit ? " " + item.unit + " de " : " ") + item.name);
+      });
+    }
+    lines.push(
+      "",
+      "Posso usar isso para:",
+      "1. registrar no RDO;",
+      "2. lançar no controle de materiais;",
+      "3. comparar depois com estoque e consumo previsto."
+    );
+    return {
+      shortAnswer: "Entendi um registro de obra.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Abra o RDO ou diga se quer transformar isso em lançamento de materiais.",
+      canSave: false,
+      sessionTheme: "obra",
+      sessionIntent: "construction_record"
+    };
+  }
+
+  function buildCapabilitiesCardAnswer_() {
+    return {
+      shortAnswer: "Eu posso ajudar em 5 áreas.",
+      fullAnswer: [
+        "1. ObraReport",
+        "Relatórios técnicos, fotos, ocorrências, conclusões e PDF.",
+        "",
+        "2. RDO",
+        "Registro diário de obra, equipe, serviços, clima, fotos e materiais.",
+        "",
+        "3. Stock IA",
+        "Entrada de materiais, consumo, estoque, baixas e alertas.",
+        "",
+        "4. Decisão",
+        "Prioridades, próximos passos, bloqueios e planejamento.",
+        "",
+        "5. Memória",
+        "Projetos, objetivos, linha do tempo e informações importantes.",
+        "",
+        "Minha função é ligar essas partes e transformar dados soltos em orientação clara."
+      ].join("\n"),
+      nextAction: "Diga: quero criar um RDO, quero lançar material ou o que devo priorizar?",
+      canSave: false,
+      sessionTheme: "capacidades",
+      sessionIntent: "capabilities"
     };
   }
 
@@ -5604,6 +5852,18 @@
     }
     if (intent === "greeting") {
       return getSocialGreetingResponse(message);
+    }
+    if (intent === "construction_record") {
+      return buildConstructionRecordAnswer_(detectConstructionRecord(message));
+    }
+    if (intent === "elo_demo") {
+      return buildEloDemoAnswer_();
+    }
+    if (intent === "guided_action") {
+      return buildGuidedActionAnswer_(message);
+    }
+    if (intent === "capabilities") {
+      return buildCapabilitiesCardAnswer_();
     }
     if (intent === "system_help") {
       return buildSystemHelpAnswer_();
@@ -5811,16 +6071,24 @@
     }
 
     return {
-      shortAnswer: "Eu ainda não encontrei essa informação específica na memória.",
+      shortAnswer: "Eu ainda não entendi completamente.",
       fullAnswer: [
-        "Mas posso ajudar de três formas:",
-        "1. Explicar como usar o ObraReport.",
-        "2. Ajudar com RDO, PDF, materiais ou Stock IA.",
-        "3. Guardar essa informação para lembrar depois.",
+        "Mas posso te ajudar por caminhos simples:",
         "",
-        "Se quiser, reformule com mais contexto."
+        "- criar um relatório;",
+        "- criar um RDO;",
+        "- lançar materiais;",
+        "- entender o Stock IA;",
+        "- gerar PDF;",
+        "- organizar prioridades;",
+        "- consultar memórias.",
+        "",
+        "Você pode começar dizendo:",
+        "\"Quero criar um RDO\"",
+        "ou",
+        "\"Quero lançar material\"."
       ].join("\n"),
-      nextAction: "Pergunte: como uso o sistema? ou o que devo priorizar?",
+      nextAction: "Diga uma ação simples, como criar RDO, lançar material ou gerar PDF.",
       canSave: false
     };
   }
@@ -7583,11 +7851,7 @@
   }
 
   function buildStandaloneGreeting() {
-    const name = getPreferredUserName();
-    if (name) {
-      return "Olá, " + name + ". Eu sou o Elo. Posso conversar com você, lembrar informações importantes, organizar ideias e registrar momentos na sua linha do tempo. O que você quer organizar agora?";
-    }
-    return "Olá. Eu sou o Elo. Posso conversar com você, lembrar informações importantes, organizar ideias e registrar momentos na sua linha do tempo. Como você gostaria que eu te chamasse?";
+    return buildPremiumWelcomeMessage_();
   }
 
   function updateScreenContext() {
@@ -7606,7 +7870,7 @@
     }
 
     ELO_UI.suggestions.innerHTML = "";
-    const suggestions = getContextSuggestions(context).slice(0, 5);
+    const suggestions = getContextSuggestions(context).slice(0, 6);
     if (!suggestions.length) {
       ELO_UI.suggestions.classList.add("is-hidden");
       return;
@@ -7629,20 +7893,22 @@
   function getContextSuggestions(context) {
     if (isStandaloneMode()) {
       return [
-        { label: "Como usar o sistema?", question: "Como usar o sistema?" },
-        { label: "Como criar RDO?", question: "Como criar um RDO?" },
-        { label: "Registrar materiais", question: "Como registrar materiais?" },
-        { label: "Gerar PDF", question: "Como gerar PDF?" },
-        { label: "O que priorizar?", question: "O que devo priorizar?" }
+        { label: "Me mostre o que você faz", question: "Me mostre o que você faz" },
+        { label: "Quero criar um RDO", question: "Quero criar um RDO" },
+        { label: "Quero lançar material", question: "Quero lançar material" },
+        { label: "Quero gerar um PDF", question: "Quero gerar PDF" },
+        { label: "O que devo priorizar?", question: "O que devo priorizar?" },
+        { label: "O que lembra de mim?", question: "O que você lembra de mim?" }
       ];
     }
 
     const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     const suggestionMap = {
       Dashboard: [
-        ["Como usar o sistema?", "Como usar o sistema?"],
-        ["Criar RDO", "Como criar um RDO?"],
-        ["Registrar materiais", "Como registrar materiais?"],
+        ["Me mostre o que você faz", "Me mostre o que você faz"],
+        ["Quero criar um RDO", "Quero criar um RDO"],
+        ["Quero lançar material", "Quero lançar material"],
+        ["Quero gerar um PDF", "Quero gerar PDF"],
         ["O que priorizar?", "O que devo priorizar?"],
         ["O que lembra de mim?", "O que você lembra de mim?"]
       ],
