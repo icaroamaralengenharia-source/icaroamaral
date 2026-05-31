@@ -3344,72 +3344,233 @@
     return safeMemories.length ? formatNarrativeList(safeMemories) : "";
   }
 
-  function buildNarrativeMemoryAnswer(snapshot) {
-    if (!hasConnectedMemoryData(snapshot)) {
-      return [
-        "Ainda estou te conhecendo.",
-        "Por enquanto, tenho pouca informação salva sobre você. Quando você autorizar, posso lembrar seu nome, projetos, objetivos, preferências e acontecimentos importantes da Linha do Tempo.",
-        "Essas informações ficam salvas apenas neste navegador."
-      ].join("\n\n");
-    }
-
-    const sentences = [];
-    const introName = snapshot.userName ? snapshot.userName + ", eu lembro que " : "Eu lembro que ";
+  function buildNarrativeMemoryPieces(snapshot) {
+    const projects = (snapshot.projects || []).slice(0, 4);
+    const goals = (snapshot.goals || []).slice(0, 3);
+    const preferences = (snapshot.preferences || []).slice(0, 3);
+    const libraryTitles = (snapshot.libraryItems || []).slice(0, 3).map(function (item) {
+      return item.title;
+    }).filter(Boolean);
+    const recentEvent = snapshot.latestImportantEvent || snapshot.latestAchievement || snapshot.recentEvents[0] || null;
     const identityParts = [];
+
     if (snapshot.profession) {
       identityParts.push("você é " + snapshot.profession);
     }
     if (snapshot.company) {
       identityParts.push("trabalha com " + snapshot.company);
     }
-    if (snapshot.areas.length) {
+    if (snapshot.areas && snapshot.areas.length) {
       identityParts.push("atua com " + formatNarrativeList(snapshot.areas.slice(0, 3)));
     }
-    if (identityParts.length) {
-      sentences.push(introName + formatNarrativeList(identityParts) + ".");
+
+    return {
+      name: snapshot.userName || "",
+      identityParts: identityParts,
+      projects: projects,
+      goals: goals,
+      preferences: preferences,
+      personalLine: formatPersonalMemoryNarrative(snapshot.personalMemories),
+      libraryTitles: libraryTitles,
+      recentEvent: recentEvent,
+      focus: snapshot.mainProject || snapshot.mostMentionedProject || projects[0] || goals[0] || ""
+    };
+  }
+
+  function buildLowMemoryNarrativeAnswer() {
+    return [
+      "Ainda estou te conhecendo.",
+      "Por enquanto, tenho pouca coisa autorizada sobre você. Se você registrar projetos, objetivos, preferências ou acontecimentos na Linha do Tempo, eu consigo acompanhar sua jornada com mais contexto.",
+      "Eu não vou inventar fatos sobre você. Prefiro te responder com cuidado."
+    ].join("\n\n");
+  }
+
+  function hasNarrativeJourneyData(snapshot) {
+    return Boolean(
+      snapshot.profession ||
+      snapshot.company ||
+      (snapshot.areas && snapshot.areas.length) ||
+      snapshot.mainProject ||
+      snapshot.goals.length ||
+      snapshot.preferences.length ||
+      snapshot.projects.length ||
+      snapshot.personalMemories.length ||
+      snapshot.libraryItems.length ||
+      snapshot.recentEvents.length
+    );
+  }
+
+  function buildNarrativeMemoryAnswer(snapshot) {
+    if (!hasNarrativeJourneyData(snapshot)) {
+      return buildLowMemoryNarrativeAnswer();
     }
 
-    const projectList = snapshot.projects.slice(0, 4);
-    if (projectList.length) {
-      sentences.push((sentences.length ? "Também lembro que " : introName) + "você está ligado a projetos como " + formatNarrativeList(projectList) + ".");
+    const pieces = buildNarrativeMemoryPieces(snapshot);
+    const sentences = [];
+    const introName = pieces.name ? pieces.name + ", pelo que eu lembro, " : "Pelo que eu lembro, ";
+    if (pieces.identityParts.length) {
+      sentences.push(introName + formatNarrativeList(pieces.identityParts) + ".");
+    }
+
+    if (pieces.projects.length) {
+      sentences.push("O que mais aparece na sua jornada é sua ligação com " + formatNarrativeList(pieces.projects) + ".");
     } else if (snapshot.mainProject) {
-      sentences.push((sentences.length ? "Também lembro que " : introName) + "seu projeto principal é " + snapshot.mainProject + ".");
+      sentences.push("Você tem dedicado energia a " + snapshot.mainProject + ".");
     }
 
-    if (snapshot.goals.length) {
-      sentences.push("Seu foco registrado passa por " + formatNarrativeList(snapshot.goals.slice(0, 3)) + ".");
+    if (pieces.goals.length) {
+      sentences.push("Seu foco atual parece passar por " + formatNarrativeList(pieces.goals) + ".");
     }
 
-    if (snapshot.preferences.length) {
-      sentences.push("Nas suas preferências, aparece algo como " + formatNarrativeList(snapshot.preferences.slice(0, 3)) + ".");
+    if (pieces.preferences.length) {
+      sentences.push("Algo que chama atenção nas suas preferências é " + formatNarrativeList(pieces.preferences) + ".");
     }
 
-    const personalLine = formatPersonalMemoryNarrative(snapshot.personalMemories);
-    if (personalLine) {
-      sentences.push("Você também me contou algumas memórias pessoais, como " + personalLine + ".");
+    if (pieces.personalLine) {
+      sentences.push("Você também me confiou algumas memórias pessoais, como " + pieces.personalLine + ".");
     }
 
-    if (snapshot.latestImportantEvent) {
-      sentences.push("Na Linha do Tempo, o registro importante mais recente foi \"" + snapshot.latestImportantEvent.title + "\"" + (snapshot.latestImportantEvent.project ? " relacionado a " + snapshot.latestImportantEvent.project : "") + ".");
+    if (pieces.recentEvent) {
+      sentences.push("Ao olhar sua trajetória recente, aparece o registro \"" + pieces.recentEvent.title + "\"" + (pieces.recentEvent.project ? " ligado a " + pieces.recentEvent.project : "") + ".");
     } else if (snapshot.recentEvents.length) {
-      sentences.push("Na Linha do Tempo, há registros recentes que ajudam a acompanhar sua jornada.");
+      sentences.push("Sua Linha do Tempo já tem registros que ajudam a perceber continuidade na sua caminhada.");
     }
 
-    if (snapshot.libraryItems.length) {
-      const libraryTitles = snapshot.libraryItems.slice(0, 3).map(function (item) {
-        return item.title;
-      }).filter(Boolean);
-      if (libraryTitles.length) {
-        sentences.push("Na sua Biblioteca local, você guardou itens como " + formatNarrativeList(libraryTitles) + ".");
-      }
+    if (pieces.libraryTitles.length) {
+      sentences.push("Na sua Biblioteca, aparecem referências como " + formatNarrativeList(pieces.libraryTitles) + ".");
     }
 
     if (!sentences.length) {
-      sentences.push("Ainda estou te conhecendo, mas já encontrei alguns dados locais que podem virar um retrato melhor da sua jornada.");
+      sentences.push("Ainda estou te conhecendo, mas já existe contexto suficiente para começar a formar uma visão melhor da sua jornada.");
     }
 
-    sentences.push("Essas informações vêm das memórias locais salvas neste navegador.");
+    sentences.push("Tudo isso vem apenas do que você autorizou guardar neste navegador.");
     return sentences.join("\n\n");
+  }
+
+  function buildEloJourneyAnswer(snapshot) {
+    if (!hasNarrativeJourneyData(snapshot)) {
+      return buildLowMemoryNarrativeAnswer();
+    }
+    const pieces = buildNarrativeMemoryPieces(snapshot);
+    const lines = [];
+    const namePrefix = pieces.name ? pieces.name + ", " : "";
+    lines.push(namePrefix + "ao olhar sua trajetória, o que mais aparece é a tentativa de transformar ideias em algo organizado e útil.");
+    if (pieces.projects.length) {
+      lines.push("Você tem dedicado energia a " + formatNarrativeList(pieces.projects) + ".");
+    }
+    if (pieces.goals.length) {
+      lines.push("O foco atual parece estar em " + formatNarrativeList(pieces.goals) + ".");
+    } else if (pieces.focus) {
+      lines.push("O foco que mais se destaca agora é " + pieces.focus + ".");
+    }
+    if (pieces.recentEvent) {
+      lines.push("O acontecimento recente que mais pesa nessa leitura é \"" + pieces.recentEvent.title + "\".");
+    }
+    lines.push("Próxima ação sugerida:\nconcluir o ciclo atual antes de abrir uma nova frente grande.");
+    return lines.join("\n\n");
+  }
+
+  function buildEloPerceptionAnswer(snapshot) {
+    if (!hasNarrativeJourneyData(snapshot)) {
+      return buildLowMemoryNarrativeAnswer();
+    }
+    const pieces = buildNarrativeMemoryPieces(snapshot);
+    const signals = collectProjectSignals(snapshot);
+    const dominant = signals[0] && signals[0].name;
+    const lines = [];
+    lines.push("Um padrão que eu percebo em você é transformar problemas reais em ferramentas.");
+    if (signals.length) {
+      lines.push("Os temas que mais voltam são " + formatNarrativeList(signals.slice(0, 4).map(function (signal) { return signal.name; })) + ".");
+    } else if (pieces.projects.length) {
+      lines.push("Os projetos que mais aparecem são " + formatNarrativeList(pieces.projects) + ".");
+    }
+    if (pieces.goals.length) {
+      lines.push("O que parece puxar sua energia agora é " + formatNarrativeList(pieces.goals) + ".");
+    } else if (dominant) {
+      lines.push("O centro de gravidade parece ser " + dominant + ".");
+    }
+    lines.push("Eu diria isso com cuidado: o desafio não parece ser falta de ideia, e sim escolher qual entrega merece fechar primeiro.");
+    return lines.join("\n\n");
+  }
+
+  function buildEloEvolutionAnswer(snapshot) {
+    if (!hasNarrativeJourneyData(snapshot)) {
+      return buildLowMemoryNarrativeAnswer();
+    }
+    const pieces = buildNarrativeMemoryPieces(snapshot);
+    const projectLine = pieces.projects.length ? formatNarrativeList(pieces.projects) : (pieces.focus || "seus projetos principais");
+    const projectVerb = pieces.projects.length === 1 ? "começa" : "começam";
+    const focusLine = pieces.goals.length ? formatNarrativeList(pieces.goals) : (pieces.focus || "concluir uma entrega útil");
+    return [
+      "Pelo que eu acompanho, algo mudou: seus projetos parecem menos soltos e mais conectados entre si.",
+      "O que mudou:\n" + projectLine + " " + projectVerb + " a aparecer como parte de uma mesma construção.",
+      "O que continua igual:\nsua tendência de transformar problemas reais em sistemas, produtos e rotinas.",
+      "Foco atual:\n" + focusLine + ".",
+      "Próxima ação sugerida:\nterminar o ciclo atual antes de abrir uma nova frente grande."
+    ].join("\n\n");
+  }
+
+  function buildEloFocusAnswer(snapshot) {
+    if (!hasNarrativeJourneyData(snapshot)) {
+      return buildLowMemoryNarrativeAnswer();
+    }
+    const pieces = buildNarrativeMemoryPieces(snapshot);
+    const lines = [];
+    if (pieces.focus) {
+      lines.push("Pelo que eu lembro, seu foco atual parece ser " + pieces.focus + ".");
+    }
+    if (pieces.goals.length) {
+      lines.push("Os objetivos que mais aparecem agora são " + formatNarrativeList(pieces.goals) + ".");
+    }
+    if (pieces.projects.length) {
+      lines.push("Você vem trabalhando principalmente em " + formatNarrativeList(pieces.projects) + ".");
+    }
+    lines.push("Próxima ação sugerida:\nescolher uma entrega pequena que deixe esse foco mais concreto.");
+    return lines.join("\n\n");
+  }
+
+  function detectNarrativeMemoryQuestion(message) {
+    const text = normalizeText(message);
+    if (hasAnyTerm(text, ["eu evolui", "eu evoluí", "o que mudou em mim", "minha evolucao", "minha evolução"])) {
+      return "evolution";
+    }
+    if (hasAnyTerm(text, ["qual padrao voce percebe em mim", "qual padrão você percebe em mim", "o que voce percebe sobre mim", "o que você percebe sobre mim", "que padrao voce percebe", "que padrão você percebe"])) {
+      return "perception";
+    }
+    if (hasAnyTerm(text, ["o que voce acha da minha jornada", "o que você acha da minha jornada", "como esta minha jornada", "como está minha jornada", "minha jornada"])) {
+      return "journey";
+    }
+    if (hasAnyTerm(text, ["no que estou trabalhando", "no que eu estou trabalhando", "qual meu foco atual", "qual e meu foco atual", "qual é meu foco atual", "qual meu foco agora", "meu foco agora"])) {
+      return "focus";
+    }
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "o que voce lembra de mim", "o que você lembra de mim", "o que lembra de mim"])) {
+      return "memory";
+    }
+    return null;
+  }
+
+  function getNarrativeMemoryResponse(question) {
+    const intent = detectNarrativeMemoryQuestion(question);
+    if (!intent) {
+      return null;
+    }
+    const snapshot = getConnectedMemorySnapshot();
+    const answerMap = {
+      memory: buildNarrativeMemoryAnswer(snapshot),
+      journey: buildEloJourneyAnswer(snapshot),
+      perception: buildEloPerceptionAnswer(snapshot),
+      evolution: buildEloEvolutionAnswer(snapshot),
+      focus: buildEloFocusAnswer(snapshot)
+    };
+    return {
+      shortAnswer: hasNarrativeJourneyData(snapshot) ? "Pelo que eu lembro, já dá para perceber alguns traços da sua jornada." : "Ainda estou te conhecendo.",
+      fullAnswer: answerMap[intent] || buildNarrativeMemoryAnswer(snapshot),
+      nextAction: "Se quiser, posso transformar isso em um próximo passo prático.",
+      canSave: false,
+      sessionTheme: "memoria",
+      sessionIntent: "memoria_narrativa"
+    };
   }
 
   function buildConnectedGreeting() {
@@ -3464,7 +3625,7 @@
     }
 
     return {
-      shortAnswer: "Montei um resumo narrativo com o que está salvo localmente sobre você.",
+      shortAnswer: "Pelo que eu lembro, já dá para perceber alguns traços da sua jornada.",
       fullAnswer: buildNarrativeMemoryAnswer(snapshot),
       nextAction: "Se quiser, posso ajudar você a transformar isso em próximo passo prático.",
       canSave: false,
@@ -4529,6 +4690,98 @@
       .trim();
   }
 
+  function isInvalidUserNameAnswer_(text) {
+    const cleanText = sanitizeUserText(text)
+      .replace(/[.,;:!?]+$/g, "")
+      .trim();
+    const normalized = normalizeWakeCallText(cleanText);
+    const invalidSimpleAnswers = [
+      "oi",
+      "ola",
+      "olá",
+      "e ai",
+      "e aí",
+      "bom dia",
+      "boa tarde",
+      "boa noite",
+      "tudo bem",
+      "tudo certo",
+      "beleza",
+      "ok",
+      "certo",
+      "sim",
+      "nao",
+      "não",
+      "obrigado",
+      "obrigada",
+      "valeu",
+      "tanto faz",
+      "pode ser",
+      "nao sei",
+      "não sei"
+    ].map(normalizeWakeCallText);
+
+    if (!cleanText || cleanText.length < 2 || cleanText.length > 40) {
+      return true;
+    }
+    if (/[?]/.test(cleanText)) {
+      return true;
+    }
+    if (cleanText.split(/\s+/).length > 4) {
+      return true;
+    }
+    if (invalidSimpleAnswers.indexOf(normalized) >= 0) {
+      return true;
+    }
+    if (hasAnyTerm(normalized, [
+      "como gerar",
+      "como criar",
+      "como salvar",
+      "como funciona",
+      "o que",
+      "quem",
+      "qual",
+      "pdf",
+      "rdo",
+      "relatorio",
+      "relatório",
+      "stock ia",
+      "obrareport",
+      "dashboard",
+      "login",
+      "senha",
+      "plano"
+    ])) {
+      return true;
+    }
+    return false;
+  }
+
+  function shouldBypassStandaloneNameCapture_(message) {
+    const text = normalizeText(message);
+    return /[?]/.test(message) || hasAnyTerm(text, [
+      "como",
+      "o que",
+      "quem",
+      "qual",
+      "voce",
+      "você",
+      "elo",
+      "pdf",
+      "rdo",
+      "relatorio",
+      "relatório",
+      "stock ia",
+      "obrareport",
+      "memoria",
+      "memória",
+      "projeto",
+      "linha do tempo",
+      "conceito",
+      "filosofia"
+    ]);
+  }
+
   function detectSocialGreeting(message) {
     const text = stripEloAddress(message);
     if (!text) {
@@ -4764,7 +5017,7 @@
     const manyFronts = projectSignals.length >= 4;
 
     const sharedEvidence = [
-      projectLines ? "Temas recorrentes nos registros locais:\n" + projectLines : "",
+      projectLines ? "Temas que mais voltam na sua jornada:\n" + projectLines : "",
       goals.length ? "Objetivos ativos:\n" + goals.map(function (goal) { return "- " + goal; }).join("\n") : "",
       recentEvents.length ? "Registros recentes:\n" + recentEvents.join("\n") : ""
     ].filter(Boolean).join("\n\n");
@@ -4778,7 +5031,7 @@
         nextAction: "Concluir uma entrega vendável antes de abrir outra frente."
       },
       evolution: {
-        shortAnswer: "Pelos registros locais, sua evolução aparece na passagem de ideia para estrutura.",
+        shortAnswer: "Pelo que eu acompanho, sua evolução aparece na passagem de ideia para estrutura.",
         insight: "O que mudou é que os temas deixaram de ser apenas intenção e começaram a virar página, memória, linha do tempo e produto.",
         nextAction: "Escolher um marco recente e registrar o que ele destravou."
       },
@@ -4790,7 +5043,7 @@
         nextAction: "Marcar projetos como ativo, pausado ou arquivado para eu acompanhar melhor."
       },
       overfocus: {
-        shortAnswer: manyFronts ? "Há sinais de energia espalhada em várias frentes." : "Não vejo sinal forte de dispersão pelos registros locais.",
+        shortAnswer: manyFronts ? "Há sinais de energia espalhada em várias frentes." : "Não percebo sinal forte de dispersão por enquanto.",
         insight: manyFronts
           ? "Quando muitos projetos aparecem juntos, o risco não é falta de ideia: é dividir energia antes de fechar uma entrega."
           : "O foco mais forte parece estar em " + (dominantProject || "um projeto principal") + ".",
@@ -4857,6 +5110,11 @@
 
     if (detectEloWakeCall(cleanQuestion)) {
       return buildEloWakeCallAnswer();
+    }
+
+    const narrativeMemoryAnswer = getNarrativeMemoryResponse(cleanQuestion);
+    if (narrativeMemoryAnswer) {
+      return narrativeMemoryAnswer;
     }
 
     const personalPatternAnswer = getPersonalPatternResponse(cleanQuestion);
@@ -6992,7 +7250,7 @@
 
     if (isStandaloneMode() && ELO_UI.awaitingStandaloneName && cleanQuestion.length <= 80 && !/[?]/.test(cleanQuestion)) {
       const name = cleanQuestion.replace(/^(me chame de|pode me chamar de|sou|meu nome e|meu nome é)\s+/i, "").replace(/[.,;:]+$/g, "").trim();
-      if (name && name.length <= 60) {
+      if (name && !isInvalidUserNameAnswer_(name)) {
         const currentProfile = getUserProfile();
         setUserProfile(Object.assign({}, currentProfile, { userName: name }));
         ELO_UI.awaitingStandaloneName = false;
@@ -7006,6 +7264,21 @@
         });
         saveConversation(cleanQuestion, answer);
         rememberSessionTurn(cleanQuestion, { sessionTheme: "perfil", nextAction: "Diga o que você quer organizar agora." }, answer);
+        return;
+      }
+      if (isInvalidUserNameAnswer_(name) && !shouldBypassStandaloneNameCapture_(cleanQuestion)) {
+        const socialResponse = getSocialGreetingResponse(cleanQuestion);
+        const response = socialResponse || {
+          shortAnswer: "Tudo bem.",
+          fullAnswer: "Ainda não vou usar isso como nome. Quando quiser, me diga apenas como devo chamar você.",
+          nextAction: "Você pode responder só com seu nome, por exemplo: Ícaro.",
+          canSave: false,
+          sessionTheme: "perfil"
+        };
+        const answer = formatResponse(response);
+        appendAssistantMessage(cleanQuestion, answer, false, response);
+        saveConversation(cleanQuestion, answer);
+        rememberSessionTurn(cleanQuestion, response, answer);
         return;
       }
     }
@@ -7661,16 +7934,21 @@
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      const requestedName = sanitizeUserText(nameInput.value);
+      const safeUserName = requestedName && isInvalidUserNameAnswer_(requestedName) ? profile.userName : requestedName;
       const savedProfile = setUserProfile({
-        userName: nameInput.value,
+        userName: safeUserName,
         mainProject: projectInput.value,
         weeklyGoal: goalInput.value,
         expectedHelp: helpInput.value,
         answerStyle: styleSelect.value
       });
-      status.textContent = "Perfil local salvo para o Elo.";
+      status.textContent = requestedName && isInvalidUserNameAnswer_(requestedName)
+        ? "Perfil salvo, mas esse texto não foi usado como nome."
+        : "Perfil local salvo para o Elo.";
       appendMessage("system", [
         "Configuração salva.",
+        requestedName && isInvalidUserNameAnswer_(requestedName) ? "Não usei \"" + requestedName + "\" como nome." : "",
         savedProfile.userName ? "Vou chamar você de " + savedProfile.userName + "." : "",
         savedProfile.mainProject ? "Projeto atual: " + savedProfile.mainProject + "." : "",
         savedProfile.weeklyGoal ? "Objetivo da semana: " + savedProfile.weeklyGoal + "." : ""
