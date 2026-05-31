@@ -88,6 +88,8 @@
   const stockPurchasePanelNote = document.getElementById("stockPurchasePanelNote");
   const stockPurchaseSummaryCards = document.getElementById("stockPurchaseSummaryCards");
   const stockPurchaseRows = document.getElementById("stockPurchaseRows");
+  const stockNoteSummary = document.getElementById("stockNoteSummary");
+  const stockNoteRows = document.getElementById("stockNoteRows");
   const stockTopMaterialsRows = document.getElementById("stockTopMaterialsRows");
   const stockConsumptionByWorkRows = document.getElementById("stockConsumptionByWorkRows");
   const stockIaQuestionForm = document.getElementById("stockIaQuestionForm");
@@ -149,6 +151,8 @@
   const localAccessSessionKey = "obrareport_local_access_granted_v1";
   const STOCK_MASTER_STORAGE_KEY = "obrareport_stock_master_v1";
   const STOCK_PURCHASE_REVIEWED_STORAGE_KEY = "obrareport_stock_purchase_reviewed_v1";
+  const STOCK_NOTES_STORAGE_KEY = "obrareport_stock_notes_v1";
+  const STOCK_NOTE_FILE_PREVIEW_LIMIT = 1024 * 1024;
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
@@ -4943,6 +4947,8 @@
       supplier: clean(data.supplier),
       documentNumber: clean(data.documentNumber),
       notes: clean(data.notes),
+      source: clean(data.source) || "manual",
+      noteId: clean(data.noteId) || null,
       createdAt: new Date().toISOString()
     };
 
@@ -5071,7 +5077,7 @@
       }
 
       movements.push(Object.assign({}, movement, {
-        source: "manual",
+        source: movement.source || "manual",
         itemName: item.name,
         unit: item.unit
       }));
@@ -5862,6 +5868,520 @@
     showStockIaToast_("Lista marcada como revisada.", "success");
   }
 
+  function loadStockNotesState_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(STOCK_NOTES_STORAGE_KEY) : "";
+      const parsed = raw ? JSON.parse(raw) : {};
+
+      return {
+        notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+        updatedAt: parsed.updatedAt || new Date().toISOString()
+      };
+    } catch (error) {
+      console.warn("Nao foi possivel carregar notas do Stock IA.", error);
+      return {
+        notes: [],
+        updatedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  function saveStockNotesState_(state) {
+    const storage = getLocalStorage_();
+    const safeState = {
+      notes: Array.isArray(state.notes) ? state.notes : [],
+      updatedAt: new Date().toISOString()
+    };
+
+    if (storage) {
+      storage.setItem(STOCK_NOTES_STORAGE_KEY, JSON.stringify(safeState));
+    }
+
+    return safeState;
+  }
+
+  function createStockNoteDraft_(data) {
+    const state = loadStockNotesState_();
+    const now = new Date().toISOString();
+    const note = {
+      id: generateStockId_("stn"),
+      supplier: clean(data.supplier),
+      documentNumber: clean(data.documentNumber),
+      date: clean(data.date) || toDateKey_(new Date()),
+      workId: clean(data.workId) || null,
+      fileName: clean(data.fileName),
+      fileType: clean(data.fileType),
+      filePreviewDataUrl: data.filePreviewDataUrl || null,
+      status: "rascunho",
+      items: [],
+      createdAt: now,
+      updatedAt: now
+    };
+
+    state.notes.push(note);
+    saveStockNotesState_(state);
+    return note;
+  }
+
+  function updateStockNoteDraft_(noteId, data) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+
+    if (!note || note.status !== "rascunho") {
+      return null;
+    }
+
+    note.supplier = clean(data.supplier);
+    note.documentNumber = clean(data.documentNumber);
+    note.date = clean(data.date) || note.date || toDateKey_(new Date());
+    note.workId = clean(data.workId) || null;
+
+    if (data.fileName !== undefined) {
+      note.fileName = clean(data.fileName);
+      note.fileType = clean(data.fileType);
+      note.filePreviewDataUrl = data.filePreviewDataUrl || null;
+    }
+
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return note;
+  }
+
+  function deleteStockNoteDraft_(noteId) {
+    const state = loadStockNotesState_();
+    state.notes = state.notes.filter(function (note) {
+      return note.id !== noteId || note.status !== "rascunho";
+    });
+    saveStockNotesState_(state);
+  }
+
+  function addStockNoteItem_(noteId, itemData) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+
+    if (!note || note.status !== "rascunho") {
+      return null;
+    }
+
+    const quantity = parseNumber_(itemData.quantity);
+    const unitCost = parseNumber_(itemData.unitCost);
+    const totalCost = parseNumber_(itemData.totalCost) || quantity * unitCost;
+    const materialName = clean(itemData.materialName);
+    const unit = clean(itemData.unit) || "un";
+    let stockItemId = clean(itemData.stockItemId) || null;
+
+    if (!stockItemId && itemData.createMaster === "on") {
+      const newItem = createStockMasterItem_({
+        name: materialName,
+        unit: unit,
+        category: clean(itemData.category) || "Geral",
+        initialBalance: 0,
+        minimumStock: 0,
+        unitCost: unitCost,
+        workId: note.workId || "",
+        notes: "Criado a partir de item de nota."
+      });
+      stockItemId = newItem ? newItem.id : null;
+    }
+
+    if (!stockItemId) {
+      const suggested = suggestStockItemForNoteItem_({
+        materialName: materialName,
+        unit: unit
+      });
+      stockItemId = suggested ? suggested.id : null;
+    }
+
+    if (!materialName || quantity <= 0) {
+      return null;
+    }
+
+    note.items.push({
+      id: generateStockId_("sni"),
+      stockItemId: stockItemId,
+      materialName: materialName,
+      unit: unit,
+      quantity: quantity,
+      unitCost: unitCost,
+      totalCost: totalCost,
+      category: clean(itemData.category) || "Geral",
+      notes: clean(itemData.notes),
+      linked: Boolean(stockItemId)
+    });
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return note;
+  }
+
+  function updateStockNoteItem_(noteId, itemId, itemData) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+    const item = note && note.items ? note.items.find(function (candidate) {
+      return candidate.id === itemId;
+    }) : null;
+
+    if (!note || note.status !== "rascunho" || !item) {
+      return null;
+    }
+
+    item.materialName = clean(itemData.materialName) || item.materialName;
+    item.unit = clean(itemData.unit) || item.unit || "un";
+    item.quantity = parseNumber_(itemData.quantity);
+    item.unitCost = parseNumber_(itemData.unitCost);
+    item.totalCost = parseNumber_(itemData.totalCost) || item.quantity * item.unitCost;
+    item.category = clean(itemData.category) || item.category || "Geral";
+    item.notes = clean(itemData.notes);
+    item.stockItemId = clean(itemData.stockItemId) || null;
+    item.linked = Boolean(item.stockItemId);
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return item;
+  }
+
+  function removeStockNoteItem_(noteId, itemId) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+
+    if (!note || note.status !== "rascunho") {
+      return null;
+    }
+
+    note.items = (note.items || []).filter(function (item) {
+      return item.id !== itemId;
+    });
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return note;
+  }
+
+  function confirmStockNoteEntry_(noteId) {
+    const noteState = loadStockNotesState_();
+    const note = findStockNoteInState_(noteState, noteId);
+
+    if (!note) {
+      return {
+        ok: false,
+        message: "Nota nao encontrada."
+      };
+    }
+
+    if (note.status === "confirmada") {
+      return {
+        ok: false,
+        message: "Esta nota ja foi confirmada. Nenhuma entrada foi duplicada."
+      };
+    }
+
+    if (note.status !== "rascunho") {
+      return {
+        ok: false,
+        message: "Apenas notas em rascunho podem virar entrada."
+      };
+    }
+
+    if (!clean(note.supplier) || !clean(note.date) || !(note.items || []).length) {
+      return {
+        ok: false,
+        message: "Preencha fornecedor, data e pelo menos um item antes de confirmar."
+      };
+    }
+
+    const unlinked = (note.items || []).filter(function (item) {
+      return !item.stockItemId;
+    });
+    const linkedItems = (note.items || []).filter(function (item) {
+      return item.stockItemId;
+    });
+
+    if (!linkedItems.length) {
+      return {
+        ok: false,
+        message: "Nenhum item esta vinculado ao cadastro mestre. Vincule ou crie item mestre antes de confirmar."
+      };
+    }
+
+    linkedItems.forEach(function (item) {
+      registerStockEntry_({
+        stockItemId: item.stockItemId,
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        supplier: note.supplier,
+        documentNumber: note.documentNumber,
+        date: note.date,
+        workId: note.workId || null,
+        notes: "Entrada por nota" + (item.notes ? ": " + item.notes : ""),
+        source: "nota",
+        noteId: note.id
+      });
+    });
+
+    note.status = "confirmada";
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(noteState);
+
+    return {
+      ok: true,
+      message: "Nota confirmada. " + linkedItems.length + " entrada(s) adicionada(s) ao estoque." + (unlinked.length ? " " + unlinked.length + " item(ns) sem vinculo foram ignorados." : "")
+    };
+  }
+
+  function cancelStockNote_(noteId) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+
+    if (!note || note.status === "confirmada") {
+      return null;
+    }
+
+    note.status = "cancelada";
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return note;
+  }
+
+  function renderStockNotePanel_() {
+    renderStockNoteList_();
+  }
+
+  function renderStockNoteList_() {
+    const state = loadStockNotesState_();
+    const notes = state.notes.slice().sort(function (a, b) {
+      return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+    });
+    const confirmed = notes.filter(function (note) {
+      return note.status === "confirmada";
+    });
+    const totalConfirmed = confirmed.reduce(function (sum, note) {
+      return sum + getStockNoteTotal_(note);
+    }, 0);
+
+    if (stockNoteSummary) {
+      stockNoteSummary.textContent = notes.length
+        ? notes.length + " nota(s) registrada(s). " + confirmed.length + " confirmada(s). Valor confirmado: " + formatCurrency_(totalConfirmed) + "."
+        : "Nenhuma nota cadastrada.";
+    }
+
+    if (!stockNoteRows) {
+      return;
+    }
+
+    stockNoteRows.innerHTML = "";
+    if (!notes.length) {
+      appendStockIaEmptyRow_(stockNoteRows, 9, "Nenhuma nota cadastrada.");
+      return;
+    }
+
+    notes.forEach(function (note) {
+      const row = document.createElement("tr");
+      appendStockIaCell_(row, getStockNoteStatusLabel_(note.status));
+      appendStockIaCell_(row, note.supplier || "-");
+      appendStockIaCell_(row, note.documentNumber || "-");
+      appendStockIaCell_(row, note.date ? formatDateOnly_(note.date) : "-");
+      appendStockIaCell_(row, note.workId ? getWorkName_(note.workId) : "Geral / sem obra");
+      appendStockIaCell_(row, String((note.items || []).length));
+      appendStockIaCell_(row, formatCurrency_(getStockNoteTotal_(note)));
+      appendStockIaCell_(row, note.fileName || "-");
+      appendStockIaActions_(row, getStockNoteActions_(note));
+      stockNoteRows.appendChild(row);
+    });
+  }
+
+  function renderStockNoteItems_(note) {
+    const wrapper = document.createElement("div");
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
+    table.className = "stock-ia-table compact";
+    thead.innerHTML = "<tr><th>Material</th><th>Qtd.</th><th>Un.</th><th>Custo un.</th><th>Total</th><th>Vinculo</th><th>Acoes</th></tr>";
+    table.appendChild(thead);
+
+    if (!note || !(note.items || []).length) {
+      appendStockIaEmptyRow_(tbody, 7, "Nenhum item lancado nesta nota.");
+    } else {
+      (note.items || []).forEach(function (item) {
+        const row = document.createElement("tr");
+        const linkedItem = getStockItemById_(item.stockItemId);
+        appendStockIaCell_(row, item.materialName);
+        appendStockIaCell_(row, formatQuantity_(item.quantity));
+        appendStockIaCell_(row, item.unit || "un");
+        appendStockIaCell_(row, formatCurrency_(item.unitCost));
+        appendStockIaCell_(row, formatCurrency_(item.totalCost));
+        appendStockIaCell_(row, linkedItem ? linkedItem.name : "Sem vinculo");
+        appendStockIaActions_(row, note.status === "rascunho" ? [
+          ["Remover", "remove-note-item", note.id + "|" + item.id]
+        ] : []);
+        tbody.appendChild(row);
+      });
+    }
+
+    table.appendChild(tbody);
+    wrapper.className = "stock-note-items full-width";
+    wrapper.appendChild(table);
+    return wrapper;
+  }
+
+  function renderStockNoteFilePreview_(note) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "stock-note-preview full-width";
+
+    if (!note || !note.fileName) {
+      wrapper.textContent = "Nenhum arquivo anexado.";
+      return wrapper;
+    }
+
+    if (note.filePreviewDataUrl && /^image\//.test(note.fileType || "")) {
+      const image = document.createElement("img");
+      image.src = note.filePreviewDataUrl;
+      image.alt = "Preview da nota " + note.fileName;
+      wrapper.appendChild(image);
+      return wrapper;
+    }
+
+    wrapper.textContent = note.fileType === "application/pdf"
+      ? "PDF anexado: " + note.fileName
+      : "Arquivo registrado como referencia: " + note.fileName;
+    return wrapper;
+  }
+
+  function handleStockNoteFileUpload_(file) {
+    return new Promise(function (resolve) {
+      if (!file) {
+        resolve({
+          fileName: "",
+          fileType: "",
+          filePreviewDataUrl: null,
+          oversized: false
+        });
+        return;
+      }
+
+      const payload = {
+        fileName: file.name || "",
+        fileType: file.type || "",
+        filePreviewDataUrl: null,
+        oversized: file.size > STOCK_NOTE_FILE_PREVIEW_LIMIT
+      };
+
+      if (payload.oversized || !/^image\//.test(file.type || "")) {
+        resolve(payload);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function () {
+        payload.filePreviewDataUrl = reader.result || null;
+        resolve(payload);
+      };
+      reader.onerror = function () {
+        resolve(payload);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function suggestStockItemForNoteItem_(item) {
+    const key = normalizeStockMaterialKey_(item && item.materialName, item && item.unit);
+    return loadStockMasterState_().items.find(function (candidate) {
+      return candidate.normalizedKey === key;
+    }) || null;
+  }
+
+  function linkStockNoteItemToMaster_(noteId, itemId, stockItemId) {
+    const state = loadStockNotesState_();
+    const note = findStockNoteInState_(state, noteId);
+    const item = note && note.items ? note.items.find(function (candidate) {
+      return candidate.id === itemId;
+    }) : null;
+
+    if (!note || note.status !== "rascunho" || !item) {
+      return null;
+    }
+
+    item.stockItemId = stockItemId || null;
+    item.linked = Boolean(stockItemId);
+    note.updatedAt = new Date().toISOString();
+    saveStockNotesState_(state);
+    return item;
+  }
+
+  function findStockNoteInState_(state, noteId) {
+    return (state.notes || []).find(function (note) {
+      return note.id === noteId;
+    }) || null;
+  }
+
+  function findStockNote_(noteId) {
+    return findStockNoteInState_(loadStockNotesState_(), noteId);
+  }
+
+  function getStockItemById_(stockItemId) {
+    return loadStockMasterState_().items.find(function (item) {
+      return item.id === stockItemId;
+    }) || null;
+  }
+
+  function getStockNoteTotal_(note) {
+    return (note && note.items || []).reduce(function (sum, item) {
+      return sum + parseNumber_(item.totalCost);
+    }, 0);
+  }
+
+  function getStockNoteStatusLabel_(status) {
+    if (status === "confirmada") {
+      return "Confirmada";
+    }
+
+    if (status === "cancelada") {
+      return "Cancelada";
+    }
+
+    return "Rascunho";
+  }
+
+  function getStockNoteActions_(note) {
+    if (note.status === "confirmada") {
+      return [
+        ["Visualizar", "edit-note", note.id]
+      ];
+    }
+
+    if (note.status === "cancelada") {
+      return [
+        ["Visualizar", "edit-note", note.id]
+      ];
+    }
+
+    return [
+      ["Editar", "edit-note", note.id],
+      ["Adicionar item", "add-note-item", note.id],
+      ["Confirmar", "confirm-note", note.id],
+      ["Cancelar", "cancel-note", note.id],
+      ["Excluir", "delete-note", note.id]
+    ];
+  }
+
+  function buildStockNotesInsight_() {
+    const notes = loadStockNotesState_().notes.filter(function (note) {
+      return note.status === "confirmada";
+    }).sort(function (a, b) {
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    });
+
+    if (!notes.length) {
+      return "Ainda nao ha notas confirmadas. Use Nova nota para registrar fornecedor, anexar arquivo e lancar itens manualmente.";
+    }
+
+    const last = notes[0];
+    const topItems = (last.items || []).slice(0, 3).map(function (item) {
+      return item.materialName;
+    });
+
+    return "A ultima nota registrada foi de " + (last.supplier || "fornecedor nao informado") +
+      ", com " + (last.items || []).length + " item(ns) e valor total de " + formatCurrency_(getStockNoteTotal_(last)) + ". " +
+      (topItems.length ? "Principais materiais: " + topItems.join(", ") + "." : "");
+  }
+
   function buildRealStockIaInsight_() {
     const summary = buildRealStockSummary_();
 
@@ -5918,6 +6438,7 @@
     renderStockPeriodControls_();
     renderStockOperationalAlerts_(alerts);
     renderStockPurchasePanel_(purchaseSuggestions, purchaseSummary);
+    renderStockNotePanel_();
     renderTopConsumedMaterials_(topMaterials);
     renderStockConsumptionByWork_(byWork);
     renderStockIaQuestionAnswer_();
@@ -6097,6 +6618,10 @@
       period: stockIaCurrentPeriod
     });
     const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
+
+    if (normalized.indexOf("nota") >= 0 || normalized.indexOf("notas") >= 0 || normalized.indexOf("ultima entrada") >= 0 || normalized.indexOf("o que entrou") >= 0 || normalized.indexOf("quanto entrou") >= 0) {
+      return buildStockNotesInsight_();
+    }
 
     if (normalized.indexOf("valor") >= 0 && (normalized.indexOf("reposicao") >= 0 || normalized.indexOf("compra") >= 0)) {
       return purchaseSuggestions.length
@@ -6353,6 +6878,33 @@
       markStockPurchaseItemReviewed_(stockId);
     } else if (action === "mark-all-purchase-reviewed") {
       markAllStockPurchaseReviewed_();
+    } else if (action === "new-note") {
+      openStockIaModal_("note", {});
+    } else if (action === "edit-note") {
+      openStockIaModal_("note", {
+        noteId: stockId
+      });
+    } else if (action === "add-note-item") {
+      openStockIaModal_("note-item", {
+        noteId: stockId
+      });
+    } else if (action === "confirm-note") {
+      openStockIaModal_("confirm-note", {
+        noteId: stockId
+      });
+    } else if (action === "cancel-note") {
+      openStockIaModal_("cancel-note", {
+        noteId: stockId
+      });
+    } else if (action === "delete-note") {
+      openStockIaModal_("delete-note", {
+        noteId: stockId
+      });
+    } else if (action === "remove-note-item") {
+      const parts = stockId.split("|");
+      removeStockNoteItem_(parts[0], parts[1]);
+      renderStockIaPanel_(getUserDailyLogs_());
+      showStockIaToast_("Item removido da nota.", "success");
     }
   }
 
@@ -6389,6 +6941,7 @@
       return candidate.id === payload.itemId;
     }) : null;
     const rdoEntry = payload.rdoMaterialKey ? findUnlinkedRdoEntryByKey_(payload.rdoMaterialKey) : null;
+    const note = payload.noteId ? findStockNote_(payload.noteId) : null;
     const title = getStockIaModalTitle_(type, item, payload);
     const content = document.createElement("div");
     const card = document.createElement("div");
@@ -6424,12 +6977,30 @@
       appendStockItemFields_(form, null, rdoEntry);
     } else if (type === "link-rdo") {
       appendStockLinkFields_(form, state, rdoEntry);
+    } else if (type === "note") {
+      appendStockNoteFields_(form, note);
+      if (note) {
+        form.appendChild(renderStockNoteFilePreview_(note));
+        form.appendChild(renderStockNoteItems_(note));
+      }
+    } else if (type === "note-item") {
+      appendStockNoteItemFields_(form, state, note);
+    } else if (type === "confirm-note") {
+      appendStockIaNotice_(form, "Confirmar esta nota vai gerar entradas no estoque para os itens vinculados. Esta acao nao duplica se a nota ja estiver confirmada.");
+      if (note) {
+        form.appendChild(renderStockNoteItems_(note));
+      }
+    } else if (type === "cancel-note") {
+      appendStockIaNotice_(form, "Confirma cancelar esta nota? Notas canceladas ficam apenas para consulta.");
+    } else if (type === "delete-note") {
+      appendStockIaNotice_(form, "Confirma excluir este rascunho de nota? Notas confirmadas nao sao excluidas nesta fase.");
     }
 
     appendHiddenField_(form, "itemId", payload.itemId || "");
     appendHiddenField_(form, "rdoMaterialKey", payload.rdoMaterialKey || "");
     appendHiddenField_(form, "movementType", payload.movementType || "");
-    appendStockIaFormActions_(form, type === "delete-item" ? "Excluir" : "Salvar");
+    appendHiddenField_(form, "noteId", payload.noteId || "");
+    appendStockIaFormActions_(form, type === "delete-item" || type === "delete-note" ? "Excluir" : (type === "confirm-note" ? "Confirmar entrada" : (type === "cancel-note" ? "Cancelar nota" : "Salvar")));
     card.appendChild(form);
     content.appendChild(card);
     stockIaModal.appendChild(content);
@@ -6454,6 +7025,26 @@
 
     if (type === "link-rdo") {
       return "Vincular consumo do RDO";
+    }
+
+    if (type === "note") {
+      return payload.noteId ? "Editar nota" : "Nova nota";
+    }
+
+    if (type === "note-item") {
+      return "Adicionar item da nota";
+    }
+
+    if (type === "confirm-note") {
+      return "Confirmar entrada por nota";
+    }
+
+    if (type === "cancel-note") {
+      return "Cancelar nota";
+    }
+
+    if (type === "delete-note") {
+      return "Excluir rascunho de nota";
     }
 
     return "Stock IA";
@@ -6490,6 +7081,43 @@
     appendStockItemSelect_(form, state.items, "");
   }
 
+  function appendStockNoteFields_(form, note) {
+    const locked = note && note.status !== "rascunho";
+    appendStockIaField_(form, "supplier", "Fornecedor", "text", note ? note.supplier : "", true);
+    appendStockIaField_(form, "documentNumber", "Numero da nota", "text", note ? note.documentNumber : "", false);
+    appendStockIaField_(form, "date", "Data", "date", note ? note.date : toDateKey_(new Date()), true);
+    appendStockWorkSelect_(form, note ? note.workId : "");
+    appendStockIaFileField_(form, "noteFile", "Foto ou PDF da nota", locked);
+
+    if (locked) {
+      appendStockIaNotice_(form, "Nota " + getStockNoteStatusLabel_(note.status) + ". A edicao fica bloqueada nesta fase.");
+      Array.from(form.querySelectorAll("input, select, textarea")).forEach(function (field) {
+        if (field.type !== "hidden") {
+          field.disabled = true;
+        }
+      });
+    } else if (note && note.fileName) {
+      appendStockIaNotice_(form, "Arquivo atual: " + note.fileName + ". Envie outro arquivo apenas se quiser substituir a referencia.");
+    }
+  }
+
+  function appendStockNoteItemFields_(form, state, note) {
+    if (!note || note.status !== "rascunho") {
+      appendStockIaNotice_(form, "Abra uma nota em rascunho para adicionar itens.");
+      return;
+    }
+
+    appendStockIaField_(form, "materialName", "Material", "text", "", true);
+    appendStockIaField_(form, "unit", "Unidade", "text", "un", true);
+    appendStockIaField_(form, "quantity", "Quantidade", "number", 1, true, "0.001");
+    appendStockIaField_(form, "unitCost", "Custo unitario", "number", 0, false, "0.01");
+    appendStockIaField_(form, "totalCost", "Custo total", "number", 0, false, "0.01");
+    appendStockIaField_(form, "category", "Categoria", "text", "Geral", false);
+    appendStockItemSelect_(form, state.items, "", false);
+    appendStockIaCheckbox_(form, "createMaster", "Criar item mestre se nao houver vinculo");
+    appendStockIaTextarea_(form, "notes", "Observacao", "");
+  }
+
   function appendStockIaField_(form, name, label, type, value, required, step) {
     const wrapper = document.createElement("label");
     const input = document.createElement("input");
@@ -6505,6 +7133,30 @@
       input.min = "0";
     }
     wrapper.appendChild(input);
+    form.appendChild(wrapper);
+  }
+
+  function appendStockIaFileField_(form, name, label, disabled) {
+    const wrapper = document.createElement("label");
+    const input = document.createElement("input");
+    wrapper.className = "full-width";
+    wrapper.textContent = label;
+    input.name = name;
+    input.type = "file";
+    input.accept = ".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf";
+    input.disabled = Boolean(disabled);
+    wrapper.appendChild(input);
+    form.appendChild(wrapper);
+  }
+
+  function appendStockIaCheckbox_(form, name, label) {
+    const wrapper = document.createElement("label");
+    const input = document.createElement("input");
+    wrapper.className = "stock-ia-checkbox full-width";
+    input.name = name;
+    input.type = "checkbox";
+    wrapper.appendChild(input);
+    wrapper.appendChild(document.createTextNode(label));
     form.appendChild(wrapper);
   }
 
@@ -6534,12 +7186,12 @@
     form.appendChild(wrapper);
   }
 
-  function appendStockItemSelect_(form, items, selectedItemId) {
+  function appendStockItemSelect_(form, items, selectedItemId, required) {
     const wrapper = document.createElement("label");
     const select = document.createElement("select");
     wrapper.textContent = "Item de estoque";
     select.name = "stockItemId";
-    select.required = true;
+    select.required = required !== false;
     appendOption_(select, "", "Escolha um item");
     items.forEach(function (item) {
       appendOption_(select, item.id, item.name + " (" + item.unit + ")");
@@ -6588,7 +7240,7 @@
     form.appendChild(actions);
   }
 
-  function handleStockIaFormSubmit_(event) {
+  async function handleStockIaFormSubmit_(event) {
     event.preventDefault();
     const form = event.target;
     const type = form.dataset.stockFormType;
@@ -6596,6 +7248,7 @@
     const itemId = clean(formData.get("itemId"));
     const rdoMaterialKey = clean(formData.get("rdoMaterialKey"));
     const movementType = clean(formData.get("movementType"));
+    const noteId = clean(formData.get("noteId"));
 
     if (type === "item") {
       if (itemId) {
@@ -6634,6 +7287,39 @@
         showStockIaToast_("Escolha um item para vincular.", "error");
         return;
       }
+    } else if (type === "note") {
+      const file = form.querySelector("input[type='file']") && form.querySelector("input[type='file']").files[0];
+      const filePayload = await handleStockNoteFileUpload_(file);
+      const payload = Object.assign({}, Object.fromEntries(formData.entries()));
+      if (file) {
+        Object.assign(payload, filePayload);
+      }
+      if (noteId) {
+        updateStockNoteDraft_(noteId, payload);
+        showStockIaToast_(filePayload.oversized ? "Nota atualizada. Arquivo grande salvo apenas como referencia." : "Nota atualizada.", "success");
+      } else {
+        createStockNoteDraft_(payload);
+        showStockIaToast_(filePayload.oversized ? "Nota criada. Arquivo grande salvo apenas como referencia." : "Nota criada.", "success");
+      }
+    } else if (type === "note-item") {
+      const note = addStockNoteItem_(noteId, Object.fromEntries(formData.entries()));
+      if (!note) {
+        showStockIaToast_("Preencha material e quantidade para adicionar o item.", "error");
+        return;
+      }
+      showStockIaToast_("Item adicionado a nota.", "success");
+    } else if (type === "confirm-note") {
+      const result = confirmStockNoteEntry_(noteId);
+      showStockIaToast_(result.message, result.ok ? "success" : "error");
+      if (!result.ok) {
+        return;
+      }
+    } else if (type === "cancel-note") {
+      cancelStockNote_(noteId);
+      showStockIaToast_("Nota cancelada.", "success");
+    } else if (type === "delete-note") {
+      deleteStockNoteDraft_(noteId);
+      showStockIaToast_("Rascunho de nota excluido.", "success");
     }
 
     closeStockIaModal_();

@@ -1159,9 +1159,9 @@
       <section class="route-panel" data-route="stock-ia" aria-label="Stock IA">
         <div class="workspace-card stock-ia-hero">
           <div>
-            <p class="eyebrow">Stock IA 0.4</p>
-            <h3>Estoque real com lista de compras</h3>
-            <p>Controle local com saldo real, alertas operacionais, reposição sugerida, ranking de materiais e análise por obra.</p>
+            <p class="eyebrow">Stock IA 0.5</p>
+            <h3>Estoque real com entrada por nota</h3>
+            <p>Controle local com saldo real, alertas, lista de compras e entrada manual por nota, foto ou PDF.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Stock IA">
             <span class="local-status">Local</span>
@@ -1229,6 +1229,37 @@
               </thead>
               <tbody id="stockPurchaseRows">
                 <tr><td colspan="12">Nenhuma compra sugerida no momento.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="section-row">
+            <div>
+              <h3>Entrada por Nota</h3>
+              <span class="auth-note">Anexe foto ou PDF como referência e lance os itens manualmente. OCR fica para uma fase futura.</span>
+            </div>
+            <button type="button" class="mini-button primary" data-stock-action="new-note">Nova nota</button>
+          </div>
+          <div class="stock-note-status" id="stockNoteSummary">Nenhuma nota cadastrada.</div>
+          <div class="stock-ia-table-wrap">
+            <table class="stock-ia-table compact">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Fornecedor</th>
+                  <th>Número</th>
+                  <th>Data</th>
+                  <th>Obra</th>
+                  <th>Itens</th>
+                  <th>Valor</th>
+                  <th>Arquivo</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="stockNoteRows">
+                <tr><td colspan="9">Nenhuma nota cadastrada.</td></tr>
               </tbody>
             </table>
           </div>
@@ -1686,7 +1717,7 @@
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-04-a"></script>
+  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-05-a"></script>
   <link rel="stylesheet" href="elo-assistente.css">
   <script src="elo-assistente.js" defer></script>
 </body>
