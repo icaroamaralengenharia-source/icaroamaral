@@ -6323,3 +6323,160 @@ body {
     min-width: 640px;
   }
 }
+
+/* Correcoes pre-release: acoes de relatorio e header responsivo */
+.app-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, max-content);
+  align-items: start;
+  gap: 18px;
+  min-height: 0;
+  overflow: visible;
+}
+
+.app-topbar::after {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: end;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: -6px;
+}
+
+.app-topbar > div:first-child,
+.session-box {
+  min-width: 0;
+}
+
+.session-box {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: min(100%, 520px);
+}
+
+.session-box strong {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.session-box .plan-badge,
+.session-box .local-status,
+.session-box .cloud-status,
+.session-box #saveNowButton,
+.session-box #logoutButton {
+  flex: 1 1 128px;
+  justify-content: center;
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+}
+
+.almox-generated-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(220px, 320px) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(15, 95, 143, 0.18);
+  border-radius: 8px;
+  background: #f6f9fc;
+}
+
+.almox-generated-actions p {
+  margin: 0;
+  color: var(--navy);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.almox-generated-actions label {
+  display: grid;
+  gap: 5px;
+  color: var(--navy);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.almox-generated-actions input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-actions .mini-button {
+  width: 100%;
+}
+
+@media (min-width: 1281px) {
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow {
+    grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-note-grid {
+    grid-template-columns: minmax(280px, 1.15fr) minmax(190px, 0.85fr);
+  }
+}
+
+@media (max-width: 1120px) {
+  .app-topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .app-topbar::after {
+    justify-self: start;
+    margin-top: 0;
+  }
+
+  .session-box {
+    justify-content: flex-start;
+    max-width: 100%;
+  }
+
+  .session-box strong {
+    text-align: left;
+  }
+
+  .almox-generated-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .almox-generated-actions p,
+  .almox-generated-actions label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-topbar {
+    overflow: hidden;
+  }
+
+  .app-topbar::after {
+    display: none;
+  }
+
+  .session-box {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 100%;
+  }
+
+  .session-box strong {
+    text-align: left;
+  }
+
+  .almox-generated-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .almox-generated-actions .mini-button {
+    width: 100%;
+  }
+}

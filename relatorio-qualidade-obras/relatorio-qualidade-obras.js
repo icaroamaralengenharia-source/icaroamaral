@@ -10364,6 +10364,7 @@
     header.appendChild(titleBlock);
     header.appendChild(risk);
     almoxGeneratedReport.appendChild(header);
+    almoxGeneratedReport.appendChild(createAlmoxGeneratedReportActions_(type));
     almoxGeneratedReport.appendChild(createAlmoxReportStats_(viewModel.stats));
     almoxGeneratedReport.appendChild(createAlmoxDefinitionSection_("Resumo gerencial", viewModel.summaryItems));
     almoxGeneratedReport.appendChild(createAlmoxDefinitionSection_("Auditoria", viewModel.auditItems));
@@ -10502,6 +10503,44 @@
     return footer;
   }
 
+  function createAlmoxGeneratedReportActions_(type) {
+    const actions = document.createElement("div");
+    const context = document.createElement("p");
+    const downloadButton = document.createElement("button");
+    const emailWrap = document.createElement("label");
+    const emailInput = document.createElement("input");
+    const emailButton = document.createElement("button");
+
+    actions.className = "almox-generated-actions";
+    context.textContent = (type || "Relatorio gerencial") + " pronto para baixar ou enviar.";
+
+    downloadButton.type = "button";
+    downloadButton.className = "mini-button primary";
+    downloadButton.textContent = "Baixar PDF";
+    downloadButton.addEventListener("click", function () {
+      handleDownloadAlmoxPdf_();
+    });
+
+    emailWrap.textContent = "E-mail de destino";
+    emailInput.type = "email";
+    emailInput.placeholder = "gestor@empresa.com.br";
+    emailInput.value = almoxEmailInput ? almoxEmailInput.value : "";
+    emailWrap.appendChild(emailInput);
+
+    emailButton.type = "button";
+    emailButton.className = "mini-button";
+    emailButton.textContent = "Preparar e-mail";
+    emailButton.addEventListener("click", function () {
+      handlePrepareAlmoxEmail_(emailInput.value);
+    });
+
+    actions.appendChild(context);
+    actions.appendChild(downloadButton);
+    actions.appendChild(emailWrap);
+    actions.appendChild(emailButton);
+    return actions;
+  }
+
   function getAlmoxStatusClass_(status) {
     const key = normalizeCompositionKey_(status);
     if (key.indexOf("zerado") >= 0 || key.indexOf("critico") >= 0 || key.indexOf("vencido") >= 0) {
@@ -10550,11 +10589,15 @@
     handlePrepareAlmoxEmail_();
   }
 
-  function handlePrepareAlmoxEmail_() {
-    const email = clean(almoxEmailInput && almoxEmailInput.value);
+  function handlePrepareAlmoxEmail_(emailOverride) {
+    const email = clean(emailOverride || (almoxEmailInput && almoxEmailInput.value));
     if (!isValidEmail_(email)) {
       showAlmoxToast_("Informe um e-mail valido para enviar o relatorio.", "error");
       return;
+    }
+
+    if (almoxEmailInput) {
+      almoxEmailInput.value = email;
     }
 
     if (!almoxLastSummaryText) {
