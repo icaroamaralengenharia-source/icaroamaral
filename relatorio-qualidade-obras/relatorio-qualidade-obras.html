@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
-  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260529-rdo-ux43">
+  <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260601-premium-landing">
 </head>
 <body>
   <main class="page-shell">
@@ -18,33 +18,15 @@
       <div class="landing-hero">
         <div class="home-copy">
           <p class="eyebrow">Software profissional para obras</p>
-          <h2 id="home-title">Relatórios, RDO, Materiais e IA em uma única plataforma</h2>
+          <h2 id="home-title">Controle relatórios, RDOs e materiais da obra em uma única plataforma.</h2>
           <p>
-            Gere relatórios técnicos, registre diários de obra, controle materiais, organize fotos e crie PDFs profissionais em poucos minutos.
+            Registre fotos, gere PDFs profissionais, acompanhe consumo, controle estoque e envie informações ao cliente sem depender de planilhas e mensagens soltas.
           </p>
 
           <div class="hero-cta-grid" aria-label="Ações principais do ObraReport">
-            <button type="button" class="hero-cta primary" data-home-action="rdo">Gerar RDO agora</button>
-            <button type="button" class="hero-cta" data-home-action="relatorio">Gerar relatório agora</button>
-            <button type="button" class="hero-cta" data-home-action="materiais">Testar materiais</button>
+            <button type="button" class="hero-cta primary" data-home-action="obra-exemplo">Testar demonstração guiada</button>
             <button type="button" class="hero-cta" data-home-action="pdf-info">Ver exemplo de PDF</button>
-          </div>
-
-          <div class="hero-feature-grid" aria-label="Diferenciais principais do ObraReport">
-            <button type="button" class="hero-feature-card" data-home-action="elo-ia"><span>IA</span><strong>IA Técnica</strong><small>Textos e orientações técnicas.</small></button>
-            <button type="button" class="hero-feature-card" data-home-action="pdf-info"><span>PDF</span><strong>PDF Profissional</strong><small>Entrega pronta para cliente.</small></button>
-            <button type="button" class="hero-feature-card" data-home-action="rdo"><span>RDO</span><strong>RDO em Campo</strong><small>Registro diário organizado.</small></button>
-            <button type="button" class="hero-feature-card" data-home-action="materiais"><span>MAT</span><strong>Materiais e Quantitativos</strong><small>Consumo e produção no mesmo fluxo.</small></button>
-            <button type="button" class="hero-feature-card" data-home-action="elo-auditoria"><span>AUD</span><strong>Auditoria de Consumo</strong><small>Compare previsto e executado.</small></button>
-            <button type="button" class="hero-feature-card elo" data-home-action="elo-capabilities"><span>Elo</span><strong>Elo Assistente</strong><small>Memória, biblioteca, projetos e objetivos.</small></button>
-          </div>
-
-          <div class="hero-elo-card">
-            <div>
-              <strong>Elo Assistente</strong>
-              <span>Ajuda integrada com memória local, biblioteca, projetos e objetivos para orientar o uso do sistema.</span>
-            </div>
-            <button type="button" class="secondary-action compact" data-home-action="elo-capabilities">Perguntar ao Elo</button>
+            <button type="button" class="hero-cta tertiary" data-home-action="stock-ia">Abrir Stock IA</button>
           </div>
 
           <button class="home-access-link" type="button" id="openReportButton">Acessar painel completo</button>
@@ -71,42 +53,40 @@
         </div>
       </div>
 
+      <section class="landing-trust-strip" aria-label="Indicadores de confiança do ObraReport">
+        <article><span>IMG</span><strong>Relatórios com fotos</strong></article>
+        <article><span>RDO</span><strong>RDO com materiais</strong></article>
+        <article><span>STK</span><strong>Estoque atualizado</strong></article>
+        <article><span>PDF</span><strong>PDF pronto para envio</strong></article>
+      </section>
+
       <section class="landing-section home-test-actions" aria-labelledby="home-test-actions-title">
         <div class="section-row">
           <div>
             <p class="eyebrow">Teste guiado</p>
-            <h3 id="home-test-actions-title">O que você quer testar agora?</h3>
-            <p>Escolha uma ação e teste o ObraReport em menos de 1 minuto.</p>
+            <h3 id="home-test-actions-title">Uma demonstração curta para entender o fluxo real.</h3>
+            <p>Entre pelo caminho guiado ou abra direto o recurso que mais importa para sua rotina.</p>
           </div>
           <span class="local-status">Ações reais do sistema</span>
         </div>
 
         <div class="home-test-grid" aria-label="Ações rápidas para testar o ObraReport">
-          <button type="button" class="home-test-button primary" data-home-action="rdo">
-            <strong>Gerar RDO agora</strong>
-            <span>Abrir Diário de Obras e preparar um novo registro do dia.</span>
-          </button>
-          <button type="button" class="home-test-button" data-home-action="relatorio">
-            <strong>Gerar relatório agora</strong>
-            <span>Abrir Relatórios e preparar um novo relatório de qualidade.</span>
-          </button>
-          <button type="button" class="home-test-button" data-home-action="materiais">
-            <strong>Testar lançamento de materiais</strong>
-            <span>Abrir o RDO na área de materiais consumidos.</span>
-          </button>
           <button type="button" class="home-test-button" data-home-action="obra-exemplo">
             <strong>Carregar obra exemplo</strong>
             <span>Usar uma obra pronta com cliente, RDO, materiais e relatório.</span>
           </button>
-        </div>
-
-        <div class="home-feature-actions" aria-label="Recursos do ObraReport">
-          <button type="button" data-home-action="pdf-info">PDF Profissional</button>
-          <button type="button" data-home-action="rdo">RDO em Campo</button>
-          <button type="button" data-home-action="materiais">Controle de Materiais</button>
-          <button type="button" data-home-action="elo-auditoria">Auditoria de Consumo</button>
-          <button type="button" data-home-action="elo-ia">IA Técnica</button>
-          <button type="button" data-home-action="elo-nuvem">Sincronização em Nuvem</button>
+          <button type="button" class="home-test-button primary" data-home-action="relatorio">
+            <strong>Criar relatório técnico</strong>
+            <span>Abrir o fluxo de relatório com fotos, análise e PDF.</span>
+          </button>
+          <button type="button" class="home-test-button" data-home-action="rdo">
+            <strong>Registrar RDO</strong>
+            <span>Organizar data, equipe, produção, materiais e ocorrências.</span>
+          </button>
+          <button type="button" class="home-test-button" data-home-action="stock-ia">
+            <strong>Abrir Stock IA</strong>
+            <span>Conferir estoque, consumo, entradas, saídas e auditoria.</span>
+          </button>
         </div>
 
         <p class="home-action-status" id="homeActionStatus" aria-live="polite"></p>
@@ -122,6 +102,31 @@
           <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
           <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
           <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
+        </div>
+      </section>
+
+      <section class="landing-section landing-before-after" aria-labelledby="landing-before-after-title">
+        <p class="eyebrow">Antes e depois</p>
+        <h3 id="landing-before-after-title">Antes: fotos, planilhas e mensagens soltas. Depois: tudo organizado por obra.</h3>
+        <div class="before-after-grid">
+          <article>
+            <span>Antes</span>
+            <ul>
+              <li>Fotos perdidas no WhatsApp</li>
+              <li>Planilhas manuais</li>
+              <li>Materiais sem rastreio</li>
+              <li>Relatórios demorados</li>
+            </ul>
+          </article>
+          <article class="after">
+            <span>Depois</span>
+            <ul>
+              <li>Fotos vinculadas ao relatório</li>
+              <li>RDO salvo por data</li>
+              <li>Consumo e estoque acompanhados</li>
+              <li>PDF profissional pronto para enviar</li>
+            </ul>
+          </article>
         </div>
       </section>
 
@@ -141,12 +146,15 @@
 
       <section class="landing-section" aria-labelledby="landing-steps-title">
         <p class="eyebrow">Como funciona</p>
-        <h3 id="landing-steps-title">Do campo ao PDF em um fluxo simples.</h3>
-        <div class="landing-steps">
-          <article><span>1</span><strong>Cadastre cliente e obra</strong></article>
-          <article><span>2</span><strong>Registre fotos, serviços e materiais</strong></article>
-          <article><span>3</span><strong>Gere relatório/PDF</strong></article>
-          <article><span>4</span><strong>Envie ao cliente</strong></article>
+        <h3 id="landing-steps-title">Da nota fiscal ao relatório final.</h3>
+        <p>O ObraReport transforma registros de campo em controle técnico, financeiro e documental.</p>
+        <div class="landing-flow">
+          <article><span>NF</span><strong>Nota fiscal / entrada manual</strong></article>
+          <article><span>STK</span><strong>Estoque</strong></article>
+          <article><span>RDO</span><strong>Consumo no RDO</strong></article>
+          <article><span>AUD</span><strong>Auditoria</strong></article>
+          <article><span>PDF</span><strong>PDF</strong></article>
+          <article><span>WA</span><strong>WhatsApp</strong></article>
         </div>
       </section>
 
@@ -175,19 +183,31 @@
         </div>
       </section>
 
+      <section class="landing-section landing-elo-compact" aria-labelledby="landing-elo-title">
+        <div>
+          <p class="eyebrow">Assistente complementar</p>
+          <h3 id="landing-elo-title">Elo Assistente incluído</h3>
+          <p>Um assistente local para orientar o uso do sistema, salvar respostas frequentes e apoiar a rotina técnica.</p>
+        </div>
+        <button type="button" class="secondary-action compact" data-home-action="elo-capabilities">Conhecer o Elo</button>
+      </section>
+
       <section class="landing-section" aria-labelledby="landing-plans-title">
         <p class="eyebrow">Planos</p>
         <h3 id="landing-plans-title">Comece simples e evolua quando a rotina pedir mais controle.</h3>
         <div class="landing-plan-grid">
-          <article><strong>Gratuito</strong><span>Para testar o fluxo e criar os primeiros registros.</span></article>
-          <article class="featured"><strong>Profissional</strong><span>Para rotina real de campo, relatórios e RDOs comerciais.</span></article>
-          <article><strong>Empresa</strong><span>Para equipes, construtoras e operação com múltiplas obras.</span></article>
+          <article><strong>Gratuito</strong><span>Para testar o fluxo inicial</span></article>
+          <article class="featured"><small>Mais indicado para começar</small><strong>Profissional</strong><span>Para rotina real de obra</span></article>
+          <article><strong>Empresa</strong><span>Para equipes, construtoras e múltiplas obras</span></article>
         </div>
       </section>
 
       <section class="landing-final" aria-labelledby="landing-final-title">
-        <h3 id="landing-final-title">Pronto para transformar sua rotina de obra?</h3>
-        <button class="primary-action" type="button" onclick="document.getElementById('openReportButton').click()">Acessar ObraReport</button>
+        <h3 id="landing-final-title">Pronto para organizar sua obra com mais controle?</h3>
+        <div class="landing-final-actions">
+          <button class="primary-action" type="button" data-home-action="piloto">Quero entrar no piloto</button>
+          <button class="secondary-action" type="button" data-home-action="whatsapp">Falar no WhatsApp</button>
+        </div>
       </section>
     </section>
 
@@ -2030,13 +2050,16 @@
     </section>
   </main>
 
+  <script>
+    window.OBRAREPORT_API_BASE_URL = "https://obrareport-backend.onrender.com";
+  </script>
   <script src="./relatorio-config.js?v=20260525-comercial1b"></script>
   <script src="./plans.js?v=20260525-comercial1b"></script>
   <script src="./usage-limits.js?v=20260525-comercial1b"></script>
   <script src="./billing-demo.js?v=20260525-comercial1b"></script>
   <script src="./ai-assistant.js?v=20260529-diary-services"></script>
-  <script src="./relatorio-qualidade-obras.js?v=20260530-stockia-05-a"></script>
-  <link rel="stylesheet" href="elo-assistente.css">
+  <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
+  <link rel="stylesheet" href="elo-assistente.css?v=20260601-premium-landing">
   <script src="elo-assistente.js" defer></script>
 </body>
 </html>

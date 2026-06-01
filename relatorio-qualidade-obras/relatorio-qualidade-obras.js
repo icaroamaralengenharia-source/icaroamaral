@@ -1685,6 +1685,12 @@
       return;
     }
 
+    if (action === "piloto" || action === "whatsapp") {
+      openExampleWorkWhatsapp_();
+      setHomeActionStatus_("Mensagem preparada para falar sobre o piloto do ObraReport.");
+      return;
+    }
+
     if (!currentUser || !hasLocalAccessSession_()) {
       pendingHomeAction = action;
       setHomeActionStatus_("Faça login para abrir essa ação diretamente no sistema.");
@@ -1725,6 +1731,11 @@
 
     if (action === "obra-exemplo") {
       createExampleWork_();
+      return;
+    }
+
+    if (action === "stock-ia") {
+      showDashboardPanel_("stock-ia");
       return;
     }
 

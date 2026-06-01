@@ -893,6 +893,10 @@
 }
 
 @media (max-width: 760px) {
+  body:has(.landing-page:not(.is-hidden)) .elo-widget {
+    display: none;
+  }
+
   .elo-widget {
     right: 12px;
     bottom: 12px;
