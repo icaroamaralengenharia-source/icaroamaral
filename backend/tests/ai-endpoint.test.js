@@ -194,6 +194,7 @@ test("prompt mestre do Elo inclui contexto relevante recuperado por vetor", () =
 test("memoria vetorial recupera contexto por significado", () => {
   const store = createEloVectorMemoryStore_({ memoryOnly: true });
   store.upsert({
+    ownerId: "elo_dev_usuario_a",
     id: "stock-ia",
     text: "Meu projeto principal e o Stock IA para controlar almoxarifado, materiais e entradas de obra.",
     category: "projeto",
@@ -201,6 +202,7 @@ test("memoria vetorial recupera contexto por significado", () => {
     updatedAt: "2026-06-01T00:00:00.000Z"
   });
   store.upsert({
+    ownerId: "elo_dev_usuario_a",
     id: "familia",
     text: "Minha mae se chama Maria e gosta de conversar com calma.",
     category: "pessoa",
@@ -208,14 +210,35 @@ test("memoria vetorial recupera contexto por significado", () => {
     updatedAt: "2026-06-01T00:00:00.000Z"
   });
 
-  const summary = searchEloRelevantMemories_(store, "Como esta aquela ideia do estoque?");
+  const summary = searchEloRelevantMemories_(store, "Como esta aquela ideia do estoque?", "elo_dev_usuario_a");
 
   assert.match(summary, /Stock IA/i);
   assert.doesNotMatch(summary.split("\n")[0], /Maria/i);
 });
 
+test("memoria vetorial fica isolada por deviceId", () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  store.upsert({
+    ownerId: "elo_dev_usuario_a",
+    id: "mae-maria",
+    text: "Minha mae se chama Maria.",
+    category: "pessoa",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const userA = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_a");
+  const userB = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_b");
+  const noDevice = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "");
+
+  assert.match(userA, /Maria/i);
+  assert.doesNotMatch(userB, /Maria/i);
+  assert.equal(noDevice, "");
+});
+
 test("endpoint de memoria vetorial salva item local", async () => {
   const response = await postEloVectorMemory_({
+    deviceId: "elo_dev_teste",
     memory: {
       id: "memoria-teste",
       text: "Controle de estoque da obra com materiais e almoxarifado.",
@@ -228,6 +251,37 @@ test("endpoint de memoria vetorial salva item local", async () => {
   assert.equal(data.ok, true);
   assert.equal(data.mode, "local_vector");
   assert.equal(data.item.id, "memoria-teste");
+});
+
+test("endpoint de memoria vetorial exige deviceId valido", async () => {
+  const response = await postEloVectorMemory_({
+    memory: {
+      id: "sem-device",
+      text: "Minha mae se chama Maria.",
+      category: "pessoa"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(data.ok, false);
+  assert.match(data.error, /deviceId/i);
+});
+
+test("endpoint de memoria vetorial rejeita texto acima do limite", async () => {
+  const response = await postEloVectorMemory_({
+    deviceId: "elo_dev_teste",
+    memory: {
+      id: "texto-grande",
+      text: "a".repeat(801),
+      category: "outro"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(data.ok, false);
+  assert.match(data.error, /longo/i);
 });
 
 test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {

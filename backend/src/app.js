@@ -353,7 +353,11 @@ export function createApp(options = {}) {
     }
 
     try {
-      validation.payload.context.relevantMemoriesSummary = searchEloRelevantMemories_(eloVectorMemoryStore, validation.payload.message);
+      validation.payload.context.relevantMemoriesSummary = searchEloRelevantMemories_(
+        eloVectorMemoryStore,
+        validation.payload.message,
+        validation.payload.context.deviceId
+      );
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
         ok: true,
@@ -523,6 +527,7 @@ function validateEloChatRequest_(body) {
       context: {
         source: clean_(context.source || "elo"),
         mode: clean_(context.mode || ""),
+        deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
         memoriesSummary: clean_(context.memoriesSummary || "").slice(0, 2500)
       }
     }
@@ -531,11 +536,20 @@ function validateEloChatRequest_(body) {
 
 function validateEloVectorMemoryRequest_(body) {
   const memory = body.memory && typeof body.memory === "object" ? body.memory : body;
-  const text = clean_(memory.text).slice(0, 800);
+  const text = clean_(memory.text);
+  const deviceId = sanitizeEloDeviceId_(body.deviceId || memory.deviceId || "");
   const id = clean_(memory.id || "").slice(0, 120);
   const category = clean_(memory.category || "outro").slice(0, 40);
   const createdAt = clean_(memory.createdAt || new Date().toISOString()).slice(0, 40);
   const updatedAt = clean_(memory.updatedAt || createdAt).slice(0, 40);
+
+  if (!deviceId) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Informe um deviceId valido para a memoria vetorial do Elo."
+    };
+  }
 
   if (!text) {
     return {
@@ -545,10 +559,19 @@ function validateEloVectorMemoryRequest_(body) {
     };
   }
 
+  if (text.length > 800) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Texto da memoria vetorial muito longo."
+    };
+  }
+
   return {
     ok: true,
     payload: {
       id: id || createStableId_("elo_vector_" + text + createdAt),
+      ownerId: deviceId,
       text,
       category,
       createdAt,
@@ -575,6 +598,11 @@ function normalizeAction_(action) {
   return "";
 }
 
+function sanitizeEloDeviceId_(value) {
+  const deviceId = clean_(value).slice(0, 120);
+  return /^elo_dev_[a-zA-Z0-9_-]+$/.test(deviceId) ? deviceId : "";
+}
+
 export function createEloVectorMemoryStore_(options = {}) {
   const storePath = options.path || ELO_VECTOR_MEMORY_PATH;
   const memoryOnly = options.memoryOnly || !storePath;
@@ -594,23 +622,31 @@ export function createEloVectorMemoryStore_(options = {}) {
   return {
     upsert(memory) {
       const item = normalizeEloVectorMemory_(memory);
-      const vector = buildLocalEmbedding_(item.text + " " + item.category);
-      state.items = state.items.filter((entry) => entry.id !== item.id);
+      if (!item || !item.ownerId) {
+        throw new Error("Memoria vetorial sem ownerId.");
+      }
+      const embedding = buildLocalEmbedding_(item.text + " " + item.category);
+      state.items = state.items.filter((entry) => !(entry.ownerId === item.ownerId && entry.id === item.id));
       state.items.unshift({
         ...item,
-        vector
+        embedding
       });
-      state.items = state.items.slice(0, 500);
+      state.items = limitEloVectorMemoriesByOwner_(state.items, item.ownerId);
       state.updatedAt = new Date().toISOString();
       persist();
       return item;
     },
-    search(query, limit = 5) {
+    search(query, ownerId, limit = 5) {
+      const safeOwnerId = sanitizeEloDeviceId_(ownerId);
+      if (!safeOwnerId) {
+        return [];
+      }
       const queryVector = buildLocalEmbedding_(query);
       return state.items
+        .filter((item) => item.ownerId === safeOwnerId)
         .map((item) => ({
           ...item,
-          score: cosineSimilarity_(queryVector, item.vector || [])
+          score: cosineSimilarity_(queryVector, item.embedding || item.vector || [])
         }))
         .filter((item) => item.score > 0.08)
         .sort((first, second) => second.score - first.score)
@@ -620,6 +656,14 @@ export function createEloVectorMemoryStore_(options = {}) {
       return state.items.slice();
     }
   };
+}
+
+function limitEloVectorMemoriesByOwner_(items, ownerId) {
+  const ownerItems = items.filter((item) => item.ownerId === ownerId)
+    .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime())
+    .slice(0, 100);
+  const otherItems = items.filter((item) => item.ownerId !== ownerId);
+  return ownerItems.concat(otherItems).slice(0, 1000);
 }
 
 function loadEloVectorState_(storePath, memoryOnly) {
@@ -651,12 +695,15 @@ function normalizeEloVectorMemory_(memory) {
   }
 
   return {
+    ownerId: sanitizeEloDeviceId_(memory.ownerId || memory.deviceId || ""),
     id: clean_(memory.id || createStableId_("elo_vector_" + text)).slice(0, 120),
     text,
     category: clean_(memory.category || "outro").slice(0, 40),
     createdAt: clean_(memory.createdAt || new Date().toISOString()).slice(0, 40),
     updatedAt: clean_(memory.updatedAt || memory.createdAt || new Date().toISOString()).slice(0, 40),
-    vector: Array.isArray(memory.vector) ? memory.vector.slice(0, ELO_VECTOR_DIMENSIONS).map(Number) : buildLocalEmbedding_(text)
+    embedding: Array.isArray(memory.embedding)
+      ? memory.embedding.slice(0, ELO_VECTOR_DIMENSIONS).map(Number)
+      : (Array.isArray(memory.vector) ? memory.vector.slice(0, ELO_VECTOR_DIMENSIONS).map(Number) : buildLocalEmbedding_(text))
   };
 }
 
@@ -733,9 +780,13 @@ function createStableId_(value) {
   return "id_" + positiveHash_(value).toString(36);
 }
 
-export function searchEloRelevantMemories_(store, query) {
+export function searchEloRelevantMemories_(store, query, ownerId) {
   try {
-    const items = store.search(query, 5);
+    const safeOwnerId = sanitizeEloDeviceId_(ownerId);
+    if (!safeOwnerId) {
+      return "";
+    }
+    const items = store.search(query, safeOwnerId, 5);
     if (!items.length) {
       return "";
     }

@@ -7,6 +7,7 @@
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     documentsStorageKey: "obrareport_elo_documentos_v1",
     longTermMemoryStorageKey: "elo_long_term_memory_v1",
+    deviceIdStorageKey: "elo_device_id_v1",
     realQuestionsStorageKey: "obrareport_elo_perguntas_reais_v1",
     userProfileStorageKey: "obrareport_elo_perfil_usuario_v1",
     initialProfileStorageKey: "obrareport_elo_perfil_inicial_v1",
@@ -29,6 +30,24 @@
     ).replace(/\/+$/g, "");
 
     return baseUrl + path;
+  }
+
+  function getEloDeviceId() {
+    try {
+      const existing = sanitizeUserText(window.localStorage.getItem(ELO_CONFIG.deviceIdStorageKey));
+      if (/^elo_dev_[a-zA-Z0-9_-]+$/.test(existing)) {
+        return existing;
+      }
+
+      const randomId = window.crypto && typeof window.crypto.randomUUID === "function"
+        ? window.crypto.randomUUID()
+        : Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12);
+      const deviceId = "elo_dev_" + randomId;
+      window.localStorage.setItem(ELO_CONFIG.deviceIdStorageKey, deviceId);
+      return deviceId;
+    } catch (error) {
+      return "elo_dev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 12);
+    }
   }
 
   function isStandaloneMode() {
@@ -617,6 +636,7 @@
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        deviceId: getEloDeviceId(),
         memory: {
           id: memoryItem.id,
           text: memoryItem.text,
@@ -989,6 +1009,7 @@
         history: getEloOnlineHistory(),
         context: {
           memoriesSummary: buildEloMemorySummary(),
+          deviceId: getEloDeviceId(),
           source: "elo",
           mode: isStandaloneMode() ? "standalone" : "obrareport"
         }
