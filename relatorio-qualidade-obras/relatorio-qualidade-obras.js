@@ -2130,16 +2130,16 @@
 
   function openExampleWorkWhatsapp_() {
     const message = [
-      "🏗️ *OBRAREPORT — IMPLANTAÇÃO ASSISTIDA*",
+      "*OBRAREPORT — IMPLANTAÇÃO ASSISTIDA*",
       "",
       "Olá. Acabei de visualizar o PDF da Obra Exemplo do ObraReport e gostaria de implantar o sistema na minha empresa.",
       "",
       "━━━━━━━━━━━━━━",
       "",
-      "📌 *Interesse*",
+      "*Interesse*",
       "• Quero usar o ObraReport para organizar relatórios, RDOs, materiais e documentos técnicos da obra.",
       "",
-      "👤 *Meus dados*",
+      "*Meus dados*",
       "Nome:",
       "Empresa:",
       "Cidade:",
