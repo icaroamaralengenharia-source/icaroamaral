@@ -5709,24 +5709,34 @@
       "sou nova aqui"
     ].map(normalizeWakeCallText);
 
-    if (!cleanText || cleanText.length < 2 || cleanText.length > 40) {
+    if (!cleanText || cleanText.length < 2 || cleanText.length > 60) {
       return true;
     }
     if (/[?]/.test(cleanText)) {
       return true;
     }
-    if (cleanText.split(/\s+/).length > 4) {
+    if (cleanText.split(/\s+/).length > 5) {
       return true;
     }
     if (invalidSimpleAnswers.indexOf(normalized) >= 0) {
       return true;
     }
     if (hasAnyTerm(normalized, [
+      "onde",
       "como gerar",
       "como criar",
       "como salvar",
       "como funciona",
+      "como",
+      "quando",
+      "por que",
       "quero",
+      "preciso",
+      "comprar",
+      "vender",
+      "fazer",
+      "me ajude",
+      "me ajuda",
       "sou novo",
       "sou nova",
       "por onde",
@@ -5747,6 +5757,28 @@
       return true;
     }
     return false;
+  }
+
+  function looksLikeQuestionOrRequestForName_(message) {
+    const normalized = normalizeWakeCallText(message);
+    return /[?]/.test(message) || hasAnyTerm(normalized, [
+      "onde",
+      "como",
+      "quando",
+      "por que",
+      "qual",
+      "comprar",
+      "vender",
+      "fazer",
+      "preciso",
+      "quero",
+      "me ajude",
+      "me ajuda"
+    ]);
+  }
+
+  function isValidExplicitUserName_(name) {
+    return !isInvalidUserNameAnswer_(name) && !looksLikeQuestionOrRequestForName_(name);
   }
 
   function shouldBypassStandaloneNameCapture_(message) {
@@ -7339,11 +7371,32 @@
 
   function detectUserNameSave_(message) {
     const clean = sanitizeUserText(message).replace(/[.!?]+$/g, "").trim();
-    const match = clean.match(/^(?:meu nome (?:e|é)|pode me chamar de|me chame de)\s+(.+)$/i);
-    if (!match) {
+    if (looksLikeQuestionOrRequestForName_(message)) {
       return "";
     }
-    return sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
+
+    const match = clean.match(/^(?:meu nome (?:e|é)|eu me chamo|pode me chamar de|me chame de)\s+(.+)$/i);
+    if (match) {
+      const explicitName = sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
+      return isValidExplicitUserName_(explicitName) ? explicitName : "";
+    }
+
+    const shortSouMatch = clean.match(/^sou\s+(.+)$/i);
+    if (shortSouMatch) {
+      const shortName = sanitizeLibraryText(shortSouMatch[1], 60).replace(/[.,;:]+$/g, "").trim();
+      return isValidExplicitUserName_(shortName) ? shortName : "";
+    }
+
+    return "";
+  }
+
+  function detectStandaloneNameCapture_(message) {
+    return detectUserNameSave_(message);
+  }
+
+  function isStandaloneNameCaptureAttempt_(message) {
+    const normalized = normalizeWakeCallText(message);
+    return /^(meu nome (?:e|é)|eu me chamo|pode me chamar de|me chame de|sou)\s+/.test(normalized);
   }
 
   function detectEloDemoQuestion_(text) {
@@ -10284,9 +10337,9 @@
 
     appendMessage("user", cleanQuestion);
 
-    if (isStandaloneMode() && ELO_UI.awaitingStandaloneName && cleanQuestion.length <= 80 && !/[?]/.test(cleanQuestion)) {
-      const name = cleanQuestion.replace(/^(me chame de|pode me chamar de|sou|meu nome e|meu nome é)\s+/i, "").replace(/[.,;:]+$/g, "").trim();
-      if (name && !isInvalidUserNameAnswer_(name)) {
+    if (isStandaloneMode() && ELO_UI.awaitingStandaloneName) {
+      const name = detectStandaloneNameCapture_(cleanQuestion);
+      if (name) {
         const currentProfile = getUserProfile();
         setUserProfile(Object.assign({}, currentProfile, { userName: name }));
         ELO_UI.awaitingStandaloneName = false;
@@ -10302,7 +10355,7 @@
         rememberSessionTurn(cleanQuestion, { sessionTheme: "perfil", nextAction: "Diga o que você quer organizar agora." }, answer);
         return;
       }
-      if (isInvalidUserNameAnswer_(name) && !shouldBypassStandaloneNameCapture_(cleanQuestion)) {
+      if (isStandaloneNameCaptureAttempt_(cleanQuestion) && !shouldBypassStandaloneNameCapture_(cleanQuestion)) {
         const socialResponse = getSocialGreetingResponse(cleanQuestion);
         const response = socialResponse || {
           shortAnswer: "Tudo bem.",
