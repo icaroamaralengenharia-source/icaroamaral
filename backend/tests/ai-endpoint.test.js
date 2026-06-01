@@ -114,6 +114,61 @@ test("análise visual sem chave retorna erro amigável", async () => {
   assert.match(data.error, /OPENAI_API_KEY/);
 });
 
+test("stock demo sincroniza estado remoto em memoria", async () => {
+  const key = "prefeitura-sao-joao-secretaria";
+  const state = {
+    items: [{ id: "item-1", name: "Mascara", environmentId: "env-1" }],
+    movements: [],
+    approvalRequests: [],
+    stockEnvironments: [{ id: "env-1", clientName: "Prefeitura Sao Joao" }],
+    activeStockEnvironmentId: "env-1"
+  };
+
+  const saveResponse = await postStockDemoState_({ key, state });
+  const saveData = await saveResponse.json();
+  assert.equal(saveResponse.status, 200);
+  assert.equal(saveData.ok, true);
+  assert.equal(saveData.revision, 1);
+
+  const getResponse = await fetch(baseUrl + "/api/stock-demo/state?key=" + encodeURIComponent(key));
+  const getData = await getResponse.json();
+  assert.equal(getResponse.status, 200);
+  assert.equal(getData.ok, true);
+  assert.equal(getData.state.items[0].name, "Mascara");
+});
+
+test("stock demo registra solicitacao de aprovacao", async () => {
+  const response = await postStockDemoApproval_({
+    key: "prefeitura-sao-joao-aprovacao",
+    request: {
+      id: "apv-1",
+      environmentId: "env-1",
+      organizationId: "env-1",
+      role: "almoxarife",
+      type: "entrada",
+      status: "pending",
+      payload: {
+        product: "Luva",
+        quantity: 50,
+        unit: "cx"
+      }
+    },
+    state: {
+      items: [],
+      movements: [],
+      approvalRequests: [],
+      stockEnvironments: [{ id: "env-1" }],
+      activeStockEnvironmentId: "env-1"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.state.approvalRequests.length, 1);
+  assert.equal(data.state.approvalRequests[0].status, "pending");
+});
+
 function postAi_(body) {
   return fetch(baseUrl + "/api/ai/improve-text", {
     method: "POST",
@@ -127,6 +182,28 @@ function postAi_(body) {
 
 function postImage_(body) {
   return fetch(baseUrl + "/api/ai/analyze-image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function postStockDemoState_(body) {
+  return fetch(baseUrl + "/api/stock-demo/state", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function postStockDemoApproval_(body) {
+  return fetch(baseUrl + "/api/stock-demo/approval-requests", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

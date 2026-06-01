@@ -113,6 +113,8 @@
   const almoxItemsCards = document.getElementById("almoxItemsCards");
   const almoxHistoryList = document.getElementById("almoxHistoryList");
   const almoxSummaryText = document.getElementById("almoxSummaryText");
+  const almoxFlowStatus = document.getElementById("almoxFlowStatus");
+  const almoxDemoAccessPanel = document.getElementById("almoxDemoAccessPanel");
   const almoxSummaryButton = document.getElementById("almoxSummaryButton");
   const almoxAuditButton = document.getElementById("almoxAuditButton");
   const almoxViewPanelButton = document.getElementById("almoxViewPanelButton");
@@ -247,6 +249,12 @@
   let almoxItemsVisible = false;
   let almoxHistoryVisible = false;
   let almoxHistoryFilter = "all";
+  let stockDemoRole = "";
+  let stockDemoUrlContextApplied = false;
+  let stockDemoRemoteAvailable = false;
+  let stockDemoRemoteRevision = 0;
+  let stockDemoRemoteSyncTimer = null;
+  let stockDemoRemoteApplying = false;
   let almoxParsedNoteItems = [];
   let almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
   let almoxLastFiscalDiscardedDuplicates = [];
@@ -488,6 +496,63 @@
     }
   }
 
+  function isStockAiPublicDemo_() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      return clean(params.get("product")).toLowerCase() === "stock-ai";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function getStockAiPublicParam_(name) {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      return clean(params.get(name));
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function isStockAiPublicRoute_(route) {
+    return ["stock-ia", "almoxarifado"].indexOf(route) >= 0;
+  }
+
+  function renderStockAiPublicShell_() {
+    if (!dashboardPanel || document.getElementById("stockAiPublicShell")) {
+      return;
+    }
+
+    const shell = document.createElement("div");
+    shell.id = "stockAiPublicShell";
+    shell.className = "stock-ai-public-shell";
+    shell.innerHTML = [
+      "<a class=\"stock-ai-public-brand\" href=\"../stock-ai.html\" aria-label=\"Stock AI\">",
+      "<span>S</span>",
+      "<strong>Stock AI</strong>",
+      "<small>Almoxarifado AI</small>",
+      "</a>",
+      "<div class=\"stock-ai-public-actions\" aria-label=\"Navegacao Stock AI\">",
+      "<a href=\"?product=stock-ai#app/almoxarifado\">Almoxarifado AI</a>",
+      "<a href=\"?product=stock-ai#app/stock-ia\">Stock AI Obras</a>",
+      "<a href=\"../elo.html\">Elo</a>",
+      "</div>"
+    ].join("");
+
+    dashboardPanel.insertBefore(shell, dashboardPanel.firstChild);
+  }
+
+  function applyStockAiPublicMode_() {
+    if (!isStockAiPublicDemo_()) {
+      return;
+    }
+
+    document.body.classList.add("stock-ai-public-mode");
+    document.title = "Stock AI | Demonstração do Almoxarifado AI";
+    applyStockAiPublicRoleParam_();
+    renderStockAiPublicShell_();
+  }
+
   function hasLocalAccessSession_() {
     const storage = getSessionStorage_();
     if (!storage) {
@@ -521,6 +586,265 @@
     return loadStockQuickExample_()
       ? "Entre para salvar este exemplo no Stock IA."
       : "Informe a senha para acessar a area interna.";
+  }
+
+  function getStockDemoRole_() {
+    if (stockDemoRole) {
+      return stockDemoRole;
+    }
+
+    try {
+      const storage = getLocalStorage_();
+      stockDemoRole = clean(storage && storage.getItem("stock_ai_demo_role_v1")) || "gestor";
+    } catch (error) {
+      stockDemoRole = "gestor";
+    }
+
+    return stockDemoRole;
+  }
+
+  function setStockDemoRole_(role) {
+    const safeRole = role === "almoxarife" ? "almoxarife" : "gestor";
+    stockDemoRole = safeRole;
+
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.setItem("stock_ai_demo_role_v1", safeRole);
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel salvar o perfil demo do Stock AI.", error);
+    }
+
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_(safeRole === "gestor"
+      ? "Perfil Gestor ativo. Aprove ou rejeite solicitacoes."
+      : "Perfil Almoxarife ativo. Entradas e saidas vao para aprovacao.",
+      "info");
+    scrollToAlmoxSection_("almoxDemoAccessPanel");
+  }
+
+  function applyStockAiPublicRoleParam_() {
+    const role = getStockAiPublicParam_("role");
+    if (role !== "gestor" && role !== "almoxarife") {
+      return;
+    }
+
+    stockDemoRole = role;
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.setItem("stock_ai_demo_role_v1", role);
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel aplicar o perfil informado na URL.", error);
+    }
+  }
+
+  function getStockDemoUser_() {
+    const environment = getActiveStockEnvironment_();
+    const role = getStockDemoRole_();
+    const managerEmail = clean(environment.managerEmail) || "gestor@stock-ai.demo";
+
+    if (role === "almoxarife") {
+      return {
+        id: "demo-almoxarife-" + clean(environment.id || DEFAULT_STOCK_ENVIRONMENT_ID),
+        name: "Almoxarife demo",
+        email: clean(environment.warehouseEmail) || "almoxarife@stock-ai.demo",
+        role: "almoxarife"
+      };
+    }
+
+    return {
+      id: "demo-gestor-" + clean(environment.id || DEFAULT_STOCK_ENVIRONMENT_ID),
+      name: clean(environment.responsible) || "Gestor demo",
+      email: managerEmail,
+      role: "gestor"
+    };
+  }
+
+  function getStockDemoRemoteApiUrl_() {
+    if (clean(config.stockDemoApiUrl)) {
+      return clean(config.stockDemoApiUrl);
+    }
+
+    const protocol = window.location && window.location.protocol === "https:" ? "https:" : "http:";
+    const hostname = window.location && window.location.hostname ? window.location.hostname : "localhost";
+    const host = hostname === "127.0.0.1" || hostname === "localhost" ? "localhost" : hostname;
+    return protocol + "//" + host + ":3000/api/stock-demo";
+  }
+
+  function getStockDemoRemoteKey_() {
+    const urlOrganization = getStockAiPublicParam_("organization");
+    const urlUnit = getStockAiPublicParam_("unit");
+    const environment = getActiveStockEnvironment_();
+    const organization = urlOrganization || clean(environment.clientName) || "stock-ai";
+    const unit = urlUnit || clean(environment.unitName || environment.workName) || "demo";
+    const raw = organization + "::" + unit;
+    const normalized = typeof raw.normalize === "function"
+      ? raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      : raw;
+    return normalized.toLowerCase().replace(/[^a-z0-9._:-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "stock-ai-demo";
+  }
+
+  function isStockDemoRemoteEnabled_() {
+    return isStockAiPublicDemo_();
+  }
+
+  function startStockDemoRemoteSync_() {
+    if (!isStockDemoRemoteEnabled_() || stockDemoRemoteSyncTimer) {
+      return;
+    }
+
+    fetchStockDemoRemoteState_(true);
+    stockDemoRemoteSyncTimer = window.setInterval(function () {
+      fetchStockDemoRemoteState_(true);
+    }, 3000);
+  }
+
+  async function fetchStockDemoRemoteState_(silent) {
+    if (!isStockDemoRemoteEnabled_() || stockDemoRemoteApplying) {
+      return false;
+    }
+
+    try {
+      const url = getStockDemoRemoteApiUrl_() + "/state?key=" + encodeURIComponent(getStockDemoRemoteKey_());
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      const data = await response.json().catch(function () { return null; });
+
+      if (!response.ok || !data || !data.ok) {
+        stockDemoRemoteAvailable = false;
+        return false;
+      }
+
+      stockDemoRemoteAvailable = true;
+      if (data.state && Number(data.revision || 0) > stockDemoRemoteRevision) {
+        stockDemoRemoteRevision = Number(data.revision || 0);
+        stockDemoRemoteApplying = true;
+        saveAlmoxState_(data.state);
+        stockDemoRemoteApplying = false;
+        renderAlmoxarifadoPanel_();
+        if (!silent) {
+          showAlmoxToast_("Demo remota atualizada.", "success");
+        }
+      }
+      return true;
+    } catch (error) {
+      stockDemoRemoteAvailable = false;
+      return false;
+    }
+  }
+
+  async function pushStockDemoRemoteState_(state) {
+    if (!isStockDemoRemoteEnabled_() || stockDemoRemoteApplying) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(getStockDemoRemoteApiUrl_() + "/state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          key: getStockDemoRemoteKey_(),
+          state: state || loadAlmoxState_()
+        })
+      });
+      const data = await response.json().catch(function () { return null; });
+
+      if (!response.ok || !data || !data.ok) {
+        stockDemoRemoteAvailable = false;
+        return false;
+      }
+
+      stockDemoRemoteAvailable = true;
+      stockDemoRemoteRevision = Math.max(stockDemoRemoteRevision, Number(data.revision || 0));
+      return true;
+    } catch (error) {
+      stockDemoRemoteAvailable = false;
+      return false;
+    }
+  }
+
+  function syncStockDemoRemoteAfterLocalChange_() {
+    if (!isStockDemoRemoteEnabled_()) {
+      return;
+    }
+
+    pushStockDemoRemoteState_(loadAlmoxState_());
+  }
+
+  function syncStockDemoRemoteApprovalRequest_(request) {
+    if (!isStockDemoRemoteEnabled_() || !request || !request.id) {
+      return;
+    }
+
+    fetch(getStockDemoRemoteApiUrl_() + "/approval-requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        key: getStockDemoRemoteKey_(),
+        request: request,
+        state: loadAlmoxState_()
+      })
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        return {
+          ok: response.ok && data && data.ok,
+          data: data
+        };
+      });
+    }).then(function (result) {
+      stockDemoRemoteAvailable = Boolean(result.ok);
+      if (result.ok && result.data) {
+        stockDemoRemoteRevision = Math.max(stockDemoRemoteRevision, Number(result.data.revision || 0));
+      }
+    }).catch(function () {
+      stockDemoRemoteAvailable = false;
+    });
+  }
+
+  function syncStockDemoRemoteApprovalDecision_(requestId, action) {
+    if (!isStockDemoRemoteEnabled_() || !requestId) {
+      return;
+    }
+
+    const endpoint = action === "reject" ? "reject" : "approve";
+    fetch(getStockDemoRemoteApiUrl_() + "/approval-requests/" + encodeURIComponent(requestId) + "/" + endpoint + "?key=" + encodeURIComponent(getStockDemoRemoteKey_()), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        key: getStockDemoRemoteKey_(),
+        state: loadAlmoxState_()
+      })
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        return {
+          ok: response.ok && data && data.ok,
+          data: data
+        };
+      });
+    }).then(function (result) {
+      stockDemoRemoteAvailable = Boolean(result.ok);
+      if (result.ok && result.data) {
+        stockDemoRemoteRevision = Math.max(stockDemoRemoteRevision, Number(result.data.revision || 0));
+      }
+    }).catch(function () {
+      stockDemoRemoteAvailable = false;
+    });
   }
 
   function ensureCompositionLibrary_(items) {
@@ -655,6 +979,12 @@
 
   function initializeSaas_() {
     bindSaasEvents_();
+    applyStockAiPublicMode_();
+
+    if (isStockAiPublicDemo_() && (!currentUser || !hasLocalAccessSession_())) {
+      loginLocalFallback_("Visitante Stock AI", "demo@stock-ai.local");
+      return;
+    }
 
     if (!hasLocalAccessSession_()) {
       if (isRestrictedRouteHash_()) {
@@ -892,9 +1222,40 @@
     document.addEventListener("click", function (event) {
       const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
       const actionButton = target && target.closest ? target.closest("[data-almox-action]") : null;
+      const flowAction = target && target.closest ? target.closest("[data-almox-flow-action]") : null;
+      const demoRole = target && target.closest ? target.closest("[data-stock-demo-role]") : null;
+      const demoAction = target && target.closest ? target.closest("[data-stock-demo-action]") : null;
+      const approvalAction = target && target.closest ? target.closest("[data-stock-approval-action]") : null;
       const summaryClose = target && target.closest ? target.closest("[data-almox-summary-close]") : null;
       const summaryItem = target && target.closest ? target.closest("[data-almox-summary-item]") : null;
       const summaryAction = target && target.closest ? target.closest("[data-almox-summary-action]") : null;
+
+      if (approvalAction) {
+        event.preventDefault();
+        handleStockApprovalAction_(
+          approvalAction.dataset.stockApprovalId || "",
+          approvalAction.dataset.stockApprovalAction || ""
+        );
+        return;
+      }
+
+      if (demoRole) {
+        event.preventDefault();
+        setStockDemoRole_(demoRole.dataset.stockDemoRole || "gestor");
+        return;
+      }
+
+      if (demoAction) {
+        event.preventDefault();
+        handleStockDemoAction_(demoAction.dataset.stockDemoAction || "");
+        return;
+      }
+
+      if (flowAction) {
+        event.preventDefault();
+        handleAlmoxFlowAction_(flowAction.dataset.almoxFlowAction || "");
+        return;
+      }
 
       if (summaryClose) {
         event.preventDefault();
@@ -2292,7 +2653,8 @@
 
   function getRouteFromHash_() {
     const value = String(window.location.hash || "").replace("#app/", "").split("/")[0];
-    return getAllRoutes_().indexOf(value) >= 0 ? value : getDefaultRouteForRole_();
+    const route = getAllRoutes_().indexOf(value) >= 0 ? value : getDefaultRouteForRole_();
+    return isStockAiPublicDemo_() && !isStockAiPublicRoute_(route) ? "almoxarifado" : route;
   }
 
   function isRestrictedRouteHash_() {
@@ -2335,6 +2697,10 @@
   }
 
   function coerceRouteForRole_(route) {
+    if (isStockAiPublicDemo_()) {
+      return isStockAiPublicRoute_(route) ? route : "almoxarifado";
+    }
+
     const allowedRoutes = isAdminUser_() ? getAdminRoutes_() : getClientRoutes_();
     return allowedRoutes.indexOf(route) >= 0 ? route : getDefaultRouteForRole_();
   }
@@ -5666,6 +6032,7 @@
         alertsMuted: alertsMuted,
         alertsMutedUntil: alertsMuted ? mutedUntil : "",
         alertHistory: Array.isArray(parsed.alertHistory) ? parsed.alertHistory : [],
+        approvalRequests: Array.isArray(parsed.approvalRequests) ? parsed.approvalRequests : [],
         stockEnvironments: Array.isArray(parsed.stockEnvironments) ? parsed.stockEnvironments : [],
         activeStockEnvironmentId: clean(parsed.activeStockEnvironmentId),
         updatedAt: parsed.updatedAt || new Date().toISOString()
@@ -5678,6 +6045,7 @@
         alertsMuted: false,
         alertsMutedUntil: "",
         alertHistory: [],
+        approvalRequests: [],
         stockEnvironments: [],
         activeStockEnvironmentId: "",
         updatedAt: new Date().toISOString()
@@ -5693,6 +6061,7 @@
       alertsMuted: Boolean(normalizedState.alertsMuted),
       alertsMutedUntil: clean(normalizedState.alertsMutedUntil),
       alertHistory: Array.isArray(normalizedState.alertHistory) ? normalizedState.alertHistory.slice(0, 80) : [],
+      approvalRequests: Array.isArray(normalizedState.approvalRequests) ? normalizedState.approvalRequests.slice(0, 200) : [],
       stockEnvironments: Array.isArray(normalizedState.stockEnvironments) ? normalizedState.stockEnvironments : [],
       activeStockEnvironmentId: clean(normalizedState.activeStockEnvironmentId),
       updatedAt: new Date().toISOString()
@@ -5718,6 +6087,7 @@
       alertsMuted: Boolean(state.alertsMuted),
       alertsMutedUntil: clean(state.alertsMutedUntil),
       alertHistory: Array.isArray(state.alertHistory) ? state.alertHistory : [],
+      approvalRequests: Array.isArray(state.approvalRequests) ? state.approvalRequests : [],
       stockEnvironments: Array.isArray(state.stockEnvironments) ? state.stockEnvironments : [],
       activeStockEnvironmentId: clean(state.activeStockEnvironmentId),
       updatedAt: state.updatedAt || new Date().toISOString()
@@ -5778,8 +6148,76 @@
       });
     });
 
+    safeState.approvalRequests = safeState.approvalRequests.map(function (request) {
+      const environmentId = clean(request.environmentId || request.organizationId);
+      if (environmentId && environmentIds.has(environmentId)) {
+        return Object.assign({}, request, {
+          environmentId: environmentId,
+          organizationId: environmentId
+        });
+      }
+
+      return Object.assign({}, request, {
+        environmentId: safeState.activeStockEnvironmentId,
+        organizationId: safeState.activeStockEnvironmentId
+      });
+    });
+
     activeStockEnvironmentId = safeState.activeStockEnvironmentId;
     return safeState;
+  }
+
+  function applyStockAiPublicUrlContext_() {
+    if (stockDemoUrlContextApplied || !isStockAiPublicDemo_()) {
+      return;
+    }
+
+    stockDemoUrlContextApplied = true;
+    applyStockAiPublicRoleParam_();
+
+    const hasAccess = getStockAiPublicParam_("access") === "1" || Boolean(getStockAiPublicParam_("demo"));
+    if (!hasAccess) {
+      return;
+    }
+
+    const organization = getStockAiPublicParam_("organization") || "Prefeitura Sao Joao";
+    const unit = getStockAiPublicParam_("unit") || "Secretaria de Saude";
+    const managerEmail = getStockAiPublicParam_("managerEmail") || "secretaria@prefeiturasaojoao.demo";
+    const warehouseEmail = getStockAiPublicParam_("warehouseEmail") || "almoxarife@prefeiturasaojoao.demo";
+    const state = loadAlmoxState_();
+    const normalizedOrganization = normalizeStockEnvironmentTitlePart_(organization);
+    const normalizedUnit = normalizeStockEnvironmentTitlePart_(unit);
+    const existing = state.stockEnvironments.find(function (environment) {
+      return normalizeStockEnvironmentTitlePart_(environment.clientName) === normalizedOrganization &&
+        normalizeStockEnvironmentTitlePart_(environment.unitName) === normalizedUnit;
+    });
+
+    if (existing) {
+      existing.unitName = unit || existing.unitName;
+      existing.environmentName = existing.environmentName || "Almoxarifado Central";
+      existing.responsible = existing.responsible || "Gestor";
+      existing.managerEmail = managerEmail || existing.managerEmail;
+      existing.warehouseEmail = warehouseEmail || existing.warehouseEmail;
+      state.activeStockEnvironmentId = existing.id;
+      saveAlmoxState_(state);
+      return;
+    }
+
+    state.stockEnvironments.push({
+      id: createId_("env"),
+      mode: "almoxarifado",
+      clientName: organization,
+      workName: "",
+      institutionType: "Prefeitura / secretaria / loja",
+      unitName: unit,
+      environmentName: "Almoxarifado Central",
+      responsible: "Gestor",
+      managerEmail: managerEmail,
+      warehouseEmail: warehouseEmail,
+      createdAt: new Date().toISOString()
+    });
+    state.activeStockEnvironmentId = state.stockEnvironments[state.stockEnvironments.length - 1].id;
+    saveAlmoxState_(state);
   }
 
   function needsAlmoxEnvironmentMigrationPersist_(rawState, normalizedState) {
@@ -5842,6 +6280,7 @@
       environmentName: "Almoxarifado demonstrativo",
       responsible: "Gestor",
       managerEmail: "",
+      warehouseEmail: "",
       createdAt: now
     };
   }
@@ -5900,12 +6339,14 @@
       environmentName: clean(data.environmentName) || "Ambiente Stock IA",
       responsible: clean(data.responsible) || "Gestor",
       managerEmail: clean(data.managerEmail),
+      warehouseEmail: clean(data.warehouseEmail),
       createdAt: now
     };
 
     state.stockEnvironments.push(environment);
     state.activeStockEnvironmentId = environment.id;
     saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
     renderAlmoxarifadoPanel_();
     showAlmoxToast_("Ambiente Stock IA criado e ativado.", "success");
     return environment;
@@ -5931,11 +6372,13 @@
       unitName: mode === "almoxarifado" ? clean(data.unitName || data.workName) : "",
       environmentName: clean(data.environmentName) || current.environmentName,
       responsible: clean(data.responsible) || current.responsible,
-      managerEmail: clean(data.managerEmail),
+      managerEmail: clean(data.managerEmail) || current.managerEmail || "",
+      warehouseEmail: clean(data.warehouseEmail) || current.warehouseEmail || "",
       updatedAt: new Date().toISOString()
     });
 
     saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
     renderAlmoxarifadoPanel_();
     return true;
   }
@@ -5959,6 +6402,20 @@
     return (alerts || []).filter(function (alert) {
       return clean(alert.environmentId) === environmentId;
     });
+  }
+
+  function filterStockApprovalRequestsByActiveEnvironment_(requests) {
+    const environmentId = getActiveStockEnvironmentId_();
+    return (requests || []).filter(function (request) {
+      return clean(request.environmentId || request.organizationId) === environmentId;
+    });
+  }
+
+  function findAlmoxItemById_(itemId) {
+    const state = loadAlmoxState_();
+    return filterAlmoxItemsByActiveEnvironment_(state.items).find(function (item) {
+      return item.id === itemId;
+    }) || {};
   }
 
   function calculateAlmoxBalances_() {
@@ -6050,6 +6507,19 @@
   function handleAlmoxEntrySubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
+      const requestResult = createStockApprovalRequestFromFormData_("entry", formData);
+      if (!requestResult.ok) {
+        showAlmoxToast_(requestResult.message, "error");
+        return;
+      }
+
+      event.target.reset();
+      renderAlmoxarifadoPanel_();
+      showAlmoxToast_("Solicitacao de entrada enviada ao gestor.", "success");
+      return;
+    }
+
     const result = saveAlmoxEntryFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
@@ -6064,6 +6534,19 @@
   function handleAlmoxExitSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
+      const requestResult = createStockApprovalRequestFromFormData_("exit", formData);
+      if (!requestResult.ok) {
+        showAlmoxToast_(requestResult.message, "error");
+        return;
+      }
+
+      event.target.reset();
+      renderAlmoxarifadoPanel_();
+      showAlmoxToast_("Solicitacao de saida enviada ao gestor.", "success");
+      return;
+    }
+
     const result = saveAlmoxExitFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
@@ -6134,6 +6617,7 @@
     }
 
     saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
     return {
       ok: true,
       item: item
@@ -6179,6 +6663,7 @@
       createdAt: new Date().toISOString()
     });
     saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
     return {
       ok: true
     };
@@ -6233,6 +6718,7 @@
       createdAt: new Date().toISOString()
     });
     saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
     return {
       ok: true
     };
@@ -6820,6 +7306,28 @@
       : (almoxNoteOcrReady
       ? "Nota fiscal por OCR"
       : (almoxNoteFileDraft ? "Nota fiscal por imagem/PDF - conferida manualmente" : "Nota fiscal interpretada"));
+
+    if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
+      validItems.forEach(function (noteItem) {
+        createStockApprovalRequestFromNoteItem_(noteItem, {
+          entryOrigin: entryOrigin,
+          responsible: responsible,
+          movementDate: movementDate,
+          movementTime: movementTime
+        });
+      });
+
+      almoxParsedNoteItems = [];
+      almoxFiscalOcrReviewData = createEmptyFiscalOcrReviewReport_();
+      almoxNoteImportSource = "";
+      almoxNoteOcrReady = false;
+      renderAlmoxarifadoPanel_();
+      renderFiscalOcrReviewReport_(almoxFiscalOcrReviewData);
+      setAlmoxNoteStatus_("Solicitacoes enviadas ao gestor. O estoque oficial ainda nao foi alterado.", "success");
+      showAlmoxToast_("Solicitacoes da nota enviadas para aprovacao.", "success");
+      return;
+    }
+
     let addedCount = 0;
 
     validItems.forEach(function (noteItem) {
@@ -7994,6 +8502,134 @@
     container.appendChild(actions);
   }
 
+  function renderAlmoxDemoAccessPanel_() {
+    if (!almoxDemoAccessPanel) {
+      return;
+    }
+
+    if (!isStockAiPublicDemo_()) {
+      almoxDemoAccessPanel.classList.add("is-hidden");
+      almoxDemoAccessPanel.innerHTML = "";
+      return;
+    }
+
+    const environment = getActiveStockEnvironment_();
+    const role = getStockDemoRole_();
+    const user = getStockDemoUser_();
+    const requests = filterStockApprovalRequestsByActiveEnvironment_(loadAlmoxState_().approvalRequests);
+    const pending = requests.filter(function (request) { return request.status === "pending"; });
+    const approved = requests.filter(function (request) { return request.status === "approved"; });
+    const rejected = requests.filter(function (request) { return request.status === "rejected"; });
+    const visibleRequests = role === "gestor"
+      ? pending.concat(requests.filter(function (request) { return request.status !== "pending"; }).slice(0, 4))
+      : requests.filter(function (request) {
+        return request.userId === user.id || request.role === "almoxarife";
+      }).slice(0, 6);
+
+    almoxDemoAccessPanel.classList.remove("is-hidden");
+    almoxDemoAccessPanel.innerHTML = [
+      "<div class=\"stock-demo-access-grid\">",
+      "<div class=\"stock-demo-access-copy\">",
+      "<p class=\"eyebrow\">Acesso Stock AI</p>",
+      "<h3>" + escapeHtml_(formatStockEnvironmentTitle_(environment)) + "</h3>",
+      "<p>Use a demo comercial com dois perfis: almoxarife solicita entradas/saidas e gestor aprova antes de alterar o estoque oficial.</p>",
+      "<div class=\"stock-demo-access-actions\" aria-label=\"Acesso do Stock AI\">",
+      "<button type=\"button\" class=\"mini-button primary\" data-stock-demo-role=\"gestor\">Entrar como gestor</button>",
+      "<button type=\"button\" class=\"mini-button\" data-stock-demo-role=\"almoxarife\">Entrar como almoxarife</button>",
+      "<button type=\"button\" class=\"mini-button\" data-stock-demo-action=\"create-organization\">Cadastrar organizacao</button>",
+      "<button type=\"button\" class=\"mini-button\" data-stock-demo-action=\"demo-organization\">Acessar demonstracao</button>",
+      "</div>",
+      "</div>",
+      "<div class=\"stock-demo-profile-card\">",
+      "<span>Perfil ativo</span>",
+      "<strong>" + escapeHtml_(role === "gestor" ? "Gestor" : "Almoxarife") + "</strong>",
+      "<small>" + escapeHtml_(user.email) + "</small>",
+      "<p>" + (role === "gestor"
+        ? "Aprova ou rejeita solicitacoes e acompanha saldo oficial."
+        : "Registra solicitacoes. O estoque so muda apos aprovacao do gestor.") + "</p>",
+      "</div>",
+      "</div>",
+      "<div class=\"stock-demo-approval-panel\">",
+      "<div class=\"stock-demo-approval-head\">",
+      "<div>",
+      "<span>Fluxo de aprovacao</span>",
+      "<strong>" + pending.length + " pendente(s)</strong>",
+      "</div>",
+      "<div class=\"stock-demo-approval-metrics\">",
+      "<b>" + approved.length + "</b><small>Aprovadas</small>",
+      "<b>" + rejected.length + "</b><small>Rejeitadas</small>",
+      "</div>",
+      "</div>",
+      renderStockApprovalRequestsHtml_(visibleRequests, role),
+      "</div>"
+    ].join("");
+  }
+
+  function renderStockApprovalRequestsHtml_(requests, role) {
+    if (!requests.length) {
+      return "<p class=\"stock-demo-empty\">Nenhuma solicitacao registrada neste ambiente.</p>";
+    }
+
+    return "<div class=\"stock-demo-request-list\">" + requests.map(function (request) {
+      const item = findAlmoxItemById_(request.payload && request.payload.itemId);
+      const itemName = item.name || (request.payload && request.payload.product) || "Item";
+      const itemUnit = item.unit || (request.payload && request.payload.unit) || "un";
+      const typeLabel = request.type === "entrada" ? "Entrada" : "Saida";
+      const statusLabel = request.status === "approved" ? "Aprovada" : (request.status === "rejected" ? "Rejeitada" : "Pendente");
+      const canApprove = role === "gestor" && request.status === "pending";
+      return [
+        "<article class=\"stock-demo-request " + escapeAttribute_("is-" + request.status) + "\">",
+        "<div>",
+        "<span>" + escapeHtml_(statusLabel) + "</span>",
+        "<strong>" + escapeHtml_(typeLabel + " - " + itemName) + "</strong>",
+        "<small>" + escapeHtml_(formatQuantity_(request.payload && request.payload.quantity) + " " + itemUnit + " | " + (request.createdByName || "Almoxarife")) + "</small>",
+        "</div>",
+        canApprove ? "<div class=\"stock-demo-request-actions\"><button type=\"button\" class=\"mini-button primary\" data-stock-approval-action=\"approve\" data-stock-approval-id=\"" + escapeAttribute_(request.id) + "\">Aprovar</button><button type=\"button\" class=\"mini-button\" data-stock-approval-action=\"reject\" data-stock-approval-id=\"" + escapeAttribute_(request.id) + "\">Rejeitar</button></div>" : "",
+        "</article>"
+      ].join("");
+    }).join("") + "</div>";
+  }
+
+  function handleStockDemoAction_(action) {
+    if (action === "create-organization") {
+      renderStockEnvironmentForm_();
+      scrollToAlmoxSection_("almoxEnvironmentHeader");
+      return;
+    }
+
+    if (action === "demo-organization") {
+      createStockDemoOrganization_();
+      return;
+    }
+  }
+
+  function createStockDemoOrganization_() {
+    const state = loadAlmoxState_();
+    const existing = state.stockEnvironments.find(function (environment) {
+      return normalizeStockEnvironmentTitlePart_(environment.clientName) === "prefeitura sao joao";
+    });
+
+    if (existing) {
+      setActiveStockEnvironment_(existing.id);
+      setStockDemoRole_("gestor");
+      showAlmoxToast_("Demonstracao Prefeitura Sao Joao carregada.", "success");
+      return;
+    }
+
+    const environment = createStockEnvironment_({
+      mode: "almoxarifado",
+      clientName: "Prefeitura Sao Joao",
+      institutionType: "Prefeitura",
+      unitName: "Secretaria de Saude",
+      environmentName: "Almoxarifado Central",
+      responsible: "Gestor da Secretaria",
+      managerEmail: "secretaria@prefeiturasaojoao.demo",
+      warehouseEmail: "almoxarife@prefeiturasaojoao.demo"
+    });
+    setStockDemoRole_("gestor");
+    showAlmoxToast_(environment ? "Organizacao demo criada." : "Demonstracao carregada.", "success");
+  }
+
   function renderStockEnvironmentForm_() {
     const container = document.getElementById("almoxEnvironmentHeader");
     if (!container) {
@@ -8041,6 +8677,7 @@
     appendStockIaField_(form, "environmentName", "Nome do ambiente", "text", "", true);
     appendStockIaField_(form, "responsible", "Responsável", "text", "", false);
     appendStockIaField_(form, "managerEmail", "E-mail do gestor", "email", "", false);
+    appendStockIaField_(form, "warehouseEmail", "E-mail do almoxarife", "email", "", false);
     form.appendChild(actions);
     form.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -8053,7 +8690,8 @@
         unitName: formData.get("mode") === "almoxarifado" ? formData.get("unitName") : "",
         environmentName: formData.get("environmentName"),
         responsible: formData.get("responsible"),
-        managerEmail: formData.get("managerEmail")
+        managerEmail: formData.get("managerEmail"),
+        warehouseEmail: formData.get("warehouseEmail")
       });
     });
 
@@ -8067,15 +8705,39 @@
       ? clean(environment.workName)
       : clean(environment && environment.unitName);
     const name = clean(environment && environment.environmentName);
+    const normalizedLocation = normalizeStockEnvironmentTitlePart_(location);
+    const normalizedName = normalizeStockEnvironmentTitlePart_(name);
+    const shouldShowLocation = Boolean(
+      location &&
+      normalizeStockEnvironmentTitlePart_(main) !== normalizedLocation &&
+      normalizedName !== normalizedLocation &&
+      normalizedName.indexOf(normalizedLocation + " ") !== 0 &&
+      normalizedLocation !== "almoxarifado"
+    );
 
-    return [main, location, name].filter(Boolean).join(" - ");
+    return [main, shouldShowLocation ? location : "", name].filter(Boolean).join(" - ");
+  }
+
+  function normalizeStockEnvironmentTitlePart_(value) {
+    const text = clean(value).toLowerCase();
+    if (!text) {
+      return "";
+    }
+
+    return typeof text.normalize === "function"
+      ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      : text;
   }
 
   function renderAlmoxarifadoPanel_() {
     ensureAlmoxEnvironmentMigrationPersisted_();
+    applyStockAiPublicUrlContext_();
+    startStockDemoRemoteSync_();
     renderActiveStockEnvironmentHeader_();
+    renderAlmoxDemoAccessPanel_();
     renderAlmoxSelects_();
     renderAlmoxSummaryCards_();
+    renderAlmoxFlowStatus_();
     renderAlmoxDashboard_();
     renderAlmoxTopManagerPanel_();
     renderAlmoxItems_();
@@ -8255,6 +8917,21 @@
 
     const type = form.dataset.almoxFormType || "item";
     const formData = new FormData(form);
+
+    if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife" && (type === "entry" || type === "exit")) {
+      const requestResult = createStockApprovalRequestFromFormData_(type, formData);
+      if (!requestResult.ok) {
+        showAlmoxToast_(requestResult.message, "error");
+        return;
+      }
+
+      closeAlmoxModal_();
+      renderAlmoxarifadoPanel_();
+      showAlmoxToast_("Solicitacao enviada ao gestor. O estoque oficial ainda nao foi alterado.", "success");
+      scrollToAlmoxSection_("almoxDemoAccessPanel");
+      return;
+    }
+
     const result = type === "entry"
       ? saveAlmoxEntryFromFormData_(formData)
       : (type === "exit" ? saveAlmoxExitFromFormData_(formData) : saveAlmoxItemFromFormData_(formData));
@@ -8273,6 +8950,266 @@
     } else {
       showAlmoxToast_("Item cadastrado com sucesso.", "success");
     }
+  }
+
+  function createStockApprovalRequestFromFormData_(type, formData) {
+    const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
+    const user = getStockDemoUser_();
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+    const movementType = type === "entry" ? "entrada" : "saida";
+    const movementDate = clean(formData.get("movementDate")) || clean(formData.get("date")) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(formData.get("movementTime")) || getDefaultAlmoxMovementTime_();
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe uma quantidade valida."
+      };
+    }
+
+    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId; })) {
+      return {
+        ok: false,
+        message: "Material nao encontrado neste ambiente."
+      };
+    }
+
+    const request = {
+      id: createId_("apv"),
+      organizationId: environmentId,
+      environmentId: environmentId,
+      userId: user.id,
+      role: user.role,
+      createdByName: user.name,
+      createdByEmail: user.email,
+      type: movementType,
+      status: "pending",
+      payload: {
+        itemId: itemId,
+        quantity: quantity,
+        responsible: clean(formData.get("responsible")),
+        documentNumber: clean(formData.get("documentNumber")),
+        recipient: clean(formData.get("recipient")),
+        sector: clean(formData.get("sector")),
+        purpose: clean(formData.get("purpose")),
+        notes: clean(formData.get("notes")),
+        movementDate: movementDate,
+        movementTime: movementTime,
+        movementDateTime: buildAlmoxMovementDateTime_(movementDate, movementTime)
+      },
+      createdAt: new Date().toISOString(),
+      approvedAt: "",
+      approvedBy: "",
+      rejectedAt: "",
+      rejectedBy: ""
+    };
+    state.approvalRequests = Array.isArray(state.approvalRequests) ? state.approvalRequests : [];
+    state.approvalRequests.unshift(request);
+    saveAlmoxState_(state);
+    syncStockDemoRemoteApprovalRequest_(request);
+
+    return {
+      ok: true,
+      request: request
+    };
+  }
+
+  function createStockApprovalRequestFromNoteItem_(noteItem, options) {
+    const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
+    const user = getStockDemoUser_();
+    const settings = options || {};
+    const item = findAlmoxItemFromNote_(state, noteItem);
+    const movementDate = clean(settings.movementDate) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(settings.movementTime) || getDefaultAlmoxMovementTime_();
+    const request = {
+      id: createId_("apv"),
+      organizationId: environmentId,
+      environmentId: environmentId,
+      userId: user.id,
+      role: user.role,
+      createdByName: user.name,
+      createdByEmail: user.email,
+      type: "entrada",
+      status: "pending",
+      payload: {
+        itemId: item ? item.id : "",
+        product: clean(noteItem.product),
+        fiscalCode: clean(noteItem.code),
+        category: clean(noteItem.category) || suggestAlmoxNoteCategory_(noteItem.product),
+        unit: normalizeAlmoxNoteUnit_(noteItem.unit),
+        quantity: parseNumber_(noteItem.quantity),
+        responsible: clean(settings.responsible) || "Almoxarife demo",
+        documentNumber: clean(settings.entryOrigin) || "Nota fiscal",
+        notes: buildAlmoxNoteEntryNotes_(noteItem, clean(settings.entryOrigin) || "Nota fiscal"),
+        movementDate: movementDate,
+        movementTime: movementTime,
+        movementDateTime: buildAlmoxMovementDateTime_(movementDate, movementTime)
+      },
+      createdAt: new Date().toISOString(),
+      approvedAt: "",
+      approvedBy: "",
+      rejectedAt: "",
+      rejectedBy: ""
+    };
+    state.approvalRequests = Array.isArray(state.approvalRequests) ? state.approvalRequests : [];
+    state.approvalRequests.unshift(request);
+    saveAlmoxState_(state);
+    syncStockDemoRemoteApprovalRequest_(request);
+
+    return {
+      ok: true,
+      request: request
+    };
+  }
+
+  function handleStockApprovalAction_(requestId, action) {
+    if (action === "approve") {
+      approveStockApprovalRequest_(requestId);
+      return;
+    }
+
+    if (action === "reject") {
+      rejectStockApprovalRequest_(requestId);
+    }
+  }
+
+  function approveStockApprovalRequest_(requestId) {
+    const state = loadAlmoxState_();
+    const request = (state.approvalRequests || []).find(function (item) {
+      return item.id === requestId;
+    });
+    const user = getStockDemoUser_();
+
+    if (!request || request.status !== "pending") {
+      showAlmoxToast_("Solicitacao pendente nao encontrada.", "error");
+      return;
+    }
+
+    const preparedRequest = ensureStockApprovalRequestItem_(request);
+    if (!preparedRequest.ok) {
+      showAlmoxToast_(preparedRequest.message, "error");
+      return;
+    }
+
+    const formData = buildFormDataFromStockApprovalRequest_(preparedRequest.request);
+    const result = request.type === "entrada"
+      ? saveAlmoxEntryFromFormData_(formData)
+      : saveAlmoxExitFromFormData_(formData);
+
+    if (!result.ok) {
+      showAlmoxToast_(result.message || "Nao foi possivel aprovar a solicitacao.", "error");
+      return;
+    }
+
+    const updatedState = loadAlmoxState_();
+    const updatedRequest = (updatedState.approvalRequests || []).find(function (item) {
+      return item.id === requestId;
+    });
+    if (updatedRequest) {
+      updatedRequest.status = "approved";
+      updatedRequest.approvedAt = new Date().toISOString();
+      updatedRequest.approvedBy = user.id;
+      updatedRequest.approvedByName = user.name;
+      updatedRequest.approvedByRole = user.role;
+      saveAlmoxState_(updatedState);
+    }
+
+    renderAlmoxarifadoPanel_();
+    syncStockDemoRemoteApprovalDecision_(requestId, "approve");
+    showAlmoxToast_("Solicitacao aprovada. Estoque oficial atualizado.", "success");
+  }
+
+  function rejectStockApprovalRequest_(requestId) {
+    const state = loadAlmoxState_();
+    const request = (state.approvalRequests || []).find(function (item) {
+      return item.id === requestId;
+    });
+    const user = getStockDemoUser_();
+
+    if (!request || request.status !== "pending") {
+      showAlmoxToast_("Solicitacao pendente nao encontrada.", "error");
+      return;
+    }
+
+    request.status = "rejected";
+    request.rejectedAt = new Date().toISOString();
+    request.rejectedBy = user.id;
+    request.rejectedByName = user.name;
+    request.rejectedByRole = user.role;
+    saveAlmoxState_(state);
+    renderAlmoxarifadoPanel_();
+    syncStockDemoRemoteApprovalDecision_(requestId, "reject");
+    showAlmoxToast_("Solicitacao rejeitada. O estoque oficial nao foi alterado.", "info");
+  }
+
+  function ensureStockApprovalRequestItem_(request) {
+    if (request.payload && request.payload.itemId) {
+      return {
+        ok: true,
+        request: request
+      };
+    }
+
+    const product = clean(request.payload && request.payload.product);
+    const unit = clean(request.payload && request.payload.unit) || "un";
+    if (!product) {
+      return {
+        ok: false,
+        message: "A solicitacao nao possui item suficiente para aprovacao."
+      };
+    }
+
+    const state = loadAlmoxState_();
+    const environmentId = clean(request.environmentId || request.organizationId) || getActiveStockEnvironmentId_();
+    const storedRequest = (state.approvalRequests || []).find(function (item) {
+      return item.id === request.id;
+    });
+    const item = {
+      id: createId_("alm"),
+      environmentId: environmentId,
+      fiscalCode: clean(request.payload.fiscalCode),
+      name: product,
+      category: clean(request.payload.category) || "Geral",
+      unit: unit,
+      initialQuantity: 0,
+      minimumStock: 0,
+      location: "",
+      expirationDate: "",
+      notes: "Criado apos aprovacao de nota fiscal pelo gestor.",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    state.items.push(item);
+    if (storedRequest) {
+      storedRequest.payload = Object.assign({}, storedRequest.payload || {}, {
+        itemId: item.id
+      });
+      saveAlmoxState_(state);
+      return {
+        ok: true,
+        request: storedRequest
+      };
+    }
+
+    return {
+      ok: false,
+      message: "Solicitacao nao encontrada para aprovacao."
+    };
+  }
+
+  function buildFormDataFromStockApprovalRequest_(request) {
+    const payload = request.payload || {};
+    const formData = new FormData();
+    Object.keys(payload).forEach(function (key) {
+      formData.set(key, payload[key]);
+    });
+    formData.set("itemId", payload.itemId || "");
+    formData.set("quantity", payload.quantity || 0);
+    return formData;
   }
 
   function renderAlmoxSelects_() {
@@ -8328,6 +9265,91 @@
       card.appendChild(label);
       card.appendChild(value);
       almoxSummaryCards.appendChild(card);
+    });
+  }
+
+  function renderAlmoxFlowStatus_() {
+    if (!almoxFlowStatus) {
+      return;
+    }
+
+    const state = loadAlmoxState_();
+    const balances = calculateAlmoxBalances_();
+    const movements = filterAlmoxMovementsByActiveEnvironment_(state.movements).slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(b) || "").localeCompare(String(getAlmoxMovementSortKey_(a) || ""));
+    });
+    const itemsById = {};
+    filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    const zeroItems = balances.filter(function (balance) {
+      return parseNumber_(balance.balance) <= 0;
+    });
+    const belowMinimum = balances.filter(function (balance) {
+      return parseNumber_(balance.item.minimumStock) > 0 &&
+        parseNumber_(balance.balance) > 0 &&
+        parseNumber_(balance.balance) < parseNumber_(balance.item.minimumStock);
+    });
+    const lastMovement = movements[0] || null;
+    const lastItem = lastMovement ? (itemsById[lastMovement.itemId] || {}) : {};
+    const recommendation = zeroItems.length
+      ? "Priorize reposicao dos itens zerados antes de novas retiradas."
+      : (belowMinimum.length
+        ? "Revise os itens abaixo do minimo e planeje reposicao."
+        : (balances.length ? "Estoque sem alerta critico neste ambiente." : "Comece cadastrando item ou importando XML da nota."));
+
+    almoxFlowStatus.innerHTML = [
+      "<div class=\"almox-flow-status-head\">",
+      "<span>Status do ambiente</span>",
+      "<strong>" + (zeroItems.length ? "Atencao critica" : (belowMinimum.length ? "Monitorar" : "Pronto para operar")) + "</strong>",
+      "</div>",
+      "<div class=\"almox-flow-metrics\" aria-label=\"Resumo rapido do ambiente\">",
+      "<span><b>" + balances.length + "</b><small>Itens</small></span>",
+      "<span><b>" + belowMinimum.length + "</b><small>Abaixo minimo</small></span>",
+      "<span><b>" + zeroItems.length + "</b><small>Zerados</small></span>",
+      "</div>",
+      "<p>" + escapeHtml_(recommendation) + "</p>",
+      "<div class=\"almox-flow-last\">",
+      "<small>Ultima movimentacao</small>",
+      "<strong>" + (lastMovement ? escapeHtml_((lastMovement.type === "entrada" ? "Entrada" : "Saida") + " - " + (lastItem.name || "Item")) : "Nenhuma movimentacao") + "</strong>",
+      "<span>" + (lastMovement ? escapeHtml_(getAlmoxMovementDisplayDateTime_(lastMovement)) : "Registre entrada ou saida para iniciar o historico.") + "</span>",
+      "</div>",
+      "<div class=\"almox-flow-actions\" aria-label=\"Atalhos do ambiente\">",
+      "<button type=\"button\" class=\"mini-button\" data-almox-flow-action=\"dashboard\">Ver dashboard</button>",
+      "<button type=\"button\" class=\"mini-button\" data-almox-flow-action=\"history\">Ver historico</button>",
+      "<button type=\"button\" class=\"mini-button primary\" data-almox-flow-action=\"summary\">Gerar resumo</button>",
+      "</div>"
+    ].join("");
+  }
+
+  function handleAlmoxFlowAction_(action) {
+    if (action === "summary") {
+      handleGenerateAlmoxSummary_();
+      scrollToAlmoxSection_("almoxManagerPanel");
+      return;
+    }
+
+    if (action === "history") {
+      const section = document.getElementById("almoxHistorySection");
+      if (section && section.classList.contains("almox-history-collapsed")) {
+        toggleAlmoxHistoryVisibility_();
+      }
+      scrollToAlmoxSection_("almoxHistorySection");
+      return;
+    }
+
+    scrollToAlmoxSection_("almoxDashboardPanel");
+  }
+
+  function scrollToAlmoxSection_(id) {
+    const target = document.getElementById(id);
+    if (!target || !target.scrollIntoView) {
+      return;
+    }
+
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
     });
   }
 

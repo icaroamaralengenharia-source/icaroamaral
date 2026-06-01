@@ -4,6 +4,7 @@ import express from "express";
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
+const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const ACTIONS = new Set([
   "improve",
@@ -17,6 +18,7 @@ const ACTIONS = new Set([
 export function createApp(options = {}) {
   const app = express();
   const env = options.env || process.env;
+  const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
 
   app.use(cors({
     origin(origin, callback) {
@@ -25,12 +27,12 @@ export function createApp(options = {}) {
         return;
       }
 
-      const allowed = String(env.AI_ALLOWED_ORIGINS || "http://127.0.0.1:5500,http://localhost:5500")
+      const allowed = String(env.AI_ALLOWED_ORIGINS || "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:5502,http://localhost:5502")
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
 
-      callback(null, allowed.includes(origin));
+      callback(null, allowed.includes(origin) || isPrivateNetworkOrigin_(origin));
     }
   }));
   app.use(express.json({ limit: env.AI_JSON_LIMIT || "3mb" }));
@@ -40,6 +42,98 @@ export function createApp(options = {}) {
       ok: true,
       service: "ObraReport AI Backend"
     });
+  });
+
+  app.get("/api/stock-demo/health", (request, response) => {
+    response.json({
+      ok: true,
+      service: "Stock AI Demo Backend",
+      mode: "memory"
+    });
+  });
+
+  app.get("/api/stock-demo/state", (request, response) => {
+    const key = getStockDemoRequestKey_(request);
+    const entry = stockDemoStore.states.get(key);
+
+    response.json({
+      ok: true,
+      key,
+      state: entry ? entry.state : null,
+      revision: entry ? entry.revision : 0,
+      updatedAt: entry ? entry.updatedAt : ""
+    });
+  });
+
+  app.post("/api/stock-demo/state", (request, response) => {
+    const validation = validateStockDemoStateRequest_(request.body || {});
+
+    if (!validation.ok) {
+      response.status(validation.status).json({
+        ok: false,
+        error: validation.message
+      });
+      return;
+    }
+
+    const entry = saveStockDemoState_(stockDemoStore, validation.key, validation.state);
+    response.json({
+      ok: true,
+      key: validation.key,
+      state: entry.state,
+      revision: entry.revision,
+      updatedAt: entry.updatedAt
+    });
+  });
+
+  app.post("/api/stock-demo/approval-requests", (request, response) => {
+    const validation = validateStockDemoApprovalRequest_(request.body || {});
+
+    if (!validation.ok) {
+      response.status(validation.status).json({
+        ok: false,
+        error: validation.message
+      });
+      return;
+    }
+
+    const entry = upsertStockDemoApprovalRequest_(stockDemoStore, validation.key, validation.request, validation.state);
+    response.json({
+      ok: true,
+      key: validation.key,
+      request: validation.request,
+      state: entry.state,
+      revision: entry.revision,
+      updatedAt: entry.updatedAt
+    });
+  });
+
+  app.post("/api/stock-demo/approval-requests/:id/approve", (request, response) => {
+    const result = updateStockDemoApprovalStatus_(stockDemoStore, getStockDemoRequestKey_(request), request.params.id, "approved", request.body || {});
+
+    if (!result.ok) {
+      response.status(result.status).json({
+        ok: false,
+        error: result.message
+      });
+      return;
+    }
+
+    response.json(result.payload);
+  });
+
+  app.post("/api/stock-demo/approval-requests/:id/reject", (request, response) => {
+    const result = updateStockDemoApprovalStatus_(stockDemoStore, getStockDemoRequestKey_(request), request.params.id, "rejected", request.body || {});
+
+    if (!result.ok) {
+      response.status(result.status).json({
+        ok: false,
+        error: result.message
+      });
+      return;
+    }
+
+    response.json(result.payload);
   });
 
   app.post("/api/ai/improve-text", async (request, response) => {
@@ -586,4 +680,205 @@ function clean_(value) {
 
 function cleanBase64_(value) {
   return String(value || "").replace(/^data:[^,]+,/, "").replace(/\s+/g, "").trim();
+}
+
+function createStockDemoStore_() {
+  return {
+    states: new Map()
+  };
+}
+
+function getStockDemoRequestKey_(request) {
+  const source = request.method === "GET" ? request.query : request.body;
+  return normalizeStockDemoKey_(
+    (source && (source.key || source.demoKey)) ||
+    (request.query && (request.query.key || request.query.demoKey)) ||
+    "stock-ai-demo"
+  );
+}
+
+function normalizeStockDemoKey_(value) {
+  const text = clean_(value).toLowerCase();
+  const normalized = typeof text.normalize === "function"
+    ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    : text;
+  return normalized.replace(/[^a-z0-9._:-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 120) || "stock-ai-demo";
+}
+
+function isPrivateNetworkOrigin_(origin) {
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+
+    return url.protocol === "http:" && (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
+function validateStockDemoStateRequest_(body) {
+  const key = normalizeStockDemoKey_(body.key || body.demoKey);
+  const state = body.state && typeof body.state === "object" ? body.state : null;
+
+  if (!state) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Envie o estado da demo do Stock AI."
+    };
+  }
+
+  if (JSON.stringify(state).length > MAX_STOCK_DEMO_STATE_LENGTH) {
+    return {
+      ok: false,
+      status: 413,
+      message: "Estado da demo muito grande para sincronizar."
+    };
+  }
+
+  return {
+    ok: true,
+    key,
+    state: normalizeStockDemoState_(state)
+  };
+}
+
+function validateStockDemoApprovalRequest_(body) {
+  const stateValidation = body.state ? validateStockDemoStateRequest_(body) : null;
+  const key = normalizeStockDemoKey_(body.key || body.demoKey);
+  const request = body.request && typeof body.request === "object" ? normalizeStockDemoApproval_(body.request) : null;
+
+  if (!request || !request.id) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Envie uma solicitacao de aprovacao valida."
+    };
+  }
+
+  if (stateValidation && !stateValidation.ok) {
+    return stateValidation;
+  }
+
+  return {
+    ok: true,
+    key,
+    request,
+    state: stateValidation ? stateValidation.state : null
+  };
+}
+
+function saveStockDemoState_(store, key, state) {
+  const current = store.states.get(key);
+  const entry = {
+    state: normalizeStockDemoState_(state),
+    revision: current ? current.revision + 1 : 1,
+    updatedAt: new Date().toISOString()
+  };
+  store.states.set(key, entry);
+  return entry;
+}
+
+function upsertStockDemoApprovalRequest_(store, key, request, state) {
+  const current = store.states.get(key);
+  const baseState = normalizeStockDemoState_(state || (current && current.state) || {});
+  const requests = Array.isArray(baseState.approvalRequests) ? baseState.approvalRequests : [];
+  const index = requests.findIndex((item) => clean_(item.id) === request.id);
+
+  if (index >= 0) {
+    requests[index] = Object.assign({}, requests[index], request);
+  } else {
+    requests.unshift(request);
+  }
+
+  baseState.approvalRequests = requests.slice(0, 200);
+  return saveStockDemoState_(store, key, baseState);
+}
+
+function updateStockDemoApprovalStatus_(store, key, requestId, status, body) {
+  const current = store.states.get(key);
+  const state = normalizeStockDemoState_((body && body.state) || (current && current.state) || {});
+  const request = state.approvalRequests.find((item) => clean_(item.id) === clean_(requestId));
+
+  if (!request) {
+    return {
+      ok: false,
+      status: 404,
+      message: "Solicitacao nao encontrada na demo remota."
+    };
+  }
+
+  request.status = status;
+  if (status === "approved") {
+    request.approvedAt = clean_(request.approvedAt) || new Date().toISOString();
+    request.approvedBy = clean_(request.approvedBy || body.approvedBy);
+    request.approvedByName = clean_(request.approvedByName || body.approvedByName);
+  } else {
+    request.rejectedAt = clean_(request.rejectedAt) || new Date().toISOString();
+    request.rejectedBy = clean_(request.rejectedBy || body.rejectedBy);
+    request.rejectedByName = clean_(request.rejectedByName || body.rejectedByName);
+  }
+
+  const entry = saveStockDemoState_(store, key, state);
+  return {
+    ok: true,
+    payload: {
+      ok: true,
+      key,
+      request,
+      state: entry.state,
+      revision: entry.revision,
+      updatedAt: entry.updatedAt
+    }
+  };
+}
+
+function normalizeStockDemoState_(state) {
+  const safe = state && typeof state === "object" ? state : {};
+
+  return {
+    items: Array.isArray(safe.items) ? safe.items.slice(0, 500) : [],
+    movements: Array.isArray(safe.movements) ? safe.movements.slice(0, 1000) : [],
+    alertsMuted: Boolean(safe.alertsMuted),
+    alertsMutedUntil: clean_(safe.alertsMutedUntil),
+    alertHistory: Array.isArray(safe.alertHistory) ? safe.alertHistory.slice(0, 100) : [],
+    approvalRequests: Array.isArray(safe.approvalRequests)
+      ? safe.approvalRequests.map(normalizeStockDemoApproval_).filter((item) => item.id).slice(0, 200)
+      : [],
+    stockEnvironments: Array.isArray(safe.stockEnvironments) ? safe.stockEnvironments.slice(0, 80) : [],
+    activeStockEnvironmentId: clean_(safe.activeStockEnvironmentId),
+    updatedAt: clean_(safe.updatedAt) || new Date().toISOString()
+  };
+}
+
+function normalizeStockDemoApproval_(request) {
+  const safe = request && typeof request === "object" ? request : {};
+  const type = safe.type === "saida" || safe.type === "exit" ? "saida" : "entrada";
+  const status = ["pending", "approved", "rejected"].includes(safe.status) ? safe.status : "pending";
+
+  return Object.assign({}, safe, {
+    id: clean_(safe.id),
+    organizationId: clean_(safe.organizationId || safe.environmentId),
+    environmentId: clean_(safe.environmentId || safe.organizationId),
+    userId: clean_(safe.userId),
+    role: safe.role === "gestor" ? "gestor" : "almoxarife",
+    createdByName: clean_(safe.createdByName),
+    createdByEmail: clean_(safe.createdByEmail),
+    type,
+    status,
+    payload: safe.payload && typeof safe.payload === "object" ? safe.payload : {},
+    createdAt: clean_(safe.createdAt) || new Date().toISOString(),
+    approvedAt: clean_(safe.approvedAt),
+    approvedBy: clean_(safe.approvedBy),
+    approvedByName: clean_(safe.approvedByName),
+    rejectedAt: clean_(safe.rejectedAt),
+    rejectedBy: clean_(safe.rejectedBy),
+    rejectedByName: clean_(safe.rejectedByName)
+  });
 }
