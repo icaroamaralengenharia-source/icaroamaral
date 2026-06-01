@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import {
+  buildEloSystemPrompt_,
   buildPathologyContext,
   buildVisionUserPrompt_,
   createApp,
@@ -153,6 +154,19 @@ test("elo chat sem chave solicita fallback local", async () => {
   assert.equal(data.mode, "fallback_required");
   assert.equal(data.fallback, true);
   assert.match(data.answer, /forma local/);
+});
+
+test("prompt mestre do Elo define identidade, memoria e limites", () => {
+  const prompt = buildEloSystemPrompt_();
+
+  assert.match(prompt, /companheiro digital com memória recente/i);
+  assert.match(prompt, /não é humano/i);
+  assert.match(prompt, /sem parecer atendimento genérico/i);
+  assert.match(prompt, /o que percebo/i);
+  assert.match(prompt, /histórico recente/i);
+  assert.match(prompt, /não dê diagnóstico médico, jurídico, financeiro ou psicológico/i);
+  assert.match(prompt, /Eu sou o Elo/i);
+  assert.match(prompt, /Sou real como sistema digital/i);
 });
 
 test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {
