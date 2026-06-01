@@ -1,0 +1,29 @@
+{
+  "id": "umidade",
+  "nome": "Umidade",
+  "descricao": "Presenca indesejada de umidade em superficies ou ambientes, podendo estar associada a infiltracao, condensacao, capilaridade, ventilacao insuficiente ou falhas de vedacao.",
+  "sinais_visuais": [
+    "alteracao de cor, manchas difusas ou superficies escurecidas",
+    "eflorescencia, sais, pintura pulverulenta ou descascamento",
+    "rodapes, cantos, teto ou paredes com aspecto umido"
+  ],
+  "causas_possiveis": [
+    "capilaridade em paredes ou pisos",
+    "condensacao por baixa ventilacao",
+    "umidade proveniente de areas molhadas ou fachadas",
+    "falha de impermeabilizacao ou vazamento, a confirmar"
+  ],
+  "verificacoes_recomendadas": [
+    "verificar ventilacao, insolacao e uso do ambiente",
+    "checar areas molhadas, tubulacoes, fachada e cobertura",
+    "comparar pontos atingidos com periodos de chuva ou uso de agua",
+    "avaliar medicao de umidade quando disponivel"
+  ],
+  "grau_preliminar_padrao": "atencao",
+  "alertas": [
+    "nao confundir umidade superficial com origem comprovada",
+    "verificar se ha mofo, bolor ou degradacao progressiva",
+    "umidade persistente exige investigacao da fonte antes do reparo de acabamento"
+  ],
+  "termos_relacionados": ["umidade", "molhado", "eflorescencia", "sais", "condensacao", "capilaridade"]
+}

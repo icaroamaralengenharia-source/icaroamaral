@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { createApp } from "../src/app.js";
+import {
+  buildPathologyContext,
+  buildVisionUserPrompt_,
+  createApp,
+  formatImageAnalysis_,
+  normalizeImageAnalysis_,
+  searchPathologyKnowledge
+} from "../src/app.js";
 
 let server;
 let baseUrl;
@@ -112,6 +119,94 @@ test("análise visual sem chave retorna erro amigável", async () => {
   assert.equal(response.status, 503);
   assert.equal(data.ok, false);
   assert.match(data.error, /OPENAI_API_KEY/);
+});
+
+test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {
+  const prompt = buildVisionUserPrompt_({
+    image: {
+      fileName: "fissura-parede.jpg",
+      width: 1200,
+      height: 900
+    },
+    context: {
+      imageLabel: "Foto da inconformidade 01",
+      report: {
+        obra: "Obra teste",
+        local: "Bloco A"
+      }
+    }
+  });
+
+  assert.match(prompt, /fissuras e trincas/i);
+  assert.match(prompt, /infiltracao/i);
+  assert.match(prompt, /umidade/i);
+  assert.match(prompt, /corrosao de armadura/i);
+  assert.match(prompt, /Nao afirmar causa definitiva/);
+  assert.match(prompt, /Nao emitir laudo/);
+  assert.match(prompt, /validacao do responsavel tecnico/);
+});
+
+test("base consultavel de patologias localiza verificacoes e alertas", () => {
+  const result = searchPathologyKnowledge("mancha de umidade com pintura descascando");
+
+  assert.equal(result.totalRecords, 8);
+  assert.ok(result.items.length >= 1);
+  assert.ok(result.items.some((item) => /umidade|infiltracao/i.test(item.nome)));
+  assert.ok(result.items[0].verificacoes_recomendadas.length > 0);
+  assert.ok(result.items[0].alertas.length > 0);
+});
+
+test("contexto de patologias resume a base para a IA visual", () => {
+  const context = buildPathologyContext("aco exposto com ferrugem em viga de concreto");
+
+  assert.match(context, /Registros locais consultados:/);
+  assert.match(context, /Corrosao de armadura/);
+  assert.match(context, /Verificacoes recomendadas:/);
+  assert.match(context, /Nao emitir laudo definitivo/);
+  assert.match(context, /validacao do responsavel tecnico/);
+});
+
+test("prompt visual preserva categorias de infiltracao e corrosao", () => {
+  const prompt = buildVisionUserPrompt_({
+    image: {
+      fileName: "umidade-corrosao.jpg",
+      width: 800,
+      height: 600
+    },
+    context: {
+      report: {
+        obra: "Inspecao teste"
+      }
+    }
+  });
+
+  assert.match(prompt, /infiltracao/i);
+  assert.match(prompt, /umidade/i);
+  assert.match(prompt, /corrosao/i);
+  assert.match(prompt, /armadura/i);
+});
+
+test("analise visual formatada usa padrao de patologias e observacao obrigatoria", () => {
+  const analysis = normalizeImageAnalysis_({
+    elementoObservado: "Parede interna",
+    categoriaProvavel: "fissuras e trincas",
+    confianca: "media",
+    descricaoTecnica: "Indicio visual de fissura linear no revestimento.",
+    evidenciasVisuais: ["linha fina no revestimento", "alteracao superficial localizada"],
+    possiveisInconformidades: ["possivel manifestacao de fissura"],
+    verificacoesRecomendadas: ["verificar abertura e extensao", "acompanhar evolucao"],
+    grauPreliminar: "atencao",
+    textoRelatorio: "Foi observado indicio visual de fissura em parede interna, recomendando-se verificacao complementar."
+  });
+  const formatted = formatImageAnalysis_(analysis);
+
+  assert.match(formatted, /Elemento observado:/);
+  assert.match(formatted, /Possivel manifestacao:/);
+  assert.match(formatted, /Evidencias visuais:/);
+  assert.match(formatted, /Verificacoes recomendadas:/);
+  assert.match(formatted, /Grau preliminar:/);
+  assert.match(formatted, /Texto sugerido para relatorio:/);
+  assert.match(formatted, /Analise assistida por IA, sujeita a validacao do responsavel tecnico/);
 });
 
 test("stock demo sincroniza estado remoto em memoria", async () => {

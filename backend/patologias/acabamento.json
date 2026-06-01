@@ -1,0 +1,29 @@
+{
+  "id": "falhas-acabamento",
+  "nome": "Falhas de acabamento",
+  "descricao": "Irregularidades visuais ou executivas em acabamento, arremate, pintura, rejunte, recorte, nivelamento, alinhamento ou limpeza final, sem necessariamente indicar patologia estrutural.",
+  "sinais_visuais": [
+    "pintura manchada, respingos, falhas de cobertura ou textura irregular",
+    "rejunte falho, recortes desalinhados, arremates incompletos ou bordas mal acabadas",
+    "ondulacoes, diferenca de nivel, risco, lasca ou acabamento fora do padrao esperado"
+  ],
+  "causas_possiveis": [
+    "execucao sem controle de qualidade",
+    "preparo inadequado da superficie",
+    "uso incorreto de material ou ferramenta",
+    "falha de limpeza, cura, protecao ou sequenciamento"
+  ],
+  "verificacoes_recomendadas": [
+    "comparar com o padrao especificado e areas adjacentes",
+    "verificar se ha causa tecnica associada, como umidade ou substrato irregular",
+    "registrar local, extensao e tipo de acabamento afetado",
+    "definir retrabalho ou arremate conforme especificacao"
+  ],
+  "grau_preliminar_padrao": "baixo",
+  "alertas": [
+    "nao transformar falha estetica em patologia sem evidencia tecnica",
+    "verificar se a falha compromete uso, estanqueidade, seguranca ou durabilidade",
+    "reparos devem respeitar especificacao e compatibilidade de materiais"
+  ],
+  "termos_relacionados": ["acabamento", "pintura", "rejunte", "arremate", "recorte", "nivelamento"]
+}

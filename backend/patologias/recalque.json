@@ -1,0 +1,29 @@
+{
+  "id": "recalque-movimentacao",
+  "nome": "Recalque e movimentacao",
+  "descricao": "Possivel movimentacao diferencial ou deformacao do sistema construtivo, percebida por trincas inclinadas, desniveis, separacoes entre elementos ou repeticao de fissuras em pontos criticos.",
+  "sinais_visuais": [
+    "trincas inclinadas proximo a esquadrias, encontros de paredes ou elementos estruturais",
+    "desnivel aparente em piso, separacao entre elementos ou deformacao visivel",
+    "fissuras repetidas, progressivas ou alinhadas em diferentes ambientes"
+  ],
+  "causas_possiveis": [
+    "movimentacao de fundacao ou solo",
+    "acomodacao diferencial de elementos",
+    "sobrecarga, vibracao ou alteracao de apoio",
+    "retracao, movimentacao termica ou falha executiva, a diferenciar por avaliacao"
+  ],
+  "verificacoes_recomendadas": [
+    "monitorar abertura e evolucao das fissuras",
+    "verificar prumo, nivel, alinhamento e repeticao em outros pontos",
+    "avaliar historico de reforma, sobrecarga, escavacao ou umidade no entorno",
+    "acionar responsavel tecnico quando houver evolucao, desnivel ou indicio estrutural"
+  ],
+  "grau_preliminar_padrao": "critico visual",
+  "alertas": [
+    "nao concluir recalque apenas por imagem",
+    "nao afirmar risco estrutural confirmado sem inspecao",
+    "movimentacao progressiva exige acompanhamento e avaliacao tecnica especializada"
+  ],
+  "termos_relacionados": ["recalque", "movimentacao", "trinca inclinada", "desnivel", "fundacao", "solo"]
+}

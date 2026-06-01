@@ -1,0 +1,29 @@
+{
+  "id": "corrosao-armadura",
+  "nome": "Corrosao de armadura",
+  "descricao": "Possivel processo de degradacao de armaduras em concreto armado, observado indiretamente por manchas ferruginosas, fissuras, desplacamento do cobrimento ou armadura exposta.",
+  "sinais_visuais": [
+    "manchas de ferrugem ou escorrimento ferruginoso",
+    "aco exposto, cobrimento rompido ou concreto desagregado",
+    "fissuras paralelas a armaduras ou destacamento em elementos de concreto"
+  ],
+  "causas_possiveis": [
+    "cobrimento insuficiente",
+    "carbonatacao ou presenca de agentes agressivos",
+    "entrada de umidade e oxigenio",
+    "falhas de execucao, fissuracao ou impermeabilizacao"
+  ],
+  "verificacoes_recomendadas": [
+    "avaliar extensao da area afetada e exposicao da armadura",
+    "verificar cobrimento, umidade e desagregacao do concreto",
+    "acionar responsavel tecnico para avaliar reparo e protecao da armadura",
+    "evitar concluir perda de secao ou capacidade resistente pela foto"
+  ],
+  "grau_preliminar_padrao": "critico visual",
+  "alertas": [
+    "nao estimar perda de secao pela imagem",
+    "nao afirmar comprometimento estrutural sem inspecao",
+    "armadura exposta ou concreto desplacado requer avaliacao tecnica prioritaria"
+  ],
+  "termos_relacionados": ["corrosao", "armadura", "ferrugem", "aco exposto", "cobrimento", "concreto"]
+}

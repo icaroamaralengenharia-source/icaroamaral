@@ -1,11 +1,88 @@
 import cors from "cors";
 import express from "express";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
+const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
+  {
+    id: "fissuras-trincas",
+    category: "fissuras e trincas",
+    visualCues: [
+      "linhas finas ou abertas em alvenaria, concreto, revestimento ou acabamento",
+      "mudanca de direcao, extensao, abertura aparente e repeticao",
+      "manchas, destacamento ou deformacao associada"
+    ],
+    caution: "Nao classificar gravidade estrutural apenas pela foto."
+  },
+  {
+    id: "infiltracao-umidade",
+    category: "infiltracao e umidade",
+    visualCues: [
+      "manchas escurecidas, marcas de escorrimento, bolhas ou pintura empolada",
+      "alteracao de cor proxima a teto, parede, piso, esquadria, cobertura ou tubulacao",
+      "sais, descascamento ou degradacao superficial"
+    ],
+    caution: "Nao afirmar a origem da agua sem vistoria complementar."
+  },
+  {
+    id: "corrosao-armadura",
+    category: "corrosao de armadura",
+    visualCues: [
+      "aco exposto, manchas ferruginosas, cobrimento rompido ou concreto desagregado",
+      "fissuras proximas a elementos de concreto armado",
+      "perda aparente de cobrimento ou destacamento ao redor da armadura"
+    ],
+    caution: "Nao estimar perda de secao ou capacidade resistente pela imagem."
+  },
+  {
+    id: "desplacamento",
+    category: "desplacamento",
+    visualCues: [
+      "revestimento solto, placas destacadas, bordas abertas ou areas ocas aparentes",
+      "perda de aderencia em argamassa, ceramica, pintura ou concreto",
+      "fragmentos, fissuras perifericas ou diferenca de plano"
+    ],
+    caution: "Nao afirmar causa unica sem verificar aderencia, substrato e umidade."
+  },
+  {
+    id: "mofo-bolor",
+    category: "mofo e bolor",
+    visualCues: [
+      "pontos escuros, esverdeados ou manchas pulverulentas",
+      "ocorrencia em areas com pouca ventilacao, umidade ou condensacao",
+      "associacao com manchas e degradacao de pintura"
+    ],
+    caution: "Nao diagnosticar risco a saude pela foto."
+  },
+  {
+    id: "falhas-acabamento",
+    category: "falhas de acabamento",
+    visualCues: [
+      "pintura irregular, rejunte falho, recortes desalinhados ou acabamento incompleto",
+      "manchas, respingos, ondulacoes, falhas de nivelamento ou arremates inadequados",
+      "incompatibilidade visual com o padrao esperado do ambiente"
+    ],
+    caution: "Diferenciar acabamento estetico de manifestacao patologica."
+  },
+  {
+    id: "recalque-movimentacao",
+    category: "recalque/movimentacao",
+    visualCues: [
+      "trincas inclinadas, aberturas em encontros, desnivel aparente ou deformacoes",
+      "fissuras proximas a esquadrias, pilares, vigas, alvenarias ou pisos",
+      "separacao entre elementos e repeticao em pontos alinhados"
+    ],
+    caution: "Nao concluir recalque apenas pela foto."
+  }
+];
 const ACTIONS = new Set([
   "improve",
   "conclusion",
@@ -14,6 +91,7 @@ const ACTIONS = new Set([
   "generateConclusion",
   "reviewReport"
 ]);
+const PATHOLOGY_KNOWLEDGE_BASE = loadPathologyKnowledgeBase_();
 
 export function createApp(options = {}) {
   const app = express();
@@ -335,7 +413,7 @@ function normalizeAction_(action) {
 }
 
 async function callOpenAi_(payload, env) {
-  const model = env.OPENAI_MODEL || "gpt-5.4-mini";
+  const model = env.OPENAI_MODEL || "gpt-4.1-mini";
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -375,7 +453,7 @@ async function callOpenAi_(payload, env) {
 }
 
 async function callOpenAiVision_(payload, env) {
-  const model = env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || "gpt-5.4-mini";
+  const model = env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
   const imageUrl = "data:" + payload.image.mimeType + ";base64," + payload.image.base64;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -444,6 +522,16 @@ function buildSystemPrompt_() {
 }
 
 function buildVisionSystemPrompt_() {
+  return [
+    "Voce e um assistente visual do ObraReport para fiscalizacao de obras e triagem de manifestacoes patologicas.",
+    "Analise somente o que for visivel na imagem e no contexto informado.",
+    "Nao invente medicoes, normas, datas, locais, causas, origem da anomalia, responsaveis ou conclusoes nao observaveis.",
+    "Nunca afirme causa definitiva, problema estrutural confirmado, laudo, condenacao de elemento ou diagnostico final.",
+    "Use linguagem prudente: possivel manifestacao, indicio visual, aparenta, necessita inspecao complementar.",
+    "Toda resposta deve ser assistiva e sujeita a validacao do responsavel tecnico.",
+    "Retorne apenas JSON valido, sem Markdown."
+  ].join(" ");
+
   return [
     "Você é um assistente visual do ObraReport para fiscalização de obras.",
     "Analise somente o que for visível na imagem e no contexto informado.",
@@ -557,10 +645,54 @@ function getTextModeInstruction_(kind) {
   return "melhorar descricao da ocorrencia em linguagem tecnica";
 }
 
-function buildVisionUserPrompt_(payload) {
+export function buildVisionUserPrompt_(payload) {
   const context = payload.context || {};
   const report = context.report || {};
   const image = payload.image || {};
+  const pathologyQuery = buildPathologyQuery_(payload);
+  const pathologyContext = buildPathologyContext(pathologyQuery);
+
+  return [
+    "Analise a foto anexada ao relatorio tecnico como triagem visual assistida.",
+    "Obra: " + safeValue_(report.obra),
+    "Local: " + safeValue_(report.local),
+    "Tipo da foto: " + safeValue_(context.imageLabel || context.targetName || context.imageInputName),
+    "Arquivo: " + safeValue_(image.fileName),
+    "Dimensoes: " + Number(image.width || 0) + "x" + Number(image.height || 0),
+    "",
+    "Contexto tecnico consultado na base local:",
+    pathologyContext,
+    "",
+    "Restricoes obrigatorias:",
+    "- Nao afirmar causa definitiva.",
+    "- Nao afirmar problema estrutural confirmado.",
+    "- Nao emitir laudo nem condenar elemento.",
+    "- Usar expressoes como possivel manifestacao, indicio visual e necessita inspecao complementar.",
+    "- Se a imagem nao permitir avaliar, registrar baixa confianca e recomendar nova foto/verificacao.",
+    "",
+    "Padrao de resposta:",
+    "- Elemento observado.",
+    "- Possivel manifestacao.",
+    "- Evidencias visuais.",
+    "- Verificacoes recomendadas.",
+    "- Grau preliminar.",
+    "- Texto sugerido para relatorio.",
+    "- Observacao obrigatoria.",
+    "",
+    "Retorne JSON exatamente neste formato:",
+    "{",
+    "  \"elementoObservado\": \"elemento ou local visivel, sem inventar\",",
+    "  \"categoriaProvavel\": \"uma categoria da biblioteca ou vazio\",",
+    "  \"confianca\": \"baixa | media | alta\",",
+    "  \"descricaoTecnica\": \"descricao objetiva do que e visivel\",",
+    "  \"evidenciasVisuais\": [\"evidencia 1\", \"evidencia 2\"],",
+    "  \"possiveisInconformidades\": [\"possivel manifestacao 1\"],",
+    "  \"verificacoesRecomendadas\": [\"verificacao 1\", \"verificacao 2\"],",
+    "  \"grauPreliminar\": \"baixo | atencao | critico visual\",",
+    "  \"textoRelatorio\": \"texto revisavel para inserir no relatorio\",",
+    "  \"observacaoObrigatoria\": \"Analise assistida por IA, sujeita a validacao do responsavel tecnico.\"",
+    "}"
+  ].join("\n");
 
   return [
     "Analise a foto anexada ao relatório técnico.",
@@ -577,6 +709,148 @@ function buildVisionUserPrompt_(payload) {
     "  \"textoRelatorio\": \"texto pronto para inserir no relatório\"",
     "}"
   ].join("\n");
+}
+
+function buildImageAnalysisLibraryPrompt_() {
+  return PATHOLOGY_KNOWLEDGE_BASE.map((item) => [
+    "- " + item.nome,
+    "  Descricao: " + item.descricao,
+    "  Sinais visuais: " + item.sinais_visuais.join("; "),
+    "  Verificacoes: " + item.verificacoes_recomendadas.join("; "),
+    "  Alertas: " + item.alertas.join("; ")
+  ].join("\n")).join("\n");
+}
+
+function buildLegacyImageAnalysisLibraryPrompt_() {
+  return OBRAREPORT_IMAGE_ANALYSIS_LIBRARY.map((item) => [
+    "- " + item.category,
+    "  Indicios visuais: " + item.visualCues.join("; "),
+    "  Cuidado: " + item.caution
+  ].join("\n")).join("\n");
+}
+
+function loadPathologyKnowledgeBase_() {
+  try {
+    return readdirSync(PATHOLOGY_KNOWLEDGE_DIR)
+      .filter((fileName) => fileName.toLowerCase().endsWith(".json"))
+      .sort()
+      .map((fileName) => {
+        const raw = readFileSync(join(PATHOLOGY_KNOWLEDGE_DIR, fileName), "utf8");
+        return normalizePathologyKnowledgeItem_(JSON.parse(raw));
+      })
+      .filter((item) => item.id && item.nome);
+  } catch (error) {
+    return OBRAREPORT_IMAGE_ANALYSIS_LIBRARY.map((item) => normalizePathologyKnowledgeItem_({
+      id: item.id,
+      nome: item.category,
+      descricao: "Categoria tecnica local preparada para triagem visual assistida.",
+      sinais_visuais: item.visualCues,
+      causas_possiveis: [],
+      verificacoes_recomendadas: ["validar em vistoria por responsavel tecnico"],
+      grau_preliminar_padrao: "atencao",
+      alertas: [item.caution],
+      termos_relacionados: item.category.split(/[\s/-]+/)
+    }));
+  }
+}
+
+function normalizePathologyKnowledgeItem_(item) {
+  const safe = item && typeof item === "object" ? item : {};
+  return {
+    id: clean_(safe.id),
+    nome: clean_(safe.nome),
+    descricao: clean_(safe.descricao),
+    sinais_visuais: normalizeStringArray_(safe.sinais_visuais).slice(0, 8),
+    causas_possiveis: normalizeStringArray_(safe.causas_possiveis).slice(0, 8),
+    verificacoes_recomendadas: normalizeStringArray_(safe.verificacoes_recomendadas).slice(0, 8),
+    grau_preliminar_padrao: clean_(safe.grau_preliminar_padrao || "atencao"),
+    alertas: normalizeStringArray_(safe.alertas).slice(0, 8),
+    termos_relacionados: normalizeStringArray_(safe.termos_relacionados).slice(0, 20)
+  };
+}
+
+export function searchPathologyKnowledge(query) {
+  const normalizedQuery = normalizeSearchText_(query);
+  const queryTerms = normalizedQuery.split(" ").filter((item) => item.length >= 3);
+  const scored = PATHOLOGY_KNOWLEDGE_BASE.map((item) => {
+    const haystack = normalizeSearchText_([
+      item.id,
+      item.nome,
+      item.descricao,
+      item.sinais_visuais.join(" "),
+      item.causas_possiveis.join(" "),
+      item.verificacoes_recomendadas.join(" "),
+      item.alertas.join(" "),
+      item.termos_relacionados.join(" ")
+    ].join(" "));
+    const score = queryTerms.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0);
+    return {
+      item,
+      score
+    };
+  });
+  const matches = scored
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.item);
+
+  return {
+    query: clean_(query),
+    items: (matches.length ? matches : PATHOLOGY_KNOWLEDGE_BASE).slice(0, 4),
+    totalRecords: PATHOLOGY_KNOWLEDGE_BASE.length
+  };
+}
+
+export function buildPathologyContext(query) {
+  const result = searchPathologyKnowledge(query);
+  const selected = result.items.map((item) => [
+    "- " + item.nome,
+    "  Descricao: " + item.descricao,
+    "  Sinais visuais: " + item.sinais_visuais.join("; "),
+    "  Possiveis causas a verificar, sem concluir: " + item.causas_possiveis.join("; "),
+    "  Verificacoes recomendadas: " + item.verificacoes_recomendadas.join("; "),
+    "  Grau preliminar padrao: " + item.grau_preliminar_padrao,
+    "  Alertas: " + item.alertas.join("; ")
+  ].join("\n")).join("\n");
+
+  return [
+    "Registros locais consultados: " + result.items.length + " de " + result.totalRecords + ".",
+    "Catalogo disponivel: " + PATHOLOGY_KNOWLEDGE_BASE.map((item) => item.nome).join("; ") + ".",
+    selected,
+    "",
+    "Regras de seguranca permanentes:",
+    "- Nao emitir laudo definitivo.",
+    "- Nao afirmar causa definitiva.",
+    "- Nao afirmar risco estrutural confirmado.",
+    "- Nao condenar elemento.",
+    "- Tratar a resposta como analise preliminar sujeita a validacao do responsavel tecnico."
+  ].join("\n");
+}
+
+function buildPathologyQuery_(payload) {
+  const context = (payload && payload.context) || {};
+  const report = context.report || {};
+  const image = (payload && payload.image) || {};
+
+  return [
+    context.imageLabel,
+    context.targetName,
+    context.imageInputName,
+    image.fileName,
+    report.obra,
+    report.local,
+    report.observacoes
+  ].map(clean_).filter(Boolean).join(" ");
+}
+
+function normalizeSearchText_(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function extractOutputText_(data) {
@@ -620,20 +894,62 @@ function parseImageAnalysis_(text) {
   });
 }
 
-function normalizeImageAnalysis_(analysis) {
-  const inconformidades = Array.isArray(analysis.possiveisInconformidades)
+export function normalizeImageAnalysis_(analysis) {
+  const safe = analysis && typeof analysis === "object" ? analysis : {};
+  const evidencias = normalizeStringArray_(safe.evidenciasVisuais).slice(0, 6);
+  const inconformidades = normalizeStringArray_(safe.possiveisInconformidades).slice(0, 5);
+  const verificacoes = normalizeStringArray_(safe.verificacoesRecomendadas).slice(0, 6);
+  const descricao = clean_(safe.descricaoTecnica);
+  const recomendacao = clean_(safe.recomendacaoAcao) || verificacoes.join("; ");
+  const textoRelatorio = clean_(safe.textoRelatorio || descricao);
+
+  return {
+    elementoObservado: clean_(safe.elementoObservado),
+    categoriaProvavel: clean_(safe.categoriaProvavel),
+    confianca: clean_(safe.confianca),
+    descricaoTecnica: descricao,
+    evidenciasVisuais: evidencias,
+    possiveisInconformidades: inconformidades,
+    verificacoesRecomendadas: verificacoes,
+    grauPreliminar: clean_(safe.grauPreliminar),
+    recomendacaoAcao: recomendacao,
+    textoRelatorio,
+    observacaoObrigatoria: clean_(safe.observacaoObrigatoria) || "Analise assistida por IA, sujeita a validacao do responsavel tecnico."
+  };
+
+  const legacyInconformidades = Array.isArray(analysis.possiveisInconformidades)
     ? analysis.possiveisInconformidades.map(clean_).filter(Boolean).slice(0, 5)
     : [];
 
   return {
     descricaoTecnica: clean_(analysis.descricaoTecnica),
-    possiveisInconformidades: inconformidades,
+    possiveisInconformidades: legacyInconformidades,
     recomendacaoAcao: clean_(analysis.recomendacaoAcao),
     textoRelatorio: clean_(analysis.textoRelatorio || analysis.descricaoTecnica)
   };
 }
 
-function formatImageAnalysis_(analysis) {
+export function formatImageAnalysis_(analysis) {
+  const evidencias = analysis.evidenciasVisuais && analysis.evidenciasVisuais.length
+    ? analysis.evidenciasVisuais.join("; ")
+    : safeValue_(analysis.descricaoTecnica);
+  const manifestacoes = analysis.possiveisInconformidades && analysis.possiveisInconformidades.length
+    ? analysis.possiveisInconformidades.join("; ")
+    : safeValue_(analysis.categoriaProvavel || "nao classificada pela imagem");
+  const verificacoes = analysis.verificacoesRecomendadas && analysis.verificacoesRecomendadas.length
+    ? analysis.verificacoesRecomendadas.join("; ")
+    : safeValue_(analysis.recomendacaoAcao);
+
+  return [
+    "Elemento observado: " + safeValue_(analysis.elementoObservado || "elemento visivel na foto"),
+    "Possivel manifestacao: " + manifestacoes,
+    "Evidencias visuais: " + evidencias,
+    "Verificacoes recomendadas: " + verificacoes,
+    "Grau preliminar: " + safeValue_(analysis.grauPreliminar || analysis.confianca || "nao classificado"),
+    "Texto sugerido para relatorio: " + safeValue_(analysis.textoRelatorio),
+    "Observacao obrigatoria: " + safeValue_(analysis.observacaoObrigatoria || "Analise assistida por IA, sujeita a validacao do responsavel tecnico.")
+  ].join("\n");
+
   const lines = [
     "DESCRIÇÃO TÉCNICA: " + safeValue_(analysis.descricaoTecnica)
   ];
@@ -656,6 +972,15 @@ function extractJsonObject_(text) {
   }
 
   return text.slice(start, end + 1);
+}
+
+function normalizeStringArray_(value) {
+  if (Array.isArray(value)) {
+    return value.map(clean_).filter(Boolean);
+  }
+
+  const text = clean_(value);
+  return text ? [text] : [];
 }
 
 function getActionTitle_(action) {

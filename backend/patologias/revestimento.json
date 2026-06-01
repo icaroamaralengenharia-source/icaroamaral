@@ -1,0 +1,29 @@
+{
+  "id": "desplacamento",
+  "nome": "Desplacamento de revestimento",
+  "descricao": "Perda de aderencia ou destacamento de argamassa, ceramica, pintura, concreto superficial ou outro revestimento, podendo ocorrer em paredes, tetos, pisos e fachadas.",
+  "sinais_visuais": [
+    "placas soltas, bordas abertas, queda de material ou area destacada",
+    "fissuras perifericas, diferenca de plano ou substrato aparente",
+    "pintura descascada, argamassa pulverulenta ou ceramica com falha de aderencia"
+  ],
+  "causas_possiveis": [
+    "preparo inadequado do substrato",
+    "umidade, infiltracao ou movimentacao",
+    "argamassa, cola ou pintura aplicada incorretamente",
+    "cura inadequada, incompatibilidade de materiais ou execucao deficiente"
+  ],
+  "verificacoes_recomendadas": [
+    "verificar aderencia e extensao da area afetada",
+    "inspecionar sinais de umidade, fissuras e movimentacao associados",
+    "avaliar risco de queda de material em tetos e fachadas",
+    "definir reparo somente apos identificar substrato e causa provavel"
+  ],
+  "grau_preliminar_padrao": "atencao",
+  "alertas": [
+    "nao afirmar causa unica sem examinar substrato",
+    "em fachadas e tetos, considerar risco de desprendimento e isolar area se necessario",
+    "corrigir acabamento sem tratar umidade ou aderencia pode gerar recorrencia"
+  ],
+  "termos_relacionados": ["desplacamento", "revestimento", "argamassa", "ceramica", "pintura", "aderencia"]
+}

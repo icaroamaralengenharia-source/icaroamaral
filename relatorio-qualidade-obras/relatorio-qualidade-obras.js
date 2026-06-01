@@ -16216,7 +16216,8 @@
     const suggestion = result && result.suggestion ? result.suggestion : "";
     activeAiTarget = {
       field: target || null,
-      suggestion: suggestion
+      suggestion: suggestion,
+      imageRecord: imageRecord || null
     };
 
     if (aiSuggestionTitle) {
@@ -16250,8 +16251,14 @@
       return;
     }
 
-    activeAiTarget.field.value = activeAiTarget.suggestion;
-    activeAiTarget.field.dispatchEvent(new Event("input", { bubbles: true }));
+    const suggestion = aiSuggestedText ? aiSuggestedText.value : activeAiTarget.suggestion;
+
+    if (activeAiTarget.imageRecord) {
+      applyVisualAiSuggestionToReport_(activeAiTarget.field, suggestion);
+    } else {
+      activeAiTarget.field.value = suggestion;
+      activeAiTarget.field.dispatchEvent(new Event("input", { bubbles: true }));
+    }
     updateReportMetrics_();
     renderReviewSummary_();
     saveDraft_().catch(function (error) {
@@ -16259,6 +16266,143 @@
     });
     setDraftStatus_("Sugestão da IA aplicada. Revise o texto antes de gerar o PDF.", "success");
     closeAiSuggestion_();
+  }
+
+  function applyVisualAiSuggestionToReport_(targetField, suggestionText) {
+    const suggestion = parseVisualAiSuggestion_(suggestionText);
+    const targetName = targetField && targetField.name ? targetField.name : "";
+    const number = getNonconformityNumberFromField_(targetName);
+    const descriptionField = number ? form.elements["descricaoInconformidade" + number] : targetField;
+    const solutionField = number ? form.elements["solucaoInconformidade" + number] : null;
+    const riskField = number ? form.elements["grauRisco" + number] : null;
+    const observationField = form.elements.observacoes;
+
+    appendAiTextToField_(descriptionField, buildVisualAiDescriptionText_(suggestion));
+    appendAiTextToField_(solutionField, suggestion.verificacoesRecomendadas);
+    appendAiTextToField_(observationField, suggestion.observacaoObrigatoria);
+    applyVisualAiRisk_(riskField, suggestion.grauPreliminar);
+  }
+
+  function parseVisualAiSuggestion_(text) {
+    const result = {
+      elementoObservado: "",
+      possivelManifestacao: "",
+      evidenciasVisuais: "",
+      verificacoesRecomendadas: "",
+      grauPreliminar: "",
+      textoSugeridoRelatorio: "",
+      observacaoObrigatoria: ""
+    };
+    const keyMap = {
+      elementoobservado: "elementoObservado",
+      possivelmanifestacao: "possivelManifestacao",
+      evidenciasvisuais: "evidenciasVisuais",
+      verificacoesrecomendadas: "verificacoesRecomendadas",
+      graupreliminar: "grauPreliminar",
+      textosugeridopararelatorio: "textoSugeridoRelatorio",
+      observacaoobrigatoria: "observacaoObrigatoria"
+    };
+    let currentKey = "";
+
+    String(text || "").split(/\r?\n/).forEach(function (line) {
+      const match = line.match(/^([^:]{3,90}):\s*(.*)$/);
+
+      if (match) {
+        currentKey = keyMap[normalizeAiSuggestionKey_(match[1])] || "";
+        if (currentKey) {
+          result[currentKey] = appendTextBlock_(result[currentKey], clean(match[2]));
+        }
+        return;
+      }
+
+      if (currentKey && clean(line)) {
+        result[currentKey] = appendTextBlock_(result[currentKey], clean(line));
+      }
+    });
+
+    if (!result.textoSugeridoRelatorio) {
+      result.textoSugeridoRelatorio = clean(text);
+    }
+
+    return result;
+  }
+
+  function normalizeAiSuggestionKey_(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+  }
+
+  function appendTextBlock_(current, next) {
+    const safeNext = clean(next);
+    return safeNext ? (current ? current + "\n" + safeNext : safeNext) : (current || "");
+  }
+
+  function buildVisualAiDescriptionText_(suggestion) {
+    const lines = [];
+
+    if (suggestion.possivelManifestacao) {
+      lines.push("PossÃ­vel manifestaÃ§Ã£o: " + suggestion.possivelManifestacao);
+    }
+
+    if (suggestion.textoSugeridoRelatorio) {
+      lines.push(suggestion.textoSugeridoRelatorio);
+    }
+
+    if (suggestion.evidenciasVisuais) {
+      lines.push("EvidÃªncias visuais: " + suggestion.evidenciasVisuais);
+    }
+
+    return lines.join("\n");
+  }
+
+  function cleanMultiline_(value) {
+    return String(value || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function appendAiTextToField_(field, text) {
+    const nextText = cleanMultiline_(text);
+
+    if (!field || !nextText) {
+      return;
+    }
+
+    const current = cleanMultiline_(field.value);
+    field.value = current
+      ? current + "\n\n--- SugestÃ£o da IA ---\n" + nextText
+      : nextText;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function applyVisualAiRisk_(field, value) {
+    if (!field || clean(field.value)) {
+      return;
+    }
+
+    const normalized = normalizeAiSuggestionKey_(value);
+
+    if (normalized.indexOf("critico") >= 0 || normalized.indexOf("alto") >= 0) {
+      field.value = "Alto - corrigir imediatamente";
+    } else if (normalized.indexOf("atencao") >= 0 || normalized.indexOf("medio") >= 0) {
+      field.value = "Medio - corrigir com prioridade";
+    } else if (normalized.indexOf("baixo") >= 0) {
+      field.value = "Baixo - acompanhar";
+    }
+
+    if (field.value) {
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function getNonconformityNumberFromField_(name) {
+    const match = String(name || "").match(/(?:descricaoInconformidade|solucaoInconformidade|grauRisco|fotoInconformidade)(\d{2})/);
+    return match ? match[1] : "";
   }
 
   function setAiButtonBusy_(button, isBusy) {

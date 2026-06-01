@@ -89,6 +89,78 @@
       recommendation: "recomendando-se revisar a estanqueidade e corrigir o sistema antes do fechamento ou liberação da área"
     }
   ];
+  const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
+    {
+      id: "fissuras-trincas",
+      category: "fissuras e trincas",
+      visualCues: [
+        "linhas finas ou abertas em alvenaria, concreto, revestimento ou acabamento",
+        "mudanca de direcao, extensao, abertura aparente e repeticao da manifestacao",
+        "presenca de manchas, destacamento ou deformacao associada"
+      ],
+      caution: "Nao classificar gravidade estrutural apenas pela foto. Recomendar avaliacao tecnica quando houver abertura relevante, evolucao ou repeticao."
+    },
+    {
+      id: "infiltracao-umidade",
+      category: "infiltracao e umidade",
+      visualCues: [
+        "manchas escurecidas, marcas de escorrimento, pintura empolada ou desagregacao",
+        "umidade proxima a teto, parede, piso, esquadria, banheiro, cobertura ou tubulacao",
+        "sais, bolhas, descascamento ou alteracao de cor no acabamento"
+      ],
+      caution: "Nao afirmar a origem da agua sem ensaio ou verificacao complementar. Indicar investigacao da causa."
+    },
+    {
+      id: "corrosao-armadura",
+      category: "corrosao de armadura",
+      visualCues: [
+        "aco exposto, manchas ferruginosas, cobrimento rompido ou concreto desagregado",
+        "fissuras proximas a elementos de concreto armado",
+        "perda aparente de cobrimento ou destacamento ao redor da armadura"
+      ],
+      caution: "Nao estimar perda de secao pela imagem. Recomendar avaliacao da armadura, cobrimento e extensao do dano."
+    },
+    {
+      id: "desplacamento",
+      category: "desplacamento",
+      visualCues: [
+        "revestimento solto, placas destacadas, bordas abertas ou areas ocas aparentes",
+        "perda de aderencia em argamassa, ceramica, pintura ou concreto",
+        "fragmentos, fissuras perifericas ou diferenca de plano"
+      ],
+      caution: "Nao afirmar causa unica. Recomendar verificacao de aderencia, substrato e umidade."
+    },
+    {
+      id: "mofo-bolor",
+      category: "mofo e bolor",
+      visualCues: [
+        "pontos escuros, esverdeados ou manchas pulverulentas",
+        "ocorrencia em areas com pouca ventilacao, umidade ou condensacao",
+        "associacao com odor, manchas e degradacao de pintura"
+      ],
+      caution: "Nao diagnosticar risco a saude pela foto. Recomendar limpeza adequada e eliminacao da causa da umidade."
+    },
+    {
+      id: "falhas-acabamento",
+      category: "falhas de acabamento",
+      visualCues: [
+        "pintura irregular, rejunte falho, recortes desalinhados ou acabamento incompleto",
+        "manchas, respingos, ondulacoes, falhas de nivelamento ou arremates inadequados",
+        "incompatibilidade visual com o padrao esperado do ambiente"
+      ],
+      caution: "Diferenciar acabamento estetico de manifestacao patologica quando a imagem nao mostrar dano tecnico."
+    },
+    {
+      id: "recalque-movimentacao",
+      category: "recalque/movimentacao",
+      visualCues: [
+        "trincas inclinadas, aberturas em encontros, desnivel aparente ou deformacoes",
+        "fissuras proximas a esquadrias, pilares, vigas, alvenarias ou pisos",
+        "separacao entre elementos e repeticao em pontos alinhados"
+      ],
+      caution: "Nao concluir recalque apenas pela foto. Recomendar acompanhamento, medicao e avaliacao estrutural quando houver indicios."
+    }
+  ];
 
   async function improveTechnicalText(text, context) {
     const payload = {
@@ -182,6 +254,49 @@
     return buildLocalImageFallback_(payload);
   }
 
+  function buildImageAnalysisPrompt(payload) {
+    const safePayload = payload || {};
+    const image = safePayload.image || {};
+    const context = safePayload.context || {};
+    const report = context.report || {};
+    const categories = OBRAREPORT_IMAGE_ANALYSIS_LIBRARY.map(function (item) {
+      return [
+        "- " + item.category,
+        "  Indicios visuais: " + item.visualCues.join("; "),
+        "  Cuidado: " + item.caution
+      ].join("\n");
+    }).join("\n");
+
+    return [
+      "Voce e um assistente tecnico do ObraReport para triagem visual de patologias construtivas.",
+      "Analise somente o que for visivel na imagem e no contexto informado.",
+      "Nao invente causa, origem, gravidade, medida, norma, local, responsavel ou diagnostico definitivo.",
+      "Quando houver incerteza, escreva que a imagem sugere ou aparenta determinada condicao.",
+      "Classifique apenas como hipotese tecnica inicial e recomende verificacao por profissional responsavel.",
+      "",
+      "Contexto do relatorio:",
+      "Obra: " + safePromptValue_(report.obra),
+      "Local: " + safePromptValue_(report.local),
+      "Tipo da foto: " + safePromptValue_(context.imageLabel || context.targetName || context.imageInputName),
+      "Arquivo: " + safePromptValue_(image.fileName),
+      "Dimensoes: " + Number(image.width || 0) + "x" + Number(image.height || 0),
+      "",
+      "Biblioteca tecnica local de referencia:",
+      categories,
+      "",
+      "Retorne a analise em JSON com:",
+      "{",
+      "  \"categoriaProvavel\": \"categoria ou vazio\",",
+      "  \"confianca\": \"baixa | media | alta\",",
+      "  \"descricaoTecnica\": \"descricao objetiva do que e visivel\",",
+      "  \"possiveisInconformidades\": [\"achado 1\", \"achado 2\"],",
+      "  \"naoConcluir\": [\"o que nao pode ser afirmado pela foto\"],",
+      "  \"recomendacaoAcao\": \"proxima verificacao tecnica recomendada\",",
+      "  \"textoRelatorio\": \"texto revisavel para inserir no relatorio\"",
+      "}"
+    ].join("\n");
+  }
+
   async function tryRemoteAssistant_(payload) {
     if (!config.aiAssistantUrl) {
       return null;
@@ -254,6 +369,26 @@
     const context = payload.context || {};
     const label = context.imageLabel || context.targetName || "foto anexada";
     const dimensions = image.width && image.height ? " (" + image.width + "x" + image.height + " px)" : "";
+    const categories = OBRAREPORT_IMAGE_ANALYSIS_LIBRARY.map(function (item) {
+      return item.category;
+    }).join("; ");
+    const localSuggestion = [
+      "Elemento observado: " + label + dimensions + ".",
+      "Possivel manifestacao: nao classificada no modo local. A imagem nao foi analisada por IA visual neste momento.",
+      "Evidencias visuais: nao avaliadas automaticamente no fallback local. Revise a foto manualmente e descreva apenas o que estiver visivel.",
+      "Verificacoes recomendadas: conferir a imagem em campo; comparar com a biblioteca tecnica preparada (" + categories + "); acionar o backend de IA visual quando disponivel; validar qualquer conclusao com o responsavel tecnico.",
+      "Grau preliminar: nao classificado no modo local.",
+      "Texto sugerido para relatorio: Registro fotografico anexado ao relatorio. Recomenda-se revisao tecnica da imagem antes da emissao do PDF.",
+      "Observacao obrigatoria: Analise assistida por IA, sujeita a validacao do responsavel tecnico."
+    ].join("\n");
+
+    return {
+      mode: "local",
+      title: "Analise visual local de contingencia",
+      suggestion: localSuggestion,
+      note: note || "Modo local ativo. Nenhuma manifestacao patologica foi inferida sem o backend de IA visual.",
+      analysis: null
+    };
     const suggestion = [
       "DESCRIÇÃO TÉCNICA: A " + label + dimensions + " foi processada e está pronta para análise visual real pelo backend seguro.",
       "POSSÍVEIS INCONFORMIDADES: A análise visual automática não foi executada neste momento. Revise manualmente a imagem e descreva apenas condições visíveis.",
@@ -437,6 +572,10 @@
     return String(value || "").replace(/^data:[^,]+,/, "").replace(/\s+/g, "").trim();
   }
 
+  function safePromptValue_(value) {
+    return clean_(value) || "-";
+  }
+
   function ensureFinalPeriod_(value) {
     if (!value) {
       return "";
@@ -457,6 +596,8 @@
     improveTechnicalText: improveTechnicalText,
     generateConclusion: generateConclusion,
     reviewReport: reviewReport,
-    analyzeImage: analyzeImage
+    analyzeImage: analyzeImage,
+    buildImageAnalysisPrompt: buildImageAnalysisPrompt,
+    imageAnalysisLibrary: OBRAREPORT_IMAGE_ANALYSIS_LIBRARY
   };
 })();

@@ -1,0 +1,29 @@
+{
+  "id": "fissuras-trincas",
+  "nome": "Fissuras e trincas",
+  "descricao": "Manifestacoes lineares em alvenaria, concreto, argamassa, revestimentos ou acabamentos, observadas como abertura, linha fina, trinca aparente ou descontinuidade superficial.",
+  "sinais_visuais": [
+    "linhas finas ou abertas em paredes, pisos, tetos, pilares, vigas ou revestimentos",
+    "trincas inclinadas, horizontais, verticais, mapeadas ou junto a esquadrias",
+    "abertura visivel, repeticao em pontos alinhados ou associacao com manchas e destacamentos"
+  ],
+  "causas_possiveis": [
+    "movimentacao termica ou higroscopica",
+    "retracao de argamassa ou concreto",
+    "deficiencia de juntas, amarracao ou execucao",
+    "movimentacao da estrutura ou da fundacao, a confirmar por avaliacao tecnica"
+  ],
+  "verificacoes_recomendadas": [
+    "medir abertura, extensao e direcao da fissura",
+    "verificar se ha evolucao com acompanhamento fotografico ou fissurimetro",
+    "inspecionar umidade, destacamento e elementos estruturais proximos",
+    "avaliar necessidade de profissional habilitado quando houver repeticao, abertura relevante ou indicio estrutural"
+  ],
+  "grau_preliminar_padrao": "atencao",
+  "alertas": [
+    "nao classificar como problema estrutural apenas pela foto",
+    "nao afirmar causa definitiva sem vistoria e acompanhamento",
+    "trincas inclinadas, progressivas ou com abertura significativa exigem avaliacao complementar"
+  ],
+  "termos_relacionados": ["fissura", "trinca", "rachadura", "abertura", "junta", "recalque", "retracao"]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "infiltracao",
+  "nome": "Infiltracao",
+  "descricao": "Entrada ou passagem indesejada de agua por elementos construtivos, frequentemente percebida por manchas, escorrimentos, empolamento, descascamento ou degradacao do acabamento.",
+  "sinais_visuais": [
+    "manchas escuras, amareladas ou marcas de escorrimento",
+    "pintura empolada, bolhas, descascamento ou perda de aderencia",
+    "umidade proxima a cobertura, fachada, esquadria, laje, banheiro ou tubulacao"
+  ],
+  "causas_possiveis": [
+    "falha de impermeabilizacao",
+    "deficiencia de vedacao em esquadrias, juntas ou cobertura",
+    "vazamento hidrossanitario",
+    "capilaridade, condensacao ou exposicao a chuva, a confirmar por investigacao"
+  ],
+  "verificacoes_recomendadas": [
+    "mapear area atingida e origem aparente da umidade",
+    "verificar cobertura, fachada, juntas, esquadrias e tubulacoes proximas",
+    "realizar teste de estanqueidade quando aplicavel",
+    "registrar recorrencia apos chuva ou uso das instalacoes"
+  ],
+  "grau_preliminar_padrao": "atencao",
+  "alertas": [
+    "nao afirmar origem da agua apenas pela foto",
+    "avaliar risco de degradacao de revestimentos e instalacoes proximas",
+    "quando houver mofo, odor ou instalacao eletrica proxima, recomendar verificacao prioritaria"
+  ],
+  "termos_relacionados": ["infiltracao", "vazamento", "escorrimento", "mancha", "agua", "impermeabilizacao"]
+}

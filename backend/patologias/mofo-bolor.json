@@ -1,0 +1,29 @@
+{
+  "id": "mofo-bolor",
+  "nome": "Mofo e bolor",
+  "descricao": "Manifestacao biologica superficial frequentemente associada a umidade, ventilacao insuficiente, condensacao ou infiltracao, observada como manchas escuras, esverdeadas ou pulverulentas.",
+  "sinais_visuais": [
+    "pontos escuros, esverdeados ou manchas irregulares em paredes, tetos e cantos",
+    "ocorrencia proxima a areas umidas, pouca ventilacao ou condensacao",
+    "associacao com descascamento, odor ou manchas de umidade"
+  ],
+  "causas_possiveis": [
+    "umidade persistente",
+    "ventilacao e insolacao insuficientes",
+    "condensacao em superficies frias",
+    "infiltracao ou vazamento, a confirmar"
+  ],
+  "verificacoes_recomendadas": [
+    "verificar fonte de umidade antes da limpeza ou repintura",
+    "avaliar ventilacao, insolacao e uso do ambiente",
+    "inspecionar infiltracao, vazamento ou condensacao",
+    "registrar area atingida e recorrencia"
+  ],
+  "grau_preliminar_padrao": "atencao",
+  "alertas": [
+    "nao diagnosticar risco a saude pela foto",
+    "limpeza sem eliminar umidade tende a gerar recorrencia",
+    "ambientes ocupados devem ser avaliados com cuidado quando houver recorrencia"
+  ],
+  "termos_relacionados": ["mofo", "bolor", "fungo", "umidade", "condensacao", "mancha escura"]
+}
