@@ -8,9 +8,9 @@
   --elo-muted: #a5adbb;
   --elo-line: rgba(255, 255, 255, 0.1);
   --elo-line-strong: rgba(255, 255, 255, 0.18);
-  --elo-cyan: #00d4ff;
-  --elo-blue: #2f65ff;
-  --elo-green: #7c3aed;
+  --elo-cyan: #7dd3fc;
+  --elo-blue: #3b82f6;
+  --elo-green: #8b5cf6;
   --elo-success: #22c55e;
   --elo-warning: #f59e0b;
   --elo-shadow: rgba(0, 0, 0, 0.28);
@@ -29,7 +29,7 @@ body {
   min-height: 100vh;
   color: var(--elo-text);
   background:
-    radial-gradient(circle at 42% 12%, rgba(0, 212, 255, 0.08), transparent 22rem),
+    radial-gradient(circle at 42% 12%, rgba(125, 211, 252, 0.055), transparent 22rem),
     linear-gradient(180deg, #070a0f 0%, var(--elo-bg) 54%, #080b10 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
@@ -64,17 +64,17 @@ input {
 }
 
 .elo-hero {
-  min-height: min(820px, calc(100vh - 28px));
+  min-height: min(760px, calc(100vh - 28px));
   display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(330px, 0.72fr);
-  gap: clamp(32px, 7vw, 92px);
+  grid-template-columns: minmax(340px, 0.92fr) minmax(360px, 0.78fr);
+  gap: clamp(34px, 6vw, 86px);
   align-items: center;
-  padding: 4px 0 clamp(28px, 5vw, 58px);
+  padding: 6px 0 clamp(34px, 5vw, 62px);
 }
 
 .elo-hero-copy {
   display: grid;
-  gap: clamp(24px, 4vw, 38px);
+  gap: clamp(22px, 3.4vw, 34px);
   align-content: center;
 }
 
@@ -97,7 +97,7 @@ input {
 .elo-brand small {
   display: block;
   margin-top: 8px;
-  color: var(--elo-muted);
+  color: #c7ced9;
   font-size: 1rem;
 }
 
@@ -108,8 +108,8 @@ input {
   display: inline-block;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: conic-gradient(from 210deg, var(--elo-blue), var(--elo-cyan), #7c3aed, var(--elo-blue));
-  box-shadow: 0 0 34px rgba(0, 212, 255, 0.22);
+  background: conic-gradient(from 210deg, #2458d6, #7dd3fc, #8b5cf6, #2458d6);
+  box-shadow: 0 0 28px rgba(125, 211, 252, 0.14);
 }
 
 .elo-mark {
@@ -165,38 +165,37 @@ input {
 
 .elo-hero-text {
   display: grid;
-  gap: 22px;
+  gap: 20px;
 }
 
 .elo-hero-text h1 {
-  max-width: 760px;
+  max-width: 720px;
   margin: 0;
   color: var(--elo-text);
-  font-size: clamp(3.2rem, 7.3vw, 6.3rem);
-  font-weight: 700;
-  line-height: 0.98;
+  font-size: clamp(3.35rem, 6.4vw, 6rem);
+  font-weight: 650;
+  line-height: 1.02;
   letter-spacing: 0;
 }
 
 .elo-hero-text h1 span {
-  display: block;
-  background: linear-gradient(90deg, #148bff 0%, var(--elo-cyan) 48%, #61d59d 100%);
+  background: linear-gradient(90deg, #f3f6f9 0%, var(--elo-cyan) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .elo-hero-text p {
-  max-width: 610px;
+  max-width: 680px;
   margin: 0;
-  color: #c2c7d0;
-  font-size: clamp(1.2rem, 2vw, 1.72rem);
-  line-height: 1.55;
+  color: #c4cbd5;
+  font-size: clamp(1.15rem, 1.55vw, 1.42rem);
+  line-height: 1.62;
 }
 
 .elo-hero-status {
   display: grid;
-  gap: 23px;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -205,19 +204,19 @@ input {
 .elo-hero-status li {
   display: flex;
   align-items: center;
-  gap: 18px;
-  color: #f6f8fb;
-  font-size: clamp(1rem, 1.5vw, 1.22rem);
+  gap: 14px;
+  color: #e7ebf1;
+  font-size: clamp(0.98rem, 1.2vw, 1.08rem);
   line-height: 1.35;
 }
 
 .elo-status-icon {
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   color: var(--elo-cyan);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .elo-hero-actions {
@@ -242,8 +241,8 @@ input {
 
 .elo-primary-action {
   color: #ffffff;
-  background: linear-gradient(135deg, #4f46e5 0%, var(--elo-cyan) 60%, #20d7b5 100%);
-  box-shadow: 0 18px 46px rgba(0, 212, 255, 0.16);
+  background: linear-gradient(135deg, #2458d6 0%, #3b82f6 100%);
+  box-shadow: 0 18px 46px rgba(59, 130, 246, 0.14);
 }
 
 .elo-primary-action span {
@@ -263,8 +262,92 @@ input {
 .elo-secondary-action:hover,
 .elo-secondary-action:focus,
 .elo-brand:focus {
-  outline: 3px solid rgba(0, 212, 255, 0.22);
+  outline: 3px solid rgba(125, 211, 252, 0.2);
   outline-offset: 4px;
+}
+
+.elo-memory-showcase {
+  display: flex;
+  justify-content: center;
+}
+
+.elo-memory-card {
+  width: min(510px, 100%);
+  display: grid;
+  gap: 24px;
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+    #0a1018;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.32);
+}
+
+.elo-memory-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.elo-memory-card-header strong,
+.elo-memory-card-header small {
+  display: block;
+}
+
+.elo-memory-card-header strong {
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.elo-memory-card-header small {
+  margin-top: 3px;
+  color: var(--elo-muted);
+  font-size: 0.82rem;
+}
+
+.elo-memory-thread {
+  display: grid;
+  gap: 16px;
+}
+
+.elo-memory-thread .elo-user-bubble,
+.elo-memory-thread .elo-assistant-bubble {
+  box-shadow: none;
+}
+
+.elo-memory-thread .elo-user-bubble {
+  max-width: 76%;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.elo-memory-thread .elo-assistant-bubble {
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: clamp(1rem, 1.25vw, 1.08rem);
+}
+
+.elo-memory-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.elo-memory-card-footer span {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--elo-line);
+  border-radius: 999px;
+  color: #d8dee9;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .elo-phone-showcase {
@@ -798,8 +881,13 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .elo-memory-showcase,
   .elo-phone-showcase {
     justify-content: flex-start;
+  }
+
+  .elo-memory-card {
+    width: min(620px, 100%);
   }
 
   .elo-phone-frame {
@@ -844,7 +932,7 @@ input {
   }
 
   .elo-hero-text h1 {
-    font-size: clamp(3rem, 15vw, 4.4rem);
+    font-size: clamp(2.85rem, 14vw, 4.25rem);
   }
 
   .elo-hero-text p {
@@ -860,8 +948,18 @@ input {
     width: 100%;
   }
 
+  .elo-memory-card,
   .elo-phone-frame {
     margin: 0 auto;
+  }
+
+  .elo-memory-card {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .elo-memory-thread .elo-user-bubble {
+    max-width: 88%;
   }
 
   .elo-phone-screen {
@@ -914,7 +1012,16 @@ input {
 
 @media (max-width: 420px) {
   .elo-hero-text h1 {
-    font-size: 2.85rem;
+    font-size: 2.6rem;
+  }
+
+  .elo-memory-card {
+    padding: 16px;
+  }
+
+  .elo-memory-card-footer span {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 
   .elo-phone-frame {
