@@ -3,34 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elo | Companheiro digital</title>
-  <meta name="description" content="Converse com o Elo, um companheiro digital com memória local, projetos, objetivos e linha do tempo.">
+  <title>Elo Online | Companheiro digital</title>
+  <meta name="description" content="Converse com o Elo, um companheiro digital com IA online, memória recente, projetos, objetivos e linha do tempo.">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
   <link rel="stylesheet" href="elo.css">
 </head>
 <body data-elo-mode="standalone">
   <main class="elo-web-shell">
     <section class="elo-web-hero" aria-labelledby="elo-web-title">
-      <a class="elo-web-back" href="index.html">Voltar ao site</a>
-      <p class="elo-web-eyebrow">Companheiro digital local</p>
-      <h1 id="elo-web-title">Elo</h1>
-      <p class="elo-web-subtitle">Um companheiro digital com memória, projetos, objetivos e linha do tempo.</p>
+      <div class="elo-web-topline">
+        <a class="elo-web-back" href="index.html">Voltar ao site</a>
+        <span>Online</span>
+      </div>
+      <p class="elo-web-eyebrow">Companheiro digital do ObraReport</p>
+      <h1 id="elo-web-title">Elo Online</h1>
+      <p class="elo-web-subtitle">Um assistente com IA real, memória recente e fallback local para continuar a conversa.</p>
       <p class="elo-web-text">
-        Converse com o Elo. Ele pode lembrar informações importantes, organizar ideias,
-        registrar projetos, guardar memórias e ajudar você a refletir.
+        Converse com o Elo para organizar ideias, transformar dúvidas em próximos passos e
+        apoiar decisões do dia a dia com uma experiência simples no computador ou no celular.
       </p>
+      <div class="elo-web-status" aria-label="Status do Elo">
+        <span>IA online via backend seguro</span>
+        <span>Últimas 20 mensagens como contexto</span>
+        <span>Fallback local preservado</span>
+      </div>
       <div class="elo-web-points" aria-label="Recursos principais">
         <span>Memórias locais</span>
+        <span>IA real</span>
         <span>Projetos</span>
         <span>Linha do tempo</span>
         <span>Biblioteca</span>
-        <span>Conceitos</span>
       </div>
     </section>
 
     <section class="elo-web-chat-card" aria-label="Conversa com o Elo">
+      <div class="elo-web-chat-heading">
+        <span>Conversa</span>
+        <strong>Pronto para ajudar</strong>
+      </div>
       <div id="eloStandaloneMount"></div>
-      <p class="elo-web-privacy">Nesta versão, as informações ficam salvas apenas neste navegador.</p>
+      <p class="elo-web-privacy">As memórias locais continuam neste navegador. A conversa online usa apenas o histórico recente enviado ao backend seguro.</p>
     </section>
   </main>
 
