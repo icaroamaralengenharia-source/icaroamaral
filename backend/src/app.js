@@ -1,6 +1,6 @@
 import cors from "cors";
 import express from "express";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,8 +9,10 @@ const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
 const MAX_ELO_MESSAGE_LENGTH = 2000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
+const ELO_VECTOR_DIMENSIONS = 96;
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
+const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
   {
@@ -98,6 +100,7 @@ export function createApp(options = {}) {
   const app = express();
   const env = options.env || process.env;
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
+  const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH });
 
   app.use(cors({
     origin(origin, callback) {
@@ -290,6 +293,40 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/elo/vector-memory", (request, response) => {
+    const validation = validateEloVectorMemoryRequest_(request.body || {});
+
+    if (!validation.ok) {
+      response.status(validation.status).json({
+        ok: false,
+        error: validation.message
+      });
+      return;
+    }
+
+    try {
+      const item = eloVectorMemoryStore.upsert(validation.payload);
+      response.json({
+        ok: true,
+        mode: "local_vector",
+        item: {
+          id: item.id,
+          text: item.text,
+          category: item.category,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt
+        }
+      });
+    } catch (error) {
+      console.error("Falha ao salvar memoria vetorial do Elo:", error);
+      response.status(503).json({
+        ok: false,
+        mode: "vector_unavailable",
+        error: "Memoria vetorial indisponivel. O Elo pode continuar com a memoria local."
+      });
+    }
+  });
+
   app.post("/api/elo/chat", async (request, response) => {
     const validation = validateEloChatRequest_(request.body || {});
 
@@ -316,6 +353,7 @@ export function createApp(options = {}) {
     }
 
     try {
+      validation.payload.context.relevantMemoriesSummary = searchEloRelevantMemories_(eloVectorMemoryStore, validation.payload.message);
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
         ok: true,
@@ -491,6 +529,34 @@ function validateEloChatRequest_(body) {
   };
 }
 
+function validateEloVectorMemoryRequest_(body) {
+  const memory = body.memory && typeof body.memory === "object" ? body.memory : body;
+  const text = clean_(memory.text).slice(0, 800);
+  const id = clean_(memory.id || "").slice(0, 120);
+  const category = clean_(memory.category || "outro").slice(0, 40);
+  const createdAt = clean_(memory.createdAt || new Date().toISOString()).slice(0, 40);
+  const updatedAt = clean_(memory.updatedAt || createdAt).slice(0, 40);
+
+  if (!text) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Informe o texto da memoria do Elo."
+    };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      id: id || createStableId_("elo_vector_" + text + createdAt),
+      text,
+      category,
+      createdAt,
+      updatedAt
+    }
+  };
+}
+
 function normalizeAction_(action) {
   const value = String(action || "");
 
@@ -507,6 +573,176 @@ function normalizeAction_(action) {
   }
 
   return "";
+}
+
+export function createEloVectorMemoryStore_(options = {}) {
+  const storePath = options.path || ELO_VECTOR_MEMORY_PATH;
+  const memoryOnly = options.memoryOnly || !storePath;
+  let state = normalizeEloVectorState_(options.initialState || loadEloVectorState_(storePath, memoryOnly));
+
+  function persist() {
+    if (memoryOnly) {
+      return;
+    }
+    const dir = dirname(storePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(storePath, JSON.stringify(state, null, 2), "utf8");
+  }
+
+  return {
+    upsert(memory) {
+      const item = normalizeEloVectorMemory_(memory);
+      const vector = buildLocalEmbedding_(item.text + " " + item.category);
+      state.items = state.items.filter((entry) => entry.id !== item.id);
+      state.items.unshift({
+        ...item,
+        vector
+      });
+      state.items = state.items.slice(0, 500);
+      state.updatedAt = new Date().toISOString();
+      persist();
+      return item;
+    },
+    search(query, limit = 5) {
+      const queryVector = buildLocalEmbedding_(query);
+      return state.items
+        .map((item) => ({
+          ...item,
+          score: cosineSimilarity_(queryVector, item.vector || [])
+        }))
+        .filter((item) => item.score > 0.08)
+        .sort((first, second) => second.score - first.score)
+        .slice(0, limit);
+    },
+    list() {
+      return state.items.slice();
+    }
+  };
+}
+
+function loadEloVectorState_(storePath, memoryOnly) {
+  if (memoryOnly || !storePath || !existsSync(storePath)) {
+    return { items: [], updatedAt: "" };
+  }
+
+  try {
+    return JSON.parse(readFileSync(storePath, "utf8"));
+  } catch (error) {
+    return { items: [], updatedAt: "" };
+  }
+}
+
+function normalizeEloVectorState_(state) {
+  return {
+    items: Array.isArray(state && state.items) ? state.items.map(normalizeEloVectorMemory_).filter(Boolean) : [],
+    updatedAt: clean_(state && state.updatedAt)
+  };
+}
+
+function normalizeEloVectorMemory_(memory) {
+  if (!memory || typeof memory !== "object") {
+    return null;
+  }
+  const text = clean_(memory.text).slice(0, 800);
+  if (!text) {
+    return null;
+  }
+
+  return {
+    id: clean_(memory.id || createStableId_("elo_vector_" + text)).slice(0, 120),
+    text,
+    category: clean_(memory.category || "outro").slice(0, 40),
+    createdAt: clean_(memory.createdAt || new Date().toISOString()).slice(0, 40),
+    updatedAt: clean_(memory.updatedAt || memory.createdAt || new Date().toISOString()).slice(0, 40),
+    vector: Array.isArray(memory.vector) ? memory.vector.slice(0, ELO_VECTOR_DIMENSIONS).map(Number) : buildLocalEmbedding_(text)
+  };
+}
+
+function buildLocalEmbedding_(text) {
+  const vector = new Array(ELO_VECTOR_DIMENSIONS).fill(0);
+  const tokens = expandSemanticTokens_(tokenizeSemanticText_(text));
+
+  tokens.forEach((token) => {
+    const index = positiveHash_(token) % ELO_VECTOR_DIMENSIONS;
+    vector[index] += token.length > 5 ? 1.3 : 1;
+  });
+
+  const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
+  return vector.map((value) => Number((value / magnitude).toFixed(6)));
+}
+
+function tokenizeSemanticText_(text) {
+  return clean_(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !ELO_VECTOR_STOPWORDS_.has(token));
+}
+
+const ELO_VECTOR_STOPWORDS_ = new Set([
+  "que", "com", "para", "por", "uma", "uns", "das", "dos", "ela", "ele", "isso", "aqui", "agora", "sobre", "minha", "meu", "seu", "sua", "voce", "voces", "lembre", "guarde"
+]);
+
+const ELO_VECTOR_SYNONYMS_ = new Map([
+  ["stock", ["estoque", "almoxarifado", "materiais", "obra", "inventario"]],
+  ["ia", ["inteligencia", "assistente", "automacao"]],
+  ["estoque", ["stock", "almoxarifado", "materiais", "inventario", "obra"]],
+  ["almoxarifado", ["estoque", "stock", "materiais", "obra"]],
+  ["material", ["materiais", "estoque", "almoxarifado", "insumo"]],
+  ["materiais", ["material", "estoque", "almoxarifado", "insumos"]],
+  ["obra", ["obras", "canteiro", "construcao", "materiais"]],
+  ["relatorio", ["laudo", "vistoria", "documento", "obra"]],
+  ["rdo", ["diario", "obra", "registro"]],
+  ["mae", ["familia", "pessoa", "maria"]],
+  ["projeto", ["ideia", "roadmap", "prioridade", "objetivo"]]
+]);
+
+function expandSemanticTokens_(tokens) {
+  const expanded = [];
+  tokens.forEach((token) => {
+    expanded.push(token);
+    const synonyms = ELO_VECTOR_SYNONYMS_.get(token) || [];
+    synonyms.forEach((synonym) => expanded.push(synonym));
+  });
+  return expanded;
+}
+
+function cosineSimilarity_(first, second) {
+  const length = Math.min(first.length, second.length);
+  let score = 0;
+  for (let index = 0; index < length; index += 1) {
+    score += Number(first[index] || 0) * Number(second[index] || 0);
+  }
+  return score;
+}
+
+function positiveHash_(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createStableId_(value) {
+  return "id_" + positiveHash_(value).toString(36);
+}
+
+export function searchEloRelevantMemories_(store, query) {
+  try {
+    const items = store.search(query, 5);
+    if (!items.length) {
+      return "";
+    }
+    return items.map((item) => "- [" + item.category + "; score " + item.score.toFixed(2) + "] " + item.text).join("\n");
+  } catch (error) {
+    return "";
+  }
 }
 
 async function callOpenAi_(payload, env) {
@@ -653,6 +889,7 @@ async function callOpenAiElo_(payload, env) {
 
 export function buildEloSystemPrompt_(context = {}) {
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
+  const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const prompt = [
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
@@ -672,6 +909,11 @@ export function buildEloSystemPrompt_(context = {}) {
   if (memoriesSummary) {
     prompt.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
     prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo.");
+  }
+
+  if (relevantMemoriesSummary) {
+    prompt.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
+    prompt.push("Use o contexto relevante recuperado quando ele se conectar ao pedido atual, mesmo que a pessoa use palavras diferentes das memÃ³rias originais.");
   }
 
   return prompt.join(" ");

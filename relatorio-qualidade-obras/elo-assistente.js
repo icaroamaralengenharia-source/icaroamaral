@@ -17,17 +17,18 @@
     webSearchEnabled: false,
     webSearchEndpoint: "",
     webSearchRequiresConfirmation: true,
-    chatEndpoint: getEloChatEndpoint_()
+    chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
+    vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory")
   };
 
-  function getEloChatEndpoint_() {
+  function getEloBackendEndpoint_(path) {
     const baseUrl = String(
       window.ELO_API_BASE_URL ||
       window.OBRAREPORT_API_BASE_URL ||
       "http://localhost:3000"
     ).replace(/\/+$/g, "");
 
-    return baseUrl + "/api/elo/chat";
+    return baseUrl + path;
   }
 
   function isStandaloneMode() {
@@ -601,7 +602,46 @@
     });
     memories.unshift(memoryItem);
     setEloLongTermMemories(memories);
+    syncEloVectorMemory(memoryItem);
     return memoryItem;
+  }
+
+  function syncEloVectorMemory(memoryItem) {
+    if (!memoryItem || !ELO_CONFIG.vectorMemoryEndpoint || !window.fetch) {
+      return Promise.resolve(null);
+    }
+
+    return window.fetch(ELO_CONFIG.vectorMemoryEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        memory: {
+          id: memoryItem.id,
+          text: memoryItem.text,
+          category: memoryItem.category,
+          createdAt: memoryItem.createdAt,
+          updatedAt: memoryItem.updatedAt
+        }
+      })
+    }).then(function (response) {
+      return response.json().catch(function () {
+        return null;
+      });
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  function syncEloVectorMemories() {
+    if (!ELO_CONFIG.vectorMemoryEndpoint || !window.fetch) {
+      return;
+    }
+
+    getEloLongTermMemories().slice(0, 20).forEach(function (memoryItem) {
+      syncEloVectorMemory(memoryItem);
+    });
   }
 
   function detectEloForgetCommand(message) {
@@ -936,6 +976,8 @@
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
     }
+
+    syncEloVectorMemories();
 
     return window.fetch(ELO_CONFIG.chatEndpoint, {
       method: "POST",

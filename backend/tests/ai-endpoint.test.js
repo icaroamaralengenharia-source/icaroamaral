@@ -5,8 +5,10 @@ import {
   buildPathologyContext,
   buildVisionUserPrompt_,
   createApp,
+  createEloVectorMemoryStore_,
   formatImageAnalysis_,
   normalizeImageAnalysis_,
+  searchEloRelevantMemories_,
   searchPathologyKnowledge
 } from "../src/app.js";
 
@@ -18,7 +20,8 @@ before(async () => {
     env: {
       PORT: "0",
       AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
-    }
+    },
+    eloVectorMemoryStore: createEloVectorMemoryStore_({ memoryOnly: true })
   });
 
   server = await new Promise((resolve) => {
@@ -177,6 +180,54 @@ test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () =>
   assert.match(prompt, /Contexto salvo sobre a pessoa/i);
   assert.match(prompt, /Minha mae se chama Maria/i);
   assert.match(prompt, /sem repetir 'segundo minha memoria'/i);
+});
+
+test("prompt mestre do Elo inclui contexto relevante recuperado por vetor", () => {
+  const prompt = buildEloSystemPrompt_({
+    relevantMemoriesSummary: "- [projeto; score 0.42] Stock IA organiza almoxarifado e controle de materiais."
+  });
+
+  assert.match(prompt, /Contexto relevante recuperado/i);
+  assert.match(prompt, /Stock IA organiza almoxarifado/i);
+});
+
+test("memoria vetorial recupera contexto por significado", () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  store.upsert({
+    id: "stock-ia",
+    text: "Meu projeto principal e o Stock IA para controlar almoxarifado, materiais e entradas de obra.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+  store.upsert({
+    id: "familia",
+    text: "Minha mae se chama Maria e gosta de conversar com calma.",
+    category: "pessoa",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const summary = searchEloRelevantMemories_(store, "Como esta aquela ideia do estoque?");
+
+  assert.match(summary, /Stock IA/i);
+  assert.doesNotMatch(summary.split("\n")[0], /Maria/i);
+});
+
+test("endpoint de memoria vetorial salva item local", async () => {
+  const response = await postEloVectorMemory_({
+    memory: {
+      id: "memoria-teste",
+      text: "Controle de estoque da obra com materiais e almoxarifado.",
+      category: "projeto"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.mode, "local_vector");
+  assert.equal(data.item.id, "memoria-teste");
 });
 
 test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {
@@ -346,6 +397,17 @@ function postImage_(body) {
 
 function postEloChat_(body) {
   return fetch(baseUrl + "/api/elo/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function postEloVectorMemory_(body) {
+  return fetch(baseUrl + "/api/elo/vector-memory", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
