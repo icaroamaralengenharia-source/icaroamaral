@@ -16344,7 +16344,7 @@
     const lines = [];
 
     if (suggestion.possivelManifestacao) {
-      lines.push("PossÃ­vel manifestaÃ§Ã£o: " + suggestion.possivelManifestacao);
+      lines.push("Possível manifestação: " + suggestion.possivelManifestacao);
     }
 
     if (suggestion.textoSugeridoRelatorio) {
@@ -16352,7 +16352,7 @@
     }
 
     if (suggestion.evidenciasVisuais) {
-      lines.push("EvidÃªncias visuais: " + suggestion.evidenciasVisuais);
+      lines.push("Evidências visuais: " + suggestion.evidenciasVisuais);
     }
 
     return lines.join("\n");
@@ -16375,7 +16375,7 @@
 
     const current = cleanMultiline_(field.value);
     field.value = current
-      ? current + "\n\n--- SugestÃ£o da IA ---\n" + nextText
+      ? current + "\n\n--- Sugestão da IA ---\n" + nextText
       : nextText;
     field.dispatchEvent(new Event("input", { bubbles: true }));
   }
