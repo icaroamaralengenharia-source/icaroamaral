@@ -19,8 +19,8 @@
       --text: #102033;
       --muted: #5c6b7d;
       --line: #d8e1eb;
-      --shadow: 0 22px 54px rgba(6, 26, 50, 0.12);
-      --radius: 18px;
+      --shadow: 0 24px 60px rgba(6, 26, 50, 0.14);
+      --radius: 22px;
     }
 
     * {
@@ -77,6 +77,8 @@
 
     .top-actions {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
       gap: 10px;
     }
 
@@ -136,15 +138,17 @@
 
     .hero {
       display: grid;
-      grid-template-columns: minmax(0, 1.22fr) minmax(300px, 0.78fr);
-      gap: 24px;
+      grid-template-columns: minmax(0, 1.06fr) minmax(320px, 0.94fr);
+      gap: clamp(22px, 4vw, 46px);
       align-items: center;
-      min-height: 390px;
-      padding: clamp(24px, 3.8vw, 42px);
+      min-height: 520px;
+      padding: clamp(26px, 5vw, 58px);
       overflow: hidden;
       background:
-        radial-gradient(circle at top right, rgba(33, 115, 189, 0.13), transparent 25rem),
-        linear-gradient(135deg, #ffffff, #f8fbfe);
+        radial-gradient(circle at 88% 14%, rgba(15, 127, 115, 0.28), transparent 20rem),
+        radial-gradient(circle at 4% 100%, rgba(213, 161, 45, 0.18), transparent 18rem),
+        linear-gradient(135deg, #04162b 0%, #082544 48%, #0b3f64 100%);
+      box-shadow: 0 34px 90px rgba(6, 26, 50, 0.28);
     }
 
     .eyebrow {
@@ -170,6 +174,11 @@
       font-size: clamp(2.15rem, 4vw, 3.65rem);
     }
 
+    .hero h1 {
+      color: #ffffff;
+      text-wrap: balance;
+    }
+
     h2 {
       max-width: 780px;
       font-size: clamp(1.5rem, 3vw, 2.35rem);
@@ -178,9 +187,13 @@
     .hero-text {
       max-width: 660px;
       margin: 14px 0 0;
-      color: #43546a;
+      color: rgba(255, 255, 255, 0.82);
       font-size: clamp(0.95rem, 1.25vw, 1.08rem);
       line-height: 1.5;
+    }
+
+    .hero .eyebrow {
+      color: #ffd978;
     }
 
     .hero-feature-line {
@@ -194,10 +207,10 @@
 
     .hero-feature-line li {
       padding: 8px 10px;
-      border: 1px solid rgba(15, 95, 143, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 999px;
-      color: var(--navy);
-      background: #f5fbff;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
       font-size: 0.82rem;
       font-weight: 900;
       line-height: 1.2;
@@ -229,16 +242,17 @@
       gap: 2px 9px;
       min-height: 64px;
       padding: 9px;
-      border: 1px solid #dbe4ee;
+      border: 1px solid rgba(255, 255, 255, 0.16);
       border-radius: 13px;
-      color: var(--navy);
-      background: rgba(248, 251, 253, 0.94);
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
       text-decoration: none;
-      box-shadow: 0 10px 24px rgba(6, 26, 50, 0.055);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+      backdrop-filter: blur(8px);
     }
 
     .hero-proof a:hover {
-      border-color: rgba(15, 118, 110, 0.32);
+      border-color: rgba(255, 217, 120, 0.42);
       transform: translateY(-1px);
     }
 
@@ -250,7 +264,7 @@
       height: 34px;
       border-radius: 10px;
       color: #ffffff;
-      background: linear-gradient(135deg, #061a32, #0f5f8f);
+      background: linear-gradient(135deg, #0e7f73, #d7a12d);
       font-size: 0.68rem;
       font-weight: 950;
       line-height: 1;
@@ -262,7 +276,7 @@
     }
 
     .hero-proof small {
-      color: #607086;
+      color: rgba(255, 255, 255, 0.68);
       font-size: 0.74rem;
       font-weight: 750;
       line-height: 1.2;
@@ -332,9 +346,52 @@
       gap: 12px;
       padding: 12px;
       border: 1px solid #dbe4ee;
-      border-radius: 18px;
+      border-radius: 22px;
       background: linear-gradient(180deg, #ffffff, #f4f8fc);
       box-shadow: 0 26px 70px rgba(6, 26, 50, 0.18);
+    }
+
+    .platform-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .platform-strip article {
+      display: grid;
+      gap: 8px;
+      min-height: 132px;
+      padding: 18px;
+      border: 1px solid rgba(216, 225, 235, 0.96);
+      border-radius: 18px;
+      background: #ffffff;
+      box-shadow: 0 16px 36px rgba(6, 26, 50, 0.08);
+    }
+
+    .platform-strip article:first-child,
+    .platform-strip article:nth-child(3) {
+      border-color: rgba(213, 161, 45, 0.36);
+      background: linear-gradient(180deg, #ffffff, #fffaf0);
+    }
+
+    .platform-strip small {
+      color: var(--teal);
+      font-size: 0.7rem;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .platform-strip strong {
+      color: var(--navy);
+      font-size: 1.1rem;
+    }
+
+    .platform-strip span {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
     }
 
     .mockup-top,
@@ -761,6 +818,26 @@
       border: 1px solid #dbe4ee;
       border-radius: 14px;
       box-shadow: 0 12px 28px rgba(6, 26, 50, 0.06);
+    }
+
+    .cards article {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cards article::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: linear-gradient(180deg, var(--teal), var(--gold));
+      opacity: 0.78;
+    }
+
+    .cards article:hover,
+    .platform-strip article:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 42px rgba(6, 26, 50, 0.12);
     }
 
     .stock-proof-grid strong {
@@ -1277,6 +1354,7 @@
       .guided-flow,
       .stock-flow,
       .stock-proof-grid,
+      .platform-strip,
       .hero-proof {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -1364,6 +1442,7 @@
       .value-grid,
       .plans,
       .steps,
+      .platform-strip,
       .guided-flow {
         grid-template-columns: 1fr;
       }
@@ -1392,7 +1471,9 @@
         <span>Sistema de gestão técnica de obras</span>
       </div>
       <nav class="top-actions" aria-label="Ações principais">
+        <a class="button secondary" href="#features-title">Recursos</a>
         <a class="button secondary" href="#demo">Demonstração</a>
+        <a class="button secondary" href="stock-ai.html">Stock AI</a>
         <a class="button secondary" href="elo.html">Conhecer o Elo</a>
         <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar</a>
       </nav>
@@ -1400,32 +1481,30 @@
 
     <section class="hero">
       <div>
-        <p class="eyebrow">Software profissional para obras</p>
-        <h1>Relat&oacute;rios, Di&aacute;rio de Obras, Estoque Inteligente e IA em uma &uacute;nica plataforma</h1>
+        <p class="eyebrow">Plataforma de gestão técnica de obras</p>
+        <h1>Controle relatórios, diários de obra e materiais em uma única plataforma.</h1>
         <p class="hero-text">
-          Gere relat&oacute;rios t&eacute;cnicos, registre RDOs, acompanhe consumo, controle estoque, receba alertas autom&aacute;ticos e crie PDFs profissionais em poucos minutos.
+          Do campo ao cliente: registre fotos, RDO, materiais, estoque, auditoria e gere PDFs profissionais com uma rotina clara para engenheiros, construtoras e equipes de obra.
         </p>
         <ul class="hero-feature-line" aria-label="Recursos principais do ObraReport">
           <li>Relat&oacute;rios T&eacute;cnicos</li>
           <li>Di&aacute;rio de Obras</li>
-          <li>Estoque Inteligente</li>
-          <li>Intelig&ecirc;ncia Artificial</li>
-          <li>Entrada por Nota Fiscal</li>
+          <li>Stock AI</li>
+          <li>Auditoria de Materiais</li>
+          <li>PDF Profissional</li>
         </ul>
         <div class="hero-actions">
-          <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario">Gerar RDO agora</a>
-          <a class="button light" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/relatorios">Gerar relatório agora</a>
-          <button class="button stock-cta" type="button" data-stock-demo="obras">Testar Estoque Inteligente</button>
-          <button class="button light" type="button" data-stock-demo="almoxarifado">Testar materiais</button>
+          <a class="button stock-cta" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Testar demonstração guiada</a>
           <a class="button light" href="#pdf-example">Ver exemplo de PDF</a>
+          <a class="button light" href="stock-ai.html">Abrir Stock AI</a>
         </div>
         <div class="hero-proof">
-          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?elo=capabilities"><span>IA</span><strong>IA Técnica</strong><small>Textos e orientação técnica.</small></a>
+          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/relatorios"><span>OBR</span><strong>ObraReport</strong><small>Relatórios técnicos com fotos.</small></a>
           <a href="#pdf-example"><span>PDF</span><strong>PDF Profissional</strong><small>Documento pronto para cliente.</small></a>
           <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario"><span>RDO</span><strong>RDO em Campo</strong><small>Registro diário da obra.</small></a>
-          <a href="#materials-title"><span>MAT</span><strong>Materiais e Quantitativos</strong><small>Produção e consumo.</small></a>
-          <a href="#stock-ia-title"><span>STK</span><strong>Estoque Inteligente</strong><small>Saldo, alertas e compras.</small></a>
-          <a href="#stock-flow-title"><span>NF</span><strong>Entrada por Nota</strong><small>Notas fiscais e saldo real.</small></a>
+          <a href="#materials-title"><span>MAT</span><strong>Materiais</strong><small>Produção, consumo e auditoria.</small></a>
+          <a href="stock-ai.html"><span>STK</span><strong>Stock AI</strong><small>Obras, almoxarifado e aprovações.</small></a>
+          <a href="#stock-flow-title"><span>NF</span><strong>Notas Fiscais</strong><small>XML e saldo real no estoque.</small></a>
           <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?elo=capabilities"><span>Elo</span><strong>Elo Assistente</strong><small>Memória e biblioteca local.</small></a>
         </div>
         <div class="hero-elo-card">
@@ -1459,6 +1538,29 @@
       </aside>
     </section>
 
+    <section class="platform-strip" aria-label="Módulos principais da plataforma">
+      <article>
+        <small>Relatórios</small>
+        <strong>ObraReport</strong>
+        <span>Fotos, inconformidades, recomendações, revisão técnica e PDF para o cliente.</span>
+      </article>
+      <article>
+        <small>Campo</small>
+        <strong>Diário de Obras</strong>
+        <span>Registro de clima, equipe, serviços, ocorrências, produção e rotina da obra.</span>
+      </article>
+      <article>
+        <small>Materiais</small>
+        <strong>Stock AI</strong>
+        <span>Estoque por obra ou almoxarifado, XML de nota, entradas, saídas e aprovações.</span>
+      </article>
+      <article>
+        <small>Assistente</small>
+        <strong>Elo</strong>
+        <span>Ajuda local para orientar o uso do sistema e apoiar a rotina do usuário.</span>
+      </article>
+    </section>
+
     <section class="section demo" id="pdf-example" aria-labelledby="pdf-example-title">
       <div>
         <p class="eyebrow">Prova de valor</p>
@@ -1480,13 +1582,12 @@
       <p class="eyebrow">O que o ObraReport faz</p>
       <h2 id="features-title">Tudo para registrar, organizar e entregar informação técnica de obra.</h2>
       <div class="cards">
-        <article><strong>Relatórios técnicos com fotos</strong><span>Registre evidências, descrições e conclusões com aparência profissional.</span></article>
-        <article><strong>Diário de Obras/RDO</strong><span>Acompanhe clima, equipe, produção, ocorrências e segurança do trabalho.</span></article>
-        <article><strong>Materiais e Quantitativos</strong><span>Acompanhe produção executada, quantitativos e consumo registrado.</span></article>
-        <article class="stock-feature-card"><strong>Estoque Inteligente</strong><span>Controle entradas, saídas, saldo real, consumo por obra, alertas automáticos, lista de compras e notas fiscais em um único lugar.</span></article>
-        <article><strong>IA para textos técnicos</strong><span>Melhore descrições, recomendações e conclusões sem perder o sentido original.</span></article>
-        <article><strong>PDF profissional</strong><span>Gere documentos limpos, técnicos e prontos para enviar ao cliente.</span></article>
-        <article><strong>WhatsApp/e-mail</strong><span>Compartilhe resumos executivos de forma rápida e clara.</span></article>
+        <article><strong>ObraReport</strong><span>Relatórios técnicos com fotos, inconformidades, recomendações, observações e PDF profissional.</span></article>
+        <article><strong>Diário de Obras/RDO</strong><span>Clima, equipe, serviços, ocorrências, segurança, produção e histórico diário de campo.</span></article>
+        <article class="stock-feature-card"><strong>Stock AI Almoxarifado</strong><span>Entradas, saídas, XML de nota, responsáveis, setores, alertas, aprovação e auditoria.</span></article>
+        <article class="stock-feature-card"><strong>Stock AI Obras</strong><span>Controle de materiais por obra, consumo executado, saldo real, lista de compras e desperdício.</span></article>
+        <article><strong>Elo Assistente</strong><span>Ajuda local para orientar o usuário sobre relatórios, RDO, materiais, planos e biblioteca.</span></article>
+        <article><strong>PDF e entrega ao cliente</strong><span>Documentos limpos, técnicos, revisáveis e prontos para encaminhar ao cliente ou gestor.</span></article>
       </div>
     </section>
 
