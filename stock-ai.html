@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock AI &mdash; Controle de estoque na palma da m&atilde;o</title>
+  <meta name="description" content="Sistema inteligente para controle de estoque e almoxarifado com XML de nota fiscal, entradas, sa&iacute;das, respons&aacute;veis, setores, alertas, dashboard e auditoria para obras, mercados, lojas, hospitais, secretarias e prefeituras.">
+  <link rel="stylesheet" href="./stock-ai.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#topo" aria-label="Stock AI">
+      <span class="brand-mark">S</span>
+      <span>
+        <strong>Stock AI</strong>
+        <small>Almoxarifado AI</small>
+      </span>
+    </a>
+
+    <nav class="site-nav" aria-label="Navega&ccedil;&atilde;o principal">
+      <a href="#solucoes">Solu&ccedil;&otilde;es</a>
+      <a href="#recursos">Recursos</a>
+      <a href="#funciona">Como funciona</a>
+      <a href="#demo">Demonstra&ccedil;&atilde;o</a>
+    </nav>
+
+    <a class="header-cta" href="#acesso">Testar agora</a>
+  </header>
+
+  <main id="topo">
+    <section class="hero-section">
+      <div class="hero-content">
+        <p class="eyebrow">Controle inteligente de estoque</p>
+        <div class="product-lockup" aria-label="Produtos Stock AI">
+          <span>
+            <strong>Stock AI</strong>
+            <small>Obras e empresas</small>
+          </span>
+          <span>
+            <strong>Almoxarifado AI</strong>
+            <small>Unidade, setor e respons&aacute;vel</small>
+          </span>
+        </div>
+        <h1>Controle seu estoque na palma da m&atilde;o</h1>
+
+        <div class="hero-actions" aria-label="A&ccedil;&otilde;es principais">
+          <a class="button primary" href="#acesso">Testar Stock AI agora</a>
+          <a class="button secondary" href="#contato">Solicitar demonstra&ccedil;&atilde;o</a>
+          <!-- Inserir numero do WhatsApp aqui -->
+          <a class="button ghost" href="#">Falar no WhatsApp</a>
+        </div>
+
+        <p class="hero-copy">
+          Do almoxarifado da prefeitura ao estoque do mercado: registre entradas, sa&iacute;das,
+          respons&aacute;veis, setores, XML de nota fiscal, alertas e auditorias em poucos cliques.
+        </p>
+
+        <div class="hero-proof-grid" aria-label="Benef&iacute;cios principais">
+          <article>
+            <span>Menos desperd&iacute;cio</span>
+            <strong>controle por saldo real</strong>
+          </article>
+          <article>
+            <span>Mais transpar&ecirc;ncia</span>
+            <strong>retirada com respons&aacute;vel</strong>
+          </article>
+          <article>
+            <span>Auditoria pronta</span>
+            <strong>resumo para gestor</strong>
+          </article>
+        </div>
+
+        <div class="badge-row" aria-label="Recursos em destaque">
+          <span>XML NF-e/NFC-e</span>
+          <span>Alertas de estoque baixo</span>
+          <span>Dashboard no celular</span>
+          <span>Auditoria para gestor</span>
+          <span>Obras, lojas e sa&uacute;de</span>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Mockup do dashboard do Stock AI">
+        <div class="phone-shell">
+          <div class="phone-top">
+            <span></span>
+          </div>
+          <div class="phone-screen">
+            <div class="app-head">
+              <div>
+                <small>Almoxarifado AI</small>
+                <strong>Secretaria Central</strong>
+              </div>
+              <b>OK</b>
+            </div>
+            <div class="metric-grid">
+              <article>
+                <span>Itens cr&iacute;ticos</span>
+                <strong>03</strong>
+              </article>
+              <article>
+                <span>Entradas hoje</span>
+                <strong>18</strong>
+              </article>
+              <article>
+                <span>Sa&iacute;das hoje</span>
+                <strong>42</strong>
+              </article>
+              <article>
+                <span>Alertas</span>
+                <strong>05</strong>
+              </article>
+            </div>
+            <div class="phone-card danger">
+              <span>Estoque baixo</span>
+              <strong>Luvas descart&aacute;veis</strong>
+              <small>Reposi&ccedil;&atilde;o recomendada</small>
+            </div>
+            <div class="phone-list">
+              <p><span>Jos&eacute;</span><b>Enfermagem</b></p>
+              <p><span>Maria</span><b>Limpeza</b></p>
+              <p><span>Almox.</span><b>XML importado</b></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="floating-card card-one">
+          <span>Auditoria pronta</span>
+          <strong>Retiradas por respons&aacute;vel</strong>
+        </div>
+        <div class="floating-card card-two">
+          <span>Compra evitada</span>
+          <strong>Saldo reaproveitado</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="access-section section-wrap" id="acesso">
+      <div class="access-copy">
+        <p class="eyebrow">Acesso de demonstra&ccedil;&atilde;o</p>
+        <h2>Escolha como quer entrar no Stock AI</h2>
+        <p>Use os dados abaixo ou entre direto na demonstra&ccedil;&atilde;o. Os campos s&atilde;o opcionais e j&aacute; v&ecirc;m preenchidos para testar r&aacute;pido.</p>
+      </div>
+
+      <form class="access-card" id="stockAccessForm">
+        <div class="access-form-grid">
+          <label>
+            Organiza&ccedil;&atilde;o / cliente
+            <input id="stockAccessOrg" type="text" value="Prefeitura Sao Joao" autocomplete="organization">
+          </label>
+          <label>
+            Unidade / setor
+            <input id="stockAccessUnit" type="text" value="Secretaria de Saude">
+          </label>
+          <label>
+            E-mail do gestor
+            <input id="stockAccessManager" type="email" value="secretaria@prefeiturasaojoao.demo" autocomplete="email">
+          </label>
+          <label>
+            E-mail do almoxarife
+            <input id="stockAccessWarehouse" type="email" value="almoxarife@prefeiturasaojoao.demo" autocomplete="email">
+          </label>
+        </div>
+
+        <div class="access-actions" aria-label="Entrar no Stock AI">
+          <button type="button" class="button primary" data-stock-start-role="gestor">Entrar como gestor</button>
+          <button type="button" class="button secondary" data-stock-start-role="almoxarife">Entrar como almoxarife</button>
+          <button type="button" class="button ghost dark" data-stock-start-demo="true">Acessar demonstra&ccedil;&atilde;o</button>
+        </div>
+
+        <div class="access-note">
+          <strong>Como a demo funciona:</strong>
+          <span>Almoxarife solicita entrada ou sa&iacute;da. Gestor aprova. S&oacute; depois o estoque oficial muda.</span>
+        </div>
+      </form>
+    </section>
+
+    <section class="audience-section section-wrap" id="solucoes">
+      <div class="section-heading">
+        <p class="eyebrow">Feito para quem precisa controlar de verdade</p>
+        <h2>Uma plataforma para estoque p&uacute;blico, privado e de obra</h2>
+      </div>
+
+      <div class="audience-grid">
+        <article>
+          <span>Prefeitura / Secretaria</span>
+          <p>Controle materiais por unidade, setor e respons&aacute;vel. Veja EPIs, medicamentos, materiais de limpeza e consumo em tempo real.</p>
+        </article>
+        <article>
+          <span>Hospital / Sa&uacute;de</span>
+          <p>Acompanhe estoque de insumos, EPIs e materiais essenciais com alertas e hist&oacute;rico de retirada.</p>
+        </article>
+        <article>
+          <span>Supermercado / Com&eacute;rcio</span>
+          <p>Registre entradas por nota fiscal, acompanhe sa&iacute;das e evite falta de produtos importantes.</p>
+        </article>
+        <article>
+          <span>Loja de m&oacute;veis / Materiais</span>
+          <p>Controle pe&ccedil;as, produtos, acess&oacute;rios, entregas, retiradas e estoque por local.</p>
+        </article>
+        <article>
+          <span>Obras / Engenharia</span>
+          <p>Controle cimento, tubos, conex&otilde;es, cabos, ferramentas e materiais consumidos na obra.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="modes-section section-wrap">
+      <div class="section-heading">
+        <p class="eyebrow">Dois modos de uso</p>
+        <h2>Controle a obra e o almoxarifado sem misturar dados</h2>
+      </div>
+
+      <div class="mode-grid">
+        <article class="mode-card dark">
+          <small>Modo obra</small>
+          <h3>Stock AI Obras</h3>
+          <p>Para obras e construtoras controlarem materiais, consumo, entradas, sa&iacute;das, respons&aacute;veis e auditorias.</p>
+        </article>
+        <article class="mode-card light">
+          <small>Modo institui&ccedil;&atilde;o</small>
+          <h3>Almoxarifado AI</h3>
+          <p>Para prefeituras, hospitais, mercados, lojas e empresas controlarem estoque por unidade, setor e respons&aacute;vel.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="steps-section section-wrap" id="funciona">
+      <div class="section-heading">
+        <p class="eyebrow">Como funciona</p>
+        <h2>Do lan&ccedil;amento da nota ao relat&oacute;rio do gestor</h2>
+      </div>
+
+      <div class="steps-grid">
+        <article><b>1</b><span>Crie o ambiente</span></article>
+        <article><b>2</b><span>Importe XML da nota fiscal ou cadastre manualmente</span></article>
+        <article><b>3</b><span>Registre entradas e sa&iacute;das</span></article>
+        <article><b>4</b><span>Acompanhe alertas e dashboard no celular</span></article>
+        <article><b>5</b><span>Gere resumo e auditoria para o gestor</span></article>
+      </div>
+    </section>
+
+    <section class="manager-section">
+      <div class="manager-copy">
+        <p class="eyebrow">O que o gestor enxerga</p>
+        <h2>Menos pergunta no almoxarifado. Mais resposta na tela.</h2>
+        <p>O gestor n&atilde;o precisa perguntar no almoxarifado. Ele acompanha saldo total, itens cr&iacute;ticos, &uacute;ltimas retiradas, quem retirou, para qual setor e auditoria pronta em tempo real.</p>
+      </div>
+      <div class="manager-board">
+        <article><span>Saldo total</span><strong>12.480 un</strong></article>
+        <article><span>Itens cr&iacute;ticos</span><strong>07</strong></article>
+        <article><span>&Uacute;ltimas retiradas</span><strong>42 hoje</strong></article>
+        <article><span>Quem retirou</span><strong>Jos&eacute; / Maria</strong></article>
+        <article><span>Setor</span><strong>Enfermagem</strong></article>
+        <article><span>Auditoria</span><strong>Pronta</strong></article>
+      </div>
+    </section>
+
+    <section class="features-section section-wrap" id="recursos">
+      <div class="section-heading">
+        <p class="eyebrow">Principais recursos</p>
+        <h2>Controle completo para reduzir desperd&iacute;cio e compra desnecess&aacute;ria</h2>
+      </div>
+
+      <div class="features-grid">
+        <article>Entrada por XML NF-e/NFC-e</article>
+        <article>Cadastro de itens</article>
+        <article>Sa&iacute;da com respons&aacute;vel</article>
+        <article>Controle por setor/unidade</article>
+        <article>Dashboard inteligente</article>
+        <article>Alertas de estoque baixo</article>
+        <article>Hist&oacute;rico de movimenta&ccedil;&otilde;es</article>
+        <article>Auditoria do almoxarifado</article>
+        <article>Resumo para gestor</article>
+        <article>Multiambiente: obra, loja, hospital, secretaria</article>
+      </div>
+    </section>
+
+    <section class="demo-section" id="demo">
+      <div>
+        <p class="eyebrow">Demonstra&ccedil;&atilde;o</p>
+        <h2>Veja o Stock AI funcionando</h2>
+        <p>Acesse uma demonstra&ccedil;&atilde;o pr&aacute;tica com cadastro de itens, entradas, sa&iacute;das, dashboard, hist&oacute;rico e auditoria.</p>
+      </div>
+      <a class="button primary" href="#acesso">Entrar na demonstra&ccedil;&atilde;o</a>
+    </section>
+
+    <section class="final-cta" id="contato">
+      <p class="eyebrow">Stock AI / Almoxarifado AI</p>
+      <h2>Quer controlar seu estoque com mais seguran&ccedil;a e menos desperd&iacute;cio?</h2>
+      <p>Teste o Stock AI em uma obra, loja, mercado, hospital ou secretaria.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#contato">Solicitar demonstra&ccedil;&atilde;o</a>
+        <!-- Inserir numero do WhatsApp aqui -->
+        <a class="button secondary" href="#">Falar pelo WhatsApp</a>
+        <a class="button ghost" href="#acesso">Acessar vers&atilde;o demo</a>
+      </div>
+      <small>Mensagem sugerida: Ola, quero conhecer o Stock AI para controle de estoque e almoxarifado.</small>
+    </section>
+  </main>
+  <script>
+    (function () {
+      const baseUrl = "./relatorio-qualidade-obras/relatorio-qualidade-obras.html";
+
+      function readValue(id, fallback) {
+        const input = document.getElementById(id);
+        return input && input.value.trim() ? input.value.trim() : fallback;
+      }
+
+      function openStockAi(role, forceDemo) {
+        const params = new URLSearchParams();
+        params.set("product", "stock-ai");
+        params.set("access", "1");
+        params.set("role", role || "gestor");
+        params.set("organization", readValue("stockAccessOrg", "Prefeitura Sao Joao"));
+        params.set("unit", readValue("stockAccessUnit", "Secretaria de Saude"));
+        params.set("managerEmail", readValue("stockAccessManager", "secretaria@prefeiturasaojoao.demo"));
+        params.set("warehouseEmail", readValue("stockAccessWarehouse", "almoxarife@prefeiturasaojoao.demo"));
+        if (forceDemo) {
+          params.set("demo", "prefeitura-sao-joao");
+        }
+        window.location.href = baseUrl + "?" + params.toString() + "#app/almoxarifado";
+      }
+
+      document.querySelectorAll("[data-stock-start-role]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          openStockAi(button.getAttribute("data-stock-start-role"), false);
+        });
+      });
+
+      document.querySelectorAll("[data-stock-start-demo]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          openStockAi("gestor", true);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
