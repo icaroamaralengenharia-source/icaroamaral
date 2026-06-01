@@ -3,46 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elo Online | Companheiro digital</title>
+  <title>Elo | Companheiro digital</title>
   <meta name="description" content="Converse com o Elo, um companheiro digital com IA online, memória recente, projetos, objetivos e linha do tempo.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
   <link rel="stylesheet" href="elo.css">
 </head>
 <body data-elo-mode="standalone">
   <main class="elo-web-shell">
-    <section class="elo-web-hero" aria-labelledby="elo-web-title">
-      <div class="elo-web-topline">
-        <a class="elo-web-back" href="index.html">Voltar ao site</a>
-        <span>Online</span>
+    <section class="elo-hero" aria-labelledby="elo-web-title">
+      <div class="elo-hero-copy">
+        <a class="elo-brand" href="index.html" aria-label="Voltar ao site principal">
+          <span class="elo-mark" aria-hidden="true"></span>
+          <span>
+            <strong>ELO</strong>
+            <small>Companheiro digital</small>
+          </span>
+        </a>
+
+        <div class="elo-hero-text">
+          <h1 id="elo-web-title">Inteligência <span>que te acompanha.</span></h1>
+          <p>Converse com o Elo para organizar ideias, transformar dúvidas em próximos passos e apoiar decisões do dia a dia.</p>
+        </div>
+
+        <ul class="elo-hero-status" aria-label="Status do Elo">
+          <li>
+            <span class="elo-status-icon" aria-hidden="true">✓</span>
+            Organiza ideias e transforma dúvidas em próximos passos
+          </li>
+          <li>
+            <span class="elo-status-icon" aria-hidden="true">◎</span>
+            Lembra projetos, objetivos e informações importantes
+          </li>
+          <li>
+            <span class="elo-status-icon" aria-hidden="true">↻</span>
+            Ajuda a priorizar decisões e acompanhar sua rotina
+          </li>
+        </ul>
+
+        <div class="elo-hero-actions" aria-label="Ações principais">
+          <a class="elo-primary-action" href="#elo-chat">Conversar com o Elo <span aria-hidden="true">›</span></a>
+          <a class="elo-secondary-action" href="#elo-experiencias">Saiba mais</a>
+        </div>
       </div>
-      <p class="elo-web-eyebrow">Companheiro digital do ObraReport</p>
-      <h1 id="elo-web-title">Elo Online</h1>
-      <p class="elo-web-subtitle">Um assistente com IA real, memória recente e fallback local para continuar a conversa.</p>
-      <p class="elo-web-text">
-        Converse com o Elo para organizar ideias, transformar dúvidas em próximos passos e
-        apoiar decisões do dia a dia com uma experiência simples no computador ou no celular.
-      </p>
-      <div class="elo-web-status" aria-label="Status do Elo">
-        <span>IA online via backend seguro</span>
-        <span>Últimas 20 mensagens como contexto</span>
-        <span>Fallback local preservado</span>
-      </div>
-      <div class="elo-web-points" aria-label="Recursos principais">
-        <span>Memórias locais</span>
-        <span>IA real</span>
-        <span>Projetos</span>
-        <span>Linha do tempo</span>
-        <span>Biblioteca</span>
+
+      <div class="elo-phone-showcase" aria-label="Prévia do Elo no celular">
+        <div class="elo-phone-frame">
+          <div class="elo-phone-screen">
+            <header class="elo-phone-top">
+              <span>9:41</span>
+              <span class="elo-phone-signal" aria-hidden="true">▮▮▮</span>
+            </header>
+            <div class="elo-phone-nav">
+              <span aria-hidden="true">☰</span>
+              <span class="elo-phone-logo"><span class="elo-mini-mark" aria-hidden="true"></span>ELO</span>
+              <span aria-hidden="true">✎</span>
+            </div>
+            <div class="elo-phone-center">
+              <span class="elo-phone-mark" aria-hidden="true"></span>
+              <h2>Olá, Ícaro.</h2>
+              <p>Em que posso te ajudar hoje?</p>
+              <div class="elo-phone-chips">
+                <span>Resumo do dia</span>
+                <span>Meus projetos</span>
+                <span>Linha do tempo</span>
+                <span>Minhas memórias</span>
+              </div>
+            </div>
+            <div class="elo-phone-input">
+              <span>Pergunte alguma coisa...</span>
+              <strong aria-hidden="true">↗</strong>
+            </div>
+            <small>O Elo pode cometer erros. Confira informações importantes.</small>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="elo-web-chat-card" aria-label="Conversa com o Elo">
-      <div class="elo-web-chat-heading">
-        <span>Conversa</span>
-        <strong>Pronto para ajudar</strong>
+    <section class="elo-experience-grid" id="elo-experiencias" aria-label="Experiências do Elo">
+      <article class="elo-experience-card">
+        <h2>Conversa natural</h2>
+        <div class="elo-card-phone">
+          <p class="elo-user-bubble">O que sabe sobre o mundo?</p>
+          <p class="elo-assistant-bubble">Sei sobre o que foi registrado até aqui e uso esse contexto para te ajudar a pensar, organizar ideias e próximos passos.</p>
+        </div>
+      </article>
+      <article class="elo-experience-card">
+        <h2>Memória e contexto</h2>
+        <div class="elo-card-phone">
+          <p class="elo-user-bubble">Então me conte esses fatos de 2024</p>
+          <p class="elo-assistant-bubble">Tudo bem. Ainda não vou usar isso como nome. Quando quiser, me diga apenas como devo chamar você.</p>
+        </div>
+      </article>
+      <article class="elo-experience-card">
+        <h2>Focado no que importa</h2>
+        <div class="elo-card-phone">
+          <p class="elo-user-bubble">Quais são meus projetos no momento?</p>
+          <p class="elo-assistant-bubble">Atualmente você está trabalhando em ObraReport, Stock IA, CADISTA IA e Elo. Posso ajudar a priorizar um deles hoje.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="elo-chat-section" id="elo-chat" aria-label="Chat do Elo">
+      <div class="elo-chat-intro">
+        <span class="elo-section-kicker">Chat principal</span>
+        <h2>Nova experiência. Mesmo propósito.</h2>
+        <p>Este é o Elo funcional, conectado ao backend real, com memória recente, memória permanente local e fallback preservado.</p>
       </div>
-      <div id="eloStandaloneMount"></div>
-      <p class="elo-web-privacy">As memórias locais continuam neste navegador. A conversa online usa apenas o histórico recente enviado ao backend seguro.</p>
+      <div class="elo-chat-card">
+        <div id="eloStandaloneMount"></div>
+      </div>
     </section>
   </main>
 
