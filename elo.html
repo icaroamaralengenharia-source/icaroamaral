@@ -36,6 +36,9 @@
 
   <script>
     window.ELO_STANDALONE_MODE = true;
+    if (!/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
+      window.ELO_API_BASE_URL = "https://obrareport-backend.onrender.com";
+    }
   </script>
   <script src="relatorio-qualidade-obras/elo-assistente.js" defer></script>
 </body>

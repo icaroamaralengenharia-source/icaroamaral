@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
+const MAX_ELO_MESSAGE_LENGTH = 2000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
@@ -289,6 +290,50 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/elo/chat", async (request, response) => {
+    const validation = validateEloChatRequest_(request.body || {});
+
+    if (!validation.ok) {
+      response.status(validation.status).json({
+        ok: false,
+        mode: "fallback_required",
+        fallback: true,
+        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.",
+        error: validation.message
+      });
+      return;
+    }
+
+    if (!env.OPENAI_API_KEY) {
+      response.status(503).json({
+        ok: false,
+        mode: "fallback_required",
+        fallback: true,
+        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.",
+        error: "Backend do Elo sem OPENAI_API_KEY configurada."
+      });
+      return;
+    }
+
+    try {
+      const answer = await callOpenAiElo_(validation.payload, env);
+      response.json({
+        ok: true,
+        mode: "remote",
+        fallback: false,
+        answer
+      });
+    } catch (error) {
+      console.error("Falha no Elo online:", error);
+      response.status(502).json({
+        ok: false,
+        mode: "fallback_required",
+        fallback: true,
+        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local."
+      });
+    }
+  });
+
   return app;
 }
 
@@ -390,6 +435,57 @@ function validateImageRequest_(body) {
         height: Number(image.height || 0)
       },
       context
+    }
+  };
+}
+
+function validateEloChatRequest_(body) {
+  const message = clean_(body.message);
+  const context = body.context && typeof body.context === "object" ? body.context : {};
+  const rawHistory = Array.isArray(body.history) ? body.history : [];
+  const history = rawHistory
+    .filter((item) => item && (item.role === "user" || item.role === "assistant"))
+    .map((item) => ({
+      role: item.role,
+      content: clean_(item.content).slice(0, MAX_ELO_MESSAGE_LENGTH)
+    }))
+    .filter((item) => item.content)
+    .slice(-20);
+  const contextSize = JSON.stringify(context).length;
+
+  if (!message) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Informe uma mensagem para conversar com o Elo."
+    };
+  }
+
+  if (message.length > MAX_ELO_MESSAGE_LENGTH) {
+    return {
+      ok: false,
+      status: 413,
+      message: "Mensagem muito longa para o Elo online."
+    };
+  }
+
+  if (contextSize > MAX_CONTEXT_LENGTH) {
+    return {
+      ok: false,
+      status: 413,
+      message: "Contexto muito grande para o Elo online."
+    };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      message,
+      history,
+      context: {
+        source: clean_(context.source || "elo"),
+        mode: clean_(context.mode || "")
+      }
     }
   };
 }
@@ -501,6 +597,69 @@ async function callOpenAiVision_(payload, env) {
   }
 
   return parseImageAnalysis_(outputText);
+}
+
+async function callOpenAiElo_(payload, env) {
+  const model = env.OPENAI_MODEL || "gpt-4.1-mini";
+  const input = [
+    {
+      role: "system",
+      content: buildEloSystemPrompt_()
+    }
+  ];
+
+  payload.history.forEach((item) => {
+    input.push({
+      role: item.role,
+      content: item.content
+    });
+  });
+
+  input.push({
+    role: "user",
+    content: payload.message
+  });
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + env.OPENAI_API_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      input,
+      max_output_tokens: 450
+    })
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data) {
+    const message = data && data.error && data.error.message ? data.error.message : "Resposta inválida da API OpenAI.";
+    throw new Error(message);
+  }
+
+  const outputText = extractOutputText_(data);
+
+  if (!outputText) {
+    throw new Error("O Elo online respondeu sem texto utilizável.");
+  }
+
+  return outputText;
+}
+
+function buildEloSystemPrompt_() {
+  return [
+    "Você é o Elo, assistente digital do ObraReport.",
+    "Responda em português do Brasil, com tom acolhedor, simples, respeitoso e humano.",
+    "Não finja ser pessoa, não diga ter consciência e não prometa memória permanente.",
+    "Você pode usar apenas o histórico recente enviado nesta conversa.",
+    "Se o usuário pedir memória, diga que nesta etapa a conversa online usa histórico recente e que memórias permanentes ainda dependem do modo local.",
+    "Não dê diagnóstico médico, jurídico ou psicológico. Em temas sensíveis, oriente buscar profissional qualificado.",
+    "Evite respostas longas demais para celular. Prefira até quatro parágrafos curtos ou uma lista breve.",
+    "Não altere dados do ObraReport, Stock IA, PDF ou relatórios; apenas converse e oriente."
+  ].join(" ");
 }
 
 function buildSystemPrompt_() {

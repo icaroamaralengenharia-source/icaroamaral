@@ -121,6 +121,40 @@ test("análise visual sem chave retorna erro amigável", async () => {
   assert.match(data.error, /OPENAI_API_KEY/);
 });
 
+test("elo chat exige mensagem", async () => {
+  const response = await postEloChat_({
+    message: "",
+    history: []
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(data.ok, false);
+  assert.equal(data.fallback, true);
+});
+
+test("elo chat sem chave solicita fallback local", async () => {
+  const response = await postEloChat_({
+    message: "Oi Elo, voce esta online?",
+    history: [
+      { role: "system", content: "ignorar" },
+      { role: "user", content: "Ola" },
+      { role: "assistant", content: "Ola, posso ajudar." }
+    ],
+    context: {
+      source: "elo",
+      mode: "standalone"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.equal(data.mode, "fallback_required");
+  assert.equal(data.fallback, true);
+  assert.match(data.answer, /forma local/);
+});
+
 test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {
   const prompt = buildVisionUserPrompt_({
     image: {
@@ -277,6 +311,17 @@ function postAi_(body) {
 
 function postImage_(body) {
   return fetch(baseUrl + "/api/ai/analyze-image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function postEloChat_(body) {
+  return fetch(baseUrl + "/api/elo/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

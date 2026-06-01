@@ -15,8 +15,19 @@
     whatsappNumber: "",
     webSearchEnabled: false,
     webSearchEndpoint: "",
-    webSearchRequiresConfirmation: true
+    webSearchRequiresConfirmation: true,
+    chatEndpoint: getEloChatEndpoint_()
   };
+
+  function getEloChatEndpoint_() {
+    const baseUrl = String(
+      window.ELO_API_BASE_URL ||
+      window.OBRAREPORT_API_BASE_URL ||
+      "http://localhost:3000"
+    ).replace(/\/+$/g, "");
+
+    return baseUrl + "/api/elo/chat";
+  }
 
   function isStandaloneMode() {
     return Boolean(window.ELO_STANDALONE_MODE) ||
@@ -611,6 +622,59 @@
 
   function getRecentQuestions() {
     return getMemory().conversations.slice(0, ELO_CONFIG.maxHistory);
+  }
+
+  function getEloOnlineHistory() {
+    const history = [];
+    getRecentQuestions().slice().reverse().forEach(function (item) {
+      if (item.question) {
+        history.push({
+          role: "user",
+          content: sanitizeUserText(item.question)
+        });
+      }
+      if (item.answer) {
+        history.push({
+          role: "assistant",
+          content: sanitizeUserText(item.answer)
+        });
+      }
+    });
+    return history.filter(function (item) {
+      return item.content;
+    }).slice(-ELO_CONFIG.maxHistory);
+  }
+
+  function requestEloOnlineAnswer(question) {
+    if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
+      return Promise.resolve(null);
+    }
+
+    return window.fetch(ELO_CONFIG.chatEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: sanitizeUserText(question),
+        history: getEloOnlineHistory(),
+        context: {
+          source: "elo",
+          mode: isStandaloneMode() ? "standalone" : "obrareport"
+        }
+      })
+    }).then(function (response) {
+      return response.json().catch(function () {
+        return null;
+      });
+    }).then(function (data) {
+      if (data && data.ok && data.answer) {
+        return sanitizeUserText(data.answer);
+      }
+      return null;
+    }).catch(function () {
+      return null;
+    });
   }
 
   function saveUsefulAnswer(question, answer) {
@@ -10060,12 +10124,28 @@
       return;
     }
 
-    const response = applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
-    const answer = formatResponse(response);
-    response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
-    appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
-    saveConversation(cleanQuestion, answer);
-    rememberSessionTurn(cleanQuestion, response, answer);
+    requestEloOnlineAnswer(cleanQuestion).then(function (onlineAnswer) {
+      if (onlineAnswer) {
+        const onlineResponse = {
+          shortAnswer: onlineAnswer,
+          fullAnswer: onlineAnswer,
+          nextAction: "Continue a conversa ou peça um resumo prático.",
+          canSave: true,
+          sessionTheme: "elo_online"
+        };
+        appendAssistantMessage(cleanQuestion, onlineAnswer, true, onlineResponse);
+        saveConversation(cleanQuestion, onlineAnswer);
+        rememberSessionTurn(cleanQuestion, onlineResponse, onlineAnswer);
+        return;
+      }
+
+      const response = applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
+      const answer = formatResponse(response);
+      response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
+      appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+    });
   }
 
   function appendMessage(kind, text) {
