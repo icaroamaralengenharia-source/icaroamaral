@@ -169,6 +169,16 @@ test("prompt mestre do Elo define identidade, memoria e limites", () => {
   assert.match(prompt, /Sou real como sistema digital/i);
 });
 
+test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () => {
+  const prompt = buildEloSystemPrompt_({
+    memoriesSummary: "- [pessoa; importancia alta] Minha mae se chama Maria."
+  });
+
+  assert.match(prompt, /Contexto salvo sobre a pessoa/i);
+  assert.match(prompt, /Minha mae se chama Maria/i);
+  assert.match(prompt, /sem repetir 'segundo minha memoria'/i);
+});
+
 test("prompt visual inclui biblioteca de patologias e restricoes tecnicas", () => {
   const prompt = buildVisionUserPrompt_({
     image: {

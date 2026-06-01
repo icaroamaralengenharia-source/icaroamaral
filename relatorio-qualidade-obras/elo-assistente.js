@@ -6,6 +6,7 @@
     storageKey: "obrareport_elo_assistente_v1",
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     documentsStorageKey: "obrareport_elo_documentos_v1",
+    longTermMemoryStorageKey: "elo_long_term_memory_v1",
     realQuestionsStorageKey: "obrareport_elo_perguntas_reais_v1",
     userProfileStorageKey: "obrareport_elo_perfil_usuario_v1",
     initialProfileStorageKey: "obrareport_elo_perfil_inicial_v1",
@@ -405,6 +406,292 @@
     };
   }
 
+  function getEloLongTermMemories() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.longTermMemoryStorageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return normalizeEloLongTermMemories(parsed);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function setEloLongTermMemories(memories) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.longTermMemoryStorageKey, JSON.stringify(normalizeEloLongTermMemories(memories)));
+    } catch (error) {
+      // Memoria permanente local pode falhar em modo privado. O Elo segue com historico recente.
+    }
+  }
+
+  function normalizeEloLongTermMemories(memories) {
+    const list = Array.isArray(memories) ? memories : [];
+    return list.map(normalizeEloLongTermMemoryItem).filter(Boolean).sort(compareEloLongTermMemory).slice(0, 100);
+  }
+
+  function normalizeEloLongTermMemoryItem(item) {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const text = sanitizeUserText(item.text).slice(0, 320);
+    if (!text) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const category = normalizeEloMemoryCategory(item.category);
+    const importance = normalizeEloMemoryImportance(item.importance);
+    const createdAt = sanitizeUserText(item.createdAt) || now;
+    const updatedAt = sanitizeUserText(item.updatedAt) || createdAt;
+
+    return {
+      id: sanitizeUserText(item.id) || createEloLongTermMemoryId(),
+      text: text,
+      category: category,
+      importance: importance,
+      createdAt: createdAt,
+      updatedAt: updatedAt
+    };
+  }
+
+  function createEloLongTermMemoryId() {
+    return "elo_mem_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeEloMemoryCategory(category) {
+    const value = normalizeText(category);
+    const allowed = ["pessoa", "projeto", "objetivo", "preferencia", "evento", "decisao", "outro"];
+    return allowed.indexOf(value) >= 0 ? value : "outro";
+  }
+
+  function normalizeEloMemoryImportance(importance) {
+    const value = normalizeText(importance);
+    if (value === "alta" || value === "media" || value === "baixa") {
+      return value;
+    }
+    return "media";
+  }
+
+  function getEloImportanceScore(importance) {
+    if (importance === "alta") {
+      return 3;
+    }
+    if (importance === "media") {
+      return 2;
+    }
+    return 1;
+  }
+
+  function compareEloLongTermMemory(first, second) {
+    const score = getEloImportanceScore(second.importance) - getEloImportanceScore(first.importance);
+    if (score !== 0) {
+      return score;
+    }
+    return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+  }
+
+  function buildEloMemorySummary() {
+    const memories = getEloLongTermMemories().sort(compareEloLongTermMemory).slice(0, 12);
+    if (!memories.length) {
+      return "";
+    }
+
+    return memories.map(function (item) {
+      return "- [" + item.category + "; importancia " + item.importance + "] " + item.text;
+    }).join("\n");
+  }
+
+  function detectEloLongTermMemoryCommand(message) {
+    const cleanMessage = sanitizeUserText(message);
+    const normalized = normalizeText(cleanMessage);
+    if (!normalized) {
+      return null;
+    }
+
+    const patterns = [
+      { prefix: "lembre que ", category: "" },
+      { prefix: "guarde isso ", category: "" },
+      { prefix: "guarde isso: ", category: "" },
+      { prefix: "isso e importante ", category: "", importance: "alta" },
+      { prefix: "isso e importante: ", category: "", importance: "alta" },
+      { prefix: "meu nome e ", category: "pessoa", importance: "alta", label: "Meu nome e " },
+      { prefix: "minha mae se chama ", category: "pessoa", importance: "alta", label: "Minha mae se chama " },
+      { prefix: "minha mãe se chama ", category: "pessoa", importance: "alta", label: "Minha mae se chama " },
+      { prefix: "meu filho se chama ", category: "pessoa", importance: "alta", label: "Meu filho se chama " },
+      { prefix: "meu projeto principal e ", category: "projeto", importance: "alta", label: "Meu projeto principal e " },
+      { prefix: "meu projeto principal é ", category: "projeto", importance: "alta", label: "Meu projeto principal e " },
+      { prefix: "meu objetivo e ", category: "objetivo", importance: "alta", label: "Meu objetivo e " },
+      { prefix: "meu objetivo é ", category: "objetivo", importance: "alta", label: "Meu objetivo e " },
+      { prefix: "eu gosto de ", category: "preferencia", importance: "media", label: "Eu gosto de " },
+      { prefix: "eu nao gosto de ", category: "preferencia", importance: "media", label: "Eu nao gosto de " },
+      { prefix: "eu não gosto de ", category: "preferencia", importance: "media", label: "Eu nao gosto de " }
+    ];
+
+    for (let index = 0; index < patterns.length; index += 1) {
+      const pattern = patterns[index];
+      const normalizedPrefix = normalizeText(pattern.prefix);
+      if (normalized.indexOf(normalizedPrefix) === 0) {
+        const rawValue = cleanMessage.slice(pattern.prefix.length).replace(/[.;]+$/g, "").trim();
+        const text = pattern.label ? pattern.label + rawValue : rawValue;
+        if (!sanitizeUserText(text)) {
+          return null;
+        }
+
+        return {
+          text: sanitizeUserText(text),
+          category: pattern.category || inferEloMemoryCategory(text),
+          importance: pattern.importance || inferEloMemoryImportance(cleanMessage)
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function inferEloMemoryCategory(text) {
+    const normalized = normalizeText(text);
+    if (hasAnyTerm(normalized, ["nome", "mae", "mãe", "filho", "filha", "pai", "familia", "família"])) {
+      return "pessoa";
+    }
+    if (hasAnyTerm(normalized, ["projeto", "stock ia", "obrareport", "cadista"])) {
+      return "projeto";
+    }
+    if (hasAnyTerm(normalized, ["objetivo", "meta", "prioridade"])) {
+      return "objetivo";
+    }
+    if (hasAnyTerm(normalized, ["gosto", "nao gosto", "não gosto", "prefiro", "preferencia", "preferência"])) {
+      return "preferencia";
+    }
+    if (hasAnyTerm(normalized, ["decidi", "decisao", "decisão"])) {
+      return "decisao";
+    }
+    if (hasAnyTerm(normalized, ["aconteceu", "evento", "hoje", "ontem"])) {
+      return "evento";
+    }
+    return "outro";
+  }
+
+  function inferEloMemoryImportance(text) {
+    const normalized = normalizeText(text);
+    if (hasAnyTerm(normalized, ["importante", "principal", "objetivo", "mae", "mãe", "filho", "nome"])) {
+      return "alta";
+    }
+    return "media";
+  }
+
+  function saveEloLongTermMemory(candidate) {
+    const now = new Date().toISOString();
+    const memoryItem = normalizeEloLongTermMemoryItem({
+      id: createEloLongTermMemoryId(),
+      text: candidate.text,
+      category: candidate.category,
+      importance: candidate.importance,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    if (!memoryItem) {
+      return null;
+    }
+
+    const normalizedText = normalizeText(memoryItem.text);
+    const memories = getEloLongTermMemories().filter(function (item) {
+      return normalizeText(item.text) !== normalizedText;
+    });
+    memories.unshift(memoryItem);
+    setEloLongTermMemories(memories);
+    return memoryItem;
+  }
+
+  function detectEloForgetCommand(message) {
+    const cleanMessage = sanitizeUserText(message);
+    const normalized = normalizeText(cleanMessage);
+    const prefixes = ["esqueca que ", "esqueça que ", "apague essa memoria ", "apague essa memória "];
+
+    if (normalized === "esqueca isso" || normalized === "esqueça isso" || normalized === "apague essa memoria" || normalized === "apague essa memória") {
+      return { query: "", removeLast: true };
+    }
+
+    for (let index = 0; index < prefixes.length; index += 1) {
+      const prefix = prefixes[index];
+      const normalizedPrefix = normalizeText(prefix);
+      if (normalized.indexOf(normalizedPrefix) === 0) {
+        return {
+          query: sanitizeUserText(cleanMessage.slice(prefix.length)),
+          removeLast: false
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function removeEloLongTermMemory(forgetCommand) {
+    const memories = getEloLongTermMemories();
+    if (!memories.length) {
+      return { removed: 0, memories: [] };
+    }
+
+    if (forgetCommand.removeLast) {
+      const sorted = memories.slice().sort(function (first, second) {
+        return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+      });
+      const targetId = sorted[0] && sorted[0].id;
+      const remainingLast = memories.filter(function (item) {
+        return item.id !== targetId;
+      });
+      setEloLongTermMemories(remainingLast);
+      return { removed: memories.length - remainingLast.length, memories: sorted.slice(0, 1) };
+    }
+
+    const normalizedQuery = normalizeText(forgetCommand.query);
+    const removed = [];
+    const remaining = memories.filter(function (item) {
+      const normalizedText = normalizeText(item.text);
+      const match = normalizedQuery && (normalizedText.indexOf(normalizedQuery) >= 0 || normalizedQuery.indexOf(normalizedText) >= 0);
+      if (match) {
+        removed.push(item);
+        return false;
+      }
+      return true;
+    });
+    setEloLongTermMemories(remaining);
+    return { removed: removed.length, memories: removed };
+  }
+
+  function isEloLongTermMemoryQuestion(message) {
+    const normalized = normalizeText(message);
+    return hasAnyTerm(normalized, [
+      "o que voce lembra de mim",
+      "o que você lembra de mim",
+      "quem sou eu",
+      "o que voce sabe sobre mim",
+      "o que você sabe sobre mim",
+      "o que voce lembra sobre minha mae",
+      "o que você lembra sobre minha mãe",
+      "o que voce lembra sobre minha mãe"
+    ]);
+  }
+
+  function buildEloLongTermMemoryAnswer(message) {
+    const memories = getEloLongTermMemories();
+    const normalized = normalizeText(message);
+    const filtered = hasAnyTerm(normalized, ["mae", "mãe"])
+      ? memories.filter(function (item) {
+        return hasAnyTerm(normalizeText(item.text), ["mae", "mãe"]);
+      })
+      : memories;
+
+    if (!filtered.length) {
+      return "Agora eu só tenho acesso ao contexto recente desta conversa. Se você me pedir para lembrar algo importante, eu guardo neste navegador.";
+    }
+
+    return "Eu lembro disso: " + filtered.sort(compareEloLongTermMemory).slice(0, 5).map(function (item) {
+      return item.text;
+    }).join("; ") + ".";
+  }
+
   // ELO_SESSION_MEMORY
   const ELO_SESSION_MEMORY = {
     lastQuestion: "",
@@ -659,6 +946,7 @@
         message: sanitizeUserText(question),
         history: getEloOnlineHistory(),
         context: {
+          memoriesSummary: buildEloMemorySummary(),
           source: "elo",
           mode: isStandaloneMode() ? "standalone" : "obrareport"
         }
@@ -10033,8 +10321,54 @@
 
     const directNameIntent = detectUserNameSave_(cleanQuestion);
     if (directNameIntent) {
+      const nameMemoryCandidate = detectEloLongTermMemoryCommand(cleanQuestion);
+      if (nameMemoryCandidate) {
+        saveEloLongTermMemory(nameMemoryCandidate);
+      }
       const response = buildSaveUserNameAnswer_(cleanQuestion);
       const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      return;
+    }
+
+    const forgetMemoryCommand = detectEloForgetCommand(cleanQuestion);
+    if (forgetMemoryCommand) {
+      const result = removeEloLongTermMemory(forgetMemoryCommand);
+      const answer = result.removed
+        ? "Pronto, apaguei essa memória permanente deste navegador."
+        : "Não encontrei uma memória permanente correspondente para apagar.";
+      const response = {
+        shortAnswer: answer,
+        fullAnswer: result.memories.length ? result.memories.map(function (item) {
+          return item.text;
+        }).join("\n") : answer,
+        nextAction: "Quando quiser, você pode me pedir para lembrar outra informação importante.",
+        canSave: false,
+        sessionTheme: "memoria",
+        sessionIntent: "memoria_permanente"
+      };
+      appendAssistantMessage(cleanQuestion, answer, false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      return;
+    }
+
+    const longTermMemoryCandidate = detectEloLongTermMemoryCommand(cleanQuestion);
+    if (longTermMemoryCandidate) {
+      const memoryItem = saveEloLongTermMemory(longTermMemoryCandidate);
+      const answer = memoryItem
+        ? "Guardei isso na memória permanente deste navegador: " + memoryItem.text + "."
+        : "Não consegui guardar essa memória agora.";
+      const response = {
+        shortAnswer: answer,
+        fullAnswer: memoryItem ? "Categoria: " + memoryItem.category + ". Importância: " + memoryItem.importance + "." : answer,
+        nextAction: "Pode recarregar a página e me perguntar o que eu lembro.",
+        canSave: false,
+        sessionTheme: "memoria",
+        sessionIntent: "memoria_permanente"
+      };
       appendAssistantMessage(cleanQuestion, answer, false, response);
       saveConversation(cleanQuestion, answer);
       rememberSessionTurn(cleanQuestion, response, answer);
@@ -10139,7 +10473,15 @@
         return;
       }
 
-      const response = applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
+      const memoryRecallAnswer = isEloLongTermMemoryQuestion(cleanQuestion) ? buildEloLongTermMemoryAnswer(cleanQuestion) : "";
+      const response = memoryRecallAnswer ? {
+        shortAnswer: memoryRecallAnswer,
+        fullAnswer: memoryRecallAnswer,
+        nextAction: "Me diga se devo guardar, corrigir ou esquecer alguma informação.",
+        canSave: false,
+        sessionTheme: "memoria",
+        sessionIntent: "memoria_permanente"
+      } : applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
       const answer = formatResponse(response);
       response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
       appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);

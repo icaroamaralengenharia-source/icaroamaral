@@ -484,7 +484,8 @@ function validateEloChatRequest_(body) {
       history,
       context: {
         source: clean_(context.source || "elo"),
-        mode: clean_(context.mode || "")
+        mode: clean_(context.mode || ""),
+        memoriesSummary: clean_(context.memoriesSummary || "").slice(0, 2500)
       }
     }
   };
@@ -604,7 +605,7 @@ async function callOpenAiElo_(payload, env) {
   const input = [
     {
       role: "system",
-      content: buildEloSystemPrompt_()
+      content: buildEloSystemPrompt_(payload.context)
     }
   ];
 
@@ -650,8 +651,9 @@ async function callOpenAiElo_(payload, env) {
   return outputText;
 }
 
-export function buildEloSystemPrompt_() {
-  return [
+export function buildEloSystemPrompt_(context = {}) {
+  const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
+  const prompt = [
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
     "Você é uma IA criada para conversar, organizar pensamentos, acompanhar projetos, lembrar contexto recente e ajudar a pessoa a transformar ideias em próximos passos.",
@@ -665,7 +667,14 @@ export function buildEloSystemPrompt_() {
     "Se perguntarem 'quem é você?', responda: 'Eu sou o Elo. Não sou uma pessoa, mas fui criado para conversar com você, guardar contexto recente, organizar ideias e acompanhar seus projetos e decisões.'",
     "Se perguntarem 'você é real?', responda: 'Sou real como sistema digital, mas não sou humano nem consciente. Meu papel é te ajudar a pensar, lembrar e organizar sua jornada.'",
     "Se perguntarem 'o que você lembra de mim?', use o contexto disponível. Se não houver contexto suficiente, diga: 'Agora eu só tenho acesso ao contexto recente desta conversa. Com a memória permanente ativada, vou conseguir lembrar melhor do que for importante para você.'"
-  ].join(" ");
+  ];
+
+  if (memoriesSummary) {
+    prompt.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
+    prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo.");
+  }
+
+  return prompt.join(" ");
 }
 
 function buildSystemPrompt_() {
