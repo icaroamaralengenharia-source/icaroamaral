@@ -204,9 +204,9 @@ test("prompt mestre do Elo inclui conteudo de documento anexado", () => {
   assert.match(prompt, /Não invente informação/i);
 });
 
-test("memoria vetorial recupera contexto por significado", () => {
+test("memoria vetorial recupera contexto por significado", async () => {
   const store = createEloVectorMemoryStore_({ memoryOnly: true });
-  store.upsert({
+  await store.upsert({
     ownerId: "elo_dev_usuario_a",
     id: "stock-ia",
     text: "Meu projeto principal e o Stock IA para controlar almoxarifado, materiais e entradas de obra.",
@@ -214,7 +214,7 @@ test("memoria vetorial recupera contexto por significado", () => {
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-01T00:00:00.000Z"
   });
-  store.upsert({
+  await store.upsert({
     ownerId: "elo_dev_usuario_a",
     id: "familia",
     text: "Minha mae se chama Maria e gosta de conversar com calma.",
@@ -223,15 +223,15 @@ test("memoria vetorial recupera contexto por significado", () => {
     updatedAt: "2026-06-01T00:00:00.000Z"
   });
 
-  const summary = searchEloRelevantMemories_(store, "Como esta aquela ideia do estoque?", "elo_dev_usuario_a");
+  const summary = await searchEloRelevantMemories_(store, "Como esta aquela ideia do estoque?", "elo_dev_usuario_a");
 
   assert.match(summary, /Stock IA/i);
   assert.doesNotMatch(summary.split("\n")[0], /Maria/i);
 });
 
-test("memoria vetorial fica isolada por deviceId", () => {
+test("memoria vetorial fica isolada por deviceId", async () => {
   const store = createEloVectorMemoryStore_({ memoryOnly: true });
-  store.upsert({
+  await store.upsert({
     ownerId: "elo_dev_usuario_a",
     id: "mae-maria",
     text: "Minha mae se chama Maria.",
@@ -240,9 +240,9 @@ test("memoria vetorial fica isolada por deviceId", () => {
     updatedAt: "2026-06-01T00:00:00.000Z"
   });
 
-  const userA = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_a");
-  const userB = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_b");
-  const noDevice = searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "");
+  const userA = await searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_a");
+  const userB = await searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "elo_dev_usuario_b");
+  const noDevice = await searchEloRelevantMemories_(store, "O que voce lembra sobre minha mae?", "");
 
   assert.match(userA, /Maria/i);
   assert.doesNotMatch(userB, /Maria/i);
@@ -264,6 +264,132 @@ test("endpoint de memoria vetorial salva item local", async () => {
   assert.equal(data.ok, true);
   assert.equal(data.mode, "local_vector");
   assert.equal(data.item.id, "memoria-teste");
+  assert.equal(data.item.embeddingProvider, "local");
+  assert.equal(data.item.embeddingModel, "local-hash-96");
+  assert.equal(data.item.embeddingDimensions, 96);
+  assert.equal(data.item.schemaVersion, 2);
+});
+
+test("memoria vetorial usa embedding real mockado com OPENAI_API_KEY", async () => {
+  const originalFetch = globalThis.fetch;
+  let embeddingPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      embeddingPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        data: [
+          { embedding: [1, 0, 0] }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const store = createEloVectorMemoryStore_({
+      memoryOnly: true,
+      env: {
+        OPENAI_API_KEY: "test-key"
+      }
+    });
+    const item = await store.upsert({
+      ownerId: "elo_dev_openai_embedding",
+      id: "openai-memoria",
+      text: "Memoria com embedding real mockado.",
+      category: "projeto"
+    });
+
+    assert.equal(item.embeddingProvider, "openai");
+    assert.equal(item.embeddingModel, "text-embedding-3-small");
+    assert.equal(item.embeddingDimensions, 3);
+    assert.equal(item.schemaVersion, 2);
+    assert.equal(embeddingPayload.model, "text-embedding-3-small");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("memoria vetorial usa fallback local quando embedding real falha", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      return new Response(JSON.stringify({ error: { message: "falha simulada" } }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const store = createEloVectorMemoryStore_({
+      memoryOnly: true,
+      env: {
+        OPENAI_API_KEY: "test-key"
+      }
+    });
+    const item = await store.upsert({
+      ownerId: "elo_dev_embedding_fallback",
+      id: "fallback-memoria",
+      text: "Controle de estoque com fallback local.",
+      category: "projeto"
+    });
+
+    assert.equal(item.embeddingProvider, "local");
+    assert.equal(item.embeddingModel, "local-hash-96");
+    assert.equal(item.embeddingDimensions, 96);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("memoria vetorial nao mistura vetores incompatíveis", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      return new Response(JSON.stringify({
+        data: [
+          { embedding: [1, 0, 0] }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const store = createEloVectorMemoryStore_({
+      memoryOnly: true,
+      env: {
+        OPENAI_API_KEY: "test-key"
+      },
+      initialState: {
+        items: [
+          {
+            ownerId: "elo_dev_dimensoes",
+            id: "local-antigo",
+            text: "Memoria local antiga sobre estoque.",
+            category: "projeto",
+            embedding: new Array(96).fill(0.1),
+            embeddingProvider: "local",
+            embeddingModel: "local-hash-96",
+            embeddingDimensions: 96,
+            schemaVersion: 1
+          }
+        ]
+      }
+    });
+    const items = await store.search("estoque", "elo_dev_dimensoes", 5);
+
+    assert.equal(items.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("elo chat com anexo txt indexa documento sem quebrar fallback", async () => {
@@ -283,13 +409,40 @@ test("elo chat com anexo txt indexa documento sem quebrar fallback", async () =>
     ]
   });
   const data = await response.json();
-  const indexed = searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
+  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);
   assert.match(data.answer, /extrair texto do anexo/i);
   assert.match(data.answer, /contrato\.txt/i);
   assert.match(indexed, /Prazo de entrega: 30 dias/i);
+});
+
+test("documento anexado preserva chunk maior que 800 caracteres na memoria vetorial", async () => {
+  const longText = "Contrato longo do Elo. " + "Clausula tecnica preservada para indexacao sem corte prematuro. ".repeat(18);
+  const response = await postEloChatMultipart_({
+    message: "Elo, leia este documento longo",
+    context: {
+      source: "elo",
+      mode: "standalone",
+      deviceId: "elo_dev_doc_longo"
+    },
+    files: [
+      {
+        name: "contrato-longo.txt",
+        type: "text/plain",
+        content: longText
+      }
+    ]
+  });
+  const data = await response.json();
+  const indexedChunk = eloVectorMemoryStore.list().find((item) => item.ownerId === "elo_dev_doc_longo" && item.source === "upload_elo");
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.ok(indexedChunk);
+  assert.ok(indexedChunk.text.length > 800);
+  assert.match(indexedChunk.text, /Clausula tecnica preservada/i);
 });
 
 test("elo chat com pdf vazio ou sem texto retorna erro amigavel", async () => {
@@ -356,7 +509,7 @@ test("elo chat com pdf valido extrai e indexa texto", async () => {
     ]
   });
   const data = await response.json();
-  const indexed = searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_pdf_valido");
+  const indexed = await searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_pdf_valido");
 
   assert.equal(response.status, 503);
   assert.equal(data.fallback, true);

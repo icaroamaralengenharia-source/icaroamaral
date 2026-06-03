@@ -14,8 +14,12 @@ const MAX_ELO_TOTAL_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
 const MAX_ELO_DOCUMENT_CONTEXT_LENGTH = 5000;
 const ELO_DOCUMENT_CHUNK_LENGTH = 1200;
+const MAX_ELO_VECTOR_TEXT_LENGTH = 2000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
-const ELO_VECTOR_DIMENSIONS = 96;
+const ELO_LOCAL_VECTOR_DIMENSIONS = 96;
+const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
+const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+const ELO_VECTOR_SCHEMA_VERSION = 2;
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
@@ -106,7 +110,7 @@ export function createApp(options = {}) {
   const app = express();
   const env = options.env || process.env;
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
-  const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH });
+  const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH, env });
 
   app.use(cors({
     origin(origin, callback) {
@@ -299,7 +303,7 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/elo/vector-memory", (request, response) => {
+  app.post("/api/elo/vector-memory", async (request, response) => {
     const validation = validateEloVectorMemoryRequest_(request.body || {});
 
     if (!validation.ok) {
@@ -311,14 +315,18 @@ export function createApp(options = {}) {
     }
 
     try {
-      const item = eloVectorMemoryStore.upsert(validation.payload);
+      const item = await eloVectorMemoryStore.upsert(validation.payload);
       response.json({
         ok: true,
-        mode: "local_vector",
+        mode: item.embeddingProvider === "openai" ? "openai_vector" : "local_vector",
         item: {
           id: item.id,
           text: item.text,
           category: item.category,
+          embeddingProvider: item.embeddingProvider,
+          embeddingModel: item.embeddingModel,
+          embeddingDimensions: item.embeddingDimensions,
+          schemaVersion: item.schemaVersion,
           createdAt: item.createdAt,
           updatedAt: item.updatedAt
         }
@@ -380,7 +388,7 @@ export function createApp(options = {}) {
     }
 
     try {
-      validation.payload.context.relevantMemoriesSummary = searchEloRelevantMemories_(
+      validation.payload.context.relevantMemoriesSummary = await searchEloRelevantMemories_(
         eloVectorMemoryStore,
         validation.payload.message,
         validation.payload.context.deviceId
@@ -703,7 +711,7 @@ async function processEloAttachments_(files, context, env, memoryStore) {
       };
       documents.push(document);
       if (ownerId) {
-        saveEloDocumentChunks_(memoryStore, document, ownerId);
+        await saveEloDocumentChunks_(memoryStore, document, ownerId);
       }
     } catch (error) {
       errors.push(file.fileName + ": " + (error && error.message ? error.message : "nao foi possivel ler o anexo."));
@@ -773,10 +781,10 @@ function buildEloDocumentsSummary_(documents) {
   }).join("\n\n").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
 }
 
-function saveEloDocumentChunks_(memoryStore, document, ownerId) {
+async function saveEloDocumentChunks_(memoryStore, document, ownerId) {
   const chunks = chunkText_(document.text, ELO_DOCUMENT_CHUNK_LENGTH).slice(0, 12);
-  chunks.forEach((chunk, index) => {
-    memoryStore.upsert({
+  for (const [index, chunk] of chunks.entries()) {
+    await memoryStore.upsert({
       ownerId,
       id: createStableId_("elo_doc_" + document.fileName + "_" + index + "_" + chunk.slice(0, 80)),
       text: chunk,
@@ -789,7 +797,7 @@ function saveEloDocumentChunks_(memoryStore, document, ownerId) {
         chunkIndex: index
       }
     });
-  });
+  }
 }
 
 function chunkText_(text, size) {
@@ -926,6 +934,7 @@ function sanitizeEloDeviceId_(value) {
 export function createEloVectorMemoryStore_(options = {}) {
   const storePath = options.path || ELO_VECTOR_MEMORY_PATH;
   const memoryOnly = options.memoryOnly || !storePath;
+  const env = options.env || process.env;
   let state = normalizeEloVectorState_(options.initialState || loadEloVectorState_(storePath, memoryOnly));
 
   function persist() {
@@ -940,33 +949,38 @@ export function createEloVectorMemoryStore_(options = {}) {
   }
 
   return {
-    upsert(memory) {
+    async upsert(memory) {
       const item = normalizeEloVectorMemory_(memory);
       if (!item || !item.ownerId) {
         throw new Error("Memoria vetorial sem ownerId.");
       }
-      const embedding = buildLocalEmbedding_(item.text + " " + item.category);
+      const embeddingResult = await buildEloEmbedding_(item.text + " " + item.category, env);
       state.items = state.items.filter((entry) => !(entry.ownerId === item.ownerId && entry.id === item.id));
       state.items.unshift({
         ...item,
-        embedding
+        embedding: embeddingResult.embedding,
+        embeddingProvider: embeddingResult.provider,
+        embeddingModel: embeddingResult.model,
+        embeddingDimensions: embeddingResult.dimensions,
+        schemaVersion: ELO_VECTOR_SCHEMA_VERSION
       });
       state.items = limitEloVectorMemoriesByOwner_(state.items, item.ownerId);
       state.updatedAt = new Date().toISOString();
       persist();
-      return item;
+      return state.items[0];
     },
-    search(query, ownerId, limit = 5) {
+    async search(query, ownerId, limit = 5) {
       const safeOwnerId = sanitizeEloDeviceId_(ownerId);
       if (!safeOwnerId) {
         return [];
       }
-      const queryVector = buildLocalEmbedding_(query);
+      const queryEmbedding = await buildEloEmbedding_(query, env);
       return state.items
         .filter((item) => item.ownerId === safeOwnerId)
+        .filter((item) => isCompatibleEmbedding_(queryEmbedding, item))
         .map((item) => ({
           ...item,
-          score: cosineSimilarity_(queryVector, item.embedding || item.vector || [])
+          score: cosineSimilarity_(queryEmbedding.embedding, item.embedding || item.vector || [])
         }))
         .filter((item) => item.score > 0.08)
         .sort((first, second) => second.score - first.score)
@@ -1009,10 +1023,16 @@ function normalizeEloVectorMemory_(memory) {
   if (!memory || typeof memory !== "object") {
     return null;
   }
-  const text = clean_(memory.text).slice(0, 800);
+  const text = clean_(memory.text).slice(0, MAX_ELO_VECTOR_TEXT_LENGTH);
   if (!text) {
     return null;
   }
+  const embedding = Array.isArray(memory.embedding)
+    ? memory.embedding.map(Number).filter(Number.isFinite)
+    : (Array.isArray(memory.vector) ? memory.vector.map(Number).filter(Number.isFinite) : []);
+  const embeddingProvider = clean_(memory.embeddingProvider || (embedding.length === ELO_LOCAL_VECTOR_DIMENSIONS ? "local" : "")).slice(0, 40) || "local";
+  const embeddingModel = clean_(memory.embeddingModel || (embeddingProvider === "openai" ? ELO_OPENAI_EMBEDDING_MODEL : ELO_LOCAL_EMBEDDING_MODEL)).slice(0, 80);
+  const embeddingDimensions = Number(memory.embeddingDimensions || embedding.length || (embeddingProvider === "local" ? ELO_LOCAL_VECTOR_DIMENSIONS : 0));
 
   return {
     ownerId: sanitizeEloDeviceId_(memory.ownerId || memory.deviceId || ""),
@@ -1024,9 +1044,11 @@ function normalizeEloVectorMemory_(memory) {
     createdAt: clean_(memory.createdAt || new Date().toISOString()).slice(0, 40),
     updatedAt: clean_(memory.updatedAt || memory.createdAt || new Date().toISOString()).slice(0, 40),
     metadata: memory.metadata && typeof memory.metadata === "object" ? sanitizeMetadata_(memory.metadata) : {},
-    embedding: Array.isArray(memory.embedding)
-      ? memory.embedding.slice(0, ELO_VECTOR_DIMENSIONS).map(Number)
-      : (Array.isArray(memory.vector) ? memory.vector.slice(0, ELO_VECTOR_DIMENSIONS).map(Number) : buildLocalEmbedding_(text))
+    embedding: embedding.length ? embedding : buildLocalEmbedding_(text),
+    embeddingProvider,
+    embeddingModel,
+    embeddingDimensions: embeddingDimensions > 0 ? embeddingDimensions : ELO_LOCAL_VECTOR_DIMENSIONS,
+    schemaVersion: Number(memory.schemaVersion || 1)
   };
 }
 
@@ -1037,12 +1059,66 @@ function sanitizeMetadata_(metadata) {
   ]).filter(([key]) => key));
 }
 
+async function buildEloEmbedding_(text, env) {
+  if (env && env.OPENAI_API_KEY) {
+    try {
+      const embedding = await callOpenAiEmbedding_(text, env);
+      if (embedding.length) {
+        return {
+          embedding,
+          provider: "openai",
+          model: ELO_OPENAI_EMBEDDING_MODEL,
+          dimensions: embedding.length
+        };
+      }
+    } catch (error) {
+      // Fallback local mantem o Elo funcionando se a API de embeddings falhar.
+    }
+  }
+
+  const embedding = buildLocalEmbedding_(text);
+  return {
+    embedding,
+    provider: "local",
+    model: ELO_LOCAL_EMBEDDING_MODEL,
+    dimensions: embedding.length
+  };
+}
+
+async function callOpenAiEmbedding_(text, env) {
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + env.OPENAI_API_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: ELO_OPENAI_EMBEDDING_MODEL,
+      input: clean_(text).slice(0, MAX_ELO_VECTOR_TEXT_LENGTH)
+    })
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data || !Array.isArray(data.data) || !data.data[0] || !Array.isArray(data.data[0].embedding)) {
+    const message = data && data.error && data.error.message ? data.error.message : "Resposta invalida da API de embeddings.";
+    throw new Error(message);
+  }
+
+  return normalizeEmbeddingVector_(data.data[0].embedding);
+}
+
+function normalizeEmbeddingVector_(vector) {
+  const values = vector.map(Number).filter(Number.isFinite);
+  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0)) || 1;
+  return values.map((value) => Number((value / magnitude).toFixed(8)));
+}
+
 function buildLocalEmbedding_(text) {
-  const vector = new Array(ELO_VECTOR_DIMENSIONS).fill(0);
+  const vector = new Array(ELO_LOCAL_VECTOR_DIMENSIONS).fill(0);
   const tokens = expandSemanticTokens_(tokenizeSemanticText_(text));
 
   tokens.forEach((token) => {
-    const index = positiveHash_(token) % ELO_VECTOR_DIMENSIONS;
+    const index = positiveHash_(token) % ELO_LOCAL_VECTOR_DIMENSIONS;
     vector[index] += token.length > 5 ? 1.3 : 1;
   });
 
@@ -1097,6 +1173,15 @@ function cosineSimilarity_(first, second) {
   return score;
 }
 
+function isCompatibleEmbedding_(queryEmbedding, item) {
+  const itemVector = item.embedding || item.vector || [];
+  const itemDimensions = Number(item.embeddingDimensions || itemVector.length || 0);
+  if (!queryEmbedding || !Array.isArray(queryEmbedding.embedding) || !Array.isArray(itemVector)) {
+    return false;
+  }
+  return itemDimensions === queryEmbedding.dimensions && itemVector.length === queryEmbedding.embedding.length;
+}
+
 function positiveHash_(value) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -1110,13 +1195,13 @@ function createStableId_(value) {
   return "id_" + positiveHash_(value).toString(36);
 }
 
-export function searchEloRelevantMemories_(store, query, ownerId) {
+export async function searchEloRelevantMemories_(store, query, ownerId) {
   try {
     const safeOwnerId = sanitizeEloDeviceId_(ownerId);
     if (!safeOwnerId) {
       return "";
     }
-    const items = store.search(query, safeOwnerId, 5);
+    const items = await store.search(query, safeOwnerId, 5);
     if (!items.length) {
       return "";
     }
