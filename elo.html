@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
   <link rel="stylesheet" href="elo.css">
 </head>
 <body data-elo-mode="standalone" data-elo-product="chat">
@@ -40,21 +39,22 @@
           <button type="button" class="elo-attachment-remove" data-elo-attachment-remove aria-label="Remover arquivo">×</button>
         </div>
       </div>
-      <div class="elo-product-chat" id="eloStandaloneMount" aria-label="Conversa com o Elo"></div>
+      <div class="elo-product-chat" aria-label="Conversa com o Elo">
+        <section class="elo-standalone-panel" aria-label="Elo">
+          <form class="elo-input-row">
+            <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
+            <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
+            <input class="elo-input" type="text" maxlength="220" placeholder="Pergunte ao Elo...">
+            <button type="submit" class="elo-send-button">Enviar</button>
+          </form>
+        </section>
+      </div>
     </section>
   </main>
 
   <script>
     if ("scrollRestoration" in history) {
       history.scrollRestoration = "manual";
-    }
-
-    window.ELO_STANDALONE_MODE = true;
-    window.ELO_PRODUCT_MODE = true;
-    window.ELO_DISABLE_AUTOFOCUS = true;
-
-    if (!/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
-      window.ELO_API_BASE_URL = "https://obrareport-backend.onrender.com";
     }
 
     window.addEventListener("pageshow", function () {
@@ -120,8 +120,98 @@
       }, 4200);
     }
 
+    function formatEloFileSize(bytes) {
+      if (!bytes && bytes !== 0) {
+        return "";
+      }
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unitIndex = 0;
+
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+
+      return size.toFixed(unitIndex === 0 ? 0 : 1).replace(".", ",") + " " + units[unitIndex];
+    }
+
+    function clearEloAttachmentPreview() {
+      const fileInput = document.querySelector(".elo-attachment-input");
+      const attachButton = document.querySelector(".elo-attach-button");
+      const preview = document.querySelector("[data-elo-attachment-preview]");
+      const nameEl = document.querySelector("[data-elo-attachment-name]");
+      const sizeEl = document.querySelector("[data-elo-attachment-size]");
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+      if (nameEl) {
+        nameEl.textContent = "";
+      }
+      if (sizeEl) {
+        sizeEl.textContent = "";
+      }
+      if (preview) {
+        preview.classList.remove("is-visible");
+      }
+      if (attachButton) {
+        attachButton.classList.remove("is-attached");
+        attachButton.textContent = "Anexar";
+      }
+    }
+
+    function initEloMinimalInput() {
+      const form = document.querySelector(".elo-input-row");
+      const fileInput = document.querySelector(".elo-attachment-input");
+      const attachButton = document.querySelector(".elo-attach-button");
+      const preview = document.querySelector("[data-elo-attachment-preview]");
+      const nameEl = document.querySelector("[data-elo-attachment-name]");
+      const sizeEl = document.querySelector("[data-elo-attachment-size]");
+      const removeButton = document.querySelector("[data-elo-attachment-remove]");
+
+      if (attachButton && fileInput) {
+        attachButton.addEventListener("click", function () {
+          fileInput.click();
+        });
+      }
+
+      if (fileInput) {
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            clearEloAttachmentPreview();
+            return;
+          }
+          if (nameEl) {
+            nameEl.textContent = file.name;
+          }
+          if (sizeEl) {
+            sizeEl.textContent = "· " + formatEloFileSize(file.size);
+          }
+          if (preview) {
+            preview.classList.add("is-visible");
+          }
+          if (attachButton) {
+            attachButton.classList.add("is-attached");
+            attachButton.textContent = "Anexado";
+          }
+        });
+      }
+
+      if (removeButton) {
+        removeButton.addEventListener("click", clearEloAttachmentPreview);
+      }
+
+      if (form) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
+    document.addEventListener("DOMContentLoaded", initEloMinimalInput);
   </script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=elo-reference-20260603" defer></script>
 </body>
 </html>
