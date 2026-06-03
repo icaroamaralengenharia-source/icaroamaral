@@ -122,12 +122,6 @@
   </main>
 
   <script>
-    window.ELO_STANDALONE_MODE = true;
-    window.ELO_DISABLE_AUTOFOCUS = true;
-    if (!/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
-      window.ELO_API_BASE_URL = "https://obrareport-backend.onrender.com";
-    }
-
     window.addEventListener("load", function () {
       if (window.location.hash) {
         history.replaceState(null, "", window.location.pathname);
@@ -141,6 +135,5 @@
       }, 120);
     });
   </script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=elo-online-20260601-2" defer></script>
 </body>
 </html>
