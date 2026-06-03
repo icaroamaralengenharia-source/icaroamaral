@@ -8,7 +8,7 @@
 
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: dark;
       --navy: #061a32;
       --navy-2: #0b315b;
       --blue: #0f5f8f;
@@ -35,8 +35,9 @@
       margin: 0;
       color: var(--text);
       background:
-        radial-gradient(circle at 14% 0%, rgba(33, 115, 189, 0.4), transparent 18rem),
-        linear-gradient(180deg, #04172e 0, #0a315d 170px, #0f5f8f 320px, #edf3f8 321px, #f7fafc 100%);
+        radial-gradient(circle at 12% 4%, rgba(31, 111, 174, 0.26), transparent 23rem),
+        radial-gradient(circle at 82% 12%, rgba(94, 92, 230, 0.18), transparent 24rem),
+        linear-gradient(180deg, #020b17 0%, #061426 44%, #07111f 100%);
       font-family: Inter, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
     }
 
@@ -60,8 +61,37 @@
     }
 
     .brand {
+      position: relative;
       display: grid;
       gap: 2px;
+      padding-left: 44px;
+    }
+
+    .brand::before {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: conic-gradient(from 210deg, #2458d6, #7dd3fc, #8b5cf6, #2458d6);
+      box-shadow: 0 0 28px rgba(125, 211, 252, 0.22);
+      content: "";
+      transform: translateY(-50%);
+    }
+
+    .brand::after {
+      position: absolute;
+      left: 7px;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      border: 5px solid #071019;
+      border-left-color: transparent;
+      border-radius: 999px;
+      background: radial-gradient(circle at 50% 50%, #8b5cf6 0 5px, #2f7cff 5.5px 7px, transparent 7.5px);
+      content: "";
+      transform: translateY(-50%);
     }
 
     .brand strong {
@@ -109,6 +139,27 @@
       background: rgba(255, 255, 255, 0.08);
     }
 
+    .account-button {
+      gap: 10px;
+      border-color: rgba(210, 225, 245, 0.36);
+      background: rgba(255, 255, 255, 0.06);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.16);
+      backdrop-filter: blur(14px);
+    }
+
+    .account-button::before {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.82);
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 50% 35%, currentColor 0 3px, transparent 3.5px),
+        radial-gradient(ellipse at 50% 76%, currentColor 0 6px, transparent 6.5px);
+      content: "";
+    }
+
     .button.light {
       color: var(--navy);
       border-color: var(--line);
@@ -138,21 +189,21 @@
 
     .hero {
       display: grid;
-      grid-template-columns: minmax(0, 1.06fr) minmax(320px, 0.94fr);
-      gap: clamp(22px, 4vw, 46px);
+      grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
+      gap: clamp(24px, 4vw, 48px);
       align-items: center;
-      min-height: 520px;
-      padding: clamp(26px, 5vw, 58px);
+      min-height: 430px;
+      padding: clamp(26px, 4vw, 48px);
       overflow: hidden;
       background:
-        radial-gradient(circle at 88% 14%, rgba(15, 127, 115, 0.28), transparent 20rem),
-        radial-gradient(circle at 4% 100%, rgba(213, 161, 45, 0.18), transparent 18rem),
-        linear-gradient(135deg, #04162b 0%, #082544 48%, #0b3f64 100%);
-      box-shadow: 0 34px 90px rgba(6, 26, 50, 0.28);
+        radial-gradient(circle at 78% 18%, rgba(30, 111, 174, 0.28), transparent 22rem),
+        radial-gradient(circle at 7% 90%, rgba(120, 75, 255, 0.18), transparent 18rem),
+        linear-gradient(135deg, rgba(4, 13, 26, 0.98) 0%, rgba(6, 20, 38, 0.98) 48%, rgba(8, 28, 52, 0.98) 100%);
+      box-shadow: 0 38px 110px rgba(0, 0, 0, 0.34);
     }
 
     .eyebrow {
-      margin: 0 0 12px;
+      margin: 0 0 9px;
       color: var(--teal);
       font-size: 0.78rem;
       font-weight: 900;
@@ -171,7 +222,7 @@
 
     h1 {
       max-width: 780px;
-      font-size: clamp(2.15rem, 4vw, 3.65rem);
+      font-size: clamp(2.05rem, 3.45vw, 3.25rem);
     }
 
     .hero h1 {
@@ -186,21 +237,28 @@
 
     .hero-text {
       max-width: 660px;
-      margin: 14px 0 0;
+      margin: 10px 0 0;
       color: rgba(255, 255, 255, 0.82);
       font-size: clamp(0.95rem, 1.25vw, 1.08rem);
       line-height: 1.5;
     }
 
     .hero .eyebrow {
-      color: #ffd978;
+      color: #27a3ff;
+    }
+
+    .gradient-text {
+      background: linear-gradient(90deg, #0894ff, #6f7cff, #a86bff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
 
     .hero-feature-line {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin: 16px 0 0;
+      margin: 12px 0 0;
       padding: 0;
       list-style: none;
     }
@@ -219,8 +277,8 @@
     .hero-actions {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-      margin-top: 18px;
+      gap: 10px;
+      margin-top: 14px;
     }
 
     .hero-actions .button {
@@ -343,12 +401,15 @@
 
     .mockup {
       display: grid;
-      gap: 12px;
-      padding: 12px;
-      border: 1px solid #dbe4ee;
+      gap: 14px;
+      padding: clamp(18px, 3vw, 26px);
+      border: 1px solid rgba(127, 182, 230, 0.18);
       border-radius: 22px;
-      background: linear-gradient(180deg, #ffffff, #f4f8fc);
-      box-shadow: 0 26px 70px rgba(6, 26, 50, 0.18);
+      background:
+        radial-gradient(circle at 48% 10%, rgba(30, 111, 174, 0.18), transparent 19rem),
+        rgba(6, 19, 36, 0.72);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(18px);
     }
 
     .platform-strip {
@@ -397,9 +458,9 @@
     .mockup-top,
     .mockup-metrics,
     .mockup-list p {
-      border: 1px solid #dbe4ee;
+      border: 1px solid rgba(127, 182, 230, 0.13);
       border-radius: 12px;
-      background: #ffffff;
+      background: rgba(11, 28, 52, 0.74);
     }
 
     .mockup-top {
@@ -409,10 +470,14 @@
       padding: 14px;
     }
 
+    .mockup-top strong {
+      color: #ffffff;
+    }
+
     .mockup-top span,
     .mockup-metrics span,
     .mockup-list span {
-      color: var(--muted);
+      color: rgba(225, 238, 252, 0.68);
       font-size: 0.74rem;
       font-weight: 850;
       text-transform: uppercase;
@@ -430,36 +495,46 @@
       gap: 6px;
       padding: 12px;
       border-radius: 12px;
-      background: #f7fafc;
+      background:
+        linear-gradient(135deg, rgba(30, 111, 174, 0.2), rgba(30, 111, 174, 0.04)),
+        rgba(255, 255, 255, 0.04);
     }
 
     .mockup-metrics strong {
-      color: var(--navy);
+      color: #ffffff;
       font-size: 1.9rem;
       line-height: 1;
     }
 
     .mockup-chart {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      align-items: end;
-      gap: 12px;
-      height: 88px;
+      position: relative;
+      display: block;
+      height: 114px;
       padding: 12px;
       border-radius: 14px;
-      background: linear-gradient(180deg, #eef6ff, #ffffff);
+      background:
+        linear-gradient(180deg, transparent 0 48%, rgba(127, 182, 230, 0.08) 49% 50%, transparent 51%),
+        linear-gradient(90deg, transparent 0 24%, rgba(127, 182, 230, 0.08) 25% 26%, transparent 27% 49%, rgba(127, 182, 230, 0.08) 50% 51%, transparent 52% 74%, rgba(127, 182, 230, 0.08) 75% 76%, transparent 77%),
+        rgba(3, 13, 27, 0.62);
+      overflow: hidden;
     }
 
     .mockup-chart span {
-      display: block;
-      border-radius: 999px 999px 8px 8px;
-      background: linear-gradient(180deg, var(--blue), var(--navy));
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 28px;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0d8cff, #1f7df4, #6b57ff);
+      box-shadow: 0 0 24px rgba(13, 140, 255, 0.58);
+      transform-origin: left center;
     }
 
-    .mockup-chart span:nth-child(1) { height: 44%; }
-    .mockup-chart span:nth-child(2) { height: 70%; }
-    .mockup-chart span:nth-child(3) { height: 58%; }
-    .mockup-chart span:nth-child(4) { height: 84%; }
+    .mockup-chart span:nth-child(1) { transform: translateY(-12px) rotate(-10deg); }
+    .mockup-chart span:nth-child(2) { transform: translateY(-28px) rotate(8deg); opacity: 0.72; }
+    .mockup-chart span:nth-child(3) { transform: translateY(-46px) rotate(-8deg); opacity: 0.44; }
+    .mockup-chart span:nth-child(4) { display: none; }
 
     .mockup-list {
       display: grid;
@@ -475,7 +550,267 @@
     }
 
     .mockup-list strong {
-      color: var(--navy);
+      color: #ffffff;
+    }
+
+    .mockup-access {
+      justify-self: center;
+      color: #27a3ff;
+      text-decoration: none;
+      font-weight: 850;
+    }
+
+    .home-products-section {
+      display: grid;
+      gap: 0;
+      margin-top: clamp(18px, 3vw, 34px);
+      padding: clamp(24px, 4vw, 42px);
+      border: 1px solid rgba(127, 182, 230, 0.17);
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(30, 111, 174, 0.18), transparent 24rem),
+        rgba(5, 18, 35, 0.48);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
+    }
+
+    .home-products-heading {
+      max-width: 780px;
+      margin: 0 auto 30px;
+      text-align: center;
+    }
+
+    .home-section-kicker {
+      display: inline-block;
+      margin-bottom: 10px;
+      color: #f5c84b;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .home-products-heading h2 {
+      margin: 0;
+      color: #ffffff;
+      font-size: clamp(1.8rem, 3vw, 3rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .home-products-heading p {
+      margin: 14px auto 0;
+      color: rgba(230, 240, 255, 0.72);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .home-products-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 28px;
+      gap: 18px;
+    }
+
+    .home-product-card {
+      position: relative;
+      display: grid;
+      align-content: start;
+      overflow: hidden;
+      min-height: 245px;
+      padding: 22px;
+      border: 1px solid rgba(125, 190, 255, 0.28);
+      border-radius: 22px;
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(59, 130, 246, 0.28), transparent 38%),
+        linear-gradient(145deg, rgba(13, 35, 62, 0.96), rgba(8, 20, 38, 0.96));
+      box-shadow:
+        0 22px 60px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .home-product-card::before {
+      position: absolute;
+      inset: -1px;
+      background:
+        radial-gradient(circle at top right, rgba(81, 111, 255, 0.32), transparent 34%),
+        radial-gradient(circle at bottom left, rgba(34, 211, 238, 0.16), transparent 36%);
+      content: "";
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .home-product-card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .home-product-card:hover {
+      border-color: rgba(122, 196, 255, 0.58);
+      box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.36),
+        0 0 36px rgba(37, 99, 235, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.11);
+      transform: translateY(-4px);
+    }
+
+    .home-product-card-featured {
+      border-color: rgba(255, 214, 102, 0.42);
+    }
+
+    .home-product-card-stock-obras {
+      background:
+        radial-gradient(circle at 18% 0%, rgba(34, 197, 94, 0.22), transparent 38%),
+        linear-gradient(145deg, rgba(9, 42, 42, 0.96), rgba(8, 20, 38, 0.96));
+    }
+
+    .home-product-card-stock-full {
+      background:
+        radial-gradient(circle at 18% 0%, rgba(20, 184, 166, 0.22), transparent 38%),
+        linear-gradient(145deg, rgba(9, 38, 52, 0.96), rgba(8, 20, 38, 0.96));
+    }
+
+    .home-product-card-elo {
+      border-color: rgba(112, 104, 255, 0.42);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(139, 92, 246, 0.26), transparent 38%),
+        linear-gradient(145deg, rgba(28, 28, 78, 0.96), rgba(8, 20, 38, 0.96));
+    }
+
+    .home-product-badge {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 14px;
+      padding: 6px 10px;
+      border: 1px solid rgba(255, 213, 79, 0.36);
+      border-radius: 999px;
+      color: #f5c84b;
+      background: rgba(255, 193, 7, 0.09);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .home-product-icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      border-radius: 15px;
+      color: #ffffff;
+      background: linear-gradient(135deg, #2f8cff, #7c5cff);
+      font-size: 0.8rem;
+      font-weight: 900;
+    }
+
+    .home-product-card h3 {
+      margin: 0 0 10px;
+      color: #ffffff;
+      font-size: 1.15rem;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .home-product-card p {
+      margin: 0 0 18px;
+      color: rgba(226, 239, 255, 0.9);
+      font-size: 0.9rem;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .home-product-link {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      margin-top: auto;
+      color: #67b7ff;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .home-product-link::after {
+      margin-left: 8px;
+      content: "→";
+    }
+
+    .home-product-link:hover {
+      color: #ffffff;
+    }
+
+    .elo-home-band {
+      display: grid;
+      grid-template-columns: auto minmax(0, 0.85fr) minmax(0, 1.2fr) auto auto;
+      align-items: center;
+      gap: clamp(18px, 3vw, 34px);
+      margin-top: 26px;
+      padding: clamp(18px, 3vw, 28px);
+      border: 1px solid rgba(39, 163, 255, 0.44);
+      border-radius: 18px;
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 12% 50%, rgba(127, 182, 230, 0.2), transparent 14rem),
+        linear-gradient(135deg, rgba(5, 16, 31, 0.92), rgba(8, 22, 43, 0.94));
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.26);
+    }
+
+    .elo-home-mark {
+      position: relative;
+      width: 66px;
+      height: 66px;
+      border-radius: 999px;
+      background: conic-gradient(from 210deg, #2458d6, #7dd3fc, #8b5cf6, #2458d6);
+      box-shadow: 0 0 30px rgba(125, 211, 252, 0.2);
+    }
+
+    .elo-home-mark::before {
+      position: absolute;
+      inset: 22%;
+      border: 8px solid #071019;
+      border-left-color: transparent;
+      border-radius: 999px;
+      content: "";
+    }
+
+    .elo-home-mark::after {
+      position: absolute;
+      right: 12%;
+      bottom: 19%;
+      width: 35%;
+      height: 35%;
+      border: 8px solid #071019;
+      border-top-color: transparent;
+      border-radius: 999px;
+      content: "";
+    }
+
+    .elo-home-title {
+      display: grid;
+      gap: 5px;
+    }
+
+    .elo-home-title small {
+      color: #7fb6e6;
+      font-size: 0.72rem;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .elo-home-title strong {
+      color: #ffffff;
+      font-size: clamp(1.6rem, 3vw, 2.35rem);
+      font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+
+    .elo-home-band p {
+      margin: 0;
+      color: rgba(232, 241, 252, 0.78);
+      line-height: 1.5;
+    }
     }
 
     .section {
@@ -1359,6 +1694,19 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .home-products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .elo-home-band {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .elo-home-band p,
+      .elo-home-band .button {
+        grid-column: 1 / -1;
+      }
+
       .pilot-offer {
         grid-template-columns: 1fr;
       }
@@ -1367,8 +1715,9 @@
     @media (max-width: 640px) {
       body {
         background:
-          radial-gradient(circle at 12% 0%, rgba(33, 115, 189, 0.4), transparent 14rem),
-          linear-gradient(180deg, #04172e 0, #0a315d 116px, #0f5f8f 218px, #edf3f8 219px, #f7fafc 100%);
+          radial-gradient(circle at 12% 0%, rgba(31, 111, 174, 0.28), transparent 15rem),
+          radial-gradient(circle at 92% 14%, rgba(94, 92, 230, 0.16), transparent 18rem),
+          linear-gradient(180deg, #020b17 0%, #061426 46%, #07111f 100%);
       }
 
       .site-shell {
@@ -1400,6 +1749,10 @@
       .hero {
         min-height: 0;
         padding: 22px;
+      }
+
+      .brand {
+        min-height: 36px;
       }
 
       h1 {
@@ -1447,6 +1800,24 @@
         grid-template-columns: 1fr;
       }
 
+      .home-products-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .home-products-section,
+      .elo-home-band {
+        border-radius: 14px;
+      }
+
+      .home-products-section {
+        margin-top: 30px;
+        padding: 24px;
+      }
+
+      .home-product-card {
+        min-height: auto;
+      }
+
       .mockup-chart {
         height: 120px;
       }
@@ -1454,6 +1825,16 @@
       .hero-elo-card {
         align-items: stretch;
         flex-direction: column;
+      }
+
+      .elo-home-band {
+        align-items: stretch;
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .elo-home-mark {
+        justify-self: center;
       }
 
       .elo-preview {
@@ -1471,18 +1852,14 @@
         <span>Sistema de gestão técnica de obras</span>
       </div>
       <nav class="top-actions" aria-label="Ações principais">
-        <a class="button secondary" href="#features-title">Recursos</a>
-        <a class="button secondary" href="#demo">Demonstração</a>
-        <a class="button secondary" href="stock-ai.html">Stock AI</a>
-        <a class="button secondary" href="/sobreoelo.html">Conhecer o Elo</a>
-        <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar</a>
+        <a class="button primary account-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar sua conta</a>
       </nav>
     </header>
 
     <section class="hero">
       <div>
         <p class="eyebrow">Plataforma de gestão técnica de obras</p>
-        <h1>Controle relatórios, diários de obra e materiais em uma única plataforma.</h1>
+        <h1>Controle relatórios, diários de obra e materiais em uma <span class="gradient-text">única plataforma.</span></h1>
         <p class="hero-text">
           Do campo ao cliente: registre fotos, RDO, materiais, estoque, auditoria e gere PDFs profissionais com uma rotina clara para engenheiros, construtoras e equipes de obra.
         </p>
@@ -1498,29 +1875,12 @@
           <a class="button light" href="#pdf-example">Ver exemplo de PDF</a>
           <a class="button light" href="stock-ai.html">Abrir Stock AI</a>
         </div>
-        <div class="hero-proof">
-          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/relatorios"><span>OBR</span><strong>ObraReport</strong><small>Relatórios técnicos com fotos.</small></a>
-          <a href="#pdf-example"><span>PDF</span><strong>PDF Profissional</strong><small>Documento pronto para cliente.</small></a>
-          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario"><span>RDO</span><strong>RDO em Campo</strong><small>Registro diário da obra.</small></a>
-          <a href="#materials-title"><span>MAT</span><strong>Materiais</strong><small>Produção, consumo e auditoria.</small></a>
-          <a href="stock-ai.html"><span>STK</span><strong>Stock AI</strong><small>Obras, almoxarifado e aprovações.</small></a>
-          <a href="#stock-flow-title"><span>NF</span><strong>Notas Fiscais</strong><small>XML e saldo real no estoque.</small></a>
-          <a href="/sobreoelo.html"><span>Elo</span><strong>Elo Assistente</strong><small>Memória e biblioteca local.</small></a>
-        </div>
-        <div class="hero-elo-card">
-          <div>
-            <small class="hero-elo-badge">Memória local</small>
-            <strong>Elo Assistente</strong>
-            <span>Ajuda integrada com memória local, biblioteca, projetos e objetivos para orientar o uso do sistema.</span>
-          </div>
-          <a class="button" href="/elo.html">Conversar com Elo</a>
-        </div>
       </div>
 
       <aside class="mockup" aria-label="Mockup do dashboard ObraReport">
         <div class="mockup-top">
           <span>ObraReport</span>
-          <strong>Dashboard Premium</strong>
+          <a class="mockup-access" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar sua conta</a>
         </div>
         <div class="mockup-metrics">
           <div><span>Obras</span><strong>18</strong></div>
@@ -1535,30 +1895,61 @@
           <p><strong>Edifício Vista Verde</strong><span>Relatório técnico</span></p>
           <p><strong>Centro Comercial</strong><span>Materiais conferidos</span></p>
         </div>
+        <a class="mockup-access" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar dashboard completo &rarr;</a>
       </aside>
     </section>
 
-    <section class="platform-strip" aria-label="Módulos principais da plataforma">
-      <article>
-        <small>Relatórios</small>
-        <strong>ObraReport</strong>
-        <span>Fotos, inconformidades, recomendações, revisão técnica e PDF para o cliente.</span>
-      </article>
-      <article>
-        <small>Campo</small>
-        <strong>Diário de Obras</strong>
-        <span>Registro de clima, equipe, serviços, ocorrências, produção e rotina da obra.</span>
-      </article>
-      <article>
-        <small>Materiais</small>
-        <strong>Stock AI</strong>
-        <span>Estoque por obra ou almoxarifado, XML de nota, entradas, saídas e aprovações.</span>
-      </article>
-      <article>
-        <small>Assistente</small>
-        <strong>Elo</strong>
-        <span>Ajuda local para orientar o uso do sistema e apoiar a rotina do usuário.</span>
-      </article>
+    <section class="home-products-section" id="produtos" aria-labelledby="products-title">
+      <div class="home-products-heading">
+        <span class="home-section-kicker">Nossas soluções</span>
+        <h2 id="products-title">Plataformas para gestão técnica de obras e materiais</h2>
+        <p>Do relatório técnico ao controle completo de materiais, nossas plataformas trabalham juntas para reduzir tempo, erros operacionais e retrabalho.</p>
+      </div>
+
+      <div class="home-products-grid">
+        <article class="home-product-card home-product-card-featured">
+          <span class="home-product-badge">Relatórios + RDO</span>
+          <div class="home-product-icon">OSR</div>
+          <h3>ObraReport 2.0</h3>
+          <p>Relatórios técnicos, RDO e auditoria de obras em uma única plataforma.</p>
+          <a href="#demo" class="home-product-link">Conhecer ObraReport</a>
+        </article>
+
+        <article class="home-product-card home-product-card-stock-obras">
+          <span class="home-product-badge">Obras</span>
+          <div class="home-product-icon">STK</div>
+          <h3>Stock AI Obras</h3>
+          <p>Produção, consumo e auditoria de materiais direto na obra.</p>
+          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?product=stock-ai#app/almoxarifado" class="home-product-link">Conhecer Stock AI Obras</a>
+        </article>
+
+        <article class="home-product-card home-product-card-stock-full">
+          <span class="home-product-badge">Almoxarifado</span>
+          <div class="home-product-icon">FUL</div>
+          <h3>Stock AI Full</h3>
+          <p>Controle completo de almoxarifados, entradas, saídas e responsáveis.</p>
+          <a href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?product=stock-ai#app/almoxarifado" class="home-product-link">Conhecer Stock AI Full</a>
+        </article>
+
+        <article class="home-product-card home-product-card-elo">
+          <span class="home-product-badge">Assistente IA</span>
+          <div class="home-product-icon">ELO</div>
+          <h3>Elo Especialista</h3>
+          <p>Assistente digital com memória, contexto e inteligência aumentada.</p>
+          <a href="/elo.html" class="home-product-link">Conversar com Elo</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="elo-home-band" aria-labelledby="elo-home-title">
+      <span class="elo-home-mark" aria-hidden="true"></span>
+      <div class="elo-home-title">
+        <small>Memória local</small>
+        <strong id="elo-home-title">Elo Assistente</strong>
+      </div>
+      <p>Ajuda integrada com memória local, biblioteca, projetos e objetivos para orientar o uso do sistema.</p>
+      <a class="button primary" href="/elo.html">Conversar com Elo</a>
+      <a class="button secondary" href="/sobreoelo.html">Conhecer o Elo</a>
     </section>
 
     <section class="section demo" id="pdf-example" aria-labelledby="pdf-example-title">
