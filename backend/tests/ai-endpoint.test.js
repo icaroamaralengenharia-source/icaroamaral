@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 import {
   buildEloSystemPrompt_,
@@ -8,6 +11,7 @@ import {
   createEloVectorMemoryStore_,
   formatImageAnalysis_,
   normalizeImageAnalysis_,
+  reindexEloVectorMemoryFile_,
   searchEloRelevantMemories_,
   searchPathologyKnowledge
 } from "../src/app.js";
@@ -389,6 +393,211 @@ test("memoria vetorial nao mistura vetores incompatíveis", async () => {
     assert.equal(items.length, 0);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("reindexacao segura converte memoria local para OpenAI", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "elo-reindex-"));
+  const storePath = join(tempDir, "elo-vector-memory.json");
+  const originalFetch = globalThis.fetch;
+  writeEloVectorTestFile_(storePath, [
+    {
+      ownerId: "elo_dev_reindex",
+      id: "memoria-local",
+      text: "Memoria antiga sobre contrato e prazo.",
+      category: "projeto",
+      source: "elo",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      embedding: new Array(96).fill(0.1),
+      embeddingProvider: "local",
+      embeddingModel: "local-hash-96",
+      embeddingDimensions: 96,
+      schemaVersion: 1
+    }
+  ]);
+  globalThis.fetch = mockOpenAiEmbeddingFetch_(new Array(1536).fill(0.01), originalFetch);
+
+  try {
+    const result = await reindexEloVectorMemoryFile_({
+      path: storePath,
+      env: { OPENAI_API_KEY: "test-key" },
+      now: "2026-06-03T10:00:00.000Z"
+    });
+    const item = readJsonFile_(storePath).items[0];
+
+    assert.equal(result.ok, true);
+    assert.equal(result.candidates, 1);
+    assert.equal(result.reindexed, 1);
+    assert.equal(item.embeddingProvider, "openai");
+    assert.equal(item.embeddingModel, "text-embedding-3-small");
+    assert.equal(item.embeddingDimensions, 1536);
+    assert.equal(item.embedding.length, 1536);
+    assert.equal(item.schemaVersion, 2);
+    assert.equal(item.reindexedAt, "2026-06-03T10:00:00.000Z");
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reindexacao segura preserva campos essenciais da memoria", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "elo-reindex-"));
+  const storePath = join(tempDir, "elo-vector-memory.json");
+  const originalFetch = globalThis.fetch;
+  writeEloVectorTestFile_(storePath, [
+    {
+      ownerId: "elo_dev_preserva",
+      deviceId: "elo_dev_preserva",
+      id: "memoria-preservada",
+      text: "Memoria antiga com dados preservados.",
+      category: "pessoa",
+      type: "memory",
+      source: "elo",
+      fileName: "memoria.txt",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      metadata: { fileName: "memoria.txt", origem: "teste" },
+      embedding: new Array(96).fill(0.1),
+      embeddingProvider: "local",
+      embeddingModel: "local-hash-96",
+      embeddingDimensions: 96,
+      schemaVersion: 1
+    }
+  ]);
+  globalThis.fetch = mockOpenAiEmbeddingFetch_(new Array(1536).fill(0.01), originalFetch);
+
+  try {
+    await reindexEloVectorMemoryFile_({
+      path: storePath,
+      env: { OPENAI_API_KEY: "test-key" },
+      now: "2026-06-03T10:00:00.000Z"
+    });
+    const item = readJsonFile_(storePath).items[0];
+
+    assert.equal(item.ownerId, "elo_dev_preserva");
+    assert.equal(item.deviceId, "elo_dev_preserva");
+    assert.equal(item.id, "memoria-preservada");
+    assert.equal(item.text, "Memoria antiga com dados preservados.");
+    assert.equal(item.category, "pessoa");
+    assert.equal(item.type, "memory");
+    assert.equal(item.source, "elo");
+    assert.equal(item.fileName, "memoria.txt");
+    assert.equal(item.createdAt, "2026-06-01T00:00:00.000Z");
+    assert.deepEqual(item.metadata, { fileName: "memoria.txt", origem: "teste" });
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reindexacao segura cria backup antes de alterar memoria", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "elo-reindex-"));
+  const storePath = join(tempDir, "elo-vector-memory.json");
+  const originalFetch = globalThis.fetch;
+  writeEloVectorTestFile_(storePath, [
+    {
+      ownerId: "elo_dev_backup",
+      id: "memoria-backup",
+      text: "Memoria antiga que exige backup.",
+      category: "projeto",
+      embedding: new Array(96).fill(0.1),
+      embeddingProvider: "local",
+      embeddingModel: "local-hash-96",
+      embeddingDimensions: 96,
+      schemaVersion: 1
+    }
+  ]);
+  globalThis.fetch = mockOpenAiEmbeddingFetch_(new Array(1536).fill(0.01), originalFetch);
+
+  try {
+    const result = await reindexEloVectorMemoryFile_({
+      path: storePath,
+      env: { OPENAI_API_KEY: "test-key" },
+      now: "2026-06-03T10:00:00.000Z"
+    });
+    const backup = readJsonFile_(result.backupPath);
+
+    assert.equal(result.backupCreated, true);
+    assert.equal(existsSync(result.backupPath), true);
+    assert.equal(backup.items[0].embeddingProvider, "local");
+    assert.equal(backup.items[0].embeddingModel, "local-hash-96");
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reindexacao segura mantem memoria intacta quando OpenAI falha", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "elo-reindex-"));
+  const storePath = join(tempDir, "elo-vector-memory.json");
+  const originalFetch = globalThis.fetch;
+  const originalItem = {
+    ownerId: "elo_dev_falha",
+    id: "memoria-falha",
+    text: "Memoria antiga protegida contra falha.",
+    category: "projeto",
+    embedding: new Array(96).fill(0.1),
+    embeddingProvider: "local",
+    embeddingModel: "local-hash-96",
+    embeddingDimensions: 96,
+    schemaVersion: 1
+  };
+  writeEloVectorTestFile_(storePath, [originalItem]);
+  globalThis.fetch = async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      return new Response(JSON.stringify({ error: { message: "falha simulada" } }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const result = await reindexEloVectorMemoryFile_({
+      path: storePath,
+      env: { OPENAI_API_KEY: "test-key" },
+      now: "2026-06-03T10:00:00.000Z"
+    });
+    const item = readJsonFile_(storePath).items[0];
+
+    assert.equal(result.reindexed, 0);
+    assert.equal(result.failed, 1);
+    assert.deepEqual(item, originalItem);
+  } finally {
+    globalThis.fetch = originalFetch;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("reindexacao segura nao cria backup quando nao ha registros pendentes", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "elo-reindex-"));
+  const storePath = join(tempDir, "elo-vector-memory.json");
+  const item = {
+    ownerId: "elo_dev_sem_pendencia",
+    id: "memoria-openai",
+    text: "Memoria ja indexada com OpenAI.",
+    category: "projeto",
+    embedding: new Array(1536).fill(0.01),
+    embeddingProvider: "openai",
+    embeddingModel: "text-embedding-3-small",
+    embeddingDimensions: 1536,
+    schemaVersion: 2
+  };
+  writeEloVectorTestFile_(storePath, [item]);
+
+  try {
+    const result = await reindexEloVectorMemoryFile_({
+      path: storePath,
+      env: { OPENAI_API_KEY: "test-key" },
+      now: "2026-06-03T10:00:00.000Z"
+    });
+
+    assert.equal(result.candidates, 0);
+    assert.equal(result.reindexed, 0);
+    assert.equal(result.backupCreated, false);
+    assert.deepEqual(readJsonFile_(storePath).items[0], item);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -855,6 +1064,33 @@ test("stock demo registra solicitacao de aprovacao", async () => {
   assert.equal(data.state.approvalRequests.length, 1);
   assert.equal(data.state.approvalRequests[0].status, "pending");
 });
+
+function writeEloVectorTestFile_(path, items) {
+  writeFileSync(path, JSON.stringify({
+    items,
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  }, null, 2), "utf8");
+}
+
+function readJsonFile_(path) {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function mockOpenAiEmbeddingFetch_(embedding, originalFetch) {
+  return async function (url, options) {
+    if (String(url) === "https://api.openai.com/v1/embeddings") {
+      return new Response(JSON.stringify({
+        data: [
+          { embedding }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+}
 
 function postAi_(body) {
   return fetch(baseUrl + "/api/ai/improve-text", {

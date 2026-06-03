@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import Busboy from "busboy";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,7 @@ const ELO_DOCUMENT_CHUNK_LENGTH = 1200;
 const MAX_ELO_VECTOR_TEXT_LENGTH = 2000;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const ELO_LOCAL_VECTOR_DIMENSIONS = 96;
+const ELO_OPENAI_VECTOR_DIMENSIONS = 1536;
 const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
 const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const ELO_VECTOR_SCHEMA_VERSION = 2;
@@ -1010,6 +1011,136 @@ function loadEloVectorState_(storePath, memoryOnly) {
   } catch (error) {
     return { items: [], updatedAt: "" };
   }
+}
+
+export async function reindexEloVectorMemoryFile_(options = {}) {
+  const storePath = options.path || ELO_VECTOR_MEMORY_PATH;
+  const env = options.env || process.env;
+  const now = clean_(options.now || new Date().toISOString()) || new Date().toISOString();
+  const result = {
+    ok: true,
+    path: storePath,
+    total: 0,
+    candidates: 0,
+    reindexed: 0,
+    failed: 0,
+    backupCreated: false,
+    backupPath: "",
+    reindexedIds: [],
+    failedIds: [],
+    errors: []
+  };
+
+  if (!storePath || !existsSync(storePath)) {
+    return result;
+  }
+
+  let state;
+  try {
+    state = JSON.parse(readFileSync(storePath, "utf8"));
+  } catch (error) {
+    result.ok = false;
+    result.errors.push("Nao foi possivel ler o JSON de memoria vetorial.");
+    return result;
+  }
+
+  const items = Array.isArray(state && state.items) ? state.items : [];
+  result.total = items.length;
+  const candidateIndexes = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => shouldReindexEloVectorMemory_(item));
+  result.candidates = candidateIndexes.length;
+
+  if (!candidateIndexes.length) {
+    return result;
+  }
+
+  const backupPath = options.backupPath || buildEloVectorBackupPath_(storePath, now);
+  try {
+    const dir = dirname(storePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    copyFileSync(storePath, backupPath);
+    result.backupCreated = true;
+    result.backupPath = backupPath;
+  } catch (error) {
+    result.ok = false;
+    result.errors.push("Nao foi possivel criar backup antes da reindexacao.");
+    return result;
+  }
+
+  const nextItems = items.slice();
+  for (const { item, index } of candidateIndexes) {
+    const text = clean_(item && item.text);
+    const itemId = clean_(item && item.id) || "sem-id";
+    if (!text) {
+      result.failed += 1;
+      result.failedIds.push(itemId);
+      result.errors.push("Memoria sem texto preservada sem alteracao: " + itemId);
+      continue;
+    }
+
+    try {
+      const embedding = await callOpenAiEmbedding_(text, env);
+      if (embedding.length !== ELO_OPENAI_VECTOR_DIMENSIONS) {
+        throw new Error("Embedding OpenAI retornou dimensao inesperada: " + embedding.length);
+      }
+      nextItems[index] = {
+        ...item,
+        embedding,
+        embeddingProvider: "openai",
+        embeddingModel: ELO_OPENAI_EMBEDDING_MODEL,
+        embeddingDimensions: ELO_OPENAI_VECTOR_DIMENSIONS,
+        schemaVersion: ELO_VECTOR_SCHEMA_VERSION,
+        reindexedAt: now
+      };
+      result.reindexed += 1;
+      result.reindexedIds.push(itemId);
+    } catch (error) {
+      result.failed += 1;
+      result.failedIds.push(itemId);
+      result.errors.push("Falha ao reindexar memoria " + itemId + ": " + clean_(error && error.message));
+    }
+  }
+
+  if (!result.reindexed) {
+    return result;
+  }
+
+  const nextState = {
+    ...state,
+    items: nextItems,
+    updatedAt: now
+  };
+  const tempPath = storePath + ".tmp-" + Date.now();
+
+  try {
+    writeFileSync(tempPath, JSON.stringify(nextState, null, 2), "utf8");
+    JSON.parse(readFileSync(tempPath, "utf8"));
+    renameSync(tempPath, storePath);
+  } catch (error) {
+    result.ok = false;
+    result.errors.push("Nao foi possivel gravar a memoria reindexada com seguranca.");
+    return result;
+  }
+
+  return result;
+}
+
+function shouldReindexEloVectorMemory_(item) {
+  return !item ||
+    item.embeddingProvider !== "openai" ||
+    item.embeddingModel !== ELO_OPENAI_EMBEDDING_MODEL ||
+    Number(item.embeddingDimensions) !== ELO_OPENAI_VECTOR_DIMENSIONS;
+}
+
+function buildEloVectorBackupPath_(storePath, now) {
+  const safeTimestamp = clean_(now)
+    .replace(/[^0-9a-zA-Z_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || String(Date.now());
+  return storePath + ".backup-" + safeTimestamp;
 }
 
 function normalizeEloVectorState_(state) {
