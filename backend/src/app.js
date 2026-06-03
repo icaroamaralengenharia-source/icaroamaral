@@ -1130,6 +1130,13 @@ export function buildVisionUserPrompt_(payload) {
     "Contexto tecnico consultado na base local:",
     pathologyContext,
     "",
+    "Antes de escolher o formato, classifique a imagem.",
+    "Se a imagem nao apresentar elementos claros de obra, construcao, patologia, fissura, trinca, infiltracao, umidade, corrosao, concreto, armadura, revestimento ou desplacamento, use modoAnalise = \"geral\".",
+    "No modo geral, descreva apenas o que aparece, elementos principais, contexto provavel e texto visivel quando relevante.",
+    "No modo geral, diga claramente: \"Nao ha evidencia visual suficiente de patologia de obra nesta imagem.\"",
+    "No modo geral, nao use possivel manifestacao, grau preliminar, texto sugerido para relatorio, observacao obrigatoria ou verificacoes recomendadas tecnicas.",
+    "Use modoAnalise = \"tecnico\" somente quando a imagem realmente parecer foto de obra, construcao ou patologia de obra.",
+    "",
     "Restricoes obrigatorias:",
     "- Nao afirmar causa definitiva.",
     "- Nao afirmar problema estrutural confirmado.",
@@ -1138,6 +1145,8 @@ export function buildVisionUserPrompt_(payload) {
     "- Se a imagem nao permitir avaliar, registrar baixa confianca e recomendar nova foto/verificacao.",
     "",
     "Padrao de resposta:",
+    "- Se modoAnalise for geral: o que aparece na imagem; elementos principais; contexto provavel; texto visivel; mensagem sem evidencia de patologia de obra.",
+    "- Se modoAnalise for tecnico:",
     "- Elemento observado.",
     "- Possivel manifestacao.",
     "- Evidencias visuais.",
@@ -1148,10 +1157,14 @@ export function buildVisionUserPrompt_(payload) {
     "",
     "Retorne JSON exatamente neste formato:",
     "{",
+    "  \"modoAnalise\": \"geral | tecnico\",",
     "  \"elementoObservado\": \"elemento ou local visivel, sem inventar\",",
     "  \"categoriaProvavel\": \"uma categoria da biblioteca ou vazio\",",
     "  \"confianca\": \"baixa | media | alta\",",
     "  \"descricaoTecnica\": \"descricao objetiva do que e visivel\",",
+    "  \"elementosPrincipais\": [\"elemento principal 1\", \"elemento principal 2\"],",
+    "  \"contextoProvavel\": \"contexto percebido quando modoAnalise for geral\",",
+    "  \"textoVisivel\": \"texto visivel na imagem, se houver\",",
     "  \"evidenciasVisuais\": [\"evidencia 1\", \"evidencia 2\"],",
     "  \"possiveisInconformidades\": [\"possivel manifestacao 1\"],",
     "  \"verificacoesRecomendadas\": [\"verificacao 1\", \"verificacao 2\"],",
@@ -1366,15 +1379,20 @@ export function normalizeImageAnalysis_(analysis) {
   const evidencias = normalizeStringArray_(safe.evidenciasVisuais).slice(0, 6);
   const inconformidades = normalizeStringArray_(safe.possiveisInconformidades).slice(0, 5);
   const verificacoes = normalizeStringArray_(safe.verificacoesRecomendadas).slice(0, 6);
+  const elementosPrincipais = normalizeStringArray_(safe.elementosPrincipais).slice(0, 6);
   const descricao = clean_(safe.descricaoTecnica);
   const recomendacao = clean_(safe.recomendacaoAcao) || verificacoes.join("; ");
   const textoRelatorio = clean_(safe.textoRelatorio || descricao);
 
   return {
+    modoAnalise: clean_(safe.modoAnalise).toLowerCase() === "geral" ? "geral" : "tecnico",
     elementoObservado: clean_(safe.elementoObservado),
     categoriaProvavel: clean_(safe.categoriaProvavel),
     confianca: clean_(safe.confianca),
     descricaoTecnica: descricao,
+    elementosPrincipais,
+    contextoProvavel: clean_(safe.contextoProvavel),
+    textoVisivel: clean_(safe.textoVisivel),
     evidenciasVisuais: evidencias,
     possiveisInconformidades: inconformidades,
     verificacoesRecomendadas: verificacoes,
@@ -1397,6 +1415,25 @@ export function normalizeImageAnalysis_(analysis) {
 }
 
 export function formatImageAnalysis_(analysis) {
+  if (analysis.modoAnalise === "geral") {
+    const lines = [
+      "O que aparece na imagem: " + safeValue_(analysis.descricaoTecnica || analysis.elementoObservado),
+      "Elementos principais: " + safeValue_(
+        analysis.elementosPrincipais && analysis.elementosPrincipais.length
+          ? analysis.elementosPrincipais.join("; ")
+          : analysis.elementoObservado
+      ),
+      "Contexto provavel: " + safeValue_(analysis.contextoProvavel)
+    ];
+
+    if (analysis.textoVisivel) {
+      lines.push("Texto presente: " + safeValue_(analysis.textoVisivel));
+    }
+
+    lines.push("Nao ha evidencia visual suficiente de patologia de obra nesta imagem.");
+    return lines.join("\n");
+  }
+
   const evidencias = analysis.evidenciasVisuais && analysis.evidenciasVisuais.length
     ? analysis.evidenciasVisuais.join("; ")
     : safeValue_(analysis.descricaoTecnica);
