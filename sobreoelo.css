@@ -1,0 +1,1044 @@
+:root {
+  color-scheme: dark;
+  --elo-bg: #0b0f14;
+  --elo-bg-2: #0f141d;
+  --elo-panel: #121821;
+  --elo-panel-2: #1a202b;
+  --elo-text: #f3f6f9;
+  --elo-muted: #a5adbb;
+  --elo-line: rgba(255, 255, 255, 0.1);
+  --elo-line-strong: rgba(255, 255, 255, 0.18);
+  --elo-cyan: #7dd3fc;
+  --elo-blue: #3b82f6;
+  --elo-green: #8b5cf6;
+  --elo-success: #22c55e;
+  --elo-warning: #f59e0b;
+  --elo-shadow: rgba(0, 0, 0, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--elo-text);
+  background:
+    radial-gradient(circle at 42% 12%, rgba(125, 211, 252, 0.055), transparent 22rem),
+    linear-gradient(180deg, #070a0f 0%, var(--elo-bg) 54%, #080b10 100%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent 82%);
+  content: "";
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.elo-web-shell {
+  width: min(1360px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 48px) 0 28px;
+}
+
+.elo-hero {
+  min-height: min(760px, calc(100vh - 28px));
+  display: grid;
+  grid-template-columns: minmax(340px, 0.92fr) minmax(360px, 0.78fr);
+  gap: clamp(34px, 6vw, 86px);
+  align-items: center;
+  padding: 6px 0 clamp(34px, 5vw, 62px);
+}
+
+.elo-hero-copy {
+  display: grid;
+  gap: clamp(22px, 3.4vw, 34px);
+  align-content: center;
+}
+
+.elo-brand {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  color: var(--elo-text);
+  text-decoration: none;
+}
+
+.elo-brand strong {
+  display: block;
+  font-size: clamp(2rem, 4vw, 3.15rem);
+  font-weight: 500;
+  line-height: 0.95;
+}
+
+.elo-brand small {
+  display: block;
+  margin-top: 8px;
+  color: #c7ced9;
+  font-size: 1rem;
+}
+
+.elo-mark,
+.elo-mini-mark,
+.elo-phone-mark {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: conic-gradient(from 210deg, #2458d6, #7dd3fc, #8b5cf6, #2458d6);
+  box-shadow: 0 0 28px rgba(125, 211, 252, 0.14);
+}
+
+.elo-mark {
+  width: 68px;
+  height: 68px;
+}
+
+.elo-mini-mark {
+  width: 22px;
+  height: 22px;
+}
+
+.elo-phone-mark {
+  width: 92px;
+  height: 92px;
+}
+
+.elo-mark::before,
+.elo-mini-mark::before,
+.elo-phone-mark::before {
+  position: absolute;
+  inset: 22%;
+  border: 8px solid #071019;
+  border-left-color: transparent;
+  border-radius: 999px;
+  content: "";
+}
+
+.elo-mini-mark::before {
+  border-width: 3px;
+}
+
+.elo-phone-mark::before {
+  border-width: 11px;
+}
+
+.elo-mark::after,
+.elo-phone-mark::after {
+  position: absolute;
+  right: 12%;
+  bottom: 19%;
+  width: 35%;
+  height: 35%;
+  border: 8px solid #071019;
+  border-top-color: transparent;
+  border-radius: 999px;
+  content: "";
+}
+
+.elo-phone-mark::after {
+  border-width: 10px;
+}
+
+.elo-hero-text {
+  display: grid;
+  gap: 20px;
+}
+
+.elo-hero-text h1 {
+  max-width: 720px;
+  margin: 0;
+  color: var(--elo-text);
+  font-size: clamp(3.35rem, 6.4vw, 6rem);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.elo-hero-text h1 span {
+  background: linear-gradient(90deg, #f3f6f9 0%, var(--elo-cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.elo-hero-text p {
+  max-width: 680px;
+  margin: 0;
+  color: #c4cbd5;
+  font-size: clamp(1.15rem, 1.55vw, 1.42rem);
+  line-height: 1.62;
+}
+
+.elo-hero-status {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.elo-hero-status li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #e7ebf1;
+  font-size: clamp(0.98rem, 1.2vw, 1.08rem);
+  line-height: 1.35;
+}
+
+.elo-status-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--elo-cyan);
+  font-size: 0.95rem;
+}
+
+.elo-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.elo-primary-action,
+.elo-secondary-action {
+  min-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 0 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.elo-primary-action {
+  color: #ffffff;
+  background: linear-gradient(135deg, #2458d6 0%, #3b82f6 100%);
+  box-shadow: 0 18px 46px rgba(59, 130, 246, 0.14);
+}
+
+.elo-primary-action span {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.elo-secondary-action {
+  min-width: 150px;
+  border: 1px solid var(--elo-line-strong);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.elo-primary-action:hover,
+.elo-primary-action:focus,
+.elo-secondary-action:hover,
+.elo-secondary-action:focus,
+.elo-brand:focus {
+  outline: 3px solid rgba(125, 211, 252, 0.2);
+  outline-offset: 4px;
+}
+
+.elo-memory-showcase {
+  display: flex;
+  justify-content: center;
+}
+
+.elo-memory-card {
+  width: min(510px, 100%);
+  display: grid;
+  gap: 24px;
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+    #0a1018;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.32);
+}
+
+.elo-memory-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.elo-memory-card-header strong,
+.elo-memory-card-header small {
+  display: block;
+}
+
+.elo-memory-card-header strong {
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.elo-memory-card-header small {
+  margin-top: 3px;
+  color: var(--elo-muted);
+  font-size: 0.82rem;
+}
+
+.elo-memory-thread {
+  display: grid;
+  gap: 16px;
+}
+
+.elo-memory-thread .elo-user-bubble,
+.elo-memory-thread .elo-assistant-bubble {
+  box-shadow: none;
+}
+
+.elo-memory-thread .elo-user-bubble {
+  max-width: 76%;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.elo-memory-thread .elo-assistant-bubble {
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: clamp(1rem, 1.25vw, 1.08rem);
+}
+
+.elo-memory-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.elo-memory-card-footer span {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--elo-line);
+  border-radius: 999px;
+  color: #d8dee9;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.elo-phone-showcase {
+  display: flex;
+  justify-content: center;
+}
+
+.elo-phone-frame {
+  width: min(392px, 100%);
+  aspect-ratio: 0.55;
+  padding: 9px;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  border-radius: 44px;
+  background: linear-gradient(145deg, #080b10, #1c1c1f);
+  box-shadow: 0 36px 90px rgba(0, 0, 0, 0.45);
+}
+
+.elo-phone-screen {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 20px;
+  padding: 24px 24px 17px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 35px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(0, 212, 255, 0.08), transparent 13rem),
+    linear-gradient(180deg, #071019 0%, #091019 100%);
+}
+
+.elo-phone-top,
+.elo-phone-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.elo-phone-signal {
+  font-size: 0.72rem;
+  letter-spacing: 2px;
+}
+
+.elo-phone-nav {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.2rem;
+}
+
+.elo-phone-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.elo-phone-center {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.elo-phone-center h2 {
+  margin: 12px 0 0;
+  font-size: 1.55rem;
+  font-weight: 600;
+}
+
+.elo-phone-center p {
+  margin: 0;
+  color: var(--elo-muted);
+  font-size: 1rem;
+}
+
+.elo-phone-chips {
+  width: min(260px, 100%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.elo-phone-chips span {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--elo-line);
+  border-radius: 999px;
+  color: #e9edf4;
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.elo-phone-input {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 13px 0 18px;
+  border-radius: 22px;
+  color: var(--elo-muted);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.045));
+}
+
+.elo-phone-input strong {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #101721;
+  background: #aab2c0;
+}
+
+.elo-phone-screen small {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.elo-experience-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 14px;
+}
+
+.elo-experience-card {
+  min-height: 430px;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 22px 20px 0;
+  border: 1px solid var(--elo-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(18, 24, 33, 0.86), rgba(10, 15, 22, 0.92));
+}
+
+.elo-experience-card h2 {
+  margin: 0;
+  color: #84f1ff;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 500;
+  text-align: center;
+}
+
+.elo-card-phone {
+  min-height: 360px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 44px 22px 22px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 0;
+  border-radius: 34px 34px 0 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(0, 212, 255, 0.06), transparent 12rem),
+    #071019;
+}
+
+.elo-user-bubble,
+.elo-assistant-bubble {
+  margin: 0;
+  padding: 15px 17px;
+  border-radius: 17px;
+  color: #e9edf4;
+  background: rgba(255, 255, 255, 0.075);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.elo-user-bubble {
+  justify-self: end;
+  max-width: 82%;
+  border-top-right-radius: 8px;
+}
+
+.elo-assistant-bubble {
+  max-width: 92%;
+  border-top-left-radius: 8px;
+}
+
+.elo-chat-section {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(420px, 0.58fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 18px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid var(--elo-line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(13, 19, 27, 0.82), rgba(7, 10, 15, 0.72));
+}
+
+.elo-chat-intro {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+}
+
+.elo-section-kicker {
+  color: #79aaff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.elo-chat-intro h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 650;
+  line-height: 1.04;
+}
+
+.elo-chat-intro p {
+  max-width: 430px;
+  margin: 0;
+  color: var(--elo-muted);
+  font-size: 1.03rem;
+  line-height: 1.65;
+}
+
+.elo-chat-card {
+  min-width: 0;
+}
+
+.elo-standalone-widget {
+  position: static;
+  width: 100%;
+  z-index: auto;
+}
+
+.elo-standalone-panel {
+  position: static;
+  width: 100%;
+  min-height: 720px;
+  max-height: min(820px, calc(100vh - 70px));
+  grid-template-rows: auto auto minmax(320px, 1fr) auto auto;
+  border: 1px solid var(--elo-line-strong);
+  border-radius: 24px;
+  overflow: hidden;
+  background: #071019;
+  box-shadow: 0 26px 70px var(--elo-shadow);
+}
+
+.elo-standalone-panel .elo-header {
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 24px 24px 18px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 24px 18px, rgba(0, 212, 255, 0.16), transparent 11rem),
+    linear-gradient(180deg, #071019 0%, #0a111a 100%);
+}
+
+.elo-standalone-panel .elo-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+
+.elo-standalone-panel .elo-header p {
+  margin: 6px 0 0;
+  color: var(--elo-muted);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.elo-standalone-panel .elo-header .elo-context-label {
+  width: fit-content;
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 212, 255, 0.16);
+  border-radius: 999px;
+  color: #8defff;
+  background: rgba(0, 212, 255, 0.055);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.elo-close-button.is-hidden {
+  display: none;
+}
+
+.elo-standalone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 13px 20px 16px;
+  border-bottom: 1px solid var(--elo-line);
+  background: #071019;
+}
+
+.elo-standalone-actions .elo-inline-button,
+.elo-context-suggestions .elo-suggestion-chip,
+.elo-tools .elo-chip-button,
+.elo-tools .elo-inline-button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--elo-line);
+  border-radius: 999px;
+  color: #d8dde7;
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.elo-standalone-actions .elo-inline-button:hover,
+.elo-standalone-actions .elo-inline-button:focus,
+.elo-context-suggestions .elo-suggestion-chip:hover,
+.elo-context-suggestions .elo-suggestion-chip:focus,
+.elo-tools .elo-chip-button:hover,
+.elo-tools .elo-chip-button:focus,
+.elo-tools .elo-inline-button:hover,
+.elo-tools .elo-inline-button:focus {
+  border-color: rgba(0, 212, 255, 0.36);
+  color: #ffffff;
+  background: rgba(0, 212, 255, 0.1);
+  outline: none;
+}
+
+.elo-standalone-panel .elo-messages {
+  min-height: 360px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 20px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(0, 212, 255, 0.05), transparent 14rem),
+    #071019;
+}
+
+.elo-standalone-panel .elo-message {
+  max-width: 94%;
+}
+
+.elo-standalone-panel .elo-message.user {
+  justify-self: end;
+}
+
+.elo-standalone-panel .elo-message-bubble {
+  border: 1px solid var(--elo-line);
+  border-radius: 17px;
+  color: #eef2f7;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.045));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  line-height: 1.55;
+}
+
+.elo-standalone-panel .elo-message.user .elo-message-bubble {
+  border-color: rgba(0, 212, 255, 0.22);
+  background: linear-gradient(145deg, rgba(47, 101, 255, 0.28), rgba(0, 212, 255, 0.12));
+}
+
+.elo-standalone-panel .elo-message.system .elo-message-bubble {
+  border-color: rgba(124, 58, 237, 0.24);
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.elo-standalone-panel .elo-context-suggestions {
+  display: grid;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--elo-line);
+  background: #071019;
+}
+
+.elo-standalone-panel .elo-context-suggestions.is-hidden {
+  display: none;
+}
+
+.elo-suggestions-label {
+  color: #7aa2ff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.elo-suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.elo-standalone-panel .elo-footer {
+  display: grid;
+  gap: 11px;
+  padding: 15px 18px 18px;
+  border-top: 1px solid var(--elo-line);
+  background: #071019;
+}
+
+.elo-standalone-panel .elo-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.elo-standalone-panel .elo-input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055));
+  outline: none;
+}
+
+.elo-standalone-panel .elo-input::placeholder {
+  color: #8c95a5;
+}
+
+.elo-standalone-panel .elo-input:focus {
+  border-color: rgba(0, 212, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.08);
+}
+
+.elo-standalone-panel .elo-send-button {
+  min-width: 58px;
+  min-height: 54px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  color: #101721;
+  background: #b5bdc9;
+  font-size: 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.elo-standalone-panel .elo-send-button::before {
+  font-size: 1.15rem;
+  content: "↗";
+}
+
+.elo-standalone-panel .elo-send-button:hover,
+.elo-standalone-panel .elo-send-button:focus {
+  background: #dce4ee;
+  outline: 3px solid rgba(255, 255, 255, 0.12);
+}
+
+.elo-standalone-panel .elo-tools-menu {
+  border: 1px solid var(--elo-line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.elo-standalone-panel .elo-tools-menu summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: #c6ccd6;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.elo-standalone-panel .elo-tools-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.elo-standalone-panel .elo-tools-menu[open] summary {
+  border-bottom: 1px solid var(--elo-line);
+}
+
+.elo-standalone-panel .elo-tools-menu:not([open]) .elo-tools {
+  display: none;
+}
+
+.elo-standalone-panel .elo-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+
+.elo-standalone-panel .elo-quick-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--elo-line);
+}
+
+.elo-privacy,
+.elo-web-search-disclaimer,
+.elo-backup-note,
+.elo-library-meta,
+.elo-library-tags {
+  color: var(--elo-muted);
+}
+
+.elo-library-field,
+.elo-library-textarea {
+  border-color: var(--elo-line);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.elo-project-card,
+.elo-goal-card,
+.elo-library-card,
+.elo-concept-card,
+.elo-timeline-card,
+.elo-important-memory-card {
+  border-color: var(--elo-line);
+  color: #eef2f7;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+@media (max-width: 1060px) {
+  .elo-hero {
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .elo-memory-showcase,
+  .elo-phone-showcase {
+    justify-content: flex-start;
+  }
+
+  .elo-memory-card {
+    width: min(620px, 100%);
+  }
+
+  .elo-phone-frame {
+    width: min(360px, 100%);
+  }
+
+  .elo-experience-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .elo-chat-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .elo-web-shell {
+    width: min(100% - 20px, 1360px);
+    padding-top: 18px;
+  }
+
+  .elo-hero {
+    gap: 28px;
+  }
+
+  .elo-brand {
+    gap: 12px;
+  }
+
+  .elo-mark {
+    width: 54px;
+    height: 54px;
+  }
+
+  .elo-brand strong {
+    font-size: 2.3rem;
+  }
+
+  .elo-brand small {
+    font-size: 0.88rem;
+  }
+
+  .elo-hero-text h1 {
+    font-size: clamp(2.85rem, 14vw, 4.25rem);
+  }
+
+  .elo-hero-text p {
+    font-size: 1.12rem;
+  }
+
+  .elo-hero-actions {
+    display: grid;
+  }
+
+  .elo-primary-action,
+  .elo-secondary-action {
+    width: 100%;
+  }
+
+  .elo-memory-card,
+  .elo-phone-frame {
+    margin: 0 auto;
+  }
+
+  .elo-memory-card {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .elo-memory-thread .elo-user-bubble {
+    max-width: 88%;
+  }
+
+  .elo-phone-screen {
+    padding: 20px 16px 15px;
+    border-radius: 31px;
+  }
+
+  .elo-phone-chips {
+    grid-template-columns: 1fr;
+  }
+
+  .elo-experience-card {
+    min-height: 360px;
+  }
+
+  .elo-card-phone {
+    min-height: 300px;
+  }
+
+  .elo-chat-section {
+    padding: 14px;
+  }
+
+  .elo-standalone-panel {
+    min-height: 680px;
+    max-height: none;
+    border-radius: 20px;
+  }
+
+  .elo-standalone-panel .elo-header {
+    padding: 20px 18px 16px;
+  }
+
+  .elo-standalone-panel .elo-standalone-actions,
+  .elo-standalone-panel .elo-messages,
+  .elo-standalone-panel .elo-context-suggestions {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .elo-standalone-panel .elo-input-row {
+    grid-template-columns: minmax(0, 1fr) 54px;
+  }
+
+  .elo-standalone-panel .elo-tools {
+    max-height: 170px;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .elo-hero-text h1 {
+    font-size: 2.6rem;
+  }
+
+  .elo-memory-card {
+    padding: 16px;
+  }
+
+  .elo-memory-card-footer span {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .elo-phone-frame {
+    border-radius: 36px;
+    padding: 7px;
+  }
+
+  .elo-phone-screen {
+    min-height: 590px;
+  }
+
+  .elo-phone-mark {
+    width: 76px;
+    height: 76px;
+  }
+
+  .elo-standalone-panel {
+    min-height: 640px;
+  }
+}
