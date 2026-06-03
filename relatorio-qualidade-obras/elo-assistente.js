@@ -10051,6 +10051,10 @@
     panel: null,
     messages: null,
     input: null,
+    attachmentInput: null,
+    attachmentButton: null,
+    attachmentStatus: null,
+    attachments: [],
     contextLabel: null,
     suggestions: null,
     hasOpenedGreeting: false,
@@ -10093,13 +10097,22 @@
     ELO_UI.input = createElement("input", "elo-input");
     ELO_UI.input.type = "text";
     ELO_UI.input.maxLength = 220;
-    ELO_UI.input.placeholder = "Pergunte ao Elo";
+    ELO_UI.input.placeholder = window.ELO_PRODUCT_MODE ? "Pergunte ao Elo..." : "Pergunte ao Elo";
+    if (window.ELO_PRODUCT_MODE) {
+      const attachmentControls = buildProductAttachmentControls();
+      inputRow.appendChild(attachmentControls.button);
+      inputRow.appendChild(attachmentControls.input);
+    }
     const sendButton = createElement("button", "elo-send-button", "Enviar");
     sendButton.type = "submit";
     inputRow.appendChild(ELO_UI.input);
     inputRow.appendChild(sendButton);
 
     footer.appendChild(inputRow);
+    if (window.ELO_PRODUCT_MODE) {
+      ELO_UI.attachmentStatus = createElement("p", "elo-attachment-status");
+      footer.appendChild(ELO_UI.attachmentStatus);
+    }
     footer.appendChild(buildTools());
 
     ELO_UI.panel.appendChild(header);
@@ -10128,19 +10141,31 @@
     }
     inputRow.addEventListener("submit", function (event) {
       event.preventDefault();
-      askElo(ELO_UI.input.value);
+      const question = ELO_UI.input.value;
+      if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
+        appendProductAttachmentNotice();
+      } else {
+        askElo(question);
+        if (ELO_UI.attachments.length) {
+          appendProductAttachmentNotice();
+        }
+      }
       ELO_UI.input.value = "";
     });
     window.addEventListener("hashchange", updateScreenContext);
 
     updateScreenContext();
     if (standalone) {
-      appendMessage("system", buildStandaloneGreeting());
-      ELO_UI.hasOpenedGreeting = true;
+      if (!window.ELO_PRODUCT_MODE) {
+        appendMessage("system", buildStandaloneGreeting());
+        ELO_UI.hasOpenedGreeting = true;
+      }
       ELO_UI.awaitingStandaloneName = !getPreferredUserName();
-      window.setTimeout(function () {
-        ELO_UI.input.focus();
-      }, 80);
+      if (!window.ELO_DISABLE_AUTOFOCUS) {
+        window.setTimeout(function () {
+          ELO_UI.input.focus();
+        }, 80);
+      }
     } else {
       setPanelOpen(false);
     }
@@ -10604,6 +10629,125 @@
       saveConversation(cleanQuestion, answer);
       rememberSessionTurn(cleanQuestion, response, answer);
     });
+  }
+
+  function buildProductAttachmentControls() {
+    const button = createElement("button", "elo-attach-button", "Anexar");
+    button.type = "button";
+    button.setAttribute("aria-label", "Anexar PDF, planilha ou imagem");
+    button.title = "Anexar PDF, planilha ou imagem";
+    ELO_UI.attachmentButton = button;
+
+    const input = createElement("input", "elo-attachment-input");
+    input.type = "file";
+    input.multiple = true;
+    input.accept = [
+      "application/pdf",
+      ".pdf",
+      ".xls",
+      ".xlsx",
+      ".csv",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "image/*"
+    ].join(",");
+    ELO_UI.attachmentInput = input;
+
+    button.addEventListener("click", function () {
+      input.click();
+    });
+
+    input.addEventListener("change", function () {
+      ELO_UI.attachments = Array.prototype.slice.call(input.files || []).slice(0, 6);
+      renderProductAttachmentStatus();
+    });
+
+    return { button: button, input: input };
+  }
+
+  function renderProductAttachmentStatus() {
+    const preview = document.querySelector("[data-elo-attachment-preview]");
+    const nameEl = document.querySelector("[data-elo-attachment-name]");
+    const sizeEl = document.querySelector("[data-elo-attachment-size]");
+    const removeButton = document.querySelector("[data-elo-attachment-remove]");
+
+    if (removeButton && !removeButton.dataset.eloPreviewBound) {
+      removeButton.dataset.eloPreviewBound = "true";
+      removeButton.addEventListener("click", function () {
+        clearProductAttachmentPreview();
+      });
+    }
+
+    if (!ELO_UI.attachmentStatus) {
+      return;
+    }
+    if (!ELO_UI.attachments.length) {
+      ELO_UI.attachmentStatus.textContent = "";
+      if (preview) {
+        preview.classList.remove("is-visible");
+      }
+      if (nameEl) {
+        nameEl.textContent = "";
+      }
+      if (sizeEl) {
+        sizeEl.textContent = "";
+      }
+      if (ELO_UI.attachmentButton) {
+        ELO_UI.attachmentButton.classList.remove("is-attached");
+        ELO_UI.attachmentButton.textContent = "Anexar";
+      }
+      return;
+    }
+    const file = ELO_UI.attachments[0];
+    ELO_UI.attachmentStatus.textContent = "";
+    if (preview) {
+      preview.classList.add("is-visible");
+    }
+    if (nameEl) {
+      nameEl.textContent = file.name;
+    }
+    if (sizeEl) {
+      sizeEl.textContent = "· " + formatProductFileSize(file.size);
+    }
+    if (ELO_UI.attachmentButton) {
+      ELO_UI.attachmentButton.classList.add("is-attached");
+      ELO_UI.attachmentButton.textContent = "Anexado";
+    }
+  }
+
+  function formatProductFileSize(bytes) {
+    if (!bytes && bytes !== 0) {
+      return "";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    let size = bytes;
+    let unitIndex = 0;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+
+    return size.toFixed(unitIndex === 0 ? 0 : 1).replace(".", ",") + " " + units[unitIndex];
+  }
+
+  function clearProductAttachmentPreview() {
+    ELO_UI.attachments = [];
+    if (ELO_UI.attachmentInput) {
+      ELO_UI.attachmentInput.value = "";
+    }
+    renderProductAttachmentStatus();
+  }
+
+  function appendProductAttachmentNotice() {
+    const names = ELO_UI.attachments.map(function (file) { return file.name; }).join(", ");
+    appendMessage("system", "Anexo recebido na interface: " + names + ". A leitura de PDF, planilhas e imagens ainda precisa ser conectada ao processamento do Elo.");
+    ELO_UI.attachments = [];
+    if (ELO_UI.attachmentInput) {
+      ELO_UI.attachmentInput.value = "";
+    }
+    renderProductAttachmentStatus();
   }
 
   function appendMessage(kind, text) {

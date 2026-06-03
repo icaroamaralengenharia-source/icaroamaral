@@ -20,7 +20,7 @@
       <a class="elo-product-brand" href="index.html" aria-label="Voltar ao inicio">
         <span class="elo-mark" aria-hidden="true"></span>
         <span>
-          <strong>ELO</strong>
+          <strong class="elo-brand-name">ELO</strong>
           <small>Assistente com memória</small>
         </span>
       </a>
@@ -29,7 +29,6 @@
           <span class="elo-rotating-text" data-elo-rotating-text>Como posso <span class="elo-highlight">te ajudar</span> hoje?</span>
         </h1>
         <p>Seu contexto continua aqui.</p>
-        <div class="elo-prompt-dots" data-elo-prompt-dots aria-label="Frases do Elo"></div>
       </div>
       <div class="elo-attachment-preview" data-elo-attachment-preview>
         <div class="elo-attachment-chip">
@@ -73,7 +72,6 @@
 
     function setEloPromptPhrase(nextIndex) {
       const textEl = document.querySelector("[data-elo-rotating-text]");
-      const dots = document.querySelectorAll(".elo-prompt-dot");
 
       if (!textEl) {
         return;
@@ -85,33 +83,15 @@
       window.setTimeout(function () {
         textEl.innerHTML = eloPromptPhrases[eloPromptIndex];
         textEl.classList.remove("is-changing");
-
-        dots.forEach(function (dot, index) {
-          dot.classList.toggle("is-active", index === eloPromptIndex);
-        });
       }, 220);
     }
 
     function initEloRotatingPrompt() {
       const textEl = document.querySelector("[data-elo-rotating-text]");
-      const dotsWrap = document.querySelector("[data-elo-prompt-dots]");
 
-      if (!textEl || !dotsWrap) {
+      if (!textEl) {
         return;
       }
-
-      dotsWrap.innerHTML = "";
-
-      eloPromptPhrases.forEach(function (_, index) {
-        const dot = document.createElement("button");
-        dot.type = "button";
-        dot.className = "elo-prompt-dot" + (index === 0 ? " is-active" : "");
-        dot.setAttribute("aria-label", "Frase " + (index + 1));
-        dot.addEventListener("click", function () {
-          setEloPromptPhrase(index);
-        });
-        dotsWrap.appendChild(dot);
-      });
 
       textEl.innerHTML = eloPromptPhrases[0];
 

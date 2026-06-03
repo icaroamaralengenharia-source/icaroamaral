@@ -106,7 +106,7 @@ input {
   display: grid;
   align-items: center;
   justify-items: center;
-  gap: 10px;
+  gap: 6px;
   color: var(--elo-product-text);
   text-decoration: none;
   text-align: center;
@@ -149,16 +149,16 @@ input {
   display: block;
 }
 
-.elo-product-brand strong {
-  color: #ffffff;
-  font-size: clamp(2rem, 3.2vw, 2.75rem);
-  font-weight: 750;
-  line-height: 0.95;
-  letter-spacing: 0;
+.elo-brand-name {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: clamp(2.5rem, 4.5vw, 3.7rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.035em;
 }
 
 .elo-product-brand small {
-  margin-top: 6px;
+  margin-top: 2px;
   color: rgba(246, 249, 252, 0.68);
   font-size: clamp(0.92rem, 1.35vw, 1.06rem);
   line-height: 1.2;
@@ -211,31 +211,6 @@ input {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-.elo-prompt-dots {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin: 22px 0 0;
-}
-
-.elo-prompt-dot {
-  width: 9px;
-  height: 9px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(190, 210, 235, 0.22);
-  opacity: 0.85;
-  cursor: pointer;
-  transition: width 0.3s ease, background 0.3s ease, opacity 0.3s ease;
-}
-
-.elo-prompt-dot.is-active {
-  width: 10px;
-  background: #73a7ff;
-  opacity: 1;
 }
 
 .elo-attachment-preview {
@@ -299,7 +274,7 @@ input {
 
 .elo-product-chat {
   width: min(900px, 100%);
-  margin: 34px auto 0;
+  margin: 26px auto 0;
 }
 
 .elo-product-chat .elo-widget,
@@ -516,7 +491,7 @@ input {
   }
 
   .elo-product-brand {
-    gap: 8px;
+    gap: 6px;
   }
 
   .elo-mark {
