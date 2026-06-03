@@ -14,14 +14,16 @@ import {
 
 let server;
 let baseUrl;
+let eloVectorMemoryStore;
 
 before(async () => {
+  eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({
     env: {
       PORT: "0",
       AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
     },
-    eloVectorMemoryStore: createEloVectorMemoryStore_({ memoryOnly: true })
+    eloVectorMemoryStore
   });
 
   server = await new Promise((resolve) => {
@@ -191,6 +193,17 @@ test("prompt mestre do Elo inclui contexto relevante recuperado por vetor", () =
   assert.match(prompt, /Stock IA organiza almoxarifado/i);
 });
 
+test("prompt mestre do Elo inclui conteudo de documento anexado", () => {
+  const prompt = buildEloSystemPrompt_({
+    documentsSummary: "Documento 1: contrato.txt\nTrecho extraido:\nPrazo de entrega: 30 dias."
+  });
+
+  assert.match(prompt, /documentos anexados/i);
+  assert.match(prompt, /contrato\.txt/i);
+  assert.match(prompt, /Prazo de entrega: 30 dias/i);
+  assert.match(prompt, /Não invente informação/i);
+});
+
 test("memoria vetorial recupera contexto por significado", () => {
   const store = createEloVectorMemoryStore_({ memoryOnly: true });
   store.upsert({
@@ -251,6 +264,269 @@ test("endpoint de memoria vetorial salva item local", async () => {
   assert.equal(data.ok, true);
   assert.equal(data.mode, "local_vector");
   assert.equal(data.item.id, "memoria-teste");
+});
+
+test("elo chat com anexo txt indexa documento sem quebrar fallback", async () => {
+  const response = await postEloChatMultipart_({
+    message: "Elo, resuma este documento",
+    context: {
+      source: "elo",
+      mode: "standalone",
+      deviceId: "elo_dev_doc_teste"
+    },
+    files: [
+      {
+        name: "contrato.txt",
+        type: "text/plain",
+        content: "Contrato de obra. Prazo de entrega: 30 dias. Pagamento em duas parcelas."
+      }
+    ]
+  });
+  const data = await response.json();
+  const indexed = searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega do contrato?", "elo_dev_doc_teste");
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.match(data.answer, /extrair texto do anexo/i);
+  assert.match(data.answer, /contrato\.txt/i);
+  assert.match(indexed, /Prazo de entrega: 30 dias/i);
+});
+
+test("elo chat com pdf vazio ou sem texto retorna erro amigavel", async () => {
+  const response = await postEloChatMultipart_({
+    message: "Elo, leia este PDF",
+    context: {
+      source: "elo",
+      mode: "standalone",
+      deviceId: "elo_dev_pdf_teste"
+    },
+    files: [
+      {
+        name: "vazio.pdf",
+        type: "application/pdf",
+        content: "%PDF-1.4\n%%EOF"
+      }
+    ]
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.ok(Array.isArray(data.attachmentErrors));
+  assert.match(data.attachmentErrors.join("\n"), /PDF pode estar escaneado|texto extraivel|corrompido/i);
+});
+
+test("elo chat com pdf corrompido retorna erro amigavel", async () => {
+  const response = await postEloChatMultipart_({
+    message: "Elo, leia este PDF",
+    context: {
+      source: "elo",
+      mode: "standalone",
+      deviceId: "elo_dev_pdf_corrompido"
+    },
+    files: [
+      {
+        name: "corrompido.pdf",
+        type: "application/pdf",
+        content: "isto nao e um pdf valido"
+      }
+    ]
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.match(data.attachmentErrors.join("\n"), /corrompido|texto extraivel|Nao consegui ler/i);
+});
+
+test("elo chat com pdf valido extrai e indexa texto", async () => {
+  const response = await postEloChatMultipart_({
+    message: "Elo, qual e o prazo deste PDF?",
+    context: {
+      source: "elo",
+      mode: "standalone",
+      deviceId: "elo_dev_pdf_valido"
+    },
+    files: [
+      {
+        name: "contrato-valido.pdf",
+        type: "application/pdf",
+        content: tinyPdfBuffer_()
+      }
+    ]
+  });
+  const data = await response.json();
+  const indexed = searchEloRelevantMemories_(eloVectorMemoryStore, "Qual e o prazo de entrega?", "elo_dev_pdf_valido");
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.match(indexed, /Prazo de entrega: 30 dias/i);
+});
+
+test("upload acima do limite retorna JSON amigavel", async () => {
+  await withTemporaryEloServer_({
+    env: {
+      PORT: "0",
+      AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+      ELO_MAX_UPLOAD_BYTES: "100",
+      ELO_MAX_ATTACHMENT_BYTES: "50"
+    }
+  }, async (url) => {
+    const response = await postEloChatMultipartTo_(url, {
+      message: "Elo, leia este anexo",
+      context: {
+        source: "elo",
+        mode: "standalone",
+        deviceId: "elo_dev_limite"
+      },
+      files: [
+        {
+          name: "grande.txt",
+          type: "text/plain",
+          content: "x".repeat(400)
+        }
+      ]
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 413);
+    assert.equal(data.fallback, true);
+    assert.match(data.answer, /excede o limite|grande demais/i);
+    assert.match(data.attachmentErrors.join("\n"), /grande demais/i);
+  });
+});
+
+test("falha da OpenAI preserva attachmentErrors", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      return new Response(JSON.stringify({ error: { message: "falha simulada" } }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await postEloChatMultipartTo_(url, {
+        message: "Elo, leia este PDF",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_openai_falha"
+        },
+        files: [
+          {
+            name: "corrompido.pdf",
+            type: "application/pdf",
+            content: "pdf invalido"
+          }
+        ]
+      });
+      const data = await response.json();
+
+      assert.equal(response.status, 502);
+      assert.equal(data.fallback, true);
+      assert.match(data.attachmentErrors.join("\n"), /Nao consegui ler|corrompido|texto extraivel/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+  }
+});
+
+test("payload enviado ao LLM contem resumo do documento", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      openAiPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "O documento anexado informa prazo de entrega de 30 dias." }
+            ]
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await postEloChatMultipartTo_(url, {
+        message: "Elo, resuma este PDF",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_payload_pdf"
+        },
+        files: [
+          {
+            name: "contrato-valido.pdf",
+            type: "application/pdf",
+            content: tinyPdfBuffer_()
+          }
+        ]
+      });
+      const data = await response.json();
+      const payloadText = JSON.stringify(openAiPayload);
+
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.match(data.answer, /30 dias/i);
+      assert.match(payloadText, /Prazo de entrega: 30 dias/i);
+      assert.match(payloadText, /contrato-valido\.pdf/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("frontend do Elo nao expoe chave OpenAI", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const files = [
+    new URL("../../elo.html", import.meta.url),
+    new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url),
+    new URL("../../relatorio-qualidade-obras/relatorio-config.js", import.meta.url)
+  ];
+  const contents = await Promise.all(files.map((file) => readFile(file, "utf8")));
+
+  contents.forEach((content) => {
+    assert.doesNotMatch(content, /OPENAI_API_KEY/);
+    assert.doesNotMatch(content, /sk-[A-Za-z0-9_-]{20,}/);
+  });
+});
+
+test("frontend do Elo reconhece attachmentErrors em resposta online", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+
+  assert.match(content, /attachmentErrors/);
+  assert.match(content, /formatEloAttachmentErrors_/);
+  assert.match(content, /data && Array\.isArray\(data\.attachmentErrors\)/);
+  assert.match(content, /data && data\.fallback && data\.answer/);
 });
 
 test("endpoint de memoria vetorial exige deviceId valido", async () => {
@@ -458,6 +734,66 @@ function postEloChat_(body) {
     },
     body: JSON.stringify(body)
   });
+}
+
+function postEloChatMultipart_({ message, history = [], context = {}, files = [] }) {
+  return postEloChatMultipartTo_(baseUrl, { message, history, context, files });
+}
+
+function postEloChatMultipartTo_(url, { message, history = [], context = {}, files = [] }) {
+  const formData = new FormData();
+  formData.append("message", message);
+  formData.append("history", JSON.stringify(history));
+  formData.append("context", JSON.stringify(context));
+  files.forEach((file) => {
+    formData.append("files", new Blob([file.content], { type: file.type }), file.name);
+  });
+  return fetch(url + "/api/elo/chat", {
+    method: "POST",
+    headers: {
+      Origin: "http://127.0.0.1:5500"
+    },
+    body: formData
+  });
+}
+
+async function withTemporaryEloServer_(options, callback) {
+  const app = createApp(Object.assign({
+    eloVectorMemoryStore: createEloVectorMemoryStore_({ memoryOnly: true })
+  }, options || {}));
+  const instance = await new Promise((resolve) => {
+    const serverInstance = app.listen(0, () => resolve(serverInstance));
+  });
+  try {
+    await callback("http://127.0.0.1:" + instance.address().port);
+  } finally {
+    await new Promise((resolve) => instance.close(resolve));
+  }
+}
+
+function tinyPdfBuffer_() {
+  return Buffer.from(`%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 58 >>
+stream
+BT /F1 24 Tf 100 700 Td (Prazo de entrega: 30 dias) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+trailer
+<< /Root 1 0 R /Size 6 >>
+%%EOF`);
 }
 
 function postEloVectorMemory_(body) {

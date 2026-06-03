@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import Busboy from "busboy";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,11 @@ const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
 const MAX_IMAGE_BASE64_LENGTH = 2200000;
 const MAX_ELO_MESSAGE_LENGTH = 2000;
+const MAX_ELO_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ELO_TOTAL_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_ELO_ATTACHMENT_TEXT_LENGTH = 12000;
+const MAX_ELO_DOCUMENT_CONTEXT_LENGTH = 5000;
+const ELO_DOCUMENT_CHUNK_LENGTH = 1200;
 const MAX_STOCK_DEMO_STATE_LENGTH = 1200000;
 const ELO_VECTOR_DIMENSIONS = 96;
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -328,7 +334,24 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/elo/chat", async (request, response) => {
-    const validation = validateEloChatRequest_(request.body || {});
+    let chatRequest;
+
+    try {
+      chatRequest = await buildEloChatRequest_(request, env, eloVectorMemoryStore);
+    } catch (error) {
+      const message = error && error.message ? error.message : "Nao consegui receber o anexo enviado.";
+      response.status(error && error.status ? error.status : 400).json({
+        ok: false,
+        mode: "fallback_required",
+        fallback: true,
+        answer: buildEloAttachmentErrorAnswer_([message]),
+        error: message,
+        attachmentErrors: [message]
+      });
+      return;
+    }
+
+    const validation = validateEloChatRequest_(chatRequest.body || {});
 
     if (!validation.ok) {
       response.status(validation.status).json({
@@ -341,13 +364,17 @@ export function createApp(options = {}) {
       return;
     }
 
+    validation.payload.context.documentsSummary = chatRequest.documentsSummary;
+    validation.payload.context.attachmentErrors = chatRequest.attachmentErrors;
+
     if (!env.OPENAI_API_KEY) {
       response.status(503).json({
         ok: false,
         mode: "fallback_required",
         fallback: true,
-        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.",
-        error: "Backend do Elo sem OPENAI_API_KEY configurada."
+        answer: buildEloOfflineFallbackAnswer_(chatRequest.documents, chatRequest.attachmentErrors),
+        error: "Backend do Elo sem OPENAI_API_KEY configurada.",
+        attachmentErrors: chatRequest.attachmentErrors
       });
       return;
     }
@@ -363,7 +390,13 @@ export function createApp(options = {}) {
         ok: true,
         mode: "remote",
         fallback: false,
-        answer
+        answer,
+        documents: chatRequest.documents.map((document) => ({
+          fileName: document.fileName,
+          mimeType: document.mimeType,
+          textLength: document.text.length
+        })),
+        attachmentErrors: chatRequest.attachmentErrors
       });
     } catch (error) {
       console.error("Falha no Elo online:", error);
@@ -371,7 +404,8 @@ export function createApp(options = {}) {
         ok: false,
         mode: "fallback_required",
         fallback: true,
-        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local."
+        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.",
+        attachmentErrors: chatRequest.attachmentErrors
       });
     }
   });
@@ -479,6 +513,292 @@ function validateImageRequest_(body) {
       context
     }
   };
+}
+
+async function buildEloChatRequest_(request, env, memoryStore) {
+  if (!/^multipart\/form-data/i.test(String(request.headers["content-type"] || ""))) {
+    return {
+      body: request.body || {},
+      documents: [],
+      documentsSummary: "",
+      attachmentErrors: []
+    };
+  }
+
+  const parsed = await parseEloMultipartFormData_(request, env);
+  const body = {
+    message: parsed.fields.message || "",
+    history: parseJsonField_(parsed.fields.history, []),
+    context: parseJsonField_(parsed.fields.context, {})
+  };
+  const attachmentResult = await processEloAttachments_(parsed.files, body.context, env, memoryStore);
+  return {
+    body,
+    documents: attachmentResult.documents,
+    documentsSummary: buildEloDocumentsSummary_(attachmentResult.documents),
+    attachmentErrors: (parsed.errors || []).concat(attachmentResult.errors)
+  };
+}
+
+function parseJsonField_(value, fallback) {
+  if (!value) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function getSafePositiveInteger_(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+}
+
+function createEloUploadError_(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function buildEloAttachmentErrorAnswer_(errors) {
+  const firstError = Array.isArray(errors) && errors.length ? errors[0] : "";
+  if (/grande demais/i.test(firstError)) {
+    return "Não consegui ler o anexo porque o arquivo excede o limite desta versão do Elo.";
+  }
+  return "Não consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraível.";
+}
+
+function buildEloOfflineFallbackAnswer_(documents, errors) {
+  const readableDocuments = Array.isArray(documents) ? documents.filter((document) => document && document.text) : [];
+  const attachmentErrors = Array.isArray(errors) ? errors.filter(Boolean) : [];
+
+  if (readableDocuments.length) {
+    const names = readableDocuments.map((document) => document.fileName).join(", ");
+    return "Recebi e consegui extrair texto do anexo: " + names + ". No momento não consegui acessar minha inteligência online para resumir ou responder sobre ele, mas o conteúdo já foi preparado para o contexto do Elo.";
+  }
+
+  if (attachmentErrors.length) {
+    return buildEloAttachmentErrorAnswer_(attachmentErrors);
+  }
+
+  return "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.";
+}
+
+function parseEloMultipartFormData_(request, env) {
+  const maxFileBytes = getSafePositiveInteger_(env.ELO_MAX_ATTACHMENT_BYTES, MAX_ELO_ATTACHMENT_BYTES);
+  const maxTotalBytes = getSafePositiveInteger_(env.ELO_MAX_UPLOAD_BYTES, MAX_ELO_TOTAL_UPLOAD_BYTES);
+  const contentLength = Number(request.headers["content-length"] || 0);
+
+  if (contentLength > maxTotalBytes) {
+    throw createEloUploadError_("Arquivo grande demais para esta versao do Elo.", 413);
+  }
+
+  return new Promise((resolve, reject) => {
+    const fields = {};
+    const files = [];
+    const errors = [];
+    let busboy;
+
+    try {
+      busboy = Busboy({
+        headers: request.headers,
+        limits: {
+          fileSize: maxFileBytes,
+          files: 4,
+          fields: 8,
+          parts: 16
+        }
+      });
+    } catch (error) {
+      reject(createEloUploadError_("Nao consegui interpretar o envio do anexo.", 400));
+      return;
+    }
+
+    busboy.on("field", (name, value) => {
+      fields[clean_(name).slice(0, 80)] = String(value || "").slice(0, MAX_CONTEXT_LENGTH);
+    });
+
+    busboy.on("file", (fieldName, stream, info) => {
+      const fileName = clean_(info && info.filename ? info.filename : "").slice(0, 180);
+      const mimeType = clean_(info && info.mimeType ? info.mimeType : "application/octet-stream").slice(0, 120);
+      const chunks = [];
+      let total = 0;
+      let tooLarge = false;
+
+      stream.on("data", (chunk) => {
+        total += chunk.length;
+        if (total <= maxFileBytes) {
+          chunks.push(chunk);
+        }
+      });
+
+      stream.on("limit", () => {
+        tooLarge = true;
+      });
+
+      stream.on("end", () => {
+        if (!fileName) {
+          return;
+        }
+        if (tooLarge || total > maxFileBytes) {
+          errors.push(fileName + ": arquivo grande demais para esta versao do Elo.");
+          return;
+        }
+        files.push({
+          fieldName,
+          fileName,
+          mimeType,
+          buffer: Buffer.concat(chunks)
+        });
+      });
+    });
+
+    busboy.on("filesLimit", () => {
+      errors.push("Limite de anexos excedido. Envie no maximo 4 arquivos por mensagem.");
+    });
+
+    busboy.on("partsLimit", () => {
+      errors.push("Envio com partes demais para esta versao do Elo.");
+    });
+
+    busboy.on("error", () => {
+      reject(createEloUploadError_("Nao consegui receber o anexo. O envio parece estar malformado.", 400));
+    });
+
+    busboy.on("close", () => {
+      resolve({ fields, files, errors });
+    });
+
+    request.pipe(busboy);
+  });
+}
+
+async function processEloAttachments_(files, context, env, memoryStore) {
+  const documents = [];
+  const errors = [];
+  const safeFiles = Array.isArray(files) ? files.slice(0, 4) : [];
+  const ownerId = sanitizeEloDeviceId_(context && context.deviceId);
+  const maxFileBytes = getSafePositiveInteger_(env.ELO_MAX_ATTACHMENT_BYTES, MAX_ELO_ATTACHMENT_BYTES);
+
+  for (const file of safeFiles) {
+    if (!file || !file.buffer || !file.fileName) {
+      continue;
+    }
+    if (file.buffer.length > maxFileBytes) {
+      errors.push(file.fileName + ": arquivo grande demais para esta versao do Elo.");
+      continue;
+    }
+    try {
+      const text = await extractEloAttachmentText_(file);
+      if (!text) {
+        errors.push(file.fileName + ": nao encontrei texto legivel no arquivo.");
+        continue;
+      }
+      const document = {
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        text: text.slice(0, MAX_ELO_ATTACHMENT_TEXT_LENGTH)
+      };
+      documents.push(document);
+      if (ownerId) {
+        saveEloDocumentChunks_(memoryStore, document, ownerId);
+      }
+    } catch (error) {
+      errors.push(file.fileName + ": " + (error && error.message ? error.message : "nao foi possivel ler o anexo."));
+    }
+  }
+
+  return { documents, errors };
+}
+
+async function extractEloAttachmentText_(file) {
+  const extension = String(file.fileName || "").toLowerCase().split(".").pop();
+  const mimeType = String(file.mimeType || "").toLowerCase();
+
+  if (extension === "txt" || extension === "csv" || extension === "md" || mimeType.startsWith("text/")) {
+    return cleanMultilineText_(file.buffer.toString("utf8"));
+  }
+
+  if (extension === "pdf" || mimeType === "application/pdf") {
+    return extractPdfText_(file.buffer);
+  }
+
+  throw new Error("tipo de arquivo ainda nao suportado para leitura automatica.");
+}
+
+async function extractPdfText_(buffer) {
+  try {
+    const pdfParse = await import("pdf-parse");
+    let result;
+
+    if (pdfParse.PDFParse) {
+      const parser = new pdfParse.PDFParse({ data: buffer });
+      try {
+        result = await parser.getText({ max: 20 });
+      } finally {
+        if (typeof parser.destroy === "function") {
+          await parser.destroy();
+        }
+      }
+    } else {
+      const parser = pdfParse.default || pdfParse;
+      result = await parser(buffer, { max: 20 });
+    }
+
+    const text = cleanMultilineText_(result && result.text ? result.text : "");
+    if (!text) {
+      throw new Error("pdf_sem_texto");
+    }
+    return text;
+  } catch (error) {
+    throw new Error("Nao consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraivel.");
+  }
+}
+
+function cleanMultilineText_(text) {
+  return clean_(text).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").slice(0, MAX_ELO_ATTACHMENT_TEXT_LENGTH);
+}
+
+function buildEloDocumentsSummary_(documents) {
+  return documents.map((document, index) => {
+    const excerpt = document.text.slice(0, Math.floor(MAX_ELO_DOCUMENT_CONTEXT_LENGTH / Math.max(1, documents.length)));
+    return [
+      "Documento " + (index + 1) + ": " + document.fileName,
+      "Tipo: " + document.mimeType,
+      "Trecho extraido:",
+      excerpt
+    ].join("\n");
+  }).join("\n\n").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
+}
+
+function saveEloDocumentChunks_(memoryStore, document, ownerId) {
+  const chunks = chunkText_(document.text, ELO_DOCUMENT_CHUNK_LENGTH).slice(0, 12);
+  chunks.forEach((chunk, index) => {
+    memoryStore.upsert({
+      ownerId,
+      id: createStableId_("elo_doc_" + document.fileName + "_" + index + "_" + chunk.slice(0, 80)),
+      text: chunk,
+      type: "document_chunk",
+      source: "upload_elo",
+      metadata: {
+        fileName: document.fileName,
+        mimeType: document.mimeType,
+        uploadedAt: new Date().toISOString(),
+        chunkIndex: index
+      }
+    });
+  });
+}
+
+function chunkText_(text, size) {
+  const chunks = [];
+  const safeText = clean_(text);
+  for (let index = 0; index < safeText.length; index += size) {
+    chunks.push(safeText.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function validateEloChatRequest_(body) {
@@ -699,12 +1019,22 @@ function normalizeEloVectorMemory_(memory) {
     id: clean_(memory.id || createStableId_("elo_vector_" + text)).slice(0, 120),
     text,
     category: clean_(memory.category || "outro").slice(0, 40),
+    type: clean_(memory.type || memory.category || "memory").slice(0, 60),
+    source: clean_(memory.source || "elo").slice(0, 80),
     createdAt: clean_(memory.createdAt || new Date().toISOString()).slice(0, 40),
     updatedAt: clean_(memory.updatedAt || memory.createdAt || new Date().toISOString()).slice(0, 40),
+    metadata: memory.metadata && typeof memory.metadata === "object" ? sanitizeMetadata_(memory.metadata) : {},
     embedding: Array.isArray(memory.embedding)
       ? memory.embedding.slice(0, ELO_VECTOR_DIMENSIONS).map(Number)
       : (Array.isArray(memory.vector) ? memory.vector.slice(0, ELO_VECTOR_DIMENSIONS).map(Number) : buildLocalEmbedding_(text))
   };
+}
+
+function sanitizeMetadata_(metadata) {
+  return Object.fromEntries(Object.entries(metadata).slice(0, 12).map(([key, value]) => [
+    clean_(key).slice(0, 60),
+    clean_(String(value)).slice(0, 240)
+  ]).filter(([key]) => key));
 }
 
 function buildLocalEmbedding_(text) {
@@ -888,7 +1218,7 @@ async function callOpenAiVision_(payload, env) {
 }
 
 async function callOpenAiElo_(payload, env) {
-  const model = env.OPENAI_MODEL || "gpt-4.1-mini";
+  const model = env.OPENAI_ELO_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
   const input = [
     {
       role: "system",
@@ -941,6 +1271,8 @@ async function callOpenAiElo_(payload, env) {
 export function buildEloSystemPrompt_(context = {}) {
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
+  const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
+  const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
@@ -950,6 +1282,8 @@ export function buildEloSystemPrompt_(context = {}) {
     "Estilo: responda com presença. Não seja robótico. Não seja genérico. Não seja professoral demais. Não responda como FAQ. Interprete o que a pessoa está tentando resolver.",
     "Quando fizer sentido, responda em 3 partes: 1. o que percebo; 2. o que isso significa; 3. próximo passo simples.",
     "Memória: use apenas o histórico recente e o contexto enviado no payload. Não diga que lembra de meses ou anos se isso não estiver no contexto. Se não souber, diga com honestidade. Se houver contexto ou memórias, use naturalmente.",
+    "Documentos: quando houver conteúdo extraído de anexo, use-o como fonte de contexto. Cite que está usando o documento anexado quando a resposta depender dele. Não invente informação que não apareça no documento. Se não encontrar algo no documento, diga claramente.",
+    "Com documentos, você pode resumir, extrair pontos principais, organizar em tabela textual, comparar com histórico e explicar em linguagem simples.",
     "Limites: não dê diagnóstico médico, jurídico, financeiro ou psicológico. Em temas sensíveis, acolha e oriente buscar ajuda humana ou profissional adequada. Não incentive dependência emocional. Não diga que é uma pessoa real.",
     "Respostas especiais:",
     "Se perguntarem 'quem é você?', responda: 'Eu sou o Elo. Não sou uma pessoa, mas fui criado para conversar com você, guardar contexto recente, organizar ideias e acompanhar seus projetos e decisões.'",
@@ -965,6 +1299,14 @@ export function buildEloSystemPrompt_(context = {}) {
   if (relevantMemoriesSummary) {
     prompt.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
     prompt.push("Use o contexto relevante recuperado quando ele se conectar ao pedido atual, mesmo que a pessoa use palavras diferentes das memÃ³rias originais.");
+  }
+
+  if (documentsSummary) {
+    prompt.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
+  }
+
+  if (attachmentErrors) {
+    prompt.push("Avisos sobre anexos:\n" + attachmentErrors);
   }
 
   return prompt.join(" ");

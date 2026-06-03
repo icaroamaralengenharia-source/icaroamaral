@@ -23,11 +23,12 @@
   };
 
   function getEloBackendEndpoint_(path) {
-    const baseUrl = String(
-      window.ELO_API_BASE_URL ||
-      window.OBRAREPORT_API_BASE_URL ||
-      "http://localhost:3000"
-    ).replace(/\/+$/g, "");
+    const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
+    const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") ||
+      window.location.protocol === "file:";
+    const baseUrl = isLocalPage && !window.ELO_API_BASE_URL
+      ? "http://localhost:3000"
+      : (configuredBaseUrl || "http://localhost:3000");
 
     return baseUrl + path;
   }
@@ -992,28 +993,62 @@
     }).slice(-ELO_CONFIG.maxHistory);
   }
 
-  function requestEloOnlineAnswer(question) {
+  function requestEloOnlineAnswer(question, attachments) {
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
     }
 
     syncEloVectorMemories();
+    const payload = {
+      message: sanitizeUserText(question),
+      history: getEloOnlineHistory(),
+      context: {
+        memoriesSummary: buildEloMemorySummary(),
+        deviceId: getEloDeviceId(),
+        source: "elo",
+        mode: isStandaloneMode() ? "standalone" : "obrareport"
+      }
+    };
+    const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
+
+    if (files.length) {
+      const formData = new FormData();
+      formData.append("message", payload.message);
+      formData.append("history", JSON.stringify(payload.history));
+      formData.append("context", JSON.stringify(payload.context));
+      files.slice(0, 4).forEach(function (file) {
+        formData.append("files", file, file.name || "anexo");
+      });
+
+      return window.fetch(ELO_CONFIG.chatEndpoint, {
+        method: "POST",
+        body: formData
+      }).then(function (response) {
+        return response.json().catch(function () {
+          return null;
+        });
+      }).then(function (data) {
+        if (data && data.ok && data.answer) {
+          return sanitizeUserText(data.answer);
+        }
+        if (data && data.fallback && data.answer) {
+          return sanitizeUserText(data.answer);
+        }
+        if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
+          return formatEloAttachmentErrors_(data.attachmentErrors);
+        }
+        return null;
+      }).catch(function () {
+        return null;
+      });
+    }
 
     return window.fetch(ELO_CONFIG.chatEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        message: sanitizeUserText(question),
-        history: getEloOnlineHistory(),
-        context: {
-          memoriesSummary: buildEloMemorySummary(),
-          deviceId: getEloDeviceId(),
-          source: "elo",
-          mode: isStandaloneMode() ? "standalone" : "obrareport"
-        }
-      })
+      body: JSON.stringify(payload)
     }).then(function (response) {
       return response.json().catch(function () {
         return null;
@@ -1022,10 +1057,24 @@
       if (data && data.ok && data.answer) {
         return sanitizeUserText(data.answer);
       }
+      if (data && data.fallback && data.answer) {
+        return sanitizeUserText(data.answer);
+      }
+      if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
+        return formatEloAttachmentErrors_(data.attachmentErrors);
+      }
       return null;
     }).catch(function () {
       return null;
     });
+  }
+
+  function formatEloAttachmentErrors_(errors) {
+    const firstError = sanitizeUserText(errors && errors[0] ? errors[0] : "");
+    if (/grande demais/i.test(firstError)) {
+      return "Não consegui ler o anexo porque o arquivo excede o limite desta versão do Elo.";
+    }
+    return "Não consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraível.";
   }
 
   function saveUsefulAnswer(question, answer) {
@@ -10417,13 +10466,36 @@
     }
   }
 
-  function askElo(question) {
+  function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
       return;
     }
+    const attachedFiles = Array.prototype.slice.call(attachments || []);
 
     appendMessage("user", cleanQuestion);
+
+    if (attachedFiles.length) {
+      requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
+        if (onlineAnswer) {
+          const onlineResponse = {
+            shortAnswer: onlineAnswer,
+            fullAnswer: onlineAnswer,
+            nextAction: "Continue a conversa ou peça um resumo prático.",
+            canSave: true,
+            sessionTheme: "elo_online"
+          };
+          appendAssistantMessage(cleanQuestion, onlineAnswer, true, onlineResponse);
+          saveConversation(cleanQuestion, onlineAnswer);
+          rememberSessionTurn(cleanQuestion, onlineResponse, onlineAnswer);
+          return;
+        }
+        appendProductAttachmentNotice();
+      }).finally(function () {
+        clearProductAttachmentPreview();
+      });
+      return;
+    }
 
     if (isStandaloneMode() && ELO_UI.awaitingStandaloneName) {
       const name = detectStandaloneNameCapture_(cleanQuestion);
@@ -10599,7 +10671,7 @@
       return;
     }
 
-    requestEloOnlineAnswer(cleanQuestion).then(function (onlineAnswer) {
+    requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
       if (onlineAnswer) {
         const onlineResponse = {
           shortAnswer: onlineAnswer,
@@ -10611,6 +10683,14 @@
         appendAssistantMessage(cleanQuestion, onlineAnswer, true, onlineResponse);
         saveConversation(cleanQuestion, onlineAnswer);
         rememberSessionTurn(cleanQuestion, onlineResponse, onlineAnswer);
+        if (attachedFiles.length) {
+          clearProductAttachmentPreview();
+        }
+        return;
+      }
+
+      if (attachedFiles.length) {
+        appendProductAttachmentNotice();
         return;
       }
 
@@ -10751,7 +10831,7 @@
 
   function appendProductAttachmentNotice() {
     const names = ELO_UI.attachments.map(function (file) { return file.name; }).join(", ");
-    appendMessage("system", "Anexo recebido na interface: " + names + ". A leitura de PDF, planilhas e imagens ainda precisa ser conectada ao processamento do Elo.");
+    appendMessage("system", "Anexo recebido na interface: " + names + ". Nao consegui processar este arquivo agora. PDFs com texto e arquivos TXT/CSV/MD dependem do backend do Elo; imagens usam a analise visual quando disponivel.");
     ELO_UI.attachments = [];
     if (ELO_UI.attachmentInput) {
       ELO_UI.attachmentInput.value = "";
@@ -13542,12 +13622,9 @@
       }
 
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
-        appendProductAttachmentNotice();
+        askElo("Elo, leia este anexo.", ELO_UI.attachments);
       } else {
-        askElo(question);
-        if (ELO_UI.attachments.length) {
-          appendProductAttachmentNotice();
-        }
+        askElo(question, ELO_UI.attachments);
       }
       ELO_UI.input.value = "";
     }
