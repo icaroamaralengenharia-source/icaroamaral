@@ -10755,6 +10755,9 @@
     const bubble = createElement("div", "elo-message-bubble", text);
     message.appendChild(bubble);
     ELO_UI.messages.appendChild(message);
+    if (ELO_UI.panel) {
+      ELO_UI.panel.classList.add("is-chat-active");
+    }
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
     return message;
   }
@@ -13260,10 +13263,88 @@
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function mountMinimalEloChat(options) {
+    const config = options || {};
+    const form = document.querySelector(config.form || ".elo-input-row");
+    const input = document.querySelector(config.input || ".elo-input");
+    const panel = document.querySelector(config.panel || ".elo-standalone-panel");
+    const messages = document.querySelector(config.messages || ".elo-messages");
+    const attachmentInput = document.querySelector(config.attachmentInput || ".elo-attachment-input");
+    const attachmentButton = document.querySelector(config.attachmentButton || ".elo-attach-button");
+
+    if (!form || !input || !panel || !messages) {
+      return false;
+    }
+
+    ELO_UI.panel = panel;
+    ELO_UI.messages = messages;
+    ELO_UI.input = input;
+    ELO_UI.attachmentInput = attachmentInput;
+    ELO_UI.attachmentButton = attachmentButton;
+    ELO_UI.attachmentStatus = document.querySelector(".elo-attachment-status") || createElement("p", "elo-attachment-status");
+    ELO_UI.attachments = [];
+    ELO_UI.awaitingStandaloneName = false;
+
+    if (attachmentButton && attachmentInput && !attachmentButton.dataset.eloEngineBound) {
+      attachmentButton.dataset.eloEngineBound = "true";
+      attachmentButton.addEventListener("click", function () {
+        attachmentInput.click();
+      });
+    }
+
+    if (attachmentInput && !attachmentInput.dataset.eloEngineBound) {
+      attachmentInput.dataset.eloEngineBound = "true";
+      attachmentInput.addEventListener("change", function () {
+        ELO_UI.attachments = Array.prototype.slice.call(attachmentInput.files || []).slice(0, 6);
+        renderProductAttachmentStatus();
+      });
+    }
+
+    function submitMinimalQuestion() {
+        const question = ELO_UI.input.value;
+        if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
+          appendProductAttachmentNotice();
+        } else {
+          askElo(question);
+          if (ELO_UI.attachments.length) {
+            appendProductAttachmentNotice();
+          }
+        }
+        ELO_UI.input.value = "";
+    }
+
+    if (!form.dataset.eloEngineBound) {
+      form.dataset.eloEngineBound = "true";
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        submitMinimalQuestion();
+      });
+    }
+
+    if (!input.dataset.eloEngineKeyBound) {
+      input.dataset.eloEngineKeyBound = "true";
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          submitMinimalQuestion();
+        }
+      });
+    }
+
+    return true;
+  }
+
+  window.EloAssistente = Object.assign({}, window.EloAssistente || {}, {
+    ask: askElo,
+    mountMinimal: mountMinimalEloChat
+  });
+
   // ELO_BOOTSTRAP
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", buildWidget);
-  } else {
-    buildWidget();
+  if (!window.ELO_SKIP_AUTO_WIDGET) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", buildWidget);
+    } else {
+      buildWidget();
+    }
   }
 })();

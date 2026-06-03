@@ -40,6 +40,7 @@
       </div>
       <div class="elo-product-chat" aria-label="Conversa com o Elo">
         <section class="elo-standalone-panel" aria-label="Elo">
+          <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
@@ -183,15 +184,27 @@
         removeButton.addEventListener("click", clearEloAttachmentPreview);
       }
 
-      if (form) {
-        form.addEventListener("submit", function (event) {
-          event.preventDefault();
-        });
-      }
     }
+
+    window.ELO_PRODUCT_MODE = true;
+    window.ELO_SKIP_AUTO_WIDGET = true;
+    window.ELO_DISABLE_AUTOFOCUS = true;
 
     document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
     document.addEventListener("DOMContentLoaded", initEloMinimalInput);
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
+        window.EloAssistente.mountMinimal({
+          panel: ".elo-standalone-panel",
+          messages: ".elo-messages",
+          form: ".elo-input-row",
+          input: ".elo-input",
+          attachmentInput: ".elo-attachment-input",
+          attachmentButton: ".elo-attach-button"
+        });
+      }
+    });
   </script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js"></script>
 </body>
 </html>
