@@ -3,113 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elo | Assistente com memória</title>
-  <meta name="description" content="Converse com o Elo, um assistente com memória para guardar ideias, projetos, decisões e objetivos ao longo do tempo.">
+  <title>Elo | Pergunte ao Elo</title>
+  <meta name="description" content="Converse com o Elo.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
   <link rel="stylesheet" href="elo.css">
 </head>
-<body data-elo-mode="standalone">
-  <main class="elo-web-shell">
-    <section class="elo-hero" aria-labelledby="elo-web-title">
-      <div class="elo-hero-copy">
-        <a class="elo-brand" href="index.html" aria-label="Voltar ao site principal">
-          <span class="elo-mark" aria-hidden="true"></span>
-          <span>
-            <strong>ELO</strong>
-            <small>Assistente com memória</small>
-          </span>
-        </a>
+<body data-elo-mode="standalone" data-elo-product="chat">
+  <header class="elo-product-top">
+    <a class="elo-about-link" href="/sobreoelo.html">Sobre o Elo</a>
+  </header>
 
-        <div class="elo-hero-text">
-          <h1 id="elo-web-title">Sua segunda <span>memória.</span></h1>
-          <p>Converse hoje. Retome daqui a meses sem perder o contexto. O Elo guarda ideias, projetos, decisões e objetivos para evoluir junto com você.</p>
-        </div>
-
-        <ul class="elo-hero-status" aria-label="Status do Elo">
-          <li>
-            <span class="elo-status-icon" aria-hidden="true">✓</span>
-            Memória contínua para ideias, decisões e objetivos
-          </li>
-          <li>
-            <span class="elo-status-icon" aria-hidden="true">◎</span>
-            Contexto preservado entre conversas e retomadas
-          </li>
-          <li>
-            <span class="elo-status-icon" aria-hidden="true">↻</span>
-            Clareza para priorizar projetos importantes
-          </li>
-        </ul>
-
-        <div class="elo-hero-actions" aria-label="Ações principais">
-          <a class="elo-primary-action" href="#elo-chat">Começar agora <span aria-hidden="true">›</span></a>
-          <a class="elo-secondary-action" href="#elo-experiencias">Ver demonstração</a>
+  <main class="elo-product-shell" aria-labelledby="elo-product-title">
+    <section class="elo-product-center">
+      <a class="elo-product-brand" href="index.html" aria-label="Voltar ao inicio">
+        <span class="elo-mark" aria-hidden="true"></span>
+        <span>
+          <strong>ELO</strong>
+          <small>Assistente com memória</small>
+        </span>
+      </a>
+      <div class="elo-product-heading">
+        <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
+          <span class="elo-rotating-text" data-elo-rotating-text>Como posso <span class="elo-highlight">te ajudar</span> hoje?</span>
+        </h1>
+        <p>Seu contexto continua aqui.</p>
+        <div class="elo-prompt-dots" data-elo-prompt-dots aria-label="Frases do Elo"></div>
+      </div>
+      <div class="elo-attachment-preview" data-elo-attachment-preview>
+        <div class="elo-attachment-chip">
+          <span class="elo-attachment-icon" aria-hidden="true">▣</span>
+          <span class="elo-attachment-name" data-elo-attachment-name></span>
+          <span class="elo-attachment-size" data-elo-attachment-size></span>
+          <button type="button" class="elo-attachment-remove" data-elo-attachment-remove aria-label="Remover arquivo">×</button>
         </div>
       </div>
-
-      <div class="elo-memory-showcase" aria-label="Demonstração de conversa com memória do Elo">
-        <div class="elo-memory-card">
-          <div class="elo-memory-card-header">
-            <span class="elo-mini-mark" aria-hidden="true"></span>
-            <div>
-              <strong>ELO</strong>
-              <small>Contexto recuperado</small>
-            </div>
-          </div>
-          <div class="elo-memory-thread">
-            <p class="elo-user-bubble">No que estou trabalhando?</p>
-            <p class="elo-assistant-bubble">
-              Você está desenvolvendo o ObraReport, o Stock IA, o Elo e o CADISTA IA.
-              <br><br>
-              O padrão recente não parece falta de ideias.
-              <br>
-              Parece excesso de projetos importantes acontecendo ao mesmo tempo.
-            </p>
-          </div>
-          <div class="elo-memory-card-footer">
-            <span>Memória</span>
-            <span>Projetos</span>
-            <span>Continuidade</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="elo-experience-grid" id="elo-experiencias" aria-label="Experiências do Elo">
-      <article class="elo-experience-card">
-        <h2>Conversa natural</h2>
-        <div class="elo-card-phone">
-          <p class="elo-user-bubble">Estou com a cabeça cheia hoje.</p>
-          <p class="elo-assistant-bubble">Vamos organizar por partes. Primeiro eu separo o que é urgente, o que é projeto em andamento e o que pode esperar. Depois transformamos isso em próximos passos.</p>
-        </div>
-      </article>
-      <article class="elo-experience-card">
-        <h2>Memória e contexto</h2>
-        <div class="elo-card-phone">
-          <p class="elo-user-bubble">Você lembra do que eu queria construir?</p>
-          <p class="elo-assistant-bubble">Lembro do contexto principal: você quer criar ferramentas próprias, com IA, para engenharia, obras e rotina profissional. O ObraReport, o Stock IA, o Elo e o CADISTA IA fazem parte desse mesmo caminho.</p>
-        </div>
-      </article>
-      <article class="elo-experience-card">
-        <h2>Focado no que importa</h2>
-        <div class="elo-card-phone">
-          <p class="elo-user-bubble">No que estou trabalhando?</p>
-          <p class="elo-assistant-bubble">Você está desenvolvendo o ObraReport, o Stock IA, o Elo e o CADISTA IA. O padrão recente não parece falta de ideias. Parece excesso de projetos importantes acontecendo ao mesmo tempo.</p>
-        </div>
-      </article>
-    </section>
-
-    <section class="elo-chat-section" id="elo-chat" aria-label="Chat do Elo">
-      <div class="elo-chat-intro">
-        <span class="elo-section-kicker">Chat principal</span>
-        <h2>Nova experiência. Mesmo propósito.</h2>
-        <p>Este é o Elo funcional, conectado ao backend real, com memória recente, memória permanente local e fallback preservado.</p>
-      </div>
-      <div class="elo-chat-card">
-        <div id="eloStandaloneMount"></div>
-      </div>
+      <div class="elo-product-chat" id="eloStandaloneMount" aria-label="Conversa com o Elo"></div>
     </section>
   </main>
 
@@ -118,17 +49,79 @@
       history.scrollRestoration = "manual";
     }
 
-    window.addEventListener("load", function () {
-      if (!window.location.hash) {
-        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      }
-    });
-
     window.ELO_STANDALONE_MODE = true;
+    window.ELO_PRODUCT_MODE = true;
+    window.ELO_DISABLE_AUTOFOCUS = true;
+
     if (!/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
       window.ELO_API_BASE_URL = "https://obrareport-backend.onrender.com";
     }
+
+    window.addEventListener("pageshow", function () {
+      window.scrollTo(0, 0);
+    });
+
+    const eloPromptPhrases = [
+      'Como posso <span class="elo-highlight">te ajudar</span> hoje?',
+      'O que vamos <span class="elo-highlight">resolver</span> agora?',
+      'Quer <span class="elo-highlight">analisar</span> um arquivo?',
+      'Vamos <span class="elo-highlight">organizar</span> uma ideia?',
+      'Qual é o <span class="elo-highlight">próximo passo</span>?'
+    ];
+
+    let eloPromptIndex = 0;
+
+    function setEloPromptPhrase(nextIndex) {
+      const textEl = document.querySelector("[data-elo-rotating-text]");
+      const dots = document.querySelectorAll(".elo-prompt-dot");
+
+      if (!textEl) {
+        return;
+      }
+
+      eloPromptIndex = nextIndex;
+      textEl.classList.add("is-changing");
+
+      window.setTimeout(function () {
+        textEl.innerHTML = eloPromptPhrases[eloPromptIndex];
+        textEl.classList.remove("is-changing");
+
+        dots.forEach(function (dot, index) {
+          dot.classList.toggle("is-active", index === eloPromptIndex);
+        });
+      }, 220);
+    }
+
+    function initEloRotatingPrompt() {
+      const textEl = document.querySelector("[data-elo-rotating-text]");
+      const dotsWrap = document.querySelector("[data-elo-prompt-dots]");
+
+      if (!textEl || !dotsWrap) {
+        return;
+      }
+
+      dotsWrap.innerHTML = "";
+
+      eloPromptPhrases.forEach(function (_, index) {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "elo-prompt-dot" + (index === 0 ? " is-active" : "");
+        dot.setAttribute("aria-label", "Frase " + (index + 1));
+        dot.addEventListener("click", function () {
+          setEloPromptPhrase(index);
+        });
+        dotsWrap.appendChild(dot);
+      });
+
+      textEl.innerHTML = eloPromptPhrases[0];
+
+      window.setInterval(function () {
+        setEloPromptPhrase((eloPromptIndex + 1) % eloPromptPhrases.length);
+      }, 4200);
+    }
+
+    document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
   </script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=elo-online-20260601-2" defer></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js?v=elo-reference-20260603" defer></script>
 </body>
 </html>
