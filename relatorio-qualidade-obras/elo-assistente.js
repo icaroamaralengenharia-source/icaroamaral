@@ -10668,6 +10668,7 @@
 
   function renderProductAttachmentStatus() {
     const preview = document.querySelector("[data-elo-attachment-preview]");
+    const iconEl = document.querySelector(".elo-attachment-icon");
     const nameEl = document.querySelector("[data-elo-attachment-name]");
     const sizeEl = document.querySelector("[data-elo-attachment-size]");
     const removeButton = document.querySelector("[data-elo-attachment-remove]");
@@ -10679,13 +10680,15 @@
       });
     }
 
-    if (!ELO_UI.attachmentStatus) {
-      return;
-    }
     if (!ELO_UI.attachments.length) {
-      ELO_UI.attachmentStatus.textContent = "";
+      if (ELO_UI.attachmentStatus) {
+        ELO_UI.attachmentStatus.textContent = "";
+      }
       if (preview) {
         preview.classList.remove("is-visible");
+      }
+      if (iconEl) {
+        iconEl.textContent = "▣";
       }
       if (nameEl) {
         nameEl.textContent = "";
@@ -10700,9 +10703,15 @@
       return;
     }
     const file = ELO_UI.attachments[0];
-    ELO_UI.attachmentStatus.textContent = "";
+    const isImage = isEloImageAttachment_(file);
+    if (ELO_UI.attachmentStatus) {
+      ELO_UI.attachmentStatus.textContent = isImage ? "Imagem carregada. Pronta para analise." : "";
+    }
     if (preview) {
       preview.classList.add("is-visible");
+    }
+    if (iconEl) {
+      iconEl.textContent = isImage ? "📷" : "▣";
     }
     if (nameEl) {
       nameEl.textContent = file.name;
@@ -10748,6 +10757,228 @@
       ELO_UI.attachmentInput.value = "";
     }
     renderProductAttachmentStatus();
+  }
+
+  function getEloAttachmentExtension_(file) {
+    const name = file && file.name ? String(file.name) : "";
+    const match = name.toLowerCase().match(/\.([a-z0-9]+)$/);
+    return match ? match[1] : "";
+  }
+
+  function isEloImageAttachment_(file) {
+    if (!file) {
+      return false;
+    }
+    const type = String(file.type || "").toLowerCase();
+    const extension = getEloAttachmentExtension_(file);
+    return type === "image/jpeg" ||
+      type === "image/jpg" ||
+      type === "image/png" ||
+      type === "image/webp" ||
+      extension === "jpg" ||
+      extension === "jpeg" ||
+      extension === "jfif" ||
+      extension === "png" ||
+      extension === "webp";
+  }
+
+  function detectAttachmentIntent(question) {
+    const attachments = ELO_UI.attachments || [];
+    const image = attachments.find(isEloImageAttachment_);
+    const attachmentIntent = image
+      ? { type: "image", file: image }
+      : { type: "text" };
+
+    return attachmentIntent;
+  }
+
+  function loadEloImage_(file) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: "from-image" }).catch(function () {
+        return loadEloImageElement_(file);
+      });
+    }
+    return loadEloImageElement_(file);
+  }
+
+  function loadEloImageElement_(file) {
+    return new Promise(function (resolve, reject) {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      };
+
+      image.onerror = function () {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Nao foi possivel ler a imagem anexada."));
+      };
+
+      image.src = objectUrl;
+    });
+  }
+
+  function eloCanvasToBlob_(canvas, mimeType, quality) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) {
+          reject(new Error("Nao foi possivel comprimir a imagem."));
+          return;
+        }
+        resolve(blob);
+      }, mimeType, quality);
+    });
+  }
+
+  function eloBlobToBase64_(blob) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result || "").replace(/^data:[^;]+;base64,/, ""));
+      };
+      reader.onerror = function () {
+        reject(new Error("Nao foi possivel converter a imagem para base64."));
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function safeEloImageFileName_(file) {
+    const name = file && file.name ? String(file.name) : "imagem";
+    const baseName = name.replace(/\.[^.]+$/, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "imagem";
+    return baseName + ".jpg";
+  }
+
+  async function compressEloImageAttachment_(file) {
+    if (!isEloImageAttachment_(file)) {
+      throw new Error("Arquivo nao permitido. Use JPG, PNG ou WEBP.");
+    }
+
+    const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+    const sourceImage = await loadEloImage_(file);
+    const sourceWidth = sourceImage.naturalWidth || sourceImage.width;
+    const sourceHeight = sourceImage.naturalHeight || sourceImage.height;
+
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error("Nao foi possivel ler o tamanho da imagem.");
+    }
+
+    const maxSide = config.maxImageWidth || 1280;
+    const maxPixels = config.maxImagePixels || 1638400;
+    const sideRatio = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+    const pixelRatio = Math.min(1, Math.sqrt(maxPixels / (sourceWidth * sourceHeight)));
+    const ratio = Math.min(sideRatio, pixelRatio);
+    const width = Math.max(1, Math.round(sourceWidth * ratio));
+    const height = Math.max(1, Math.round(sourceHeight * ratio));
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { alpha: false });
+
+    canvas.width = width;
+    canvas.height = height;
+
+    if (!context) {
+      throw new Error("O navegador nao conseguiu preparar a imagem.");
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(sourceImage, 0, 0, width, height);
+
+    if (typeof sourceImage.close === "function") {
+      sourceImage.close();
+    }
+
+    const blob = await eloCanvasToBlob_(canvas, "image/jpeg", config.jpegQuality || 0.72);
+    return {
+      base64: await eloBlobToBase64_(blob),
+      mimeType: "image/jpeg",
+      fileName: safeEloImageFileName_(file),
+      originalName: file.name || "imagem.jpg",
+      width: width,
+      height: height
+    };
+  }
+
+  function formatEloImageAnalysis_(result) {
+    if (!result) {
+      return "Nao recebi uma resposta valida da analise visual.";
+    }
+    if (typeof result === "string") {
+      return result;
+    }
+
+    const parts = [];
+    if (result.title) {
+      parts.push(String(result.title));
+    }
+    if (result.suggestion) {
+      parts.push(String(result.suggestion));
+    }
+    if (result.note) {
+      parts.push(String(result.note));
+    }
+    return parts.join("\n\n") || "Imagem analisada, mas a resposta veio sem conteudo textual.";
+  }
+
+  function updateEloMessage_(message, text) {
+    const bubble = message && message.querySelector ? message.querySelector(".elo-message-bubble") : null;
+    if (bubble) {
+      bubble.textContent = text;
+    }
+    if (ELO_UI.messages) {
+      ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+    }
+  }
+
+  async function analyzeEloImageAttachment_(question, file) {
+    const cleanQuestion = sanitizeUserText(question) || "Elo, analise esta imagem";
+    appendMessage("system", "Imagem anexada: " + (file.name || "imagem.jpg"));
+    appendMessage("user", cleanQuestion);
+    const statusMessage = appendMessage("assistant", "Analisando imagem...");
+
+    try {
+      const imagePayload = await compressEloImageAttachment_(file);
+      const context = {
+        source: "elo",
+        kind: "elo-image-analysis",
+        question: cleanQuestion,
+        imageLabel: file.name || "imagem anexada"
+      };
+      let result = null;
+
+      if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
+        result = await window.ObraReportAI.analyzeImage(imagePayload, context);
+      } else {
+        const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
+          getEloBackendEndpoint_("/api/ai/analyze-image");
+        const response = await fetch(configuredEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: imagePayload, context: context })
+        });
+        result = await response.json();
+      }
+
+      const answer = formatEloImageAnalysis_(result);
+      updateEloMessage_(statusMessage, answer);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, {
+        sessionTheme: "analise-visual",
+        nextAction: "Valide a analise visual com o responsavel tecnico."
+      }, answer);
+    } catch (error) {
+      updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui analisar a imagem agora.");
+    } finally {
+      ELO_UI.attachments = [];
+      if (ELO_UI.attachmentInput) {
+        ELO_UI.attachmentInput.value = "";
+      }
+      renderProductAttachmentStatus();
+    }
   }
 
   function appendMessage(kind, text) {
@@ -13301,16 +13532,24 @@
     }
 
     function submitMinimalQuestion() {
-        const question = ELO_UI.input.value;
-        if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
-          appendProductAttachmentNotice();
-        } else {
-          askElo(question);
-          if (ELO_UI.attachments.length) {
-            appendProductAttachmentNotice();
-          }
-        }
+      const question = ELO_UI.input.value;
+      const attachmentIntent = detectAttachmentIntent(question);
+
+      if (attachmentIntent.type === "image") {
         ELO_UI.input.value = "";
+        analyzeEloImageAttachment_(question, attachmentIntent.file);
+        return;
+      }
+
+      if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
+        appendProductAttachmentNotice();
+      } else {
+        askElo(question);
+        if (ELO_UI.attachments.length) {
+          appendProductAttachmentNotice();
+        }
+      }
+      ELO_UI.input.value = "";
     }
 
     if (!form.dataset.eloEngineBound) {

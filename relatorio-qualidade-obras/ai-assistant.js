@@ -360,6 +360,16 @@
         analysis: result.analysis || null
       };
     } catch (error) {
+      if (payload.context && payload.context.source === "elo") {
+        return {
+          mode: "error",
+          title: "IA visual indisponivel",
+          suggestion: "Não consegui acessar a IA visual agora.",
+          note: error && error.message ? error.message : "O backend de IA visual não respondeu.",
+          analysis: null
+        };
+      }
+
       return buildLocalImageFallback_(payload, "O backend de IA visual não respondeu. O ObraReport manteve o fluxo seguro sem alterar o upload ou o PDF.");
     }
   }

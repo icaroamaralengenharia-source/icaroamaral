@@ -117,15 +117,29 @@
       return size.toFixed(unitIndex === 0 ? 0 : 1).replace(".", ",") + " " + units[unitIndex];
     }
 
+    function isEloPreviewImage(file) {
+      const type = String(file && file.type || "").toLowerCase();
+      const name = String(file && file.name || "").toLowerCase();
+      return type === "image/jpeg" ||
+        type === "image/jpg" ||
+        type === "image/png" ||
+        type === "image/webp" ||
+        /\.(jpg|jpeg|jfif|png|webp)$/.test(name);
+    }
+
     function clearEloAttachmentPreview() {
       const fileInput = document.querySelector(".elo-attachment-input");
       const attachButton = document.querySelector(".elo-attach-button");
       const preview = document.querySelector("[data-elo-attachment-preview]");
+      const iconEl = document.querySelector(".elo-attachment-icon");
       const nameEl = document.querySelector("[data-elo-attachment-name]");
       const sizeEl = document.querySelector("[data-elo-attachment-size]");
 
       if (fileInput) {
         fileInput.value = "";
+      }
+      if (iconEl) {
+        iconEl.textContent = "▣";
       }
       if (nameEl) {
         nameEl.textContent = "";
@@ -143,6 +157,10 @@
     }
 
     function initEloMinimalInput() {
+      if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
+        return;
+      }
+
       const form = document.querySelector(".elo-input-row");
       const fileInput = document.querySelector(".elo-attachment-input");
       const attachButton = document.querySelector(".elo-attach-button");
@@ -163,6 +181,10 @@
           if (!file) {
             clearEloAttachmentPreview();
             return;
+          }
+          const iconEl = document.querySelector(".elo-attachment-icon");
+          if (iconEl) {
+            iconEl.textContent = isEloPreviewImage(file) ? "📷" : "▣";
           }
           if (nameEl) {
             nameEl.textContent = file.name;
@@ -205,6 +227,8 @@
       }
     });
   </script>
+  <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
+  <script src="relatorio-qualidade-obras/ai-assistant.js"></script>
   <script src="relatorio-qualidade-obras/elo-assistente.js"></script>
 </body>
 </html>

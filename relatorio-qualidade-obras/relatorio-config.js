@@ -1,5 +1,5 @@
 (function () {
-  const apiBaseUrl = String(window.OBRAREPORT_API_BASE_URL || "http://localhost:3000").replace(/\/+$/g, "");
+  const apiBaseUrl = String(window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com").replace(/\/+$/g, "");
 
   window.RELATORIO_QUALIDADE_CONFIG = {
     appsScriptUrl: "https://script.google.com/macros/s/AKfycbzmgZcecjYWYMVI2e39iLWHNm9LjmG4SPJiKthXG5N7NEk1oqDnwBN6uBPsBTHLXCrj-w/exec",
