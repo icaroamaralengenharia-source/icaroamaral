@@ -10,6 +10,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="relatorio-qualidade-obras/elo-assistente.css">
   <link rel="stylesheet" href="sobreoelo.css">
+  <script>
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    if (window.location.hash) {
+      history.replaceState(null, "", window.location.pathname);
+    }
+  </script>
 </head>
 <body data-elo-mode="standalone">
   <main class="elo-web-shell">
@@ -114,24 +122,23 @@
   </main>
 
   <script>
-    if ("scrollRestoration" in history) {
-      history.scrollRestoration = "manual";
-    }
-
-    window.addEventListener("load", function () {
-      if (!window.location.hash) {
-        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      }
-    });
-
     window.ELO_STANDALONE_MODE = true;
     window.ELO_DISABLE_AUTOFOCUS = true;
     if (!/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
       window.ELO_API_BASE_URL = "https://obrareport-backend.onrender.com";
     }
 
-    window.addEventListener("pageshow", function () {
+    window.addEventListener("load", function () {
+      if (window.location.hash) {
+        history.replaceState(null, "", window.location.pathname);
+      }
       window.scrollTo(0, 0);
+      window.setTimeout(function () {
+        if (window.location.hash) {
+          history.replaceState(null, "", window.location.pathname);
+        }
+        window.scrollTo(0, 0);
+      }, 120);
     });
   </script>
   <script src="relatorio-qualidade-obras/elo-assistente.js?v=elo-online-20260601-2" defer></script>
