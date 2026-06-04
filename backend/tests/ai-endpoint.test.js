@@ -94,6 +94,8 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /async function fetchStockSaudeMe\(\)/);
   assert.match(content, /async function initStockSaudeAuthContext\(\)/);
   assert.match(content, /\/api\/stock-saude\/me/);
+  assert.match(content, /\/api\/stock-saude\/audit-log/);
+  assert.match(content, /listAuditLog\(token\)/);
   assert.match(content, /Authorization: "Bearer " \+ token/);
   assert.match(content, /mode: "supabase"/);
   assert.match(content, /mode: "local"/);
@@ -1171,6 +1173,155 @@ test("stock saude dashboard filtra por institution e unit do profile", async () 
     assert.equal(data.dashboard.auditCount, 1);
     assert.equal(data.dashboard.recentEntries[0].id, "entry_auth");
     assert.equal(data.dashboard.recentExits[0].id, "exit_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude audit-log exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/audit-log");
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude audit-log retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/audit-log", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_saude_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude audit-log filtra escopo e ordena do mais recente", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    auditLogs: [
+      {
+        id: "audit_old",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        profile_id: "profile_auth",
+        action: "item_created",
+        entity_type: "stock_items",
+        entity_id: "item_1",
+        created_at: "2026-06-02T10:00:00.000Z"
+      },
+      {
+        id: "audit_other_unit",
+        institution_id: "inst_auth",
+        unit_id: "outra_unit",
+        profile_id: "profile_auth",
+        action: "entry_created",
+        entity_type: "stock_entries",
+        entity_id: "entry_outra_unit",
+        created_at: "2026-06-04T12:00:00.000Z"
+      },
+      {
+        id: "audit_new",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        profile_id: "profile_auth",
+        action: "approve_entry",
+        entity_type: "stock_entries",
+        entity_id: "entry_1",
+        created_at: "2026-06-04T11:00:00.000Z"
+      },
+      {
+        id: "audit_other_inst",
+        institution_id: "outra_inst",
+        unit_id: "unit_auth",
+        profile_id: "profile_auth",
+        action: "exit_created",
+        entity_type: "stock_exits",
+        entity_id: "exit_outra_inst",
+        created_at: "2026-06-04T13:00:00.000Z"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/audit-log?institution_id=outra_inst&unit_id=outra_unit", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.auditLog.length, 2);
+    assert.equal(data.auditLog[0].action, "approve_entry");
+    assert.equal(data.auditLog[1].action, "item_created");
+    assert.deepEqual(Object.keys(data.auditLog[0]).sort(), [
+      "action",
+      "created_at",
+      "entity_id",
+      "entity_type",
+      "profile_id"
+    ]);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude audit-log retorna trilha operacional feliz", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      auditLogs: [
+        {
+          institution_id: "inst_auth",
+          unit_id: "unit_auth",
+          profile_id: "profile_auth",
+          action: "reject_entry",
+          entity_type: "stock_entries",
+          entity_id: "entry_1",
+          created_at: "2026-06-04T12:00:00.000Z"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/audit-log", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.deepEqual(data.auditLog[0], {
+      action: "reject_entry",
+      entity_type: "stock_entries",
+      entity_id: "entry_1",
+      profile_id: "profile_auth",
+      created_at: "2026-06-04T12:00:00.000Z"
+    });
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -3039,12 +3190,22 @@ function createMockStockExitsQuery_(exits) {
 
 function createMockStockAuditLogQuery_(auditLogs) {
   const filters = [];
+  let selectedColumns = null;
+  let orderConfig = null;
   const query = {
-    select() {
+    select(columns) {
+      selectedColumns = String(columns || "*")
+        .split(",")
+        .map((column) => column.trim())
+        .filter(Boolean);
       return this;
     },
     eq(column, value) {
       filters.push({ column, value });
+      return this;
+    },
+    order(column, options = {}) {
+      orderConfig = { column, ascending: options.ascending !== false };
       return this;
     },
     async insert(payload) {
@@ -3052,7 +3213,23 @@ function createMockStockAuditLogQuery_(auditLogs) {
       return { data: null, error: null };
     },
     then(resolve) {
-      const data = auditLogs.filter((log) => filters.every((filter) => log[filter.column] === filter.value));
+      let data = auditLogs.filter((log) => filters.every((filter) => log[filter.column] === filter.value));
+      if (orderConfig) {
+        data = data.slice().sort((a, b) => {
+          const left = String(a[orderConfig.column] || "");
+          const right = String(b[orderConfig.column] || "");
+          return orderConfig.ascending ? left.localeCompare(right) : right.localeCompare(left);
+        });
+      }
+      if (selectedColumns && selectedColumns[0] !== "*") {
+        data = data.map((log) => {
+          const projected = {};
+          selectedColumns.forEach((column) => {
+            projected[column] = log[column];
+          });
+          return projected;
+        });
+      }
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };

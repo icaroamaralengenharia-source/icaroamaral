@@ -40,7 +40,8 @@
     entries: [],
     exits: [],
     balance: [],
-    dashboard: null
+    dashboard: null,
+    auditLog: []
   };
   let stockSaudeAuthContext = {
     mode: "local",
@@ -207,6 +208,16 @@
         }
       });
       return data.dashboard || null;
+    },
+
+    async listAuditLog(token) {
+      const data = await this.request("/api/stock-saude/audit-log", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.auditLog || [];
     }
   };
 
@@ -729,6 +740,21 @@
     });
   }
 
+  function fromRemoteAuditLog(log) {
+    const createdAt = String(log.created_at || "");
+    return {
+      kind: "auditoria",
+      status: log.action || "auditoria",
+      date: createdAt.slice(0, 10) || todayKey(),
+      time: createdAt.slice(11, 16) || "",
+      item: null,
+      responsible: log.profile_id || "Perfil",
+      sector: "",
+      title: stockSaudeAuditActionLabel(log.action),
+      text: "Entidade: " + (log.entity_type || "registro") + (log.entity_id ? " - " + log.entity_id : "")
+    };
+  }
+
   async function loadRemoteStockSaudeState() {
     const token = getStockSaudeAuthTokenOrThrow();
     const remoteItems = await StockSaudeAPI.listItems(token);
@@ -736,11 +762,13 @@
     const remoteExits = await StockSaudeAPI.listExits(token);
     const remoteBalance = await StockSaudeAPI.getBalance(token);
     const remoteDashboard = await StockSaudeAPI.getDashboard(token);
+    const remoteAuditLog = await StockSaudeAPI.listAuditLog(token);
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
     stockSaudeRemoteCache.exits = remoteExits.map(fromRemoteExit);
     stockSaudeRemoteCache.balance = remoteBalance;
     stockSaudeRemoteCache.dashboard = remoteDashboard;
+    stockSaudeRemoteCache.auditLog = remoteAuditLog;
     return {
       items: stockSaudeRemoteCache.items,
       entries: stockSaudeRemoteCache.entries,
@@ -748,6 +776,7 @@
       sectors: SECTORS.slice(),
       remoteBalance: remoteBalance,
       remoteDashboard: remoteDashboard,
+      remoteAuditLog: remoteAuditLog,
       updatedAt: new Date().toISOString()
     };
   }
@@ -1125,6 +1154,9 @@
   }
 
   function buildHistoryRows(state) {
+    if (Array.isArray(state.remoteAuditLog)) {
+      return state.remoteAuditLog.map(fromRemoteAuditLog);
+    }
     const rows = [];
     state.entries.forEach(function (entry) {
       const item = findItem(state, entry.itemId);
@@ -1196,6 +1228,17 @@
       correcao_solicitada: "com correcao solicitada"
     };
     return labels[status] || status;
+  }
+
+  function stockSaudeAuditActionLabel(action) {
+    const labels = {
+      item_created: "Item criado",
+      entry_created: "Entrada criada",
+      exit_created: "Saida criada",
+      approve_entry: "Entrada aprovada",
+      reject_entry: "Entrada rejeitada"
+    };
+    return labels[action] || "Historico Operacional";
   }
 
   function passesHistoryFilter(row) {

@@ -553,6 +553,36 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-saude/audit-log", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_audit_log")
+        .select("action,entity_type,entity_id,profile_id,created_at")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (session.profile.unit_id) {
+        query = query.eq("unit_id", session.profile.unit_id);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, auditLog: data || [] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_audit_log_query_failed" });
+    }
+  });
+
   app.get("/api/stock-demo/state", (request, response) => {
     const key = getStockDemoRequestKey_(request);
     const entry = stockDemoStore.states.get(key);
