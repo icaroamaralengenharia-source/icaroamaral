@@ -26,6 +26,57 @@ let server;
 let baseUrl;
 let eloVectorMemoryStore;
 
+test("stock demo health continua funcionando", async () => {
+  const response = await fetch(baseUrl + "/api/stock-demo/health");
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.service, "Stock AI Demo Backend");
+});
+
+test("stock saude health responde com fallback local sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-saude/health");
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.module, "stock-saude");
+  assert.equal(data.database, "not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
+test("stock saude items retorna 503 controlado sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-saude/items?institution_id=inst_teste");
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.equal(data.error, "stock_saude_database_not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
+test("stock saude cria item retorna 503 controlado sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-saude/items", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      institution_id: "inst_teste",
+      unit_id: "unit_teste",
+      name: "Mascara cirurgica",
+      unit: "un"
+    })
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.equal(data.error, "stock_saude_database_not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
 before(async () => {
   eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({

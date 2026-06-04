@@ -5,6 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameS
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
+import { getSupabaseClient } from "./supabase.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -144,6 +145,211 @@ export function createApp(options = {}) {
       service: "Stock AI Demo Backend",
       mode: "memory"
     });
+  });
+
+  app.get("/api/stock-saude/health", (request, response) => {
+    const supabaseClient = getSupabaseClient(env);
+    response.json({
+      ok: true,
+      module: "stock-saude",
+      database: supabaseClient ? "supabase_configured" : "not_configured",
+      ...(supabaseClient ? {} : { fallback: "localStorage" })
+    });
+  });
+
+  app.get("/api/stock-saude/items", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const institutionId = clean_(request.query.institution_id);
+    const unitId = clean_(request.query.unit_id);
+    if (!institutionId) {
+      response.status(400).json({ ok: false, error: "institution_id_required" });
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_items")
+        .select("*")
+        .eq("institution_id", institutionId)
+        .order("name", { ascending: true });
+      if (unitId) {
+        query = query.eq("unit_id", unitId);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, items: data || [] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_items_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-saude/items", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const validation = validateStockSaudeItemPayload_(request.body || {});
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_items")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      await createStockSaudeAuditLog_(database, {
+        institutionId: data.institution_id,
+        unitId: data.unit_id,
+        action: "item_created",
+        entityType: "stock_items",
+        entityId: data.id,
+        metadata: { name: data.name, category: data.category }
+      });
+      response.json({ ok: true, item: data });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_item_create_failed" });
+    }
+  });
+
+  app.post("/api/stock-saude/entries", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const validation = validateStockSaudeEntryPayload_(request.body || {});
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_entries")
+        .insert(Object.assign({}, validation.payload, { status: "pendente" }))
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      await createStockSaudeAuditLog_(database, {
+        institutionId: data.institution_id,
+        unitId: data.unit_id,
+        profileId: data.requested_by,
+        action: "entry_created",
+        entityType: "stock_entries",
+        entityId: data.id,
+        metadata: { item_id: data.item_id, quantity: data.quantity }
+      });
+      response.json({ ok: true, entry: data });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_entry_create_failed" });
+    }
+  });
+
+  app.post("/api/stock-saude/entries/:id/approve", async (request, response) => {
+    await updateStockSaudeEntryStatus_(env, request, response, "aprovada", "entry_approved");
+  });
+
+  app.post("/api/stock-saude/entries/:id/reject", async (request, response) => {
+    await updateStockSaudeEntryStatus_(env, request, response, "rejeitada", "entry_rejected");
+  });
+
+  app.post("/api/stock-saude/exits", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const validation = validateStockSaudeExitPayload_(request.body || {});
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const availableQuantity = await calculateStockSaudeItemBalance_(database, validation.payload.item_id);
+      if (availableQuantity < validation.payload.quantity) {
+        response.status(400).json({
+          ok: false,
+          error: "insufficient_stock",
+          available_quantity: availableQuantity
+        });
+        return;
+      }
+
+      const { data, error } = await database
+        .from("stock_exits")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      await createStockSaudeAuditLog_(database, {
+        institutionId: data.institution_id,
+        unitId: data.unit_id,
+        profileId: data.created_by,
+        action: "exit_created",
+        entityType: "stock_exits",
+        entityId: data.id,
+        metadata: { item_id: data.item_id, quantity: data.quantity }
+      });
+      response.json({ ok: true, exit: data });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_exit_create_failed" });
+    }
+  });
+
+  app.get("/api/stock-saude/balance", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const institutionId = clean_(request.query.institution_id);
+    const unitId = clean_(request.query.unit_id);
+    const itemId = clean_(request.query.item_id);
+    if (!institutionId) {
+      response.status(400).json({ ok: false, error: "institution_id_required" });
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_items")
+        .select("id,name,category,unit,minimum_quantity,institution_id,unit_id")
+        .eq("institution_id", institutionId)
+        .order("name", { ascending: true });
+      if (unitId) {
+        query = query.eq("unit_id", unitId);
+      }
+      if (itemId) {
+        query = query.eq("id", itemId);
+      }
+
+      const { data: items, error } = await query;
+      if (error) {
+        throw error;
+      }
+      const balance = await buildStockSaudeBalance_(database, items || []);
+      response.json({ ok: true, balance });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_balance_query_failed" });
+    }
   });
 
   app.get("/api/stock-demo/state", (request, response) => {
@@ -429,6 +635,249 @@ export function createApp(options = {}) {
   });
 
   return app;
+}
+
+function requireStockSaudeDatabase_(env, response) {
+  const database = getSupabaseClient(env);
+  if (!database) {
+    response.status(503).json({
+      ok: false,
+      error: "stock_saude_database_not_configured",
+      fallback: "localStorage"
+    });
+    return null;
+  }
+  return database;
+}
+
+function validateStockSaudeItemPayload_(body) {
+  const payload = {
+    institution_id: clean_(body.institution_id),
+    unit_id: clean_(body.unit_id),
+    name: clean_(body.name),
+    category: clean_(body.category),
+    unit: clean_(body.unit),
+    minimum_quantity: parsePositiveNumber_(body.minimum_quantity, 0),
+    location: clean_(body.location),
+    batch: clean_(body.batch),
+    expiration_date: clean_(body.expiration_date) || null
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.unit_id) {
+    return { ok: false, error: "unit_id_required" };
+  }
+  if (!payload.name) {
+    return { ok: false, error: "name_required" };
+  }
+  if (!payload.unit) {
+    return { ok: false, error: "unit_required" };
+  }
+  return { ok: true, payload };
+}
+
+function validateStockSaudeEntryPayload_(body) {
+  const quantity = parsePositiveNumber_(body.quantity);
+  const payload = {
+    institution_id: clean_(body.institution_id),
+    unit_id: clean_(body.unit_id),
+    item_id: clean_(body.item_id),
+    quantity,
+    source: clean_(body.source),
+    invoice_number: clean_(body.invoice_number),
+    requested_by: clean_(body.requested_by) || null
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.unit_id) {
+    return { ok: false, error: "unit_id_required" };
+  }
+  if (!payload.item_id) {
+    return { ok: false, error: "item_id_required" };
+  }
+  if (!(quantity > 0)) {
+    return { ok: false, error: "quantity_must_be_positive" };
+  }
+  return { ok: true, payload };
+}
+
+function validateStockSaudeExitPayload_(body) {
+  const quantity = parsePositiveNumber_(body.quantity);
+  const payload = {
+    institution_id: clean_(body.institution_id),
+    unit_id: clean_(body.unit_id),
+    item_id: clean_(body.item_id),
+    quantity,
+    destination_sector: clean_(body.destination_sector),
+    purpose: clean_(body.purpose),
+    responsible_name: clean_(body.responsible_name),
+    created_by: clean_(body.created_by) || null
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.unit_id) {
+    return { ok: false, error: "unit_id_required" };
+  }
+  if (!payload.item_id) {
+    return { ok: false, error: "item_id_required" };
+  }
+  if (!(quantity > 0)) {
+    return { ok: false, error: "quantity_must_be_positive" };
+  }
+  return { ok: true, payload };
+}
+
+function parsePositiveNumber_(value, defaultValue = NaN) {
+  const parsed = Number(String(value ?? "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+async function updateStockSaudeEntryStatus_(env, request, response, status, auditAction) {
+  const database = requireStockSaudeDatabase_(env, response);
+  if (!database) {
+    return;
+  }
+
+  const entryId = clean_(request.params.id);
+  const approvedBy = clean_((request.body || {}).approved_by) || null;
+  if (!entryId) {
+    response.status(400).json({ ok: false, error: "entry_id_required" });
+    return;
+  }
+
+  try {
+    const { data: currentEntry, error: readError } = await database
+      .from("stock_entries")
+      .select("*")
+      .eq("id", entryId)
+      .single();
+    if (readError) {
+      throw readError;
+    }
+    if (!currentEntry || currentEntry.status !== "pendente") {
+      response.status(409).json({ ok: false, error: "entry_not_pending" });
+      return;
+    }
+
+    const { data, error } = await database
+      .from("stock_entries")
+      .update({
+        status,
+        approved_by: approvedBy,
+        approved_at: new Date().toISOString()
+      })
+      .eq("id", entryId)
+      .eq("status", "pendente")
+      .select("*")
+      .single();
+    if (error) {
+      throw error;
+    }
+    await createStockSaudeAuditLog_(database, {
+      institutionId: data.institution_id,
+      unitId: data.unit_id,
+      profileId: approvedBy,
+      action: auditAction,
+      entityType: "stock_entries",
+      entityId: data.id,
+      metadata: { item_id: data.item_id, quantity: data.quantity }
+    });
+    response.json({ ok: true, entry: data });
+  } catch (error) {
+    response.status(500).json({ ok: false, error: "stock_saude_entry_update_failed" });
+  }
+}
+
+async function calculateStockSaudeItemBalance_(database, itemId) {
+  const { data: entries, error: entriesError } = await database
+    .from("stock_entries")
+    .select("quantity")
+    .eq("item_id", itemId)
+    .eq("status", "aprovada");
+  if (entriesError) {
+    throw entriesError;
+  }
+
+  const { data: exits, error: exitsError } = await database
+    .from("stock_exits")
+    .select("quantity")
+    .eq("item_id", itemId);
+  if (exitsError) {
+    throw exitsError;
+  }
+
+  return sumQuantity_(entries || []) - sumQuantity_(exits || []);
+}
+
+async function buildStockSaudeBalance_(database, items) {
+  const itemIds = items.map((item) => item.id).filter(Boolean);
+  if (!itemIds.length) {
+    return [];
+  }
+
+  const { data: entries, error: entriesError } = await database
+    .from("stock_entries")
+    .select("item_id,quantity")
+    .eq("status", "aprovada")
+    .in("item_id", itemIds);
+  if (entriesError) {
+    throw entriesError;
+  }
+
+  const { data: exits, error: exitsError } = await database
+    .from("stock_exits")
+    .select("item_id,quantity")
+    .in("item_id", itemIds);
+  if (exitsError) {
+    throw exitsError;
+  }
+
+  return items.map((item) => {
+    const approvedEntriesQuantity = sumQuantity_((entries || []).filter((entry) => entry.item_id === item.id));
+    const exitsQuantity = sumQuantity_((exits || []).filter((exit) => exit.item_id === item.id));
+    const currentQuantity = approvedEntriesQuantity - exitsQuantity;
+    const minimumQuantity = Number(item.minimum_quantity || 0);
+    const status = currentQuantity <= 0 ? "zerado" : (currentQuantity <= minimumQuantity ? "baixo" : "ok");
+    return {
+      item_id: item.id,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      minimum_quantity: minimumQuantity,
+      approved_entries_quantity: approvedEntriesQuantity,
+      exits_quantity: exitsQuantity,
+      current_quantity: currentQuantity,
+      status
+    };
+  });
+}
+
+function sumQuantity_(items) {
+  return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}
+
+async function createStockSaudeAuditLog_(database, payload) {
+  try {
+    await database
+      .from("stock_audit_log")
+      .insert({
+        institution_id: payload.institutionId,
+        unit_id: payload.unitId || null,
+        profile_id: payload.profileId || null,
+        action: payload.action,
+        entity_type: payload.entityType,
+        entity_id: payload.entityId || null,
+        metadata: payload.metadata || {}
+      });
+  } catch (error) {
+    console.warn("Nao foi possivel registrar auditoria do Stock Saude.");
+  }
 }
 
 function validateRequest_(body) {
