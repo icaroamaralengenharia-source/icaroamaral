@@ -475,6 +475,84 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-saude/dashboard", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const scopedItemsQuery = database
+        .from("stock_items")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("name", { ascending: true });
+      const scopedEntriesQuery = database
+        .from("stock_entries")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      const scopedExitsQuery = database
+        .from("stock_exits")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      const scopedAuditQuery = database
+        .from("stock_audit_log")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id);
+
+      if (session.profile.unit_id) {
+        scopedItemsQuery.eq("unit_id", session.profile.unit_id);
+        scopedEntriesQuery.eq("unit_id", session.profile.unit_id);
+        scopedExitsQuery.eq("unit_id", session.profile.unit_id);
+        scopedAuditQuery.eq("unit_id", session.profile.unit_id);
+      }
+
+      const [
+        { data: items, error: itemsError },
+        { data: entries, error: entriesError },
+        { data: exits, error: exitsError },
+        { data: auditLogs, error: auditError }
+      ] = await Promise.all([scopedItemsQuery, scopedEntriesQuery, scopedExitsQuery, scopedAuditQuery]);
+      if (itemsError || entriesError || exitsError || auditError) {
+        throw itemsError || entriesError || exitsError || auditError;
+      }
+
+      const safeItems = items || [];
+      const safeEntries = entries || [];
+      const safeExits = exits || [];
+      const balance = await buildStockSaudeBalance_(database, safeItems);
+      const now = new Date();
+
+      response.json({
+        ok: true,
+        dashboard: {
+          totalItems: safeItems.length,
+          totalEntries: safeEntries.length,
+          totalExits: safeExits.length,
+          pendingEntries: safeEntries.filter((entry) => entry.status === "pendente").length,
+          approvedEntries: safeEntries.filter((entry) => entry.status === "aprovada").length,
+          rejectedEntries: safeEntries.filter((entry) => entry.status === "rejeitada").length,
+          lowStockItems: balance.filter((item) => item.current_quantity > 0 && item.current_quantity < item.minimum_quantity).length,
+          expiredItems: safeItems.filter((item) => isStockSaudeExpired_(item.expiration_date, now)).length,
+          expiringSoonItems: safeItems.filter((item) => isStockSaudeExpiringSoon_(item.expiration_date, now)).length,
+          totalBalance: balance.reduce((sum, item) => sum + Number(item.current_quantity || 0), 0),
+          auditCount: (auditLogs || []).length,
+          recentEntries: safeEntries.slice(0, 5),
+          recentExits: safeExits.slice(0, 5)
+        }
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_dashboard_query_failed" });
+    }
+  });
+
   app.get("/api/stock-demo/state", (request, response) => {
     const key = getStockDemoRequestKey_(request);
     const entry = stockDemoStore.states.get(key);
@@ -1060,6 +1138,28 @@ async function buildStockSaudeBalance_(database, items) {
 
 function sumQuantity_(items) {
   return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}
+
+function getStockSaudeDaysUntil_(dateValue, now = new Date()) {
+  if (!dateValue) {
+    return null;
+  }
+  const target = new Date(String(dateValue).slice(0, 10) + "T00:00:00.000Z");
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+}
+
+function isStockSaudeExpired_(dateValue, now) {
+  const days = getStockSaudeDaysUntil_(dateValue, now);
+  return days !== null && days < 0;
+}
+
+function isStockSaudeExpiringSoon_(dateValue, now) {
+  const days = getStockSaudeDaysUntil_(dateValue, now);
+  return days !== null && days >= 0 && days <= 90;
 }
 
 async function createStockSaudeAuditLog_(database, payload) {

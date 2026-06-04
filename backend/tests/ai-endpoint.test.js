@@ -929,6 +929,253 @@ test("stock saude rejeita entrada com profile real e registra auditoria", async 
   }
 });
 
+test("stock saude dashboard exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/dashboard");
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude dashboard retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/dashboard", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_saude_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude dashboard consolida dados reais do profile", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    items: [
+      {
+        id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        name: "Dipirona",
+        category: "Medicamento",
+        unit: "caixa",
+        minimum_quantity: 10,
+        expiration_date: "2026-07-01"
+      },
+      {
+        id: "item_2",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        name: "Seringa vencida",
+        category: "Material",
+        unit: "un",
+        minimum_quantity: 2,
+        expiration_date: "2026-01-01"
+      }
+    ],
+    entries: [
+      {
+        id: "entry_1",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 20,
+        status: "aprovada",
+        created_at: "2026-06-03T10:00:00.000Z"
+      },
+      {
+        id: "entry_2",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 3,
+        status: "pendente",
+        created_at: "2026-06-04T10:00:00.000Z"
+      },
+      {
+        id: "entry_3",
+        item_id: "item_2",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 1,
+        status: "rejeitada",
+        created_at: "2026-06-04T11:00:00.000Z"
+      }
+    ],
+    exits: [
+      {
+        id: "exit_1",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 15,
+        created_at: "2026-06-04T12:00:00.000Z"
+      }
+    ],
+    auditLogs: [
+      {
+        id: "audit_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        action: "item_created"
+      },
+      {
+        id: "audit_2",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        action: "approve_entry"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/dashboard", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.dashboard.totalItems, 2);
+    assert.equal(data.dashboard.totalEntries, 3);
+    assert.equal(data.dashboard.totalExits, 1);
+    assert.equal(data.dashboard.pendingEntries, 1);
+    assert.equal(data.dashboard.approvedEntries, 1);
+    assert.equal(data.dashboard.rejectedEntries, 1);
+    assert.equal(data.dashboard.lowStockItems, 1);
+    assert.equal(data.dashboard.expiredItems, 1);
+    assert.equal(data.dashboard.expiringSoonItems, 1);
+    assert.equal(data.dashboard.totalBalance, 5);
+    assert.equal(data.dashboard.auditCount, 2);
+    assert.equal(data.dashboard.recentEntries.length, 3);
+    assert.equal(data.dashboard.recentExits.length, 1);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude dashboard filtra por institution e unit do profile", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    items: [
+      {
+        id: "item_auth",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        name: "Item auth",
+        unit: "un",
+        minimum_quantity: 1
+      },
+      {
+        id: "item_outra_inst",
+        institution_id: "outra_inst",
+        unit_id: "unit_auth",
+        name: "Outra inst",
+        unit: "un",
+        minimum_quantity: 1
+      },
+      {
+        id: "item_outra_unit",
+        institution_id: "inst_auth",
+        unit_id: "outra_unit",
+        name: "Outra unit",
+        unit: "un",
+        minimum_quantity: 1
+      }
+    ],
+    entries: [
+      {
+        id: "entry_auth",
+        item_id: "item_auth",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 4,
+        status: "aprovada"
+      },
+      {
+        id: "entry_outra_unit",
+        item_id: "item_outra_unit",
+        institution_id: "inst_auth",
+        unit_id: "outra_unit",
+        quantity: 99,
+        status: "aprovada"
+      }
+    ],
+    exits: [
+      {
+        id: "exit_auth",
+        item_id: "item_auth",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 1
+      },
+      {
+        id: "exit_outra_inst",
+        item_id: "item_outra_inst",
+        institution_id: "outra_inst",
+        unit_id: "unit_auth",
+        quantity: 99
+      }
+    ],
+    auditLogs: [
+      {
+        id: "audit_auth",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth"
+      },
+      {
+        id: "audit_outra_unit",
+        institution_id: "inst_auth",
+        unit_id: "outra_unit"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/dashboard?institution_id=outra_inst&unit_id=outra_unit", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.dashboard.totalItems, 1);
+    assert.equal(data.dashboard.totalEntries, 1);
+    assert.equal(data.dashboard.totalExits, 1);
+    assert.equal(data.dashboard.totalBalance, 3);
+    assert.equal(data.dashboard.auditCount, 1);
+    assert.equal(data.dashboard.recentEntries[0].id, "entry_auth");
+    assert.equal(data.dashboard.recentExits[0].id, "exit_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 before(async () => {
   eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({
@@ -2606,12 +2853,7 @@ function createMockStockSaudeSupabase_(options = {}) {
         return createMockStockExitsQuery_(exits);
       }
       if (table === "stock_audit_log") {
-        return {
-          async insert(payload) {
-            auditLogs.push(Array.isArray(payload) ? payload[0] : payload);
-            return { data: null, error: null };
-          }
-        };
+        return createMockStockAuditLogQuery_(auditLogs);
       }
       return createMockStockItemsQuery_([]);
     }
@@ -2789,6 +3031,28 @@ function createMockStockExitsQuery_(exits) {
         return filters.every((filter) => exit[filter.column] === filter.value)
           && inFilters.every((filter) => filter.values.includes(exit[filter.column]));
       });
+      return Promise.resolve({ data, error: null }).then(resolve);
+    }
+  };
+  return query;
+}
+
+function createMockStockAuditLogQuery_(auditLogs) {
+  const filters = [];
+  const query = {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      filters.push({ column, value });
+      return this;
+    },
+    async insert(payload) {
+      auditLogs.push(Array.isArray(payload) ? payload[0] : payload);
+      return { data: null, error: null };
+    },
+    then(resolve) {
+      const data = auditLogs.filter((log) => filters.every((filter) => log[filter.column] === filter.value));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };

@@ -39,7 +39,8 @@
     items: [],
     entries: [],
     exits: [],
-    balance: []
+    balance: [],
+    dashboard: null
   };
   let stockSaudeAuthContext = {
     mode: "local",
@@ -196,6 +197,16 @@
         }
       });
       return data.balance || [];
+    },
+
+    async getDashboard(token) {
+      const data = await this.request("/api/stock-saude/dashboard", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.dashboard || null;
     }
   };
 
@@ -724,16 +735,19 @@
     const remoteEntries = await StockSaudeAPI.listEntries(token);
     const remoteExits = await StockSaudeAPI.listExits(token);
     const remoteBalance = await StockSaudeAPI.getBalance(token);
+    const remoteDashboard = await StockSaudeAPI.getDashboard(token);
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
     stockSaudeRemoteCache.exits = remoteExits.map(fromRemoteExit);
     stockSaudeRemoteCache.balance = remoteBalance;
+    stockSaudeRemoteCache.dashboard = remoteDashboard;
     return {
       items: stockSaudeRemoteCache.items,
       entries: stockSaudeRemoteCache.entries,
       exits: stockSaudeRemoteCache.exits,
       sectors: SECTORS.slice(),
       remoteBalance: remoteBalance,
+      remoteDashboard: remoteDashboard,
       updatedAt: new Date().toISOString()
     };
   }
@@ -843,6 +857,19 @@
   }
 
   function buildDashboard(state) {
+    if (state.remoteDashboard) {
+      return [
+        ["Total de itens", state.remoteDashboard.totalItems || 0],
+        ["Estoque critico", state.remoteDashboard.lowStockItems || 0],
+        ["Proximos do vencimento", state.remoteDashboard.expiringSoonItems || 0],
+        ["Vencidos", state.remoteDashboard.expiredItems || 0],
+        ["Entradas aguardando aprovacao", state.remoteDashboard.pendingEntries || 0],
+        ["Saidas registradas", state.remoteDashboard.totalExits || 0],
+        ["Entradas aprovadas", state.remoteDashboard.approvedEntries || 0],
+        ["Entradas rejeitadas", state.remoteDashboard.rejectedEntries || 0],
+        ["Auditorias registradas", state.remoteDashboard.auditCount || 0]
+      ];
+    }
     const balances = buildBalances(state);
     const alerts = buildAlerts(state);
     const today = todayKey();
