@@ -1,0 +1,222 @@
+.health-system-page {
+  background: linear-gradient(180deg, #f7fbfd 0%, #eef6f8 42%, #ffffff 100%);
+}
+
+.health-hero,
+.health-products,
+.health-section {
+  width: min(1200px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.health-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 0.82fr);
+  gap: clamp(22px, 4vw, 46px);
+  align-items: start;
+  padding: 18px 0 42px;
+}
+
+.health-hero-copy {
+  max-width: 760px;
+}
+
+.health-hero .sf-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.health-hero .sf-button {
+  min-width: 0;
+  padding: 0 12px;
+  white-space: normal;
+  text-align: center;
+}
+
+.health-overview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(134, 153, 174, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(233, 246, 251, 0.9));
+  box-shadow: var(--shadow);
+}
+
+.health-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.health-overview-grid article,
+.health-product-grid article,
+.health-card-grid article,
+.health-feature-grid span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--soft-shadow);
+}
+
+.health-overview-grid article {
+  min-height: 92px;
+  padding: 12px;
+}
+
+.health-overview-grid span {
+  display: block;
+  color: var(--petrol-2);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-overview-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-strong);
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.health-live-card {
+  padding: 12px;
+}
+
+.health-products,
+.health-section {
+  padding: 12px 0;
+}
+
+.health-product-grid,
+.health-card-grid,
+.health-feature-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.health-product-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.health-product-grid article {
+  min-height: 145px;
+  padding: 14px;
+}
+
+.health-product-grid article span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--petrol), var(--green));
+  font-size: 0.8rem;
+  font-weight: 950;
+}
+
+.health-product-grid h3 {
+  margin-bottom: 4px;
+  font-size: 1.12rem;
+}
+
+.health-product-grid strong {
+  display: block;
+  color: var(--petrol);
+  font-size: 1rem;
+}
+
+.health-product-grid p {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.health-conversation {
+  margin-top: 10px;
+}
+
+.health-card-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--petrol), var(--green));
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.health-card-grid,
+.health-feature-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.health-card-grid article,
+.health-feature-grid span {
+  min-height: 78px;
+  padding: 18px;
+  color: var(--ink-strong);
+  font-weight: 900;
+}
+
+.health-feature-grid span {
+  display: grid;
+  align-items: center;
+  background: linear-gradient(135deg, #ffffff, rgba(234, 248, 243, 0.78));
+}
+
+@media (max-width: 1080px) {
+  .health-hero,
+  .health-product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-overview {
+    max-width: 760px;
+  }
+
+  .health-card-grid,
+  .health-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .health-hero,
+  .health-products,
+  .health-section {
+    width: min(100% - 24px, 1200px);
+  }
+
+  .health-hero {
+    padding: 12px 0 30px;
+  }
+
+  .health-hero .sf-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .health-overview-grid,
+  .health-card-grid,
+  .health-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-products,
+  .health-section {
+    padding: 34px 0;
+  }
+
+  .health-product-grid article {
+    min-height: 0;
+    padding: 20px;
+  }
+}
