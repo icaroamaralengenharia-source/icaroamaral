@@ -4,6 +4,7 @@ import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -394,6 +395,9 @@ export function createApp(options = {}) {
         validation.payload.message,
         validation.payload.context.deviceId
       );
+      if (validation.payload.context.eloContext === "obras") {
+        validation.payload.context.obraComposicaoContext = findObraComposicaoContext(validation.payload.message);
+      }
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
         ok: true,
@@ -1497,6 +1501,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
+  const obraComposicaoContext = eloContext === "obras" ? clean_(context.obraComposicaoContext || "").slice(0, 3000) : "";
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
     buildEloContextPrompt_(eloContext),
@@ -1531,6 +1536,11 @@ export function buildEloSystemPrompt_(context = {}) {
     prompt.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
   }
 
+  if (obraComposicaoContext) {
+    prompt.push(obraComposicaoContext);
+    prompt.push("Ao usar a base tecnica demonstrativa de obras, liste insumos principais, explique que e uma previsao inicial, nao invente preco, norma ou coeficiente oficial e pergunte se a pessoa deseja lancar essa previsao de consumo no Stock IA futuramente.");
+  }
+
   if (attachmentErrors) {
     prompt.push("Avisos sobre anexos:\n" + attachmentErrors);
   }
@@ -1562,6 +1572,79 @@ function buildEloContextPrompt_(eloContext) {
     "Atue como assistente de memoria, projetos, objetivos, documentos, biblioteca, decisoes e planejamento do usuario.",
     "Ajude a organizar ideias, lembrar contexto, resumir documentos e apoiar decisoes."
   ].join(" ");
+}
+
+export function findObraComposicaoContext(message) {
+  const normalizedMessage = normalizeObraSearchText_(message);
+  if (!normalizedMessage) {
+    return "";
+  }
+
+  const composicao = OBRA_COMPOSICOES_DEMONSTRATIVAS.find((item) => {
+    return item.termos.some((term) => normalizedMessage.includes(normalizeObraSearchText_(term)));
+  });
+  if (!composicao) {
+    return "";
+  }
+
+  const quantidade = extractObraQuantity_(normalizedMessage, composicao.unidade);
+  const lines = [
+    "[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA]",
+    "Servico encontrado: " + composicao.servico,
+    "Unidade: " + composicao.unidade,
+    "Insumos principais:",
+    composicao.insumos.map((insumo) => "- " + insumo).join("\n")
+  ];
+
+  if (quantidade && Array.isArray(composicao.coeficientesDemonstrativos) && composicao.coeficientesDemonstrativos.length) {
+    lines.push("Quantidade informada pelo usuario: " + quantidade.valor + " " + quantidade.unidade);
+    lines.push("Estimativa proporcional demonstrativa:");
+    lines.push(composicao.coeficientesDemonstrativos.map((coeficiente) => {
+      const total = quantidade.valor * coeficiente.quantidade;
+      return "- " + coeficiente.insumo + ": " + formatObraQuantity_(total) + " " + coeficiente.unidade.replace("/" + composicao.unidade, "");
+    }).join("\n"));
+  } else {
+    lines.push("Quantificacao: listar insumos e avisar que a quantificacao oficial depende de composicao validada.");
+  }
+
+  lines.push("Observacao: Base demonstrativa e estimativa. Nao e SINAPI/ORSE real. Para orcamento oficial, validar posteriormente com SINAPI/ORSE ou composicao tecnica aprovada.");
+  lines.push("Oriente o Elo a sugerir: Deseja lancar essa previsao de consumo no Stock IA futuramente?");
+  return lines.join("\n");
+}
+
+function normalizeObraSearchText_(value) {
+  return clean_(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/m²/g, "m2")
+    .replace(/m³/g, "m3")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractObraQuantity_(text, expectedUnit) {
+  const normalizedUnit = normalizeObraSearchText_(expectedUnit);
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(m2|m3|m|metros quadrados|metro quadrado|metros cubicos|metro cubico)\b/);
+  if (!match) {
+    return null;
+  }
+
+  const unit = match[2] === "metros quadrados" || match[2] === "metro quadrado" ? "m2"
+    : (match[2] === "metros cubicos" || match[2] === "metro cubico" ? "m3" : match[2]);
+  if (unit !== normalizedUnit) {
+    return null;
+  }
+
+  const valor = Number(match[1].replace(",", "."));
+  return Number.isFinite(valor) && valor > 0 ? { valor, unidade: unit } : null;
+}
+
+function formatObraQuantity_(value) {
+  return Number(value.toFixed(3)).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3
+  });
 }
 
 function buildSystemPrompt_() {

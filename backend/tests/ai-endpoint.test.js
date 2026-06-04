@@ -9,6 +9,7 @@ import {
   buildVisionUserPrompt_,
   createApp,
   createEloVectorMemoryStore_,
+  findObraComposicaoContext,
   formatImageAnalysis_,
   normalizeImageAnalysis_,
   reindexEloVectorMemoryFile_,
@@ -203,6 +204,39 @@ test("prompt mestre do Elo aplica contexto Obras", () => {
   assert.match(prompt, /fissuras/i);
   assert.match(prompt, /estoque de obra/i);
   assert.doesNotMatch(prompt, /Contexto ativo: Elo Saude/i);
+});
+
+test("Elo Obras encontra base tecnica de composicoes por mensagem", () => {
+  const context = findObraComposicaoContext("Vou executar 250 m2 de alvenaria com bloco ceramico");
+
+  assert.match(context, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+  assert.match(context, /Alvenaria de vedacao com bloco ceramico/i);
+  assert.match(context, /bloco ceramico/i);
+  assert.match(context, /Quantidade informada pelo usuario: 250 m2/i);
+  assert.match(context, /Stock IA futuramente/i);
+  assert.match(context, /Nao e SINAPI\/ORSE real/i);
+});
+
+test("prompt do Elo Obras injeta base tecnica somente no contexto obras", () => {
+  const composicao = findObraComposicaoContext("Quanto material preciso para 80 m2 de reboco?");
+  const obrasPrompt = buildEloSystemPrompt_({
+    eloContext: "obras",
+    obraComposicaoContext: composicao
+  });
+  const saudePrompt = buildEloSystemPrompt_({
+    eloContext: "saude",
+    obraComposicaoContext: composicao
+  });
+  const geralPrompt = buildEloSystemPrompt_({
+    eloContext: "geral",
+    obraComposicaoContext: composicao
+  });
+
+  assert.match(obrasPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+  assert.match(obrasPrompt, /Reboco\/emboco de parede/i);
+  assert.match(obrasPrompt, /previsao de consumo no Stock IA futuramente/i);
+  assert.doesNotMatch(saudePrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+  assert.doesNotMatch(geralPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
 });
 
 test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () => {
@@ -893,6 +927,67 @@ test("payload enviado ao LLM contem resumo do documento", async () => {
   }
 });
 
+test("endpoint do Elo injeta composicoes apenas no contexto obras", async () => {
+  const originalFetch = globalThis.fetch;
+  const prompts = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      const payload = JSON.parse(options.body);
+      prompts.push(payload.input[0].content);
+      return new Response(JSON.stringify({
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "Resposta contextual do Elo." }
+            ]
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const obrasResponse = await postEloChatMultipartTo_(url, {
+        message: "Vou executar 250 m2 de alvenaria",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_obras_composicao"
+        },
+        eloContext: "obras"
+      });
+      const saudeResponse = await postEloChatMultipartTo_(url, {
+        message: "Vou executar 250 m2 de alvenaria",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_saude_sem_composicao"
+        },
+        eloContext: "saude"
+      });
+
+      assert.equal(obrasResponse.status, 200);
+      assert.equal(saudeResponse.status, 200);
+      assert.match(prompts[0], /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+      assert.match(prompts[0], /Alvenaria de vedacao com bloco ceramico/i);
+      assert.doesNotMatch(prompts[1], /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("frontend do Elo nao expoe chave OpenAI", async () => {
   const { readFile } = await import("node:fs/promises");
   const files = [
@@ -1163,13 +1258,16 @@ function postEloChat_(body) {
   });
 }
 
-function postEloChatMultipart_({ message, history = [], context = {}, files = [] }) {
-  return postEloChatMultipartTo_(baseUrl, { message, history, context, files });
+function postEloChatMultipart_({ message, history = [], context = {}, eloContext = "", files = [] }) {
+  return postEloChatMultipartTo_(baseUrl, { message, history, context, eloContext, files });
 }
 
-function postEloChatMultipartTo_(url, { message, history = [], context = {}, files = [] }) {
+function postEloChatMultipartTo_(url, { message, history = [], context = {}, eloContext = "", files = [] }) {
   const formData = new FormData();
   formData.append("message", message);
+  if (eloContext) {
+    formData.append("eloContext", eloContext);
+  }
   formData.append("history", JSON.stringify(history));
   formData.append("context", JSON.stringify(context));
   files.forEach((file) => {
