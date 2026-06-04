@@ -396,7 +396,8 @@ export function createApp(options = {}) {
         validation.payload.context.deviceId
       );
       if (validation.payload.context.eloContext === "obras") {
-        validation.payload.context.obraComposicaoContext = buildPrevisaoConsumoContext(validation.payload.message);
+        validation.payload.context.obraComposicaoContext = buildAuditoriaConsumoContext(validation.payload.message) ||
+          buildPrevisaoConsumoContext(validation.payload.message);
       }
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
@@ -1641,6 +1642,128 @@ export function buildPrevisaoConsumoContext(message) {
   return lines.join("\n");
 }
 
+export function extractPrevistoRealConsumo(message) {
+  const normalized = normalizeObraSearchText_(message);
+  if (!normalized) {
+    return null;
+  }
+
+  const unitPattern = "m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico|sacos?|blocos?|un|unidades?";
+  const previstoMatch = normalized.match(new RegExp("\\b(?:previsto|planejado|estimado)\\s+(\\d+(?:[.,]\\d+)?)(?:\\s*(" + unitPattern + "))?(?:\\s+de)?(?:\\s+([a-z0-9/ ]{0,40}?))?(?=\\s*(?:,|;|\\.|\\breal\\b|\\bconsumido\\b|\\busado\\b|\\brealizado\\b|$))", "i")) ||
+    normalized.match(new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")?(?:\\s+de)?(?:\\s+([a-z0-9/ ]{0,40}?))?\\s+\\b(?:previsto|planejado|estimado)\\b", "i"));
+  const realMatch = normalized.match(new RegExp("\\b(?:real|consumido|usado|realizado)\\s+(\\d+(?:[.,]\\d+)?)(?:\\s*(" + unitPattern + "))?(?:\\s+de)?(?:\\s+([a-z0-9/ ]{0,40}?))?(?=\\s*(?:,|;|\\.|$))", "i")) ||
+    normalized.match(new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")?(?:\\s+de)?(?:\\s+([a-z0-9/ ]{0,40}?))?\\s+\\b(?:real|consumido|usado|realizado)\\b", "i"));
+  if (!previstoMatch || !realMatch) {
+    return null;
+  }
+
+  const previsto = Number(previstoMatch[1].replace(",", "."));
+  const real = Number(realMatch[1].replace(",", "."));
+  if (!Number.isFinite(previsto) || !Number.isFinite(real) || previsto <= 0) {
+    return null;
+  }
+
+  const rawUnit = realMatch[2] || previstoMatch[2] || "";
+  const rawItem = clean_((realMatch[3] || previstoMatch[3] || rawUnit || "item").trim());
+  return {
+    item: normalizeAuditItem_(rawItem),
+    unidade: normalizeAuditUnit_(rawUnit, rawItem),
+    previsto,
+    real
+  };
+}
+
+export function buildAuditoriaConsumoContext(message) {
+  const auditoria = extractPrevistoRealConsumo(message);
+  if (!auditoria) {
+    return "";
+  }
+
+  const diferenca = auditoria.real - auditoria.previsto;
+  const percentual = (diferenca / auditoria.previsto) * 100;
+  const status = classifyAuditoriaConsumo_(percentual);
+  const sinal = diferenca >= 0 ? "+" : "";
+  const percentualSinal = percentual >= 0 ? "+" : "";
+
+  return [
+    "[AUDITORIA DEMONSTRATIVA PREVISTO X REAL]",
+    "Item: " + auditoria.item,
+    "Previsto: " + formatObraQuantity_(auditoria.previsto) + " " + auditoria.unidade,
+    "Consumido/real: " + formatObraQuantity_(auditoria.real) + " " + auditoria.unidade,
+    "Diferenca: " + sinal + formatObraQuantity_(diferenca) + " " + auditoria.unidade,
+    "Variacao: " + percentualSinal + formatObraPercent_(percentual),
+    "Status: " + status,
+    "",
+    "Possiveis causas a considerar:",
+    "- perdas acima do normal",
+    "- quebra de material",
+    "- retrabalho",
+    "- erro de medicao",
+    "- desvio de estoque",
+    "- baixa incorreta",
+    "- alteracao de escopo",
+    "",
+    "Orientacao: Responder como auditoria preliminar, sem acusar ninguem. Sugerir verificacao de notas, requisicoes, medicoes, fotos de execucao e responsaveis pelas baixas."
+  ].join("\n");
+}
+
+function classifyAuditoriaConsumo_(percentual) {
+  if (percentual <= 0) {
+    return "dentro ou abaixo do previsto";
+  }
+  if (percentual <= 10) {
+    return "atencao leve";
+  }
+  if (percentual <= 25) {
+    return "atencao";
+  }
+  return "critico";
+}
+
+function normalizeAuditUnit_(unit, item) {
+  const normalizedUnit = normalizeObraSearchText_(unit);
+  if (normalizedUnit === "metros quadrados" || normalizedUnit === "metro quadrado") {
+    return "m2";
+  }
+  if (normalizedUnit === "metros cubicos" || normalizedUnit === "metro cubico") {
+    return "m3";
+  }
+  if (["m2", "m3", "un"].includes(normalizedUnit)) {
+    return normalizedUnit;
+  }
+  if (/sacos?/.test(normalizedUnit) || /sacos?/.test(normalizeObraSearchText_(item))) {
+    return "sacos";
+  }
+  if (/blocos?/.test(normalizedUnit) || /blocos?/.test(normalizeObraSearchText_(item))) {
+    return "un";
+  }
+  if (/unidades?/.test(normalizedUnit)) {
+    return "un";
+  }
+  return normalizedUnit || "un";
+}
+
+function normalizeAuditItem_(item) {
+  const rawNormalized = normalizeObraSearchText_(item);
+  if (/bloco/.test(rawNormalized)) {
+    return "Blocos ceramicos";
+  }
+  if (/cimento/.test(rawNormalized)) {
+    return "Cimento";
+  }
+  if (/argamassa/.test(rawNormalized)) {
+    return "Argamassa";
+  }
+  const normalized = rawNormalized
+    .replace(/\b(m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico|sacos?|blocos?|un|unidades?)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || normalized === "item") {
+    return "Item informado";
+  }
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function findObraComposicao_(message) {
   const normalizedMessage = normalizeObraSearchText_(message);
   if (!normalizedMessage) {
@@ -1686,6 +1809,13 @@ function formatObraQuantity_(value) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3
   });
+}
+
+function formatObraPercent_(value) {
+  return Number(value.toFixed(2)).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }) + "%";
 }
 
 function buildSystemPrompt_() {

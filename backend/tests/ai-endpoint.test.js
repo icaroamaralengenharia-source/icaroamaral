@@ -10,7 +10,9 @@ import {
   createApp,
   createEloVectorMemoryStore_,
   buildPrevisaoConsumoContext,
+  buildAuditoriaConsumoContext,
   extractQuantidadeServico,
+  extractPrevistoRealConsumo,
   findObraComposicaoContext,
   formatImageAnalysis_,
   normalizeImageAnalysis_,
@@ -247,6 +249,44 @@ test("Elo Obras calcula previsao demonstrativa de consumo", () => {
   assert.match(context, /Stock IA/i);
 });
 
+test("Elo Obras extrai previsto e real de consumo", () => {
+  assert.deepEqual(extractPrevistoRealConsumo("Previsto 6750 blocos, consumido 8900 blocos"), {
+    item: "Blocos ceramicos",
+    unidade: "un",
+    previsto: 6750,
+    real: 8900
+  });
+  assert.deepEqual(extractPrevistoRealConsumo("Compare 5 m3 de argamassa previsto com 6,8 m3 consumido"), {
+    item: "Argamassa",
+    unidade: "m3",
+    previsto: 5,
+    real: 6.8
+  });
+  assert.deepEqual(extractPrevistoRealConsumo("Audite o consumo: previsto 100 sacos de cimento, real 132"), {
+    item: "Cimento",
+    unidade: "sacos",
+    previsto: 100,
+    real: 132
+  });
+});
+
+test("Elo Obras calcula auditoria critica de consumo", () => {
+  const context = buildAuditoriaConsumoContext("Previsto 6750 blocos, consumido 8900 blocos");
+
+  assert.match(context, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+  assert.match(context, /Previsto: 6\.750 un/i);
+  assert.match(context, /Consumido\/real: 8\.900 un/i);
+  assert.match(context, /Diferenca: \+2\.150 un/i);
+  assert.match(context, /Variacao: \+31,85%/i);
+  assert.match(context, /Status: critico/i);
+});
+
+test("Elo Obras classifica faixas da auditoria de consumo", () => {
+  assert.match(buildAuditoriaConsumoContext("Previsto 100 sacos de cimento, real 108"), /Status: atencao leve/i);
+  assert.match(buildAuditoriaConsumoContext("Previsto 100 sacos de cimento, real 120"), /Status: atencao/i);
+  assert.match(buildAuditoriaConsumoContext("Previsto 100 sacos de cimento, real 80"), /Status: dentro ou abaixo do previsto/i);
+});
+
 test("prompt do Elo Obras injeta base tecnica somente no contexto obras", () => {
   const composicao = findObraComposicaoContext("Quanto material preciso para 80 m2 de reboco?");
   const obrasPrompt = buildEloSystemPrompt_({
@@ -288,6 +328,35 @@ test("prompt do Elo Obras injeta previsao calculada somente no contexto obras", 
   assert.match(obrasPrompt, /Bloco ceramico: 6\.750 un/i);
   assert.doesNotMatch(saudePrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
   assert.doesNotMatch(geralPrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+});
+
+test("prompt do Elo Obras injeta auditoria somente no contexto obras", () => {
+  const auditoria = buildAuditoriaConsumoContext("Previsto 6750 blocos, consumido 8900 blocos");
+  const obrasPrompt = buildEloSystemPrompt_({
+    eloContext: "obras",
+    obraComposicaoContext: auditoria
+  });
+  const saudePrompt = buildEloSystemPrompt_({
+    eloContext: "saude",
+    obraComposicaoContext: auditoria
+  });
+  const geralPrompt = buildEloSystemPrompt_({
+    eloContext: "geral",
+    obraComposicaoContext: auditoria
+  });
+
+  assert.match(obrasPrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+  assert.match(obrasPrompt, /Status: critico/i);
+  assert.doesNotMatch(saudePrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+  assert.doesNotMatch(geralPrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+});
+
+test("Elo Obras prioriza auditoria quando ha previsto e real", () => {
+  const auditoria = buildAuditoriaConsumoContext("Previsto 6750 blocos, consumido 8900 blocos");
+  const previsao = buildPrevisaoConsumoContext("Vou executar 250 m2 de alvenaria");
+
+  assert.match(auditoria, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+  assert.match(previsao, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
 });
 
 test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () => {
@@ -1045,6 +1114,68 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
       assert.match(prompts[0], /Bloco ceramico: 6\.750 un/i);
       assert.doesNotMatch(prompts[1], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.doesNotMatch(prompts[2], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo prioriza auditoria previsto x real no contexto obras", async () => {
+  const originalFetch = globalThis.fetch;
+  const prompts = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      const payload = JSON.parse(options.body);
+      prompts.push(payload.input[0].content);
+      return new Response(JSON.stringify({
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "Auditoria contextual do Elo." }
+            ]
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const obrasResponse = await postEloChatMultipartTo_(url, {
+        message: "Previsto 6750 blocos, consumido 8900 blocos",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_obras_auditoria"
+        },
+        eloContext: "obras"
+      });
+      const saudeResponse = await postEloChatMultipartTo_(url, {
+        message: "Previsto 6750 blocos, consumido 8900 blocos",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_saude_sem_auditoria"
+        },
+        eloContext: "saude"
+      });
+
+      assert.equal(obrasResponse.status, 200);
+      assert.equal(saudeResponse.status, 200);
+      assert.match(prompts[0], /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+      assert.match(prompts[0], /Status: critico/i);
+      assert.doesNotMatch(prompts[1], /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
+      assert.doesNotMatch(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
     });
   } finally {
     globalThis.fetch = originalFetch;
