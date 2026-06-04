@@ -2,6 +2,10 @@
   "use strict";
 
   const STORAGE_KEY = "obrareport_stock_saude_state_v1";
+  const STOCK_SAUDE_DEMO_INSTITUTION_ID = "00000000-0000-0000-0000-000000000001";
+  const STOCK_SAUDE_DEMO_UNIT_ID = "00000000-0000-0000-0000-000000000001";
+  const STOCK_SAUDE_DEMO_PROFILE_ID = "00000000-0000-0000-0000-000000000001";
+  const STOCK_SAUDE_API_TIMEOUT_MS = 3000;
   const EXPIRATION_WINDOWS = [7, 30, 60, 90];
   const SECTORS = [
     "Farmacia hospitalar",
@@ -30,6 +34,121 @@
   };
 
   let activeHistoryFilter = "todos";
+  let stockSaudeRuntimeMode = "local";
+  let stockSaudeRemoteCache = {
+    items: [],
+    entries: [],
+    exits: [],
+    balance: []
+  };
+
+  // TODO: substituir IDs fixos por Supabase Auth + profiles na Fase 2.5.
+  const StockSaudeAPI = {
+    async request(path, options) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(function () {
+        controller.abort();
+      }, STOCK_SAUDE_API_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(path, Object.assign({
+          headers: {
+            "Content-Type": "application/json"
+          },
+          signal: controller.signal
+        }, options || {}));
+        const data = await response.json().catch(function () {
+          return {};
+        });
+        if (!response.ok || data.ok === false) {
+          const error = new Error(data.error || "stock_saude_remote_error");
+          error.status = response.status;
+          error.payload = data;
+          throw error;
+        }
+        return data;
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    },
+
+    async health() {
+      return this.request("/api/stock-saude/health", {
+        method: "GET"
+      });
+    },
+
+    async isRemoteAvailable() {
+      try {
+        const health = await this.health();
+        return health && health.database === "supabase_configured";
+      } catch (error) {
+        return false;
+      }
+    },
+
+    async getItems() {
+      const params = new URLSearchParams({
+        institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+        unit_id: STOCK_SAUDE_DEMO_UNIT_ID
+      });
+      const data = await this.request("/api/stock-saude/items?" + params.toString(), {
+        method: "GET"
+      });
+      return data.items || [];
+    },
+
+    async createItem(item) {
+      const data = await this.request("/api/stock-saude/items", {
+        method: "POST",
+        body: JSON.stringify(item)
+      });
+      return data.item;
+    },
+
+    async createEntry(entry) {
+      const data = await this.request("/api/stock-saude/entries", {
+        method: "POST",
+        body: JSON.stringify(entry)
+      });
+      return data.entry;
+    },
+
+    async approveEntry(entryId, approvedBy) {
+      const data = await this.request("/api/stock-saude/entries/" + encodeURIComponent(entryId) + "/approve", {
+        method: "POST",
+        body: JSON.stringify({ approved_by: approvedBy || STOCK_SAUDE_DEMO_PROFILE_ID })
+      });
+      return data.entry;
+    },
+
+    async rejectEntry(entryId, approvedBy) {
+      const data = await this.request("/api/stock-saude/entries/" + encodeURIComponent(entryId) + "/reject", {
+        method: "POST",
+        body: JSON.stringify({ approved_by: approvedBy || STOCK_SAUDE_DEMO_PROFILE_ID })
+      });
+      return data.entry;
+    },
+
+    async createExit(exitData) {
+      const data = await this.request("/api/stock-saude/exits", {
+        method: "POST",
+        body: JSON.stringify(exitData)
+      });
+      return data.exit;
+    },
+
+    async getBalance() {
+      const params = new URLSearchParams({
+        institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+        unit_id: STOCK_SAUDE_DEMO_UNIT_ID
+      });
+      const data = await this.request("/api/stock-saude/balance?" + params.toString(), {
+        method: "GET"
+      });
+      return data.balance || [];
+    }
+  };
 
   function clean(value) {
     return String(value || "").trim();
@@ -261,6 +380,156 @@
     return safeState;
   }
 
+  function modeLabel() {
+    return stockSaudeRuntimeMode === "remote" ? "Modo banco real" : "Modo demonstracao local";
+  }
+
+  function setRuntimeMode(mode) {
+    stockSaudeRuntimeMode = mode === "remote" ? "remote" : "local";
+    if (window.console && console.info) {
+      console.info("[Stock Saude] modo:", stockSaudeRuntimeMode);
+    }
+  }
+
+  function buildStatusMessage(message) {
+    return modeLabel() + (message ? " - " + message : "");
+  }
+
+  function stockSaudeRemoteErrorMessage(error) {
+    if (error && error.payload && error.payload.error === "stock_saude_database_not_configured") {
+      return "Banco real indisponivel. Continuando em demonstracao local.";
+    }
+    return "Nao foi possivel concluir no banco real. Voce pode continuar usando a demonstracao local.";
+  }
+
+  function toRemoteItemPayload(item) {
+    return {
+      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      minimum_quantity: numberValue(item.minimumStock),
+      location: item.storageLocation,
+      batch: item.lot,
+      expiration_date: item.expirationDate || null
+    };
+  }
+
+  function toRemoteEntryPayload(entry) {
+    return {
+      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      item_id: entry.itemId,
+      quantity: numberValue(entry.quantity),
+      source: "stock_saude_app",
+      invoice_number: entry.invoice,
+      requested_by: STOCK_SAUDE_DEMO_PROFILE_ID
+    };
+  }
+
+  function toRemoteExitPayload(exit) {
+    return {
+      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      item_id: exit.itemId,
+      quantity: numberValue(exit.quantity),
+      destination_sector: exit.sector,
+      purpose: exit.purpose,
+      responsible_name: exit.releasedBy || exit.withdrawnBy,
+      created_by: STOCK_SAUDE_DEMO_PROFILE_ID
+    };
+  }
+
+  function fromRemoteItem(item) {
+    return createItem({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      quantity: 0,
+      minimumStock: item.minimum_quantity,
+      lot: item.batch,
+      expirationDate: item.expiration_date,
+      supplier: "",
+      invoice: "",
+      storageLocation: item.location,
+      temperature: "",
+      controlled: false,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    }, true);
+  }
+
+  function fromRemoteEntry(entry, status) {
+    return createEntry({
+      id: entry.id,
+      itemId: entry.item_id,
+      date: String(entry.created_at || todayKey()).slice(0, 10),
+      time: String(entry.created_at || "").slice(11, 16) || currentTime(),
+      quantity: entry.quantity,
+      lot: entry.lote || "",
+      expirationDate: entry.validade || "",
+      supplier: entry.fornecedor || "",
+      invoice: entry.invoice_number || "",
+      receivedBy: entry.responsavel || "Almoxarifado",
+      notes: "Registro remoto.",
+      status: status || entry.status,
+      decisionAt: entry.approved_at || "",
+      decisionBy: entry.approved_by ? "Gestor" : "",
+      createdAt: entry.created_at,
+      updatedAt: entry.approved_at || entry.created_at
+    });
+  }
+
+  function fromRemoteExit(exit) {
+    return createExit({
+      id: exit.id,
+      itemId: exit.item_id,
+      date: String(exit.created_at || todayKey()).slice(0, 10),
+      time: String(exit.created_at || "").slice(11, 16) || currentTime(),
+      quantity: exit.quantity,
+      withdrawnBy: exit.responsible_name || "",
+      roleRegistration: "",
+      sector: exit.destination_sector || "",
+      purpose: exit.purpose || "",
+      lot: "",
+      expirationDate: "",
+      releasedBy: exit.responsible_name || "",
+      notes: "Registro remoto.",
+      createdAt: exit.created_at,
+      updatedAt: exit.created_at
+    });
+  }
+
+  async function loadRemoteStockSaudeState() {
+    const remoteItems = await StockSaudeAPI.getItems();
+    const remoteBalance = await StockSaudeAPI.getBalance();
+    stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
+    stockSaudeRemoteCache.balance = remoteBalance;
+    return {
+      items: stockSaudeRemoteCache.items,
+      entries: stockSaudeRemoteCache.entries,
+      exits: stockSaudeRemoteCache.exits,
+      sectors: SECTORS.slice(),
+      remoteBalance: remoteBalance,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async function loadCurrentStockSaudeState() {
+    if (stockSaudeRuntimeMode !== "remote") {
+      return loadStockSaudeState();
+    }
+    try {
+      return await loadRemoteStockSaudeState();
+    } catch (error) {
+      setRuntimeMode("local");
+      setMessage(stockSaudeRemoteErrorMessage(error));
+      return loadStockSaudeState();
+    }
+  }
+
   function findItem(state, itemId) {
     return state.items.find(function (item) {
       return item.id === itemId;
@@ -290,6 +559,17 @@
   }
 
   function buildBalances(state) {
+    if (Array.isArray(state.remoteBalance) && state.remoteBalance.length) {
+      return state.items.map(function (item) {
+        const remote = state.remoteBalance.find(function (balance) {
+          return balance.item_id === item.id;
+        });
+        return {
+          item: item,
+          balance: remote ? numberValue(remote.current_quantity) : calculateItemBalance(state, item)
+        };
+      });
+    }
     return state.items.map(function (item) {
       return {
         item: item,
@@ -370,6 +650,26 @@
     return item;
   }
 
+  async function registerStockSaudeItemHybrid(formData) {
+    const item = createItem(Object.fromEntries(formData.entries()));
+    if (!item.name) {
+      return null;
+    }
+    if (stockSaudeRuntimeMode !== "remote") {
+      return registerStockSaudeItem(formData);
+    }
+    try {
+      const remoteItem = await StockSaudeAPI.createItem(toRemoteItemPayload(item));
+      const normalized = fromRemoteItem(remoteItem);
+      stockSaudeRemoteCache.items.push(normalized);
+      return normalized;
+    } catch (error) {
+      setRuntimeMode("local");
+      setMessage(stockSaudeRemoteErrorMessage(error));
+      return registerStockSaudeItem(formData);
+    }
+  }
+
   function registerStockSaudeEntryRequest(formData) {
     const state = loadStockSaudeState();
     const entry = createEntry(Object.assign(Object.fromEntries(formData.entries()), {
@@ -378,6 +678,25 @@
     state.entries.push(entry);
     saveStockSaudeState(state);
     return entry;
+  }
+
+  async function registerStockSaudeEntryRequestHybrid(formData) {
+    const entry = createEntry(Object.assign(Object.fromEntries(formData.entries()), {
+      status: "pendente"
+    }));
+    if (stockSaudeRuntimeMode !== "remote") {
+      return registerStockSaudeEntryRequest(formData);
+    }
+    try {
+      const remoteEntry = await StockSaudeAPI.createEntry(toRemoteEntryPayload(entry));
+      const normalized = fromRemoteEntry(remoteEntry, "pendente");
+      stockSaudeRemoteCache.entries.push(normalized);
+      return normalized;
+    } catch (error) {
+      setRuntimeMode("local");
+      setMessage(stockSaudeRemoteErrorMessage(error));
+      return registerStockSaudeEntryRequest(formData);
+    }
   }
 
   function approveStockSaudeEntry(entryId, status) {
@@ -394,6 +713,37 @@
     entry.updatedAt = new Date().toISOString();
     saveStockSaudeState(state);
     return entry;
+  }
+
+  async function approveStockSaudeEntryHybrid(entryId, status) {
+    if (stockSaudeRuntimeMode !== "remote") {
+      return approveStockSaudeEntry(entryId, status);
+    }
+    if (status === "correcao_solicitada") {
+      return {
+        unsupported: true,
+        message: "Solicitacao de correcao remota sera conectada na proxima fase. A entrada segue pendente."
+      };
+    }
+    try {
+      const remoteEntry = status === "rejeitada"
+        ? await StockSaudeAPI.rejectEntry(entryId, STOCK_SAUDE_DEMO_PROFILE_ID)
+        : await StockSaudeAPI.approveEntry(entryId, STOCK_SAUDE_DEMO_PROFILE_ID);
+      const entry = stockSaudeRemoteCache.entries.find(function (candidate) {
+        return candidate.id === entryId;
+      });
+      if (entry) {
+        entry.status = remoteEntry.status || status;
+        entry.decisionAt = remoteEntry.approved_at || new Date().toISOString();
+        entry.decisionBy = "Gestor";
+        entry.updatedAt = entry.decisionAt;
+      }
+      return entry || fromRemoteEntry(remoteEntry, remoteEntry.status || status);
+    } catch (error) {
+      setRuntimeMode("local");
+      setMessage(stockSaudeRemoteErrorMessage(error));
+      return null;
+    }
   }
 
   function registerStockSaudeExit(formData) {
@@ -414,9 +764,31 @@
     return { ok: true, message: "Saida registrada no historico.", exit: exit };
   }
 
+  async function registerStockSaudeExitHybrid(formData) {
+    if (stockSaudeRuntimeMode !== "remote") {
+      return registerStockSaudeExit(formData);
+    }
+    const exit = createExit(Object.fromEntries(formData.entries()));
+    try {
+      const remoteExit = await StockSaudeAPI.createExit(toRemoteExitPayload(exit));
+      stockSaudeRemoteCache.exits.push(fromRemoteExit(remoteExit));
+      return { ok: true, message: "Saida registrada no banco real.", exit: remoteExit };
+    } catch (error) {
+      if (error && error.payload && error.payload.error === "insufficient_stock") {
+        return {
+          ok: false,
+          message: "Saldo insuficiente no banco real. Disponivel: " + formatNumber(error.payload.available_quantity) + "."
+        };
+      }
+      setRuntimeMode("local");
+      setMessage(stockSaudeRemoteErrorMessage(error));
+      return registerStockSaudeExit(formData);
+    }
+  }
+
   function setMessage(message) {
     if (elements.storageStatus) {
-      elements.storageStatus.textContent = message;
+      elements.storageStatus.textContent = buildStatusMessage(message);
     }
   }
 
@@ -610,8 +982,8 @@
     }).join("");
   }
 
-  function renderAll() {
-    const state = loadStockSaudeState();
+  async function renderAll() {
+    const state = await loadCurrentStockSaudeState();
     renderDashboard(state);
     renderSelects(state);
     renderApprovals(state);
@@ -635,72 +1007,74 @@
 
   function bindForms() {
     if (elements.itemForm) {
-      elements.itemForm.addEventListener("submit", function (event) {
+      elements.itemForm.addEventListener("submit", async function (event) {
         event.preventDefault();
-        registerStockSaudeItem(new FormData(elements.itemForm));
+        await registerStockSaudeItemHybrid(new FormData(elements.itemForm));
         elements.itemForm.reset();
         setMessage("Item cadastrado no Stock Saude.");
-        renderAll();
+        await renderAll();
       });
     }
 
     if (elements.entryForm) {
-      elements.entryForm.addEventListener("submit", function (event) {
+      elements.entryForm.addEventListener("submit", async function (event) {
         event.preventDefault();
-        registerStockSaudeEntryRequest(new FormData(elements.entryForm));
+        await registerStockSaudeEntryRequestHybrid(new FormData(elements.entryForm));
         elements.entryForm.reset();
         resetFormDateTime(elements.entryForm);
         setMessage("Entrada enviada para aprovacao. Ela ainda nao soma no estoque.");
-        renderAll();
+        await renderAll();
       });
     }
 
     if (elements.exitForm) {
-      elements.exitForm.addEventListener("submit", function (event) {
+      elements.exitForm.addEventListener("submit", async function (event) {
         event.preventDefault();
-        const result = registerStockSaudeExit(new FormData(elements.exitForm));
+        const result = await registerStockSaudeExitHybrid(new FormData(elements.exitForm));
         if (result.ok) {
           elements.exitForm.reset();
           resetFormDateTime(elements.exitForm);
         }
         setMessage(result.message);
-        renderAll();
+        await renderAll();
       });
     }
 
     if (elements.approvals) {
-      elements.approvals.addEventListener("click", function (event) {
+      elements.approvals.addEventListener("click", async function (event) {
         const button = event.target.closest("[data-approval-action]");
         if (!button) {
           return;
         }
-        approveStockSaudeEntry(button.dataset.entryId, button.dataset.approvalAction);
-        setMessage("Decisao registrada: " + statusLabel(button.dataset.approvalAction) + ".");
-        renderAll();
+        const decision = await approveStockSaudeEntryHybrid(button.dataset.entryId, button.dataset.approvalAction);
+        setMessage(decision && decision.unsupported ? decision.message : "Decisao registrada: " + statusLabel(button.dataset.approvalAction) + ".");
+        await renderAll();
       });
     }
 
     document.querySelectorAll("[data-stock-filter]").forEach(function (button) {
-      button.addEventListener("click", function () {
+      button.addEventListener("click", async function () {
         activeHistoryFilter = button.dataset.stockFilter || "todos";
         document.querySelectorAll("[data-stock-filter]").forEach(function (candidate) {
           candidate.classList.toggle("active", candidate === button);
         });
-        renderAll();
+        await renderAll();
       });
     });
 
     [elements.filterSector, elements.filterResponsible].forEach(function (input) {
       if (input) {
-        input.addEventListener("input", renderAll);
+        input.addEventListener("input", function () {
+          renderAll();
+        });
       }
     });
 
     if (elements.resetDemo) {
-      elements.resetDemo.addEventListener("click", function () {
+      elements.resetDemo.addEventListener("click", async function () {
         saveStockSaudeState(buildDemoState());
         setMessage("Dados demo restaurados.");
-        renderAll();
+        await renderAll();
       });
     }
   }
@@ -738,13 +1112,16 @@
     }
   }
 
-  function init() {
+  async function init() {
     loadStockSaudeState();
+    const remoteAvailable = await StockSaudeAPI.isRemoteAvailable();
+    setRuntimeMode(remoteAvailable ? "remote" : "local");
     bindAnchorsAndReveal();
     bindForms();
     resetFormDateTime(elements.entryForm);
     resetFormDateTime(elements.exitForm);
-    renderAll();
+    setMessage(remoteAvailable ? "Conectado ao backend Stock Saude." : "Estado local pronto.");
+    await renderAll();
   }
 
   init();
