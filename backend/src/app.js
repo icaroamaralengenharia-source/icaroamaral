@@ -396,8 +396,11 @@ export function createApp(options = {}) {
         validation.payload.context.deviceId
       );
       if (validation.payload.context.eloContext === "obras") {
-        validation.payload.context.obraComposicaoContext = buildAuditoriaConsumoContext(validation.payload.message) ||
-          buildPrevisaoConsumoContext(validation.payload.message);
+        const auditoriaContext = buildAuditoriaConsumoContext(validation.payload.message);
+        validation.payload.context.obraComposicaoContext = auditoriaContext || buildPrevisaoConsumoContext(validation.payload.message);
+        if (!auditoriaContext) {
+          validation.payload.stockIaLaunchPlan = buildStockIaLaunchPlan(validation.payload.message);
+        }
       }
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
@@ -410,6 +413,7 @@ export function createApp(options = {}) {
           mimeType: document.mimeType,
           textLength: document.text.length
         })),
+        stockIaLaunchPlan: validation.payload.stockIaLaunchPlan || null,
         attachmentErrors: chatRequest.attachmentErrors
       });
     } catch (error) {
@@ -1639,31 +1643,71 @@ export function buildPrevisaoConsumoContext(message) {
   lines.push("");
   lines.push("Observacao: Base demonstrativa, nao oficial. Validar com SINAPI/ORSE antes de orcamento ou compra oficial.");
   lines.push("Sugestao ao usuario: Pergunte se ele deseja futuramente lancar essa previsao no Stock IA.");
-  const launchPlan = buildStockIaLaunchPlanContext_(composicao, quantidade, calculados);
+  const launchPlan = buildStockIaLaunchPlanFromParts_(composicao, quantidade, calculados);
   if (launchPlan) {
     lines.push("");
-    lines.push(launchPlan);
+    lines.push(formatStockIaLaunchPlanContext_(launchPlan));
   }
   return lines.join("\n");
 }
 
-function buildStockIaLaunchPlanContext_(composicao, quantidade, calculados) {
-  if (!composicao || !quantidade || !Array.isArray(calculados) || !calculados.length) {
-    return "";
+export function buildStockIaLaunchPlan(message) {
+  const auditoria = extractPrevistoRealConsumo(message);
+  if (auditoria) {
+    return null;
   }
 
+  const composicao = findObraComposicao_(message);
+  const quantidade = extractQuantidadeServico(message);
+  if (!composicao || !quantidade || normalizeObraUnit_(quantidade.unidade) !== normalizeObraUnit_(composicao.unidade)) {
+    return null;
+  }
+
+  const calculados = composicao.insumos
+    .filter((insumo) => Number.isFinite(insumo.coeficiente))
+    .map((insumo) => ({
+      nome: insumo.nome,
+      unidade: insumo.unidade,
+      total: quantidade.quantidade * insumo.coeficiente
+    }));
+  return buildStockIaLaunchPlanFromParts_(composicao, quantidade, calculados);
+}
+
+function buildStockIaLaunchPlanFromParts_(composicao, quantidade, calculados) {
+  if (!composicao || !quantidade || !Array.isArray(calculados) || !calculados.length) {
+    return null;
+  }
+
+  return {
+    origem: "elo_obras",
+    tipo: "previsao_consumo",
+    servico: composicao.nome,
+    quantidadeServico: quantidade.quantidade,
+    unidadeServico: composicao.unidade,
+    status: "pendente_confirmacao",
+    itens: calculados.map((item) => ({
+      nome: item.nome,
+      quantidade: Number(item.total.toFixed(6)),
+      unidade: item.unidade,
+      origemCalculo: "coeficiente_demonstrativo"
+    })),
+    observacao: "Plano demonstrativo. Nao lancado automaticamente no estoque."
+  };
+}
+
+function formatStockIaLaunchPlanContext_(plan) {
   return [
     "[PLANO DE LANCAMENTO NO STOCK IA]",
     "Origem: Elo Obras",
-    "Tipo: previsao_consumo",
-    "Servico: " + composicao.nome,
-    "Quantidade do servico: " + formatObraQuantity_(quantidade.quantidade) + " " + composicao.unidade,
-    "Status: pendente_confirmacao",
+    "Tipo: " + plan.tipo,
+    "Servico: " + plan.servico,
+    "Quantidade do servico: " + formatObraQuantity_(plan.quantidadeServico) + " " + plan.unidadeServico,
+    "Status: " + plan.status,
     "",
     "Itens previstos:",
-    calculados.map((item) => "- " + item.nome + ": " + formatObraQuantity_(item.total) + " " + item.unidade + " | origemCalculo: coeficiente_demonstrativo").join("\n"),
+    plan.itens.map((item) => "- " + item.nome + ": " + formatObraQuantity_(item.quantidade) + " " + item.unidade + " | origemCalculo: " + item.origemCalculo).join("\n"),
     "",
-    "Observacao: Plano demonstrativo. Nao lancado automaticamente no estoque.",
+    "Observacao: " + plan.observacao,
     "Orientacao: Pergunte ao usuario se deseja registrar essa previsao no Stock IA futuramente. Nao afirme que o estoque foi alterado. Nao afirme que o lancamento foi feito."
   ].join("\n");
 }
@@ -1815,13 +1859,14 @@ function normalizeObraSearchText_(value) {
 
 export function extractQuantidadeServico(message) {
   const text = normalizeObraSearchText_(message);
-  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico)\b/);
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico|pontos?|kg)\b/);
   if (!match) {
     return null;
   }
 
   const unit = match[2] === "metros quadrados" || match[2] === "metro quadrado" ? "m2"
-    : (match[2] === "metros cubicos" || match[2] === "metro cubico" ? "m3" : match[2]);
+    : (match[2] === "metros cubicos" || match[2] === "metro cubico" ? "m3"
+      : (/pontos?/.test(match[2]) ? "ponto" : match[2]));
   const quantidade = Number(match[1].replace(",", "."));
   return Number.isFinite(quantidade) && quantidade > 0 ? { quantidade, unidade: unit } : null;
 }

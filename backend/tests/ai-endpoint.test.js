@@ -11,6 +11,7 @@ import {
   createEloVectorMemoryStore_,
   buildPrevisaoConsumoContext,
   buildAuditoriaConsumoContext,
+  buildStockIaLaunchPlan,
   extractQuantidadeServico,
   extractPrevistoRealConsumo,
   findObraComposicaoContext,
@@ -234,13 +235,17 @@ test("Elo Obras extrai quantidade de servico", () => {
     quantidade: 80,
     unidade: "m2"
   });
+  assert.deepEqual(extractQuantidadeServico("Vou fazer 20 pontos de tomada"), {
+    quantidade: 20,
+    unidade: "ponto"
+  });
 });
 
 test("Elo Obras calcula previsao demonstrativa de consumo", () => {
   const context = buildPrevisaoConsumoContext("Vou executar 250 m2 de alvenaria com bloco ceramico");
 
   assert.match(context, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
-  assert.match(context, /Alvenaria de vedacao com bloco ceramico/i);
+  assert.match(context, /Alvenaria de vedacao/i);
   assert.match(context, /Quantidade informada: 250 m2/i);
   assert.match(context, /Bloco ceramico: 6\.750 un/i);
   assert.match(context, /Argamassa de assentamento: 5 m3/i);
@@ -251,6 +256,56 @@ test("Elo Obras calcula previsao demonstrativa de consumo", () => {
   assert.match(context, /pendente_confirmacao/i);
   assert.match(context, /origemCalculo: coeficiente_demonstrativo/i);
   assert.match(context, /Nao lancado automaticamente no estoque/i);
+});
+
+test("Elo Obras encontra composicoes novas e respeita pendencia de coeficientes", () => {
+  const chapisco = buildPrevisaoConsumoContext("Vou executar 100 m2 de chapisco");
+  const pintura = buildPrevisaoConsumoContext("Vou fazer 80 m2 de pintura");
+  const concreto = buildPrevisaoConsumoContext("Vou executar 10 m3 de concreto");
+  const tomada = buildPrevisaoConsumoContext("Vou fazer 20 pontos de tomada");
+  const aguaFria = buildPrevisaoConsumoContext("Vou fazer 15 pontos de agua fria");
+
+  assert.match(chapisco, /Chapisco/i);
+  assert.match(chapisco, /Sem coeficientes numericos demonstrativos/i);
+  assert.match(chapisco, /Cimento/i);
+  assert.match(chapisco, /Insumos sem coeficiente demonstrativo/i);
+  assert.doesNotMatch(chapisco, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+
+  assert.match(pintura, /Pintura acrilica/i);
+  assert.match(pintura, /Tinta acrilica: 13,6 l/i);
+  assert.match(pintura, /Selador: 8 l/i);
+
+  assert.match(concreto, /Concretagem simples/i);
+  assert.match(concreto, /Concreto: 10 m3/i);
+
+  assert.match(tomada, /Instalacao eletrica - tomada/i);
+  assert.match(tomada, /Sem coeficientes numericos demonstrativos/i);
+  assert.match(tomada, /Tomada/i);
+  assert.doesNotMatch(tomada, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+
+  assert.match(aguaFria, /Instalacao hidraulica - ponto de agua fria/i);
+  assert.match(aguaFria, /Sem coeficientes numericos demonstrativos/i);
+  assert.match(aguaFria, /Tubo PVC agua fria/i);
+  assert.doesNotMatch(aguaFria, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+});
+
+test("Elo Obras prepara plano estruturado para Stock IA sem lancamento real", () => {
+  const plan = buildStockIaLaunchPlan("Vou executar 250 m2 de alvenaria com bloco ceramico");
+
+  assert.equal(plan.origem, "elo_obras");
+  assert.equal(plan.tipo, "previsao_consumo");
+  assert.equal(plan.status, "pendente_confirmacao");
+  assert.equal(plan.servico, "Alvenaria de vedacao");
+  assert.equal(plan.quantidadeServico, 250);
+  assert.equal(plan.unidadeServico, "m2");
+  assert.deepEqual(plan.itens[0], {
+    nome: "Bloco ceramico",
+    quantidade: 6750,
+    unidade: "un",
+    origemCalculo: "coeficiente_demonstrativo"
+  });
+  assert.match(plan.observacao, /Nao lancado automaticamente no estoque/i);
+  assert.equal(buildStockIaLaunchPlan("Vou fazer 20 pontos de tomada"), null);
 });
 
 test("Elo Obras extrai previsto e real de consumo", () => {
@@ -307,7 +362,7 @@ test("prompt do Elo Obras injeta base tecnica somente no contexto obras", () => 
   });
 
   assert.match(obrasPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
-  assert.match(obrasPrompt, /Reboco\/emboco de parede/i);
+  assert.match(obrasPrompt, /Reboco/i);
   assert.match(obrasPrompt, /informe a quantidade em m2/i);
   assert.doesNotMatch(saudePrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
   assert.doesNotMatch(geralPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
@@ -1118,15 +1173,25 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
       assert.equal(obrasResponse.status, 200);
       assert.equal(saudeResponse.status, 200);
       assert.equal(geralResponse.status, 200);
+      const obrasData = await obrasResponse.clone().json();
+      const saudeData = await saudeResponse.clone().json();
+      const geralData = await geralResponse.clone().json();
       assert.match(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.match(prompts[0], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
-      assert.match(prompts[0], /Alvenaria de vedacao com bloco ceramico/i);
+      assert.match(prompts[0], /Alvenaria de vedacao/i);
       assert.match(prompts[0], /Bloco ceramico: 6\.750 un/i);
       assert.match(prompts[0], /pendente_confirmacao/i);
+      assert.equal(obrasData.stockIaLaunchPlan.status, "pendente_confirmacao");
+      assert.equal(obrasData.stockIaLaunchPlan.tipo, "previsao_consumo");
+      assert.equal(obrasData.stockIaLaunchPlan.origem, "elo_obras");
+      assert.equal(obrasData.stockIaLaunchPlan.itens[0].nome, "Bloco ceramico");
+      assert.equal(obrasData.stockIaLaunchPlan.itens[0].origemCalculo, "coeficiente_demonstrativo");
       assert.doesNotMatch(prompts[1], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.doesNotMatch(prompts[1], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+      assert.equal(saudeData.stockIaLaunchPlan, null);
       assert.doesNotMatch(prompts[2], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.doesNotMatch(prompts[2], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+      assert.equal(geralData.stockIaLaunchPlan, null);
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -1185,11 +1250,13 @@ test("endpoint do Elo prioriza auditoria previsto x real no contexto obras", asy
 
       assert.equal(obrasResponse.status, 200);
       assert.equal(saudeResponse.status, 200);
+      const obrasData = await obrasResponse.clone().json();
       assert.match(prompts[0], /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
       assert.match(prompts[0], /Status: critico/i);
       assert.doesNotMatch(prompts[1], /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
       assert.doesNotMatch(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.doesNotMatch(prompts[0], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+      assert.equal(obrasData.stockIaLaunchPlan, null);
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -1230,6 +1297,19 @@ test("frontend do Elo envia eloContext no JSON e multipart", async () => {
   assert.match(content, /formData\.append\("eloContext", payload\.eloContext\)/);
   assert.match(content, /stock-saude/);
   assert.match(content, /stock-ai/);
+});
+
+test("frontend do Elo registra plano Stock IA apenas como planejamento local", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+
+  assert.match(content, /obraReport\.stockIa\.plannedConsumptions/);
+  assert.match(content, /tryConfirmPendingStockIaPlan/);
+  assert.match(content, /saveStockIaPlannedConsumption/);
+  assert.match(content, /status: "planejado"/);
+  assert.match(content, /Nenhum saldo de estoque foi alterado/);
+  assert.doesNotMatch(content, /fetch\([^)]*stock-demo/i);
+  assert.doesNotMatch(content, /approval-requests/i);
 });
 
 test("endpoint de memoria vetorial exige deviceId valido", async () => {
