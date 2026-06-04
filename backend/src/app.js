@@ -257,13 +257,48 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-saude/entries", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_entries")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (session.profile.unit_id) {
+        query = query.eq("unit_id", session.profile.unit_id);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, entries: data || [] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_entries_query_failed" });
+    }
+  });
+
   app.post("/api/stock-saude/entries", async (request, response) => {
     const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
 
-    const validation = validateStockSaudeEntryPayload_(request.body || {});
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockSaudeEntryPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -768,16 +803,16 @@ function validateStockSaudeItemPayload_(body, profile = null) {
   return { ok: true, payload };
 }
 
-function validateStockSaudeEntryPayload_(body) {
+function validateStockSaudeEntryPayload_(body, profile = null) {
   const quantity = parsePositiveNumber_(body.quantity);
   const payload = {
-    institution_id: clean_(body.institution_id),
-    unit_id: clean_(body.unit_id),
+    institution_id: profile ? clean_(profile.institution_id) : clean_(body.institution_id),
+    unit_id: profile ? clean_(profile.unit_id) : clean_(body.unit_id),
     item_id: clean_(body.item_id),
     quantity,
     source: clean_(body.source),
     invoice_number: clean_(body.invoice_number),
-    requested_by: clean_(body.requested_by) || null
+    requested_by: profile ? clean_(profile.id) : clean_(body.requested_by) || null
   };
 
   if (!payload.institution_id) {

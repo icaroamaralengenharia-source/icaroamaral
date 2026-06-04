@@ -238,6 +238,147 @@ test("stock saude lista e cria itens usando institution e unit do profile autent
   }
 });
 
+test("stock saude entries exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries");
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude entries retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_saude_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude cria entry valida item_id e quantidade", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const missingItemResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ quantity: 10 })
+    });
+    const missingItemData = await missingItemResponse.json();
+    assert.equal(missingItemResponse.status, 400);
+    assert.equal(missingItemData.error, "item_id_required");
+
+    const invalidQuantityResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ item_id: "item_1", quantity: 0 })
+    });
+    const invalidQuantityData = await invalidQuantityResponse.json();
+    assert.equal(invalidQuantityResponse.status, 400);
+    assert.equal(invalidQuantityData.error, "quantity_must_be_positive");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude lista e cria entries usando profile autenticado", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    entries: [
+      {
+        id: "entry_1",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 12,
+        status: "pendente",
+        requested_by: "profile_auth",
+        created_at: "2026-06-01T10:00:00.000Z"
+      },
+      {
+        id: "entry_2",
+        item_id: "item_2",
+        institution_id: "outra_inst",
+        unit_id: "unit_auth",
+        quantity: 3,
+        status: "pendente",
+        requested_by: "profile_auth",
+        created_at: "2026-06-01T11:00:00.000Z"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const listResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const listData = await listResponse.json();
+    assert.equal(listResponse.status, 200);
+    assert.equal(listData.ok, true);
+    assert.equal(listData.entries.length, 1);
+    assert.equal(listData.entries[0].institution_id, "inst_auth");
+
+    const createResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        institution_id: "forjada",
+        unit_id: "forjada",
+        requested_by: "forjado",
+        item_id: "item_1",
+        quantity: 7,
+        invoice_number: "NF-TESTE"
+      })
+    });
+    const createData = await createResponse.json();
+
+    assert.equal(createResponse.status, 200);
+    assert.equal(createData.ok, true);
+    assert.equal(createData.entry.institution_id, "inst_auth");
+    assert.equal(createData.entry.unit_id, "unit_auth");
+    assert.equal(createData.entry.requested_by, "profile_auth");
+    assert.equal(createData.entry.status, "pendente");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 before(async () => {
   eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({
@@ -1869,7 +2010,7 @@ async function closeTestServer_(server) {
 }
 
 function createMockStockSaudeSupabase_(options = {}) {
-  const profile = options.profile || {
+  const profile = Object.prototype.hasOwnProperty.call(options, "profile") ? options.profile : {
     id: "profile_auth",
     auth_user_id: "auth_user_1",
     institution_id: "inst_auth",
@@ -1879,6 +2020,7 @@ function createMockStockSaudeSupabase_(options = {}) {
     role: "gestor"
   };
   const items = (options.items || []).slice();
+  const entries = (options.entries || []).slice();
 
   return {
     auth: {
@@ -1889,8 +2031,8 @@ function createMockStockSaudeSupabase_(options = {}) {
         return {
           data: {
             user: {
-              id: profile.auth_user_id,
-              email: profile.email
+              id: profile ? profile.auth_user_id : "auth_user_without_profile",
+              email: profile ? profile.email : "sem-profile@teste.local"
             }
           },
           error: null
@@ -1903,6 +2045,9 @@ function createMockStockSaudeSupabase_(options = {}) {
       }
       if (table === "stock_items") {
         return createMockStockItemsQuery_(items);
+      }
+      if (table === "stock_entries") {
+        return createMockStockEntriesQuery_(entries);
       }
       if (table === "stock_audit_log") {
         return {
@@ -1930,7 +2075,7 @@ function createMockProfilesQuery_(profile) {
     },
     async maybeSingle() {
       return {
-        data: authUserId === profile.auth_user_id ? profile : null,
+        data: profile && authUserId === profile.auth_user_id ? profile : null,
         error: null
       };
     }
@@ -1969,6 +2114,44 @@ function createMockStockItemsQuery_(items) {
     },
     then(resolve) {
       const data = items.filter((item) => filters.every((filter) => item[filter.column] === filter.value));
+      return Promise.resolve({ data, error: null }).then(resolve);
+    }
+  };
+  return query;
+}
+
+function createMockStockEntriesQuery_(entries) {
+  const filters = [];
+  const query = {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      filters.push({ column, value });
+      return this;
+    },
+    order() {
+      return this;
+    },
+    insert(payload) {
+      const entry = Object.assign({
+        id: "entry_created",
+        status: "pendente",
+        created_at: new Date().toISOString()
+      }, Array.isArray(payload) ? payload[0] : payload);
+      entries.push(entry);
+      return {
+        select() {
+          return {
+            async single() {
+              return { data: entry, error: null };
+            }
+          };
+        }
+      };
+    },
+    then(resolve) {
+      const data = entries.filter((entry) => filters.every((filter) => entry[filter.column] === filter.value));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };

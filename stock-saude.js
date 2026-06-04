@@ -126,9 +126,22 @@
       return data.item;
     },
 
-    async createEntry(entry) {
+    async listEntries(token) {
+      const data = await this.request("/api/stock-saude/entries", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.entries || [];
+    },
+
+    async createEntry(token, entry) {
       const data = await this.request("/api/stock-saude/entries", {
         method: "POST",
+        headers: {
+          Authorization: "Bearer " + token
+        },
         body: JSON.stringify(entry)
       });
       return data.entry;
@@ -686,8 +699,10 @@
   async function loadRemoteStockSaudeState() {
     const token = getStockSaudeAuthTokenOrThrow();
     const remoteItems = await StockSaudeAPI.listItems(token);
+    const remoteEntries = await StockSaudeAPI.listEntries(token);
     const remoteBalance = await StockSaudeAPI.getBalance();
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
+    stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
     stockSaudeRemoteCache.balance = remoteBalance;
     return {
       items: stockSaudeRemoteCache.items,
@@ -870,7 +885,7 @@
       return registerStockSaudeEntryRequest(formData);
     }
     try {
-      const remoteEntry = await StockSaudeAPI.createEntry(toRemoteEntryPayload(entry));
+      const remoteEntry = await StockSaudeAPI.createEntry(getStockSaudeAuthTokenOrThrow(), toRemoteEntryPayload(entry));
       const normalized = fromRemoteEntry(remoteEntry, "pendente");
       stockSaudeRemoteCache.entries.push(normalized);
       return normalized;
