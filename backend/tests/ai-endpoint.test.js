@@ -96,6 +96,13 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /\/api\/stock-saude\/me/);
   assert.match(content, /\/api\/stock-saude\/audit-log/);
   assert.match(content, /listAuditLog\(token\)/);
+  assert.match(content, /Criou item/);
+  assert.match(content, /Registrou entrada/);
+  assert.match(content, /Registrou saida/);
+  assert.match(content, /Aprovou entrada/);
+  assert.match(content, /Rejeitou entrada/);
+  assert.match(content, /activeHistoryFilter === "aprovacoes"/);
+  assert.match(content, /activeHistoryFilter === "itens"/);
   assert.match(content, /Authorization: "Bearer " \+ token/);
   assert.match(content, /mode: "supabase"/);
   assert.match(content, /mode: "local"/);
@@ -1282,8 +1289,10 @@ test("stock saude audit-log filtra escopo e ordena do mais recente", async () =>
       "created_at",
       "entity_id",
       "entity_type",
-      "profile_id"
+      "profile_id",
+      "profile_name"
     ]);
+    assert.equal(data.auditLog[0].profile_name, "Gestor Teste");
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -1298,7 +1307,7 @@ test("stock saude audit-log retorna trilha operacional feliz", async () => {
           institution_id: "inst_auth",
           unit_id: "unit_auth",
           profile_id: "profile_auth",
-          action: "reject_entry",
+          action: "create_item",
           entity_type: "stock_entries",
           entity_id: "entry_1",
           created_at: "2026-06-04T12:00:00.000Z"
@@ -1316,7 +1325,8 @@ test("stock saude audit-log retorna trilha operacional feliz", async () => {
     assert.equal(response.status, 200);
     assert.equal(data.ok, true);
     assert.deepEqual(data.auditLog[0], {
-      action: "reject_entry",
+      profile_name: "Gestor Teste",
+      action: "create_item",
       entity_type: "stock_entries",
       entity_id: "entry_1",
       profile_id: "profile_auth",

@@ -577,7 +577,15 @@ export function createApp(options = {}) {
       if (error) {
         throw error;
       }
-      response.json({ ok: true, auditLog: data || [] });
+      const auditLog = (data || []).map((log) => ({
+        profile_name: log.profile_id === session.profile.id ? session.profile.name : "",
+        action: log.action,
+        entity_type: log.entity_type,
+        entity_id: log.entity_id,
+        profile_id: log.profile_id,
+        created_at: log.created_at
+      }));
+      response.json({ ok: true, auditLog });
     } catch (error) {
       response.status(500).json({ ok: false, error: "stock_saude_audit_log_query_failed" });
     }

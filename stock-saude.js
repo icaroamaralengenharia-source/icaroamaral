@@ -742,15 +742,16 @@
 
   function fromRemoteAuditLog(log) {
     const createdAt = String(log.created_at || "");
+    const actionLabel = stockSaudeAuditActionLabel(log.action);
     return {
-      kind: "auditoria",
+      kind: stockSaudeAuditActionKind(log.action, log.entity_type),
       status: log.action || "auditoria",
       date: createdAt.slice(0, 10) || todayKey(),
       time: createdAt.slice(11, 16) || "",
       item: null,
-      responsible: log.profile_id || "Perfil",
+      responsible: log.profile_name || log.profile_id || "Perfil",
       sector: "",
-      title: stockSaudeAuditActionLabel(log.action),
+      title: actionLabel,
       text: "Entidade: " + (log.entity_type || "registro") + (log.entity_id ? " - " + log.entity_id : "")
     };
   }
@@ -1232,21 +1233,49 @@
 
   function stockSaudeAuditActionLabel(action) {
     const labels = {
-      item_created: "Item criado",
-      entry_created: "Entrada criada",
-      exit_created: "Saida criada",
-      approve_entry: "Entrada aprovada",
-      reject_entry: "Entrada rejeitada"
+      create_item: "Criou item",
+      item_created: "Criou item",
+      create_entry: "Registrou entrada",
+      entry_created: "Registrou entrada",
+      create_exit: "Registrou saida",
+      exit_created: "Registrou saida",
+      approve_entry: "Aprovou entrada",
+      reject_entry: "Rejeitou entrada"
     };
     return labels[action] || "Historico Operacional";
   }
 
+  function stockSaudeAuditActionKind(action, entityType) {
+    if (action === "create_item" || action === "item_created" || entityType === "stock_items") {
+      return "item";
+    }
+    if (action === "create_entry" || action === "entry_created") {
+      return "entrada";
+    }
+    if (action === "create_exit" || action === "exit_created" || entityType === "stock_exits") {
+      return "saida";
+    }
+    if (action === "approve_entry" || action === "reject_entry") {
+      return "aprovacao";
+    }
+    return "auditoria";
+  }
+
   function passesHistoryFilter(row) {
+    if (activeHistoryFilter === "todos") {
+      return true;
+    }
     if (activeHistoryFilter === "entradas") {
       return row.kind === "entrada";
     }
     if (activeHistoryFilter === "saidas") {
       return row.kind === "saida";
+    }
+    if (activeHistoryFilter === "aprovacoes") {
+      return row.kind === "aprovacao";
+    }
+    if (activeHistoryFilter === "itens") {
+      return row.kind === "item";
     }
     if (activeHistoryFilter === "pendentes") {
       return row.status === "pendente";
