@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ObraReport | Relatórios técnicos e diário de obras</title>
-  <meta name="description" content="ObraReport é uma plataforma para engenheiros, arquitetos, técnicos e construtoras criarem relatórios técnicos, RDOs, PDFs profissionais e registros de obra em poucos minutos.">
+  <title>ObraReport | Plataforma SaaS para engenharia, saúde, estoque e IA</title>
+  <meta name="description" content="ObraReport é uma plataforma operacional com produtos SaaS para engenharia, saúde, estoque, auditoria e IA, com implantação assistida.">
 
   <style>
     :root {
@@ -163,6 +163,48 @@
       content: "";
     }
 
+    .interaction-note {
+      margin: 12px 0 0;
+      color: rgba(226, 241, 255, 0.78);
+      font-size: 0.88rem;
+      font-weight: 750;
+      line-height: 1.4;
+    }
+
+    .hero-elo-prompt {
+      display: grid;
+      gap: 9px;
+      max-width: 520px;
+      margin: 16px 0 0;
+      padding: 13px 14px;
+      border: 1px solid rgba(88, 182, 255, 0.24);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(31, 162, 255, 0.16), transparent 55%),
+        rgba(255, 255, 255, 0.055);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .hero-elo-prompt strong {
+      color: #ffffff;
+      font-size: 0.92rem;
+      letter-spacing: -0.01em;
+    }
+
+    .hero-elo-prompt ul {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .hero-elo-prompt li {
+      color: rgba(224, 240, 255, 0.78);
+      font-size: 0.82rem;
+      line-height: 1.32;
+    }
+
     .button.light {
       color: var(--navy);
       border-color: var(--line);
@@ -193,10 +235,10 @@
     .hero {
       display: grid;
       grid-template-columns: 0.78fr 1.22fr;
-      gap: 48px;
+      gap: clamp(28px, 3.6vw, 42px);
       align-items: start;
-      min-height: 430px;
-      padding: clamp(36px, 4.6vw, 54px) clamp(28px, 4.5vw, 52px);
+      min-height: 0;
+      padding: clamp(28px, 3.8vw, 44px) clamp(24px, 4vw, 46px);
       overflow: hidden;
       background:
         radial-gradient(circle at 18% 78%, rgba(71, 70, 190, 0.22), transparent 30%),
@@ -225,7 +267,7 @@
 
     h1 {
       max-width: 780px;
-      font-size: clamp(2.4rem, 4.6vw, 4.05rem);
+      font-size: clamp(2.12rem, 3.95vw, 3.5rem);
     }
 
     .hero h1 {
@@ -240,10 +282,10 @@
 
     .hero-text {
       max-width: 560px;
-      margin: 18px 0 0;
+      margin: 14px 0 0;
       color: rgba(235, 245, 255, 0.78);
       font-size: clamp(0.98rem, 1.2vw, 1.02rem);
-      line-height: 1.65;
+      line-height: 1.52;
     }
 
     .hero .eyebrow {
@@ -299,9 +341,9 @@
     .hero-compact-benefits,
     .home-benefits {
       display: grid;
-      gap: 12px;
+      gap: 10px;
       max-width: 520px;
-      margin: 24px 0 0;
+      margin: 18px 0 0;
       padding: 0;
       list-style: none;
     }
@@ -646,26 +688,203 @@
       max-width: none;
       margin: 0;
       color: #ffffff;
-      font-size: clamp(1.8rem, 3vw, 2.8rem);
-      line-height: 1.05;
+      font-size: clamp(1.62rem, 2.65vw, 2.48rem);
+      line-height: 1.04;
       letter-spacing: -0.045em;
     }
 
     .ecosystem-heading p {
-      margin: 8px 0 0;
+      margin: 6px 0 0;
       color: transparent;
       background: linear-gradient(90deg, #1fa2ff, #55a8ff, #9b66ff);
       -webkit-background-clip: text;
       background-clip: text;
-      font-size: clamp(1.4rem, 2.4vw, 2.2rem);
+      font-size: clamp(1.14rem, 2vw, 1.92rem);
       font-weight: 900;
-      line-height: 1.08;
+      line-height: 1.1;
       letter-spacing: -0.04em;
     }
 
     .ecosystem-flow {
       display: grid;
       gap: 12px;
+    }
+
+    .elo-feature-card {
+      grid-template-columns: 72px 1fr;
+      min-height: 230px;
+      padding: 22px 24px;
+      align-items: start;
+      border: 1px solid rgba(56, 189, 248, 0.78);
+      background:
+        radial-gradient(circle at 18% 10%, rgba(31, 162, 255, 0.28), transparent 42%),
+        radial-gradient(circle at 88% 4%, rgba(85, 168, 255, 0.18), transparent 34%),
+        linear-gradient(135deg, rgba(5, 18, 38, 0.98), rgba(2, 8, 22, 0.98));
+      box-shadow:
+        0 0 0 1px rgba(56, 189, 248, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 12px 32px rgba(37, 99, 235, 0.18),
+        0 28px 76px rgba(0, 0, 0, 0.26);
+    }
+
+    .elo-feature-card .ecosystem-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #0d8cff, #55a8ff 52%, #6b57ff);
+      box-shadow: 0 0 0 8px rgba(85, 168, 255, 0.1), 0 24px 60px rgba(13, 140, 255, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      font-size: 1.72rem;
+    }
+
+    .elo-feature-card .ecosystem-copy h3 {
+      color: #ffffff;
+      font-size: 1.45rem;
+    }
+
+    .elo-feature-card .ecosystem-copy p {
+      color: rgba(238, 246, 255, 0.82);
+      font-size: 0.98rem;
+    }
+
+    .elo-feature-subtext {
+      display: block;
+      margin-top: 7px;
+      color: rgba(196, 224, 255, 0.74);
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .elo-feature-microtext {
+      display: block;
+      margin-top: 8px;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 0.78rem;
+      font-weight: 800;
+      line-height: 1.38;
+    }
+
+    .commercial-actions .elo-primary-action {
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid rgba(170, 210, 255, 0.5);
+      border-radius: 11px;
+      background: linear-gradient(135deg, #0d8cff, #3562d8 54%, #6b57ff);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 18px 46px rgba(13, 140, 255, 0.26);
+      font-size: 0.92rem;
+    }
+
+    .connected-apps-title {
+      margin: 5px 0 0;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .floating-contact {
+      position: fixed;
+      right: clamp(16px, 2.3vw, 28px);
+      bottom: clamp(16px, 2.3vw, 28px);
+      z-index: 30;
+      display: grid;
+      justify-items: end;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .floating-contact a {
+      pointer-events: auto;
+    }
+
+    .floating-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(14px);
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .floating-action:hover {
+      transform: translateY(-2px);
+    }
+
+    .floating-icon {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      font-size: 0.98rem;
+      font-weight: 950;
+    }
+
+    .floating-label-short {
+      display: none;
+    }
+
+    .floating-elo {
+      min-width: 176px;
+      padding: 0 18px 0 11px;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.22), transparent 34%),
+        linear-gradient(135deg, rgba(13, 140, 255, 0.95), rgba(58, 84, 210, 0.95) 52%, rgba(107, 87, 255, 0.92));
+      box-shadow: 0 18px 52px rgba(13, 140, 255, 0.34), 0 20px 58px rgba(0, 0, 0, 0.26);
+      animation: floatingEloGlow 4.8s ease-in-out infinite;
+    }
+
+    .floating-elo .floating-icon {
+      color: #ffffff;
+      background: rgba(3, 18, 42, 0.36);
+    }
+
+    .floating-whatsapp {
+      min-width: 132px;
+      min-height: 42px;
+      padding: 0 15px 0 9px;
+      background: rgba(16, 133, 86, 0.92);
+      box-shadow: 0 14px 38px rgba(16, 133, 86, 0.24), 0 16px 44px rgba(0, 0, 0, 0.22);
+      animation: floatingWhatsPulse 5.4s ease-in-out infinite;
+    }
+
+    .floating-whatsapp .floating-icon {
+      width: 26px;
+      height: 26px;
+      background: rgba(255, 255, 255, 0.18);
+      font-size: 0.9rem;
+    }
+
+    @keyframes floatingEloGlow {
+      0%, 100% {
+        transform: translateY(0);
+        box-shadow: 0 18px 52px rgba(13, 140, 255, 0.28), 0 20px 58px rgba(0, 0, 0, 0.26);
+      }
+      50% {
+        transform: translateY(-4px);
+        box-shadow: 0 24px 64px rgba(107, 87, 255, 0.34), 0 24px 66px rgba(0, 0, 0, 0.28);
+      }
+    }
+
+    @keyframes floatingWhatsPulse {
+      0%, 100% {
+        transform: scale(1);
+        border-color: rgba(255, 255, 255, 0.16);
+      }
+      50% {
+        transform: scale(1.025);
+        border-color: rgba(180, 255, 218, 0.42);
+      }
     }
 
     .commercial-products {
@@ -705,6 +924,14 @@
         linear-gradient(135deg, rgba(8, 28, 54, 0.82), rgba(5, 14, 30, 0.9));
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 58px rgba(0, 0, 0, 0.22);
       overflow: hidden;
+    }
+
+    .ecosystem-block.elo-feature-card {
+      border: 1px solid rgba(24, 133, 255, 0.72);
+      background:
+        radial-gradient(circle at 18% 10%, rgba(24, 133, 255, 0.35), transparent 38%),
+        linear-gradient(135deg, rgba(8, 28, 54, 0.82), rgba(5, 14, 30, 0.9));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 58px rgba(0, 0, 0, 0.22);
     }
 
     .ecosystem-blue {
@@ -2132,6 +2359,11 @@
         grid-template-columns: 52px 1fr;
       }
 
+      .elo-feature-card {
+        grid-template-columns: 64px 1fr;
+        min-height: 0;
+      }
+
       .ecosystem-visual {
         grid-column: 1 / -1;
       }
@@ -2218,6 +2450,36 @@
         font-size: 0.86rem;
       }
 
+      .floating-contact {
+        right: 12px;
+        bottom: 12px;
+        gap: 8px;
+      }
+
+      .floating-action {
+        min-height: 42px;
+        gap: 7px;
+      }
+
+      .floating-elo {
+        min-width: 74px;
+        padding: 0 12px 0 8px;
+      }
+
+      .floating-whatsapp {
+        min-width: 64px;
+        min-height: 38px;
+        padding: 0 10px 0 7px;
+      }
+
+      .floating-label-full {
+        display: none;
+      }
+
+      .floating-label-short {
+        display: inline;
+      }
+
       .hero,
       .section,
       .final-cta {
@@ -2229,18 +2491,32 @@
         padding: 18px;
       }
 
+      .elo-feature-card {
+        grid-template-columns: 1fr;
+        padding: 18px;
+      }
+
+      .elo-feature-card .ecosystem-icon {
+        width: 58px;
+        height: 58px;
+      }
+
       .brand {
         min-height: 36px;
       }
 
       h1 {
-        font-size: 1.85rem;
-        line-height: 1.04;
+        font-size: 1.68rem;
+        line-height: 1.05;
       }
 
       .hero-text {
         font-size: 0.92rem;
         line-height: 1.42;
+      }
+
+      .interaction-note {
+        font-size: 0.82rem;
       }
 
       .hero-actions,
@@ -2346,7 +2622,7 @@
     <header class="topbar">
       <div class="brand">
         <strong>ObraReport</strong>
-        <span>Sistema de gestão técnica de obras</span>
+        <span>Plataforma SaaS para operações reais</span>
       </div>
       <nav class="top-actions" aria-label="Ações principais">
         <a class="button primary account-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar sua conta</a>
@@ -2355,38 +2631,64 @@
 
     <section class="hero">
       <div>
-        <p class="eyebrow">Plataforma de gestão técnica de obras</p>
-        <h1>Controle relatórios, diários de obra e materiais em uma <span class="gradient-text">única plataforma.</span></h1>
+        <p class="eyebrow">Plataforma operacional SaaS</p>
+        <h1>Produtos SaaS para engenharia, saúde, estoque e IA em uma <span class="gradient-text">única plataforma.</span></h1>
         <p class="hero-text">
-          Do campo ao cliente: registre fotos, RDO, materiais, estoque, auditoria e gere PDFs profissionais com uma rotina clara para engenheiros, construtoras e equipes de obra.
+          Do campo à operação: organize relatórios, RDO, materiais, estoque, auditoria, exportações e assistência inteligente com implantação assistida.
         </p>
         <ul class="home-benefits" aria-label="Recursos principais">
-          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Relat&oacute;rios t&eacute;cnicos e Di&aacute;rios de Obras com controle de materiais, lan&ccedil;amento de medi&ccedil;&atilde;o, revis&atilde;o r&aacute;pida com o aux&iacute;lio do Elo e auditoria com um clique.</span></li>
-          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Stock AI Obras: controle total da produ&ccedil;&atilde;o e da utiliza&ccedil;&atilde;o de materiais na palma da m&atilde;o. Se tiver d&uacute;vidas, fa&ccedil;a uma auditoria e obtenha respostas em segundos.</span></li>
-          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Stock AI Full: ideal para prefeituras, grandes lojas e institui&ccedil;&otilde;es. Saiba quem retirou o produto, hor&aacute;rio, setor, materiais com estoque baixo, vencimentos pr&oacute;ximos e audite tudo com poucos cliques.</span></li>
-          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Elo Especialista com mem&oacute;ria, contexto e intelig&ecirc;ncia operacional.</span></li>
+          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>ObraReport: relatórios técnicos, Diários de Obras, fotos, medições, PDF profissional e auditoria para rotina real de engenharia.</span></li>
+          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Stock Saúde v1.0: login, perfis, convites, aprovações, dashboard, histórico, auditoria, PDF gerencial e Excel/CSV.</span></li>
+          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Stock AI Obras: controle de materiais, consumo previsto x real, desvios, saldos e apoio operacional para equipes de obra.</span></li>
+          <li class="home-benefit"><span class="home-benefit-icon">✓</span><span>Elo Especialista com memória, contexto e inteligência operacional conectando os produtos da plataforma.</span></li>
         </ul>
+        <div class="hero-elo-prompt" aria-label="Exemplos de perguntas para o ELO">
+          <strong>Pergunte ao ELO</strong>
+          <ul>
+            <li>&ldquo;Quais relat&oacute;rios est&atilde;o pendentes?&rdquo;</li>
+            <li>&ldquo;Quais materiais est&atilde;o acabando?&rdquo;</li>
+            <li>&ldquo;Existe algo cr&iacute;tico para auditar hoje?&rdquo;</li>
+          </ul>
+        </div>
         <div class="hero-actions">
           <a class="button primary account-button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar sua conta</a>
         </div>
+        <p class="interaction-note">D&uacute;vidas? Pergunte ao ELO ou fale com nossa equipe.</p>
       </div>
 
-      <aside class="ecosystem-panel" aria-label="Fase Comercial ObraReport">
+      <aside class="ecosystem-panel" aria-label="Intelig&ecirc;ncia para opera&ccedil;&otilde;es reais">
         <div class="ecosystem-heading">
-          <h2>Fase Comercial</h2>
-          <p>Produtos prontos para demonstra&ccedil;&atilde;o, valida&ccedil;&atilde;o com clientes e primeiros contratos.</p>
+          <h2>Intelig&ecirc;ncia para opera&ccedil;&otilde;es reais</h2>
+          <p>Ferramentas desenvolvidas para engenharia, sa&uacute;de, almoxarifados, institui&ccedil;&otilde;es e equipes operacionais.</p>
         </div>
 
         <div class="ecosystem-flow">
+          <article class="ecosystem-block elo-feature-card">
+            <div class="ecosystem-icon">E</div>
+            <div class="ecosystem-copy">
+              <span class="commercial-label">C&eacute;rebro da plataforma</span>
+              <h3>ELO Especialista</h3>
+              <p>A intelig&ecirc;ncia que conecta relat&oacute;rios, estoque, auditoria, documentos e opera&ccedil;&atilde;o.</p>
+              <span class="elo-feature-subtext">Converse com seus relat&oacute;rios, materiais, obras e institui&ccedil;&otilde;es em linguagem natural.</span>
+              <span class="elo-feature-microtext">Pergunte antes de clicar: relat&oacute;rios, estoque, auditorias e opera&ccedil;&atilde;o.</span>
+              <div class="commercial-actions">
+                <a class="button primary elo-primary-action" href="elo.html">Conversar com o ELO</a>
+                <a class="button secondary" href="#produtos">Ver ecossistema</a>
+              </div>
+            </div>
+          </article>
+
+          <h3 class="connected-apps-title" id="produtos">Aplica&ccedil;&otilde;es conectadas ao ELO</h3>
+
           <article class="ecosystem-block commercial-card ecosystem-blue">
             <div class="ecosystem-icon">&nearr;</div>
             <div class="ecosystem-copy">
-              <span class="commercial-label">Produto principal de engenharia</span>
+              <span class="commercial-label">Produto funcional de engenharia</span>
               <h3>ObraReport 2.0</h3>
               <p>Relat&oacute;rios t&eacute;cnicos, inspe&ccedil;&otilde;es, RDO, fotos, medi&ccedil;&otilde;es, auditoria e PDF autom&aacute;tico em um s&oacute; fluxo.</p>
               <div class="commercial-actions">
-                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Testar ObraReport</a>
-                <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Ver demonstra&ccedil;&atilde;o</a>
+                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Acessar ObraReport</a>
+                <a class="button secondary" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20assistida%20do%20ObraReport." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
               </div>
             </div>
           </article>
@@ -2400,7 +2702,7 @@
               <h3>Stock AI Obras</h3>
               <p>Controle de materiais, consumo previsto x real, auditoria de desvios e apoio &agrave; gest&atilde;o da obra em tempo real.</p>
               <div class="commercial-actions">
-                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Testar Stock AI Obras</a>
+                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Acessar Stock AI Obras</a>
                 <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Ver fluxo de materiais</a>
               </div>
             </div>
@@ -2409,8 +2711,8 @@
           <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #16bc78, #0c684f); --arrow-glow: rgba(22, 190, 120, 0.42);">↓</div>
 
           <div class="ecosystem-expansion-intro">
-            <h3>Ecossistema em expans&atilde;o</h3>
-            <p>Outros m&oacute;dulos seguem integrados ao ecossistema e ser&atilde;o expandidos conforme valida&ccedil;&atilde;o comercial.</p>
+            <h3>Ecossistema operacional</h3>
+            <p>M&oacute;dulos conectados para obras, almoxarifados, institui&ccedil;&otilde;es e equipes que precisam de rastreabilidade.</p>
           </div>
 
           <a class="expansion-card" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/almoxarifado">
@@ -2423,17 +2725,18 @@
           <article class="ecosystem-block commercial-card ecosystem-health">
             <div class="ecosystem-icon">&#10010;</div>
             <div class="ecosystem-copy">
-              <span class="commercial-label">Gest&atilde;o inteligente de insumos e medicamentos para sa&uacute;de p&uacute;blica e privada</span>
-              <h3>Stock Sa&uacute;de</h3>
-              <p>Medicamentos, lotes, validade, setores, respons&aacute;veis e aprova&ccedil;&atilde;o do gestor com hist&oacute;rico audit&aacute;vel.</p>
+              <span class="commercial-label">SaaS funcional v1.0 para sa&uacute;de</span>
+              <h3>Stock Sa&uacute;de v1.0</h3>
+              <p>Sistema SaaS para controle audit&aacute;vel de medicamentos, materiais e insumos em institui&ccedil;&otilde;es de sa&uacute;de, com login, perfis, convites, aprova&ccedil;&otilde;es, hist&oacute;rico, dashboard, auditoria e exporta&ccedil;&atilde;o de relat&oacute;rios.</p>
+              <span class="elo-feature-subtext">Login e perfis de acesso · Convites e aceite de usu&aacute;rios · Dashboard operacional · Aprova&ccedil;&otilde;es protegidas · Hist&oacute;rico audit&aacute;vel · PDF gerencial · Excel/CSV</span>
               <div class="commercial-actions">
-                <a class="button primary" href="stock-saude.html">Testar Stock Sa&uacute;de</a>
-                <a class="button secondary" href="stock-saude.html">Ver aprova&ccedil;&atilde;o do gestor</a>
+                <a class="button primary" href="stock-saude.html">Acessar Stock Sa&uacute;de</a>
+                <a class="button secondary" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20do%20Stock%20Saude%20v1.0." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
               </div>
             </div>
           </article>
 
-          <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #0b6f91, #2bbf8f); --arrow-glow: rgba(43, 191, 143, 0.3);">â†“</div>
+          <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #0b6f91, #2bbf8f); --arrow-glow: rgba(43, 191, 143, 0.3);">↓</div>
 
           <a class="expansion-card" href="/elo.html">
             <strong>Elo Especialista</strong>
@@ -2446,11 +2749,11 @@
     <section class="elo-home-band" aria-labelledby="elo-home-title">
       <span class="elo-home-mark" aria-hidden="true"></span>
       <div class="elo-home-title">
-        <small>Memória local</small>
-        <strong id="elo-home-title">Elo Assistente</strong>
+        <small>Camada inteligente</small>
+        <strong id="elo-home-title">Elo Especialista</strong>
       </div>
-      <p>Ajuda integrada com memória local, biblioteca, projetos e objetivos para orientar o uso do sistema.</p>
-      <a class="button primary" href="/elo.html">Conversar com Elo</a>
+      <p>Assistente inteligente com memória, contexto e apoio operacional aos produtos da plataforma.</p>
+      <a class="button primary" href="/elo.html">Conversar com o Elo</a>
       <a class="button secondary" href="/sobreoelo.html">Conhecer o Elo</a>
     </section>
 
@@ -2479,7 +2782,7 @@
         <article><strong>Diário de Obras/RDO</strong><span>Clima, equipe, serviços, ocorrências, segurança, produção e histórico diário de campo.</span></article>
         <article class="stock-feature-card"><strong>Stock AI Almoxarifado</strong><span>Entradas, saídas, XML de nota, responsáveis, setores, alertas, aprovação e auditoria.</span></article>
         <article class="stock-feature-card"><strong>Stock AI Obras</strong><span>Controle de materiais por obra, consumo executado, saldo real, lista de compras e desperdício.</span></article>
-        <article><strong>Elo Assistente</strong><span>Ajuda local para orientar o usuário sobre relatórios, RDO, materiais, planos e biblioteca.</span></article>
+        <article><strong>Elo Especialista</strong><span>Assistente inteligente com memória, contexto e apoio operacional aos produtos da plataforma.</span></article>
         <article><strong>PDF e entrega ao cliente</strong><span>Documentos limpos, técnicos, revisáveis e prontos para encaminhar ao cliente ou gestor.</span></article>
       </div>
     </section>
@@ -2498,7 +2801,7 @@
           <li>Integração com RDO</li>
         </ul>
         <div class="guided-actions" style="margin-top: 18px;">
-          <button class="button stock-cta" type="button" data-stock-demo="obras">Simular consumo agora</button>
+          <button class="button stock-cta" type="button" data-stock-demo="obras">Analisar consumo agora</button>
           <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Abrir Stock IA</a>
         </div>
       </div>
@@ -2551,36 +2854,36 @@
 
     <section class="section guided-demo" aria-labelledby="guided-demo-title">
       <div>
-        <p class="eyebrow">Demonstra&ccedil;&atilde;o guiada</p>
-        <h2 id="guided-demo-title">Teste em 2 minutos: Obra Exemplo &rarr; RDO &rarr; Materiais &rarr; PDF &rarr; WhatsApp.</h2>
-        <p>Um caminho direto para entender o valor do ObraReport sem configurar nada antes. A ideia &eacute; ver o fluxo completo, do registro em campo at&eacute; o documento e o contato comercial.</p>
+        <p class="eyebrow">Explora&ccedil;&atilde;o guiada</p>
+        <h2 id="guided-demo-title">Conhe&ccedil;a o fluxo: Obra Exemplo &rarr; RDO &rarr; Materiais &rarr; PDF &rarr; Implanta&ccedil;&atilde;o.</h2>
+        <p>Um caminho direto para visualizar o valor do ObraReport antes da implanta&ccedil;&atilde;o assistida. A experi&ecirc;ncia mostra o fluxo completo, do registro em campo at&eacute; a entrega t&eacute;cnica.</p>
       </div>
       <div class="guided-flow" aria-label="Fluxo de teste em 2 minutos">
-        <article class="guided-step"><span>1</span><strong>Carregue a Obra Exemplo</strong><small>Abra uma demonstra&ccedil;&atilde;o pronta com dados t&eacute;cnicos.</small></article>
+        <article class="guided-step"><span>1</span><strong>Carregue a Obra Exemplo</strong><small>Abra um ambiente guiado com dados t&eacute;cnicos.</small></article>
         <article class="guided-step"><span>2</span><strong>Abra o RDO</strong><small>Veja clima, equipe, servi&ccedil;os, ocorr&ecirc;ncias e seguran&ccedil;a.</small></article>
         <article class="guided-step"><span>3</span><strong>Revise Materiais</strong><small>Confira consumo, produ&ccedil;&atilde;o executada e auditoria.</small></article>
         <article class="guided-step"><span>4</span><strong>Gere o PDF</strong><small>Veja o documento profissional que pode ser entregue ao cliente.</small></article>
         <article class="guided-step"><span>5</span><strong>Chame no WhatsApp</strong><small>Solicite implanta&ccedil;&atilde;o assistida para sua obra real.</small></article>
       </div>
       <div class="guided-actions">
-        <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Testar demonstra&ccedil;&atilde;o guiada</a>
-        <a class="button secondary" href="https://wa.me/?text=Ola.%20Quero%20testar%20a%20demonstracao%20guiada%20do%20ObraReport%20e%20entender%20a%20implantacao%20assistida." target="_blank" rel="noopener">Falar no WhatsApp</a>
+        <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Acessar fluxo guiado</a>
+        <a class="button secondary" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20assistida%20do%20ObraReport." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
       </div>
     </section>
 
     <section class="section elo-commercial" aria-labelledby="elo-title">
       <div>
-        <p class="eyebrow">Elo Assistente</p>
-        <h2 id="elo-title">Assistente local para ajudar no uso do sistema.</h2>
-        <p>O Elo orienta o usuário dentro do ObraReport, responde dúvidas sobre PDF, RDO, fotos, materiais e planos, e guarda memórias locais apenas neste navegador.</p>
+        <p class="eyebrow">Elo Especialista</p>
+        <h2 id="elo-title">Assistente inteligente para operações conectadas.</h2>
+        <p>O Elo apoia o usuário nos produtos da plataforma, responde dúvidas sobre relatórios, estoque, auditoria, documentos e operação, com memória e contexto.</p>
         <ul class="elo-points">
-          <li>Ajuda rápida para quem está começando a usar o sistema.</li>
-          <li>Biblioteca local para salvar respostas, checklists e procedimentos.</li>
-          <li>Sem envio de dados para servidor e sem integração externa nesta fase.</li>
+          <li>Apoio rápido para relatórios, RDO, materiais, estoque e auditoria.</li>
+          <li>Memória e contexto para orientar decisões operacionais.</li>
+          <li>Camada inteligente conectada ao ecossistema ObraReport, Stock AI e Stock Saúde.</li>
         </ul>
       </div>
       <div class="elo-preview" aria-label="Exemplo do Elo Assistente no ObraReport">
-        <header><strong>Elo — Assistente ObraReport</strong><span>Local</span></header>
+        <header><strong>Elo - Assistente Operacional</strong><span>Contexto</span></header>
         <div class="elo-chat">
           <p>Olá, eu sou o Elo. Posso ajudar com relatórios, PDF, RDO, fotos, materiais e planos.</p>
           <p>Como gerar PDF?</p>
@@ -2664,7 +2967,7 @@
       <p class="eyebrow">Planos</p>
       <h2 id="plans-title">Comece simples e evolua quando a rotina pedir mais controle.</h2>
       <div class="plans">
-        <article><strong>Gratuito</strong><span>Para testar o fluxo e criar os primeiros registros.</span></article>
+        <article><strong>Entrada</strong><span>Para conhecer o fluxo e organizar os primeiros registros.</span></article>
         <article class="featured"><strong>Profissional</strong><span>Para rotina real de campo, relatórios e RDOs comerciais.</span></article>
         <article>
           <strong>Empresa</strong>
@@ -2682,9 +2985,9 @@
 
     <section class="section pilot-offer" aria-labelledby="pilot-title">
       <div>
-        <p class="eyebrow">Piloto pago</p>
-        <h2 id="pilot-title">Comece com implanta&ccedil;&atilde;o assistida por R$49/m&ecirc;s.</h2>
-        <p>Oferta simples para validar o ObraReport em obra real, com acompanhamento direto e sem checkout autom&aacute;tico nesta fase.</p>
+        <p class="eyebrow">Implanta&ccedil;&atilde;o assistida</p>
+        <h2 id="pilot-title">Comece com acompanhamento direto e ativa&ccedil;&atilde;o orientada.</h2>
+        <p>Plano inicial para colocar a plataforma em opera&ccedil;&atilde;o com suporte pr&oacute;ximo, configura&ccedil;&atilde;o guiada e primeira rotina acompanhada.</p>
       </div>
       <div class="pilot-card">
         <strong>R$49/m&ecirc;s</strong>
@@ -2694,7 +2997,7 @@
           <li>Configuramos sua primeira obra e primeiro relat&oacute;rio</li>
           <li>Pagamento e ativa&ccedil;&atilde;o feitos de forma assistida</li>
         </ul>
-        <a class="button primary" href="https://wa.me/?text=Ola.%20Quero%20participar%20do%20piloto%20pago%20do%20ObraReport%20por%20R%2449%2Fmes%20com%20implantacao%20assistida." target="_blank" rel="noopener">Quero entrar no piloto</a>
+        <a class="button primary" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20assistida%20do%20ObraReport." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
       </div>
     </section>
 
@@ -2702,7 +3005,7 @@
       <div>
         <p class="eyebrow">Como contratar</p>
         <h2 id="contracting-title">Contratação assistida, simples e orientada.</h2>
-        <p class="trust-note">Ativação assistida nesta fase inicial para garantir implantação correta e suporte próximo.</p>
+        <p class="trust-note">Ativação assistida para garantir implantação correta, suporte próximo e uso consistente desde o primeiro acesso.</p>
       </div>
       <ol class="contracting-flow">
         <li>1. Escolha o plano.</li>
@@ -2738,18 +3041,32 @@
     </footer>
   </main>
 
+  <nav class="floating-contact" aria-label="Atendimento r&aacute;pido">
+    <a class="floating-action floating-elo" href="elo.html" aria-label="Pergunte ao ELO sobre relat&oacute;rios, estoque e opera&ccedil;&atilde;o." title="Pergunte ao ELO sobre relat&oacute;rios, estoque e opera&ccedil;&atilde;o.">
+      <span class="floating-icon" aria-hidden="true">E</span>
+      <span class="floating-label-full">Pergunte ao ELO</span>
+      <span class="floating-label-short">ELO</span>
+    </a>
+    <!-- TODO: substituir pelo link oficial do WhatsApp. -->
+    <a class="floating-action floating-whatsapp" href="#" aria-label="Falar com um especialista." title="Falar com um especialista.">
+      <span class="floating-icon" aria-hidden="true">W</span>
+      <span class="floating-label-full">WhatsApp</span>
+      <span class="floating-label-short">Zap</span>
+    </a>
+  </nav>
+
   <div class="stock-modal-backdrop" data-stock-modal aria-hidden="true">
     <section class="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
       <header>
         <div>
-          <p class="eyebrow">Simulação rápida</p>
+          <p class="eyebrow">Prévia operacional</p>
           <h2 id="stock-modal-title">Estoque Inteligente</h2>
-          <p>Preencha um exemplo de serviço executado e material utilizado. Esta simulação é comercial e não altera dados reais do sistema.</p>
+          <p>Preencha um exemplo de serviço executado e material utilizado para visualizar a lógica operacional do Stock AI.</p>
           <p class="stock-demo-warning">
-            Demonstração rápida. Para salvar no estoque real, acesse o sistema e registre o material no Stock IA.
+            Para registrar no estoque real, acesse o sistema e lance o material no Stock IA.
           </p>
         </div>
-        <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simulação">×</button>
+        <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar prévia">×</button>
       </header>
 
       <form class="stock-simulation-form" data-stock-form>
@@ -2779,17 +3096,17 @@
         </label>
         <label class="stock-form-full">
           Observação opcional
-          <textarea name="note" placeholder="Ex.: consumo lançado para demonstração"></textarea>
+          <textarea name="note" placeholder="Ex.: consumo informado para análise"></textarea>
         </label>
         <div class="stock-form-full guided-actions">
-          <button class="button stock-cta" type="submit">Simular consumo</button>
+          <button class="button stock-cta" type="submit">Analisar consumo</button>
           <button class="button primary" type="button" data-stock-use-example>Usar exemplo no Stock IA</button>
           <button class="button light" type="button" data-stock-close>Fechar</button>
         </div>
       </form>
 
       <div class="stock-simulation-result" data-stock-result aria-live="polite">
-        <strong>Resultado da simulação</strong>
+        <strong>Resultado da prévia</strong>
         <ul>
           <li>Produção registrada</li>
           <li>Consumo registrado</li>
@@ -2938,7 +3255,7 @@
 
       const renderStockObrasHistory = () => {
         if (!stockObrasDemoState.history.length) {
-          return "<li>Nenhuma baixa registrada nesta demonstra&ccedil;&atilde;o.</li>";
+          return "<li>Nenhuma baixa registrada nesta pr&eacute;via operacional.</li>";
         }
 
         return stockObrasDemoState.history.slice(-4).reverse().map((entry) => `
@@ -3121,9 +3438,9 @@
               <p class="eyebrow">Stock Obras</p>
               <h2 id="stock-modal-title">Stock Obras &mdash; Produ&ccedil;&atilde;o, desperd&iacute;cio e auditoria</h2>
               <p>Controle materiais de constru&ccedil;&atilde;o a partir do servi&ccedil;o executado, comparando previsto, real e diferen&ccedil;a.</p>
-              <p class="stock-demo-warning">Demonstra&ccedil;&atilde;o da landing. Esta simula&ccedil;&atilde;o n&atilde;o persiste dados e n&atilde;o altera o Stock IA real.</p>
+              <p class="stock-demo-warning">Pr&eacute;via operacional da landing. Para registrar dados reais, acesse o Stock IA no sistema.</p>
             </div>
-            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simula&ccedil;&atilde;o">&times;</button>
+            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar pr&eacute;via">&times;</button>
           </header>
           <section class="stock-demo-section">
             <h3>Estoque inicial da obra</h3>
@@ -3174,7 +3491,7 @@
           </section>
           <div class="stock-simulation-result ${resultMarkup ? "is-visible" : ""}" data-stock-result aria-live="polite">${resultMarkup}</div>
           <section class="stock-demo-section">
-            <h3>Hist&oacute;rico demonstrativo</h3>
+            <h3>Hist&oacute;rico operacional</h3>
             <ul class="stock-demo-history">${renderStockObrasHistory()}</ul>
           </section>
         `;
@@ -3269,7 +3586,7 @@
             <li>Estoque antes/depois: ${afterLines.join("; ")}</li>
             <li class="stock-demo-alert">${alertLines.length ? alertLines.join(" ") : "Nenhum item ficou abaixo do estoque m&iacute;nimo."}</li>
             ${audit.consumption.note ? `<li>${audit.consumption.note}</li>` : ""}
-            <li>Hist&oacute;rico da auditoria: produ&ccedil;&atilde;o, previsto, real, diferen&ccedil;a e estoque final registrados nesta demonstra&ccedil;&atilde;o.</li>
+            <li>Hist&oacute;rico da auditoria: produ&ccedil;&atilde;o, previsto, real, diferen&ccedil;a e estoque final registrados nesta pr&eacute;via operacional.</li>
           </ul>
           <p><strong>Agora o gestor n&atilde;o v&ecirc; apenas quanto foi executado. Ele v&ecirc; se o consumo est&aacute; coerente com a produ&ccedil;&atilde;o.</strong></p>
         `;
@@ -3296,7 +3613,7 @@
               <p>Controle simples de materiais, retiradas, respons&aacute;veis, setores, data/hora, estoque m&iacute;nimo e alertas.</p>
               <p class="stock-demo-warning">Esta &eacute; uma vitrine da landing. O m&oacute;dulo real continua dentro do sistema, ap&oacute;s login, em Stock IA &gt; Almoxarifado.</p>
             </div>
-            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar simula&ccedil;&atilde;o">&times;</button>
+            <button class="button light stock-modal-close" type="button" data-stock-close aria-label="Fechar pr&eacute;via">&times;</button>
           </header>
           <div class="stock-demo-grid">
             <article class="stock-demo-card"><strong>Cadastro de material</strong><span>M&aacute;scaras descart&aacute;veis | 500 un | m&iacute;nimo 80 un</span></article>
@@ -3307,7 +3624,7 @@
             <article class="stock-demo-card"><strong>Alerta ao gestor</strong><span>O gestor acompanha em tempo real e recebe alertas quando algum item atinge o estoque m&iacute;nimo.</span></article>
           </div>
           <div class="stock-simulation-result is-visible" aria-live="polite">
-            <strong>Fluxo demonstrado</strong>
+            <strong>Fluxo operacional</strong>
             <ul>
               <li>Item: M&aacute;scaras descart&aacute;veis</li>
               <li>Estoque inicial: 500 un | Estoque m&iacute;nimo: 80 un</li>
