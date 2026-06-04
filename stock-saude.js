@@ -184,13 +184,12 @@
       return data.exit;
     },
 
-    async getBalance() {
-      const params = new URLSearchParams({
-        institution_id: getStockSaudeInstitutionId(),
-        unit_id: getStockSaudeUnitId()
-      });
-      const data = await this.request("/api/stock-saude/balance?" + params.toString(), {
-        method: "GET"
+    async getBalance(token) {
+      const data = await this.request("/api/stock-saude/balance", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
       });
       return data.balance || [];
     }
@@ -606,6 +605,9 @@
     if (error && error.payload && error.payload.error === "stock_saude_database_not_configured") {
       return "Banco real indisponivel. Continuando em demonstracao local.";
     }
+    if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
+      return "Item fora do escopo do seu perfil. Verifique instituicao e unidade.";
+    }
     return "Nao foi possivel concluir no banco real. Voce pode continuar usando a demonstracao local.";
   }
 
@@ -714,7 +716,7 @@
     const remoteItems = await StockSaudeAPI.listItems(token);
     const remoteEntries = await StockSaudeAPI.listEntries(token);
     const remoteExits = await StockSaudeAPI.listExits(token);
-    const remoteBalance = await StockSaudeAPI.getBalance();
+    const remoteBalance = await StockSaudeAPI.getBalance(token);
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
     stockSaudeRemoteCache.exits = remoteExits.map(fromRemoteExit);
@@ -905,6 +907,10 @@
       stockSaudeRemoteCache.entries.push(normalized);
       return normalized;
     } catch (error) {
+      if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
+        setMessage(stockSaudeRemoteErrorMessage(error));
+        return null;
+      }
       setRuntimeMode("local");
       setMessage(stockSaudeRemoteErrorMessage(error));
       return registerStockSaudeEntryRequest(formData);
@@ -990,6 +996,12 @@
         return {
           ok: false,
           message: "Saldo insuficiente no banco real. Disponivel: " + formatNumber(error.payload.available_quantity) + "."
+        };
+      }
+      if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
+        return {
+          ok: false,
+          message: stockSaudeRemoteErrorMessage(error)
         };
       }
       setRuntimeMode("local");
@@ -1231,10 +1243,12 @@
     if (elements.entryForm) {
       elements.entryForm.addEventListener("submit", async function (event) {
         event.preventDefault();
-        await registerStockSaudeEntryRequestHybrid(new FormData(elements.entryForm));
-        elements.entryForm.reset();
-        resetFormDateTime(elements.entryForm);
-        setMessage("Entrada enviada para aprovacao. Ela ainda nao soma no estoque.");
+        const entry = await registerStockSaudeEntryRequestHybrid(new FormData(elements.entryForm));
+        if (entry) {
+          elements.entryForm.reset();
+          resetFormDateTime(elements.entryForm);
+          setMessage("Entrada enviada para aprovacao. Ela ainda nao soma no estoque.");
+        }
         await renderAll();
       });
     }
