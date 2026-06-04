@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Sa&uacute;de IA | Sistema funcional</title>
+  <meta name="description" content="Sistema funcional do Stock Sa&uacute;de IA para cadastro, entrada pendente, aprova&ccedil;&atilde;o do gestor, sa&iacute;da, hist&oacute;rico e alertas.">
+  <link rel="stylesheet" href="./stock-full-saude.css">
+  <link rel="stylesheet" href="./stock-saude.css">
+</head>
+<body class="stock-health-page">
+  <header class="sf-header">
+    <a class="sf-brand" href="./stock-saude.html" aria-label="Voltar para Stock Sa&uacute;de">
+      <span class="sf-brand-mark">OR</span>
+      <span>
+        <strong>Stock Sa&uacute;de IA</strong>
+        <small>Sistema funcional de gest&atilde;o, aprova&ccedil;&atilde;o e auditoria</small>
+      </span>
+    </a>
+
+    <nav class="sf-nav" aria-label="Navega&ccedil;&atilde;o principal">
+      <a href="#demo-funcional">Sistema</a>
+      <a href="#stockSaudeApprovals">Aprova&ccedil;&otilde;es</a>
+      <a href="#stockSaudeAlerts">Alertas</a>
+      <a href="#stockSaudeHistory">Hist&oacute;rico</a>
+    </nav>
+
+    <a class="sf-login" href="./stock-saude.html">Voltar para landing</a>
+  </header>
+
+  <main>
+    <section class="stock-section stock-app" id="demo-funcional" aria-labelledby="app-title">
+      <div class="sf-section-heading">
+        <p class="sf-eyebrow">Sistema funcional</p>
+        <h2 id="app-title">Stock Sa&uacute;de operando com cadastro, aprova&ccedil;&atilde;o e hist&oacute;rico.</h2>
+        <p class="stock-section-note">Esta demo usa armazenamento local pr&oacute;prio da p&aacute;gina. Entradas pendentes n&atilde;o somam no estoque at&eacute; aprova&ccedil;&atilde;o do gestor.</p>
+      </div>
+
+      <div class="stock-app-toolbar">
+        <span id="stockSaudeStorageStatus">Estado local pronto.</span>
+        <button type="button" class="stock-mini-button" id="stockSaudeResetDemo">Restaurar dados demo</button>
+      </div>
+
+      <div class="stock-app-dashboard" id="stockSaudeDashboard" aria-label="Dashboard calculado do Stock Sa&uacute;de"></div>
+
+      <div class="stock-app-grid">
+        <form class="stock-form-card" id="stockSaudeItemForm">
+          <h3>Cadastrar item</h3>
+          <div class="stock-form-grid">
+            <label>Nome do item<input name="name" required placeholder="Ex.: Dipirona 500mg"></label>
+            <label>Categoria
+              <select name="category" required>
+                <option>Medicamento</option>
+                <option>EPI</option>
+                <option>Material hospitalar</option>
+                <option>Limpeza</option>
+                <option>Vacina</option>
+                <option>Controlado</option>
+                <option>Outro</option>
+              </select>
+            </label>
+            <label>Unidade<input name="unit" required placeholder="un, caixa, frasco"></label>
+            <label>Quantidade atual<input name="quantity" type="number" min="0" step="1" required></label>
+            <label>Estoque m&iacute;nimo<input name="minimumStock" type="number" min="0" step="1" required></label>
+            <label>Lote<input name="lot" placeholder="Lote"></label>
+            <label>Data de validade<input name="expirationDate" type="date"></label>
+            <label>Fornecedor<input name="supplier" placeholder="Fornecedor"></label>
+            <label>Nota fiscal<input name="invoice" placeholder="NF"></label>
+            <label>Local de armazenamento<input name="storageLocation" placeholder="Farm&aacute;cia central"></label>
+            <label>Temperatura ideal<input name="temperature" placeholder="15-25&deg;C"></label>
+            <label>Item controlado
+              <select name="controlled">
+                <option value="nao">N&atilde;o</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+          </div>
+          <button type="submit" class="sf-button sf-primary">Salvar item</button>
+        </form>
+
+        <form class="stock-form-card" id="stockSaudeEntryForm">
+          <h3>Entrada pendente de aprova&ccedil;&atilde;o</h3>
+          <div class="stock-form-grid">
+            <label>Data<input name="date" type="date" required></label>
+            <label>Hora<input name="time" type="time" required></label>
+            <label>Item<select name="itemId" data-stock-saude-item-select required></select></label>
+            <label>Quantidade<input name="quantity" type="number" min="1" step="1" required></label>
+            <label>Lote<input name="lot" required></label>
+            <label>Validade<input name="expirationDate" type="date" required></label>
+            <label>Fornecedor<input name="supplier" required></label>
+            <label>Nota fiscal<input name="invoice" required></label>
+            <label>Respons&aacute;vel pelo recebimento<input name="receivedBy" required></label>
+            <label class="stock-full-field">Observa&ccedil;&atilde;o<textarea name="notes" rows="2"></textarea></label>
+          </div>
+          <button type="submit" class="sf-button sf-test">Enviar para aprova&ccedil;&atilde;o</button>
+        </form>
+
+        <form class="stock-form-card" id="stockSaudeExitForm">
+          <h3>Registrar sa&iacute;da</h3>
+          <div class="stock-form-grid">
+            <label>Data<input name="date" type="date" required></label>
+            <label>Hora<input name="time" type="time" required></label>
+            <label>Item<select name="itemId" data-stock-saude-item-select required></select></label>
+            <label>Quantidade<input name="quantity" type="number" min="1" step="1" required></label>
+            <label>Quem retirou<input name="withdrawnBy" required></label>
+            <label>Cargo/matr&iacute;cula<input name="roleRegistration" required></label>
+            <label>Setor destino<select name="sector" id="stockSaudeSectorSelect" required></select></label>
+            <label>Finalidade<input name="purpose" required></label>
+            <label>Lote utilizado<input name="lot" required></label>
+            <label>Validade do lote<input name="expirationDate" type="date" required></label>
+            <label>Respons&aacute;vel pela libera&ccedil;&atilde;o<input name="releasedBy" required></label>
+            <label class="stock-full-field">Observa&ccedil;&atilde;o<textarea name="notes" rows="2"></textarea></label>
+          </div>
+          <button type="submit" class="sf-button sf-primary">Registrar sa&iacute;da</button>
+        </form>
+      </div>
+
+      <div class="stock-operational-grid">
+        <section class="stock-panel">
+          <header>
+            <h3>Aprova&ccedil;&otilde;es do gestor</h3>
+            <span>Entradas pendentes n&atilde;o somam no estoque.</span>
+          </header>
+          <div class="stock-list" id="stockSaudeApprovals"></div>
+        </section>
+
+        <section class="stock-panel">
+          <header>
+            <h3>Alertas inteligentes</h3>
+            <span>Validade, estoque e pend&ecirc;ncias.</span>
+          </header>
+          <div class="stock-list" id="stockSaudeAlerts"></div>
+        </section>
+      </div>
+
+      <section class="stock-panel stock-history-panel">
+        <header>
+          <div>
+            <h3>Hist&oacute;rico audit&aacute;vel</h3>
+            <span>Entradas, sa&iacute;das, aprova&ccedil;&otilde;es, vencimentos e criticidade.</span>
+          </div>
+          <div class="stock-history-filters" aria-label="Filtros do hist&oacute;rico">
+            <button type="button" class="active" data-stock-filter="todos">Todos</button>
+            <button type="button" data-stock-filter="entradas">Entradas</button>
+            <button type="button" data-stock-filter="saidas">Sa&iacute;das</button>
+            <button type="button" data-stock-filter="pendentes">Pendentes</button>
+            <button type="button" data-stock-filter="aprovadas">Aprovadas</button>
+            <button type="button" data-stock-filter="rejeitadas">Rejeitadas</button>
+            <button type="button" data-stock-filter="vencimentos">Vencimentos</button>
+            <button type="button" data-stock-filter="critico">Estoque cr&iacute;tico</button>
+          </div>
+        </header>
+        <div class="stock-inline-filters">
+          <label>Setor<input id="stockSaudeFilterSector" placeholder="Filtrar setor"></label>
+          <label>Respons&aacute;vel<input id="stockSaudeFilterResponsible" placeholder="Filtrar respons&aacute;vel"></label>
+        </div>
+        <div class="stock-list stock-history-list" id="stockSaudeHistory"></div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="sf-footer">
+    <p>Stock Sa&uacute;de IA faz parte do Sistema Sa&uacute;de.</p>
+    <nav aria-label="Links do ecossistema">
+      <a href="./stock-saude.html">Landing Stock Sa&uacute;de</a>
+      <a href="./saude.html">Sistema Sa&uacute;de</a>
+      <a href="./elo.html">Elo Especialista</a>
+    </nav>
+  </footer>
+
+  <script src="./stock-saude.js"></script>
+</body>
+</html>
