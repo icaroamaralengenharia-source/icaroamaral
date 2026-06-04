@@ -214,6 +214,8 @@
   const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
   const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
   const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
+  const STOCK_AI_DEMO_COMPOSITION_SOURCE = "Base técnica demonstrativa/editável";
+  const STOCK_AI_DEMO_COMPOSITION_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
   const DEFAULT_STOCK_ENVIRONMENT_ID = "env_almox_demo";
   const STOCK_NOTE_FILE_PREVIEW_LIMIT = 1024 * 1024;
   const ALMOX_NOTE_FILE_MAX_SIZE = 10 * 1024 * 1024;
@@ -857,7 +859,15 @@
 
     const normalized = current
       .filter(Boolean)
-      .map(normalizeComposition_);
+      .map(normalizeComposition_)
+      .map(function (composition) {
+        if (!isStockAiDefaultComposition_(composition)) {
+          return composition;
+        }
+        composition.source = STOCK_AI_DEMO_COMPOSITION_SOURCE;
+        composition.note = composition.note || STOCK_AI_DEMO_COMPOSITION_WARNING;
+        return composition;
+      });
     const existingIds = new Set(normalized.map(function (composition) {
       return composition.id;
     }));
@@ -873,7 +883,7 @@
 
   function getDefaultCompositions_() {
     return [
-      createDefaultComposition_("std_alvenaria", "Alvenaria", "m²", 5, [
+      createDefaultComposition_("std_alvenaria", "Alvenaria de vedação", "m²", 5, [
         ["Bloco cerâmico", 13, "un", ""],
         ["Cimento", 0.1, "saco", ""],
         ["Areia", 0.018, "m³", ""]
@@ -894,7 +904,7 @@
         ["Cimento", 0.12, "saco", ""],
         ["Areia", 0.025, "m³", ""]
       ]),
-      createDefaultComposition_("std_piso", "Piso", "m²", 3, [
+      createDefaultComposition_("std_piso", "Piso cerâmico", "m²", 3, [
         ["Piso cerâmico", 1.05, "m²", ""],
         ["Argamassa colante", 0.25, "saco", ""],
         ["Rejunte", 0.2, "kg", ""]
@@ -919,6 +929,16 @@
       createDefaultComposition_("std_eletroduto", "Eletroduto", "m", 3, [
         ["Eletroduto", 1.03, "m", ""],
         ["Conexões elétricas", 0.15, "un", ""]
+      ]),
+      createDefaultComposition_("std_telhado", "Telhado", "m²", 7, [
+        ["Telha cerâmica", 16, "un", "Coeficiente demonstrativo/editável."],
+        ["Madeiramento", 0.04, "m³", "Coeficiente demonstrativo/editável."],
+        ["Prego", 0.08, "kg", "Coeficiente demonstrativo/editável."]
+      ]),
+      createDefaultComposition_("std_concreto_simples", "Concreto simples", "m³", 5, [
+        ["Cimento", 7, "saco", "Coeficiente demonstrativo/editável."],
+        ["Areia", 0.55, "m³", "Coeficiente demonstrativo/editável."],
+        ["Brita", 0.8, "m³", "Coeficiente demonstrativo/editável."]
       ])
     ];
   }
@@ -929,8 +949,8 @@
       service: service,
       productionUnit: productionUnit,
       lossPercent: lossPercent,
-      note: "Composição padrão editável do ObraReport.",
-      source: "ObraReport",
+      note: STOCK_AI_DEMO_COMPOSITION_WARNING,
+      source: STOCK_AI_DEMO_COMPOSITION_SOURCE,
       sinapiCode: "",
       state: "",
       competence: "",
@@ -975,6 +995,13 @@
 
   function cloneComposition_(composition) {
     return JSON.parse(JSON.stringify(composition || {}));
+  }
+
+  function isStockAiDefaultComposition_(composition) {
+    const source = clean(composition && composition.source);
+    return source === "ObraReport" ||
+      source === STOCK_AI_DEMO_COMPOSITION_SOURCE ||
+      String(composition && composition.id || "").indexOf("std_") === 0;
   }
 
   function initializeSaas_() {
@@ -3952,14 +3979,14 @@
 
   function restoreDefaultCompositions_() {
     const custom = appState.compositions.filter(function (composition) {
-      return composition.source !== "ObraReport";
+      return !isStockAiDefaultComposition_(composition);
     });
 
     appState.compositions = getDefaultCompositions_().concat(custom);
     saveLocalData({ syncCloud: true });
     resetCompositionForm_();
     renderCompositionModule_();
-    setDailyLogStatus_("Composições padrão ObraReport restauradas e enviadas para sincronização.", "success");
+    setDailyLogStatus_("Composições demonstrativas/editáveis restauradas e enviadas para sincronização.", "success");
   }
 
   function renderCompositionMaterialsDraft_() {
@@ -4013,7 +4040,7 @@
         createCompositionButton_("Duplicar", "duplicate", composition.id)
       ];
 
-      if (composition.source !== "ObraReport") {
+      if (!isStockAiDefaultComposition_(composition)) {
         actions.push(createCompositionButton_("Remover", "remove", composition.id));
       }
 
@@ -4101,7 +4128,7 @@
       return;
     }
 
-    if (button.dataset.compositionAction === "remove" && composition.source !== "ObraReport") {
+    if (button.dataset.compositionAction === "remove" && !isStockAiDefaultComposition_(composition)) {
       appState.compositions = appState.compositions.filter(function (item) {
         return item.id !== composition.id;
       });
@@ -4155,7 +4182,7 @@
       return;
     }
 
-    const result = buildEstimatedMaterialsForProductions_(dailyLogDraft.productions);
+    const result = buildEstimatedMaterialsForProductions_(dailyLogDraft.productions, dailyLogDraft.materials);
     dailyLogEstimateDraft = {
       items: result.items,
       audit: result.audit,
@@ -4175,19 +4202,18 @@
   function buildEstimatedMaterialsForProductions_(productions, registeredMaterials) {
     const grouped = {};
     const missing = [];
+    const predictions = [];
 
     productions.forEach(function (production) {
-      const composition = findCompositionForProduction_(production);
-      const productionQuantity = parseNumber_(production.quantity);
+      const prediction = calculateStockAiPredictedConsumption(production);
 
-      if (!composition || productionQuantity <= 0) {
+      if (!prediction.composition || prediction.executedQuantity <= 0) {
         missing.push(production);
         return;
       }
 
-      const lossMultiplier = 1 + (parseNumber_(composition.lossPercent) / 100);
-      (composition.materials || []).forEach(function (material) {
-        const estimatedQuantity = productionQuantity * parseNumber_(material.quantityPerUnit) * lossMultiplier;
+      predictions.push(prediction);
+      prediction.predictedItems.forEach(function (material) {
         const key = normalizeCompositionKey_(material.name) + "|" + (material.unit || "un");
 
         if (!grouped[key]) {
@@ -4196,15 +4222,13 @@
             name: material.name,
             quantity: 0,
             unit: material.unit || "un",
-            note: "Consumo calculado por composição estimada. Revise antes de aplicar.",
+            note: "Consumo previsto por composição técnica demonstrativa/editável.",
             sources: []
           };
         }
 
-        grouped[key].quantity += estimatedQuantity;
-        grouped[key].sources.push(
-          production.service + " " + formatQuantity_(productionQuantity) + " " + (production.unit || composition.productionUnit)
-        );
+        grouped[key].quantity += parseNumber_(material.quantity);
+        grouped[key].sources = grouped[key].sources.concat(material.sources || []);
       });
     });
 
@@ -4220,15 +4244,76 @@
     return {
       items: items,
       missing: missing,
-      audit: buildEstimatedConsumptionAudit_(items, registeredMaterials)
+      audit: comparePredictedVsActualConsumption(items, registeredMaterials || dailyLogDraft.materials),
+      predictions: predictions,
+      warning: STOCK_AI_DEMO_COMPOSITION_WARNING
     };
+  }
+
+  function calculateStockAiPredictedConsumption(serviceInput) {
+    const input = serviceInput || {};
+    const composition = input.composition || input.selectedComposition || findCompositionForProduction_(input);
+    const executedQuantity = parseNumber_(input.quantity || input.executedQuantity);
+    const service = clean(input.service || input.serviceName || (composition && composition.service));
+    const unit = clean(input.unit || (composition && composition.productionUnit)) || "un";
+    const result = {
+      service: service,
+      executedQuantity: roundQuantity_(executedQuantity),
+      unit: unit,
+      composition: composition ? {
+        id: composition.id,
+        service: composition.service,
+        productionUnit: composition.productionUnit,
+        source: composition.source || STOCK_AI_DEMO_COMPOSITION_SOURCE,
+        lossPercent: parseNumber_(composition.lossPercent),
+        note: composition.note || STOCK_AI_DEMO_COMPOSITION_WARNING
+      } : null,
+      predictedItems: [],
+      technicalNotes: [],
+      warning: STOCK_AI_DEMO_COMPOSITION_WARNING
+    };
+
+    if (!composition || executedQuantity <= 0) {
+      result.technicalNotes.push("Sem composição compatível ou quantidade executada inválida.");
+      return result;
+    }
+
+    const lossMultiplier = 1 + (parseNumber_(composition.lossPercent) / 100);
+    result.predictedItems = (composition.materials || []).map(function (material) {
+      const coefficient = parseNumber_(material.quantityPerUnit);
+      const quantity = roundQuantity_(executedQuantity * coefficient * lossMultiplier);
+      return {
+        id: material.id || createId_("pred"),
+        name: material.name,
+        material: material.name,
+        coefficient: coefficient,
+        quantity: quantity,
+        predictedQuantity: quantity,
+        unit: material.unit || "un",
+        note: material.note || STOCK_AI_DEMO_COMPOSITION_WARNING,
+        sources: [
+          service + " " + formatQuantity_(executedQuantity) + " " + unit +
+            " · composição: " + composition.service +
+            " · fonte: " + (composition.source || STOCK_AI_DEMO_COMPOSITION_SOURCE)
+        ]
+      };
+    }).filter(function (item) {
+      return item.name && parseNumber_(item.quantity) > 0;
+    });
+
+    result.technicalNotes.push("Perda aplicada: " + formatQuantity_(parseNumber_(composition.lossPercent)) + "%.");
+    result.technicalNotes.push(STOCK_AI_DEMO_COMPOSITION_WARNING);
+    return result;
   }
 
   function findCompositionForProduction_(production) {
     const serviceKey = normalizeCompositionKey_(production.service);
     const unitKey = normalizeUnitKey_(production.unit);
     const compositions = ensureCompositionLibrary_(appState.compositions).filter(function (composition) {
-      return normalizeCompositionKey_(composition.service) === serviceKey;
+      const compositionKey = normalizeCompositionKey_(composition.service);
+      return compositionKey === serviceKey ||
+        (serviceKey && compositionKey.indexOf(serviceKey) >= 0) ||
+        (compositionKey && serviceKey.indexOf(compositionKey) >= 0);
     });
 
     if (!compositions.length) {
@@ -4236,42 +4321,104 @@
     }
 
     return compositions.find(function (composition) {
-      return composition.source !== "ObraReport" && normalizeUnitKey_(composition.productionUnit) === unitKey;
+      return !isStockAiDefaultComposition_(composition) && normalizeUnitKey_(composition.productionUnit) === unitKey;
     }) || compositions.find(function (composition) {
       return normalizeUnitKey_(composition.productionUnit) === unitKey;
     }) || compositions.find(function (composition) {
-      return composition.source !== "ObraReport";
+      return !isStockAiDefaultComposition_(composition);
     }) || compositions[0];
   }
 
   function buildEstimatedConsumptionAudit_(estimatedItems, registeredMaterials) {
-    const registered = {};
+    return comparePredictedVsActualConsumption(estimatedItems, registeredMaterials || dailyLogDraft.materials);
+  }
 
-    (registeredMaterials || dailyLogDraft.materials).forEach(function (material) {
-      const key = normalizeCompositionKey_(material.name) + "|" + (material.unit || "un");
+  function comparePredictedVsActualConsumption(predictedItems, actualItems) {
+    const predicted = {};
+    const actual = {};
 
-      if (!registered[key]) {
-        registered[key] = {
+    (predictedItems || []).forEach(function (item) {
+      const name = clean(item.name || item.material);
+      const unit = clean(item.unit) || "un";
+      const key = normalizeCompositionKey_(name) + "|" + unit;
+      if (!name) {
+        return;
+      }
+      if (!predicted[key]) {
+        predicted[key] = {
+          name: name,
           quantity: 0,
-          unit: material.unit || "un"
+          unit: unit
+        };
+      }
+      predicted[key].quantity += parseNumber_(item.quantity || item.predictedQuantity || item.estimated);
+    });
+
+    (actualItems || []).forEach(function (material) {
+      const name = clean(material.name || material.material);
+      const unit = clean(material.unit) || "un";
+      const key = normalizeCompositionKey_(name) + "|" + unit;
+      if (!name) {
+        return;
+      }
+      if (!actual[key]) {
+        actual[key] = {
+          name: name,
+          quantity: 0,
+          unit: unit
         };
       }
 
-      registered[key].quantity += parseNumber_(material.quantity);
+      actual[key].quantity += parseNumber_(material.quantity || material.actualQuantity || material.registered);
     });
 
-    return estimatedItems.map(function (item) {
-      const key = normalizeCompositionKey_(item.name) + "|" + (item.unit || "un");
-      const registeredQuantity = registered[key] ? registered[key].quantity : 0;
+    return Object.keys(Object.assign({}, predicted, actual)).map(function (key) {
+      const predictedItem = predicted[key];
+      const actualItem = actual[key];
+      const estimated = roundQuantity_(predictedItem ? predictedItem.quantity : 0);
+      const registered = roundQuantity_(actualItem ? actualItem.quantity : 0);
+      const difference = roundQuantity_(registered - estimated);
+      const differencePercent = estimated > 0 ? roundQuantity_((difference / estimated) * 100) : 0;
 
       return {
-        name: item.name,
-        unit: item.unit,
-        estimated: item.quantity,
-        registered: roundQuantity_(registeredQuantity),
-        difference: roundQuantity_(registeredQuantity - item.quantity)
+        name: (predictedItem && predictedItem.name) || (actualItem && actualItem.name) || "Material",
+        material: (predictedItem && predictedItem.name) || (actualItem && actualItem.name) || "Material",
+        unit: (predictedItem && predictedItem.unit) || (actualItem && actualItem.unit) || "un",
+        estimated: estimated,
+        predicted: estimated,
+        registered: registered,
+        actual: registered,
+        difference: difference,
+        differencePercent: differencePercent,
+        status: classifyStockAiConsumptionStatus_(estimated, registered, differencePercent)
       };
+    }).sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
     });
+  }
+
+  function classifyStockAiConsumptionStatus_(estimated, registered, differencePercent) {
+    if (estimated <= 0 && registered > 0) {
+      return "sem previsão";
+    }
+
+    if (estimated > 0 && registered <= 0) {
+      return "sem consumo real";
+    }
+
+    if (differencePercent < -25) {
+      return "abaixo do previsto";
+    }
+
+    if (Math.abs(differencePercent) <= 10) {
+      return "dentro do previsto";
+    }
+
+    if (differencePercent > 25) {
+      return "crítico";
+    }
+
+    return "atenção";
   }
 
   function renderEstimatePanel_() {
@@ -4340,7 +4487,7 @@
   function createEstimateWarning_() {
     const warning = document.createElement("p");
     warning.className = "estimate-warning";
-    warning.textContent = "Consumo calculado por composição estimada. Revise antes de aplicar.";
+    warning.textContent = STOCK_AI_DEMO_COMPOSITION_WARNING;
     return warning;
   }
 
@@ -4390,7 +4537,8 @@
         item.name,
         "Estimado: " + formatQuantity_(item.estimated) + " " + item.unit +
           " · Registrado: " + formatQuantity_(item.registered) + " " + item.unit +
-          " · " + formatAuditDifference_(item),
+          " · " + formatAuditDifference_(item) +
+          " · Status: " + formatStockAiConsumptionStatus_(item.status),
         "",
         []
       ));
@@ -4501,16 +4649,26 @@
   function formatAuditDifference_(item) {
     const difference = Number(item && item.difference || 0);
     const unit = item && item.unit ? " " + item.unit : "";
+    const percent = Number(item && item.differencePercent || 0);
+    const percentText = item && Number.isFinite(percent) && percent !== 0 ? " (" + formatSignedQuantity_(percent) + "%)" : "";
 
     if (difference < 0) {
-      return "Falta registrar: " + formatQuantity_(Math.abs(difference)) + unit;
+      return "Falta registrar: " + formatQuantity_(Math.abs(difference)) + unit + percentText;
     }
 
     if (difference > 0) {
-      return "Excedente registrado: " + formatQuantity_(difference) + unit;
+      return "Excedente registrado: " + formatQuantity_(difference) + unit + percentText;
     }
 
     return "Sem diferença";
+  }
+
+  function formatStockAiConsumptionStatus_(status) {
+    const normalized = clean(status).toLowerCase();
+    if (normalized === "critico") {
+      return "crítico";
+    }
+    return normalized || "dentro do previsto";
   }
 
   function renderDailyLogWorkOptions_(works) {
@@ -14858,12 +15016,13 @@
       buildDailyLogPdfTableSection_("Consumo estimado por composição", ["Material", "Quantidade estimada", "Unidade", "Origem"], estimated.items.map(function (item) {
         return [item.name, formatQuantity_(item.quantity), item.unit, item.sources ? item.sources.join("; ") : ""];
       })),
-      buildDailyLogPdfTableSection_("Auditoria simples", ["Material", "Estimado", "Registrado", "Diferença"], estimated.audit.map(function (item) {
+      buildDailyLogPdfTableSection_("Auditoria simples", ["Material", "Estimado", "Registrado", "Diferença", "Status"], estimated.audit.map(function (item) {
         return [
           item.name,
           formatQuantity_(item.estimated) + " " + item.unit,
           formatQuantity_(item.registered) + " " + item.unit,
-          formatAuditDifference_(item)
+          formatAuditDifference_(item),
+          formatStockAiConsumptionStatus_(item.status)
         ];
       })),
       buildDailyLogPdfTableSection_("Ferramentas e equipamentos", ["Nome", "Situação", "Observação"], (logItem.tools || []).map(function (item) {
