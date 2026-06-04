@@ -115,6 +115,17 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /StockSaudeAPI\.listAuditLog\(token\)/);
   assert.match(content, /loadCurrentStockSaudeState\(\)/);
   assert.match(content, /window\.print\(\)/);
+  assert.match(content, /async function exportStockSaudeCsv\(\)/);
+  assert.match(content, /async function exportStockSaudeExcel\(\)/);
+  assert.match(content, /buildStockSaudeCsvContent\(state\)/);
+  assert.match(content, /buildStockSaudeExcelContent\(state\)/);
+  assert.match(content, /Exportar CSV/);
+  assert.match(content, /Exportar Excel/);
+  assert.match(content, /stock-saude-operacional\.csv/);
+  assert.match(content, /stock-saude-operacional\.xls/);
+  assert.match(content, /Nome", "Categoria", "Unidade", "Saldo", "Minimo", "Local/);
+  assert.match(content, /Data", "Item", "Quantidade", "Status", "Responsavel/);
+  assert.match(content, /Data", "Item", "Quantidade", "Responsavel/);
   assert.match(content, /Authorization: "Bearer " \+ token/);
   assert.match(content, /mode: "supabase"/);
   assert.match(content, /mode: "local"/);

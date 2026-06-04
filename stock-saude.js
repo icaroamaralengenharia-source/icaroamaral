@@ -1328,6 +1328,110 @@
     }
   }
 
+  function buildStockSaudeExportTables(state) {
+    const balances = buildBalances(state);
+    const balanceByItemId = new Map();
+    balances.forEach(function (balance) {
+      balanceByItemId.set(balance.item.id, balance.balance);
+    });
+    return [
+      {
+        title: "Itens",
+        headers: ["Nome", "Categoria", "Unidade", "Saldo", "Minimo", "Local"],
+        rows: state.items.map(function (item) {
+          return [
+            item.name,
+            item.category,
+            item.unit,
+            formatNumber(balanceByItemId.has(item.id) ? balanceByItemId.get(item.id) : calculateItemBalance(state, item)),
+            formatNumber(item.minimumStock),
+            item.storageLocation || "-"
+          ];
+        })
+      },
+      {
+        title: "Entradas",
+        headers: ["Data", "Item", "Quantidade", "Status", "Responsavel"],
+        rows: state.entries.map(function (entry) {
+          const item = findItem(state, entry.itemId);
+          return [
+            formatDate(entry.date) + (entry.time ? " " + entry.time : ""),
+            item ? item.name : "Item",
+            formatNumber(entry.quantity),
+            statusLabel(entry.status),
+            entry.receivedBy || "-"
+          ];
+        })
+      },
+      {
+        title: "Saidas",
+        headers: ["Data", "Item", "Quantidade", "Responsavel"],
+        rows: state.exits.map(function (exit) {
+          const item = findItem(state, exit.itemId);
+          return [
+            formatDate(exit.date) + (exit.time ? " " + exit.time : ""),
+            item ? item.name : "Item",
+            formatNumber(exit.quantity),
+            exit.withdrawnBy || exit.releasedBy || "-"
+          ];
+        })
+      }
+    ];
+  }
+
+  function escapeStockSaudeCsvCell(value) {
+    return '"' + String(value == null ? "" : value).replace(/"/g, '""') + '"';
+  }
+
+  function buildStockSaudeCsvContent(state) {
+    return buildStockSaudeExportTables(state).map(function (table) {
+      return [
+        table.title,
+        table.headers.map(escapeStockSaudeCsvCell).join(";")
+      ].concat(table.rows.map(function (row) {
+        return row.map(escapeStockSaudeCsvCell).join(";");
+      })).join("\n");
+    }).join("\n\n");
+  }
+
+  function buildStockSaudeExcelContent(state) {
+    return "<!doctype html><html><head><meta charset=\"utf-8\"></head><body>" +
+      "<h1>Relatorio Operacional - Stock Saude</h1>" +
+      buildStockSaudeExportTables(state).map(function (table) {
+        return "<h2>" + escapeStockSaudePdfHtml(table.title) + "</h2><table border=\"1\"><thead><tr>" +
+          table.headers.map(function (header) { return "<th>" + escapeStockSaudePdfHtml(header) + "</th>"; }).join("") +
+          "</tr></thead><tbody>" + table.rows.map(function (row) {
+            return "<tr>" + row.map(function (cell) { return "<td>" + escapeStockSaudePdfHtml(cell) + "</td>"; }).join("") + "</tr>";
+          }).join("") + "</tbody></table>";
+      }).join("") + "</body></html>";
+  }
+
+  function downloadStockSaudeFile(content, fileName, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 250);
+  }
+
+  async function exportStockSaudeCsv() {
+    const state = await loadCurrentStockSaudeState();
+    downloadStockSaudeFile(buildStockSaudeCsvContent(state), "stock-saude-operacional.csv", "text/csv;charset=utf-8");
+    setMessage("CSV operacional exportado.");
+  }
+
+  async function exportStockSaudeExcel() {
+    const state = await loadCurrentStockSaudeState();
+    downloadStockSaudeFile(buildStockSaudeExcelContent(state), "stock-saude-operacional.xls", "application/vnd.ms-excel;charset=utf-8");
+    setMessage("Excel operacional exportado.");
+  }
+
   function ensureStockSaudeManagementPdfButton() {
     if (!elements.storageStatus || document.getElementById("stockSaudeManagerPdfButton")) {
       return;
@@ -1339,6 +1443,29 @@
     button.textContent = "Gerar PDF Gerencial";
     button.addEventListener("click", generateStockSaudeManagementPdf);
     elements.storageStatus.parentNode.insertBefore(button, elements.storageStatus.nextSibling);
+  }
+
+  function ensureStockSaudeExportButtons() {
+    if (!elements.storageStatus || document.getElementById("stockSaudeExportCsvButton")) {
+      return;
+    }
+    const csvButton = document.createElement("button");
+    csvButton.type = "button";
+    csvButton.id = "stockSaudeExportCsvButton";
+    csvButton.className = "stock-mini-button";
+    csvButton.textContent = "Exportar CSV";
+    csvButton.addEventListener("click", exportStockSaudeCsv);
+
+    const excelButton = document.createElement("button");
+    excelButton.type = "button";
+    excelButton.id = "stockSaudeExportExcelButton";
+    excelButton.className = "stock-mini-button";
+    excelButton.textContent = "Exportar Excel";
+    excelButton.addEventListener("click", exportStockSaudeExcel);
+
+    const anchor = document.getElementById("stockSaudeManagerPdfButton") || elements.storageStatus;
+    anchor.parentNode.insertBefore(csvButton, anchor.nextSibling);
+    csvButton.parentNode.insertBefore(excelButton, csvButton.nextSibling);
   }
 
   function renderSelects(state) {
@@ -1730,6 +1857,7 @@
     bindAnchorsAndReveal();
     bindForms();
     ensureStockSaudeManagementPdfButton();
+    ensureStockSaudeExportButtons();
     resetFormDateTime(elements.entryForm);
     resetFormDateTime(elements.exitForm);
     setMessage(stockSaudeRuntimeMode === "remote" ? "Conectado ao backend Stock Saude." : "Estado local pronto.");
