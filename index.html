@@ -668,6 +668,27 @@
       gap: 12px;
     }
 
+    .commercial-products {
+      display: grid;
+      gap: 14px;
+    }
+
+    .ecosystem-flow > .commercial-card {
+      order: 1;
+    }
+
+    .ecosystem-flow > .ecosystem-health {
+      order: 2;
+    }
+
+    .ecosystem-flow > .ecosystem-expansion-intro {
+      order: 3;
+    }
+
+    .ecosystem-flow > .expansion-card {
+      order: 4;
+    }
+
     .ecosystem-block {
       position: relative;
       display: grid;
@@ -749,6 +770,117 @@
       line-height: 1.35;
     }
 
+    .commercial-card {
+      align-items: start;
+      min-height: 0;
+    }
+
+    .commercial-label {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 7px;
+      padding: 5px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.07);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .commercial-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 13px;
+    }
+
+    .commercial-actions .button {
+      min-height: 38px;
+      padding: 0 13px;
+      font-size: 0.82rem;
+      box-shadow: none;
+    }
+
+    .commercial-actions .button.secondary {
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .ecosystem-expansion {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(180, 215, 255, 0.12);
+    }
+
+    .ecosystem-expansion-intro {
+      display: grid;
+      gap: 6px;
+      margin-top: 4px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(180, 215, 255, 0.12);
+    }
+
+    .ecosystem-expansion-intro h3 {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
+    }
+
+    .ecosystem-expansion-intro p {
+      margin: 0;
+      color: rgba(230, 240, 255, 0.62);
+      font-size: 0.82rem;
+      line-height: 1.42;
+    }
+
+    .ecosystem-expansion h3 {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
+    }
+
+    .ecosystem-expansion > p {
+      margin: -6px 0 0;
+      color: rgba(230, 240, 255, 0.62);
+      font-size: 0.82rem;
+      line-height: 1.42;
+    }
+
+    .expansion-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .expansion-card {
+      display: grid;
+      gap: 6px;
+      padding: 13px;
+      border: 1px solid rgba(180, 215, 255, 0.14);
+      border-radius: 14px;
+      color: inherit;
+      background: rgba(255, 255, 255, 0.045);
+      text-decoration: none;
+    }
+
+    .expansion-card strong {
+      color: #ffffff;
+      font-size: 0.9rem;
+    }
+
+    .expansion-card span {
+      color: rgba(230, 240, 255, 0.62);
+      font-size: 0.78rem;
+      line-height: 1.34;
+    }
+
     .ecosystem-tags {
       display: flex;
       flex-wrap: wrap;
@@ -797,9 +929,9 @@
     }
 
     .ecosystem-arrow {
+      display: none;
       width: 28px;
       height: 28px;
-      display: grid;
       place-items: center;
       justify-self: center;
       margin: -5px 0;
@@ -2239,59 +2371,73 @@
         </div>
       </div>
 
-      <aside class="ecosystem-panel" aria-label="Ecossistema completo ObraReport">
+      <aside class="ecosystem-panel" aria-label="Fase Comercial ObraReport">
         <div class="ecosystem-heading">
-          <h2>Um ecossistema completo</h2>
-          <p>Conectado. Inteligente. Integrado.</p>
+          <h2>Fase Comercial</h2>
+          <p>Produtos prontos para demonstra&ccedil;&atilde;o, valida&ccedil;&atilde;o com clientes e primeiros contratos.</p>
         </div>
 
         <div class="ecosystem-flow">
-          <a class="ecosystem-block ecosystem-blue" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica" aria-label="Acessar ObraReport 2.0" style="text-decoration: none;">
+          <article class="ecosystem-block commercial-card ecosystem-blue">
             <div class="ecosystem-icon">&nearr;</div>
             <div class="ecosystem-copy">
+              <span class="commercial-label">Produto principal de engenharia</span>
               <h3>ObraReport 2.0</h3>
-              <p>Relat&oacute;rios t&eacute;cnicos, RDO, medi&ccedil;&otilde;es e auditoria em um s&oacute; fluxo.</p>
+              <p>Relat&oacute;rios t&eacute;cnicos, inspe&ccedil;&otilde;es, RDO, fotos, medi&ccedil;&otilde;es, auditoria e PDF autom&aacute;tico em um s&oacute; fluxo.</p>
+              <div class="commercial-actions">
+                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=home-publica">Testar ObraReport</a>
+                <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?check=demo-guiada">Ver demonstra&ccedil;&atilde;o</a>
+              </div>
             </div>
-          </a>
+          </article>
 
           <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #0a8dff, #1765a8); --arrow-glow: rgba(24, 133, 255, 0.48);">↓</div>
 
-          <a class="ecosystem-block ecosystem-green" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia" aria-label="Acessar Stock AI Obras" style="text-decoration: none;">
+          <article class="ecosystem-block commercial-card ecosystem-green">
             <div class="ecosystem-icon">&#9937;</div>
             <div class="ecosystem-copy">
+              <span class="commercial-label">Estoque inteligente para obras</span>
               <h3>Stock AI Obras</h3>
-              <p>Produ&ccedil;&atilde;o, consumo de materiais e auditoria da obra em tempo real.</p>
+              <p>Controle de materiais, consumo previsto x real, auditoria de desvios e apoio &agrave; gest&atilde;o da obra em tempo real.</p>
+              <div class="commercial-actions">
+                <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Testar Stock AI Obras</a>
+                <a class="button secondary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/stock-ia">Ver fluxo de materiais</a>
+              </div>
             </div>
-          </a>
+          </article>
 
           <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #16bc78, #0c684f); --arrow-glow: rgba(22, 190, 120, 0.42);">↓</div>
 
-          <a class="ecosystem-block ecosystem-orange" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/almoxarifado" aria-label="Acessar Stock AI Full" style="text-decoration: none;">
-            <div class="ecosystem-icon">&#9638;</div>
-            <div class="ecosystem-copy">
-              <h3>Stock AI Full</h3>
-              <p>Almoxarifado completo para prefeituras, grandes lojas e institui&ccedil;&otilde;es.</p>
-            </div>
+          <div class="ecosystem-expansion-intro">
+            <h3>Ecossistema em expans&atilde;o</h3>
+            <p>Outros m&oacute;dulos seguem integrados ao ecossistema e ser&atilde;o expandidos conforme valida&ccedil;&atilde;o comercial.</p>
+          </div>
+
+          <a class="expansion-card" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/almoxarifado">
+            <strong>Stock AI Full</strong>
+            <span>Almoxarifado completo para opera&ccedil;&otilde;es maiores.</span>
           </a>
 
           <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #f5a623, #8f5a11); --arrow-glow: rgba(255, 178, 46, 0.34);">↓</div>
 
-          <a class="ecosystem-block ecosystem-health" href="stock-saude.html" aria-label="Conhecer Stock Full Sa&uacute;de" style="text-decoration: none;">
+          <article class="ecosystem-block commercial-card ecosystem-health">
             <div class="ecosystem-icon">&#10010;</div>
             <div class="ecosystem-copy">
-              <h3>Stock Full Sa&uacute;de</h3>
-              <p>Medicamentos, lotes, validade, setores, respons&aacute;veis e auditoria para institui&ccedil;&otilde;es de sa&uacute;de.</p>
+              <span class="commercial-label">Gest&atilde;o inteligente de insumos e medicamentos para sa&uacute;de p&uacute;blica e privada</span>
+              <h3>Stock Sa&uacute;de</h3>
+              <p>Medicamentos, lotes, validade, setores, respons&aacute;veis e aprova&ccedil;&atilde;o do gestor com hist&oacute;rico audit&aacute;vel.</p>
+              <div class="commercial-actions">
+                <a class="button primary" href="stock-saude.html">Testar Stock Sa&uacute;de</a>
+                <a class="button secondary" href="stock-saude.html">Ver aprova&ccedil;&atilde;o do gestor</a>
+              </div>
             </div>
-          </a>
+          </article>
 
           <div class="ecosystem-arrow" style="--arrow-bg: linear-gradient(135deg, #0b6f91, #2bbf8f); --arrow-glow: rgba(43, 191, 143, 0.3);">â†“</div>
 
-          <a class="ecosystem-block ecosystem-purple" href="/elo.html" aria-label="Conversar com Elo Especialista" style="text-decoration: none;">
-            <div class="ecosystem-icon">&#10042;</div>
-            <div class="ecosystem-copy">
-              <h3>Elo Especialista</h3>
-              <p>Mem&oacute;ria, contexto e intelig&ecirc;ncia operacional para apoiar decis&otilde;es.</p>
-            </div>
+          <a class="expansion-card" href="/elo.html">
+            <strong>Elo Especialista</strong>
+            <span>Mem&oacute;ria, contexto e intelig&ecirc;ncia operacional.</span>
           </a>
         </div>
       </aside>
