@@ -92,6 +92,9 @@ create index if not exists idx_profiles_institution_id
 create index if not exists idx_profiles_unit_id
   on profiles(unit_id);
 
+create index if not exists idx_profiles_auth_user_id
+  on profiles(auth_user_id);
+
 create index if not exists idx_stock_items_institution_id
   on stock_items(institution_id);
 

@@ -46,6 +46,16 @@ test("stock saude health responde com fallback local sem Supabase", async () => 
   assert.equal(data.fallback, "localStorage");
 });
 
+test("stock saude me retorna 503 controlado sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-saude/me");
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.equal(data.error, "stock_saude_database_not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
 test("stock saude items retorna 503 controlado sem Supabase", async () => {
   const response = await fetch(baseUrl + "/api/stock-saude/items?institution_id=inst_teste");
   const data = await response.json();

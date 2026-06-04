@@ -157,6 +157,34 @@ export function createApp(options = {}) {
     });
   });
 
+  app.get("/api/stock-saude/me", async (request, response) => {
+    const database = requireStockSaudeDatabase_(env, response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    response.json({
+      ok: true,
+      user: {
+        id: session.user.id,
+        email: session.user.email || ""
+      },
+      profile: {
+        id: session.profile.id,
+        institution_id: session.profile.institution_id,
+        unit_id: session.profile.unit_id,
+        name: session.profile.name,
+        email: session.profile.email,
+        role: session.profile.role
+      }
+    });
+  });
+
   app.get("/api/stock-saude/items", async (request, response) => {
     const database = requireStockSaudeDatabase_(env, response);
     if (!database) {
@@ -648,6 +676,63 @@ function requireStockSaudeDatabase_(env, response) {
     return null;
   }
   return database;
+}
+
+async function getSupabaseUserFromRequest_(request, supabase) {
+  const authorization = clean_(request.headers.authorization);
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!match || !match[1]) {
+    return { ok: false, status: 401, error: "authentication_required" };
+  }
+
+  const token = clean_(match[1]);
+  if (!token) {
+    return { ok: false, status: 401, error: "authentication_required" };
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data || !data.user) {
+    return { ok: false, status: 401, error: "invalid_session" };
+  }
+
+  return { ok: true, user: data.user };
+}
+
+async function getStockSaudeProfileByAuthUser_(supabase, authUserId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,institution_id,unit_id,name,email,role")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
+
+async function requireStockSaudeAuth_(request, response, supabase) {
+  try {
+    const userResult = await getSupabaseUserFromRequest_(request, supabase);
+    if (!userResult.ok) {
+      response.status(userResult.status).json({ ok: false, error: userResult.error });
+      return null;
+    }
+
+    const profile = await getStockSaudeProfileByAuthUser_(supabase, userResult.user.id);
+    if (!profile) {
+      response.status(403).json({ ok: false, error: "stock_saude_profile_not_found" });
+      return null;
+    }
+
+    return {
+      user: userResult.user,
+      profile
+    };
+  } catch (error) {
+    response.status(500).json({ ok: false, error: "stock_saude_auth_lookup_failed" });
+    return null;
+  }
 }
 
 function validateStockSaudeItemPayload_(body) {

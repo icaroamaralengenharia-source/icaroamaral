@@ -42,7 +42,7 @@
     balance: []
   };
 
-  // TODO: substituir IDs fixos por Supabase Auth + profiles na Fase 2.5.
+  // TODO: usar /api/stock-saude/me e substituir IDs fixos por Supabase Auth + profiles na Fase 2.5.3/2.5.4.
   const StockSaudeAPI = {
     async request(path, options) {
       const controller = new AbortController();
