@@ -214,6 +214,7 @@
   const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
   const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
   const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
+  const STOCK_AI_COMPOSITIONS_LIBRARY_VERSION = "1.2";
   const STOCK_AI_DEMO_COMPOSITION_SOURCE = "Base técnica demonstrativa/editável";
   const STOCK_AI_DEMO_COMPOSITION_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
   const DEFAULT_STOCK_ENVIRONMENT_ID = "env_almox_demo";
@@ -270,6 +271,7 @@
     items: [],
     audit: [],
     missing: [],
+    purchasePlan: null,
     editable: false
   };
 
@@ -866,6 +868,11 @@
         }
         composition.source = STOCK_AI_DEMO_COMPOSITION_SOURCE;
         composition.note = composition.note || STOCK_AI_DEMO_COMPOSITION_WARNING;
+        composition.category = composition.category || (defaultById[composition.id] && defaultById[composition.id].category) || "Geral";
+        composition.aliases = composition.aliases && composition.aliases.length
+          ? composition.aliases
+          : ((defaultById[composition.id] && defaultById[composition.id].aliases) || []);
+        composition.libraryVersion = composition.libraryVersion || STOCK_AI_COMPOSITIONS_LIBRARY_VERSION;
         return composition;
       });
     const existingIds = new Set(normalized.map(function (composition) {
@@ -883,73 +890,217 @@
 
   function getDefaultCompositions_() {
     return [
-      createDefaultComposition_("std_alvenaria", "Alvenaria de vedação", "m²", 5, [
-        ["Bloco cerâmico", 13, "un", ""],
-        ["Cimento", 0.1, "saco", ""],
-        ["Areia", 0.018, "m³", ""]
-      ]),
-      createDefaultComposition_("std_chapisco", "Chapisco", "m²", 5, [
-        ["Cimento", 0.05, "saco", ""],
-        ["Areia", 0.006, "m³", ""]
-      ]),
-      createDefaultComposition_("std_reboco", "Reboco", "m²", 5, [
-        ["Cimento", 0.08, "saco", ""],
-        ["Areia", 0.02, "m³", ""]
-      ]),
-      createDefaultComposition_("std_emboco", "Emboço", "m²", 5, [
-        ["Cimento", 0.07, "saco", ""],
-        ["Areia", 0.018, "m³", ""]
-      ]),
-      createDefaultComposition_("std_contrapiso", "Contrapiso", "m²", 5, [
-        ["Cimento", 0.12, "saco", ""],
-        ["Areia", 0.025, "m³", ""]
-      ]),
-      createDefaultComposition_("std_piso", "Piso cerâmico", "m²", 3, [
-        ["Piso cerâmico", 1.05, "m²", ""],
-        ["Argamassa colante", 0.25, "saco", ""],
-        ["Rejunte", 0.2, "kg", ""]
-      ]),
-      createDefaultComposition_("std_revestimento", "Revestimento", "m²", 3, [
-        ["Revestimento cerâmico", 1.05, "m²", ""],
-        ["Argamassa colante", 0.25, "saco", ""],
-        ["Rejunte", 0.18, "kg", ""]
-      ]),
-      createDefaultComposition_("std_pintura", "Pintura", "m²", 5, [
-        ["Tinta", 0.12, "litro", ""],
-        ["Massa corrida", 0.18, "kg", ""]
-      ]),
-      createDefaultComposition_("std_esgoto", "Tubulação de esgoto", "m", 3, [
-        ["Tubo PVC esgoto", 1.03, "m", ""],
-        ["Conexões PVC", 0.25, "un", ""]
-      ]),
-      createDefaultComposition_("std_agua", "Tubulação de água", "m", 3, [
-        ["Tubo PVC água", 1.03, "m", ""],
-        ["Conexões PVC", 0.2, "un", ""]
-      ]),
-      createDefaultComposition_("std_eletroduto", "Eletroduto", "m", 3, [
-        ["Eletroduto", 1.03, "m", ""],
-        ["Conexões elétricas", 0.15, "un", ""]
-      ]),
-      createDefaultComposition_("std_telhado", "Telhado", "m²", 7, [
-        ["Telha cerâmica", 16, "un", "Coeficiente demonstrativo/editável."],
-        ["Madeiramento", 0.04, "m³", "Coeficiente demonstrativo/editável."],
-        ["Prego", 0.08, "kg", "Coeficiente demonstrativo/editável."]
-      ]),
-      createDefaultComposition_("std_concreto_simples", "Concreto simples", "m³", 5, [
+      createDefaultComposition_("std_escavacao_manual", "Escavação manual", "Fundação / Estrutura", "m³", 8, [
+        ["Mão de obra de escavação", 1.2, "h", "Coeficiente demonstrativo/editável."],
+        ["Remoção manual de solo", 1, "m³", "Coeficiente demonstrativo/editável."],
+        ["Ferramentas manuais", 0.05, "un", "Coeficiente demonstrativo/editável."]
+      ], ["escavacao", "vala", "sapata", "fundacao"]),
+      createDefaultComposition_("std_lastro_concreto_magro", "Lastro de concreto magro", "Fundação / Estrutura", "m³", 5, [
+        ["Cimento", 4.5, "saco", "Coeficiente demonstrativo/editável."],
+        ["Areia", 0.55, "m³", "Coeficiente demonstrativo/editável."],
+        ["Brita", 0.75, "m³", "Coeficiente demonstrativo/editável."]
+      ], ["lastro", "concreto magro", "regularizacao de fundo"]),
+      createDefaultComposition_("std_concreto_simples", "Concreto simples", "Fundação / Estrutura", "m³", 5, [
         ["Cimento", 7, "saco", "Coeficiente demonstrativo/editável."],
         ["Areia", 0.55, "m³", "Coeficiente demonstrativo/editável."],
         ["Brita", 0.8, "m³", "Coeficiente demonstrativo/editável."]
-      ])
+      ], ["concreto", "concreto nao armado"]),
+      createDefaultComposition_("std_concreto_estrutural", "Concreto estrutural", "Fundação / Estrutura", "m³", 5, [
+        ["Cimento", 8, "saco", "Coeficiente demonstrativo/editável."],
+        ["Areia média", 0.52, "m³", "Coeficiente demonstrativo/editável."],
+        ["Brita 1", 0.78, "m³", "Coeficiente demonstrativo/editável."],
+        ["Aditivo plastificante", 0.8, "litro", "Coeficiente demonstrativo/editável."]
+      ], ["concreto armado", "estrutura", "viga", "pilar", "laje"]),
+      createDefaultComposition_("std_forma_madeira", "Forma de madeira", "Fundação / Estrutura", "m²", 10, [
+        ["Compensado plastificado", 0.22, "m²", "Coeficiente demonstrativo/editável."],
+        ["Sarrafo de madeira", 0.55, "m", "Coeficiente demonstrativo/editável."],
+        ["Prego", 0.08, "kg", "Coeficiente demonstrativo/editável."],
+        ["Desmoldante", 0.04, "litro", "Coeficiente demonstrativo/editável."]
+      ], ["forma", "caixaria", "madeira forma"]),
+      createDefaultComposition_("std_armacao_aco_ca50", "Armação de aço CA-50", "Fundação / Estrutura", "kg", 5, [
+        ["Aço CA-50", 1, "kg", "Coeficiente demonstrativo/editável."],
+        ["Arame recozido", 0.025, "kg", "Coeficiente demonstrativo/editável."],
+        ["Espaçador plástico", 0.08, "un", "Coeficiente demonstrativo/editável."]
+      ], ["armacao", "armação", "ferro", "aco", "aço", "ca50"]),
+      createDefaultComposition_("std_pilar_concreto_armado", "Pilar de concreto armado", "Fundação / Estrutura", "m³", 5, [
+        ["Concreto estrutural", 1, "m³", "Coeficiente demonstrativo/editável."],
+        ["Aço CA-50", 95, "kg", "Coeficiente demonstrativo/editável."],
+        ["Forma de madeira", 8, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["pilar", "coluna"]),
+      createDefaultComposition_("std_viga_concreto_armado", "Viga de concreto armado", "Fundação / Estrutura", "m³", 5, [
+        ["Concreto estrutural", 1, "m³", "Coeficiente demonstrativo/editável."],
+        ["Aço CA-50", 85, "kg", "Coeficiente demonstrativo/editável."],
+        ["Forma de madeira", 6.5, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["viga", "baldrame"]),
+      createDefaultComposition_("std_laje_concreto", "Laje maciça ou pré-moldada", "Fundação / Estrutura", "m²", 5, [
+        ["Concreto estrutural", 0.1, "m³", "Coeficiente demonstrativo/editável."],
+        ["Aço CA-50", 7, "kg", "Coeficiente demonstrativo/editável."],
+        ["Forma/escoramento", 1, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["laje", "laje macica", "laje premoldada", "pré-moldada"]),
+
+      createDefaultComposition_("std_alvenaria", "Alvenaria de bloco cerâmico", "Alvenaria / Vedação", "m²", 5, [
+        ["Bloco cerâmico", 13, "un", ""],
+        ["Cimento", 0.1, "saco", ""],
+        ["Areia", 0.018, "m³", ""]
+      ], ["alvenaria", "parede", "bloco", "bloco ceramico", "vedacao"]),
+      createDefaultComposition_("std_alvenaria_bloco_concreto", "Alvenaria de bloco de concreto", "Alvenaria / Vedação", "m²", 5, [
+        ["Bloco de concreto", 12.5, "un", "Coeficiente demonstrativo/editável."],
+        ["Argamassa de assentamento", 0.02, "m³", "Coeficiente demonstrativo/editável."],
+        ["Cimento", 0.12, "saco", "Coeficiente demonstrativo/editável."]
+      ], ["parede bloco concreto", "bloco concreto", "alvenaria estrutural"]),
+      createDefaultComposition_("std_verga_contraverga", "Verga e contraverga", "Alvenaria / Vedação", "m", 5, [
+        ["Concreto estrutural", 0.025, "m³", "Coeficiente demonstrativo/editável."],
+        ["Aço CA-50", 1.4, "kg", "Coeficiente demonstrativo/editável."],
+        ["Forma de madeira", 0.25, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["verga", "contraverga", "abertura"]),
+      createDefaultComposition_("std_grauteamento_simples", "Grauteamento simples", "Alvenaria / Vedação", "m³", 5, [
+        ["Graute", 1, "m³", "Coeficiente demonstrativo/editável."],
+        ["Cimento", 7, "saco", "Coeficiente demonstrativo/editável."],
+        ["Pedrisco", 0.75, "m³", "Coeficiente demonstrativo/editável."]
+      ], ["graute", "grauteamento"]),
+
+      createDefaultComposition_("std_chapisco", "Chapisco", "Revestimentos", "m²", 5, [
+        ["Cimento", 0.05, "saco", ""],
+        ["Areia", 0.006, "m³", ""]
+      ], ["chapisco", "massa chapisco"]),
+      createDefaultComposition_("std_emboco", "Emboço", "Revestimentos", "m²", 5, [
+        ["Cimento", 0.07, "saco", ""],
+        ["Areia", 0.018, "m³", ""]
+      ], ["emboco", "emboço", "massa grossa", "massa"]),
+      createDefaultComposition_("std_reboco", "Reboco", "Revestimentos", "m²", 5, [
+        ["Cimento", 0.08, "saco", ""],
+        ["Areia", 0.02, "m³", ""]
+      ], ["reboco", "massa fina", "massa"]),
+      createDefaultComposition_("std_contrapiso", "Contrapiso", "Revestimentos", "m²", 5, [
+        ["Cimento", 0.12, "saco", ""],
+        ["Areia", 0.025, "m³", ""]
+      ], ["contrapiso", "regularizacao piso", "regularização piso"]),
+      createDefaultComposition_("std_piso", "Piso cerâmico", "Revestimentos", "m²", 3, [
+        ["Piso cerâmico", 1.05, "m²", ""],
+        ["Argamassa colante", 0.25, "saco", ""],
+        ["Rejunte", 0.2, "kg", ""]
+      ], ["piso", "piso ceramico", "ceramica piso"]),
+      createDefaultComposition_("std_revestimento", "Revestimento cerâmico de parede", "Revestimentos", "m²", 3, [
+        ["Revestimento cerâmico", 1.05, "m²", ""],
+        ["Argamassa colante", 0.25, "saco", ""],
+        ["Rejunte", 0.18, "kg", ""]
+      ], ["revestimento", "azulejo", "ceramica parede", "parede ceramica"]),
+      createDefaultComposition_("std_rejuntamento", "Rejuntamento", "Revestimentos", "m²", 3, [
+        ["Rejunte", 0.22, "kg", "Coeficiente demonstrativo/editável."],
+        ["Espaçador", 0.08, "un", "Coeficiente demonstrativo/editável."],
+        ["Limpeza pós-rejunte", 0.02, "litro", "Coeficiente demonstrativo/editável."]
+      ], ["rejunte", "rejuntamento"]),
+      createDefaultComposition_("std_pintura", "Pintura interna", "Revestimentos", "m²", 5, [
+        ["Tinta", 0.12, "litro", ""],
+        ["Massa corrida", 0.18, "kg", ""]
+      ], ["pintura", "pintura interna", "tinta parede"]),
+      createDefaultComposition_("std_pintura_externa", "Pintura externa", "Revestimentos", "m²", 5, [
+        ["Tinta acrílica externa", 0.14, "litro", "Coeficiente demonstrativo/editável."],
+        ["Selador acrílico", 0.08, "litro", "Coeficiente demonstrativo/editável."],
+        ["Massa acrílica", 0.15, "kg", "Coeficiente demonstrativo/editável."]
+      ], ["pintura externa", "fachada", "tinta externa"]),
+
+      createDefaultComposition_("std_telhado_madeira", "Estrutura de madeira para telhado", "Cobertura", "m²", 7, [
+        ["Madeiramento", 0.045, "m³", "Coeficiente demonstrativo/editável."],
+        ["Prego", 0.1, "kg", "Coeficiente demonstrativo/editável."],
+        ["Tratamento preservativo", 0.05, "litro", "Coeficiente demonstrativo/editável."]
+      ], ["estrutura telhado", "madeiramento", "telhado madeira"]),
+      createDefaultComposition_("std_telhado", "Telha cerâmica", "Cobertura", "m²", 7, [
+        ["Telha cerâmica", 16, "un", "Coeficiente demonstrativo/editável."],
+        ["Cumeeira cerâmica", 0.25, "un", "Coeficiente demonstrativo/editável."],
+        ["Prego/arame de fixação", 0.04, "kg", "Coeficiente demonstrativo/editável."]
+      ], ["telhado", "telha", "telha ceramica", "cobertura ceramica"]),
+      createDefaultComposition_("std_telha_fibrocimento", "Telha fibrocimento", "Cobertura", "m²", 5, [
+        ["Telha fibrocimento", 1.05, "m²", "Coeficiente demonstrativo/editável."],
+        ["Parafuso de fixação", 2.5, "un", "Coeficiente demonstrativo/editável."],
+        ["Arruela de vedação", 2.5, "un", "Coeficiente demonstrativo/editável."]
+      ], ["fibrocimento", "telha brasilit", "cobertura fibrocimento"]),
+      createDefaultComposition_("std_rufo_calha", "Rufo/calha simples", "Cobertura", "m", 5, [
+        ["Chapa galvanizada", 1.05, "m", "Coeficiente demonstrativo/editável."],
+        ["Selante PU", 0.08, "tubo", "Coeficiente demonstrativo/editável."],
+        ["Parafuso/bucha", 2, "un", "Coeficiente demonstrativo/editável."]
+      ], ["rufo", "calha", "pingadeira"]),
+
+      createDefaultComposition_("std_ponto_eletrico", "Ponto elétrico simples", "Instalações", "un", 5, [
+        ["Caixa elétrica", 1, "un", "Coeficiente demonstrativo/editável."],
+        ["Eletroduto", 3, "m", "Coeficiente demonstrativo/editável."],
+        ["Cabo elétrico", 9, "m", "Coeficiente demonstrativo/editável."],
+        ["Tomada/interruptor", 1, "un", "Coeficiente demonstrativo/editável."]
+      ], ["ponto eletrico", "ponto elétrico", "tomada", "interruptor", "fiação"]),
+      createDefaultComposition_("std_eletroduto", "Eletroduto embutido", "Instalações", "m", 3, [
+        ["Eletroduto", 1.03, "m", ""],
+        ["Conexões elétricas", 0.15, "un", ""],
+        ["Fixadores", 0.4, "un", "Coeficiente demonstrativo/editável."]
+      ], ["eletroduto", "conduite", "conduíte"]),
+      createDefaultComposition_("std_cabo_eletrico", "Cabo elétrico", "Instalações", "m", 3, [
+        ["Cabo elétrico", 1.05, "m", "Coeficiente demonstrativo/editável."],
+        ["Fita isolante", 0.01, "rolo", "Coeficiente demonstrativo/editável."],
+        ["Identificador", 0.02, "un", "Coeficiente demonstrativo/editável."]
+      ], ["cabo", "fio", "fiacao", "fiação", "cabo eletrico"]),
+      createDefaultComposition_("std_ponto_hidraulico_agua_fria", "Ponto hidráulico água fria", "Instalações", "un", 5, [
+        ["Tubo PVC água fria", 3, "m", "Coeficiente demonstrativo/editável."],
+        ["Conexões PVC água fria", 3, "un", "Coeficiente demonstrativo/editável."],
+        ["Registro/terminal", 1, "un", "Coeficiente demonstrativo/editável."]
+      ], ["ponto hidraulico", "ponto hidráulico", "agua fria", "água fria"]),
+      createDefaultComposition_("std_ponto_sanitario", "Ponto sanitário", "Instalações", "un", 5, [
+        ["Tubo PVC esgoto", 3, "m", "Coeficiente demonstrativo/editável."],
+        ["Conexões PVC esgoto", 3, "un", "Coeficiente demonstrativo/editável."],
+        ["Caixa sifonada/terminal", 0.5, "un", "Coeficiente demonstrativo/editável."]
+      ], ["ponto sanitario", "ponto sanitário", "esgoto banheiro"]),
+      createDefaultComposition_("std_esgoto", "Tubulação PVC esgoto", "Instalações", "m", 3, [
+        ["Tubo PVC esgoto", 1.03, "m", ""],
+        ["Conexões PVC", 0.25, "un", ""]
+      ], ["tubulacao esgoto", "tubulação esgoto", "esgoto", "pvc esgoto"]),
+      createDefaultComposition_("std_agua", "Tubulação PVC água fria", "Instalações", "m", 3, [
+        ["Tubo PVC água", 1.03, "m", ""],
+        ["Conexões PVC", 0.2, "un", ""]
+      ], ["tubulacao agua", "tubulação água", "agua fria", "água fria", "pvc agua"]),
+
+      createDefaultComposition_("std_impermeabilizacao_simples", "Impermeabilização simples", "Outros serviços úteis", "m²", 5, [
+        ["Primer", 0.12, "litro", "Coeficiente demonstrativo/editável."],
+        ["Manta/argamassa impermeável", 1.05, "m²", "Coeficiente demonstrativo/editável."],
+        ["Tela estruturante", 0.15, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["impermeabilizacao", "impermeabilização", "manta", "infiltracao"]),
+      createDefaultComposition_("std_forro_gesso", "Forro de gesso", "Outros serviços úteis", "m²", 5, [
+        ["Placa de gesso", 1.05, "m²", "Coeficiente demonstrativo/editável."],
+        ["Perfil metálico", 1.8, "m", "Coeficiente demonstrativo/editável."],
+        ["Parafuso", 12, "un", "Coeficiente demonstrativo/editável."],
+        ["Massa para junta", 0.25, "kg", "Coeficiente demonstrativo/editável."]
+      ], ["forro", "gesso", "forro gesso"]),
+      createDefaultComposition_("std_drywall", "Drywall", "Outros serviços úteis", "m²", 5, [
+        ["Chapa drywall", 2.1, "m²", "Coeficiente demonstrativo/editável."],
+        ["Montante/guia metálica", 2.2, "m", "Coeficiente demonstrativo/editável."],
+        ["Parafuso drywall", 18, "un", "Coeficiente demonstrativo/editável."],
+        ["Massa e fita para junta", 0.3, "kg", "Coeficiente demonstrativo/editável."]
+      ], ["drywall", "parede drywall", "gesso acartonado"]),
+      createDefaultComposition_("std_pavimentacao_intertravada", "Pavimentação intertravada", "Outros serviços úteis", "m²", 5, [
+        ["Paver/bloco intertravado", 1.03, "m²", "Coeficiente demonstrativo/editável."],
+        ["Areia de assentamento", 0.05, "m³", "Coeficiente demonstrativo/editável."],
+        ["Pó de pedra", 0.03, "m³", "Coeficiente demonstrativo/editável."]
+      ], ["paver", "intertravado", "pavimentacao", "pavimentação"]),
+      createDefaultComposition_("std_meio_fio", "Meio-fio", "Outros serviços úteis", "m", 5, [
+        ["Meio-fio pré-moldado", 1.02, "m", "Coeficiente demonstrativo/editável."],
+        ["Concreto de assentamento", 0.025, "m³", "Coeficiente demonstrativo/editável."],
+        ["Argamassa de rejunte", 0.006, "m³", "Coeficiente demonstrativo/editável."]
+      ], ["meio fio", "meio-fio", "guia"]),
+      createDefaultComposition_("std_drenagem_simples", "Drenagem simples", "Outros serviços úteis", "m", 5, [
+        ["Tubo drenante/PVC", 1.03, "m", "Coeficiente demonstrativo/editável."],
+        ["Brita", 0.08, "m³", "Coeficiente demonstrativo/editável."],
+        ["Manta geotêxtil", 1.1, "m²", "Coeficiente demonstrativo/editável."]
+      ], ["drenagem", "dreno", "agua pluvial", "água pluvial"])
     ];
   }
 
-  function createDefaultComposition_(id, service, productionUnit, lossPercent, materials) {
+  function createDefaultComposition_(id, service, category, productionUnit, lossPercent, materials, aliases) {
     return {
       id: id,
       service: service,
+      category: category || "Geral",
       productionUnit: productionUnit,
       lossPercent: lossPercent,
       note: STOCK_AI_DEMO_COMPOSITION_WARNING,
+      libraryVersion: STOCK_AI_COMPOSITIONS_LIBRARY_VERSION,
+      aliases: Array.isArray(aliases) ? aliases : [],
       source: STOCK_AI_DEMO_COMPOSITION_SOURCE,
       sinapiCode: "",
       state: "",
@@ -971,10 +1122,15 @@
     const copy = cloneComposition_(composition);
     copy.id = copy.id || createId_("cmp");
     copy.service = clean(copy.service || copy.name) || "Serviço";
+    copy.category = clean(copy.category) || "Geral";
     copy.productionUnit = clean(copy.productionUnit) || "m²";
     copy.lossPercent = parseNumber_(copy.lossPercent);
     copy.note = clean(copy.note);
     copy.source = clean(copy.source) || "Personalizada";
+    copy.libraryVersion = clean(copy.libraryVersion);
+    copy.aliases = Array.isArray(copy.aliases) ? copy.aliases.map(function (alias) {
+      return clean(alias);
+    }).filter(Boolean) : [];
     copy.sinapiCode = clean(copy.sinapiCode);
     copy.state = clean(copy.state);
     copy.competence = clean(copy.competence);
@@ -4171,6 +4327,7 @@
       items: [],
       audit: [],
       missing: [],
+      purchasePlan: null,
       editable: false
     };
     renderEstimatePanel_();
@@ -4187,6 +4344,7 @@
       items: result.items,
       audit: result.audit,
       missing: result.missing,
+      purchasePlan: result.purchasePlan,
       editable: false
     };
     renderEstimatePanel_();
@@ -4246,8 +4404,171 @@
       missing: missing,
       audit: comparePredictedVsActualConsumption(items, registeredMaterials || dailyLogDraft.materials),
       predictions: predictions,
+      purchasePlan: buildStockAiPurchasePlan(productions, calculateRealStockBalances_(), {
+        predictedItems: items
+      }),
       warning: STOCK_AI_DEMO_COMPOSITION_WARNING
     };
+  }
+
+  function buildStockAiPurchasePlan(productions, stockItems, options) {
+    const settings = options || {};
+    const predicted = settings.predictedItems || buildEstimatedMaterialsForProductions_(productions || [], []).items;
+    const stock = Array.isArray(stockItems) ? stockItems : calculateRealStockBalances_();
+    const items = predicted.map(function (material) {
+      const stockMatch = matchPredictedMaterialToStockItem(material, stock);
+      const stockItem = stockMatch && stockMatch.item ? stockMatch.item : null;
+      const requiredQuantity = roundQuantity_(parseNumber_(material.quantity || material.predictedQuantity || material.estimated));
+      const currentBalance = stockMatch ? roundQuantity_(parseNumber_(stockMatch.realBalance)) : 0;
+      const purchaseQuantity = roundQuantity_(Math.max(requiredQuantity - currentBalance, 0));
+      const status = getStockAiPurchasePlanStatus_(requiredQuantity, currentBalance, stockMatch);
+
+      return {
+        id: "purchase_plan_" + normalizeCompositionKey_(material.name) + "_" + normalizeUnitKey_(material.unit || "un"),
+        material: material.name || material.material || "Material",
+        materialName: material.name || material.material || "Material",
+        unit: material.unit || "un",
+        predictedQuantity: requiredQuantity,
+        requiredQuantity: requiredQuantity,
+        currentBalance: currentBalance,
+        purchaseQuantity: purchaseQuantity,
+        status: status,
+        stockItemId: stockItem ? stockItem.id : null,
+        stockItemName: stockItem ? stockItem.name : "",
+        note: buildStockAiPurchasePlanNote_(status, stockItem, stockMatch)
+      };
+    }).sort(function (a, b) {
+      return getStockAiPurchasePlanStatusRank_(b.status) - getStockAiPurchasePlanStatusRank_(a.status) ||
+        String(a.materialName || "").localeCompare(String(b.materialName || ""));
+    });
+
+    const summary = {
+      totalPredicted: items.length,
+      sufficient: items.filter(function (item) { return item.status === "suficiente"; }).length,
+      toBuy: items.filter(function (item) { return item.status === "comprar"; }).length,
+      critical: items.filter(function (item) { return item.status === "crítico"; }).length,
+      notFound: items.filter(function (item) { return item.status === "sem item no estoque"; }).length
+    };
+
+    return {
+      items: items,
+      summary: summary,
+      warning: "Lista de compra gerada a partir de composições demonstrativas/editáveis e saldo local. Validar antes de compra oficial."
+    };
+  }
+
+  function matchPredictedMaterialToStockItem(predictedMaterial, stockItems) {
+    const materialName = clean(predictedMaterial && (predictedMaterial.name || predictedMaterial.material));
+    const materialUnit = normalizeUnitKey_(predictedMaterial && predictedMaterial.unit || "un");
+    const materialKeys = buildStockAiMaterialMatchKeys_(materialName);
+    const candidates = (stockItems || []).map(function (entry) {
+      return entry && entry.item ? entry : {
+        item: entry,
+        realBalance: entry && entry.realBalance !== undefined ? entry.realBalance : entry && entry.balance
+      };
+    }).filter(function (entry) {
+      return entry && entry.item;
+    });
+
+    return candidates.find(function (entry) {
+      const item = entry.item || {};
+      return normalizeUnitKey_(item.unit || "un") === materialUnit &&
+        normalizeCompositionKey_(item.name) === normalizeCompositionKey_(materialName);
+    }) || candidates.find(function (entry) {
+      const item = entry.item || {};
+      const itemKeys = buildStockAiMaterialMatchKeys_(item.name);
+      return normalizeUnitKey_(item.unit || "un") === materialUnit &&
+        materialKeys.some(function (key) { return itemKeys.indexOf(key) >= 0; });
+    }) || candidates.find(function (entry) {
+      const item = entry.item || {};
+      const itemKeys = buildStockAiMaterialMatchKeys_(item.name);
+      return materialKeys.some(function (key) {
+        return itemKeys.some(function (itemKey) {
+          return key.length >= 4 && itemKey.length >= 4 && (key.indexOf(itemKey) >= 0 || itemKey.indexOf(key) >= 0);
+        });
+      });
+    }) || null;
+  }
+
+  function buildStockAiMaterialMatchKeys_(name) {
+    const normalized = normalizeCompositionKey_(name);
+    const aliases = {
+      "bloco ceramico": ["bloco", "tijolo", "tijolo ceramico"],
+      "bloco": ["bloco ceramico", "tijolo", "tijolo ceramico", "bloco concreto"],
+      "cimento": ["cimento cp ii", "cimento cp iv", "cimento portland"],
+      "argamassa": ["argamassa colante", "massa", "cimento areia"],
+      "areia": ["areia media", "areia fina", "areia lavada"],
+      "brita": ["brita 1", "pedrisco"],
+      "tinta": ["tinta acrilica", "tinta acrilica externa", "tinta parede"],
+      "tubo pvc esgoto": ["esgoto", "pvc esgoto", "tubulacao esgoto"],
+      "tubo pvc agua": ["agua fria", "pvc agua", "tubulacao agua", "tubo pvc agua fria"],
+      "cabo eletrico": ["fio", "fiacao", "fiação", "cabo"],
+      "eletroduto": ["conduite", "conduíte"],
+      "telha ceramica": ["telha", "telhado", "cobertura ceramica"],
+      "telha fibrocimento": ["fibrocimento", "telha brasilit"],
+      "aco ca 50": ["aco", "aço", "ferro", "armacao", "armação"]
+    };
+    const words = normalized.split(" ").filter(function (word) {
+      return word.length >= 4;
+    });
+    const keys = [normalized].concat(words);
+
+    Object.keys(aliases).forEach(function (key) {
+      if (normalized.indexOf(key) >= 0 || aliases[key].some(function (alias) { return normalized.indexOf(normalizeCompositionKey_(alias)) >= 0; })) {
+        keys.push(key);
+        keys.push.apply(keys, aliases[key].map(normalizeCompositionKey_));
+      }
+    });
+
+    return keys.filter(Boolean).filter(function (key, index, list) {
+      return list.indexOf(key) === index;
+    });
+  }
+
+  function getStockAiPurchasePlanStatus_(requiredQuantity, currentBalance, stockMatch) {
+    if (!stockMatch) {
+      return "sem item no estoque";
+    }
+
+    if (currentBalance >= requiredQuantity) {
+      return "suficiente";
+    }
+
+    if (currentBalance <= 0) {
+      return "crítico";
+    }
+
+    if (requiredQuantity > 0 && currentBalance / requiredQuantity <= 0.25) {
+      return "crítico";
+    }
+
+    return "comprar";
+  }
+
+  function getStockAiPurchasePlanStatusRank_(status) {
+    if (status === "crítico") {
+      return 4;
+    }
+    if (status === "sem item no estoque") {
+      return 3;
+    }
+    if (status === "comprar") {
+      return 2;
+    }
+    return 1;
+  }
+
+  function buildStockAiPurchasePlanNote_(status, stockItem, stockMatch) {
+    if (status === "sem item no estoque") {
+      return "Material previsto sem item correspondente no estoque local.";
+    }
+    if (status === "crítico") {
+      return "Saldo insuficiente para a produção prevista. Revisar compra antes da execução.";
+    }
+    if (status === "comprar") {
+      return "Comprar a diferença entre consumo previsto e saldo local.";
+    }
+    return "Saldo local atende ao consumo previsto.";
   }
 
   function calculateStockAiPredictedConsumption(serviceInput) {
@@ -4310,10 +4631,7 @@
     const serviceKey = normalizeCompositionKey_(production.service);
     const unitKey = normalizeUnitKey_(production.unit);
     const compositions = ensureCompositionLibrary_(appState.compositions).filter(function (composition) {
-      const compositionKey = normalizeCompositionKey_(composition.service);
-      return compositionKey === serviceKey ||
-        (serviceKey && compositionKey.indexOf(serviceKey) >= 0) ||
-        (compositionKey && serviceKey.indexOf(compositionKey) >= 0);
+      return compositionMatchesProduction_(composition, serviceKey);
     });
 
     if (!compositions.length) {
@@ -4327,6 +4645,19 @@
     }) || compositions.find(function (composition) {
       return !isStockAiDefaultComposition_(composition);
     }) || compositions[0];
+  }
+
+  function compositionMatchesProduction_(composition, serviceKey) {
+    if (!serviceKey) {
+      return false;
+    }
+
+    const keys = [composition.service].concat(composition.aliases || []).map(normalizeCompositionKey_).filter(Boolean);
+    return keys.some(function (key) {
+      return key === serviceKey ||
+        key.indexOf(serviceKey) >= 0 ||
+        serviceKey.indexOf(key) >= 0;
+    });
   }
 
   function buildEstimatedConsumptionAudit_(estimatedItems, registeredMaterials) {
@@ -4428,9 +4759,10 @@
 
     const items = dailyLogEstimateDraft.items || [];
     const missing = dailyLogEstimateDraft.missing || [];
+    const purchasePlan = dailyLogEstimateDraft.purchasePlan || null;
 
     dailyLogEstimatePanel.innerHTML = "";
-    if (!items.length && !missing.length) {
+    if (!items.length && !missing.length && !(purchasePlan && purchasePlan.items && purchasePlan.items.length)) {
       dailyLogEstimatePanel.className = "estimate-panel is-hidden";
       return;
     }
@@ -4459,6 +4791,8 @@
       dailyLogEstimatePanel.appendChild(list);
       dailyLogEstimatePanel.appendChild(createEstimateTitle_("Auditoria simples"));
       dailyLogEstimatePanel.appendChild(createEstimateAuditList_(dailyLogEstimateDraft.audit || []));
+      dailyLogEstimatePanel.appendChild(createEstimateTitle_("Planejamento de compra"));
+      dailyLogEstimatePanel.appendChild(createStockAiPurchasePlanList_(purchasePlan));
     }
 
     if (missing.length) {
@@ -4474,6 +4808,7 @@
     actions.className = "button-row";
     actions.appendChild(createEstimateActionButton_("Aplicar ao diário", "apply", "next-action compact"));
     actions.appendChild(createEstimateActionButton_("Editar antes de aplicar", "edit", "secondary-action compact"));
+    actions.appendChild(createEstimateActionButton_("Copiar lista de compras", "copy-purchase-plan", "secondary-action compact"));
     actions.appendChild(createEstimateActionButton_("Cancelar", "cancel", "mini-button danger"));
     dailyLogEstimatePanel.appendChild(actions);
   }
@@ -4547,6 +4882,48 @@
     return list;
   }
 
+  function createStockAiPurchasePlanList_(purchasePlan) {
+    const wrapper = document.createElement("div");
+    const list = document.createElement("div");
+    const summary = purchasePlan && purchasePlan.summary ? purchasePlan.summary : null;
+    wrapper.className = "diary-item-list";
+
+    if (!purchasePlan || !purchasePlan.items || !purchasePlan.items.length) {
+      wrapper.className = "diary-item-list empty-list";
+      wrapper.textContent = "Nenhum material previsto para planejar compra.";
+      return wrapper;
+    }
+
+    const summaryText = document.createElement("p");
+    summaryText.className = "estimate-warning";
+    summaryText.textContent = "Previstos: " + summary.totalPredicted +
+      " · Suficientes: " + summary.sufficient +
+      " · Comprar: " + summary.toBuy +
+      " · Críticos: " + summary.critical +
+      " · Sem item: " + summary.notFound + ".";
+    wrapper.appendChild(summaryText);
+
+    list.className = "diary-item-list";
+    purchasePlan.items.forEach(function (item) {
+      list.appendChild(createDiaryListItem_(
+        item.materialName,
+        "Previsto: " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
+          " · Saldo: " + formatQuantity_(item.currentBalance) + " " + item.unit +
+          " · Comprar: " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
+          " · Status: " + item.status,
+        item.note,
+        []
+      ));
+    });
+
+    wrapper.appendChild(list);
+    const warning = document.createElement("p");
+    warning.className = "estimate-warning";
+    warning.textContent = purchasePlan.warning;
+    wrapper.appendChild(warning);
+    return wrapper;
+  }
+
   function createEstimateActionButton_(label, action, className) {
     const button = document.createElement("button");
     button.type = "button";
@@ -4572,9 +4949,50 @@
       return;
     }
 
+    if (action === "copy-purchase-plan") {
+      copyStockAiPurchasePlanText_();
+      return;
+    }
+
     if (action === "apply") {
       applyEstimatedMaterialsToDailyLog_();
     }
+  }
+
+  function copyStockAiPurchasePlanText_() {
+    const purchasePlan = dailyLogEstimateDraft.purchasePlan;
+    if (!purchasePlan || !purchasePlan.items || !purchasePlan.items.length) {
+      setDailyLogStatus_("Nenhuma lista de compra gerada para copiar.", "error");
+      return;
+    }
+
+    const copied = copyTextFallback_(buildStockAiPurchasePlanText_(purchasePlan));
+    setDailyLogStatus_(copied ? "Lista de compras copiada." : "Não foi possível copiar automaticamente.", copied ? "success" : "error");
+  }
+
+  function buildStockAiPurchasePlanText_(purchasePlan) {
+    const summary = purchasePlan && purchasePlan.summary ? purchasePlan.summary : {};
+    const lines = [
+      "Stock AI Obras - Planejamento de compra",
+      "",
+      "Resumo: " + (summary.totalPredicted || 0) + " material(is) previsto(s), " +
+        (summary.toBuy || 0) + " para comprar, " +
+        (summary.critical || 0) + " crítico(s), " +
+        (summary.notFound || 0) + " sem item no estoque.",
+      "",
+      "Itens:"
+    ];
+
+    (purchasePlan.items || []).forEach(function (item) {
+      lines.push("- " + item.materialName + ": previsto " + formatQuantity_(item.predictedQuantity) + " " + item.unit +
+        ", saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
+        ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit +
+        " (" + item.status + ").");
+    });
+
+    lines.push("");
+    lines.push(purchasePlan.warning || "Lista de compra gerada a partir de saldo local. Validar antes de compra oficial.");
+    return lines.join("\n");
   }
 
   function applyEstimatedMaterialsToDailyLog_() {
@@ -15023,6 +15441,15 @@
           formatQuantity_(item.registered) + " " + item.unit,
           formatAuditDifference_(item),
           formatStockAiConsumptionStatus_(item.status)
+        ];
+      })),
+      buildDailyLogPdfTableSection_("Planejamento de compra", ["Material", "Previsto", "Saldo", "Comprar", "Status"], ((estimated.purchasePlan && estimated.purchasePlan.items) || []).map(function (item) {
+        return [
+          item.materialName,
+          formatQuantity_(item.predictedQuantity) + " " + item.unit,
+          formatQuantity_(item.currentBalance) + " " + item.unit,
+          formatQuantity_(item.purchaseQuantity) + " " + item.unit,
+          item.status
         ];
       })),
       buildDailyLogPdfTableSection_("Ferramentas e equipamentos", ["Nome", "Situação", "Observação"], (logItem.tools || []).map(function (item) {
