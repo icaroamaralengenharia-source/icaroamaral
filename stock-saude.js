@@ -41,22 +41,31 @@
     exits: [],
     balance: []
   };
+  let stockSaudeAuthContext = {
+    mode: "local",
+    user: null,
+    profile: null,
+    institutionId: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+    unitId: STOCK_SAUDE_DEMO_UNIT_ID,
+    profileId: STOCK_SAUDE_DEMO_PROFILE_ID
+  };
 
-  // TODO: usar /api/stock-saude/me e substituir IDs fixos por Supabase Auth + profiles na Fase 2.5.3/2.5.4.
   const StockSaudeAPI = {
     async request(path, options) {
       const controller = new AbortController();
       const timeout = window.setTimeout(function () {
         controller.abort();
       }, STOCK_SAUDE_API_TIMEOUT_MS);
+      const requestOptions = options || {};
+      const headers = Object.assign({
+        "Content-Type": "application/json"
+      }, requestOptions.headers || {});
 
       try {
-        const response = await fetch(path, Object.assign({
-          headers: {
-            "Content-Type": "application/json"
-          },
+        const response = await fetch(path, Object.assign({}, requestOptions, {
+          headers: headers,
           signal: controller.signal
-        }, options || {}));
+        }));
         const data = await response.json().catch(function () {
           return {};
         });
@@ -87,10 +96,19 @@
       }
     },
 
+    async me(token) {
+      return this.request("/api/stock-saude/me", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+    },
+
     async getItems() {
       const params = new URLSearchParams({
-        institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
-        unit_id: STOCK_SAUDE_DEMO_UNIT_ID
+        institution_id: getStockSaudeInstitutionId(),
+        unit_id: getStockSaudeUnitId()
       });
       const data = await this.request("/api/stock-saude/items?" + params.toString(), {
         method: "GET"
@@ -140,8 +158,8 @@
 
     async getBalance() {
       const params = new URLSearchParams({
-        institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
-        unit_id: STOCK_SAUDE_DEMO_UNIT_ID
+        institution_id: getStockSaudeInstitutionId(),
+        unit_id: getStockSaudeUnitId()
       });
       const data = await this.request("/api/stock-saude/balance?" + params.toString(), {
         method: "GET"
@@ -208,6 +226,159 @@
     } catch (error) {
       return null;
     }
+  }
+
+  function getSessionStorage() {
+    try {
+      return window.sessionStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function findSupabaseAccessToken(value, depth) {
+    if (!value || depth > 5) {
+      return null;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(trimmed)) {
+        return trimmed;
+      }
+      if ((trimmed[0] === "{" && trimmed[trimmed.length - 1] === "}") || (trimmed[0] === "[" && trimmed[trimmed.length - 1] === "]")) {
+        try {
+          return findSupabaseAccessToken(JSON.parse(trimmed), depth + 1);
+        } catch (error) {
+          return null;
+        }
+      }
+      return null;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const token = findSupabaseAccessToken(item, depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+      return null;
+    }
+    if (typeof value === "object") {
+      if (typeof value.access_token === "string") {
+        return findSupabaseAccessToken(value.access_token, depth + 1);
+      }
+      if (value.currentSession) {
+        const token = findSupabaseAccessToken(value.currentSession, depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+      if (value.session) {
+        const token = findSupabaseAccessToken(value.session, depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+      for (const key of Object.keys(value)) {
+        const token = findSupabaseAccessToken(value[key], depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+    }
+    return null;
+  }
+
+  function getStockSaudeSupabaseToken() {
+    try {
+      const stores = [getStorage(), getSessionStorage()].filter(Boolean);
+      for (const store of stores) {
+        for (let index = 0; index < store.length; index += 1) {
+          const key = store.key(index) || "";
+          const normalizedKey = key.toLowerCase();
+          if (normalizedKey.indexOf("supabase") < 0 && normalizedKey.indexOf("sb-") !== 0) {
+            continue;
+          }
+          const token = findSupabaseAccessToken(store.getItem(key), 0);
+          if (token) {
+            return token;
+          }
+        }
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  async function fetchStockSaudeMe() {
+    const token = getStockSaudeSupabaseToken();
+    if (!token) {
+      return null;
+    }
+    try {
+      const data = await StockSaudeAPI.me(token);
+      if (data && data.user && data.profile) {
+        return {
+          user: data.user,
+          profile: data.profile
+        };
+      }
+    } catch (error) {
+      if (window.console && console.info) {
+        console.info("Stock Saude: sessao Supabase indisponivel para o Stock Saude.");
+      }
+    }
+    return null;
+  }
+
+  async function initStockSaudeAuthContext() {
+    try {
+      const session = await fetchStockSaudeMe();
+      if (session && session.profile) {
+        stockSaudeAuthContext = {
+          mode: "supabase",
+          user: session.user,
+          profile: session.profile,
+          institutionId: session.profile.institution_id || STOCK_SAUDE_DEMO_INSTITUTION_ID,
+          unitId: session.profile.unit_id || STOCK_SAUDE_DEMO_UNIT_ID,
+          profileId: session.profile.id || STOCK_SAUDE_DEMO_PROFILE_ID
+        };
+        if (window.console && console.info) {
+          console.info("Stock Saude: sessao Supabase reconhecida.");
+        }
+        return stockSaudeAuthContext;
+      }
+    } catch (error) {
+      // Mantem a tela inicializando em modo local.
+    }
+    stockSaudeAuthContext = {
+      mode: "local",
+      user: null,
+      profile: null,
+      institutionId: STOCK_SAUDE_DEMO_INSTITUTION_ID,
+      unitId: STOCK_SAUDE_DEMO_UNIT_ID,
+      profileId: STOCK_SAUDE_DEMO_PROFILE_ID
+    };
+    if (window.console && console.info) {
+      console.info("Stock Saude: modo local ativo.");
+    }
+    return stockSaudeAuthContext;
+  }
+
+  function getStockSaudeInstitutionId() {
+    return stockSaudeAuthContext.institutionId || STOCK_SAUDE_DEMO_INSTITUTION_ID;
+  }
+
+  function getStockSaudeUnitId() {
+    return stockSaudeAuthContext.unitId || STOCK_SAUDE_DEMO_UNIT_ID;
+  }
+
+  function getStockSaudeProfileId() {
+    return stockSaudeAuthContext.profileId || STOCK_SAUDE_DEMO_PROFILE_ID;
   }
 
   function buildDemoState() {
@@ -387,7 +558,7 @@
   function setRuntimeMode(mode) {
     stockSaudeRuntimeMode = mode === "remote" ? "remote" : "local";
     if (window.console && console.info) {
-      console.info("[Stock Saude] modo:", stockSaudeRuntimeMode);
+      console.info(stockSaudeRuntimeMode === "remote" ? "Stock Saude: banco real ativo." : "Stock Saude: modo local ativo.");
     }
   }
 
@@ -404,8 +575,8 @@
 
   function toRemoteItemPayload(item) {
     return {
-      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
-      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      institution_id: getStockSaudeInstitutionId(),
+      unit_id: getStockSaudeUnitId(),
       name: item.name,
       category: item.category,
       unit: item.unit,
@@ -418,26 +589,26 @@
 
   function toRemoteEntryPayload(entry) {
     return {
-      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
-      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      institution_id: getStockSaudeInstitutionId(),
+      unit_id: getStockSaudeUnitId(),
       item_id: entry.itemId,
       quantity: numberValue(entry.quantity),
       source: "stock_saude_app",
       invoice_number: entry.invoice,
-      requested_by: STOCK_SAUDE_DEMO_PROFILE_ID
+      requested_by: getStockSaudeProfileId()
     };
   }
 
   function toRemoteExitPayload(exit) {
     return {
-      institution_id: STOCK_SAUDE_DEMO_INSTITUTION_ID,
-      unit_id: STOCK_SAUDE_DEMO_UNIT_ID,
+      institution_id: getStockSaudeInstitutionId(),
+      unit_id: getStockSaudeUnitId(),
       item_id: exit.itemId,
       quantity: numberValue(exit.quantity),
       destination_sector: exit.sector,
       purpose: exit.purpose,
       responsible_name: exit.releasedBy || exit.withdrawnBy,
-      created_by: STOCK_SAUDE_DEMO_PROFILE_ID
+      created_by: getStockSaudeProfileId()
     };
   }
 
@@ -727,8 +898,8 @@
     }
     try {
       const remoteEntry = status === "rejeitada"
-        ? await StockSaudeAPI.rejectEntry(entryId, STOCK_SAUDE_DEMO_PROFILE_ID)
-        : await StockSaudeAPI.approveEntry(entryId, STOCK_SAUDE_DEMO_PROFILE_ID);
+        ? await StockSaudeAPI.rejectEntry(entryId, getStockSaudeProfileId())
+        : await StockSaudeAPI.approveEntry(entryId, getStockSaudeProfileId());
       const entry = stockSaudeRemoteCache.entries.find(function (candidate) {
         return candidate.id === entryId;
       });
@@ -1114,13 +1285,14 @@
 
   async function init() {
     loadStockSaudeState();
+    const authContext = await initStockSaudeAuthContext();
     const remoteAvailable = await StockSaudeAPI.isRemoteAvailable();
-    setRuntimeMode(remoteAvailable ? "remote" : "local");
+    setRuntimeMode(remoteAvailable && authContext.mode === "supabase" ? "remote" : "local");
     bindAnchorsAndReveal();
     bindForms();
     resetFormDateTime(elements.entryForm);
     resetFormDateTime(elements.exitForm);
-    setMessage(remoteAvailable ? "Conectado ao backend Stock Saude." : "Estado local pronto.");
+    setMessage(stockSaudeRuntimeMode === "remote" ? "Conectado ao backend Stock Saude." : "Estado local pronto.");
     await renderAll();
   }
 

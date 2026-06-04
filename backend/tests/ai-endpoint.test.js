@@ -87,6 +87,22 @@ test("stock saude cria item retorna 503 controlado sem Supabase", async () => {
   assert.equal(data.fallback, "localStorage");
 });
 
+test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback local", async () => {
+  const content = readFileSync(join("..", "stock-saude.js"), "utf8");
+
+  assert.match(content, /function getStockSaudeSupabaseToken\(\)/);
+  assert.match(content, /async function fetchStockSaudeMe\(\)/);
+  assert.match(content, /async function initStockSaudeAuthContext\(\)/);
+  assert.match(content, /\/api\/stock-saude\/me/);
+  assert.match(content, /Authorization: "Bearer " \+ token/);
+  assert.match(content, /mode: "supabase"/);
+  assert.match(content, /mode: "local"/);
+  assert.match(content, /STOCK_SAUDE_DEMO_INSTITUTION_ID/);
+  assert.match(content, /STOCK_SAUDE_DEMO_UNIT_ID/);
+  assert.match(content, /STOCK_SAUDE_DEMO_PROFILE_ID/);
+  assert.doesNotMatch(content, /console\.(?:log|info|warn|error)\([^)]*token/i);
+});
+
 before(async () => {
   eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({
