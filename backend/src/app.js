@@ -678,6 +678,89 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/stock-saude/invites/accept", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    try {
+      const userResult = await getSupabaseUserFromRequest_(request, database);
+      if (!userResult.ok) {
+        response.status(userResult.status).json({ ok: false, error: userResult.error });
+        return;
+      }
+
+      const user = userResult.user;
+      const email = clean_(user && user.email).toLowerCase();
+      if (!email) {
+        response.status(400).json({ ok: false, error: "authenticated_email_required" });
+        return;
+      }
+
+      const invite = await findPendingStockSaudeInviteByEmail_(database, email);
+      if (!invite) {
+        response.status(404).json({ ok: false, error: "stock_saude_invite_not_found" });
+        return;
+      }
+
+      const institutionExists = await stockSaudeRecordExists_(database, "institutions", invite.institution_id);
+      const unitExists = await stockSaudeRecordExists_(database, "units", invite.unit_id);
+      if (!institutionExists) {
+        response.status(400).json({ ok: false, error: "institution_not_found" });
+        return;
+      }
+      if (!unitExists) {
+        response.status(400).json({ ok: false, error: "unit_not_found" });
+        return;
+      }
+
+      let profile = await getStockSaudeProfileByAuthUser_(database, user.id);
+      if (!profile) {
+        const { data, error } = await database
+          .from("profiles")
+          .insert({
+            auth_user_id: user.id,
+            institution_id: invite.institution_id,
+            unit_id: invite.unit_id,
+            name: getStockSaudeUserDisplayName_(user, email),
+            email,
+            role: invite.role
+          })
+          .select("id,institution_id,unit_id,name,email,role")
+          .single();
+        if (error) {
+          throw error;
+        }
+        profile = data;
+      }
+
+      const acceptedAt = new Date().toISOString();
+      await database
+        .from("stock_saude_invites")
+        .update({
+          status: "aceito",
+          accepted_at: acceptedAt
+        })
+        .eq("id", invite.id)
+        .single();
+
+      await createStockSaudeAuditLog_(database, {
+        institutionId: invite.institution_id,
+        unitId: invite.unit_id,
+        profileId: profile.id,
+        action: "accept_invite",
+        entityType: "stock_saude_invites",
+        entityId: invite.id,
+        metadata: { email, role: invite.role }
+      });
+
+      response.json({ ok: true, profile, invite: Object.assign({}, invite, { status: "aceito", accepted_at: acceptedAt }) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_invite_accept_failed" });
+    }
+  });
+
   app.get("/api/stock-demo/state", (request, response) => {
     const key = getStockDemoRequestKey_(request);
     const entry = stockDemoStore.states.get(key);
@@ -1007,6 +1090,47 @@ async function getStockSaudeProfileByAuthUser_(supabase, authUserId) {
     throw error;
   }
   return data || null;
+}
+
+async function findPendingStockSaudeInviteByEmail_(supabase, email) {
+  for (const status of ["pendente", "pending"]) {
+    const { data, error } = await supabase
+      .from("stock_saude_invites")
+      .select("*")
+      .eq("email", email)
+      .eq("status", status)
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+    if (error) {
+      throw error;
+    }
+    if (data) {
+      return data;
+    }
+  }
+  return null;
+}
+
+async function stockSaudeRecordExists_(supabase, table, id) {
+  if (!id) {
+    return false;
+  }
+  const { data, error } = await supabase
+    .from(table)
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return Boolean(data);
+}
+
+function getStockSaudeUserDisplayName_(user, email) {
+  return clean_(user && user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name))
+    || clean_(user && user.name)
+    || email.split("@")[0]
+    || "Usuario Stock Saude";
 }
 
 async function requireStockSaudeAuth_(request, response, supabase) {

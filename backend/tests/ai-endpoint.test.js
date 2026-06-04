@@ -116,7 +116,11 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /\/api\/stock-saude\/invites/);
   assert.match(content, /async listInvites\(token\)/);
   assert.match(content, /async createInvite\(token, invite\)/);
+  assert.match(content, /async acceptInvite\(token\)/);
+  assert.match(content, /\/api\/stock-saude\/invites\/accept/);
   assert.match(content, /Convidar usuario/);
+  assert.match(content, /Aceitar convite/);
+  assert.match(content, /Voce foi vinculado a instituicao com sucesso/);
   assert.match(content, /stockSaudeInviteForm/);
   assert.match(content, /create_invite/);
   assert.match(content, /read_invites/);
@@ -1271,6 +1275,203 @@ test("stock saude role almoxarife nao cria convite", async () => {
 
     assert.equal(response.status, 403);
     assert.equal(data.error, "permission_denied");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aceite retorna 404 para convite inexistente", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: null,
+      user: {
+        id: "auth_convidado",
+        email: "sem-convite@teste.local"
+      }
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 404);
+    assert.equal(data.error, "stock_saude_invite_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aceite nao permite convite de outro email", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: null,
+      user: {
+        id: "auth_convidado",
+        email: "usuario@teste.local"
+      },
+      invites: [
+        {
+          id: "invite_1",
+          institution_id: "inst_auth",
+          unit_id: "unit_auth",
+          email: "outro@teste.local",
+          role: "leitura",
+          status: "pendente",
+          created_by: "profile_auth",
+          created_at: "2026-06-01T10:00:00.000Z"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 404);
+    assert.equal(data.error, "stock_saude_invite_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aceite retorna profile existente sem duplicar", async () => {
+  const profile = createMockStockSaudeProfile_("leitura");
+  const supabase = createMockStockSaudeSupabase_({
+    profile,
+    user: {
+      id: profile.auth_user_id,
+      email: profile.email
+    },
+    invites: [
+      {
+        id: "invite_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        email: profile.email,
+        role: "gestor",
+        status: "pendente",
+        created_by: "profile_auth",
+        created_at: "2026-06-01T10:00:00.000Z"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.profile.id, profile.id);
+    assert.equal(supabase.profiles.length, 1);
+    assert.equal(supabase.invites[0].status, "aceito");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aceite cria profile automatico e registra auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: null,
+    user: {
+      id: "auth_novo",
+      email: "novo@teste.local",
+      user_metadata: { name: "Novo Usuario" }
+    },
+    invites: [
+      {
+        id: "invite_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        email: "novo@teste.local",
+        role: "almoxarife",
+        status: "pendente",
+        created_by: "profile_auth",
+        created_at: "2026-06-01T10:00:00.000Z"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.profile.auth_user_id, undefined);
+    assert.equal(data.profile.email, "novo@teste.local");
+    assert.equal(data.profile.role, "almoxarife");
+    assert.equal(data.profile.institution_id, "inst_auth");
+    assert.equal(data.profile.unit_id, "unit_auth");
+    assert.equal(supabase.profiles.length, 1);
+    assert.equal(supabase.profiles[0].auth_user_id, "auth_novo");
+    assert.equal(supabase.invites[0].status, "aceito");
+    assert.ok(supabase.invites[0].accepted_at);
+    assert.equal(supabase.auditLogs.length, 1);
+    assert.equal(supabase.auditLogs[0].action, "accept_invite");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aceite fluxo feliz vincula convite pendente", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: null,
+    user: {
+      id: "auth_fluxo",
+      email: "fluxo@teste.local"
+    },
+    invites: [
+      {
+        id: "invite_fluxo",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        email: "fluxo@teste.local",
+        role: "leitura",
+        status: "pending",
+        created_by: "profile_auth",
+        created_at: "2026-06-01T10:00:00.000Z"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.profile.email, "fluxo@teste.local");
+    assert.equal(data.invite.status, "aceito");
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -3346,6 +3547,13 @@ async function closeTestServer_(server) {
 
 function createMockStockSaudeSupabase_(options = {}) {
   const profile = Object.prototype.hasOwnProperty.call(options, "profile") ? options.profile : createMockStockSaudeProfile_("gestor");
+  const profiles = profile ? [profile] : [];
+  const authUser = options.user || {
+    id: profile ? profile.auth_user_id : "auth_user_without_profile",
+    email: profile ? profile.email : "sem-profile@teste.local"
+  };
+  const institutions = (options.institutions || [{ id: "inst_auth" }]).slice();
+  const units = (options.units || [{ id: "unit_auth", institution_id: "inst_auth" }]).slice();
   const items = (options.items || []).slice();
   const entries = (options.entries || []).slice();
   const exits = (options.exits || []).slice();
@@ -3355,6 +3563,7 @@ function createMockStockSaudeSupabase_(options = {}) {
   const client = {
     auditLogs,
     invites,
+    profiles,
     auth: {
       async getUser(token) {
         if (token !== "valid-token") {
@@ -3363,8 +3572,9 @@ function createMockStockSaudeSupabase_(options = {}) {
         return {
           data: {
             user: {
-              id: profile ? profile.auth_user_id : "auth_user_without_profile",
-              email: profile ? profile.email : "sem-profile@teste.local"
+              id: authUser.id,
+              email: authUser.email,
+              user_metadata: authUser.user_metadata || {}
             }
           },
           error: null
@@ -3373,7 +3583,13 @@ function createMockStockSaudeSupabase_(options = {}) {
     },
     from(table) {
       if (table === "profiles") {
-        return createMockProfilesQuery_(profile);
+        return createMockProfilesQuery_(profiles);
+      }
+      if (table === "institutions") {
+        return createMockSimpleIdQuery_(institutions);
+      }
+      if (table === "units") {
+        return createMockSimpleIdQuery_(units);
       }
       if (table === "stock_items") {
         return createMockStockItemsQuery_(items);
@@ -3408,8 +3624,9 @@ function createMockStockSaudeProfile_(role = "gestor") {
   };
 }
 
-function createMockProfilesQuery_(profile) {
+function createMockProfilesQuery_(profiles) {
   let authUserId = "";
+  const filters = [];
   return {
     select() {
       return this;
@@ -3418,11 +3635,55 @@ function createMockProfilesQuery_(profile) {
       if (column === "auth_user_id") {
         authUserId = value;
       }
+      filters.push({ column, value });
+      return this;
+    },
+    insert(payload) {
+      const profile = Object.assign({
+        id: "profile_created",
+        created_at: new Date().toISOString()
+      }, Array.isArray(payload) ? payload[0] : payload);
+      profiles.push(profile);
+      return {
+        select() {
+          return {
+            async single() {
+              const projected = Object.assign({}, profile);
+              delete projected.auth_user_id;
+              return { data: projected, error: null };
+            }
+          };
+        }
+      };
+    },
+    async maybeSingle() {
+      const profile = profiles.find((candidate) => {
+        if (authUserId) {
+          return candidate.auth_user_id === authUserId;
+        }
+        return filters.every((filter) => candidate[filter.column] === filter.value);
+      });
+      return {
+        data: profile || null,
+        error: null
+      };
+    }
+  };
+}
+
+function createMockSimpleIdQuery_(records) {
+  const filters = [];
+  return {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      filters.push({ column, value });
       return this;
     },
     async maybeSingle() {
       return {
-        data: profile && authUserId === profile.auth_user_id ? profile : null,
+        data: records.find((record) => filters.every((filter) => record[filter.column] === filter.value)) || null,
         error: null
       };
     }
@@ -3587,6 +3848,7 @@ function createMockStockExitsQuery_(exits) {
 function createMockStockInvitesQuery_(invites) {
   const filters = [];
   let orderConfig = null;
+  let updatePayload = null;
   const query = {
     select() {
       return this;
@@ -3597,6 +3859,10 @@ function createMockStockInvitesQuery_(invites) {
     },
     order(column, options = {}) {
       orderConfig = { column, ascending: options.ascending !== false };
+      return this;
+    },
+    update(payload) {
+      updatePayload = payload;
       return this;
     },
     insert(payload) {
@@ -3615,6 +3881,24 @@ function createMockStockInvitesQuery_(invites) {
           };
         }
       };
+    },
+    async maybeSingle() {
+      let data = invites.filter((invite) => filters.every((filter) => invite[filter.column] === filter.value));
+      if (orderConfig) {
+        data = data.slice().sort((a, b) => {
+          const left = String(a[orderConfig.column] || "");
+          const right = String(b[orderConfig.column] || "");
+          return orderConfig.ascending ? left.localeCompare(right) : right.localeCompare(left);
+        });
+      }
+      return { data: data[0] || null, error: null };
+    },
+    async single() {
+      const invite = invites.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      if (invite && updatePayload) {
+        Object.assign(invite, updatePayload);
+      }
+      return { data: invite || null, error: null };
     },
     then(resolve) {
       let data = invites.filter((invite) => filters.every((filter) => invite[filter.column] === filter.value));

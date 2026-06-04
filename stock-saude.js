@@ -240,6 +240,16 @@
         body: JSON.stringify(invite)
       });
       return data.invite;
+    },
+
+    async acceptInvite(token) {
+      const data = await this.request("/api/stock-saude/invites/accept", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.profile;
     }
   };
 
@@ -681,6 +691,9 @@
     }
     if (error && error.payload && error.payload.error === "permission_denied") {
       return stockSaudePermissionMessage();
+    }
+    if (error && error.payload && error.payload.error === "stock_saude_invite_not_found") {
+      return "Nenhum convite pendente foi encontrado para este email.";
     }
     return "Nao foi possivel concluir no banco real. Voce pode continuar usando a demonstracao local.";
   }
@@ -1777,6 +1790,36 @@
     elements.inviteList = panel.querySelector("#stockSaudeInviteList");
   }
 
+  function ensureStockSaudeAcceptInviteButton() {
+    if (!elements.storageStatus || document.getElementById("stockSaudeAcceptInviteButton")) {
+      return;
+    }
+    if (!getStockSaudeSupabaseToken() || stockSaudeAuthContext.mode === "supabase") {
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "stockSaudeAcceptInviteButton";
+    button.className = "stock-mini-button";
+    button.textContent = "Aceitar convite";
+    elements.storageStatus.parentNode.insertBefore(button, elements.storageStatus.nextSibling);
+    button.addEventListener("click", async function () {
+      try {
+        const token = getStockSaudeAuthTokenOrThrow();
+        await StockSaudeAPI.acceptInvite(token);
+        const authContext = await initStockSaudeAuthContext();
+        const remoteAvailable = await StockSaudeAPI.isRemoteAvailable();
+        setRuntimeMode(remoteAvailable && authContext.mode === "supabase" ? "remote" : "local");
+        ensureStockSaudeInvitePanel();
+        button.remove();
+        setMessage("Voce foi vinculado a instituicao com sucesso.");
+        await renderAll();
+      } catch (error) {
+        setMessage(stockSaudeRemoteErrorMessage(error));
+      }
+    });
+  }
+
   function renderInvites(state) {
     if (!elements.inviteList) {
       return;
@@ -1982,6 +2025,7 @@
     const remoteAvailable = await StockSaudeAPI.isRemoteAvailable();
     setRuntimeMode(remoteAvailable && authContext.mode === "supabase" ? "remote" : "local");
     bindAnchorsAndReveal();
+    ensureStockSaudeAcceptInviteButton();
     ensureStockSaudeInvitePanel();
     bindForms();
     ensureStockSaudeManagementPdfButton();

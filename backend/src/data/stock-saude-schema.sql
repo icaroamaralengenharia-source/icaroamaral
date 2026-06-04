@@ -35,8 +35,9 @@ create table if not exists stock_saude_invites (
   email text not null,
   role text not null check (role in ('administrador', 'gestor', 'almoxarife', 'leitura')),
   created_by uuid references profiles(id) on delete set null,
-  status text not null default 'pendente' check (status in ('pendente', 'aceito', 'cancelado')),
-  created_at timestamptz not null default now()
+  status text not null default 'pendente' check (status in ('pendente', 'aceito', 'cancelado', 'pending', 'accepted', 'cancelled')),
+  created_at timestamptz not null default now(),
+  accepted_at timestamptz
 );
 
 create table if not exists stock_items (
