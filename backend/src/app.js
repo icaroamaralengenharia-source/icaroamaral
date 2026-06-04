@@ -336,11 +336,19 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/stock-saude/entries/:id/approve", async (request, response) => {
-    await updateStockSaudeEntryStatus_(env, request, response, "aprovada", "entry_approved");
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+    await updateStockSaudeEntryStatus_(request, response, database, "aprovada", "approve_entry");
   });
 
   app.post("/api/stock-saude/entries/:id/reject", async (request, response) => {
-    await updateStockSaudeEntryStatus_(env, request, response, "rejeitada", "entry_rejected");
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+    await updateStockSaudeEntryStatus_(request, response, database, "rejeitada", "reject_entry");
   });
 
   app.get("/api/stock-saude/exits", async (request, response) => {
@@ -910,14 +918,12 @@ function parsePositiveNumber_(value, defaultValue = NaN) {
   return Number.isFinite(parsed) ? parsed : defaultValue;
 }
 
-async function updateStockSaudeEntryStatus_(env, request, response, status, auditAction) {
-  const database = requireStockSaudeDatabase_(env, response);
-  if (!database) {
+async function updateStockSaudeEntryStatus_(request, response, database, status, auditAction) {
+  const session = await requireStockSaudeAuth_(request, response, database);
+  if (!session) {
     return;
   }
-
   const entryId = clean_(request.params.id);
-  const approvedBy = clean_((request.body || {}).approved_by) || null;
   if (!entryId) {
     response.status(400).json({ ok: false, error: "entry_id_required" });
     return;
@@ -936,16 +942,25 @@ async function updateStockSaudeEntryStatus_(env, request, response, status, audi
       response.status(409).json({ ok: false, error: "entry_not_pending" });
       return;
     }
+    if (
+      currentEntry.institution_id !== session.profile.institution_id
+      || currentEntry.unit_id !== session.profile.unit_id
+    ) {
+      response.status(403).json({ ok: false, error: "entry_not_in_profile_scope" });
+      return;
+    }
 
     const { data, error } = await database
       .from("stock_entries")
       .update({
         status,
-        approved_by: approvedBy,
+        approved_by: session.profile.id,
         approved_at: new Date().toISOString()
       })
       .eq("id", entryId)
       .eq("status", "pendente")
+      .eq("institution_id", session.profile.institution_id)
+      .eq("unit_id", session.profile.unit_id)
       .select("*")
       .single();
     if (error) {
@@ -954,7 +969,7 @@ async function updateStockSaudeEntryStatus_(env, request, response, status, audi
     await createStockSaudeAuditLog_(database, {
       institutionId: data.institution_id,
       unitId: data.unit_id,
-      profileId: approvedBy,
+      profileId: session.profile.id,
       action: auditAction,
       entityType: "stock_entries",
       entityId: data.id,

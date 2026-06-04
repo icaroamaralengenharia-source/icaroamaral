@@ -763,6 +763,172 @@ test("stock saude cria auditoria para item, entry e exit", async () => {
   }
 });
 
+test("stock saude aprovacao exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      entries: [
+        {
+          id: "entry_1",
+          institution_id: "inst_auth",
+          unit_id: "unit_auth",
+          item_id: "item_1",
+          quantity: 5,
+          status: "pendente"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/approve", {
+      method: "POST"
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aprovacao retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/approve", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_saude_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude bloqueia aprovacao de entrada fora do escopo", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      entries: [
+        {
+          id: "entry_outra_inst",
+          institution_id: "outra_inst",
+          unit_id: "unit_auth",
+          item_id: "item_1",
+          quantity: 5,
+          status: "pendente"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_outra_inst/approve", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "entry_not_in_profile_scope");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude aprova entrada com profile real e registra auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    entries: [
+      {
+        id: "entry_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        item_id: "item_1",
+        quantity: 5,
+        status: "pendente",
+        requested_by: "profile_auth"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/approve", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ approved_by: "forjado" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.entry.status, "aprovada");
+    assert.equal(data.entry.approved_by, "profile_auth");
+    assert.ok(data.entry.approved_at);
+    assert.equal(supabase.auditLogs.length, 1);
+    assert.equal(supabase.auditLogs[0].action, "approve_entry");
+    assert.equal(supabase.auditLogs[0].profile_id, "profile_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude rejeita entrada com profile real e registra auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    entries: [
+      {
+        id: "entry_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        item_id: "item_1",
+        quantity: 5,
+        status: "pendente",
+        requested_by: "profile_auth"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/reject", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.entry.status, "rejeitada");
+    assert.equal(data.entry.approved_by, "profile_auth");
+    assert.ok(data.entry.approved_at);
+    assert.equal(supabase.auditLogs.length, 1);
+    assert.equal(supabase.auditLogs[0].action, "reject_entry");
+    assert.equal(supabase.auditLogs[0].profile_id, "profile_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 before(async () => {
   eloVectorMemoryStore = createEloVectorMemoryStore_({ memoryOnly: true });
   const app = createApp({
@@ -2523,6 +2689,7 @@ function createMockStockItemsQuery_(items) {
 function createMockStockEntriesQuery_(entries) {
   const filters = [];
   const inFilters = [];
+  let updatePayload = null;
   const query = {
     select() {
       return this;
@@ -2536,6 +2703,10 @@ function createMockStockEntriesQuery_(entries) {
       return this;
     },
     order() {
+      return this;
+    },
+    update(payload) {
+      updatePayload = payload;
       return this;
     },
     insert(payload) {
@@ -2554,6 +2725,19 @@ function createMockStockEntriesQuery_(entries) {
           };
         }
       };
+    },
+    async single() {
+      const entry = entries.find((candidate) => {
+        return filters.every((filter) => candidate[filter.column] === filter.value)
+          && inFilters.every((filter) => filter.values.includes(candidate[filter.column]));
+      });
+      if (!entry) {
+        return { data: null, error: null };
+      }
+      if (updatePayload) {
+        Object.assign(entry, updatePayload);
+      }
+      return { data: entry, error: null };
     },
     then(resolve) {
       const data = entries.filter((entry) => {

@@ -147,18 +147,22 @@
       return data.entry;
     },
 
-    async approveEntry(entryId, approvedBy) {
+    async approveEntry(token, entryId) {
       const data = await this.request("/api/stock-saude/entries/" + encodeURIComponent(entryId) + "/approve", {
         method: "POST",
-        body: JSON.stringify({ approved_by: approvedBy || STOCK_SAUDE_DEMO_PROFILE_ID })
+        headers: {
+          Authorization: "Bearer " + token
+        }
       });
       return data.entry;
     },
 
-    async rejectEntry(entryId, approvedBy) {
+    async rejectEntry(token, entryId) {
       const data = await this.request("/api/stock-saude/entries/" + encodeURIComponent(entryId) + "/reject", {
         method: "POST",
-        body: JSON.stringify({ approved_by: approvedBy || STOCK_SAUDE_DEMO_PROFILE_ID })
+        headers: {
+          Authorization: "Bearer " + token
+        }
       });
       return data.entry;
     },
@@ -608,6 +612,9 @@
     if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
       return "Item fora do escopo do seu perfil. Verifique instituicao e unidade.";
     }
+    if (error && error.payload && error.payload.error === "entry_not_in_profile_scope") {
+      return "Entrada fora do escopo do seu perfil. Verifique instituicao e unidade.";
+    }
     return "Nao foi possivel concluir no banco real. Voce pode continuar usando a demonstracao local.";
   }
 
@@ -944,9 +951,10 @@
       };
     }
     try {
+      const token = getStockSaudeAuthTokenOrThrow();
       const remoteEntry = status === "rejeitada"
-        ? await StockSaudeAPI.rejectEntry(entryId, getStockSaudeProfileId())
-        : await StockSaudeAPI.approveEntry(entryId, getStockSaudeProfileId());
+        ? await StockSaudeAPI.rejectEntry(token, entryId)
+        : await StockSaudeAPI.approveEntry(token, entryId);
       const entry = stockSaudeRemoteCache.entries.find(function (candidate) {
         return candidate.id === entryId;
       });
@@ -958,6 +966,12 @@
       }
       return entry || fromRemoteEntry(remoteEntry, remoteEntry.status || status);
     } catch (error) {
+      if (error && error.payload && error.payload.error === "entry_not_in_profile_scope") {
+        return {
+          unsupported: true,
+          message: stockSaudeRemoteErrorMessage(error)
+        };
+      }
       setRuntimeMode("local");
       setMessage(stockSaudeRemoteErrorMessage(error));
       return null;
