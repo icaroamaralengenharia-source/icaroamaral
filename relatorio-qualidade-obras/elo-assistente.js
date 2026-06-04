@@ -21,6 +21,9 @@
     chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory")
   };
+  const ELO_PDF_TEXT_CONTEXT_LIMIT = 15000;
+  const ELO_PDFJS_LIBRARY_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+  const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
 
   function getEloBackendEndpoint_(path) {
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
@@ -993,6 +996,151 @@
     }).slice(-ELO_CONFIG.maxHistory);
   }
 
+  function isEloPdfAttachment_(file) {
+    const type = String(file && file.type || "").toLowerCase();
+    const name = String(file && file.name || "").toLowerCase();
+    return type === "application/pdf" || /\.pdf$/i.test(name);
+  }
+
+  function loadEloPdfJs_() {
+    if (window.pdfjsLib && window.pdfjsLib.getDocument) {
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = window.pdfjsLib.GlobalWorkerOptions.workerSrc || ELO_PDFJS_WORKER_URL;
+      } catch (error) {
+        // PDF.js can still run without changing the worker when the host blocks this assignment.
+      }
+      return Promise.resolve(window.pdfjsLib);
+    }
+
+    if (window.__eloPdfJsLoading) {
+      return window.__eloPdfJsLoading;
+    }
+
+    window.__eloPdfJsLoading = new Promise(function (resolve, reject) {
+      const script = document.createElement("script");
+      script.src = ELO_PDFJS_LIBRARY_URL;
+      script.async = true;
+      script.onload = function () {
+        if (!window.pdfjsLib || !window.pdfjsLib.getDocument) {
+          reject(new Error("pdfjs_indisponivel"));
+          return;
+        }
+        try {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = ELO_PDFJS_WORKER_URL;
+        } catch (error) {
+          // Ignore worker setup failures here; getDocument will report if it cannot proceed.
+        }
+        resolve(window.pdfjsLib);
+      };
+      script.onerror = function () {
+        reject(new Error("pdfjs_indisponivel"));
+      };
+      document.head.appendChild(script);
+    });
+
+    return window.__eloPdfJsLoading;
+  }
+
+  function readEloFileAsArrayBuffer_(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve(reader.result);
+      };
+      reader.onerror = function () {
+        reject(new Error("file_read_error"));
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function extractPdfText(file) {
+    return loadEloPdfJs_().then(function (pdfjsLib) {
+      return readEloFileAsArrayBuffer_(file).then(function (buffer) {
+        const data = new Uint8Array(buffer);
+        return pdfjsLib.getDocument({ data: data }).promise;
+      }).then(function (pdf) {
+        const pageReads = [];
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+          pageReads.push(pdf.getPage(pageNumber).then(function (page) {
+            return page.getTextContent().then(function (content) {
+              return (content.items || []).map(function (item) {
+                return item && item.str ? item.str : "";
+              }).join(" ");
+            });
+          }));
+        }
+        return Promise.all(pageReads).then(function (pages) {
+          const text = sanitizeUserText(pages.join("\n\n")).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+          if (!text) {
+            throw new Error("pdf_sem_texto");
+          }
+          return text.slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT);
+        });
+      });
+    });
+  }
+
+  function buildEloQuestionWithPdfContext_(question, pdfTexts) {
+    const cleanQuestion = sanitizeUserText(question);
+    const pdfContext = pdfTexts.map(function (entry, index) {
+      return [
+        "PDF " + (index + 1) + ": " + sanitizeUserText(entry.fileName || "documento.pdf"),
+        sanitizeUserText(entry.text).slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT)
+      ].join("\n");
+    }).join("\n\n").slice(0, ELO_PDF_TEXT_CONTEXT_LIMIT);
+
+    return [
+      "[CONTEUDO EXTRAIDO DO PDF]",
+      pdfContext,
+      "",
+      "[PERGUNTA DO USUARIO]",
+      cleanQuestion || "Elo, leia este anexo."
+    ].join("\n");
+  }
+
+  function prepareEloPdfAttachmentContext_(question, files) {
+    const pdfFiles = Array.prototype.slice.call(files || []).filter(isEloPdfAttachment_);
+    if (!pdfFiles.length) {
+      return Promise.resolve({
+        message: sanitizeUserText(question),
+        blockingMessage: ""
+      });
+    }
+
+    return Promise.all(pdfFiles.slice(0, 4).map(function (file) {
+      return extractPdfText(file).then(function (text) {
+        return {
+          ok: true,
+          fileName: file.name || "documento.pdf",
+          text: text
+        };
+      }).catch(function (error) {
+        return {
+          ok: false,
+          fileName: file.name || "documento.pdf",
+          reason: error && error.message ? error.message : "pdf_sem_texto"
+        };
+      });
+    })).then(function (results) {
+      const readable = results.filter(function (result) {
+        return result.ok && result.text;
+      });
+
+      if (!readable.length) {
+        return {
+          message: sanitizeUserText(question),
+          blockingMessage: "Este PDF parece ser um documento digitalizado em imagem. Ainda n\u00e3o foi poss\u00edvel extrair texto automaticamente."
+        };
+      }
+
+      return {
+        message: buildEloQuestionWithPdfContext_(question, readable),
+        blockingMessage: ""
+      };
+    });
+  }
+
   function requestEloOnlineAnswer(question, attachments) {
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
@@ -1012,32 +1160,41 @@
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
 
     if (files.length) {
-      const formData = new FormData();
-      formData.append("message", payload.message);
-      formData.append("history", JSON.stringify(payload.history));
-      formData.append("context", JSON.stringify(payload.context));
-      files.slice(0, 4).forEach(function (file) {
-        formData.append("files", file, file.name || "anexo");
-      });
+      return prepareEloPdfAttachmentContext_(payload.message, files).then(function (prepared) {
+        if (prepared.blockingMessage) {
+          return prepared.blockingMessage;
+        }
 
-      return window.fetch(ELO_CONFIG.chatEndpoint, {
-        method: "POST",
-        body: formData
-      }).then(function (response) {
-        return response.json().catch(function () {
+        const formData = new FormData();
+        payload.message = prepared.message || payload.message;
+        formData.append("message", payload.message);
+        formData.append("history", JSON.stringify(payload.history));
+        formData.append("context", JSON.stringify(payload.context));
+        files.slice(0, 4).forEach(function (file) {
+          formData.append("files", file, file.name || "anexo");
+        });
+
+        return window.fetch(ELO_CONFIG.chatEndpoint, {
+          method: "POST",
+          body: formData
+        }).then(function (response) {
+          return response.json().catch(function () {
+            return null;
+          });
+        }).then(function (data) {
+          if (data && data.ok && data.answer) {
+            return sanitizeUserText(data.answer);
+          }
+          if (data && data.fallback && data.answer) {
+            return sanitizeUserText(data.answer);
+          }
+          if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
+            return formatEloAttachmentErrors_(data.attachmentErrors);
+          }
+          return null;
+        }).catch(function () {
           return null;
         });
-      }).then(function (data) {
-        if (data && data.ok && data.answer) {
-          return sanitizeUserText(data.answer);
-        }
-        if (data && data.fallback && data.answer) {
-          return sanitizeUserText(data.answer);
-        }
-        if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
-          return formatEloAttachmentErrors_(data.attachmentErrors);
-        }
-        return null;
       }).catch(function () {
         return null;
       });
