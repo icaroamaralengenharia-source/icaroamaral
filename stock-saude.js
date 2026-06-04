@@ -1139,6 +1139,208 @@
     }).join("");
   }
 
+  function escapeStockSaudePdfHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function formatStockSaudePdfDateTime(value) {
+    const raw = String(value || "");
+    if (!raw) {
+      return "-";
+    }
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString("pt-BR");
+    }
+    return raw;
+  }
+
+  function buildStockSaudePdfTable(headers, rows, emptyText) {
+    if (!rows || !rows.length) {
+      return '<p class="empty">' + escapeStockSaudePdfHtml(emptyText) + '</p>';
+    }
+    return "<table><thead><tr>" + headers.map(function (header) {
+      return "<th>" + escapeStockSaudePdfHtml(header) + "</th>";
+    }).join("") + "</tr></thead><tbody>" + rows.map(function (row) {
+      return "<tr>" + row.map(function (cell) {
+        return "<td>" + escapeStockSaudePdfHtml(cell) + "</td>";
+      }).join("") + "</tr>";
+    }).join("") + "</tbody></table>";
+  }
+
+  function buildStockSaudePdfDefinitionList(items) {
+    return '<dl class="list">' + items.map(function (item) {
+      return "<dt>" + escapeStockSaudePdfHtml(item[0]) + "</dt><dd>" + escapeStockSaudePdfHtml(item[1]) + "</dd>";
+    }).join("") + "</dl>";
+  }
+
+  function buildStockSaudeManagerPdfData(state) {
+    const balances = buildBalances(state);
+    const dashboard = state.remoteDashboard || {};
+    const entries = state.entries.slice().sort(function (a, b) {
+      return String(b.date + b.time).localeCompare(String(a.date + a.time));
+    });
+    const exits = state.exits.slice().sort(function (a, b) {
+      return String(b.date + b.time).localeCompare(String(a.date + a.time));
+    });
+    const pendingEntries = entries.filter(function (entry) {
+      return entry.status === "pendente";
+    });
+    const criticalBalances = balances.filter(function (balance) {
+      return balance.balance <= 0 || (numberValue(balance.item.minimumStock) > 0 && balance.balance < numberValue(balance.item.minimumStock));
+    });
+    const auditRows = Array.isArray(state.remoteAuditLog)
+      ? state.remoteAuditLog.map(fromRemoteAuditLog)
+      : buildHistoryRows(state).filter(function (row) {
+        return ["entrada", "saida", "aprovacao", "item"].indexOf(row.kind) >= 0;
+      });
+
+    return {
+      profile: {
+        institution: getStockSaudeInstitutionId(),
+        unit: getStockSaudeUnitId(),
+        issuer: clean(stockSaudeAuthContext.profile && stockSaudeAuthContext.profile.name) || clean(stockSaudeAuthContext.user && stockSaudeAuthContext.user.email) || "Perfil local",
+        role: clean(stockSaudeAuthContext.profile && stockSaudeAuthContext.profile.role) || "local",
+        emittedAt: new Date().toLocaleString("pt-BR")
+      },
+      stats: [
+        ["Itens", dashboard.totalItems != null ? dashboard.totalItems : state.items.length],
+        ["Entradas", dashboard.totalEntries != null ? dashboard.totalEntries : state.entries.length],
+        ["Saidas", dashboard.totalExits != null ? dashboard.totalExits : state.exits.length],
+        ["Pendentes", dashboard.pendingEntries != null ? dashboard.pendingEntries : pendingEntries.length],
+        ["Criticos", dashboard.lowStockItems != null ? dashboard.lowStockItems : criticalBalances.length],
+        ["Auditorias", dashboard.auditCount != null ? dashboard.auditCount : auditRows.length]
+      ],
+      summary: [
+        ["Resumo executivo", "Relatorio gerencial consolidado do Stock Saude para acompanhamento de estoque, movimentacoes, pendencias e auditoria operacional."],
+        ["Modo de dados", stockSaudeRuntimeMode === "remote" ? "Supabase autenticado" : "Demonstracao local"],
+        ["Saldo total", formatNumber(dashboard.totalBalance != null ? dashboard.totalBalance : balances.reduce(function (sum, balance) { return sum + numberValue(balance.balance); }, 0))],
+        ["Itens vencidos", dashboard.expiredItems != null ? dashboard.expiredItems : buildAlerts(state).filter(function (alert) { return alert.type === "vencido"; }).length],
+        ["Itens proximos do vencimento", dashboard.expiringSoonItems != null ? dashboard.expiringSoonItems : buildAlerts(state).filter(function (alert) { return String(alert.type || "").indexOf("vence-") === 0; }).length]
+      ],
+      criticalItems: criticalBalances.slice(0, 12).map(function (balance) {
+        return [
+          balance.item.name,
+          formatNumber(balance.balance) + " " + balance.item.unit,
+          formatNumber(balance.item.minimumStock),
+          balance.balance <= 0 ? "Zerado" : "Critico",
+          balance.item.storageLocation || "-"
+        ];
+      }),
+      recentEntries: entries.slice(0, 10).map(function (entry) {
+        const item = findItem(state, entry.itemId);
+        return [
+          formatDate(entry.date) + (entry.time ? " " + entry.time : ""),
+          item ? item.name : "Item",
+          formatNumber(entry.quantity),
+          statusLabel(entry.status),
+          entry.receivedBy || "-"
+        ];
+      }),
+      recentExits: exits.slice(0, 10).map(function (exit) {
+        const item = findItem(state, exit.itemId);
+        return [
+          formatDate(exit.date) + (exit.time ? " " + exit.time : ""),
+          item ? item.name : "Item",
+          formatNumber(exit.quantity),
+          exit.sector || "-",
+          exit.withdrawnBy || exit.releasedBy || "-"
+        ];
+      }),
+      pendingEntries: pendingEntries.slice(0, 10).map(function (entry) {
+        const item = findItem(state, entry.itemId);
+        return [
+          formatDate(entry.date) + (entry.time ? " " + entry.time : ""),
+          item ? item.name : "Item",
+          formatNumber(entry.quantity),
+          entry.receivedBy || "-",
+          "Pendente"
+        ];
+      }),
+      auditRows: auditRows.slice(0, 12).map(function (row) {
+        return [
+          formatDate(row.date) + (row.time ? " " + row.time : ""),
+          row.responsible || "-",
+          row.title,
+          row.text
+        ];
+      })
+    };
+  }
+
+  function buildStockSaudeManagerPdfHtml_(data) {
+    const title = "Relatorio Gerencial - Stock Saude";
+    const subtitle = "Controle de estoque, movimentacoes, pendencias e auditoria operacional";
+    return "<!doctype html><html><head><meta charset=\"utf-8\">" +
+      "<title>" + escapeStockSaudePdfHtml(title) + "</title>" +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#102033;background:#f6f8fb}" +
+      ".page{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbe4ee;padding:28px}" +
+      ".cover{border:1px solid #cbd8e6;padding:26px;margin-bottom:18px;background:linear-gradient(135deg,#fff,#f3fbff)}" +
+      "h1{margin:0 0 6px;font-size:26px}h2{margin:24px 0 10px;font-size:16px;color:#0f5f8f}.sub{color:#607080;margin:0}" +
+      ".meta,.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.meta div,.stat{border:1px solid #e2e8f0;padding:10px;border-radius:8px}.stat span{display:block;color:#607080;font-size:11px;text-transform:uppercase;font-weight:700}.stat strong{display:block;font-size:20px;margin-top:4px}" +
+      ".section{border-top:1px solid #e2e8f0;margin-top:18px;padding-top:14px}.list{display:grid;grid-template-columns:210px 1fr;gap:6px 12px}.list dt{font-weight:700}.list dd{margin:0;color:#405062}" +
+      "table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #e2e8f0;padding:8px;text-align:left;font-size:12px}th{background:#f6f9fc;color:#102033}.empty{color:#607080}footer{margin-top:22px;color:#607080;font-size:12px}@media print{body{background:#fff;padding:0}.page{border:0}.section{break-inside:avoid}}" +
+      "</style></head><body><main class=\"page\">" +
+      "<section class=\"cover\"><h1>" + escapeStockSaudePdfHtml(title) + "</h1><p class=\"sub\">" + escapeStockSaudePdfHtml(subtitle) + "</p></section>" +
+      "<section class=\"meta\">" +
+      "<div><strong>Instituicao</strong><br>" + escapeStockSaudePdfHtml(data.profile.institution) + "</div>" +
+      "<div><strong>Unidade</strong><br>" + escapeStockSaudePdfHtml(data.profile.unit) + "</div>" +
+      "<div><strong>Emissor</strong><br>" + escapeStockSaudePdfHtml(data.profile.issuer) + " (" + escapeStockSaudePdfHtml(data.profile.role) + ")</div>" +
+      "</section>" +
+      "<p class=\"sub\">Emitido em " + escapeStockSaudePdfHtml(data.profile.emittedAt) + "</p>" +
+      "<section class=\"stats\">" + data.stats.map(function (stat) {
+        return "<article class=\"stat\"><span>" + escapeStockSaudePdfHtml(stat[0]) + "</span><strong>" + escapeStockSaudePdfHtml(stat[1]) + "</strong></article>";
+      }).join("") + "</section>" +
+      "<section class=\"section\"><h2>Resumo executivo</h2>" + buildStockSaudePdfDefinitionList(data.summary) + "</section>" +
+      "<section class=\"section\"><h2>Itens criticos</h2>" + buildStockSaudePdfTable(["Item", "Saldo", "Minimo", "Status", "Local"], data.criticalItems, "Nenhum item critico encontrado.") + "</section>" +
+      "<section class=\"section\"><h2>Entradas recentes</h2>" + buildStockSaudePdfTable(["Data/hora", "Item", "Quantidade", "Status", "Responsavel"], data.recentEntries, "Nenhuma entrada recente.") + "</section>" +
+      "<section class=\"section\"><h2>Saidas recentes</h2>" + buildStockSaudePdfTable(["Data/hora", "Item", "Quantidade", "Setor", "Responsavel"], data.recentExits, "Nenhuma saida recente.") + "</section>" +
+      "<section class=\"section\"><h2>Pendencias</h2>" + buildStockSaudePdfTable(["Data/hora", "Item", "Quantidade", "Responsavel", "Status"], data.pendingEntries, "Nenhuma pendencia em aberto.") + "</section>" +
+      "<section class=\"section\"><h2>Historico operacional / auditoria recente</h2>" + buildStockSaudePdfTable(["Data/hora", "Usuario", "Acao", "Entidade afetada"], data.auditRows, "Nenhuma auditoria recente.") + "</section>" +
+      "<footer>Gerado por Stock Saude / ObraReport.</footer>" +
+      "<script>window.onload=function(){window.print();};</script>" +
+      "</main></body></html>";
+  }
+
+  async function generateStockSaudeManagementPdf() {
+    try {
+      const state = await loadCurrentStockSaudeState();
+      const data = buildStockSaudeManagerPdfData(state);
+      const html = buildStockSaudeManagerPdfHtml_(data);
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        window.location.href = URL.createObjectURL(blob);
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      setMessage("PDF gerencial aberto. Use Imprimir/Salvar como PDF no navegador.");
+    } catch (error) {
+      setMessage("Nao foi possivel gerar o PDF gerencial.");
+    }
+  }
+
+  function ensureStockSaudeManagementPdfButton() {
+    if (!elements.storageStatus || document.getElementById("stockSaudeManagerPdfButton")) {
+      return;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "stockSaudeManagerPdfButton";
+    button.className = "stock-mini-button";
+    button.textContent = "Gerar PDF Gerencial";
+    button.addEventListener("click", generateStockSaudeManagementPdf);
+    elements.storageStatus.parentNode.insertBefore(button, elements.storageStatus.nextSibling);
+  }
+
   function renderSelects(state) {
     document.querySelectorAll("[data-stock-saude-item-select]").forEach(function (select) {
       const current = select.value;
@@ -1527,6 +1729,7 @@
     setRuntimeMode(remoteAvailable && authContext.mode === "supabase" ? "remote" : "local");
     bindAnchorsAndReveal();
     bindForms();
+    ensureStockSaudeManagementPdfButton();
     resetFormDateTime(elements.entryForm);
     resetFormDateTime(elements.exitForm);
     setMessage(stockSaudeRuntimeMode === "remote" ? "Conectado ao backend Stock Saude." : "Estado local pronto.");

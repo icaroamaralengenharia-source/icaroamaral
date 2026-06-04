@@ -106,6 +106,15 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /function canStockSaudeRole\(action\)/);
   assert.match(content, /stockSaudeAuthContext\.mode !== "supabase"/);
   assert.match(content, /Seu perfil nao tem permissao para esta acao/);
+  assert.match(content, /function buildStockSaudeManagerPdfHtml_\(data\)/);
+  assert.match(content, /async function generateStockSaudeManagementPdf\(\)/);
+  assert.match(content, /Gerar PDF Gerencial/);
+  assert.match(content, /Relatorio Gerencial - Stock Saude/);
+  assert.match(content, /Controle de estoque, movimentacoes, pendencias e auditoria operacional/);
+  assert.match(content, /StockSaudeAPI\.getDashboard\(token\)/);
+  assert.match(content, /StockSaudeAPI\.listAuditLog\(token\)/);
+  assert.match(content, /loadCurrentStockSaudeState\(\)/);
+  assert.match(content, /window\.print\(\)/);
   assert.match(content, /Authorization: "Bearer " \+ token/);
   assert.match(content, /mode: "supabase"/);
   assert.match(content, /mode: "local"/);
