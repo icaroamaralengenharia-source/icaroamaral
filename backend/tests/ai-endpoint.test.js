@@ -168,6 +168,7 @@ test("elo chat sem chave solicita fallback local", async () => {
 test("prompt mestre do Elo define identidade, memoria e limites", () => {
   const prompt = buildEloSystemPrompt_();
 
+  assert.match(prompt, /Contexto ativo: Elo Geral/i);
   assert.match(prompt, /companheiro digital com memória recente/i);
   assert.match(prompt, /não é humano/i);
   assert.match(prompt, /sem parecer atendimento genérico/i);
@@ -176,6 +177,32 @@ test("prompt mestre do Elo define identidade, memoria e limites", () => {
   assert.match(prompt, /não dê diagnóstico médico, jurídico, financeiro ou psicológico/i);
   assert.match(prompt, /Eu sou o Elo/i);
   assert.match(prompt, /Sou real como sistema digital/i);
+});
+
+test("prompt mestre do Elo aplica contexto Saude", () => {
+  const prompt = buildEloSystemPrompt_({
+    eloContext: "saude"
+  });
+
+  assert.match(prompt, /Contexto ativo: Elo Saude/i);
+  assert.match(prompt, /almoxarifado hospitalar/i);
+  assert.match(prompt, /lote/i);
+  assert.match(prompt, /validade/i);
+  assert.match(prompt, /estoque minimo/i);
+  assert.doesNotMatch(prompt, /Contexto ativo: Elo Obras/i);
+});
+
+test("prompt mestre do Elo aplica contexto Obras", () => {
+  const prompt = buildEloSystemPrompt_({
+    eloContext: "obras"
+  });
+
+  assert.match(prompt, /Contexto ativo: Elo Obras/i);
+  assert.match(prompt, /engenharia civil/i);
+  assert.match(prompt, /RDO/i);
+  assert.match(prompt, /fissuras/i);
+  assert.match(prompt, /estoque de obra/i);
+  assert.doesNotMatch(prompt, /Contexto ativo: Elo Saude/i);
 });
 
 test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () => {
@@ -889,6 +916,17 @@ test("frontend do Elo reconhece attachmentErrors em resposta online", async () =
   assert.match(content, /formatEloAttachmentErrors_/);
   assert.match(content, /data && Array\.isArray\(data\.attachmentErrors\)/);
   assert.match(content, /data && data\.fallback && data\.answer/);
+});
+
+test("frontend do Elo envia eloContext no JSON e multipart", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+
+  assert.match(content, /function getEloContext\(\)/);
+  assert.match(content, /eloContext: eloContext/);
+  assert.match(content, /formData\.append\("eloContext", payload\.eloContext\)/);
+  assert.match(content, /stock-saude/);
+  assert.match(content, /stock-ai/);
 });
 
 test("endpoint de memoria vetorial exige deviceId valido", async () => {

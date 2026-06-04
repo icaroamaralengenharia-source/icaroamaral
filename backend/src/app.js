@@ -537,6 +537,7 @@ async function buildEloChatRequest_(request, env, memoryStore) {
   const parsed = await parseEloMultipartFormData_(request, env);
   const body = {
     message: parsed.fields.message || "",
+    eloContext: parsed.fields.eloContext || "",
     history: parseJsonField_(parsed.fields.history, []),
     context: parseJsonField_(parsed.fields.context, {})
   };
@@ -558,6 +559,11 @@ function parseJsonField_(value, fallback) {
   } catch (error) {
     return fallback;
   }
+}
+
+function normalizeEloContext_(value) {
+  const context = clean_(value).toLowerCase();
+  return ["geral", "obras", "saude"].includes(context) ? context : "geral";
 }
 
 function getSafePositiveInteger_(value, fallback) {
@@ -813,6 +819,7 @@ function chunkText_(text, size) {
 function validateEloChatRequest_(body) {
   const message = clean_(body.message);
   const context = body.context && typeof body.context === "object" ? body.context : {};
+  const eloContext = normalizeEloContext_(body.eloContext || context.eloContext);
   const rawHistory = Array.isArray(body.history) ? body.history : [];
   const history = rawHistory
     .filter((item) => item && (item.role === "user" || item.role === "assistant"))
@@ -856,6 +863,7 @@ function validateEloChatRequest_(body) {
       context: {
         source: clean_(context.source || "elo"),
         mode: clean_(context.mode || ""),
+        eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
         memoriesSummary: clean_(context.memoriesSummary || "").slice(0, 2500)
       }
@@ -1485,11 +1493,13 @@ async function callOpenAiElo_(payload, env) {
 }
 
 export function buildEloSystemPrompt_(context = {}) {
+  const eloContext = normalizeEloContext_(context.eloContext);
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
+    buildEloContextPrompt_(eloContext),
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
     "Você é uma IA criada para conversar, organizar pensamentos, acompanhar projetos, lembrar contexto recente e ajudar a pessoa a transformar ideias em próximos passos.",
@@ -1526,6 +1536,32 @@ export function buildEloSystemPrompt_(context = {}) {
   }
 
   return prompt.join(" ");
+}
+
+function buildEloContextPrompt_(eloContext) {
+  if (eloContext === "saude") {
+    return [
+      "Contexto ativo: Elo Saude.",
+      "Atue como assistente especializado em gestao operacional de saude, almoxarifado hospitalar, farmacia hospitalar, estoque, lote, validade, retirada de materiais, setores, responsaveis, auditoria e compras inteligentes.",
+      "Priorize medicamentos, EPIs, materiais hospitalares, vencimentos, estoque minimo, rastreabilidade, consumo, compras e relatorios de saude.",
+      "Nao misture engenharia civil, patologias de obra ou RDO, exceto se o usuario pedir explicitamente."
+    ].join(" ");
+  }
+
+  if (eloContext === "obras") {
+    return [
+      "Contexto ativo: Elo Obras.",
+      "Atue como assistente especializado em engenharia civil, relatorios tecnicos, RDO, patologias construtivas, materiais de obra, medicoes, consumo previsto, auditoria de obra e apoio ao ObraReport/Stock IA.",
+      "Priorize obra, fissuras, infiltracoes, concreto, alvenaria, acabamento, estoque de obra, SINAPI/ORSE futuramente e documentacao tecnica.",
+      "Nao misture medicamentos, farmacia hospitalar ou saude, exceto se o usuario pedir explicitamente."
+    ].join(" ");
+  }
+
+  return [
+    "Contexto ativo: Elo Geral.",
+    "Atue como assistente de memoria, projetos, objetivos, documentos, biblioteca, decisoes e planejamento do usuario.",
+    "Ajude a organizar ideias, lembrar contexto, resumir documentos e apoiar decisoes."
+  ].join(" ");
 }
 
 function buildSystemPrompt_() {

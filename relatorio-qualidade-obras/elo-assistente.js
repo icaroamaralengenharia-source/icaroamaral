@@ -36,6 +36,27 @@
     return baseUrl + path;
   }
 
+  function getEloContext() {
+    const explicitContext = sanitizeUserText(
+      (document.body && document.body.dataset && document.body.dataset.eloContext) ||
+      window.ELO_CONTEXT ||
+      window.ObraReportEloContext ||
+      ""
+    ).toLowerCase();
+    if (["geral", "obras", "saude"].indexOf(explicitContext) >= 0) {
+      return explicitContext;
+    }
+
+    const path = String(window.location && window.location.pathname ? window.location.pathname : "").toLowerCase();
+    if (path.indexOf("saude") >= 0 || path.indexOf("stock-saude") >= 0 || path.indexOf("stock-full-saude") >= 0) {
+      return "saude";
+    }
+    if (path.indexOf("relatorio-qualidade-obras") >= 0 || path.indexOf("obra") >= 0 || path.indexOf("stock-ai") >= 0) {
+      return "obras";
+    }
+    return "geral";
+  }
+
   function getEloDeviceId() {
     try {
       const existing = sanitizeUserText(window.localStorage.getItem(ELO_CONFIG.deviceIdStorageKey));
@@ -1147,14 +1168,17 @@
     }
 
     syncEloVectorMemories();
+    const eloContext = getEloContext();
     const payload = {
       message: sanitizeUserText(question),
+      eloContext: eloContext,
       history: getEloOnlineHistory(),
       context: {
         memoriesSummary: buildEloMemorySummary(),
         deviceId: getEloDeviceId(),
         source: "elo",
-        mode: isStandaloneMode() ? "standalone" : "obrareport"
+        mode: isStandaloneMode() ? "standalone" : "obrareport",
+        eloContext: eloContext
       }
     };
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
@@ -1168,6 +1192,7 @@
         const formData = new FormData();
         payload.message = prepared.message || payload.message;
         formData.append("message", payload.message);
+        formData.append("eloContext", payload.eloContext);
         formData.append("history", JSON.stringify(payload.history));
         formData.append("context", JSON.stringify(payload.context));
         files.slice(0, 4).forEach(function (file) {
