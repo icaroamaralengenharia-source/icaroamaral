@@ -247,6 +247,10 @@ test("Elo Obras calcula previsao demonstrativa de consumo", () => {
   assert.match(context, /Insumos sem coeficiente demonstrativo/i);
   assert.match(context, /Cimento/i);
   assert.match(context, /Stock IA/i);
+  assert.match(context, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
+  assert.match(context, /pendente_confirmacao/i);
+  assert.match(context, /origemCalculo: coeficiente_demonstrativo/i);
+  assert.match(context, /Nao lancado automaticamente no estoque/i);
 });
 
 test("Elo Obras extrai previsto e real de consumo", () => {
@@ -325,9 +329,13 @@ test("prompt do Elo Obras injeta previsao calculada somente no contexto obras", 
   });
 
   assert.match(obrasPrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+  assert.match(obrasPrompt, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
   assert.match(obrasPrompt, /Bloco ceramico: 6\.750 un/i);
+  assert.match(obrasPrompt, /pendente_confirmacao/i);
   assert.doesNotMatch(saudePrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+  assert.doesNotMatch(saudePrompt, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
   assert.doesNotMatch(geralPrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+  assert.doesNotMatch(geralPrompt, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
 });
 
 test("prompt do Elo Obras injeta auditoria somente no contexto obras", () => {
@@ -347,6 +355,7 @@ test("prompt do Elo Obras injeta auditoria somente no contexto obras", () => {
 
   assert.match(obrasPrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
   assert.match(obrasPrompt, /Status: critico/i);
+  assert.doesNotMatch(obrasPrompt, /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
   assert.doesNotMatch(saudePrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
   assert.doesNotMatch(geralPrompt, /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
 });
@@ -1110,10 +1119,14 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
       assert.equal(saudeResponse.status, 200);
       assert.equal(geralResponse.status, 200);
       assert.match(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+      assert.match(prompts[0], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
       assert.match(prompts[0], /Alvenaria de vedacao com bloco ceramico/i);
       assert.match(prompts[0], /Bloco ceramico: 6\.750 un/i);
+      assert.match(prompts[0], /pendente_confirmacao/i);
       assert.doesNotMatch(prompts[1], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+      assert.doesNotMatch(prompts[1], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
       assert.doesNotMatch(prompts[2], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+      assert.doesNotMatch(prompts[2], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -1176,6 +1189,7 @@ test("endpoint do Elo prioriza auditoria previsto x real no contexto obras", asy
       assert.match(prompts[0], /Status: critico/i);
       assert.doesNotMatch(prompts[1], /\[AUDITORIA DEMONSTRATIVA PREVISTO X REAL\]/i);
       assert.doesNotMatch(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+      assert.doesNotMatch(prompts[0], /\[PLANO DE LANCAMENTO NO STOCK IA\]/i);
     });
   } finally {
     globalThis.fetch = originalFetch;

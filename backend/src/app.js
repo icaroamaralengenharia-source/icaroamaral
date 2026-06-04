@@ -1639,7 +1639,33 @@ export function buildPrevisaoConsumoContext(message) {
   lines.push("");
   lines.push("Observacao: Base demonstrativa, nao oficial. Validar com SINAPI/ORSE antes de orcamento ou compra oficial.");
   lines.push("Sugestao ao usuario: Pergunte se ele deseja futuramente lancar essa previsao no Stock IA.");
+  const launchPlan = buildStockIaLaunchPlanContext_(composicao, quantidade, calculados);
+  if (launchPlan) {
+    lines.push("");
+    lines.push(launchPlan);
+  }
   return lines.join("\n");
+}
+
+function buildStockIaLaunchPlanContext_(composicao, quantidade, calculados) {
+  if (!composicao || !quantidade || !Array.isArray(calculados) || !calculados.length) {
+    return "";
+  }
+
+  return [
+    "[PLANO DE LANCAMENTO NO STOCK IA]",
+    "Origem: Elo Obras",
+    "Tipo: previsao_consumo",
+    "Servico: " + composicao.nome,
+    "Quantidade do servico: " + formatObraQuantity_(quantidade.quantidade) + " " + composicao.unidade,
+    "Status: pendente_confirmacao",
+    "",
+    "Itens previstos:",
+    calculados.map((item) => "- " + item.nome + ": " + formatObraQuantity_(item.total) + " " + item.unidade + " | origemCalculo: coeficiente_demonstrativo").join("\n"),
+    "",
+    "Observacao: Plano demonstrativo. Nao lancado automaticamente no estoque.",
+    "Orientacao: Pergunte ao usuario se deseja registrar essa previsao no Stock IA futuramente. Nao afirme que o estoque foi alterado. Nao afirme que o lancamento foi feito."
+  ].join("\n");
 }
 
 export function extractPrevistoRealConsumo(message) {
