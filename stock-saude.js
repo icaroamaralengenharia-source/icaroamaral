@@ -41,7 +41,8 @@
     exits: [],
     balance: [],
     dashboard: null,
-    auditLog: []
+    auditLog: [],
+    invites: []
   };
   let stockSaudeAuthContext = {
     mode: "local",
@@ -218,6 +219,27 @@
         }
       });
       return data.auditLog || [];
+    },
+
+    async listInvites(token) {
+      const data = await this.request("/api/stock-saude/invites", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.invites || [];
+    },
+
+    async createInvite(token, invite) {
+      const data = await this.request("/api/stock-saude/invites", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token
+        },
+        body: JSON.stringify(invite)
+      });
+      return data.invite;
     }
   };
 
@@ -447,11 +469,11 @@
       return true;
     }
     const role = clean(stockSaudeAuthContext.profile && stockSaudeAuthContext.profile.role).toLowerCase();
-    if (role === "administrador") {
+    if (role === "admin" || role === "administrador") {
       return true;
     }
     const permissions = {
-      gestor: ["create_item", "create_entry", "create_exit", "approve_entry", "reject_entry", "read"],
+      gestor: ["create_item", "create_entry", "create_exit", "approve_entry", "reject_entry", "create_invite", "read_invites", "read"],
       almoxarife: ["create_item", "create_entry", "create_exit", "read"],
       leitura: ["read"]
     };
@@ -779,6 +801,30 @@
     };
   }
 
+  function fromRemoteInvite(invite) {
+    return {
+      id: invite.id,
+      email: invite.email || "",
+      role: invite.role || "leitura",
+      status: invite.status || "pendente",
+      createdAt: invite.created_at || ""
+    };
+  }
+
+  async function fetchRemoteInvitesForContext(token) {
+    if (!canStockSaudeRole("read_invites")) {
+      return [];
+    }
+    try {
+      return await StockSaudeAPI.listInvites(token);
+    } catch (error) {
+      if (error && (error.status === 403 || error.status === 404)) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   async function loadRemoteStockSaudeState() {
     const token = getStockSaudeAuthTokenOrThrow();
     const remoteItems = await StockSaudeAPI.listItems(token);
@@ -787,12 +833,14 @@
     const remoteBalance = await StockSaudeAPI.getBalance(token);
     const remoteDashboard = await StockSaudeAPI.getDashboard(token);
     const remoteAuditLog = await StockSaudeAPI.listAuditLog(token);
+    const remoteInvites = await fetchRemoteInvitesForContext(token);
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
     stockSaudeRemoteCache.exits = remoteExits.map(fromRemoteExit);
     stockSaudeRemoteCache.balance = remoteBalance;
     stockSaudeRemoteCache.dashboard = remoteDashboard;
     stockSaudeRemoteCache.auditLog = remoteAuditLog;
+    stockSaudeRemoteCache.invites = remoteInvites.map(fromRemoteInvite);
     return {
       items: stockSaudeRemoteCache.items,
       entries: stockSaudeRemoteCache.entries,
@@ -801,6 +849,7 @@
       remoteBalance: remoteBalance,
       remoteDashboard: remoteDashboard,
       remoteAuditLog: remoteAuditLog,
+      remoteInvites: stockSaudeRemoteCache.invites,
       updatedAt: new Date().toISOString()
     };
   }
@@ -1695,6 +1744,57 @@
     }).join("");
   }
 
+  function ensureStockSaudeInvitePanel() {
+    if (elements.invitePanel || !canStockSaudeRole("read_invites")) {
+      return;
+    }
+    const anchor = document.querySelector(".stock-app-dashboard") || elements.dashboard;
+    if (!anchor || !anchor.parentNode) {
+      return;
+    }
+    const panel = document.createElement("section");
+    panel.className = "stock-panel";
+    panel.id = "stockSaudeInvitePanel";
+    panel.innerHTML = '<div class="stock-panel-heading">' +
+      '<span>Gestao de usuarios</span>' +
+      '<h3>Convidar usuario</h3>' +
+      '<p>Envie convites para novos perfis da instituicao.</p>' +
+    '</div>' +
+    '<form id="stockSaudeInviteForm" class="stock-form-grid">' +
+      '<label>Email<input type="email" name="email" placeholder="usuario@instituicao.com" required></label>' +
+      '<label>Perfil<select name="role" required>' +
+        '<option value="leitura">Leitura</option>' +
+        '<option value="almoxarife">Almoxarife</option>' +
+        '<option value="gestor">Gestor</option>' +
+        '<option value="administrador">Administrador</option>' +
+      '</select></label>' +
+      '<button type="submit" class="stock-mini-button"' + (canStockSaudeRole("create_invite") ? "" : " disabled") + '>Enviar convite</button>' +
+    '</form>' +
+    '<div id="stockSaudeInviteList" class="stock-history-list"></div>';
+    anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    elements.invitePanel = panel;
+    elements.inviteForm = panel.querySelector("#stockSaudeInviteForm");
+    elements.inviteList = panel.querySelector("#stockSaudeInviteList");
+  }
+
+  function renderInvites(state) {
+    if (!elements.inviteList) {
+      return;
+    }
+    const invites = Array.isArray(state.remoteInvites) ? state.remoteInvites : [];
+    if (!invites.length) {
+      elements.inviteList.innerHTML = '<p class="stock-empty">Nenhum convite pendente.</p>';
+      return;
+    }
+    elements.inviteList.innerHTML = invites.map(function (invite) {
+      return '<article class="stock-history-card">' +
+        '<strong>' + invite.email + '</strong>' +
+        '<span>Perfil: ' + invite.role + '</span>' +
+        '<small>Status: ' + invite.status + (invite.createdAt ? " - " + formatDate(invite.createdAt.slice(0, 10)) : "") + '</small>' +
+      '</article>';
+    }).join("");
+  }
+
   async function renderAll() {
     const state = await loadCurrentStockSaudeState();
     renderDashboard(state);
@@ -1702,6 +1802,7 @@
     renderApprovals(state);
     renderAlerts(state);
     renderHistory(state);
+    renderInvites(state);
   }
 
   function resetFormDateTime(form) {
@@ -1766,6 +1867,32 @@
         }
         setMessage(result.message);
         await renderAll();
+      });
+    }
+
+    if (elements.inviteForm) {
+      elements.inviteForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (!canStockSaudeRole("create_invite")) {
+          setMessage(stockSaudePermissionMessage());
+          return;
+        }
+        if (stockSaudeRuntimeMode !== "remote") {
+          setMessage("Convites ficam disponiveis quando o Stock Saude esta conectado ao Supabase.");
+          return;
+        }
+        try {
+          const formData = new FormData(elements.inviteForm);
+          await StockSaudeAPI.createInvite(getStockSaudeAuthTokenOrThrow(), {
+            email: clean(formData.get("email")),
+            role: clean(formData.get("role")) || "leitura"
+          });
+          elements.inviteForm.reset();
+          setMessage("Convite criado no Stock Saude.");
+          await renderAll();
+        } catch (error) {
+          setMessage(stockSaudeRemoteErrorMessage(error));
+        }
       });
     }
 
@@ -1855,6 +1982,7 @@
     const remoteAvailable = await StockSaudeAPI.isRemoteAvailable();
     setRuntimeMode(remoteAvailable && authContext.mode === "supabase" ? "remote" : "local");
     bindAnchorsAndReveal();
+    ensureStockSaudeInvitePanel();
     bindForms();
     ensureStockSaudeManagementPdfButton();
     ensureStockSaudeExportButtons();

@@ -113,6 +113,13 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /Controle de estoque, movimentacoes, pendencias e auditoria operacional/);
   assert.match(content, /StockSaudeAPI\.getDashboard\(token\)/);
   assert.match(content, /StockSaudeAPI\.listAuditLog\(token\)/);
+  assert.match(content, /\/api\/stock-saude\/invites/);
+  assert.match(content, /async listInvites\(token\)/);
+  assert.match(content, /async createInvite\(token, invite\)/);
+  assert.match(content, /Convidar usuario/);
+  assert.match(content, /stockSaudeInviteForm/);
+  assert.match(content, /create_invite/);
+  assert.match(content, /read_invites/);
   assert.match(content, /loadCurrentStockSaudeState\(\)/);
   assert.match(content, /window\.print\(\)/);
   assert.match(content, /async function exportStockSaudeCsv\(\)/);
@@ -1141,6 +1148,129 @@ test("stock saude role administrador pode criar item entrada saida e aprovar", a
       headers: { Authorization: "Bearer valid-token" }
     });
     assert.equal(approvalResponse.status, 200);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role gestor cria convite", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: createMockStockSaudeProfile_("gestor")
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const createResponse = await fetch(testServer.baseUrl + "/api/stock-saude/invites", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email: "novo@teste.local", role: "almoxarife" })
+    });
+    const createData = await createResponse.json();
+
+    assert.equal(createResponse.status, 200);
+    assert.equal(createData.ok, true);
+    assert.equal(createData.invite.email, "novo@teste.local");
+    assert.equal(createData.invite.role, "almoxarife");
+    assert.equal(createData.invite.institution_id, "inst_auth");
+    assert.equal(createData.invite.unit_id, "unit_auth");
+    assert.equal(createData.invite.created_by, "profile_auth");
+    assert.equal(createData.invite.status, "pendente");
+
+    const listResponse = await fetch(testServer.baseUrl + "/api/stock-saude/invites", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const listData = await listResponse.json();
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(listData.invites.length, 1);
+    assert.equal(listData.invites[0].email, "novo@teste.local");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role administrador cria convite", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: createMockStockSaudeProfile_("administrador")
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email: "leitura@teste.local", role: "leitura" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.invite.role, "leitura");
+    assert.equal(supabase.invites.length, 1);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role leitura nao cria convite", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("leitura")
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email: "bloqueado@teste.local", role: "leitura" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, "permission_denied");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role almoxarife nao cria convite", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("almoxarife")
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/invites", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email: "bloqueado@teste.local", role: "leitura" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, "permission_denied");
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -3220,9 +3350,11 @@ function createMockStockSaudeSupabase_(options = {}) {
   const entries = (options.entries || []).slice();
   const exits = (options.exits || []).slice();
   const auditLogs = (options.auditLogs || []).slice();
+  const invites = (options.invites || []).slice();
 
   const client = {
     auditLogs,
+    invites,
     auth: {
       async getUser(token) {
         if (token !== "valid-token") {
@@ -3254,6 +3386,9 @@ function createMockStockSaudeSupabase_(options = {}) {
       }
       if (table === "stock_audit_log") {
         return createMockStockAuditLogQuery_(auditLogs);
+      }
+      if (table === "stock_saude_invites") {
+        return createMockStockInvitesQuery_(invites);
       }
       return createMockStockItemsQuery_([]);
     }
@@ -3443,6 +3578,53 @@ function createMockStockExitsQuery_(exits) {
         return filters.every((filter) => exit[filter.column] === filter.value)
           && inFilters.every((filter) => filter.values.includes(exit[filter.column]));
       });
+      return Promise.resolve({ data, error: null }).then(resolve);
+    }
+  };
+  return query;
+}
+
+function createMockStockInvitesQuery_(invites) {
+  const filters = [];
+  let orderConfig = null;
+  const query = {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      filters.push({ column, value });
+      return this;
+    },
+    order(column, options = {}) {
+      orderConfig = { column, ascending: options.ascending !== false };
+      return this;
+    },
+    insert(payload) {
+      const invite = Object.assign({
+        id: "invite_created",
+        status: "pendente",
+        created_at: new Date().toISOString()
+      }, Array.isArray(payload) ? payload[0] : payload);
+      invites.push(invite);
+      return {
+        select() {
+          return {
+            async single() {
+              return { data: invite, error: null };
+            }
+          };
+        }
+      };
+    },
+    then(resolve) {
+      let data = invites.filter((invite) => filters.every((filter) => invite[filter.column] === filter.value));
+      if (orderConfig) {
+        data = data.slice().sort((a, b) => {
+          const left = String(a[orderConfig.column] || "");
+          const right = String(b[orderConfig.column] || "");
+          return orderConfig.ascending ? left.localeCompare(right) : right.localeCompare(left);
+        });
+      }
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };

@@ -600,6 +600,84 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-saude/invites", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+    if (!requireStockSaudePermission_(session.profile, "read_invites", response)) {
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_saude_invites")
+        .select("id,institution_id,unit_id,email,role,created_by,status,created_at")
+        .eq("institution_id", session.profile.institution_id)
+        .eq("status", "pendente")
+        .order("created_at", { ascending: false });
+      if (session.profile.unit_id) {
+        query = query.eq("unit_id", session.profile.unit_id);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, invites: data || [] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_invites_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-saude/invites", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+    if (!requireStockSaudePermission_(session.profile, "create_invite", response)) {
+      return;
+    }
+
+    const validation = validateStockSaudeInvitePayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_saude_invites")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      await createStockSaudeAuditLog_(database, {
+        institutionId: data.institution_id,
+        unitId: data.unit_id,
+        profileId: session.profile.id,
+        action: "invite_created",
+        entityType: "stock_saude_invites",
+        entityId: data.id,
+        metadata: { email: data.email, role: data.role }
+      });
+      response.json({ ok: true, invite: data });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_invite_create_failed" });
+    }
+  });
+
   app.get("/api/stock-demo/state", (request, response) => {
     const key = getStockDemoRequestKey_(request);
     const entry = stockDemoStore.states.get(key);
@@ -957,7 +1035,7 @@ async function requireStockSaudeAuth_(request, response, supabase) {
 
 function canStockSaudeRole_(profile, action) {
   const role = clean_(profile && profile.role).toLowerCase();
-  if (role === "administrador") {
+  if (role === "admin" || role === "administrador") {
     return true;
   }
   const permissions = {
@@ -967,6 +1045,8 @@ function canStockSaudeRole_(profile, action) {
       "create_exit",
       "approve_entry",
       "reject_entry",
+      "create_invite",
+      "read_invites",
       "read"
     ]),
     almoxarife: new Set([
@@ -1067,6 +1147,37 @@ function validateStockSaudeExitPayload_(body, profile = null) {
   }
   if (!(quantity > 0)) {
     return { ok: false, error: "quantity_must_be_positive" };
+  }
+  return { ok: true, payload };
+}
+
+function validateStockSaudeInvitePayload_(body, profile) {
+  const email = clean_(body.email).toLowerCase();
+  const role = clean_(body.role).toLowerCase();
+  const allowedRoles = new Set(["administrador", "gestor", "almoxarife", "leitura"]);
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    unit_id: clean_(profile && profile.unit_id) || null,
+    email,
+    role,
+    created_by: clean_(profile && profile.id) || null,
+    status: "pendente"
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.unit_id) {
+    return { ok: false, error: "unit_id_required" };
+  }
+  if (!email) {
+    return { ok: false, error: "email_required" };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "invalid_email" };
+  }
+  if (!allowedRoles.has(role)) {
+    return { ok: false, error: "invalid_role" };
   }
   return { ok: true, payload };
 }

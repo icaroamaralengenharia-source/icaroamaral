@@ -24,7 +24,18 @@ create table if not exists profiles (
   unit_id uuid references units(id) on delete set null,
   name text not null,
   email text not null,
-  role text not null check (role in ('admin', 'gestor', 'almoxarife')),
+  role text not null check (role in ('admin', 'administrador', 'gestor', 'almoxarife', 'leitura')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists stock_saude_invites (
+  id uuid primary key default gen_random_uuid(),
+  institution_id uuid not null references institutions(id) on delete cascade,
+  unit_id uuid references units(id) on delete set null,
+  email text not null,
+  role text not null check (role in ('administrador', 'gestor', 'almoxarife', 'leitura')),
+  created_by uuid references profiles(id) on delete set null,
+  status text not null default 'pendente' check (status in ('pendente', 'aceito', 'cancelado')),
   created_at timestamptz not null default now()
 );
 
@@ -94,6 +105,18 @@ create index if not exists idx_profiles_unit_id
 
 create index if not exists idx_profiles_auth_user_id
   on profiles(auth_user_id);
+
+create index if not exists idx_stock_saude_invites_institution_id
+  on stock_saude_invites(institution_id);
+
+create index if not exists idx_stock_saude_invites_unit_id
+  on stock_saude_invites(unit_id);
+
+create index if not exists idx_stock_saude_invites_status
+  on stock_saude_invites(status);
+
+create index if not exists idx_stock_saude_invites_email
+  on stock_saude_invites(email);
 
 create index if not exists idx_stock_items_institution_id
   on stock_items(institution_id);
