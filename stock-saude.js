@@ -163,9 +163,22 @@
       return data.entry;
     },
 
-    async createExit(exitData) {
+    async listExits(token) {
+      const data = await this.request("/api/stock-saude/exits", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+      return data.exits || [];
+    },
+
+    async createExit(token, exitData) {
       const data = await this.request("/api/stock-saude/exits", {
         method: "POST",
+        headers: {
+          Authorization: "Bearer " + token
+        },
         body: JSON.stringify(exitData)
       });
       return data.exit;
@@ -700,9 +713,11 @@
     const token = getStockSaudeAuthTokenOrThrow();
     const remoteItems = await StockSaudeAPI.listItems(token);
     const remoteEntries = await StockSaudeAPI.listEntries(token);
+    const remoteExits = await StockSaudeAPI.listExits(token);
     const remoteBalance = await StockSaudeAPI.getBalance();
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.entries = remoteEntries.map(fromRemoteEntry);
+    stockSaudeRemoteCache.exits = remoteExits.map(fromRemoteExit);
     stockSaudeRemoteCache.balance = remoteBalance;
     return {
       items: stockSaudeRemoteCache.items,
@@ -967,7 +982,7 @@
     }
     const exit = createExit(Object.fromEntries(formData.entries()));
     try {
-      const remoteExit = await StockSaudeAPI.createExit(toRemoteExitPayload(exit));
+      const remoteExit = await StockSaudeAPI.createExit(getStockSaudeAuthTokenOrThrow(), toRemoteExitPayload(exit));
       stockSaudeRemoteCache.exits.push(fromRemoteExit(remoteExit));
       return { ok: true, message: "Saida registrada no banco real.", exit: remoteExit };
     } catch (error) {

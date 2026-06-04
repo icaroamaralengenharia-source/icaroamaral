@@ -336,13 +336,48 @@ export function createApp(options = {}) {
     await updateStockSaudeEntryStatus_(env, request, response, "rejeitada", "entry_rejected");
   });
 
+  app.get("/api/stock-saude/exits", async (request, response) => {
+    const database = getStockSaudeDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      let query = database
+        .from("stock_exits")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (session.profile.unit_id) {
+        query = query.eq("unit_id", session.profile.unit_id);
+      }
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, exits: data || [] });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_saude_exits_query_failed" });
+    }
+  });
+
   app.post("/api/stock-saude/exits", async (request, response) => {
     const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
 
-    const validation = validateStockSaudeExitPayload_(request.body || {});
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockSaudeExitPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -830,17 +865,17 @@ function validateStockSaudeEntryPayload_(body, profile = null) {
   return { ok: true, payload };
 }
 
-function validateStockSaudeExitPayload_(body) {
+function validateStockSaudeExitPayload_(body, profile = null) {
   const quantity = parsePositiveNumber_(body.quantity);
   const payload = {
-    institution_id: clean_(body.institution_id),
-    unit_id: clean_(body.unit_id),
+    institution_id: profile ? clean_(profile.institution_id) : clean_(body.institution_id),
+    unit_id: profile ? clean_(profile.unit_id) : clean_(body.unit_id),
     item_id: clean_(body.item_id),
     quantity,
     destination_sector: clean_(body.destination_sector),
     purpose: clean_(body.purpose),
     responsible_name: clean_(body.responsible_name),
-    created_by: clean_(body.created_by) || null
+    created_by: profile ? clean_(profile.id) : clean_(body.created_by) || null
   };
 
   if (!payload.institution_id) {
