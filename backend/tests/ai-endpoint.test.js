@@ -9,6 +9,8 @@ import {
   buildVisionUserPrompt_,
   createApp,
   createEloVectorMemoryStore_,
+  buildPrevisaoConsumoContext,
+  extractQuantidadeServico,
   findObraComposicaoContext,
   formatImageAnalysis_,
   normalizeImageAnalysis_,
@@ -207,14 +209,42 @@ test("prompt mestre do Elo aplica contexto Obras", () => {
 });
 
 test("Elo Obras encontra base tecnica de composicoes por mensagem", () => {
-  const context = findObraComposicaoContext("Vou executar 250 m2 de alvenaria com bloco ceramico");
+  const context = findObraComposicaoContext("Quais insumos entram em piso ceramico?");
 
   assert.match(context, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+  assert.match(context, /Piso ceramico/i);
+  assert.match(context, /Argamassa colante/i);
+  assert.match(context, /Rejunte/i);
+  assert.match(context, /informe a quantidade em m2/i);
+  assert.doesNotMatch(context, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+});
+
+test("Elo Obras extrai quantidade de servico", () => {
+  assert.deepEqual(extractQuantidadeServico("Vou executar 250 m2 de alvenaria"), {
+    quantidade: 250,
+    unidade: "m2"
+  });
+  assert.deepEqual(extractQuantidadeServico("Vou concretar 10 m3"), {
+    quantidade: 10,
+    unidade: "m3"
+  });
+  assert.deepEqual(extractQuantidadeServico("Quanto material para 80 metros quadrados de reboco?"), {
+    quantidade: 80,
+    unidade: "m2"
+  });
+});
+
+test("Elo Obras calcula previsao demonstrativa de consumo", () => {
+  const context = buildPrevisaoConsumoContext("Vou executar 250 m2 de alvenaria com bloco ceramico");
+
+  assert.match(context, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
   assert.match(context, /Alvenaria de vedacao com bloco ceramico/i);
-  assert.match(context, /bloco ceramico/i);
-  assert.match(context, /Quantidade informada pelo usuario: 250 m2/i);
-  assert.match(context, /Stock IA futuramente/i);
-  assert.match(context, /Nao e SINAPI\/ORSE real/i);
+  assert.match(context, /Quantidade informada: 250 m2/i);
+  assert.match(context, /Bloco ceramico: 6\.750 un/i);
+  assert.match(context, /Argamassa de assentamento: 5 m3/i);
+  assert.match(context, /Insumos sem coeficiente demonstrativo/i);
+  assert.match(context, /Cimento/i);
+  assert.match(context, /Stock IA/i);
 });
 
 test("prompt do Elo Obras injeta base tecnica somente no contexto obras", () => {
@@ -234,9 +264,30 @@ test("prompt do Elo Obras injeta base tecnica somente no contexto obras", () => 
 
   assert.match(obrasPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
   assert.match(obrasPrompt, /Reboco\/emboco de parede/i);
-  assert.match(obrasPrompt, /previsao de consumo no Stock IA futuramente/i);
+  assert.match(obrasPrompt, /informe a quantidade em m2/i);
   assert.doesNotMatch(saudePrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
   assert.doesNotMatch(geralPrompt, /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+});
+
+test("prompt do Elo Obras injeta previsao calculada somente no contexto obras", () => {
+  const previsao = buildPrevisaoConsumoContext("Vou executar 250 m2 de alvenaria");
+  const obrasPrompt = buildEloSystemPrompt_({
+    eloContext: "obras",
+    obraComposicaoContext: previsao
+  });
+  const saudePrompt = buildEloSystemPrompt_({
+    eloContext: "saude",
+    obraComposicaoContext: previsao
+  });
+  const geralPrompt = buildEloSystemPrompt_({
+    eloContext: "geral",
+    obraComposicaoContext: previsao
+  });
+
+  assert.match(obrasPrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+  assert.match(obrasPrompt, /Bloco ceramico: 6\.750 un/i);
+  assert.doesNotMatch(saudePrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+  assert.doesNotMatch(geralPrompt, /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
 });
 
 test("prompt mestre do Elo inclui memoria permanente enviada no contexto", () => {
@@ -927,7 +978,7 @@ test("payload enviado ao LLM contem resumo do documento", async () => {
   }
 });
 
-test("endpoint do Elo injeta composicoes apenas no contexto obras", async () => {
+test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", async () => {
   const originalFetch = globalThis.fetch;
   const prompts = [];
   globalThis.fetch = async function (url, options) {
@@ -976,12 +1027,24 @@ test("endpoint do Elo injeta composicoes apenas no contexto obras", async () => 
         },
         eloContext: "saude"
       });
+      const geralResponse = await postEloChatMultipartTo_(url, {
+        message: "Vou executar 250 m2 de alvenaria",
+        context: {
+          source: "elo",
+          mode: "standalone",
+          deviceId: "elo_dev_geral_sem_composicao"
+        },
+        eloContext: "geral"
+      });
 
       assert.equal(obrasResponse.status, 200);
       assert.equal(saudeResponse.status, 200);
-      assert.match(prompts[0], /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+      assert.equal(geralResponse.status, 200);
+      assert.match(prompts[0], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
       assert.match(prompts[0], /Alvenaria de vedacao com bloco ceramico/i);
-      assert.doesNotMatch(prompts[1], /\[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA\]/i);
+      assert.match(prompts[0], /Bloco ceramico: 6\.750 un/i);
+      assert.doesNotMatch(prompts[1], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
+      assert.doesNotMatch(prompts[2], /\[PREVISAO DEMONSTRATIVA DE CONSUMO\]/i);
     });
   } finally {
     globalThis.fetch = originalFetch;

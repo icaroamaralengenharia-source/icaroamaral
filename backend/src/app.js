@@ -396,7 +396,7 @@ export function createApp(options = {}) {
         validation.payload.context.deviceId
       );
       if (validation.payload.context.eloContext === "obras") {
-        validation.payload.context.obraComposicaoContext = findObraComposicaoContext(validation.payload.message);
+        validation.payload.context.obraComposicaoContext = buildPrevisaoConsumoContext(validation.payload.message);
       }
       const answer = await callOpenAiElo_(validation.payload, env);
       response.json({
@@ -1575,41 +1575,82 @@ function buildEloContextPrompt_(eloContext) {
 }
 
 export function findObraComposicaoContext(message) {
-  const normalizedMessage = normalizeObraSearchText_(message);
-  if (!normalizedMessage) {
-    return "";
-  }
-
-  const composicao = OBRA_COMPOSICOES_DEMONSTRATIVAS.find((item) => {
-    return item.termos.some((term) => normalizedMessage.includes(normalizeObraSearchText_(term)));
-  });
+  const composicao = findObraComposicao_(message);
   if (!composicao) {
     return "";
   }
 
-  const quantidade = extractObraQuantity_(normalizedMessage, composicao.unidade);
   const lines = [
     "[BASE TECNICA DE COMPOSICOES - DEMONSTRATIVA]",
-    "Servico encontrado: " + composicao.servico,
+    "Servico encontrado: " + composicao.nome,
     "Unidade: " + composicao.unidade,
     "Insumos principais:",
-    composicao.insumos.map((insumo) => "- " + insumo).join("\n")
+    composicao.insumos.map((insumo) => {
+      const coeficiente = Number.isFinite(insumo.coeficiente)
+        ? " | coeficiente demonstrativo: " + formatObraQuantity_(insumo.coeficiente) + " " + insumo.unidade + "/" + composicao.unidade
+        : " | quantificacao pendente";
+      return "- " + insumo.nome + coeficiente;
+    }).join("\n")
   ];
 
-  if (quantidade && Array.isArray(composicao.coeficientesDemonstrativos) && composicao.coeficientesDemonstrativos.length) {
-    lines.push("Quantidade informada pelo usuario: " + quantidade.valor + " " + quantidade.unidade);
-    lines.push("Estimativa proporcional demonstrativa:");
-    lines.push(composicao.coeficientesDemonstrativos.map((coeficiente) => {
-      const total = quantidade.valor * coeficiente.quantidade;
-      return "- " + coeficiente.insumo + ": " + formatObraQuantity_(total) + " " + coeficiente.unidade.replace("/" + composicao.unidade, "");
-    }).join("\n"));
-  } else {
-    lines.push("Quantificacao: listar insumos e avisar que a quantificacao oficial depende de composicao validada.");
+  lines.push("Quantificacao: informe a quantidade em " + composicao.unidade + " para estimar consumo.");
+  lines.push("Observacao: " + composicao.observacao + " Nao e base oficial.");
+  return lines.join("\n");
+}
+
+export function buildPrevisaoConsumoContext(message) {
+  const composicao = findObraComposicao_(message);
+  if (!composicao) {
+    return "";
   }
 
-  lines.push("Observacao: Base demonstrativa e estimativa. Nao e SINAPI/ORSE real. Para orcamento oficial, validar posteriormente com SINAPI/ORSE ou composicao tecnica aprovada.");
-  lines.push("Oriente o Elo a sugerir: Deseja lancar essa previsao de consumo no Stock IA futuramente?");
+  const quantidade = extractQuantidadeServico(message);
+  if (!quantidade || normalizeObraUnit_(quantidade.unidade) !== normalizeObraUnit_(composicao.unidade)) {
+    return findObraComposicaoContext(message);
+  }
+
+  const calculados = composicao.insumos
+    .filter((insumo) => Number.isFinite(insumo.coeficiente))
+    .map((insumo) => ({
+      nome: insumo.nome,
+      unidade: insumo.unidade,
+      total: quantidade.quantidade * insumo.coeficiente
+    }));
+  const pendentes = composicao.insumos.filter((insumo) => !Number.isFinite(insumo.coeficiente));
+
+  const lines = [
+    "[PREVISAO DEMONSTRATIVA DE CONSUMO]",
+    "Servico: " + composicao.nome,
+    "Quantidade informada: " + formatObraQuantity_(quantidade.quantidade) + " " + composicao.unidade,
+    "",
+    "Estimativa inicial:",
+    calculados.length
+      ? calculados.map((item) => "- " + item.nome + ": " + formatObraQuantity_(item.total) + " " + item.unidade).join("\n")
+      : "- Sem coeficientes numericos demonstrativos para esta composicao."
+  ];
+
+  if (pendentes.length) {
+    lines.push("");
+    lines.push("Insumos sem coeficiente demonstrativo nesta base:");
+    lines.push(pendentes.map((insumo) => "- " + insumo.nome).join("\n"));
+  }
+
+  lines.push("");
+  lines.push("Observacao: Base demonstrativa, nao oficial. Validar com SINAPI/ORSE antes de orcamento ou compra oficial.");
+  lines.push("Sugestao ao usuario: Pergunte se ele deseja futuramente lancar essa previsao no Stock IA.");
   return lines.join("\n");
+}
+
+function findObraComposicao_(message) {
+  const normalizedMessage = normalizeObraSearchText_(message);
+  if (!normalizedMessage) {
+    return null;
+  }
+
+  return OBRA_COMPOSICOES_DEMONSTRATIVAS.find((item) => {
+    const aliases = Array.isArray(item.aliases) && item.aliases.length ? item.aliases : item.termos;
+    return aliases.some((term) => normalizedMessage.includes(normalizeObraSearchText_(term)));
+  }) || null;
 }
 
 function normalizeObraSearchText_(value) {
@@ -1623,21 +1664,21 @@ function normalizeObraSearchText_(value) {
     .trim();
 }
 
-function extractObraQuantity_(text, expectedUnit) {
-  const normalizedUnit = normalizeObraSearchText_(expectedUnit);
-  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(m2|m3|m|metros quadrados|metro quadrado|metros cubicos|metro cubico)\b/);
+export function extractQuantidadeServico(message) {
+  const text = normalizeObraSearchText_(message);
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico)\b/);
   if (!match) {
     return null;
   }
 
   const unit = match[2] === "metros quadrados" || match[2] === "metro quadrado" ? "m2"
     : (match[2] === "metros cubicos" || match[2] === "metro cubico" ? "m3" : match[2]);
-  if (unit !== normalizedUnit) {
-    return null;
-  }
+  const quantidade = Number(match[1].replace(",", "."));
+  return Number.isFinite(quantidade) && quantidade > 0 ? { quantidade, unidade: unit } : null;
+}
 
-  const valor = Number(match[1].replace(",", "."));
-  return Number.isFinite(valor) && valor > 0 ? { valor, unidade: unit } : null;
+function normalizeObraUnit_(unit) {
+  return normalizeObraSearchText_(unit);
 }
 
 function formatObraQuantity_(value) {
