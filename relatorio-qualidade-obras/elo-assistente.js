@@ -24,6 +24,8 @@
   const ELO_PDF_TEXT_CONTEXT_LIMIT = 15000;
   const ELO_PDFJS_LIBRARY_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
+  const ELO_STOCK_IA_PENDING_PLAN_KEY = "obraReport.stockIa.pendingLaunchPlan";
 
   function getEloBackendEndpoint_(path) {
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
@@ -55,6 +57,141 @@
       return "obras";
     }
     return "geral";
+  }
+
+  function sanitizeStockIaPlan_(plan) {
+    if (!plan || typeof plan !== "object") {
+      return null;
+    }
+    const origem = sanitizeUserText(plan.origem);
+    const tipo = sanitizeUserText(plan.tipo);
+    if (origem !== "elo_obras" || tipo !== "previsao_consumo") {
+      return null;
+    }
+
+    const itens = Array.isArray(plan.itens) ? plan.itens.map(function (item) {
+      const quantidade = Number(item && item.quantidade);
+      return {
+        nome: sanitizeUserText(item && item.nome).slice(0, 120),
+        quantidade: Number.isFinite(quantidade) && quantidade > 0 ? quantidade : 0,
+        unidade: sanitizeUserText(item && item.unidade).slice(0, 20),
+        origemCalculo: sanitizeUserText(item && item.origemCalculo).slice(0, 60)
+      };
+    }).filter(function (item) {
+      return item.nome && item.quantidade > 0 && item.origemCalculo === "coeficiente_demonstrativo";
+    }) : [];
+
+    if (!itens.length) {
+      return null;
+    }
+
+    const quantidadeServico = Number(plan.quantidadeServico);
+    return {
+      origem: "elo_obras",
+      tipo: "previsao_consumo",
+      servico: sanitizeUserText(plan.servico).slice(0, 180),
+      quantidadeServico: Number.isFinite(quantidadeServico) && quantidadeServico > 0 ? quantidadeServico : 0,
+      unidadeServico: sanitizeUserText(plan.unidadeServico).slice(0, 20),
+      status: "pendente_confirmacao",
+      itens: itens,
+      observacao: "Plano demonstrativo. Nao lancado automaticamente no estoque."
+    };
+  }
+
+  function setPendingStockIaPlan(plan) {
+    const safePlan = sanitizeStockIaPlan_(plan);
+    if (!safePlan || getEloContext() !== "obras") {
+      return false;
+    }
+    try {
+      window.localStorage.setItem(ELO_STOCK_IA_PENDING_PLAN_KEY, JSON.stringify(Object.assign({}, safePlan, {
+        pendingAt: new Date().toISOString()
+      })));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function getPendingStockIaPlan() {
+    try {
+      return sanitizeStockIaPlan_(JSON.parse(window.localStorage.getItem(ELO_STOCK_IA_PENDING_PLAN_KEY) || "null"));
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function clearPendingStockIaPlan() {
+    try {
+      window.localStorage.removeItem(ELO_STOCK_IA_PENDING_PLAN_KEY);
+    } catch (error) {
+      // Sem acao: falha de limpeza local nao deve afetar a conversa.
+    }
+  }
+
+  function getStockIaPlannedConsumptions() {
+    try {
+      const items = JSON.parse(window.localStorage.getItem(ELO_STOCK_IA_PLANS_STORAGE_KEY) || "[]");
+      return Array.isArray(items) ? items : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveStockIaPlannedConsumption(plan) {
+    const safePlan = sanitizeStockIaPlan_(plan);
+    if (!safePlan || getEloContext() !== "obras") {
+      return null;
+    }
+    const record = Object.assign({}, safePlan, {
+      id: "elo_stock_plan_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8),
+      createdAt: new Date().toISOString(),
+      status: "planejado",
+      observacao: "Planejamento registrado pelo Elo. Nao altera saldo real."
+    });
+    try {
+      const items = getStockIaPlannedConsumptions();
+      items.unshift(record);
+      window.localStorage.setItem(ELO_STOCK_IA_PLANS_STORAGE_KEY, JSON.stringify(items.slice(0, 80)));
+      clearPendingStockIaPlan();
+      return record;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function isStockIaPlanConfirmation(message) {
+    const text = normalizeText(message);
+    return hasAnyTerm(text, [
+      "sim",
+      "confirmar",
+      "confirmo",
+      "pode registrar",
+      "registre",
+      "registrar previsao",
+      "registrar previsão",
+      "salvar previsao",
+      "salvar previsão",
+      "lancar no stock",
+      "lançar no stock",
+      "lancar no stock ia",
+      "lançar no stock ia"
+    ]);
+  }
+
+  function tryConfirmPendingStockIaPlan(message) {
+    if (getEloContext() !== "obras" || !isStockIaPlanConfirmation(message)) {
+      return "";
+    }
+    const pendingPlan = getPendingStockIaPlan();
+    if (!pendingPlan) {
+      return "";
+    }
+    const savedPlan = saveStockIaPlannedConsumption(pendingPlan);
+    if (!savedPlan) {
+      return "NÃ£o consegui registrar essa previsÃ£o agora. Nenhum saldo de estoque foi alterado.";
+    }
+    return "PrevisÃ£o registrada como planejamento no Stock IA. Nenhum saldo de estoque foi alterado.";
   }
 
   function getEloDeviceId() {
@@ -1208,6 +1345,9 @@
           });
         }).then(function (data) {
           if (data && data.ok && data.answer) {
+            if (data.stockIaLaunchPlan) {
+              setPendingStockIaPlan(data.stockIaLaunchPlan);
+            }
             return sanitizeUserText(data.answer);
           }
           if (data && data.fallback && data.answer) {
@@ -1237,6 +1377,9 @@
       });
     }).then(function (data) {
       if (data && data.ok && data.answer) {
+        if (data.stockIaLaunchPlan) {
+          setPendingStockIaPlan(data.stockIaLaunchPlan);
+        }
         return sanitizeUserText(data.answer);
       }
       if (data && data.fallback && data.answer) {
@@ -10656,6 +10799,22 @@
     const attachedFiles = Array.prototype.slice.call(attachments || []);
 
     appendMessage("user", cleanQuestion);
+
+    const stockIaPlanConfirmationAnswer = tryConfirmPendingStockIaPlan(cleanQuestion);
+    if (stockIaPlanConfirmationAnswer) {
+      const confirmationResponse = {
+        shortAnswer: stockIaPlanConfirmationAnswer,
+        fullAnswer: stockIaPlanConfirmationAnswer,
+        nextAction: "A previsao ficou salva apenas como planejamento. Revise no Stock IA antes de qualquer baixa real.",
+        canSave: false,
+        sessionTheme: "stock_ia_planejamento"
+      };
+      appendAssistantMessage(cleanQuestion, stockIaPlanConfirmationAnswer, false, confirmationResponse);
+      saveConversation(cleanQuestion, stockIaPlanConfirmationAnswer);
+      rememberSessionTurn(cleanQuestion, confirmationResponse, stockIaPlanConfirmationAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
 
     if (attachedFiles.length) {
       requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
