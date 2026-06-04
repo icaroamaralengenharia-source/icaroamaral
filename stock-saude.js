@@ -105,20 +105,22 @@
       });
     },
 
-    async getItems() {
-      const params = new URLSearchParams({
-        institution_id: getStockSaudeInstitutionId(),
-        unit_id: getStockSaudeUnitId()
-      });
-      const data = await this.request("/api/stock-saude/items?" + params.toString(), {
-        method: "GET"
+    async listItems(token) {
+      const data = await this.request("/api/stock-saude/items", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + token
+        }
       });
       return data.items || [];
     },
 
-    async createItem(item) {
+    async createItem(token, item) {
       const data = await this.request("/api/stock-saude/items", {
         method: "POST",
+        headers: {
+          Authorization: "Bearer " + token
+        },
         body: JSON.stringify(item)
       });
       return data.item;
@@ -379,6 +381,14 @@
 
   function getStockSaudeProfileId() {
     return stockSaudeAuthContext.profileId || STOCK_SAUDE_DEMO_PROFILE_ID;
+  }
+
+  function getStockSaudeAuthTokenOrThrow() {
+    const token = getStockSaudeSupabaseToken();
+    if (!token) {
+      throw new Error("stock_saude_auth_token_missing");
+    }
+    return token;
   }
 
   function buildDemoState() {
@@ -674,7 +684,8 @@
   }
 
   async function loadRemoteStockSaudeState() {
-    const remoteItems = await StockSaudeAPI.getItems();
+    const token = getStockSaudeAuthTokenOrThrow();
+    const remoteItems = await StockSaudeAPI.listItems(token);
     const remoteBalance = await StockSaudeAPI.getBalance();
     stockSaudeRemoteCache.items = remoteItems.map(fromRemoteItem);
     stockSaudeRemoteCache.balance = remoteBalance;
@@ -830,7 +841,7 @@
       return registerStockSaudeItem(formData);
     }
     try {
-      const remoteItem = await StockSaudeAPI.createItem(toRemoteItemPayload(item));
+      const remoteItem = await StockSaudeAPI.createItem(getStockSaudeAuthTokenOrThrow(), toRemoteItemPayload(item));
       const normalized = fromRemoteItem(remoteItem);
       stockSaudeRemoteCache.items.push(normalized);
       return normalized;

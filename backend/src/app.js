@@ -114,6 +114,8 @@ export function createApp(options = {}) {
   const env = options.env || process.env;
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
   const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH, env });
+  const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
+  const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
 
   app.use(cors({
     origin(origin, callback) {
@@ -148,7 +150,7 @@ export function createApp(options = {}) {
   });
 
   app.get("/api/stock-saude/health", (request, response) => {
-    const supabaseClient = getSupabaseClient(env);
+    const supabaseClient = stockSaudeSupabaseClient || getSupabaseClient(env);
     response.json({
       ok: true,
       module: "stock-saude",
@@ -158,7 +160,7 @@ export function createApp(options = {}) {
   });
 
   app.get("/api/stock-saude/me", async (request, response) => {
-    const database = requireStockSaudeDatabase_(env, response);
+    const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
@@ -186,15 +188,13 @@ export function createApp(options = {}) {
   });
 
   app.get("/api/stock-saude/items", async (request, response) => {
-    const database = requireStockSaudeDatabase_(env, response);
+    const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
 
-    const institutionId = clean_(request.query.institution_id);
-    const unitId = clean_(request.query.unit_id);
-    if (!institutionId) {
-      response.status(400).json({ ok: false, error: "institution_id_required" });
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
       return;
     }
 
@@ -202,10 +202,10 @@ export function createApp(options = {}) {
       let query = database
         .from("stock_items")
         .select("*")
-        .eq("institution_id", institutionId)
+        .eq("institution_id", session.profile.institution_id)
         .order("name", { ascending: true });
-      if (unitId) {
-        query = query.eq("unit_id", unitId);
+      if (session.profile.unit_id) {
+        query = query.eq("unit_id", session.profile.unit_id);
       }
       const { data, error } = await query;
       if (error) {
@@ -218,12 +218,17 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/stock-saude/items", async (request, response) => {
-    const database = requireStockSaudeDatabase_(env, response);
+    const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
 
-    const validation = validateStockSaudeItemPayload_(request.body || {});
+    const session = await requireStockSaudeAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockSaudeItemPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
       return;
@@ -253,7 +258,7 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/stock-saude/entries", async (request, response) => {
-    const database = requireStockSaudeDatabase_(env, response);
+    const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
@@ -297,7 +302,7 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/stock-saude/exits", async (request, response) => {
-    const database = requireStockSaudeDatabase_(env, response);
+    const database = getStockSaudeDatabase(response);
     if (!database) {
       return;
     }
@@ -665,8 +670,8 @@ export function createApp(options = {}) {
   return app;
 }
 
-function requireStockSaudeDatabase_(env, response) {
-  const database = getSupabaseClient(env);
+function requireStockSaudeDatabase_(env, response, databaseOverride = null) {
+  const database = databaseOverride || getSupabaseClient(env);
   if (!database) {
     response.status(503).json({
       ok: false,
@@ -735,10 +740,10 @@ async function requireStockSaudeAuth_(request, response, supabase) {
   }
 }
 
-function validateStockSaudeItemPayload_(body) {
+function validateStockSaudeItemPayload_(body, profile = null) {
   const payload = {
-    institution_id: clean_(body.institution_id),
-    unit_id: clean_(body.unit_id),
+    institution_id: profile ? clean_(profile.institution_id) : clean_(body.institution_id),
+    unit_id: profile ? clean_(profile.unit_id) : clean_(body.unit_id),
     name: clean_(body.name),
     category: clean_(body.category),
     unit: clean_(body.unit),
