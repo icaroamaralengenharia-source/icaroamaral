@@ -227,6 +227,9 @@ export function createApp(options = {}) {
     if (!session) {
       return;
     }
+    if (!requireStockSaudePermission_(session.profile, "create_item", response)) {
+      return;
+    }
 
     const validation = validateStockSaudeItemPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
@@ -296,6 +299,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockSaudeAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockSaudePermission_(session.profile, "create_entry", response)) {
       return;
     }
 
@@ -389,6 +395,9 @@ export function createApp(options = {}) {
 
     const session = await requireStockSaudeAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+    if (!requireStockSaudePermission_(session.profile, "create_exit", response)) {
       return;
     }
 
@@ -946,6 +955,39 @@ async function requireStockSaudeAuth_(request, response, supabase) {
   }
 }
 
+function canStockSaudeRole_(profile, action) {
+  const role = clean_(profile && profile.role).toLowerCase();
+  if (role === "administrador") {
+    return true;
+  }
+  const permissions = {
+    gestor: new Set([
+      "create_item",
+      "create_entry",
+      "create_exit",
+      "approve_entry",
+      "reject_entry",
+      "read"
+    ]),
+    almoxarife: new Set([
+      "create_item",
+      "create_entry",
+      "create_exit",
+      "read"
+    ]),
+    leitura: new Set(["read"])
+  };
+  return Boolean(permissions[role] && permissions[role].has(action));
+}
+
+function requireStockSaudePermission_(profile, action, response) {
+  if (canStockSaudeRole_(profile, action)) {
+    return true;
+  }
+  response.status(403).json({ ok: false, error: "permission_denied" });
+  return false;
+}
+
 function validateStockSaudeItemPayload_(body, profile = null) {
   const payload = {
     institution_id: profile ? clean_(profile.institution_id) : clean_(body.institution_id),
@@ -1037,6 +1079,9 @@ function parsePositiveNumber_(value, defaultValue = NaN) {
 async function updateStockSaudeEntryStatus_(request, response, database, status, auditAction) {
   const session = await requireStockSaudeAuth_(request, response, database);
   if (!session) {
+    return;
+  }
+  if (!requireStockSaudePermission_(session.profile, auditAction, response)) {
     return;
   }
   const entryId = clean_(request.params.id);

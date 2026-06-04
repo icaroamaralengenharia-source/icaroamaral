@@ -103,6 +103,9 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /Rejeitou entrada/);
   assert.match(content, /activeHistoryFilter === "aprovacoes"/);
   assert.match(content, /activeHistoryFilter === "itens"/);
+  assert.match(content, /function canStockSaudeRole\(action\)/);
+  assert.match(content, /stockSaudeAuthContext\.mode !== "supabase"/);
+  assert.match(content, /Seu perfil nao tem permissao para esta acao/);
   assert.match(content, /Authorization: "Bearer " \+ token/);
   assert.match(content, /mode: "supabase"/);
   assert.match(content, /mode: "local"/);
@@ -247,6 +250,33 @@ test("stock saude lista e cria itens usando institution e unit do profile autent
   }
 });
 
+test("stock saude role leitura nao cria item", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("leitura")
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/items", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name: "Item leitura", unit: "un" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "permission_denied");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock saude entries exige Authorization quando Supabase esta configurado", async () => {
   const app = createApp({
     env: { PORT: "0" },
@@ -315,6 +345,32 @@ test("stock saude cria entry valida item_id e quantidade", async () => {
     const invalidQuantityData = await invalidQuantityResponse.json();
     assert.equal(invalidQuantityResponse.status, 400);
     assert.equal(invalidQuantityData.error, "quantity_must_be_positive");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role leitura nao registra entrada", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("leitura")
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ item_id: "item_1", quantity: 1 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, "permission_denied");
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -430,6 +486,32 @@ test("stock saude bloqueia entry para item de outra instituicao", async () => {
     assert.equal(response.status, 403);
     assert.equal(data.ok, false);
     assert.equal(data.error, "item_not_in_profile_scope");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role leitura nao registra saida", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("leitura")
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ item_id: "item_1", quantity: 1 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, "permission_denied");
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -856,6 +938,38 @@ test("stock saude bloqueia aprovacao de entrada fora do escopo", async () => {
   }
 });
 
+test("stock saude role almoxarife nao aprova entrada", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: createMockStockSaudeSupabase_({
+      profile: createMockStockSaudeProfile_("almoxarife"),
+      entries: [
+        {
+          id: "entry_1",
+          institution_id: "inst_auth",
+          unit_id: "unit_auth",
+          item_id: "item_1",
+          quantity: 5,
+          status: "pendente"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/approve", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, "permission_denied");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock saude aprova entrada com profile real e registra auditoria", async () => {
   const supabase = createMockStockSaudeSupabase_({
     entries: [
@@ -894,6 +1008,119 @@ test("stock saude aprova entrada com profile real e registra auditoria", async (
     assert.equal(supabase.auditLogs.length, 1);
     assert.equal(supabase.auditLogs[0].action, "approve_entry");
     assert.equal(supabase.auditLogs[0].profile_id, "profile_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role gestor aprova entrada", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: createMockStockSaudeProfile_("gestor"),
+    entries: [
+      {
+        id: "entry_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        item_id: "item_1",
+        quantity: 5,
+        status: "pendente"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_1/approve", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.entry.status, "aprovada");
+    assert.equal(data.entry.approved_by, "profile_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock saude role administrador pode criar item entrada saida e aprovar", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    profile: createMockStockSaudeProfile_("administrador"),
+    items: [
+      {
+        id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        name: "Dipirona",
+        category: "Medicamento",
+        unit: "caixa",
+        minimum_quantity: 10
+      }
+    ],
+    entries: [
+      {
+        id: "entry_approved",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 20,
+        status: "aprovada"
+      },
+      {
+        id: "entry_pending",
+        item_id: "item_1",
+        institution_id: "inst_auth",
+        unit_id: "unit_auth",
+        quantity: 2,
+        status: "pendente"
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockSaudeSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const itemResponse = await fetch(testServer.baseUrl + "/api/stock-saude/items", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name: "Seringa", unit: "un" })
+    });
+    assert.equal(itemResponse.status, 200);
+
+    const entryResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ item_id: "item_1", quantity: 2 })
+    });
+    assert.equal(entryResponse.status, 200);
+
+    const exitResponse = await fetch(testServer.baseUrl + "/api/stock-saude/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ item_id: "item_1", quantity: 1 })
+    });
+    assert.equal(exitResponse.status, 200);
+
+    const approvalResponse = await fetch(testServer.baseUrl + "/api/stock-saude/entries/entry_pending/approve", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    assert.equal(approvalResponse.status, 200);
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -2968,15 +3195,7 @@ async function closeTestServer_(server) {
 }
 
 function createMockStockSaudeSupabase_(options = {}) {
-  const profile = Object.prototype.hasOwnProperty.call(options, "profile") ? options.profile : {
-    id: "profile_auth",
-    auth_user_id: "auth_user_1",
-    institution_id: "inst_auth",
-    unit_id: "unit_auth",
-    name: "Gestor Teste",
-    email: "gestor@teste.local",
-    role: "gestor"
-  };
+  const profile = Object.prototype.hasOwnProperty.call(options, "profile") ? options.profile : createMockStockSaudeProfile_("gestor");
   const items = (options.items || []).slice();
   const entries = (options.entries || []).slice();
   const exits = (options.exits || []).slice();
@@ -3020,6 +3239,18 @@ function createMockStockSaudeSupabase_(options = {}) {
     }
   };
   return client;
+}
+
+function createMockStockSaudeProfile_(role = "gestor") {
+  return {
+    id: "profile_auth",
+    auth_user_id: "auth_user_1",
+    institution_id: "inst_auth",
+    unit_id: "unit_auth",
+    name: "Gestor Teste",
+    email: "gestor@teste.local",
+    role
+  };
 }
 
 function createMockProfilesQuery_(profile) {

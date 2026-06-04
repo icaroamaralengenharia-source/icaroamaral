@@ -442,6 +442,26 @@
     return token;
   }
 
+  function canStockSaudeRole(action) {
+    if (stockSaudeAuthContext.mode !== "supabase") {
+      return true;
+    }
+    const role = clean(stockSaudeAuthContext.profile && stockSaudeAuthContext.profile.role).toLowerCase();
+    if (role === "administrador") {
+      return true;
+    }
+    const permissions = {
+      gestor: ["create_item", "create_entry", "create_exit", "approve_entry", "reject_entry", "read"],
+      almoxarife: ["create_item", "create_entry", "create_exit", "read"],
+      leitura: ["read"]
+    };
+    return Boolean(permissions[role] && permissions[role].indexOf(action) >= 0);
+  }
+
+  function stockSaudePermissionMessage() {
+    return "Seu perfil nao tem permissao para esta acao.";
+  }
+
   function buildDemoState() {
     const items = [
       ["Dipirona 500mg", "Medicamento", "caixa", 180, 80, "DIP-500-A", "2026-08-30", "MedSul", "NF-1001", "Farmacia hospitalar", "15-25C", false],
@@ -636,6 +656,9 @@
     }
     if (error && error.payload && error.payload.error === "entry_not_in_profile_scope") {
       return "Entrada fora do escopo do seu perfil. Verifique instituicao e unidade.";
+    }
+    if (error && error.payload && error.payload.error === "permission_denied") {
+      return stockSaudePermissionMessage();
     }
     return "Nao foi possivel concluir no banco real. Voce pode continuar usando a demonstracao local.";
   }
@@ -942,6 +965,10 @@
       stockSaudeRemoteCache.items.push(normalized);
       return normalized;
     } catch (error) {
+      if (error && error.payload && error.payload.error === "permission_denied") {
+        setMessage(stockSaudeRemoteErrorMessage(error));
+        return null;
+      }
       setRuntimeMode("local");
       setMessage(stockSaudeRemoteErrorMessage(error));
       return registerStockSaudeItem(formData);
@@ -972,6 +999,10 @@
       return normalized;
     } catch (error) {
       if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
+        setMessage(stockSaudeRemoteErrorMessage(error));
+        return null;
+      }
+      if (error && error.payload && error.payload.error === "permission_denied") {
         setMessage(stockSaudeRemoteErrorMessage(error));
         return null;
       }
@@ -1029,6 +1060,12 @@
           message: stockSaudeRemoteErrorMessage(error)
         };
       }
+      if (error && error.payload && error.payload.error === "permission_denied") {
+        return {
+          unsupported: true,
+          message: stockSaudeRemoteErrorMessage(error)
+        };
+      }
       setRuntimeMode("local");
       setMessage(stockSaudeRemoteErrorMessage(error));
       return null;
@@ -1070,6 +1107,12 @@
         };
       }
       if (error && error.payload && error.payload.error === "item_not_in_profile_scope") {
+        return {
+          ok: false,
+          message: stockSaudeRemoteErrorMessage(error)
+        };
+      }
+      if (error && error.payload && error.payload.error === "permission_denied") {
         return {
           ok: false,
           message: stockSaudeRemoteErrorMessage(error)
@@ -1117,6 +1160,10 @@
     if (!elements.approvals) {
       return;
     }
+    if (!canStockSaudeRole("approve_entry") && !canStockSaudeRole("reject_entry")) {
+      elements.approvals.innerHTML = '<p class="stock-empty">Seu perfil pode consultar entradas, mas nao aprovar ou rejeitar.</p>';
+      return;
+    }
     const pending = state.entries.filter(function (entry) {
       return entry.status === "pendente";
     }).sort(function (a, b) {
@@ -1132,8 +1179,8 @@
         '<div><strong>' + (item ? item.name : "Item removido") + '</strong><span>' + formatNumber(entry.quantity) + ' ' + (item ? item.unit : "un") + ' - lote ' + entry.lot + ' - validade ' + formatDate(entry.expirationDate) + '</span></div>' +
         '<small>Responsavel: ' + (entry.receivedBy || "-") + ' - ' + formatDate(entry.date) + ' ' + entry.time + '</small>' +
         '<div class="stock-card-actions">' +
-          '<button type="button" data-approval-action="aprovada" data-entry-id="' + entry.id + '">Aprovar</button>' +
-          '<button type="button" data-approval-action="rejeitada" data-entry-id="' + entry.id + '">Rejeitar</button>' +
+          '<button type="button" data-approval-action="aprovada" data-entry-id="' + entry.id + '"' + (canStockSaudeRole("approve_entry") ? "" : " disabled") + '>Aprovar</button>' +
+          '<button type="button" data-approval-action="rejeitada" data-entry-id="' + entry.id + '"' + (canStockSaudeRole("reject_entry") ? "" : " disabled") + '>Rejeitar</button>' +
           '<button type="button" data-approval-action="correcao_solicitada" data-entry-id="' + entry.id + '">Solicitar correcao</button>' +
         '</div>' +
       '</article>';
@@ -1346,9 +1393,15 @@
     if (elements.itemForm) {
       elements.itemForm.addEventListener("submit", async function (event) {
         event.preventDefault();
-        await registerStockSaudeItemHybrid(new FormData(elements.itemForm));
-        elements.itemForm.reset();
-        setMessage("Item cadastrado no Stock Saude.");
+        if (!canStockSaudeRole("create_item")) {
+          setMessage(stockSaudePermissionMessage());
+          return;
+        }
+        const item = await registerStockSaudeItemHybrid(new FormData(elements.itemForm));
+        if (item) {
+          elements.itemForm.reset();
+          setMessage("Item cadastrado no Stock Saude.");
+        }
         await renderAll();
       });
     }
@@ -1356,6 +1409,10 @@
     if (elements.entryForm) {
       elements.entryForm.addEventListener("submit", async function (event) {
         event.preventDefault();
+        if (!canStockSaudeRole("create_entry")) {
+          setMessage(stockSaudePermissionMessage());
+          return;
+        }
         const entry = await registerStockSaudeEntryRequestHybrid(new FormData(elements.entryForm));
         if (entry) {
           elements.entryForm.reset();
@@ -1369,6 +1426,10 @@
     if (elements.exitForm) {
       elements.exitForm.addEventListener("submit", async function (event) {
         event.preventDefault();
+        if (!canStockSaudeRole("create_exit")) {
+          setMessage(stockSaudePermissionMessage());
+          return;
+        }
         const result = await registerStockSaudeExitHybrid(new FormData(elements.exitForm));
         if (result.ok) {
           elements.exitForm.reset();
@@ -1383,6 +1444,14 @@
       elements.approvals.addEventListener("click", async function (event) {
         const button = event.target.closest("[data-approval-action]");
         if (!button) {
+          return;
+        }
+        if (button.dataset.approvalAction === "aprovada" && !canStockSaudeRole("approve_entry")) {
+          setMessage(stockSaudePermissionMessage());
+          return;
+        }
+        if (button.dataset.approvalAction === "rejeitada" && !canStockSaudeRole("reject_entry")) {
+          setMessage(stockSaudePermissionMessage());
           return;
         }
         const decision = await approveStockSaudeEntryHybrid(button.dataset.entryId, button.dataset.approvalAction);
