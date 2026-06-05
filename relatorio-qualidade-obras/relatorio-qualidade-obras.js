@@ -4571,6 +4571,219 @@
     return "Saldo local atende ao consumo previsto.";
   }
 
+  function isStockAiCompositionRequest_(message) {
+    const normalized = normalizeCompositionKey_(message);
+    const intentTerms = [
+      "composicao",
+      "compor",
+      "calcular materiais",
+      "calcule materiais",
+      "materiais para",
+      "vou fazer",
+      "vou executar",
+      "preciso fazer",
+      "consumo previsto"
+    ];
+    const serviceTerms = [
+      "alvenaria",
+      "parede",
+      "bloco",
+      "chapisco",
+      "reboco",
+      "emboco",
+      "massa",
+      "pintura",
+      "telhado",
+      "concreto"
+    ];
+
+    return intentTerms.some(function (term) { return normalized.indexOf(term) >= 0; }) &&
+      serviceTerms.some(function (term) { return normalized.indexOf(term) >= 0; });
+  }
+
+  function parseStockAiCompositionRequest(message) {
+    const text = clean(message);
+    const normalized = normalizeCompositionKey_(text);
+    const quantityMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|m\b|un\b)/i);
+    const quantity = quantityMatch ? parseNumber_(quantityMatch[1]) : 0;
+    const unit = quantityMatch ? normalizeStockAiRequestedUnit_(quantityMatch[2]) : "";
+    const serviceRules = [
+      {
+        service: "Alvenaria de bloco cerâmico",
+        unit: "m²",
+        terms: ["alvenaria", "parede", "bloco ceramico", "tijolo ceramico"]
+      },
+      {
+        service: "Chapisco",
+        unit: "m²",
+        terms: ["chapisco"]
+      },
+      {
+        service: "Emboço",
+        unit: "m²",
+        terms: ["emboco", "massa grossa"]
+      },
+      {
+        service: "Reboco",
+        unit: "m²",
+        terms: ["reboco", "massa fina"]
+      },
+      {
+        service: "Pintura interna",
+        unit: "m²",
+        terms: ["pintura", "tinta"]
+      },
+      {
+        service: "Telha cerâmica",
+        unit: "m²",
+        terms: ["telhado", "telha ceramica", "cobertura"]
+      },
+      {
+        service: "Concreto simples",
+        unit: "m³",
+        terms: ["concreto simples", "concreto"]
+      },
+      {
+        service: "Concreto estrutural",
+        unit: "m³",
+        terms: ["concreto estrutural", "concreto armado"]
+      }
+    ];
+    const services = [];
+
+    serviceRules.forEach(function (rule) {
+      const matched = rule.terms.some(function (term) {
+        return normalized.indexOf(term) >= 0;
+      });
+      if (!matched) {
+        return;
+      }
+      if (rule.service === "Emboço" && normalized.indexOf("reboco") >= 0 && normalized.indexOf("emboco") < 0 && normalized.indexOf("massa grossa") < 0) {
+        return;
+      }
+      if (rule.service === "Concreto simples" && (normalized.indexOf("concreto estrutural") >= 0 || normalized.indexOf("concreto armado") >= 0)) {
+        return;
+      }
+      services.push({
+        service: rule.service,
+        quantity: quantity,
+        unit: unit || rule.unit,
+        requestedUnit: unit,
+        materialHint: rule.terms.find(function (term) { return normalized.indexOf(term) >= 0; }) || ""
+      });
+    });
+
+    if (normalized.indexOf("massa") >= 0 && !services.some(function (item) { return item.service === "Emboço"; }) && !services.some(function (item) { return item.service === "Reboco"; })) {
+      services.push({ service: "Emboço", quantity: quantity, unit: unit || "m²", requestedUnit: unit, materialHint: "massa" });
+      services.push({ service: "Reboco", quantity: quantity, unit: unit || "m²", requestedUnit: unit, materialHint: "massa" });
+    }
+
+    return {
+      originalMessage: text,
+      quantity: quantity,
+      unit: unit,
+      services: services.filter(function (item, index, list) {
+        return list.findIndex(function (candidate) { return candidate.service === item.service; }) === index;
+      })
+    };
+  }
+
+  function normalizeStockAiRequestedUnit_(unit) {
+    const normalized = normalizeCompositionKey_(unit);
+    if (normalized === "m2" || normalized.indexOf("quadrado") >= 0) {
+      return "m²";
+    }
+    if (normalized === "m3" || normalized.indexOf("cubico") >= 0) {
+      return "m³";
+    }
+    if (normalized === "m") {
+      return "m";
+    }
+    return normalized || "un";
+  }
+
+  function buildStockAiCompositionAnswerFromMessage(message) {
+    const request = parseStockAiCompositionRequest(message);
+    if (!request.quantity || !request.services.length) {
+      return "";
+    }
+
+    const predictions = request.services.map(function (service) {
+      const prediction = calculateStockAiPredictedConsumption({
+        service: service.service,
+        quantity: service.quantity,
+        unit: service.unit
+      });
+      return prediction.predictedItems && prediction.predictedItems.length ? prediction : null;
+    }).filter(Boolean);
+
+    if (!predictions.length) {
+      return "";
+    }
+
+    const materialsByKey = {};
+    predictions.forEach(function (prediction) {
+      (prediction.predictedItems || []).forEach(function (material) {
+        const key = normalizeStockMaterialKey_(material.name, material.unit);
+        if (!materialsByKey[key]) {
+          materialsByKey[key] = {
+            name: material.name,
+            unit: material.unit || "un",
+            quantity: 0,
+            sources: []
+          };
+        }
+        materialsByKey[key].quantity += parseNumber_(material.quantity);
+        materialsByKey[key].sources.push(prediction.service);
+      });
+    });
+
+    const consolidated = Object.keys(materialsByKey).map(function (key) {
+      const item = materialsByKey[key];
+      item.quantity = roundQuantity_(item.quantity);
+      return item;
+    }).sort(function (a, b) {
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    const purchasePlan = buildStockAiPurchasePlan(request.services, calculateRealStockBalances_(), {
+      predictedItems: consolidated
+    });
+    const purchaseItems = (purchasePlan.items || []).filter(function (item) {
+      return item.status !== "suficiente";
+    }).slice(0, 6);
+    const lines = [
+      "Entendi o planejamento:"
+    ];
+
+    predictions.forEach(function (prediction) {
+      lines.push("- " + formatQuantity_(prediction.executedQuantity) + " " + prediction.unit + " de " + prediction.service);
+    });
+
+    lines.push("");
+    lines.push("Composição estimada:");
+    consolidated.slice(0, 12).forEach(function (material) {
+      lines.push("- " + material.name + ": " + formatQuantity_(material.quantity) + " " + material.unit);
+    });
+
+    if (consolidated.length > 12) {
+      lines.push("- +" + (consolidated.length - 12) + " material(is) consolidado(s).");
+    }
+
+    if (purchaseItems.length) {
+      lines.push("");
+      lines.push("Planejamento de compra pelo saldo local:");
+      purchaseItems.forEach(function (item) {
+        lines.push("- " + item.materialName + ": saldo " + formatQuantity_(item.currentBalance) + " " + item.unit +
+          ", comprar " + formatQuantity_(item.purchaseQuantity) + " " + item.unit + " (" + item.status + ")");
+      });
+    }
+
+    lines.push("");
+    lines.push("Observação:");
+    lines.push(STOCK_AI_DEMO_COMPOSITION_WARNING);
+    return lines.join("\n");
+  }
+
   function calculateStockAiPredictedConsumption(serviceInput) {
     const input = serviceInput || {};
     const composition = input.composition || input.selectedComposition || findCompositionForProduction_(input);
@@ -14258,6 +14471,13 @@
       period: stockIaCurrentPeriod
     });
     const purchaseSummary = buildStockPurchaseSummary_(purchaseSuggestions);
+
+    if (isStockAiCompositionRequest_(question)) {
+      const compositionAnswer = buildStockAiCompositionAnswerFromMessage(question);
+      if (compositionAnswer) {
+        return compositionAnswer;
+      }
+    }
 
     if (normalized.indexOf("nota") >= 0 || normalized.indexOf("notas") >= 0 || normalized.indexOf("ultima entrada") >= 0 || normalized.indexOf("o que entrou") >= 0 || normalized.indexOf("quanto entrou") >= 0) {
       return buildStockNotesInsight_();
