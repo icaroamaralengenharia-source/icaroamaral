@@ -2,70 +2,157 @@
 
 ## Objetivo
 
-Preparar o Stock AI Obras para usar composicoes reais importadas de arquivos locais SINAPI, ORSE ou bases personalizadas, mantendo a base demonstrativa como fallback quando nenhuma base real estiver carregada.
+Preparar o Stock AI Obras para usar composicoes reais importadas de arquivos locais SINAPI, ORSE ou bases personalizadas, mantendo a base demonstrativa como fallback quando nenhuma composicao externa compativel estiver carregada.
 
-## Formato esperado
+Esta etapa nao implementa upload visual no navegador. Ela cria um fluxo local controlado para receber JSON ou linhas CSV ja parseadas, validar schema, normalizar campos e registrar um catalogo externo em memoria.
 
-As bases podem ser carregadas como array de objetos JSON ou linhas CSV convertidas para objetos. Cada composicao deve conter, no minimo:
+## Formato JSON aceito
 
-- `source`: `SINAPI`, `ORSE` ou `CUSTOM`
-- `code`: codigo oficial/local da composicao
-- `description`: descricao do servico
-- `unit`: unidade da composicao (`m2`, `m3`, `m`, `un` ou `kg`)
-- `inputs`: lista de insumos com `name`, `unit` e `coefficient`
+O importador aceita um array direto ou um objeto com `compositions`, `rows` ou `items`.
 
-Campos recomendados:
+```json
+[
+  {
+    "source": "SINAPI",
+    "sourceRegion": "BA",
+    "sourceDate": "YYYY-MM",
+    "code": "CODIGO-OFICIAL",
+    "description": "Descricao oficial da composicao",
+    "serviceType": "alvenaria",
+    "unit": "m2",
+    "inputs": [
+      {
+        "code": "INSUMO-001",
+        "name": "Nome do insumo",
+        "unit": "un",
+        "coefficient": 1.23
+      }
+    ]
+  }
+]
+```
 
-- `sourceRegion`: UF/regiao da base, por exemplo `BA`
-- `sourceDate`: mes de referencia, por exemplo `2025-01`
-- `category`: categoria tecnica
-- `serviceType`: tipo normalizado, por exemplo `alvenaria`
-- `metadata.importedFrom`: nome do arquivo local
+## Formato CSV parseado aceito
 
-## Exemplo normalizado
+O motor nao faz leitura de arquivo CSV nesta etapa. Ele recebe linhas ja convertidas para objetos JavaScript:
+
+```js
+const rows = [
+  {
+    code: "CODIGO-OFICIAL",
+    description: "Descricao oficial da composicao",
+    serviceType: "alvenaria",
+    unit: "m2",
+    sourceRegion: "BA",
+    sourceDate: "YYYY-MM",
+    inputs: [
+      { name: "Nome do insumo", unit: "un", coefficient: 1.23 }
+    ]
+  }
+];
+
+const result = StockAiCompositionEngine.loadRealCompositionsFromRows(rows, {
+  source: "SINAPI"
+});
+```
+
+Quando `source` for `SINAPI` ou `ORSE`, a fonte e aplicada nas linhas antes da validacao.
+
+## Campos obrigatorios
+
+Cada composicao importada deve conter:
+
+- `source`
+- `code`
+- `description`
+- `unit`
+- `serviceType` ou `description` suficiente para inferir o tipo de servico
+- `inputs` com pelo menos 1 item valido
+
+Cada input deve conter:
+
+- `name`
+- `unit`
+- `coefficient` numerico maior que zero
+
+Unidades normalizadas nesta etapa:
+
+- `m2`, `m²`, `metro quadrado` -> `m2`
+- `m3`, `m³`, `metro cubico` -> `m3`
+- `metro`, `metros`, `m` -> `m`
+- `un`, `und`, `unidade` -> `un`
+- `kg`, `quilo`, `quilos` -> `kg`
+
+## Importar JSON
+
+```js
+const result = StockAiCompositionEngine.loadRealCompositionsFromJson(jsonData);
+
+if (result.ok) {
+  StockAiCompositionEngine.setExternalCompositionCatalog(result.imported);
+}
+```
+
+Retorno:
 
 ```json
 {
-  "id": "SINAPI-XXXXX",
-  "source": "SINAPI",
-  "sourceRegion": "BA",
-  "sourceDate": "YYYY-MM",
-  "code": "XXXXX",
-  "description": "Descricao oficial da composicao",
-  "serviceType": "alvenaria",
-  "unit": "m2",
-  "category": "Vedacao",
-  "inputs": [
+  "ok": false,
+  "imported": [],
+  "rejected": [
     {
-      "code": "INSUMO-001",
-      "name": "Nome do insumo",
-      "type": "material",
-      "unit": "un",
-      "coefficient": 13.5
+      "index": 0,
+      "code": "CODIGO-OFICIAL",
+      "source": "SINAPI",
+      "reasons": ["Input 1 sem coefficient numerico maior que zero."]
     }
   ],
-  "metadata": {
-    "importedFrom": "arquivo local",
-    "originalUnit": "m2",
-    "isRealComposition": true
+  "summary": {
+    "total": 1,
+    "valid": 0,
+    "invalid": 1,
+    "sources": {}
   }
 }
 ```
 
-## Como adicionar base SINAPI
+## Registrar catalogo externo
 
-1. Obtenha o arquivo oficial no portal da CAIXA/SINAPI.
-2. Converta as linhas relevantes para array de objetos no formato acima.
-3. Carregue os dados localmente com `loadExternalCompositions(data, "SINAPI")` ou exponha em `window.StockAiRealCompositions`.
-4. Valide se as unidades da composicao batem com o quantitativo calculado.
+```js
+const importResult = StockAiCompositionEngine.setExternalCompositionCatalog(compositions);
+const activeCatalog = StockAiCompositionEngine.getExternalCompositionCatalog();
 
-## Como adicionar base ORSE
+StockAiCompositionEngine.clearExternalCompositionCatalog();
+```
 
-1. Obtenha o arquivo oficial no portal ORSE.
-2. Converta as linhas relevantes para array de objetos no formato acima.
-3. Carregue os dados localmente com `loadExternalCompositions(data, "ORSE")`.
-4. Valide coeficientes, insumos e unidade antes de uso executivo.
+O catalogo externo fica apenas em memoria. O `findBestComposition` e o calculo do Stock AI Obras consultam esse catalogo junto da base demonstrativa.
 
-## Alerta
+## Prioridade e fallback
 
-Nao invente coeficientes SINAPI/ORSE. Se nao houver arquivo oficial importado e validado, o Stock AI Obras deve continuar usando a base demonstrativa/editavel e informar essa origem na resposta.
+- Se houver composicao externa SINAPI compativel com o servico e a unidade, ela tem prioridade.
+- Se houver composicao externa ORSE compativel, ela tem prioridade sobre a demonstrativa.
+- Se a unidade externa for incompativel, ela e ignorada sem quebrar o calculo.
+- Se nao houver composicao externa compativel, a base demonstrativa/editavel continua como fallback.
+
+Quando uma composicao importada real for usada, a resposta deve indicar:
+
+```text
+Fonte: SINAPI - codigo XXXXX - referencia YYYY-MM
+Fonte: ORSE - codigo XXXXX - referencia YYYY-MM
+```
+
+Fixtures de teste devem ser marcadas com `isMock: true` e `mockOnly: true`. Quando usadas em teste, a resposta deve deixar claro:
+
+```text
+Fonte: MOCK DE TESTE - nao usar como base real
+```
+
+## Aviso tecnico
+
+Nao invente coeficientes SINAPI/ORSE. Se nao houver arquivo oficial importado, validado e compativel, o Stock AI Obras deve continuar usando a base demonstrativa/editavel e informar essa origem.
+
+O arquivo `relatorio-qualidade-obras/stock-ai-real-compositions-sample.json` e uma fixture de teste. Nao representa composicao real SINAPI/ORSE.
+
+## Proximo passo futuro
+
+Adicionar upload visual de arquivo pela interface para selecionar JSON/CSV local, parsear as linhas, exibir `imported/rejected` ao usuario e registrar o catalogo externo somente depois da confirmacao.

@@ -1,0 +1,51 @@
+{
+  "notice": "Fixture de teste. Nao representa composicao real SINAPI/ORSE.",
+  "isMock": true,
+  "mockOnly": true,
+  "compositions": [
+    {
+      "source": "SINAPI",
+      "sourceRegion": "BA",
+      "sourceDate": "2025-01",
+      "code": "MOCK-SINAPI-001",
+      "description": "Alvenaria de bloco ceramico fixture de teste",
+      "serviceType": "alvenaria",
+      "unit": "m2",
+      "inputs": [
+        {
+          "code": "MOCK-MAT-001",
+          "name": "Bloco ceramico mock",
+          "unit": "un",
+          "coefficient": 1.5
+        }
+      ],
+      "metadata": {
+        "importedFrom": "stock-ai-real-compositions-sample.json",
+        "isMock": true,
+        "mockOnly": true
+      }
+    },
+    {
+      "source": "ORSE",
+      "sourceRegion": "SE",
+      "sourceDate": "2025-01",
+      "code": "MOCK-ORSE-001",
+      "description": "Contrapiso fixture de teste",
+      "serviceType": "piso",
+      "unit": "m2",
+      "inputs": [
+        {
+          "code": "MOCK-MAT-002",
+          "name": "Argamassa mock",
+          "unit": "kg",
+          "coefficient": 2.25
+        }
+      ],
+      "metadata": {
+        "importedFrom": "stock-ai-real-compositions-sample.json",
+        "isMock": true,
+        "mockOnly": true
+      }
+    }
+  ]
+}
