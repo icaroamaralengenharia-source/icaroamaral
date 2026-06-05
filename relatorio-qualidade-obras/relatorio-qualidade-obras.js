@@ -4573,6 +4573,10 @@
 
   function isStockAiCompositionRequest_(message) {
     const normalized = normalizeCompositionKey_(message);
+    const centralEngine = window.StockAiCompositionEngine || {};
+    if (typeof centralEngine.isCompositionRequest === "function" && centralEngine.isCompositionRequest(message)) {
+      return true;
+    }
     const intentTerms = [
       "composicao",
       "compor",
@@ -4731,6 +4735,16 @@
   }
 
   function buildStockAiCompositionAnswerFromMessage(message) {
+    const centralEngine = window.StockAiCompositionEngine || {};
+    if (typeof centralEngine.buildAnswerFromMessage === "function") {
+      const centralAnswer = clean(centralEngine.buildAnswerFromMessage(message, {
+        stockItems: calculateRealStockBalances_()
+      }));
+      if (centralAnswer) {
+        return centralAnswer;
+      }
+    }
+
     const request = parseStockAiCompositionRequest(message);
     if (!request.quantity || !request.services.length) {
       return "";
@@ -4819,6 +4833,13 @@
   function calculateStockAiPredictedConsumption(serviceInput) {
     const input = serviceInput || {};
     const composition = input.composition || input.selectedComposition || findCompositionForProduction_(input);
+    const centralEngine = window.StockAiCompositionEngine || {};
+    if (!composition && typeof centralEngine.calculatePredictedConsumption === "function") {
+      const centralResult = centralEngine.calculatePredictedConsumption(input);
+      if (centralResult && centralResult.composition) {
+        return centralResult;
+      }
+    }
     const executedQuantity = parseNumber_(input.quantity || input.executedQuantity);
     const service = clean(input.service || input.serviceName || (composition && composition.service));
     const unit = clean(input.unit || (composition && composition.productionUnit)) || "un";

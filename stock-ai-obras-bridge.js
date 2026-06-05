@@ -42,6 +42,13 @@
   }
 
   function getStockAiObrasAnswer_(question) {
+    const centralEngine = window.StockAiCompositionEngine || {};
+    if (typeof centralEngine.isCompositionRequest === "function" &&
+      typeof centralEngine.buildAnswerFromMessage === "function" &&
+      centralEngine.isCompositionRequest(question)) {
+      return clean_(centralEngine.buildAnswerFromMessage(question)) || buildLocalStockAiObrasAnswer_(question);
+    }
+
     const engine = window.StockAiObrasEngine || {};
     if (typeof engine.isStockAiCompositionRequest !== "function" ||
       typeof engine.buildStockAiCompositionAnswerFromMessage !== "function") {
