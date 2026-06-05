@@ -84,7 +84,8 @@
     };
   }
 
-  function composition(id, service, category, productionUnit, lossPercent, materials, aliases, note) {
+  function composition(id, service, category, productionUnit, lossPercent, materials, aliases, note, options) {
+    const settings = options || {};
     return {
       id: id,
       service: service,
@@ -97,6 +98,7 @@
       note: note || DEMO_WARNING,
       warning: note || DEMO_WARNING,
       libraryVersion: LIBRARY_VERSION,
+      requiredParameters: settings.requiredParameters || [],
       aliases: aliases || [],
       materials: materials || []
     };
@@ -139,12 +141,12 @@
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 95, "kg"),
       material("Forma de madeira", 8, "m2")
-    ], ["pilar", "coluna"]),
+    ], ["pilar", "coluna"], null, { requiredParameters: ["largura", "comprimento", "altura"] }),
     composition("std_viga_concreto_armado", "Viga de concreto armado", "Fundacao / Estrutura", "m3", 5, [
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 85, "kg"),
       material("Forma de madeira", 6.5, "m2")
-    ], ["viga", "baldrame"]),
+    ], ["viga", "baldrame"], null, { requiredParameters: ["largura", "altura", "comprimento"] }),
     composition("std_laje_concreto", "Laje macica ou pre-moldada", "Fundacao / Estrutura", "m2", 5, [
       material("Concreto estrutural", 0.1, "m3"),
       material("Aco CA-50", 7, "kg"),
@@ -223,7 +225,7 @@
       material("Telha ceramica", 16, "un"),
       material("Cumeeira ceramica", 0.25, "un"),
       material("Prego/arame de fixacao", 0.04, "kg")
-    ], ["telhado", "telha", "telha ceramica", "cobertura ceramica"]),
+    ], ["telhado", "telha", "telha ceramica", "cobertura ceramica"], null, { requiredParameters: ["tipo_cobertura"] }),
     composition("std_telha_fibrocimento", "Telha fibrocimento", "Cobertura", "m2", 5, [
       material("Telha fibrocimento", 1.05, "m2"),
       material("Parafuso de fixacao", 2.5, "un"),
@@ -233,7 +235,7 @@
       material("Chapa galvanizada", 1.05, "m"),
       material("Selante PU", 0.08, "tubo"),
       material("Parafuso/bucha", 2, "un")
-    ], ["rufo", "calha", "pingadeira"]),
+    ], ["rufo", "calha", "pingadeira"], null, { requiredParameters: ["comprimento_linear"] }),
     composition("std_ponto_eletrico", "Ponto eletrico simples", "Instalacoes", "un", 5, [
       material("Caixa eletrica", 1, "un"),
       material("Eletroduto", 3, "m"),
@@ -307,7 +309,8 @@
       material("Lona plastica", 1.05, "m2"),
       material("Espacador", 4, "un")
     ], ["radier", "fundacao radier", "fundação radier", "laje radier", "base radier"],
-      "Estimativa preliminar. Validar espessura, armadura, solo, carga e projeto estrutural."),
+      "Estimativa preliminar. Validar espessura, armadura, solo, carga e projeto estrutural.",
+      { requiredParameters: ["espessura"] }),
     composition("std_quadro_distribuicao", "Quadro de distribuicao", "Instalacoes", "un", 5, [
       material("Quadro de distribuicao", 1, "un"),
       material("Disjuntor", 6, "un"),
@@ -325,7 +328,8 @@
       material("Conexoes PVC", 4, "un"),
       material("Fita veda rosca", 1, "un")
     ], ["caixa dagua", "caixa d'agua", "reservatorio", "reservatório", "caixa de agua", "caixa de água"],
-      "Validar volume, altura, base de apoio e projeto hidraulico."),
+      "Validar volume, altura, base de apoio e projeto hidraulico.",
+      { requiredParameters: ["capacidade_litros"] }),
     composition("std_sarjeta_concreto", "Sarjeta de concreto", "Outros servicos uteis", "m", 5, [
       material("Concreto simples", 0.04, "m3"),
       material("Forma lateral", 0.3, "m2"),
@@ -343,13 +347,15 @@
       material("Espacador", 4, "un"),
       material("Arame recozido", 0.03, "kg")
     ], ["tela soldada", "tela q92", "tela q138", "malha pop", "tela para concreto", "armadura em tela"],
-      "Validar tipo da tela, bitola, malha, transpasse e projeto estrutural.")
+      "Validar tipo da tela, bitola, malha, transpasse e projeto estrutural.",
+      { requiredParameters: ["tipo_tela"] })
   ];
 
   function getCompositions() {
     return DEFAULT_COMPOSITIONS.map(function (item) {
       return Object.assign({}, item, {
         aliases: (item.aliases || []).slice(),
+        requiredParameters: (item.requiredParameters || []).slice(),
         materials: (item.materials || []).map(function (mat) {
           return Object.assign({}, mat);
         })
@@ -363,8 +369,8 @@
     std_concreto_simples: ["concreto simples", "concreto nao armado", "concretagem simples"],
     std_concreto_estrutural: ["concreto estrutural", "concreto armado"],
     std_armacao_aco_ca50: ["aco", "aço", "aco ca 50", "aco ca-50", "ca 50", "ca-50", "armadura", "armacao", "armação", "ferro", "vergalhao", "vergalhão", "arame"],
-    std_pilar_concreto_armado: ["pilar", "pilar de concreto", "pilar de concreto armado", "coluna"],
-    std_viga_concreto_armado: ["viga", "viga de concreto", "viga de concreto armado", "baldrame"],
+    std_pilar_concreto_armado: ["pilar", "pilares", "pilar de concreto", "pilar de concreto armado", "coluna"],
+    std_viga_concreto_armado: ["viga", "vigas", "viga de concreto", "viga de concreto armado", "baldrame"],
     std_laje_concreto: ["laje", "laje macica", "laje pre moldada", "laje premoldada"],
     std_alvenaria: ["alvenaria", "parede", "bloco ceramico", "bloco cerâmico", "tijolo ceramico", "tijolo cerâmico", "tijolo baiano"],
     std_alvenaria_bloco_concreto: ["alvenaria de bloco de concreto", "parede de bloco de concreto", "bloco de concreto", "bloco concreto"],
@@ -396,7 +402,7 @@
   };
 
   function getCompositionTerms(item) {
-    return [item.service, item.name, item.category]
+    return [item.service, item.name]
       .concat(item.aliases || [])
       .concat(EXTRA_ALIASES_BY_ID[item.id] || [])
       .map(normalize)
@@ -415,11 +421,14 @@
     if (!cleanTerm) {
       return false;
     }
-    return (" " + text + " ").indexOf(" " + cleanTerm + " ") >= 0 || text.indexOf(cleanTerm) >= 0;
+    return (" " + text + " ").indexOf(" " + cleanTerm + " ") >= 0 ||
+      (cleanTerm.length >= 5 && text.indexOf(cleanTerm) >= 0);
   }
 
   function blocksComposition(text, item) {
     const id = item.id;
+    const hasSpecificRoofType = hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+      hasTerm(text, "fibrocimento") || hasTerm(text, "madeiramento") || hasTerm(text, "estrutura de madeira");
     if ((id === "std_alvenaria" || id === "std_concreto_simples") && hasTerm(text, "bloco de concreto")) {
       return true;
     }
@@ -439,6 +448,11 @@
       return true;
     }
     if (id === "std_telhado" && hasTerm(text, "fibrocimento")) {
+      return true;
+    }
+    if ((id === "std_telhado" || id === "std_telhado_madeira") &&
+      (hasTerm(text, "cobertura") || hasTerm(text, "cobrir") || hasTerm(text, "telhado")) &&
+      !hasSpecificRoofType) {
       return true;
     }
     if (id === "std_laje_concreto" && hasTerm(text, "tela soldada")) {
@@ -630,8 +644,48 @@
       });
     }
 
-    const uniqueServices = services.filter(function (item, index, list) {
-      return list.findIndex(function (candidate) { return normalize(candidate.service) === normalize(item.service); }) === index;
+    const lineServices = [];
+    let inStockSectionForServices = false;
+    originalMessage.split(/\n+/).forEach(function (line) {
+      const normalizedLine = normalize(line);
+      if (/^(tenho|tenho em estoque|disponivel|disponível|ja possuo|já possuo|no estoque existe|estoque)\s*:?\s*/.test(normalizedLine)) {
+        inStockSectionForServices = true;
+        return;
+      }
+      if (inStockSectionForServices && /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i.test(line)) {
+        return;
+      }
+      if (inStockSectionForServices && normalizedLine) {
+        inStockSectionForServices = false;
+      }
+      const lineQuantityMatch = line.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
+      if (!lineQuantityMatch || /^(tenho|tenho em estoque|dispon[ií]vel|j[aá] possuo|no estoque existe|estoque)\s*:?\s*/i.test(clean(line))) {
+        return;
+      }
+      const lineUnit = normalizeRequestedUnit(lineQuantityMatch[2]);
+      const lineQuantity = parseNumber(lineQuantityMatch[1]);
+      const lineRanked = rankCompositions(normalize(line), { unit: lineUnit });
+      const lineBestScore = lineRanked.length ? lineRanked[0].score : 0;
+      lineRanked.filter(function (entry) {
+        return entry.score >= 100 && entry.score >= Math.max(100, lineBestScore * 0.2);
+      }).slice(0, 4).forEach(function (entry) {
+        lineServices.push({
+          service: entry.item.service,
+          quantity: lineQuantity,
+          unit: lineUnit || displayUnit(entry.item.productionUnit),
+          requestedUnit: lineUnit,
+          materialHint: entry.item.service,
+          score: entry.score + 20
+        });
+      });
+    });
+
+    const servicesByName = {};
+    services.concat(lineServices).forEach(function (item) {
+      servicesByName[normalize(item.service)] = item;
+    });
+    const uniqueServices = Object.keys(servicesByName).map(function (key) {
+      return servicesByName[key];
     });
 
     return {
@@ -876,6 +930,9 @@
     }) || candidates.find(function (entry) {
       const item = entry.item || {};
       const itemKeys = materialMatchKeys(item.name);
+      if (normalizeUnit(item.unit || "un") !== materialUnit) {
+        return false;
+      }
       return keys.some(function (key) {
         return itemKeys.some(function (itemKey) {
           return key.length >= 4 && itemKey.length >= 4 && (key.indexOf(itemKey) >= 0 || itemKey.indexOf(key) >= 0);
@@ -955,10 +1012,174 @@
     };
   }
 
-  function buildAnswerFromMessage(message, options) {
+  function parseStockItemsFromMessage(message) {
+    const stockItems = [];
+    const stockLines = [];
+    let inStockSection = false;
+    clean(message).split(/\n+/).forEach(function (line) {
+      const normalizedLine = normalize(line);
+      const startsStock = /^(tenho|tenho em estoque|disponivel|disponível|ja possuo|já possuo|no estoque existe|estoque)/.test(normalizedLine);
+      if (startsStock) {
+        inStockSection = true;
+        stockLines.push(line.replace(/^(tenho em estoque|tenho|dispon[ií]vel|j[aá] possuo|no estoque existe|estoque)\s*:?\s*/i, ""));
+        return;
+      }
+      if (inStockSection && /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i.test(line)) {
+        stockLines.push(line);
+        return;
+      }
+      if (inStockSection && normalizedLine && !/^e\b/.test(normalizedLine)) {
+        inStockSection = false;
+      }
+    });
+    const text = stockLines.join("\n");
+    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\s*(?:de\s+)?([^,\n;]+)/gi;
+    let match;
+    while ((match = pattern.exec(text))) {
+      const quantity = parseNumber(match[1]);
+      const rawUnit = normalize(match[2]);
+      const rawMaterial = clean(match[3]).replace(/\.$/, "");
+      const materialKey = normalize(rawMaterial);
+      let unit = normalizeUnit(rawUnit);
+      let name = rawMaterial;
+      if (rawUnit.indexOf("saco") >= 0) {
+        unit = "saco";
+      }
+      if (rawUnit.indexOf("bloco") >= 0) {
+        unit = "un";
+        name = "Bloco ceramico";
+      } else if (rawUnit.indexOf("telha") >= 0) {
+        unit = "un";
+        name = "Telha ceramica";
+      } else if (materialKey.indexOf("cimento") >= 0) {
+        name = "Cimento";
+      } else if (materialKey.indexOf("areia") >= 0) {
+        name = "Areia";
+      } else if (materialKey.indexOf("aco") >= 0 || materialKey.indexOf("ferro") >= 0) {
+        name = "Aco CA-50";
+      }
+      if (quantity > 0 && name) {
+        stockItems.push({
+          item: {
+            id: "reported_stock_" + normalize(name).replace(/\s+/g, "_") + "_" + unit,
+            name: name,
+            unit: unit
+          },
+          realBalance: quantity,
+          source: "message"
+        });
+      }
+    }
+    const grouped = {};
+    stockItems.forEach(function (entry) {
+      const key = normalize(entry.item.name) + "|" + normalizeUnit(entry.item.unit);
+      if (!grouped[key]) {
+        grouped[key] = entry;
+        return;
+      }
+      grouped[key].realBalance = roundQuantity(parseNumber(grouped[key].realBalance) + parseNumber(entry.realBalance));
+    });
+    return Object.keys(grouped).map(function (key) {
+      return grouped[key];
+    });
+  }
+
+  function getRequiredParameterQuestion(serviceName, parameter) {
+    const service = normalize(serviceName);
+    if (parameter === "comprimento_linear" && service.indexOf("rufo") >= 0) {
+      return "Preciso do comprimento do rufo em metros lineares.";
+    }
+    if (parameter === "comprimento_linear") {
+      return "Qual o comprimento total da calha em metros lineares?";
+    }
+    if (parameter === "tipo_cobertura") {
+      return "Qual o tipo de cobertura? telha cerâmica, fibrocimento, metálica, sanduíche ou laje impermeabilizada?";
+    }
+    if (parameter === "capacidade_litros") {
+      return "Qual a capacidade da caixa d'água?";
+    }
+    if (parameter === "espessura") {
+      return "Qual a espessura prevista do radier?";
+    }
+    if (parameter === "tipo_tela") {
+      return "Qual o tipo da tela? Q92, Q138, Q196 ou outro?";
+    }
+    if (service.indexOf("pilar") >= 0) {
+      return "Qual a seção dos pilares e altura? Exemplo: 20x20 cm e 3 metros.";
+    }
+    if (service.indexOf("viga") >= 0) {
+      return "Qual a seção e comprimento das vigas?";
+    }
+    return "Preciso de mais um parâmetro técnico para calcular " + serviceName + ".";
+  }
+
+  function hasRequiredParameterValue(message, service, parameter) {
+    const text = normalize(message);
+    const unit = normalizeUnit(service.unit);
+    if (parameter === "comprimento_linear") {
+      return parseNumber(service.quantity) > 0 && unit === "m";
+    }
+    if (parameter === "tipo_cobertura") {
+      return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+        hasTerm(text, "fibrocimento") || hasTerm(text, "metalica") || hasTerm(text, "metálica") ||
+        hasTerm(text, "sanduiche") || hasTerm(text, "sanduíche") || hasTerm(text, "laje impermeabilizada");
+    }
+    if (parameter === "capacidade_litros") {
+      return /\d+\s*(l|litro|litros)\b/i.test(message);
+    }
+    if (parameter === "espessura") {
+      return hasTerm(text, "espessura") || /\d+\s*cm\b/i.test(message);
+    }
+    if (parameter === "tipo_tela") {
+      return /\bq\s*(92|138|196)\b/i.test(message) || hasTerm(text, "tipo da tela");
+    }
+    if (parameter === "largura" || parameter === "comprimento" || parameter === "altura") {
+      return normalizeUnit(service.requestedUnit) === "m3" || /\d+\s*x\s*\d+/i.test(message);
+    }
+    return true;
+  }
+
+  function buildParameterQuestions(request) {
+    const questions = [];
+    const text = normalize(request.originalMessage);
+    if ((hasTerm(text, "cobertura") || hasTerm(text, "cobrir") || hasTerm(text, "telhado")) &&
+      !hasTerm(text, "telha ceramica") && !hasTerm(text, "telha cerâmica") &&
+      !hasTerm(text, "fibrocimento") && !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira")) {
+      const coverageMatch = request.originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|metro quadrado|metros quadrados)\s*(?:de\s+)?(cobertura|telhado)/i);
+      const coverageText = coverageMatch
+        ? formatQuantity(coverageMatch[1]) + " " + displayUnit(coverageMatch[2])
+        : request.quantity ? formatQuantity(request.quantity) + " " + displayUnit(request.unit || "m2") : "área informada";
+      questions.push("Identifiquei cobertura de " + coverageText + ", porém preciso do tipo de cobertura para calcular telhas e estrutura.");
+    }
+    (request.services || []).forEach(function (service) {
+      const compositionData = findComposition(service);
+      (compositionData && compositionData.requiredParameters || []).forEach(function (parameter) {
+        if (!hasRequiredParameterValue(request.originalMessage, service, parameter)) {
+          if (compositionData.id === "std_rufo_calha" && parameter === "comprimento_linear") {
+            questions.push(hasTerm(text, "calha")
+              ? "Qual o comprimento total da calha em metros lineares?"
+              : "Preciso do comprimento do rufo em metros lineares.");
+            return;
+          }
+          questions.push(getRequiredParameterQuestion(compositionData.service, parameter));
+        }
+      });
+    });
+    return questions.filter(function (question, index, list) {
+      return list.indexOf(question) === index;
+    });
+  }
+
+  function buildAnswerFromMessageLegacy(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
     if (request.missingQuantity && request.services.length) {
+      if (parameterQuestions.length) {
+        return ["PERGUNTAS COMPLEMENTARES"]
+          .concat(parameterQuestions.map(function (question) { return "- " + question; }))
+          .concat(["", "OBSERVAÇÕES", "- Não vou assumir dados técnicos obrigatórios sem confirmação.", "- " + DEMO_WARNING])
+          .join("\n");
+      }
       const firstService = request.services[0];
       const lines = [
         "Encontrei o serviço " + firstService.service + ", mas preciso saber a quantidade em " + displayUnit(firstService.unit) + " para calcular os materiais.",
@@ -1007,6 +1228,138 @@
     lines.push("");
     lines.push("Observação:");
     lines.push(DEMO_WARNING);
+    return lines.join("\n");
+  }
+
+  function buildAnswerFromMessage(message, options) {
+    const settings = options || {};
+    const request = parseRequest(message);
+    const parameterQuestions = buildParameterQuestions(request);
+    const reportedStock = parseStockItemsFromMessage(message);
+    const stockItems = (settings.stockItems || []).concat(reportedStock);
+
+    if (request.missingQuantity && request.services.length) {
+      if (parameterQuestions.length) {
+        return ["PERGUNTAS COMPLEMENTARES"]
+          .concat(parameterQuestions.map(function (question) { return "- " + question; }))
+          .concat(["", "OBSERVAÇÕES", "- Não vou assumir dados técnicos obrigatórios sem confirmação.", "- " + DEMO_WARNING])
+          .join("\n");
+      }
+      const firstService = request.services[0];
+      return [
+        "PERGUNTAS COMPLEMENTARES",
+        "- Encontrei o serviço " + firstService.service + ", mas preciso saber a quantidade em " + displayUnit(firstService.unit) + " para calcular os materiais.",
+        "",
+        "OBSERVAÇÕES",
+        "- Não vou assumir dados técnicos obrigatórios sem confirmação.",
+        "- " + DEMO_WARNING
+      ].join("\n");
+    }
+
+    if ((!request.quantity || !request.services.length) && parameterQuestions.length) {
+      return ["PERGUNTAS COMPLEMENTARES"]
+        .concat(parameterQuestions.map(function (question) { return "- " + question; }))
+        .concat(["", "OBSERVAÇÕES", "- Não vou assumir dados técnicos obrigatórios sem confirmação.", "- " + DEMO_WARNING])
+        .join("\n");
+    }
+
+    const calculableServices = (request.services || []).filter(function (service) {
+      const compositionData = findComposition(service);
+      const required = compositionData && compositionData.requiredParameters || [];
+      return !required.some(function (parameter) {
+        return !hasRequiredParameterValue(request.originalMessage, service, parameter);
+      });
+    });
+
+    if (request.quantity && !calculableServices.length && parameterQuestions.length) {
+      return ["PERGUNTAS COMPLEMENTARES"]
+        .concat(parameterQuestions.map(function (question) { return "- " + question; }))
+        .concat(["", "OBSERVAÇÕES", "- Não vou assumir dados técnicos obrigatórios sem confirmação.", "- " + DEMO_WARNING])
+        .join("\n");
+    }
+
+    if (!request.quantity || !calculableServices.length) {
+      return "";
+    }
+
+    const result = calculateMultipleServices(calculableServices);
+    if (!result.items.length) {
+      return "";
+    }
+
+    const purchasePlan = buildPurchasePlan(calculableServices, stockItems, { predictedItems: result.items });
+    const missingPurchaseItems = (purchasePlan.items || []).filter(function (item) {
+      return item.purchaseQuantity > 0 || item.status === "sem item no estoque" || item.status === "critico";
+    });
+    const lines = ["SERVIÇOS IDENTIFICADOS"];
+
+    request.services.forEach(function (service) {
+      lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
+    });
+
+    lines.push("");
+    lines.push("MATERIAIS PREVISTOS");
+    result.items.forEach(function (item) {
+      lines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+    });
+
+    lines.push("");
+    lines.push("ESTOQUE INFORMADO");
+    if (reportedStock.length) {
+      reportedStock.forEach(function (entry) {
+        lines.push("- " + entry.item.name + ": " + formatQuantity(entry.realBalance) + " " + displayUnit(entry.item.unit));
+      });
+    } else {
+      lines.push("- Nenhum estoque informado na mensagem.");
+    }
+
+    lines.push("");
+    lines.push("MATERIAIS FALTANTES");
+    if (missingPurchaseItems.length) {
+      missingPurchaseItems.forEach(function (item) {
+        lines.push("- " + item.materialName + ": necessário " + formatQuantity(item.requiredQuantity) + " " + displayUnit(item.unit) +
+          ", estoque " + formatQuantity(item.currentBalance) + " " + displayUnit(item.unit) +
+          ", comprar " + formatQuantity(item.purchaseQuantity) + " " + displayUnit(item.unit));
+      });
+    } else {
+      lines.push("- Estoque informado atende aos materiais previstos ou não houve estoque para comparar.");
+    }
+
+    lines.push("");
+    lines.push("PERDAS PREVISTAS");
+    result.predictions.forEach(function (prediction) {
+      const loss = prediction.composition ? prediction.composition.lossPercent : 0;
+      lines.push("- " + prediction.service + ": perda demonstrativa de " + formatQuantity(loss) + "%.");
+    });
+
+    lines.push("");
+    lines.push("PLANEJAMENTO DE COMPRA");
+    if (purchasePlan.items.length) {
+      purchasePlan.items.slice(0, 12).forEach(function (item) {
+        lines.push("- " + item.materialName + ": comprar " + formatQuantity(item.purchaseQuantity) + " " + displayUnit(item.unit) + " (" + item.status + ")");
+      });
+    } else {
+      lines.push("- Sem itens previstos para compra.");
+    }
+
+    if (parameterQuestions.length) {
+      lines.push("");
+      lines.push("PERGUNTAS COMPLEMENTARES");
+      parameterQuestions.forEach(function (question) {
+        lines.push("- " + question);
+      });
+    }
+
+    if (request.originalMessage && /\d+\s*cm/i.test(request.originalMessage)) {
+      lines.push("");
+      lines.push("OBSERVAÇÃO TÉCNICA");
+      lines.push("- Dimensões informadas foram mantidas como contexto. Nesta fase, o cálculo principal usa composição demonstrativa por área/unidade de serviço.");
+    }
+
+    lines.push("");
+    lines.push("OBSERVAÇÕES");
+    lines.push("- " + DEMO_WARNING);
+    lines.push("- " + PURCHASE_WARNING);
     return lines.join("\n");
   }
 
