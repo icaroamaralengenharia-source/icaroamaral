@@ -556,6 +556,33 @@
     if (serviceType === "sapata") {
       return "Concreto estrutural";
     }
+    if (serviceType === "rufo" || serviceType === "calha" || serviceType === "pingadeira") {
+      return "Rufo/calha simples";
+    }
+    if (serviceType === "eletroduto") {
+      return "Eletroduto embutido";
+    }
+    if (serviceType === "cabo") {
+      return "Cabo eletrico";
+    }
+    if (serviceType === "tubulacao_esgoto") {
+      return "Tubulacao PVC esgoto";
+    }
+    if (serviceType === "tubulacao_agua") {
+      return "Tubulacao PVC agua fria";
+    }
+    if (serviceType === "tomada" || serviceType === "interruptor") {
+      return "Ponto eletrico simples";
+    }
+    if (serviceType === "caixa_dagua") {
+      return "Caixa d'agua";
+    }
+    if (serviceType === "piso") {
+      return "Piso ceramico";
+    }
+    if (serviceType === "cobertura") {
+      return "Telha ceramica";
+    }
     return "";
   }
 
@@ -610,10 +637,240 @@
     };
   }
 
+  const LINEAR_GEOMETRY_SERVICES = [
+    { serviceType: "rufo", label: "rufo", terms: ["rufo"], question: "Qual o comprimento total do rufo em metros?" },
+    { serviceType: "calha", label: "calha", terms: ["calha"], question: "Qual o comprimento total da calha em metros?" },
+    { serviceType: "cumeeira", label: "cumeeira", terms: ["cumeeira"], question: "Qual o comprimento total da cumeeira em metros?" },
+    { serviceType: "rodape", label: "rodape", terms: ["rodape", "roda pe"], question: "Qual o comprimento total do rodape em metros?" },
+    { serviceType: "roda_meio", label: "roda-meio", terms: ["roda meio", "roda meio", "rodameio"], question: "Qual o comprimento total do roda-meio em metros?" },
+    { serviceType: "roda_forro", label: "roda-forro", terms: ["roda forro", "rodaforro"], question: "Qual o comprimento total do roda-forro em metros?" },
+    { serviceType: "pingadeira", label: "pingadeira", terms: ["pingadeira"], question: "Qual o comprimento total da pingadeira em metros?" },
+    { serviceType: "corrimao", label: "corrimao", terms: ["corrimao", "corrimao"], question: "Qual o comprimento total do corrimao em metros?" },
+    { serviceType: "guarda_corpo", label: "guarda-corpo", terms: ["guarda corpo", "guardacorpo"], question: "Qual o comprimento total do guarda-corpo em metros?" },
+    { serviceType: "eletroduto", label: "eletroduto", terms: ["eletroduto", "conduite"], question: "Qual o comprimento total do eletroduto em metros?" },
+    { serviceType: "tubulacao", label: "tubulacao", terms: ["tubulacao", "tubo"], question: "Qual o comprimento total da tubulacao em metros?" },
+    { serviceType: "cabo", label: "cabo", terms: ["cabo", "fio"], question: "Qual o comprimento total do cabo em metros?" }
+  ];
+
+  const UNIT_GEOMETRY_SERVICES = [
+    { serviceType: "porta", label: "porta", terms: ["porta", "portas"], question: "Quantas portas serao instaladas?" },
+    { serviceType: "janela", label: "janela", terms: ["janela", "janelas"], question: "Quantas janelas serao instaladas?" },
+    { serviceType: "luminaria", label: "luminaria", terms: ["luminaria", "luminarias"], question: "Quantas luminarias serao instaladas?" },
+    { serviceType: "tomada", label: "tomada", terms: ["tomada", "tomadas"], question: "Quantas tomadas serao instaladas?" },
+    { serviceType: "interruptor", label: "interruptor", terms: ["interruptor", "interruptores"], question: "Quantos interruptores serao instalados?" },
+    { serviceType: "caixa_inspecao", label: "caixa de inspecao", terms: ["caixa de inspecao", "caixas de inspecao"], question: "Quantas caixas de inspecao serao instaladas?" },
+    { serviceType: "caixa_dagua", label: "caixa d'agua", terms: ["caixa dagua", "caixas dagua", "caixa d agua", "caixas d agua"], question: "Quantas caixas d'agua serao instaladas?" }
+  ];
+
+  function findGeometryService(text, services) {
+    return services.find(function (service) {
+      return hasAny(text, service.terms);
+    }) || null;
+  }
+
+  function parseLinearQuantity(originalMessage, text, service) {
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const unit = "(?:m\\b|ml\\b|metro\\b|metros\\b|m\\s*linear\\b|metros\\s+lineares\\b)";
+    const terms = service.terms.map(function (term) {
+      return term.replace(/\s+/g, "\\s*[- ]?\\s*");
+    }).join("|");
+    const source = text;
+    const before = source.match(new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?(?:" + terms + ")", "i"));
+    const after = source.match(new RegExp("(?:" + terms + ")\\s*(?:" + number + "\\s*" + unit + "|" + number + "\\b)", "i"));
+    const match = before || after;
+    if (!match) {
+      return null;
+    }
+    return parseDimensionNumber(before ? match[1] : (match[1] || match[2]));
+  }
+
+  function parseUnitQuantity(originalMessage, text, service) {
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const unit = "(?:un\\b|unidade\\b|unidades\\b|pecas\\b|peças\\b)?";
+    const terms = service.terms.map(function (term) {
+      return term.replace(/\s+/g, "\\s*['’ -]?\\s*");
+    }).join("|");
+    const source = text;
+    const before = source.match(new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?(?:" + terms + ")", "i"));
+    const after = source.match(new RegExp("(?:" + terms + ")\\s*(?:" + number + "\\s*" + unit + "|" + number + "\\b)", "i"));
+    const match = before || after;
+    if (!match) {
+      return null;
+    }
+    return parseDimensionNumber(before ? match[1] : (match[1] || match[2]));
+  }
+
+  function buildLinearGeometryResult(service, quantity) {
+    return buildGeometryResult(
+      service.serviceType,
+      "length",
+      quantity,
+      "m",
+      "Comprimento identificado: " + formatMeters(quantity) + " de " + service.label,
+      { length: quantity },
+      service.label
+    );
+  }
+
+  function buildUnitGeometryResult(service, quantity) {
+    return buildGeometryResult(
+      service.serviceType,
+      "unit",
+      quantity,
+      "un",
+      "Quantidade identificada: " + formatQuantity(quantity) + " unidades de " + service.label,
+      { count: quantity },
+      service.label
+    );
+  }
+
+  function hasCompatibleComposition(serviceName, unit) {
+    const compositionData = findComposition({ service: serviceName, unit: unit, requestedUnit: unit });
+    return !!(compositionData && normalizeUnit(compositionData.productionUnit) === normalizeUnit(unit));
+  }
+
+  function createGeometryServiceEntry(service, geometry) {
+    if (!service || !service.service || !hasCompatibleComposition(service.service, service.unit)) {
+      return null;
+    }
+    return {
+      service: service.service,
+      quantity: service.quantity,
+      unit: service.unit,
+      requestedUnit: service.unit,
+      materialHint: service.label || service.serviceType || service.service,
+      score: 500,
+      geometry: geometry
+    };
+  }
+
+  function getGeometryServicesWithoutComposition(geometry) {
+    if (!geometry || !geometry.detected || !geometry.complete) {
+      return [];
+    }
+    const source = geometry.geometryType === "composite"
+      ? (geometry.derivedServices || [])
+      : [{
+        serviceType: geometry.serviceType,
+        service: geometry.service,
+        quantity: geometry.quantity,
+        unit: geometry.unit,
+        label: geometry.label,
+        explanation: geometry.explanation
+      }];
+    return source.filter(function (service) {
+      return !service.service || !hasCompatibleComposition(service.service, service.unit);
+    });
+  }
+
+  function parseCompositeGeometryRequest(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    const isHouse = hasTerm(text, "casa");
+    const isShed = hasTerm(text, "galpao") || hasTerm(text, "galpão");
+    if (!isHouse && !isShed) {
+      return null;
+    }
+
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const planMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+    if (!planMatch) {
+      return buildIncompleteGeometryResult(
+        "edificacao_composta",
+        "Qual o comprimento e a largura da " + (isShed ? "galpao" : "casa") + "?",
+        isShed ? "Galpao" : "Casa"
+      );
+    }
+
+    const length = parseDimensionNumber(planMatch[1]);
+    const width = parseDimensionNumber(planMatch[2]);
+    const heightMatch = originalMessage.match(new RegExp("(?:pe\\s*[- ]?\\s*direito|pé\\s*[- ]?\\s*direito|altura)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i"));
+    const height = heightMatch ? parseDimensionNumber(heightMatch[1]) : (isShed ? 6 : 3);
+    const floorArea = roundQuantity(length * width);
+    const perimeter = roundQuantity(2 * (length + width));
+    const wallArea = roundQuantity(perimeter * height);
+    const roofArea = floorArea;
+    const label = isShed ? "Galpao" : "Casa";
+    const warning = "Estimativa simplificada para planejamento inicial. Nao desconta vaos, inclinacao de telhado, beirais, paredes internas, perdas especificas nem detalhes estruturais.";
+
+    return {
+      detected: true,
+      complete: true,
+      serviceType: "edificacao_composta",
+      service: "",
+      geometryType: "composite",
+      quantity: null,
+      unit: "composite",
+      explanation: "Geometria composta identificada: planta " + formatMeters(length) + " x " + formatMeters(width) + ", pe-direito " + formatMeters(height),
+      dimensions: {
+        length: length,
+        width: width,
+        height: height,
+        perimeter: perimeter,
+        floorArea: floorArea,
+        wallArea: wallArea,
+        roofArea: roofArea
+      },
+      derivedServices: [
+        {
+          serviceType: "alvenaria",
+          service: getGeometryServiceName("alvenaria", "area"),
+          quantity: wallArea,
+          unit: "m2",
+          explanation: "Paredes externas estimadas: perimetro " + formatMeters(perimeter) + " x pe-direito " + formatMeters(height) + " = " + formatSquareMeters(wallArea)
+        },
+        {
+          serviceType: "piso",
+          service: getGeometryServiceName("piso", "area"),
+          quantity: floorArea,
+          unit: "m2",
+          explanation: "Piso estimado: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(floorArea)
+        },
+        {
+          serviceType: "cobertura",
+          service: getGeometryServiceName("cobertura", "area"),
+          quantity: roofArea,
+          unit: "m2",
+          explanation: "Cobertura inicial estimada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(roofArea) + ", sem inclinacao"
+        }
+      ],
+      label: label,
+      warning: warning
+    };
+  }
+
   function parseGeometryRequest(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
     const number = "(\\d+(?:[.,]\\d+)?)";
+
+    const composite = parseCompositeGeometryRequest(originalMessage);
+    if (composite) {
+      return composite;
+    }
+
+    const linearService = findGeometryService(text, LINEAR_GEOMETRY_SERVICES);
+    if (linearService) {
+      const linearQuantity = parseLinearQuantity(originalMessage, text, linearService);
+      const detectedLinearService = linearService.serviceType === "tubulacao" && hasTerm(text, "esgoto")
+        ? Object.assign({}, linearService, { serviceType: "tubulacao_esgoto", label: "tubulacao de esgoto" })
+        : linearService.serviceType === "tubulacao" && (hasTerm(text, "agua") || hasTerm(text, "agua fria"))
+          ? Object.assign({}, linearService, { serviceType: "tubulacao_agua", label: "tubulacao de agua fria" })
+          : linearService;
+      if (linearQuantity) {
+        return buildLinearGeometryResult(detectedLinearService, linearQuantity);
+      }
+      return buildIncompleteGeometryResult(detectedLinearService.serviceType, detectedLinearService.question, detectedLinearService.label);
+    }
+
+    const unitService = findGeometryService(text, UNIT_GEOMETRY_SERVICES);
+    if (unitService) {
+      const unitQuantity = parseUnitQuantity(originalMessage, text, unitService);
+      if (unitQuantity) {
+        return buildUnitGeometryResult(unitService, unitQuantity);
+      }
+      return buildIncompleteGeometryResult(unitService.serviceType, unitService.question, unitService.label);
+    }
 
     if (hasAny(text, ["parede", "muro", "alvenaria"])) {
       const wallMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
@@ -805,22 +1062,26 @@
     const text = normalize(originalMessage);
     const geometry = parseGeometryRequest(originalMessage);
     if (geometry.detected) {
-      const geometryService = geometry.service ? [{
-        service: geometry.service,
-        quantity: geometry.quantity,
-        unit: geometry.unit,
-        requestedUnit: geometry.unit,
-        materialHint: geometry.label || geometry.service,
-        score: 500,
-        geometry: geometry
-      }] : [];
+      const geometryServiceSource = geometry.geometryType === "composite"
+        ? (geometry.derivedServices || [])
+        : [{
+          serviceType: geometry.serviceType,
+          service: geometry.service,
+          quantity: geometry.quantity,
+          unit: geometry.unit,
+          label: geometry.label
+        }];
+      const geometryService = geometryServiceSource.map(function (service) {
+        return createGeometryServiceEntry(service, geometry);
+      }).filter(Boolean);
       return {
         originalMessage: originalMessage,
-        quantity: geometry.quantity,
+        quantity: geometry.geometryType === "composite" ? 1 : geometry.quantity,
         unit: geometry.unit,
         missingQuantity: !geometry.complete,
         assumedBaseQuantity: false,
         geometry: geometry,
+        servicesWithoutComposition: getGeometryServicesWithoutComposition(geometry),
         services: geometryService
       };
     }
@@ -1390,6 +1651,38 @@
     });
   }
 
+  function appendGeometrySummary(lines, geometry) {
+    if (!geometry || !geometry.detected || !geometry.complete) {
+      return;
+    }
+    if (geometry.geometryType === "composite") {
+      const dimensions = geometry.dimensions || {};
+      lines.push("🏗️ GEOMETRIA COMPOSTA");
+      lines.push("- Planta: " + formatMeters(dimensions.length) + " x " + formatMeters(dimensions.width) + ".");
+      lines.push("- Area de piso: " + formatSquareMeters(dimensions.floorArea) + ".");
+      lines.push("- Perimetro externo: " + formatMeters(dimensions.perimeter) + ".");
+      lines.push("- Area estimada de paredes externas: " + formatSquareMeters(dimensions.wallArea) + ".");
+      lines.push("- Cobertura estimada: " + formatSquareMeters(dimensions.roofArea) + ".");
+      lines.push("- Observacao: " + geometry.warning);
+      return;
+    }
+    lines.push("📐 QUANTITATIVO GEOMÉTRICO");
+    lines.push("- " + geometry.label + " identificado.");
+    lines.push("- " + geometry.explanation + ".");
+  }
+
+  function appendServicesWithoutComposition(lines, services) {
+    const missing = services || [];
+    if (!missing.length) {
+      return;
+    }
+    lines.push("");
+    lines.push("QUANTITATIVOS SEM COMPOSICAO CADASTRADA");
+    missing.forEach(function (service) {
+      lines.push("- " + (service.label || service.serviceType || "Servico") + ": " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + ". Ainda nao existe composicao tecnica cadastrada para este servico.");
+    });
+  }
+
   function buildAnswerFromMessageLegacy(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
@@ -1460,6 +1753,7 @@
     });
     const reportedStock = parseStockItemsFromMessage(message);
     const stockItems = (settings.stockItems || []).concat(reportedStock);
+    const servicesWithoutComposition = request.servicesWithoutComposition || [];
 
     if (request.missingQuantity && request.services.length) {
       if (parameterQuestions.length) {
@@ -1501,6 +1795,17 @@
         .join("\n");
     }
 
+    if ((!request.quantity || !calculableServices.length) && request.geometry && request.geometry.complete && servicesWithoutComposition.length) {
+      const lines = [];
+      appendGeometrySummary(lines, request.geometry);
+      appendServicesWithoutComposition(lines, servicesWithoutComposition);
+      lines.push("");
+      lines.push("OBSERVAÇÕES");
+      lines.push("- " + DEMO_WARNING);
+      lines.push("- " + PURCHASE_WARNING);
+      return lines.join("\n");
+    }
+
     if (!request.quantity || !calculableServices.length) {
       return "";
     }
@@ -1515,7 +1820,11 @@
       return item.purchaseQuantity > 0 || item.status === "sem item no estoque" || item.status === "critico";
     });
     const lines = [];
-    if (request.geometry && request.geometry.detected && request.geometry.complete) {
+    if (request.geometry && request.geometry.detected && request.geometry.complete && request.geometry.geometryType === "composite") {
+      appendGeometrySummary(lines, request.geometry);
+      lines.push("");
+    }
+    if (request.geometry && request.geometry.detected && request.geometry.complete && request.geometry.geometryType !== "composite") {
       lines.push("📐 QUANTITATIVO GEOMÉTRICO");
       lines.push("- " + request.geometry.label + " identificado.");
       lines.push("- " + request.geometry.explanation + ".");
@@ -1526,6 +1835,7 @@
     request.services.forEach(function (service) {
       lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
     });
+    appendServicesWithoutComposition(lines, servicesWithoutComposition);
 
     lines.push("");
     lines.push("📦 CONSUMO PREVISTO");
