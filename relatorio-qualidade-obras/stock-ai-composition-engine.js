@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const LIBRARY_VERSION = "1.5";
+  const LIBRARY_VERSION = "1.6";
   const DEMO_SOURCE = "Base técnica demonstrativa/editável";
   const DEMO_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
   const PURCHASE_WARNING = "Lista de compra gerada a partir de composições demonstrativas/editáveis e saldo local. Validar antes de compra oficial.";
@@ -84,7 +84,7 @@
     };
   }
 
-  function composition(id, service, category, productionUnit, lossPercent, materials, aliases) {
+  function composition(id, service, category, productionUnit, lossPercent, materials, aliases, note) {
     return {
       id: id,
       service: service,
@@ -94,8 +94,8 @@
       unit: productionUnit || "un",
       lossPercent: lossPercent || 0,
       source: DEMO_SOURCE,
-      note: DEMO_WARNING,
-      warning: DEMO_WARNING,
+      note: note || DEMO_WARNING,
+      warning: note || DEMO_WARNING,
       libraryVersion: LIBRARY_VERSION,
       aliases: aliases || [],
       materials: materials || []
@@ -299,7 +299,51 @@
       material("Tubo drenante/PVC", 1.03, "m"),
       material("Brita", 0.08, "m3"),
       material("Manta geotextil", 1.1, "m2")
-    ], ["drenagem", "dreno", "agua pluvial", "água pluvial"])
+    ], ["drenagem", "dreno", "agua pluvial", "água pluvial"]),
+    composition("std_radier", "Radier", "Fundacao / Estrutura", "m2", 8, [
+      material("Concreto estrutural", 0.12, "m3"),
+      material("Tela soldada", 1.08, "m2"),
+      material("Brita/lastro", 0.06, "m3"),
+      material("Lona plastica", 1.05, "m2"),
+      material("Espacador", 4, "un")
+    ], ["radier", "fundacao radier", "fundação radier", "laje radier", "base radier"],
+      "Estimativa preliminar. Validar espessura, armadura, solo, carga e projeto estrutural."),
+    composition("std_quadro_distribuicao", "Quadro de distribuicao", "Instalacoes", "un", 5, [
+      material("Quadro de distribuicao", 1, "un"),
+      material("Disjuntor", 6, "un"),
+      material("Barramento", 1, "un"),
+      material("Trilho DIN", 1, "un"),
+      material("Conectores/terminais", 1, "un"),
+      material("Identificacao/circuitos", 1, "un")
+    ], ["quadro de distribuicao", "quadro de distribuição", "quadro eletrico", "quadro elétrico", "qdc", "qd", "quadro disjuntores"],
+      "Estimativa basica. Validar carga, circuitos, normas e projeto eletrico."),
+    composition("std_caixa_dagua", "Caixa d'agua", "Instalacoes", "un", 5, [
+      material("Caixa d'agua", 1, "un"),
+      material("Flange/adaptador", 2, "un"),
+      material("Registro", 1, "un"),
+      material("Tubo PVC agua fria", 3, "m"),
+      material("Conexoes PVC", 4, "un"),
+      material("Fita veda rosca", 1, "un")
+    ], ["caixa dagua", "caixa d'agua", "reservatorio", "reservatório", "caixa de agua", "caixa de água"],
+      "Validar volume, altura, base de apoio e projeto hidraulico."),
+    composition("std_sarjeta_concreto", "Sarjeta de concreto", "Outros servicos uteis", "m", 5, [
+      material("Concreto simples", 0.04, "m3"),
+      material("Forma lateral", 0.3, "m2"),
+      material("Brita/regularizacao", 0.03, "m3")
+    ], ["sarjeta", "sarjeta de concreto", "canaleta de concreto", "drenagem superficial"],
+      "Estimativa preliminar. Validar secao, declividade e drenagem."),
+    composition("std_textura_externa", "Textura externa", "Revestimentos", "m2", 8, [
+      material("Selador acrilico", 0.08, "litro"),
+      material("Textura acrilica", 1.2, "kg"),
+      material("Fita/mascaramento", 0.03, "un")
+    ], ["textura externa", "textura acrilica externa", "textura fachada", "grafiato", "revestimento texturizado"],
+      "Validar rendimento do fabricante, tipo de superficie e numero de demaos."),
+    composition("std_tela_soldada", "Tela soldada", "Fundacao / Estrutura", "m2", 8, [
+      material("Tela soldada", 1.08, "m2"),
+      material("Espacador", 4, "un"),
+      material("Arame recozido", 0.03, "kg")
+    ], ["tela soldada", "tela q92", "tela q138", "malha pop", "tela para concreto", "armadura em tela"],
+      "Validar tipo da tela, bitola, malha, transpasse e projeto estrutural.")
   ];
 
   function getCompositions() {
@@ -342,7 +386,13 @@
     std_tubulacao_pvc_agua_fria: ["tubulacao pvc agua fria", "tubulação pvc água fria", "tubo agua fria", "tubo água fria", "agua fria", "água fria"],
     std_drenagem_simples: ["drenagem", "dreno", "tubo drenante", "drenagem simples"],
     std_meio_fio: ["meio fio", "meio-fio", "guia"],
-    std_pavimentacao_intertravada: ["paver", "intertravado", "pavimentacao intertravada", "pavimentação intertravada"]
+    std_pavimentacao_intertravada: ["paver", "intertravado", "pavimentacao intertravada", "pavimentação intertravada"],
+    std_radier: ["radier", "fundacao radier", "fundação radier", "laje radier", "base radier"],
+    std_quadro_distribuicao: ["quadro de distribuicao", "quadro de distribuição", "quadro eletrico", "quadro elétrico", "qdc", "qd", "quadro disjuntores"],
+    std_caixa_dagua: ["caixa dagua", "caixa d agua", "caixa d'agua", "caixa de agua", "caixa de água", "reservatorio", "reservatório"],
+    std_sarjeta_concreto: ["sarjeta", "sarjeta de concreto", "canaleta de concreto", "drenagem superficial"],
+    std_textura_externa: ["textura externa", "textura acrilica externa", "textura acrílica externa", "textura fachada", "grafiato", "revestimento texturizado"],
+    std_tela_soldada: ["tela soldada", "tela q92", "tela q138", "malha pop", "tela para concreto", "armadura em tela"]
   };
 
   function getCompositionTerms(item) {
@@ -542,7 +592,9 @@
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
     const quantityMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
-    const quantity = quantityMatch ? parseNumber(quantityMatch[1]) : 0;
+    const looseQuantityMatch = !quantityMatch ? originalMessage.match(/\b(\d+(?:[.,]\d+)?)\b/) : null;
+    const wordOneQuantity = !quantityMatch && !looseQuantityMatch && /\b(um|uma)\b/i.test(originalMessage);
+    const quantity = quantityMatch ? parseNumber(quantityMatch[1]) : looseQuantityMatch ? parseNumber(looseQuantityMatch[1]) : wordOneQuantity ? 1 : 0;
     const unit = quantityMatch ? normalizeRequestedUnit(quantityMatch[2]) : "";
     const ranked = rankCompositions(text, { unit: unit });
     const bestScore = ranked.length ? ranked[0].score : 0;
@@ -586,7 +638,7 @@
       originalMessage: originalMessage,
       quantity: quantity,
       unit: unit,
-      missingQuantity: isCompositionRequest(originalMessage) && !quantityMatch && uniqueServices.length > 0,
+      missingQuantity: isCompositionRequest(originalMessage) && quantity <= 0 && uniqueServices.length > 0,
       assumedBaseQuantity: false,
       services: uniqueServices
     };
