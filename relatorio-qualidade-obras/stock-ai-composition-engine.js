@@ -537,6 +537,204 @@
     return displayUnit(unit);
   }
 
+  function getGeometryServiceName(serviceType, geometryType) {
+    if (serviceType === "alvenaria") {
+      return "Alvenaria de bloco ceramico";
+    }
+    if (serviceType === "pilar") {
+      return "Pilar de concreto armado";
+    }
+    if (serviceType === "viga" || serviceType === "baldrame") {
+      return "Viga de concreto armado";
+    }
+    if (serviceType === "radier") {
+      return geometryType === "volume" ? "Concreto estrutural" : "Radier";
+    }
+    if (serviceType === "laje") {
+      return geometryType === "volume" ? "Concreto estrutural" : "Laje macica ou pre-moldada";
+    }
+    if (serviceType === "sapata") {
+      return "Concreto estrutural";
+    }
+    return "";
+  }
+
+  function parseDimensionNumber(value) {
+    return roundQuantity(parseNumber(value));
+  }
+
+  function centimetersToMeters(value) {
+    return roundQuantity(parseNumber(value) / 100);
+  }
+
+  function formatMeters(value) {
+    return formatQuantity(value) + " m";
+  }
+
+  function formatSquareMeters(value) {
+    return formatQuantity(value) + " m2";
+  }
+
+  function formatCubicMeters(value) {
+    return formatQuantity(value) + " m3";
+  }
+
+  function buildGeometryResult(serviceType, geometryType, quantity, unit, explanation, dimensions, label) {
+    return {
+      detected: true,
+      complete: true,
+      serviceType: serviceType,
+      service: getGeometryServiceName(serviceType, geometryType),
+      geometryType: geometryType,
+      quantity: roundQuantity(quantity),
+      unit: unit,
+      explanation: explanation,
+      dimensions: dimensions || {},
+      label: label || serviceType
+    };
+  }
+
+  function buildIncompleteGeometryResult(serviceType, question, label) {
+    return {
+      detected: true,
+      complete: false,
+      serviceType: serviceType,
+      service: getGeometryServiceName(serviceType, ""),
+      geometryType: "",
+      quantity: 0,
+      unit: "",
+      explanation: "",
+      dimensions: {},
+      label: label || serviceType,
+      questions: [question]
+    };
+  }
+
+  function parseGeometryRequest(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    const number = "(\\d+(?:[.,]\\d+)?)";
+
+    if (hasAny(text, ["parede", "muro", "alvenaria"])) {
+      const wallMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      if (wallMatch) {
+        const length = parseDimensionNumber(wallMatch[1]);
+        const height = parseDimensionNumber(wallMatch[2]);
+        const area = roundQuantity(length * height);
+        return buildGeometryResult(
+          "alvenaria",
+          "area",
+          area,
+          "m2",
+          "Area calculada: " + formatMeters(length) + " x " + formatMeters(height) + " = " + formatSquareMeters(area),
+          { length: length, height: height },
+          "Parede"
+        );
+      }
+      return buildIncompleteGeometryResult("alvenaria", "Qual o comprimento e a altura da parede?", "Parede");
+    }
+
+    if (hasTerm(text, "radier") || hasTerm(text, "laje")) {
+      const serviceType = hasTerm(text, "radier") ? "radier" : "laje";
+      const label = serviceType === "radier" ? "Radier" : "Laje";
+      const slabMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?(?:.*?(?:espessura|com|altura)?\\s*" + number + "\\s*(cm|centimetros?|m|metros?))", "i"));
+      if (slabMatch) {
+        const length = parseDimensionNumber(slabMatch[1]);
+        const width = parseDimensionNumber(slabMatch[2]);
+        const thicknessUnit = normalize(slabMatch[4]);
+        const thickness = thicknessUnit.indexOf("cm") >= 0 || thicknessUnit.indexOf("centimetro") >= 0
+          ? centimetersToMeters(slabMatch[3])
+          : parseDimensionNumber(slabMatch[3]);
+        const volume = roundQuantity(length * width * thickness);
+        return buildGeometryResult(
+          serviceType,
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(thickness) + " = " + formatCubicMeters(volume),
+          { length: length, width: width, thickness: thickness },
+          label
+        );
+      }
+      return buildIncompleteGeometryResult(serviceType, "Qual o comprimento, largura e espessura do " + serviceType + "?", label);
+    }
+
+    if (hasTerm(text, "pilar") || hasTerm(text, "pilares") || hasTerm(text, "coluna")) {
+      const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilares?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
+      if (pillarMatch) {
+        const count = pillarMatch[1] ? parseDimensionNumber(pillarMatch[1]) : 1;
+        const width = centimetersToMeters(pillarMatch[2]);
+        const depth = centimetersToMeters(pillarMatch[3]);
+        const height = parseDimensionNumber(pillarMatch[4]);
+        const volume = roundQuantity(count * width * depth * height);
+        return buildGeometryResult(
+          "pilar",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(width) + " x " + formatMeters(depth) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
+          { count: count, width: width, depth: depth, height: height },
+          "Pilar"
+        );
+      }
+      return buildIncompleteGeometryResult("pilar", "Quantos pilares serao executados e qual a altura?", "Pilar");
+    }
+
+    if (hasTerm(text, "viga") || hasTerm(text, "vigas") || hasTerm(text, "baldrame")) {
+      const serviceType = hasTerm(text, "baldrame") ? "baldrame" : "viga";
+      const label = serviceType === "baldrame" ? "Baldrame" : "Viga";
+      const beamMatch = originalMessage.match(new RegExp(number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?(?:.*?(?:com|comprimento|extensao|extensão)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
+      if (beamMatch) {
+        const width = centimetersToMeters(beamMatch[1]);
+        const height = centimetersToMeters(beamMatch[2]);
+        const length = parseDimensionNumber(beamMatch[3]);
+        const volume = roundQuantity(width * height * length);
+        return buildGeometryResult(
+          serviceType,
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(width) + " x " + formatMeters(height) + " x " + formatMeters(length) + " = " + formatCubicMeters(volume),
+          { width: width, height: height, length: length },
+          label
+        );
+      }
+      return buildIncompleteGeometryResult(serviceType, "Qual a secao e o comprimento total da " + label.toLowerCase() + "?", label);
+    }
+
+    if (hasTerm(text, "sapata") || hasTerm(text, "sapatas")) {
+      const footingMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?", "i"));
+      if (footingMatch) {
+        const count = footingMatch[1] ? parseDimensionNumber(footingMatch[1]) : 1;
+        const length = centimetersToMeters(footingMatch[2]);
+        const width = centimetersToMeters(footingMatch[3]);
+        const height = centimetersToMeters(footingMatch[4]);
+        const volume = roundQuantity(count * length * width * height);
+        return buildGeometryResult(
+          "sapata",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
+          { count: count, length: length, width: width, height: height },
+          "Sapata"
+        );
+      }
+      return buildIncompleteGeometryResult("sapata", "Qual a quantidade e as dimensoes da sapata em comprimento, largura e altura?", "Sapata");
+    }
+
+    return {
+      detected: false,
+      complete: false,
+      serviceType: "",
+      geometryType: "",
+      quantity: 0,
+      unit: "",
+      explanation: "",
+      dimensions: {}
+    };
+  }
+
   function parseRequestLegacy(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
@@ -605,6 +803,27 @@
   function parseRequest(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
+    const geometry = parseGeometryRequest(originalMessage);
+    if (geometry.detected) {
+      const geometryService = geometry.service ? [{
+        service: geometry.service,
+        quantity: geometry.quantity,
+        unit: geometry.unit,
+        requestedUnit: geometry.unit,
+        materialHint: geometry.label || geometry.service,
+        score: 500,
+        geometry: geometry
+      }] : [];
+      return {
+        originalMessage: originalMessage,
+        quantity: geometry.quantity,
+        unit: geometry.unit,
+        missingQuantity: !geometry.complete,
+        assumedBaseQuantity: false,
+        geometry: geometry,
+        services: geometryService
+      };
+    }
     const quantityMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
     const looseQuantityMatch = !quantityMatch ? originalMessage.match(/\b(\d+(?:[.,]\d+)?)\b/) : null;
     const wordOneQuantity = !quantityMatch && !looseQuantityMatch && /\b(um|uma)\b/i.test(originalMessage);
@@ -694,6 +913,7 @@
       unit: unit,
       missingQuantity: isCompositionRequest(originalMessage) && quantity <= 0 && uniqueServices.length > 0,
       assumedBaseQuantity: false,
+      geometry: geometry,
       services: uniqueServices
     };
   }
@@ -1234,7 +1454,10 @@
   function buildAnswerFromMessage(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
-    const parameterQuestions = buildParameterQuestions(request);
+    const geometryQuestions = request.geometry && request.geometry.questions || [];
+    const parameterQuestions = buildParameterQuestions(request).concat(geometryQuestions).filter(function (question, index, list) {
+      return question && list.indexOf(question) === index;
+    });
     const reportedStock = parseStockItemsFromMessage(message);
     const stockItems = (settings.stockItems || []).concat(reportedStock);
 
@@ -1291,20 +1514,27 @@
     const missingPurchaseItems = (purchasePlan.items || []).filter(function (item) {
       return item.purchaseQuantity > 0 || item.status === "sem item no estoque" || item.status === "critico";
     });
-    const lines = ["SERVIÇOS IDENTIFICADOS"];
+    const lines = [];
+    if (request.geometry && request.geometry.detected && request.geometry.complete) {
+      lines.push("📐 QUANTITATIVO GEOMÉTRICO");
+      lines.push("- " + request.geometry.label + " identificado.");
+      lines.push("- " + request.geometry.explanation + ".");
+      lines.push("");
+    }
+    lines.push("🧱 COMPOSIÇÃO IDENTIFICADA");
 
     request.services.forEach(function (service) {
       lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
     });
 
     lines.push("");
-    lines.push("MATERIAIS PREVISTOS");
+    lines.push("📦 CONSUMO PREVISTO");
     result.items.forEach(function (item) {
       lines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
     });
 
     lines.push("");
-    lines.push("ESTOQUE INFORMADO");
+    lines.push("📊 ESTOQUE X PREVISTO");
     if (reportedStock.length) {
       reportedStock.forEach(function (entry) {
         lines.push("- " + entry.item.name + ": " + formatQuantity(entry.realBalance) + " " + displayUnit(entry.item.unit));
@@ -1333,7 +1563,7 @@
     });
 
     lines.push("");
-    lines.push("PLANEJAMENTO DE COMPRA");
+    lines.push("🛒 PLANEJAMENTO DE COMPRA");
     if (purchasePlan.items.length) {
       purchasePlan.items.slice(0, 12).forEach(function (item) {
         lines.push("- " + item.materialName + ": comprar " + formatQuantity(item.purchaseQuantity) + " " + displayUnit(item.unit) + " (" + item.status + ")");
@@ -1371,6 +1601,7 @@
     getCompositions: getCompositions,
     findComposition: findComposition,
     isCompositionRequest: isCompositionRequest,
+    parseGeometryRequest: parseGeometryRequest,
     parseRequest: parseRequest,
     normalize: normalize,
     normalizeUnit: normalizeUnit,
