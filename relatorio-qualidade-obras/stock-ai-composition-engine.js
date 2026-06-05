@@ -6,6 +6,10 @@
   const DEMO_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
   const PURCHASE_WARNING = "Lista de compra gerada a partir de composições demonstrativas/editáveis e saldo local. Validar antes de compra oficial.";
 
+  const REAL_SOURCE_WARNING = "Base importada: SINAPI/ORSE.";
+  const DEMO_REPLACE_WARNING = "Base demonstrativa/editavel. Substitua por composicao SINAPI/ORSE para uso executivo.";
+  let importedCompositionCatalog = [];
+
   function clean(value) {
     return String(value || "").trim();
   }
@@ -72,6 +76,58 @@
     return clean(unit) || normalized || "un";
   }
 
+  function normalizeCompositionUnit(unit) {
+    return normalizeUnit(unit);
+  }
+
+  function normalizeServiceType(description) {
+    const text = normalize(description);
+    if (hasAny(text, ["alvenaria", "parede", "vedacao", "vedacao"])) {
+      return "alvenaria";
+    }
+    if (hasAny(text, ["pilar", "coluna"])) {
+      return "pilar";
+    }
+    if (hasAny(text, ["viga", "baldrame"])) {
+      return "viga";
+    }
+    if (hasAny(text, ["radier"])) {
+      return "radier";
+    }
+    if (hasAny(text, ["laje"])) {
+      return "laje";
+    }
+    if (hasAny(text, ["piso", "contrapiso"])) {
+      return "piso";
+    }
+    if (hasAny(text, ["telhado", "cobertura", "telha"])) {
+      return "cobertura";
+    }
+    if (hasAny(text, ["rufo", "calha", "pingadeira"])) {
+      return "rufo_calha";
+    }
+    if (hasAny(text, ["eletroduto", "conduite"])) {
+      return "eletroduto";
+    }
+    if (hasAny(text, ["cabo", "fio", "fiacao"])) {
+      return "cabo";
+    }
+    if (hasAny(text, ["tubulacao", "tubo", "agua fria", "esgoto"])) {
+      return "tubulacao";
+    }
+    return text.split(" ").slice(0, 3).join("_") || "geral";
+  }
+
+  function getCompositionSource(compositionData) {
+    return clean(compositionData && compositionData.source) || DEMO_SOURCE;
+  }
+
+  function isRealComposition(compositionData) {
+    const source = normalize(getCompositionSource(compositionData)).toUpperCase();
+    return !!(compositionData && compositionData.metadata && compositionData.metadata.isRealComposition) ||
+      source === "SINAPI" || source === "ORSE";
+  }
+
   function material(name, coefficient, unit, note) {
     return {
       id: "mat_" + normalize(name).replace(/\s+/g, "_") + "_" + normalizeUnit(unit),
@@ -102,6 +158,142 @@
       aliases: aliases || [],
       materials: materials || []
     };
+  }
+
+  function validateCompositionSchema(compositionData) {
+    const item = compositionData || {};
+    const inputs = item.inputs || item.materials || [];
+    if (!clean(item.source) || !clean(item.code || item.id) || !clean(item.description || item.service || item.name)) {
+      return false;
+    }
+    if (!["m2", "m3", "m", "un", "kg"].includes(normalizeCompositionUnit(item.unit || item.productionUnit))) {
+      return false;
+    }
+    if (!Array.isArray(inputs) || !inputs.length) {
+      return false;
+    }
+    return inputs.every(function (input) {
+      return clean(input && (input.name || input.material)) &&
+        clean(input && input.unit) &&
+        parseNumber(input && (input.coefficient || input.quantityPerUnit)) > 0;
+    });
+  }
+
+  function normalizeComposition(rawComposition) {
+    const raw = rawComposition || {};
+    const source = clean(raw.source || raw.base || raw.catalog || "CUSTOM").toUpperCase();
+    const code = clean(raw.code || raw.codigo || raw.id);
+    const description = clean(raw.description || raw.descricao || raw.service || raw.name);
+    const unit = normalizeCompositionUnit(raw.unit || raw.unidade || raw.productionUnit);
+    const inputs = raw.inputs || raw.insumos || raw.materials || [];
+    const normalized = {
+      id: clean(raw.id) || source + "-" + code,
+      source: source,
+      sourceRegion: clean(raw.sourceRegion || raw.region || raw.uf),
+      sourceDate: clean(raw.sourceDate || raw.date || raw.data || raw.referenceMonth),
+      code: code,
+      description: description,
+      service: description,
+      name: description,
+      serviceType: clean(raw.serviceType) || normalizeServiceType(description),
+      unit: unit,
+      productionUnit: unit,
+      category: clean(raw.category || raw.categoria) || "Base real importada",
+      lossPercent: parseNumber(raw.lossPercent || raw.perda || 0),
+      sourceLabel: clean(raw.sourceLabel),
+      inputs: inputs.map(function (input, index) {
+        const coefficient = parseNumber(input.coefficient || input.quantityPerUnit || input.coeficiente);
+        return {
+          code: clean(input.code || input.codigo || "input_" + index),
+          name: clean(input.name || input.material || input.descricao),
+          type: clean(input.type || input.tipo || "material") || "material",
+          unit: normalizeCompositionUnit(input.unit || input.unidade),
+          coefficient: coefficient
+        };
+      }),
+      aliases: (raw.aliases || []).concat([description, clean(raw.serviceType)]).filter(Boolean),
+      requiredParameters: raw.requiredParameters || [],
+      metadata: Object.assign({}, raw.metadata || {}, {
+        importedFrom: clean(raw.importedFrom || (raw.metadata && raw.metadata.importedFrom) || "arquivo local"),
+        originalUnit: clean(raw.originalUnit || raw.unit || raw.unidade || unit),
+        isRealComposition: source === "SINAPI" || source === "ORSE"
+      })
+    };
+    normalized.materials = normalized.inputs.map(function (input) {
+      return material(input.name, input.coefficient, input.unit, "Coeficiente importado de base " + source + ".");
+    });
+    normalized.warning = isRealComposition(normalized) ? REAL_SOURCE_WARNING : DEMO_WARNING;
+    normalized.note = normalized.warning;
+    return normalized;
+  }
+
+  function parseSinapiCompositionRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map(function (row) {
+      return normalizeComposition(Object.assign({}, row, { source: "SINAPI" }));
+    }).filter(validateCompositionSchema);
+  }
+
+  function parseOrseCompositionRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map(function (row) {
+      return normalizeComposition(Object.assign({}, row, { source: "ORSE" }));
+    }).filter(validateCompositionSchema);
+  }
+
+  function loadExternalCompositions(data, source) {
+    const catalogSource = clean(source || (data && data.source)).toUpperCase();
+    const rows = Array.isArray(data) ? data : (data && (data.rows || data.compositions || data.items)) || [];
+    const parsed = catalogSource === "SINAPI"
+      ? parseSinapiCompositionRows(rows)
+      : catalogSource === "ORSE"
+        ? parseOrseCompositionRows(rows)
+        : rows.map(normalizeComposition).filter(validateCompositionSchema);
+    importedCompositionCatalog = parsed;
+    return importedCompositionCatalog.slice();
+  }
+
+  function getWindowExternalCompositions() {
+    const external = window.StockAiRealCompositions;
+    if (!external) {
+      return [];
+    }
+    const rows = Array.isArray(external) ? external : (external.compositions || external.rows || []);
+    if (!rows.length) {
+      return [];
+    }
+    const source = Array.isArray(external) ? "" : external.source;
+    const catalogSource = clean(source || "CUSTOM").toUpperCase();
+    const parsed = catalogSource === "SINAPI"
+      ? parseSinapiCompositionRows(rows)
+      : catalogSource === "ORSE"
+        ? parseOrseCompositionRows(rows)
+        : rows.map(normalizeComposition).filter(validateCompositionSchema);
+    return parsed;
+  }
+
+  function getSourcePriority(compositionData) {
+    const source = normalize(getCompositionSource(compositionData)).toUpperCase();
+    if (source === "SINAPI") {
+      return 5000;
+    }
+    if (source === "ORSE") {
+      return 4900;
+    }
+    if (source === "CUSTOM" || source === "PERSONALIZADA") {
+      return 3000;
+    }
+    return 100;
+  }
+
+  function mergeCompositionCatalogs(baseCatalog, importedCatalog) {
+    const seen = {};
+    return (importedCatalog || []).concat(baseCatalog || []).filter(function (item) {
+      const key = normalize(getCompositionSource(item)) + "|" + normalize(item.code || item.id);
+      if (seen[key]) {
+        return false;
+      }
+      seen[key] = true;
+      return true;
+    });
   }
 
   const DEFAULT_COMPOSITIONS = [
@@ -352,7 +544,7 @@
   ];
 
   function getCompositions() {
-    return DEFAULT_COMPOSITIONS.map(function (item) {
+    const baseCatalog = DEFAULT_COMPOSITIONS.map(function (item) {
       return Object.assign({}, item, {
         aliases: (item.aliases || []).slice(),
         requiredParameters: (item.requiredParameters || []).slice(),
@@ -361,6 +553,9 @@
         })
       });
     });
+    const windowCatalog = getWindowExternalCompositions();
+    const importedCatalog = windowCatalog.length ? windowCatalog : importedCompositionCatalog;
+    return mergeCompositionCatalogs(baseCatalog, importedCatalog);
   }
 
   const EXTRA_ALIASES_BY_ID = {
@@ -486,13 +681,20 @@
     if (unit && unit !== "un" && normalizeUnit(item.productionUnit) === unit) {
       score += 40;
     }
+    if (unit && normalizeUnit(item.productionUnit) !== unit) {
+      return -1;
+    }
+    if (score > 0) {
+      score += getSourcePriority(item);
+    }
     return score;
   }
 
   function rankCompositions(query, options) {
     const settings = options || {};
     const text = normalize(typeof query === "string" ? query : (query && (query.service || query.name || query.id)));
-    const unit = normalizeUnit(settings.unit || (query && query.unit));
+    const requestedUnit = settings.unit || (query && query.unit);
+    const unit = requestedUnit ? normalizeUnit(requestedUnit) : "";
     if (!text) {
       return [];
     }
@@ -504,8 +706,15 @@
     }).filter(function (entry) {
       return entry.score > 0;
     }).sort(function (a, b) {
-      return b.score - a.score || wordCount(b.item.service) - wordCount(a.item.service);
+      return b.score - a.score ||
+        getSourcePriority(b.item) - getSourcePriority(a.item) ||
+        wordCount(b.item.service) - wordCount(a.item.service);
     });
+  }
+
+  function findBestComposition(query, options) {
+    const ranked = rankCompositions(query, options);
+    return ranked.length ? ranked[0].item : null;
   }
 
   function findComposition(query) {
@@ -1207,8 +1416,12 @@
         service: compositionData.service,
         productionUnit: compositionData.productionUnit,
         source: compositionData.source || DEMO_SOURCE,
+        sourceRegion: compositionData.sourceRegion || "",
+        sourceDate: compositionData.sourceDate || "",
+        code: compositionData.code || "",
+        isRealComposition: isRealComposition(compositionData),
         lossPercent: parseNumber(compositionData.lossPercent),
-        note: compositionData.note || DEMO_WARNING
+        note: compositionData.note || (isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_WARNING)
       } : null,
       predictedItems: [],
       technicalNotes: [],
@@ -1244,7 +1457,7 @@
     });
 
     result.technicalNotes.push("Perda aplicada: " + formatQuantity(parseNumber(compositionData.lossPercent)) + "%.");
-    result.technicalNotes.push(DEMO_WARNING);
+    result.technicalNotes.push(isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_REPLACE_WARNING);
     return result;
   }
 
@@ -1685,6 +1898,18 @@
     lines.push("- " + geometry.explanation + ".");
   }
 
+  function formatCompositionSource(compositionData) {
+    if (!compositionData) {
+      return "";
+    }
+    if (isRealComposition(compositionData)) {
+      return "Fonte: " + getCompositionSource(compositionData) +
+        (compositionData.sourceRegion ? " - " + compositionData.sourceRegion : "") +
+        (compositionData.sourceDate ? " - " + compositionData.sourceDate : "");
+    }
+    return "Fonte: " + getCompositionSource(compositionData);
+  }
+
   function appendServicesWithoutComposition(lines, services) {
     const missing = services || [];
     if (!missing.length) {
@@ -1851,7 +2076,11 @@
     lines.push("🧱 COMPOSIÇÃO IDENTIFICADA");
 
     request.services.forEach(function (service) {
+      const compositionData = findComposition(service);
       lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
+      if (compositionData) {
+        lines.push("  " + formatCompositionSource(compositionData));
+      }
     });
     appendServicesWithoutComposition(lines, servicesWithoutComposition);
 
@@ -1928,8 +2157,19 @@
     getVersion: function () { return LIBRARY_VERSION; },
     getCompositions: getCompositions,
     findComposition: findComposition,
+    findBestComposition: findBestComposition,
     isCompositionRequest: isCompositionRequest,
     isStockAiRequest: isStockAiRequest,
+    normalizeComposition: normalizeComposition,
+    normalizeCompositionUnit: normalizeCompositionUnit,
+    normalizeServiceType: normalizeServiceType,
+    getCompositionSource: getCompositionSource,
+    isRealComposition: isRealComposition,
+    mergeCompositionCatalogs: mergeCompositionCatalogs,
+    parseSinapiCompositionRows: parseSinapiCompositionRows,
+    parseOrseCompositionRows: parseOrseCompositionRows,
+    loadExternalCompositions: loadExternalCompositions,
+    validateCompositionSchema: validateCompositionSchema,
     parseGeometryRequest: parseGeometryRequest,
     parseRequest: parseRequest,
     normalize: normalize,
