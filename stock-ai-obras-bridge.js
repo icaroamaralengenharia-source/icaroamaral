@@ -41,6 +41,129 @@
     messages.scrollTop = messages.scrollHeight;
   }
 
+  function getImportElements_() {
+    return {
+      input: document.querySelector(".stock-obras-import-input"),
+      status: document.querySelector(".stock-obras-import-status"),
+      importButton: document.querySelector('[data-stock-obras-import-action="import"]'),
+      clearButton: document.querySelector('[data-stock-obras-import-action="clear"]')
+    };
+  }
+
+  function setImportStatus_(text) {
+    const elements = getImportElements_();
+    if (elements.status) {
+      elements.status.textContent = text;
+    }
+  }
+
+  function getImportRows_(jsonData) {
+    if (Array.isArray(jsonData)) {
+      return jsonData;
+    }
+    return jsonData && (jsonData.compositions || jsonData.rows || jsonData.items) || [];
+  }
+
+  function isMockImport_(jsonData, result) {
+    const rows = getImportRows_(jsonData);
+    return !!(jsonData && (jsonData.isMock || jsonData.mockOnly)) ||
+      rows.some(function (row) {
+        const metadata = row && row.metadata || {};
+        return !!(row && (row.isMock || row.mockOnly || metadata.isMock || metadata.mockOnly));
+      }) ||
+      (result.imported || []).some(function (composition) {
+        const engine = window.StockAiCompositionEngine || {};
+        if (typeof engine.isMockComposition === "function") {
+          return engine.isMockComposition(composition);
+        }
+        const metadata = composition && composition.metadata || {};
+        return !!(composition && (composition.isMock || composition.mockOnly || metadata.isMock || metadata.mockOnly));
+      });
+  }
+
+  function formatImportSources_(summary) {
+    const sources = summary && summary.sources || {};
+    const labels = Object.keys(sources).filter(function (source) {
+      return sources[source] > 0;
+    });
+    return labels.length ? labels.join(", ") : "nao identificada";
+  }
+
+  function formatRejectedReasons_(rejected) {
+    const reasons = [];
+    (rejected || []).slice(0, 3).forEach(function (item) {
+      (item.reasons || []).slice(0, 1).forEach(function (reason) {
+        reasons.push("- " + reason);
+      });
+    });
+    return reasons.length ? "\nMotivos principais:\n" + reasons.join("\n") : "";
+  }
+
+  function handleCompositionImportJson_(jsonData) {
+    const engine = window.StockAiCompositionEngine || {};
+    if (typeof engine.loadRealCompositionsFromJson !== "function" ||
+      typeof engine.setExternalCompositionCatalog !== "function") {
+      setImportStatus_("Motor de composicoes ainda nao carregado. Tente novamente em alguns segundos.");
+      return;
+    }
+
+    const result = engine.loadRealCompositionsFromJson(jsonData);
+    const valid = result.imported ? result.imported.length : 0;
+    const invalid = result.rejected ? result.rejected.length : 0;
+    if (!valid) {
+      setImportStatus_("Nao foi possivel importar o arquivo. Verifique se o JSON esta no formato esperado." +
+        formatRejectedReasons_(result.rejected));
+      return;
+    }
+
+    engine.setExternalCompositionCatalog(result.imported);
+    const lines = [
+      "Base importada com sucesso: " + valid + " composicoes validas, " + invalid + " rejeitadas.",
+      "Fonte detectada: " + formatImportSources_(result.summary)
+    ];
+    if (isMockImport_(jsonData, result)) {
+      lines.push("Arquivo de teste detectado. Nao usar como base real executiva.");
+    }
+    if (invalid) {
+      lines.push(formatRejectedReasons_(result.rejected));
+    }
+    setImportStatus_(lines.filter(Boolean).join("\n"));
+  }
+
+  function readSelectedCompositionFile_() {
+    const elements = getImportElements_();
+    const file = elements.input && elements.input.files && elements.input.files[0];
+    if (!file) {
+      setImportStatus_("Selecione um arquivo JSON antes de importar.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        handleCompositionImportJson_(JSON.parse(String(reader.result || "")));
+      } catch (error) {
+        setImportStatus_("Nao foi possivel importar o arquivo. Verifique se o JSON esta no formato esperado.");
+      }
+    };
+    reader.onerror = function () {
+      setImportStatus_("Nao foi possivel importar o arquivo. Verifique se o JSON esta no formato esperado.");
+    };
+    reader.readAsText(file);
+  }
+
+  function clearImportedCompositionCatalog_() {
+    const engine = window.StockAiCompositionEngine || {};
+    if (typeof engine.clearExternalCompositionCatalog === "function") {
+      engine.clearExternalCompositionCatalog();
+    }
+    const elements = getImportElements_();
+    if (elements.input) {
+      elements.input.value = "";
+    }
+    setImportStatus_("Base importada removida. O Stock AI voltou a usar a base demonstrativa/editavel.");
+  }
+
   function getStockAiObrasAnswer_(question) {
     const centralEngine = window.StockAiCompositionEngine || {};
     const centralGeometry = typeof centralEngine.parseGeometryRequest === "function"
@@ -309,6 +432,16 @@
       }
       answerStockAiObrasQuestion_(input, event);
     }, true);
+
+    const importElements = getImportElements_();
+    if (importElements.importButton && !importElements.importButton.dataset.stockAiObrasImportBound) {
+      importElements.importButton.dataset.stockAiObrasImportBound = "true";
+      importElements.importButton.addEventListener("click", readSelectedCompositionFile_);
+    }
+    if (importElements.clearButton && !importElements.clearButton.dataset.stockAiObrasImportBound) {
+      importElements.clearButton.dataset.stockAiObrasImportBound = "true";
+      importElements.clearButton.addEventListener("click", clearImportedCompositionCatalog_);
+    }
   }
 
   if (document.readyState === "loading") {

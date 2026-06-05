@@ -4,7 +4,7 @@
 
 Preparar o Stock AI Obras para usar composicoes reais importadas de arquivos locais SINAPI, ORSE ou bases personalizadas, mantendo a base demonstrativa como fallback quando nenhuma composicao externa compativel estiver carregada.
 
-Esta etapa nao implementa upload visual no navegador. Ela cria um fluxo local controlado para receber JSON ou linhas CSV ja parseadas, validar schema, normalizar campos e registrar um catalogo externo em memoria.
+Esta etapa permite importar JSON pela interface do Stock AI Obras e tambem receber JSON ou linhas CSV ja parseadas via JavaScript, validar schema, normalizar campos e registrar um catalogo externo em memoria.
 
 ## Formato JSON aceito
 
@@ -93,6 +93,20 @@ if (result.ok) {
 }
 ```
 
+## Importar pela interface
+
+Na pagina `stock-ai-obras.html`, use a secao **Importar base de composicoes**:
+
+1. Clique em **Selecionar arquivo JSON** e escolha um arquivo no formato aceito.
+2. Clique em **Importar base**.
+3. Confira o status com composicoes importadas, rejeitadas, fonte detectada e aviso de mock quando aplicavel.
+4. Use o chat normalmente. Quando houver composicao importada compativel, o Stock AI Obras prioriza SINAPI/ORSE ou a fonte importada sobre a base demonstrativa.
+5. Para voltar ao fallback, clique em **Limpar base importada**.
+
+A importacao pela interface usa `FileReader`, `JSON.parse`, `loadRealCompositionsFromJson(jsonData)` e `setExternalCompositionCatalog(result.imported)`.
+
+Se houver rejeicoes, a tela mostra a quantidade rejeitada e ate tres motivos principais. A pagina nao deve quebrar quando o arquivo tiver composicoes invalidas.
+
 Retorno:
 
 ```json
@@ -125,7 +139,9 @@ const activeCatalog = StockAiCompositionEngine.getExternalCompositionCatalog();
 StockAiCompositionEngine.clearExternalCompositionCatalog();
 ```
 
-O catalogo externo fica apenas em memoria. O `findBestComposition` e o calculo do Stock AI Obras consultam esse catalogo junto da base demonstrativa.
+O catalogo externo fica apenas em memoria da pagina. O `findBestComposition` e o calculo do Stock AI Obras consultam esse catalogo junto da base demonstrativa.
+
+Ainda nao ha persistencia em banco de dados, por cliente ou por obra. Ao recarregar a pagina, a base importada precisa ser carregada novamente.
 
 ## Prioridade e fallback
 
@@ -155,4 +171,4 @@ O arquivo `relatorio-qualidade-obras/stock-ai-real-compositions-sample.json` e u
 
 ## Proximo passo futuro
 
-Adicionar upload visual de arquivo pela interface para selecionar JSON/CSV local, parsear as linhas, exibir `imported/rejected` ao usuario e registrar o catalogo externo somente depois da confirmacao.
+Adicionar persistencia por cliente/obra, com historico da fonte importada, referencia, responsavel pela validacao e escopo de uso da base.

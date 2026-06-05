@@ -150,6 +150,78 @@
       outline: none;
     }
 
+    .stock-obras-import {
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid rgba(127, 182, 230, 0.22);
+      border-radius: 14px;
+      background: rgba(8, 18, 32, 0.44);
+    }
+
+    .stock-obras-import h2 {
+      margin: 0 0 6px;
+      color: var(--elo-product-text);
+      font-size: 0.98rem;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .stock-obras-import p {
+      margin: 0 0 12px;
+      color: var(--elo-product-muted);
+      font-size: 0.84rem;
+      line-height: 1.55;
+    }
+
+    .stock-obras-import-controls {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .stock-obras-import-input {
+      min-width: 0;
+      width: 100%;
+      color: var(--elo-product-muted);
+      font: inherit;
+      font-size: 0.82rem;
+    }
+
+    .stock-obras-import-button {
+      min-height: 38px;
+      padding: 9px 11px;
+      border: 1px solid rgba(127, 182, 230, 0.28);
+      border-radius: 10px;
+      background: rgba(30, 111, 174, 0.2);
+      color: var(--elo-product-text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .stock-obras-import-button:hover,
+    .stock-obras-import-button:focus-visible {
+      border-color: rgba(127, 182, 230, 0.7);
+      background: rgba(30, 111, 174, 0.32);
+      outline: none;
+    }
+
+    .stock-obras-import-button.secondary {
+      background: rgba(246, 249, 252, 0.06);
+    }
+
+    .stock-obras-import-status {
+      margin-top: 10px;
+      min-height: 42px;
+      color: var(--elo-product-muted);
+      font-size: 0.8rem;
+      line-height: 1.45;
+      white-space: pre-line;
+    }
+
     .stock-obras-chat {
       width: min(100%, 600px);
       justify-self: end;
@@ -253,6 +325,14 @@
       .stock-obras-chat .elo-attach-button {
         grid-column: 1 / -1;
       }
+
+      .stock-obras-import-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stock-obras-import-button {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -299,6 +379,16 @@
         <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Quanto preciso comprar para 100 m2 de parede, massa e pintura?">Quanto preciso comprar para parede, massa e pintura?</button>
         <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Existe desperdício se eu consumi mais cimento que o previsto?">Existe desperdício?</button>
       </div>
+      <section class="stock-obras-import" aria-labelledby="stock-obras-import-title">
+        <h2 id="stock-obras-import-title">Importar base de composi&ccedil;&otilde;es</h2>
+        <p>Carregue um arquivo JSON validado com composi&ccedil;&otilde;es SINAPI, ORSE ou personalizada.</p>
+        <div class="stock-obras-import-controls">
+          <input class="stock-obras-import-input" type="file" accept="application/json,.json" aria-label="Selecionar arquivo JSON">
+          <button class="stock-obras-import-button" type="button" data-stock-obras-import-action="import">Importar base</button>
+          <button class="stock-obras-import-button secondary" type="button" data-stock-obras-import-action="clear">Limpar base importada</button>
+        </div>
+        <div class="stock-obras-import-status" aria-live="polite">Nenhuma base importada. O Stock AI usa a base demonstrativa/edit&aacute;vel.</div>
+      </section>
     </section>
 
     <section class="elo-product-chat stock-obras-chat" aria-label="Conversa com o Elo Obras">
