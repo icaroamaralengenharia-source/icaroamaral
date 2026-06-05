@@ -4579,8 +4579,12 @@
       "calcular materiais",
       "calcule materiais",
       "materiais para",
+      "qual material",
+      "quantas telhas",
+      "qual o madeiramento",
       "vou fazer",
       "vou executar",
+      "quero fazer",
       "preciso fazer",
       "consumo previsto"
     ];
@@ -4594,6 +4598,15 @@
       "massa",
       "pintura",
       "telhado",
+      "cobertura",
+      "telha",
+      "telha ceramica",
+      "telha fibrocimento",
+      "madeiramento",
+      "caibro",
+      "ripa",
+      "terca",
+      "estrutura de madeira",
       "concreto"
     ];
 
@@ -4605,7 +4618,8 @@
     const text = clean(message);
     const normalized = normalizeCompositionKey_(text);
     const quantityMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|m\b|un\b)/i);
-    const quantity = quantityMatch ? parseNumber_(quantityMatch[1]) : 0;
+    const hasCompositionIntent = isStockAiCompositionRequest_(text);
+    const quantity = quantityMatch ? parseNumber_(quantityMatch[1]) : (hasCompositionIntent ? 1 : 0);
     const unit = quantityMatch ? normalizeStockAiRequestedUnit_(quantityMatch[2]) : "";
     const serviceRules = [
       {
@@ -4639,6 +4653,16 @@
         terms: ["telhado", "telha ceramica", "cobertura"]
       },
       {
+        service: "Telha fibrocimento",
+        unit: "m²",
+        terms: ["telha fibrocimento", "fibrocimento"]
+      },
+      {
+        service: "Estrutura de madeira para telhado",
+        unit: "m²",
+        terms: ["madeiramento", "caibro", "ripa", "terca", "estrutura de madeira"]
+      },
+      {
         service: "Concreto simples",
         unit: "m³",
         terms: ["concreto simples", "concreto"]
@@ -4664,6 +4688,9 @@
       if (rule.service === "Concreto simples" && (normalized.indexOf("concreto estrutural") >= 0 || normalized.indexOf("concreto armado") >= 0)) {
         return;
       }
+      if (rule.service === "Telha cerâmica" && normalized.indexOf("fibrocimento") >= 0) {
+        return;
+      }
       services.push({
         service: rule.service,
         quantity: quantity,
@@ -4682,6 +4709,7 @@
       originalMessage: text,
       quantity: quantity,
       unit: unit,
+      assumedBaseQuantity: !quantityMatch && quantity > 0,
       services: services.filter(function (item, index, list) {
         return list.findIndex(function (candidate) { return candidate.service === item.service; }) === index;
       })
@@ -4754,6 +4782,10 @@
     const lines = [
       "Entendi o planejamento:"
     ];
+
+    if (request.assumedBaseQuantity) {
+      lines.push("- Área total não informada; usei uma base demonstrativa de 1 m² para listar a composição.");
+    }
 
     predictions.forEach(function (prediction) {
       lines.push("- " + formatQuantity_(prediction.executedQuantity) + " " + prediction.unit + " de " + prediction.service);
@@ -18005,4 +18037,12 @@
       .replace(/^-|-$/g, "")
       .slice(0, 90) || "foto.jpg";
   }
+
+  window.StockAiObrasEngine = Object.assign({}, window.StockAiObrasEngine || {}, {
+    isStockAiCompositionRequest: isStockAiCompositionRequest_,
+    parseStockAiCompositionRequest: parseStockAiCompositionRequest,
+    buildStockAiCompositionAnswerFromMessage: buildStockAiCompositionAnswerFromMessage,
+    answerStockIaQuestion: answerStockIaQuestion_,
+    calculateStockAiPredictedConsumption: calculateStockAiPredictedConsumption
+  });
 })();

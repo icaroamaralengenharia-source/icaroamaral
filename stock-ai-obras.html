@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock AI Obras | Powered by Elo Obras</title>
+  <meta name="description" content="Stock AI Obras com Elo Obras para composições, previsão de consumo, auditoria e planejamento de compra.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="elo.css">
+  <style>
+    .stock-obras-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(280px, 460px) minmax(360px, 600px);
+      gap: clamp(24px, 5vw, 72px);
+      align-items: center;
+      justify-content: center;
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 54px 0 42px;
+    }
+
+    .stock-obras-intro {
+      color: var(--elo-product-text);
+    }
+
+    .stock-obras-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+      color: var(--elo-product-text);
+      text-decoration: none;
+    }
+
+    .stock-obras-logo {
+      width: 58px;
+      height: 58px;
+      flex: 0 0 auto;
+      filter: drop-shadow(0 16px 32px rgba(30, 111, 174, 0.34));
+    }
+
+    .stock-obras-brand strong,
+    .stock-obras-brand small {
+      display: block;
+    }
+
+    .stock-obras-brand strong {
+      font-size: 1rem;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+    }
+
+    .stock-obras-brand small {
+      margin-top: 2px;
+      color: var(--elo-product-muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .stock-obras-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--elo-product-line);
+      border-radius: 999px;
+      background: rgba(127, 182, 230, 0.1);
+      color: var(--elo-product-blue-soft);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .stock-obras-title {
+      margin: 18px 0 12px;
+      font-size: clamp(2.35rem, 6vw, 4.8rem);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .stock-obras-title span {
+      color: var(--elo-product-blue-soft);
+    }
+
+    .stock-obras-subtitle {
+      margin: 0 0 8px;
+      color: var(--elo-product-text);
+      font-size: 1.04rem;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .stock-obras-intro p.stock-obras-copy {
+      max-width: 540px;
+      margin: 0 0 22px;
+      color: var(--elo-product-muted);
+      font-size: 0.98rem;
+      line-height: 1.72;
+    }
+
+    .stock-obras-capabilities {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .stock-obras-capabilities li {
+      min-height: 58px;
+      padding: 12px 13px;
+      border: 1px solid var(--elo-product-line);
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(19, 36, 58, 0.72), rgba(8, 18, 32, 0.5));
+      color: var(--elo-product-text);
+      font-size: 0.88rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+    }
+
+    .stock-obras-prompts {
+      display: grid;
+      gap: 10px;
+    }
+
+    .stock-obras-prompt {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid rgba(127, 182, 230, 0.24);
+      border-radius: 12px;
+      background: rgba(8, 18, 32, 0.54);
+      color: var(--elo-product-text);
+      font: inherit;
+      font-size: 0.92rem;
+      line-height: 1.4;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .stock-obras-prompt:hover,
+    .stock-obras-prompt:focus-visible {
+      border-color: rgba(127, 182, 230, 0.62);
+      background: rgba(30, 111, 174, 0.18);
+      outline: none;
+    }
+
+    .stock-obras-chat {
+      width: min(100%, 600px);
+      justify-self: end;
+    }
+
+    .stock-obras-chat .elo-standalone-panel {
+      min-height: 590px;
+      max-height: calc(100vh - 92px);
+      border-radius: 28px;
+      border: 1px solid rgba(127, 182, 230, 0.24);
+      background:
+        linear-gradient(180deg, rgba(15, 28, 46, 0.94), rgba(7, 15, 28, 0.9)),
+        rgba(15, 28, 46, 0.92);
+      box-shadow: 0 24px 70px rgba(3, 10, 20, 0.38);
+      overflow: hidden;
+    }
+
+    .stock-obras-chat .elo-standalone-panel::before,
+    .stock-obras-chat .elo-standalone-panel::after {
+      display: none;
+    }
+
+    .stock-obras-chat .elo-messages {
+      min-height: 410px;
+      padding: 22px;
+    }
+
+    .stock-obras-chat .elo-input-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid rgba(127, 182, 230, 0.16);
+      background: rgba(3, 10, 20, 0.34);
+    }
+
+    .stock-obras-chat .elo-input {
+      min-width: 0;
+      min-height: 64px;
+      max-height: 150px;
+      resize: vertical;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.45;
+      border-radius: 18px;
+      padding: 15px 16px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+        rgba(246, 249, 252, 0.06);
+      box-shadow: inset 0 0 0 1px rgba(127, 182, 230, 0.18);
+    }
+
+    .stock-obras-chat .elo-input::placeholder {
+      color: rgba(246, 249, 252, 0.48);
+    }
+
+    .stock-obras-chat .elo-attach-button,
+    .stock-obras-chat .elo-send-button {
+      min-height: 48px;
+      border-radius: 16px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .stock-obras-shell {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        padding: 30px 0;
+      }
+
+      .stock-obras-chat {
+        width: 100%;
+        justify-self: stretch;
+      }
+
+      .stock-obras-title {
+        font-size: clamp(2.25rem, 12vw, 4rem);
+      }
+
+      .stock-obras-chat .elo-standalone-panel {
+        min-height: 560px;
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .stock-obras-shell {
+        width: min(100% - 24px, 1180px);
+      }
+
+      .stock-obras-capabilities {
+        grid-template-columns: 1fr;
+      }
+
+      .stock-obras-chat .elo-input-row {
+        grid-template-columns: 1fr auto;
+      }
+
+      .stock-obras-chat .elo-attach-button {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
+</head>
+<body data-elo-mode="standalone" data-elo-product="stock-ai-obras" data-elo-context="obras">
+  <header class="elo-product-top">
+    <a class="elo-about-link" href="index.html">Início</a>
+  </header>
+
+  <main class="stock-obras-shell" aria-labelledby="stock-ai-obras-title">
+    <section class="stock-obras-intro">
+      <div class="stock-obras-brand" aria-label="Stock AI Obras">
+        <svg class="stock-obras-logo" viewBox="0 0 64 64" role="img" aria-label="Logo Stock AI Obras">
+          <defs>
+            <linearGradient id="stockAiObrasLogoGradient" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#7fb6e6"></stop>
+              <stop offset="0.55" stop-color="#1e6fae"></stop>
+              <stop offset="1" stop-color="#8b5cf6"></stop>
+            </linearGradient>
+          </defs>
+          <rect x="7" y="10" width="50" height="46" rx="15" fill="url(#stockAiObrasLogoGradient)"></rect>
+          <path d="M18 43h28" stroke="#f6f9fc" stroke-width="4" stroke-linecap="round"></path>
+          <path d="M22 43V29h9v14" stroke="#f6f9fc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M33 43V23h10v20" stroke="#f6f9fc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M18 25h28" stroke="#d7edff" stroke-width="3" stroke-linecap="round"></path>
+          <path d="M22 20h20" stroke="#d7edff" stroke-width="3" stroke-linecap="round"></path>
+        </svg>
+        <span>
+          <strong>Stock AI Obras</strong>
+          <small>Quantitativos + compras inteligentes</small>
+        </span>
+      </div>
+      <span class="stock-obras-kicker">Powered by Elo Obras</span>
+      <h1 id="stock-ai-obras-title" class="stock-obras-title">Stock AI <span>Obras</span></h1>
+      <p class="stock-obras-subtitle">Especialista em quantitativos e planejamento de obras</p>
+      <p class="stock-obras-copy">Converse com um especialista operacional para transformar serviços executados em composição, consumo previsto, auditoria previsto x real e planejamento de compra.</p>
+      <ul class="stock-obras-capabilities" aria-label="Recursos do Stock AI Obras">
+        <li>Composições editáveis</li>
+        <li>Previsão de consumo</li>
+        <li>Auditoria de desperdício</li>
+        <li>Lista de compra</li>
+      </ul>
+      <div class="stock-obras-prompts" aria-label="Exemplos de perguntas">
+        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Vou fazer 60m² de alvenaria com bloco cerâmico, chapisco e reboco. Faça a composição.">Vou fazer 60m² de alvenaria, chapisco e reboco.</button>
+        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Quanto preciso comprar para 100 m2 de parede, massa e pintura?">Quanto preciso comprar para parede, massa e pintura?</button>
+        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Existe desperdício se eu consumi mais cimento que o previsto?">Existe desperdício?</button>
+      </div>
+    </section>
+
+    <section class="elo-product-chat stock-obras-chat" aria-label="Conversa com o Elo Obras">
+      <section class="elo-standalone-panel" aria-label="Elo Obras">
+        <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
+        <form class="elo-input-row">
+          <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
+          <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
+          <textarea class="elo-input" maxlength="900" rows="2" placeholder="Pergunte ao Elo Obras..."></textarea>
+          <button type="submit" class="elo-send-button">Enviar</button>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    window.ELO_CONTEXT = "obras";
+    window.ObraReportEloContext = "obras";
+    window.ELO_PRODUCT_MODE = true;
+    window.ELO_SKIP_AUTO_WIDGET = true;
+    window.ELO_DISABLE_AUTOFOCUS = true;
+    window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
+
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
+        window.EloAssistente.mountMinimal({
+          panel: ".elo-standalone-panel",
+          messages: ".elo-messages",
+          form: ".elo-input-row",
+          input: ".elo-input",
+          attachmentInput: ".elo-attachment-input",
+          attachmentButton: ".elo-attach-button"
+        });
+      }
+
+      Array.from(document.querySelectorAll("[data-stock-obras-prompt]")).forEach(function (button) {
+        button.addEventListener("click", function () {
+          const input = document.querySelector(".elo-input");
+          const form = document.querySelector(".elo-input-row");
+          if (!input || !form) {
+            return;
+          }
+          input.value = button.dataset.stockObrasPrompt || "";
+          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        });
+      });
+    });
+  </script>
+  <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
+  <script src="relatorio-qualidade-obras/ai-assistant.js"></script>
+  <script src="stock-ai-obras-bridge.js"></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js"></script>
+</body>
+</html>
