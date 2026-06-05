@@ -149,3 +149,44 @@ test("Stock AI Obras pergunta dados complementares para metro linear, unidade e 
   assert.match(rufo, /Qual o comprimento total do rufo em metros/);
   assert.match(house, /Qual o comprimento e a largura da casa/);
 });
+
+test("Stock AI Obras reconhece frases geometricas como solicitacao central", () => {
+  [
+    "Tenho uma parede de 12 m por 3 m",
+    "Tenho 24 metros de rufo",
+    "Vou instalar 8 portas",
+    "Casa 8 x 10 com pe-direito de 3 metros",
+    "Vou executar rufo",
+    "Vou instalar portas",
+    "Vou fazer uma casa"
+  ].forEach((message) => {
+    assert.equal(engine.isStockAiRequest(message), true, message);
+  });
+});
+
+test("Stock AI Obras nao extrai estoque falso de medidas geometricas", () => {
+  const wall = engine.buildAnswerFromMessage("Tenho uma parede de 12 m por 3 m");
+  const rufo = engine.buildAnswerFromMessage("Tenho 24 metros de rufo");
+
+  assert.match(wall, /Nenhum estoque informado na mensagem/);
+  assert.doesNotMatch(wall, /por 3 m/);
+  assert.match(rufo, /Nenhum estoque informado na mensagem/);
+  assert.doesNotMatch(rufo, /etros de rufo/);
+});
+
+test("Stock AI Obras extrai estoque real quando ha gatilho explicito", () => {
+  const answer = engine.buildAnswerFromMessage("Tenho uma parede de 12 m por 3 m e tenho em estoque 500 blocos e 10 sacos de cimento");
+
+  assert.match(answer, /Bloco ceramico: 500 un/);
+  assert.match(answer, /Cimento: 10 saco/);
+});
+
+test("Stock AI Obras mantem cobertura composta como pendencia sem bloquear alvenaria e piso", () => {
+  const answer = engine.buildAnswerFromMessage("Casa 8 x 10 com pe-direito de 3 metros");
+
+  assert.match(answer, /108 m² de Alvenaria de bloco ceramico/);
+  assert.match(answer, /80 m² de Piso ceramico/);
+  assert.match(answer, /cobertura: 80 m²|Cobertura.*80 m²/i);
+  assert.match(answer, /Ainda nao existe composicao tecnica cadastrada|tipo de telhado|tipo: telha/);
+  assert.doesNotMatch(answer, /PERGUNTAS COMPLEMENTARES/);
+});

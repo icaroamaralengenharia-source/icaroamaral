@@ -43,9 +43,14 @@
 
   function getStockAiObrasAnswer_(question) {
     const centralEngine = window.StockAiCompositionEngine || {};
-    if (typeof centralEngine.isCompositionRequest === "function" &&
-      typeof centralEngine.buildAnswerFromMessage === "function" &&
-      centralEngine.isCompositionRequest(question)) {
+    const centralGeometry = typeof centralEngine.parseGeometryRequest === "function"
+      ? centralEngine.parseGeometryRequest(question)
+      : null;
+    const isCentralRequest = typeof centralEngine.isStockAiRequest === "function"
+      ? centralEngine.isStockAiRequest(question)
+      : (typeof centralEngine.isCompositionRequest === "function" && centralEngine.isCompositionRequest(question)) ||
+        !!(centralGeometry && centralGeometry.detected);
+    if (typeof centralEngine.buildAnswerFromMessage === "function" && isCentralRequest) {
       return clean_(centralEngine.buildAnswerFromMessage(question)) || buildLocalStockAiObrasAnswer_(question);
     }
 

@@ -533,6 +533,11 @@
     return hasAny(text, intentTerms) && rankCompositions(text).length > 0;
   }
 
+  function isStockAiRequest(message) {
+    const geometry = parseGeometryRequest(message);
+    return !!(geometry && geometry.detected) || isCompositionRequest(message);
+  }
+
   function normalizeRequestedUnit(unit) {
     return displayUnit(unit);
   }
@@ -724,6 +729,12 @@
     );
   }
 
+  function hasExplicitCoverageType(text) {
+    return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+      hasTerm(text, "fibrocimento") || hasTerm(text, "metalica") || hasTerm(text, "metálica") ||
+      hasTerm(text, "sanduiche") || hasTerm(text, "sanduíche") || hasTerm(text, "laje impermeabilizada");
+  }
+
   function hasCompatibleComposition(serviceName, unit) {
     const compositionData = findComposition({ service: serviceName, unit: unit, requestedUnit: unit });
     return !!(compositionData && normalizeUnit(compositionData.productionUnit) === normalizeUnit(unit));
@@ -792,6 +803,7 @@
     const roofArea = floorArea;
     const label = isShed ? "Galpao" : "Casa";
     const warning = "Estimativa simplificada para planejamento inicial. Nao desconta vaos, inclinacao de telhado, beirais, paredes internas, perdas especificas nem detalhes estruturais.";
+    const coverageHasType = hasExplicitCoverageType(text);
 
     return {
       detected: true,
@@ -828,9 +840,10 @@
         },
         {
           serviceType: "cobertura",
-          service: getGeometryServiceName("cobertura", "area"),
+          service: coverageHasType ? getGeometryServiceName("cobertura", "area") : "",
           quantity: roofArea,
           unit: "m2",
+          label: "cobertura",
           explanation: "Cobertura inicial estimada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(roofArea) + ", sem inclinacao"
         }
       ],
@@ -1497,12 +1510,13 @@
     const stockItems = [];
     const stockLines = [];
     let inStockSection = false;
+    const stockTriggerPattern = /(tenho em estoque|dispon[ií]vel no estoque|estoque atual|saldo|tenho dispon[ií]vel|temos no estoque|material dispon[ií]vel|no estoque existe|estoque)\s*:?\s*/i;
     clean(message).split(/\n+/).forEach(function (line) {
       const normalizedLine = normalize(line);
-      const startsStock = /^(tenho|tenho em estoque|disponivel|disponível|ja possuo|já possuo|no estoque existe|estoque)/.test(normalizedLine);
-      if (startsStock) {
+      const triggerMatch = line.match(stockTriggerPattern);
+      if (triggerMatch) {
         inStockSection = true;
-        stockLines.push(line.replace(/^(tenho em estoque|tenho|dispon[ií]vel|j[aá] possuo|no estoque existe|estoque)\s*:?\s*/i, ""));
+        stockLines.push(line.slice(triggerMatch.index + triggerMatch[0].length));
         return;
       }
       if (inStockSection && /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i.test(line)) {
@@ -1514,7 +1528,7 @@
       }
     });
     const text = stockLines.join("\n");
-    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\s*(?:de\s+)?([^,\n;]+)/gi;
+    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     let match;
     while ((match = pattern.exec(text))) {
       const quantity = parseNumber(match[1]);
@@ -1679,6 +1693,10 @@
     lines.push("");
     lines.push("QUANTITATIVOS SEM COMPOSICAO CADASTRADA");
     missing.forEach(function (service) {
+      if (service.serviceType === "cobertura") {
+        lines.push("- Cobertura estimada: " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + ". Para calcular materiais da cobertura, informe o tipo: telha ceramica, fibrocimento, metalica etc.");
+        return;
+      }
       lines.push("- " + (service.label || service.serviceType || "Servico") + ": " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + ". Ainda nao existe composicao tecnica cadastrada para este servico.");
     });
   }
@@ -1911,6 +1929,7 @@
     getCompositions: getCompositions,
     findComposition: findComposition,
     isCompositionRequest: isCompositionRequest,
+    isStockAiRequest: isStockAiRequest,
     parseGeometryRequest: parseGeometryRequest,
     parseRequest: parseRequest,
     normalize: normalize,
