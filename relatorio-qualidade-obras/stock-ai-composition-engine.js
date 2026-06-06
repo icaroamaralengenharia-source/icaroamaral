@@ -446,6 +446,22 @@
     return text.split(" ").slice(0, 3).join("_") || "geral";
   }
 
+  function isFloorOfShedRequest(text) {
+    return (hasTerm(text, "piso") || hasTerm(text, "contrapiso") || hasTerm(text, "piso de concreto")) &&
+      (hasTerm(text, "galpao") || hasTerm(text, "galpão"));
+  }
+
+  function hasWholeNormalizedTerm(text, term) {
+    const normalizedTerm = normalize(term);
+    return !!normalizedTerm && new RegExp("(^|\\s)" + normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(\\s|$)").test(text);
+  }
+
+  function isGateContextWithoutDoor(text) {
+    return (hasWholeNormalizedTerm(text, "portao") || hasWholeNormalizedTerm(text, "portão")) &&
+      !hasWholeNormalizedTerm(text, "porta") &&
+      !hasWholeNormalizedTerm(text, "portas");
+  }
+
   function getControlledServiceById(id) {
     const normalizedId = normalize(id).replace(/\s+/g, "_");
     return CONTROLLED_SERVICES.find(function (service) {
@@ -3037,6 +3053,14 @@
     const hasSpecificRoofType = hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
       hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
       hasTerm(text, "fibrocimento") || hasTerm(text, "madeiramento") || hasTerm(text, "estrutura de madeira");
+    if (id === "std_forma_madeira" && hasWholeNormalizedTerm(text, "reforma") &&
+      !hasWholeNormalizedTerm(text, "forma") &&
+      !hasWholeNormalizedTerm(text, "formas") &&
+      !hasTerm(text, "caixaria") &&
+      !hasTerm(text, "compensado") &&
+      !hasTerm(text, "tabua")) {
+      return true;
+    }
     if ((id === "std_alvenaria" || id === "std_concreto_simples") && hasTerm(text, "bloco de concreto")) {
       return true;
     }
@@ -3361,6 +3385,9 @@
 
   function findGeometryService(text, services) {
     return services.find(function (service) {
+      if (service.serviceType === "porta" && isGateContextWithoutDoor(text)) {
+        return false;
+      }
       return hasAny(text, service.terms);
     }) || null;
   }
@@ -3441,7 +3468,9 @@
     const number = "(-?\\d+(?:[.,]\\d+)?)";
     const wallTerm = "(?:muro|parede|alvenaria)";
     const source = clean(originalMessage);
-    const match = source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+comprimento|comprimento)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+altura|altura)?", "i"));
+    const match = source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+comprimento|comprimento)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+altura|altura)?", "i")) ||
+      source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?(?:\\s*de\\s*comprimento)?[\\s\\S]{0,80}?(?:altura|alto)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i")) ||
+      source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?(?:\\s*de\\s*comprimento)?[\\s\\S]{0,80}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s*)?(?:altura|alto)", "i"));
     if (!match) {
       return null;
     }
@@ -3659,6 +3688,9 @@
     const isHouse = hasTerm(text, "casa");
     const isShed = hasTerm(text, "galpao") || hasTerm(text, "galpão");
     const isRoom = hasAny(text, ["ambiente", "comodo", "sala"]);
+    if (isShed && isFloorOfShedRequest(text)) {
+      return null;
+    }
     if (!isHouse && !isShed && !isRoom) {
       return null;
     }
@@ -3740,6 +3772,40 @@
     const composite = parseCompositeGeometryRequest(originalMessage);
     if (composite) {
       return composite;
+    }
+
+    if (isFloorOfShedRequest(text)) {
+      const planMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      if (planMatch) {
+        const length = parseDimensionNumber(planMatch[1]);
+        const width = parseDimensionNumber(planMatch[2]);
+        const area = roundQuantity(length * width);
+        return buildGeometryResult(
+          "piso",
+          "area",
+          area,
+          "m2",
+          "Area calculada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(area),
+          { length: length, width: width, area: area },
+          "Piso"
+        );
+      }
+    }
+
+    if (hasTerm(text, "muro")) {
+      const wall = extractWallAreaDimensions(originalMessage);
+      if (wall) {
+        const gateMatch = originalMessage.match(/port[aã]o\s*(?:de\s*)?(\d+(?:[.,]\d+)?)\s*(?:m|metros?)?/i);
+        return buildGeometryResult(
+          "muro",
+          "area",
+          wall.area,
+          "m2",
+          "Area calculada: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + " = " + formatSquareMeters(wall.area),
+          { length: wall.length, height: wall.height, gateWidth: gateMatch ? parseDimensionNumber(gateMatch[1]) : 0 },
+          "Muro"
+        );
+      }
     }
 
     const linearService = findGeometryService(text, LINEAR_GEOMETRY_SERVICES);
@@ -4328,6 +4394,7 @@
     }).slice(0, 6).map(function (entry) {
       return {
         service: entry.item.service,
+        serviceType: entry.item.serviceType || normalizeServiceType(entry.item.service),
         quantity: quantity,
         unit: unit || displayUnit(entry.item.productionUnit),
         requestedUnit: unit,
@@ -4397,6 +4464,7 @@
       }).slice(0, 4).forEach(function (entry) {
         lineServices.push({
           service: entry.item.service,
+          serviceType: entry.item.serviceType || normalizeServiceType(entry.item.service),
           quantity: lineQuantity,
           unit: lineUnit || displayUnit(entry.item.productionUnit),
           requestedUnit: lineUnit,
@@ -4406,6 +4474,26 @@
         });
       });
     });
+
+    if (hasWholeNormalizedTerm(text, "reforma")) {
+      const segmentPattern = /\b(reboco|emboco|emboço|piso)\b\s*(\d+(?:[.,]\d+)?)\s*(m²|m2|metro quadrado|metros quadrados)/gi;
+      let segmentMatch;
+      while ((segmentMatch = segmentPattern.exec(originalMessage))) {
+        const segmentType = normalize(segmentMatch[1]);
+        const segmentQuantity = parseNumber(segmentMatch[2]);
+        const segmentUnit = normalizeRequestedUnit(segmentMatch[3]);
+        lineServices.push({
+          service: segmentType === "piso" ? "Piso ceramico" : "Reboco",
+          serviceType: segmentType === "piso" ? "piso_ceramico" : "reboco_emboco",
+          quantity: segmentQuantity,
+          unit: segmentUnit || "m²",
+          requestedUnit: segmentUnit,
+          materialHint: segmentType,
+          controlledServiceId: segmentType === "piso" ? "piso_ceramico" : "reboco_emboco",
+          score: 500
+        });
+      }
+    }
 
     const servicesByName = {};
     services.concat(lineServices).forEach(function (item) {
@@ -6614,6 +6702,9 @@
     lines.push("📐 QUANTITATIVO GEOMÉTRICO");
     lines.push("- " + geometry.label + " identificado.");
     lines.push("- " + geometry.explanation + ".");
+    if (geometry.serviceType === "muro" && geometry.dimensions && geometry.dimensions.gateWidth) {
+      lines.push("- Portao informado: tratar como vao/acessorio de " + formatMeters(geometry.dimensions.gateWidth) + " para conferencia de desconto.");
+    }
   }
 
   function formatCompositionSource(compositionData) {
@@ -7021,6 +7112,9 @@
       lines.push("📐 QUANTITATIVO GEOMÉTRICO");
       lines.push("- " + request.geometry.label + " identificado.");
       lines.push("- " + request.geometry.explanation + ".");
+      if (request.geometry.serviceType === "muro" && request.geometry.dimensions && request.geometry.dimensions.gateWidth) {
+        lines.push("- Portao informado: tratar como vao/acessorio de " + formatMeters(request.geometry.dimensions.gateWidth) + " para conferencia de desconto.");
+      }
       lines.push("");
     }
     lines.push("🧱 COMPOSIÇÃO IDENTIFICADA");
