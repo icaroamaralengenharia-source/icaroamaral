@@ -3443,6 +3443,13 @@
       .trim();
   }
 
+  function normalizeInformalGeometryText(value) {
+    return clean(value)
+      .replace(/\blajinha\b/gi, "laje")
+      .replace(/\bdez\s+centimetros?\b/gi, "10 centimetros")
+      .replace(/\bdez\s+centimetro\b/gi, "10 centimetro");
+  }
+
   function stripStockContext(message) {
     const source = clean(message);
     const serviceIntent = source.match(/\b(?:vou\s+fazer|vou\s+executar|vou\s+concretar|quero\s+fazer|quero\s+executar|preciso\s+(?:fazer|executar)|fazer|executar|construir|concretar|levantar|assentar)\b[\s\S]*$/i);
@@ -4041,7 +4048,7 @@
   }
 
   function parseGeometryRequest(message) {
-    const originalMessage = stripStockContext(message);
+    const originalMessage = normalizeInformalGeometryText(stripStockContext(message));
     const text = normalize(originalMessage);
     const number = "(-?\\d+(?:[.,]\\d+)?)";
 
