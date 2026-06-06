@@ -3590,6 +3590,40 @@
     return lines.join("\n");
   }
 
+  function buildWallSpacingPillarsAnswer(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    if (!hasTerm(text, "pilar") || !hasTerm(text, "muro") || text.indexOf("a cada") < 0) {
+      return "";
+    }
+    const numbers = text.match(/\d+(?:[.,]\d+)?/g) || [];
+    if (numbers.length < 2) {
+      return "";
+    }
+    const spacing = parseDimensionNumber(numbers[0]);
+    const wallLength = parseDimensionNumber(numbers[1]);
+    if (spacing <= 0 || wallLength <= 0) {
+      return "";
+    }
+    const count = Math.ceil(wallLength / spacing);
+    return [
+      "PLANEJAMENTO DE PILARES NO MURO",
+      "",
+      "SERVICOS IDENTIFICADOS",
+      "- Muro",
+      "- Pilares",
+      "",
+      "QUANTITATIVO GEOMETRICO",
+      "- Comprimento do muro: " + formatMeters(wallLength),
+      "- Espacamento entre pilares: " + formatMeters(spacing),
+      "- Quantidade estimada: " + formatMeters(wallLength) + " / " + formatMeters(spacing) + " = " + formatQuantity(count) + " pilares",
+      "",
+      "PERGUNTAS COMPLEMENTARES",
+      "- Confirmar se havera pilar no inicio e no fim do muro.",
+      "- Confirmar arredondamento e posicao dos pilares no projeto."
+    ].join("\n");
+  }
+
   function hasExplicitCoverageType(text) {
     return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
       hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
@@ -7336,6 +7370,10 @@
     const muroCompletoPlanning = buildMuroCompletoPlanningAnswer(message);
     if (muroCompletoPlanning) {
       return muroCompletoPlanning;
+    }
+    const wallSpacingPillars = buildWallSpacingPillarsAnswer(message);
+    if (wallSpacingPillars) {
+      return wallSpacingPillars;
     }
     const request = parseRequest(message);
     const reportedStock = parseStockItemsFromMessage(message);
