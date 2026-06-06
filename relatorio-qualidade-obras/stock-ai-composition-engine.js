@@ -3692,12 +3692,108 @@
     });
   }
 
+  function parseWallFoundationCompositeRequest(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    if (!hasTerm(text, "muro") || !hasAny(text, ["sapata", "sapatas", "baldrame"])) {
+      return null;
+    }
+    const wall = extractWallAreaDimensions(originalMessage);
+    if (!wall) {
+      return null;
+    }
+
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const derivedServices = [{
+      serviceType: "muro",
+      service: getGeometryServiceName("muro", "area"),
+      quantity: wall.area,
+      unit: "m2",
+      label: "muro",
+      explanation: "Area do muro: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + " = " + formatSquareMeters(wall.area)
+    }];
+
+    const sapataMatch = originalMessage.match(new RegExp("sapatas?\\s+" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+    if (sapataMatch) {
+      const fallbackUnit = sapataMatch[4];
+      const length = parseStructuralDimension(sapataMatch[1], fallbackUnit);
+      const width = parseStructuralDimension(sapataMatch[2], fallbackUnit);
+      const height = parseStructuralDimension(sapataMatch[3], fallbackUnit);
+      const volume = roundQuantity(length * width * height);
+      derivedServices.push({
+        serviceType: "sapata",
+        service: getGeometryServiceName("sapata", "volume"),
+        quantity: volume,
+        unit: "m3",
+        label: "sapata",
+        explanation: "Sapata informada: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume) + " por unidade"
+      });
+    } else if (hasAny(text, ["sapata", "sapatas"])) {
+      derivedServices.push({
+        serviceType: "sapata",
+        service: "",
+        quantity: 0,
+        unit: "m3",
+        label: "sapata",
+        explanation: "Sapata informada sem dimensoes completas"
+      });
+    }
+
+    const baldrameMatch = originalMessage.match(new RegExp("baldrame\\s+" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+    if (baldrameMatch) {
+      const fallbackUnit = baldrameMatch[3];
+      const width = parseStructuralDimension(baldrameMatch[1], fallbackUnit);
+      const height = parseStructuralDimension(baldrameMatch[2], fallbackUnit);
+      const volume = roundQuantity(wall.length * width * height);
+      derivedServices.push({
+        serviceType: "baldrame",
+        service: getGeometryServiceName("baldrame", "volume"),
+        quantity: volume,
+        unit: "m3",
+        label: "baldrame",
+        explanation: "Baldrame informado: " + formatMeters(wall.length) + " x " + formatStructuralSection(width, height) + " = " + formatCubicMeters(volume)
+      });
+    } else if (hasTerm(text, "baldrame")) {
+      derivedServices.push({
+        serviceType: "baldrame",
+        service: "",
+        quantity: 0,
+        unit: "m3",
+        label: "baldrame",
+        explanation: "Baldrame informado sem secao"
+      });
+    }
+
+    return {
+      detected: true,
+      complete: true,
+      serviceType: "muro_composto",
+      service: "",
+      geometryType: "composite",
+      quantity: null,
+      unit: "composite",
+      explanation: "Muro composto identificado: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + ", com fundacao explicita",
+      dimensions: {
+        length: wall.length,
+        height: wall.height,
+        wallArea: wall.area
+      },
+      derivedServices: derivedServices,
+      label: "Muro composto",
+      warning: "Quantitativo geometrico inicial. Confirmar quantidade de sapatas, detalhamento estrutural e composicoes oficiais antes da compra."
+    };
+  }
+
   function parseCompositeGeometryRequest(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
     const isHouse = hasTerm(text, "casa");
     const isShed = hasTerm(text, "galpao") || hasTerm(text, "galpão");
     const isRoom = hasAny(text, ["ambiente", "comodo", "sala"]);
+    const wallFoundation = parseWallFoundationCompositeRequest(originalMessage);
+    if (wallFoundation) {
+      return wallFoundation;
+    }
     if (isShed && isFloorOfShedRequest(text)) {
       return null;
     }
