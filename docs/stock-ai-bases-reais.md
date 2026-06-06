@@ -163,6 +163,50 @@ Fixtures de teste devem ser marcadas com `isMock: true` e `mockOnly: true`. Quan
 Fonte: MOCK DE TESTE - nao usar como base real
 ```
 
+## Teste com base real pequena
+
+Use uma base pequena com 1 a 5 composicoes reais para validar o fluxo antes de qualquer carga maior.
+
+Arquivos de apoio:
+
+- `relatorio-qualidade-obras/bases-reais/LEIA-ME.md`
+- `relatorio-qualidade-obras/bases-reais/sinapi-orse-real-sample.template.json`
+
+Passo a passo:
+
+1. Baixe ou obtenha uma composicao oficial pequena SINAPI/ORSE.
+2. Copie apenas 1 composicao real para um JSON novo dentro de `relatorio-qualidade-obras/bases-reais/`.
+3. Garanta que o JSON tenha `source`, `sourceRegion`, `sourceDate`, `code`, `description`, `unit`, `serviceType`, `inputs` e coeficientes oficiais.
+4. Marque `metadata.manualReviewRequired` como `true`.
+5. Abra `stock-ai-obras.html`.
+6. Importe o JSON na secao **Importar base de composicoes**.
+7. Pergunte: `Tenho uma parede de 12 m por 3 m`.
+8. Confira se a resposta mostra `Fonte: SINAPI - codigo ...` ou `Fonte: ORSE - codigo ...`.
+9. Clique em **Limpar base importada** para voltar ao fallback demonstrativo.
+
+Cuidados:
+
+- Nao digite coeficientes "de cabeca".
+- Nao use placeholder como `CODIGO_OFICIAL`, `DESCRICAO_OFICIAL` ou `YYYY-MM`.
+- Nao trate o template como base real pronta.
+- Se o arquivo tiver `coefficient` zero, ele deve ser rejeitado.
+
+Como conferir no motor:
+
+```js
+const readiness = StockAiCompositionEngine.validateSmallRealCompositionFile(jsonData);
+
+if (readiness.ok) {
+  StockAiCompositionEngine.setExternalCompositionCatalog(readiness.ready);
+}
+```
+
+Diferenças:
+
+- **Mock**: fixture de teste automatizado, marcada com `isMock`/`mockOnly`; nunca e base executiva.
+- **Template**: modelo com placeholders e `coefficient` zero; serve para orientar preenchimento e deve ser rejeitado como base pronta.
+- **Base real**: composicao retirada de fonte oficial SINAPI/ORSE, com codigos, referencia, insumos e coeficientes oficiais revisados.
+
 ## Aviso tecnico
 
 Nao invente coeficientes SINAPI/ORSE. Se nao houver arquivo oficial importado, validado e compativel, o Stock AI Obras deve continuar usando a base demonstrativa/editavel e informar essa origem.

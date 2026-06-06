@@ -1,0 +1,28 @@
+{
+  "notice": "Template controlado. Nao representa base real pronta. Substitua placeholders por dados oficiais SINAPI/ORSE antes de importar.",
+  "compositions": [
+    {
+      "source": "SINAPI",
+      "sourceRegion": "BA",
+      "sourceDate": "YYYY-MM",
+      "code": "CODIGO_OFICIAL",
+      "description": "DESCRICAO_OFICIAL",
+      "unit": "m2",
+      "serviceType": "alvenaria",
+      "inputs": [
+        {
+          "code": "CODIGO_INSUMO_OFICIAL",
+          "name": "NOME_OFICIAL_DO_INSUMO",
+          "type": "material",
+          "unit": "un",
+          "coefficient": 0.0000
+        }
+      ],
+      "metadata": {
+        "isRealComposition": true,
+        "importedFrom": "SINAPI/ORSE oficial",
+        "manualReviewRequired": true
+      }
+    }
+  ]
+}

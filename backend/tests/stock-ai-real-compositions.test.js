@@ -7,6 +7,7 @@ import vm from "node:vm";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const sampleFixture = JSON.parse(readFileSync(join(testDir, "fixtures", "stock-ai-real-compositions-sample.json"), "utf8"));
+const realTemplate = JSON.parse(readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "sinapi-orse-real-sample.template.json"), "utf8"));
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -233,4 +234,30 @@ test("Stock AI Obras identifica mock como mock e nao como base real", () => {
   assert.equal(engine.isMockComposition(composition), true);
   assert.equal(engine.isRealComposition(composition), false);
   assert.match(answer, /Fonte: MOCK DE TESTE - nao usar como base real/);
+});
+
+test("Stock AI Obras rejeita template de base real pequena como base pronta", () => {
+  const engine = loadStockAiCompositionEngine();
+
+  const importResult = engine.loadRealCompositionsFromJson(realTemplate);
+  const readiness = engine.validateSmallRealCompositionFile(realTemplate);
+
+  assert.equal(importResult.imported.length, 0);
+  assert.equal(readiness.ok, false);
+  assert.equal(readiness.ready.length, 0);
+  assert.match(readiness.rejected[0].reasons.join(" "), /placeholder/i);
+  assert.match(readiness.rejected[0].reasons.join(" "), /coefficient oficial maior que zero|coefficient numerico maior que zero/i);
+});
+
+test("Stock AI Obras exige revisao manual para base real pequena SINAPI ORSE", () => {
+  const engine = loadStockAiCompositionEngine();
+  const rows = sinapiAlvenariaFixture();
+  rows[0].metadata = {
+    importedFrom: "teste controlado"
+  };
+
+  const readiness = engine.validateSmallRealCompositionFile(rows);
+
+  assert.equal(readiness.ok, false);
+  assert.match(readiness.rejected[0].reasons.join(" "), /manualReviewRequired/);
 });

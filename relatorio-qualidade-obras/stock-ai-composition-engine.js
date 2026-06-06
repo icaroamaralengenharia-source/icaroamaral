@@ -220,6 +220,72 @@
     return validateCompositionDetailed(compositionData).valid;
   }
 
+  function hasTemplatePlaceholder(value) {
+    const text = normalize(value);
+    return !text ||
+      text.indexOf("codigo oficial") >= 0 ||
+      text.indexOf("codigo insumo oficial") >= 0 ||
+      text.indexOf("descricao oficial") >= 0 ||
+      text.indexOf("nome oficial do insumo") >= 0 ||
+      text.indexOf("yyyy mm") >= 0 ||
+      text.indexOf("placeholder") >= 0;
+  }
+
+  function validateSmallRealCompositionFile(jsonData) {
+    const rows = Array.isArray(jsonData) ? jsonData : (jsonData && (jsonData.compositions || jsonData.rows || jsonData.items)) || [];
+    const rejected = [];
+    const ready = [];
+    rows.forEach(function (row, index) {
+      const normalized = normalizeComposition(row);
+      const metadata = normalized.metadata || {};
+      const source = getCompositionSource(normalized);
+      const reasons = validateCompositionDetailed(normalized).reasons.slice();
+      if (source !== "SINAPI" && source !== "ORSE") {
+        reasons.push("Fonte deve ser SINAPI ou ORSE para teste real pequeno.");
+      }
+      if (hasTemplatePlaceholder(normalized.code)) {
+        reasons.push("Codigo oficial ainda e placeholder.");
+      }
+      if (hasTemplatePlaceholder(normalized.description)) {
+        reasons.push("Descricao oficial ainda e placeholder.");
+      }
+      if (hasTemplatePlaceholder(normalized.sourceDate)) {
+        reasons.push("Referencia oficial ainda e placeholder.");
+      }
+      if ((source === "SINAPI" || source === "ORSE") && metadata.manualReviewRequired !== true) {
+        reasons.push("metadata.manualReviewRequired deve ser true para base SINAPI/ORSE real.");
+      }
+      (normalized.inputs || []).forEach(function (input, inputIndex) {
+        if (hasTemplatePlaceholder(input.code)) {
+          reasons.push("Input " + (inputIndex + 1) + " ainda tem codigo placeholder.");
+        }
+        if (hasTemplatePlaceholder(input.name)) {
+          reasons.push("Input " + (inputIndex + 1) + " ainda tem nome placeholder.");
+        }
+        if (parseNumber(input.coefficient) <= 0) {
+          reasons.push("Input " + (inputIndex + 1) + " deve ter coefficient oficial maior que zero.");
+        }
+      });
+      if (reasons.length) {
+        rejected.push({
+          index: index,
+          code: normalized.code,
+          source: source,
+          reasons: reasons,
+          row: row
+        });
+        return;
+      }
+      ready.push(normalized);
+    });
+    return {
+      ok: ready.length === rows.length && rejected.length === 0,
+      ready: ready,
+      rejected: rejected,
+      summary: buildImportSummary(rows.length, ready, rejected)
+    };
+  }
+
   function normalizeComposition(rawComposition) {
     const raw = rawComposition || {};
     const metadata = raw.metadata || {};
@@ -2292,6 +2358,7 @@
     parseOrseCompositionRows: parseOrseCompositionRows,
     loadRealCompositionsFromJson: loadRealCompositionsFromJson,
     loadRealCompositionsFromRows: loadRealCompositionsFromRows,
+    validateSmallRealCompositionFile: validateSmallRealCompositionFile,
     setExternalCompositionCatalog: setExternalCompositionCatalog,
     getExternalCompositionCatalog: getExternalCompositionCatalog,
     clearExternalCompositionCatalog: clearExternalCompositionCatalog,
