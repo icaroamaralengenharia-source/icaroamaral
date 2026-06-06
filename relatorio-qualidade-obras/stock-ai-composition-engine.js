@@ -12,6 +12,7 @@
   let importedOfficialBaseCatalog = [];
   let withdrawalApprovalQueue = [];
   let withdrawalDeviationHistory = [];
+  let withdrawalManagerAlerts = [];
 
   const CONTROLLED_SERVICES = [
     {
@@ -5301,6 +5302,7 @@
     const rejected = rejectWithdrawalRequest(withdrawalApprovalQueue[index], rejectorName, reason);
     withdrawalApprovalQueue[index] = rejected;
     updateWithdrawalDeviationRecordFromRequest(rejected);
+    createWithdrawalManagerAlert(rejected, {});
     return cloneWithdrawalApprovalRequest(rejected);
   }
 
@@ -5555,6 +5557,137 @@
     withdrawalDeviationHistory = [];
   }
 
+  function cloneWithdrawalManagerAlert(alert) {
+    return JSON.parse(JSON.stringify(alert || {}));
+  }
+
+  function getWithdrawalRequestMaxDivergencePercent(request) {
+    const divergences = request && request.divergences || [];
+    if (divergences.length) {
+      return divergences.reduce(function (max, item) {
+        return Math.max(max, parseNumber(item.percentualDivergencia));
+      }, 0);
+    }
+    return parseNumber(request && request.approvalAnalysis && request.approvalAnalysis.percentualDivergencia);
+  }
+
+  function resolveWithdrawalManagerAlertType(request) {
+    const approvalStatus = clean(request && request.status);
+    const approvalAnalysis = request && request.approvalAnalysis || {};
+    const maxDivergence = getWithdrawalRequestMaxDivergencePercent(request);
+    if (approvalStatus === "REJECTED") {
+      return "WITHDRAWAL_REJECTED";
+    }
+    if (approvalAnalysis.status === "CRITICO") {
+      return "CRITICAL_WITHDRAWAL";
+    }
+    if (approvalAnalysis.approvalRequired) {
+      return "APPROVAL_PENDING";
+    }
+    if (maxDivergence > 50) {
+      return "HIGH_DEVIATION";
+    }
+    return "";
+  }
+
+  function resolveWithdrawalManagerAlertSeverity(type, request) {
+    if (type === "WITHDRAWAL_REJECTED" || type === "CRITICAL_WITHDRAWAL") {
+      return "critica";
+    }
+    if (type === "APPROVAL_PENDING" || getWithdrawalRequestMaxDivergencePercent(request) > 50) {
+      return "alta";
+    }
+    return "media";
+  }
+
+  function buildWithdrawalManagerAlertTitle(type, request) {
+    const serviceName = clean(request && request.serviceName) || "servico";
+    if (type === "WITHDRAWAL_REJECTED") {
+      return "Retirada rejeitada";
+    }
+    if (type === "CRITICAL_WITHDRAWAL") {
+      return "Pedido critico de retirada";
+    }
+    if (type === "APPROVAL_PENDING") {
+      return "Aprovacao de retirada pendente";
+    }
+    return "Desvio acima do previsto";
+  }
+
+  function buildWithdrawalManagerAlertMessage(type, request) {
+    const serviceName = clean(request && request.serviceName) || "servico nao identificado";
+    const requestedBy = clean(request && request.requestedBy) || "solicitante nao informado";
+    const divergence = formatQuantity(getWithdrawalRequestMaxDivergencePercent(request));
+    if (type === "WITHDRAWAL_REJECTED") {
+      return "Pedido de retirada rejeitado para " + serviceName + ". Solicitante: " + requestedBy + ".";
+    }
+    if (type === "CRITICAL_WITHDRAWAL") {
+      return "Pedido critico de retirada para " + serviceName + " com divergencia de " + divergence + "%. Solicitante: " + requestedBy + ".";
+    }
+    if (type === "APPROVAL_PENDING") {
+      return "Pedido de retirada pendente de aprovacao para " + serviceName + ". Solicitante: " + requestedBy + ".";
+    }
+    return "Pedido de retirada para " + serviceName + " com desvio acima do previsto: " + divergence + "%.";
+  }
+
+  function createWithdrawalManagerAlert(request, metadata) {
+    const type = resolveWithdrawalManagerAlertType(request);
+    if (!type) {
+      return null;
+    }
+    const data = metadata || {};
+    const createdAt = new Date().toISOString();
+    const idSeed = [
+      clean(request && request.id) || "request",
+      type,
+      createdAt
+    ].join("_");
+    const alert = {
+      id: "withdrawal_manager_alert_" + normalize(idSeed).replace(/\s+/g, "_"),
+      createdAt: createdAt,
+      type: type,
+      severity: resolveWithdrawalManagerAlertSeverity(type, request),
+      title: buildWithdrawalManagerAlertTitle(type, request),
+      message: buildWithdrawalManagerAlertMessage(type, request),
+      requestId: clean(request && request.id),
+      serviceName: clean(request && request.serviceName),
+      requestedBy: clean(data.requestedBy) || clean(request && request.requestedBy),
+      team: clean(data.team),
+      worksite: clean(data.worksite),
+      status: clean(request && request.status),
+      canReleaseMaterial: !!(request && request.canReleaseMaterial),
+      read: false
+    };
+    withdrawalManagerAlerts.push(alert);
+    return cloneWithdrawalManagerAlert(alert);
+  }
+
+  function getWithdrawalManagerAlerts() {
+    return withdrawalManagerAlerts.map(cloneWithdrawalManagerAlert);
+  }
+
+  function getUnreadWithdrawalManagerAlerts() {
+    return withdrawalManagerAlerts.filter(function (alert) {
+      return !alert.read;
+    }).map(cloneWithdrawalManagerAlert);
+  }
+
+  function markWithdrawalManagerAlertAsRead(alertId) {
+    const id = clean(alertId);
+    const index = withdrawalManagerAlerts.findIndex(function (alert) {
+      return alert.id === id;
+    });
+    if (index < 0) {
+      return null;
+    }
+    withdrawalManagerAlerts[index] = Object.assign({}, withdrawalManagerAlerts[index], { read: true });
+    return cloneWithdrawalManagerAlert(withdrawalManagerAlerts[index]);
+  }
+
+  function clearWithdrawalManagerAlertsForTests() {
+    withdrawalManagerAlerts = [];
+  }
+
   function buildWithdrawalPurchasePlan(comparison) {
     return (comparison || []).map(function (item) {
       if (item.status === "abaixo do previsto") {
@@ -5660,6 +5793,11 @@
       workPackage: settings.workPackage,
       registeredBy: settings.registeredBy
     });
+    const managerAlert = createWithdrawalManagerAlert(approvalRequest, {
+      requestedBy: settings.requestedBy || approvalRequest.requestedBy,
+      team: settings.team,
+      worksite: settings.worksite
+    });
     const releaseDecision = resolveWithdrawalReleaseDecision(approvalRequest);
     const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
     lines.push("SERVICO INFORMADO");
@@ -5738,6 +5876,7 @@
       approvalAnalysis: approvalAnalysis,
       approvalRequest: approvalRequest,
       deviationRecord: deviationRecord,
+      managerAlert: managerAlert,
       releaseDecision: releaseDecision,
       answer: lines.join("\n")
     };
@@ -6418,6 +6557,11 @@
     getWithdrawalDeviationRankingByStatus: getWithdrawalDeviationRankingByStatus,
     clearWithdrawalDeviationHistoryForTests: clearWithdrawalDeviationHistoryForTests,
     updateWithdrawalDeviationRecordFromRequest: updateWithdrawalDeviationRecordFromRequest,
+    createWithdrawalManagerAlert: createWithdrawalManagerAlert,
+    getWithdrawalManagerAlerts: getWithdrawalManagerAlerts,
+    getUnreadWithdrawalManagerAlerts: getUnreadWithdrawalManagerAlerts,
+    markWithdrawalManagerAlertAsRead: markWithdrawalManagerAlertAsRead,
+    clearWithdrawalManagerAlertsForTests: clearWithdrawalManagerAlertsForTests,
     buildWithdrawalConference: buildWithdrawalConference,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,

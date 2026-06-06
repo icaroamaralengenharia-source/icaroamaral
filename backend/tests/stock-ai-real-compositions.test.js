@@ -2150,6 +2150,88 @@ test("Stock AI Obras historico de desvios gera ranking por status", () => {
   assert.equal(ranking.find((item) => item.status === "APPROVAL_NOT_REQUIRED").total, 1);
 });
 
+test("Stock AI Obras alertas para gestor gera alerta em pedido critico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao",
+    team: "Equipe A",
+    worksite: "Obra A"
+  });
+  const alerts = engine.getWithdrawalManagerAlerts();
+
+  assert.ok(conference.managerAlert);
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].type, "CRITICAL_WITHDRAWAL");
+  assert.equal(alerts[0].severity, "critica");
+  assert.equal(alerts[0].requestId, conference.approvalRequest.id);
+  assert.equal(alerts[0].requestedBy, "Joao");
+  assert.equal(alerts[0].read, false);
+});
+
+test("Stock AI Obras alertas para gestor nao gera alerta critico em pedido dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+
+  assert.equal(conference.managerAlert, null);
+  assert.equal(engine.getWithdrawalManagerAlerts().length, 0);
+});
+
+test("Stock AI Obras alertas para gestor gera alerta quando pedido e rejeitado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Pedro"
+  });
+  engine.rejectWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Gestor", "Nao autorizado");
+  const alerts = engine.getWithdrawalManagerAlerts();
+  const rejectedAlert = alerts.find((alert) => alert.type === "WITHDRAWAL_REJECTED");
+
+  assert.equal(alerts.length, 2);
+  assert.ok(rejectedAlert);
+  assert.equal(rejectedAlert.status, "REJECTED");
+  assert.equal(rejectedAlert.canReleaseMaterial, false);
+  assert.equal(rejectedAlert.requestId, conference.approvalRequest.id);
+});
+
+test("Stock AI Obras alertas para gestor marca alerta como lido", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const alert = engine.getWithdrawalManagerAlerts()[0];
+  const readAlert = engine.markWithdrawalManagerAlertAsRead(alert.id);
+
+  assert.equal(readAlert.read, true);
+  assert.equal(engine.getWithdrawalManagerAlerts()[0].read, true);
+});
+
+test("Stock AI Obras alertas para gestor lista nao lidos", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const alert = engine.getWithdrawalManagerAlerts()[0];
+  engine.markWithdrawalManagerAlertAsRead(alert.id);
+  engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares");
+  const unread = engine.getUnreadWithdrawalManagerAlerts();
+
+  assert.equal(unread.length, 1);
+  assert.equal(unread[0].read, false);
+});
+
+test("Stock AI Obras alertas para gestor limpa alertas para testes", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+
+  assert.equal(engine.getWithdrawalManagerAlerts().length, 1);
+  engine.clearWithdrawalManagerAlertsForTests();
+  assert.equal(engine.getWithdrawalManagerAlerts().length, 0);
+  assert.equal(engine.getUnreadWithdrawalManagerAlerts().length, 0);
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
