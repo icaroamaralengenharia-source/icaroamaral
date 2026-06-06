@@ -5767,7 +5767,7 @@
     const requestSegment = clean((originalMessage.split(/\bpara\s+(?:fazer|executar|assentar|instalar|concretar|aplicar|servico|serviço)\b/i)[0] || originalMessage)
       .replace(/^.*?\b(?:pediu|solicitou|retirar|retirada|liberar|liberacao|liberação)\b\s*/i, ""));
     const normalizedSegment = requestSegment.replace(/\bmetros?\b/gi, "m").replace(/\btabuas\b/gi, "tabuas");
-    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
+    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)(?:\s+(?:de\s+)?(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     const requested = [];
     let match;
     while ((match = pattern.exec(normalizedSegment))) {
