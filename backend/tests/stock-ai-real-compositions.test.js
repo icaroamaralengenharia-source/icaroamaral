@@ -3022,6 +3022,34 @@ test("Stock AI Obras linguagem real casa popular sem dimensoes pede dados organi
   assert.match(answer, /area|área|comodos|cômodos|pavimentos|pe-direito|pé-direito|padrao|padrão/i);
 });
 
+test("casa_70m2_padrao_medio", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Quero construir uma casa de 70 m², padrão médio, com 1 pavimento, pé-direito de 2,8 m, alvenaria de bloco cerâmico, laje de concreto, cobertura de telhado cerâmico, e acabamento padrão médio. Liste os materiais necessários, quantidades aproximadas e indique se algum item pode vir do estoque.";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(request) + "\n" + answer;
+
+  assert.match(combined, /casa|resid[eê]ncia/i);
+  assert.match(combined, /70\s*(m²|m2|m[²2]|metros quadrados)/i);
+  assert.match(combined, /1\s*pavimento/i);
+  assert.match(combined, /2,?8\s*m|2\.8\s*m|pe-direito|pé-direito/i);
+  assert.match(combined, /bloco cer[aâ]mico/i);
+  assert.match(combined, /laje/i);
+  assert.match(combined, /cobertura|telhado cer[aâ]mico|telha cer[aâ]mica/i);
+  assert.match(combined, /acabamento|padr[aã]o m[eé]dio/i);
+  assert.doesNotMatch(answer, /Qual comprimento da parede\?/i);
+  assert.match(answer, /Identifiquei uma resid[eê]ncia de aproximadamente 70\s*m/i);
+  assert.match(combined, /fundacao|fundação/i);
+  assert.match(combined, /baldrame/i);
+  assert.match(combined, /alvenaria/i);
+  assert.match(combined, /pilares/i);
+  assert.match(combined, /laje/i);
+  assert.match(combined, /cobertura/i);
+  assert.match(combined, /revestimentos/i);
+  assert.match(combined, /pisos/i);
+  assert.match(combined, /pintura/i);
+});
+
 test("Stock AI Obras linguagem real mantem laje 8x12 com 12 cm como caso aprovado", () => {
   const engine = loadStockAiCompositionEngine();
   const message = "vou concretar uma laje 8x12 com 12 cm";

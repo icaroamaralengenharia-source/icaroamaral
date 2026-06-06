@@ -3882,6 +3882,118 @@
     const number = "(\\d+(?:[.,]\\d+)?)";
     const planMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
     if (!planMatch) {
+      const houseAreaMatch = isHouse ? originalMessage.match(new RegExp(number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i")) : null;
+      if (houseAreaMatch) {
+        const floorArea = parseDimensionNumber(houseAreaMatch[1]);
+        const heightMatch = originalMessage.match(new RegExp("(?:pe\\s*[- ]?\\s*direito|pé\\s*[- ]?\\s*direito|altura)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i"));
+        const floorsMatch = originalMessage.match(new RegExp(number + "\\s*pavimentos?", "i"));
+        const height = heightMatch ? parseDimensionNumber(heightMatch[1]) : 2.8;
+        const floors = floorsMatch ? parseDimensionNumber(floorsMatch[1]) : 1;
+        const side = Math.sqrt(floorArea);
+        const perimeter = roundQuantity(side * 4);
+        const wallArea = roundQuantity(perimeter * height * floors);
+        const roofArea = floorArea;
+        const derivedServices = [
+          {
+            serviceType: "fundacao",
+            service: "",
+            quantity: floorArea,
+            unit: "m2",
+            label: "fundacao",
+            explanation: "Fundacao prevista para residencia de " + formatSquareMeters(floorArea) + ". Dimensionamento depende de sondagem e projeto estrutural."
+          },
+          {
+            serviceType: "baldrame",
+            service: "",
+            quantity: perimeter,
+            unit: "m",
+            label: "baldrame",
+            explanation: "Baldrame preliminar estimado pelo perimetro equivalente: " + formatMeters(perimeter)
+          },
+          {
+            serviceType: "alvenaria",
+            service: getGeometryServiceName("alvenaria", "area"),
+            quantity: wallArea,
+            unit: "m2",
+            label: "alvenaria",
+            explanation: "Alvenaria externa preliminar: perimetro equivalente " + formatMeters(perimeter) + " x pe-direito " + formatMeters(height) + " x " + formatQuantity(floors) + " pavimento = " + formatSquareMeters(wallArea)
+          },
+          {
+            serviceType: "pilar",
+            service: "",
+            quantity: 0,
+            unit: "m3",
+            label: "pilares",
+            explanation: "Pilares previstos como componente estrutural. Quantitativo depende do projeto estrutural."
+          },
+          {
+            serviceType: "laje",
+            service: hasTerm(text, "laje") ? getGeometryServiceName("laje", "area") : "",
+            quantity: hasTerm(text, "laje") ? floorArea : 0,
+            unit: "m2",
+            label: "laje",
+            explanation: hasTerm(text, "laje") ? "Laje informada sobre a area da casa: " + formatSquareMeters(floorArea) : "Confirmar se havera laje."
+          },
+          {
+            serviceType: hasAny(text, ["telhado", "cobertura"]) ? "cobertura" : "",
+            service: hasAny(text, ["telhado", "cobertura"]) ? getGeometryServiceName("cobertura", "area") : "",
+            quantity: hasAny(text, ["telhado", "cobertura"]) ? roofArea : 0,
+            unit: "m2",
+            label: "cobertura",
+            explanation: hasAny(text, ["telhado", "cobertura"]) ? "Cobertura preliminar pela area base: " + formatSquareMeters(roofArea) + ", sem inclinacao, beiral ou perdas." : "Confirmar tipo de cobertura."
+          },
+          {
+            serviceType: "revestimento",
+            service: "",
+            quantity: wallArea,
+            unit: "m2",
+            label: "revestimentos",
+            explanation: "Revestimentos internos e externos dependem de paredes internas e vaos."
+          },
+          {
+            serviceType: "piso",
+            service: getGeometryServiceName("piso", "area"),
+            quantity: floorArea,
+            unit: "m2",
+            label: "pisos",
+            explanation: "Pisos preliminares pela area construida: " + formatSquareMeters(floorArea)
+          },
+          {
+            serviceType: "pintura",
+            service: "",
+            quantity: wallArea,
+            unit: "m2",
+            label: "pintura",
+            explanation: "Pintura preliminar vinculada as areas de parede. Confirmar paredes internas e padrao de acabamento."
+          }
+        ];
+        return {
+          detected: true,
+          complete: true,
+          serviceType: "edificacao_composta",
+          service: "",
+          geometryType: "composite",
+          quantity: null,
+          unit: "composite",
+          explanation: "Residencia composta identificada por area: " + formatSquareMeters(floorArea) + ", " + formatQuantity(floors) + " pavimento, pe-direito " + formatMeters(height),
+          dimensions: {
+            areaBased: true,
+            floorArea: floorArea,
+            floors: floors,
+            height: height,
+            perimeter: perimeter,
+            wallArea: wallArea,
+            roofArea: roofArea,
+            wallSystem: hasAny(text, ["bloco ceramico", "bloco cerâmico"]) ? "bloco ceramico" : "",
+            slab: hasTerm(text, "laje"),
+            coverageType: hasAny(text, ["telhado ceramico", "telhado cerâmico", "telha ceramica", "telha cerâmica"]) ? "telhado ceramico" : "",
+            finishPattern: hasAny(text, ["padrao medio", "padrão médio"]) ? "padrao medio" : ""
+          },
+          derivedServices: derivedServices,
+          label: "Casa",
+          warning: "Estimativa preliminar por area. Confirmar projeto arquitetonico, estrutural, paredes internas, vaos, inclinacao do telhado e composicoes oficiais antes da compra."
+        };
+      }
       return buildIncompleteGeometryResult(
         "edificacao_composta",
         isHouse
@@ -7260,6 +7372,82 @@
     ].join("\n");
   }
 
+  function isCompleteHouseCompositeRequest(request) {
+    const geometry = request && request.geometry || {};
+    return !!(geometry.detected && geometry.complete &&
+      geometry.serviceType === "edificacao_composta" &&
+      normalize(geometry.label) === "casa" &&
+      geometry.dimensions && geometry.dimensions.areaBased &&
+      parseNumber(geometry.dimensions.floorArea) > 0);
+  }
+
+  function buildHouseCompositePlanningAnswer(request, stockItems) {
+    if (!isCompleteHouseCompositeRequest(request)) {
+      return "";
+    }
+    const geometry = request.geometry;
+    const dimensions = geometry.dimensions || {};
+    const floorArea = parseNumber(dimensions.floorArea);
+    const floors = parseNumber(dimensions.floors) || 1;
+    const height = parseNumber(dimensions.height) || 0;
+    const services = geometry.derivedServices || [];
+    const componentNames = services.map(function (service) {
+      return clean(service.label || service.serviceType);
+    }).filter(Boolean);
+    const stockLines = (stockItems || []).filter(function (item) {
+      return item && item.item && !item.invalid;
+    }).map(function (item) {
+      return "- " + item.item.name + ": " + (item.qualitative ? "informado como contexto" : formatQuantityWithUnit(item.realBalance, item.item.unit));
+    });
+    const missingQuestions = [];
+
+    if (!dimensions.wallSystem) {
+      missingQuestions.push("- Confirmar tipo de bloco/alvenaria.");
+    }
+    if (!dimensions.slab) {
+      missingQuestions.push("- Confirmar se havera laje e qual tipo.");
+    }
+    if (!dimensions.coverageType) {
+      missingQuestions.push("- Confirmar tipo de cobertura e inclinacao do telhado.");
+    } else {
+      missingQuestions.push("- Confirmar inclinacao, beirais e perdas do telhado ceramico.");
+    }
+    missingQuestions.push("- Informar projeto estrutural para pilares, vigas, sapatas e baldrame.");
+    missingQuestions.push("- Informar paredes internas, vaos e padrao detalhado de acabamento para quantitativos finais.");
+
+    return [
+      "RESIDENCIA COMPOSTA IDENTIFICADA",
+      "- Identifiquei uma residencia de aproximadamente " + formatSquareMeters(floorArea) + ".",
+      "- Pavimentos: " + formatQuantity(floors) + " pavimento.",
+      height > 0 ? "- Pe-direito: " + formatMeters(height) + "." : "- Pe-direito: nao informado.",
+      dimensions.wallSystem ? "- Alvenaria: " + dimensions.wallSystem + "." : "- Alvenaria: confirmar tipo de bloco.",
+      dimensions.slab ? "- Laje: concreto informado." : "- Laje: confirmar.",
+      dimensions.coverageType ? "- Cobertura: " + dimensions.coverageType + "." : "- Cobertura: confirmar tipo.",
+      dimensions.finishPattern ? "- Acabamento: " + dimensions.finishPattern + "." : "- Acabamento: confirmar padrao.",
+      "",
+      "COMPONENTES DA OBRA",
+      "- " + componentNames.join(", "),
+      "",
+      "QUANTITATIVOS PRELIMINARES",
+    ].concat(services.map(function (service) {
+      const quantity = parseNumber(service.quantity);
+      return "- " + clean(service.label || service.serviceType) + ": " +
+        (quantity > 0 ? formatQuantityWithUnit(quantity, service.unit) : "depende de projeto/detalhamento") +
+        (service.explanation ? " | " + service.explanation : "");
+    })).concat([
+      "",
+      "ESTOQUE",
+      stockLines.length ? stockLines.join("\n") : "- Nenhum saldo foi informado nesta mensagem. Cimento, areia, blocos, aco, brita, argamassa, pisos, tintas e telhas podem ser conferidos contra o estoque quando voce informar as quantidades disponiveis.",
+      "",
+      "PERGUNTAS COMPLEMENTARES",
+      missingQuestions.join("\n"),
+      "",
+      "OBSERVACOES",
+      "- " + geometry.warning,
+      "- " + PURCHASE_WARNING
+    ]).join("\n");
+  }
+
   function hasRealCompositionInResult(result) {
     return (result && result.predictions || []).some(function (prediction) {
       return prediction.composition && prediction.composition.isRealComposition;
@@ -7452,6 +7640,10 @@
     });
     if (invalidStockItems.length) {
       return buildInvalidStockAnswer(invalidStockItems);
+    }
+    const houseCompositePlanning = buildHouseCompositePlanningAnswer(request, stockItems);
+    if (houseCompositePlanning) {
+      return houseCompositePlanning;
     }
     const controlledService = findControlledServiceByText(message);
     const wantsCompositionSuggestion = hasAny(normalize(message), ["qual composicao", "composicoes", "sinapi", "orse", "codigo"]);
