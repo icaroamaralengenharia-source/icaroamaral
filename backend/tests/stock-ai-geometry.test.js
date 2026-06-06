@@ -367,3 +367,82 @@ test("Stock AI Obras compara estoque informado em geometria estrutural", () => {
   assert.match(answer, /MATERIAIS FALTANTES/);
   assert.match(answer, /comprar/i);
 });
+
+function assertUsesSpecificDemoComposition(message, expectedCode, expectedName) {
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /CONSUMO PREVISTO/, message);
+  assert.match(answer, new RegExp(expectedCode), message);
+  assert.match(answer, new RegExp(expectedName), message);
+  assert.match(answer, /Fonte: Base .*demonstrativa/i, message);
+  assert.match(answer, /Materiais previstos:/, message);
+}
+
+test("Stock AI Obras usa composicao especifica para pilar demonstrativo", () => {
+  assertUsesSpecificDemoComposition("Tenho 14 pilares 20x30 com 3 metros", "DEMO-EST-PILAR-001", "Pilar de concreto armado demonstrativo");
+});
+
+test("Stock AI Obras usa composicao especifica para sapata isolada demonstrativa", () => {
+  assertUsesSpecificDemoComposition("Tenho 24 sapatas 80x80x40", "DEMO-EST-SAPATA-001", "Sapata isolada demonstrativa");
+});
+
+test("Stock AI Obras usa composicao especifica para sapata corrida demonstrativa", () => {
+  assertUsesSpecificDemoComposition("Tenho uma sapata corrida de 18 m, 40 cm de largura e 30 cm de altura", "DEMO-EST-SAPATA-CORRIDA-001", "Sapata corrida demonstrativa");
+});
+
+test("Stock AI Obras usa composicao especifica para bloco de fundacao demonstrativo", () => {
+  assertUsesSpecificDemoComposition("Tenho 8 blocos de fundacao 80x80x50", "DEMO-EST-BLOCO-001", "Bloco de fundacao demonstrativo");
+});
+
+test("Stock AI Obras usa composicao especifica para baldrame demonstrativo", () => {
+  assertUsesSpecificDemoComposition("Executar 35 m de baldrame 20x40", "DEMO-EST-BALDRAME-001", "Baldrame demonstrativo");
+});
+
+test("Stock AI Obras usa composicao especifica para viga demonstrativa", () => {
+  assertUsesSpecificDemoComposition("Tenho 8 vigas de 3 m, 15x40", "DEMO-EST-VIGA-001", "Viga de concreto armado demonstrativa");
+});
+
+test("Stock AI Obras usa composicao especifica para laje macica demonstrativa", () => {
+  assertUsesSpecificDemoComposition("Tenho uma laje macica de 180 m2 com 10 cm", "DEMO-EST-LAJE-MACICA-001", "Laje macica demonstrativa");
+});
+
+test("Stock AI Obras usa composicao especifica para radier demonstrativo", () => {
+  assertUsesSpecificDemoComposition("Radier 8 x 10 com 12 cm", "DEMO-EST-RADIER-001", "Radier demonstrativo");
+});
+
+test("Stock AI Obras usa composicao especifica para muro demonstrativo", () => {
+  assertUsesSpecificDemoComposition("Tenho um muro de 25 m por 2,2 m", "DEMO-EST-MURO-001", "Muro de bloco demonstrativo");
+});
+
+test("Stock AI Obras preserva fallback demonstrativo generico", () => {
+  const composition = engine.findBestComposition({ service: "Concreto estrutural", unit: "m3" });
+
+  assert.ok(composition);
+  assert.equal(composition.id, "std_concreto_estrutural");
+  assert.match(composition.source, /demonstrativa/i);
+});
+
+test("Stock AI Obras mantem prioridade do catalogo externo sobre estrutural demonstrativo", () => {
+  const localEngine = loadStockAiCompositionEngine();
+  localEngine.loadExternalCompositions([{
+    source: "SINAPI",
+    sourceRegion: "BA",
+    sourceDate: "2025-01",
+    code: "TESTE-PILAR-001",
+    description: "Pilar de concreto armado demonstrativo",
+    serviceType: "pilar",
+    unit: "m3",
+    inputs: [{
+      code: "MAT-TESTE-001",
+      name: "Material teste externo",
+      unit: "un",
+      coefficient: 1
+    }]
+  }], "SINAPI");
+
+  const composition = localEngine.findBestComposition({ service: "Pilar de concreto armado demonstrativo", unit: "m3" });
+
+  assert.ok(composition);
+  assert.equal(composition.source, "SINAPI");
+  assert.equal(composition.code, "TESTE-PILAR-001");
+});

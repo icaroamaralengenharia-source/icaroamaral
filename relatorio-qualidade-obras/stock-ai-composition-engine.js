@@ -162,6 +162,7 @@
     const settings = options || {};
     return {
       id: id,
+      code: settings.code || id,
       service: service,
       name: service,
       category: category || "Geral",
@@ -782,6 +783,37 @@
       material("Brita 1", 0.78, "m3"),
       material("Aditivo plastificante", 0.8, "litro")
     ], ["concreto armado", "concreto estrutural", "estrutura", "viga", "pilar", "laje"]),
+    composition("std_sapata_isolada_demo", "Sapata isolada demonstrativa", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 50, "kg"),
+      material("Forma de madeira", 2.2, "m2"),
+      material("Lastro de concreto magro", 0.05, "m3")
+    ], ["sapata isolada", "fundacao sapata isolada"],
+      "Composicao demonstrativa/editavel para sapata isolada. Nao substitui projeto estrutural, memoria de calculo ou composicao oficial.",
+      { code: "DEMO-EST-SAPATA-001" }),
+    composition("std_sapata_corrida_demo", "Sapata corrida demonstrativa", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 42, "kg"),
+      material("Forma de madeira", 1.8, "m2"),
+      material("Lastro de concreto magro", 0.04, "m3")
+    ], ["sapata corrida", "fundacao corrida"],
+      "Composicao demonstrativa/editavel para sapata corrida. Validar secoes, armadura e solo com projeto estrutural.",
+      { code: "DEMO-EST-SAPATA-CORRIDA-001" }),
+    composition("std_bloco_fundacao_demo", "Bloco de fundacao demonstrativo", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 55, "kg"),
+      material("Forma de madeira", 2.4, "m2"),
+      material("Lastro de concreto magro", 0.05, "m3")
+    ], ["bloco de fundacao", "bloco fundacao"],
+      "Composicao demonstrativa/editavel para bloco de fundacao. Validar cargas, armadura e projeto estrutural.",
+      { code: "DEMO-EST-BLOCO-001" }),
+    composition("std_baldrame_demo", "Baldrame demonstrativo", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 60, "kg"),
+      material("Forma de madeira", 4.5, "m2")
+    ], ["baldrame", "viga baldrame"],
+      "Composicao demonstrativa/editavel para baldrame. Validar dimensoes, armadura e impermeabilizacao.",
+      { code: "DEMO-EST-BALDRAME-001" }),
     composition("std_fundacao_concreto_armado_demo", "Fundacao em concreto armado demonstrativa", "Fundacao / Estrutura", "m3", 5, [
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 45, "kg"),
@@ -800,27 +832,32 @@
       material("Arame recozido", 0.025, "kg"),
       material("Espacador plastico", 0.08, "un")
     ], ["armacao", "armação", "ferro", "aco", "aço", "ca50"]),
-    composition("std_pilar_concreto_armado", "Pilar de concreto armado", "Fundacao / Estrutura", "m3", 5, [
+    composition("std_pilar_concreto_armado", "Pilar de concreto armado demonstrativo", "Fundacao / Estrutura", "m3", 5, [
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 95, "kg"),
       material("Forma de madeira", 8, "m2")
-    ], ["pilar", "coluna"], null, { requiredParameters: ["largura", "comprimento", "altura"] }),
-    composition("std_viga_concreto_armado", "Viga de concreto armado", "Fundacao / Estrutura", "m3", 5, [
+    ], ["pilar", "coluna", "pilar de concreto armado"],
+      "Composicao demonstrativa/editavel para pilar de concreto armado. Validar armadura, cobrimento e projeto estrutural.",
+      { code: "DEMO-EST-PILAR-001", requiredParameters: ["largura", "comprimento", "altura"] }),
+    composition("std_viga_concreto_armado", "Viga de concreto armado demonstrativa", "Fundacao / Estrutura", "m3", 5, [
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 85, "kg"),
       material("Forma de madeira", 6.5, "m2")
-    ], ["viga", "baldrame"], null, { requiredParameters: ["largura", "altura", "comprimento"] }),
+    ], ["viga", "viga de concreto armado"],
+      "Composicao demonstrativa/editavel para viga de concreto armado. Validar armadura, vao e projeto estrutural.",
+      { code: "DEMO-EST-VIGA-001", requiredParameters: ["largura", "altura", "comprimento"] }),
     composition("std_laje_concreto", "Laje macica ou pre-moldada", "Fundacao / Estrutura", "m2", 5, [
       material("Concreto estrutural", 0.1, "m3"),
       material("Aco CA-50", 7, "kg"),
       material("Forma/escoramento", 1, "m2")
     ], ["laje", "laje macica", "laje premoldada", "pre-moldada"]),
-    composition("std_laje_macica_concreto_armado_demo", "Laje macica em concreto armado demonstrativa", "Fundacao / Estrutura", "m3", 5, [
+    composition("std_laje_macica_concreto_armado_demo", "Laje macica demonstrativa", "Fundacao / Estrutura", "m3", 5, [
       material("Concreto estrutural", 1, "m3"),
       material("Aco CA-50", 70, "kg"),
       material("Forma/escoramento", 10, "m2")
     ], ["laje macica concreto armado", "laje macica por volume", "laje em concreto armado"],
-      "Composicao demonstrativa/editavel para consumo preliminar por volume de laje. Validar armadura, escoramento e projeto estrutural."),
+      "Composicao demonstrativa/editavel para laje macica. Validar armadura, escoramento e projeto estrutural.",
+      { code: "DEMO-EST-LAJE-MACICA-001" }),
     composition("std_laje_trelicada_demo", "Laje trelicada demonstrativa", "Fundacao / Estrutura", "m2", 5, [
       material("Vigota trelicada", 1, "m2"),
       material("Elemento de enchimento", 1, "m2"),
@@ -840,6 +877,14 @@
       material("Argamassa de assentamento", 0.02, "m3"),
       material("Cimento", 0.12, "saco")
     ], ["parede bloco concreto", "bloco concreto", "alvenaria estrutural"]),
+    composition("std_muro_bloco_demo", "Muro de bloco demonstrativo", "Alvenaria / Vedacao", "m2", 5, [
+      material("Bloco de concreto", 12.5, "un"),
+      material("Argamassa de assentamento", 0.02, "m3"),
+      material("Cimento", 0.12, "saco"),
+      material("Aco CA-50", 1.2, "kg")
+    ], ["muro", "muro de bloco", "muro de bloco de concreto"],
+      "Composicao demonstrativa/editavel para muro de bloco. Validar fundacao, graute, pilaretes e projeto estrutural quando aplicavel.",
+      { code: "DEMO-EST-MURO-001" }),
     composition("std_verga_contraverga", "Verga e contraverga", "Alvenaria / Vedacao", "m", 5, [
       material("Concreto estrutural", 0.025, "m3"),
       material("Aco CA-50", 1.4, "kg"),
@@ -979,15 +1024,15 @@
       material("Brita", 0.08, "m3"),
       material("Manta geotextil", 1.1, "m2")
     ], ["drenagem", "dreno", "agua pluvial", "água pluvial"]),
-    composition("std_radier", "Radier", "Fundacao / Estrutura", "m2", 8, [
-      material("Concreto estrutural", 0.12, "m3"),
-      material("Tela soldada", 1.08, "m2"),
-      material("Brita/lastro", 0.06, "m3"),
-      material("Lona plastica", 1.05, "m2"),
-      material("Espacador", 4, "un")
+    composition("std_radier", "Radier demonstrativo", "Fundacao / Estrutura", "m3", 8, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Tela soldada", 9, "m2"),
+      material("Brita/lastro", 0.5, "m3"),
+      material("Lona plastica", 8.5, "m2"),
+      material("Espacador", 32, "un")
     ], ["radier", "fundacao radier", "fundação radier", "laje radier", "base radier"],
-      "Estimativa preliminar. Validar espessura, armadura, solo, carga e projeto estrutural.",
-      { requiredParameters: ["espessura"] }),
+      "Composicao demonstrativa/editavel para radier. Validar espessura, armadura, solo, carga e projeto estrutural.",
+      { code: "DEMO-EST-RADIER-001", requiredParameters: ["espessura"] }),
     composition("std_quadro_distribuicao", "Quadro de distribuicao", "Instalacoes", "un", 5, [
       material("Quadro de distribuicao", 1, "un"),
       material("Disjuntor", 6, "un"),
@@ -1048,15 +1093,20 @@
     std_lastro_concreto_magro: ["lastro", "lastro de concreto", "concreto magro"],
     std_concreto_simples: ["concreto simples", "concreto nao armado", "concretagem simples"],
     std_concreto_estrutural: ["concreto estrutural", "concreto armado"],
-    std_fundacao_concreto_armado_demo: ["fundacao em concreto armado demonstrativa", "sapata", "sapata isolada", "sapata corrida", "bloco de fundacao", "bloco fundacao"],
+    std_sapata_isolada_demo: ["sapata isolada demonstrativa", "sapata", "sapata isolada"],
+    std_sapata_corrida_demo: ["sapata corrida demonstrativa", "sapata corrida"],
+    std_bloco_fundacao_demo: ["bloco de fundacao demonstrativo", "bloco de fundacao", "bloco fundacao"],
+    std_baldrame_demo: ["baldrame demonstrativo", "baldrame", "viga baldrame"],
+    std_fundacao_concreto_armado_demo: ["fundacao em concreto armado demonstrativa", "fundacao em concreto"],
     std_armacao_aco_ca50: ["aco", "aço", "aco ca 50", "aco ca-50", "ca 50", "ca-50", "armadura", "armacao", "armação", "ferro", "vergalhao", "vergalhão", "arame"],
-    std_pilar_concreto_armado: ["pilar", "pilares", "pilar de concreto", "pilar de concreto armado", "coluna"],
-    std_viga_concreto_armado: ["viga", "vigas", "viga de concreto", "viga de concreto armado", "baldrame"],
+    std_pilar_concreto_armado: ["pilar demonstrativo", "pilar", "pilares", "pilar de concreto", "pilar de concreto armado", "coluna"],
+    std_viga_concreto_armado: ["viga demonstrativa", "viga", "vigas", "viga de concreto", "viga de concreto armado"],
     std_laje_concreto: ["laje", "laje macica", "laje pre moldada", "laje premoldada"],
     std_laje_macica_concreto_armado_demo: ["laje macica em concreto armado demonstrativa", "laje macica concreto armado", "laje macica por volume"],
     std_laje_trelicada_demo: ["laje trelicada", "laje treliçada", "laje com vigota trelicada"],
     std_alvenaria: ["alvenaria", "parede", "bloco ceramico", "bloco cerâmico", "tijolo ceramico", "tijolo cerâmico", "tijolo baiano"],
     std_alvenaria_bloco_concreto: ["alvenaria de bloco de concreto", "parede de bloco de concreto", "bloco de concreto", "bloco concreto"],
+    std_muro_bloco_demo: ["muro demonstrativo", "muro", "muro de bloco", "muro de bloco de concreto"],
     std_verga_contraverga: ["verga", "contraverga", "verga e contraverga"],
     std_grauteamento_simples: ["graute", "grautear", "grauteamento"],
     std_rejuntamento: ["rejunte", "rejuntar", "rejuntamento"],
@@ -1244,25 +1294,31 @@
       return "Alvenaria de bloco ceramico";
     }
     if (serviceType === "pilar") {
-      return "Pilar de concreto armado";
+      return "Pilar de concreto armado demonstrativo";
     }
-    if (serviceType === "viga" || serviceType === "baldrame") {
-      return "Viga de concreto armado";
+    if (serviceType === "viga") {
+      return "Viga de concreto armado demonstrativa";
     }
-    if (serviceType === "sapata_corrida" || serviceType === "bloco_fundacao") {
-      return "Fundacao em concreto armado demonstrativa";
+    if (serviceType === "baldrame") {
+      return "Baldrame demonstrativo";
+    }
+    if (serviceType === "sapata_corrida") {
+      return "Sapata corrida demonstrativa";
+    }
+    if (serviceType === "bloco_fundacao") {
+      return "Bloco de fundacao demonstrativo";
     }
     if (serviceType === "radier") {
-      return geometryType === "volume" ? "Concreto estrutural" : "Radier";
+      return "Radier demonstrativo";
     }
     if (serviceType === "laje") {
-      return geometryType === "volume" ? "Laje macica em concreto armado demonstrativa" : "Laje macica ou pre-moldada";
+      return geometryType === "volume" ? "Laje macica demonstrativa" : "Laje macica ou pre-moldada";
     }
     if (serviceType === "sapata") {
-      return "Fundacao em concreto armado demonstrativa";
+      return "Sapata isolada demonstrativa";
     }
     if (serviceType === "muro") {
-      return geometryType === "volume" ? "Concreto estrutural" : "Alvenaria de bloco ceramico";
+      return "Muro de bloco demonstrativo";
     }
     if (serviceType === "reservatorio") {
       return "";
@@ -2594,6 +2650,7 @@
     });
     lines.push("");
     lines.push("Composição estimada:");
+    lines.push("Materiais previstos:");
     result.items.forEach(function (item) {
       lines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
     });
@@ -2710,12 +2767,15 @@
       const compositionData = findComposition(service);
       lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
       if (compositionData) {
+        lines.push("  Composicao utilizada: " + (compositionData.code || compositionData.id || "sem codigo") + " - " + (compositionData.name || compositionData.service));
+        lines.push("  Tipo estrutural: " + (compositionData.category || service.serviceType || "Geral"));
         lines.push("  " + formatCompositionSource(compositionData));
       }
     });
     appendServicesWithoutComposition(lines, servicesWithoutComposition);
 
     lines.push("");
+    lines.push("Materiais previstos:");
     lines.push("📦 CONSUMO PREVISTO");
     result.items.forEach(function (item) {
       lines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
