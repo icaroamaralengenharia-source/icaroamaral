@@ -10,6 +10,7 @@ const sampleFixture = JSON.parse(readFileSync(join(testDir, "fixtures", "stock-a
 const realTemplate = JSON.parse(readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "sinapi-orse-real-sample.template.json"), "utf8"));
 const firstRealExamplePath = join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "primeira-composicao-real.example.json");
 const firstRealExample = JSON.parse(readFileSync(firstRealExamplePath, "utf8"));
+const firstOfficialGuidePath = join(testDir, "..", "..", "docs", "stock-ai-guia-primeira-composicao-oficial.md");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -478,4 +479,17 @@ test("Stock AI Obras diagnostico nao cadastra catalogo externo sozinho", () => {
   assert.equal(report.ok, true);
   assert.equal(before, 0);
   assert.equal(after, 0);
+});
+
+test("Stock AI Obras documenta guia pratico da primeira composicao oficial", () => {
+  assert.equal(existsSync(firstOfficialGuidePath), true);
+
+  const guide = readFileSync(firstOfficialGuidePath, "utf8");
+
+  assert.match(guide, /Origem dos dados oficiais/);
+  assert.match(guide, /Qual composicao escolher primeiro/);
+  assert.match(guide, /Checklist final antes da importacao/);
+  assert.match(guide, /Fluxo completo/);
+  assert.match(guide, /nao cria codigos, nao cria coeficientes/i);
+  assert.match(guide, /sem inventar valores/i);
 });
