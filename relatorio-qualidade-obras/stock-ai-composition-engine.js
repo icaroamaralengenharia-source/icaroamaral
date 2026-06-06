@@ -5614,6 +5614,12 @@
     let inStockSection = false;
     const stockTriggerPattern = /(tenho em estoque|dispon[ií]vel no estoque|estoque atual|saldo|tenho dispon[ií]vel|temos no estoque|material dispon[ií]vel|no estoque existe|estoque)\s*:?\s*/i;
     const stockQuantityPattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)|[a-zA-ZÀ-ÿ].*?\s+-?\d+(?:[.,]\d+)?\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i;
+    const naturalStockMatch = clean(message).match(/^(?:tenho|temos)\s+([\s\S]*?)(?=\b(?:quero|vou|preciso)\b|$)/i);
+    const naturalStockText = naturalStockMatch ? clean(naturalStockMatch[1]).replace(/\.$/, "") : "";
+    const startsWithNaturalStock = /^(?:-?\d+(?:[.,]\d+)?\s*(?:sacos?|kg|telhas?|blocos?|unidades?|un)\b|cimento|areia|brita|argamassa|blocos?|tijolos?)/i.test(naturalStockText);
+    if (startsWithNaturalStock && stockQuantityPattern.test(naturalStockText)) {
+      stockLines.push(naturalStockText);
+    }
     clean(message).split(/\n+/).forEach(function (line) {
       const normalizedLine = normalize(line);
       const triggerMatch = line.match(stockTriggerPattern);
@@ -5690,10 +5696,29 @@
         });
       }
     }
-    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
+    function addQualitativeStockItem(name) {
+      const cleanName = clean(name);
+      if (!cleanName) {
+        return;
+      }
+      stockItems.push({
+        item: {
+          id: "reported_stock_" + normalize(cleanName).replace(/\s+/g, "_") + "_info",
+          name: cleanName,
+          unit: "info"
+        },
+        realBalance: 0,
+        qualitative: true,
+        source: "message"
+      });
+    }
+    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+(?!e\s+-?\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b)(?:de\s+)?(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     let match;
     while ((match = pattern.exec(text))) {
       addStockItem(parseNumber(match[1]), match[2], match[3]);
+    }
+    if (hasTerm(normalize(text), "areia suficiente")) {
+      addQualitativeStockItem("Areia suficiente");
     }
     const materialFirstPattern = /(?:^|\n|,\s*|;\s*)([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s-]*?)\s+(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b/gi;
     while ((match = materialFirstPattern.exec(text))) {

@@ -3161,3 +3161,15 @@ test("Stock AI Obras piloto 80 conferencia de retirada usa material e servico in
   assert.match(answer, /10\s*m[Â²2]/i);
   assert.doesNotMatch(answer, /Informe quais materiais foram solicitados/i);
 });
+
+test("estoque_em_linguagem_natural_piloto80", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Tenho 20 sacos de cimento, 150 blocos cerâmicos e areia suficiente. Quero levantar um muro de 10 metros de comprimento por 2,5 metros de altura.";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /20\s*sacos?.*cimento|cimento[\s\S]*20\s*sacos?/i);
+  assert.match(answer, /150\s*blocos?.*cer[aâ]mic|bloco[\s\S]*150/i);
+  assert.match(answer, /areia[\s\S]*suficiente|suficiente[\s\S]*areia/i);
+  assert.doesNotMatch(answer, /Nenhum estoque informado na mensagem/i);
+  assert.match(answer, /MATERIAIS FALTANTES|PLANEJAMENTO DE COMPRA|comprar/i);
+});
