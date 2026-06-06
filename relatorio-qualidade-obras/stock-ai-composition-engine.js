@@ -3225,6 +3225,12 @@
     if (serviceType === "muro") {
       return "Muro de bloco demonstrativo";
     }
+    if (serviceType === "chapisco") {
+      return "Chapisco";
+    }
+    if (serviceType === "reboco_emboco") {
+      return "Reboco";
+    }
     if (serviceType === "reservatorio") {
       return "";
     }
@@ -3275,7 +3281,7 @@
     if (normalizedUnit.indexOf("m") === 0 || normalizedUnit.indexOf("metro") >= 0) {
       return parsed;
     }
-    return parsed > 10 ? roundQuantity(parsed / 100) : parsed;
+    return parsed >= 10 ? roundQuantity(parsed / 100) : parsed;
   }
 
   function formatStructuralSection(width, height) {
@@ -3429,6 +3435,116 @@
       { count: quantity },
       service.label
     );
+  }
+
+  function extractWallAreaDimensions(originalMessage) {
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const wallTerm = "(?:muro|parede|alvenaria)";
+    const source = clean(originalMessage);
+    const match = source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+comprimento|comprimento)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+altura|altura)?", "i"));
+    if (!match) {
+      return null;
+    }
+    const length = parseDimensionNumber(match[1]);
+    const height = parseDimensionNumber(match[2]);
+    if (length <= 0 || height <= 0) {
+      return null;
+    }
+    return {
+      length: length,
+      height: height,
+      area: roundQuantity(length * height)
+    };
+  }
+
+  function extractWallSpacingPillars(originalMessage) {
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const source = clean(originalMessage);
+    const afterPillar = source.match(new RegExp("pilar(?:es)?\\s+a\\s+cada\\s+" + number + "\\s*(?:metros?|m).*?" + number + "\\s*(?:metros?|m)\\s*(?:de\\s*)?muro", "i"));
+    const afterWall = afterPillar ? null : source.match(new RegExp(number + "\\s*(?:metros?|m)\\s*(?:de\\s*)?muro[\\s\\S]{0,80}?pilar(?:es)?\\s+a\\s+cada\\s+" + number + "\\s*(?:metros?|m)", "i"));
+    const match = afterPillar || afterWall;
+    if (!match) {
+      return null;
+    }
+    const spacing = parseDimensionNumber(afterPillar ? match[1] : match[2]);
+    const length = parseDimensionNumber(afterPillar ? match[2] : match[1]);
+    if (spacing <= 0 || length <= 0) {
+      return null;
+    }
+    return {
+      spacing: spacing,
+      length: length,
+      count: Math.ceil(length / spacing)
+    };
+  }
+
+  function buildMuroCompletoPlanningAnswer(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    if (!hasTerm(text, "muro") || !hasTerm(text, "cinta") || !hasTerm(text, "baldrame") || !hasTerm(text, "sapata")) {
+      return "";
+    }
+    const wall = extractWallAreaDimensions(originalMessage);
+    if (!wall) {
+      return "";
+    }
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const wallLength = wall.length;
+    const pillars = extractWallSpacingPillars(originalMessage);
+    const pillarCount = pillars ? pillars.count : 0;
+    const cintaMatch = originalMessage.match(new RegExp("cinta(?:\\s+superior)?\\s+" + number + "\\s*(?:x|por)\\s*" + number, "i"));
+    const baldrameMatch = originalMessage.match(new RegExp("baldrame\\s+" + number + "\\s*(?:x|por)\\s*" + number, "i"));
+    const sapataMatch = originalMessage.match(new RegExp("sapatas?\\s+" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+    const lines = [
+      "PLANEJAMENTO GEOMETRICO DO MURO",
+      "",
+      "SERVICOS IDENTIFICADOS",
+      "- Alvenaria de muro",
+      "- Cinta superior",
+      "- Viga baldrame",
+      "- Pilares",
+      "- Sapatas",
+      "- Chapisco",
+      "- Emboco/reboco",
+      "",
+      "CALCULOS GEOMETRICOS ENCONTRADOS",
+      "- Alvenaria/revestimento: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + " = " + formatSquareMeters(wall.area)
+    ];
+    if (cintaMatch) {
+      const width = parseStructuralDimension(cintaMatch[1], "");
+      const height = parseStructuralDimension(cintaMatch[2], "");
+      lines.push("- Cinta superior: " + formatStructuralSection(width, height) + " x " + formatMeters(wallLength) + " = " + formatCubicMeters(roundQuantity(width * height * wallLength)));
+    }
+    if (baldrameMatch) {
+      const width = parseStructuralDimension(baldrameMatch[1], "");
+      const height = parseStructuralDimension(baldrameMatch[2], "");
+      lines.push("- Viga baldrame: " + formatStructuralSection(width, height) + " x " + formatMeters(wallLength) + " = " + formatCubicMeters(roundQuantity(width * height * wallLength)));
+    }
+    if (pillars) {
+      lines.push("- Pilares: " + formatMeters(pillars.length) + " / " + formatMeters(pillars.spacing) + " = " + formatQuantity(pillars.count) + " pilares estimados");
+    }
+    if (sapataMatch && pillarCount > 0) {
+      const fallbackUnit = sapataMatch[4];
+      const length = parseStructuralDimension(sapataMatch[1], fallbackUnit);
+      const width = parseStructuralDimension(sapataMatch[2], fallbackUnit);
+      const height = parseStructuralDimension(sapataMatch[3], fallbackUnit);
+      lines.push("- Sapatas: " + formatQuantity(pillarCount) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(roundQuantity(pillarCount * length * width * height)));
+    }
+    if (hasTerm(text, "chapisco")) {
+      lines.push("- Chapisco: " + formatSquareMeters(wall.area));
+    }
+    if (hasAny(text, ["emboco", "emboço", "reboco"])) {
+      lines.push("- Emboco/reboco: " + formatSquareMeters(wall.area));
+    }
+    lines.push("");
+    lines.push("COMPLEMENTOS PENDENTES");
+    lines.push("- Confirmar se os pilares incluem pontos inicial e final do muro.");
+    lines.push("- Confirmar faces de chapisco, emboco e reboco antes da compra.");
+    lines.push("");
+    lines.push("OBSERVACOES");
+    lines.push("- Quantitativos geometricos calculados sem inventar coeficientes de consumo.");
+    lines.push("- Validar em projeto estrutural e composicoes oficiais antes de compra ou execucao.");
+    return lines.join("\n");
   }
 
   function hasExplicitCoverageType(text) {
@@ -3691,13 +3807,44 @@
       return buildIncompleteGeometryResult("reservatorio", "Qual o comprimento, largura e altura do reservatorio?", "Reservatorio");
     }
 
+    if (hasTerm(text, "chapisco") && hasAny(text, ["parede", "muro", "alvenaria"])) {
+      const wall = extractWallAreaDimensions(originalMessage);
+      if (wall) {
+        return buildGeometryResult(
+          "chapisco",
+          "area",
+          wall.area,
+          "m2",
+          "Area calculada: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + " = " + formatSquareMeters(wall.area),
+          { length: wall.length, height: wall.height },
+          "Chapisco"
+        );
+      }
+    }
+
+    if (hasAny(text, ["emboco", "emboço", "reboco"]) && hasAny(text, ["parede", "muro", "alvenaria"])) {
+      const wall = extractWallAreaDimensions(originalMessage);
+      if (wall) {
+        return buildGeometryResult(
+          "reboco_emboco",
+          "area",
+          wall.area,
+          "m2",
+          "Area calculada: " + formatMeters(wall.length) + " x " + formatMeters(wall.height) + " = " + formatSquareMeters(wall.area),
+          { length: wall.length, height: wall.height },
+          "Revestimento argamassado"
+        );
+      }
+    }
+
     if (hasAny(text, ["parede", "muro", "alvenaria"])) {
       const isWall = hasTerm(text, "muro");
-      const wallMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      const wall = extractWallAreaDimensions(originalMessage);
+      const wallMatch = wall ? [null, wall.length, wall.height] : originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
       if (wallMatch) {
-        const length = parseDimensionNumber(wallMatch[1]);
-        const height = parseDimensionNumber(wallMatch[2]);
-        const area = roundQuantity(length * height);
+        const length = wall ? wall.length : parseDimensionNumber(wallMatch[1]);
+        const height = wall ? wall.height : parseDimensionNumber(wallMatch[2]);
+        const area = wall ? wall.area : roundQuantity(length * height);
         const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
         if (isWall && thicknessMatch) {
           const thickness = parseStructuralDimension(thicknessMatch[1], thicknessMatch[2]);
@@ -3791,7 +3938,58 @@
       return buildIncompleteGeometryResult(serviceType, "Qual o comprimento, largura e espessura do " + serviceType + "?", label);
     }
 
+    if (hasTerm(text, "sapata") || hasTerm(text, "sapatas")) {
+      const footingThreeDimForPillarsMatch = originalMessage.match(new RegExp("sapatas?.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?.*?(?:para|em|dos?)\\s*" + number + "\\s*(?:pilares|pilar)", "i"));
+      if (footingThreeDimForPillarsMatch) {
+        const count = parseDimensionNumber(footingThreeDimForPillarsMatch[7]);
+        const fallbackUnit = footingThreeDimForPillarsMatch[6] || footingThreeDimForPillarsMatch[4] || footingThreeDimForPillarsMatch[2];
+        const length = parseStructuralDimension(footingThreeDimForPillarsMatch[1], footingThreeDimForPillarsMatch[2] || fallbackUnit);
+        const width = parseStructuralDimension(footingThreeDimForPillarsMatch[3], footingThreeDimForPillarsMatch[4] || fallbackUnit);
+        const height = parseStructuralDimension(footingThreeDimForPillarsMatch[5], footingThreeDimForPillarsMatch[6] || fallbackUnit);
+        const volume = roundQuantity(count * length * width * height);
+        return buildGeometryResult(
+          "sapata",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
+          { count: count, length: length, width: width, height: height },
+          "Sapata"
+        );
+      }
+      const footingForPillarsMatch = originalMessage.match(new RegExp("sapatas?.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?.*?(?:altura\\s*(?:de\\s*)?)" + number + "\\s*(cm|centimetros?|m|metros?).*?(?:para|em|dos?)\\s*" + number + "\\s*(?:pilares|pilar)", "i"));
+      if (footingForPillarsMatch) {
+        const count = parseDimensionNumber(footingForPillarsMatch[7]);
+        const fallbackUnit = footingForPillarsMatch[6] || footingForPillarsMatch[4] || footingForPillarsMatch[2];
+        const length = parseStructuralDimension(footingForPillarsMatch[1], footingForPillarsMatch[2] || fallbackUnit);
+        const width = parseStructuralDimension(footingForPillarsMatch[3], footingForPillarsMatch[4] || fallbackUnit);
+        const height = parseStructuralDimension(footingForPillarsMatch[5], footingForPillarsMatch[6] || fallbackUnit);
+        const volume = roundQuantity(count * length * width * height);
+        return buildGeometryResult(
+          "sapata",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
+          { count: count, length: length, width: width, height: height },
+          "Sapata"
+        );
+      }
+    }
+
     if (hasTerm(text, "pilar") || hasTerm(text, "pilares") || hasTerm(text, "coluna")) {
+      const spacedPillars = extractWallSpacingPillars(originalMessage);
+      if (spacedPillars) {
+        return buildGeometryResult(
+          "pilar",
+          "unit",
+          spacedPillars.count,
+          "un",
+          "Quantidade estimada: " + formatMeters(spacedPillars.length) + " / " + formatMeters(spacedPillars.spacing) + " = " + formatQuantity(spacedPillars.count) + " pilares. Conferir posicao inicial e final em projeto.",
+          { count: spacedPillars.count, spacing: spacedPillars.spacing, length: spacedPillars.length },
+          "Pilar"
+        );
+      }
       const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilar(?:es)?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
       if (pillarMatch) {
         const count = pillarMatch[1] ? parseDimensionNumber(pillarMatch[1]) : 1;
@@ -3836,9 +4034,41 @@
       return buildIncompleteGeometryResult("bloco_fundacao", "Qual a quantidade e as dimensoes do bloco de fundacao?", "Bloco de fundacao");
     }
 
-    if (hasTerm(text, "viga") || hasTerm(text, "vigas") || hasTerm(text, "baldrame")) {
+    if (hasTerm(text, "viga") || hasTerm(text, "vigas") || hasTerm(text, "baldrame") || hasTerm(text, "cinta")) {
       const serviceType = hasTerm(text, "baldrame") ? "baldrame" : "viga";
-      const label = serviceType === "baldrame" ? "Baldrame" : "Viga";
+      const label = hasTerm(text, "cinta") ? "Cinta superior" : serviceType === "baldrame" ? "Baldrame" : "Viga";
+      const cintaMatch = originalMessage.match(new RegExp("cinta(?:\\s+superior)?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?.*?" + number + "\\s*(?:m|metros?)", "i"));
+      if (cintaMatch) {
+        const width = parseStructuralDimension(cintaMatch[1], cintaMatch[3]);
+        const height = parseStructuralDimension(cintaMatch[2], cintaMatch[3]);
+        const length = parseDimensionNumber(cintaMatch[4]);
+        const volume = roundQuantity(width * height * length);
+        return buildGeometryResult(
+          "viga",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatStructuralSection(width, height) + " x " + formatMeters(length) + " = " + formatCubicMeters(volume),
+          { width: width, height: height, length: length },
+          label
+        );
+      }
+      const baldrameDescribedMatch = originalMessage.match(new RegExp("(?:viga\\s+)?baldrame.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:de\\s*)?altura.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:de\\s*)?largura.*?(?:com|comprimento|extensao|extensÃ£o)?\\s*" + number + "\\s*(?:m|metros?)", "i"));
+      if (baldrameDescribedMatch) {
+        const height = parseStructuralDimension(baldrameDescribedMatch[1], baldrameDescribedMatch[2]);
+        const width = parseStructuralDimension(baldrameDescribedMatch[3], baldrameDescribedMatch[4]);
+        const length = parseDimensionNumber(baldrameDescribedMatch[5]);
+        const volume = roundQuantity(width * height * length);
+        return buildGeometryResult(
+          "baldrame",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(length) + " x " + formatStructuralSection(width, height) + " = " + formatCubicMeters(volume),
+          { length: length, width: width, height: height },
+          "Baldrame"
+        );
+      }
       const beamMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:vigas?|baldrames?).*?(?:" + number + "\\s*(?:m|metros?)\\s*,?\\s*)?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
       if (beamMatch) {
         const count = beamMatch[1] ? parseDimensionNumber(beamMatch[1]) : 1;
@@ -6641,6 +6871,10 @@
     const withdrawal = buildWithdrawalConference(message, settings);
     if (withdrawal.detected) {
       return withdrawal.answer;
+    }
+    const muroCompletoPlanning = buildMuroCompletoPlanningAnswer(message);
+    if (muroCompletoPlanning) {
+      return muroCompletoPlanning;
     }
     const request = parseRequest(message);
     const reportedStock = parseStockItemsFromMessage(message);
