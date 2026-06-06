@@ -3435,7 +3435,14 @@
   }
 
   function stripStockContext(message) {
-    return clean(message)
+    const source = clean(message);
+    if (/^(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b/i.test(source)) {
+      const serviceIntent = source.match(/\b(?:vou\s+fazer|vou\s+executar|vou\s+concretar|quero\s+fazer|quero\s+executar|preciso\s+(?:fazer|executar)|fazer|executar|construir|concretar|levantar|assentar)\b[\s\S]*$/i);
+      if (serviceIntent) {
+        return serviceIntent[0].trim();
+      }
+    }
+    return source
       .replace(/\b(?:e\s+)?(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b[\s\S]*$/i, "")
       .trim();
   }
