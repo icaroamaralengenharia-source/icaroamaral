@@ -301,3 +301,69 @@ test("Stock AI Obras mantem cobertura composta como pendencia sem bloquear alven
   assert.match(answer, /Ainda nao existe composicao tecnica cadastrada|tipo de telhado|tipo: telha/);
   assert.doesNotMatch(answer, /PERGUNTAS COMPLEMENTARES/);
 });
+
+function assertStructuralConsumption(message, expectedQuantity, unit, expectedSource = /Fonte: Base .*demonstrativa/i) {
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.equal(request.geometry.detected, true, message);
+  assert.equal(request.geometry.quantity, expectedQuantity, message);
+  assert.equal(request.geometry.unit, unit, message);
+  assert.match(answer, /CONSUMO PREVISTO/, message);
+  assert.match(answer, /PLANEJAMENTO DE COMPRA/, message);
+  assert.match(answer, expectedSource, message);
+}
+
+test("Stock AI Obras integra sapata isolada ao consumo previsto demonstrativo", () => {
+  assertStructuralConsumption("Tenho 24 sapatas 80x80x40", 6.144, "m3");
+});
+
+test("Stock AI Obras integra baldrame ao consumo previsto demonstrativo", () => {
+  assertStructuralConsumption("Executar 35 m de baldrame 20x40", 2.8, "m3");
+});
+
+test("Stock AI Obras integra pilar ao consumo previsto demonstrativo", () => {
+  assertStructuralConsumption("Tenho 14 pilares 20x30 com 3 metros", 2.52, "m3");
+});
+
+test("Stock AI Obras integra viga ao consumo previsto demonstrativo", () => {
+  assertStructuralConsumption("Tenho 8 vigas de 3 m, 15x40", 1.44, "m3");
+});
+
+test("Stock AI Obras integra laje macica ao consumo previsto demonstrativo", () => {
+  const answer = engine.buildAnswerFromMessage("Tenho uma laje macica de 180 m2 com 10 cm");
+
+  assertStructuralConsumption("Tenho uma laje macica de 180 m2 com 10 cm", 18, "m3");
+  assert.match(answer, /Aco CA-50|Forma\/escoramento|Concreto estrutural/);
+});
+
+test("Stock AI Obras integra muro ao consumo previsto ou pendencia controlada", () => {
+  const request = engine.parseRequest("Tenho um muro de 25 m por 2,2 m");
+  const answer = engine.buildAnswerFromMessage("Tenho um muro de 25 m por 2,2 m");
+
+  assert.equal(request.geometry.quantity, 55);
+  assert.equal(request.geometry.unit, "m2");
+  assert.match(answer, /CONSUMO PREVISTO|QUANTITATIVOS SEM COMPOSICAO/);
+  assert.notEqual(answer, "");
+});
+
+test("Stock AI Obras mantem reservatorio como volume bruto sem inventar composicao", () => {
+  const request = engine.parseRequest("Tenho um reservatorio de 2 x 3 x 1,5 m");
+  const answer = engine.buildAnswerFromMessage("Tenho um reservatorio de 2 x 3 x 1,5 m");
+
+  assert.equal(request.geometry.quantity, 9);
+  assert.equal(request.geometry.unit, "m3");
+  assert.match(answer, /Volume geometrico bruto/i);
+  assert.match(answer, /Ainda nao existe composicao tecnica cadastrada|QUANTITATIVOS SEM COMPOSICAO/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras compara estoque informado em geometria estrutural", () => {
+  const answer = engine.buildAnswerFromMessage("Tenho 24 sapatas 80x80x40. Tenho em estoque 20 sacos de cimento e 2 m3 de areia.");
+
+  assert.match(answer, /CONSUMO PREVISTO/);
+  assert.match(answer, /Cimento: 20 saco/);
+  assert.match(answer, /Areia: 2 m/);
+  assert.match(answer, /MATERIAIS FALTANTES/);
+  assert.match(answer, /comprar/i);
+});

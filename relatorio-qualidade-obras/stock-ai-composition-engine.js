@@ -501,6 +501,13 @@
       material("Brita 1", 0.78, "m3"),
       material("Aditivo plastificante", 0.8, "litro")
     ], ["concreto armado", "concreto estrutural", "estrutura", "viga", "pilar", "laje"]),
+    composition("std_fundacao_concreto_armado_demo", "Fundacao em concreto armado demonstrativa", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 45, "kg"),
+      material("Forma de madeira", 2, "m2"),
+      material("Lastro de concreto magro", 0.05, "m3")
+    ], ["sapata", "sapata isolada", "sapata corrida", "bloco de fundacao", "fundacao em concreto", "fundação em concreto"],
+      "Composicao demonstrativa/editavel para fundacoes simples. Nao substitui projeto estrutural, memoria de calculo ou composicao oficial."),
     composition("std_forma_madeira", "Forma de madeira", "Fundacao / Estrutura", "m2", 10, [
       material("Compensado plastificado", 0.22, "m2"),
       material("Sarrafo de madeira", 0.55, "m"),
@@ -527,6 +534,20 @@
       material("Aco CA-50", 7, "kg"),
       material("Forma/escoramento", 1, "m2")
     ], ["laje", "laje macica", "laje premoldada", "pre-moldada"]),
+    composition("std_laje_macica_concreto_armado_demo", "Laje macica em concreto armado demonstrativa", "Fundacao / Estrutura", "m3", 5, [
+      material("Concreto estrutural", 1, "m3"),
+      material("Aco CA-50", 70, "kg"),
+      material("Forma/escoramento", 10, "m2")
+    ], ["laje macica concreto armado", "laje macica por volume", "laje em concreto armado"],
+      "Composicao demonstrativa/editavel para consumo preliminar por volume de laje. Validar armadura, escoramento e projeto estrutural."),
+    composition("std_laje_trelicada_demo", "Laje trelicada demonstrativa", "Fundacao / Estrutura", "m2", 5, [
+      material("Vigota trelicada", 1, "m2"),
+      material("Elemento de enchimento", 1, "m2"),
+      material("Concreto para capa", 0.05, "m3"),
+      material("Tela soldada", 1, "m2"),
+      material("Escoramento", 1, "m2")
+    ], ["laje trelicada", "laje treliçada", "laje com vigota trelicada"],
+      "Composicao demonstrativa/editavel para laje trelicada. Conferir capa, intereixo, escoramento e especificacao do fornecedor."),
     composition("std_alvenaria", "Alvenaria de bloco ceramico", "Alvenaria / Vedacao", "m2", 5, [
       material("Bloco ceramico", 13, "un"),
       material("Cimento", 0.1, "saco"),
@@ -746,10 +767,13 @@
     std_lastro_concreto_magro: ["lastro", "lastro de concreto", "concreto magro"],
     std_concreto_simples: ["concreto simples", "concreto nao armado", "concretagem simples"],
     std_concreto_estrutural: ["concreto estrutural", "concreto armado"],
+    std_fundacao_concreto_armado_demo: ["fundacao em concreto armado demonstrativa", "sapata", "sapata isolada", "sapata corrida", "bloco de fundacao", "bloco fundacao"],
     std_armacao_aco_ca50: ["aco", "aço", "aco ca 50", "aco ca-50", "ca 50", "ca-50", "armadura", "armacao", "armação", "ferro", "vergalhao", "vergalhão", "arame"],
     std_pilar_concreto_armado: ["pilar", "pilares", "pilar de concreto", "pilar de concreto armado", "coluna"],
     std_viga_concreto_armado: ["viga", "vigas", "viga de concreto", "viga de concreto armado", "baldrame"],
     std_laje_concreto: ["laje", "laje macica", "laje pre moldada", "laje premoldada"],
+    std_laje_macica_concreto_armado_demo: ["laje macica em concreto armado demonstrativa", "laje macica concreto armado", "laje macica por volume"],
+    std_laje_trelicada_demo: ["laje trelicada", "laje treliçada", "laje com vigota trelicada"],
     std_alvenaria: ["alvenaria", "parede", "bloco ceramico", "bloco cerâmico", "tijolo ceramico", "tijolo cerâmico", "tijolo baiano"],
     std_alvenaria_bloco_concreto: ["alvenaria de bloco de concreto", "parede de bloco de concreto", "bloco de concreto", "bloco concreto"],
     std_verga_contraverga: ["verga", "contraverga", "verga e contraverga"],
@@ -945,16 +969,16 @@
       return "Viga de concreto armado";
     }
     if (serviceType === "sapata_corrida" || serviceType === "bloco_fundacao") {
-      return "Concreto estrutural";
+      return "Fundacao em concreto armado demonstrativa";
     }
     if (serviceType === "radier") {
       return geometryType === "volume" ? "Concreto estrutural" : "Radier";
     }
     if (serviceType === "laje") {
-      return geometryType === "volume" ? "Concreto estrutural" : "Laje macica ou pre-moldada";
+      return geometryType === "volume" ? "Laje macica em concreto armado demonstrativa" : "Laje macica ou pre-moldada";
     }
     if (serviceType === "sapata") {
-      return "Concreto estrutural";
+      return "Fundacao em concreto armado demonstrativa";
     }
     if (serviceType === "muro") {
       return geometryType === "volume" ? "Concreto estrutural" : "Alvenaria de bloco ceramico";
@@ -1379,7 +1403,7 @@
         );
       }
       if (area && isJoistSlab) {
-        return buildGeometryResult(
+        const result = buildGeometryResult(
           "laje",
           "area",
           area,
@@ -1388,6 +1412,8 @@
           { area: area },
           label
         );
+        result.service = "Laje trelicada demonstrativa";
+        return result;
       }
       if (area && isRadier) {
         return buildIncompleteGeometryResult("radier", "Qual a espessura prevista do radier?", "Radier");
