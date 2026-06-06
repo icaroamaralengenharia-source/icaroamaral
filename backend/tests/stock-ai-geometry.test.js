@@ -108,6 +108,31 @@ test("Stock AI Obras calcula sapata isolada com dimensoes em metros decimais", (
   assert.equal(result.unit, "m3");
 });
 
+test("Stock AI Obras calcula sapatas com unidade cm em cada dimensao", () => {
+  const result = engine.parseGeometryRequest("Tenho 24 sapatas de 80 cm x 80 cm x 40 cm");
+  const answer = engine.buildAnswerFromMessage("24 sapatas 80cm x 80cm x 40cm");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.dimensions.count, 24);
+  assert.equal(result.dimensions.length, 0.8);
+  assert.equal(result.dimensions.width, 0.8);
+  assert.equal(result.dimensions.height, 0.4);
+  assert.equal(result.quantity, 6.144);
+  assert.equal(result.unit, "m3");
+  assert.match(answer, /DEMO-EST-SAPATA-001/);
+});
+
+test("Stock AI Obras calcula sapatas em cm com por e unidade final", () => {
+  const result = engine.parseGeometryRequest("24 sapatas de 80 por 80 por 40 cm");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata");
+  assert.equal(result.quantity, 6.144);
+  assert.equal(result.unit, "m3");
+});
+
 test("Stock AI Obras calcula baldrame com comprimento total e secao", () => {
   const result = engine.parseGeometryRequest("Executar 35 m de baldrame 20x40");
 
@@ -125,6 +150,30 @@ test("Stock AI Obras calcula sapata corrida por comprimento largura e altura", (
   assert.equal(result.serviceType, "sapata_corrida");
   assert.equal(result.geometryType, "volume");
   assert.equal(result.quantity, 2.16);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula sapata corrida com texto solto em metros decimais", () => {
+  const result = engine.parseGeometryRequest("sapata corrida 20m largura 0,40 altura 0,30");
+  const answer = engine.buildAnswerFromMessage("executar sapata corrida de 20m largura 0,40m altura 0,30m");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata_corrida");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.dimensions.length, 20);
+  assert.equal(result.dimensions.width, 0.4);
+  assert.equal(result.dimensions.height, 0.3);
+  assert.equal(result.quantity, 2.4);
+  assert.equal(result.unit, "m3");
+  assert.match(answer, /DEMO-EST-SAPATA-CORRIDA-001/);
+});
+
+test("Stock AI Obras calcula sapata corrida com largura e altura em cm", () => {
+  const result = engine.parseGeometryRequest("sapata corrida 20 metros largura 40 cm altura 30 cm");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata_corrida");
+  assert.equal(result.quantity, 2.4);
   assert.equal(result.unit, "m3");
 });
 
@@ -283,6 +332,34 @@ test("Stock AI Obras calcula geometria composta de galpao com pe-direito padrao"
   assert.equal(result.dimensions.height, 6);
   assert.equal(result.dimensions.wallArea, 540);
   assert.equal(result.dimensions.roofArea, 450);
+});
+
+test("Stock AI Obras calcula ambiente como geometria composta", () => {
+  const result = engine.parseGeometryRequest("Tenho um ambiente 4 x 5 com pe-direito de 3 m");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "edificacao_composta");
+  assert.equal(result.geometryType, "composite");
+  assert.equal(result.label, "Ambiente");
+  assert.equal(result.dimensions.floorArea, 20);
+  assert.equal(result.dimensions.perimeter, 18);
+  assert.equal(result.dimensions.wallArea, 54);
+  assert.equal(result.dimensions.height, 3);
+  assert.equal(result.derivedServices[0].quantity, 54);
+  assert.equal(result.derivedServices[1].quantity, 20);
+});
+
+test("Stock AI Obras calcula comodo e sala como geometria composta", () => {
+  const room = engine.parseGeometryRequest("comodo 4 por 5 com pe direito 2,8");
+  const livingRoom = engine.parseGeometryRequest("sala 4 x 5 com pe direito de 3 metros");
+
+  assert.equal(room.detected, true);
+  assert.equal(room.serviceType, "edificacao_composta");
+  assert.equal(room.dimensions.floorArea, 20);
+  assert.equal(room.dimensions.wallArea, 50.4);
+  assert.equal(livingRoom.detected, true);
+  assert.equal(livingRoom.serviceType, "edificacao_composta");
+  assert.equal(livingRoom.dimensions.wallArea, 54);
 });
 
 test("Stock AI Obras pergunta dados complementares para metro linear, unidade e composta", () => {

@@ -1581,7 +1581,8 @@
     const text = normalize(originalMessage);
     const isHouse = hasTerm(text, "casa");
     const isShed = hasTerm(text, "galpao") || hasTerm(text, "galpão");
-    if (!isHouse && !isShed) {
+    const isRoom = hasAny(text, ["ambiente", "comodo", "sala"]);
+    if (!isHouse && !isShed && !isRoom) {
       return null;
     }
 
@@ -1590,8 +1591,8 @@
     if (!planMatch) {
       return buildIncompleteGeometryResult(
         "edificacao_composta",
-        "Qual o comprimento e a largura da " + (isShed ? "galpao" : "casa") + "?",
-        isShed ? "Galpao" : "Casa"
+        "Qual o comprimento e a largura da " + (isShed ? "galpao" : isRoom ? "ambiente" : "casa") + "?",
+        isShed ? "Galpao" : isRoom ? "Ambiente" : "Casa"
       );
     }
 
@@ -1603,7 +1604,7 @@
     const perimeter = roundQuantity(2 * (length + width));
     const wallArea = roundQuantity(perimeter * height);
     const roofArea = floorArea;
-    const label = isShed ? "Galpao" : "Casa";
+    const label = isShed ? "Galpao" : isRoom ? "Ambiente" : "Casa";
     const warning = "Estimativa simplificada para planejamento inicial. Nao desconta vaos, inclinacao de telhado, beirais, paredes internas, perdas especificas nem detalhes estruturais.";
     const coverageHasType = hasExplicitCoverageType(text);
 
@@ -1874,11 +1875,12 @@
 
     if (hasTerm(text, "sapata") || hasTerm(text, "sapatas")) {
       const isStripFooting = hasTerm(text, "sapata corrida");
-      const stripFootingMatch = originalMessage.match(new RegExp("sapata\\s+corrida.*?" + number + "\\s*(?:m|metros?).*?" + number + "\\s*(?:cm|centimetros?)\\s*(?:de\\s*)?largura.*?" + number + "\\s*(?:cm|centimetros?)\\s*(?:de\\s*)?altura", "i"));
+      const stripFootingMatch = originalMessage.match(new RegExp("sapata\\s+corrida.*?" + number + "\\s*(m|metros?)?.*?largura\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?.*?altura\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i")) ||
+        originalMessage.match(new RegExp("sapata\\s+corrida.*?" + number + "\\s*(m|metros?)?.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:de\\s*)?largura.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:de\\s*)?altura", "i"));
       if (stripFootingMatch) {
         const length = parseDimensionNumber(stripFootingMatch[1]);
-        const width = centimetersToMeters(stripFootingMatch[2]);
-        const height = centimetersToMeters(stripFootingMatch[3]);
+        const width = parseStructuralDimension(stripFootingMatch[3], stripFootingMatch[4]);
+        const height = parseStructuralDimension(stripFootingMatch[5], stripFootingMatch[6]);
         const volume = roundQuantity(length * width * height);
         return buildGeometryResult(
           "sapata_corrida",
@@ -1890,12 +1892,13 @@
           "Sapata corrida"
         );
       }
-      const footingMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+      const footingMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?sapatas?.*?" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
       if (footingMatch) {
         const count = footingMatch[1] ? parseDimensionNumber(footingMatch[1]) : 1;
-        const length = parseStructuralDimension(footingMatch[2], footingMatch[5]);
-        const width = parseStructuralDimension(footingMatch[3], footingMatch[5]);
-        const height = parseStructuralDimension(footingMatch[4], footingMatch[5]);
+        const fallbackUnit = footingMatch[7] || footingMatch[5] || footingMatch[3];
+        const length = parseStructuralDimension(footingMatch[2], footingMatch[3] || fallbackUnit);
+        const width = parseStructuralDimension(footingMatch[4], footingMatch[5] || fallbackUnit);
+        const height = parseStructuralDimension(footingMatch[6], footingMatch[7] || fallbackUnit);
         const volume = roundQuantity(count * length * width * height);
         return buildGeometryResult(
           isStripFooting ? "sapata_corrida" : "sapata",
