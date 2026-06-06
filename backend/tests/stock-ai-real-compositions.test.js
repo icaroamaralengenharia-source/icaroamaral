@@ -2892,3 +2892,146 @@ test("Stock AI Obras frontend XLSX permite parse SINAPI Analitico no motor", () 
   assert.equal(parsed.rows.length, 3);
   assert.equal(parsed.referenceMonth, "2024-12");
 });
+
+test("Stock AI Obras linguagem real interpreta piso de galpao sem virar galpao completo", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou fazer piso de galpao 20x30 com 10 cm";
+  const request = engine.parseRequest(message);
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId);
+
+  assert.notEqual(geometry.serviceType, "edificacao_composta");
+  assert.ok(services.some((service) => /piso|contrapiso|concreto/.test(service || "")));
+  assert.ok(geometry.quantity === 600 || geometry.quantity === 60 || /600\s*m/i.test(answer) || /60\s*m[³3]/i.test(answer));
+  assert.equal(services.some((service) => /alvenaria|cobertura/.test(service || "")), false);
+  assert.doesNotMatch(answer, /Galpao|Cobertura estimada|Alvenaria de bloco/i);
+});
+
+test("Stock AI Obras linguagem real calcula cobertura ceramica 12x8 sem pedir area", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou fazer cobertura ceramica 12x8";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.equal(geometry.serviceType, "cobertura");
+  assert.match(answer, /cobertura/i);
+  assert.match(answer, /ceramic/i);
+  assert.ok(geometry.quantity === 96 || /96\s*m/i.test(answer) || /12\s*x\s*8|12\s*m\s*x\s*8\s*m/i.test(answer));
+  assert.doesNotMatch(answer, /Qual area da cobertura\?/i);
+});
+
+test("Stock AI Obras linguagem real trata caixa d'agua 3x3x2 como dimensoes ou volume", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou fazer uma caixa d agua 3x3x2";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.notEqual(geometry.quantity, 3);
+  assert.match(JSON.stringify(geometry.dimensions || {}) + "\n" + answer, /3.*3.*2|18\s*m[³3]/i);
+  assert.ok(geometry.quantity === 18 || /18\s*m[³3]/i.test(answer) || /dimensoes internas|dimensões internas/i.test(answer));
+});
+
+test("Stock AI Obras linguagem real mantem muro com portao como muro com vao", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou fazer um muro de 20 metros com 2 metros de altura e portao de 3 metros";
+  const request = engine.parseRequest(message);
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId);
+
+  assert.notEqual(geometry.serviceType, "porta");
+  assert.ok(/muro|alvenaria/i.test(geometry.serviceType || answer) || services.some((service) => /muro|alvenaria/.test(service || "")));
+  assert.match(answer, /portao|portão|vao|vão|desconto|acessorio|acessório/i);
+  assert.doesNotMatch(answer, /Quantas portas/i);
+});
+
+test("Stock AI Obras linguagem real segmenta pedido misto de parede banheiro e calcada", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou fazer parede 10x3, banheiro 2x2 e calcada 10x1";
+  const request = engine.parseRequest(message);
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId);
+
+  assert.ok(services.length >= 2);
+  assert.match(answer, /parede|alvenaria/i);
+  assert.match(answer, /30\s*m/i);
+  assert.match(answer, /calcada|calçada/i);
+  assert.match(answer, /10\s*m/i);
+  assert.notEqual(geometry.quantity, 4);
+});
+
+test("Stock AI Obras linguagem real separa reforma com reboco 80m2 e piso 60m2", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "reforma com reboco 80m2 e piso 60m2";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId);
+
+  assert.ok(services.some((service) => /reboco|emboco/.test(service || "")));
+  assert.ok(services.some((service) => /piso/.test(service || "")));
+  assert.equal(services.some((service) => /forma/.test(service || "")), false);
+  assert.doesNotMatch(answer, /Forma de madeira|Compensado plastificado|Desmoldante|Sarrafo de madeira/i);
+  assert.match(answer, /80\s*m[²2].*Reboco|Reboco[\s\S]*80\s*m[²2]/i);
+  assert.match(answer, /60\s*m[²2].*Piso|Piso[\s\S]*60\s*m[²2]/i);
+});
+
+test("Stock AI Obras linguagem real entende fala informal de pedreiro", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "o meu chapa, vou levantar uns 50 metro de parede, puxar massa e botar piso em 30 quadrado";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId).join(" ");
+
+  assert.match(services + "\n" + answer, /alvenaria|parede/i);
+  assert.match(services + "\n" + answer, /piso/i);
+  assert.match(services + "\n" + answer, /reboco|emboco|emboço|massa/i);
+  assert.match(answer, /30\s*(m[²2]|quadrado)/i);
+});
+
+test("Stock AI Obras linguagem real preserva subservicos explicitos em galpao completo", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "galpao 20x30 com 12 pilares 20x40 altura 5m, sapatas 1x1x0,5, baldrame 80m 20x30, cobertura metalica e fechamento lateral 200m2";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const services = (request.services || []).map((service) => service.serviceType || service.controlledServiceId).join(" ");
+
+  assert.match(services + "\n" + answer, /piso/i);
+  assert.match(services + "\n" + answer, /pilar/i);
+  assert.match(services + "\n" + answer, /sapata/i);
+  assert.match(services + "\n" + answer, /baldrame/i);
+  assert.match(services + "\n" + answer, /cobertura/i);
+  assert.match(services + "\n" + answer, /fechamento lateral|alvenaria/i);
+  assert.match(answer, /metalica|metálica/i);
+  assert.doesNotMatch(answer, /Telha ceramica|tipo de cobertura/i);
+});
+
+test("Stock AI Obras linguagem real casa popular sem dimensoes pede dados organizados sem inventar quantitativo", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "quero construir uma casa popular";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const questions = answer.match(/\?/g) || [];
+
+  assert.equal(geometry.complete, false);
+  assert.equal(geometry.quantity, 0);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO|MATERIAIS FALTANTES|comprar\s+\d/i);
+  assert.ok(questions.length >= 3);
+  assert.match(answer, /comprimento|largura/i);
+  assert.match(answer, /area|área|comodos|cômodos|pavimentos|pe-direito|pé-direito|padrao|padrão/i);
+});
+
+test("Stock AI Obras linguagem real mantem laje 8x12 com 12 cm como caso aprovado", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "vou concretar uma laje 8x12 com 12 cm";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.equal(geometry.serviceType, "laje");
+  assert.equal(geometry.dimensions.area, 96);
+  assert.equal(geometry.quantity, 11.52);
+  assert.match(answer, /96\s*m/i);
+  assert.match(answer, /11,52\s*m[³3]/i);
+  assert.doesNotMatch(answer, /calculo principal usa composicao demonstrativa por area\/unidade|cálculo principal usa composição demonstrativa por área\/unidade/i);
+});
