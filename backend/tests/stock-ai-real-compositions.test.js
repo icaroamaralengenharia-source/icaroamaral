@@ -18,6 +18,7 @@ const officialBaseXlsxGuidePath = join(testDir, "..", "..", "docs", "stock-ai-le
 const officialBaseUploadGuidePath = join(testDir, "..", "..", "docs", "stock-ai-interface-upload-base-oficial.md");
 const sinapiAnaliticoGuidePath = join(testDir, "..", "..", "docs", "stock-ai-adaptador-sinapi-analitico.md");
 const stockAiObrasHtmlPath = join(testDir, "..", "..", "stock-ai-obras.html");
+const stockAiBrowserXlsxPath = join(testDir, "..", "..", "relatorio-qualidade-obras", "xlsx.full.min.js");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -1114,7 +1115,8 @@ test("Stock AI Obras interface contem upload de base oficial", () => {
   assert.match(html, /Validar arquivo/);
   assert.match(html, /Importar base/);
   assert.match(html, /Limpar base importada/);
-  assert.match(html, /Leitura XLSX dispon&iacute;vel no backend\/testes/);
+  assert.match(html, /relatorio-qualidade-obras\/xlsx\.full\.min\.js/);
+  assert.match(html, /Leitura XLSX habilitada no navegador/);
 });
 
 test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
@@ -1126,7 +1128,8 @@ test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
   assert.match(bridge, /parseSinapiAnaliticoXlsx/);
   assert.match(bridge, /importSinapiAnaliticoXlsx/);
   assert.match(bridge, /Formato SINAPI Analitico detectado/);
-  assert.match(bridge, /XLSX ainda nao esta disponivel diretamente nesta interface/);
+  assert.match(bridge, /Nao foi possivel ler o XLSX/);
+  assert.equal(bridge.indexOf("if (isXlsxFile_(file))") < bridge.indexOf("if (isCsvFile_(file))"), true);
   assert.match(bridge, /clearImportedOfficialBase/);
   assert.match(bridge, /ColumnMap invalido/);
 });
@@ -1302,4 +1305,57 @@ test("Stock AI Obras documenta adaptador SINAPI Analitico", () => {
   assert.match(guide, /INSUMO/);
   assert.match(guide, /COMPOSICAO/);
   assert.match(guide, /interface/i);
+});
+
+test("Stock AI Obras frontend carrega XLSX global para navegador", () => {
+  assert.equal(existsSync(stockAiBrowserXlsxPath), true);
+
+  const sandbox = {
+    window: {},
+    console,
+    setTimeout,
+    clearTimeout
+  };
+  sandbox.self = sandbox.window;
+  sandbox.global = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(stockAiBrowserXlsxPath, "utf8"), sandbox);
+  if (sandbox.XLSX && !sandbox.window.XLSX) {
+    sandbox.window.XLSX = sandbox.XLSX;
+  }
+
+  assert.equal(!!sandbox.window.XLSX, true);
+  assert.equal(typeof sandbox.window.XLSX.read, "function");
+  assert.equal(typeof sandbox.window.XLSX.utils.sheet_to_json, "function");
+});
+
+test("Stock AI Obras frontend XLSX permite parse SINAPI Analitico no motor", () => {
+  const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
+  const sandbox = {
+    window: {},
+    console,
+    setTimeout,
+    clearTimeout
+  };
+  sandbox.self = sandbox.window;
+  sandbox.global = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(stockAiBrowserXlsxPath, "utf8"), sandbox);
+  if (sandbox.XLSX && !sandbox.window.XLSX) {
+    sandbox.window.XLSX = sandbox.XLSX;
+  }
+  vm.runInContext(source, sandbox);
+
+  const workbook = sandbox.window.XLSX.utils.book_new();
+  sandbox.window.XLSX.utils.book_append_sheet(workbook, sandbox.window.XLSX.utils.aoa_to_sheet(sinapiAnaliticoRowsFixture()), "Analitico");
+  const bytes = sandbox.window.XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  const parsed = sandbox.window.StockAiCompositionEngine.parseSinapiAnaliticoXlsx(new Uint8Array(bytes), {
+    source: "SINAPI",
+    state: "BA"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.format, "SINAPI_ANALITICO");
+  assert.equal(parsed.rows.length, 3);
+  assert.equal(parsed.referenceMonth, "2024-12");
 });

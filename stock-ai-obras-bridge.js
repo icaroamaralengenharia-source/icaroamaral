@@ -213,12 +213,16 @@
   }
 
   function isCsvFile_(file) {
-    return !!(file && (/\.csv$/i.test(file.name || "") || /csv/i.test(file.type || "")));
+    const name = clean_(file && file.name).toLowerCase();
+    const type = clean_(file && file.type).toLowerCase();
+    return !!(file && !isXlsxFile_(file) && (/\.csv$/i.test(name) || /(^|\/|;)csv($|;)/i.test(type) || type === "text/plain"));
   }
 
   function isXlsxFile_(file) {
-    return !!(file && (/\.xlsx$/i.test(file.name || "") ||
-      /spreadsheetml\.sheet/i.test(file.type || "")));
+    const name = clean_(file && file.name).toLowerCase();
+    const type = clean_(file && file.type).toLowerCase();
+    return !!(file && (/\.xlsx$/i.test(name) ||
+      /spreadsheetml\.sheet/i.test(type)));
   }
 
   function readOfficialFile_(file, mode, callback) {
@@ -308,29 +312,11 @@
   }
 
   function setOfficialImportFallbackXlsx_() {
-    setImportStatus_("XLSX ainda nao esta disponivel diretamente nesta interface. Use CSV nesta fase ou importe XLSX pelo fluxo backend/testes.");
+    setImportStatus_("Nao foi possivel ler o XLSX.\nVerifique se a biblioteca XLSX esta carregada.\nUse CSV nesta fase ou importe XLSX pelo fluxo backend/testes.");
   }
 
   function parseOfficialFileResult_(file, fileContent, options, action) {
     const engine = window.StockAiCompositionEngine || {};
-    if (isCsvFile_(file)) {
-      if (action === "import") {
-        return typeof engine.importOfficialBaseCsv === "function"
-          ? engine.importOfficialBaseCsv(String(fileContent || ""), options)
-          : { ok: false, errors: ["Motor CSV oficial ainda nao carregado."] };
-      }
-      const parsed = typeof engine.parseOfficialBaseCsv === "function"
-        ? engine.parseOfficialBaseCsv(String(fileContent || ""), options)
-        : { ok: false, rows: [], errors: ["Motor CSV oficial ainda nao carregado."] };
-      if (!parsed.ok) {
-        return parsed;
-      }
-      const validation = typeof engine.validateOfficialBaseImport === "function"
-        ? engine.validateOfficialBaseImport({ rows: parsed.rows }, options)
-        : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
-      return { ok: validation.ok, parsed: parsed, validation: validation };
-    }
-
     if (isXlsxFile_(file)) {
       if (!window.XLSX) {
         return { ok: false, xlsxFallback: true };
@@ -364,6 +350,24 @@
         ? engine.validateOfficialBaseImport({ rows: parsedXlsx.rows }, options)
         : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
       return { ok: validationXlsx.ok, parsed: parsedXlsx, validation: validationXlsx };
+    }
+
+    if (isCsvFile_(file)) {
+      if (action === "import") {
+        return typeof engine.importOfficialBaseCsv === "function"
+          ? engine.importOfficialBaseCsv(String(fileContent || ""), options)
+          : { ok: false, errors: ["Motor CSV oficial ainda nao carregado."] };
+      }
+      const parsed = typeof engine.parseOfficialBaseCsv === "function"
+        ? engine.parseOfficialBaseCsv(String(fileContent || ""), options)
+        : { ok: false, rows: [], errors: ["Motor CSV oficial ainda nao carregado."] };
+      if (!parsed.ok) {
+        return parsed;
+      }
+      const validation = typeof engine.validateOfficialBaseImport === "function"
+        ? engine.validateOfficialBaseImport({ rows: parsed.rows }, options)
+        : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
+      return { ok: validation.ok, parsed: parsed, validation: validation };
     }
 
     return { ok: false, errors: ["Formato nao suportado. Use CSV nesta fase ou XLSX quando disponivel no ambiente."] };

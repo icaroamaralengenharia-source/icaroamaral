@@ -19,14 +19,16 @@ Permitir que o usuario valide e importe uma base oficial local sem inventar coef
 
 Depois da importacao, a base oficial importada passa a ter prioridade sobre a base demonstrativa. A base demonstrativa continua disponivel como fallback.
 
-## Como importar XLSX, se disponivel
+## Como importar XLSX
 
-A interface aceita arquivos `.xlsx`, mas a leitura direta depende de `window.XLSX` estar disponivel no navegador.
+A interface aceita arquivos `.xlsx` e carrega `relatorio-qualidade-obras/xlsx.full.min.js` para disponibilizar `window.XLSX` no navegador.
 
-Se a biblioteca XLSX nao estiver disponivel, a interface exibe um fallback seguro e nao quebra a pagina:
+Se a biblioteca XLSX nao estiver disponivel ou falhar ao carregar, a interface exibe um fallback seguro e nao quebra a pagina:
 
 ```text
-XLSX ainda nao esta disponivel diretamente nesta interface. Use CSV nesta fase ou importe XLSX pelo fluxo backend/testes.
+Nao foi possivel ler o XLSX.
+Verifique se a biblioteca XLSX esta carregada.
+Use CSV nesta fase ou importe XLSX pelo fluxo backend/testes.
 ```
 
 ## Fallback XLSX no browser
@@ -34,8 +36,8 @@ XLSX ainda nao esta disponivel diretamente nesta interface. Use CSV nesta fase o
 Nesta fase:
 
 - CSV funciona diretamente no navegador.
-- XLSX funciona nos testes/backend.
-- XLSX no browser fica condicionado a uma biblioteca carregada no ambiente.
+- XLSX funciona diretamente no navegador quando `window.XLSX` carrega corretamente.
+- O adaptador SINAPI Analitico e tentado antes do leitor XLSX generico.
 - Nenhum bundler novo foi adicionado.
 
 ## Campos obrigatorios
@@ -117,4 +119,3 @@ Base oficial importada removida. O Stock AI voltou ao catalogo demonstrativo/fal
 - Fluxo backend para importacao oficial.
 - Importacao ZIP.
 - Busca online oficial controlada, com fonte e referencia verificaveis.
-
