@@ -5084,6 +5084,150 @@
     });
   }
 
+  function summarizeWithdrawalApproval(comparison) {
+    const statusRank = {
+      DENTRO_DO_PREVISTO: 1,
+      ATENCAO: 2,
+      ACIMA_DO_PREVISTO: 3,
+      CRITICO: 4
+    };
+    return (comparison || []).reduce(function (summary, item) {
+      const approval = item.approval || {};
+      const currentRank = statusRank[approval.status] || 0;
+      if (currentRank > (statusRank[summary.status] || 0)) {
+        summary.status = approval.status;
+        summary.recommendation = approval.recommendation || summary.recommendation;
+      }
+      summary.percentualDivergencia = Math.max(summary.percentualDivergencia, parseNumber(approval.percentualDivergencia));
+      summary.approvalRequired = summary.approvalRequired || !!approval.approvalRequired;
+      summary.justificationRequired = summary.justificationRequired || !!approval.justificationRequired;
+      return summary;
+    }, {
+      status: "DENTRO_DO_PREVISTO",
+      percentualDivergencia: 0,
+      approvalRequired: false,
+      justificationRequired: false,
+      recommendation: "Liberacao autorizada."
+    });
+  }
+
+  function createWithdrawalApprovalRequest(context) {
+    const data = context || {};
+    const service = data.service || (data.services && data.services[0]) || {};
+    const controlledService = resolveControlledServiceFromContext(service) || resolveControlledServiceFromContext(data);
+    const comparison = data.comparison || [];
+    const approvalAnalysis = data.approvalAnalysis || summarizeWithdrawalApproval(comparison);
+    const approvalRequired = !!approvalAnalysis.approvalRequired;
+    const createdAt = new Date().toISOString();
+    const idSeed = [
+      controlledService && controlledService.id || "servico",
+      createdAt,
+      comparison.length,
+      Math.round(parseNumber(approvalAnalysis.percentualDivergencia) * 100)
+    ].join("_");
+    return {
+      id: "withdrawal_approval_" + normalize(idSeed).replace(/\s+/g, "_"),
+      status: approvalRequired ? "APPROVAL_PENDING" : "APPROVAL_NOT_REQUIRED",
+      createdAt: createdAt,
+      serviceId: controlledService && controlledService.id || "",
+      serviceName: controlledService && controlledService.nomeTecnico || service.service || service.serviceName || "",
+      riskLevel: controlledService && controlledService.nivelRisco || "",
+      requestedItems: (data.requestedItems || []).map(function (item) { return Object.assign({}, item); }),
+      predictedItems: (data.predictedItems || []).map(function (item) { return Object.assign({}, item); }),
+      divergences: comparison.map(function (item) {
+        return {
+          material: item.material,
+          requestedQuantity: item.requestedQuantity,
+          predictedQuantity: item.predictedQuantity,
+          difference: item.difference,
+          unit: item.unit,
+          status: item.approval && item.approval.status || item.status,
+          percentualDivergencia: item.approval && item.approval.percentualDivergencia || 0
+        };
+      }),
+      approvalAnalysis: Object.assign({}, approvalAnalysis),
+      justificationRequired: !!approvalAnalysis.justificationRequired,
+      justificationText: clean(data.justificationText),
+      requestedBy: clean(data.requestedBy),
+      approvedBy: "",
+      rejectedBy: "",
+      decisionAt: "",
+      decisionReason: "",
+      canReleaseMaterial: !approvalRequired,
+      auditTrail: [{
+        action: approvalRequired ? "APPROVAL_REQUEST_CREATED" : "APPROVAL_NOT_REQUIRED",
+        at: createdAt,
+        by: clean(data.requestedBy) || "sistema",
+        reason: approvalRequired ? "Aprovacao obrigatoria por divergencia de retirada." : "Divergencia dentro da faixa de liberacao automatica."
+      }]
+    };
+  }
+
+  function resolveWithdrawalReleaseDecision(approvalRequest) {
+    const request = approvalRequest || {};
+    if (request.status === "APPROVED") {
+      return {
+        canReleaseMaterial: true,
+        releaseStatus: "APPROVED",
+        message: "LIBERACAO AUTORIZADA"
+      };
+    }
+    if (request.status === "REJECTED") {
+      return {
+        canReleaseMaterial: false,
+        releaseStatus: "REJECTED",
+        message: "NAO LIBERAR SEM APROVACAO"
+      };
+    }
+    if (request.status === "APPROVAL_PENDING") {
+      return {
+        canReleaseMaterial: false,
+        releaseStatus: "APPROVAL_PENDING",
+        message: "NAO LIBERAR SEM APROVACAO"
+      };
+    }
+    return {
+      canReleaseMaterial: true,
+      releaseStatus: "APPROVAL_NOT_REQUIRED",
+      message: "LIBERACAO AUTORIZADA"
+    };
+  }
+
+  function appendApprovalAuditTrail(request, action, by, reason, at) {
+    return (request.auditTrail || []).concat([{
+      action: action,
+      at: at,
+      by: clean(by) || "sistema",
+      reason: clean(reason)
+    }]);
+  }
+
+  function approveWithdrawalRequest(request, approverName, reason) {
+    const decisionAt = new Date().toISOString();
+    return Object.assign({}, request || {}, {
+      status: "APPROVED",
+      approvedBy: clean(approverName),
+      rejectedBy: "",
+      decisionAt: decisionAt,
+      decisionReason: clean(reason),
+      canReleaseMaterial: true,
+      auditTrail: appendApprovalAuditTrail(request || {}, "APPROVED", approverName, reason, decisionAt)
+    });
+  }
+
+  function rejectWithdrawalRequest(request, rejectorName, reason) {
+    const decisionAt = new Date().toISOString();
+    return Object.assign({}, request || {}, {
+      status: "REJECTED",
+      approvedBy: "",
+      rejectedBy: clean(rejectorName),
+      decisionAt: decisionAt,
+      decisionReason: clean(reason),
+      canReleaseMaterial: false,
+      auditTrail: appendApprovalAuditTrail(request || {}, "REJECTED", rejectorName, reason, decisionAt)
+    });
+  }
+
   function buildWithdrawalPurchasePlan(comparison) {
     return (comparison || []).map(function (item) {
       if (item.status === "abaixo do previsto") {
@@ -5169,6 +5313,17 @@
     const primaryControlledService = resolveControlledServiceFromContext(serviceData.services[0] || serviceData.request || {});
     const comparison = compareWithdrawalRequest(requestedItems, predictedItems, primaryControlledService);
     const approvalHistory = buildWithdrawalApprovalHistory(serviceData.services[0] || serviceData.request || {}, comparison);
+    const approvalAnalysis = summarizeWithdrawalApproval(comparison);
+    const approvalRequest = createWithdrawalApprovalRequest({
+      service: serviceData.services[0] || {},
+      services: serviceData.services,
+      requestedItems: requestedItems,
+      predictedItems: predictedItems,
+      comparison: comparison,
+      approvalAnalysis: approvalAnalysis,
+      requestedBy: settings.requestedBy || ""
+    });
+    const releaseDecision = resolveWithdrawalReleaseDecision(approvalRequest);
     const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
     lines.push("SERVICO INFORMADO");
     serviceData.services.forEach(function (service) {
@@ -5206,6 +5361,17 @@
         " | status " + item.status);
     });
     lines.push("");
+    lines.push("FLUXO DE APROVACAO");
+    if (approvalRequest.status === "APPROVAL_PENDING") {
+      lines.push("- Status: PENDENTE DE APROVACAO");
+      lines.push("- Liberacao: " + releaseDecision.message);
+      lines.push("- Justificativa: " + (approvalRequest.justificationRequired ? "obrigatoria" : "nao obrigatoria"));
+      lines.push("- Acao: enviar para encarregado/gestor");
+    } else {
+      lines.push("- Status: APROVACAO NAO NECESSARIA");
+      lines.push("- Liberacao: AUTORIZADA");
+    }
+    lines.push("");
     lines.push("CONSUMO PREVISTO DA COMPOSICAO");
     if (predictedItems.length) {
       predictedItems.forEach(function (item) {
@@ -5230,6 +5396,9 @@
       predictedItems: predictedItems,
       comparison: comparison,
       approvalHistory: approvalHistory,
+      approvalAnalysis: approvalAnalysis,
+      approvalRequest: approvalRequest,
+      releaseDecision: releaseDecision,
       answer: lines.join("\n")
     };
   }
@@ -5889,6 +6058,10 @@
     isWithdrawalRequest: isWithdrawalRequest,
     extractRequestedMaterials: extractRequestedMaterials,
     evaluateWithdrawalApproval: evaluateWithdrawalApproval,
+    createWithdrawalApprovalRequest: createWithdrawalApprovalRequest,
+    resolveWithdrawalReleaseDecision: resolveWithdrawalReleaseDecision,
+    approveWithdrawalRequest: approveWithdrawalRequest,
+    rejectWithdrawalRequest: rejectWithdrawalRequest,
     buildWithdrawalConference: buildWithdrawalConference,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,

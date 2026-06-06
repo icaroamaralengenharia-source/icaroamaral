@@ -1739,6 +1739,141 @@ test("Stock AI Obras conferencia de retirada mostra decisao operacional e histor
   assert.equal(conference.approvalHistory[0].riskLevel, "alto");
 });
 
+test("Stock AI Obras fluxo real gera approval pending para pedido critico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+
+  assert.equal(conference.approvalRequest.status, "APPROVAL_PENDING");
+  assert.equal(conference.approvalRequest.canReleaseMaterial, false);
+  assert.equal(conference.releaseDecision.canReleaseMaterial, false);
+  assert.equal(conference.releaseDecision.message, "NAO LIBERAR SEM APROVACAO");
+  assert.match(conference.answer, /NAO LIBERAR SEM APROVACAO/);
+});
+
+test("Stock AI Obras fluxo real gera approval not required para pedido dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares");
+
+  assert.equal(conference.approvalRequest.status, "APPROVAL_NOT_REQUIRED");
+  assert.equal(conference.approvalRequest.canReleaseMaterial, true);
+  assert.equal(conference.releaseDecision.canReleaseMaterial, true);
+  assert.equal(conference.releaseDecision.message, "LIBERACAO AUTORIZADA");
+  assert.match(conference.answer, /APROVACAO NAO NECESSARIA/);
+});
+
+test("Stock AI Obras fluxo real pedido pendente nao libera material", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const request = engine.createWithdrawalApprovalRequest({
+    service: { service: "Pilar", serviceType: "pilar" },
+    requestedItems: [{ name: "Cimento", quantity: 20, unit: "saco" }],
+    predictedItems: [{ name: "Cimento", quantity: 8, unit: "saco" }],
+    comparison: [{
+      material: "Cimento",
+      requestedQuantity: 20,
+      predictedQuantity: 8,
+      difference: 12,
+      unit: "saco",
+      approval: engine.evaluateWithdrawalApproval(20, 8, engine.getControlledServiceById("pilar"))
+    }]
+  });
+  const decision = engine.resolveWithdrawalReleaseDecision(request);
+
+  assert.equal(request.status, "APPROVAL_PENDING");
+  assert.equal(decision.canReleaseMaterial, false);
+  assert.equal(decision.message, "NAO LIBERAR SEM APROVACAO");
+});
+
+test("Stock AI Obras fluxo real pedido aprovado libera material", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const pending = engine.createWithdrawalApprovalRequest({
+    service: { service: "Pilar", serviceType: "pilar" },
+    comparison: [{
+      material: "Cimento",
+      requestedQuantity: 20,
+      predictedQuantity: 8,
+      difference: 12,
+      unit: "saco",
+      approval: engine.evaluateWithdrawalApproval(20, 8, engine.getControlledServiceById("pilar"))
+    }]
+  });
+  const approved = engine.approveWithdrawalRequest(pending, "Encarregado", "Uso adicional justificado");
+  const decision = engine.resolveWithdrawalReleaseDecision(approved);
+
+  assert.equal(approved.status, "APPROVED");
+  assert.equal(approved.approvedBy, "Encarregado");
+  assert.equal(approved.canReleaseMaterial, true);
+  assert.equal(decision.canReleaseMaterial, true);
+  assert.equal(decision.message, "LIBERACAO AUTORIZADA");
+});
+
+test("Stock AI Obras fluxo real pedido rejeitado nao libera material", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const pending = engine.createWithdrawalApprovalRequest({
+    service: { service: "Pilar", serviceType: "pilar" },
+    comparison: [{
+      material: "Cimento",
+      requestedQuantity: 20,
+      predictedQuantity: 8,
+      difference: 12,
+      unit: "saco",
+      approval: engine.evaluateWithdrawalApproval(20, 8, engine.getControlledServiceById("pilar"))
+    }]
+  });
+  const rejected = engine.rejectWithdrawalRequest(pending, "Gestor", "Divergencia sem justificativa");
+  const decision = engine.resolveWithdrawalReleaseDecision(rejected);
+
+  assert.equal(rejected.status, "REJECTED");
+  assert.equal(rejected.rejectedBy, "Gestor");
+  assert.equal(rejected.canReleaseMaterial, false);
+  assert.equal(decision.canReleaseMaterial, false);
+  assert.equal(decision.message, "NAO LIBERAR SEM APROVACAO");
+});
+
+test("Stock AI Obras fluxo real marca justificativa obrigatoria quando divergencia exige", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const request = engine.createWithdrawalApprovalRequest({
+    service: { service: "Pilar", serviceType: "pilar" },
+    comparison: [{
+      material: "Cimento",
+      requestedQuantity: 12,
+      predictedQuantity: 8,
+      difference: 4,
+      unit: "saco",
+      approval: engine.evaluateWithdrawalApproval(12, 8, engine.getControlledServiceById("pilar"))
+    }]
+  });
+
+  assert.equal(request.justificationRequired, true);
+  assert.equal(request.status, "APPROVAL_PENDING");
+});
+
+test("Stock AI Obras fluxo real audit trail registra criacao aprovacao e rejeicao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const pending = engine.createWithdrawalApprovalRequest({
+    service: { service: "Pilar", serviceType: "pilar" },
+    requestedBy: "Almoxarife",
+    comparison: [{
+      material: "Cimento",
+      requestedQuantity: 20,
+      predictedQuantity: 8,
+      difference: 12,
+      unit: "saco",
+      approval: engine.evaluateWithdrawalApproval(20, 8, engine.getControlledServiceById("pilar"))
+    }]
+  });
+  const approved = engine.approveWithdrawalRequest(pending, "Encarregado", "OK");
+  const rejected = engine.rejectWithdrawalRequest(pending, "Gestor", "Nao autorizado");
+
+  assert.equal(pending.auditTrail[0].action, "APPROVAL_REQUEST_CREATED");
+  assert.equal(pending.auditTrail[0].by, "Almoxarife");
+  assert.equal(approved.auditTrail[1].action, "APPROVED");
+  assert.equal(approved.auditTrail[1].by, "Encarregado");
+  assert.equal(rejected.auditTrail[1].action, "REJECTED");
+  assert.equal(rejected.auditTrail[1].by, "Gestor");
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
