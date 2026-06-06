@@ -2325,6 +2325,32 @@
     return ranked.length ? ranked[0].item : null;
   }
 
+  function extractCompositionCodeRequest(message) {
+    const text = normalize(message);
+    const hasCodeIntent = hasAny(text, [
+      "composicao", "codigo", "cod", "sinapi", "orse", "buscar composicao", "calcule a composicao"
+    ]);
+    if (!hasCodeIntent) {
+      return "";
+    }
+    const match = text.match(/\b(?:composicao|codigo|cod|sinapi|orse)\s*(?:n|numero|num)?\s*(\d{3,})\b/) ||
+      text.match(/\b(\d{3,})\b/);
+    return match ? clean(match[1]) : "";
+  }
+
+  function findCompositionByCode(code) {
+    const normalizedCode = normalize(code);
+    if (!normalizedCode) {
+      return null;
+    }
+    const exact = getCompositions().filter(function (item) {
+      return normalize(item.code || item.id) === normalizedCode;
+    }).sort(function (a, b) {
+      return getSourcePriority(b) - getSourcePriority(a);
+    });
+    return exact.length ? exact[0] : null;
+  }
+
   function hasAny(text, terms) {
     return terms.some(function (term) {
       return text.indexOf(normalize(term)) >= 0;
@@ -2342,6 +2368,9 @@
       "preciso calcular", "quero cobrir", "cobrir", "instalar", "executar",
       "rejuntar", "pintar", "grautear", "escavar", "concretar"
     ];
+    if (extractCompositionCodeRequest(message)) {
+      return true;
+    }
     return hasAny(text, intentTerms) && rankCompositions(text).length > 0;
   }
 
@@ -3052,6 +3081,8 @@
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
     const geometry = parseGeometryRequest(originalMessage);
+    const compositionCode = extractCompositionCodeRequest(originalMessage);
+    const compositionByCode = compositionCode ? findCompositionByCode(compositionCode) : null;
     if (geometry.detected) {
       const geometryServiceSource = geometry.geometryType === "composite"
         ? (geometry.derivedServices || [])
@@ -3074,6 +3105,28 @@
         geometry: geometry,
         servicesWithoutComposition: getGeometryServicesWithoutComposition(geometry),
         services: geometryService
+      };
+    }
+    if (compositionCode) {
+      return {
+        originalMessage: originalMessage,
+        quantity: 0,
+        unit: "",
+        missingQuantity: false,
+        assumedBaseQuantity: false,
+        geometry: geometry,
+        compositionCodeQuery: {
+          code: compositionCode,
+          composition: compositionByCode
+        },
+        services: compositionByCode ? [{
+          service: compositionByCode.service || compositionByCode.name || compositionByCode.description,
+          quantity: 1,
+          unit: displayUnit(compositionByCode.productionUnit || compositionByCode.unit),
+          requestedUnit: "",
+          materialHint: compositionByCode.service || compositionByCode.name,
+          score: 1000
+        }] : []
       };
     }
     const quantityMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|m³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cúbico|metros cúbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
@@ -4057,6 +4110,52 @@
     });
   }
 
+  function buildCompositionCodeLookupAnswer(request) {
+    const lookup = request && request.compositionCodeQuery || {};
+    const code = clean(lookup.code);
+    const compositionData = lookup.composition || findCompositionByCode(code);
+    if (!code) {
+      return "";
+    }
+    if (!compositionData) {
+      return [
+        "COMPOSICAO NAO ENCONTRADA",
+        "- Codigo pesquisado: " + code,
+        "- A base oficial importada e a base demonstrativa foram consultadas.",
+        "- Nenhum coeficiente foi inventado."
+      ].join("\n");
+    }
+    const inputs = (compositionData.inputs || compositionData.materials || []).slice(0, 8);
+    const metadata = compositionData.metadata || {};
+    const lines = [
+      "COMPOSICAO IDENTIFICADA",
+      "- Codigo da composicao: " + (compositionData.code || compositionData.id || code),
+      "- Descricao: " + (compositionData.name || compositionData.description || compositionData.service || "sem descricao"),
+      "- Unidade: " + displayUnit(compositionData.productionUnit || compositionData.unit || "un"),
+      "- Fonte: " + getCompositionSource(compositionData),
+      "- UF: " + (compositionData.sourceRegion || metadata.state || "nao informada"),
+      "- Referencia: " + (compositionData.sourceDate || metadata.referenceMonth || "nao informada"),
+      "",
+      "INSUMOS PRINCIPAIS"
+    ];
+    if (!inputs.length) {
+      lines.push("- Nenhum insumo cadastrado para esta composicao.");
+    } else {
+      inputs.forEach(function (input) {
+        const coefficient = parseNumber(input.coefficient || input.quantityPerUnit);
+        lines.push("- " + (input.code ? input.code + " - " : "") +
+          (input.name || input.material || "Insumo sem nome") +
+          ": " + formatQuantity(coefficient) + " " + displayUnit(input.unit || "un") +
+          " por " + displayUnit(compositionData.productionUnit || compositionData.unit || "un"));
+      });
+    }
+    lines.push("");
+    lines.push("OBSERVACOES");
+    lines.push("- Nenhum coeficiente foi inventado.");
+    lines.push("- " + (isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_WARNING));
+    return lines.join("\n");
+  }
+
   function buildAnswerFromMessageLegacy(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
@@ -4122,6 +4221,9 @@
   function buildAnswerFromMessage(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
+    if (request.compositionCodeQuery) {
+      return buildCompositionCodeLookupAnswer(request);
+    }
     const geometryQuestions = request.geometry && request.geometry.questions || [];
     const parameterQuestions = buildParameterQuestions(request).concat(geometryQuestions).filter(function (question, index, list) {
       return question && list.indexOf(question) === index;

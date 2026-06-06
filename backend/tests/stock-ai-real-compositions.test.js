@@ -114,6 +114,34 @@ function officialBaseRowsFixture() {
   }];
 }
 
+function officialBaseCodigo97141Fixture() {
+  return [{
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12",
+    compositionCode: "97141",
+    compositionName: "Tubo de ferro fundido DN 80 fixture oficial controlada",
+    compositionUnit: "m",
+    serviceType: "tubulacao",
+    inputCode: "SINAPI-97141-MAT-001",
+    inputName: "Tubo ferro fundido DN 80 fixture",
+    inputUnit: "m",
+    coefficient: "1,05"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12",
+    compositionCode: "97141",
+    compositionName: "Tubo de ferro fundido DN 80 fixture oficial controlada",
+    compositionUnit: "m",
+    serviceType: "tubulacao",
+    inputCode: "SINAPI-97141-MAT-002",
+    inputName: "Conexao ferro fundido fixture",
+    inputUnit: "un",
+    coefficient: "0,10"
+  }];
+}
+
 function officialBaseCsvSemicolonFixture() {
   return [
     "compositionCode;compositionName;compositionUnit;inputCode;inputName;inputUnit;coefficient",
@@ -1295,6 +1323,35 @@ test("Stock AI Obras importSinapiAnaliticoXlsx importa e permite busca", () => {
   assert.equal(imported.format, "SINAPI_ANALITICO");
   assert.equal(results.length, 1);
   assert.equal(results[0].code, "SINAPI-ANA-001");
+});
+
+test("Stock AI Obras reconhece consulta por codigo de composicao SINAPI", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+
+  ["calcule a composicao 97141", "SINAPI 97141", "codigo 97141"].forEach((question) => {
+    const request = engine.parseRequest(question);
+    assert.equal(engine.isCompositionRequest(question), true);
+    assert.equal(engine.isStockAiRequest(question), true);
+    assert.equal(request.compositionCodeQuery.code, "97141");
+    assert.equal(request.compositionCodeQuery.composition.code, "97141");
+    assert.equal(request.compositionCodeQuery.composition.source, "SINAPI");
+  });
+});
+
+test("Stock AI Obras responde composicao SINAPI por codigo sem cair no fluxo generico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule a composicao 97141");
+
+  assert.match(answer, /COMPOSICAO IDENTIFICADA/);
+  assert.match(answer, /97141/);
+  assert.match(answer, /Tubo de ferro fundido DN 80/);
+  assert.match(answer, /Fonte: SINAPI/);
+  assert.match(answer, /UF: BA/);
+  assert.match(answer, /Referencia: 2024-12/);
+  assert.match(answer, /Nenhum coeficiente foi inventado/);
+  assert.doesNotMatch(answer, /RDO|Relatorio Diario de Obra/i);
 });
 
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
