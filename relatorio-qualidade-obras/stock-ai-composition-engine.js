@@ -224,7 +224,7 @@
       nomeTecnico: "Calcada",
       categoria: "piso",
       nivelRisco: "medio",
-      apelidos: ["calcada", "calçada", "passeio", "piso externo"],
+      apelidos: ["calcada", "calçada", "passeio", "piso externo", "piso de concreto", "piso concreto", "rampa"],
       unidadePrincipal: "m2",
       unidadesAceitas: ["m2", "m3"],
       dadosNecessarios: ["area", "espessura"],
@@ -367,6 +367,43 @@
     return clean(unit) || normalized || "un";
   }
 
+  function formatUnitLabel(quantity, unit) {
+    const value = Math.abs(parseNumber(quantity));
+    const normalized = normalizeUnit(unit);
+    if (normalized === "m2") return displayUnit("m2");
+    if (normalized === "m3") return displayUnit("m3");
+    if (normalized === "m") return value === 1 ? "metro" : "metros";
+    if (normalized === "kg") return "kg";
+    if (normalized === "un") return value === 1 ? "unidade" : "unidades";
+    const raw = normalize(unit);
+    if (raw.indexOf("saco") >= 0) return value === 1 ? "saco" : "sacos";
+    if (raw.indexOf("pilar") >= 0) return value === 1 ? "pilar" : "pilares";
+    if (raw.indexOf("tabua") >= 0) return value === 1 ? "tabua" : "tabuas";
+    if (raw.indexOf("telha") >= 0) return value === 1 ? "telha" : "telhas";
+    if (raw.indexOf("bloco") >= 0) return value === 1 ? "bloco" : "blocos";
+    const cleaned = clean(unit) || normalized || "un";
+    if (value === 1 || /s$|²$|³$/.test(cleaned)) return cleaned;
+    return cleaned + "s";
+  }
+
+  function formatQuantityWithUnit(quantity, unit) {
+    return formatQuantity(quantity) + " " + formatUnitLabel(quantity, unit);
+  }
+
+  function formatMaterialLine(material) {
+    const item = material || {};
+    const name = item.name || item.material || item.materialName || "Material";
+    const quantity = item.quantity || item.requestedQuantity || item.predictedQuantity || item.requiredQuantity || item.realBalance || item.purchaseQuantity || 0;
+    return "- " + name + ": " + formatQuantityWithUnit(quantity, item.unit || "un");
+  }
+
+  function formatResponseSection(title, lines) {
+    const content = (lines || []).filter(function (line) {
+      return line !== null && line !== undefined && String(line).trim() !== "";
+    });
+    return [title].concat(content).join("\n");
+  }
+
   function normalizeCompositionUnit(unit) {
     return normalizeUnit(unit);
   }
@@ -507,6 +544,14 @@
       ].filter(Boolean);
     }
     if (controlledService.id === "viga") {
+      if (hasAny(text, ["verga", "contraverga"])) {
+        return [
+          hasQuantity || hasCountNearService ? "" : "quantidade",
+          hasSection ? "" : "largura",
+          hasSection ? "" : "altura",
+          hasLength ? "" : "comprimento"
+        ].filter(Boolean);
+      }
       return [
         hasSection ? "" : "largura",
         hasSection ? "" : "altura",
@@ -514,6 +559,13 @@
       ].filter(Boolean);
     }
     if (controlledService.id === "alvenaria") {
+      if (hasTerm(text, "parede de concreto")) {
+        return [
+          hasLength ? "" : "comprimento",
+          hasHeight ? "" : "altura",
+          hasThickness ? "" : "espessura"
+        ].filter(Boolean);
+      }
       return [
         hasArea || hasLength ? "" : "comprimento",
         hasArea || hasHeight ? "" : "altura"
@@ -526,6 +578,13 @@
       return [
         hasArea ? "" : "area",
         hasType ? "" : "tipo de cobertura"
+      ].filter(Boolean);
+    }
+    if (controlledService.id === "calcada" && hasTerm(text, "rampa")) {
+      return [
+        hasWidth ? "" : "largura",
+        hasLength ? "" : "comprimento",
+        hasThickness ? "" : "espessura"
       ].filter(Boolean);
     }
 
@@ -592,16 +651,16 @@
       const sectionText = context.sectionText ? " " + context.sectionText : "";
 
       if (!hasQuantity && !hasSection && !hasHeight) {
-        return ["Quantos pilares serao executados? Qual a secao e a altura?"];
+        return ["Quantos pilares serao executados? Qual a largura, a profundidade/espessura e a altura?"];
       }
       if (hasQuantity && !hasSection && !hasHeight) {
-        return ["Qual a secao e a altura dos " + quantityText + "?"];
+        return ["Qual a largura, a profundidade/espessura e a altura dos " + quantityText + "?"];
       }
       if (hasQuantity && hasSection && !hasHeight) {
         return ["Qual a altura dos " + quantityText + sectionText + "?"];
       }
       if (hasQuantity && !hasSection) {
-        return ["Qual a secao dos " + quantityText + "? Exemplo: 20x30 cm."];
+        return ["Qual a largura e a profundidade/espessura dos " + quantityText + "? Exemplo: 20x30 cm."];
       }
       if (hasQuantity && !hasHeight) {
         return ["Qual a altura dos " + quantityText + "?"];
@@ -609,11 +668,52 @@
     }
 
     if (controlledService.id === "alvenaria") {
-      const hasLength = missing.indexOf("comprimento") < 0;
       const hasHeight = missing.indexOf("altura") < 0;
+      const needsThickness = missing.indexOf("espessura") >= 0;
+      if (needsThickness) {
+        return missing.map(function (item) {
+          if (item === "comprimento") return "Qual o comprimento da parede de concreto?";
+          if (item === "altura") return "Qual a altura da parede de concreto?";
+          if (item === "espessura") return "Qual a espessura da parede de concreto?";
+          return getControlledServiceQuestion(controlledService, item);
+        });
+      }
       if (!hasHeight && context.wallLength > 0) {
         return ["Qual a altura da parede de " + formatMeters(context.wallLength) + "?"];
       }
+    }
+
+    if (controlledService.id === "viga") {
+      const text = normalize(parsedData && (parsedData.originalMessage || parsedData.message || parsedData.text) || "");
+      const isLintel = hasAny(text, ["verga", "contraverga"]);
+      return missing.map(function (item) {
+        if (item === "quantidade") return "Qual a quantidade de vergas/contravergas?";
+        if (item === "largura") return "Qual a largura da secao?";
+        if (item === "altura") return "Qual a altura da secao?";
+        if (item === "comprimento") return isLintel ? "Qual o comprimento de cada verga/contraverga?" : "Qual o comprimento da viga?";
+        return getControlledServiceQuestion(controlledService, item);
+      });
+    }
+
+    if (controlledService.id === "sapata") {
+      return missing.map(function (item) {
+        if (item === "quantidade") return "Qual a quantidade de sapatas ou blocos de fundacao?";
+        if (item === "largura") return "Qual a largura?";
+        if (item === "comprimento") return "Qual o comprimento?";
+        if (item === "altura") return "Qual a altura/espessura?";
+        return getControlledServiceQuestion(controlledService, item);
+      });
+    }
+
+    if (controlledService.id === "contrapiso" || controlledService.id === "calcada") {
+      const isRamp = hasTerm(normalize(parsedData && (parsedData.originalMessage || parsedData.message || parsedData.text) || ""), "rampa");
+      return missing.map(function (item) {
+        if (item === "area") return "Qual a area em m2?";
+        if (item === "largura") return isRamp ? "Qual a largura da rampa?" : "Qual a largura?";
+        if (item === "comprimento") return isRamp ? "Qual o comprimento da rampa?" : "Qual o comprimento?";
+        if (item === "espessura") return isRamp ? "Qual a espessura media?" : "Qual a espessura?";
+        return getControlledServiceQuestion(controlledService, item);
+      });
     }
 
     return missing.map(function (item) {
@@ -634,13 +734,13 @@
     const questionMap = {
       pilar: {
         quantidade: "Quantos pilares serao executados?",
-        secao: "Qual a secao dos pilares? Exemplo: 20x30 cm.",
+        secao: "Qual a largura e a profundidade/espessura dos pilares? Exemplo: 20x30 cm.",
         altura: "Qual a altura dos pilares?"
       },
       viga: {
-        largura: "Qual largura da viga?",
-        altura: "Qual altura da viga?",
-        comprimento: "Qual comprimento da viga?"
+        largura: "Qual a largura da secao?",
+        altura: "Qual a altura da secao?",
+        comprimento: "Qual o comprimento da viga?"
       },
       alvenaria: {
         comprimento: "Qual comprimento da parede?",
@@ -652,6 +752,20 @@
       cobertura: {
         area: "Qual area da cobertura?",
         "tipo de cobertura": "Qual tipo de telha?"
+      },
+      sapata: {
+        quantidade: "Qual a quantidade de sapatas ou blocos de fundacao?",
+        comprimento: "Qual o comprimento?",
+        largura: "Qual a largura?",
+        altura: "Qual a altura/espessura?"
+      },
+      contrapiso: {
+        area: "Qual a area em m2?",
+        espessura: "Qual a espessura?"
+      },
+      calcada: {
+        area: "Qual a area em m2?",
+        espessura: "Qual a espessura?"
       },
       radier: {
         area: "Qual o comprimento, largura e espessura do radier?",
@@ -5832,6 +5946,65 @@
     });
   }
 
+  function formatWithdrawalComplementaryQuestionResponse(context) {
+    const data = context || {};
+    const serviceData = data.serviceData || {};
+    const request = serviceData.request || {};
+    const geometry = request.geometry || {};
+    const controlledService = findControlledServiceByText(serviceData.serviceText || request.originalMessage || "");
+    const serviceId = controlledService && controlledService.id || geometry.serviceType || "";
+    const serviceName = controlledService && controlledService.nomeTecnico || geometry.label || "Servico";
+    const questionContext = extractControlledServiceQuestionContext(controlledService || getControlledServiceById(serviceId), {
+      originalMessage: serviceData.serviceText || request.originalMessage || ""
+    });
+    const missing = controlledService
+      ? getControlledServiceMissingData(controlledService, { originalMessage: serviceData.serviceText || request.originalMessage || "" })
+      : [];
+    const serviceLines = ["- " + serviceName];
+
+    if (serviceId === "pilar" && questionContext.quantity > 0) {
+      serviceLines.push("- Quantidade: " + formatQuantityWithUnit(questionContext.quantity, "pilar"));
+    }
+    if (serviceId === "alvenaria" && questionContext.wallLength > 0) {
+      serviceLines.push("- Comprimento: " + formatQuantityWithUnit(questionContext.wallLength, "m"));
+    }
+
+    const informationLines = [];
+    if (serviceId === "pilar") {
+      if (missing.indexOf("quantidade") >= 0) informationLines.push("- Quantidade de pilares.");
+      if (missing.indexOf("secao") >= 0) {
+        informationLines.push("- Largura dos pilares. Exemplo: 20 cm");
+        informationLines.push("- Profundidade/espessura dos pilares. Exemplo: 30 cm");
+      }
+      if (missing.indexOf("altura") >= 0) informationLines.push("- Altura dos pilares. Exemplo: 3 m");
+    } else if (serviceId === "alvenaria") {
+      if (missing.indexOf("comprimento") >= 0) informationLines.push("- Comprimento da parede.");
+      if (missing.indexOf("altura") >= 0) informationLines.push("- Altura da parede.");
+    }
+    if (!informationLines.length) {
+      (serviceData.questions || []).forEach(function (question) {
+        informationLines.push("- " + question);
+      });
+    }
+
+    return [
+      "CONFERENCIA INTELIGENTE DE RETIRADA",
+      "",
+      formatResponseSection("SERVICO IDENTIFICADO", serviceLines),
+      "",
+      formatResponseSection("MATERIAIS SOLICITADOS", (data.requestedItems || []).map(formatMaterialLine)),
+      "",
+      "INFORMACOES NECESSARIAS",
+      "Para calcular o consumo previsto, informe:",
+      informationLines.join("\n"),
+      "",
+      formatResponseSection("OBSERVACOES", [
+        "- Se nao houver composicao oficial compativel, sera usada base demonstrativa com aviso claro.",
+        "- Nenhum coeficiente sera inventado."
+      ])
+    ].join("\n");
+  }
+
   function buildWithdrawalConference(message, options) {
     const settings = options || {};
     const requestedItems = settings.requestedItems || extractRequestedMaterials(message);
@@ -5878,23 +6051,10 @@
         detected: true,
         ok: false,
         requestedItems: requestedItems,
-        answer: [
-          "CONFERENCIA INTELIGENTE DE RETIRADA",
-          "",
-          "MATERIAIS SOLICITADOS",
-        ].concat(requestedItems.map(function (item) {
-          return "- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit);
-        })).concat([
-          "",
-          "PERGUNTAS COMPLEMENTARES"
-        ]).concat(serviceData.questions.map(function (question) {
-          return "- " + question;
-        })).concat([
-          "",
-          "OBSERVACOES",
-          "- Se nao houver composicao oficial compativel, o sistema so usa fallback demonstrativo com aviso claro.",
-          "- Nenhum coeficiente foi inventado."
-        ]).join("\n")
+        answer: formatWithdrawalComplementaryQuestionResponse({
+          requestedItems: requestedItems,
+          serviceData: serviceData
+        })
       };
     }
     const result = calculateMultipleServices(serviceData.services);
@@ -5941,7 +6101,9 @@
       criticalLines.push("SERVICO IDENTIFICADO");
       serviceData.services.forEach(function (service) {
         const compositionData = service.composition || findCompositionForProductionService(service);
-        criticalLines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
+        const serviceUnit = (service.serviceType === "pilar" || service.controlledServiceId === "pilar") && normalizeUnit(service.unit) === "un" ? "pilar" : service.unit;
+        criticalLines.push("- " + service.service);
+        criticalLines.push("- Quantidade: " + formatQuantityWithUnit(service.quantity, serviceUnit));
         if (compositionData) {
           criticalLines.push("- Composicao utilizada: " + (compositionData.code || compositionData.id || "sem codigo") + " - " + (compositionData.name || compositionData.service));
           criticalLines.push("- " + formatCompositionSource(compositionData));
@@ -5950,13 +6112,13 @@
       criticalLines.push("");
       criticalLines.push("MATERIAIS SOLICITADOS");
       requestedItems.forEach(function (item) {
-        criticalLines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+        criticalLines.push(formatMaterialLine(item));
       });
       criticalLines.push("");
       criticalLines.push("CONSUMO PREVISTO");
       if (predictedItems.length) {
         predictedItems.forEach(function (item) {
-          criticalLines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+          criticalLines.push(formatMaterialLine(item));
         });
       } else {
         criticalLines.push("- Sem consumo previsto calculado para a composicao identificada.");
@@ -5967,9 +6129,9 @@
         const approval = item.approval || evaluateWithdrawalApproval(item.requestedQuantity, item.predictedQuantity, primaryControlledService);
         const signedDifference = (item.difference > 0 ? "+" : "") + formatQuantity(item.difference);
         criticalLines.push(item.material);
-        criticalLines.push("- Solicitado: " + formatQuantity(item.requestedQuantity) + " " + displayUnit(item.unit));
-        criticalLines.push("- Previsto: " + formatQuantity(item.predictedQuantity) + " " + displayUnit(item.unit));
-        criticalLines.push("- Diferenca: " + signedDifference + " " + displayUnit(item.unit));
+        criticalLines.push("- Solicitado: " + formatQuantityWithUnit(item.requestedQuantity, item.unit));
+        criticalLines.push("- Previsto: " + formatQuantityWithUnit(item.predictedQuantity, item.unit));
+        criticalLines.push("- Diferenca: " + signedDifference + " " + formatUnitLabel(item.difference, item.unit));
         criticalLines.push("- Status: " + approval.status);
         criticalLines.push("- Acao: " + (approval.approvalRequired ? "nao liberar sem aprovacao" : item.recommendation));
         criticalLines.push("- STATUS: " + approval.status);
@@ -6784,6 +6946,10 @@
     clearWithdrawalManagerAlertsForTests: clearWithdrawalManagerAlertsForTests,
     getWithdrawalExecutiveDashboard: getWithdrawalExecutiveDashboard,
     buildWithdrawalConference: buildWithdrawalConference,
+    formatUnitLabel: formatUnitLabel,
+    formatMaterialLine: formatMaterialLine,
+    formatResponseSection: formatResponseSection,
+    formatWithdrawalComplementaryQuestionResponse: formatWithdrawalComplementaryQuestionResponse,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,
     normalizeUnit: normalizeUnit,

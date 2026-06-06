@@ -1631,9 +1631,12 @@ test("Stock AI Obras conferencia de retirada pede complemento quando falta quant
   const answer = engine.buildAnswerFromMessage("Pedreiro pediu 10 sacos de cimento para fazer pilares");
 
   assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA/);
-  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
-  assert.match(answer, /Quantos pilares serao executados\? Qual a secao e a altura\?|Informe o quantitativo do servico/);
-  assert.match(answer, /Nenhum coeficiente foi inventado/);
+  assert.match(answer, /INFORMACOES NECESSARIAS/);
+  assert.match(answer, /Quantidade de pilares/);
+  assert.match(answer, /Largura dos pilares/);
+  assert.match(answer, /Profundidade\/espessura dos pilares/);
+  assert.match(answer, /Altura dos pilares/);
+  assert.match(answer, /Nenhum coeficiente sera inventado/);
 });
 
 test("Stock AI Obras conferencia de retirada preserva fallback demonstrativo com aviso", () => {
@@ -1745,7 +1748,8 @@ test("Stock AI Obras conferencia de retirada mostra decisao operacional e histor
   assert.match(conference.answer, /COMPARACAO/);
   assert.match(conference.answer, /DECISAO/);
   assert.match(conference.answer, /PROXIMA ACAO/);
-  assert.match(conference.answer, /Cimento\s+- Solicitado: 20 saco\s+- Previsto: 8 saco\s+- Diferenca: \+12 saco/s);
+  assert.match(conference.answer, /Cimento\s+- Solicitado: 20 sacos\s+- Previsto: 8 sacos\s+- Diferenca: \+12 sacos/s);
+  assert.doesNotMatch(conference.answer, /20 saco\b/);
   assert.match(conference.answer, /HISTORICO INTERNO DA ANALISE/);
   assert.equal(conference.approvalHistory[0].serviceId, "pilar");
   assert.equal(conference.approvalHistory[0].riskLevel, "alto");
@@ -2480,8 +2484,88 @@ test("Stock AI Obras catalogo controlado pergunta comprimento quando viga esta i
   const answer = engine.buildAnswerFromMessage("quero material para viga 15x40");
 
   assert.match(answer, /Servico controlado identificado: Viga/);
-  assert.match(answer, /Qual comprimento da viga\?/);
+  assert.match(answer, /Qual o comprimento da viga\?/);
   assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para viga sem dados", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para viga");
+
+  assert.match(answer, /Servico controlado identificado: Viga/);
+  assert.match(answer, /Qual a largura da secao\?/);
+  assert.match(answer, /Qual a altura da secao\?/);
+  assert.match(answer, /Qual o comprimento da viga\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para sapata", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para sapata");
+
+  assert.match(answer, /Servico controlado identificado: Sapata/);
+  assert.match(answer, /Qual o comprimento\?/);
+  assert.match(answer, /Qual a largura\?/);
+  assert.match(answer, /Qual a altura\/espessura\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para bloco de fundacao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para bloco de fundacao");
+
+  assert.match(answer, /Servico controlado identificado: Sapata/);
+  assert.match(answer, /Qual o comprimento\?/);
+  assert.match(answer, /Qual a largura\?/);
+  assert.match(answer, /Qual a altura\/espessura\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para verga", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para verga");
+
+  assert.match(answer, /Servico controlado identificado: Viga/);
+  assert.match(answer, /Qual a quantidade de vergas\/contravergas\?/);
+  assert.match(answer, /Qual a largura da secao\?/);
+  assert.match(answer, /Qual a altura da secao\?/);
+  assert.match(answer, /Qual o comprimento de cada verga\/contraverga\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta espessura para parede de concreto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para parede de concreto");
+
+  assert.match(answer, /Servico controlado identificado: Alvenaria/);
+  assert.match(answer, /Qual o comprimento da parede de concreto\?/);
+  assert.match(answer, /Qual a altura da parede de concreto\?/);
+  assert.match(answer, /Qual a espessura da parede de concreto\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para rampa", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para rampa");
+
+  assert.match(answer, /Servico controlado identificado: Calcada/);
+  assert.match(answer, /Qual a largura da rampa\?/);
+  assert.match(answer, /Qual o comprimento da rampa\?/);
+  assert.match(answer, /Qual a espessura media\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta area e espessura para contrapiso", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para contrapiso");
+
+  assert.match(answer, /Servico controlado identificado: Contrapiso/);
+  assert.match(answer, /Qual a area em m2\?/);
+  assert.match(answer, /Qual a espessura\?/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta area e espessura para piso de concreto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para piso de concreto");
+
+  assert.match(answer, /Servico controlado identificado: Calcada/);
+  assert.match(answer, /Qual a area em m2\?/);
+  assert.match(answer, /Qual a espessura\?/);
+  assert.doesNotMatch(answer, /Piso ceramico/);
 });
 
 test("Stock AI Obras catalogo controlado pergunta altura quando alvenaria esta incompleta", () => {
@@ -2497,17 +2581,35 @@ test("Stock AI Obras reaproveita quantidade em retirada de pilares incompleta", 
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
 
-  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /INFORMACOES NECESSARIAS/);
   assert.doesNotMatch(answer, /Quantos pilares serao executados/);
-  assert.match(answer, /Qual a secao e a altura dos 2 pilares\?/);
+  assert.match(answer, /Largura dos pilares/);
+  assert.match(answer, /Profundidade\/espessura dos pilares/);
+  assert.match(answer, /Altura dos pilares/);
+});
+
+test("Stock AI Obras resposta UX de retirada incompleta tem blocos e pluralizacao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+
+  assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA\n\nSERVICO IDENTIFICADO/);
+  assert.match(answer, /SERVICO IDENTIFICADO\n- Pilar\n- Quantidade: 2 pilares/);
+  assert.match(answer, /MATERIAIS SOLICITADOS\n- Cimento: 20 sacos/);
+  assert.match(answer, /INFORMACOES NECESSARIAS\nPara calcular o consumo previsto, informe:/);
+  assert.match(answer, /OBSERVACOES/);
+  assert.doesNotMatch(answer, /20 saco\b/);
+  assert.doesNotMatch(answer, /Quantos pilares serao executados/);
 });
 
 test("Stock AI Obras pergunta quantidade secao e altura quando retirada cita pilares sem quantidade", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("Pedreiro pediu 20 sacos de cimento para fazer pilares");
 
-  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
-  assert.match(answer, /Quantos pilares serao executados\? Qual a secao e a altura\?/);
+  assert.match(answer, /INFORMACOES NECESSARIAS/);
+  assert.match(answer, /Quantidade de pilares/);
+  assert.match(answer, /Largura dos pilares/);
+  assert.match(answer, /Profundidade\/espessura dos pilares/);
+  assert.match(answer, /Altura dos pilares/);
 });
 
 test("Stock AI Obras reaproveita comprimento de parede incompleta", () => {
