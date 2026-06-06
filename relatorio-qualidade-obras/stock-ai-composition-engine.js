@@ -3808,6 +3808,44 @@
       }
     }
 
+    if (hasAny(text, ["cobertura", "telhado"])) {
+      const coveragePlanMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      if (coveragePlanMatch) {
+        const length = parseDimensionNumber(coveragePlanMatch[1]);
+        const width = parseDimensionNumber(coveragePlanMatch[2]);
+        const area = roundQuantity(length * width);
+        const label = hasExplicitCoverageType(text) ? getGeometryServiceName("cobertura", "area") : "Cobertura";
+        return buildGeometryResult(
+          "cobertura",
+          "area",
+          area,
+          "m2",
+          "Area base calculada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(area) + ". Confirmar inclinacao/fator de cobertura.",
+          { length: length, width: width, area: area },
+          label
+        );
+      }
+    }
+
+    if (hasAny(text, ["caixa dagua", "caixa d agua", "caixa de agua"])) {
+      const waterTankMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      if (waterTankMatch) {
+        const length = parseDimensionNumber(waterTankMatch[1]);
+        const width = parseDimensionNumber(waterTankMatch[2]);
+        const height = parseDimensionNumber(waterTankMatch[3]);
+        const volume = roundQuantity(length * width * height);
+        return buildGeometryResult(
+          "caixa_dagua",
+          "volume",
+          volume,
+          "m3",
+          "Volume geometrico bruto: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume) + ". Confirmar dimensoes internas, espessura e capacidade nominal.",
+          { length: length, width: width, height: height },
+          "Caixa d'agua"
+        );
+      }
+    }
+
     const linearService = findGeometryService(text, LINEAR_GEOMETRY_SERVICES);
     if (linearService) {
       const linearQuantity = parseLinearQuantity(originalMessage, text, linearService);
