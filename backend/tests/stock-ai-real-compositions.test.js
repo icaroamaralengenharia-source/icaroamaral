@@ -1874,6 +1874,125 @@ test("Stock AI Obras fluxo real audit trail registra criacao aprovacao e rejeica
   assert.equal(rejected.auditTrail[1].by, "Gestor");
 });
 
+test("Stock AI Obras fila de aprovacao recebe pedido critico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const queue = engine.getWithdrawalApprovalQueue();
+  const summary = engine.getWithdrawalApprovalQueueSummary();
+
+  assert.equal(conference.approvalRequest.status, "APPROVAL_PENDING");
+  assert.match(conference.answer, /SOLICITACAO ENVIADA PARA FILA DE APROVACAO/);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].id, conference.approvalRequest.id);
+  assert.equal(summary.total, 1);
+  assert.equal(summary.pending, 1);
+  assert.equal(summary.blocked, 1);
+});
+
+test("Stock AI Obras fila de aprovacao ignora pedido dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares");
+
+  assert.equal(conference.approvalRequest.status, "APPROVAL_NOT_REQUIRED");
+  assert.match(conference.answer, /APROVACAO NAO NECESSARIA/);
+  assert.equal(engine.getWithdrawalApprovalQueue().length, 0);
+  assert.equal(engine.getWithdrawalApprovalQueueSummary().total, 0);
+});
+
+test("Stock AI Obras fila de aprovacao busca pedido por id", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const queued = engine.getWithdrawalApprovalRequestById(conference.approvalRequest.id);
+
+  assert.ok(queued);
+  assert.equal(queued.id, conference.approvalRequest.id);
+  assert.equal(queued.status, "APPROVAL_PENDING");
+});
+
+test("Stock AI Obras fila de aprovacao aprova pedido e libera material", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const approved = engine.approveWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Encarregado", "Liberado com justificativa");
+  const queued = engine.getWithdrawalApprovalRequestById(conference.approvalRequest.id);
+  const summary = engine.getWithdrawalApprovalQueueSummary();
+
+  assert.equal(approved.status, "APPROVED");
+  assert.equal(approved.canReleaseMaterial, true);
+  assert.equal(queued.status, "APPROVED");
+  assert.equal(summary.approved, 1);
+  assert.equal(summary.canRelease, 1);
+});
+
+test("Stock AI Obras fila de aprovacao rejeita pedido e mantem bloqueio", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  const rejected = engine.rejectWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Gestor", "Sem justificativa tecnica");
+  const queued = engine.getWithdrawalApprovalRequestById(conference.approvalRequest.id);
+  const summary = engine.getWithdrawalApprovalQueueSummary();
+
+  assert.equal(rejected.status, "REJECTED");
+  assert.equal(rejected.canReleaseMaterial, false);
+  assert.equal(queued.status, "REJECTED");
+  assert.equal(summary.rejected, 1);
+  assert.equal(summary.blocked, 1);
+});
+
+test("Stock AI Obras fila de aprovacao preserva historico aprovado e rejeitado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const first = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  engine.approveWithdrawalApprovalRequestInQueue(first.approvalRequest.id, "Encarregado", "OK");
+  const second = engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares");
+  engine.rejectWithdrawalApprovalRequestInQueue(second.approvalRequest.id, "Gestor", "Nao autorizado");
+  const queue = engine.getWithdrawalApprovalQueue();
+  const pending = engine.getPendingWithdrawalApprovalRequests();
+
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0].status, "APPROVED");
+  assert.equal(queue[1].status, "REJECTED");
+  assert.equal(pending.length, 0);
+});
+
+test("Stock AI Obras fila de aprovacao resume pendentes aprovados e rejeitados", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const first = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+  engine.approveWithdrawalApprovalRequestInQueue(first.approvalRequest.id, "Encarregado", "OK");
+  const second = engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares");
+  engine.rejectWithdrawalApprovalRequestInQueue(second.approvalRequest.id, "Gestor", "Nao autorizado");
+  engine.buildWithdrawalConference("Pedreiro pediu 40 sacos de cimento para fazer 2 pilares");
+  const summary = engine.getWithdrawalApprovalQueueSummary();
+
+  assert.equal(summary.total, 3);
+  assert.equal(summary.pending, 1);
+  assert.equal(summary.approved, 1);
+  assert.equal(summary.rejected, 1);
+  assert.equal(summary.critical, 3);
+  assert.equal(summary.canRelease, 1);
+  assert.equal(summary.blocked, 2);
+});
+
+test("Stock AI Obras fila de aprovacao registra audit trail de entrada e decisao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Almoxarife"
+  });
+  const queued = engine.getWithdrawalApprovalRequestById(conference.approvalRequest.id);
+  const approved = engine.approveWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Encarregado", "OK");
+
+  assert.equal(queued.auditTrail[0].action, "APPROVAL_REQUEST_CREATED");
+  assert.equal(queued.auditTrail[1].action, "QUEUE_ADDED");
+  assert.equal(queued.auditTrail[1].by, "Almoxarife");
+  assert.equal(approved.auditTrail[2].action, "APPROVED");
+  assert.equal(approved.auditTrail[2].by, "Encarregado");
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
