@@ -114,6 +114,82 @@ function officialBaseRowsFixture() {
   }];
 }
 
+function officialGeometryRowsFixture() {
+  return [{
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-ALV-001",
+    compositionName: "Alvenaria de bloco ceramico geometria oficial",
+    compositionUnit: "m2",
+    serviceType: "alvenaria",
+    inputCode: "SINAPI-GEO-BLOCO",
+    inputName: "Bloco ceramico geometria oficial",
+    inputUnit: "un",
+    coefficient: "12,50"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-ALV-001",
+    compositionName: "Alvenaria de bloco ceramico geometria oficial",
+    compositionUnit: "m2",
+    serviceType: "alvenaria",
+    inputCode: "SINAPI-GEO-ARG",
+    inputName: "Argamassa geometria oficial",
+    inputUnit: "kg",
+    coefficient: "3,25"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-PILAR-001",
+    compositionName: "Pilar de concreto armado geometria oficial",
+    compositionUnit: "m3",
+    serviceType: "pilar",
+    inputCode: "SINAPI-GEO-CONC",
+    inputName: "Concreto usinado geometria oficial",
+    inputUnit: "m3",
+    coefficient: "1"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-PILAR-001",
+    compositionName: "Pilar de concreto armado geometria oficial",
+    compositionUnit: "m3",
+    serviceType: "pilar",
+    inputCode: "SINAPI-GEO-ACO",
+    inputName: "Aco CA-50 geometria oficial",
+    inputUnit: "kg",
+    coefficient: "95"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-LAJE-001",
+    compositionName: "Laje pre-moldada geometria oficial",
+    compositionUnit: "m2",
+    serviceType: "laje",
+    inputCode: "SINAPI-GEO-LAJOTA",
+    inputName: "Lajota ceramica geometria oficial",
+    inputUnit: "un",
+    coefficient: "8"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-GEO-COB-001",
+    compositionName: "Cobertura com telha ceramica geometria oficial",
+    compositionUnit: "m2",
+    serviceType: "cobertura",
+    inputCode: "SINAPI-GEO-TELHA",
+    inputName: "Telha ceramica geometria oficial",
+    inputUnit: "un",
+    coefficient: "16"
+  }];
+}
+
 function officialBaseCodigo97141Fixture() {
   return [{
     source: "SINAPI",
@@ -336,7 +412,7 @@ test("Stock AI Obras mostra fonte da composicao real na resposta", () => {
   engine.loadExternalCompositions(sinapiAlvenariaFixture(), "SINAPI");
   const answer = engine.buildAnswerFromMessage("Tenho uma parede de 12 m por 3 m");
 
-  assert.match(answer, /Fonte: SINAPI - codigo TESTE-001 - referencia 2025-01 - BA/);
+  assert.match(answer, /Fonte: SINAPI oficial importado - codigo TESTE-001 - referencia 2025-01 - BA/);
 });
 
 test("Stock AI Obras alimenta consumo previsto com geometria e composicao real compativel", () => {
@@ -1352,6 +1428,116 @@ test("Stock AI Obras responde composicao SINAPI por codigo sem cair no fluxo gen
   assert.match(answer, /Referencia: 2024-12/);
   assert.match(answer, /Nenhum coeficiente foi inventado/);
   assert.doesNotMatch(answer, /RDO|Relatorio Diario de Obra/i);
+});
+
+test("Stock AI Obras calcula insumos SINAPI por codigo com quantidade informada", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule 10 m da composicao SINAPI 97141. Estoque: 5 m de tubo ferro fundido");
+
+  assert.match(answer, /INSUMOS COM QUANTIDADE CALCULADA/);
+  assert.match(answer, /Fonte: SINAPI oficial importado/);
+  assert.match(answer, /Tubo ferro fundido DN 80 fixture: 1,05 m por m \| quantidade: 10,5 m/);
+  assert.match(answer, /ESTOQUE X PREVISTO/);
+  assert.match(answer, /Nenhum coeficiente foi inventado/);
+});
+
+test("Stock AI Obras usa SINAPI real por descricao aproximada no fluxo normal", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const officialPisoRows = officialBaseRowsFixture().map((row) => ({
+    ...row,
+    compositionCode: "SINAPI-PISO-001",
+    compositionName: "Piso ceramico oficial controlado",
+    serviceType: "piso"
+  }));
+  engine.importOfficialBase({ rows: officialPisoRows });
+  const answer = engine.buildAnswerFromMessage("Vou executar 20 m2 de piso ceramico");
+
+  assert.match(answer, /Composicao utilizada: SINAPI-PISO-001/);
+  assert.match(answer, /Fonte: SINAPI oficial importado/);
+  assert.match(answer, /Bloco ceramico oficial: 250 un/);
+  assert.match(answer, /Argamassa oficial: 65 kg/);
+  assert.match(answer, /SINAPI oficial importado ou ORSE oficial importado/);
+});
+
+test("Stock AI Obras sugere composicoes SINAPI proximas por descricao sem inventar consumo", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const officialPisoRows = officialBaseRowsFixture().map((row) => ({
+    ...row,
+    compositionCode: "SINAPI-PISO-001",
+    compositionName: "Piso ceramico oficial controlado",
+    serviceType: "piso"
+  }));
+  engine.importOfficialBase({ rows: officialPisoRows });
+  const answer = engine.buildAnswerFromMessage("qual composicao SINAPI para piso ceramico?");
+
+  assert.match(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+  assert.match(answer, /SINAPI-PISO-001 - Piso ceramico oficial controlado/);
+  assert.match(answer, /Nenhum coeficiente foi inventado/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras mantem fallback demonstrativo quando descricao nao encontra SINAPI compativel", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const incompatibleOfficialRows = officialBaseRowsFixture().map((row) => ({
+    ...row,
+    compositionName: "Piso ceramico oficial controlado",
+    serviceType: "piso",
+    compositionUnit: "m3"
+  }));
+  engine.importOfficialBase({ rows: incompatibleOfficialRows });
+  const answer = engine.buildAnswerFromMessage("Vou executar 12 m2 de piso ceramico");
+
+  assert.doesNotMatch(answer, /Composicao utilizada: SINAPI-ALV-001/);
+  assert.match(answer, /Fonte: Base tecnica demonstrativa/);
+});
+
+test("Stock AI Obras aplica SINAPI importado em quantitativo geometrico de parede", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialGeometryRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("parede 12 x 3. Estoque: 100 un de bloco ceramico geometria oficial");
+
+  assert.match(answer, /QUANTITATIVO GEOM/);
+  assert.match(answer, /36 m2|36 m²/);
+  assert.match(answer, /Composicao utilizada: SINAPI-GEO-ALV-001/);
+  assert.match(answer, /Fonte: SINAPI oficial importado/);
+  assert.match(answer, /Bloco ceramico geometria oficial: 450 un/);
+  assert.match(answer, /Argamassa geometria oficial: 117 kg/);
+  assert.match(answer, /estoque 100 un/);
+  assert.match(answer, /comprar 350 un/);
+});
+
+test("Stock AI Obras aplica SINAPI importado em quantitativo geometrico de pilares", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialGeometryRowsFixture() });
+  const request = engine.parseRequest("14 pilares 20x30 com 3 m");
+  const answer = engine.buildAnswerFromMessage("14 pilares 20x30 com 3 m");
+
+  assert.equal(request.geometry.quantity, 2.52);
+  assert.equal(request.geometry.unit, "m3");
+  assert.match(answer, /Composicao utilizada: SINAPI-GEO-PILAR-001/);
+  assert.match(answer, /Concreto usinado geometria oficial: 2,52 m(?:3|³)/);
+  assert.match(answer, /Aco CA-50 geometria oficial: 239,4 kg/);
+});
+
+test("Stock AI Obras aplica SINAPI importado em laje por area sem inventar espessura", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialGeometryRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("laje 100 m2");
+
+  assert.match(answer, /Composicao utilizada: SINAPI-GEO-LAJE-001/);
+  assert.match(answer, /Lajota ceramica geometria oficial: 800 un/);
+  assert.doesNotMatch(answer, /Qual a espessura da laje/);
+});
+
+test("Stock AI Obras aplica SINAPI importado em cobertura por area sem tipo informado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialGeometryRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("cobertura 180 m2");
+
+  assert.match(answer, /Composicao utilizada: SINAPI-GEO-COB-001/);
+  assert.match(answer, /Telha ceramica geometria oficial: 2\.880 un|Telha ceramica geometria oficial: 2880 un/);
+  assert.doesNotMatch(answer, /tipo de cobertura/i);
 });
 
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {

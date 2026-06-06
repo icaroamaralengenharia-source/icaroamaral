@@ -6,7 +6,7 @@
   const DEMO_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
   const PURCHASE_WARNING = "Lista de compra gerada a partir de composições demonstrativas/editáveis e saldo local. Validar antes de compra oficial.";
 
-  const REAL_SOURCE_WARNING = "Base importada: SINAPI/ORSE.";
+  const REAL_SOURCE_WARNING = "Fonte: SINAPI oficial importado ou ORSE oficial importado. Nenhum coeficiente foi inventado.";
   const DEMO_REPLACE_WARNING = "Base demonstrativa/editavel. Substitua por composicao SINAPI/ORSE para uso executivo.";
   let importedCompositionCatalog = [];
   let importedOfficialBaseCatalog = [];
@@ -153,6 +153,45 @@
     const source = normalize(getCompositionSource(compositionData)).toUpperCase();
     return !!(compositionData && compositionData.metadata && compositionData.metadata.isRealComposition) ||
       source === "SINAPI" || source === "ORSE";
+  }
+
+  function getSourceDisplayName(compositionData) {
+    if (!compositionData) {
+      return DEMO_SOURCE;
+    }
+    if (isMockComposition(compositionData)) {
+      return "MOCK DE TESTE";
+    }
+    if (isRealComposition(compositionData)) {
+      const source = getCompositionSource(compositionData);
+      return source === "SINAPI" ? "SINAPI oficial importado" :
+        source === "ORSE" ? "ORSE oficial importado" :
+          source + " oficial importado";
+    }
+    return "Base tecnica demonstrativa";
+  }
+
+  function getCompositionInputs(compositionData) {
+    const item = compositionData || {};
+    const rawInputs = item.inputs || item.materials || [];
+    return (Array.isArray(rawInputs) ? rawInputs : []).map(function (input, index) {
+      const coefficient = parseNumber(
+        input.coefficient !== undefined ? input.coefficient :
+          input.quantityPerUnit !== undefined ? input.quantityPerUnit :
+            input.coeficiente
+      );
+      return {
+        id: input.id || input.code || "input_" + index,
+        code: clean(input.code || input.codigo),
+        name: clean(input.name || input.material || input.descricao) || "Insumo sem nome",
+        material: clean(input.material || input.name || input.descricao) || "Insumo sem nome",
+        type: clean(input.type || input.tipo || "material") || "material",
+        unit: input.unit || input.unidade || "un",
+        coefficient: coefficient,
+        quantityPerUnit: coefficient,
+        note: input.note || input.observacao || (isRealComposition(item) ? REAL_SOURCE_WARNING : DEMO_WARNING)
+      };
+    });
   }
 
   function material(name, coefficient, unit, note) {
@@ -2624,21 +2663,75 @@
       hasTerm(text, "sanduiche") || hasTerm(text, "sanduíche") || hasTerm(text, "laje impermeabilizada");
   }
 
+  function findOfficialGeometryComposition(service) {
+    const item = service || {};
+    const unit = normalizeUnit(item.unit || "");
+    const serviceType = normalize(item.serviceType || "");
+    const queryText = normalize([item.service, item.label, item.serviceType, item.materialHint].join(" "));
+    const queryTerms = queryText.split(" ").filter(function (term) {
+      return term.length >= 4;
+    });
+    const candidates = importedOfficialBaseCatalog.map(function (compositionData) {
+      if (!isRealComposition(compositionData)) {
+        return { item: compositionData, score: -1 };
+      }
+      if (unit && normalizeUnit(compositionData.productionUnit || compositionData.unit) !== unit) {
+        return { item: compositionData, score: -1 };
+      }
+      const haystack = normalize([
+        compositionData.code,
+        compositionData.name,
+        compositionData.description,
+        compositionData.service,
+        compositionData.serviceType,
+        compositionData.category
+      ].join(" "));
+      let score = 0;
+      if (serviceType && normalize(compositionData.serviceType) === serviceType) {
+        score += 1000;
+      }
+      if (serviceType && hasTerm(haystack, serviceType)) {
+        score += 450;
+      }
+      if (queryText && haystack.indexOf(queryText) >= 0) {
+        score += 350;
+      }
+      queryTerms.forEach(function (term) {
+        if (hasTerm(haystack, term)) {
+          score += 80;
+        }
+      });
+      return { item: compositionData, score: score };
+    }).filter(function (entry) {
+      return entry.score > 0;
+    }).sort(function (a, b) {
+      return b.score - a.score || clean(a.item.code).localeCompare(clean(b.item.code));
+    });
+    return candidates.length ? candidates[0].item : null;
+  }
+
+  function findCompositionForProductionService(service) {
+    return findOfficialGeometryComposition(service) || findComposition(service);
+  }
+
   function hasCompatibleComposition(serviceName, unit) {
-    const compositionData = findComposition({ service: serviceName, unit: unit, requestedUnit: unit });
+    const compositionData = findCompositionForProductionService({ service: serviceName, unit: unit, requestedUnit: unit });
     return !!(compositionData && normalizeUnit(compositionData.productionUnit) === normalizeUnit(unit));
   }
 
   function createGeometryServiceEntry(service, geometry) {
-    if (!service || !service.service || !hasCompatibleComposition(service.service, service.unit)) {
+    const compositionData = service ? findCompositionForProductionService(service) : null;
+    if (!service || !service.service || !compositionData || normalizeUnit(compositionData.productionUnit) !== normalizeUnit(service.unit)) {
       return null;
     }
     return {
-      service: service.service,
+      service: compositionData.service || service.service,
       quantity: service.quantity,
       unit: service.unit,
       requestedUnit: service.unit,
+      serviceType: service.serviceType,
       materialHint: service.label || service.serviceType || service.service,
+      composition: compositionData,
       score: 500,
       geometry: geometry
     };
@@ -2775,6 +2868,28 @@
       return buildIncompleteGeometryResult(unitService.serviceType, unitService.question, unitService.label);
     }
 
+    if ((hasTerm(text, "cobertura") || hasTerm(text, "telhado")) && !hasExplicitCoverageType(text)) {
+      const coverageAreaMatch = originalMessage.match(new RegExp(number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i"));
+      const coverageArea = coverageAreaMatch ? parseDimensionNumber(coverageAreaMatch[1]) : 0;
+      const officialCoverage = coverageArea ? findOfficialGeometryComposition({
+        serviceType: "cobertura",
+        service: "Cobertura",
+        label: "Cobertura",
+        unit: "m2"
+      }) : null;
+      if (officialCoverage) {
+        return buildGeometryResult(
+          "cobertura",
+          "area",
+          coverageArea,
+          "m2",
+          "Area identificada: " + formatSquareMeters(coverageArea) + " de cobertura.",
+          { area: coverageArea },
+          "Cobertura"
+        );
+      }
+    }
+
     if (hasTerm(text, "reservatorio") || hasTerm(text, "reservatório")) {
       const reservoirMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
       if (reservoirMatch) {
@@ -2869,6 +2984,23 @@
         return buildIncompleteGeometryResult("radier", "Qual a espessura prevista do radier?", "Radier");
       }
       if (area) {
+        const officialSlab = findOfficialGeometryComposition({
+          serviceType: "laje",
+          service: getGeometryServiceName("laje", "area"),
+          label: label,
+          unit: "m2"
+        });
+        if (officialSlab) {
+          return buildGeometryResult(
+            "laje",
+            "area",
+            area,
+            "m2",
+            "Area identificada: " + formatSquareMeters(area) + " de laje.",
+            { area: area },
+            label
+          );
+        }
         return buildIncompleteGeometryResult("laje", "Qual a espessura da laje?", label);
       }
       return buildIncompleteGeometryResult(serviceType, "Qual o comprimento, largura e espessura do " + serviceType + "?", label);
@@ -3108,23 +3240,30 @@
       };
     }
     if (compositionCode) {
+      const codeQuantityMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(mÂ²|m2|mÂ³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cÃºbico|metros cÃºbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
+      const codeQuantity = codeQuantityMatch ? parseNumber(codeQuantityMatch[1]) : 0;
+      const codeUnit = codeQuantityMatch ? normalizeRequestedUnit(codeQuantityMatch[2]) : "";
+      const compositionUnit = compositionByCode ? displayUnit(compositionByCode.productionUnit || compositionByCode.unit) : "";
       return {
         originalMessage: originalMessage,
-        quantity: 0,
-        unit: "",
+        quantity: codeQuantity,
+        unit: codeUnit || compositionUnit,
         missingQuantity: false,
         assumedBaseQuantity: false,
         geometry: geometry,
         compositionCodeQuery: {
           code: compositionCode,
-          composition: compositionByCode
+          composition: compositionByCode,
+          quantity: codeQuantity,
+          unit: codeUnit || compositionUnit
         },
         services: compositionByCode ? [{
           service: compositionByCode.service || compositionByCode.name || compositionByCode.description,
-          quantity: 1,
-          unit: displayUnit(compositionByCode.productionUnit || compositionByCode.unit),
+          quantity: codeQuantity || 1,
+          unit: codeUnit || compositionUnit,
           requestedUnit: "",
           materialHint: compositionByCode.service || compositionByCode.name,
+          composition: compositionByCode,
           score: 1000
         }] : []
       };
@@ -3271,7 +3410,7 @@
       } : null,
       predictedItems: [],
       technicalNotes: [],
-      warning: DEMO_WARNING
+      warning: compositionData && isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_WARNING
     };
 
     if (!compositionData || executedQuantity <= 0) {
@@ -3280,7 +3419,7 @@
     }
 
     const lossMultiplier = 1 + (parseNumber(compositionData.lossPercent) / 100);
-    result.predictedItems = (compositionData.materials || []).map(function (mat, index) {
+    result.predictedItems = getCompositionInputs(compositionData).map(function (mat, index) {
       const coefficient = parseNumber(mat.quantityPerUnit || mat.coefficient);
       const quantity = roundQuantity(executedQuantity * coefficient * lossMultiplier);
       return {
@@ -3291,7 +3430,10 @@
         quantity: quantity,
         predictedQuantity: quantity,
         unit: mat.unit || "un",
-        note: mat.note || DEMO_WARNING,
+        note: mat.note || (isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_WARNING),
+        source: getSourceDisplayName(compositionData),
+        compositionCode: compositionData.code || compositionData.id || "",
+        coefficientSource: getCompositionSource(compositionData),
         sources: [
           service + " " + formatQuantity(executedQuantity) + " " + displayUnit(unit) +
           " · composicao: " + compositionData.service +
@@ -3324,13 +3466,22 @@
           quantity: 0,
           predictedQuantity: 0,
           unit: unit,
-          note: "Consumo previsto por composicao tecnica demonstrativa/editavel.",
+          note: "Consumo previsto por composicao tecnica.",
+          source: clean(item.source),
+          compositionCode: clean(item.compositionCode),
+          coefficientSource: clean(item.coefficientSource),
           sources: []
         };
       }
       grouped[key].quantity += parseNumber(item.quantity || item.predictedQuantity);
       grouped[key].predictedQuantity = grouped[key].quantity;
       grouped[key].sources = grouped[key].sources.concat(item.sources || []);
+      if (!grouped[key].source && clean(item.source)) {
+        grouped[key].source = clean(item.source);
+      }
+      if (!grouped[key].coefficientSource && clean(item.coefficientSource)) {
+        grouped[key].coefficientSource = clean(item.coefficientSource);
+      }
     });
     return Object.keys(grouped).map(function (key) {
       const item = grouped[key];
@@ -4029,10 +4180,15 @@
   function buildParameterQuestions(request) {
     const questions = [];
     const text = normalize(request.originalMessage);
+    const hasOfficialCoverageComposition = (request.services || []).some(function (service) {
+      const compositionData = service.composition || findOfficialGeometryComposition(service);
+      return service.serviceType === "cobertura" && compositionData && isRealComposition(compositionData);
+    });
     if ((hasTerm(text, "cobertura") || hasTerm(text, "cobrir") || hasTerm(text, "telhado")) &&
       !hasTerm(text, "telha ceramica") && !hasTerm(text, "telha cerâmica") &&
       !hasTerm(text, "ceramico") && !hasTerm(text, "ceramica") &&
-      !hasTerm(text, "fibrocimento") && !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira")) {
+      !hasTerm(text, "fibrocimento") && !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira") &&
+      !hasOfficialCoverageComposition) {
       const coverageMatch = request.originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|metro quadrado|metros quadrados)\s*(?:de\s+)?(cobertura|telhado)/i);
       const coverageText = coverageMatch
         ? formatQuantity(coverageMatch[1]) + " " + displayUnit(coverageMatch[2])
@@ -4086,12 +4242,54 @@
       return "Fonte: MOCK DE TESTE - nao usar como base real";
     }
     if (isRealComposition(compositionData)) {
-      return "Fonte: " + getCompositionSource(compositionData) +
+      return "Fonte: " + getSourceDisplayName(compositionData) +
         (compositionData.code ? " - codigo " + compositionData.code : "") +
         (compositionData.sourceDate ? " - referencia " + compositionData.sourceDate : "") +
         (compositionData.sourceRegion ? " - " + compositionData.sourceRegion : "");
     }
-    return "Fonte: " + getCompositionSource(compositionData);
+    return "Fonte: " + getSourceDisplayName(compositionData);
+  }
+
+  function getSuggestedOfficialCompositions(request, limit) {
+    const text = request && request.originalMessage || "";
+    const unit = request && request.unit;
+    const ranked = rankCompositions(text, { unit: unit }).filter(function (entry) {
+      return isRealComposition(entry.item);
+    }).slice(0, limit || 5).map(function (entry) {
+      return entry.item;
+    });
+    if (ranked.length) {
+      return ranked;
+    }
+    return searchImportedOfficialCompositions(text, { limit: limit || 5 }).filter(function (compositionData) {
+      return !unit || normalizeUnit(compositionData.productionUnit || compositionData.unit) === normalizeUnit(unit);
+    });
+  }
+
+  function appendOfficialCompositionSuggestions(lines, request) {
+    const suggestions = getSuggestedOfficialCompositions(request, 5);
+    if (!suggestions.length) {
+      return;
+    }
+    lines.push("");
+    lines.push("COMPOSICOES SINAPI/ORSE SUGERIDAS");
+    suggestions.forEach(function (compositionData) {
+      lines.push("- " + (compositionData.code || compositionData.id || "sem codigo") +
+        " - " + (compositionData.name || compositionData.description || compositionData.service || "sem descricao") +
+        " | unidade: " + displayUnit(compositionData.productionUnit || compositionData.unit || "un") +
+        " | " + getSourceDisplayName(compositionData));
+    });
+    lines.push("- Informe o codigo ou a quantidade do servico para calcular consumo. Nenhum coeficiente foi inventado.");
+  }
+
+  function hasRealCompositionInResult(result) {
+    return (result && result.predictions || []).some(function (prediction) {
+      return prediction.composition && prediction.composition.isRealComposition;
+    });
+  }
+
+  function getResultSourceWarning(result) {
+    return hasRealCompositionInResult(result) ? REAL_SOURCE_WARNING : DEMO_WARNING;
   }
 
   function appendServicesWithoutComposition(lines, services) {
@@ -4110,7 +4308,8 @@
     });
   }
 
-  function buildCompositionCodeLookupAnswer(request) {
+  function buildCompositionCodeLookupAnswer(request, options) {
+    const settings = options || {};
     const lookup = request && request.compositionCodeQuery || {};
     const code = clean(lookup.code);
     const compositionData = lookup.composition || findCompositionByCode(code);
@@ -4125,18 +4324,20 @@
         "- Nenhum coeficiente foi inventado."
       ].join("\n");
     }
-    const inputs = (compositionData.inputs || compositionData.materials || []).slice(0, 8);
+    const quantity = parseNumber(lookup.quantity || request.quantity);
+    const serviceUnit = lookup.unit || request.unit || compositionData.productionUnit || compositionData.unit || "un";
+    const inputs = getCompositionInputs(compositionData).slice(0, 12);
     const metadata = compositionData.metadata || {};
     const lines = [
       "COMPOSICAO IDENTIFICADA",
       "- Codigo da composicao: " + (compositionData.code || compositionData.id || code),
       "- Descricao: " + (compositionData.name || compositionData.description || compositionData.service || "sem descricao"),
       "- Unidade: " + displayUnit(compositionData.productionUnit || compositionData.unit || "un"),
-      "- Fonte: " + getCompositionSource(compositionData),
+      "- Fonte: " + getSourceDisplayName(compositionData),
       "- UF: " + (compositionData.sourceRegion || metadata.state || "nao informada"),
       "- Referencia: " + (compositionData.sourceDate || metadata.referenceMonth || "nao informada"),
       "",
-      "INSUMOS PRINCIPAIS"
+      quantity > 0 ? "INSUMOS COM QUANTIDADE CALCULADA" : "INSUMOS PRINCIPAIS"
     ];
     if (!inputs.length) {
       lines.push("- Nenhum insumo cadastrado para esta composicao.");
@@ -4146,8 +4347,34 @@
         lines.push("- " + (input.code ? input.code + " - " : "") +
           (input.name || input.material || "Insumo sem nome") +
           ": " + formatQuantity(coefficient) + " " + displayUnit(input.unit || "un") +
-          " por " + displayUnit(compositionData.productionUnit || compositionData.unit || "un"));
+          " por " + displayUnit(compositionData.productionUnit || compositionData.unit || "un") +
+          (quantity > 0 ? " | quantidade: " + formatQuantity(coefficient * quantity) + " " + displayUnit(input.unit || "un") : ""));
       });
+    }
+    if (quantity > 0) {
+      const service = {
+        service: compositionData.service || compositionData.name || compositionData.description,
+        quantity: quantity,
+        unit: serviceUnit,
+        composition: compositionData
+      };
+      const result = calculateMultipleServices([service]);
+      const stockItems = settings.stockItems || [];
+      const purchasePlan = buildPurchasePlan([service], stockItems, { predictedItems: result.items });
+      lines.push("");
+      lines.push("QUANTIDADE DO SERVICO");
+      lines.push("- " + formatQuantity(quantity) + " " + displayUnit(serviceUnit));
+      lines.push("");
+      lines.push("ESTOQUE X PREVISTO");
+      if (stockItems.length && purchasePlan.items.length) {
+        purchasePlan.items.slice(0, 12).forEach(function (item) {
+          lines.push("- " + item.materialName + ": necessario " + formatQuantity(item.requiredQuantity) + " " + displayUnit(item.unit) +
+            ", estoque " + formatQuantity(item.currentBalance) + " " + displayUnit(item.unit) +
+            ", comprar " + formatQuantity(item.purchaseQuantity) + " " + displayUnit(item.unit));
+        });
+      } else {
+        lines.push("- Nenhum estoque informado na mensagem.");
+      }
     }
     lines.push("");
     lines.push("OBSERVACOES");
@@ -4221,16 +4448,52 @@
   function buildAnswerFromMessage(message, options) {
     const settings = options || {};
     const request = parseRequest(message);
+    const reportedStock = parseStockItemsFromMessage(message);
+    const stockItems = (settings.stockItems || []).concat(reportedStock);
     if (request.compositionCodeQuery) {
-      return buildCompositionCodeLookupAnswer(request);
+      return buildCompositionCodeLookupAnswer(request, { stockItems: stockItems });
     }
     const geometryQuestions = request.geometry && request.geometry.questions || [];
     const parameterQuestions = buildParameterQuestions(request).concat(geometryQuestions).filter(function (question, index, list) {
       return question && list.indexOf(question) === index;
     });
-    const reportedStock = parseStockItemsFromMessage(message);
-    const stockItems = (settings.stockItems || []).concat(reportedStock);
     const servicesWithoutComposition = request.servicesWithoutComposition || [];
+
+    if (!request.quantity && getSuggestedOfficialCompositions(request, 1).length) {
+      const lines = [
+        "COMPOSICOES SINAPI/ORSE SUGERIDAS"
+      ];
+      getSuggestedOfficialCompositions(request, 5).forEach(function (compositionData) {
+        lines.push("- " + (compositionData.code || compositionData.id || "sem codigo") +
+          " - " + (compositionData.name || compositionData.description || compositionData.service || "sem descricao") +
+          " | unidade: " + displayUnit(compositionData.productionUnit || compositionData.unit || "un") +
+          " | " + getSourceDisplayName(compositionData));
+      });
+      lines.push("");
+      lines.push("OBSERVACOES");
+      lines.push("- Informe o codigo ou a quantidade do servico para calcular consumo.");
+      lines.push("- Nenhum coeficiente foi inventado.");
+      return lines.join("\n");
+    }
+
+    if (request.missingQuantity && request.services.length && getSuggestedOfficialCompositions(request, 1).length) {
+      const firstService = request.services[0];
+      const lines = [
+        "PERGUNTAS COMPLEMENTARES",
+        "- Encontrei o servico " + firstService.service + ", mas preciso saber a quantidade em " + displayUnit(firstService.unit) + " para calcular os materiais."
+      ];
+      if (parameterQuestions.length) {
+        parameterQuestions.forEach(function (question) {
+          lines.push("- " + question);
+        });
+      }
+      appendOfficialCompositionSuggestions(lines, request);
+      lines.push("");
+      lines.push("OBSERVACOES");
+      lines.push("- Nao vou assumir dados tecnicos obrigatorios sem confirmacao.");
+      lines.push("- " + DEMO_WARNING);
+      return lines.join("\n");
+    }
 
     if (request.missingQuantity && request.services.length) {
       if (parameterQuestions.length) {
@@ -4258,7 +4521,7 @@
     }
 
     const calculableServices = (request.services || []).filter(function (service) {
-      const compositionData = findComposition(service);
+      const compositionData = service.composition || findCompositionForProductionService(service);
       const required = compositionData && compositionData.requiredParameters || [];
       return !required.some(function (parameter) {
         return !hasRequiredParameterValue(request.originalMessage, service, parameter);
@@ -4310,7 +4573,7 @@
     lines.push("🧱 COMPOSIÇÃO IDENTIFICADA");
 
     request.services.forEach(function (service) {
-      const compositionData = findComposition(service);
+      const compositionData = service.composition || findCompositionForProductionService(service);
       lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
       if (compositionData) {
         lines.push("  Composicao utilizada: " + (compositionData.code || compositionData.id || "sem codigo") + " - " + (compositionData.name || compositionData.service));
@@ -4382,7 +4645,7 @@
 
     lines.push("");
     lines.push("OBSERVAÇÕES");
-    lines.push("- " + DEMO_WARNING);
+    lines.push("- " + getResultSourceWarning(result));
     lines.push("- " + PURCHASE_WARNING);
     return lines.join("\n");
   }
