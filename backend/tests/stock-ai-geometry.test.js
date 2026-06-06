@@ -446,3 +446,81 @@ test("Stock AI Obras mantem prioridade do catalogo externo sobre estrutural demo
   assert.equal(composition.source, "SINAPI");
   assert.equal(composition.code, "TESTE-PILAR-001");
 });
+
+test("Stock AI Obras gera relatorio tecnico com geometria e consumo", () => {
+  const report = engine.generateStockAITechnicalReport("Tenho 24 sapatas 80x80x40");
+
+  assert.equal(report.ok, true);
+  assert.match(report.plainText, /Relatorio Tecnico Stock AI Obras/);
+  assert.match(report.plainText, /6,144 m/);
+  assert.match(report.plainText, /DEMO-EST-SAPATA-001|Sapata isolada demonstrativa/);
+  assert.match(report.plainText, /Consumo previsto/i);
+  assert.match(report.plainText, /Base tecnica demonstrativa|Base t.cnica demonstrativa|demonstrativo/i);
+  assert.match(report.html, /<table>/);
+});
+
+test("Stock AI Obras gera relatorio tecnico com estoque informado", () => {
+  const report = engine.generateStockAITechnicalReport("Tenho 24 sapatas 80x80x40. Tenho em estoque 20 sacos de cimento e 2 m3 de areia.");
+
+  assert.equal(report.ok, true);
+  assert.match(report.plainText, /Comparacao com estoque/i);
+  assert.match(report.plainText, /Disponivel|Faltante|Planejamento de compra/i);
+  assert.match(report.plainText, /comprar|critico|sem item no estoque/i);
+});
+
+test("Stock AI Obras gera relatorio tecnico mesmo sem consumo previsto", () => {
+  const report = engine.generateStockAITechnicalReport("Tenho um reservatorio de 2 x 3 x 1,5 m");
+
+  assert.equal(report.ok, true);
+  assert.match(report.plainText, /Pendente de composicao|sem consumo previsto completo|Sem consumo previsto calculado/i);
+  assert.match(report.plainText, /Reservatorio tratado como volume geometrico bruto/i);
+});
+
+test("Stock AI Obras relatorio demonstrativo nao menciona SINAPI ORSE indevidamente", () => {
+  const report = engine.generateStockAITechnicalReport("Tenho 24 sapatas 80x80x40");
+
+  assert.match(report.plainText, /Valores demonstrativos\/editaveis|demonstrativo/i);
+  assert.doesNotMatch(report.plainText, /SINAPI|ORSE/);
+});
+
+test("Stock AI Obras relatorio esta preparado para composicao oficial futura TEST ONLY", () => {
+  const localEngine = loadStockAiCompositionEngine();
+  const report = localEngine.generateStockAITechnicalReport({
+    originalQuestion: "TEST ONLY - Tenho 100 m2 de alvenaria",
+    services: [{
+      service: "Alvenaria de bloco ceramico fixture de teste",
+      serviceType: "alvenaria",
+      quantity: 100,
+      unit: "m2"
+    }],
+    composition: {
+      id: "TEST-ONLY-SINAPI-001",
+      code: "TEST-ONLY-SINAPI-001",
+      source: "SINAPI",
+      sourceRegion: "BA",
+      sourceDate: "2025-01",
+      name: "TEST ONLY - composicao oficial futura",
+      service: "TEST ONLY - composicao oficial futura",
+      unit: "m2",
+      productionUnit: "m2",
+      metadata: {
+        isRealComposition: true,
+        manualReviewRequired: true
+      },
+      materials: [{
+        name: "TEST ONLY - insumo",
+        unit: "un",
+        coefficient: 1,
+        quantityPerUnit: 1
+      }]
+    }
+  });
+
+  assert.equal(report.ok, true);
+  assert.match(report.plainText, /SINAPI/);
+  assert.match(report.plainText, /BA/);
+  assert.match(report.plainText, /2025-01/);
+  assert.match(report.plainText, /TEST-ONLY-SINAPI-001/);
+  assert.match(report.plainText, /TEST ONLY - insumo/);
+  assert.equal(localEngine.getExternalCompositionCatalog().length, 0);
+});

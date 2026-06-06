@@ -2402,6 +2402,325 @@
     };
   }
 
+  function escapeReportHtml(value) {
+    return clean(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatReportValue(value, fallback) {
+    const text = clean(value);
+    return text || fallback || "nao informado";
+  }
+
+  function formatReportQuantity(value, unit) {
+    return formatQuantity(value) + (unit ? " " + displayUnit(unit) : "");
+  }
+
+  function getCompositionReportType(compositionData) {
+    if (isRealComposition(compositionData)) {
+      return "oficial";
+    }
+    if (isMockComposition(compositionData)) {
+      return "mock de teste";
+    }
+    return "demonstrativo";
+  }
+
+  function buildStockAIReportConsumptionFromComposition(service, compositionData) {
+    const executedQuantity = parseNumber(service && service.quantity);
+    const lossMultiplier = 1 + (parseNumber(compositionData && compositionData.lossPercent) / 100);
+    const items = ((compositionData && (compositionData.materials || compositionData.inputs)) || []).map(function (input, index) {
+      const coefficient = parseNumber(input.quantityPerUnit !== undefined ? input.quantityPerUnit : input.coefficient);
+      const quantity = roundQuantity(executedQuantity * coefficient * lossMultiplier);
+      return {
+        id: input.id || "report_pred_" + index,
+        name: input.name || input.material,
+        material: input.name || input.material,
+        coefficient: coefficient,
+        quantity: quantity,
+        predictedQuantity: quantity,
+        unit: input.unit || "un",
+        sources: [clean(compositionData.name || compositionData.service || compositionData.code || "Composicao informada")]
+      };
+    }).filter(function (item) {
+      return item.name && parseNumber(item.quantity) > 0;
+    });
+    return {
+      items: consolidateMaterials(items),
+      predictedItems: consolidateMaterials(items),
+      predictions: [{
+        service: service && service.service,
+        executedQuantity: executedQuantity,
+        unit: service && service.unit,
+        composition: compositionData,
+        predictedItems: items,
+        technicalNotes: []
+      }],
+      missing: items.length ? [] : [service],
+      warning: isRealComposition(compositionData) ? REAL_SOURCE_WARNING : DEMO_WARNING
+    };
+  }
+
+  function buildStockAIReportModel(data) {
+    const input = typeof data === "string" ? { originalQuestion: data } : (data || {});
+    const originalQuestion = clean(input.originalQuestion || input.question || input.message || input.pergunta);
+    const request = input.request || (originalQuestion ? parseRequest(originalQuestion) : {});
+    const geometry = input.geometry || request.geometry || null;
+    const services = input.services || request.services || [];
+    const missingServices = input.servicesWithoutComposition || request.servicesWithoutComposition || [];
+    const reportedStock = input.reportedStock || input.stockItems || (originalQuestion ? parseStockItemsFromMessage(originalQuestion) : []);
+    const stockItems = input.stockItems || reportedStock;
+    const providedComposition = input.composition || input.compositionData || null;
+    const consumption = input.consumption || input.predictedConsumption ||
+      (providedComposition && services.length ? buildStockAIReportConsumptionFromComposition(services[0], providedComposition) : calculateMultipleServices(services));
+    const predictedItems = input.predictedItems || consumption.items || consumption.predictedItems || [];
+    const purchasePlan = input.purchasePlan || buildPurchasePlan(services, stockItems, { predictedItems: predictedItems });
+    const primaryPrediction = (consumption.predictions || []).find(function (prediction) {
+      return prediction && prediction.composition;
+    }) || null;
+    const primaryService = input.service || services[0] || missingServices[0] || {};
+    const compositionData = providedComposition || (primaryPrediction && primaryPrediction.composition) || findComposition(primaryService);
+    const source = compositionData ? getCompositionSource(compositionData) : "";
+    const type = getCompositionReportType(compositionData);
+    const stockComparison = (purchasePlan.items || []).map(function (item) {
+      return {
+        material: item.materialName,
+        predicted: item.requiredQuantity,
+        available: item.currentBalance,
+        missing: item.purchaseQuantity,
+        unit: item.unit,
+        status: item.status
+      };
+    });
+    const missingPurchaseItems = (purchasePlan.items || []).filter(function (item) {
+      return item.purchaseQuantity > 0 || item.status === "sem item no estoque" || item.status === "critico";
+    });
+    const technicalNotes = [];
+
+    if (compositionData && isRealComposition(compositionData)) {
+      technicalNotes.push("Base oficial: " + getCompositionSource(compositionData) +
+        (compositionData.code ? " codigo " + compositionData.code : "") +
+        (compositionData.sourceRegion ? " UF/regiao " + compositionData.sourceRegion : "") +
+        (compositionData.sourceDate ? " referencia " + compositionData.sourceDate : "") + ".");
+    } else {
+      technicalNotes.push("Valores demonstrativos/editaveis, nao substituem orcamento oficial.");
+    }
+    if (missingServices.length || (consumption.missing || []).length) {
+      technicalNotes.push("Existem quantitativos sem composicao compativel cadastrada.");
+    }
+    if (geometry && geometry.serviceType === "reservatorio") {
+      technicalNotes.push("Reservatorio tratado como volume geometrico bruto; nao e dimensionamento estrutural.");
+    }
+
+    return {
+      originalQuestion: originalQuestion,
+      request: request,
+      geometry: geometry,
+      services: services,
+      missingServices: missingServices,
+      primaryService: primaryService,
+      composition: compositionData,
+      compositionSource: source,
+      compositionType: type,
+      consumption: consumption,
+      predictedItems: predictedItems,
+      reportedStock: reportedStock,
+      stockComparison: stockComparison,
+      purchasePlan: purchasePlan,
+      missingPurchaseItems: missingPurchaseItems,
+      technicalNotes: technicalNotes
+    };
+  }
+
+  function buildStockAIReportSections(model) {
+    const geometry = model.geometry || {};
+    const compositionData = model.composition || {};
+    const primaryService = model.primaryService || {};
+    const hasStock = (model.reportedStock || []).length > 0;
+    const status = model.predictedItems.length ? "Consumo previsto calculado" :
+      model.missingServices.length ? "Pendente de composicao" : "Relatorio gerado";
+
+    return [
+      {
+        title: "Cabecalho",
+        items: [
+          ["Relatorio", "Relatorio Tecnico Stock AI Obras"],
+          ["Data/hora", new Date().toLocaleString("pt-BR")],
+          ["Tipo", model.compositionType],
+          ["Fonte da composicao", model.compositionSource || "sem composicao identificada"]
+        ]
+      },
+      {
+        title: "Resumo executivo",
+        items: [
+          ["Pergunta analisada", model.originalQuestion || "dados estruturados"],
+          ["Servico identificado", primaryService.service || primaryService.label || "nao identificado"],
+          ["Quantitativo calculado", primaryService.quantity ? formatReportQuantity(primaryService.quantity, primaryService.unit) : "nao calculado"],
+          ["Composicao utilizada", compositionData.name || compositionData.service || "sem composicao compativel"],
+          ["Status geral", status]
+        ]
+      },
+      {
+        title: "Quantitativo geometrico",
+        items: [
+          ["Tipo de geometria", geometry.geometryType || "nao informado"],
+          ["Tipo de servico", geometry.serviceType || primaryService.serviceType || "nao informado"],
+          ["Dimensoes usadas", geometry.explanation || "nao informadas"],
+          ["Quantidade final", geometry.quantity ? formatReportQuantity(geometry.quantity, geometry.unit) : primaryService.quantity ? formatReportQuantity(primaryService.quantity, primaryService.unit) : "nao calculada"]
+        ]
+      },
+      {
+        title: "Composicao utilizada",
+        items: [
+          ["Codigo", compositionData.code || compositionData.id || "sem codigo"],
+          ["Nome", compositionData.name || compositionData.service || "sem composicao"],
+          ["Unidade", compositionData.unit || compositionData.productionUnit || "nao informada"],
+          ["Fonte", model.compositionSource || "nao informada"],
+          ["Classificacao", model.compositionType],
+          ["UF/regiao", compositionData.sourceRegion || "nao aplicavel"],
+          ["Mes/referencia", compositionData.sourceDate || "nao aplicavel"]
+        ]
+      },
+      {
+        title: "Consumo previsto",
+        table: {
+          headers: ["Material", "Quantidade prevista", "Unidade"],
+          rows: (model.predictedItems || []).map(function (item) {
+            return [item.name || item.material, formatQuantity(item.quantity || item.predictedQuantity), item.unit || "un"];
+          }),
+          emptyText: "Sem consumo previsto calculado."
+        }
+      },
+      {
+        title: "Comparacao com estoque",
+        table: {
+          headers: ["Material", "Previsto", "Disponivel", "Faltante", "Unidade", "Status"],
+          rows: hasStock ? model.stockComparison.map(function (item) {
+            return [item.material, formatQuantity(item.predicted), formatQuantity(item.available), formatQuantity(item.missing), item.unit, item.status];
+          }) : [],
+          emptyText: "Relatorio gerado sem comparacao de estoque."
+        }
+      },
+      {
+        title: "Planejamento de compra",
+        table: {
+          headers: ["Material", "Comprar", "Unidade", "Prioridade/status"],
+          rows: (model.missingPurchaseItems || []).map(function (item) {
+            return [item.materialName, formatQuantity(item.purchaseQuantity), item.unit, item.status];
+          }),
+          emptyText: "Sem materiais faltantes identificados."
+        }
+      },
+      {
+        title: "Observacoes tecnicas",
+        items: model.technicalNotes.map(function (note) {
+          return ["Observacao", note];
+        })
+      }
+    ];
+  }
+
+  function buildStockAIReportPlainText(title, sections) {
+    const lines = [title];
+    (sections || []).forEach(function (section) {
+      lines.push("");
+      lines.push(section.title.toUpperCase());
+      if (section.items) {
+        section.items.forEach(function (item) {
+          lines.push("- " + item[0] + ": " + item[1]);
+        });
+      }
+      if (section.table) {
+        if (!section.table.rows.length) {
+          lines.push("- " + section.table.emptyText);
+        } else {
+          lines.push(section.table.headers.join(" | "));
+          section.table.rows.forEach(function (row) {
+            lines.push(row.join(" | "));
+          });
+        }
+      }
+    });
+    return lines.join("\n");
+  }
+
+  function buildStockAIReportHtml(title, summary, sections) {
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">" +
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+      "<title>" + escapeReportHtml(title) + "</title>" +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#102033;background:#f6f8fb}" +
+      ".page{max-width:980px;margin:0 auto;background:#fff;border:1px solid #dbe4ee;padding:28px}" +
+      "h1{margin:0 0 6px;font-size:24px}h2{margin:24px 0 10px;font-size:16px;color:#0f5f8f}.sub{color:#607080;margin:0}" +
+      ".section{border-top:1px solid #e2e8f0;margin-top:18px;padding-top:14px}.list{display:grid;grid-template-columns:210px 1fr;gap:6px 12px}.list dt{font-weight:700}.list dd{margin:0;color:#405062}" +
+      "table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #e2e8f0;padding:8px;text-align:left;font-size:12px}th{background:#f6f9fc;color:#102033}.empty{color:#607080}footer{margin-top:22px;color:#607080;font-size:12px}@media print{body{background:#fff;padding:0}.page{border:0}.section{break-inside:avoid}}" +
+      "</style></head><body><main class=\"page\">" +
+      "<h1>" + escapeReportHtml(title) + "</h1>" +
+      "<p class=\"sub\">" + escapeReportHtml(summary) + "</p>" +
+      (sections || []).map(function (section) {
+        let html = "<section class=\"section\"><h2>" + escapeReportHtml(section.title) + "</h2>";
+        if (section.items) {
+          html += "<dl class=\"list\">" + section.items.map(function (item) {
+            return "<dt>" + escapeReportHtml(item[0]) + "</dt><dd>" + escapeReportHtml(item[1]) + "</dd>";
+          }).join("") + "</dl>";
+        }
+        if (section.table) {
+          if (!section.table.rows.length) {
+            html += "<p class=\"empty\">" + escapeReportHtml(section.table.emptyText) + "</p>";
+          } else {
+            html += "<table><thead><tr>" + section.table.headers.map(function (header) {
+              return "<th>" + escapeReportHtml(header) + "</th>";
+            }).join("") + "</tr></thead><tbody>" + section.table.rows.map(function (row) {
+              return "<tr>" + row.map(function (cell) {
+                return "<td>" + escapeReportHtml(cell) + "</td>";
+              }).join("") + "</tr>";
+            }).join("") + "</tbody></table>";
+          }
+        }
+        return html + "</section>";
+      }).join("") +
+      "<footer>Gerado por Stock AI Obras / ObraReport.</footer>" +
+      "<script>window.addEventListener('load',function(){setTimeout(function(){window.print();},350);});</script>" +
+      "</main></body></html>";
+  }
+
+  function generateStockAITechnicalReport(data) {
+    const model = buildStockAIReportModel(data);
+    const title = "Relatorio Tecnico Stock AI Obras";
+    const sections = buildStockAIReportSections(model);
+    const summary = (model.primaryService && model.primaryService.service ? model.primaryService.service : "Analise Stock AI") +
+      " - " + (model.predictedItems.length ? "consumo previsto calculado" : "sem consumo previsto completo");
+    const plainText = buildStockAIReportPlainText(title, sections);
+    return {
+      ok: true,
+      title: title,
+      summary: summary,
+      sections: sections,
+      html: buildStockAIReportHtml(title, summary, sections),
+      plainText: plainText,
+      model: model
+    };
+  }
+
+  function printStockAITechnicalReport(reportData) {
+    const report = reportData && reportData.html ? reportData : generateStockAITechnicalReport(reportData);
+    if (!window || typeof window.open !== "function") {
+      return report;
+    }
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      return report;
+    }
+    printWindow.document.open();
+    printWindow.document.write(report.html);
+    printWindow.document.close();
+    return report;
+  }
+
   function parseStockItemsFromMessage(message) {
     const stockItems = [];
     const stockLines = [];
@@ -2879,6 +3198,8 @@
     consolidateMaterials: consolidateMaterials,
     comparePredictedVsActual: comparePredictedVsActual,
     buildPurchasePlan: buildPurchasePlan,
+    generateStockAITechnicalReport: generateStockAITechnicalReport,
+    printStockAITechnicalReport: printStockAITechnicalReport,
     buildAnswerFromMessage: buildAnswerFromMessage,
     matchPredictedMaterialToStockItem: matchPredictedMaterialToStockItem
   });
