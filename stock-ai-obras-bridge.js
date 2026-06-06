@@ -315,24 +315,66 @@
     setImportStatus_("Nao foi possivel ler o XLSX.\nVerifique se a biblioteca XLSX esta carregada.\nUse CSV nesta fase ou importe XLSX pelo fluxo backend/testes.");
   }
 
+  function formatSinapiAnaliticoFailure_(result) {
+    const errors = result && result.errors && result.errors.length
+      ? result.errors
+      : ["Verifique cabecalhos, coeficientes e itens."];
+    const message = "Formato SINAPI Analitico detectado, mas nao foi possivel importar. Verifique cabecalhos, coeficientes e itens.";
+    const normalizedFirst = errors.length ? String(errors[0] || "").toLowerCase() : "";
+    return Object.assign({}, result || {}, {
+      ok: false,
+      format: "SINAPI_ANALITICO",
+      errors: normalizedFirst.indexOf("formato sinapi analitico detectado") >= 0
+        ? errors
+        : [message].concat(errors)
+    });
+  }
+
   function parseOfficialFileResult_(file, fileContent, options, action) {
     const engine = window.StockAiCompositionEngine || {};
     if (isXlsxFile_(file)) {
       if (!window.XLSX) {
         return { ok: false, xlsxFallback: true };
       }
-      if (typeof engine.parseSinapiAnaliticoXlsx === "function") {
-        const sinapiParsed = engine.parseSinapiAnaliticoXlsx(fileContent, options);
-        if (sinapiParsed.ok) {
+      let workbook = null;
+      if (typeof engine.detectSinapiAnaliticoFormat === "function" && window.XLSX && typeof window.XLSX.read === "function") {
+        try {
+          workbook = window.XLSX.read(fileContent, { type: "array" });
+        } catch (readError) {
+          return {
+            ok: false,
+            errors: [
+              "Nao foi possivel ler o XLSX. Verifique se a biblioteca XLSX esta carregada e se o arquivo nao esta corrompido.",
+              readError && readError.message ? readError.message : String(readError || "")
+            ].filter(Boolean)
+          };
+        }
+        const sinapiDetected = engine.detectSinapiAnaliticoFormat(workbook, options);
+        if (sinapiDetected && sinapiDetected.detected) {
+          if (typeof engine.parseSinapiAnaliticoXlsx !== "function") {
+            return formatSinapiAnaliticoFailure_({
+              errors: ["Adaptador SINAPI Analitico ainda nao carregado."]
+            });
+          }
           if (action === "import") {
-            return typeof engine.importSinapiAnaliticoXlsx === "function"
-              ? engine.importSinapiAnaliticoXlsx(fileContent, options)
-              : { ok: false, errors: ["Importador SINAPI Analitico ainda nao carregado."] };
+            if (typeof engine.importSinapiAnaliticoXlsx !== "function") {
+              return formatSinapiAnaliticoFailure_({
+                errors: ["Importador SINAPI Analitico ainda nao carregado."]
+              });
+            }
+            const sinapiImported = engine.importSinapiAnaliticoXlsx(workbook, options);
+            return sinapiImported.ok ? sinapiImported : formatSinapiAnaliticoFailure_(sinapiImported);
+          }
+          const sinapiParsed = engine.parseSinapiAnaliticoXlsx(workbook, options);
+          if (!sinapiParsed.ok) {
+            return formatSinapiAnaliticoFailure_(sinapiParsed);
           }
           const sinapiValidation = typeof engine.validateOfficialBaseImport === "function"
             ? engine.validateOfficialBaseImport({ rows: sinapiParsed.rows }, options)
             : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
-          return { ok: sinapiValidation.ok, parsed: sinapiParsed, validation: sinapiValidation };
+          return sinapiValidation.ok
+            ? { ok: true, parsed: sinapiParsed, validation: sinapiValidation }
+            : formatSinapiAnaliticoFailure_({ parsed: sinapiParsed, validation: sinapiValidation, errors: sinapiValidation.errors });
         }
       }
       if (action === "import") {

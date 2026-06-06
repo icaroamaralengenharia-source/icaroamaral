@@ -1130,6 +1130,9 @@ test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
   assert.match(bridge, /Formato SINAPI Analitico detectado/);
   assert.match(bridge, /Nao foi possivel ler o XLSX/);
   assert.equal(bridge.indexOf("if (isXlsxFile_(file))") < bridge.indexOf("if (isCsvFile_(file))"), true);
+  assert.equal(bridge.indexOf("detectSinapiAnaliticoFormat") < bridge.indexOf("parseOfficialBaseXlsx"), true);
+  assert.match(bridge, /formatSinapiAnaliticoFailure_/);
+  assert.doesNotMatch(bridge, /Workbook sheets|SINAPI DETECTION|SINAPI PARSE|SINAPI FALLBACK TO GENERIC XLSX/);
   assert.match(bridge, /clearImportedOfficialBase/);
   assert.match(bridge, /ColumnMap invalido/);
 });
@@ -1153,6 +1156,25 @@ test("Stock AI Obras detecta formato SINAPI Analitico real", () => {
   assert.equal(detected.detected, true);
   assert.equal(detected.headerIndex, 5);
   assert.equal(detected.columnIndexes.compositionCode, 0);
+});
+
+test("Stock AI Obras detecta cabecalhos SINAPI Analitico reais com acentos", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const rows = sinapiAnaliticoRowsFixture().map((row) => row.slice());
+  rows[5] = [
+    "CÓDIGO DA COMPOSIÇÃO",
+    "DESCRIÇÃO DA COMPOSIÇÃO",
+    "UNIDADE",
+    "TIPO DO ITEM",
+    "CÓDIGO DO ITEM",
+    "DESCRIÇÃO DO ITEM",
+    "UNIDADE DO ITEM",
+    "COEFICIENTE"
+  ];
+  const detected = engine.detectSinapiAnaliticoFormat(rows);
+
+  assert.equal(detected.detected, true);
+  assert.equal(detected.columnIndexes.inputName, 5);
 });
 
 test("Stock AI Obras parser SINAPI Analitico ignora metadados do topo", () => {
@@ -1279,6 +1301,26 @@ test("Stock AI Obras rejeita XLSX sem cabecalho SINAPI Analitico", () => {
 
   assert.equal(parsed.ok, false);
   assert.match(parsed.errors.join(" "), /cabecalho SINAPI Analitico|sem cabecalho/i);
+});
+
+test("Stock AI Obras SINAPI Analitico detectado com erro nao retorna erro generico XLSX", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const rows = sinapiAnaliticoRowsFixture().map((row) => row.slice());
+  rows[6][7] = "0";
+  const parsed = engine.parseSinapiAnaliticoXlsx(officialBaseWorkbook([{
+    name: "Analitico",
+    rows
+  }]), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+  const errors = parsed.errors.join(" ");
+
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.detected, true);
+  assert.match(errors, /Formato SINAPI Analitico detectado/);
+  assert.doesNotMatch(errors, /XLSX sem cabecalho valido|XLSX sem colunas minimas/i);
 });
 
 test("Stock AI Obras importacao SINAPI Analitico invalida nao apaga base anterior", () => {

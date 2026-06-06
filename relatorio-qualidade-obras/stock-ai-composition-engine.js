@@ -1454,12 +1454,12 @@
   }
 
   const SINAPI_ANALITICO_HEADER_ALIASES = {
-    compositionCode: ["codigo da composicao", "codigo composicao", "cod composicao"],
-    compositionName: ["descricao da composicao", "descricao composicao"],
+    compositionCode: ["codigo da composicao", "codigo composicao", "cod composicao", "código da composição", "código composição"],
+    compositionName: ["descricao da composicao", "descricao composicao", "descrição da composição", "descrição composição"],
     compositionUnit: ["unidade"],
     itemType: ["tipo item", "tipo do item"],
-    inputCode: ["codigo item", "codigo do item"],
-    inputName: ["descricao item", "descricao do item"],
+    inputCode: ["codigo item", "codigo do item", "código item", "código do item"],
+    inputName: ["descricao item", "descricao do item", "descrição item", "descrição do item"],
     inputUnit: ["unidade item", "unidade do item"],
     coefficient: ["coeficiente"]
   };
@@ -1589,6 +1589,7 @@
       errors.push("Arquivo sem cabecalho SINAPI Analitico.");
       return {
         ok: false,
+        detected: false,
         rows: [],
         errors: errors,
         headerIndex: -1,
@@ -1636,6 +1637,9 @@
         errors.push("Composicao " + row.compositionCode + " possui item com coefficient <= 0.");
       }
     });
+    if (detected.detected && errors.length) {
+      errors.unshift("Formato SINAPI Analitico detectado, mas nao foi possivel importar. Verifique cabecalhos, coeficientes e itens.");
+    }
     const normalized = normalizeOfficialBaseRows({ rows: parsedRows }, {
       source: "SINAPI",
       state: state,
@@ -1643,6 +1647,7 @@
     });
     return {
       ok: errors.length === 0,
+      detected: detected.detected,
       rows: errors.length ? [] : parsedRows,
       normalizedRows: errors.length ? [] : normalized,
       errors: errors,
