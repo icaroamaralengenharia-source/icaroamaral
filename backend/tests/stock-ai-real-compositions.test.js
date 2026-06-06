@@ -1208,6 +1208,24 @@ test("Stock AI Obras parser SINAPI Analitico ignora linha com composicao sem ite
   assert.doesNotMatch(parsed.errors.join(" "), /97141/);
 });
 
+test("Stock AI Obras parser SINAPI Analitico ignora itemType sem evidencia de item real", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const rows = sinapiAnaliticoRowsFixture().map((row) => row.slice());
+  rows.splice(6, 0, ["97141", "Categoria administrativa de insumos", "M2", "INSUMO", "", "", "", "", "", ""]);
+  const parsed = engine.parseSinapiAnaliticoRows(rows, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.rows.length, 3);
+  assert.equal(parsed.ignoredRows.length, 1);
+  assert.equal(parsed.ignoredRows[0].compositionCode, "97141");
+  assert.match(parsed.ignoredRows[0].reason, /sem codigo, descricao ou coeficiente/);
+  assert.doesNotMatch(parsed.errors.join(" "), /97141/);
+});
+
 test("Stock AI Obras parser SINAPI Analitico agrupa por codigo na importacao", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const imported = engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {

@@ -1616,14 +1616,13 @@
       const inputName = clean(line[indexes.inputName]);
       const inputUnit = clean(line[indexes.inputUnit]);
       const coefficient = line[indexes.coefficient];
-      const hasRecognizedItemType = isRecognizedSinapiAnaliticoItemType(itemType);
-      const hasCompleteItem = !!inputCode && !!inputName && parseNumber(coefficient) > 0;
-      if (!hasRecognizedItemType && !hasCompleteItem) {
+      const hasItemEvidence = !!inputCode || !!inputName || parseNumber(coefficient) > 0;
+      if (!hasItemEvidence) {
         ignoredRows.push({
           sourceRow: detected.headerIndex + 2 + lineIndex,
           compositionCode: compositionCode,
           compositionName: clean(line[indexes.compositionName]),
-          reason: "Linha SINAPI sem item real reconhecido."
+          reason: "Linha SINAPI sem codigo, descricao ou coeficiente de item."
         });
         return;
       }
