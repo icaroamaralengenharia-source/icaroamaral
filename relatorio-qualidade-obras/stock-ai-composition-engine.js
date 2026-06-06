@@ -4968,7 +4968,93 @@
     return "liberar com atencao e exigir justificativa";
   }
 
-  function compareWithdrawalRequest(requestedItems, predictedItems) {
+  function classifyWithdrawalDivergence(percentualDivergencia) {
+    const percent = parseNumber(percentualDivergencia);
+    if (percent <= 10) {
+      return "DENTRO_DO_PREVISTO";
+    }
+    if (percent <= 25) {
+      return "ATENCAO";
+    }
+    if (percent <= 50) {
+      return "ACIMA_DO_PREVISTO";
+    }
+    return "CRITICO";
+  }
+
+  function getControlledServiceApprovalThreshold(controlledService) {
+    const service = typeof controlledService === "string" ? getControlledServiceById(controlledService) : controlledService;
+    const riskLevel = normalize(service && service.nivelRisco || "");
+    if (riskLevel === "alto") {
+      return 25;
+    }
+    if (riskLevel === "baixo") {
+      return 75;
+    }
+    return 50;
+  }
+
+  function getApprovalRecommendation(status, requestedQuantity, predictedQuantity) {
+    const requested = parseNumber(requestedQuantity);
+    const predicted = parseNumber(predictedQuantity);
+    if (predicted <= 0 && requested > 0) {
+      return "Nao liberar automaticamente. Item nao previsto na composicao.";
+    }
+    if (requested < predicted) {
+      return status === "DENTRO_DO_PREVISTO"
+        ? "Liberar. Pedido abaixo do previsto dentro da tolerancia."
+        : "Liberar com atencao e avaliar aumento da quantidade.";
+    }
+    if (status === "DENTRO_DO_PREVISTO") {
+      return "Liberar automaticamente.";
+    }
+    if (status === "ATENCAO") {
+      return "Liberar com atencao.";
+    }
+    if (status === "ACIMA_DO_PREVISTO") {
+      return "Reduzir quantidade ou exigir justificativa.";
+    }
+    return "Nao liberar automaticamente.";
+  }
+
+  function evaluateWithdrawalApproval(requestedQuantity, predictedQuantity, controlledService) {
+    const requested = roundQuantity(parseNumber(requestedQuantity));
+    const predicted = roundQuantity(parseNumber(predictedQuantity));
+    const difference = roundQuantity(requested - predicted);
+    const percentualDivergencia = predicted > 0
+      ? roundQuantity((Math.abs(difference) / predicted) * 100)
+      : requested > 0 ? 100 : 0;
+    const status = predicted <= 0 && requested > 0
+      ? "CRITICO"
+      : classifyWithdrawalDivergence(percentualDivergencia);
+    const approvalThreshold = getControlledServiceApprovalThreshold(controlledService);
+    const approvalRequired = percentualDivergencia > approvalThreshold || status === "CRITICO";
+    const justificationRequired = percentualDivergencia > 10 || predicted <= 0;
+    return {
+      status: status,
+      percentualDivergencia: percentualDivergencia,
+      approvalRequired: approvalRequired,
+      justificationRequired: justificationRequired,
+      recommendation: getApprovalRecommendation(status, requested, predicted)
+    };
+  }
+
+  function buildWithdrawalApprovalHistory(service, comparison) {
+    const controlledService = resolveControlledServiceFromContext(service);
+    return (comparison || []).map(function (item) {
+      return {
+        serviceId: controlledService && controlledService.id || "",
+        riskLevel: controlledService && controlledService.nivelRisco || "",
+        requested: item.requestedQuantity,
+        predicted: item.predictedQuantity,
+        difference: item.difference,
+        status: item.approval && item.approval.status || "",
+        recommendation: item.approval && item.approval.recommendation || item.recommendation || ""
+      };
+    });
+  }
+
+  function compareWithdrawalRequest(requestedItems, predictedItems, controlledService) {
     return (requestedItems || []).map(function (requested) {
       const match = matchPredictedMaterialToStockItem(requested, (predictedItems || []).map(function (item) {
         return {
@@ -4984,6 +5070,7 @@
       const requestedQuantity = roundQuantity(parseNumber(requested.quantity || requested.requestedQuantity));
       const difference = roundQuantity(requestedQuantity - predictedQuantity);
       const status = classifyWithdrawalStatus(requestedQuantity, predictedQuantity);
+      const approval = evaluateWithdrawalApproval(requestedQuantity, predictedQuantity, controlledService);
       return {
         material: requested.name || requested.material,
         requestedQuantity: requestedQuantity,
@@ -4991,7 +5078,8 @@
         difference: difference,
         unit: requested.unit || "un",
         status: status,
-        recommendation: getWithdrawalRecommendation(status)
+        recommendation: getWithdrawalRecommendation(status),
+        approval: approval
       };
     });
   }
@@ -5078,7 +5166,9 @@
     }
     const result = calculateMultipleServices(serviceData.services);
     const predictedItems = result.items || [];
-    const comparison = compareWithdrawalRequest(requestedItems, predictedItems);
+    const primaryControlledService = resolveControlledServiceFromContext(serviceData.services[0] || serviceData.request || {});
+    const comparison = compareWithdrawalRequest(requestedItems, predictedItems, primaryControlledService);
+    const approvalHistory = buildWithdrawalApprovalHistory(serviceData.services[0] || serviceData.request || {}, comparison);
     const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
     lines.push("SERVICO INFORMADO");
     serviceData.services.forEach(function (service) {
@@ -5092,12 +5182,28 @@
     lines.push("");
     lines.push("MATERIAIS SOLICITADOS X PREVISTOS");
     comparison.forEach(function (item) {
+      const approval = item.approval || evaluateWithdrawalApproval(item.requestedQuantity, item.predictedQuantity, primaryControlledService);
       lines.push("- " + item.material +
         ": solicitado " + formatQuantity(item.requestedQuantity) + " " + displayUnit(item.unit) +
         ", previsto " + formatQuantity(item.predictedQuantity) + " " + displayUnit(item.unit) +
         ", diferenca " + formatQuantity(item.difference) + " " + displayUnit(item.unit) +
         " | status: " + item.status +
         " | recomendacao: " + item.recommendation);
+      lines.push("  STATUS: " + approval.status +
+        " | DIVERGENCIA: " + formatQuantity(approval.percentualDivergencia) + "%" +
+        " | JUSTIFICATIVA: " + (approval.justificationRequired ? "OBRIGATORIA" : "NAO OBRIGATORIA") +
+        " | APROVACAO: " + (approval.approvalRequired ? "OBRIGATORIA" : "NAO OBRIGATORIA") +
+        " | RECOMENDACAO: " + approval.recommendation);
+    });
+    lines.push("");
+    lines.push("HISTORICO INTERNO DA ANALISE");
+    approvalHistory.forEach(function (item) {
+      lines.push("- servico " + (item.serviceId || "nao identificado") +
+        " | risco " + (item.riskLevel || "nao informado") +
+        " | solicitado " + formatQuantity(item.requested) +
+        " | previsto " + formatQuantity(item.predicted) +
+        " | diferenca " + formatQuantity(item.difference) +
+        " | status " + item.status);
     });
     lines.push("");
     lines.push("CONSUMO PREVISTO DA COMPOSICAO");
@@ -5123,6 +5229,7 @@
       services: serviceData.services,
       predictedItems: predictedItems,
       comparison: comparison,
+      approvalHistory: approvalHistory,
       answer: lines.join("\n")
     };
   }
@@ -5781,6 +5888,7 @@
     parseRequest: parseRequest,
     isWithdrawalRequest: isWithdrawalRequest,
     extractRequestedMaterials: extractRequestedMaterials,
+    evaluateWithdrawalApproval: evaluateWithdrawalApproval,
     buildWithdrawalConference: buildWithdrawalConference,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,

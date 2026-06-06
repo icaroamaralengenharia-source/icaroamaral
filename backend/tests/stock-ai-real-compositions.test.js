@@ -1643,6 +1643,102 @@ test("Stock AI Obras conferencia de retirada preserva fallback demonstrativo com
   assert.match(answer, /Composi[cç][aã]o demonstrativa/);
 });
 
+test("Stock AI Obras aprovacao de retirada classifica dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(8, 8, engine.getControlledServiceById("pilar"));
+
+  assert.equal(result.status, "DENTRO_DO_PREVISTO");
+  assert.equal(result.percentualDivergencia, 0);
+  assert.equal(result.approvalRequired, false);
+  assert.equal(result.justificationRequired, false);
+});
+
+test("Stock AI Obras aprovacao de retirada classifica atencao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(9, 8, engine.getControlledServiceById("pilar"));
+
+  assert.equal(result.status, "ATENCAO");
+  assert.equal(result.percentualDivergencia, 12.5);
+  assert.equal(result.approvalRequired, false);
+  assert.equal(result.justificationRequired, true);
+});
+
+test("Stock AI Obras aprovacao de retirada classifica acima do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(11, 8, engine.getControlledServiceById("pilar"));
+
+  assert.equal(result.status, "ACIMA_DO_PREVISTO");
+  assert.equal(result.percentualDivergencia, 37.5);
+  assert.equal(result.approvalRequired, true);
+  assert.equal(result.justificationRequired, true);
+});
+
+test("Stock AI Obras aprovacao de retirada classifica critico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(20, 8, engine.getControlledServiceById("pilar"));
+
+  assert.equal(result.status, "CRITICO");
+  assert.equal(result.percentualDivergencia, 150);
+  assert.equal(result.approvalRequired, true);
+  assert.equal(result.justificationRequired, true);
+  assert.match(result.recommendation, /Nao liberar automaticamente/);
+});
+
+test("Stock AI Obras aprovacao de retirada exige aprovacao para estrutural acima de 25 por cento", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(11, 8, engine.getControlledServiceById("viga"));
+
+  assert.equal(result.status, "ACIMA_DO_PREVISTO");
+  assert.equal(result.approvalRequired, true);
+});
+
+test("Stock AI Obras aprovacao de retirada baixo risco nao exige aprovacao ate 75 por cento", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(15, 10, engine.getControlledServiceById("piso_ceramico"));
+
+  assert.equal(result.status, "ACIMA_DO_PREVISTO");
+  assert.equal(result.percentualDivergencia, 50);
+  assert.equal(result.approvalRequired, false);
+  assert.equal(result.justificationRequired, true);
+});
+
+test("Stock AI Obras aprovacao de retirada trata quantidade igual ao previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(10, 10, engine.getControlledServiceById("piso_ceramico"));
+
+  assert.equal(result.status, "DENTRO_DO_PREVISTO");
+  assert.equal(result.approvalRequired, false);
+  assert.equal(result.justificationRequired, false);
+});
+
+test("Stock AI Obras aprovacao de retirada trata quantidade abaixo do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const result = engine.evaluateWithdrawalApproval(8, 10, engine.getControlledServiceById("piso_ceramico"));
+
+  assert.equal(result.status, "ATENCAO");
+  assert.equal(result.percentualDivergencia, 20);
+  assert.equal(result.approvalRequired, false);
+  assert.equal(result.justificationRequired, true);
+  assert.match(result.recommendation, /aumento da quantidade/);
+});
+
+test("Stock AI Obras conferencia de retirada mostra decisao operacional e historico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+
+  assert.equal(conference.detected, true);
+  assert.equal(conference.ok, true);
+  assert.match(conference.answer, /STATUS: CRITICO/);
+  assert.match(conference.answer, /DIVERGENCIA: 150%/);
+  assert.match(conference.answer, /JUSTIFICATIVA: OBRIGATORIA/);
+  assert.match(conference.answer, /APROVACAO: OBRIGATORIA/);
+  assert.match(conference.answer, /RECOMENDACAO: Nao liberar automaticamente/);
+  assert.match(conference.answer, /HISTORICO INTERNO DA ANALISE/);
+  assert.equal(conference.approvalHistory[0].serviceId, "pilar");
+  assert.equal(conference.approvalHistory[0].riskLevel, "alto");
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
