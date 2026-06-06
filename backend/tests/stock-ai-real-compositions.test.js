@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import * as XLSX from "xlsx";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const sampleFixture = JSON.parse(readFileSync(join(testDir, "fixtures", "stock-ai-real-compositions-sample.json"), "utf8"));
@@ -13,6 +14,7 @@ const firstRealExample = JSON.parse(readFileSync(firstRealExamplePath, "utf8"));
 const firstOfficialGuidePath = join(testDir, "..", "..", "docs", "stock-ai-guia-primeira-composicao-oficial.md");
 const officialBaseImporterGuidePath = join(testDir, "..", "..", "docs", "stock-ai-importador-bases-oficiais.md");
 const officialBaseCsvGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-csv-bases-oficiais.md");
+const officialBaseXlsxGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-xlsx-bases-oficiais.md");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -121,6 +123,29 @@ function officialBaseCsvCommaFixture() {
     "compositionCode,compositionName,compositionUnit,inputCode,inputName,inputUnit,coefficient",
     "ORSE-CSV-001,Chapisco CSV controlado,m2,ORSE-CSV-MAT-001,Argamassa CSV,kg,\"4,75\""
   ].join("\n");
+}
+
+function loadStockAiCompositionEngineWithXlsx() {
+  return loadStockAiCompositionEngine({ XLSX });
+}
+
+function officialBaseWorkbook(sheets) {
+  const workbook = XLSX.utils.book_new();
+  sheets.forEach(({ name, rows }) => {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name);
+  });
+  return workbook;
+}
+
+function officialBaseXlsxSimpleWorkbook() {
+  return officialBaseWorkbook([{
+    name: "SINAPI",
+    rows: [
+      ["compositionCode", "compositionName", "compositionUnit", "inputCode", "inputName", "inputUnit", "coefficient"],
+      ["SINAPI-XLSX-001", "Alvenaria XLSX controlada", "m2", "SINAPI-XLSX-MAT-001", "Bloco XLSX", "un", "12,50"],
+      ["SINAPI-XLSX-001", "Alvenaria XLSX controlada", "m2", "SINAPI-XLSX-MAT-002", "Argamassa XLSX", "kg", "3,25"]
+    ]
+  }]);
 }
 
 test("Stock AI Obras mantem composicao demonstrativa sem base externa", () => {
@@ -826,4 +851,231 @@ test("Stock AI Obras documenta leitor CSV de bases oficiais", () => {
   assert.match(guide, /decimal com virgula/i);
   assert.match(guide, /CSV.*rows.*importador.*catalogo/i);
   assert.match(guide, /XLSX\/ZIP/i);
+});
+
+test("Stock AI Obras leitor XLSX simples importa corretamente", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const buffer = XLSX.write(officialBaseXlsxSimpleWorkbook(), { type: "buffer", bookType: "xlsx" });
+  const imported = engine.importOfficialBaseXlsx(buffer, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+
+  assert.equal(imported.ok, true);
+  assert.equal(imported.imported.length, 1);
+  assert.equal(imported.imported[0].code, "SINAPI-XLSX-001");
+  assert.equal(imported.imported[0].inputs.length, 2);
+});
+
+test("Stock AI Obras leitor XLSX com multiplas composicoes agrupa corretamente", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const workbook = officialBaseWorkbook([{
+    name: "ORSE",
+    rows: [
+      ["compositionCode", "compositionName", "compositionUnit", "inputCode", "inputName", "inputUnit", "coefficient"],
+      ["ORSE-XLSX-001", "Chapisco XLSX controlado", "m2", "ORSE-XLSX-MAT-001", "Argamassa chapisco XLSX", "kg", "4,20"],
+      ["ORSE-XLSX-002", "Reboco XLSX controlado", "m2", "ORSE-XLSX-MAT-002", "Argamassa reboco XLSX", "kg", "8,40"]
+    ]
+  }]);
+  const imported = engine.importOfficialBaseXlsx(workbook, {
+    source: "ORSE",
+    state: "SE",
+    referenceMonth: "2026-05"
+  });
+
+  assert.equal(imported.ok, true);
+  assert.equal(imported.imported.length, 2);
+});
+
+test("Stock AI Obras leitor XLSX converte decimal com virgula", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseOfficialBaseXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+  const normalized = engine.normalizeOfficialBaseRows({ rows: parsed.rows });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(normalized[0].coefficient, 12.5);
+  assert.equal(normalized[1].coefficient, 3.25);
+});
+
+test("Stock AI Obras leitor XLSX aceita columnMap manual", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const workbook = officialBaseWorkbook([{
+    name: "SINAPI",
+    rows: [
+      ["COD_COMP", "DESC_COMP", "UN_COMP", "COD_INSUMO", "DESC_INSUMO", "UN_INSUMO", "COEF"],
+      ["SINAPI-XLSX-MAP-001", "Piso XLSX controlado", "m2", "SINAPI-XLSX-MAP-MAT-001", "Piso XLSX", "m2", "1,10"]
+    ]
+  }]);
+  const parsed = engine.parseOfficialBaseXlsx(workbook, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-06",
+    columnMap: {
+      compositionCode: "COD_COMP",
+      compositionName: "DESC_COMP",
+      compositionUnit: "UN_COMP",
+      inputCode: "COD_INSUMO",
+      inputName: "DESC_INSUMO",
+      inputUnit: "UN_INSUMO",
+      coefficient: "COEF"
+    }
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.rows[0].compositionCode, "SINAPI-XLSX-MAP-001");
+});
+
+test("Stock AI Obras leitor XLSX usa sheetName especifico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const workbook = officialBaseWorkbook([{
+    name: "Vazia",
+    rows: []
+  }, {
+    name: "Dados",
+    rows: [
+      ["compositionCode", "compositionName", "compositionUnit", "inputCode", "inputName", "inputUnit", "coefficient"],
+      ["SINAPI-XLSX-SHEET-001", "Baldrame XLSX controlado", "m3", "SINAPI-XLSX-SHEET-MAT-001", "Concreto XLSX", "m3", "1"]
+    ]
+  }]);
+  const parsed = engine.parseOfficialBaseXlsx(workbook, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-07",
+    sheetName: "Dados"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.sheetName, "Dados");
+  assert.equal(parsed.rows[0].compositionCode, "SINAPI-XLSX-SHEET-001");
+});
+
+test("Stock AI Obras leitor XLSX sheetName inexistente retorna erro claro", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseOfficialBaseXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05",
+    sheetName: "NaoExiste"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /Aba XLSX nao encontrada/);
+});
+
+test("Stock AI Obras leitor XLSX vazio e rejeitado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseOfficialBaseXlsx({ SheetNames: [], Sheets: {} }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /sem abas/);
+});
+
+test("Stock AI Obras leitor XLSX sem colunas minimas e rejeitado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const workbook = officialBaseWorkbook([{
+    name: "Invalida",
+    rows: [
+      ["foo", "bar"],
+      ["1", "2"]
+    ]
+  }]);
+  const parsed = engine.parseOfficialBaseXlsx(workbook, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /colunas minimas/);
+});
+
+test("Stock AI Obras leitor XLSX rejeita coefficient zero na importacao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const workbook = officialBaseWorkbook([{
+    name: "SINAPI",
+    rows: [
+      ["compositionCode", "compositionName", "compositionUnit", "inputCode", "inputName", "inputUnit", "coefficient"],
+      ["SINAPI-XLSX-ZERO-001", "Alvenaria XLSX zero", "m2", "SINAPI-XLSX-ZERO-MAT-001", "Bloco XLSX zero", "un", "0"]
+    ]
+  }]);
+  const imported = engine.importOfficialBaseXlsx(workbook, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+
+  assert.equal(imported.ok, false);
+  assert.match(imported.errors.join(" "), /Coeficiente oficial ausente/);
+});
+
+test("Stock AI Obras leitor XLSX invalido nao apaga base oficial anterior", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const workbook = officialBaseWorkbook([{
+    name: "Invalida",
+    rows: [
+      ["foo", "bar"],
+      ["1", "2"]
+    ]
+  }]);
+  const invalid = engine.importOfficialBaseXlsx(workbook, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+  const stats = engine.getImportedOfficialBaseStats();
+
+  assert.equal(invalid.ok, false);
+  assert.equal(stats.totalCompositions, 1);
+});
+
+test("Stock AI Obras importOfficialBaseXlsx importa e permite busca", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const imported = engine.importOfficialBaseXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+  const results = engine.searchImportedOfficialCompositions("SINAPI-XLSX-001");
+
+  assert.equal(imported.ok, true);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].code, "SINAPI-XLSX-001");
+});
+
+test("Stock AI Obras clearImportedOfficialBase apos XLSX restaura fallback", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBaseXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-05"
+  });
+  engine.clearImportedOfficialBase();
+
+  const composition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.notEqual(composition.code, "SINAPI-XLSX-001");
+  assert.match(engine.normalize(composition.source), /base tecnica demonstrativa editavel/);
+});
+
+test("Stock AI Obras documenta leitor XLSX de bases oficiais", () => {
+  assert.equal(existsSync(officialBaseXlsxGuidePath), true);
+
+  const guide = readFileSync(officialBaseXlsxGuidePath, "utf8");
+
+  assert.match(guide, /objetivo/i);
+  assert.match(guide, /xlsx/i);
+  assert.match(guide, /sheetName/i);
+  assert.match(guide, /columnMap/i);
+  assert.match(guide, /decimal com virgula/i);
+  assert.match(guide, /XLSX.*rows.*importador.*catalogo/i);
 });

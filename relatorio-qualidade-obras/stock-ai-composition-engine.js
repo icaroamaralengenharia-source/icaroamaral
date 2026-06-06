@@ -1232,6 +1232,227 @@
     });
   }
 
+  function getOfficialXlsxToolkit(options) {
+    const settings = options || {};
+    if (settings.xlsx) {
+      return settings.xlsx;
+    }
+    if (typeof window !== "undefined" && window.XLSX) {
+      return window.XLSX;
+    }
+    if (typeof XLSX !== "undefined") {
+      return XLSX;
+    }
+    return null;
+  }
+
+  function readOfficialXlsxInput(fileOrBuffer, options) {
+    const settings = options || {};
+    const xlsx = getOfficialXlsxToolkit(settings);
+    if (!xlsx || typeof xlsx.read !== "function") {
+      return {
+        ok: false,
+        workbook: null,
+        errors: ["Dependencia XLSX indisponivel para leitura da planilha."]
+      };
+    }
+    if (fileOrBuffer && fileOrBuffer.SheetNames && fileOrBuffer.Sheets) {
+      return { ok: true, workbook: fileOrBuffer, errors: [] };
+    }
+    if (!fileOrBuffer) {
+      return {
+        ok: false,
+        workbook: null,
+        errors: ["Arquivo XLSX vazio ou ausente."]
+      };
+    }
+    try {
+      if (typeof fileOrBuffer === "string") {
+        if (settings.readFile) {
+          return { ok: true, workbook: xlsx.read(settings.readFile(fileOrBuffer), { type: "buffer" }), errors: [] };
+        }
+        return {
+          ok: false,
+          workbook: null,
+          errors: ["Caminho local XLSX exige options.readFile em ambiente seguro."]
+        };
+      }
+      const isBuffer = typeof Buffer !== "undefined" && Buffer.isBuffer && Buffer.isBuffer(fileOrBuffer);
+      if (isBuffer) {
+        return { ok: true, workbook: xlsx.read(fileOrBuffer, { type: "buffer" }), errors: [] };
+      }
+      if (fileOrBuffer instanceof ArrayBuffer) {
+        return { ok: true, workbook: xlsx.read(fileOrBuffer, { type: "array" }), errors: [] };
+      }
+      if (fileOrBuffer && fileOrBuffer.buffer && typeof fileOrBuffer.length === "number") {
+        return { ok: true, workbook: xlsx.read(fileOrBuffer, { type: "array" }), errors: [] };
+      }
+      return {
+        ok: false,
+        workbook: null,
+        errors: ["Formato XLSX nao suportado. Use Buffer, ArrayBuffer, Uint8Array ou workbook XLSX."]
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        workbook: null,
+        errors: ["Falha ao ler XLSX: " + (error && error.message ? error.message : "erro desconhecido") + "."]
+      };
+    }
+  }
+
+  function normalizeOfficialSheetRows(table, options, sheetName) {
+    const settings = options || {};
+    const source = normalizeOfficialSource(settings.source);
+    const state = clean(settings.state || settings.uf || settings.sourceRegion);
+    const referenceMonth = clean(settings.referenceMonth || settings.sourceDate);
+    const errors = [];
+    if (source !== "SINAPI" && source !== "ORSE") {
+      errors.push("source deve ser SINAPI ou ORSE.");
+    }
+    if (!state) {
+      errors.push("state/UF e obrigatorio.");
+    }
+    if (!referenceMonth) {
+      errors.push("referenceMonth e obrigatorio.");
+    }
+    const lines = (table || []).filter(function (row) {
+      return clean((row || []).join(""));
+    });
+    if (!lines.length) {
+      errors.push("Aba vazia.");
+      return {
+        ok: false,
+        rows: [],
+        headers: [],
+        columnIndexes: {},
+        errors: errors,
+        sheetName: sheetName || ""
+      };
+    }
+    const headers = (lines[0] || []).map(clean);
+    const columnIndexes = buildOfficialCsvColumnIndexes(headers, settings.columnMap);
+    const requiredFields = Object.keys(OFFICIAL_CSV_COLUMN_ALIASES);
+    const missing = requiredFields.filter(function (field) {
+      return columnIndexes[field] === undefined;
+    });
+    if (headers.length < 2 || missing.length === requiredFields.length) {
+      errors.push("XLSX sem cabecalho valido.");
+    }
+    if (missing.length) {
+      errors.push("XLSX sem colunas minimas: " + missing.join(", ") + ".");
+    }
+    if (lines.length < 2) {
+      errors.push("XLSX sem linhas de dados.");
+    }
+    const rows = lines.slice(1).map(function (line) {
+      return {
+        source: source,
+        state: state,
+        referenceMonth: referenceMonth,
+        compositionCode: line[columnIndexes.compositionCode] || "",
+        compositionName: line[columnIndexes.compositionName] || "",
+        compositionUnit: line[columnIndexes.compositionUnit] || "",
+        inputCode: line[columnIndexes.inputCode] || "",
+        inputName: line[columnIndexes.inputName] || "",
+        inputUnit: line[columnIndexes.inputUnit] || "",
+        coefficient: line[columnIndexes.coefficient] || ""
+      };
+    }).filter(function (row) {
+      return clean(Object.keys(row).map(function (key) { return row[key]; }).join(""));
+    });
+    return {
+      ok: errors.length === 0,
+      rows: errors.length ? [] : rows,
+      headers: headers,
+      columnIndexes: columnIndexes,
+      errors: errors,
+      sheetName: sheetName || "",
+      summary: errors.length ? "XLSX invalido." : rows.length + " linha(s) XLSX normalizada(s)."
+    };
+  }
+
+  function parseOfficialBaseXlsx(fileOrBuffer, options) {
+    const settings = options || {};
+    const xlsx = getOfficialXlsxToolkit(settings);
+    const loaded = readOfficialXlsxInput(fileOrBuffer, settings);
+    if (!loaded.ok) {
+      return Object.assign({}, loaded, {
+        ok: false,
+        rows: [],
+        sheetName: clean(settings.sheetName),
+        sheets: []
+      });
+    }
+    const workbook = loaded.workbook;
+    const sheetNames = workbook && workbook.SheetNames || [];
+    if (!sheetNames.length) {
+      return {
+        ok: false,
+        rows: [],
+        sheetName: "",
+        sheets: [],
+        errors: ["Planilha XLSX sem abas."]
+      };
+    }
+    const wantedSheet = clean(settings.sheetName);
+    if (wantedSheet && sheetNames.indexOf(wantedSheet) < 0) {
+      return {
+        ok: false,
+        rows: [],
+        sheetName: wantedSheet,
+        sheets: sheetNames.slice(),
+        errors: ["Aba XLSX nao encontrada: " + wantedSheet + "."]
+      };
+    }
+    const sheetsToRead = wantedSheet ? [wantedSheet] : sheetNames;
+    let firstInvalid = null;
+    for (let index = 0; index < sheetsToRead.length; index += 1) {
+      const sheetName = sheetsToRead[index];
+      const worksheet = workbook.Sheets[sheetName];
+      const table = xlsx.utils.sheet_to_json(worksheet, {
+        header: 1,
+        blankrows: false,
+        raw: false,
+        defval: ""
+      });
+      const parsed = normalizeOfficialSheetRows(table, settings, sheetName);
+      if (parsed.ok) {
+        return Object.assign({}, parsed, {
+          sheets: sheetNames.slice()
+        });
+      }
+      if (!firstInvalid || parsed.errors.join(" ").indexOf("Aba vazia") < 0) {
+        firstInvalid = parsed;
+      }
+    }
+    return Object.assign({}, firstInvalid || {
+      ok: false,
+      rows: [],
+      sheetName: wantedSheet,
+      errors: ["Nenhuma aba XLSX com dados validos."]
+    }, {
+      ok: false,
+      rows: [],
+      sheets: sheetNames.slice()
+    });
+  }
+
+  function importOfficialBaseXlsx(fileOrBuffer, options) {
+    const parsed = parseOfficialBaseXlsx(fileOrBuffer, options);
+    if (!parsed.ok) {
+      return Object.assign({}, parsed, {
+        imported: [],
+        catalogSize: importedOfficialBaseCatalog.length
+      });
+    }
+    const result = importOfficialBase({ rows: parsed.rows }, options);
+    return Object.assign({}, result, {
+      parsed: parsed,
+      rows: parsed.rows
+    });
+  }
+
   function getWindowExternalCompositions() {
     const external = window.StockAiRealCompositions;
     if (!external) {
@@ -3776,6 +3997,8 @@
     importOfficialBase: importOfficialBase,
     parseOfficialBaseCsv: parseOfficialBaseCsv,
     importOfficialBaseCsv: importOfficialBaseCsv,
+    parseOfficialBaseXlsx: parseOfficialBaseXlsx,
+    importOfficialBaseXlsx: importOfficialBaseXlsx,
     searchImportedOfficialCompositions: searchImportedOfficialCompositions,
     clearImportedOfficialBase: clearImportedOfficialBase,
     getImportedOfficialBaseStats: getImportedOfficialBaseStats,
