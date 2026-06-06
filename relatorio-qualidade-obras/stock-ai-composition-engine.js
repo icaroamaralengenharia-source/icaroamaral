@@ -868,6 +868,10 @@
       radier: "radier",
       alvenaria: "alvenaria",
       parede: "alvenaria",
+      chapisco: "chapisco",
+      reboco_emboco: "reboco_emboco",
+      reboco: "reboco_emboco",
+      emboco: "reboco_emboco",
       piso: "piso_ceramico",
       piso_ceramico: "piso_ceramico",
       cobertura: "cobertura",
@@ -3999,7 +4003,7 @@
       }
     }
 
-    if (hasTerm(text, "muro")) {
+    if (hasTerm(text, "muro") && !hasAny(text, ["chapisco", "emboco", "emboço", "reboco"])) {
       const wall = extractWallAreaDimensions(originalMessage);
       if (wall) {
         const gateMatch = originalMessage.match(/port[aã]o\s*(?:de\s*)?(\d+(?:[.,]\d+)?)\s*(?:m|metros?)?/i);
