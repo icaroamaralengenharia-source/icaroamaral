@@ -51,6 +51,32 @@
     return roundQuantity(value).toLocaleString("pt-BR");
   }
 
+  function hasNegativeNumericInput(value) {
+    return /(^|[^\d])-+\s*\d+(?:[.,]\d+)?/.test(clean(value));
+  }
+
+  function buildInvalidQuantityAnswer(reason) {
+    return [
+      "QUANTITATIVO INVALIDO",
+      "- " + (reason || "Informe uma quantidade maior que zero."),
+      "",
+      "OBSERVACOES",
+      "- Quantidade zero ou negativa nao e valida para servico, geometria ou retirada.",
+      "- Nenhum coeficiente foi inventado."
+    ].join("\n");
+  }
+
+  function buildInvalidStockAnswer(items) {
+    const invalidItems = items || [];
+    return [
+      "ESTOQUE INVALIDO",
+      "- Estoque negativo nao e valido neste fluxo.",
+      "- Corrija os saldos informados antes de comparar estoque x previsto."
+    ].concat(invalidItems.map(function (item) {
+      return "- " + item.name + ": " + formatQuantity(item.realBalance) + " " + displayUnit(item.item && item.item.unit || item.unit || "un");
+    })).join("\n");
+  }
+
   function normalizeUnit(unit) {
     const rawUnit = clean(unit).toLowerCase();
     if (/m\s*(2|²)|metro[s]?\s+quadrado[s]?/.test(rawUnit)) {
@@ -2523,6 +2549,9 @@
   }
 
   function buildGeometryResult(serviceType, geometryType, quantity, unit, explanation, dimensions, label) {
+    if (parseNumber(quantity) <= 0) {
+      return buildIncompleteGeometryResult(serviceType, "Informe medidas maiores que zero para calcular o quantitativo.", label || serviceType);
+    }
     return {
       detected: true,
       complete: true,
@@ -2838,7 +2867,7 @@
   function parseGeometryRequest(message) {
     const originalMessage = stripStockContext(message);
     const text = normalize(originalMessage);
-    const number = "(\\d+(?:[.,]\\d+)?)";
+    const number = "(-?\\d+(?:[.,]\\d+)?)";
 
     const composite = parseCompositeGeometryRequest(originalMessage);
     if (composite) {
@@ -3240,7 +3269,7 @@
       };
     }
     if (compositionCode) {
-      const codeQuantityMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(mÂ²|m2|mÂ³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cÃºbico|metros cÃºbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
+      const codeQuantityMatch = originalMessage.match(/(-?\d+(?:[.,]\d+)?)\s*(mÂ²|m2|mÂ³|m3|metro quadrado|metros quadrados|metro cubico|metros cubicos|metro cÃºbico|metros cÃºbicos|kg|quilo|quilos|ponto|pontos|m\b|un\b|und\b|unidade|unidades)/i);
       const codeQuantity = codeQuantityMatch ? parseNumber(codeQuantityMatch[1]) : 0;
       const codeUnit = codeQuantityMatch ? normalizeRequestedUnit(codeQuantityMatch[2]) : "";
       const compositionUnit = compositionByCode ? displayUnit(compositionByCode.productionUnit || compositionByCode.unit) : "";
@@ -4040,6 +4069,7 @@
     const stockLines = [];
     let inStockSection = false;
     const stockTriggerPattern = /(tenho em estoque|dispon[ií]vel no estoque|estoque atual|saldo|tenho dispon[ií]vel|temos no estoque|material dispon[ií]vel|no estoque existe|estoque)\s*:?\s*/i;
+    const stockQuantityPattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)|[a-zA-ZÀ-ÿ].*?\s+-?\d+(?:[.,]\d+)?\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i;
     clean(message).split(/\n+/).forEach(function (line) {
       const normalizedLine = normalize(line);
       const triggerMatch = line.match(stockTriggerPattern);
@@ -4048,7 +4078,7 @@
         stockLines.push(clean(line.slice(triggerMatch.index + triggerMatch[0].length)).replace(/\.$/, ""));
         return;
       }
-      if (inStockSection && /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i.test(line)) {
+      if (inStockSection && stockQuantityPattern.test(line)) {
         stockLines.push(line);
         return;
       }
@@ -4058,18 +4088,15 @@
     });
     clean(message).split(/[.;]+/).slice(1).forEach(function (segment) {
       const stockSegment = clean(segment);
-      if (/^(tenho|temos)\s+\d+(?:[.,]\d+)?\s*(sacos?|mÂ²|m2|mÂ³|m3|kg|telhas?|blocos?|unidades?|un|m|metros?)/i.test(stockSegment)) {
+      if (/^(tenho|temos)\s+-?\d+(?:[.,]\d+)?\s*(sacos?|mÂ²|m2|mÂ³|m3|kg|telhas?|blocos?|unidades?|un|m|metros?)/i.test(stockSegment)) {
         stockLines.push(stockSegment.replace(/^(tenho|temos)\s+/i, ""));
       }
     });
     const text = stockLines.join("\n").replace(/\bmetros?\b/gi, "m").replace(/\b(m|un|kg|sacos?)\./gi, "$1");
     const fullMessageKey = normalize(message);
-    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
-    let match;
-    while ((match = pattern.exec(text))) {
-      const quantity = parseNumber(match[1]);
-      const rawUnit = normalize(match[2]);
-      const rawMaterial = clean(match[3]).replace(/\.$/, "");
+    function addStockItem(quantity, rawUnitValue, rawMaterialValue) {
+      const rawUnit = normalize(rawUnitValue);
+      const rawMaterial = clean(rawMaterialValue).replace(/\.$/, "");
       const materialKey = normalize(rawMaterial);
       let unit = normalizeUnit(rawUnit);
       let name = rawMaterial;
@@ -4095,7 +4122,7 @@
       } else if (!materialKey && unit === "m" && (hasTerm(fullMessageKey, "cabo") || hasTerm(fullMessageKey, "fio"))) {
         name = "Cabo eletrico";
       }
-      if (quantity > 0 && name) {
+      if (quantity >= 0 && name) {
         stockItems.push({
           item: {
             id: "reported_stock_" + normalize(name).replace(/\s+/g, "_") + "_" + unit,
@@ -4105,7 +4132,28 @@
           realBalance: quantity,
           source: "message"
         });
+      } else if (quantity < 0 && name) {
+        stockItems.push({
+          item: {
+            id: "invalid_stock_" + normalize(name).replace(/\s+/g, "_") + "_" + unit,
+            name: name,
+            unit: unit
+          },
+          name: name,
+          realBalance: quantity,
+          invalid: true,
+          source: "message"
+        });
       }
+    }
+    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
+    let match;
+    while ((match = pattern.exec(text))) {
+      addStockItem(parseNumber(match[1]), match[2], match[3]);
+    }
+    const materialFirstPattern = /(?:^|\n|,\s*|;\s*)([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s-]*?)\s+(-?\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b/gi;
+    while ((match = materialFirstPattern.exec(text))) {
+      addStockItem(parseNumber(match[2]), match[3], match[1]);
     }
     const grouped = {};
     stockItems.forEach(function (entry) {
@@ -4115,6 +4163,7 @@
         return;
       }
       grouped[key].realBalance = roundQuantity(parseNumber(grouped[key].realBalance) + parseNumber(entry.realBalance));
+      grouped[key].invalid = grouped[key].invalid || entry.invalid;
     });
     return Object.keys(grouped).map(function (key) {
       return grouped[key];
@@ -4174,7 +4223,7 @@
     const requestSegment = clean((originalMessage.split(/\bpara\s+(?:fazer|executar|assentar|instalar|concretar|aplicar|servico|serviço)\b/i)[0] || originalMessage)
       .replace(/^.*?\b(?:pediu|solicitou|retirar|retirada|liberar|liberacao|liberação)\b\s*/i, ""));
     const normalizedSegment = requestSegment.replace(/\bmetros?\b/gi, "m").replace(/\btabuas\b/gi, "tabuas");
-    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
+    const pattern = /(-?\d+(?:[.,]\d+)?)\s*(sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)-?\d+(?:[.,]\d+)?\s*(?:sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     const requested = [];
     let match;
     while ((match = pattern.exec(normalizedSegment))) {
@@ -4200,6 +4249,16 @@
           requestedQuantity: roundQuantity(quantity),
           unit: unit
         });
+      } else if (quantity <= 0 && name) {
+        requested.push({
+          id: "invalid_withdrawal_requested_" + normalize(name).replace(/\s+/g, "_") + "_" + unit,
+          name: name,
+          material: name,
+          quantity: roundQuantity(quantity),
+          requestedQuantity: roundQuantity(quantity),
+          unit: unit,
+          invalid: true
+        });
       }
     }
     const grouped = {};
@@ -4208,6 +4267,7 @@
       grouped[key] = grouped[key] || Object.assign({}, item, { quantity: 0, requestedQuantity: 0 });
       grouped[key].quantity = roundQuantity(parseNumber(grouped[key].quantity) + parseNumber(item.quantity));
       grouped[key].requestedQuantity = grouped[key].quantity;
+      grouped[key].invalid = grouped[key].invalid || item.invalid || grouped[key].quantity <= 0;
     });
     return Object.keys(grouped).map(function (key) {
       return grouped[key];
@@ -4300,7 +4360,7 @@
     }
     const difference = requestedQuantity - predictedQuantity;
     const tolerance = Math.max(predictedQuantity * 0.1, 0.001);
-    if (Math.abs(difference) <= tolerance) {
+    if (difference >= -tolerance && difference <= tolerance) {
       return "dentro do previsto";
     }
     if (difference > 0) {
@@ -4353,7 +4413,7 @@
   function buildWithdrawalPurchasePlan(comparison) {
     return (comparison || []).map(function (item) {
       if (item.status === "abaixo do previsto") {
-        return "- " + item.material + ": complementar " + formatQuantity(Math.abs(item.difference)) + " " + displayUnit(item.unit) + ".";
+        return "- " + item.material + ": complementar " + formatQuantity(0 - item.difference) + " " + displayUnit(item.unit) + ".";
       }
       if (item.status === "acima do previsto") {
         return "- " + item.material + ": reduzir " + formatQuantity(item.difference) + " " + displayUnit(item.unit) + " ou exigir justificativa.";
@@ -4370,6 +4430,28 @@
     const requestedItems = settings.requestedItems || extractRequestedMaterials(message);
     if (!isWithdrawalRequest(message)) {
       return { detected: false, answer: "" };
+    }
+    if (requestedItems.some(function (item) { return item.invalid || parseNumber(item.quantity || item.requestedQuantity) <= 0; })) {
+      return {
+        detected: true,
+        ok: false,
+        requestedItems: requestedItems,
+        answer: [
+          "CONFERENCIA INTELIGENTE DE RETIRADA",
+          "",
+          "RETIRADA INVALIDA"
+        ].concat(requestedItems.map(function (item) {
+          return "- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit);
+        })).concat([
+          "",
+          "PERGUNTAS COMPLEMENTARES",
+          "- Informe somente quantidades maiores que zero para retirada de materiais.",
+          "",
+          "OBSERVACOES",
+          "- Quantidade zero ou negativa nao e valida para retirada.",
+          "- Nenhum coeficiente foi inventado."
+        ]).join("\n")
+      };
     }
     if (!requestedItems.length) {
       return {
@@ -4663,6 +4745,9 @@
       ].join("\n");
     }
     const quantity = parseNumber(lookup.quantity || request.quantity);
+    if (quantity < 0) {
+      return buildInvalidQuantityAnswer("Informe uma quantidade maior que zero para calcular a composicao " + code + ".");
+    }
     const serviceUnit = lookup.unit || request.unit || compositionData.productionUnit || compositionData.unit || "un";
     const inputs = getCompositionInputs(compositionData).slice(0, 12);
     const metadata = compositionData.metadata || {};
@@ -4792,6 +4877,21 @@
     const request = parseRequest(message);
     const reportedStock = parseStockItemsFromMessage(message);
     const stockItems = (settings.stockItems || []).concat(reportedStock);
+    const invalidStockItems = stockItems.filter(function (entry) {
+      return entry && (entry.invalid || parseNumber(entry.realBalance) < 0);
+    });
+    if (invalidStockItems.length) {
+      return buildInvalidStockAnswer(invalidStockItems);
+    }
+    if (request.geometry && request.geometry.detected && !request.geometry.complete) {
+      const geometryQuestions = request.geometry.questions || [];
+      return ["PERGUNTAS COMPLEMENTARES"]
+        .concat((geometryQuestions.length ? geometryQuestions : ["Informe medidas maiores que zero para calcular o quantitativo."]).map(function (question) {
+          return "- " + question;
+        }))
+        .concat(["", "OBSERVACOES", "- Geometria incompleta ou invalida. Corrija as medidas antes de buscar composicao.", "- Nenhum coeficiente foi inventado."])
+        .join("\n");
+    }
     if (request.compositionCodeQuery) {
       return buildCompositionCodeLookupAnswer(request, { stockItems: stockItems });
     }

@@ -1643,6 +1643,86 @@ test("Stock AI Obras conferencia de retirada preserva fallback demonstrativo com
   assert.match(answer, /Composi[cç][aã]o demonstrativa/);
 });
 
+test("Stock AI Obras rejeita parede com medida zero", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("parede 0 x 3");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES|QUANTITATIVO INVALIDO/);
+  assert.match(answer, /maiores que zero|Geometria incompleta ou invalida/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras rejeita parede com medida negativa sem transformar em positiva", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("parede -10 x 3");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES|QUANTITATIVO INVALIDO/);
+  assert.match(answer, /maiores que zero|Geometria incompleta ou invalida/);
+  assert.doesNotMatch(answer, /30 m2|30 m²/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras pede correcao para geometria malformada sem sugerir composicao aleatoria", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("parede abc x 3");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /Geometria incompleta ou invalida/);
+  assert.doesNotMatch(answer, /97141/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras rejeita quantidade negativa em consulta por codigo SINAPI", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule -10 m da composicao SINAPI 97141");
+
+  assert.match(answer, /QUANTITATIVO INVALIDO/);
+  assert.match(answer, /maior que zero/);
+  assert.doesNotMatch(answer, /quantidade: 10,5 m/);
+});
+
+test("Stock AI Obras reconhece estoque no formato material quantidade unidade", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule 10 m da composicao SINAPI 97141\n\nestoque:\ncimento 999999 sacos");
+
+  assert.match(answer, /ESTOQUE X PREVISTO/);
+  assert.doesNotMatch(answer, /Nenhum estoque informado na mensagem/);
+});
+
+test("Stock AI Obras aceita estoque zero como saldo valido", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule 10 m da composicao SINAPI 97141\n\nestoque:\ncimento 0 sacos");
+
+  assert.match(answer, /ESTOQUE X PREVISTO/);
+  assert.doesNotMatch(answer, /ESTOQUE INVALIDO/);
+  assert.doesNotMatch(answer, /Nenhum estoque informado na mensagem/);
+});
+
+test("Stock AI Obras sinaliza estoque negativo como invalido", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("calcule 10 m da composicao SINAPI 97141\n\nestoque:\ncimento -5 sacos");
+
+  assert.match(answer, /ESTOQUE INVALIDO/);
+  assert.match(answer, /Cimento: -5 saco/);
+  assert.doesNotMatch(answer, /INSUMOS COM QUANTIDADE CALCULADA/);
+});
+
+test("Stock AI Obras rejeita retirada com quantidade negativa", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu -5 sacos de cimento para fazer 2 pilares");
+
+  assert.match(answer, /RETIRADA INVALIDA/);
+  assert.match(answer, /Quantidade zero ou negativa nao e valida para retirada/);
+  assert.doesNotMatch(answer, /recomendacao: aumentar quantidade/);
+  assert.doesNotMatch(answer, /status: abaixo do previsto/);
+});
+
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
