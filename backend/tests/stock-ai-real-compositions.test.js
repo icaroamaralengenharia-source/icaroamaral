@@ -1849,6 +1849,85 @@ test("Stock AI Obras catalogo controlado filtra fallback de piso sem retornar la
   assert.doesNotMatch(answer, /Laje macica|pre-moldada/i);
 });
 
+test("Stock AI Obras catalogo controlado nao mistura pilar com piso laje ou cobertura", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para 2 pilares 20x30 com 3 m");
+
+  assert.match(answer, /Composicao utilizada: DEMO-EST-PILAR-001 - Pilar de concreto armado demonstrativo/);
+  assert.doesNotMatch(answer, /std_piso|Piso ceramico|std_laje|Laje macica|std_telhado|Telha ceramica/i);
+});
+
+test("Stock AI Obras catalogo controlado nao mistura cobertura com piso laje ou pilar", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("cobertura 180 m2 telha ceramica");
+
+  assert.match(answer, /Composicao utilizada: std_telhado - Telha ceramica/);
+  assert.doesNotMatch(answer, /std_piso|Piso ceramico|std_laje|Laje macica|std_pilar|Pilar de concreto/i);
+});
+
+test("Stock AI Obras catalogo controlado nao mistura alvenaria com tubulacao SINAPI", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  const answer = engine.buildAnswerFromMessage("parede 12 x 3");
+
+  assert.match(answer, /Alvenaria de bloco ceramico/);
+  assert.doesNotMatch(answer, /97141|Tubo de ferro fundido|Tubulacao/i);
+});
+
+test("Stock AI Obras catalogo controlado nao mistura hidraulica com alvenaria ou piso", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("instalacao hidraulica 10 m");
+
+  assert.match(answer, /Tubulacao PVC agua fria|Tubulacao PVC esgoto/);
+  assert.doesNotMatch(answer, /Alvenaria de bloco|std_alvenaria|Piso ceramico|std_piso|Eletroduto embutido/i);
+});
+
+test("Stock AI Obras catalogo controlado nao mistura eletrica com concreto ou pilar", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("instalacao eletrica 5 pontos");
+
+  assert.match(answer, /Composicao utilizada: std_ponto_eletrico - Ponto eletrico simples/);
+  assert.doesNotMatch(answer, /Concreto estrutural|Pilar de concreto|std_pilar|DEMO-EST-PILAR/i);
+});
+
+test("Stock AI Obras catalogo controlado sem composicao compativel nao inventa fallback", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("assentar 10 kg de piso");
+
+  assert.match(answer, /BASE COMPATIVEL NAO ENCONTRADA/);
+  assert.match(answer, /Nao vou usar composicao de outro servico como fallback/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO|Composicao utilizada:/i);
+});
+
+test("Stock AI Obras conferencia de retirada usa composicao compativel com servico informado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de argamassa para assentar 10 m2 de piso");
+
+  assert.match(answer, /SERVICO INFORMADO/);
+  assert.match(answer, /Composicao utilizada: std_piso - Piso ceramico/);
+  assert.doesNotMatch(answer, /std_laje|Laje macica|std_contrapiso|Contrapiso|DEMO-EST-PILAR/i);
+});
+
+test("Stock AI Obras compatibilidade por servico controlado rejeita composicoes incoerentes", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const pilar = engine.getControlledServiceById("pilar");
+  const piso = engine.getControlledServiceById("piso_ceramico");
+  const cobertura = engine.getControlledServiceById("cobertura");
+  const hidraulica = engine.getControlledServiceById("hidraulica_simples");
+  const eletrica = engine.getControlledServiceById("eletrica_simples");
+
+  assert.equal(engine.isCompositionCompatibleWithControlledService({ service: "Piso ceramico", productionUnit: "m2" }, pilar), false);
+  assert.equal(engine.isCompositionCompatibleWithControlledService({ service: "Laje macica", productionUnit: "m2" }, piso), false);
+  assert.equal(engine.isCompositionCompatibleWithControlledService({ service: "Pilar de concreto armado", productionUnit: "m3" }, cobertura), false);
+  assert.equal(engine.isCompositionCompatibleWithControlledService({ service: "Alvenaria de bloco ceramico", productionUnit: "m2" }, hidraulica), false);
+  assert.equal(engine.isCompositionCompatibleWithControlledService({ service: "Concreto estrutural para pilar", productionUnit: "m3" }, eletrica), false);
+});
+
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {

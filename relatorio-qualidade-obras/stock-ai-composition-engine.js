@@ -425,6 +425,7 @@
 
   function scoreControlledService(service, text) {
     const normalizedText = normalize(text);
+    const genericWords = ["simples", "servico", "servicos", "instalacao", "instalacoes", "material", "materiais"];
     const terms = [service.nomeTecnico].concat(service.apelidos || []).filter(Boolean);
     return terms.reduce(function (bestScore, term) {
       const normalizedTerm = normalize(term);
@@ -438,7 +439,7 @@
         return Math.max(bestScore, 500 + normalizedTerm.length);
       }
       if (normalizedTerm.split(" ").some(function (word) {
-        return word.length >= 5 && hasTerm(normalizedText, word);
+        return word.length >= 5 && genericWords.indexOf(word) < 0 && hasTerm(normalizedText, word);
       })) {
         return Math.max(bestScore, 120 + normalizedTerm.length);
       }
@@ -589,28 +590,124 @@
     return serviceQuestions[key] || "Informe " + missingData + ".";
   }
 
-  function isCompositionCompatibleWithControlledService(service, compositionData) {
-    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+  const CONTROLLED_SERVICE_COMPATIBILITY_RULES = {
+    pilar: {
+      allow: ["pilar", "coluna", "concreto armado", "concreto estrutural", "forma", "armacao", "armadura", "aco", "ca 50"],
+      block: ["piso", "contrapiso", "laje", "cobertura", "telhado", "telha", "hidraulica", "tubulacao", "eletrica", "reboco", "chapisco", "alvenaria"]
+    },
+    viga: {
+      allow: ["viga", "concreto armado", "concreto estrutural", "forma", "armacao", "armadura", "aco", "ca 50"],
+      block: ["piso", "contrapiso", "cobertura", "telhado", "telha", "hidraulica", "tubulacao", "eletrica", "reboco", "chapisco", "alvenaria"]
+    },
+    alvenaria: {
+      allow: ["alvenaria", "parede", "bloco", "tijolo", "vedacao", "assentamento de alvenaria"],
+      block: ["tubulacao", "tubo", "hidraulica", "eletrica", "piso", "contrapiso", "laje", "cobertura", "telhado", "pilar", "viga"]
+    },
+    piso_ceramico: {
+      allow: ["piso ceramico", "assentamento de piso", "revestimento de piso"],
+      block: ["contrapiso", "laje", "cobertura", "telhado", "telha", "pilar", "viga", "sapata", "radier", "alvenaria"]
+    },
+    cobertura: {
+      allow: ["cobertura", "telhado", "telha", "madeiramento", "estrutura de cobertura", "estrutura de madeira para telhado", "cumeeira"],
+      block: ["piso", "contrapiso", "laje", "pilar", "viga", "sapata", "radier", "hidraulica", "tubulacao", "eletrica", "alvenaria"]
+    },
+    hidraulica_simples: {
+      allow: ["hidraulica", "tubulacao", "tubo", "agua fria", "esgoto", "registro", "ponto hidraulico", "ponto sanitario"],
+      block: ["alvenaria", "parede", "piso", "contrapiso", "laje", "pilar", "viga", "cobertura", "telhado", "eletrica", "eletroduto", "conduite", "cabo", "drenagem", "dreno", "concreto"]
+    },
+    eletrica_simples: {
+      allow: ["eletrica", "ponto eletrico", "eletroduto", "conduite", "cabo", "fio", "fiacao", "tomada", "interruptor", "disjuntor", "quadro"],
+      block: ["concreto", "pilar", "viga", "sapata", "radier", "laje", "alvenaria", "piso", "contrapiso", "cobertura", "telhado", "hidraulica", "tubulacao"]
+    }
+  };
+
+  function getCompositionCompatibilityText(compositionData) {
+    return normalize([
+      compositionData && compositionData.id,
+      compositionData && compositionData.code,
+      compositionData && compositionData.service,
+      compositionData && compositionData.name,
+      compositionData && compositionData.description,
+      compositionData && compositionData.serviceType,
+      compositionData && compositionData.category,
+      (compositionData && (compositionData.aliases || [])).join(" "),
+      (compositionData && (compositionData.materials || compositionData.inputs || [])).map(function (item) {
+        return item && (item.name || item.material || item.description || "");
+      }).join(" ")
+    ].join(" "));
+  }
+
+  function getControlledServiceIdFromServiceType(serviceType) {
+    const type = normalize(serviceType);
+    const map = {
+      pilar: "pilar",
+      coluna: "pilar",
+      viga: "viga",
+      baldrame: "baldrame",
+      sapata: "sapata",
+      sapata_corrida: "sapata",
+      bloco_fundacao: "sapata",
+      radier: "radier",
+      alvenaria: "alvenaria",
+      parede: "alvenaria",
+      piso: "piso_ceramico",
+      piso_ceramico: "piso_ceramico",
+      cobertura: "cobertura",
+      telhado: "cobertura",
+      rufo: "rufo_calha",
+      calha: "rufo_calha",
+      tubulacao: "hidraulica_simples",
+      tubulacao_agua: "hidraulica_simples",
+      tubulacao_esgoto: "hidraulica_simples",
+      ponto_hidraulico: "hidraulica_simples",
+      ponto_sanitario: "hidraulica_simples",
+      eletroduto: "eletrica_simples",
+      cabo: "eletrica_simples",
+      tomada: "eletrica_simples",
+      interruptor: "eletrica_simples",
+      ponto_eletrico: "eletrica_simples"
+    };
+    return map[type] || "";
+  }
+
+  function resolveControlledServiceFromContext(context) {
+    const data = context || {};
+    if (data.controlledService) {
+      return typeof data.controlledService === "string" ? getControlledServiceById(data.controlledService) : data.controlledService;
+    }
+    if (data.controlledServiceId) {
+      return getControlledServiceById(data.controlledServiceId);
+    }
+    const mappedId = getControlledServiceIdFromServiceType(data.serviceType || data.type || "");
+    if (mappedId) {
+      return getControlledServiceById(mappedId);
+    }
+    const text = [data.originalMessage, data.message, data.service, data.name, data.materialHint, data.label].filter(Boolean).join(" ");
+    return text ? findControlledServiceByText(text) : null;
+  }
+
+  function isCompositionCompatibleWithControlledService(compositionData, controlledService) {
+    const service = typeof controlledService === "string" ? getControlledServiceById(controlledService) : controlledService;
     if (!controlledService || !compositionData) {
       return true;
     }
-    const haystack = normalize([
-      compositionData.id,
-      compositionData.code,
-      compositionData.service,
-      compositionData.name,
-      compositionData.description,
-      compositionData.serviceType,
-      compositionData.category
-    ].join(" "));
-    if (controlledService.id === "piso_ceramico") {
-      if (hasAny(haystack, ["contrapiso", "laje", "cobertura", "telhado", "telha", "pilar", "viga", "sapata", "radier", "alvenaria"])) {
-        return false;
-      }
-      return normalize(compositionData.id) === "std piso" ||
-        hasAny(haystack, ["piso ceramico", "assentamento de piso", "revestimento de piso"]);
+    if (!service) {
+      return true;
     }
-    return true;
+    const rule = CONTROLLED_SERVICE_COMPATIBILITY_RULES[service.id];
+    if (!rule) {
+      return true;
+    }
+    const haystack = getCompositionCompatibilityText(compositionData);
+    const hasAllowedTerm = hasAny(haystack, rule.allow || []);
+    const hasBlockedTerm = hasAny(haystack, rule.block || []);
+    if (hasBlockedTerm && ["piso_ceramico", "cobertura", "alvenaria", "hidraulica_simples", "eletrica_simples"].indexOf(service.id) >= 0) {
+      return false;
+    }
+    if (hasBlockedTerm && !hasAllowedTerm) {
+      return false;
+    }
+    return hasAllowedTerm;
   }
 
   function getCompositionSource(compositionData) {
@@ -1473,6 +1570,7 @@
     const terms = normalize(query).split(" ").filter(Boolean);
     const rawQuery = normalize(query);
     const limit = parseNumber(settings.limit) || 20;
+    const controlledService = settings.controlledService || resolveControlledServiceFromContext(settings);
     return importedOfficialBaseCatalog.map(function (item) {
       const haystack = normalize([
         item.code,
@@ -1501,7 +1599,7 @@
       });
       return { item: item, score: score };
     }).filter(function (entry) {
-      return entry.score > 0;
+      return entry.score > 0 && (!controlledService || isCompositionCompatibleWithControlledService(entry.item, controlledService));
     }).sort(function (a, b) {
       return b.score - a.score || clean(a.item.code).localeCompare(clean(b.item.code));
     }).slice(0, limit).map(function (entry) {
@@ -2813,6 +2911,7 @@
     const text = normalize(typeof query === "string" ? query : (query && (query.service || query.name || query.id)));
     const requestedUnit = settings.unit || (query && query.unit);
     const unit = requestedUnit ? normalizeUnit(requestedUnit) : "";
+    const controlledService = settings.controlledService || resolveControlledServiceFromContext(query);
     if (!text) {
       return [];
     }
@@ -2822,7 +2921,7 @@
         score: scoreComposition(item, text, unit)
       };
     }).filter(function (entry) {
-      return entry.score > 0;
+      return entry.score > 0 && (!controlledService || isCompositionCompatibleWithControlledService(entry.item, controlledService));
     }).sort(function (a, b) {
       return b.score - a.score ||
         getSourcePriority(b.item) - getSourcePriority(a.item) ||
@@ -2835,8 +2934,8 @@
     return ranked.length ? ranked[0].item : null;
   }
 
-  function findComposition(query) {
-    const ranked = rankCompositions(query);
+  function findComposition(query, options) {
+    const ranked = rankCompositions(query, options);
     return ranked.length ? ranked[0].item : null;
   }
 
@@ -3147,11 +3246,15 @@
     const unit = normalizeUnit(item.unit || "");
     const serviceType = normalize(item.serviceType || "");
     const queryText = normalize([item.service, item.label, item.serviceType, item.materialHint].join(" "));
+    const controlledService = resolveControlledServiceFromContext(item);
     const queryTerms = queryText.split(" ").filter(function (term) {
       return term.length >= 4;
     });
     const candidates = importedOfficialBaseCatalog.map(function (compositionData) {
       if (!isRealComposition(compositionData)) {
+        return { item: compositionData, score: -1 };
+      }
+      if (controlledService && !isCompositionCompatibleWithControlledService(compositionData, controlledService)) {
         return { item: compositionData, score: -1 };
       }
       if (unit && normalizeUnit(compositionData.productionUnit || compositionData.unit) !== unit) {
@@ -3190,7 +3293,8 @@
   }
 
   function findCompositionForProductionService(service) {
-    return findOfficialGeometryComposition(service) || findComposition(service);
+    const controlledService = resolveControlledServiceFromContext(service);
+    return findOfficialGeometryComposition(service) || findComposition(service, { controlledService: controlledService });
   }
 
   function hasCompatibleComposition(serviceName, unit) {
@@ -3210,6 +3314,7 @@
       requestedUnit: service.unit,
       serviceType: service.serviceType,
       materialHint: service.label || service.serviceType || service.service,
+      controlledServiceId: (resolveControlledServiceFromContext(service) || {}).id || "",
       composition: compositionData,
       score: 500,
       geometry: geometry
@@ -3777,11 +3882,11 @@
       geometry: geometry
     });
     const isExplicitCoverageRequest = (hasTerm(text, "cobertura") || hasTerm(text, "telhado") || hasTerm(text, "telha")) && hasExplicitCoverageType(text);
-    const ranked = rankCompositions(text, { unit: unit }).filter(function (entry) {
+    const ranked = rankCompositions(text, { unit: unit, controlledService: controlledService }).filter(function (entry) {
       if (isExplicitCoverageRequest && normalize(entry.item.category).indexOf("cobertura") < 0) {
         return false;
       }
-      return !controlledServiceIsComplete || isCompositionCompatibleWithControlledService(controlledService, entry.item);
+      return !controlledServiceIsComplete || isCompositionCompatibleWithControlledService(entry.item, controlledService);
     });
     const bestScore = ranked.length ? ranked[0].score : 0;
     const services = ranked.filter(function (entry) {
@@ -3846,11 +3951,11 @@
         unit: lineUnit,
         geometry: geometry
       });
-      const lineRanked = rankCompositions(lineText, { unit: lineUnit }).filter(function (entry) {
+      const lineRanked = rankCompositions(lineText, { unit: lineUnit, controlledService: lineControlledService }).filter(function (entry) {
         if (isLineExplicitCoverageRequest && normalize(entry.item.category).indexOf("cobertura") < 0) {
           return false;
         }
-        return !lineControlledServiceIsComplete || isCompositionCompatibleWithControlledService(lineControlledService, entry.item);
+        return !lineControlledServiceIsComplete || isCompositionCompatibleWithControlledService(entry.item, lineControlledService);
       });
       const lineBestScore = lineRanked.length ? lineRanked[0].score : 0;
       lineRanked.filter(function (entry) {
@@ -3889,7 +3994,8 @@
 
   function calculatePredictedConsumption(serviceInput) {
     const input = serviceInput || {};
-    const compositionData = input.composition || input.selectedComposition || findComposition(input);
+    const controlledService = resolveControlledServiceFromContext(input);
+    const compositionData = input.composition || input.selectedComposition || findComposition(input, { controlledService: controlledService });
     const executedQuantity = parseNumber(input.quantity || input.executedQuantity);
     const service = clean(input.service || input.serviceName || (compositionData && compositionData.service));
     const unit = clean(input.unit || (compositionData && compositionData.productionUnit)) || "un";
@@ -4298,7 +4404,8 @@
       return prediction && prediction.composition;
     }) || null;
     const primaryService = input.service || services[0] || missingServices[0] || {};
-    const compositionData = providedComposition || (primaryPrediction && primaryPrediction.composition) || findComposition(primaryService);
+    const compositionData = providedComposition || (primaryPrediction && primaryPrediction.composition) ||
+      findComposition(primaryService, { controlledService: resolveControlledServiceFromContext(primaryService) });
     const source = compositionData ? getCompositionSource(compositionData) : "";
     const type = getCompositionReportType(compositionData);
     const stockComparison = (purchasePlan.items || []).map(function (item) {
@@ -4763,7 +4870,8 @@
     const quantity = quantityMatch ? parseNumber(quantityMatch[1]) : looseQuantityMatch ? parseNumber(looseQuantityMatch[1]) : 0;
     const unit = quantityMatch ? normalizeUnit(quantityMatch[2]) :
       hasAny(text, ["pilar", "pilares", "porta", "portas", "janela", "janelas"]) ? "un" : "";
-    const ranked = rankCompositions(serviceText, { unit: unit }).filter(function (entry) {
+    const controlledService = findControlledServiceByText(serviceText);
+    const ranked = rankCompositions(serviceText, { unit: unit, controlledService: controlledService }).filter(function (entry) {
       return !unit || normalizeUnit(entry.item.productionUnit || entry.item.unit) === unit;
     });
     const compositionData = ranked.length ? ranked[0].item : null;
@@ -4777,6 +4885,7 @@
       requestedUnit: unit,
       serviceType: normalizeServiceType(compositionData.service || compositionData.name),
       materialHint: serviceText,
+      controlledServiceId: controlledService ? controlledService.id : "",
       composition: compositionData,
       score: ranked[0].score
     };
@@ -4785,8 +4894,13 @@
   function buildWithdrawalServices(message) {
     const serviceText = extractWithdrawalServiceText(message);
     const parsed = parseRequest(serviceText);
+    const controlledService = findControlledServiceByText(serviceText);
     const parsedServices = (parsed.services || []).filter(function (service) {
-      return parseNumber(service.quantity) > 0 && (service.composition || findCompositionForProductionService(service));
+      const compositionData = service.composition || findCompositionForProductionService(Object.assign({}, service, {
+        controlledServiceId: service.controlledServiceId || (controlledService && controlledService.id) || ""
+      }));
+      return parseNumber(service.quantity) > 0 && compositionData &&
+        (!controlledService || isCompositionCompatibleWithControlledService(compositionData, controlledService));
     });
     const bestScore = parsedServices.reduce(function (score, service) {
       return Math.max(score, parseNumber(service.score));
@@ -5088,7 +5202,7 @@
       questions.push("Identifiquei cobertura de " + coverageText + ", porém preciso do tipo de cobertura para calcular telhas e estrutura.");
     }
     (request.services || []).forEach(function (service) {
-      const compositionData = findComposition(service);
+      const compositionData = findComposition(service, { controlledService: resolveControlledServiceFromContext(service) });
       (compositionData && compositionData.requiredParameters || []).forEach(function (parameter) {
         if (!hasRequiredParameterValue(request.originalMessage, service, parameter)) {
           if (compositionData.id === "std_rufo_calha" && parameter === "comprimento_linear") {
@@ -5145,15 +5259,16 @@
   function getSuggestedOfficialCompositions(request, limit) {
     const text = request && request.originalMessage || "";
     const unit = request && request.unit;
-    const ranked = rankCompositions(text, { unit: unit }).filter(function (entry) {
-      return isRealComposition(entry.item);
+    const controlledService = resolveControlledServiceFromContext(request) || findControlledServiceByText(text);
+    const ranked = rankCompositions(text, { unit: unit, controlledService: controlledService }).filter(function (entry) {
+      return isRealComposition(entry.item) && (!controlledService || isCompositionCompatibleWithControlledService(entry.item, controlledService));
     }).slice(0, limit || 5).map(function (entry) {
       return entry.item;
     });
     if (ranked.length) {
       return ranked;
     }
-    return searchImportedOfficialCompositions(text, { limit: limit || 5 }).filter(function (compositionData) {
+    return searchImportedOfficialCompositions(text, { limit: limit || 5, controlledService: controlledService }).filter(function (compositionData) {
       return !unit || normalizeUnit(compositionData.productionUnit || compositionData.unit) === normalizeUnit(unit);
     });
   }
@@ -5196,6 +5311,19 @@
       "- Nao vou sugerir composicao oficial aleatoria sem os dados minimos do servico.",
       "- Nenhum coeficiente foi inventado."
     ]).join("\n");
+  }
+
+  function buildControlledServiceNoCompatibleCompositionAnswer(controlledService) {
+    return [
+      "BASE COMPATIVEL NAO ENCONTRADA",
+      "- Servico controlado identificado: " + controlledService.nomeTecnico + ".",
+      "- Nao encontrei composicao SINAPI, ORSE ou demonstrativa compativel com esse servico e unidade.",
+      "- Nao vou usar composicao de outro servico como fallback.",
+      "",
+      "OBSERVACOES",
+      "- Informe mais detalhes do servico ou importe uma composicao oficial compativel.",
+      "- Nenhum coeficiente foi inventado."
+    ].join("\n");
   }
 
   function hasRealCompositionInResult(result) {
@@ -5489,6 +5617,10 @@
       return lines.join("\n");
     }
 
+    if (controlledService && request.quantity && !calculableServices.length) {
+      return buildControlledServiceNoCompatibleCompositionAnswer(controlledService);
+    }
+
     if (!request.quantity || !calculableServices.length) {
       return "";
     }
@@ -5613,6 +5745,8 @@
     getControlledServiceRequiredData: getControlledServiceRequiredData,
     isControlledServiceInputIncomplete: isControlledServiceInputIncomplete,
     getControlledServiceSearchPriority: getControlledServiceSearchPriority,
+    isCompositionCompatibleWithControlledService: isCompositionCompatibleWithControlledService,
+    resolveControlledServiceFromContext: resolveControlledServiceFromContext,
     getCompositionSource: getCompositionSource,
     isRealComposition: isRealComposition,
     isMockComposition: isMockComposition,
