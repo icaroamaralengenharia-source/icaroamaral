@@ -12,6 +12,7 @@ const firstRealExamplePath = join(testDir, "..", "..", "relatorio-qualidade-obra
 const firstRealExample = JSON.parse(readFileSync(firstRealExamplePath, "utf8"));
 const firstOfficialGuidePath = join(testDir, "..", "..", "docs", "stock-ai-guia-primeira-composicao-oficial.md");
 const officialBaseImporterGuidePath = join(testDir, "..", "..", "docs", "stock-ai-importador-bases-oficiais.md");
+const officialBaseCsvGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-csv-bases-oficiais.md");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -105,6 +106,21 @@ function officialBaseRowsFixture() {
     inputUnit: "kg",
     coefficient: "3.25"
   }];
+}
+
+function officialBaseCsvSemicolonFixture() {
+  return [
+    "compositionCode;compositionName;compositionUnit;inputCode;inputName;inputUnit;coefficient",
+    "SINAPI-CSV-001;Alvenaria de bloco ceramico CSV controlada;m2;SINAPI-CSV-MAT-001;Bloco ceramico CSV;un;12,50",
+    "SINAPI-CSV-001;Alvenaria de bloco ceramico CSV controlada;m2;SINAPI-CSV-MAT-002;Argamassa CSV;kg;3,25"
+  ].join("\n");
+}
+
+function officialBaseCsvCommaFixture() {
+  return [
+    "compositionCode,compositionName,compositionUnit,inputCode,inputName,inputUnit,coefficient",
+    "ORSE-CSV-001,Chapisco CSV controlado,m2,ORSE-CSV-MAT-001,Argamassa CSV,kg,\"4,75\""
+  ].join("\n");
 }
 
 test("Stock AI Obras mantem composicao demonstrativa sem base externa", () => {
@@ -646,4 +662,168 @@ test("Stock AI Obras documenta importador local de bases oficiais", () => {
   assert.match(guide, /nao invente coeficientes/i);
   assert.match(guide, /prioridade/i);
   assert.match(guide, /XLSX/i);
+});
+
+test("Stock AI Obras leitor CSV com separador ponto e virgula normaliza linhas", () => {
+  const engine = loadStockAiCompositionEngine();
+  const parsed = engine.parseOfficialBaseCsv(officialBaseCsvSemicolonFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.delimiter, ";");
+  assert.equal(parsed.rows.length, 2);
+  assert.equal(parsed.rows[0].compositionCode, "SINAPI-CSV-001");
+});
+
+test("Stock AI Obras leitor CSV com separador virgula normaliza linhas", () => {
+  const engine = loadStockAiCompositionEngine();
+  const parsed = engine.parseOfficialBaseCsv(officialBaseCsvCommaFixture(), {
+    source: "ORSE",
+    state: "SE",
+    referenceMonth: "2026-02"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.delimiter, ",");
+  assert.equal(parsed.rows.length, 1);
+  assert.equal(parsed.rows[0].source, "ORSE");
+});
+
+test("Stock AI Obras leitor CSV preserva decimal com virgula para conversao", () => {
+  const engine = loadStockAiCompositionEngine();
+  const parsed = engine.parseOfficialBaseCsv(officialBaseCsvSemicolonFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+  const normalized = engine.normalizeOfficialBaseRows({ rows: parsed.rows });
+
+  assert.equal(normalized[0].coefficient, 12.5);
+  assert.equal(normalized[1].coefficient, 3.25);
+});
+
+test("Stock AI Obras leitor CSV aceita columnMap manual", () => {
+  const engine = loadStockAiCompositionEngine();
+  const csv = [
+    "COD_COMP;DESC_COMP;UN_COMP;COD_INSUMO;DESC_INSUMO;UN_INSUMO;COEF",
+    "SINAPI-MAP-001;Piso ceramico CSV controlado;m2;SINAPI-MAP-MAT-001;Piso CSV;m2;1,10"
+  ].join("\n");
+  const parsed = engine.parseOfficialBaseCsv(csv, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-03",
+    delimiter: ";",
+    columnMap: {
+      compositionCode: "COD_COMP",
+      compositionName: "DESC_COMP",
+      compositionUnit: "UN_COMP",
+      inputCode: "COD_INSUMO",
+      inputName: "DESC_INSUMO",
+      inputUnit: "UN_INSUMO",
+      coefficient: "COEF"
+    }
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.rows[0].compositionCode, "SINAPI-MAP-001");
+  assert.equal(parsed.rows[0].coefficient, "1,10");
+});
+
+test("Stock AI Obras leitor CSV aceita cabecalhos alternativos", () => {
+  const engine = loadStockAiCompositionEngine();
+  const csv = [
+    "codigo da composicao;descricao da composicao;unidade composicao;codigo insumo;nome insumo;unidade insumo;coef",
+    "SINAPI-ALT-001;Reboco CSV controlado;m2;SINAPI-ALT-MAT-001;Argamassa alternativa;kg;5,20"
+  ].join("\n");
+  const parsed = engine.parseOfficialBaseCsv(csv, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-04"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.rows[0].inputName, "Argamassa alternativa");
+});
+
+test("Stock AI Obras leitor CSV rejeita CSV vazio", () => {
+  const engine = loadStockAiCompositionEngine();
+  const parsed = engine.parseOfficialBaseCsv("", {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /CSV vazio/);
+});
+
+test("Stock AI Obras leitor CSV rejeita CSV sem colunas minimas", () => {
+  const engine = loadStockAiCompositionEngine();
+  const parsed = engine.parseOfficialBaseCsv("foo;bar\n1;2", {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /colunas minimas/);
+});
+
+test("Stock AI Obras leitor CSV invalido nao apaga base oficial anterior", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const invalid = engine.importOfficialBaseCsv("foo;bar\n1;2", {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+  const stats = engine.getImportedOfficialBaseStats();
+
+  assert.equal(invalid.ok, false);
+  assert.equal(stats.totalCompositions, 1);
+});
+
+test("Stock AI Obras importOfficialBaseCsv importa e permite busca", () => {
+  const engine = loadStockAiCompositionEngine();
+  const imported = engine.importOfficialBaseCsv(officialBaseCsvSemicolonFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+  const results = engine.searchImportedOfficialCompositions("SINAPI-CSV-001");
+
+  assert.equal(imported.ok, true);
+  assert.equal(imported.imported.length, 1);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].code, "SINAPI-CSV-001");
+});
+
+test("Stock AI Obras clearImportedOfficialBase apos CSV restaura fallback", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBaseCsv(officialBaseCsvSemicolonFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-02"
+  });
+  engine.clearImportedOfficialBase();
+
+  const composition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.notEqual(composition.code, "SINAPI-CSV-001");
+  assert.match(engine.normalize(composition.source), /base tecnica demonstrativa editavel/);
+});
+
+test("Stock AI Obras documenta leitor CSV de bases oficiais", () => {
+  assert.equal(existsSync(officialBaseCsvGuidePath), true);
+
+  const guide = readFileSync(officialBaseCsvGuidePath, "utf8");
+
+  assert.match(guide, /formato minimo esperado/i);
+  assert.match(guide, /columnMap/i);
+  assert.match(guide, /decimal com virgula/i);
+  assert.match(guide, /CSV.*rows.*importador.*catalogo/i);
+  assert.match(guide, /XLSX\/ZIP/i);
 });

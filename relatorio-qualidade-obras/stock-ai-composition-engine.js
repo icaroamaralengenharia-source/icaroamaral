@@ -1028,6 +1028,210 @@
     };
   }
 
+  function splitCsvLine(line, delimiter) {
+    const values = [];
+    let current = "";
+    let quoted = false;
+    const separator = delimiter || ";";
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+      const nextChar = line[index + 1];
+      if (char === "\"" && quoted && nextChar === "\"") {
+        current += "\"";
+        index += 1;
+        continue;
+      }
+      if (char === "\"") {
+        quoted = !quoted;
+        continue;
+      }
+      if (char === separator && !quoted) {
+        values.push(current.trim());
+        current = "";
+        continue;
+      }
+      current += char;
+    }
+    values.push(current.trim());
+    return values;
+  }
+
+  function countDelimiterOutsideQuotes(line, delimiter) {
+    let quoted = false;
+    let count = 0;
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+      const nextChar = line[index + 1];
+      if (char === "\"" && quoted && nextChar === "\"") {
+        index += 1;
+        continue;
+      }
+      if (char === "\"") {
+        quoted = !quoted;
+        continue;
+      }
+      if (char === delimiter && !quoted) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  function detectOfficialCsvDelimiter(headerLine, requestedDelimiter) {
+    if (requestedDelimiter && requestedDelimiter !== "auto") {
+      return requestedDelimiter;
+    }
+    const candidates = [";", ",", "\t"].map(function (delimiter) {
+      return {
+        delimiter: delimiter,
+        count: countDelimiterOutsideQuotes(headerLine, delimiter)
+      };
+    }).sort(function (a, b) {
+      return b.count - a.count;
+    });
+    return candidates[0] && candidates[0].count > 0 ? candidates[0].delimiter : ";";
+  }
+
+  const OFFICIAL_CSV_COLUMN_ALIASES = {
+    compositionCode: [
+      "compositionCode", "codigoComposicao", "codigo_composicao", "cod_composicao",
+      "codigo composicao", "codigo da composicao", "CODIGO_COMPOSICAO"
+    ],
+    compositionName: [
+      "compositionName", "descricaoComposicao", "descricao_composicao",
+      "descricao composicao", "descricao da composicao"
+    ],
+    compositionUnit: [
+      "compositionUnit", "unidadeComposicao", "unidade_composicao", "unidade composicao"
+    ],
+    inputCode: [
+      "inputCode", "codigoInsumo", "codigo_insumo", "cod_insumo", "codigo insumo"
+    ],
+    inputName: [
+      "inputName", "descricaoInsumo", "descricao_insumo", "descricao insumo", "nome insumo"
+    ],
+    inputUnit: [
+      "inputUnit", "unidadeInsumo", "unidade_insumo", "unidade insumo"
+    ],
+    coefficient: [
+      "coefficient", "coeficiente", "coef", "consumo", "quantidade_coeficiente"
+    ]
+  };
+
+  function buildOfficialCsvColumnIndexes(headers, columnMap) {
+    const normalizedHeaders = headers.map(normalize);
+    const indexes = {};
+    const map = columnMap || {};
+    Object.keys(OFFICIAL_CSV_COLUMN_ALIASES).forEach(function (field) {
+      const manualColumn = clean(map[field]);
+      if (manualColumn) {
+        const manualIndex = normalizedHeaders.indexOf(normalize(manualColumn));
+        if (manualIndex >= 0) {
+          indexes[field] = manualIndex;
+        }
+        return;
+      }
+      const aliases = OFFICIAL_CSV_COLUMN_ALIASES[field].map(normalize);
+      for (let index = 0; index < normalizedHeaders.length; index += 1) {
+        if (aliases.indexOf(normalizedHeaders[index]) >= 0) {
+          indexes[field] = index;
+          return;
+        }
+      }
+    });
+    return indexes;
+  }
+
+  function parseOfficialBaseCsv(csvText, options) {
+    const settings = options || {};
+    const source = normalizeOfficialSource(settings.source);
+    const state = clean(settings.state || settings.uf || settings.sourceRegion);
+    const referenceMonth = clean(settings.referenceMonth || settings.sourceDate);
+    const errors = [];
+    if (source !== "SINAPI" && source !== "ORSE") {
+      errors.push("source deve ser SINAPI ou ORSE.");
+    }
+    if (!state) {
+      errors.push("state/UF e obrigatorio.");
+    }
+    if (!referenceMonth) {
+      errors.push("referenceMonth e obrigatorio.");
+    }
+    const text = String(csvText || "").replace(/^\uFEFF/, "");
+    const lines = text.split(/\r?\n/).filter(function (line) {
+      return clean(line);
+    });
+    if (!clean(text)) {
+      errors.push("CSV vazio.");
+    }
+    if (!lines.length) {
+      return {
+        ok: false,
+        rows: [],
+        delimiter: "",
+        headers: [],
+        errors: errors.length ? errors : ["CSV vazio."]
+      };
+    }
+    const delimiter = detectOfficialCsvDelimiter(lines[0], settings.delimiter || "auto");
+    const headers = splitCsvLine(lines[0], delimiter).map(clean);
+    const columnIndexes = buildOfficialCsvColumnIndexes(headers, settings.columnMap);
+    const requiredFields = Object.keys(OFFICIAL_CSV_COLUMN_ALIASES);
+    const missing = requiredFields.filter(function (field) {
+      return columnIndexes[field] === undefined;
+    });
+    if (headers.length < 2 || missing.length === requiredFields.length) {
+      errors.push("CSV sem cabecalho valido.");
+    }
+    if (missing.length) {
+      errors.push("CSV sem colunas minimas: " + missing.join(", ") + ".");
+    }
+    if (lines.length < 2) {
+      errors.push("CSV sem linhas de dados.");
+    }
+    const rows = lines.slice(1).map(function (line) {
+      const values = splitCsvLine(line, delimiter);
+      return {
+        source: source,
+        state: state,
+        referenceMonth: referenceMonth,
+        compositionCode: values[columnIndexes.compositionCode] || "",
+        compositionName: values[columnIndexes.compositionName] || "",
+        compositionUnit: values[columnIndexes.compositionUnit] || "",
+        inputCode: values[columnIndexes.inputCode] || "",
+        inputName: values[columnIndexes.inputName] || "",
+        inputUnit: values[columnIndexes.inputUnit] || "",
+        coefficient: values[columnIndexes.coefficient] || ""
+      };
+    }).filter(function (row) {
+      return clean(Object.keys(row).map(function (key) { return row[key]; }).join(""));
+    });
+    return {
+      ok: errors.length === 0,
+      rows: errors.length ? [] : rows,
+      delimiter: delimiter,
+      headers: headers,
+      columnIndexes: columnIndexes,
+      errors: errors,
+      summary: errors.length ? "CSV invalido." : rows.length + " linha(s) CSV normalizada(s)."
+    };
+  }
+
+  function importOfficialBaseCsv(csvText, options) {
+    const parsed = parseOfficialBaseCsv(csvText, options);
+    if (!parsed.ok) {
+      return Object.assign({}, parsed, {
+        imported: [],
+        catalogSize: importedOfficialBaseCatalog.length
+      });
+    }
+    const result = importOfficialBase({ rows: parsed.rows }, options);
+    return Object.assign({}, result, {
+      parsed: parsed,
+      rows: parsed.rows
+    });
+  }
+
   function getWindowExternalCompositions() {
     const external = window.StockAiRealCompositions;
     if (!external) {
@@ -3570,6 +3774,8 @@
     normalizeOfficialBaseRows: normalizeOfficialBaseRows,
     validateOfficialBaseImport: validateOfficialBaseImport,
     importOfficialBase: importOfficialBase,
+    parseOfficialBaseCsv: parseOfficialBaseCsv,
+    importOfficialBaseCsv: importOfficialBaseCsv,
     searchImportedOfficialCompositions: searchImportedOfficialCompositions,
     clearImportedOfficialBase: clearImportedOfficialBase,
     getImportedOfficialBaseStats: getImportedOfficialBaseStats,
