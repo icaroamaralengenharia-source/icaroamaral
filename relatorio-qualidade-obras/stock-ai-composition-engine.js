@@ -4377,12 +4377,82 @@
     };
   }
 
+  function parseInformalConstructionRequest(originalMessage) {
+    const text = normalize(originalMessage);
+    const hasInformalWall = hasTerm(text, "levantar") && hasTerm(text, "parede");
+    const hasInformalMass = hasTerm(text, "puxar") && hasTerm(text, "massa");
+    const hasInformalFloor = hasTerm(text, "botar") && hasTerm(text, "piso");
+    if (!hasInformalWall && !hasInformalMass && !hasInformalFloor) {
+      return null;
+    }
+
+    const areaMatch = originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(?:m²|m2|metro quadrado|metros quadrados|quadrado|quadrados)/i);
+    const wallLengthMatch = originalMessage.match(/levantar\s+(?:uns?\s*)?(\d+(?:[.,]\d+)?)\s*(?:m|metro|metros)?\s+de\s+parede/i);
+    const area = areaMatch ? parseNumber(areaMatch[1]) : 0;
+    const wallQuantity = wallLengthMatch ? parseNumber(wallLengthMatch[1]) : area;
+    const services = [];
+
+    if (hasInformalWall && wallQuantity > 0) {
+      services.push({
+        service: "Alvenaria de bloco ceramico",
+        serviceType: "alvenaria",
+        quantity: wallQuantity,
+        unit: "m2",
+        requestedUnit: "m2",
+        materialHint: "parede",
+        controlledServiceId: "alvenaria",
+        score: 500
+      });
+    }
+    if (hasInformalMass && area > 0) {
+      services.push({
+        service: "Reboco",
+        serviceType: "reboco_emboco",
+        quantity: area,
+        unit: "m2",
+        requestedUnit: "m2",
+        materialHint: "massa",
+        controlledServiceId: "reboco_emboco",
+        score: 500
+      });
+    }
+    if (hasInformalFloor && area > 0) {
+      services.push({
+        service: "Piso ceramico",
+        serviceType: "piso_ceramico",
+        quantity: area,
+        unit: "m2",
+        requestedUnit: "m2",
+        materialHint: "piso",
+        controlledServiceId: "piso_ceramico",
+        score: 500
+      });
+    }
+
+    if (!services.length) {
+      return null;
+    }
+    return {
+      originalMessage: originalMessage,
+      quantity: area || wallQuantity,
+      unit: "m2",
+      missingQuantity: false,
+      assumedBaseQuantity: false,
+      geometry: { detected: false, complete: false },
+      services: services
+    };
+  }
+
   function parseRequest(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
     const geometry = parseGeometryRequest(originalMessage);
     const compositionCode = extractCompositionCodeRequest(originalMessage);
     const compositionByCode = compositionCode ? findCompositionByCode(compositionCode) : null;
+    const informalConstructionRequest = parseInformalConstructionRequest(originalMessage);
+    if (informalConstructionRequest) {
+      return informalConstructionRequest;
+    }
     if (geometry.detected) {
       const mixedWallSidewalkRequest = parseMixedWallSidewalkRequest(originalMessage, geometry);
       if (mixedWallSidewalkRequest) {
