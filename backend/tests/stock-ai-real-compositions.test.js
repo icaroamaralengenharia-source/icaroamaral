@@ -11,6 +11,7 @@ const realTemplate = JSON.parse(readFileSync(join(testDir, "..", "..", "relatori
 const firstRealExamplePath = join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "primeira-composicao-real.example.json");
 const firstRealExample = JSON.parse(readFileSync(firstRealExamplePath, "utf8"));
 const firstOfficialGuidePath = join(testDir, "..", "..", "docs", "stock-ai-guia-primeira-composicao-oficial.md");
+const officialBaseImporterGuidePath = join(testDir, "..", "..", "docs", "stock-ai-importador-bases-oficiais.md");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -76,6 +77,34 @@ function officialManualEntryTestOnly() {
       }
     }]
   };
+}
+
+function officialBaseRowsFixture() {
+  return [{
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-ALV-001",
+    compositionName: "Alvenaria de bloco ceramico oficial controlada",
+    compositionUnit: "m2",
+    serviceType: "alvenaria",
+    inputCode: "SINAPI-MAT-001",
+    inputName: "Bloco ceramico oficial",
+    inputUnit: "un",
+    coefficient: "12,50"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-ALV-001",
+    compositionName: "Alvenaria de bloco ceramico oficial controlada",
+    compositionUnit: "m2",
+    serviceType: "alvenaria",
+    inputCode: "SINAPI-MAT-002",
+    inputName: "Argamassa oficial",
+    inputUnit: "kg",
+    coefficient: "3.25"
+  }];
 }
 
 test("Stock AI Obras mantem composicao demonstrativa sem base externa", () => {
@@ -492,4 +521,129 @@ test("Stock AI Obras documenta guia pratico da primeira composicao oficial", () 
   assert.match(guide, /Fluxo completo/);
   assert.match(guide, /nao cria codigos, nao cria coeficientes/i);
   assert.match(guide, /sem inventar valores/i);
+});
+
+test("Stock AI Obras importador oficial agrupa linhas por composicao", () => {
+  const engine = loadStockAiCompositionEngine();
+  const result = engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.imported.length, 1);
+  assert.equal(result.imported[0].code, "SINAPI-ALV-001");
+  assert.equal(result.imported[0].inputs.length, 2);
+  assert.equal(result.imported[0].sourceType, "official_imported_file");
+});
+
+test("Stock AI Obras importador oficial converte virgula decimal", () => {
+  const engine = loadStockAiCompositionEngine();
+  const normalized = engine.normalizeOfficialBaseRows(officialBaseRowsFixture());
+
+  assert.equal(normalized[0].coefficient, 12.5);
+  assert.equal(normalized[1].coefficient, 3.25);
+});
+
+test("Stock AI Obras importador oficial rejeita coeficiente zerado", () => {
+  const engine = loadStockAiCompositionEngine();
+  const rows = officialBaseRowsFixture();
+  rows[0].coefficient = "0";
+  const result = engine.importOfficialBase({ rows });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.imported.length, 0);
+  assert.match(result.errors.join(" "), /Coeficiente oficial ausente/);
+});
+
+test("Stock AI Obras importador oficial rejeita MOCK TEST ONLY", () => {
+  const engine = loadStockAiCompositionEngine();
+  const rows = officialBaseRowsFixture();
+  rows[0].compositionName = "TEST ONLY MOCK de alvenaria";
+  const result = engine.validateOfficialBaseImport({ rows });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /MOCK|TEST ONLY/);
+});
+
+test("Stock AI Obras importador oficial busca por codigo", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const results = engine.searchImportedOfficialCompositions("SINAPI-ALV-001");
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].code, "SINAPI-ALV-001");
+});
+
+test("Stock AI Obras importador oficial busca por nome parcial", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const results = engine.searchImportedOfficialCompositions("bloco ceramico");
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].name, "Alvenaria de bloco ceramico oficial controlada");
+});
+
+test("Stock AI Obras base oficial importada tem prioridade sobre catalogo demonstrativo", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+
+  const composition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+  const prediction = engine.calculatePredictedConsumption({
+    service: "Alvenaria de bloco ceramico",
+    quantity: 10,
+    unit: "m2"
+  });
+
+  assert.equal(composition.code, "SINAPI-ALV-001");
+  assert.equal(composition.source, "SINAPI");
+  assert.equal(composition.sourceType, "official_imported_file");
+  assert.equal(prediction.predictedItems.some((item) => item.name === "Bloco ceramico oficial"), true);
+});
+
+test("Stock AI Obras limpar base oficial restaura fallback demonstrativo", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  engine.clearImportedOfficialBase();
+
+  const composition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.notEqual(composition.code, "SINAPI-ALV-001");
+  assert.match(engine.normalize(composition.source), /base tecnica demonstrativa editavel/);
+});
+
+test("Stock AI Obras importacao oficial invalida nao remove catalogo valido anterior", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const rows = officialBaseRowsFixture();
+  rows[0].coefficient = 0;
+
+  const invalid = engine.importOfficialBase({ rows });
+  const stats = engine.getImportedOfficialBaseStats();
+  const composition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.equal(invalid.ok, false);
+  assert.equal(stats.totalCompositions, 1);
+  assert.equal(composition.code, "SINAPI-ALV-001");
+});
+
+test("Stock AI Obras estatisticas da base oficial importada retornam fonte UF mes e totais", () => {
+  const engine = loadStockAiCompositionEngine();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const stats = engine.getImportedOfficialBaseStats();
+
+  assert.equal(stats.totalCompositions, 1);
+  assert.equal(stats.totalInputs, 2);
+  assert.equal(stats.source, "SINAPI");
+  assert.equal(stats.state, "BA");
+  assert.equal(stats.referenceMonth, "2026-01");
+});
+
+test("Stock AI Obras documenta importador local de bases oficiais", () => {
+  assert.equal(existsSync(officialBaseImporterGuidePath), true);
+
+  const guide = readFileSync(officialBaseImporterGuidePath, "utf8");
+
+  assert.match(guide, /Formato aceito/);
+  assert.match(guide, /coeficientes oficiais/i);
+  assert.match(guide, /nao invente coeficientes/i);
+  assert.match(guide, /prioridade/i);
+  assert.match(guide, /XLSX/i);
 });
