@@ -587,6 +587,13 @@
         hasThickness ? "" : "espessura"
       ].filter(Boolean);
     }
+    if (controlledService.id === "sapata") {
+      return [
+        hasLength ? "" : "comprimento",
+        hasWidth ? "" : "largura",
+        hasHeight ? "" : "altura"
+      ].filter(Boolean);
+    }
 
     return (controlledService.dadosNecessarios || []).filter(function (data) {
       const key = normalize(data);

@@ -2506,6 +2506,7 @@ test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para sa
   assert.match(answer, /Qual o comprimento\?/);
   assert.match(answer, /Qual a largura\?/);
   assert.match(answer, /Qual a altura\/espessura\?/);
+  assert.doesNotMatch(answer, /quantidade de sapatas/i);
 });
 
 test("Stock AI Obras catalogo controlado pergunta dimensoes volumetricas para bloco de fundacao", () => {
