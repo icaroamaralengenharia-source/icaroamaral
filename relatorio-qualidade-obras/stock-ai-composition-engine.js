@@ -1453,6 +1453,299 @@
     });
   }
 
+  const SINAPI_ANALITICO_HEADER_ALIASES = {
+    compositionCode: ["codigo da composicao", "codigo composicao", "cod composicao"],
+    compositionName: ["descricao da composicao", "descricao composicao"],
+    compositionUnit: ["unidade"],
+    itemType: ["tipo item", "tipo do item"],
+    inputCode: ["codigo item", "codigo do item"],
+    inputName: ["descricao item", "descricao do item"],
+    inputUnit: ["unidade item", "unidade do item"],
+    coefficient: ["coeficiente"]
+  };
+
+  function normalizeSheetTableRows(rows) {
+    return (rows || []).map(function (row) {
+      return Array.isArray(row) ? row.map(clean) : [];
+    }).filter(function (row) {
+      return clean(row.join(""));
+    });
+  }
+
+  function findSinapiAnaliticoHeader(table) {
+    const rows = normalizeSheetTableRows(table);
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const normalizedHeaders = rows[rowIndex].map(normalize);
+      const indexes = {};
+      Object.keys(SINAPI_ANALITICO_HEADER_ALIASES).forEach(function (field) {
+        const aliases = SINAPI_ANALITICO_HEADER_ALIASES[field].map(normalize);
+        for (let index = 0; index < normalizedHeaders.length; index += 1) {
+          if (aliases.indexOf(normalizedHeaders[index]) >= 0 && indexes[field] === undefined) {
+            indexes[field] = index;
+          }
+        }
+      });
+      const requiredFields = Object.keys(SINAPI_ANALITICO_HEADER_ALIASES);
+      const missing = requiredFields.filter(function (field) {
+        return indexes[field] === undefined;
+      });
+      if (!missing.length) {
+        return {
+          found: true,
+          headerIndex: rowIndex,
+          headers: rows[rowIndex],
+          columnIndexes: indexes,
+          rows: rows
+        };
+      }
+    }
+    return {
+      found: false,
+      headerIndex: -1,
+      headers: [],
+      columnIndexes: {},
+      rows: rows
+    };
+  }
+
+  function extractSinapiReferenceMonthFromRows(rows) {
+    const allText = normalizeSheetTableRows(rows).map(function (row) {
+      return row.join(" ");
+    }).join(" ");
+    const match = allText.match(/(?:data de preco|data de preço|referencia de coleta|referência de coleta)[^0-9]*(\d{1,2})[\/.-](\d{4})/i) ||
+      allText.match(/(\d{1,2})[\/.-](\d{4})/);
+    if (!match) {
+      return "";
+    }
+    return match[2] + "-" + String(match[1]).padStart(2, "0");
+  }
+
+  function detectSinapiAnaliticoFormat(workbookOrRows, options) {
+    const settings = options || {};
+    const xlsx = getOfficialXlsxToolkit(settings);
+    const candidates = [];
+    if (Array.isArray(workbookOrRows)) {
+      candidates.push({ sheetName: "", rows: workbookOrRows });
+    } else if (workbookOrRows && workbookOrRows.SheetNames && workbookOrRows.Sheets) {
+      (workbookOrRows.SheetNames || []).forEach(function (sheetName) {
+        const worksheet = workbookOrRows.Sheets[sheetName];
+        const table = xlsx && xlsx.utils && typeof xlsx.utils.sheet_to_json === "function"
+          ? xlsx.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, raw: false, defval: "" })
+          : [];
+        candidates.push({ sheetName: sheetName, rows: table });
+      });
+    }
+    for (let index = 0; index < candidates.length; index += 1) {
+      const header = findSinapiAnaliticoHeader(candidates[index].rows);
+      if (header.found) {
+        return Object.assign({}, header, {
+          ok: true,
+          detected: true,
+          sheetName: candidates[index].sheetName,
+          referenceMonth: extractSinapiReferenceMonthFromRows(candidates[index].rows)
+        });
+      }
+    }
+    return {
+      ok: false,
+      detected: false,
+      sheetName: "",
+      headerIndex: -1,
+      headers: [],
+      columnIndexes: {},
+      rows: [],
+      errors: ["Cabecalho SINAPI Analitico nao encontrado."]
+    };
+  }
+
+  function normalizeSinapiAnaliticoItemType(value) {
+    const text = normalize(value);
+    if (text === "insumo") {
+      return "insumo";
+    }
+    if (text === "composicao" || text === "composicao auxiliar") {
+      return "composicao";
+    }
+    return text || clean(value).toLowerCase();
+  }
+
+  function parseSinapiAnaliticoRows(rows, options) {
+    const settings = options || {};
+    const source = normalizeOfficialSource(settings.source || "SINAPI");
+    const state = clean(settings.state || settings.uf || settings.sourceRegion);
+    const detected = detectSinapiAnaliticoFormat(rows, settings);
+    const referenceMonth = clean(settings.referenceMonth || settings.sourceDate || detected.referenceMonth);
+    const errors = [];
+    if (source !== "SINAPI") {
+      errors.push("source deve ser SINAPI para adaptador SINAPI Analitico.");
+    }
+    if (!state) {
+      errors.push("state/UF e obrigatorio.");
+    }
+    if (!referenceMonth) {
+      errors.push("referenceMonth e obrigatorio ou deve ser extraido do arquivo.");
+    }
+    if (!detected.detected) {
+      errors.push("Arquivo sem cabecalho SINAPI Analitico.");
+      return {
+        ok: false,
+        rows: [],
+        errors: errors,
+        headerIndex: -1,
+        headers: []
+      };
+    }
+    const table = detected.rows;
+    const indexes = detected.columnIndexes;
+    const parsedRows = [];
+    table.slice(detected.headerIndex + 1).forEach(function (line, lineIndex) {
+      const compositionCode = clean(line[indexes.compositionCode]);
+      if (!compositionCode) {
+        return;
+      }
+      const itemType = clean(line[indexes.itemType]);
+      parsedRows.push({
+        source: "SINAPI",
+        state: state,
+        referenceMonth: referenceMonth,
+        pricingType: clean(settings.pricingType),
+        locality: clean(settings.locality),
+        compositionCode: compositionCode,
+        compositionName: clean(line[indexes.compositionName]),
+        compositionUnit: clean(line[indexes.compositionUnit]),
+        inputType: normalizeSinapiAnaliticoItemType(itemType),
+        itemType: itemType,
+        inputCode: clean(line[indexes.inputCode]),
+        inputName: clean(line[indexes.inputName]),
+        inputUnit: clean(line[indexes.inputUnit]),
+        coefficient: line[indexes.coefficient],
+        sourceRow: detected.headerIndex + 2 + lineIndex
+      });
+    });
+    if (!parsedRows.length) {
+      errors.push("Arquivo SINAPI Analitico sem composicoes.");
+    }
+    parsedRows.forEach(function (row) {
+      if (!clean(row.inputCode)) {
+        errors.push("Composicao " + row.compositionCode + " possui item sem codigo.");
+      }
+      if (!clean(row.inputName)) {
+        errors.push("Composicao " + row.compositionCode + " possui item sem descricao.");
+      }
+      if (parseNumber(row.coefficient) <= 0) {
+        errors.push("Composicao " + row.compositionCode + " possui item com coefficient <= 0.");
+      }
+    });
+    const normalized = normalizeOfficialBaseRows({ rows: parsedRows }, {
+      source: "SINAPI",
+      state: state,
+      referenceMonth: referenceMonth
+    });
+    return {
+      ok: errors.length === 0,
+      rows: errors.length ? [] : parsedRows,
+      normalizedRows: errors.length ? [] : normalized,
+      errors: errors,
+      headerIndex: detected.headerIndex,
+      headers: detected.headers,
+      columnIndexes: detected.columnIndexes,
+      referenceMonth: referenceMonth,
+      state: state,
+      source: "SINAPI",
+      pricingType: clean(settings.pricingType),
+      locality: clean(settings.locality),
+      totalRows: parsedRows.length,
+      totalCompositions: Object.keys(parsedRows.reduce(function (grouped, row) {
+        grouped[row.compositionCode] = true;
+        return grouped;
+      }, {})).length
+    };
+  }
+
+  function parseSinapiAnaliticoXlsx(fileOrBuffer, options) {
+    const settings = options || {};
+    const xlsx = getOfficialXlsxToolkit(settings);
+    const loaded = readOfficialXlsxInput(fileOrBuffer, settings);
+    if (!loaded.ok) {
+      return Object.assign({}, loaded, {
+        ok: false,
+        rows: [],
+        sheets: []
+      });
+    }
+    const workbook = loaded.workbook;
+    const sheetNames = workbook && workbook.SheetNames || [];
+    if (!sheetNames.length) {
+      return {
+        ok: false,
+        rows: [],
+        sheets: [],
+        errors: ["Planilha XLSX sem abas."]
+      };
+    }
+    const wantedSheet = clean(settings.sheetName);
+    if (wantedSheet && sheetNames.indexOf(wantedSheet) < 0) {
+      return {
+        ok: false,
+        rows: [],
+        sheets: sheetNames.slice(),
+        errors: ["Aba XLSX nao encontrada: " + wantedSheet + "."]
+      };
+    }
+    const sheetsToRead = wantedSheet ? [wantedSheet] : sheetNames;
+    let firstInvalid = null;
+    for (let index = 0; index < sheetsToRead.length; index += 1) {
+      const sheetName = sheetsToRead[index];
+      const worksheet = workbook.Sheets[sheetName];
+      const table = xlsx.utils.sheet_to_json(worksheet, {
+        header: 1,
+        blankrows: false,
+        raw: false,
+        defval: ""
+      });
+      const parsed = parseSinapiAnaliticoRows(table, settings);
+      if (parsed.ok) {
+        return Object.assign({}, parsed, {
+          format: "SINAPI_ANALITICO",
+          sheetName: sheetName,
+          sheets: sheetNames.slice()
+        });
+      }
+      firstInvalid = firstInvalid || Object.assign({}, parsed, { sheetName: sheetName });
+    }
+    return Object.assign({}, firstInvalid || {
+      ok: false,
+      rows: [],
+      errors: ["Nenhuma aba XLSX com formato SINAPI Analitico valido."]
+    }, {
+      ok: false,
+      rows: [],
+      sheets: sheetNames.slice()
+    });
+  }
+
+  function importSinapiAnaliticoXlsx(fileOrBuffer, options) {
+    const parsed = parseSinapiAnaliticoXlsx(fileOrBuffer, options);
+    if (!parsed.ok) {
+      return Object.assign({}, parsed, {
+        imported: [],
+        catalogSize: importedOfficialBaseCatalog.length
+      });
+    }
+    const result = importOfficialBase({ rows: parsed.rows }, Object.assign({}, options || {}, {
+      source: "SINAPI",
+      state: parsed.state,
+      referenceMonth: parsed.referenceMonth
+    }));
+    return Object.assign({}, result, {
+      parsed: parsed,
+      rows: parsed.rows,
+      format: "SINAPI_ANALITICO",
+      pricingType: parsed.pricingType,
+      locality: parsed.locality
+    });
+  }
+
   function getWindowExternalCompositions() {
     const external = window.StockAiRealCompositions;
     if (!external) {
@@ -3999,6 +4292,10 @@
     importOfficialBaseCsv: importOfficialBaseCsv,
     parseOfficialBaseXlsx: parseOfficialBaseXlsx,
     importOfficialBaseXlsx: importOfficialBaseXlsx,
+    detectSinapiAnaliticoFormat: detectSinapiAnaliticoFormat,
+    parseSinapiAnaliticoRows: parseSinapiAnaliticoRows,
+    parseSinapiAnaliticoXlsx: parseSinapiAnaliticoXlsx,
+    importSinapiAnaliticoXlsx: importSinapiAnaliticoXlsx,
     searchImportedOfficialCompositions: searchImportedOfficialCompositions,
     clearImportedOfficialBase: clearImportedOfficialBase,
     getImportedOfficialBaseStats: getImportedOfficialBaseStats,

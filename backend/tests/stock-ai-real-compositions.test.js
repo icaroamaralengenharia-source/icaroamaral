@@ -16,6 +16,7 @@ const officialBaseImporterGuidePath = join(testDir, "..", "..", "docs", "stock-a
 const officialBaseCsvGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-csv-bases-oficiais.md");
 const officialBaseXlsxGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-xlsx-bases-oficiais.md");
 const officialBaseUploadGuidePath = join(testDir, "..", "..", "docs", "stock-ai-interface-upload-base-oficial.md");
+const sinapiAnaliticoGuidePath = join(testDir, "..", "..", "docs", "stock-ai-adaptador-sinapi-analitico.md");
 const stockAiObrasHtmlPath = join(testDir, "..", "..", "stock-ai-obras.html");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
@@ -147,6 +148,27 @@ function officialBaseXlsxSimpleWorkbook() {
       ["SINAPI-XLSX-001", "Alvenaria XLSX controlada", "m2", "SINAPI-XLSX-MAT-001", "Bloco XLSX", "un", "12,50"],
       ["SINAPI-XLSX-001", "Alvenaria XLSX controlada", "m2", "SINAPI-XLSX-MAT-002", "Argamassa XLSX", "kg", "3,25"]
     ]
+  }]);
+}
+
+function sinapiAnaliticoRowsFixture() {
+  return [
+    ["PCI.818.01", "", "", "", "", "", "", "", "", ""],
+    ["DATA DE EMISSAO", "10/01/2025", "", "", "", "", "", "", "", ""],
+    ["ENCARGOS SOCIAIS", "DESONERADO", "", "", "", "", "", "", "", ""],
+    ["ABRANGENCIA", "BA", "", "", "", "", "", "", "", ""],
+    ["DATA DE PRECO", "12/2024", "", "", "", "", "", "", "", ""],
+    ["CODIGO DA COMPOSICAO", "DESCRICAO DA COMPOSICAO", "UNIDADE", "TIPO ITEM", "CODIGO ITEM", "DESCRIÇÃO ITEM", "UNIDADE ITEM", "COEFICIENTE", "PRECO UNITARIO", "CUSTO TOTAL"],
+    ["SINAPI-ANA-001", "Alvenaria analitica fixture", "M²", "INSUMO", "MAT-ANA-001", "Bloco ceramico analitico", "UN", "12,50", "1,00", "12,50"],
+    ["SINAPI-ANA-001", "Alvenaria analitica fixture", "M²", "COMPOSICAO", "COMP-AUX-001", "Argamassa auxiliar analitica", "M³", "0,25", "100,00", "25,00"],
+    ["SINAPI-ANA-002", "Chapisco analitico fixture", "M²", "INSUMO", "MAT-ANA-002", "Cimento analitico", "KG", "4,20", "0,80", "3,36"]
+  ];
+}
+
+function sinapiAnaliticoWorkbookFixture() {
+  return officialBaseWorkbook([{
+    name: "Analitico",
+    rows: sinapiAnaliticoRowsFixture()
   }]);
 }
 
@@ -1101,6 +1123,9 @@ test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
   assert.match(bridge, /parseOfficialBaseCsv/);
   assert.match(bridge, /importOfficialBaseCsv/);
   assert.match(bridge, /parseOfficialBaseXlsx/);
+  assert.match(bridge, /parseSinapiAnaliticoXlsx/);
+  assert.match(bridge, /importSinapiAnaliticoXlsx/);
+  assert.match(bridge, /Formato SINAPI Analitico detectado/);
   assert.match(bridge, /XLSX ainda nao esta disponivel diretamente nesta interface/);
   assert.match(bridge, /clearImportedOfficialBase/);
   assert.match(bridge, /ColumnMap invalido/);
@@ -1116,4 +1141,165 @@ test("Stock AI Obras documenta interface de upload de base oficial", () => {
   assert.match(guide, /columnMap/i);
   assert.match(guide, /validacao antes da importacao/i);
   assert.match(guide, /Limpar base/i);
+});
+
+test("Stock AI Obras detecta formato SINAPI Analitico real", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const detected = engine.detectSinapiAnaliticoFormat(sinapiAnaliticoRowsFixture());
+
+  assert.equal(detected.detected, true);
+  assert.equal(detected.headerIndex, 5);
+  assert.equal(detected.columnIndexes.compositionCode, 0);
+});
+
+test("Stock AI Obras parser SINAPI Analitico ignora metadados do topo", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseSinapiAnaliticoRows(sinapiAnaliticoRowsFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    pricingType: "Desonerado"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.referenceMonth, "2024-12");
+  assert.equal(parsed.rows.length, 3);
+  assert.equal(parsed.rows[0].compositionCode, "SINAPI-ANA-001");
+});
+
+test("Stock AI Obras parser SINAPI Analitico agrupa por codigo na importacao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const imported = engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12",
+    pricingType: "Desonerado"
+  });
+
+  assert.equal(imported.ok, true);
+  assert.equal(imported.imported.length, 2);
+  assert.equal(imported.imported[0].inputs.length, 2);
+});
+
+test("Stock AI Obras parser SINAPI Analitico importa INSUMO corretamente", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseSinapiAnaliticoRows(sinapiAnaliticoRowsFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  const insumo = parsed.rows.find((row) => row.inputCode === "MAT-ANA-001");
+  assert.equal(insumo.inputType, "insumo");
+  assert.equal(insumo.inputName, "Bloco ceramico analitico");
+});
+
+test("Stock AI Obras parser SINAPI Analitico preserva COMPOSICAO como item composto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const imported = engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  const composition = imported.imported.find((item) => item.code === "SINAPI-ANA-001");
+  const composedInput = composition.inputs.find((input) => input.code === "COMP-AUX-001");
+  assert.equal(composedInput.type, "composicao");
+  assert.equal(composedInput.name, "Argamassa auxiliar analitica");
+});
+
+test("Stock AI Obras parser SINAPI Analitico converte coefficient com virgula", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseSinapiAnaliticoRows(sinapiAnaliticoRowsFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+  const normalized = engine.normalizeOfficialBaseRows({ rows: parsed.rows });
+
+  assert.equal(normalized[0].coefficient, 12.5);
+  assert.equal(normalized[1].coefficient, 0.25);
+});
+
+test("Stock AI Obras importSinapiAnaliticoXlsx importa e permite busca", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const imported = engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12",
+    pricingType: "Desonerado",
+    locality: "SALVADOR"
+  });
+  const results = engine.searchImportedOfficialCompositions("alvenaria analitica");
+
+  assert.equal(imported.ok, true);
+  assert.equal(imported.format, "SINAPI_ANALITICO");
+  assert.equal(results.length, 1);
+  assert.equal(results[0].code, "SINAPI-ANA-001");
+});
+
+test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  const composition = engine.findBestComposition({ service: "Alvenaria analitica fixture", unit: "m2" });
+
+  assert.equal(composition.code, "SINAPI-ANA-001");
+  assert.equal(composition.source, "SINAPI");
+});
+
+test("Stock AI Obras clear apos SINAPI Analitico restaura fallback", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+  engine.clearImportedOfficialBase();
+
+  const fallback = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.notEqual(fallback.code, "SINAPI-ANA-001");
+  assert.match(engine.normalize(fallback.source), /base tecnica demonstrativa editavel/);
+});
+
+test("Stock AI Obras rejeita XLSX sem cabecalho SINAPI Analitico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const parsed = engine.parseSinapiAnaliticoXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.errors.join(" "), /cabecalho SINAPI Analitico|sem cabecalho/i);
+});
+
+test("Stock AI Obras importacao SINAPI Analitico invalida nao apaga base anterior", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseRowsFixture() });
+  const invalid = engine.importSinapiAnaliticoXlsx(officialBaseXlsxSimpleWorkbook(), {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+  const stats = engine.getImportedOfficialBaseStats();
+
+  assert.equal(invalid.ok, false);
+  assert.equal(stats.totalCompositions, 1);
+});
+
+test("Stock AI Obras documenta adaptador SINAPI Analitico", () => {
+  assert.equal(existsSync(sinapiAnaliticoGuidePath), true);
+
+  const guide = readFileSync(sinapiAnaliticoGuidePath, "utf8");
+
+  assert.match(guide, /SINAPI_Custo_Ref_Composicoes_Analitico_BA_202412_Desonerado\.xlsx/);
+  assert.match(guide, /CODIGO DA COMPOSICAO/);
+  assert.match(guide, /INSUMO/);
+  assert.match(guide, /COMPOSICAO/);
+  assert.match(guide, /interface/i);
 });

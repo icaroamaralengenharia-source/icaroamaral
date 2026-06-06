@@ -258,7 +258,7 @@
       "A base demonstrativa continua disponivel como fallback.",
       "A importacao oficial tera prioridade sobre a demonstrativa somente apos importar."
     ];
-    return [
+    const lines = [
       "Status: " + (validation && validation.ok ? "arquivo valido para importacao" : "arquivo ainda nao esta pronto"),
       "Erros: " + (errors.length ? "\n" + errors.slice(0, 8).map(function (error) { return "- " + error; }).join("\n") : "nenhum"),
       "Avisos:\n- " + warnings.join("\n- "),
@@ -269,7 +269,14 @@
       "UF: " + clean_(parsed && parsed.rows && parsed.rows[0] && parsed.rows[0].state || ""),
       "Mes: " + clean_(parsed && parsed.rows && parsed.rows[0] && parsed.rows[0].referenceMonth || ""),
       "Exemplos:\n" + formatExamples_(ready)
-    ].join("\n");
+    ];
+    if (parsed && parsed.format === "SINAPI_ANALITICO") {
+      lines.splice(1, 0, "Formato SINAPI Analitico detectado.");
+      if (parsed.pricingType) {
+        lines.splice(2, 0, "Tipo: " + parsed.pricingType);
+      }
+    }
+    return lines.join("\n");
   }
 
   function formatOfficialImportStatus_(result) {
@@ -279,7 +286,7 @@
       : {};
     const imported = result && result.imported || [];
     const errors = result && result.errors || [];
-    return [
+    const lines = [
       "Status: base oficial importada com prioridade sobre a demonstrativa.",
       "Erros: " + (errors.length ? "\n" + errors.slice(0, 8).map(function (error) { return "- " + error; }).join("\n") : "nenhum"),
       "Avisos:\n- Nenhum coeficiente foi inventado.\n- Templates, examples e mocks sao rejeitados.\n- A base demonstrativa continua disponivel como fallback.",
@@ -290,7 +297,14 @@
       "UF: " + (stats.state || ""),
       "Mes: " + (stats.referenceMonth || ""),
       "Exemplos:\n" + formatExamples_(imported)
-    ].join("\n");
+    ];
+    if (result && (result.format === "SINAPI_ANALITICO" || result.parsed && result.parsed.format === "SINAPI_ANALITICO")) {
+      lines.splice(1, 0, "Formato SINAPI Analitico detectado.");
+      if (result.pricingType) {
+        lines.splice(2, 0, "Tipo: " + result.pricingType);
+      }
+    }
+    return lines.join("\n");
   }
 
   function setOfficialImportFallbackXlsx_() {
@@ -320,6 +334,20 @@
     if (isXlsxFile_(file)) {
       if (!window.XLSX) {
         return { ok: false, xlsxFallback: true };
+      }
+      if (typeof engine.parseSinapiAnaliticoXlsx === "function") {
+        const sinapiParsed = engine.parseSinapiAnaliticoXlsx(fileContent, options);
+        if (sinapiParsed.ok) {
+          if (action === "import") {
+            return typeof engine.importSinapiAnaliticoXlsx === "function"
+              ? engine.importSinapiAnaliticoXlsx(fileContent, options)
+              : { ok: false, errors: ["Importador SINAPI Analitico ainda nao carregado."] };
+          }
+          const sinapiValidation = typeof engine.validateOfficialBaseImport === "function"
+            ? engine.validateOfficialBaseImport({ rows: sinapiParsed.rows }, options)
+            : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
+          return { ok: sinapiValidation.ok, parsed: sinapiParsed, validation: sinapiValidation };
+        }
       }
       if (action === "import") {
         return typeof engine.importOfficialBaseXlsx === "function"
