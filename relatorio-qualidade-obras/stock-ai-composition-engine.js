@@ -314,6 +314,111 @@
     };
   }
 
+  function analyzeOfficialCompositionReadiness(jsonData) {
+    const root = Array.isArray(jsonData) ? {} : (jsonData || {});
+    const rows = Array.isArray(jsonData) ? jsonData : (root.compositions || root.rows || root.items) || [];
+    const row = rows[0] || {};
+    const rowWithRoot = Object.assign({
+      source: root.source,
+      sourceRegion: root.sourceRegion || root.state || root.uf,
+      sourceDate: root.sourceDate || root.referenceMonth
+    }, row);
+    const normalized = normalizeComposition(rowWithRoot);
+    const metadata = normalized.metadata || {};
+    const sourceType = clean(rowWithRoot.sourceType || root.sourceType);
+    const referenceMonth = clean(rowWithRoot.referenceMonth || root.referenceMonth);
+    const state = clean(rowWithRoot.state || rowWithRoot.uf || root.state || root.uf || normalized.sourceRegion);
+    const reference = clean(rowWithRoot.reference || rowWithRoot.referencia || root.reference || normalized.sourceDate);
+    const rowIsOfficial = rowWithRoot.isOfficial === true || metadata.isOfficial === true;
+    const inputs = normalized.inputs || [];
+    const errors = [];
+    const warnings = [];
+    const checklist = [];
+
+    function addCheck(label, passed, errorMessage, warningMessage) {
+      checklist.push({
+        label: label,
+        passed: !!passed,
+        status: passed ? "ok" : "error",
+        message: passed ? "OK" : errorMessage
+      });
+      if (!passed && errorMessage) {
+        errors.push(errorMessage);
+      }
+      if (passed && warningMessage) {
+        warnings.push(warningMessage);
+      }
+    }
+
+    function inputLabel(input, index) {
+      return clean(input && (input.name || input.code)) || "insumo " + (index + 1);
+    }
+
+    const source = getCompositionSource(normalized);
+    addCheck("codigo preenchido", !hasTemplatePlaceholder(normalized.code), "code da composicao vazio ou placeholder.");
+    addCheck("descricao preenchida", !hasTemplatePlaceholder(normalized.description), "descricao/name da composicao vazia ou placeholder.");
+    addCheck("unidade preenchida", !hasTemplatePlaceholder(normalized.unit) && !!clean(normalized.unit), "unit da composicao ausente.");
+    addCheck("referencia preenchida", !hasTemplatePlaceholder(reference), "reference da composicao ausente ou placeholder.");
+    addCheck("sourceType correto", sourceType === "official_manual_entry", "sourceType deve ser official_manual_entry.");
+    addCheck("isOfficial true", rowIsOfficial === true, "isOfficial deve ser true.");
+    addCheck("UF preenchida", !hasTemplatePlaceholder(state) && normalize(state) !== "uf", "state/UF ausente ou placeholder.");
+    addCheck("mes preenchido", !hasTemplatePlaceholder(referenceMonth), "referenceMonth ausente ou placeholder.");
+    addCheck("possui insumos", inputs.length > 0, "A composicao nao possui inputs/insumos.");
+    addCheck("todos os insumos possuem codigo", inputs.length > 0 && inputs.every(function (input) {
+      return !hasTemplatePlaceholder(input.code);
+    }), "Existe insumo sem codigo oficial preenchido.");
+    addCheck("todos os insumos possuem unidade", inputs.length > 0 && inputs.every(function (input) {
+      return !hasTemplatePlaceholder(input.unit) && !!clean(input.unit);
+    }), "Existe insumo sem unidade oficial preenchida.");
+    addCheck("todos os insumos possuem coeficiente > 0", inputs.length > 0 && inputs.every(function (input) {
+      return parseNumber(input.coefficient) > 0;
+    }), "Existe insumo com coefficient oficial ausente, zerado ou negativo.");
+
+    inputs.forEach(function (input, index) {
+      const label = inputLabel(input, index);
+      if (parseNumber(input.coefficient) <= 0) {
+        errors.push("Coeficiente oficial ausente no insumo " + label + ". Preencha o valor oficial antes da importacao.");
+      }
+      if (hasTemplatePlaceholder(input.code)) {
+        errors.push("Codigo oficial ausente no insumo " + label + ".");
+      }
+      if (hasTemplatePlaceholder(input.unit) || !clean(input.unit)) {
+        errors.push("Unidade oficial ausente no insumo " + label + ".");
+      }
+    });
+
+    if (source !== "SINAPI" && source !== "ORSE") {
+      errors.push("Fonte deve ser SINAPI ou ORSE antes da importacao oficial.");
+    }
+    if (isMockComposition(normalized) || normalize(root.notice).indexOf("mock") >= 0 || normalize(reference).indexOf("test only") >= 0) {
+      warnings.push("Arquivo marcado como TEST ONLY/MOCK DE TESTE. Use apenas para validacao automatizada, nao como base real.");
+    }
+
+    const passed = checklist.filter(function (item) { return item.passed; }).length;
+    const score = checklist.length ? Math.round((passed / checklist.length) * 100) : 0;
+    const strictValidation = validateSmallRealCompositionFile(jsonData);
+    const ready = score === 100 && strictValidation.ok;
+    const status = score === 100 ? "Pronta para importacao" :
+      score >= 80 ? "Quase pronta" :
+        score >= 40 ? "Parcialmente preenchida" :
+          "Incompleta";
+
+    return {
+      ready: ready,
+      score: ready ? 100 : score,
+      status: ready ? "Pronta para importacao" : status,
+      source: source,
+      code: normalized.code,
+      reference: reference,
+      state: state,
+      referenceMonth: referenceMonth,
+      inputCount: inputs.length,
+      errors: errors,
+      warnings: warnings,
+      checklist: checklist
+    };
+  }
+
   function normalizeComposition(rawComposition) {
     const raw = rawComposition || {};
     const metadata = raw.metadata || {};
@@ -2550,6 +2655,7 @@
     loadRealCompositionsFromJson: loadRealCompositionsFromJson,
     loadRealCompositionsFromRows: loadRealCompositionsFromRows,
     validateSmallRealCompositionFile: validateSmallRealCompositionFile,
+    analyzeOfficialCompositionReadiness: analyzeOfficialCompositionReadiness,
     setExternalCompositionCatalog: setExternalCompositionCatalog,
     getExternalCompositionCatalog: getExternalCompositionCatalog,
     clearExternalCompositionCatalog: clearExternalCompositionCatalog,

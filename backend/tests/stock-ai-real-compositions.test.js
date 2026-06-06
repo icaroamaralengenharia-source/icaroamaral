@@ -370,3 +370,47 @@ test("Stock AI Obras seta composicao externa de teste e limpa retorno demonstrat
   assert.notEqual(fallbackComposition.source, "SINAPI");
   assert.match(fallbackComposition.source, /demonstrativa/i);
 });
+
+test("Stock AI Obras assistente classifica template original como incompleto", () => {
+  const engine = loadStockAiCompositionEngine();
+  const analysis = engine.analyzeOfficialCompositionReadiness(realTemplate);
+
+  assert.equal(analysis.ready, false);
+  assert.equal(analysis.status, "Incompleta");
+  assert.equal(analysis.score < 40, true);
+  assert.equal(analysis.errors.length > 3, true);
+  assert.match(analysis.errors.join(" "), /placeholder|Coeficiente oficial ausente|sourceType/i);
+});
+
+test("Stock AI Obras assistente classifica composicao parcial com score intermediario", () => {
+  const engine = loadStockAiCompositionEngine();
+  const partial = officialManualEntryTestOnly();
+  partial.items[0].code = "";
+  partial.items[0].reference = "";
+  partial.referenceMonth = "";
+  partial.state = "";
+  partial.items[0].inputs[0].code = "";
+  partial.items[0].inputs[0].coefficient = 0;
+
+  const analysis = engine.analyzeOfficialCompositionReadiness(partial);
+
+  assert.equal(analysis.ready, false);
+  assert.equal(analysis.score >= 40, true);
+  assert.equal(analysis.score < 80, true);
+  assert.equal(analysis.status, "Parcialmente preenchida");
+  assert.match(analysis.errors.join(" "), /code da composicao|referenceMonth|state\/UF|Coeficiente oficial ausente/);
+});
+
+test("Stock AI Obras assistente aceita mock TEST ONLY completo sem cadastrar catalogo real", () => {
+  const engine = loadStockAiCompositionEngine();
+  const mockReady = officialManualEntryTestOnly();
+  mockReady.items[0].metadata.isMock = true;
+  mockReady.items[0].metadata.mockOnly = true;
+
+  const analysis = engine.analyzeOfficialCompositionReadiness(mockReady);
+
+  assert.equal(analysis.ready, true);
+  assert.equal(analysis.score, 100);
+  assert.equal(engine.getExternalCompositionCatalog().length, 0);
+  assert.match(analysis.warnings.join(" "), /TEST ONLY|MOCK/);
+});
