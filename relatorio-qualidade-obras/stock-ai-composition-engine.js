@@ -3716,6 +3716,92 @@
     const label = isShed ? "Galpao" : isRoom ? "Ambiente" : "Casa";
     const warning = "Estimativa simplificada para planejamento inicial. Nao desconta vaos, inclinacao de telhado, beirais, paredes internas, perdas especificas nem detalhes estruturais.";
     const coverageHasType = hasExplicitCoverageType(text);
+    const derivedServices = [
+      {
+        serviceType: "alvenaria",
+        service: getGeometryServiceName("alvenaria", "area"),
+        quantity: wallArea,
+        unit: "m2",
+        explanation: "Paredes externas estimadas: perimetro " + formatMeters(perimeter) + " x pe-direito " + formatMeters(height) + " = " + formatSquareMeters(wallArea)
+      },
+      {
+        serviceType: "piso",
+        service: getGeometryServiceName("piso", "area"),
+        quantity: floorArea,
+        unit: "m2",
+        explanation: "Piso estimado: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(floorArea)
+      },
+      {
+        serviceType: hasAny(text, ["metalica", "metálica"]) ? "cobertura_metalica" : "cobertura",
+        service: coverageHasType && !hasAny(text, ["metalica", "metálica"]) ? getGeometryServiceName("cobertura", "area") : "",
+        quantity: roofArea,
+        unit: "m2",
+        label: hasAny(text, ["metalica", "metálica"]) ? "cobertura metalica" : "cobertura",
+        explanation: "Cobertura inicial estimada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(roofArea) + ", sem inclinacao"
+      }
+    ];
+
+    if (isShed) {
+      const pillarsMatch = originalMessage.match(new RegExp(number + "\\s*pilares?.*?" + number + "\\s*(?:x|por)\\s*" + number + ".*?(?:altura\\s*)?" + number + "\\s*(?:m|metros?)", "i"));
+      if (pillarsMatch) {
+        const count = parseDimensionNumber(pillarsMatch[1]);
+        const widthSection = parseDimensionNumber(pillarsMatch[2]) > 3 ? centimetersToMeters(pillarsMatch[2]) : parseDimensionNumber(pillarsMatch[2]);
+        const depthSection = parseDimensionNumber(pillarsMatch[3]) > 3 ? centimetersToMeters(pillarsMatch[3]) : parseDimensionNumber(pillarsMatch[3]);
+        const pillarHeight = parseDimensionNumber(pillarsMatch[4]);
+        const pillarVolume = roundQuantity(count * widthSection * depthSection * pillarHeight);
+        derivedServices.push({
+          serviceType: "pilar",
+          service: getGeometryServiceName("pilar", "volume"),
+          quantity: pillarVolume,
+          unit: "m3",
+          explanation: "Pilares informados: " + formatQuantity(count) + " x " + formatMeters(widthSection) + " x " + formatMeters(depthSection) + " x " + formatMeters(pillarHeight) + " = " + formatCubicMeters(pillarVolume)
+        });
+      }
+
+      const sapataMatch = originalMessage.match(new RegExp("sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number, "i"));
+      if (sapataMatch) {
+        const count = pillarsMatch ? parseDimensionNumber(pillarsMatch[1]) : 1;
+        const sapataLength = parseDimensionNumber(sapataMatch[1]);
+        const sapataWidth = parseDimensionNumber(sapataMatch[2]);
+        const sapataHeight = parseDimensionNumber(sapataMatch[3]);
+        const sapataVolume = roundQuantity(count * sapataLength * sapataWidth * sapataHeight);
+        derivedServices.push({
+          serviceType: "sapata",
+          service: getGeometryServiceName("sapata", "volume"),
+          quantity: sapataVolume,
+          unit: "m3",
+          explanation: "Sapatas informadas: " + formatQuantity(count) + " x " + formatMeters(sapataLength) + " x " + formatMeters(sapataWidth) + " x " + formatMeters(sapataHeight) + " = " + formatCubicMeters(sapataVolume)
+        });
+      }
+
+      const baldrameMatch = originalMessage.match(new RegExp("baldrame\\s*" + number + "\\s*(?:m|metros?).*?" + number + "\\s*(?:x|por)\\s*" + number, "i"));
+      if (baldrameMatch) {
+        const baldrameLength = parseDimensionNumber(baldrameMatch[1]);
+        const baldrameWidth = parseDimensionNumber(baldrameMatch[2]) > 3 ? centimetersToMeters(baldrameMatch[2]) : parseDimensionNumber(baldrameMatch[2]);
+        const baldrameHeight = parseDimensionNumber(baldrameMatch[3]) > 3 ? centimetersToMeters(baldrameMatch[3]) : parseDimensionNumber(baldrameMatch[3]);
+        const baldrameVolume = roundQuantity(baldrameLength * baldrameWidth * baldrameHeight);
+        derivedServices.push({
+          serviceType: "baldrame",
+          service: getGeometryServiceName("baldrame", "volume"),
+          quantity: baldrameVolume,
+          unit: "m3",
+          explanation: "Baldrame informado: " + formatMeters(baldrameLength) + " x " + formatMeters(baldrameWidth) + " x " + formatMeters(baldrameHeight) + " = " + formatCubicMeters(baldrameVolume)
+        });
+      }
+
+      const sideClosureMatch = originalMessage.match(new RegExp("fechamento\\s+lateral\\s*" + number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i"));
+      if (sideClosureMatch) {
+        const sideClosureArea = parseDimensionNumber(sideClosureMatch[1]);
+        derivedServices.push({
+          serviceType: "fechamento_lateral",
+          service: "",
+          quantity: sideClosureArea,
+          unit: "m2",
+          label: "fechamento lateral",
+          explanation: "Fechamento lateral informado: " + formatSquareMeters(sideClosureArea)
+        });
+      }
+    }
 
     return {
       detected: true,
@@ -3735,30 +3821,7 @@
         wallArea: wallArea,
         roofArea: roofArea
       },
-      derivedServices: [
-        {
-          serviceType: "alvenaria",
-          service: getGeometryServiceName("alvenaria", "area"),
-          quantity: wallArea,
-          unit: "m2",
-          explanation: "Paredes externas estimadas: perimetro " + formatMeters(perimeter) + " x pe-direito " + formatMeters(height) + " = " + formatSquareMeters(wallArea)
-        },
-        {
-          serviceType: "piso",
-          service: getGeometryServiceName("piso", "area"),
-          quantity: floorArea,
-          unit: "m2",
-          explanation: "Piso estimado: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(floorArea)
-        },
-        {
-          serviceType: "cobertura",
-          service: coverageHasType ? getGeometryServiceName("cobertura", "area") : "",
-          quantity: roofArea,
-          unit: "m2",
-          label: "cobertura",
-          explanation: "Cobertura inicial estimada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(roofArea) + ", sem inclinacao"
-        }
-      ],
+      derivedServices: derivedServices,
       label: label,
       warning: warning
     };
@@ -6815,7 +6878,8 @@
     if ((hasTerm(text, "cobertura") || hasTerm(text, "cobrir") || hasTerm(text, "telhado")) &&
       !hasTerm(text, "telha ceramica") && !hasTerm(text, "telha cerâmica") &&
       !hasTerm(text, "ceramico") && !hasTerm(text, "ceramica") &&
-      !hasTerm(text, "fibrocimento") && !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira") &&
+      !hasTerm(text, "fibrocimento") && !hasTerm(text, "metalica") && !hasTerm(text, "metálica") &&
+      !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira") &&
       !hasOfficialCoverageComposition) {
       const coverageMatch = request.originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|metro quadrado|metros quadrados)\s*(?:de\s+)?(cobertura|telhado)/i);
       const coverageText = coverageMatch
