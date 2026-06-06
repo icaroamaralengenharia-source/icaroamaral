@@ -1793,6 +1793,62 @@ test("Stock AI Obras preserva fallback demonstrativo quando nao ha servico contr
   assert.match(answer, /Fonte: Base tecnica demonstrativa/);
 });
 
+test("Stock AI Obras catalogo controlado pergunta altura quando pilar esta incompleto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para 2 pilares 20x30");
+
+  assert.match(answer, /Servico controlado identificado: Pilar/);
+  assert.match(answer, /Qual altura dos pilares\?/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta comprimento quando viga esta incompleta", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para viga 15x40");
+
+  assert.match(answer, /Servico controlado identificado: Viga/);
+  assert.match(answer, /Qual comprimento da viga\?/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta altura quando alvenaria esta incompleta", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("quero material para parede 12 m");
+
+  assert.match(answer, /Servico controlado identificado: Alvenaria/);
+  assert.match(answer, /Qual altura da parede\?/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta area quando piso esta incompleto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("assentar piso");
+
+  assert.match(answer, /Servico controlado identificado: Piso ceramico/);
+  assert.match(answer, /Qual area em m2\?/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado pergunta tipo de telha quando cobertura esta incompleta", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("telhado 180 m2");
+
+  assert.match(answer, /Servico controlado identificado: Cobertura|tipo de cobertura/i);
+  assert.match(answer, /Qual tipo de telha\?|tipo de cobertura/i);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras catalogo controlado filtra fallback de piso sem retornar laje", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("assentar 10 m2 de piso");
+
+  assert.match(answer, /Composicao utilizada: std_piso - Piso ceramico/);
+  assert.doesNotMatch(answer, /Composicao utilizada: std_contrapiso/i);
+  assert.doesNotMatch(answer, /Contrapiso/i);
+  assert.doesNotMatch(answer, /Composicao utilizada: std_laje/i);
+  assert.doesNotMatch(answer, /Laje macica|pre-moldada/i);
+});
+
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {

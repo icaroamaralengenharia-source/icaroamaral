@@ -471,7 +471,8 @@
     if (!controlledService) {
       return [];
     }
-    const text = normalize(parsed.originalMessage || parsed.message || parsed.text || "");
+    const originalText = parsed.originalMessage || parsed.message || parsed.text || "";
+    const text = normalize(originalText);
     const geometry = parsed.geometry || {};
     const quantity = parseNumber(parsed.quantity || parsed.executedQuantity || (geometry && geometry.quantity));
     const unit = normalizeUnit(parsed.unit || (geometry && geometry.unit) || controlledService.unidadePrincipal);
@@ -489,6 +490,39 @@
     const hasDiameter = hasAny(text, ["diametro", "dn ", "mm"]);
     const hasCircuit = hasAny(text, ["circuito", "bitola", "disjuntor"]);
     const hasWeight = unit === "kg" && hasQuantity;
+    const hasCountNearService = new RegExp("\\b\\d+(?:[.,]\\d+)?\\s*(?:un|unidades?)?\\s*(?:de\\s+)?(?:" + (controlledService.apelidos || []).map(function (alias) {
+      return normalize(alias).replace(/\s+/g, "\\s+");
+    }).join("|") + ")\\b", "i").test(text);
+
+    if (controlledService.id === "pilar") {
+      return [
+        hasQuantity || hasCountNearService ? "" : "quantidade",
+        hasSection ? "" : "secao",
+        hasHeight ? "" : "altura"
+      ].filter(Boolean);
+    }
+    if (controlledService.id === "viga") {
+      return [
+        hasSection ? "" : "largura",
+        hasSection ? "" : "altura",
+        hasLength ? "" : "comprimento"
+      ].filter(Boolean);
+    }
+    if (controlledService.id === "alvenaria") {
+      return [
+        hasArea || hasLength ? "" : "comprimento",
+        hasArea || hasHeight ? "" : "altura"
+      ].filter(Boolean);
+    }
+    if (controlledService.id === "piso_ceramico") {
+      return hasArea ? [] : ["area"];
+    }
+    if (controlledService.id === "cobertura") {
+      return [
+        hasArea ? "" : "area",
+        hasType ? "" : "tipo de cobertura"
+      ].filter(Boolean);
+    }
 
     return (controlledService.dadosNecessarios || []).filter(function (data) {
       const key = normalize(data);
@@ -512,6 +546,71 @@
 
   function isControlledServiceInputIncomplete(service, parsedData) {
     return getControlledServiceMissingData(service, parsedData).length > 0;
+  }
+
+  function getControlledServiceQuestion(service, missingData) {
+    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+    const key = normalize(missingData);
+    if (!controlledService) {
+      return "Informe " + missingData + ".";
+    }
+    const questionMap = {
+      pilar: {
+        quantidade: "Quantos pilares?",
+        secao: "Qual secao dos pilares? Exemplo: 20x30 cm.",
+        altura: "Qual altura dos pilares?"
+      },
+      viga: {
+        largura: "Qual largura da viga?",
+        altura: "Qual altura da viga?",
+        comprimento: "Qual comprimento da viga?"
+      },
+      alvenaria: {
+        comprimento: "Qual comprimento da parede?",
+        altura: "Qual altura da parede?"
+      },
+      piso_ceramico: {
+        area: "Qual area em m2?"
+      },
+      cobertura: {
+        area: "Qual area da cobertura?",
+        "tipo de cobertura": "Qual tipo de telha?"
+      },
+      radier: {
+        area: "Qual o comprimento, largura e espessura do radier?",
+        espessura: "Qual a espessura do radier?"
+      },
+      rufo_calha: {
+        comprimento: "Qual o comprimento total do rufo em metros?",
+        material: "Qual material do rufo ou calha?"
+      }
+    };
+    const serviceQuestions = questionMap[controlledService.id] || {};
+    return serviceQuestions[key] || "Informe " + missingData + ".";
+  }
+
+  function isCompositionCompatibleWithControlledService(service, compositionData) {
+    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+    if (!controlledService || !compositionData) {
+      return true;
+    }
+    const haystack = normalize([
+      compositionData.id,
+      compositionData.code,
+      compositionData.service,
+      compositionData.name,
+      compositionData.description,
+      compositionData.serviceType,
+      compositionData.category
+    ].join(" "));
+    if (controlledService.id === "piso_ceramico") {
+      if (hasAny(haystack, ["contrapiso", "laje", "cobertura", "telhado", "telha", "pilar", "viga", "sapata", "radier", "alvenaria"])) {
+        return false;
+      }
+      return normalize(compositionData.id) === "std piso" ||
+        hasAny(haystack, ["piso ceramico", "assentamento de piso", "revestimento de piso"]);
+    }
+    return true;
   }
 
   function getCompositionSource(compositionData) {
@@ -3670,9 +3769,19 @@
         services: []
       };
     }
+    const controlledService = findControlledServiceByText(originalMessage);
+    const controlledServiceIsComplete = controlledService && !isControlledServiceInputIncomplete(controlledService, {
+      originalMessage: originalMessage,
+      quantity: quantity,
+      unit: unit,
+      geometry: geometry
+    });
     const isExplicitCoverageRequest = (hasTerm(text, "cobertura") || hasTerm(text, "telhado") || hasTerm(text, "telha")) && hasExplicitCoverageType(text);
     const ranked = rankCompositions(text, { unit: unit }).filter(function (entry) {
-      return !isExplicitCoverageRequest || normalize(entry.item.category).indexOf("cobertura") >= 0;
+      if (isExplicitCoverageRequest && normalize(entry.item.category).indexOf("cobertura") < 0) {
+        return false;
+      }
+      return !controlledServiceIsComplete || isCompositionCompatibleWithControlledService(controlledService, entry.item);
     });
     const bestScore = ranked.length ? ranked[0].score : 0;
     const services = ranked.filter(function (entry) {
@@ -3684,6 +3793,7 @@
         unit: unit || displayUnit(entry.item.productionUnit),
         requestedUnit: unit,
         materialHint: entry.item.service,
+        controlledServiceId: controlledServiceIsComplete ? controlledService.id : "",
         score: entry.score
       };
     });
@@ -3729,8 +3839,18 @@
       const lineQuantity = parseNumber(lineQuantityMatch[1]);
       const lineText = normalize(line);
       const isLineExplicitCoverageRequest = (hasTerm(lineText, "cobertura") || hasTerm(lineText, "telhado") || hasTerm(lineText, "telha")) && hasExplicitCoverageType(lineText);
+      const lineControlledService = findControlledServiceByText(line);
+      const lineControlledServiceIsComplete = lineControlledService && !isControlledServiceInputIncomplete(lineControlledService, {
+        originalMessage: line,
+        quantity: lineQuantity,
+        unit: lineUnit,
+        geometry: geometry
+      });
       const lineRanked = rankCompositions(lineText, { unit: lineUnit }).filter(function (entry) {
-        return !isLineExplicitCoverageRequest || normalize(entry.item.category).indexOf("cobertura") >= 0;
+        if (isLineExplicitCoverageRequest && normalize(entry.item.category).indexOf("cobertura") < 0) {
+          return false;
+        }
+        return !lineControlledServiceIsComplete || isCompositionCompatibleWithControlledService(lineControlledService, entry.item);
       });
       const lineBestScore = lineRanked.length ? lineRanked[0].score : 0;
       lineRanked.filter(function (entry) {
@@ -3742,6 +3862,7 @@
           unit: lineUnit || displayUnit(entry.item.productionUnit),
           requestedUnit: lineUnit,
           materialHint: entry.item.service,
+          controlledServiceId: lineControlledServiceIsComplete ? lineControlledService.id : "",
           score: entry.score + 20
         });
       });
@@ -5055,10 +5176,15 @@
 
   function buildControlledServiceIncompleteAnswer(controlledService, request) {
     const missing = getControlledServiceMissingData(controlledService, request);
+    const questions = missing.length ? missing.map(function (item) {
+      return getControlledServiceQuestion(controlledService, item);
+    }) : ["Informe o quantitativo do servico."];
     return [
       "PERGUNTAS COMPLEMENTARES",
       "- Servico controlado identificado: " + controlledService.nomeTecnico + ".",
-      "- Informe: " + (missing.length ? missing.join(", ") : "quantitativo do servico") + ".",
+    ].concat(questions.map(function (question) {
+      return "- " + question;
+    })).concat([
       "",
       "DADOS DO SERVICO CONTROLADO",
       "- Unidade principal: " + displayUnit(controlledService.unidadePrincipal),
@@ -5066,9 +5192,10 @@
       "- Materiais esperados: " + controlledService.materiaisEsperados.join(", "),
       "",
       "OBSERVACOES",
+      "- Geometria incompleta ou invalida. Corrija as medidas antes de buscar composicao.",
       "- Nao vou sugerir composicao oficial aleatoria sem os dados minimos do servico.",
       "- Nenhum coeficiente foi inventado."
-    ].join("\n");
+    ]).join("\n");
   }
 
   function hasRealCompositionInResult(result) {
@@ -5252,6 +5379,11 @@
     if (invalidStockItems.length) {
       return buildInvalidStockAnswer(invalidStockItems);
     }
+    const controlledService = findControlledServiceByText(message);
+    const wantsCompositionSuggestion = hasAny(normalize(message), ["qual composicao", "composicoes", "sinapi", "orse", "codigo"]);
+    if (controlledService && isControlledServiceInputIncomplete(controlledService, request) && !request.quantity && !wantsCompositionSuggestion) {
+      return buildControlledServiceIncompleteAnswer(controlledService, request);
+    }
     if (request.geometry && request.geometry.detected && !request.geometry.complete) {
       const geometryQuestions = request.geometry.questions || [];
       return ["PERGUNTAS COMPLEMENTARES"]
@@ -5269,12 +5401,6 @@
       return question && list.indexOf(question) === index;
     });
     const servicesWithoutComposition = request.servicesWithoutComposition || [];
-    const controlledService = findControlledServiceByText(message);
-
-    const wantsCompositionSuggestion = hasAny(normalize(message), ["qual composicao", "composicoes", "sinapi", "orse", "codigo"]);
-    if (controlledService && isControlledServiceInputIncomplete(controlledService, request) && !request.quantity && !wantsCompositionSuggestion) {
-      return buildControlledServiceIncompleteAnswer(controlledService, request);
-    }
 
     if (!request.quantity && getSuggestedOfficialCompositions(request, 1).length) {
       const lines = [
