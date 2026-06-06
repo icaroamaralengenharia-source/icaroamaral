@@ -4121,6 +4121,344 @@
     });
   }
 
+  function isWithdrawalRequest(message) {
+    const text = normalize(message);
+    return hasAny(text, [
+      "pediu", "solicitou", "retirada", "retirar", "liberar material",
+      "liberacao de material", "liberacao", "almoxarifado", "almox"
+    ]) && hasAny(text, ["para fazer", "para executar", "para assentar", "para instalar", "para concretar", "servico"]);
+  }
+
+  function normalizeRequestedMaterialName(rawName, rawUnit, fullText) {
+    const unitKey = normalize(rawUnit);
+    const materialKey = normalize(rawName);
+    const text = normalize(fullText);
+    if (unitKey.indexOf("tabua") >= 0) {
+      return "Tabua";
+    }
+    if (unitKey.indexOf("telha") >= 0) {
+      return "Telha ceramica";
+    }
+    if (unitKey.indexOf("bloco") >= 0) {
+      return "Bloco ceramico";
+    }
+    if (materialKey.indexOf("cimento") >= 0) {
+      return "Cimento";
+    }
+    if (materialKey.indexOf("argamassa") >= 0) {
+      return clean(rawName).replace(/\s+/g, " ");
+    }
+    if (materialKey.indexOf("tabua") >= 0 || materialKey.indexOf("madeira") >= 0) {
+      return "Tabua";
+    }
+    if (materialKey.indexOf("prego") >= 0) {
+      return "Prego";
+    }
+    if (materialKey.indexOf("areia") >= 0) {
+      return "Areia";
+    }
+    if (materialKey.indexOf("aco") >= 0 || materialKey.indexOf("ferro") >= 0) {
+      return "Aco CA-50";
+    }
+    if (materialKey.indexOf("piso") >= 0) {
+      return "Piso ceramico";
+    }
+    if (!materialKey && unitKey.indexOf("saco") >= 0 && text.indexOf("cimento") >= 0) {
+      return "Cimento";
+    }
+    return clean(rawName).replace(/\s+/g, " ");
+  }
+
+  function extractRequestedMaterials(message) {
+    const originalMessage = clean(message);
+    const requestSegment = clean((originalMessage.split(/\bpara\s+(?:fazer|executar|assentar|instalar|concretar|aplicar|servico|serviço)\b/i)[0] || originalMessage)
+      .replace(/^.*?\b(?:pediu|solicitou|retirar|retirada|liberar|liberacao|liberação)\b\s*/i, ""));
+    const normalizedSegment = requestSegment.replace(/\bmetros?\b/gi, "m").replace(/\btabuas\b/gi, "tabuas");
+    const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|tabuas?|t[aá]buas?|m2|m²|m3|m³|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
+    const requested = [];
+    let match;
+    while ((match = pattern.exec(normalizedSegment))) {
+      const quantity = parseNumber(match[1]);
+      const rawUnit = clean(match[2]);
+      let unit = normalizeUnit(rawUnit);
+      if (normalize(rawUnit).indexOf("saco") >= 0) {
+        unit = "saco";
+      }
+      if (normalize(rawUnit).indexOf("tabua") >= 0) {
+        unit = "un";
+      }
+      if (normalize(rawUnit).indexOf("telha") >= 0 || normalize(rawUnit).indexOf("bloco") >= 0) {
+        unit = "un";
+      }
+      const name = normalizeRequestedMaterialName(match[3] || "", rawUnit, normalizedSegment);
+      if (quantity > 0 && name) {
+        requested.push({
+          id: "withdrawal_requested_" + normalize(name).replace(/\s+/g, "_") + "_" + unit,
+          name: name,
+          material: name,
+          quantity: roundQuantity(quantity),
+          requestedQuantity: roundQuantity(quantity),
+          unit: unit
+        });
+      }
+    }
+    const grouped = {};
+    requested.forEach(function (item) {
+      const key = normalize(item.name) + "|" + normalizeUnit(item.unit);
+      grouped[key] = grouped[key] || Object.assign({}, item, { quantity: 0, requestedQuantity: 0 });
+      grouped[key].quantity = roundQuantity(parseNumber(grouped[key].quantity) + parseNumber(item.quantity));
+      grouped[key].requestedQuantity = grouped[key].quantity;
+    });
+    return Object.keys(grouped).map(function (key) {
+      return grouped[key];
+    });
+  }
+
+  function extractWithdrawalServiceText(message) {
+    const originalMessage = clean(message);
+    const match = originalMessage.match(/\bpara\s+(fazer|executar|assentar|instalar|concretar|aplicar)\s+([\s\S]+)$/i);
+    if (match) {
+      return clean(match[1] + " " + match[2]);
+    }
+    const serviceMatch = originalMessage.match(/\bservi[cç]o\s*:?\s*([\s\S]+)$/i);
+    return serviceMatch ? clean(serviceMatch[1]) : originalMessage;
+  }
+
+  function inferWithdrawalServiceFromText(serviceText) {
+    const text = normalize(serviceText);
+    const quantityMatch = serviceText.match(/(\d+(?:[.,]\d+)?)\s*(m2|m²|m3|m³|m\b|un\b|unidades?)/i);
+    const looseQuantityMatch = quantityMatch ? null : serviceText.match(/\b(\d+(?:[.,]\d+)?)\b/);
+    const quantity = quantityMatch ? parseNumber(quantityMatch[1]) : looseQuantityMatch ? parseNumber(looseQuantityMatch[1]) : 0;
+    const unit = quantityMatch ? normalizeUnit(quantityMatch[2]) :
+      hasAny(text, ["pilar", "pilares", "porta", "portas", "janela", "janelas"]) ? "un" : "";
+    const ranked = rankCompositions(serviceText, { unit: unit }).filter(function (entry) {
+      return !unit || normalizeUnit(entry.item.productionUnit || entry.item.unit) === unit;
+    });
+    const compositionData = ranked.length ? ranked[0].item : null;
+    if (!compositionData || quantity <= 0) {
+      return null;
+    }
+    return {
+      service: compositionData.service || compositionData.name,
+      quantity: quantity,
+      unit: unit || displayUnit(compositionData.productionUnit || compositionData.unit || "un"),
+      requestedUnit: unit,
+      serviceType: normalizeServiceType(compositionData.service || compositionData.name),
+      materialHint: serviceText,
+      composition: compositionData,
+      score: ranked[0].score
+    };
+  }
+
+  function buildWithdrawalServices(message) {
+    const serviceText = extractWithdrawalServiceText(message);
+    const parsed = parseRequest(serviceText);
+    const parsedServices = (parsed.services || []).filter(function (service) {
+      return parseNumber(service.quantity) > 0 && (service.composition || findCompositionForProductionService(service));
+    });
+    const bestScore = parsedServices.reduce(function (score, service) {
+      return Math.max(score, parseNumber(service.score));
+    }, 0);
+    const services = parsedServices.filter(function (service) {
+      return parseNumber(service.score) >= bestScore;
+    }).slice(0, 1);
+    if (services.length && !(parsed.geometry && parsed.geometry.detected && !parsed.geometry.complete)) {
+      return {
+        serviceText: serviceText,
+        request: parsed,
+        services: services,
+        questions: []
+      };
+    }
+    const inferred = inferWithdrawalServiceFromText(serviceText);
+    if (inferred) {
+      return {
+        serviceText: serviceText,
+        request: parsed,
+        services: [inferred],
+        questions: []
+      };
+    }
+    const questions = [];
+    if (parsed.geometry && parsed.geometry.questions && parsed.geometry.questions.length) {
+      questions.push.apply(questions, parsed.geometry.questions);
+    }
+    if (!questions.length) {
+      questions.push("Informe o quantitativo do servico para comparar a retirada com o consumo previsto.");
+    }
+    return {
+      serviceText: serviceText,
+      request: parsed,
+      services: [],
+      questions: questions
+    };
+  }
+
+  function classifyWithdrawalStatus(requestedQuantity, predictedQuantity) {
+    if (predictedQuantity <= 0 && requestedQuantity > 0) {
+      return "item nao previsto na composicao";
+    }
+    const difference = requestedQuantity - predictedQuantity;
+    const tolerance = Math.max(predictedQuantity * 0.1, 0.001);
+    if (Math.abs(difference) <= tolerance) {
+      return "dentro do previsto";
+    }
+    if (difference > 0) {
+      return "acima do previsto";
+    }
+    return "abaixo do previsto";
+  }
+
+  function getWithdrawalRecommendation(status) {
+    if (status === "dentro do previsto") {
+      return "liberar";
+    }
+    if (status === "acima do previsto") {
+      return "reduzir quantidade ou exigir justificativa";
+    }
+    if (status === "abaixo do previsto") {
+      return "aumentar quantidade";
+    }
+    return "liberar com atencao e exigir justificativa";
+  }
+
+  function compareWithdrawalRequest(requestedItems, predictedItems) {
+    return (requestedItems || []).map(function (requested) {
+      const match = matchPredictedMaterialToStockItem(requested, (predictedItems || []).map(function (item) {
+        return {
+          item: {
+            id: item.id,
+            name: item.name || item.material,
+            unit: item.unit || "un"
+          },
+          realBalance: item.quantity || item.predictedQuantity
+        };
+      }));
+      const predictedQuantity = match ? roundQuantity(parseNumber(match.realBalance)) : 0;
+      const requestedQuantity = roundQuantity(parseNumber(requested.quantity || requested.requestedQuantity));
+      const difference = roundQuantity(requestedQuantity - predictedQuantity);
+      const status = classifyWithdrawalStatus(requestedQuantity, predictedQuantity);
+      return {
+        material: requested.name || requested.material,
+        requestedQuantity: requestedQuantity,
+        predictedQuantity: predictedQuantity,
+        difference: difference,
+        unit: requested.unit || "un",
+        status: status,
+        recommendation: getWithdrawalRecommendation(status)
+      };
+    });
+  }
+
+  function buildWithdrawalPurchasePlan(comparison) {
+    return (comparison || []).map(function (item) {
+      if (item.status === "abaixo do previsto") {
+        return "- " + item.material + ": complementar " + formatQuantity(Math.abs(item.difference)) + " " + displayUnit(item.unit) + ".";
+      }
+      if (item.status === "acima do previsto") {
+        return "- " + item.material + ": reduzir " + formatQuantity(item.difference) + " " + displayUnit(item.unit) + " ou exigir justificativa.";
+      }
+      if (item.status === "item nao previsto na composicao") {
+        return "- " + item.material + ": item nao previsto; nao incluir no plano sem justificativa tecnica.";
+      }
+      return "- " + item.material + ": retirada alinhada ao previsto.";
+    });
+  }
+
+  function buildWithdrawalConference(message, options) {
+    const settings = options || {};
+    const requestedItems = settings.requestedItems || extractRequestedMaterials(message);
+    if (!isWithdrawalRequest(message)) {
+      return { detected: false, answer: "" };
+    }
+    if (!requestedItems.length) {
+      return {
+        detected: true,
+        ok: false,
+        answer: [
+          "CONFERENCIA INTELIGENTE DE RETIRADA",
+          "",
+          "PERGUNTAS COMPLEMENTARES",
+          "- Informe quais materiais foram solicitados e em quais quantidades."
+        ].join("\n")
+      };
+    }
+    const serviceData = buildWithdrawalServices(message);
+    if (!serviceData.services.length) {
+      return {
+        detected: true,
+        ok: false,
+        requestedItems: requestedItems,
+        answer: [
+          "CONFERENCIA INTELIGENTE DE RETIRADA",
+          "",
+          "MATERIAIS SOLICITADOS",
+        ].concat(requestedItems.map(function (item) {
+          return "- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit);
+        })).concat([
+          "",
+          "PERGUNTAS COMPLEMENTARES"
+        ]).concat(serviceData.questions.map(function (question) {
+          return "- " + question;
+        })).concat([
+          "",
+          "OBSERVACOES",
+          "- Se nao houver composicao oficial compativel, o sistema so usa fallback demonstrativo com aviso claro.",
+          "- Nenhum coeficiente foi inventado."
+        ]).join("\n")
+      };
+    }
+    const result = calculateMultipleServices(serviceData.services);
+    const predictedItems = result.items || [];
+    const comparison = compareWithdrawalRequest(requestedItems, predictedItems);
+    const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
+    lines.push("SERVICO INFORMADO");
+    serviceData.services.forEach(function (service) {
+      const compositionData = service.composition || findCompositionForProductionService(service);
+      lines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
+      if (compositionData) {
+        lines.push("  Composicao utilizada: " + (compositionData.code || compositionData.id || "sem codigo") + " - " + (compositionData.name || compositionData.service));
+        lines.push("  " + formatCompositionSource(compositionData));
+      }
+    });
+    lines.push("");
+    lines.push("MATERIAIS SOLICITADOS X PREVISTOS");
+    comparison.forEach(function (item) {
+      lines.push("- " + item.material +
+        ": solicitado " + formatQuantity(item.requestedQuantity) + " " + displayUnit(item.unit) +
+        ", previsto " + formatQuantity(item.predictedQuantity) + " " + displayUnit(item.unit) +
+        ", diferenca " + formatQuantity(item.difference) + " " + displayUnit(item.unit) +
+        " | status: " + item.status +
+        " | recomendacao: " + item.recommendation);
+    });
+    lines.push("");
+    lines.push("CONSUMO PREVISTO DA COMPOSICAO");
+    if (predictedItems.length) {
+      predictedItems.forEach(function (item) {
+        lines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+      });
+    } else {
+      lines.push("- Sem consumo previsto calculado para a composicao identificada.");
+    }
+    lines.push("");
+    lines.push("PLANO DE COMPRA/RETIRADA");
+    lines.push.apply(lines, buildWithdrawalPurchasePlan(comparison));
+    lines.push("");
+    lines.push("OBSERVACOES");
+    lines.push("- " + getResultSourceWarning(result));
+    lines.push("- Nenhum coeficiente foi inventado.");
+    lines.push("- " + PURCHASE_WARNING);
+    return {
+      detected: true,
+      ok: true,
+      requestedItems: requestedItems,
+      services: serviceData.services,
+      predictedItems: predictedItems,
+      comparison: comparison,
+      answer: lines.join("\n")
+    };
+  }
+
   function getRequiredParameterQuestion(serviceName, parameter) {
     const service = normalize(serviceName);
     if (parameter === "comprimento_linear" && service.indexOf("rufo") >= 0) {
@@ -4447,6 +4785,10 @@
 
   function buildAnswerFromMessage(message, options) {
     const settings = options || {};
+    const withdrawal = buildWithdrawalConference(message, settings);
+    if (withdrawal.detected) {
+      return withdrawal.answer;
+    }
     const request = parseRequest(message);
     const reportedStock = parseStockItemsFromMessage(message);
     const stockItems = (settings.stockItems || []).concat(reportedStock);
@@ -4695,6 +5037,10 @@
     validateCompositionSchema: validateCompositionSchema,
     parseGeometryRequest: parseGeometryRequest,
     parseRequest: parseRequest,
+    isWithdrawalRequest: isWithdrawalRequest,
+    extractRequestedMaterials: extractRequestedMaterials,
+    buildWithdrawalConference: buildWithdrawalConference,
+    compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,
     normalizeUnit: normalizeUnit,
     calculatePredictedConsumption: calculatePredictedConsumption,

@@ -190,6 +190,46 @@ function officialGeometryRowsFixture() {
   }];
 }
 
+function officialWithdrawalRowsFixture() {
+  return [{
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-RET-PILAR-001",
+    compositionName: "Pilar unitario para conferencia de retirada",
+    compositionUnit: "un",
+    serviceType: "pilar",
+    inputCode: "SINAPI-RET-CIM",
+    inputName: "Cimento",
+    inputUnit: "saco",
+    coefficient: "4"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-RET-PILAR-001",
+    compositionName: "Pilar unitario para conferencia de retirada",
+    compositionUnit: "un",
+    serviceType: "pilar",
+    inputCode: "SINAPI-RET-TAB",
+    inputName: "Tabua",
+    inputUnit: "un",
+    coefficient: "8"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-RET-PISO-001",
+    compositionName: "Assentamento de piso com argamassa AC3",
+    compositionUnit: "m2",
+    serviceType: "piso",
+    inputCode: "SINAPI-RET-AC3",
+    inputName: "Argamassa colante AC3",
+    inputUnit: "saco",
+    coefficient: "1"
+  }];
+}
+
 function officialBaseCodigo97141Fixture() {
   return [{
     source: "SINAPI",
@@ -1538,6 +1578,69 @@ test("Stock AI Obras aplica SINAPI importado em cobertura por area sem tipo info
   assert.match(answer, /Composicao utilizada: SINAPI-GEO-COB-001/);
   assert.match(answer, /Telha ceramica geometria oficial: 2\.880 un|Telha ceramica geometria oficial: 2880 un/);
   assert.doesNotMatch(answer, /tipo de cobertura/i);
+});
+
+test("Stock AI Obras conferencia de retirada marca pedido acima do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 10 sacos de cimento e 20 tabuas para fazer 2 pilares");
+
+  assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA/);
+  assert.match(answer, /Composicao utilizada: SINAPI-RET-PILAR-001/);
+  assert.match(answer, /Cimento: solicitado 10 saco, previsto 8 saco, diferenca 2 saco \| status: acima do previsto/);
+  assert.match(answer, /Tabua: solicitado 20 un, previsto 16 un, diferenca 4 un \| status: acima do previsto/);
+  assert.match(answer, /reduzir quantidade ou exigir justificativa/);
+  assert.match(answer, /SINAPI oficial importado ou ORSE oficial importado/);
+});
+
+test("Stock AI Obras conferencia de retirada marca pedido abaixo do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de argamassa colante AC3 para assentar 10 m2 de piso");
+
+  assert.match(answer, /argamassa colante AC3: solicitado 8 saco, previsto 10 saco, diferenca -2 saco \| status: abaixo do previsto/);
+  assert.match(answer, /recomendacao: aumentar quantidade/);
+  assert.match(answer, /complementar 2 saco/);
+});
+
+test("Stock AI Obras conferencia de retirada marca pedido dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de cimento e 16 tabuas para fazer 2 pilares");
+
+  assert.match(answer, /Cimento: solicitado 8 saco, previsto 8 saco, diferenca 0 saco \| status: dentro do previsto/);
+  assert.match(answer, /Tabua: solicitado 16 un, previsto 16 un, diferenca 0 un \| status: dentro do previsto/);
+  assert.match(answer, /recomendacao: liberar/);
+});
+
+test("Stock AI Obras conferencia de retirada marca item nao previsto na composicao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de cimento e 2 kg de prego para fazer 2 pilares");
+
+  assert.match(answer, /Prego: solicitado 2 kg, previsto 0 kg, diferenca 2 kg \| status: item nao previsto na composicao/);
+  assert.match(answer, /exigir justificativa/);
+});
+
+test("Stock AI Obras conferencia de retirada pede complemento quando falta quantitativo suficiente", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 10 sacos de cimento para fazer pilares");
+
+  assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA/);
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /Quantos pilares serao executados e qual a altura\?|Informe o quantitativo do servico/);
+  assert.match(answer, /Nenhum coeficiente foi inventado/);
+});
+
+test("Stock AI Obras conferencia de retirada preserva fallback demonstrativo com aviso", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 12 m2 de piso ceramico para assentar 10 m2 de piso");
+
+  assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA/);
+  assert.match(answer, /Fonte: Base tecnica demonstrativa/);
+  assert.match(answer, /Piso ceramico: solicitado 12 m(?:2|²), previsto 10,815 m(?:2|²), diferenca 1,185 m(?:2|²) \| status: acima do previsto/);
+  assert.match(answer, /Composi[cç][aã]o demonstrativa/);
 });
 
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
