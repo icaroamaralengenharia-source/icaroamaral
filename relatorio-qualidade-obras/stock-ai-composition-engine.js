@@ -5688,6 +5688,55 @@
     withdrawalManagerAlerts = [];
   }
 
+  function buildWithdrawalExecutiveMessage(indicators) {
+    const data = indicators || {};
+    if (parseNumber(data.pendingApprovals) > 0 && parseNumber(data.criticalRequests) > 0) {
+      return "Atencao critica: ha pedidos criticos pendentes de aprovacao.";
+    }
+    if (parseNumber(data.pendingApprovals) > 0) {
+      return "Atencao: ha pedidos pendentes de aprovacao.";
+    }
+    if (parseNumber(data.rejectedRequests) > 0 || parseNumber(data.blockedRequests) > 0) {
+      return "Atencao: ha retiradas rejeitadas ou bloqueadas para acompanhamento.";
+    }
+    return "Operacao sem alertas executivos criticos no momento.";
+  }
+
+  function getWithdrawalExecutiveDashboard() {
+    const approvalQueueSummary = getWithdrawalApprovalQueueSummary();
+    const deviationSummary = getWithdrawalDeviationSummary();
+    const alerts = getWithdrawalManagerAlerts();
+    const unreadAlerts = getUnreadWithdrawalManagerAlerts();
+    const pendingRequests = getPendingWithdrawalApprovalRequests();
+    const rankings = {
+      byRequester: getWithdrawalDeviationRankingByRequester(),
+      byService: getWithdrawalDeviationRankingByService(),
+      byRiskLevel: getWithdrawalDeviationRankingByRiskLevel(),
+      byStatus: getWithdrawalDeviationRankingByStatus()
+    };
+    const indicators = {
+      totalRequests: deviationSummary.totalRequests || 0,
+      pendingApprovals: approvalQueueSummary.pending || deviationSummary.pending || 0,
+      criticalRequests: deviationSummary.critical || 0,
+      rejectedRequests: deviationSummary.rejected || 0,
+      blockedRequests: deviationSummary.blockedRequests || approvalQueueSummary.blocked || 0,
+      releasableRequests: deviationSummary.releasableRequests || approvalQueueSummary.canRelease || 0,
+      averageDivergencePercent: deviationSummary.averageDivergencePercent || 0
+    };
+    return {
+      generatedAt: new Date().toISOString(),
+      approvalQueueSummary: approvalQueueSummary,
+      deviationSummary: deviationSummary,
+      unreadAlertsCount: unreadAlerts.length,
+      alerts: alerts,
+      unreadAlerts: unreadAlerts,
+      pendingRequests: pendingRequests,
+      rankings: rankings,
+      indicators: indicators,
+      executiveMessage: buildWithdrawalExecutiveMessage(indicators)
+    };
+  }
+
   function buildWithdrawalPurchasePlan(comparison) {
     return (comparison || []).map(function (item) {
       if (item.status === "abaixo do previsto") {
@@ -6562,6 +6611,7 @@
     getUnreadWithdrawalManagerAlerts: getUnreadWithdrawalManagerAlerts,
     markWithdrawalManagerAlertAsRead: markWithdrawalManagerAlertAsRead,
     clearWithdrawalManagerAlertsForTests: clearWithdrawalManagerAlertsForTests,
+    getWithdrawalExecutiveDashboard: getWithdrawalExecutiveDashboard,
     buildWithdrawalConference: buildWithdrawalConference,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,

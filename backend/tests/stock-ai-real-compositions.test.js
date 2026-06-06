@@ -2232,6 +2232,78 @@ test("Stock AI Obras alertas para gestor limpa alertas para testes", () => {
   assert.equal(engine.getUnreadWithdrawalManagerAlerts().length, 0);
 });
 
+test("Stock AI Obras dashboard executivo retorna vazio", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const dashboard = engine.getWithdrawalExecutiveDashboard();
+
+  assert.ok(dashboard.generatedAt);
+  assert.equal(dashboard.approvalQueueSummary.total, 0);
+  assert.equal(dashboard.deviationSummary.totalRequests, 0);
+  assert.equal(dashboard.unreadAlertsCount, 0);
+  assert.equal(dashboard.alerts.length, 0);
+  assert.equal(dashboard.unreadAlerts.length, 0);
+  assert.equal(dashboard.pendingRequests.length, 0);
+  assert.equal(dashboard.indicators.totalRequests, 0);
+  assert.match(dashboard.executiveMessage, /sem alertas executivos criticos/i);
+});
+
+test("Stock AI Obras dashboard executivo mostra pedido pendente", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  const dashboard = engine.getWithdrawalExecutiveDashboard();
+
+  assert.equal(dashboard.approvalQueueSummary.pending, 1);
+  assert.equal(dashboard.pendingRequests.length, 1);
+  assert.equal(dashboard.pendingRequests[0].id, conference.approvalRequest.id);
+  assert.equal(dashboard.indicators.pendingApprovals, 1);
+});
+
+test("Stock AI Obras dashboard executivo mostra alerta nao lido", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  const dashboard = engine.getWithdrawalExecutiveDashboard();
+
+  assert.equal(dashboard.alerts.length, 1);
+  assert.equal(dashboard.unreadAlerts.length, 1);
+  assert.equal(dashboard.unreadAlertsCount, 1);
+  assert.equal(dashboard.unreadAlerts[0].read, false);
+});
+
+test("Stock AI Obras dashboard executivo mostra rankings preenchidos", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 10 sacos de argamassa colante AC3 para assentar 10 m2 de piso", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  const dashboard = engine.getWithdrawalExecutiveDashboard();
+
+  assert.equal(dashboard.rankings.byRequester[0].requestedBy, "Joao");
+  assert.equal(dashboard.rankings.byRequester[0].total, 2);
+  assert.equal(dashboard.rankings.byService[0].serviceId, "pilar");
+  assert.equal(dashboard.rankings.byService[0].total, 2);
+  assert.ok(dashboard.rankings.byRiskLevel.length >= 1);
+  assert.ok(dashboard.rankings.byStatus.length >= 1);
+});
+
+test("Stock AI Obras dashboard executivo gera mensagem critica com pendencia critica", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  const dashboard = engine.getWithdrawalExecutiveDashboard();
+
+  assert.equal(dashboard.indicators.criticalRequests, 1);
+  assert.equal(dashboard.indicators.pendingApprovals, 1);
+  assert.match(dashboard.executiveMessage, /Atencao critica/i);
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
