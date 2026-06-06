@@ -1169,6 +1169,7 @@
   function blocksComposition(text, item) {
     const id = item.id;
     const hasSpecificRoofType = hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+      hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
       hasTerm(text, "fibrocimento") || hasTerm(text, "madeiramento") || hasTerm(text, "estrutura de madeira");
     if ((id === "std_alvenaria" || id === "std_concreto_simples") && hasTerm(text, "bloco de concreto")) {
       return true;
@@ -1533,6 +1534,7 @@
 
   function hasExplicitCoverageType(text) {
     return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+      hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
       hasTerm(text, "fibrocimento") || hasTerm(text, "metalica") || hasTerm(text, "metálica") ||
       hasTerm(text, "sanduiche") || hasTerm(text, "sanduíche") || hasTerm(text, "laje impermeabilizada");
   }
@@ -2040,7 +2042,10 @@
         services: []
       };
     }
-    const ranked = rankCompositions(text, { unit: unit });
+    const isExplicitCoverageRequest = (hasTerm(text, "cobertura") || hasTerm(text, "telhado") || hasTerm(text, "telha")) && hasExplicitCoverageType(text);
+    const ranked = rankCompositions(text, { unit: unit }).filter(function (entry) {
+      return !isExplicitCoverageRequest || normalize(entry.item.category).indexOf("cobertura") >= 0;
+    });
     const bestScore = ranked.length ? ranked[0].score : 0;
     const services = ranked.filter(function (entry) {
       return entry.score >= 100 && entry.score >= Math.max(100, bestScore * 0.2);
@@ -2094,7 +2099,11 @@
       }
       const lineUnit = normalizeRequestedUnit(lineQuantityMatch[2]);
       const lineQuantity = parseNumber(lineQuantityMatch[1]);
-      const lineRanked = rankCompositions(normalize(line), { unit: lineUnit });
+      const lineText = normalize(line);
+      const isLineExplicitCoverageRequest = (hasTerm(lineText, "cobertura") || hasTerm(lineText, "telhado") || hasTerm(lineText, "telha")) && hasExplicitCoverageType(lineText);
+      const lineRanked = rankCompositions(lineText, { unit: lineUnit }).filter(function (entry) {
+        return !isLineExplicitCoverageRequest || normalize(entry.item.category).indexOf("cobertura") >= 0;
+      });
       const lineBestScore = lineRanked.length ? lineRanked[0].score : 0;
       lineRanked.filter(function (entry) {
         return entry.score >= 100 && entry.score >= Math.max(100, lineBestScore * 0.2);
@@ -2776,7 +2785,7 @@
       const triggerMatch = line.match(stockTriggerPattern);
       if (triggerMatch) {
         inStockSection = true;
-        stockLines.push(line.slice(triggerMatch.index + triggerMatch[0].length));
+        stockLines.push(clean(line.slice(triggerMatch.index + triggerMatch[0].length)).replace(/\.$/, ""));
         return;
       }
       if (inStockSection && /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)/i.test(line)) {
@@ -2787,7 +2796,14 @@
         inStockSection = false;
       }
     });
-    const text = stockLines.join("\n").replace(/\bmetros?\b/gi, "m");
+    clean(message).split(/[.;]+/).slice(1).forEach(function (segment) {
+      const stockSegment = clean(segment);
+      if (/^(tenho|temos)\s+\d+(?:[.,]\d+)?\s*(sacos?|mÂ²|m2|mÂ³|m3|kg|telhas?|blocos?|unidades?|un|m|metros?)/i.test(stockSegment)) {
+        stockLines.push(stockSegment.replace(/^(tenho|temos)\s+/i, ""));
+      }
+    });
+    const text = stockLines.join("\n").replace(/\bmetros?\b/gi, "m").replace(/\b(m|un|kg|sacos?)\./gi, "$1");
+    const fullMessageKey = normalize(message);
     const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     let match;
     while ((match = pattern.exec(text))) {
@@ -2816,6 +2832,8 @@
         name = "Cabo eletrico";
       } else if (materialKey.indexOf("aco") >= 0 || materialKey.indexOf("ferro") >= 0) {
         name = "Aco CA-50";
+      } else if (!materialKey && unit === "m" && (hasTerm(fullMessageKey, "cabo") || hasTerm(fullMessageKey, "fio"))) {
+        name = "Cabo eletrico";
       }
       if (quantity > 0 && name) {
         stockItems.push({
@@ -2880,6 +2898,7 @@
     }
     if (parameter === "tipo_cobertura") {
       return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
+        hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
         hasTerm(text, "fibrocimento") || hasTerm(text, "metalica") || hasTerm(text, "metálica") ||
         hasTerm(text, "sanduiche") || hasTerm(text, "sanduíche") || hasTerm(text, "laje impermeabilizada");
     }
@@ -2903,6 +2922,7 @@
     const text = normalize(request.originalMessage);
     if ((hasTerm(text, "cobertura") || hasTerm(text, "cobrir") || hasTerm(text, "telhado")) &&
       !hasTerm(text, "telha ceramica") && !hasTerm(text, "telha cerâmica") &&
+      !hasTerm(text, "ceramico") && !hasTerm(text, "ceramica") &&
       !hasTerm(text, "fibrocimento") && !hasTerm(text, "madeiramento") && !hasTerm(text, "estrutura de madeira")) {
       const coverageMatch = request.originalMessage.match(/(\d+(?:[.,]\d+)?)\s*(m²|m2|metro quadrado|metros quadrados)\s*(?:de\s+)?(cobertura|telhado)/i);
       const coverageText = coverageMatch

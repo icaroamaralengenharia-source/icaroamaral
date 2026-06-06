@@ -414,6 +414,22 @@ test("Stock AI Obras nao usa quantidade de estoque como quantitativo do servico"
   assert.match(answer, /Cabo eletrico: 50 m/);
 });
 
+test("Stock AI Obras detecta estoque em segunda frase sem palavra estoque", () => {
+  const answer = engine.buildAnswerFromMessage("Tenho uma parede de 12 x 3. Tenho 20 sacos de cimento.");
+
+  assert.match(answer, /Cimento: 20 saco/);
+  assert.match(answer, /ESTOQUE X PREVISTO/);
+  assert.match(answer, /PLANEJAMENTO DE COMPRA/);
+});
+
+test("Stock AI Obras infere estoque em metros para cabo quando material esta implicito", () => {
+  const answer = engine.buildAnswerFromMessage("Cabo 120 metros. Tenho em estoque 50 metros.");
+
+  assert.match(answer, /120 m de Cabo eletrico/);
+  assert.match(answer, /Cabo eletrico: 50 m/);
+  assert.match(answer, /PLANEJAMENTO DE COMPRA/);
+});
+
 test("Stock AI Obras mantem cobertura composta como pendencia sem bloquear alvenaria e piso", () => {
   const answer = engine.buildAnswerFromMessage("Casa 8 x 10 com pe-direito de 3 metros");
 
@@ -431,6 +447,23 @@ test("Stock AI Obras nao calcula cobertura sem tipo como composicao generica", (
   assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
   assert.doesNotMatch(answer, /Laje macica ou pre-moldada/);
   assert.doesNotMatch(answer, /Alvenaria de bloco/);
+});
+
+test("Stock AI Obras calcula cobertura ceramica quando tipo esta informado", () => {
+  const answer = engine.buildAnswerFromMessage("Tenho telhado ceramico de 80 m2");
+
+  assert.match(answer, /Telha ceramica/);
+  assert.match(answer, /CONSUMO PREVISTO/);
+  assert.doesNotMatch(answer, /tipo de cobertura/i);
+});
+
+test("Stock AI Obras restringe telhado fibrocimento a composicoes de cobertura", () => {
+  const answer = engine.buildAnswerFromMessage("telhado fibrocimento 100 m2");
+
+  assert.match(answer, /CONSUMO PREVISTO/);
+  assert.doesNotMatch(answer, /Alvenaria de bloco/);
+  assert.doesNotMatch(answer, /Laje macica ou pre-moldada/);
+  assert.doesNotMatch(answer, /tipo de cobertura/i);
 });
 
 function assertStructuralConsumption(message, expectedQuantity, unit, expectedSource = /Fonte: Base .*demonstrativa/i) {
