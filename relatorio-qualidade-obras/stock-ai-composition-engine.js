@@ -3624,6 +3624,37 @@
     ].join("\n");
   }
 
+  function buildMaterialOnlyQuestionAnswer(message) {
+    const originalMessage = clean(message);
+    const text = normalize(originalMessage);
+    const hasLooseMaterial = /\b(?:tem|tenho|temos)\s+\d+(?:[.,]\d+)?\s*(?:sacos?|kg|m3|m2|un|unidades?)\s+(?:de\s+)?(?:cimento|areia|brita|argamassa|bloco|tijolo)\b/i.test(originalMessage);
+    const hasServiceContext = hasAny(text, [
+      "fazer", "executar", "assentar", "concretar", "levantar", "aplicar",
+      "parede", "muro", "laje", "piso", "reboco", "emboco", "chapisco",
+      "sapata", "pilar", "baldrame", "galpao", "casa", "calcada"
+    ]);
+    if (!hasLooseMaterial || hasServiceContext) {
+      return "";
+    }
+    const materialMatch = originalMessage.match(/\b(?:tem|tenho|temos)\s+(\d+(?:[.,]\d+)?)\s*(sacos?|kg|m3|m³|m2|m²|un|unidades?)\s+(?:de\s+)?([a-zA-ZÀ-ÿ]+)/i);
+    const materialLine = materialMatch
+      ? "- Material informado: " + formatQuantity(parseDimensionNumber(materialMatch[1])) + " " + displayUnit(materialMatch[2]) + " de " + clean(materialMatch[3]) + "."
+      : "- Material informado na mensagem, mas sem servico definido.";
+    return [
+      "PERGUNTAS COMPLEMENTARES",
+      materialLine,
+      "- Qual servico sera executado?",
+      "- Informe area, volume ou comprimento do servico.",
+      "- Informe espessura, secao ou altura quando for concreto, laje, pilar, viga, baldrame ou sapata.",
+      "- Informe o traco ou composicao desejada, se ja existir.",
+      "- Voce quer verificar se esse estoque disponivel atende ao servico?",
+      "",
+      "OBSERVACOES",
+      "- Nao vou calcular consumo sem o servico e o quantitativo da obra.",
+      "- Nenhum coeficiente foi inventado."
+    ].join("\n");
+  }
+
   function hasExplicitCoverageType(text) {
     return hasTerm(text, "telha ceramica") || hasTerm(text, "telha cerâmica") ||
       hasTerm(text, "ceramico") || hasTerm(text, "ceramica") ||
@@ -7374,6 +7405,10 @@
     const wallSpacingPillars = buildWallSpacingPillarsAnswer(message);
     if (wallSpacingPillars) {
       return wallSpacingPillars;
+    }
+    const materialOnlyQuestion = buildMaterialOnlyQuestionAnswer(message);
+    if (materialOnlyQuestion) {
+      return materialOnlyQuestion;
     }
     const request = parseRequest(message);
     const reportedStock = parseStockItemsFromMessage(message);
