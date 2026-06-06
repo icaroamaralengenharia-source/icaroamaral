@@ -414,3 +414,68 @@ test("Stock AI Obras assistente aceita mock TEST ONLY completo sem cadastrar cat
   assert.equal(engine.getExternalCompositionCatalog().length, 0);
   assert.match(analysis.warnings.join(" "), /TEST ONLY|MOCK/);
 });
+
+test("Stock AI Obras diagnostico do template retorna ok false e lista erros", () => {
+  const engine = loadStockAiCompositionEngine();
+  const report = engine.generateOfficialCompositionDiagnosticReport(realTemplate);
+
+  assert.equal(report.ok, false);
+  assert.equal(report.readiness.ready, false);
+  assert.equal(report.readiness.score < 40, true);
+  assert.equal(report.errors.length > 3, true);
+  assert.match(report.errors.join(" "), /placeholder|coefficient oficial ausente|sourceType/i);
+});
+
+test("Stock AI Obras diagnostico parcial retorna score intermediario", () => {
+  const engine = loadStockAiCompositionEngine();
+  const partial = officialManualEntryTestOnly();
+  partial.items[0].code = "";
+  partial.items[0].reference = "";
+  partial.referenceMonth = "";
+  partial.state = "";
+  partial.items[0].inputs[0].code = "";
+  partial.items[0].inputs[0].coefficient = 0;
+
+  const report = engine.generateOfficialCompositionDiagnosticReport(partial);
+
+  assert.equal(report.ok, false);
+  assert.equal(report.readiness.score >= 40, true);
+  assert.equal(report.readiness.score < 80, true);
+  assert.match(report.textReport, /Parcialmente preenchida/);
+});
+
+test("Stock AI Obras diagnostico mock TEST ONLY retorna score 100 com aviso", () => {
+  const engine = loadStockAiCompositionEngine();
+  const mockReady = officialManualEntryTestOnly();
+  mockReady.items[0].metadata.isMock = true;
+  mockReady.items[0].metadata.mockOnly = true;
+
+  const report = engine.generateOfficialCompositionDiagnosticReport(mockReady);
+
+  assert.equal(report.ok, true);
+  assert.equal(report.readiness.score, 100);
+  assert.match(report.warnings.join(" "), /TEST ONLY|MOCK/);
+});
+
+test("Stock AI Obras diagnostico textual contem fonte UF referencia insumos e status", () => {
+  const engine = loadStockAiCompositionEngine();
+  const report = engine.generateOfficialCompositionDiagnosticReport(officialManualEntryTestOnly());
+
+  assert.match(report.textReport, /Fonte: SINAPI/);
+  assert.match(report.textReport, /UF: BA/);
+  assert.match(report.textReport, /Referencia: TEST ONLY - nao usar como base real/);
+  assert.match(report.textReport, /TEST-ONLY-MAT-001/);
+  assert.match(report.textReport, /Status: Pronta para importacao \(100\/100\)/);
+});
+
+test("Stock AI Obras diagnostico nao cadastra catalogo externo sozinho", () => {
+  const engine = loadStockAiCompositionEngine();
+
+  const before = engine.getExternalCompositionCatalog().length;
+  const report = engine.generateOfficialCompositionDiagnosticReport(officialManualEntryTestOnly());
+  const after = engine.getExternalCompositionCatalog().length;
+
+  assert.equal(report.ok, true);
+  assert.equal(before, 0);
+  assert.equal(after, 0);
+});

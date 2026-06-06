@@ -419,6 +419,154 @@
     };
   }
 
+  function generateOfficialCompositionDiagnosticReport(jsonData) {
+    const root = Array.isArray(jsonData) ? {} : (jsonData || {});
+    const rows = Array.isArray(jsonData) ? jsonData : (root.compositions || root.rows || root.items) || [];
+    const readiness = analyzeOfficialCompositionReadiness(jsonData);
+    const validation = validateSmallRealCompositionFile(jsonData);
+    const sourceType = clean(root.sourceType || (rows[0] && rows[0].sourceType));
+    const totalInputs = rows.reduce(function (total, row) {
+      const inputs = row && (row.inputs || row.insumos || row.materials);
+      return total + (Array.isArray(inputs) ? inputs.length : 0);
+    }, 0);
+    const warnings = readiness.warnings.slice();
+    const errors = readiness.errors.concat(validation.rejected.reduce(function (items, item) {
+      return items.concat(item.reasons || []);
+    }, [])).filter(Boolean);
+
+    function unique(values) {
+      const seen = {};
+      return values.filter(function (value) {
+        const key = normalize(value);
+        if (!key || seen[key]) {
+          return false;
+        }
+        seen[key] = true;
+        return true;
+      });
+    }
+
+    function displayValue(value) {
+      return clean(value) || "nao preenchido";
+    }
+
+    function normalizeReportRow(row) {
+      return normalizeComposition(Object.assign({
+        source: root.source,
+        sourceRegion: root.sourceRegion || root.state || root.uf,
+        sourceDate: root.sourceDate || root.referenceMonth
+      }, row || {}));
+    }
+
+    function rowReference(row, normalized) {
+      return clean(row && (row.reference || row.referencia) || root.reference || normalized.sourceDate);
+    }
+
+    const compositionSections = rows.map(function (row, index) {
+      const normalized = normalizeReportRow(row);
+      const inputs = normalized.inputs || [];
+      return {
+        type: "composition",
+        index: index,
+        code: normalized.code,
+        name: normalized.description,
+        unit: normalized.unit,
+        reference: rowReference(row, normalized),
+        isOfficial: row && row.isOfficial === true || normalized.metadata && normalized.metadata.isOfficial === true,
+        inputCount: inputs.length,
+        inputs: inputs.map(function (input) {
+          return {
+            code: input.code,
+            name: input.name,
+            unit: input.unit,
+            coefficient: input.coefficient
+          };
+        })
+      };
+    });
+
+    const status = readiness.ready ? "Pronta para importacao" : readiness.status;
+    const nextAction = readiness.ready
+      ? "Importar pela interface e conferir se a resposta mostra fonte, codigo, UF e referencia oficiais."
+      : "Corrigir os erros listados antes de importar. Nao preencher coeficientes sem fonte oficial.";
+    const sections = [{
+      type: "summary",
+      title: "Resumo da fonte",
+      items: [
+        { label: "Fonte", value: readiness.source },
+        { label: "Tipo de fonte", value: sourceType },
+        { label: "UF", value: readiness.state },
+        { label: "Mes de referencia", value: readiness.referenceMonth },
+        { label: "Total de composicoes", value: rows.length },
+        { label: "Total de insumos", value: totalInputs },
+        { label: "Status", value: status },
+        { label: "Score", value: readiness.score }
+      ]
+    }].concat(compositionSections);
+
+    const lines = [];
+    lines.push("DIAGNOSTICO DA COMPOSICAO OFICIAL");
+    lines.push("Fonte: " + displayValue(readiness.source));
+    lines.push("Tipo de fonte: " + displayValue(sourceType));
+    lines.push("UF: " + displayValue(readiness.state));
+    lines.push("Mes de referencia: " + displayValue(readiness.referenceMonth));
+    lines.push("Total de composicoes: " + rows.length);
+    lines.push("Total de insumos: " + totalInputs);
+    lines.push("Status: " + status + " (" + readiness.score + "/100)");
+    compositionSections.forEach(function (section) {
+      lines.push("");
+      lines.push("Composicao " + (section.index + 1));
+      lines.push("- Codigo: " + displayValue(section.code));
+      lines.push("- Nome/descricao: " + displayValue(section.name));
+      lines.push("- Unidade: " + displayValue(section.unit));
+      lines.push("- Referencia: " + displayValue(section.reference));
+      lines.push("- Oficial: " + (section.isOfficial ? "sim" : "nao"));
+      lines.push("- Quantidade de insumos: " + section.inputCount);
+      lines.push("- Insumos:");
+      if (!section.inputs.length) {
+        lines.push("  - nenhum insumo preenchido");
+      }
+      section.inputs.forEach(function (input) {
+        lines.push("  - " + displayValue(input.code) + " | " + displayValue(input.name) +
+          " | " + displayValue(input.unit) + " | coeficiente: " + displayValue(input.coefficient));
+      });
+    });
+    lines.push("");
+    lines.push("Erros:");
+    unique(errors).forEach(function (error) {
+      lines.push("- " + error);
+    });
+    if (!unique(errors).length) {
+      lines.push("- nenhum erro encontrado");
+    }
+    lines.push("");
+    lines.push("Avisos:");
+    unique(warnings).forEach(function (warning) {
+      lines.push("- " + warning);
+    });
+    if (!unique(warnings).length) {
+      lines.push("- nenhum aviso encontrado");
+    }
+    lines.push("");
+    lines.push("Proxima acao recomendada: " + nextAction);
+
+    return {
+      ok: readiness.ready,
+      title: "Diagnostico da composicao oficial",
+      source: readiness.source,
+      sourceType: sourceType,
+      referenceMonth: readiness.referenceMonth,
+      state: readiness.state,
+      totalCompositions: rows.length,
+      totalInputs: totalInputs,
+      readiness: readiness,
+      sections: sections,
+      warnings: unique(warnings),
+      errors: unique(errors),
+      textReport: lines.join("\n")
+    };
+  }
+
   function normalizeComposition(rawComposition) {
     const raw = rawComposition || {};
     const metadata = raw.metadata || {};
@@ -2656,6 +2804,7 @@
     loadRealCompositionsFromRows: loadRealCompositionsFromRows,
     validateSmallRealCompositionFile: validateSmallRealCompositionFile,
     analyzeOfficialCompositionReadiness: analyzeOfficialCompositionReadiness,
+    generateOfficialCompositionDiagnosticReport: generateOfficialCompositionDiagnosticReport,
     setExternalCompositionCatalog: setExternalCompositionCatalog,
     getExternalCompositionCatalog: getExternalCompositionCatalog,
     clearExternalCompositionCatalog: clearExternalCompositionCatalog,
