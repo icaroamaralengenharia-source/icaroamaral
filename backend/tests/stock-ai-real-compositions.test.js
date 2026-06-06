@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,8 @@ import vm from "node:vm";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const sampleFixture = JSON.parse(readFileSync(join(testDir, "fixtures", "stock-ai-real-compositions-sample.json"), "utf8"));
 const realTemplate = JSON.parse(readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "sinapi-orse-real-sample.template.json"), "utf8"));
+const firstRealExamplePath = join(testDir, "..", "..", "relatorio-qualidade-obras", "bases-reais", "primeira-composicao-real.example.json");
+const firstRealExample = JSON.parse(readFileSync(firstRealExamplePath, "utf8"));
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -42,6 +44,37 @@ function sinapiAlvenariaFixture(unit = "m2") {
       isRealComposition: true
     }
   }];
+}
+
+function officialManualEntryTestOnly() {
+  return {
+    schemaVersion: "1.0",
+    source: "SINAPI",
+    sourceType: "official_manual_entry",
+    referenceMonth: "2025-01",
+    state: "BA",
+    createdBy: "manual",
+    items: [{
+      source: "SINAPI",
+      sourceType: "official_manual_entry",
+      code: "TEST-ONLY-SINAPI-001",
+      name: "TEST ONLY - composicao estrutural valida para teste automatizado",
+      serviceType: "alvenaria",
+      unit: "m2",
+      reference: "TEST ONLY - nao usar como base real",
+      isOfficial: true,
+      inputs: [{
+        code: "TEST-ONLY-MAT-001",
+        name: "TEST ONLY - insumo de teste",
+        unit: "un",
+        coefficient: 1.5
+      }],
+      metadata: {
+        importedFrom: "TEST ONLY - nao usar como base real",
+        manualReviewRequired: true
+      }
+    }]
+  };
 }
 
 test("Stock AI Obras mantem composicao demonstrativa sem base externa", () => {
@@ -246,7 +279,7 @@ test("Stock AI Obras rejeita template de base real pequena como base pronta", ()
   assert.equal(readiness.ok, false);
   assert.equal(readiness.ready.length, 0);
   assert.match(readiness.rejected[0].reasons.join(" "), /placeholder/i);
-  assert.match(readiness.rejected[0].reasons.join(" "), /coefficient oficial maior que zero|coefficient numerico maior que zero/i);
+  assert.match(readiness.rejected[0].reasons.join(" "), /coefficient oficial ausente ou zerado|coefficient numerico maior que zero/i);
 });
 
 test("Stock AI Obras exige revisao manual para base real pequena SINAPI ORSE", () => {
@@ -260,4 +293,80 @@ test("Stock AI Obras exige revisao manual para base real pequena SINAPI ORSE", (
 
   assert.equal(readiness.ok, false);
   assert.match(readiness.rejected[0].reasons.join(" "), /manualReviewRequired/);
+});
+
+test("Stock AI Obras mantem arquivo example da primeira composicao real como preenchivel", () => {
+  assert.equal(existsSync(firstRealExamplePath), true);
+  assert.equal(firstRealExample.sourceType, "official_manual_entry");
+  assert.equal(firstRealExample.items[0].inputs[0].coefficient, 0);
+});
+
+test("Stock AI Obras rejeita primeira composicao real example como base pronta", () => {
+  const engine = loadStockAiCompositionEngine();
+
+  const importResult = engine.loadRealCompositionsFromJson(firstRealExample);
+  const readiness = engine.validateSmallRealCompositionFile(firstRealExample);
+
+  assert.equal(importResult.imported.length, 0);
+  assert.equal(readiness.ok, false);
+  assert.equal(readiness.ready.length, 0);
+  assert.match(readiness.rejected[0].reasons.join(" "), /Fonte deve ser SINAPI ou ORSE|placeholder|Coeficiente oficial ausente ou zerado/);
+});
+
+test("Stock AI Obras aceita somente entrada oficial manual positiva em validacao estrutural", () => {
+  const engine = loadStockAiCompositionEngine();
+  const readiness = engine.validateSmallRealCompositionFile(officialManualEntryTestOnly());
+
+  assert.equal(readiness.ok, true);
+  assert.equal(readiness.ready.length, 1);
+  assert.equal(readiness.rejected.length, 0);
+  assert.equal(readiness.ready[0].source, "SINAPI");
+  assert.equal(readiness.ready[0].metadata.manualReviewRequired, true);
+});
+
+test("Stock AI Obras rejeita entrada manual positiva sem marcadores oficiais obrigatorios", () => {
+  const engine = loadStockAiCompositionEngine();
+  const invalid = officialManualEntryTestOnly();
+  delete invalid.sourceType;
+  delete invalid.items[0].sourceType;
+  invalid.items[0].isOfficial = false;
+  invalid.referenceMonth = "";
+  invalid.state = "";
+
+  const readiness = engine.validateSmallRealCompositionFile(invalid);
+
+  assert.equal(readiness.ok, false);
+  assert.match(readiness.rejected[0].reasons.join(" "), /sourceType/);
+  assert.match(readiness.rejected[0].reasons.join(" "), /isOfficial/);
+  assert.match(readiness.rejected[0].reasons.join(" "), /referenceMonth/);
+  assert.match(readiness.rejected[0].reasons.join(" "), /state\/UF/);
+});
+
+test("Stock AI Obras nao trata mock template ou example como base real pronta", () => {
+  const engine = loadStockAiCompositionEngine();
+  const mockReadiness = engine.validateSmallRealCompositionFile(sampleFixture);
+  const templateReadiness = engine.validateSmallRealCompositionFile(realTemplate);
+  const exampleReadiness = engine.validateSmallRealCompositionFile(firstRealExample);
+
+  assert.equal(mockReadiness.ok, false);
+  assert.equal(templateReadiness.ok, false);
+  assert.equal(exampleReadiness.ok, false);
+});
+
+test("Stock AI Obras seta composicao externa de teste e limpa retorno demonstrativo", () => {
+  const engine = loadStockAiCompositionEngine();
+  const validTestOnly = officialManualEntryTestOnly();
+
+  const result = engine.setExternalCompositionCatalog(validTestOnly);
+  const externalComposition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.equal(result.imported.length, 1);
+  assert.equal(externalComposition.source, "SINAPI");
+  assert.equal(externalComposition.code, "TEST-ONLY-SINAPI-001");
+
+  engine.clearExternalCompositionCatalog();
+  const fallbackComposition = engine.findBestComposition({ service: "Alvenaria de bloco ceramico", unit: "m2" });
+
+  assert.notEqual(fallbackComposition.source, "SINAPI");
+  assert.match(fallbackComposition.source, /demonstrativa/i);
 });

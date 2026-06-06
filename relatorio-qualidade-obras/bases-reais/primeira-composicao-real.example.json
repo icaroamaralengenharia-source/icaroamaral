@@ -1,0 +1,33 @@
+{
+  "notice": "Exemplo preenchivel para 1 composicao oficial manual. Ainda nao e base real pronta: substitua todos os placeholders e coeficientes zerados por dados oficiais antes de importar.",
+  "schemaVersion": "1.0",
+  "source": "SINAPI ou ORSE - preencher manualmente",
+  "sourceType": "official_manual_entry",
+  "referenceMonth": "AAAA-MM",
+  "state": "UF",
+  "createdBy": "manual",
+  "items": [
+    {
+      "code": "PREENCHER_CODIGO_OFICIAL",
+      "name": "PREENCHER_DESCRICAO_OFICIAL",
+      "serviceType": "alvenaria",
+      "unit": "m2",
+      "source": "SINAPI ou ORSE - preencher manualmente",
+      "reference": "PREENCHER_REFERENCIA_OFICIAL",
+      "isOfficial": true,
+      "metadata": {
+        "importedFrom": "PREENCHER_REFERENCIA_OFICIAL",
+        "manualReviewRequired": true
+      },
+      "inputs": [
+        {
+          "code": "PREENCHER_CODIGO_INSUMO",
+          "name": "PREENCHER_NOME_INSUMO",
+          "unit": "PREENCHER_UNIDADE",
+          "coefficient": 0,
+          "note": "Substituir pelo coeficiente oficial antes de importar"
+        }
+      ]
+    }
+  ]
+}

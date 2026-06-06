@@ -207,7 +207,7 @@
         reasons.push("Input " + (index + 1) + " sem unit.");
       }
       if (parseNumber(coefficientValue) <= 0) {
-        reasons.push("Input " + (index + 1) + " sem coefficient numerico maior que zero.");
+        reasons.push("Input " + (index + 1) + ": coefficient oficial ausente ou zerado. Preencha manualmente com o valor oficial maior que zero antes de importar.");
       }
     });
     return {
@@ -227,21 +227,49 @@
       text.indexOf("codigo insumo oficial") >= 0 ||
       text.indexOf("descricao oficial") >= 0 ||
       text.indexOf("nome oficial do insumo") >= 0 ||
+      text.indexOf("preencher") >= 0 ||
+      text.indexOf("aaaa mm") >= 0 ||
       text.indexOf("yyyy mm") >= 0 ||
       text.indexOf("placeholder") >= 0;
   }
 
   function validateSmallRealCompositionFile(jsonData) {
-    const rows = Array.isArray(jsonData) ? jsonData : (jsonData && (jsonData.compositions || jsonData.rows || jsonData.items)) || [];
+    const root = Array.isArray(jsonData) ? {} : (jsonData || {});
+    const rows = Array.isArray(jsonData) ? jsonData : (root.compositions || root.rows || root.items) || [];
     const rejected = [];
     const ready = [];
     rows.forEach(function (row, index) {
-      const normalized = normalizeComposition(row);
+      const rowWithRoot = Object.assign({
+        source: root.source,
+        sourceRegion: root.sourceRegion || root.state || root.uf,
+        sourceDate: root.sourceDate || root.referenceMonth
+      }, row);
+      const normalized = normalizeComposition(rowWithRoot);
       const metadata = normalized.metadata || {};
       const source = getCompositionSource(normalized);
+      const sourceType = clean(rowWithRoot.sourceType || root.sourceType);
+      const referenceMonth = clean(rowWithRoot.referenceMonth || root.referenceMonth);
+      const state = clean(rowWithRoot.state || rowWithRoot.uf || root.state || root.uf || normalized.sourceRegion);
+      const reference = clean(rowWithRoot.reference || rowWithRoot.referencia || root.reference || normalized.sourceDate);
+      const rowIsOfficial = rowWithRoot.isOfficial === true || metadata.isOfficial === true;
       const reasons = validateCompositionDetailed(normalized).reasons.slice();
       if (source !== "SINAPI" && source !== "ORSE") {
         reasons.push("Fonte deve ser SINAPI ou ORSE para teste real pequeno.");
+      }
+      if (sourceType !== "official_manual_entry") {
+        reasons.push("sourceType deve ser official_manual_entry para primeira composicao real oficial controlada.");
+      }
+      if (rowIsOfficial !== true) {
+        reasons.push("isOfficial deve ser true para composicao oficial manual.");
+      }
+      if (hasTemplatePlaceholder(referenceMonth)) {
+        reasons.push("referenceMonth oficial ainda e placeholder ou esta ausente.");
+      }
+      if (hasTemplatePlaceholder(state) || normalize(state) === "uf") {
+        reasons.push("state/UF oficial ainda e placeholder ou esta ausente.");
+      }
+      if (hasTemplatePlaceholder(reference)) {
+        reasons.push("Referencia oficial ainda e placeholder ou esta ausente.");
       }
       if (hasTemplatePlaceholder(normalized.code)) {
         reasons.push("Codigo oficial ainda e placeholder.");
@@ -263,7 +291,7 @@
           reasons.push("Input " + (inputIndex + 1) + " ainda tem nome placeholder.");
         }
         if (parseNumber(input.coefficient) <= 0) {
-          reasons.push("Input " + (inputIndex + 1) + " deve ter coefficient oficial maior que zero.");
+          reasons.push("Input " + (inputIndex + 1) + ": coefficient oficial ausente ou zerado. Preencha manualmente com o valor oficial maior que zero antes de importar.");
         }
       });
       if (reasons.length) {
