@@ -3445,6 +3445,8 @@
 
   function normalizeInformalGeometryText(value) {
     return clean(value)
+      .replace(/\bsapta\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+(\d+(?:[.,]\d+)?)\s+dez\s+unidades?\b/gi, "10 sapata $1x$2x$3")
+      .replace(/\bsapta\b/gi, "sapata")
       .replace(/\blajinha\b/gi, "laje")
       .replace(/\bdez\s+centimetros?\b/gi, "10 centimetros")
       .replace(/\bdez\s+centimetro\b/gi, "10 centimetro");
