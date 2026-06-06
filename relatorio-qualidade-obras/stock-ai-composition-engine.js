@@ -11,6 +11,249 @@
   let importedCompositionCatalog = [];
   let importedOfficialBaseCatalog = [];
 
+  const CONTROLLED_SERVICES = [
+    {
+      id: "pilar",
+      nomeTecnico: "Pilar",
+      categoria: "estrutura",
+      nivelRisco: "alto",
+      apelidos: ["pilar", "pilares", "coluna", "colunas", "pilar de concreto", "pilar armado"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3", "un"],
+      dadosNecessarios: ["quantidade", "secao", "altura"],
+      materiaisEsperados: ["concreto", "aco", "forma", "espacador"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "viga",
+      nomeTecnico: "Viga",
+      categoria: "estrutura",
+      nivelRisco: "alto",
+      apelidos: ["viga", "vigas", "cinta", "verga", "contraverga"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3", "m"],
+      dadosNecessarios: ["quantidade", "secao", "comprimento"],
+      materiaisEsperados: ["concreto", "aco", "forma", "escoramento"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "baldrame",
+      nomeTecnico: "Baldrame",
+      categoria: "fundacao",
+      nivelRisco: "alto",
+      apelidos: ["baldrame", "viga baldrame", "fundacao corrida", "fundacao linear"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3", "m"],
+      dadosNecessarios: ["comprimento", "largura", "altura"],
+      materiaisEsperados: ["concreto", "aco", "forma"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "sapata",
+      nomeTecnico: "Sapata",
+      categoria: "fundacao",
+      nivelRisco: "alto",
+      apelidos: ["sapata", "sapatas", "sapata isolada", "base do pilar", "bloco de fundacao"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3", "un"],
+      dadosNecessarios: ["quantidade", "comprimento", "largura", "altura"],
+      materiaisEsperados: ["concreto", "aco", "forma"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "radier",
+      nomeTecnico: "Radier",
+      categoria: "fundacao",
+      nivelRisco: "alto",
+      apelidos: ["radier", "fundacao radier", "laje radier"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3", "m2"],
+      dadosNecessarios: ["area", "espessura"],
+      materiaisEsperados: ["concreto", "tela", "aco", "lona", "espacador"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "alvenaria",
+      nomeTecnico: "Alvenaria",
+      categoria: "alvenaria",
+      nivelRisco: "medio",
+      apelidos: ["alvenaria", "parede", "paredes", "bloco", "tijolo", "vedacao"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area", "comprimento", "altura"],
+      materiaisEsperados: ["bloco", "tijolo", "argamassa", "cimento", "areia"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "chapisco",
+      nomeTecnico: "Chapisco",
+      categoria: "revestimento",
+      nivelRisco: "baixo",
+      apelidos: ["chapisco", "chapiscado", "preparo da parede"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area"],
+      materiaisEsperados: ["cimento", "areia", "argamassa", "aditivo"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "reboco_emboco",
+      nomeTecnico: "Reboco/Emboco",
+      categoria: "revestimento",
+      nivelRisco: "medio",
+      apelidos: ["reboco", "emboco", "emboço", "massa fina", "massa grossa", "revestimento argamassado"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area"],
+      materiaisEsperados: ["argamassa", "cimento", "areia", "cal"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "contrapiso",
+      nomeTecnico: "Contrapiso",
+      categoria: "piso",
+      nivelRisco: "medio",
+      apelidos: ["contrapiso", "regularizacao", "regularização", "piso bruto"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2", "m3"],
+      dadosNecessarios: ["area", "espessura"],
+      materiaisEsperados: ["cimento", "areia", "argamassa", "aditivo"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "piso_ceramico",
+      nomeTecnico: "Piso ceramico",
+      categoria: "piso",
+      nivelRisco: "baixo",
+      apelidos: ["piso ceramico", "piso", "ceramica no chao", "assentar piso", "assentamento de piso"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area", "tipo de piso"],
+      materiaisEsperados: ["piso ceramico", "argamassa colante", "rejunte"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "revestimento_ceramico_parede",
+      nomeTecnico: "Revestimento ceramico parede",
+      categoria: "revestimento",
+      nivelRisco: "baixo",
+      apelidos: ["revestimento ceramico", "azulejo", "ceramica parede", "revestimento de parede"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area"],
+      materiaisEsperados: ["revestimento ceramico", "argamassa colante", "rejunte"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "concreto_simples",
+      nomeTecnico: "Concreto simples",
+      categoria: "estrutura",
+      nivelRisco: "medio",
+      apelidos: ["concreto simples", "concreto magro", "lastro de concreto"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3"],
+      dadosNecessarios: ["volume"],
+      materiaisEsperados: ["cimento", "areia", "brita", "concreto usinado"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "concreto_armado",
+      nomeTecnico: "Concreto armado",
+      categoria: "estrutura",
+      nivelRisco: "alto",
+      apelidos: ["concreto armado", "concreto estrutural", "estrutura de concreto"],
+      unidadePrincipal: "m3",
+      unidadesAceitas: ["m3"],
+      dadosNecessarios: ["volume", "elemento estrutural"],
+      materiaisEsperados: ["concreto", "aco", "forma", "espacador"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "forma_madeira",
+      nomeTecnico: "Forma de madeira",
+      categoria: "estrutura",
+      nivelRisco: "medio",
+      apelidos: ["forma", "forma de madeira", "caixaria", "tabua", "compensado"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area de forma"],
+      materiaisEsperados: ["tabua", "compensado", "sarrafo", "prego", "desmoldante"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "armacao_aco",
+      nomeTecnico: "Armacao/aco",
+      categoria: "estrutura",
+      nivelRisco: "alto",
+      apelidos: ["armacao", "armação", "aco", "aço", "ferro", "ferragem"],
+      unidadePrincipal: "kg",
+      unidadesAceitas: ["kg"],
+      dadosNecessarios: ["peso", "bitola", "elemento estrutural"],
+      materiaisEsperados: ["aco ca 50", "aco ca 60", "arame recozido", "espacador"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "cobertura",
+      nomeTecnico: "Cobertura",
+      categoria: "cobertura",
+      nivelRisco: "medio",
+      apelidos: ["cobertura", "telhado", "telha", "cobrir"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2"],
+      dadosNecessarios: ["area", "tipo de cobertura"],
+      materiaisEsperados: ["telha", "madeiramento", "parafuso", "cumeeira", "rufo"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "rufo_calha",
+      nomeTecnico: "Rufo/calha",
+      categoria: "cobertura",
+      nivelRisco: "baixo",
+      apelidos: ["rufo", "calha", "pingadeira", "cumeeira"],
+      unidadePrincipal: "m",
+      unidadesAceitas: ["m"],
+      dadosNecessarios: ["comprimento", "material"],
+      materiaisEsperados: ["chapa", "fixador", "selante", "parafuso"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "calcada",
+      nomeTecnico: "Calcada",
+      categoria: "piso",
+      nivelRisco: "medio",
+      apelidos: ["calcada", "calçada", "passeio", "piso externo"],
+      unidadePrincipal: "m2",
+      unidadesAceitas: ["m2", "m3"],
+      dadosNecessarios: ["area", "espessura"],
+      materiaisEsperados: ["concreto", "cimento", "areia", "brita", "tela"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "hidraulica_simples",
+      nomeTecnico: "Instalacao hidraulica simples",
+      categoria: "hidraulica",
+      nivelRisco: "medio",
+      apelidos: ["instalacao hidraulica", "hidraulica", "encanamento", "tubulacao", "agua fria", "esgoto"],
+      unidadePrincipal: "ponto",
+      unidadesAceitas: ["ponto", "un", "m"],
+      dadosNecessarios: ["pontos", "diametro", "trecho"],
+      materiaisEsperados: ["tubo", "conexao", "registro", "cola", "veda rosca"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    },
+    {
+      id: "eletrica_simples",
+      nomeTecnico: "Instalacao eletrica simples",
+      categoria: "eletrica",
+      nivelRisco: "medio",
+      apelidos: ["instalacao eletrica", "eletrica", "ponto eletrico", "fiacao", "fiação", "eletroduto", "tomada", "interruptor"],
+      unidadePrincipal: "ponto",
+      unidadesAceitas: ["ponto", "un", "m"],
+      dadosNecessarios: ["pontos", "bitola", "circuito"],
+      materiaisEsperados: ["eletroduto", "cabo", "caixa", "tomada", "disjuntor"],
+      prioridadeBusca: ["SINAPI", "ORSE", "DEMO"]
+    }
+  ];
+
   function clean(value) {
     return String(value || "").trim();
   }
@@ -161,6 +404,114 @@
       return "tubulacao";
     }
     return text.split(" ").slice(0, 3).join("_") || "geral";
+  }
+
+  function getControlledServiceById(id) {
+    const normalizedId = normalize(id).replace(/\s+/g, "_");
+    return CONTROLLED_SERVICES.find(function (service) {
+      return normalize(service.id).replace(/\s+/g, "_") === normalizedId;
+    }) || null;
+  }
+
+  function getControlledServiceSearchPriority(serviceId) {
+    const service = getControlledServiceById(serviceId);
+    return service ? service.prioridadeBusca.slice() : ["SINAPI", "ORSE", "DEMO"];
+  }
+
+  function getControlledServiceRequiredData(serviceId) {
+    const service = getControlledServiceById(serviceId);
+    return service ? service.dadosNecessarios.slice() : [];
+  }
+
+  function scoreControlledService(service, text) {
+    const normalizedText = normalize(text);
+    const terms = [service.nomeTecnico].concat(service.apelidos || []).filter(Boolean);
+    return terms.reduce(function (bestScore, term) {
+      const normalizedTerm = normalize(term);
+      if (!normalizedTerm) {
+        return bestScore;
+      }
+      if (normalizedText === normalizedTerm) {
+        return Math.max(bestScore, 1000 + normalizedTerm.length);
+      }
+      if (hasTerm(normalizedText, normalizedTerm)) {
+        return Math.max(bestScore, 500 + normalizedTerm.length);
+      }
+      if (normalizedTerm.split(" ").some(function (word) {
+        return word.length >= 5 && hasTerm(normalizedText, word);
+      })) {
+        return Math.max(bestScore, 120 + normalizedTerm.length);
+      }
+      return bestScore;
+    }, 0);
+  }
+
+  function findControlledServiceByText(text) {
+    const normalizedText = normalize(text);
+    if (!normalizedText) {
+      return null;
+    }
+    const ranked = CONTROLLED_SERVICES.map(function (service) {
+      return {
+        service: service,
+        score: scoreControlledService(service, normalizedText)
+      };
+    }).filter(function (entry) {
+      return entry.score > 0;
+    }).sort(function (a, b) {
+      return b.score - a.score ||
+        normalize(b.service.nomeTecnico).length - normalize(a.service.nomeTecnico).length;
+    });
+    return ranked.length ? ranked[0].service : null;
+  }
+
+  function getControlledServiceMissingData(service, parsedData) {
+    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+    const parsed = parsedData || {};
+    if (!controlledService) {
+      return [];
+    }
+    const text = normalize(parsed.originalMessage || parsed.message || parsed.text || "");
+    const geometry = parsed.geometry || {};
+    const quantity = parseNumber(parsed.quantity || parsed.executedQuantity || (geometry && geometry.quantity));
+    const unit = normalizeUnit(parsed.unit || (geometry && geometry.unit) || controlledService.unidadePrincipal);
+    const hasQuantity = quantity > 0 || (geometry && geometry.detected && geometry.complete && parseNumber(geometry.quantity) > 0);
+    const hasArea = (unit === "m2" && hasQuantity) || (geometry && geometry.unit === "m2" && geometry.complete);
+    const hasVolume = (unit === "m3" && hasQuantity) || (geometry && geometry.unit === "m3" && geometry.complete);
+    const hasLength = (unit === "m" && hasQuantity) || hasAny(text, ["comprimento", "metro linear", "metros lineares"]);
+    const hasHeight = hasAny(text, ["altura", "pe direito", "pé direito"]) || (geometry.dimensions && (geometry.dimensions.height || geometry.dimensions.depth));
+    const hasWidth = hasAny(text, ["largura"]) || (geometry.dimensions && (geometry.dimensions.width || geometry.dimensions.depth));
+    const hasSection = /\d+(?:[.,]\d+)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?/i.test(parsed.originalMessage || parsed.message || parsed.text || "");
+    const hasThickness = hasAny(text, ["espessura", "capa"]) || /\d+\s*cm\b/i.test(parsed.originalMessage || parsed.message || parsed.text || "");
+    const hasType = hasAny(text, ["ceramico", "ceramica", "fibrocimento", "metalica", "sanduiche", "telha", "ac3", "ac 3"]);
+    const hasPoints = hasAny(text, ["ponto", "pontos", "tomada", "interruptor"]) || (normalizeUnit(unit) === "un" && hasQuantity);
+    const hasMaterial = hasAny(text, ["madeira", "metal", "pvc", "chapa", "galvanizado"]);
+    const hasDiameter = hasAny(text, ["diametro", "dn ", "mm"]);
+    const hasCircuit = hasAny(text, ["circuito", "bitola", "disjuntor"]);
+    const hasWeight = unit === "kg" && hasQuantity;
+
+    return (controlledService.dadosNecessarios || []).filter(function (data) {
+      const key = normalize(data);
+      if (key === "quantidade") return !hasQuantity;
+      if (key === "area" || key === "area de forma") return !hasArea;
+      if (key === "volume") return !hasVolume;
+      if (key === "comprimento" || key === "trecho") return !hasLength && !hasQuantity;
+      if (key === "altura") return !hasHeight && !(geometry && geometry.complete);
+      if (key === "largura") return !hasWidth && !(geometry && geometry.complete);
+      if (key === "secao") return !hasSection && !(geometry && geometry.complete);
+      if (key === "espessura") return !hasThickness && !hasVolume;
+      if (key === "tipo de piso" || key === "tipo de cobertura" || key === "elemento estrutural") return !hasType && !hasAny(text, ["pilar", "viga", "sapata", "laje", "radier", "baldrame"]);
+      if (key === "pontos") return !hasPoints;
+      if (key === "material") return !hasMaterial;
+      if (key === "diametro") return !hasDiameter;
+      if (key === "circuito" || key === "bitola") return !hasCircuit && !hasWeight;
+      if (key === "peso") return !hasWeight;
+      return false;
+    });
+  }
+
+  function isControlledServiceInputIncomplete(service, parsedData) {
+    return getControlledServiceMissingData(service, parsedData).length > 0;
   }
 
   function getCompositionSource(compositionData) {
@@ -4702,6 +5053,24 @@
     lines.push("- Informe o codigo ou a quantidade do servico para calcular consumo. Nenhum coeficiente foi inventado.");
   }
 
+  function buildControlledServiceIncompleteAnswer(controlledService, request) {
+    const missing = getControlledServiceMissingData(controlledService, request);
+    return [
+      "PERGUNTAS COMPLEMENTARES",
+      "- Servico controlado identificado: " + controlledService.nomeTecnico + ".",
+      "- Informe: " + (missing.length ? missing.join(", ") : "quantitativo do servico") + ".",
+      "",
+      "DADOS DO SERVICO CONTROLADO",
+      "- Unidade principal: " + displayUnit(controlledService.unidadePrincipal),
+      "- Prioridade de busca: " + getControlledServiceSearchPriority(controlledService.id).join(" > "),
+      "- Materiais esperados: " + controlledService.materiaisEsperados.join(", "),
+      "",
+      "OBSERVACOES",
+      "- Nao vou sugerir composicao oficial aleatoria sem os dados minimos do servico.",
+      "- Nenhum coeficiente foi inventado."
+    ].join("\n");
+  }
+
   function hasRealCompositionInResult(result) {
     return (result && result.predictions || []).some(function (prediction) {
       return prediction.composition && prediction.composition.isRealComposition;
@@ -4900,6 +5269,12 @@
       return question && list.indexOf(question) === index;
     });
     const servicesWithoutComposition = request.servicesWithoutComposition || [];
+    const controlledService = findControlledServiceByText(message);
+
+    const wantsCompositionSuggestion = hasAny(normalize(message), ["qual composicao", "composicoes", "sinapi", "orse", "codigo"]);
+    if (controlledService && isControlledServiceInputIncomplete(controlledService, request) && !request.quantity && !wantsCompositionSuggestion) {
+      return buildControlledServiceIncompleteAnswer(controlledService, request);
+    }
 
     if (!request.quantity && getSuggestedOfficialCompositions(request, 1).length) {
       const lines = [
@@ -5105,6 +5480,13 @@
     normalizeComposition: normalizeComposition,
     normalizeCompositionUnit: normalizeCompositionUnit,
     normalizeServiceType: normalizeServiceType,
+    controlledServices: CONTROLLED_SERVICES,
+    getControlledServices: function () { return CONTROLLED_SERVICES.slice(); },
+    findControlledServiceByText: findControlledServiceByText,
+    getControlledServiceById: getControlledServiceById,
+    getControlledServiceRequiredData: getControlledServiceRequiredData,
+    isControlledServiceInputIncomplete: isControlledServiceInputIncomplete,
+    getControlledServiceSearchPriority: getControlledServiceSearchPriority,
     getCompositionSource: getCompositionSource,
     isRealComposition: isRealComposition,
     isMockComposition: isMockComposition,

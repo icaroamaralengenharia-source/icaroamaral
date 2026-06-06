@@ -1723,6 +1723,76 @@ test("Stock AI Obras rejeita retirada com quantidade negativa", () => {
   assert.doesNotMatch(answer, /status: abaixo do previsto/);
 });
 
+test("Stock AI Obras catalogo controlado identifica coluna como pilar", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const service = engine.findControlledServiceByText("coluna de concreto");
+
+  assert.equal(service.id, "pilar");
+  assert.equal(service.categoria, "estrutura");
+  assert.equal(service.nivelRisco, "alto");
+});
+
+test("Stock AI Obras catalogo controlado identifica parede como alvenaria", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const service = engine.findControlledServiceByText("parede de bloco");
+
+  assert.equal(service.id, "alvenaria");
+  assert.equal(service.unidadePrincipal, "m2");
+});
+
+test("Stock AI Obras catalogo controlado identifica assentar piso como piso ceramico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const service = engine.findControlledServiceByText("assentar piso na cozinha");
+
+  assert.equal(service.id, "piso_ceramico");
+});
+
+test("Stock AI Obras catalogo controlado identifica reboco como reboco emboco", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const service = engine.findControlledServiceByText("reboco da parede");
+
+  assert.equal(service.id, "reboco_emboco");
+});
+
+test("Stock AI Obras catalogo controlado identifica telhado como cobertura", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const service = engine.findControlledServiceByText("telhado ceramico");
+
+  assert.equal(service.id, "cobertura");
+  assert.deepEqual(Array.from(engine.getControlledServiceSearchPriority("cobertura")), ["SINAPI", "ORSE", "DEMO"]);
+});
+
+test("Stock AI Obras catalogo controlado retorna dados necessarios quando faltam informacoes", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const required = engine.getControlledServiceRequiredData("pilar");
+  const incomplete = engine.isControlledServiceInputIncomplete(
+    engine.getControlledServiceById("pilar"),
+    { originalMessage: "coluna de concreto", quantity: 0 }
+  );
+
+  assert.deepEqual(Array.from(required), ["quantidade", "secao", "altura"]);
+  assert.equal(incomplete, true);
+});
+
+test("Stock AI Obras nao sugere composicao aleatoria quando servico controlado esta incompleto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialBaseCodigo97141Fixture() });
+  const answer = engine.buildAnswerFromMessage("telhado");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /Servico controlado identificado: Cobertura/);
+  assert.doesNotMatch(answer, /97141/);
+  assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras preserva fallback demonstrativo quando nao ha servico controlado", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Vou executar 10 m2 de impermeabilizacao simples");
+
+  assert.match(answer, /Composicao utilizada: std_impermeabilizacao_simples/);
+  assert.match(answer, /Fonte: Base tecnica demonstrativa/);
+});
+
 test("Stock AI Obras SINAPI Analitico importado tem prioridade sobre demonstrativa", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
