@@ -3035,3 +3035,129 @@ test("Stock AI Obras linguagem real mantem laje 8x12 com 12 cm como caso aprovad
   assert.match(answer, /11,52\s*m[³3]/i);
   assert.doesNotMatch(answer, /calculo principal usa composicao demonstrativa por area\/unidade|cálculo principal usa composição demonstrativa por área\/unidade/i);
 });
+test("Stock AI Obras piloto 80 estoque antes do servico nao apaga laje", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Estoque 10 m3 concreto. Vou fazer laje 8x12 com 12 cm";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(geometry) + "\n" + answer;
+
+  assert.match(combined, /laje/i);
+  assert.match(combined, /96\s*m|area[^0-9]*96/i);
+  assert.match(combined, /11,52\s*m[Â³3]|11\.52/i);
+  assert.doesNotMatch(answer, /10\s*m[Â³3]\s+de\s+Concreto simples[\s\S]*Fundacao em concreto armado/i);
+});
+
+test("Stock AI Obras piloto 80 galpao completo com estoque preserva subservicos", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Tenho material no estoque e quero fazer galpao 30x20 com piso, pilares, sapatas, baldrame, cobertura metalica e fechamento lateral";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(request.services || []) + "\n" + answer;
+
+  assert.match(combined, /piso/i);
+  assert.match(combined, /pilar/i);
+  assert.match(combined, /sapata/i);
+  assert.match(combined, /baldrame/i);
+  assert.match(combined, /cobertura/i);
+  assert.match(combined, /metalica|metÃ¡lica/i);
+  assert.match(combined, /fechamento lateral|alvenaria/i);
+  assert.doesNotMatch(answer, /Piso identificado[\s\S]*Piso ceramico[\s\S]*OBSERVA/i);
+});
+
+test("Stock AI Obras piloto 80 galpao simples preserva piso cobertura e fechamento", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Galpao 20x30 com piso, cobertura metalica e fechamento lateral";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(request.services || []) + "\n" + answer;
+
+  assert.match(combined, /piso/i);
+  assert.match(combined, /cobertura/i);
+  assert.match(combined, /metalica|metÃ¡lica/i);
+  assert.match(combined, /fechamento lateral|alvenaria/i);
+  assert.doesNotMatch(answer, /Piso identificado[\s\S]*Piso ceramico[\s\S]*OBSERVA/i);
+});
+
+test("Stock AI Obras piloto 80 muro completo com fundacao preserva sapata e baldrame", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Muro 30x2,5 com sapata 60x60x40 e baldrame 20x30";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(request.services || []) + "\n" + answer;
+
+  assert.match(combined, /muro|alvenaria/i);
+  assert.match(combined, /sapata/i);
+  assert.match(combined, /baldrame/i);
+  assert.doesNotMatch(answer, /Muro identificado[\s\S]*Muro de bloco demonstrativo[\s\S]*OBSERVA/i);
+});
+
+test("Stock AI Obras piloto 80 revestimento em muro preserva emboco e reboco", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Emboco e reboco em muro de 87 por 2,80";
+  const request = engine.parseRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(request.services || []) + "\n" + answer;
+
+  assert.match(combined, /reboco|emboco|emboÃ§o/i);
+  assert.match(combined, /243,6|243\.6|243,60/i);
+  assert.doesNotMatch(answer, /Muro identificado[\s\S]*Muro de bloco demonstrativo[\s\S]*OBSERVA/i);
+});
+
+test("Stock AI Obras piloto 80 pilar por espacamento mantem contexto do muro", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Pilar a cada 4 metros em muro de 87 metros";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /pilar/i);
+  assert.match(answer, /muro/i);
+  assert.match(answer, /22|arredond|confirm/i);
+});
+
+test("Stock AI Obras piloto 80 frase curta com estoque pede contexto sem inventar uso", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "tem 50 saco de cimento da?";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.notEqual(answer.trim(), "");
+  assert.match(answer, /servico|serviÃ§o|area|Ã¡rea|volume|traco|traÃ§o|composicao|composiÃ§Ã£o/i);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO|comprar\s+\d|necess[aÃ¡]rio\s+\d/i);
+});
+
+test("Stock AI Obras piloto 80 reconhece lajinha com numero por extenso", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "fazer lajinha 6 por 4 com dez centimetro";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(geometry) + "\n" + answer;
+
+  assert.match(combined, /laje|lajinha/i);
+  assert.match(combined, /10\s*cm|0,1\s*m|0\.1\s*m|dez centimetro/i);
+  assert.match(combined, /24\s*m|area[^0-9]*24/i);
+  assert.match(combined, /2,4\s*m[Â³3]|2\.4/i);
+});
+
+test("Stock AI Obras piloto 80 reconhece sapata com erro de digitacao e quantidade por extenso", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "sapta 60 60 40 dez unidade";
+  const geometry = engine.parseGeometryRequest(message);
+  const answer = engine.buildAnswerFromMessage(message);
+  const combined = JSON.stringify(geometry) + "\n" + answer;
+
+  assert.match(combined, /sapata|sapta/i);
+  assert.match(combined, /10|dez/i);
+  assert.match(combined, /60.*60.*40|0,6.*0,6.*0,4|0\.6.*0\.6.*0\.4/i);
+  assert.match(combined, /1,44\s*m[Â³3]|1\.44/i);
+});
+
+test("Stock AI Obras piloto 80 conferencia de retirada usa material e servico informados", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Pedreiro pediu 8 sacos argamassa para assentar 10 m2 de piso";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /CONFERENCIA|previsto|solicitado|retirada/i);
+  assert.match(answer, /8\s*sacos?.*argamassa|argamassa[\s\S]*8\s*sacos?/i);
+  assert.match(answer, /piso/i);
+  assert.match(answer, /10\s*m[Â²2]/i);
+  assert.doesNotMatch(answer, /Informe quais materiais foram solicitados/i);
+});
