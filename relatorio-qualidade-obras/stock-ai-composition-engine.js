@@ -11,6 +11,7 @@
   let importedCompositionCatalog = [];
   let importedOfficialBaseCatalog = [];
   let withdrawalApprovalQueue = [];
+  let withdrawalDeviationHistory = [];
 
   const CONTROLLED_SERVICES = [
     {
@@ -5287,6 +5288,7 @@
     }
     const approved = approveWithdrawalRequest(withdrawalApprovalQueue[index], approverName, reason);
     withdrawalApprovalQueue[index] = approved;
+    updateWithdrawalDeviationRecordFromRequest(approved);
     return cloneWithdrawalApprovalRequest(approved);
   }
 
@@ -5298,6 +5300,7 @@
     }
     const rejected = rejectWithdrawalRequest(withdrawalApprovalQueue[index], rejectorName, reason);
     withdrawalApprovalQueue[index] = rejected;
+    updateWithdrawalDeviationRecordFromRequest(rejected);
     return cloneWithdrawalApprovalRequest(rejected);
   }
 
@@ -5331,6 +5334,225 @@
       canRelease: 0,
       blocked: 0
     });
+  }
+
+  function cloneWithdrawalDeviationRecord(record) {
+    return JSON.parse(JSON.stringify(record || {}));
+  }
+
+  function buildWithdrawalDeviationMetrics(request) {
+    const divergences = request && request.divergences || [];
+    const requestedTotal = roundQuantity(divergences.reduce(function (total, item) {
+      return total + parseNumber(item.requestedQuantity);
+    }, 0));
+    const predictedTotal = roundQuantity(divergences.reduce(function (total, item) {
+      return total + parseNumber(item.predictedQuantity);
+    }, 0));
+    const absoluteDifference = roundQuantity(divergences.reduce(function (total, item) {
+      return total + Math.abs(parseNumber(item.difference));
+    }, 0));
+    const averageDivergencePercent = divergences.length
+      ? roundQuantity(divergences.reduce(function (total, item) {
+        return total + parseNumber(item.percentualDivergencia);
+      }, 0) / divergences.length)
+      : roundQuantity(parseNumber(request && request.approvalAnalysis && request.approvalAnalysis.percentualDivergencia));
+    return {
+      requestedTotal: requestedTotal,
+      predictedTotal: predictedTotal,
+      absoluteDifference: absoluteDifference,
+      averageDivergencePercent: averageDivergencePercent
+    };
+  }
+
+  function buildWithdrawalDeviationRecord(request, metadata, existingRecord) {
+    const data = metadata || {};
+    const current = existingRecord || {};
+    const metrics = buildWithdrawalDeviationMetrics(request || {});
+    const requestId = clean(request && request.id);
+    const createdAt = current.createdAt || clean(request && request.createdAt) || new Date().toISOString();
+    return {
+      id: current.id || ("withdrawal_deviation_" + normalize(requestId || createdAt).replace(/\s+/g, "_")),
+      requestId: requestId,
+      createdAt: createdAt,
+      requestedBy: clean(data.requestedBy) || clean(request && request.requestedBy) || current.requestedBy || "",
+      team: clean(data.team) || current.team || "",
+      worksite: clean(data.worksite) || current.worksite || "",
+      workPackage: clean(data.workPackage) || current.workPackage || "",
+      registeredBy: clean(data.registeredBy) || current.registeredBy || "",
+      serviceId: clean(request && request.serviceId) || current.serviceId || "",
+      serviceName: clean(request && request.serviceName) || current.serviceName || "",
+      riskLevel: clean(request && request.riskLevel) || current.riskLevel || "",
+      status: clean(request && request.approvalAnalysis && request.approvalAnalysis.status) || current.status || "",
+      approvalStatus: clean(request && request.status) || current.approvalStatus || "",
+      requestedTotal: metrics.requestedTotal,
+      predictedTotal: metrics.predictedTotal,
+      absoluteDifference: metrics.absoluteDifference,
+      averageDivergencePercent: metrics.averageDivergencePercent,
+      approvalRequired: !!(request && request.approvalAnalysis && request.approvalAnalysis.approvalRequired),
+      canReleaseMaterial: !!(request && request.canReleaseMaterial)
+    };
+  }
+
+  function recordWithdrawalDeviation(request, metadata) {
+    if (!request || !request.id) {
+      return null;
+    }
+    const requestId = clean(request.id);
+    const index = withdrawalDeviationHistory.findIndex(function (record) {
+      return record.requestId === requestId;
+    });
+    if (index >= 0) {
+      withdrawalDeviationHistory[index] = buildWithdrawalDeviationRecord(request, metadata, withdrawalDeviationHistory[index]);
+      return cloneWithdrawalDeviationRecord(withdrawalDeviationHistory[index]);
+    }
+    const record = buildWithdrawalDeviationRecord(request, metadata, null);
+    withdrawalDeviationHistory.push(record);
+    return cloneWithdrawalDeviationRecord(record);
+  }
+
+  function updateWithdrawalDeviationRecordFromRequest(request) {
+    if (!request || !request.id) {
+      return null;
+    }
+    return recordWithdrawalDeviation(request, {});
+  }
+
+  function getWithdrawalDeviationHistory() {
+    return withdrawalDeviationHistory.map(cloneWithdrawalDeviationRecord);
+  }
+
+  function averageWithdrawalDeviation(records) {
+    if (!records.length) {
+      return 0;
+    }
+    return roundQuantity(records.reduce(function (total, record) {
+      return total + parseNumber(record.averageDivergencePercent);
+    }, 0) / records.length);
+  }
+
+  function getWithdrawalDeviationSummary() {
+    const totalRequests = withdrawalDeviationHistory.length;
+    return finalizeWithdrawalDeviationSummary(withdrawalDeviationHistory.reduce(function (summary, record) {
+      if (record.approvalStatus === "APPROVAL_PENDING") {
+        summary.pending += 1;
+      }
+      if (record.approvalStatus === "APPROVED") {
+        summary.approved += 1;
+      }
+      if (record.approvalStatus === "REJECTED") {
+        summary.rejected += 1;
+      }
+      if (record.approvalStatus === "APPROVAL_NOT_REQUIRED") {
+        summary.notRequired += 1;
+      }
+      if (record.status === "CRITICO") {
+        summary.critical += 1;
+      }
+      if (record.canReleaseMaterial) {
+        summary.releasableRequests += 1;
+      } else {
+        summary.blockedRequests += 1;
+      }
+      summary.averageDivergencePercent += parseNumber(record.averageDivergencePercent);
+      return summary;
+    }, {
+      totalRequests: totalRequests,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      notRequired: 0,
+      critical: 0,
+      averageDivergencePercent: 0,
+      blockedRequests: 0,
+      releasableRequests: 0
+    }));
+  }
+
+  function finalizeWithdrawalDeviationSummary(summary) {
+    const result = Object.assign({}, summary);
+    result.averageDivergencePercent = result.totalRequests
+      ? roundQuantity(result.averageDivergencePercent / result.totalRequests)
+      : 0;
+    return result;
+  }
+
+  function sortWithdrawalDeviationRanking(rows) {
+    return rows.sort(function (a, b) {
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      return parseNumber(b.averageDivergencePercent) - parseNumber(a.averageDivergencePercent);
+    });
+  }
+
+  function getWithdrawalDeviationRankingByRequester() {
+    const grouped = {};
+    withdrawalDeviationHistory.forEach(function (record) {
+      const key = record.requestedBy || "nao informado";
+      grouped[key] = grouped[key] || { requestedBy: key, total: 0, critical: 0, averageDivergencePercent: 0, blockedRequests: 0 };
+      grouped[key].total += 1;
+      grouped[key].critical += record.status === "CRITICO" ? 1 : 0;
+      grouped[key].blockedRequests += record.canReleaseMaterial ? 0 : 1;
+      grouped[key].averageDivergencePercent += parseNumber(record.averageDivergencePercent);
+    });
+    return sortWithdrawalDeviationRanking(Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.averageDivergencePercent = item.total ? roundQuantity(item.averageDivergencePercent / item.total) : 0;
+      return item;
+    }));
+  }
+
+  function getWithdrawalDeviationRankingByService() {
+    const grouped = {};
+    withdrawalDeviationHistory.forEach(function (record) {
+      const key = record.serviceId || "nao identificado";
+      grouped[key] = grouped[key] || {
+        serviceId: key,
+        serviceName: record.serviceName || key,
+        total: 0,
+        critical: 0,
+        averageDivergencePercent: 0
+      };
+      grouped[key].total += 1;
+      grouped[key].critical += record.status === "CRITICO" ? 1 : 0;
+      grouped[key].averageDivergencePercent += parseNumber(record.averageDivergencePercent);
+    });
+    return sortWithdrawalDeviationRanking(Object.keys(grouped).map(function (key) {
+      const item = grouped[key];
+      item.averageDivergencePercent = item.total ? roundQuantity(item.averageDivergencePercent / item.total) : 0;
+      return item;
+    }));
+  }
+
+  function getWithdrawalDeviationRankingByRiskLevel() {
+    const grouped = {};
+    withdrawalDeviationHistory.forEach(function (record) {
+      const key = record.riskLevel || "nao informado";
+      grouped[key] = grouped[key] || { riskLevel: key, total: 0, pending: 0, approved: 0, rejected: 0 };
+      grouped[key].total += 1;
+      grouped[key].pending += record.approvalStatus === "APPROVAL_PENDING" ? 1 : 0;
+      grouped[key].approved += record.approvalStatus === "APPROVED" ? 1 : 0;
+      grouped[key].rejected += record.approvalStatus === "REJECTED" ? 1 : 0;
+    });
+    return Object.keys(grouped).map(function (key) { return grouped[key]; }).sort(function (a, b) {
+      return b.total - a.total;
+    });
+  }
+
+  function getWithdrawalDeviationRankingByStatus() {
+    const grouped = {};
+    withdrawalDeviationHistory.forEach(function (record) {
+      const key = record.approvalStatus || "nao informado";
+      grouped[key] = grouped[key] || { status: key, total: 0 };
+      grouped[key].total += 1;
+    });
+    return Object.keys(grouped).map(function (key) { return grouped[key]; }).sort(function (a, b) {
+      return b.total - a.total;
+    });
+  }
+
+  function clearWithdrawalDeviationHistoryForTests() {
+    withdrawalDeviationHistory = [];
   }
 
   function buildWithdrawalPurchasePlan(comparison) {
@@ -5431,6 +5653,13 @@
     if (approvalRequest.status === "APPROVAL_PENDING") {
       approvalRequest = addWithdrawalApprovalRequestToQueue(approvalRequest) || approvalRequest;
     }
+    const deviationRecord = recordWithdrawalDeviation(approvalRequest, {
+      requestedBy: settings.requestedBy || approvalRequest.requestedBy,
+      team: settings.team,
+      worksite: settings.worksite,
+      workPackage: settings.workPackage,
+      registeredBy: settings.registeredBy
+    });
     const releaseDecision = resolveWithdrawalReleaseDecision(approvalRequest);
     const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
     lines.push("SERVICO INFORMADO");
@@ -5508,6 +5737,7 @@
       approvalHistory: approvalHistory,
       approvalAnalysis: approvalAnalysis,
       approvalRequest: approvalRequest,
+      deviationRecord: deviationRecord,
       releaseDecision: releaseDecision,
       answer: lines.join("\n")
     };
@@ -6179,6 +6409,15 @@
     approveWithdrawalApprovalRequestInQueue: approveWithdrawalApprovalRequestInQueue,
     rejectWithdrawalApprovalRequestInQueue: rejectWithdrawalApprovalRequestInQueue,
     getWithdrawalApprovalQueueSummary: getWithdrawalApprovalQueueSummary,
+    recordWithdrawalDeviation: recordWithdrawalDeviation,
+    getWithdrawalDeviationHistory: getWithdrawalDeviationHistory,
+    getWithdrawalDeviationSummary: getWithdrawalDeviationSummary,
+    getWithdrawalDeviationRankingByRequester: getWithdrawalDeviationRankingByRequester,
+    getWithdrawalDeviationRankingByService: getWithdrawalDeviationRankingByService,
+    getWithdrawalDeviationRankingByRiskLevel: getWithdrawalDeviationRankingByRiskLevel,
+    getWithdrawalDeviationRankingByStatus: getWithdrawalDeviationRankingByStatus,
+    clearWithdrawalDeviationHistoryForTests: clearWithdrawalDeviationHistoryForTests,
+    updateWithdrawalDeviationRecordFromRequest: updateWithdrawalDeviationRecordFromRequest,
     buildWithdrawalConference: buildWithdrawalConference,
     compareWithdrawalRequest: compareWithdrawalRequest,
     normalize: normalize,

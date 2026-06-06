@@ -1993,6 +1993,163 @@ test("Stock AI Obras fila de aprovacao registra audit trail de entrada e decisao
   assert.equal(approved.auditTrail[2].by, "Encarregado");
 });
 
+test("Stock AI Obras historico de desvios registra pedido critico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao",
+    team: "Equipe A",
+    worksite: "Obra A",
+    workPackage: "Estrutura",
+    registeredBy: "Almoxarife"
+  });
+  const history = engine.getWithdrawalDeviationHistory();
+
+  assert.equal(history.length, 1);
+  assert.equal(history[0].requestId, conference.approvalRequest.id);
+  assert.equal(history[0].requestedBy, "Joao");
+  assert.equal(history[0].serviceId, "pilar");
+  assert.equal(history[0].status, "CRITICO");
+  assert.equal(history[0].approvalStatus, "APPROVAL_PENDING");
+  assert.equal(history[0].approvalRequired, true);
+  assert.equal(history[0].canReleaseMaterial, false);
+});
+
+test("Stock AI Obras historico de desvios registra pedido dentro do previsto", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  const history = engine.getWithdrawalDeviationHistory();
+
+  assert.equal(history.length, 1);
+  assert.equal(history[0].requestId, conference.approvalRequest.id);
+  assert.equal(history[0].status, "DENTRO_DO_PREVISTO");
+  assert.equal(history[0].approvalStatus, "APPROVAL_NOT_REQUIRED");
+  assert.equal(history[0].approvalRequired, false);
+  assert.equal(history[0].canReleaseMaterial, true);
+});
+
+test("Stock AI Obras historico de desvios nao duplica requestId", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  engine.recordWithdrawalDeviation(conference.approvalRequest, { requestedBy: "Joao" });
+  engine.recordWithdrawalDeviation(conference.approvalRequest, { requestedBy: "Joao" });
+
+  assert.equal(engine.getWithdrawalDeviationHistory().length, 1);
+});
+
+test("Stock AI Obras historico de desvios atualiza aprovacao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Joao"
+  });
+  engine.approveWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Encarregado", "OK");
+  const history = engine.getWithdrawalDeviationHistory();
+
+  assert.equal(history.length, 1);
+  assert.equal(history[0].approvalStatus, "APPROVED");
+  assert.equal(history[0].canReleaseMaterial, true);
+});
+
+test("Stock AI Obras historico de desvios atualiza rejeicao", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const conference = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", {
+    requestedBy: "Pedro"
+  });
+  engine.rejectWithdrawalApprovalRequestInQueue(conference.approvalRequest.id, "Gestor", "Nao autorizado");
+  const history = engine.getWithdrawalDeviationHistory();
+
+  assert.equal(history.length, 1);
+  assert.equal(history[0].approvalStatus, "REJECTED");
+  assert.equal(history[0].canReleaseMaterial, false);
+});
+
+test("Stock AI Obras historico de desvios resume pendentes aprovados rejeitados e liberados", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const approved = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.approveWithdrawalApprovalRequestInQueue(approved.approvalRequest.id, "Encarregado", "OK");
+  const rejected = engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  engine.rejectWithdrawalApprovalRequestInQueue(rejected.approvalRequest.id, "Gestor", "Nao autorizado");
+  engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  const summary = engine.getWithdrawalDeviationSummary();
+
+  assert.equal(summary.totalRequests, 3);
+  assert.equal(summary.pending, 0);
+  assert.equal(summary.approved, 1);
+  assert.equal(summary.rejected, 1);
+  assert.equal(summary.notRequired, 1);
+  assert.equal(summary.critical, 2);
+  assert.equal(summary.blockedRequests, 1);
+  assert.equal(summary.releasableRequests, 2);
+});
+
+test("Stock AI Obras historico de desvios gera ranking por solicitante", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 10 sacos de argamassa colante AC3 para assentar 10 m2 de piso", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  const ranking = engine.getWithdrawalDeviationRankingByRequester();
+
+  assert.equal(ranking[0].requestedBy, "Joao");
+  assert.equal(ranking[0].total, 2);
+  assert.equal(ranking[0].critical, 1);
+  assert.equal(ranking.find((item) => item.requestedBy === "Pedro").total, 1);
+});
+
+test("Stock AI Obras historico de desvios gera ranking por servico", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 10 sacos de argamassa colante AC3 para assentar 10 m2 de piso", { requestedBy: "Joao" });
+  engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  const ranking = engine.getWithdrawalDeviationRankingByService();
+
+  assert.equal(ranking[0].serviceId, "pilar");
+  assert.equal(ranking[0].total, 2);
+  assert.equal(ranking[0].critical, 2);
+  assert.equal(ranking.find((item) => item.serviceId === "piso_ceramico").total, 1);
+});
+
+test("Stock AI Obras historico de desvios gera ranking por risco", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const approved = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.approveWithdrawalApprovalRequestInQueue(approved.approvalRequest.id, "Encarregado", "OK");
+  const rejected = engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  engine.rejectWithdrawalApprovalRequestInQueue(rejected.approvalRequest.id, "Gestor", "Nao autorizado");
+  engine.buildWithdrawalConference("Pedreiro pediu 10 sacos de argamassa colante AC3 para assentar 10 m2 de piso", { requestedBy: "Joao" });
+  const ranking = engine.getWithdrawalDeviationRankingByRiskLevel();
+  const alto = ranking.find((item) => item.riskLevel === "alto");
+
+  assert.equal(alto.total, 2);
+  assert.equal(alto.approved, 1);
+  assert.equal(alto.rejected, 1);
+});
+
+test("Stock AI Obras historico de desvios gera ranking por status", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
+  const approved = engine.buildWithdrawalConference("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  engine.approveWithdrawalApprovalRequestInQueue(approved.approvalRequest.id, "Encarregado", "OK");
+  const rejected = engine.buildWithdrawalConference("Pedreiro pediu 30 sacos de cimento para fazer 2 pilares", { requestedBy: "Pedro" });
+  engine.rejectWithdrawalApprovalRequestInQueue(rejected.approvalRequest.id, "Gestor", "Nao autorizado");
+  engine.buildWithdrawalConference("Pedreiro pediu 8 sacos de cimento para fazer 2 pilares", { requestedBy: "Joao" });
+  const ranking = engine.getWithdrawalDeviationRankingByStatus();
+
+  assert.equal(ranking.find((item) => item.status === "APPROVED").total, 1);
+  assert.equal(ranking.find((item) => item.status === "REJECTED").total, 1);
+  assert.equal(ranking.find((item) => item.status === "APPROVAL_NOT_REQUIRED").total, 1);
+});
+
 test("Stock AI Obras rejeita parede com medida zero", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("parede 0 x 3");
