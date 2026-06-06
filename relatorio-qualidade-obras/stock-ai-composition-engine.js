@@ -4331,6 +4331,52 @@
     };
   }
 
+  function parseMixedWallSidewalkRequest(originalMessage, geometry) {
+    const text = normalize(originalMessage);
+    if (!hasAny(text, ["parede", "alvenaria"]) || !hasAny(text, ["calcada", "passeio"])) {
+      return null;
+    }
+    const number = "(\\d+(?:[.,]\\d+)?)";
+    const wallMatch = originalMessage.match(new RegExp("(?:parede|alvenaria)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+    const sidewalkMatch = originalMessage.match(new RegExp("(?:calcada|passeio)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+    if (!wallMatch || !sidewalkMatch) {
+      return null;
+    }
+
+    const wallLength = parseDimensionNumber(wallMatch[1]);
+    const wallHeight = parseDimensionNumber(wallMatch[2]);
+    const wallArea = roundQuantity(wallLength * wallHeight);
+    const sidewalkLength = parseDimensionNumber(sidewalkMatch[1]);
+    const sidewalkWidth = parseDimensionNumber(sidewalkMatch[2]);
+    const sidewalkArea = roundQuantity(sidewalkLength * sidewalkWidth);
+    const wallService = createGeometryServiceEntry({
+      serviceType: "alvenaria",
+      service: getGeometryServiceName("alvenaria", "area"),
+      quantity: wallArea,
+      unit: "m2",
+      label: "Parede"
+    }, geometry);
+
+    return {
+      originalMessage: originalMessage,
+      quantity: wallArea,
+      unit: "m2",
+      missingQuantity: false,
+      assumedBaseQuantity: false,
+      geometry: geometry,
+      services: [wallService, {
+        service: "Calcada",
+        serviceType: "calcada",
+        quantity: sidewalkArea,
+        unit: "m2",
+        requestedUnit: "m2",
+        materialHint: "calcada",
+        controlledServiceId: "calcada",
+        score: 500
+      }].filter(Boolean)
+    };
+  }
+
   function parseRequest(message) {
     const originalMessage = clean(message);
     const text = normalize(originalMessage);
@@ -4338,6 +4384,10 @@
     const compositionCode = extractCompositionCodeRequest(originalMessage);
     const compositionByCode = compositionCode ? findCompositionByCode(compositionCode) : null;
     if (geometry.detected) {
+      const mixedWallSidewalkRequest = parseMixedWallSidewalkRequest(originalMessage, geometry);
+      if (mixedWallSidewalkRequest) {
+        return mixedWallSidewalkRequest;
+      }
       const geometryServiceSource = geometry.geometryType === "composite"
         ? (geometry.derivedServices || [])
         : [{
