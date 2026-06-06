@@ -1569,6 +1569,11 @@
     return text || clean(value).toLowerCase();
   }
 
+  function isRecognizedSinapiAnaliticoItemType(value) {
+    const type = normalizeSinapiAnaliticoItemType(value);
+    return type === "insumo" || type === "composicao";
+  }
+
   function parseSinapiAnaliticoRows(rows, options) {
     const settings = options || {};
     const source = normalizeOfficialSource(settings.source || "SINAPI");
@@ -1599,12 +1604,29 @@
     const table = detected.rows;
     const indexes = detected.columnIndexes;
     const parsedRows = [];
+    const ignoredRows = [];
     table.slice(detected.headerIndex + 1).forEach(function (line, lineIndex) {
       const compositionCode = clean(line[indexes.compositionCode]);
       if (!compositionCode) {
         return;
       }
       const itemType = clean(line[indexes.itemType]);
+      const normalizedItemType = normalizeSinapiAnaliticoItemType(itemType);
+      const inputCode = clean(line[indexes.inputCode]);
+      const inputName = clean(line[indexes.inputName]);
+      const inputUnit = clean(line[indexes.inputUnit]);
+      const coefficient = line[indexes.coefficient];
+      const hasRecognizedItemType = isRecognizedSinapiAnaliticoItemType(itemType);
+      const hasCompleteItem = !!inputCode && !!inputName && parseNumber(coefficient) > 0;
+      if (!hasRecognizedItemType && !hasCompleteItem) {
+        ignoredRows.push({
+          sourceRow: detected.headerIndex + 2 + lineIndex,
+          compositionCode: compositionCode,
+          compositionName: clean(line[indexes.compositionName]),
+          reason: "Linha SINAPI sem item real reconhecido."
+        });
+        return;
+      }
       parsedRows.push({
         source: "SINAPI",
         state: state,
@@ -1614,12 +1636,12 @@
         compositionCode: compositionCode,
         compositionName: clean(line[indexes.compositionName]),
         compositionUnit: clean(line[indexes.compositionUnit]),
-        inputType: normalizeSinapiAnaliticoItemType(itemType),
+        inputType: normalizedItemType,
         itemType: itemType,
-        inputCode: clean(line[indexes.inputCode]),
-        inputName: clean(line[indexes.inputName]),
-        inputUnit: clean(line[indexes.inputUnit]),
-        coefficient: line[indexes.coefficient],
+        inputCode: inputCode,
+        inputName: inputName,
+        inputUnit: inputUnit,
+        coefficient: coefficient,
         sourceRow: detected.headerIndex + 2 + lineIndex
       });
     });
@@ -1650,6 +1672,7 @@
       detected: detected.detected,
       rows: errors.length ? [] : parsedRows,
       normalizedRows: errors.length ? [] : normalized,
+      ignoredRows: ignoredRows,
       errors: errors,
       headerIndex: detected.headerIndex,
       headers: detected.headers,
@@ -1660,6 +1683,7 @@
       pricingType: clean(settings.pricingType),
       locality: clean(settings.locality),
       totalRows: parsedRows.length,
+      totalIgnoredRows: ignoredRows.length,
       totalCompositions: Object.keys(parsedRows.reduce(function (grouped, row) {
         grouped[row.compositionCode] = true;
         return grouped;

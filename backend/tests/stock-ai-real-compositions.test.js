@@ -1191,6 +1191,23 @@ test("Stock AI Obras parser SINAPI Analitico ignora metadados do topo", () => {
   assert.equal(parsed.rows[0].compositionCode, "SINAPI-ANA-001");
 });
 
+test("Stock AI Obras parser SINAPI Analitico ignora linha com composicao sem item real", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const rows = sinapiAnaliticoRowsFixture().map((row) => row.slice());
+  rows.splice(6, 0, ["97141", "Composicao administrativa sem item real", "M2", "", "", "", "", "", "", ""]);
+  const parsed = engine.parseSinapiAnaliticoRows(rows, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2024-12"
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.rows.length, 3);
+  assert.equal(parsed.ignoredRows.length, 1);
+  assert.equal(parsed.ignoredRows[0].compositionCode, "97141");
+  assert.doesNotMatch(parsed.errors.join(" "), /97141/);
+});
+
 test("Stock AI Obras parser SINAPI Analitico agrupa por codigo na importacao", () => {
   const engine = loadStockAiCompositionEngineWithXlsx();
   const imported = engine.importSinapiAnaliticoXlsx(sinapiAnaliticoWorkbookFixture(), {
