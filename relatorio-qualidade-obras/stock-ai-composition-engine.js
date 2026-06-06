@@ -448,7 +448,12 @@
 
   function isFloorOfShedRequest(text) {
     return (hasTerm(text, "piso") || hasTerm(text, "contrapiso") || hasTerm(text, "piso de concreto")) &&
-      (hasTerm(text, "galpao") || hasTerm(text, "galpão"));
+      (hasTerm(text, "galpao") || hasTerm(text, "galpão")) &&
+      !hasShedCompositeDetails(text);
+  }
+
+  function hasShedCompositeDetails(text) {
+    return hasAny(text, ["cobertura", "telhado", "fechamento lateral", "pilares", "pilar", "sapatas", "sapata", "baldrame"]);
   }
 
   function hasWholeNormalizedTerm(text, term) {
@@ -3436,11 +3441,9 @@
 
   function stripStockContext(message) {
     const source = clean(message);
-    if (/^(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b/i.test(source)) {
-      const serviceIntent = source.match(/\b(?:vou\s+fazer|vou\s+executar|vou\s+concretar|quero\s+fazer|quero\s+executar|preciso\s+(?:fazer|executar)|fazer|executar|construir|concretar|levantar|assentar)\b[\s\S]*$/i);
-      if (serviceIntent) {
-        return serviceIntent[0].trim();
-      }
+    const serviceIntent = source.match(/\b(?:vou\s+fazer|vou\s+executar|vou\s+concretar|quero\s+fazer|quero\s+executar|preciso\s+(?:fazer|executar)|fazer|executar|construir|concretar|levantar|assentar)\b[\s\S]*$/i);
+    if (serviceIntent && /\b(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b/i.test(source.slice(0, serviceIntent.index))) {
+      return serviceIntent[0].trim();
     }
     return source
       .replace(/\b(?:e\s+)?(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b[\s\S]*$/i, "")
@@ -3765,6 +3768,15 @@
           unit: "m3",
           explanation: "Pilares informados: " + formatQuantity(count) + " x " + formatMeters(widthSection) + " x " + formatMeters(depthSection) + " x " + formatMeters(pillarHeight) + " = " + formatCubicMeters(pillarVolume)
         });
+      } else if (hasAny(text, ["pilares", "pilar"])) {
+        derivedServices.push({
+          serviceType: "pilar",
+          service: "",
+          quantity: 0,
+          unit: "m3",
+          label: "pilares",
+          explanation: "Pilares informados sem quantidade, secao ou altura"
+        });
       }
 
       const sapataMatch = originalMessage.match(new RegExp("sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number, "i"));
@@ -3781,6 +3793,15 @@
           unit: "m3",
           explanation: "Sapatas informadas: " + formatQuantity(count) + " x " + formatMeters(sapataLength) + " x " + formatMeters(sapataWidth) + " x " + formatMeters(sapataHeight) + " = " + formatCubicMeters(sapataVolume)
         });
+      } else if (hasAny(text, ["sapatas", "sapata"])) {
+        derivedServices.push({
+          serviceType: "sapata",
+          service: "",
+          quantity: 0,
+          unit: "m3",
+          label: "sapatas",
+          explanation: "Sapatas informadas sem quantidade ou dimensoes"
+        });
       }
 
       const baldrameMatch = originalMessage.match(new RegExp("baldrame\\s*" + number + "\\s*(?:m|metros?).*?" + number + "\\s*(?:x|por)\\s*" + number, "i"));
@@ -3796,6 +3817,15 @@
           unit: "m3",
           explanation: "Baldrame informado: " + formatMeters(baldrameLength) + " x " + formatMeters(baldrameWidth) + " x " + formatMeters(baldrameHeight) + " = " + formatCubicMeters(baldrameVolume)
         });
+      } else if (hasTerm(text, "baldrame")) {
+        derivedServices.push({
+          serviceType: "baldrame",
+          service: "",
+          quantity: 0,
+          unit: "m3",
+          label: "baldrame",
+          explanation: "Baldrame informado sem comprimento ou secao"
+        });
       }
 
       const sideClosureMatch = originalMessage.match(new RegExp("fechamento\\s+lateral\\s*" + number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i"));
@@ -3808,6 +3838,15 @@
           unit: "m2",
           label: "fechamento lateral",
           explanation: "Fechamento lateral informado: " + formatSquareMeters(sideClosureArea)
+        });
+      } else if (hasTerm(text, "fechamento lateral")) {
+        derivedServices.push({
+          serviceType: "fechamento_lateral",
+          service: "",
+          quantity: wallArea,
+          unit: "m2",
+          label: "fechamento lateral",
+          explanation: "Fechamento lateral estimado pelo perimetro e pe-direito: " + formatSquareMeters(wallArea)
         });
       }
     }
