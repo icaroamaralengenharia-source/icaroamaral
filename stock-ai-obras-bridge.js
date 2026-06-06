@@ -44,7 +44,13 @@
   function getImportElements_() {
     return {
       input: document.querySelector(".stock-obras-import-input"),
+      source: document.querySelector(".stock-obras-import-source"),
+      state: document.querySelector(".stock-obras-import-state"),
+      referenceMonth: document.querySelector(".stock-obras-import-month"),
+      sheetName: document.querySelector(".stock-obras-import-sheet"),
+      columnMap: document.querySelector(".stock-obras-import-column-map"),
       status: document.querySelector(".stock-obras-import-status"),
+      validateButton: document.querySelector('[data-stock-obras-import-action="validate"]'),
       importButton: document.querySelector('[data-stock-obras-import-action="import"]'),
       clearButton: document.querySelector('[data-stock-obras-import-action="clear"]')
     };
@@ -154,6 +160,9 @@
 
   function clearImportedCompositionCatalog_() {
     const engine = window.StockAiCompositionEngine || {};
+    if (typeof engine.clearImportedOfficialBase === "function") {
+      engine.clearImportedOfficialBase();
+    }
     if (typeof engine.clearExternalCompositionCatalog === "function") {
       engine.clearExternalCompositionCatalog();
     }
@@ -161,7 +170,218 @@
     if (elements.input) {
       elements.input.value = "";
     }
-    setImportStatus_("Base importada removida. O Stock AI voltou a usar a base demonstrativa/editavel.");
+    setImportStatus_("Base oficial importada removida. O Stock AI voltou ao catalogo demonstrativo/fallback.");
+  }
+
+  function parseColumnMap_(elements) {
+    const raw = clean_(elements.columnMap && elements.columnMap.value);
+    if (!raw) {
+      return { ok: true, value: undefined };
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        return { ok: false, error: "ColumnMap deve ser um objeto JSON." };
+      }
+      return { ok: true, value: parsed };
+    } catch (error) {
+      return { ok: false, error: "ColumnMap invalido. Informe um JSON valido antes de validar ou importar." };
+    }
+  }
+
+  function getOfficialImportOptions_() {
+    const elements = getImportElements_();
+    const columnMap = parseColumnMap_(elements);
+    if (!columnMap.ok) {
+      return { ok: false, error: columnMap.error };
+    }
+    return {
+      ok: true,
+      value: {
+        source: clean_(elements.source && elements.source.value).toUpperCase(),
+        state: clean_(elements.state && elements.state.value).toUpperCase(),
+        referenceMonth: clean_(elements.referenceMonth && elements.referenceMonth.value),
+        sheetName: clean_(elements.sheetName && elements.sheetName.value),
+        columnMap: columnMap.value
+      }
+    };
+  }
+
+  function getSelectedOfficialFile_() {
+    const elements = getImportElements_();
+    return elements.input && elements.input.files && elements.input.files[0];
+  }
+
+  function isCsvFile_(file) {
+    return !!(file && (/\.csv$/i.test(file.name || "") || /csv/i.test(file.type || "")));
+  }
+
+  function isXlsxFile_(file) {
+    return !!(file && (/\.xlsx$/i.test(file.name || "") ||
+      /spreadsheetml\.sheet/i.test(file.type || "")));
+  }
+
+  function readOfficialFile_(file, mode, callback) {
+    const reader = new FileReader();
+    reader.onload = function () {
+      callback(null, reader.result);
+    };
+    reader.onerror = function () {
+      callback(new Error("Nao foi possivel ler o arquivo selecionado."));
+    };
+    if (mode === "arrayBuffer") {
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+    reader.readAsText(file);
+  }
+
+  function countInputs_(compositions) {
+    return (compositions || []).reduce(function (total, composition) {
+      return total + ((composition.inputs || composition.materials || []).length);
+    }, 0);
+  }
+
+  function formatExamples_(compositions) {
+    const examples = (compositions || []).slice(0, 3).map(function (composition) {
+      return "- " + (composition.code || composition.id || "sem codigo") + " - " +
+        (composition.name || composition.description || composition.service || "sem descricao");
+    });
+    return examples.length ? examples.join("\n") : "- Nenhuma composicao pronta detectada.";
+  }
+
+  function formatOfficialValidationStatus_(parsed, validation) {
+    const ready = validation && (validation.compositions || validation.ready || validation.imported) || [];
+    const errors = (parsed && parsed.errors || []).concat(validation && validation.errors || []);
+    const warnings = [
+      "Nenhum coeficiente sera inventado.",
+      "A base demonstrativa continua disponivel como fallback.",
+      "A importacao oficial tera prioridade sobre a demonstrativa somente apos importar."
+    ];
+    return [
+      "Status: " + (validation && validation.ok ? "arquivo valido para importacao" : "arquivo ainda nao esta pronto"),
+      "Erros: " + (errors.length ? "\n" + errors.slice(0, 8).map(function (error) { return "- " + error; }).join("\n") : "nenhum"),
+      "Avisos:\n- " + warnings.join("\n- "),
+      "Total de linhas: " + (parsed && parsed.rows ? parsed.rows.length : 0),
+      "Total de composicoes: " + ready.length,
+      "Total de insumos: " + countInputs_(ready),
+      "Fonte: " + clean_(parsed && parsed.rows && parsed.rows[0] && parsed.rows[0].source || ""),
+      "UF: " + clean_(parsed && parsed.rows && parsed.rows[0] && parsed.rows[0].state || ""),
+      "Mes: " + clean_(parsed && parsed.rows && parsed.rows[0] && parsed.rows[0].referenceMonth || ""),
+      "Exemplos:\n" + formatExamples_(ready)
+    ].join("\n");
+  }
+
+  function formatOfficialImportStatus_(result) {
+    const engine = window.StockAiCompositionEngine || {};
+    const stats = typeof engine.getImportedOfficialBaseStats === "function"
+      ? engine.getImportedOfficialBaseStats()
+      : {};
+    const imported = result && result.imported || [];
+    const errors = result && result.errors || [];
+    return [
+      "Status: base oficial importada com prioridade sobre a demonstrativa.",
+      "Erros: " + (errors.length ? "\n" + errors.slice(0, 8).map(function (error) { return "- " + error; }).join("\n") : "nenhum"),
+      "Avisos:\n- Nenhum coeficiente foi inventado.\n- Templates, examples e mocks sao rejeitados.\n- A base demonstrativa continua disponivel como fallback.",
+      "Total de linhas: " + (result && result.rows ? result.rows.length : 0),
+      "Total de composicoes: " + (stats.totalCompositions || imported.length || 0),
+      "Total de insumos: " + (stats.totalInputs || countInputs_(imported)),
+      "Fonte: " + (stats.source || ""),
+      "UF: " + (stats.state || ""),
+      "Mes: " + (stats.referenceMonth || ""),
+      "Exemplos:\n" + formatExamples_(imported)
+    ].join("\n");
+  }
+
+  function setOfficialImportFallbackXlsx_() {
+    setImportStatus_("XLSX ainda nao esta disponivel diretamente nesta interface. Use CSV nesta fase ou importe XLSX pelo fluxo backend/testes.");
+  }
+
+  function parseOfficialFileResult_(file, fileContent, options, action) {
+    const engine = window.StockAiCompositionEngine || {};
+    if (isCsvFile_(file)) {
+      if (action === "import") {
+        return typeof engine.importOfficialBaseCsv === "function"
+          ? engine.importOfficialBaseCsv(String(fileContent || ""), options)
+          : { ok: false, errors: ["Motor CSV oficial ainda nao carregado."] };
+      }
+      const parsed = typeof engine.parseOfficialBaseCsv === "function"
+        ? engine.parseOfficialBaseCsv(String(fileContent || ""), options)
+        : { ok: false, rows: [], errors: ["Motor CSV oficial ainda nao carregado."] };
+      if (!parsed.ok) {
+        return parsed;
+      }
+      const validation = typeof engine.validateOfficialBaseImport === "function"
+        ? engine.validateOfficialBaseImport({ rows: parsed.rows }, options)
+        : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
+      return { ok: validation.ok, parsed: parsed, validation: validation };
+    }
+
+    if (isXlsxFile_(file)) {
+      if (!window.XLSX) {
+        return { ok: false, xlsxFallback: true };
+      }
+      if (action === "import") {
+        return typeof engine.importOfficialBaseXlsx === "function"
+          ? engine.importOfficialBaseXlsx(fileContent, options)
+          : { ok: false, errors: ["Motor XLSX oficial ainda nao carregado."] };
+      }
+      const parsedXlsx = typeof engine.parseOfficialBaseXlsx === "function"
+        ? engine.parseOfficialBaseXlsx(fileContent, options)
+        : { ok: false, rows: [], errors: ["Motor XLSX oficial ainda nao carregado."] };
+      if (!parsedXlsx.ok) {
+        return parsedXlsx;
+      }
+      const validationXlsx = typeof engine.validateOfficialBaseImport === "function"
+        ? engine.validateOfficialBaseImport({ rows: parsedXlsx.rows }, options)
+        : { ok: false, errors: ["Validador oficial ainda nao carregado."] };
+      return { ok: validationXlsx.ok, parsed: parsedXlsx, validation: validationXlsx };
+    }
+
+    return { ok: false, errors: ["Formato nao suportado. Use CSV nesta fase ou XLSX quando disponivel no ambiente."] };
+  }
+
+  function handleOfficialBaseFile_(action) {
+    const engine = window.StockAiCompositionEngine || {};
+    if (!engine || typeof engine !== "object") {
+      setImportStatus_("Motor de composicoes ainda nao carregado. Tente novamente em alguns segundos.");
+      return;
+    }
+    const options = getOfficialImportOptions_();
+    if (!options.ok) {
+      setImportStatus_(options.error);
+      return;
+    }
+    const file = getSelectedOfficialFile_();
+    if (!file) {
+      setImportStatus_("Selecione um arquivo CSV ou XLSX antes de validar ou importar.");
+      return;
+    }
+    const mode = isXlsxFile_(file) ? "arrayBuffer" : "text";
+    readOfficialFile_(file, mode, function (error, content) {
+      if (error) {
+        setImportStatus_(error.message);
+        return;
+      }
+      try {
+        const result = parseOfficialFileResult_(file, content, options.value, action);
+        if (result.xlsxFallback) {
+          setOfficialImportFallbackXlsx_();
+          return;
+        }
+        if (action === "import") {
+          if (!result.ok) {
+            setImportStatus_(formatOfficialValidationStatus_(result.parsed || result, result));
+            return;
+          }
+          setImportStatus_(formatOfficialImportStatus_(result));
+          return;
+        }
+        setImportStatus_(formatOfficialValidationStatus_(result.parsed || result, result.validation || result));
+      } catch (runtimeError) {
+        setImportStatus_("Nao foi possivel processar o arquivo com seguranca. Use CSV nesta fase ou revise o formato informado.");
+      }
+    });
   }
 
   function getStockAiObrasAnswer_(question) {
@@ -434,9 +654,17 @@
     }, true);
 
     const importElements = getImportElements_();
+    if (importElements.validateButton && !importElements.validateButton.dataset.stockAiObrasImportBound) {
+      importElements.validateButton.dataset.stockAiObrasImportBound = "true";
+      importElements.validateButton.addEventListener("click", function () {
+        handleOfficialBaseFile_("validate");
+      });
+    }
     if (importElements.importButton && !importElements.importButton.dataset.stockAiObrasImportBound) {
       importElements.importButton.dataset.stockAiObrasImportBound = "true";
-      importElements.importButton.addEventListener("click", readSelectedCompositionFile_);
+      importElements.importButton.addEventListener("click", function () {
+        handleOfficialBaseFile_("import");
+      });
     }
     if (importElements.clearButton && !importElements.clearButton.dataset.stockAiObrasImportBound) {
       importElements.clearButton.dataset.stockAiObrasImportBound = "true";

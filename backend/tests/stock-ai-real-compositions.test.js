@@ -15,6 +15,8 @@ const firstOfficialGuidePath = join(testDir, "..", "..", "docs", "stock-ai-guia-
 const officialBaseImporterGuidePath = join(testDir, "..", "..", "docs", "stock-ai-importador-bases-oficiais.md");
 const officialBaseCsvGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-csv-bases-oficiais.md");
 const officialBaseXlsxGuidePath = join(testDir, "..", "..", "docs", "stock-ai-leitor-xlsx-bases-oficiais.md");
+const officialBaseUploadGuidePath = join(testDir, "..", "..", "docs", "stock-ai-interface-upload-base-oficial.md");
+const stockAiObrasHtmlPath = join(testDir, "..", "..", "stock-ai-obras.html");
 
 function loadStockAiCompositionEngine(windowOverrides = {}) {
   const source = readFileSync(join(testDir, "..", "..", "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
@@ -1078,4 +1080,40 @@ test("Stock AI Obras documenta leitor XLSX de bases oficiais", () => {
   assert.match(guide, /columnMap/i);
   assert.match(guide, /decimal com virgula/i);
   assert.match(guide, /XLSX.*rows.*importador.*catalogo/i);
+});
+
+test("Stock AI Obras interface contem upload de base oficial", () => {
+  const html = readFileSync(stockAiObrasHtmlPath, "utf8");
+
+  assert.match(html, /Importar base oficial SINAPI\/ORSE/);
+  assert.match(html, /Fonte/);
+  assert.match(html, /UF/);
+  assert.match(html, /M&ecirc;s de refer&ecirc;ncia/);
+  assert.match(html, /Validar arquivo/);
+  assert.match(html, /Importar base/);
+  assert.match(html, /Limpar base importada/);
+  assert.match(html, /Leitura XLSX dispon&iacute;vel no backend\/testes/);
+});
+
+test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
+  const bridge = readFileSync(join(testDir, "..", "..", "stock-ai-obras-bridge.js"), "utf8");
+
+  assert.match(bridge, /parseOfficialBaseCsv/);
+  assert.match(bridge, /importOfficialBaseCsv/);
+  assert.match(bridge, /parseOfficialBaseXlsx/);
+  assert.match(bridge, /XLSX ainda nao esta disponivel diretamente nesta interface/);
+  assert.match(bridge, /clearImportedOfficialBase/);
+  assert.match(bridge, /ColumnMap invalido/);
+});
+
+test("Stock AI Obras documenta interface de upload de base oficial", () => {
+  assert.equal(existsSync(officialBaseUploadGuidePath), true);
+
+  const guide = readFileSync(officialBaseUploadGuidePath, "utf8");
+
+  assert.match(guide, /como importar CSV/i);
+  assert.match(guide, /fallback XLSX no browser/i);
+  assert.match(guide, /columnMap/i);
+  assert.match(guide, /validacao antes da importacao/i);
+  assert.match(guide, /Limpar base/i);
 });
