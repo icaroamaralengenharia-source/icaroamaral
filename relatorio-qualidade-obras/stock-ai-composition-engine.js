@@ -28,7 +28,15 @@
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : 0;
     }
-    const normalized = clean(value).replace(/\./g, "").replace(",", ".");
+    const raw = clean(value);
+    let normalized = raw;
+    if (raw.indexOf(".") >= 0 && raw.indexOf(",") >= 0) {
+      normalized = raw.replace(/\./g, "").replace(",", ".");
+    } else if (raw.indexOf(",") >= 0) {
+      normalized = raw.replace(",", ".");
+    } else if (/^\d{1,3}(?:\.\d{3})+$/.test(raw)) {
+      normalized = raw.replace(/\./g, "");
+    }
     const parsed = Number.parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -1422,7 +1430,7 @@
 
   const LINEAR_GEOMETRY_SERVICES = [
     { serviceType: "rufo", label: "rufo", terms: ["rufo"], question: "Qual o comprimento total do rufo em metros?" },
-    { serviceType: "calha", label: "calha", terms: ["calha"], question: "Qual o comprimento total da calha em metros?" },
+    { serviceType: "calha", label: "calha", terms: ["calha", "calhas"], question: "Qual o comprimento total da calha em metros?" },
     { serviceType: "cumeeira", label: "cumeeira", terms: ["cumeeira"], question: "Qual o comprimento total da cumeeira em metros?" },
     { serviceType: "rodape", label: "rodape", terms: ["rodape", "roda pe"], question: "Qual o comprimento total do rodape em metros?" },
     { serviceType: "roda_meio", label: "roda-meio", terms: ["roda meio", "roda meio", "rodameio"], question: "Qual o comprimento total do roda-meio em metros?" },
@@ -1457,7 +1465,7 @@
     const terms = service.terms.map(function (term) {
       return term.replace(/\s+/g, "\\s*[- ]?\\s*");
     }).join("|");
-    const source = text;
+    const source = normalizeQuantityText(originalMessage);
     const before = source.match(new RegExp(number + "\\s*" + unit + "\\s*(?:de\\s+)?(?:" + terms + ")", "i"));
     const after = source.match(new RegExp("(?:" + terms + ")\\s*(?:" + number + "\\s*" + unit + "|" + number + "\\b)", "i"));
     const match = before || after;
@@ -1481,6 +1489,22 @@
       return null;
     }
     return parseDimensionNumber(before ? match[1] : (match[1] || match[2]));
+  }
+
+  function normalizeQuantityText(value) {
+    return clean(value)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9.,]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function stripStockContext(message) {
+    return clean(message)
+      .replace(/\b(?:e\s+)?(?:tenho\s+em\s+estoque|em\s+estoque|estoque|disponivel|disponivel|ja\s+possuo|ja\s+possuo|no\s+estoque\s+existe)\b[\s\S]*$/i, "")
+      .trim();
   }
 
   function buildLinearGeometryResult(service, quantity) {
@@ -1631,7 +1655,7 @@
   }
 
   function parseGeometryRequest(message) {
-    const originalMessage = clean(message);
+    const originalMessage = stripStockContext(message);
     const text = normalize(originalMessage);
     const number = "(\\d+(?:[.,]\\d+)?)";
 
@@ -1724,7 +1748,8 @@
       const label = isRadier ? "Radier" : isJoistSlab ? "Laje trelicada" : "Laje macica";
       const areaMatch = originalMessage.match(new RegExp(number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i"));
       const planMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
-      const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|capa|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
+      const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|capa|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i")) ||
+        originalMessage.match(new RegExp("(?:m2|m²|metros?\\s+quadrados?)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
       const area = areaMatch ? parseDimensionNumber(areaMatch[1]) : planMatch ? roundQuantity(parseDimensionNumber(planMatch[1]) * parseDimensionNumber(planMatch[2])) : 0;
       if (area && thicknessMatch && (!isJoistSlab || isRadier || hasAny(text, ["capa", "concreto", "espessura"]))) {
         const thickness = parseStructuralDimension(thicknessMatch[1], thicknessMatch[2]);
@@ -1762,7 +1787,7 @@
     }
 
     if (hasTerm(text, "pilar") || hasTerm(text, "pilares") || hasTerm(text, "coluna")) {
-      const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilares?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
+      const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilar(?:es)?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
       if (pillarMatch) {
         const count = pillarMatch[1] ? parseDimensionNumber(pillarMatch[1]) : 1;
         const width = parseStructuralDimension(pillarMatch[2], pillarMatch[4]);
@@ -1995,6 +2020,23 @@
     const wordOneQuantity = !quantityMatch && !looseQuantityMatch && /\b(um|uma)\b/i.test(originalMessage);
     const quantity = quantityMatch ? parseNumber(quantityMatch[1]) : looseQuantityMatch ? parseNumber(looseQuantityMatch[1]) : wordOneQuantity ? 1 : 0;
     const unit = quantityMatch ? normalizeRequestedUnit(quantityMatch[2]) : "";
+    if ((hasTerm(text, "cobertura") || hasTerm(text, "telhado")) && !hasExplicitCoverageType(text)) {
+      return {
+        originalMessage: originalMessage,
+        quantity: quantity,
+        unit: unit || "m2",
+        missingQuantity: quantity <= 0,
+        assumedBaseQuantity: false,
+        geometry: geometry,
+        servicesWithoutComposition: quantity > 0 ? [{
+          serviceType: "cobertura",
+          quantity: quantity,
+          unit: unit || "m2",
+          label: "cobertura"
+        }] : [],
+        services: []
+      };
+    }
     const ranked = rankCompositions(text, { unit: unit });
     const bestScore = ranked.length ? ranked[0].score : 0;
     const services = ranked.filter(function (entry) {
@@ -2742,7 +2784,7 @@
         inStockSection = false;
       }
     });
-    const text = stockLines.join("\n");
+    const text = stockLines.join("\n").replace(/\bmetros?\b/gi, "m");
     const pattern = /(\d+(?:[.,]\d+)?)\s*(sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)(?:\s+de\s+(.+?))?(?=(?:\s+e\s+|\s*,\s*|\s*;\s*)\d+(?:[.,]\d+)?\s*(?:sacos?|m²|m2|m³|m3|kg|telhas?|blocos?|unidades?|un|m)\b|$)/gi;
     let match;
     while ((match = pattern.exec(text))) {
@@ -2765,6 +2807,10 @@
         name = "Cimento";
       } else if (materialKey.indexOf("areia") >= 0) {
         name = "Areia";
+      } else if (materialKey.indexOf("concreto") >= 0) {
+        name = "Concreto estrutural";
+      } else if (materialKey.indexOf("cabo") >= 0 || materialKey.indexOf("fio") >= 0) {
+        name = "Cabo eletrico";
       } else if (materialKey.indexOf("aco") >= 0 || materialKey.indexOf("ferro") >= 0) {
         name = "Aco CA-50";
       }

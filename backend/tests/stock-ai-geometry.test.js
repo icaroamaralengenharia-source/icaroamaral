@@ -30,6 +30,18 @@ test("Stock AI Obras calcula area de parede por geometria", () => {
   assert.equal(result.unit, "m2");
 });
 
+test("Stock AI Obras interpreta ponto decimal em medidas geometricas", () => {
+  const wall = engine.parseGeometryRequest("executar parede 8.5 m por 2.8 m");
+  const rufo = engine.parseGeometryRequest("rufo 7.5 m");
+
+  assert.equal(wall.detected, true);
+  assert.equal(wall.quantity, 23.8);
+  assert.equal(wall.unit, "m2");
+  assert.equal(rufo.detected, true);
+  assert.equal(rufo.quantity, 7.5);
+  assert.equal(rufo.unit, "m");
+});
+
 test("Stock AI Obras calcula volume de radier com espessura em centimetros", () => {
   const result = engine.parseGeometryRequest("radier 8 x 10 espessura 12cm");
 
@@ -46,6 +58,15 @@ test("Stock AI Obras calcula volume de pilares com secao em centimetros", () => 
   assert.equal(result.detected, true);
   assert.equal(result.serviceType, "pilar");
   assert.equal(result.quantity, 2.52);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula pilar no singular em frase curta", () => {
+  const result = engine.parseGeometryRequest("pilar 20x30 altura 3m");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "pilar");
+  assert.equal(result.quantity, 0.18);
   assert.equal(result.unit, "m3");
 });
 
@@ -157,6 +178,18 @@ test("Stock AI Obras calcula radier avancado por area e espessura", () => {
   assert.equal(result.unit, "m3");
 });
 
+test("Stock AI Obras aceita espessura apos area sem palavra com", () => {
+  const slab = engine.parseGeometryRequest("laje 180 m2 10 cm");
+  const radier = engine.parseGeometryRequest("radier 80 m2 12 cm");
+
+  assert.equal(slab.detected, true);
+  assert.equal(slab.quantity, 18);
+  assert.equal(slab.unit, "m3");
+  assert.equal(radier.detected, true);
+  assert.equal(radier.quantity, 9.6);
+  assert.equal(radier.unit, "m3");
+});
+
 test("Stock AI Obras calcula reservatorio como volume geometrico bruto", () => {
   const result = engine.parseGeometryRequest("Tenho um reservatorio de 2 x 3 x 1,5 m");
 
@@ -191,6 +224,7 @@ test("Stock AI Obras calcula quantitativos em metro linear", () => {
   const cases = [
     ["tenho 24 metros de rufo", "rufo", 24],
     ["executar 18 m de calha", "calha", 18],
+    ["calhas 12,5 metros", "calha", 12.5],
     ["rodapé 45 m", "rodape", 45],
     ["roda-forro 30 metros", "roda_forro", 30]
   ];
@@ -292,6 +326,17 @@ test("Stock AI Obras extrai estoque real quando ha gatilho explicito", () => {
   assert.match(answer, /Cimento: 10 saco/);
 });
 
+test("Stock AI Obras nao usa quantidade de estoque como quantitativo do servico", () => {
+  const request = engine.parseRequest("Cabo 120 metros. Tenho em estoque 50 metros de cabo.");
+  const answer = engine.buildAnswerFromMessage("Cabo 120 metros. Tenho em estoque 50 metros de cabo.");
+
+  assert.equal(request.geometry.detected, true);
+  assert.equal(request.geometry.serviceType, "cabo");
+  assert.equal(request.geometry.quantity, 120);
+  assert.match(answer, /120 m de Cabo eletrico/);
+  assert.match(answer, /Cabo eletrico: 50 m/);
+});
+
 test("Stock AI Obras mantem cobertura composta como pendencia sem bloquear alvenaria e piso", () => {
   const answer = engine.buildAnswerFromMessage("Casa 8 x 10 com pe-direito de 3 metros");
 
@@ -300,6 +345,15 @@ test("Stock AI Obras mantem cobertura composta como pendencia sem bloquear alven
   assert.match(answer, /cobertura: 80 m²|Cobertura.*80 m²/i);
   assert.match(answer, /Ainda nao existe composicao tecnica cadastrada|tipo de telhado|tipo: telha/);
   assert.doesNotMatch(answer, /PERGUNTAS COMPLEMENTARES/);
+});
+
+test("Stock AI Obras nao calcula cobertura sem tipo como composicao generica", () => {
+  const answer = engine.buildAnswerFromMessage("cobertura 80 m2");
+
+  assert.match(answer, /tipo de cobertura/i);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+  assert.doesNotMatch(answer, /Laje macica ou pre-moldada/);
+  assert.doesNotMatch(answer, /Alvenaria de bloco/);
 });
 
 function assertStructuralConsumption(message, expectedQuantity, unit, expectedSource = /Fonte: Base .*demonstrativa/i) {
