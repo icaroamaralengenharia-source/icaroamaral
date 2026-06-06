@@ -3366,7 +3366,7 @@
   }
 
   function parseLinearQuantity(originalMessage, text, service) {
-    const number = "(\\d+(?:[.,]\\d+)?)";
+    const number = "(-?\\d+(?:[.,]\\d+)?)";
     const unit = "(?:m\\b|ml\\b|metro\\b|metros\\b|m\\s*linear\\b|metros\\s+lineares\\b)";
     const terms = service.terms.map(function (term) {
       return term.replace(/\s+/g, "\\s*[- ]?\\s*");
@@ -3382,7 +3382,7 @@
   }
 
   function parseUnitQuantity(originalMessage, text, service) {
-    const number = "(\\d+(?:[.,]\\d+)?)";
+    const number = "(-?\\d+(?:[.,]\\d+)?)";
     const unit = "(?:un\\b|unidade\\b|unidades\\b|pecas\\b|peças\\b)?";
     const terms = service.terms.map(function (term) {
       return term.replace(/\s+/g, "\\s*['’ -]?\\s*");
@@ -3438,7 +3438,7 @@
   }
 
   function extractWallAreaDimensions(originalMessage) {
-    const number = "(\\d+(?:[.,]\\d+)?)";
+    const number = "(-?\\d+(?:[.,]\\d+)?)";
     const wallTerm = "(?:muro|parede|alvenaria)";
     const source = clean(originalMessage);
     const match = source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+comprimento|comprimento)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+altura|altura)?", "i"));
