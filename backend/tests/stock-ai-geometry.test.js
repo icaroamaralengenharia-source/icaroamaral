@@ -67,6 +67,117 @@ test("Stock AI Obras calcula volume de sapata com dimensoes em centimetros", () 
   assert.equal(result.unit, "m3");
 });
 
+test("Stock AI Obras calcula sapata isolada estrutural completa", () => {
+  const result = engine.parseGeometryRequest("Tenho 24 sapatas 80x80x40");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 6.144);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula sapata isolada com dimensoes em metros decimais", () => {
+  const result = engine.parseGeometryRequest("Tenho 12 sapatas de 0,80 x 0,80 x 0,40");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 3.072);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula baldrame com comprimento total e secao", () => {
+  const result = engine.parseGeometryRequest("Executar 35 m de baldrame 20x40");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "baldrame");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 2.8);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula sapata corrida por comprimento largura e altura", () => {
+  const result = engine.parseGeometryRequest("Tenho uma sapata corrida de 18 m, 40 cm de largura e 30 cm de altura");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "sapata_corrida");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 2.16);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula bloco de fundacao por quantidade e dimensoes", () => {
+  const result = engine.parseGeometryRequest("Tenho 6 blocos de fundacao 100x80x50");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "bloco_fundacao");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 2.4);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula multiplas vigas com comprimento e secao", () => {
+  const result = engine.parseGeometryRequest("Tenho 8 vigas de 3 m, 15x40");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "viga");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 1.44);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula laje macica por area e espessura", () => {
+  const result = engine.parseGeometryRequest("Tenho uma laje macica de 180 m2 com 10 cm");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "laje");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 18);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula laje trelicada por area sem capa", () => {
+  const result = engine.parseGeometryRequest("Tenho uma laje trelicada de 120 m2");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "laje");
+  assert.equal(result.geometryType, "area");
+  assert.equal(result.quantity, 120);
+  assert.equal(result.unit, "m2");
+});
+
+test("Stock AI Obras calcula radier avancado por area e espessura", () => {
+  const result = engine.parseGeometryRequest("Tenho um radier de 80 m2 com 12 cm");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "radier");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 9.6);
+  assert.equal(result.unit, "m3");
+});
+
+test("Stock AI Obras calcula reservatorio como volume geometrico bruto", () => {
+  const result = engine.parseGeometryRequest("Tenho um reservatorio de 2 x 3 x 1,5 m");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "reservatorio");
+  assert.equal(result.geometryType, "volume");
+  assert.equal(result.quantity, 9);
+  assert.equal(result.unit, "m3");
+  assert.match(result.explanation, /bruto/i);
+});
+
+test("Stock AI Obras calcula muro por comprimento e altura", () => {
+  const result = engine.parseGeometryRequest("Tenho um muro de 25 m por 2,2 m");
+
+  assert.equal(result.detected, true);
+  assert.equal(result.serviceType, "muro");
+  assert.equal(result.geometryType, "area");
+  assert.equal(result.quantity, 55);
+  assert.equal(result.unit, "m2");
+});
+
 test("Stock AI Obras pergunta dados complementares quando geometria esta incompleta", () => {
   const result = engine.parseGeometryRequest("vou fazer um radier");
   const answer = engine.buildAnswerFromMessage("vou fazer um radier");

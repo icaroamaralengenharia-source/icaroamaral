@@ -944,6 +944,9 @@
     if (serviceType === "viga" || serviceType === "baldrame") {
       return "Viga de concreto armado";
     }
+    if (serviceType === "sapata_corrida" || serviceType === "bloco_fundacao") {
+      return "Concreto estrutural";
+    }
     if (serviceType === "radier") {
       return geometryType === "volume" ? "Concreto estrutural" : "Radier";
     }
@@ -952,6 +955,12 @@
     }
     if (serviceType === "sapata") {
       return "Concreto estrutural";
+    }
+    if (serviceType === "muro") {
+      return geometryType === "volume" ? "Concreto estrutural" : "Alvenaria de bloco ceramico";
+    }
+    if (serviceType === "reservatorio") {
+      return "";
     }
     if (serviceType === "rufo" || serviceType === "calha" || serviceType === "pingadeira") {
       return "Rufo/calha simples";
@@ -989,6 +998,22 @@
 
   function centimetersToMeters(value) {
     return roundQuantity(parseNumber(value) / 100);
+  }
+
+  function parseStructuralDimension(value, unit) {
+    const parsed = parseDimensionNumber(value);
+    const normalizedUnit = normalize(unit);
+    if (normalizedUnit.indexOf("cm") >= 0 || normalizedUnit.indexOf("centimetro") >= 0) {
+      return centimetersToMeters(value);
+    }
+    if (normalizedUnit.indexOf("m") === 0 || normalizedUnit.indexOf("metro") >= 0) {
+      return parsed;
+    }
+    return parsed > 10 ? roundQuantity(parsed / 100) : parsed;
+  }
+
+  function formatStructuralSection(width, height) {
+    return formatMeters(width) + " x " + formatMeters(height);
   }
 
   function formatMeters(value) {
@@ -1277,57 +1302,109 @@
       return buildIncompleteGeometryResult(unitService.serviceType, unitService.question, unitService.label);
     }
 
+    if (hasTerm(text, "reservatorio") || hasTerm(text, "reservatório")) {
+      const reservoirMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      if (reservoirMatch) {
+        const length = parseDimensionNumber(reservoirMatch[1]);
+        const width = parseDimensionNumber(reservoirMatch[2]);
+        const height = parseDimensionNumber(reservoirMatch[3]);
+        const volume = roundQuantity(length * width * height);
+        return buildGeometryResult(
+          "reservatorio",
+          "volume",
+          volume,
+          "m3",
+          "Volume geometrico bruto: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume) + ". Nao e dimensionamento estrutural.",
+          { length: length, width: width, height: height },
+          "Reservatorio"
+        );
+      }
+      return buildIncompleteGeometryResult("reservatorio", "Qual o comprimento, largura e altura do reservatorio?", "Reservatorio");
+    }
+
     if (hasAny(text, ["parede", "muro", "alvenaria"])) {
+      const isWall = hasTerm(text, "muro");
       const wallMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
       if (wallMatch) {
         const length = parseDimensionNumber(wallMatch[1]);
         const height = parseDimensionNumber(wallMatch[2]);
         const area = roundQuantity(length * height);
+        const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
+        if (isWall && thicknessMatch) {
+          const thickness = parseStructuralDimension(thicknessMatch[1], thicknessMatch[2]);
+          const volume = roundQuantity(area * thickness);
+          return buildGeometryResult(
+            "muro",
+            "volume",
+            volume,
+            "m3",
+            "Volume calculado: " + formatMeters(length) + " x " + formatMeters(height) + " x " + formatMeters(thickness) + " = " + formatCubicMeters(volume),
+            { length: length, height: height, area: area, thickness: thickness },
+            "Muro"
+          );
+        }
         return buildGeometryResult(
-          "alvenaria",
+          isWall ? "muro" : "alvenaria",
           "area",
           area,
           "m2",
           "Area calculada: " + formatMeters(length) + " x " + formatMeters(height) + " = " + formatSquareMeters(area),
           { length: length, height: height },
-          "Parede"
+          isWall ? "Muro" : "Parede"
         );
       }
       return buildIncompleteGeometryResult("alvenaria", "Qual o comprimento e a altura da parede?", "Parede");
     }
 
     if (hasTerm(text, "radier") || hasTerm(text, "laje")) {
-      const serviceType = hasTerm(text, "radier") ? "radier" : "laje";
-      const label = serviceType === "radier" ? "Radier" : "Laje";
-      const slabMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?(?:.*?(?:espessura|com|altura)?\\s*" + number + "\\s*(cm|centimetros?|m|metros?))", "i"));
-      if (slabMatch) {
-        const length = parseDimensionNumber(slabMatch[1]);
-        const width = parseDimensionNumber(slabMatch[2]);
-        const thicknessUnit = normalize(slabMatch[4]);
-        const thickness = thicknessUnit.indexOf("cm") >= 0 || thicknessUnit.indexOf("centimetro") >= 0
-          ? centimetersToMeters(slabMatch[3])
-          : parseDimensionNumber(slabMatch[3]);
-        const volume = roundQuantity(length * width * thickness);
+      const isRadier = hasTerm(text, "radier");
+      const isJoistSlab = hasTerm(text, "trelicada") || hasTerm(text, "treliçada");
+      const serviceType = isRadier ? "radier" : "laje";
+      const label = isRadier ? "Radier" : isJoistSlab ? "Laje trelicada" : "Laje macica";
+      const areaMatch = originalMessage.match(new RegExp(number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i"));
+      const planMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|capa|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
+      const area = areaMatch ? parseDimensionNumber(areaMatch[1]) : planMatch ? roundQuantity(parseDimensionNumber(planMatch[1]) * parseDimensionNumber(planMatch[2])) : 0;
+      if (area && thicknessMatch && (!isJoistSlab || isRadier || hasAny(text, ["capa", "concreto", "espessura"]))) {
+        const thickness = parseStructuralDimension(thicknessMatch[1], thicknessMatch[2]);
+        const volume = roundQuantity(area * thickness);
         return buildGeometryResult(
           serviceType,
           "volume",
           volume,
           "m3",
-          "Volume calculado: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(thickness) + " = " + formatCubicMeters(volume),
-          { length: length, width: width, thickness: thickness },
+          "Volume calculado: " + formatSquareMeters(area) + " x " + formatMeters(thickness) + " = " + formatCubicMeters(volume),
+          { area: area, thickness: thickness },
           label
         );
+      }
+      if (area && isJoistSlab) {
+        return buildGeometryResult(
+          "laje",
+          "area",
+          area,
+          "m2",
+          "Area identificada: " + formatSquareMeters(area) + " de laje trelicada. Sem capa de concreto informada.",
+          { area: area },
+          label
+        );
+      }
+      if (area && isRadier) {
+        return buildIncompleteGeometryResult("radier", "Qual a espessura prevista do radier?", "Radier");
+      }
+      if (area) {
+        return buildIncompleteGeometryResult("laje", "Qual a espessura da laje?", label);
       }
       return buildIncompleteGeometryResult(serviceType, "Qual o comprimento, largura e espessura do " + serviceType + "?", label);
     }
 
     if (hasTerm(text, "pilar") || hasTerm(text, "pilares") || hasTerm(text, "coluna")) {
-      const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilares?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
+      const pillarMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:pilares?|colunas?).*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?(?:.*?(?:altura|com)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
       if (pillarMatch) {
         const count = pillarMatch[1] ? parseDimensionNumber(pillarMatch[1]) : 1;
-        const width = centimetersToMeters(pillarMatch[2]);
-        const depth = centimetersToMeters(pillarMatch[3]);
-        const height = parseDimensionNumber(pillarMatch[4]);
+        const width = parseStructuralDimension(pillarMatch[2], pillarMatch[4]);
+        const depth = parseStructuralDimension(pillarMatch[3], pillarMatch[4]);
+        const height = parseDimensionNumber(pillarMatch[5]);
         const volume = roundQuantity(count * width * depth * height);
         return buildGeometryResult(
           "pilar",
@@ -1342,22 +1419,65 @@
       return buildIncompleteGeometryResult("pilar", "Quantos pilares serao executados e qual a altura?", "Pilar");
     }
 
+    if (hasTerm(text, "bloco de fundacao") || hasTerm(text, "bloco de fundação") || hasTerm(text, "blocos de fundacao") || hasTerm(text, "blocos de fundação")) {
+      const foundationBlockMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?blocos?\\s+de\\s+funda(?:c|ç)(?:a|ã)o.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+      if (foundationBlockMatch) {
+        const count = foundationBlockMatch[1] ? parseDimensionNumber(foundationBlockMatch[1]) : 1;
+        const length = parseStructuralDimension(foundationBlockMatch[2], foundationBlockMatch[5]);
+        const width = parseStructuralDimension(foundationBlockMatch[3], foundationBlockMatch[5]);
+        const height = parseStructuralDimension(foundationBlockMatch[4], foundationBlockMatch[5]);
+        const volume = roundQuantity(count * length * width * height);
+        return buildGeometryResult(
+          "bloco_fundacao",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
+          { count: count, length: length, width: width, height: height },
+          "Bloco de fundacao"
+        );
+      }
+      return buildIncompleteGeometryResult("bloco_fundacao", "Qual a quantidade e as dimensoes do bloco de fundacao?", "Bloco de fundacao");
+    }
+
     if (hasTerm(text, "viga") || hasTerm(text, "vigas") || hasTerm(text, "baldrame")) {
       const serviceType = hasTerm(text, "baldrame") ? "baldrame" : "viga";
       const label = serviceType === "baldrame" ? "Baldrame" : "Viga";
-      const beamMatch = originalMessage.match(new RegExp(number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?(?:.*?(?:com|comprimento|extensao|extensão)?\\s*" + number + "\\s*(?:m|metros?))", "i"));
+      const beamMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?(?:vigas?|baldrames?).*?(?:" + number + "\\s*(?:m|metros?)\\s*,?\\s*)?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
       if (beamMatch) {
-        const width = centimetersToMeters(beamMatch[1]);
-        const height = centimetersToMeters(beamMatch[2]);
-        const length = parseDimensionNumber(beamMatch[3]);
-        const volume = roundQuantity(width * height * length);
+        const count = beamMatch[1] ? parseDimensionNumber(beamMatch[1]) : 1;
+        const explicitLength = beamMatch[2] ? parseDimensionNumber(beamMatch[2]) : 0;
+        const trailingLengthMatch = explicitLength ? null : originalMessage.match(new RegExp("(?:com|comprimento|extensao|extensão)?\\s*" + number + "\\s*(?:m|metros?)", "i"));
+        const length = explicitLength || (trailingLengthMatch ? parseDimensionNumber(trailingLengthMatch[1]) : 0);
+        const width = parseStructuralDimension(beamMatch[3], beamMatch[5]);
+        const height = parseStructuralDimension(beamMatch[4], beamMatch[5]);
+        if (!length) {
+          return buildIncompleteGeometryResult(serviceType, "Qual o comprimento total da " + label.toLowerCase() + "?", label);
+        }
+        const volume = roundQuantity(count * width * height * length);
         return buildGeometryResult(
           serviceType,
           "volume",
           volume,
           "m3",
-          "Volume calculado: " + formatMeters(width) + " x " + formatMeters(height) + " x " + formatMeters(length) + " = " + formatCubicMeters(volume),
-          { width: width, height: height, length: length },
+          "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatStructuralSection(width, height) + " = " + formatCubicMeters(volume),
+          { count: count, width: width, height: height, length: length },
+          label
+        );
+      }
+      const linearBeamMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)\\s*(?:de\\s*)?(?:vigas?|baldrames?).*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
+      if (linearBeamMatch) {
+        const length = parseDimensionNumber(linearBeamMatch[1]);
+        const width = parseStructuralDimension(linearBeamMatch[2], linearBeamMatch[4]);
+        const height = parseStructuralDimension(linearBeamMatch[3], linearBeamMatch[4]);
+        const volume = roundQuantity(length * width * height);
+        return buildGeometryResult(
+          serviceType,
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(length) + " x " + formatStructuralSection(width, height) + " = " + formatCubicMeters(volume),
+          { length: length, width: width, height: height },
           label
         );
       }
@@ -1365,21 +1485,38 @@
     }
 
     if (hasTerm(text, "sapata") || hasTerm(text, "sapatas")) {
-      const footingMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "(?:\\s*cm)?", "i"));
+      const isStripFooting = hasTerm(text, "sapata corrida");
+      const stripFootingMatch = originalMessage.match(new RegExp("sapata\\s+corrida.*?" + number + "\\s*(?:m|metros?).*?" + number + "\\s*(?:cm|centimetros?)\\s*(?:de\\s*)?largura.*?" + number + "\\s*(?:cm|centimetros?)\\s*(?:de\\s*)?altura", "i"));
+      if (stripFootingMatch) {
+        const length = parseDimensionNumber(stripFootingMatch[1]);
+        const width = centimetersToMeters(stripFootingMatch[2]);
+        const height = centimetersToMeters(stripFootingMatch[3]);
+        const volume = roundQuantity(length * width * height);
+        return buildGeometryResult(
+          "sapata_corrida",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(length) + " x " + formatStructuralSection(width, height) + " = " + formatCubicMeters(volume),
+          { length: length, width: width, height: height },
+          "Sapata corrida"
+        );
+      }
+      const footingMatch = originalMessage.match(new RegExp("(?:" + number + "\\s*)?sapatas?.*?" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(?:x|por)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)?", "i"));
       if (footingMatch) {
         const count = footingMatch[1] ? parseDimensionNumber(footingMatch[1]) : 1;
-        const length = centimetersToMeters(footingMatch[2]);
-        const width = centimetersToMeters(footingMatch[3]);
-        const height = centimetersToMeters(footingMatch[4]);
+        const length = parseStructuralDimension(footingMatch[2], footingMatch[5]);
+        const width = parseStructuralDimension(footingMatch[3], footingMatch[5]);
+        const height = parseStructuralDimension(footingMatch[4], footingMatch[5]);
         const volume = roundQuantity(count * length * width * height);
         return buildGeometryResult(
-          "sapata",
+          isStripFooting ? "sapata_corrida" : "sapata",
           "volume",
           volume,
           "m3",
           "Volume calculado: " + formatQuantity(count) + " x " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(height) + " = " + formatCubicMeters(volume),
           { count: count, length: length, width: width, height: height },
-          "Sapata"
+          isStripFooting ? "Sapata corrida" : "Sapata"
         );
       }
       return buildIncompleteGeometryResult("sapata", "Qual a quantidade e as dimensoes da sapata em comprimento, largura e altura?", "Sapata");
