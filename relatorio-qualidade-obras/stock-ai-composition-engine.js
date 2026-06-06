@@ -483,7 +483,8 @@
     const hasQuantity = quantity > 0 || (geometry && geometry.detected && geometry.complete && parseNumber(geometry.quantity) > 0);
     const hasArea = (unit === "m2" && hasQuantity) || (geometry && geometry.unit === "m2" && geometry.complete);
     const hasVolume = (unit === "m3" && hasQuantity) || (geometry && geometry.unit === "m3" && geometry.complete);
-    const hasLength = (unit === "m" && hasQuantity) || hasAny(text, ["comprimento", "metro linear", "metros lineares"]);
+    const hasImplicitWallLength = /\b(?:parede|muro|alvenaria)\s*(?:de\s*)?\d+(?:[.,]\d+)?\s*(?:m|metros?)?\b/i.test(text);
+    const hasLength = (unit === "m" && hasQuantity) || hasImplicitWallLength || hasAny(text, ["comprimento", "metro linear", "metros lineares"]);
     const hasHeight = hasAny(text, ["altura", "pe direito", "pé direito"]) || (geometry.dimensions && (geometry.dimensions.height || geometry.dimensions.depth));
     const hasWidth = hasAny(text, ["largura"]) || (geometry.dimensions && (geometry.dimensions.width || geometry.dimensions.depth));
     const hasSection = /\d+(?:[.,]\d+)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?/i.test(parsed.originalMessage || parsed.message || parsed.text || "");
@@ -552,17 +553,89 @@
     return getControlledServiceMissingData(service, parsedData).length > 0;
   }
 
-  function getControlledServiceQuestion(service, missingData) {
+  function extractControlledServiceQuestionContext(service, parsedData) {
+    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+    const parsed = parsedData || {};
+    const originalText = parsed.originalMessage || parsed.message || parsed.text || "";
+    const normalizedText = normalize(originalText);
+    const aliasPattern = controlledService && controlledService.apelidos && controlledService.apelidos.length
+      ? controlledService.apelidos.map(function (alias) {
+        return normalize(alias).replace(/\s+/g, "\\s+");
+      }).join("|")
+      : "";
+    const quantityMatch = aliasPattern
+      ? normalizedText.match(new RegExp("\\b(\\d+(?:[.,]\\d+)?)\\s*(?:un|unidades?)?\\s*(?:de\\s+)?(?:" + aliasPattern + ")\\b", "i"))
+      : null;
+    const sectionMatch = originalText.match(/\b(\d+(?:[.,]\d+)?)\s*(?:x|por)\s*(\d+(?:[.,]\d+)?)\b/i);
+    const wallLengthMatch = originalText.match(/\b(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[.,]\d+)?)\s*(?:m|metros?)?\b/i);
+
+    return {
+      quantity: quantityMatch ? parseDimensionNumber(quantityMatch[1]) : 0,
+      sectionText: sectionMatch ? sectionMatch[1].replace(",", ".") + "x" + sectionMatch[2].replace(",", ".") : "",
+      wallLength: wallLengthMatch ? parseDimensionNumber(wallLengthMatch[1]) : 0
+    };
+  }
+
+  function getControlledServiceQuestions(service, missingData, parsedData) {
+    const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
+    const missing = (missingData || []).map(function (item) { return normalize(item); }).filter(Boolean);
+    const context = extractControlledServiceQuestionContext(controlledService, parsedData);
+    if (!controlledService || !missing.length) {
+      return [];
+    }
+
+    if (controlledService.id === "pilar") {
+      const hasQuantity = missing.indexOf("quantidade") < 0;
+      const hasSection = missing.indexOf("secao") < 0;
+      const hasHeight = missing.indexOf("altura") < 0;
+      const quantityText = context.quantity > 0 ? formatQuantity(context.quantity) + " pilares" : "pilares";
+      const sectionText = context.sectionText ? " " + context.sectionText : "";
+
+      if (!hasQuantity && !hasSection && !hasHeight) {
+        return ["Quantos pilares serao executados? Qual a secao e a altura?"];
+      }
+      if (hasQuantity && !hasSection && !hasHeight) {
+        return ["Qual a secao e a altura dos " + quantityText + "?"];
+      }
+      if (hasQuantity && hasSection && !hasHeight) {
+        return ["Qual a altura dos " + quantityText + sectionText + "?"];
+      }
+      if (hasQuantity && !hasSection) {
+        return ["Qual a secao dos " + quantityText + "? Exemplo: 20x30 cm."];
+      }
+      if (hasQuantity && !hasHeight) {
+        return ["Qual a altura dos " + quantityText + "?"];
+      }
+    }
+
+    if (controlledService.id === "alvenaria") {
+      const hasLength = missing.indexOf("comprimento") < 0;
+      const hasHeight = missing.indexOf("altura") < 0;
+      if (!hasHeight && context.wallLength > 0) {
+        return ["Qual a altura da parede de " + formatMeters(context.wallLength) + "?"];
+      }
+    }
+
+    return missing.map(function (item) {
+      return getControlledServiceQuestion(controlledService, item);
+    });
+  }
+
+  function getControlledServiceQuestion(service, missingData, parsedData) {
     const controlledService = typeof service === "string" ? getControlledServiceById(service) : service;
     const key = normalize(missingData);
     if (!controlledService) {
       return "Informe " + missingData + ".";
     }
+    const contextualQuestions = parsedData ? getControlledServiceQuestions(controlledService, [missingData], parsedData) : [];
+    if (contextualQuestions.length) {
+      return contextualQuestions[0];
+    }
     const questionMap = {
       pilar: {
-        quantidade: "Quantos pilares?",
-        secao: "Qual secao dos pilares? Exemplo: 20x30 cm.",
-        altura: "Qual altura dos pilares?"
+        quantidade: "Quantos pilares serao executados?",
+        secao: "Qual a secao dos pilares? Exemplo: 20x30 cm.",
+        altura: "Qual a altura dos pilares?"
       },
       viga: {
         largura: "Qual largura da viga?",
@@ -3528,6 +3601,10 @@
           isWall ? "Muro" : "Parede"
         );
       }
+      const wallLengthOnlyMatch = originalMessage.match(new RegExp("\\b(?:parede|muro|alvenaria)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?\\b", "i"));
+      if (wallLengthOnlyMatch && parseDimensionNumber(wallLengthOnlyMatch[1]) > 0) {
+        return buildIncompleteGeometryResult("alvenaria", "Qual a altura da parede de " + formatMeters(parseDimensionNumber(wallLengthOnlyMatch[1])) + "?", "Parede");
+      }
       return buildIncompleteGeometryResult("alvenaria", "Qual o comprimento e a altura da parede?", "Parede");
     }
 
@@ -3611,7 +3688,10 @@
           "Pilar"
         );
       }
-      return buildIncompleteGeometryResult("pilar", "Quantos pilares serao executados e qual a altura?", "Pilar");
+      const pilarService = getControlledServiceById("pilar");
+      const pilarMissing = getControlledServiceMissingData(pilarService, { originalMessage: originalMessage });
+      const pilarQuestions = getControlledServiceQuestions(pilarService, pilarMissing, { originalMessage: originalMessage });
+      return buildIncompleteGeometryResult("pilar", pilarQuestions.join(" "), "Pilar");
     }
 
     if (hasTerm(text, "bloco de fundacao") || hasTerm(text, "bloco de fundação") || hasTerm(text, "blocos de fundacao") || hasTerm(text, "blocos de fundação")) {
@@ -5848,6 +5928,99 @@
       worksite: settings.worksite
     });
     const releaseDecision = resolveWithdrawalReleaseDecision(approvalRequest);
+    const hasCriticalWithdrawal = approvalRequest.status === "APPROVAL_PENDING" ||
+      approvalAnalysis.status === "CRITICO" ||
+      comparison.some(function (item) {
+        return item.approval && item.approval.status === "CRITICO";
+      });
+    if (hasCriticalWithdrawal) {
+      const criticalLines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
+      criticalLines.push("RESUMO EXECUTIVO");
+      criticalLines.push("Pedido critico: nao liberar sem aprovacao.");
+      criticalLines.push("");
+      criticalLines.push("SERVICO IDENTIFICADO");
+      serviceData.services.forEach(function (service) {
+        const compositionData = service.composition || findCompositionForProductionService(service);
+        criticalLines.push("- " + formatQuantity(service.quantity) + " " + displayUnit(service.unit) + " de " + service.service);
+        if (compositionData) {
+          criticalLines.push("- Composicao utilizada: " + (compositionData.code || compositionData.id || "sem codigo") + " - " + (compositionData.name || compositionData.service));
+          criticalLines.push("- " + formatCompositionSource(compositionData));
+        }
+      });
+      criticalLines.push("");
+      criticalLines.push("MATERIAIS SOLICITADOS");
+      requestedItems.forEach(function (item) {
+        criticalLines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+      });
+      criticalLines.push("");
+      criticalLines.push("CONSUMO PREVISTO");
+      if (predictedItems.length) {
+        predictedItems.forEach(function (item) {
+          criticalLines.push("- " + item.name + ": " + formatQuantity(item.quantity) + " " + displayUnit(item.unit));
+        });
+      } else {
+        criticalLines.push("- Sem consumo previsto calculado para a composicao identificada.");
+      }
+      criticalLines.push("");
+      criticalLines.push("COMPARACAO");
+      comparison.forEach(function (item) {
+        const approval = item.approval || evaluateWithdrawalApproval(item.requestedQuantity, item.predictedQuantity, primaryControlledService);
+        const signedDifference = (item.difference > 0 ? "+" : "") + formatQuantity(item.difference);
+        criticalLines.push(item.material);
+        criticalLines.push("- Solicitado: " + formatQuantity(item.requestedQuantity) + " " + displayUnit(item.unit));
+        criticalLines.push("- Previsto: " + formatQuantity(item.predictedQuantity) + " " + displayUnit(item.unit));
+        criticalLines.push("- Diferenca: " + signedDifference + " " + displayUnit(item.unit));
+        criticalLines.push("- Status: " + approval.status);
+        criticalLines.push("- Acao: " + (approval.approvalRequired ? "nao liberar sem aprovacao" : item.recommendation));
+        criticalLines.push("- STATUS: " + approval.status);
+        criticalLines.push("- DIVERGENCIA: " + formatQuantity(approval.percentualDivergencia) + "%");
+        criticalLines.push("- JUSTIFICATIVA: " + (approval.justificationRequired ? "OBRIGATORIA" : "NAO OBRIGATORIA"));
+        criticalLines.push("- APROVACAO: " + (approval.approvalRequired ? "OBRIGATORIA" : "NAO OBRIGATORIA"));
+        criticalLines.push("- RECOMENDACAO: " + approval.recommendation);
+      });
+      criticalLines.push("");
+      criticalLines.push("DECISAO");
+      criticalLines.push("- Status: " + (approvalRequest.status === "APPROVAL_PENDING" ? "PENDENTE DE APROVACAO" : approvalRequest.status));
+      criticalLines.push("- Liberacao: " + releaseDecision.message);
+      criticalLines.push("- Justificativa: " + (approvalRequest.justificationRequired ? "obrigatoria" : "nao obrigatoria"));
+      criticalLines.push("- Fila: " + (approvalRequest.status === "APPROVAL_PENDING" ? "SOLICITACAO ENVIADA PARA FILA DE APROVACAO" : "APROVACAO NAO NECESSARIA"));
+      criticalLines.push("");
+      criticalLines.push("PROXIMA ACAO");
+      criticalLines.push("- " + (approvalRequest.status === "APPROVAL_PENDING" ? "Enviar para encarregado/gestor e bloquear a liberacao automatica." : "Liberacao autorizada pelo fluxo atual."));
+      criticalLines.push("");
+      criticalLines.push("HISTORICO INTERNO DA ANALISE");
+      approvalHistory.forEach(function (item) {
+        criticalLines.push("- servico " + (item.serviceId || "nao identificado") +
+          " | risco " + (item.riskLevel || "nao informado") +
+          " | solicitado " + formatQuantity(item.requested) +
+          " | previsto " + formatQuantity(item.predicted) +
+          " | diferenca " + formatQuantity(item.difference) +
+          " | status " + item.status);
+      });
+      criticalLines.push("");
+      criticalLines.push("PLANO DE COMPRA/RETIRADA");
+      criticalLines.push.apply(criticalLines, buildWithdrawalPurchasePlan(comparison));
+      criticalLines.push("");
+      criticalLines.push("OBSERVACOES");
+      criticalLines.push("- " + getResultSourceWarning(result));
+      criticalLines.push("- Nenhum coeficiente foi inventado.");
+      criticalLines.push("- " + PURCHASE_WARNING);
+      return {
+        detected: true,
+        ok: true,
+        requestedItems: requestedItems,
+        services: serviceData.services,
+        predictedItems: predictedItems,
+        comparison: comparison,
+        approvalHistory: approvalHistory,
+        approvalAnalysis: approvalAnalysis,
+        approvalRequest: approvalRequest,
+        deviationRecord: deviationRecord,
+        managerAlert: managerAlert,
+        releaseDecision: releaseDecision,
+        answer: criticalLines.join("\n")
+      };
+    }
     const lines = ["CONFERENCIA INTELIGENTE DE RETIRADA", ""];
     lines.push("SERVICO INFORMADO");
     serviceData.services.forEach(function (service) {
@@ -6095,9 +6268,7 @@
 
   function buildControlledServiceIncompleteAnswer(controlledService, request) {
     const missing = getControlledServiceMissingData(controlledService, request);
-    const questions = missing.length ? missing.map(function (item) {
-      return getControlledServiceQuestion(controlledService, item);
-    }) : ["Informe o quantitativo do servico."];
+    const questions = missing.length ? getControlledServiceQuestions(controlledService, missing, request) : ["Informe o quantitativo do servico."];
     return [
       "PERGUNTAS COMPLEMENTARES",
       "- Servico controlado identificado: " + controlledService.nomeTecnico + ".",

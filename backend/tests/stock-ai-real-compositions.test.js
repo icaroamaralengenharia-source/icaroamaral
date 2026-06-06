@@ -1618,8 +1618,11 @@ test("Stock AI Obras conferencia de retirada marca item nao previsto na composic
   engine.importOfficialBase({ rows: officialWithdrawalRowsFixture() });
   const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de cimento e 2 kg de prego para fazer 2 pilares");
 
-  assert.match(answer, /Prego: solicitado 2 kg, previsto 0 kg, diferenca 2 kg \| status: item nao previsto na composicao/);
-  assert.match(answer, /exigir justificativa/);
+  assert.match(answer, /Prego/);
+  assert.match(answer, /Solicitado: 2 kg/);
+  assert.match(answer, /Previsto: 0 kg/);
+  assert.match(answer, /Status: CRITICO|status item nao previsto na composicao/i);
+  assert.match(answer, /justificativa/i);
 });
 
 test("Stock AI Obras conferencia de retirada pede complemento quando falta quantitativo suficiente", () => {
@@ -1629,7 +1632,7 @@ test("Stock AI Obras conferencia de retirada pede complemento quando falta quant
 
   assert.match(answer, /CONFERENCIA INTELIGENTE DE RETIRADA/);
   assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
-  assert.match(answer, /Quantos pilares serao executados e qual a altura\?|Informe o quantitativo do servico/);
+  assert.match(answer, /Quantos pilares serao executados\? Qual a secao e a altura\?|Informe o quantitativo do servico/);
   assert.match(answer, /Nenhum coeficiente foi inventado/);
 });
 
@@ -1729,11 +1732,20 @@ test("Stock AI Obras conferencia de retirada mostra decisao operacional e histor
 
   assert.equal(conference.detected, true);
   assert.equal(conference.ok, true);
+  assert.match(conference.answer, /RESUMO EXECUTIVO/);
+  assert.match(conference.answer, /Pedido critico: nao liberar sem aprovacao/);
   assert.match(conference.answer, /STATUS: CRITICO/);
   assert.match(conference.answer, /DIVERGENCIA: 150%/);
   assert.match(conference.answer, /JUSTIFICATIVA: OBRIGATORIA/);
   assert.match(conference.answer, /APROVACAO: OBRIGATORIA/);
   assert.match(conference.answer, /RECOMENDACAO: Nao liberar automaticamente/);
+  assert.match(conference.answer, /SERVICO IDENTIFICADO/);
+  assert.match(conference.answer, /MATERIAIS SOLICITADOS/);
+  assert.match(conference.answer, /CONSUMO PREVISTO/);
+  assert.match(conference.answer, /COMPARACAO/);
+  assert.match(conference.answer, /DECISAO/);
+  assert.match(conference.answer, /PROXIMA ACAO/);
+  assert.match(conference.answer, /Cimento\s+- Solicitado: 20 saco\s+- Previsto: 8 saco\s+- Diferenca: \+12 saco/s);
   assert.match(conference.answer, /HISTORICO INTERNO DA ANALISE/);
   assert.equal(conference.approvalHistory[0].serviceId, "pilar");
   assert.equal(conference.approvalHistory[0].riskLevel, "alto");
@@ -2459,7 +2471,7 @@ test("Stock AI Obras catalogo controlado pergunta altura quando pilar esta incom
   const answer = engine.buildAnswerFromMessage("quero material para 2 pilares 20x30");
 
   assert.match(answer, /Servico controlado identificado: Pilar/);
-  assert.match(answer, /Qual altura dos pilares\?/);
+  assert.match(answer, /Qual a altura dos 2 pilares 20x30\?/);
   assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
 });
 
@@ -2477,8 +2489,57 @@ test("Stock AI Obras catalogo controlado pergunta altura quando alvenaria esta i
   const answer = engine.buildAnswerFromMessage("quero material para parede 12 m");
 
   assert.match(answer, /Servico controlado identificado: Alvenaria/);
-  assert.match(answer, /Qual altura da parede\?/);
+  assert.match(answer, /Qual a altura da parede de 12 m\?/);
   assert.doesNotMatch(answer, /COMPOSICOES SINAPI\/ORSE SUGERIDAS/);
+});
+
+test("Stock AI Obras reaproveita quantidade em retirada de pilares incompleta", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 20 sacos de cimento para fazer 2 pilares");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.doesNotMatch(answer, /Quantos pilares serao executados/);
+  assert.match(answer, /Qual a secao e a altura dos 2 pilares\?/);
+});
+
+test("Stock AI Obras pergunta quantidade secao e altura quando retirada cita pilares sem quantidade", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("Pedreiro pediu 20 sacos de cimento para fazer pilares");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /Quantos pilares serao executados\? Qual a secao e a altura\?/);
+});
+
+test("Stock AI Obras reaproveita comprimento de parede incompleta", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("parede 12");
+
+  assert.match(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.match(answer, /Qual a altura da parede de 12 m\?/);
+  assert.doesNotMatch(answer, /Qual o comprimento e a altura da parede/);
+});
+
+test("Stock AI Obras nao pergunta complemento quando parede esta completa", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("parede 12 x 3");
+
+  assert.doesNotMatch(answer, /PERGUNTAS COMPLEMENTARES/);
+  assert.doesNotMatch(answer, /Qual a altura da parede/);
+});
+
+test("Stock AI Obras nao pergunta area quando piso ja informa area", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("assentar 10 m2 de piso");
+
+  assert.doesNotMatch(answer, /Qual area em m2/);
+});
+
+test("Stock AI Obras nao pergunta area nem tipo quando cobertura esta completa", () => {
+  const engine = loadStockAiCompositionEngineWithXlsx();
+  const answer = engine.buildAnswerFromMessage("cobertura 180 m2 telha ceramica");
+
+  assert.doesNotMatch(answer, /Qual area da cobertura/);
+  assert.doesNotMatch(answer, /Qual tipo de telha/);
 });
 
 test("Stock AI Obras catalogo controlado pergunta area quando piso esta incompleto", () => {
@@ -2569,7 +2630,7 @@ test("Stock AI Obras conferencia de retirada usa composicao compativel com servi
   const engine = loadStockAiCompositionEngineWithXlsx();
   const answer = engine.buildAnswerFromMessage("Pedreiro pediu 8 sacos de argamassa para assentar 10 m2 de piso");
 
-  assert.match(answer, /SERVICO INFORMADO/);
+  assert.match(answer, /SERVICO IDENTIFICADO/);
   assert.match(answer, /Composicao utilizada: std_piso - Piso ceramico/);
   assert.doesNotMatch(answer, /std_laje|Laje macica|std_contrapiso|Contrapiso|DEMO-EST-PILAR/i);
 });
