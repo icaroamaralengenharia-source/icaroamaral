@@ -7173,7 +7173,7 @@
     }
     if (request.originalMessage && /\d+\s*cm/i.test(request.originalMessage)) {
       lines.push("");
-      lines.push("Observação técnica: dimensões informadas foram mantidas como contexto. Nesta fase, o cálculo principal usa composição demonstrativa por área/unidade de serviço.");
+      lines.push("Observação técnica: dimensões informadas foram mantidas como contexto. Validar medidas, espessuras e composição antes da compra oficial.");
     }
     lines.push("");
     lines.push("Observação:");
@@ -7411,7 +7411,7 @@
     if (request.originalMessage && /\d+\s*cm/i.test(request.originalMessage)) {
       lines.push("");
       lines.push("OBSERVAÇÃO TÉCNICA");
-      lines.push("- Dimensões informadas foram mantidas como contexto. Nesta fase, o cálculo principal usa composição demonstrativa por área/unidade de serviço.");
+      lines.push("- Dimensões informadas foram mantidas como contexto. Validar medidas, espessuras e composição antes da compra oficial.");
     }
 
     lines.push("");
