@@ -3700,7 +3700,9 @@
     if (!planMatch) {
       return buildIncompleteGeometryResult(
         "edificacao_composta",
-        "Qual o comprimento e a largura da " + (isShed ? "galpao" : isRoom ? "ambiente" : "casa") + "?",
+        isHouse
+          ? "Qual o comprimento e a largura da casa? Qual a area aproximada? Quantos pavimentos e qual o pe-direito? Qual o tipo de estrutura e de alvenaria/bloco? Vai ter laje ou telhado? Qual o padrao de acabamento? Voce quer estimativa preliminar ou lista detalhada por etapa?"
+          : "Qual o comprimento e a largura da " + (isShed ? "galpao" : isRoom ? "ambiente" : "casa") + "?",
         isShed ? "Galpao" : isRoom ? "Ambiente" : "Casa"
       );
     }
