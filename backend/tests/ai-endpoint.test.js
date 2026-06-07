@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { createContext, runInContext } from "node:vm";
 import {
   buildEloSystemPrompt_,
   buildPathologyContext,
@@ -3201,6 +3202,83 @@ test("frontend do Elo registra plano Stock IA apenas como planejamento local", a
   assert.doesNotMatch(content, /approval-requests/i);
 });
 
+test("Elo operacional responde com saldo suficiente sem criar movimentacao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Bloco ceramico", unit: "un", balance: 620, realBalance: 620 },
+    { name: "Cimento", unit: "saco", balance: 80, realBalance: 80 },
+    { name: "Areia", unit: "m3", balance: 900, realBalance: 900 },
+    { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+
+  assert.equal(response.sessionTheme, "elo_operacional_obras");
+  assert.match(response.fullAnswer, /Previsão Stock AI/);
+  assert.match(response.fullAnswer, /Almoxarifado/);
+  assert.match(response.fullAnswer, /Saldo suficiente/);
+  assert.doesNotMatch(response.fullAnswer, /saida oficial criada/i);
+});
+
+test("Elo operacional alerta saldo insuficiente e nao altera estoque", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Bloco ceramico", unit: "un", balance: 620, realBalance: 620 },
+    { name: "Cimento", unit: "saco", balance: 1, realBalance: 1 },
+    { name: "Areia", unit: "m3", balance: 2, realBalance: 2 },
+    { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /Material insuficiente/);
+  assert.match(response.fullAnswer, /faltam/i);
+  assert.deepEqual(sandbox.__almoxMovements, []);
+});
+
+test("Elo operacional informa item inexistente no almoxarifado", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Cimento", unit: "saco", balance: 12, realBalance: 12 },
+    { name: "Areia", unit: "m3", balance: 2, realBalance: 2 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /Material não encontrado no Almoxarifado/);
+  assert.match(response.fullAnswer, /Bloco ceramico: não encontrado/i);
+});
+
+test("Elo operacional mostra previsao mesmo com almoxarifado vazio", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /Previsão Stock AI/);
+  assert.match(response.fullAnswer, /Não encontrei saldo cadastrado no Almoxarifado para comparar/);
+  assert.match(response.fullAnswer, /Almoxarifado sem saldo comparável/);
+});
+
+test("Elo operacional pede dados quando Stock AI nao consegue prever", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Posso executar concreto amanhã?");
+
+  assert.match(response.fullAnswer, /Eu ainda não consegui calcular essa previsão técnica/);
+  assert.match(response.fullAnswer, /parede de 40 m²/);
+});
+
+test("Elo operacional usa ponte de leitura do Almoxarifado sem API de baixa", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const eloContent = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+  const appContent = await readFile(new URL("../../relatorio-qualidade-obras/relatorio-qualidade-obras.js", import.meta.url), "utf8");
+
+  assert.match(eloContent, /ObraReportOperationalStock/);
+  assert.match(eloContent, /getAlmoxBalances/);
+  assert.doesNotMatch(eloContent, /saveAlmoxState_/);
+  assert.doesNotMatch(eloContent, /almox\.movements|movements\.push/);
+  assert.doesNotMatch(eloContent, /materials\[\]\.push|consumo_rdo/);
+  assert.match(appContent, /getOperationalAlmoxBalanceSnapshot_/);
+  assert.match(appContent, /window\.ObraReportOperationalStock/);
+});
+
 test("endpoint de memoria vetorial exige deviceId valido", async () => {
   const response = await postEloVectorMemory_({
     memory: {
@@ -3380,6 +3458,80 @@ function writeEloVectorTestFile_(path, items) {
     items,
     updatedAt: "2026-06-01T00:00:00.000Z"
   }, null, 2), "utf8");
+}
+
+async function loadEloOperationalSandbox_(balances) {
+  const stockEngineContent = readFileSync(new URL("../../relatorio-qualidade-obras/stock-ai-composition-engine.js", import.meta.url), "utf8");
+  const eloContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+  const storage = new Map();
+  const element = {
+    appendChild() {},
+    addEventListener() {},
+    setAttribute() {},
+    removeAttribute() {},
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+    style: {},
+    dataset: {},
+    textContent: "",
+    value: ""
+  };
+  const sandbox = {
+    console,
+    setTimeout() {},
+    clearTimeout() {},
+    Math,
+    Date,
+    JSON,
+    RegExp,
+    Number,
+    String,
+    Array,
+    Object,
+    URLSearchParams,
+    __almoxMovements: [],
+    location: {
+      hostname: "127.0.0.1",
+      protocol: "http:",
+      pathname: "/relatorio-qualidade-obras/relatorio-qualidade-obras.html",
+      search: "",
+      hash: "#app/almoxarifado"
+    },
+    localStorage: {
+      getItem(key) { return storage.has(key) ? storage.get(key) : null; },
+      setItem(key, value) { storage.set(key, String(value)); },
+      removeItem(key) { storage.delete(key); }
+    },
+    sessionStorage: {
+      getItem() { return null; },
+      setItem() {},
+      removeItem() {}
+    },
+    document: {
+      body: { dataset: {}, getAttribute() { return ""; }, appendChild() {} },
+      readyState: "complete",
+      addEventListener() {},
+      getElementById() { return null; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return Object.assign({}, element); }
+    },
+    navigator: {},
+    fetch: async () => ({ ok: false, json: async () => ({}) })
+  };
+  sandbox.window = sandbox;
+  sandbox.ELO_SKIP_AUTO_WIDGET = true;
+  sandbox.ObraReportOperationalStock = {
+    getAlmoxBalances() {
+      return balances;
+    }
+  };
+
+  createContext(sandbox);
+  runInContext(stockEngineContent, sandbox);
+  runInContext(eloContent, sandbox);
+  return sandbox;
 }
 
 function readJsonFile_(path) {

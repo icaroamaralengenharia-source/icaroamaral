@@ -8150,6 +8150,25 @@
     return roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
   }
 
+  function getOperationalAlmoxBalanceSnapshot_() {
+    return calculateAlmoxBalances_().map(function (balance) {
+      const item = balance.item || {};
+      return {
+        id: item.id || "",
+        itemId: item.id || "",
+        name: item.name || "",
+        unit: item.unit || "un",
+        balance: roundQuantity_(balance.balance),
+        realBalance: roundQuantity_(balance.balance),
+        entries: roundQuantity_(balance.entries),
+        exits: roundQuantity_(balance.exits),
+        minimumStock: parseNumber_(item.minimumStock),
+        status: balance.status || "",
+        environmentId: item.environmentId || getActiveStockEnvironmentId_()
+      };
+    });
+  }
+
   function handleAlmoxItemSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
@@ -18923,5 +18942,9 @@
     buildStockAiCompositionAnswerFromMessage: buildStockAiCompositionAnswerFromMessage,
     answerStockIaQuestion: answerStockIaQuestion_,
     calculateStockAiPredictedConsumption: calculateStockAiPredictedConsumption
+  });
+
+  window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
+    getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_
   });
 })();

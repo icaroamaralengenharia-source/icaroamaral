@@ -8477,6 +8477,235 @@
     };
   }
 
+  function isEloOperationalConstructionQuestion_(message) {
+    const text = normalizeText(message);
+    if (!text) {
+      return false;
+    }
+    const serviceTerms = [
+      "alvenaria", "parede", "piso", "reboco", "emboço", "emboco",
+      "concreto", "pilar", "viga", "laje"
+    ];
+    const intentTerms = [
+      "posso executar", "da para executar", "dá para executar",
+      "tenho material", "tem saldo", "consigo fazer", "posso fazer",
+      "executar amanha", "executar amanhã", "fazer parede", "precisa comprar",
+      "material suficiente", "saldo suficiente"
+    ];
+    const hasService = hasAnyTerm(text, serviceTerms);
+    const hasIntent = hasAnyTerm(text, intentTerms);
+    const hasQuantity = /\d+(?:[,.]\d+)?\s*(m2|m²|m3|m³|metro|metros|saco|sacos|un|und|unidade|unidades)/i.test(message);
+    return hasService && (hasIntent || hasQuantity);
+  }
+
+  function parseEloOperationalNumber_(value) {
+    const normalized = String(value || "").replace(/\./g, "").replace(",", ".");
+    const number = Number.parseFloat(normalized);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function roundEloOperationalQuantity_(value) {
+    return Math.round(parseEloOperationalNumber_(value) * 1000) / 1000;
+  }
+
+  function normalizeEloOperationalUnit_(unit) {
+    const normalized = normalizeText(unit || "un");
+    if (normalized === "m2" || normalized.indexOf("metro quadrado") >= 0) {
+      return "m²";
+    }
+    if (normalized === "m3" || normalized.indexOf("metro cubico") >= 0 || normalized.indexOf("metro cúbico") >= 0) {
+      return "m³";
+    }
+    if (normalized === "und" || normalized.indexOf("unidade") >= 0) {
+      return "un";
+    }
+    if (normalized.indexOf("saco") >= 0) {
+      return "saco";
+    }
+    return unit || "un";
+  }
+
+  function formatEloOperationalQuantity_(value) {
+    const rounded = roundEloOperationalQuantity_(value);
+    return String(rounded).replace(".", ",");
+  }
+
+  function parseEloOperationalService_(message) {
+    const text = normalizeText(message);
+    const quantityMatch = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|m3|m³|metros?\s+quadrados?|metros?\s+cubicos?|metros?\s+cúbicos?|sacos?|un|und|unidades?)/i);
+    const quantity = quantityMatch ? parseEloOperationalNumber_(quantityMatch[1]) : 0;
+    const unit = quantityMatch ? normalizeEloOperationalUnit_(quantityMatch[2]) : "m²";
+    const services = [
+      { terms: ["alvenaria", "parede", "muro", "tijolo", "bloco"], service: "Alvenaria", serviceType: "alvenaria", unit: "m²" },
+      { terms: ["piso"], service: "Piso ceramico", serviceType: "piso_ceramico", unit: "m²" },
+      { terms: ["reboco", "emboço", "emboco"], service: "Reboco", serviceType: "reboco_emboco", unit: "m²" },
+      { terms: ["concreto", "pilar", "viga", "laje"], service: "Concreto", serviceType: "concreto", unit: unit }
+    ];
+    const match = services.find(function (candidate) {
+      return candidate.terms.some(function (term) {
+        return text.indexOf(normalizeText(term)) >= 0;
+      });
+    });
+    if (!match || quantity <= 0) {
+      return null;
+    }
+    return {
+      service: match.service,
+      serviceName: match.service,
+      serviceType: match.serviceType,
+      controlledServiceId: match.serviceType,
+      quantity: quantity,
+      executedQuantity: quantity,
+      unit: unit || match.unit
+    };
+  }
+
+  function calculateEloOperationalPrediction_(message) {
+    const service = parseEloOperationalService_(message);
+    if (!service) {
+      return null;
+    }
+    const engines = [window.StockAiCompositionEngine, window.StockAiObrasEngine].filter(Boolean);
+    for (let index = 0; index < engines.length; index += 1) {
+      const engine = engines[index];
+      const calculate = engine.calculatePredictedConsumption || engine.calculateStockAiPredictedConsumption;
+      if (typeof calculate !== "function") {
+        continue;
+      }
+      const prediction = calculate(service);
+      const items = prediction && Array.isArray(prediction.predictedItems) ? prediction.predictedItems : [];
+      if (items.length) {
+        return {
+          service: service,
+          prediction: prediction,
+          predictedItems: items
+        };
+      }
+    }
+    return {
+      service: service,
+      prediction: null,
+      predictedItems: []
+    };
+  }
+
+  function getEloOperationalAlmoxBalances_() {
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.getAlmoxBalances !== "function") {
+      return [];
+    }
+    try {
+      return bridge.getAlmoxBalances().filter(Boolean);
+    } catch (error) {
+      console.warn("Nao foi possivel consultar saldo operacional do Almoxarifado.", error);
+      return [];
+    }
+  }
+
+  function isEloOperationalUnitCompatible_(predictedUnit, balanceUnit) {
+    const predicted = normalizeEloOperationalUnit_(predictedUnit || "un");
+    const balance = normalizeEloOperationalUnit_(balanceUnit || "un");
+    return normalizeText(predicted) === normalizeText(balance);
+  }
+
+  function matchEloPredictedMaterialToBalance_(predicted, balances) {
+    const predictedName = normalizeText(predicted.name || predicted.material || "");
+    if (!predictedName) {
+      return null;
+    }
+    const exact = balances.find(function (balance) {
+      const itemName = normalizeText(balance.name || "");
+      return itemName === predictedName &&
+        isEloOperationalUnitCompatible_(predicted.unit, balance.unit);
+    });
+    if (exact) {
+      return exact;
+    }
+    return balances.find(function (balance) {
+      const itemName = normalizeText(balance.name || "");
+      return itemName && (itemName.indexOf(predictedName) >= 0 || predictedName.indexOf(itemName) >= 0);
+    }) || null;
+  }
+
+  function buildEloOperationalConstructionAnswer_(message) {
+    if (!isEloOperationalConstructionQuestion_(message)) {
+      return null;
+    }
+    const prediction = calculateEloOperationalPrediction_(message);
+    if (!prediction || !prediction.predictedItems.length) {
+      return {
+        shortAnswer: "Eu ainda não consegui calcular essa previsão técnica.",
+        fullAnswer: "Eu ainda não consegui calcular essa previsão técnica. Me informe o serviço com quantidade, por exemplo: parede de 40 m², piso de 30 m² ou laje de 60 m².",
+        nextAction: "Informe serviço, quantidade e unidade para eu cruzar Stock AI com Almoxarifado.",
+        canSave: false,
+        sessionTheme: "elo_operacional_obras"
+      };
+    }
+
+    const balances = getEloOperationalAlmoxBalances_();
+    const predictedLines = prediction.predictedItems.map(function (item) {
+      const quantity = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
+      return "- " + (item.name || item.material || "Material") + ": " + formatEloOperationalQuantity_(quantity) + " " + (item.unit || "un");
+    });
+    const almoxLines = [];
+    let hasInsufficient = false;
+    let hasMissing = false;
+
+    if (!balances.length) {
+      almoxLines.push("- Não encontrei saldo cadastrado no Almoxarifado para comparar.");
+    } else {
+      prediction.predictedItems.forEach(function (item) {
+        const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
+        const match = matchEloPredictedMaterialToBalance_(item, balances);
+        if (!match) {
+          hasMissing = true;
+          almoxLines.push("- " + (item.name || item.material || "Material") + ": não encontrado no Almoxarifado.");
+          return;
+        }
+        const available = roundEloOperationalQuantity_(match.balance || match.realBalance || 0);
+        const missing = roundEloOperationalQuantity_(Math.max(required - available, 0));
+        if (missing > 0) {
+          hasInsufficient = true;
+        }
+        almoxLines.push("- " + (item.name || item.material || match.name || "Material") + ": disponível " +
+          formatEloOperationalQuantity_(available) + " " + (match.unit || item.unit || "un") +
+          (missing > 0 ? " | faltam " + formatEloOperationalQuantity_(missing) + " " + (item.unit || match.unit || "un") : " | OK"));
+      });
+    }
+
+    let resultTitle = "✅ Saldo suficiente";
+    let recommendation = "A obra pode executar esse serviço sem necessidade de compra.";
+    if (!balances.length) {
+      resultTitle = "⚠️ Almoxarifado sem saldo comparável";
+      recommendation = "Cadastrar saldo no Almoxarifado antes de liberar compra ou execução.";
+    } else if (hasMissing) {
+      resultTitle = "🚨 Material não encontrado no Almoxarifado";
+      recommendation = "Cadastrar o item ou transferir material antes de liberar a execução.";
+    } else if (hasInsufficient) {
+      resultTitle = "⚠️ Material insuficiente";
+      recommendation = "Comprar ou transferir o material faltante antes da execução.";
+    }
+
+    return {
+      shortAnswer: resultTitle,
+      fullAnswer: [
+        "📐 Previsão Stock AI",
+        predictedLines.join("\n"),
+        "",
+        "📦 Almoxarifado",
+        almoxLines.join("\n"),
+        "",
+        resultTitle,
+        recommendation,
+        "",
+        "Observação: esta conversa apenas consulta e recomenda. A baixa oficial continua no fluxo do RDO/Almoxarifado."
+      ].join("\n"),
+      nextAction: recommendation,
+      canSave: false,
+      sessionTheme: "elo_operacional_obras"
+    };
+  }
+
   function buildEloOperationalAnswer(message, context) {
     const intent = classifyEloIntent(message, context);
     if (intent === "elo_limits") {
@@ -8600,6 +8829,11 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const operationalConstructionAnswer = buildEloOperationalConstructionAnswer_(cleanQuestion);
+    if (operationalConstructionAnswer) {
+      return operationalConstructionAnswer;
     }
 
     const operationalAnswer = buildEloOperationalAnswer(cleanQuestion, {
@@ -10812,6 +11046,16 @@
       appendAssistantMessage(cleanQuestion, stockIaPlanConfirmationAnswer, false, confirmationResponse);
       saveConversation(cleanQuestion, stockIaPlanConfirmationAnswer);
       rememberSessionTurn(cleanQuestion, confirmationResponse, stockIaPlanConfirmationAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    const operationalConstructionResponse = buildEloOperationalConstructionAnswer_(cleanQuestion);
+    if (operationalConstructionResponse) {
+      const operationalAnswer = formatResponse(operationalConstructionResponse);
+      appendAssistantMessage(cleanQuestion, operationalAnswer, false, operationalConstructionResponse);
+      saveConversation(cleanQuestion, operationalAnswer);
+      rememberSessionTurn(cleanQuestion, operationalConstructionResponse, operationalAnswer);
       clearProductAttachmentPreview();
       return;
     }
@@ -13971,7 +14215,8 @@
 
   window.EloAssistente = Object.assign({}, window.EloAssistente || {}, {
     ask: askElo,
-    mountMinimal: mountMinimalEloChat
+    mountMinimal: mountMinimalEloChat,
+    buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_
   });
 
   // ELO_BOOTSTRAP
