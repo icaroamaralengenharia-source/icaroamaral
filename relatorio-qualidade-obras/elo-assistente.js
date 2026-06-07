@@ -11816,28 +11816,6 @@
       actions.appendChild(copyDiagnosticButton);
     }
 
-    const yesButton = createElement("button", "elo-inline-button elo-feedback-button", "👍 Útil");
-    const noButton = createElement("button", "elo-inline-button elo-feedback-button", "👎 Não útil");
-    yesButton.type = "button";
-    noButton.type = "button";
-    yesButton.addEventListener("click", function () {
-      saveFeedback(question, answer, "positive");
-      updateRealQuestionFeedback(response && response.realQuestionId, true);
-      yesButton.disabled = true;
-      noButton.disabled = true;
-    });
-    noButton.addEventListener("click", function () {
-      saveFeedback(question, answer, "negative");
-      const realQuestion = updateRealQuestionFeedback(response && response.realQuestionId, false);
-      yesButton.disabled = true;
-      noButton.disabled = true;
-      if (realQuestion) {
-        appendTrainingSuggestion(realQuestion);
-      }
-    });
-
-    actions.appendChild(yesButton);
-    actions.appendChild(noButton);
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
