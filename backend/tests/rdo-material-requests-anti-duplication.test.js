@@ -9,6 +9,11 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const frontendFile = join(testDir, "..", "..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js");
 const frontendSource = readFileSync(frontendFile, "utf8");
 const buildMovementsBlock = extractFunctionBlock_(frontendSource, "buildStockMovementsFromDailyLogs_");
+const deliveryHelperBlock = [
+  extractFunctionBlock_(frontendSource, "validateRdoMaterialRequestDelivery_"),
+  extractFunctionBlock_(frontendSource, "buildRdoMaterialRequestAlmoxExitMovement_"),
+  extractFunctionBlock_(frontendSource, "getRdoMaterialRequestDeliveryStatus_")
+].join("\n");
 
 test("RDO materialRequests sozinho nao gera consumo_rdo", () => {
   const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
@@ -336,6 +341,145 @@ test("buildStockMovementsFromDailyLogs nao le materialRequests ou requestedQuant
   assert.doesNotMatch(buildMovementsBlock, /almoxExitId/);
 });
 
+test("entrega de materialRequest aprovada valida somente com item e saldo suficiente", () => {
+  const { validateRdoMaterialRequestDelivery_ } = loadRdoDeliveryHooks_();
+  const result = validateRdoMaterialRequestDelivery_(
+    {
+      id: "req_delivery_valid",
+      approvalStatus: "aprovado",
+      almoxItemId: "almox_item_1"
+    },
+    { deliveredQuantity: 10 },
+    { itemExists: true, availableQuantity: 12 }
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.deliveredQuantity, 10);
+});
+
+test("entrega de materialRequest bloqueia solicitacao nao aprovada", () => {
+  const { validateRdoMaterialRequestDelivery_ } = loadRdoDeliveryHooks_();
+  const result = validateRdoMaterialRequestDelivery_(
+    {
+      id: "req_delivery_pending",
+      approvalStatus: "pendente",
+      almoxItemId: "almox_item_1"
+    },
+    { deliveredQuantity: 10 },
+    { itemExists: true, availableQuantity: 12 }
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /aprovadas/);
+});
+
+test("entrega de materialRequest bloqueia dupla entrega com almoxExitId", () => {
+  const { validateRdoMaterialRequestDelivery_ } = loadRdoDeliveryHooks_();
+  const result = validateRdoMaterialRequestDelivery_(
+    {
+      id: "req_delivery_duplicate",
+      approvalStatus: "aprovado",
+      almoxItemId: "almox_item_1",
+      almoxExitId: "almmov_existente"
+    },
+    { deliveredQuantity: 10 },
+    { itemExists: true, availableQuantity: 12 }
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /ja possui entrega/);
+});
+
+test("entrega de materialRequest bloqueia item ausente e saldo insuficiente", () => {
+  const { validateRdoMaterialRequestDelivery_ } = loadRdoDeliveryHooks_();
+
+  const missingItem = validateRdoMaterialRequestDelivery_(
+    {
+      id: "req_delivery_missing_item",
+      approvalStatus: "aprovado"
+    },
+    { deliveredQuantity: 10 },
+    { itemExists: true, availableQuantity: 12 }
+  );
+
+  const insufficientStock = validateRdoMaterialRequestDelivery_(
+    {
+      id: "req_delivery_no_stock",
+      approvalStatus: "aprovado",
+      almoxItemId: "almox_item_1"
+    },
+    { deliveredQuantity: 10 },
+    { itemExists: true, availableQuantity: 5 }
+  );
+
+  assert.equal(missingItem.ok, false);
+  assert.match(missingItem.message, /Vincule um item/);
+  assert.equal(insufficientStock.ok, false);
+  assert.match(insufficientStock.message, /Saldo insuficiente/);
+});
+
+test("saida oficial da entrega do RDO e movimento exclusivo do Almoxarifado", () => {
+  const { buildRdoMaterialRequestAlmoxExitMovement_ } = loadRdoDeliveryHooks_();
+  const movement = buildRdoMaterialRequestAlmoxExitMovement_(
+    {
+      id: "req_delivery_build",
+      almoxItemId: "almox_item_1",
+      productionId: "prod_1",
+      requestedQuantity: 20,
+      approvedQuantity: 18
+    },
+    {
+      deliveredQuantity: 10,
+      responsible: "Almoxarife",
+      recipient: "Equipe alvenaria",
+      sector: "Obra",
+      purpose: "Alvenaria 42 m2",
+      notes: "Entrega parcial"
+    },
+    {
+      id: "almmov_test_1",
+      environmentId: "env_1",
+      dailyLogId: "dia_1",
+      workId: "obra_1",
+      now: "2026-06-07T12:00:00.000Z",
+      movementDate: "2026-06-07",
+      movementTime: "12:00"
+    }
+  );
+
+  assert.equal(movement.id, "almmov_test_1");
+  assert.equal(movement.environmentId, "env_1");
+  assert.equal(movement.itemId, "almox_item_1");
+  assert.equal(movement.type, "saida");
+  assert.equal(movement.source, "rdo_material_request");
+  assert.equal(movement.quantity, 10);
+  assert.equal(movement.dailyLogId, "dia_1");
+  assert.equal(movement.materialRequestId, "req_delivery_build");
+  assert.equal(movement.workId, "obra_1");
+  assert.equal(movement.productionId, "prod_1");
+  assert.equal(movement.requestedQuantity, 20);
+  assert.equal(movement.approvedQuantity, 18);
+  assert.equal(Object.hasOwn(movement, "materials"), false);
+  assert.notEqual(movement.type, "consumo_rdo");
+});
+
+test("status da entrega do RDO diferencia parcial e total", () => {
+  const { getRdoMaterialRequestDeliveryStatus_ } = loadRdoDeliveryHooks_();
+
+  assert.equal(
+    getRdoMaterialRequestDeliveryStatus_({ requestedQuantity: 10, approvedQuantity: 10 }, 5),
+    "entregue_parcial"
+  );
+  assert.equal(
+    getRdoMaterialRequestDeliveryStatus_({ requestedQuantity: 10, approvedQuantity: 10 }, 10),
+    "entregue"
+  );
+  assert.equal(
+    getRdoMaterialRequestDeliveryStatus_({ requestedQuantity: 10 }, 10),
+    "entregue"
+  );
+});
+
 function loadRdoMovementHooks_() {
   let generatedId = 0;
   const sandbox = {
@@ -353,6 +497,33 @@ function loadRdoMovementHooks_() {
   vm.runInContext(buildMovementsBlock, sandbox);
   return {
     buildStockMovementsFromDailyLogs_: sandbox.buildStockMovementsFromDailyLogs_
+  };
+}
+
+function loadRdoDeliveryHooks_() {
+  let generatedId = 0;
+  const sandbox = {
+    clean: (value) => String(value || "").trim(),
+    createId_: (prefix) => prefix + "_test_" + (++generatedId),
+    getDefaultAlmoxMovementDate_: () => "2026-06-07",
+    getDefaultAlmoxMovementTime_: () => "12:00",
+    buildAlmoxMovementDateTime_: (dateValue, timeValue) => {
+      const date = String(dateValue || "2026-06-07").trim();
+      const time = String(timeValue || "12:00").trim();
+      return date + "T" + time + ":00";
+    },
+    parseNumber_: (value) => {
+      const number = Number(String(value || "0").replace(",", "."));
+      return Number.isFinite(number) ? number : 0;
+    }
+  };
+
+  vm.createContext(sandbox);
+  vm.runInContext(deliveryHelperBlock, sandbox);
+  return {
+    validateRdoMaterialRequestDelivery_: sandbox.validateRdoMaterialRequestDelivery_,
+    buildRdoMaterialRequestAlmoxExitMovement_: sandbox.buildRdoMaterialRequestAlmoxExitMovement_,
+    getRdoMaterialRequestDeliveryStatus_: sandbox.getRdoMaterialRequestDeliveryStatus_
   };
 }
 
