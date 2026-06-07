@@ -5002,7 +5002,7 @@
   }
 
   function buildConnectedGreeting() {
-    return buildPremiumWelcomeMessage_();
+    return "Oi, tudo bem? Me diz no que eu posso te ajudar";
   }
 
   function buildPremiumWelcomeMessage_() {
