@@ -8499,7 +8499,13 @@
   }
 
   function parseEloOperationalNumber_(value) {
-    const normalized = String(value || "").replace(/\./g, "").replace(",", ".");
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    const raw = String(value || "").trim();
+    const normalized = raw.indexOf(",") >= 0
+      ? raw.replace(/\./g, "").replace(",", ".")
+      : raw;
     const number = Number.parseFloat(normalized);
     return Number.isFinite(number) ? number : 0;
   }
@@ -8530,11 +8536,69 @@
     return String(rounded).replace(".", ",");
   }
 
+  function formatEloOperationalDisplayUnit_(unit) {
+    return normalizeEloOperationalUnit_(unit || "un");
+  }
+
+  function getEloOperationalPredictionSource_(prediction) {
+    const composition = prediction && prediction.composition ? prediction.composition : null;
+    if (composition && composition.isRealComposition) {
+      return "SINAPI real/importada";
+    }
+    if (composition && (composition.source || composition.sourceRegion || composition.sourceDate)) {
+      const source = normalizeText(composition.source || "");
+      if (source.indexOf("sinapi") >= 0 || source.indexOf("orse") >= 0 || source.indexOf("real") >= 0) {
+        return "SINAPI real/importada";
+      }
+    }
+    return "Base técnica demonstrativa/editável";
+  }
+
+  function buildEloOperationalScaleAlerts_(prediction) {
+    const service = prediction && prediction.service ? prediction.service : {};
+    const quantity = parseEloOperationalNumber_(service.quantity || service.executedQuantity);
+    const unit = normalizeEloOperationalUnit_(service.unit || "un");
+    if (quantity <= 0 || normalizeText(unit) !== normalizeText("m²")) {
+      return [];
+    }
+    const serviceText = normalizeText(service.service || service.serviceName || service.serviceType || "");
+    const limits = [];
+    if (hasAnyTerm(serviceText, ["alvenaria", "parede"])) {
+      limits.push({ terms: ["areia"], unit: "m³", maxPerUnit: 0.25 });
+      limits.push({ terms: ["cimento"], unit: "saco", maxPerUnit: 1 });
+      limits.push({ terms: ["bloco", "tijolo"], unit: "un", maxPerUnit: 40 });
+    } else if (hasAnyTerm(serviceText, ["reboco", "emboço", "emboco"])) {
+      limits.push({ terms: ["areia"], unit: "m³", maxPerUnit: 0.12 });
+      limits.push({ terms: ["cimento"], unit: "saco", maxPerUnit: 0.6 });
+    } else if (hasAnyTerm(serviceText, ["piso"])) {
+      limits.push({ terms: ["piso"], unit: "m²", maxPerUnit: 1.4 });
+      limits.push({ terms: ["argamassa"], unit: "saco", maxPerUnit: 1 });
+    }
+    return (prediction.predictedItems || []).reduce(function (alerts, item) {
+      const itemName = normalizeText(item.name || item.material || "");
+      const itemUnit = normalizeEloOperationalUnit_(item.unit || "un");
+      const quantityPerUnit = parseEloOperationalNumber_(item.quantity || item.predictedQuantity || 0) / quantity;
+      const limit = limits.find(function (candidate) {
+        return normalizeText(candidate.unit) === normalizeText(itemUnit) &&
+          candidate.terms.some(function (term) {
+            return itemName.indexOf(normalizeText(term)) >= 0;
+          });
+      });
+      if (limit && quantityPerUnit > limit.maxPerUnit) {
+        alerts.push("⚠️ Verificar quantitativo: consumo fora da faixa esperada para " + (item.name || item.material || "material") + ".");
+      }
+      return alerts;
+    }, []);
+  }
+
   function parseEloOperationalService_(message) {
     const text = normalizeText(message);
+    const dimensionMatch = String(message || "").match(/(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
     const quantityMatch = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|m3|m³|metros?\s+quadrados?|metros?\s+cubicos?|metros?\s+cúbicos?|sacos?|un|und|unidades?)/i);
-    const quantity = quantityMatch ? parseEloOperationalNumber_(quantityMatch[1]) : 0;
-    const unit = quantityMatch ? normalizeEloOperationalUnit_(quantityMatch[2]) : "m²";
+    const quantity = dimensionMatch
+      ? parseEloOperationalNumber_(dimensionMatch[1]) * parseEloOperationalNumber_(dimensionMatch[2])
+      : quantityMatch ? parseEloOperationalNumber_(quantityMatch[1]) : 0;
+    const unit = dimensionMatch ? "m²" : quantityMatch ? normalizeEloOperationalUnit_(quantityMatch[2]) : "m²";
     const services = [
       { terms: ["alvenaria", "parede", "muro", "tijolo", "bloco"], service: "Alvenaria", serviceType: "alvenaria", unit: "m²" },
       { terms: ["piso"], service: "Piso ceramico", serviceType: "piso_ceramico", unit: "m²" },
@@ -8643,9 +8707,11 @@
     }
 
     const balances = getEloOperationalAlmoxBalances_();
+    const sourceLabel = getEloOperationalPredictionSource_(prediction.prediction);
+    const scaleAlerts = buildEloOperationalScaleAlerts_(prediction);
     const predictedLines = prediction.predictedItems.map(function (item) {
       const quantity = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
-      return "- " + (item.name || item.material || "Material") + ": " + formatEloOperationalQuantity_(quantity) + " " + (item.unit || "un");
+      return "- " + (item.name || item.material || "Material") + ": " + formatEloOperationalQuantity_(quantity) + " " + formatEloOperationalDisplayUnit_(item.unit || "un");
     });
     const almoxLines = [];
     let hasInsufficient = false;
@@ -8668,8 +8734,8 @@
           hasInsufficient = true;
         }
         almoxLines.push("- " + (item.name || item.material || match.name || "Material") + ": disponível " +
-          formatEloOperationalQuantity_(available) + " " + (match.unit || item.unit || "un") +
-          (missing > 0 ? " | faltam " + formatEloOperationalQuantity_(missing) + " " + (item.unit || match.unit || "un") : " | OK"));
+          formatEloOperationalQuantity_(available) + " " + formatEloOperationalDisplayUnit_(match.unit || item.unit || "un") +
+          (missing > 0 ? " | faltam " + formatEloOperationalQuantity_(missing) + " " + formatEloOperationalDisplayUnit_(item.unit || match.unit || "un") : " | OK"));
       });
     }
 
@@ -8690,7 +8756,9 @@
       shortAnswer: resultTitle,
       fullAnswer: [
         "📐 Previsão Stock AI",
+        "Fonte: " + sourceLabel,
         predictedLines.join("\n"),
+        scaleAlerts.length ? "\n" + scaleAlerts.join("\n") : "",
         "",
         "📦 Almoxarifado",
         almoxLines.join("\n"),

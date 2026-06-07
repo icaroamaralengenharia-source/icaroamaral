@@ -3214,9 +3214,27 @@ test("Elo operacional responde com saldo suficiente sem criar movimentacao", asy
 
   assert.equal(response.sessionTheme, "elo_operacional_obras");
   assert.match(response.fullAnswer, /Previsão Stock AI/);
+  assert.match(response.fullAnswer, /Fonte: Base técnica demonstrativa\/editável/);
   assert.match(response.fullAnswer, /Almoxarifado/);
   assert.match(response.fullAnswer, /Saldo suficiente/);
+  assert.doesNotMatch(response.fullAnswer, /Areia: 756 m3/i);
+  assert.match(response.fullAnswer, /Areia: 0,756 m³/i);
   assert.doesNotMatch(response.fullAnswer, /saida oficial criada/i);
+});
+
+test("Elo operacional interpreta parede 12 m x 3 m como 36 m2", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Bloco ceramico", unit: "un", balance: 500, realBalance: 500 },
+    { name: "Cimento", unit: "saco", balance: 80, realBalance: 80 },
+    { name: "Areia", unit: "m3", balance: 50, realBalance: 50 },
+    { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede 12 m x 3 m. Dá para executar amanhã?");
+
+  assert.match(response.fullAnswer, /Bloco ceramico: 491,4 un/i);
+  assert.match(response.fullAnswer, /Areia: 0,68 m³/i);
+  assert.doesNotMatch(response.fullAnswer, /Areia: 680 m3/i);
 });
 
 test("Elo operacional alerta saldo insuficiente e nao altera estoque", async () => {
@@ -3232,6 +3250,46 @@ test("Elo operacional alerta saldo insuficiente e nao altera estoque", async () 
   assert.match(response.fullAnswer, /Material insuficiente/);
   assert.match(response.fullAnswer, /faltam/i);
   assert.deepEqual(sandbox.__almoxMovements, []);
+});
+
+test("Elo operacional calcula piso e compara estoque sem converter unidade errada", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Piso ceramico", unit: "m2", balance: 40, realBalance: 40 },
+    { name: "Argamassa colante", unit: "saco", balance: 20, realBalance: 20 },
+    { name: "Rejunte", unit: "kg", balance: 20, realBalance: 20 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho piso de 30 m². Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /Piso ceramico: 32,445 m²/i);
+  assert.match(response.fullAnswer, /Saldo suficiente/);
+  assert.doesNotMatch(response.fullAnswer, /32450/);
+});
+
+test("Elo operacional calcula reboco e compara estoque", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Cimento", unit: "saco", balance: 10, realBalance: 10 },
+    { name: "Areia", unit: "m3", balance: 2, realBalance: 2 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho reboco de 50 m². Posso fazer amanhã?");
+
+  assert.match(response.fullAnswer, /Reboco|Previsão Stock AI/);
+  assert.match(response.fullAnswer, /Areia: 1,05 m³/i);
+  assert.doesNotMatch(response.fullAnswer, /Areia: 1050 m3/i);
+});
+
+test("Elo operacional trata concreto por volume sem converter m3 para m2", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Cimento", unit: "saco", balance: 20, realBalance: 20 },
+    { name: "Areia", unit: "m3", balance: 5, realBalance: 5 },
+    { name: "Brita", unit: "m3", balance: 5, realBalance: 5 }
+  ]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho concreto de 2 m³. Tenho material?");
+
+  assert.match(response.fullAnswer, /Previsão Stock AI/);
+  assert.doesNotMatch(response.fullAnswer, /2000 m³|2000 m3/i);
 });
 
 test("Elo operacional informa item inexistente no almoxarifado", async () => {
@@ -3263,6 +3321,34 @@ test("Elo operacional pede dados quando Stock AI nao consegue prever", async () 
 
   assert.match(response.fullAnswer, /Eu ainda não consegui calcular essa previsão técnica/);
   assert.match(response.fullAnswer, /parede de 40 m²/);
+});
+
+test("Elo operacional indica fonte real quando composicao importada estiver disponivel", async () => {
+  const sandbox = await loadEloOperationalSandbox_([
+    { name: "Bloco teste real", unit: "un", balance: 100, realBalance: 100 },
+    { name: "Areia real", unit: "m3", balance: 10, realBalance: 10 }
+  ]);
+  sandbox.window.StockAiCompositionEngine.setExternalCompositionCatalog([{
+    id: "sinapi_alvenaria_teste",
+    code: "SINAPI-TESTE",
+    service: "Alvenaria de teste SINAPI",
+    productionUnit: "m2",
+    source: "SINAPI",
+    sourceRegion: "BA",
+    sourceDate: "2026-06",
+    isRealComposition: true,
+    inputs: [
+      { name: "Bloco teste real", quantityPerUnit: 2, unit: "un" },
+      { name: "Areia real", quantityPerUnit: 0.01, unit: "m3" }
+    ],
+    keywords: ["alvenaria", "parede", "bloco"]
+  }]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 10 m². Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /Fonte: SINAPI real\/importada/);
+  assert.match(response.fullAnswer, /Bloco teste real: 20 un/);
+  sandbox.window.StockAiCompositionEngine.clearExternalCompositionCatalog();
 });
 
 test("Elo operacional usa ponte de leitura do Almoxarifado sem API de baixa", async () => {
