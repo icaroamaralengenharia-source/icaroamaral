@@ -60,6 +60,67 @@ test("RDO materialRequests nao altera materials nem copia solicitacao", () => {
   assert.equal(dailyLogs[0].materialRequests[0].requestedQuantity, 12);
 });
 
+test("RDO materialRequests aprovado nao gera consumo_rdo nem altera materials", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_approved_request",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [],
+    materialRequests: [{
+      id: "req_approved",
+      requestedName: "Cimento",
+      requestedQuantity: 18,
+      requestedUnit: "saco",
+      predictedQuantity: 20,
+      availableQuantity: 100,
+      status: "coerente",
+      approvalStatus: "aprovado",
+      approvedBy: "Gestor Teste",
+      approvedAt: "2026-06-07T12:00:00.000Z"
+    }]
+  }];
+
+  const before = clone_(dailyLogs);
+  const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.equal(movements.length, 0);
+  assert.deepEqual(dailyLogs, before);
+  assert.deepEqual(dailyLogs[0].materials, []);
+  assert.equal(movements.some((movement) => movement.type === "consumo_rdo"), false);
+});
+
+test("RDO materialRequests rejeitado nao gera consumo_rdo nem altera materials", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_rejected_request",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [],
+    materialRequests: [{
+      id: "req_rejected",
+      requestedName: "Cimento",
+      requestedQuantity: 80,
+      requestedUnit: "saco",
+      predictedQuantity: 20,
+      availableQuantity: 100,
+      status: "acima_do_previsto",
+      approvalStatus: "rejeitado",
+      rejectedBy: "Gestor Teste",
+      rejectedAt: "2026-06-07T12:00:00.000Z",
+      rejectionReason: "Acima do previsto."
+    }]
+  }];
+
+  const before = clone_(dailyLogs);
+  const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.equal(movements.length, 0);
+  assert.deepEqual(dailyLogs, before);
+  assert.deepEqual(dailyLogs[0].materials, []);
+  assert.equal(movements.some((movement) => movement.type === "consumo_rdo"), false);
+});
+
 test("RDO materials real continua gerando somente consumo registrado", () => {
   const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
   const dailyLogs = [{

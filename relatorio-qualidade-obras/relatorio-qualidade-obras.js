@@ -5719,8 +5719,14 @@
       deliveredQuantity: 0,
       status: "pendente",
       decision: "pendente",
+      approvalStatus: "",
       requestedBy: requestedBy,
       approvedBy: "",
+      approvedAt: "",
+      rejectedBy: "",
+      rejectedAt: "",
+      rejectionReason: "",
+      approvalNote: "",
       deliveredBy: "",
       notes: notes,
       createdAt: now,
@@ -5890,6 +5896,88 @@
     setDailyLogStatus_("Solicitacao analisada e salva no RDO em modo simulacao.", "success");
   }
 
+  function approveRdoMaterialRequest_(requestId) {
+    updateRdoMaterialRequestApproval_(requestId, {
+      approvalStatus: "aprovado",
+      approvedBy: currentUser && (currentUser.name || currentUser.id) || "Responsavel",
+      approvedAt: new Date().toISOString(),
+      rejectedBy: "",
+      rejectedAt: "",
+      rejectionReason: "",
+      approvalNote: "Aprovacao leve no RDO. Nao gera saida nem baixa estoque."
+    });
+    setDailyLogStatus_("Solicitacao aprovada no RDO. Nenhuma saida de estoque foi criada.", "success");
+  }
+
+  function rejectRdoMaterialRequest_(requestId) {
+    const rawReason = window.prompt("Motivo da rejeicao da solicitacao de material:", "");
+    if (rawReason === null) {
+      return;
+    }
+
+    const reason = clean(rawReason);
+    updateRdoMaterialRequestApproval_(requestId, {
+      approvalStatus: "rejeitado",
+      approvedBy: "",
+      approvedAt: "",
+      rejectedBy: currentUser && (currentUser.name || currentUser.id) || "Responsavel",
+      rejectedAt: new Date().toISOString(),
+      rejectionReason: reason || "Rejeitada pelo responsavel.",
+      approvalNote: ""
+    });
+    setDailyLogStatus_("Solicitacao rejeitada no RDO. Nenhuma saida de estoque foi criada.", "info");
+  }
+
+  function updateRdoMaterialRequestApproval_(requestId, updates) {
+    currentDailyLogMaterialRequests_ = (currentDailyLogMaterialRequests_ || []).map(function (request) {
+      if (!request || request.id !== requestId) {
+        return request;
+      }
+
+      return Object.assign({}, request, updates || {}, {
+        deliveredQuantity: request.deliveredQuantity || 0,
+        updatedAt: new Date().toISOString()
+      });
+    });
+    renderDailyLogDraftLists_();
+  }
+
+  function getRdoMaterialRequestApprovalLabel_(request) {
+    const status = clean(request && request.approvalStatus);
+
+    if (status === "aprovado") {
+      return "Aprovada por " + (request.approvedBy || "-") +
+        (request.approvedAt ? " em " + formatDateTime_(request.approvedAt) : "");
+    }
+
+    if (status === "rejeitado") {
+      return "Rejeitada por " + (request.rejectedBy || "-") +
+        (request.rejectedAt ? " em " + formatDateTime_(request.rejectedAt) : "");
+    }
+
+    return "Aprovacao: pendente";
+  }
+
+  function renderRdoMaterialRequestApprovalActions_(request) {
+    const actions = [];
+    const approvalStatus = clean(request && request.approvalStatus);
+
+    if (approvalStatus !== "aprovado" && approvalStatus !== "rejeitado") {
+      actions.push(createDiaryActionButton_("Aprovar", "approve-material-request", request.id));
+      actions.push(createDiaryActionButton_("Rejeitar", "reject-material-request", request.id));
+    }
+
+    actions.push(createDiaryActionButton_("Remover", "remove-material-request", request.id));
+    return actions;
+  }
+
+  function buildRdoMaterialRequestApprovalSummary_(request) {
+    const approvalLabel = getRdoMaterialRequestApprovalLabel_(request);
+    const reason = request && request.rejectionReason ? " Motivo: " + request.rejectionReason + "." : "";
+    const note = request && request.approvalNote ? " Observacao: " + request.approvalNote + "." : "";
+    return approvalLabel + "." + reason + note;
+  }
+
   function renderRdoMaterialRequestsList_() {
     renderRdoMaterialRequestProductionOptions_();
     renderRdoMaterialRequestAlmoxOptions_();
@@ -5927,16 +6015,15 @@
         "Solicitado: " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
         "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
-        "Status: " + request.status
+        "Status tecnico: " + request.status,
+        getRdoMaterialRequestApprovalLabel_(request)
       ].join(" - ");
 
       dailyLogMaterialRequestsList.appendChild(createDiaryListItem_(
         request.requestedName || "Material solicitado",
         productionLabel + " - " + detail,
-        [request.decision, request.notes].filter(Boolean).join(" "),
-        [
-          createDiaryActionButton_("Remover", "remove-material-request", request.id)
-        ]
+        [request.decision, request.notes, request.rejectionReason].filter(Boolean).join(" "),
+        renderRdoMaterialRequestApprovalActions_(request)
       ));
     });
   }
@@ -5960,11 +6047,29 @@
       summary[status] = (summary[status] || 0) + 1;
       return summary;
     }, {});
+    const approvalCounts = requests.reduce(function (summary, request) {
+      const status = request.approvalStatus || "sem_decisao";
+      summary[status] = (summary[status] || 0) + 1;
+      return summary;
+    }, {});
+    const requestLines = requests.map(function (request) {
+      return [
+        request.requestedName || "Material",
+        "solicitado " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
+        "previsto " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
+        "saldo " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
+        "status tecnico " + (request.status || "pendente"),
+        buildRdoMaterialRequestApprovalSummary_(request)
+      ].join(", ");
+    });
 
     return "Solicitacoes de material do dia: " + requests.length + ". " +
       Object.keys(counts).map(function (status) {
         return status + ": " + counts[status];
-      }).join("; ") + ".";
+      }).join("; ") + ". Aprovacoes: " +
+      Object.keys(approvalCounts).map(function (status) {
+        return status + ": " + approvalCounts[status];
+      }).join("; ") + ". APROVACOES DE SOLICITACOES DE MATERIAL: " + requestLines.join(" | ") + ".";
   }
 
   function renderRdoMaterialRequestProductionOptions_() {
@@ -6126,6 +6231,10 @@
         return item.id !== id;
       });
       renderDailyLogDraftLists_();
+    } else if (action === "approve-material-request") {
+      approveRdoMaterialRequest_(id);
+    } else if (action === "reject-material-request") {
+      rejectRdoMaterialRequest_(id);
     } else if (action === "edit-tool") {
       editDailyLogTool_(id);
     } else if (action === "remove-tool") {
