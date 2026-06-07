@@ -121,6 +121,92 @@ test("RDO materialRequests rejeitado nao gera consumo_rdo nem altera materials",
   assert.equal(movements.some((movement) => movement.type === "consumo_rdo"), false);
 });
 
+test("RDO materialRequests aprovado e entregue nao gera consumo_rdo", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_delivered_request",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [],
+    materialRequests: [{
+      id: "req_delivered_1",
+      approvalStatus: "aprovado",
+      almoxExitId: "almox_exit_1",
+      deliveredQuantity: 10,
+      deliveredBy: "Almoxarife",
+      deliveredAt: "2026-06-07T12:00:00.000Z",
+      deliveryStatus: "entregue",
+      requestedName: "Cimento",
+      requestedQuantity: 10,
+      requestedUnit: "saco"
+    }]
+  }];
+
+  const before = clone_(dailyLogs);
+  const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.equal(movements.length, 0);
+  assert.deepEqual(dailyLogs, before);
+  assert.equal(movements.some((movement) => movement.type === "consumo_rdo"), false);
+});
+
+test("RDO materialRequests com entrega parcial nao gera consumo_rdo", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_partial_delivery_request",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [],
+    materialRequests: [{
+      id: "req_partial_delivery_1",
+      approvalStatus: "aprovado",
+      almoxExitId: "almox_exit_partial_1",
+      deliveredQuantity: 5,
+      deliveredBy: "Almoxarife",
+      deliveredAt: "2026-06-07T12:00:00.000Z",
+      deliveryStatus: "entregue_parcial",
+      requestedName: "Cimento",
+      requestedQuantity: 10,
+      requestedUnit: "saco"
+    }]
+  }];
+
+  const before = clone_(dailyLogs);
+  const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.equal(movements.length, 0);
+  assert.deepEqual(dailyLogs, before);
+  assert.equal(movements.some((movement) => movement.quantity === 5), false);
+});
+
+test("RDO materialRequests entregue nao altera materials nem a propria solicitacao", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_delivery_integrity",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [],
+    materialRequests: [{
+      id: "req_delivery_integrity",
+      approvalStatus: "aprovado",
+      almoxExitId: "almox_exit_integrity",
+      deliveredQuantity: 10,
+      deliveredBy: "Almoxarife",
+      deliveredAt: "2026-06-07T12:00:00.000Z",
+      deliveryStatus: "entregue",
+      requestedName: "Cimento",
+      requestedQuantity: 10,
+      requestedUnit: "saco"
+    }]
+  }];
+
+  const before = clone_(dailyLogs);
+  buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.deepEqual(dailyLogs[0].materials, []);
+  assert.deepEqual(dailyLogs[0].materialRequests, before[0].materialRequests);
+});
+
 test("RDO materials real continua gerando somente consumo registrado", () => {
   const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
   const dailyLogs = [{
@@ -153,6 +239,43 @@ test("RDO materials real continua gerando somente consumo registrado", () => {
   assert.equal(movements[0].quantity, 5);
   assert.equal(movements[0].name, "Cimento");
   assert.notEqual(movements[0].quantity, dailyLogs[0].materialRequests[0].requestedQuantity);
+});
+
+test("RDO materials real continua gerando consumo mesmo com materialRequest entregue", () => {
+  const { buildStockMovementsFromDailyLogs_ } = loadRdoMovementHooks_();
+  const dailyLogs = [{
+    id: "rdo_real_material_with_delivered_request",
+    workId: "obra_1",
+    date: "2026-06-07",
+    materials: [{
+      id: "mat_real_consumption",
+      name: "Cimento",
+      quantity: 3,
+      unit: "saco",
+      unitValue: 40,
+      totalValue: 120,
+      note: "Consumo real registrado no RDO"
+    }],
+    materialRequests: [{
+      id: "req_delivered_ignored",
+      approvalStatus: "aprovado",
+      almoxExitId: "almox_exit_ignored",
+      deliveredQuantity: 10,
+      deliveredBy: "Almoxarife",
+      deliveredAt: "2026-06-07T12:00:00.000Z",
+      deliveryStatus: "entregue",
+      requestedName: "Cimento",
+      requestedQuantity: 10,
+      requestedUnit: "saco"
+    }]
+  }];
+
+  const movements = buildStockMovementsFromDailyLogs_(dailyLogs);
+
+  assert.equal(movements.length, 1);
+  assert.equal(movements[0].type, "consumo_rdo");
+  assert.equal(movements[0].quantity, 3);
+  assert.notEqual(movements[0].quantity, dailyLogs[0].materialRequests[0].deliveredQuantity);
 });
 
 test("RDO antigo sem materialRequests continua gerando movimento", () => {
@@ -209,6 +332,8 @@ test("RDO materialRequests nao participa da origem da baixa derivada", () => {
 test("buildStockMovementsFromDailyLogs nao le materialRequests ou requestedQuantity", () => {
   assert.doesNotMatch(buildMovementsBlock, /materialRequests/);
   assert.doesNotMatch(buildMovementsBlock, /requestedQuantity/);
+  assert.doesNotMatch(buildMovementsBlock, /deliveredQuantity/);
+  assert.doesNotMatch(buildMovementsBlock, /almoxExitId/);
 });
 
 function loadRdoMovementHooks_() {
