@@ -3050,6 +3050,48 @@ test("casa_70m2_padrao_medio", () => {
   assert.match(combined, /pintura/i);
 });
 
+test("casa_70m2_esquadrias_estimadas", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Quero uma casa de 70m², ela mede 7 x 10, térrea, pé-direito 2,8m, com laje pré-moldada e cobertura cerâmica.";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /resid[eê]ncia.*70\s*m/i);
+  assert.match(answer, /ESQUADRIAS ESTIMADAS/i);
+  assert.match(answer, /porta 70 cm:\s*3 unidades/i);
+  assert.match(answer, /porta 80 cm:\s*1 unidade/i);
+  assert.match(answer, /porta 90 cm:\s*1 unidade/i);
+  assert.match(answer, /janela 1,20 x 1,10:\s*4 unidades/i);
+  assert.match(answer, /janela 0,60 x 0,50:\s*1 unidade/i);
+  assert.match(answer, /Estimativa demonstrativa de esquadrias.*projeto arquitet[oô]nico/i);
+});
+
+test("casa_120m2_esquadrias_estimadas", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Quero construir uma casa de 120 m², padrão médio, térrea, pé-direito 2,8m, com 3 quartos, 2 banheiros, laje e telhado cerâmico.";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /ESQUADRIAS ESTIMADAS/i);
+  assert.match(answer, /porta 70 cm:\s*5 unidades/i);
+  assert.match(answer, /porta 80 cm:\s*1 unidade/i);
+  assert.match(answer, /porta 90 cm:\s*1 unidade/i);
+  assert.match(answer, /janela 1,20 x 1,10:\s*5 unidades/i);
+  assert.match(answer, /janela 0,60 x 0,50:\s*2 unidades/i);
+});
+
+test("casa_150m2_alto_padrao_ventilacao_cruzada", () => {
+  const engine = loadStockAiCompositionEngine();
+  const message = "Quero uma casa de 150 m² alto padrão, com 4 quartos, 3 banheiros, sala ampla, cozinha, laje e cobertura metálica.";
+  const answer = engine.buildAnswerFromMessage(message);
+
+  assert.match(answer, /resid[eê]ncia.*150\s*m/i);
+  assert.match(answer, /ventila[cç][aã]o cruzada/i);
+  assert.match(answer, /porta 70 cm:\s*7 unidades/i);
+  assert.match(answer, /porta 80 cm:\s*1 unidade/i);
+  assert.match(answer, /porta 90 cm:\s*1 unidade/i);
+  assert.match(answer, /janela 1,20 x 1,10:\s*11 unidades/i);
+  assert.match(answer, /janela 0,60 x 0,50:\s*3 unidades/i);
+});
+
 test("Stock AI Obras linguagem real mantem laje 8x12 com 12 cm como caso aprovado", () => {
   const engine = loadStockAiCompositionEngine();
   const message = "vou concretar uma laje 8x12 com 12 cm";

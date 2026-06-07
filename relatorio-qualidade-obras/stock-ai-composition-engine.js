@@ -3888,7 +3888,7 @@
         const heightMatch = originalMessage.match(new RegExp("(?:pe\\s*[- ]?\\s*direito|pé\\s*[- ]?\\s*direito|altura)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i"));
         const floorsMatch = originalMessage.match(new RegExp(number + "\\s*pavimentos?", "i"));
         const height = heightMatch ? parseDimensionNumber(heightMatch[1]) : 2.8;
-        const floors = floorsMatch ? parseDimensionNumber(floorsMatch[1]) : 1;
+        const floors = hasAny(text, ["terrea", "térrea"]) ? 1 : floorsMatch ? parseDimensionNumber(floorsMatch[1]) : 1;
         const side = Math.sqrt(floorArea);
         const perimeter = roundQuantity(side * 4);
         const wallArea = roundQuantity(perimeter * height * floors);
@@ -3986,8 +3986,8 @@
             roofArea: roofArea,
             wallSystem: hasAny(text, ["bloco ceramico", "bloco cerâmico"]) ? "bloco ceramico" : "",
             slab: hasTerm(text, "laje"),
-            coverageType: hasAny(text, ["telhado ceramico", "telhado cerâmico", "telha ceramica", "telha cerâmica"]) ? "telhado ceramico" : "",
-            finishPattern: hasAny(text, ["padrao medio", "padrão médio"]) ? "padrao medio" : ""
+            coverageType: hasAny(text, ["telhado ceramico", "telhado cerâmico", "telha ceramica", "telha cerâmica", "cobertura ceramica", "cobertura cerâmica"]) ? "telhado ceramico" : hasAny(text, ["cobertura metalica", "cobertura metálica"]) ? "cobertura metalica" : "",
+            finishPattern: hasAny(text, ["alto padrao", "alto padrão"]) ? "alto padrao" : hasAny(text, ["padrao medio", "padrão médio"]) ? "padrao medio" : ""
           },
           derivedServices: derivedServices,
           label: "Casa",
@@ -4007,6 +4007,10 @@
     const width = parseDimensionNumber(planMatch[2]);
     const heightMatch = originalMessage.match(new RegExp("(?:pe\\s*[- ]?\\s*direito|pé\\s*[- ]?\\s*direito|altura)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i"));
     const height = heightMatch ? parseDimensionNumber(heightMatch[1]) : (isShed ? 6 : 3);
+    const explicitAreaMatch = isHouse ? originalMessage.match(new RegExp(number + "\\s*(?:m2|m²|metros?\\s+quadrados?)", "i")) : null;
+    const explicitArea = explicitAreaMatch ? parseDimensionNumber(explicitAreaMatch[1]) : 0;
+    const floorsMatch = originalMessage.match(new RegExp(number + "\\s*pavimentos?", "i"));
+    const floors = isHouse && hasAny(text, ["terrea", "térrea"]) ? 1 : floorsMatch ? parseDimensionNumber(floorsMatch[1]) : 1;
     const floorArea = roundQuantity(length * width);
     const perimeter = roundQuantity(2 * (length + width));
     const wallArea = roundQuantity(perimeter * height);
@@ -4147,13 +4151,20 @@
       unit: "composite",
       explanation: "Geometria composta identificada: planta " + formatMeters(length) + " x " + formatMeters(width) + ", pe-direito " + formatMeters(height),
       dimensions: {
+        areaBased: false,
+        explicitArea: explicitArea > 0,
         length: length,
         width: width,
         height: height,
+        floors: floors,
         perimeter: perimeter,
         floorArea: floorArea,
         wallArea: wallArea,
-        roofArea: roofArea
+        roofArea: roofArea,
+        wallSystem: hasAny(text, ["bloco ceramico", "bloco cerâmico"]) ? "bloco ceramico" : "",
+        slab: hasTerm(text, "laje"),
+        coverageType: hasAny(text, ["telhado ceramico", "telhado cerâmico", "telha ceramica", "telha cerâmica", "cobertura ceramica", "cobertura cerâmica"]) ? "telhado ceramico" : hasAny(text, ["cobertura metalica", "cobertura metálica"]) ? "cobertura metalica" : "",
+        finishPattern: hasAny(text, ["alto padrao", "alto padrão"]) ? "alto padrao" : hasAny(text, ["padrao medio", "padrão médio"]) ? "padrao medio" : ""
       },
       derivedServices: derivedServices,
       label: label,
@@ -7372,12 +7383,64 @@
     ].join("\n");
   }
 
+  function inferResidentialOpenings(areaM2, options) {
+    const area = parseNumber(areaM2);
+    const settings = options || {};
+    const highStandard = hasAny(normalize(settings.finishPattern || settings.text || ""), ["alto padrao", "alto padrão"]);
+
+    if (area > 120) {
+      return {
+        premise: "Premissa demonstrativa: 4 quartos, 3 banheiros, sala, cozinha, entrada principal e ambientes extras dependentes do projeto.",
+        doors: [
+          { label: "porta 70 cm", quantity: 7 },
+          { label: "porta 80 cm", quantity: 1 },
+          { label: "porta 90 cm", quantity: 1 }
+        ],
+        windows: [
+          { label: "janela 1,20 x 1,10", quantity: 11 },
+          { label: "janela 0,60 x 0,50", quantity: 3 }
+        ],
+        note: "Casas acima de 120 m2" + (highStandard ? " ou de alto padrao" : "") + " podem exigir ventilacao cruzada em ambientes maiores."
+      };
+    }
+
+    if (area > 80) {
+      return {
+        premise: "Premissa demonstrativa: 3 quartos, 2 banheiros, sala, cozinha e entrada principal.",
+        doors: [
+          { label: "porta 70 cm", quantity: 5 },
+          { label: "porta 80 cm", quantity: 1 },
+          { label: "porta 90 cm", quantity: 1 }
+        ],
+        windows: [
+          { label: "janela 1,20 x 1,10", quantity: 5 },
+          { label: "janela 0,60 x 0,50", quantity: 2 }
+        ],
+        note: area > 100 ? "Para casas de 101 a 120 m2, avaliar ventilacao cruzada em ambientes maiores." : ""
+      };
+    }
+
+    return {
+      premise: "Premissa demonstrativa: 2 quartos, 1 banheiro, sala, cozinha e entrada principal.",
+      doors: [
+        { label: "porta 70 cm", quantity: 3 },
+        { label: "porta 80 cm", quantity: 1 },
+        { label: "porta 90 cm", quantity: 1 }
+      ],
+      windows: [
+        { label: "janela 1,20 x 1,10", quantity: area > 80 ? 5 : 4 },
+        { label: "janela 0,60 x 0,50", quantity: area > 80 ? 2 : 1 }
+      ],
+      note: ""
+    };
+  }
+
   function isCompleteHouseCompositeRequest(request) {
     const geometry = request && request.geometry || {};
     return !!(geometry.detected && geometry.complete &&
       geometry.serviceType === "edificacao_composta" &&
       normalize(geometry.label) === "casa" &&
-      geometry.dimensions && geometry.dimensions.areaBased &&
+      geometry.dimensions && (geometry.dimensions.areaBased || geometry.dimensions.explicitArea) &&
       parseNumber(geometry.dimensions.floorArea) > 0);
   }
 
@@ -7391,6 +7454,10 @@
     const floors = parseNumber(dimensions.floors) || 1;
     const height = parseNumber(dimensions.height) || 0;
     const services = geometry.derivedServices || [];
+    const openings = inferResidentialOpenings(floorArea, {
+      finishPattern: dimensions.finishPattern,
+      text: request.originalMessage
+    });
     const componentNames = services.map(function (service) {
       return clean(service.label || service.serviceType);
     }).filter(Boolean);
@@ -7435,6 +7502,20 @@
         (quantity > 0 ? formatQuantityWithUnit(quantity, service.unit) : "depende de projeto/detalhamento") +
         (service.explanation ? " | " + service.explanation : "");
     })).concat([
+      "",
+      "ESQUADRIAS ESTIMADAS",
+      "- Premissa de ambientes: " + openings.premise,
+      "- Portas estimadas:",
+    ]).concat(openings.doors.map(function (item) {
+      return "  - " + item.label + ": " + formatQuantity(item.quantity) + " " + formatUnitLabel(item.quantity, "un");
+    })).concat([
+      "- Janelas estimadas:",
+    ]).concat(openings.windows.map(function (item) {
+      return "  - " + item.label + ": " + formatQuantity(item.quantity) + " " + formatUnitLabel(item.quantity, "un");
+    })).concat(openings.note ? [
+      "- Observacao: " + openings.note
+    ] : []).concat([
+      "- Estimativa demonstrativa de esquadrias. Confirmar com o projeto arquitetonico antes de compra, orcamento oficial ou execucao.",
       "",
       "ESTOQUE",
       stockLines.length ? stockLines.join("\n") : "- Nenhum saldo foi informado nesta mensagem. Cimento, areia, blocos, aco, brita, argamassa, pisos, tintas e telhas podem ser conferidos contra o estoque quando voce informar as quantidades disponiveis.",
