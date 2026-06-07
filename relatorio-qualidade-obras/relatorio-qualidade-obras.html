@@ -1484,17 +1484,75 @@
             <p>Controle entradas, sa&iacute;das, respons&aacute;veis, setores e alertas de estoque m&iacute;nimo.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Almoxarifado">
-            <span class="local-status">Local</span>
-            <span class="cloud-status info">Prefeitura / secretaria / loja</span>
+            <button type="button" class="mini-button" data-almox-environment-create>Novo ambiente</button>
             <button type="button" class="mini-button primary" id="almoxSummaryButton">Gerar resumo</button>
             <button type="button" class="mini-button" id="almoxAuditButton">Gerar auditoria</button>
           </div>
         </div>
 
-        <section class="workspace-card almox-environment-header" id="almoxEnvironmentHeader" aria-live="polite"></section>
+        <section class="almox-environment-header almox-environment-technical" id="almoxEnvironmentHeader" aria-live="polite"></section>
         <section class="workspace-card stock-demo-access-panel" id="almoxDemoAccessPanel" aria-live="polite"></section>
 
-        <div class="almox-primary-flow">
+        <section class="workspace-card almox-manager-panel almox-command-center" id="almoxManagerPanel" aria-live="polite">
+          <div class="section-row almox-manager-heading">
+            <div>
+              <p class="eyebrow">Opera&ccedil;&atilde;o do almoxarifado</p>
+              <h3>Central do Gestor</h3>
+              <span class="auth-note">A&ccedil;&otilde;es, consultas, auditorias e alertas em uma primeira dobra objetiva.</span>
+            </div>
+            <span class="almox-manager-status" id="almoxAlertsStatus">Alertas ativos</span>
+          </div>
+          <div class="almox-manager-actions">
+            <button type="button" class="mini-button primary" data-almox-action="item">Cadastrar item</button>
+            <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
+            <button type="button" class="mini-button primary" data-almox-action="exit">Registrar sa&iacute;da</button>
+            <a class="mini-button" href="#almoxItemsSection">Itens cadastrados</a>
+            <a class="mini-button" href="#almoxHistorySection">Hist&oacute;rico</a>
+            <a class="mini-button" href="#almoxSummaryText">Resumo</a>
+            <button type="button" class="mini-button" id="almoxViewPanelButton">Visualizar painel</button>
+            <button type="button" class="mini-button" id="almoxManagerAuditButton">Gerar auditoria</button>
+            <button type="button" class="mini-button" id="almoxEmailButton">Enviar por e-mail</button>
+            <button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button>
+            <button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button>
+          </div>
+          <div class="almox-email-panel is-hidden" id="almoxEmailPanel">
+            <label>
+              E-mail de destino
+              <input id="almoxEmailInput" type="email" autocomplete="email" placeholder="gestor@empresa.com.br">
+            </label>
+            <button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Enviar por e-mail</button>
+          </div>
+          <div class="almox-manager-report">
+            <article>
+              <span>&Uacute;ltimo resumo gerado</span>
+              <p id="almoxManagerSummaryText">Clique em Gerar resumo para registrar uma vis&atilde;o gerencial.</p>
+            </article>
+            <article>
+              <span>&Uacute;ltima auditoria gerada</span>
+              <p id="almoxManagerAuditText">Clique em Gerar auditoria para registrar uma an&aacute;lise cr&iacute;tica.</p>
+            </article>
+          </div>
+          <article class="almox-elo-card" aria-label="Elo no Almoxarifado">
+            <div>
+              <span class="almox-elo-orb" aria-hidden="true">E</span>
+              <p class="eyebrow">Elo no Almoxarifado</p>
+              <h3>Como posso ajudar no estoque?</h3>
+              <span class="auth-note">Seu contexto continua aqui. O Elo analisa sem alterar saldo ou movimenta&ccedil;&otilde;es.</span>
+            </div>
+            <div class="almox-elo-actions">
+              <button type="button" class="mini-button primary" data-almox-elo-action="risk">Analisar riscos</button>
+              <button type="button" class="mini-button" data-almox-elo-action="purchase">Sugerir compras</button>
+              <button type="button" class="mini-button" data-almox-elo-action="movement">Resumir movimenta&ccedil;&otilde;es</button>
+            </div>
+            <form class="almox-elo-input-row" data-almox-elo-form>
+              <input type="text" name="almoxEloQuestion" maxlength="220" placeholder="Pergunte ao Elo sobre este estoque..." aria-label="Perguntar ao Elo sobre o almoxarifado">
+              <button type="submit" class="mini-button primary">Enviar</button>
+            </form>
+          </article>
+          <div class="almox-manager-grid" id="almoxManagerCards"></div>
+        </section>
+
+        <div class="almox-primary-flow" id="almoxQuickActions">
           <section class="workspace-card almox-priority-card">
           <div class="section-row">
             <h3>Ações rápidas</h3>
@@ -1523,14 +1581,15 @@
           </aside>
           </section>
 
-          <section class="workspace-card almox-note-panel almox-priority-card">
-          <div class="section-row">
+          <details class="workspace-card almox-note-panel almox-priority-card almox-note-collapsible" id="almoxNotaFiscal">
+          <summary class="almox-note-summary">
             <div>
               <p class="eyebrow">Entrada assistida</p>
-              <h3>Entrada por nota fiscal</h3>
-              <span class="auth-note">Comece pelo modo seguro: cole o texto da nota, confira os itens e lance no estoque.</span>
+              <h3>Cadastrar nota</h3>
+              <span class="auth-note">Importe XML, PDF, imagem ou texto de nota para lan&ccedil;ar entrada no estoque.</span>
             </div>
-          </div>
+            <span class="mini-button compact">Abrir nota</span>
+          </summary>
 
           <div class="almox-note-options" aria-label="Op&ccedil;&otilde;es de entrada por nota fiscal">
             <article class="almox-note-option almox-entry-card active" data-almox-entry-target="almoxNoteTextInput" role="button" tabindex="0">
@@ -1609,7 +1668,7 @@
               </tbody>
             </table>
           </div>
-          </section>
+          </details>
         </div>
 
         <section class="workspace-card almox-dashboard-panel" id="almoxDashboardPanel" aria-live="polite">
@@ -1633,43 +1692,6 @@
             <article class="almox-dashboard-block" id="almoxDashboardExpiration"></article>
             <article class="almox-dashboard-block" id="almoxDashboardTrend"></article>
           </div>
-        </section>
-
-        <section class="workspace-card almox-manager-panel" id="almoxManagerPanel" aria-live="polite">
-          <div class="section-row almox-manager-heading">
-            <div>
-              <p class="eyebrow">Vis&atilde;o do gestor</p>
-              <h3>Central do Gestor</h3>
-              <span class="auth-note">Voc&ecirc; pode apenas visualizar o painel, gerar uma auditoria cr&iacute;tica ou enviar o relat&oacute;rio para seu e-mail ou para um superior.</span>
-            </div>
-            <span class="almox-manager-status" id="almoxAlertsStatus">Alertas ativos</span>
-          </div>
-          <p class="almox-manager-note">Equipe do almoxarifado registra as movimenta&ccedil;&otilde;es. O gestor acompanha saldos, alertas e auditorias em tempo real.</p>
-          <div class="almox-manager-actions">
-            <button type="button" class="mini-button primary" id="almoxViewPanelButton">Visualizar painel</button>
-            <button type="button" class="mini-button" id="almoxManagerAuditButton">Gerar auditoria</button>
-            <button type="button" class="mini-button" id="almoxEmailButton">Enviar por e-mail</button>
-            <button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button>
-            <button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button>
-          </div>
-          <div class="almox-email-panel is-hidden" id="almoxEmailPanel">
-            <label>
-              E-mail de destino
-              <input id="almoxEmailInput" type="email" autocomplete="email" placeholder="gestor@empresa.com.br">
-            </label>
-            <button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Enviar por e-mail</button>
-          </div>
-          <div class="almox-manager-report">
-            <article>
-              <span>&Uacute;ltimo resumo gerado</span>
-              <p id="almoxManagerSummaryText">Clique em Gerar resumo para registrar uma vis&atilde;o gerencial.</p>
-            </article>
-            <article>
-              <span>&Uacute;ltima auditoria gerada</span>
-              <p id="almoxManagerAuditText">Clique em Gerar auditoria para registrar uma an&aacute;lise cr&iacute;tica.</p>
-            </article>
-          </div>
-          <div class="almox-manager-grid" id="almoxManagerCards"></div>
         </section>
 
         <section class="workspace-card stock-ia-insight is-hidden" id="almoxGeneratedReport" aria-live="polite">
@@ -1742,6 +1764,10 @@
 
         <div class="stock-ia-toast is-hidden" id="almoxActionMessage" role="status" aria-live="polite"></div>
         <div class="stock-ia-modal is-hidden" id="almoxModal" role="dialog" aria-modal="true" aria-labelledby="almoxModalTitle"></div>
+        <nav class="almox-floating-actions" aria-label="Atalhos do almoxarifado">
+          <a href="#almoxManagerPanel">+ Item</a>
+          <a href="#almoxNotaFiscal">+ Nota</a>
+        </nav>
       </section>
     </section>
 

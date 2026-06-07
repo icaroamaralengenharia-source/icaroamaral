@@ -7281,6 +7281,614 @@ body {
   }
 }
 
+/* Almoxarifado - home premium clara sem alterar logica */
+.route-panel[data-route="almoxarifado"] {
+  position: relative;
+  padding: 4px;
+  background:
+    linear-gradient(145deg, rgba(238, 247, 250, 0.86), rgba(255, 255, 255, 0.96) 42%, rgba(250, 246, 232, 0.72)),
+    #f8fbfd;
+  border-radius: 18px;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero {
+  order: 1;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header {
+  order: 2;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-demo-access-panel {
+  order: 3;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-manager-panel {
+  order: 4;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-dashboard-panel {
+  order: 5;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-primary-flow {
+  order: 6;
+}
+
+.route-panel[data-route="almoxarifado"] > #almoxGeneratedReport {
+  order: 7;
+}
+
+.route-panel[data-route="almoxarifado"] > #almoxSummaryCards {
+  order: 8;
+}
+
+.route-panel[data-route="almoxarifado"] > .workspace-card:not(.stock-ia-hero):not(.almox-environment-header):not(.stock-demo-access-panel):not(.almox-manager-panel):not(.almox-dashboard-panel):not(.almox-priority-card) {
+  order: 9;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-items-section {
+  order: 10;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-history-section {
+  order: 11;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-insight:last-of-type {
+  order: 12;
+}
+
+.route-panel[data-route="almoxarifado"] .workspace-card {
+  border-color: rgba(15, 95, 143, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 42px rgba(8, 32, 51, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.route-panel[data-route="almoxarifado"] .stock-ia-hero {
+  min-height: auto;
+  padding: 18px;
+  border-color: rgba(15, 95, 143, 0.18);
+  background:
+    linear-gradient(135deg, rgba(15, 95, 143, 0.92), rgba(30, 127, 104, 0.84)),
+    #0f5f8f;
+  box-shadow: 0 20px 44px rgba(8, 32, 51, 0.14);
+}
+
+.route-panel[data-route="almoxarifado"] .stock-ia-hero h3 {
+  font-size: clamp(1.45rem, 2vw, 2rem);
+}
+
+.route-panel[data-route="almoxarifado"] .stock-ia-hero p {
+  max-width: 64ch;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-environment-header {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.route-panel[data-route="almoxarifado"] .stock-demo-access-panel:empty {
+  display: none;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-color: rgba(30, 127, 104, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 247, 250, 0.88)),
+    #ffffff;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-actions .mini-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 38px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-report,
+.route-panel[data-route="almoxarifado"] .almox-manager-grid {
+  gap: 10px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-manager-report article,
+.route-panel[data-route="almoxarifado"] .almox-manager-card,
+.route-panel[data-route="almoxarifado"] .almox-dashboard-card,
+.route-panel[data-route="almoxarifado"] .almox-dashboard-block,
+.route-panel[data-route="almoxarifado"] .almox-note-option,
+.route-panel[data-route="almoxarifado"] .almox-note-file-preview,
+.route-panel[data-route="almoxarifado"] .almox-ocr-review,
+.route-panel[data-route="almoxarifado"] .almox-history-item,
+.route-panel[data-route="almoxarifado"] .almox-item-card {
+  border-color: rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(8, 32, 51, 0.06);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-panel {
+  gap: 12px;
+  padding: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.9)),
+    #ffffff;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-cards {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-card {
+  min-height: 78px;
+  padding: 11px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-card strong {
+  font-size: 1rem;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-dashboard-block {
+  padding: 12px;
+  box-shadow: none;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow {
+  grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-priority-card {
+  padding: 16px;
+  border-color: rgba(216, 171, 56, 0.24);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-action-button {
+  min-height: 78px;
+  padding: 13px;
+  border-color: rgba(30, 127, 104, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(238, 247, 250, 0.78));
+  box-shadow: 0 10px 24px rgba(8, 32, 51, 0.06);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-flow-status {
+  border-radius: 14px;
+}
+
+.almox-note-collapsible {
+  overflow: hidden;
+}
+
+.almox-note-collapsible:not([open]) {
+  padding-bottom: 16px;
+}
+
+.almox-note-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.almox-note-summary::-webkit-details-marker {
+  display: none;
+}
+
+.almox-note-summary h3,
+.almox-note-summary p {
+  margin: 0;
+}
+
+.almox-note-summary .mini-button {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.almox-note-collapsible[open] .almox-note-summary {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-note-options {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] .almox-note-grid {
+  gap: 10px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-note-grid textarea {
+  min-height: 116px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-note-commercial,
+.route-panel[data-route="almoxarifado"] .almox-note-status {
+  border-radius: 12px;
+}
+
+.almox-floating-actions {
+  position: sticky;
+  z-index: 10;
+  bottom: 18px;
+  justify-self: end;
+  order: 99;
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+  margin: -8px 8px 0 auto;
+  padding: 8px;
+  border: 1px solid rgba(15, 95, 143, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 16px 36px rgba(8, 32, 51, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.almox-floating-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f5f8f, #1e7f68);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.almox-floating-actions a:last-child {
+  color: #082033;
+  background: linear-gradient(135deg, #f6c85f, #f4df9a);
+}
+
+/* Almoxarifado - topo operacional integrado */
+.route-panel[data-route="almoxarifado"] > .almox-environment-header {
+  order: 2 !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-manager-panel {
+  order: 3 !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-dashboard-panel {
+  order: 4 !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-primary-flow {
+  order: 5 !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow {
+  grid-template-columns: 1fr !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-command-center,
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel {
+  padding: 16px;
+  border-color: rgba(30, 127, 104, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(238, 247, 250, 0.92) 64%, rgba(252, 247, 232, 0.78)),
+    #ffffff;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-heading {
+  align-items: center;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-heading .auth-note {
+  max-width: 760px;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-note {
+  display: none;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-actions {
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-actions .mini-button {
+  color: #ffffff !important;
+  border-color: #0b3558 !important;
+  background: #0b3558 !important;
+  box-shadow: 0 8px 18px rgba(8, 32, 51, 0.14);
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-report {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-grid {
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-card {
+  min-height: 88px;
+  padding: 12px;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxDashboardPanel {
+  padding: 14px;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxDashboardPanel .almox-dashboard-grid {
+  display: none;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal {
+  margin-top: 0;
+}
+
+/* Ajuste pontual: nota compacta no topo junto das acoes */
+.route-panel[data-route="almoxarifado"] > .almox-primary-flow {
+  order: 4 !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-dashboard-panel {
+  order: 5 !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow {
+  grid-template-columns: minmax(260px, 0.72fr) minmax(320px, 1.28fr) !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) {
+  display: grid !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-button {
+  min-height: 68px;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal {
+  align-self: start;
+}
+
+/* Ajuste pontual: ambiente real integrado ao topo */
+.route-panel[data-route="almoxarifado"] > .almox-environment-header {
+  order: 1 !important;
+  z-index: 2;
+  justify-self: end;
+  width: fit-content;
+  max-width: min(100%, 620px);
+  margin-top: -82px;
+  margin-right: 14px;
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header > div:first-child {
+  display: none;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 28px rgba(8, 32, 51, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions select {
+  width: min(280px, 42vw);
+  min-height: 36px;
+  color: #082033;
+  border-color: rgba(255, 255, 255, 0.56);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions .mini-button {
+  min-height: 36px;
+  color: #082033;
+  border-color: rgba(216, 171, 56, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f6c85f, #f7e5a8);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+/* Ajuste pontual: cabecalho limpo do almoxarifado */
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .local-status,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .cloud-status {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header {
+  margin-top: -68px;
+  margin-right: 230px;
+  margin-bottom: 10px;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions .mini-button {
+  min-height: 38px;
+  padding-inline: 14px;
+}
+
+/* Correcao cirurgica: cabecalho do Almoxarifado sem sobreposicao */
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .local-status,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .cloud-status {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-header {
+  display: contents !important;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-header > div:first-child,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-actions select {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-actions {
+  display: contents !important;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-actions .mini-button,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges > .mini-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges {
+    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero .almox-environment-actions .mini-button,
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges > .mini-button {
+    flex: 1 1 150px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .route-panel[data-route="almoxarifado"] .almox-dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="almoxarifado"] {
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-dashboard-grid,
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .almox-note-summary {
+    display: grid;
+  }
+
+  .almox-floating-actions {
+    justify-self: stretch;
+    justify-content: center;
+    width: calc(100% - 16px);
+    margin-inline: 8px;
+  }
+
+  .almox-floating-actions a {
+    flex: 1 1 0;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .almox-environment-header {
+    justify-self: stretch;
+    width: auto;
+    max-width: 100%;
+    margin: 0;
+    order: 2 !important;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-color: rgba(15, 95, 143, 0.18);
+    background: rgba(255, 255, 255, 0.86);
+  }
+
+  .route-panel[data-route="almoxarifado"] > .almox-environment-header .almox-environment-actions select {
+    width: 100%;
+  }
+}
+
 /* Correcoes pre-release: acoes de relatorio e header responsivo */
 .app-topbar {
   display: grid;
@@ -7951,5 +8559,418 @@ body.stock-ai-public-mode .route-panel[data-route="almoxarifado"] > .stock-ia-he
 
   .stock-ai-public-actions a {
     flex: 1 1 150px;
+  }
+}
+
+/* Emergencia: cabecalho simples do Almoxarifado */
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 18px !important;
+  min-height: 0 !important;
+  padding: 18px !important;
+  overflow: visible !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero > div:first-child {
+  min-width: 0 !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero h3 {
+  margin: 0 0 6px !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero p:not(.eyebrow) {
+  margin: 0 !important;
+  max-width: 64ch !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges {
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .local-status,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .cloud-status {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader {
+  position: static !important;
+  display: contents !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  backdrop-filter: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader > div:first-child,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader select {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader .almox-environment-actions {
+  display: contents !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader .mini-button,
+.route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges > .mini-button {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  white-space: nowrap !important;
+  transform: none !important;
+  color: #ffffff !important;
+  border-color: #0b3558 !important;
+  background: #0b3558 !important;
+  text-align: center !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-technical {
+  order: 2 !important;
+  justify-self: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-technical:not(:has(#almoxEnvironmentForm)) {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] > .almox-environment-technical:has(#almoxEnvironmentForm) {
+  display: grid !important;
+  padding: 16px !important;
+  border: 1px solid rgba(15, 95, 143, 0.16) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 14px 30px rgba(8, 32, 51, 0.08) !important;
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges {
+    justify-content: stretch !important;
+  }
+
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero #almoxEnvironmentHeader .mini-button,
+  .route-panel[data-route="almoxarifado"] > .stock-ia-hero .stock-ia-badges > .mini-button {
+    flex: 1 1 150px !important;
+  }
+}
+
+/* Ajuste operacional: acoes rapidas em faixa horizontal e nota bem posicionada */
+.route-panel[data-route="almoxarifado"] > .almox-primary-flow {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr) !important;
+  align-items: stretch !important;
+  gap: 14px !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr) !important;
+  align-items: stretch !important;
+  gap: 14px !important;
+  padding: 14px !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) .section-row {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 12px !important;
+  margin: 0 !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) .section-row h3 {
+  margin: 0 !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) .section-row .auth-note {
+  margin: 0 !important;
+  max-width: 48ch !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-button {
+  min-height: 132px !important;
+  align-content: start !important;
+  padding: 14px !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-flow-status {
+  height: 100% !important;
+  margin-top: 0 !important;
+  align-self: stretch !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-flow-actions {
+  margin-top: auto !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-flow-actions .mini-button,
+.route-panel[data-route="almoxarifado"] .almox-note-summary .mini-button {
+  color: #ffffff !important;
+  border-color: #0b3558 !important;
+  background: #0b3558 !important;
+  box-shadow: 0 8px 18px rgba(8, 32, 51, 0.14) !important;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal {
+  align-self: stretch !important;
+  display: grid !important;
+  align-content: start !important;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal:not([open]) {
+  min-height: 100% !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-note-summary {
+  min-height: 100% !important;
+  align-items: center !important;
+}
+
+@media (max-width: 1180px) {
+  .route-panel[data-route="almoxarifado"] > .almox-primary-flow,
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) {
+    grid-template-columns: 1fr !important;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-button {
+    min-height: 96px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) .section-row,
+  .route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Ajuste operacional: evita duplicar acoes ja presentes na Central superior */
+.route-panel[data-route="almoxarifado"] > .almox-primary-flow {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) {
+  grid-template-columns: 1fr !important;
+  align-content: stretch !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow > .almox-priority-card:not(.almox-note-collapsible) .section-row,
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-action-grid {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-flow-status {
+  min-height: 100% !important;
+  margin: 0 !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-primary-flow .almox-flow-actions {
+  display: none !important;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal {
+  min-height: 100% !important;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal:not([open]) .almox-note-summary {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+/* Ajuste visual: evita duplicidade entre Central do Gestor e Dashboard inferior */
+.route-panel[data-route="almoxarifado"] > #almoxDashboardPanel {
+  display: none !important;
+}
+
+/* Elo contextual no Almoxarifado: orienta sem alterar estoque */
+.route-panel[data-route="almoxarifado"] .almox-elo-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+  align-items: end;
+  gap: 14px;
+  padding: 18px;
+  color: #ffffff;
+  border: 1px solid rgba(112, 168, 255, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 68% 22%, rgba(110, 96, 255, 0.32), transparent 24%),
+    linear-gradient(135deg, #061a32 0%, #0b2238 58%, #0f2c46 100%);
+  box-shadow: 0 18px 40px rgba(8, 32, 51, 0.16);
+  overflow: hidden;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-card > div:first-child {
+  grid-row: span 2;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-card h3,
+.route-panel[data-route="almoxarifado"] .almox-elo-card p {
+  margin: 0;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-card h3 {
+  max-width: 22ch;
+  color: #ffffff;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  line-height: 1.1;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-card .eyebrow {
+  color: #66e5cf;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-card .auth-note {
+  display: block;
+  margin-top: 4px;
+  max-width: 56ch;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-orb {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 8px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 38% 35%, #7dd3fc 0 30%, transparent 31%),
+    conic-gradient(from 45deg, #60a5fa, #7c3aed, #0b3558, #60a5fa);
+  border-radius: 999px;
+  box-shadow: 0 10px 26px rgba(96, 165, 250, 0.28);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-actions .mini-button {
+  min-height: 36px;
+  color: #ffffff !important;
+  border-color: rgba(96, 165, 250, 0.38) !important;
+  background: rgba(96, 165, 250, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 20px rgba(2, 6, 23, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-actions .mini-button:hover,
+.route-panel[data-route="almoxarifado"] .almox-elo-actions .mini-button:focus-visible {
+  background: #2f7dca !important;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  border-radius: 999px;
+  background: rgba(15, 35, 56, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-input-row input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  color: #ffffff;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 0.86rem;
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-input-row input::placeholder {
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.route-panel[data-route="almoxarifado"] .almox-elo-input-row .mini-button {
+  min-height: 34px;
+  color: #ffffff !important;
+  border-color: #2f7dca !important;
+  background: #2f7dca !important;
+  box-shadow: 0 8px 18px rgba(8, 32, 51, 0.22);
+}
+
+@media (max-width: 760px) {
+  .route-panel[data-route="almoxarifado"] .almox-elo-card {
+    grid-template-columns: 1fr;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-elo-card > div:first-child {
+    grid-row: auto;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-elo-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-elo-actions .mini-button {
+    width: 100%;
+  }
+
+  .route-panel[data-route="almoxarifado"] .almox-elo-input-row {
+    grid-template-columns: 1fr;
+    border-radius: 16px;
   }
 }

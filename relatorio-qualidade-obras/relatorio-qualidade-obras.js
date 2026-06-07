@@ -1387,6 +1387,24 @@
       });
     }
 
+    Array.from(document.querySelectorAll("[data-almox-elo-form]")).forEach(function (eloForm) {
+      eloForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(eloForm);
+        const question = clean(formData.get("almoxEloQuestion"));
+        if (!question) {
+          showAlmoxToast_("Digite uma pergunta para o Elo.", "info");
+          return;
+        }
+        if (askEloQuestion_(question)) {
+          eloForm.reset();
+          showAlmoxToast_("Pergunta enviada ao Elo Assistente.", "success");
+          return;
+        }
+        showAlmoxToast_("Elo ainda nao carregou nesta tela. Use o botao flutuante do Elo para perguntar.", "info");
+      });
+    });
+
     Array.from(document.querySelectorAll("[data-stock-question]")).forEach(function (button) {
       button.addEventListener("click", function (event) {
         event.preventDefault();
@@ -1415,9 +1433,24 @@
       const demoRole = target && target.closest ? target.closest("[data-stock-demo-role]") : null;
       const demoAction = target && target.closest ? target.closest("[data-stock-demo-action]") : null;
       const approvalAction = target && target.closest ? target.closest("[data-stock-approval-action]") : null;
+      const environmentCreate = target && target.closest ? target.closest("[data-almox-environment-create]") : null;
+      const almoxEloAction = target && target.closest ? target.closest("[data-almox-elo-action]") : null;
       const summaryClose = target && target.closest ? target.closest("[data-almox-summary-close]") : null;
       const summaryItem = target && target.closest ? target.closest("[data-almox-summary-item]") : null;
       const summaryAction = target && target.closest ? target.closest("[data-almox-summary-action]") : null;
+
+      if (almoxEloAction) {
+        event.preventDefault();
+        handleAlmoxEloAction_(almoxEloAction.dataset.almoxEloAction || "risk");
+        return;
+      }
+
+      if (environmentCreate) {
+        event.preventDefault();
+        renderStockEnvironmentForm_();
+        scrollToAlmoxSection_("almoxEnvironmentHeader");
+        return;
+      }
 
       if (approvalAction) {
         event.preventDefault();
@@ -1951,14 +1984,23 @@
 
   function askEloFromHome_(question) {
     const cleanQuestion = clean(question);
+    const sent = askEloQuestion_(cleanQuestion);
+    if (!sent) {
+      setHomeActionStatus_("O Elo será aberto dentro do sistema. Acesse o ObraReport para perguntar: " + cleanQuestion);
+      return;
+    }
+    setHomeActionStatus_("Pergunta enviada ao Elo Assistente.");
+  }
+
+  function askEloQuestion_(question) {
+    const cleanQuestion = clean(question);
     const floatButton = document.querySelector(".elo-float-button");
     const panel = document.querySelector(".elo-panel");
     const input = document.querySelector(".elo-input");
     const sendButton = document.querySelector(".elo-send-button");
 
-    if (!floatButton || !input || !sendButton) {
-      setHomeActionStatus_("O Elo será aberto dentro do sistema. Acesse o ObraReport para perguntar: " + cleanQuestion);
-      return;
+    if (!cleanQuestion || !floatButton || !input || !sendButton) {
+      return false;
     }
 
     if (panel && panel.classList.contains("is-hidden")) {
@@ -1968,7 +2010,7 @@
     input.value = cleanQuestion;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     sendButton.click();
-    setHomeActionStatus_("Pergunta enviada ao Elo Assistente.");
+    return true;
   }
 
   function initializeHomeQueryActions_() {
@@ -5727,7 +5769,11 @@
       rejectedAt: "",
       rejectionReason: "",
       approvalNote: "",
+      almoxExitId: "",
+      deliveredAt: "",
       deliveredBy: "",
+      deliveryStatus: "",
+      deliveryNote: "",
       notes: notes,
       createdAt: now,
       updatedAt: now
@@ -5928,6 +5974,225 @@
     setDailyLogStatus_("Solicitacao rejeitada no RDO. Nenhuma saida de estoque foi criada.", "info");
   }
 
+  function collectRdoMaterialRequestDeliveryData_(request) {
+    const defaultQuantity = request.approvedQuantity > 0 ? request.approvedQuantity : request.requestedQuantity;
+    const quantityText = window.prompt("Quantidade entregue:", String(defaultQuantity || ""));
+    if (quantityText === null) {
+      return null;
+    }
+
+    const responsibleText = window.prompt("Responsavel pela entrega:", currentUser && currentUser.name ? currentUser.name : "");
+    if (responsibleText === null) {
+      return null;
+    }
+
+    const recipientText = window.prompt("Destinatario/retirante:", request.requestedBy || "");
+    if (recipientText === null) {
+      return null;
+    }
+
+    const sectorText = window.prompt("Setor/destino:", "Obra");
+    if (sectorText === null) {
+      return null;
+    }
+
+    const purposeText = window.prompt("Finalidade:", "Entrega vinculada ao RDO");
+    if (purposeText === null) {
+      return null;
+    }
+
+    const notesText = window.prompt("Observacao da entrega:", "");
+    if (notesText === null) {
+      return null;
+    }
+
+    return {
+      deliveredQuantity: parseNumber_(quantityText),
+      responsible: clean(responsibleText),
+      recipient: clean(recipientText),
+      sector: clean(sectorText),
+      purpose: clean(purposeText),
+      notes: clean(notesText)
+    };
+  }
+
+  function confirmRdoMaterialRequestDelivery_(requestId, deliveryData) {
+    const request = (currentDailyLogMaterialRequests_ || []).find(function (item) {
+      return item && item.id === requestId;
+    });
+
+    if (!request) {
+      setDailyLogStatus_("Solicitacao nao encontrada para entrega.", "error");
+      return { ok: false, message: "Solicitacao nao encontrada." };
+    }
+
+    const state = loadAlmoxState_();
+    const environmentId = getActiveStockEnvironmentId_();
+    const itemExists = (state.items || []).some(function (item) {
+      return item.id === request.almoxItemId && clean(item.environmentId) === environmentId;
+    });
+    const balance = request.almoxItemId && itemExists ? getAlmoxItemBalance_(request.almoxItemId, state) : 0;
+    const validation = validateRdoMaterialRequestDelivery_(request, deliveryData, {
+      itemExists: itemExists,
+      availableQuantity: balance
+    });
+
+    if (!validation.ok) {
+      setDailyLogStatus_(validation.message, "error");
+      return validation;
+    }
+
+    if (dailyLogForm && dailyLogForm.elements.dailyLogId && !clean(dailyLogForm.elements.dailyLogId.value)) {
+      dailyLogForm.elements.dailyLogId.value = createId_("dia");
+    }
+
+    const dailyLogId = dailyLogForm && dailyLogForm.elements.dailyLogId ? clean(dailyLogForm.elements.dailyLogId.value) : "";
+    const workId = dailyLogForm && dailyLogForm.elements.workId ? clean(dailyLogForm.elements.workId.value) : "";
+    const movement = buildRdoMaterialRequestAlmoxExitMovement_(request, deliveryData, {
+      id: createId_("almmov"),
+      environmentId: environmentId,
+      dailyLogId: dailyLogId,
+      workId: workId,
+      now: new Date().toISOString(),
+      movementDate: dailyLogForm && dailyLogForm.elements.date ? clean(dailyLogForm.elements.date.value) : "",
+      movementTime: getDefaultAlmoxMovementTime_()
+    });
+
+    state.movements.push(movement);
+    saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
+    markRdoMaterialRequestAsDelivered_(requestId, movement, deliveryData);
+    renderDailyLogDraftLists_();
+    renderAlmoxarifadoPanel_();
+    setDailyLogStatus_("Entrega confirmada e saida oficial criada no Almoxarifado. Materiais consumidos do RDO nao foram alterados.", "success");
+
+    return {
+      ok: true,
+      movement: movement
+    };
+  }
+
+  function validateRdoMaterialRequestDelivery_(request, deliveryData, stockData) {
+    const quantity = parseNumber_(deliveryData && deliveryData.deliveredQuantity);
+    const settings = stockData || {};
+
+    if (!request) {
+      return { ok: false, message: "Solicitacao nao encontrada." };
+    }
+
+    if (request.approvalStatus !== "aprovado") {
+      return { ok: false, message: "Apenas solicitacoes aprovadas podem ser entregues." };
+    }
+
+    if (request.almoxExitId) {
+      return { ok: false, message: "Esta solicitacao ja possui entrega confirmada." };
+    }
+
+    if (!request.almoxItemId) {
+      return { ok: false, message: "Vincule um item do Almoxarifado antes de confirmar a entrega." };
+    }
+
+    if (settings.itemExists === false) {
+      return { ok: false, message: "Item do Almoxarifado nao encontrado no ambiente ativo." };
+    }
+
+    if (quantity <= 0) {
+      return { ok: false, message: "Informe uma quantidade entregue maior que zero." };
+    }
+
+    if (quantity > parseNumber_(settings.availableQuantity)) {
+      return { ok: false, message: "Saldo insuficiente no Almoxarifado para confirmar a entrega." };
+    }
+
+    return {
+      ok: true,
+      deliveredQuantity: quantity
+    };
+  }
+
+  function buildRdoMaterialRequestAlmoxExitMovement_(request, deliveryData, settings) {
+    const data = deliveryData || {};
+    const options = settings || {};
+    const movementDate = clean(data.movementDate || options.movementDate) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(data.movementTime || options.movementTime) || getDefaultAlmoxMovementTime_();
+    const deliveredQuantity = parseNumber_(data.deliveredQuantity);
+
+    return {
+      id: clean(options.id) || createId_("almmov"),
+      environmentId: clean(options.environmentId),
+      itemId: request.almoxItemId,
+      type: "saida",
+      quantity: deliveredQuantity,
+      recipient: clean(data.recipient),
+      sector: clean(data.sector),
+      purpose: clean(data.purpose),
+      responsible: clean(data.responsible),
+      date: movementDate,
+      movementDate: movementDate,
+      movementTime: movementTime,
+      movementDateTime: buildAlmoxMovementDateTime_(movementDate, movementTime),
+      notes: clean(data.notes),
+      source: "rdo_material_request",
+      dailyLogId: clean(options.dailyLogId),
+      materialRequestId: request.id,
+      workId: clean(options.workId),
+      productionId: clean(request.productionId),
+      requestedQuantity: parseNumber_(request.requestedQuantity),
+      approvedQuantity: parseNumber_(request.approvedQuantity),
+      createdAt: clean(options.now) || new Date().toISOString()
+    };
+  }
+
+  function getRdoMaterialRequestDeliveryStatus_(request, deliveredQuantity) {
+    const delivered = parseNumber_(deliveredQuantity);
+    const reference = parseNumber_(request && request.approvedQuantity) > 0
+      ? parseNumber_(request.approvedQuantity)
+      : parseNumber_(request && request.requestedQuantity);
+
+    return delivered > 0 && reference > 0 && delivered < reference ? "entregue_parcial" : "entregue";
+  }
+
+  function markRdoMaterialRequestAsDelivered_(requestId, movement, deliveryData) {
+    currentDailyLogMaterialRequests_ = (currentDailyLogMaterialRequests_ || []).map(function (request) {
+      if (!request || request.id !== requestId) {
+        return request;
+      }
+
+      const deliveredQuantity = parseNumber_(movement && movement.quantity);
+      return Object.assign({}, request, {
+        almoxExitId: movement.id,
+        deliveredQuantity: deliveredQuantity,
+        deliveredAt: movement.createdAt,
+        deliveredBy: clean(deliveryData && deliveryData.responsible),
+        deliveryStatus: getRdoMaterialRequestDeliveryStatus_(request, deliveredQuantity),
+        deliveryNote: clean(deliveryData && deliveryData.notes),
+        updatedAt: new Date().toISOString()
+      });
+    });
+  }
+
+  function getRdoMaterialRequestDeliveryLabel_(request) {
+    if (!request || !request.almoxExitId) {
+      return "Entrega: pendente";
+    }
+
+    const status = request.deliveryStatus === "entregue_parcial" ? "Entrega parcial" : "Entregue";
+    return status + " - " + formatQuantity_(request.deliveredQuantity) + " " + (request.requestedUnit || "un") +
+      " por " + (request.deliveredBy || "-") +
+      (request.deliveredAt ? " em " + formatDateTime_(request.deliveredAt) : "") +
+      " - saida " + request.almoxExitId;
+  }
+
+  function renderRdoMaterialRequestDeliveryActions_(request) {
+    if (!request || request.approvalStatus !== "aprovado" || request.almoxExitId) {
+      return [];
+    }
+
+    return [
+      createDiaryActionButton_("Confirmar entrega", "confirm-material-request-delivery", request.id)
+    ];
+  }
+
   function updateRdoMaterialRequestApproval_(requestId, updates) {
     currentDailyLogMaterialRequests_ = (currentDailyLogMaterialRequests_ || []).map(function (request) {
       if (!request || request.id !== requestId) {
@@ -5967,14 +6232,13 @@
       actions.push(createDiaryActionButton_("Rejeitar", "reject-material-request", request.id));
     }
 
-    actions.push(createDiaryActionButton_("Remover", "remove-material-request", request.id));
     return actions;
   }
 
   function buildRdoMaterialRequestApprovalSummary_(request) {
     const approvalLabel = getRdoMaterialRequestApprovalLabel_(request);
     const reason = request && request.rejectionReason ? " Motivo: " + request.rejectionReason + "." : "";
-    const note = request && request.approvalNote ? " Observacao: " + request.approvalNote + "." : "";
+      const note = request && request.approvalNote ? " Observacao: " + request.approvalNote + "." : "";
     return approvalLabel + "." + reason + note;
   }
 
@@ -6016,14 +6280,18 @@
         "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
         "Status tecnico: " + request.status,
-        getRdoMaterialRequestApprovalLabel_(request)
+        getRdoMaterialRequestApprovalLabel_(request),
+        getRdoMaterialRequestDeliveryLabel_(request)
       ].join(" - ");
+      const actions = renderRdoMaterialRequestApprovalActions_(request)
+        .concat(renderRdoMaterialRequestDeliveryActions_(request))
+        .concat([createDiaryActionButton_("Remover", "remove-material-request", request.id)]);
 
       dailyLogMaterialRequestsList.appendChild(createDiaryListItem_(
         request.requestedName || "Material solicitado",
         productionLabel + " - " + detail,
-        [request.decision, request.notes, request.rejectionReason].filter(Boolean).join(" "),
-        renderRdoMaterialRequestApprovalActions_(request)
+        [request.decision, request.notes, request.rejectionReason, request.deliveryNote].filter(Boolean).join(" "),
+        actions
       ));
     });
   }
@@ -6059,7 +6327,8 @@
         "previsto " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "saldo " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
         "status tecnico " + (request.status || "pendente"),
-        buildRdoMaterialRequestApprovalSummary_(request)
+        buildRdoMaterialRequestApprovalSummary_(request),
+        getRdoMaterialRequestDeliveryLabel_(request)
       ].join(", ");
     });
 
@@ -6235,6 +6504,14 @@
       approveRdoMaterialRequest_(id);
     } else if (action === "reject-material-request") {
       rejectRdoMaterialRequest_(id);
+    } else if (action === "confirm-material-request-delivery") {
+      const request = (currentDailyLogMaterialRequests_ || []).find(function (item) {
+        return item && item.id === id;
+      });
+      const deliveryData = request ? collectRdoMaterialRequestDeliveryData_(request) : null;
+      if (deliveryData) {
+        confirmRdoMaterialRequestDelivery_(id, deliveryData);
+      }
     } else if (action === "edit-tool") {
       editDailyLogTool_(id);
     } else if (action === "remove-tool") {
@@ -11644,6 +11921,45 @@
       recentExits: movements.filter(function (movement) { return movement.type === "saida"; }).slice(0, 5),
       recentEntries: movements.filter(function (movement) { return movement.type === "entrada"; }).slice(0, 5)
     };
+  }
+
+  function handleAlmoxEloAction_(action) {
+    const data = collectAlmoxManagerData_();
+    const profile = data.profile || {};
+    const lastMovement = data.recentMovements && data.recentMovements[0] ? data.recentMovements[0] : null;
+    const criticalNames = data.criticalItems.map(function (balance) {
+      return balance.item.name + " (" + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + ")";
+    });
+    const zeroNames = data.zeroItems.map(function (balance) {
+      return balance.item.name;
+    });
+    const expiringNames = data.expiringItems.map(function (entry) {
+      return entry.balance.item.name + " - " + entry.expiration.message;
+    });
+    const baseContext = [
+      "Contexto do Almoxarifado ObraReport:",
+      "Ambiente: " + (profile.unitName || profile.workName || "Almoxarifado atual") + ".",
+      "Itens cadastrados: " + data.balances.length + ".",
+      "Itens zerados: " + data.zeroItems.length + (zeroNames.length ? " (" + summarizeStockIaList_(zeroNames, 4) + ")" : "") + ".",
+      "Itens abaixo do minimo: " + data.criticalItems.length + (criticalNames.length ? " (" + summarizeStockIaList_(criticalNames, 4) + ")" : "") + ".",
+      "Itens proximos do vencimento: " + data.expiringItems.length + (expiringNames.length ? " (" + summarizeStockIaList_(expiringNames, 3) + ")" : "") + ".",
+      "Entradas recentes: " + data.recentEntries.length + ". Saidas recentes: " + data.recentExits.length + ".",
+      "Ultima movimentacao: " + (lastMovement ? lastMovement.type + " de " + lastMovement.material + " (" + lastMovement.quantity + ") em " + lastMovement.dateTime : "nenhuma movimentacao recente") + "."
+    ].join("\n");
+    let question = "Elo, analise os riscos deste almoxarifado e diga as proximas acoes prioritarias. Nao altere estoque, apenas oriente.\n\n" + baseContext;
+
+    if (action === "purchase") {
+      question = "Elo, sugira uma lista de compras ou reposicao para este almoxarifado com base nos itens zerados, abaixo do minimo e proximos do vencimento. Nao altere estoque, apenas recomende.\n\n" + baseContext;
+    } else if (action === "movement") {
+      question = "Elo, resuma as movimentacoes deste almoxarifado e destaque pontos de atencao operacional para o gestor. Nao altere estoque, apenas analise.\n\n" + baseContext;
+    }
+
+    if (askEloQuestion_(question)) {
+      showAlmoxToast_("Pergunta enviada ao Elo Assistente.", "success");
+      return;
+    }
+
+    showAlmoxToast_("Elo ainda nao carregou nesta tela. Use o botao flutuante do Elo para perguntar.", "info");
   }
 
   function buildAlmoxCriticalItems_(balances) {
