@@ -9,6 +9,10 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const frontendFile = join(testDir, "..", "..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js");
 const frontendSource = readFileSync(frontendFile, "utf8");
 const buildMovementsBlock = extractFunctionBlock_(frontendSource, "buildStockMovementsFromDailyLogs_");
+const decisionHelperBlock = [
+  extractFunctionBlock_(frontendSource, "buildRdoMaterialRequestDecision_"),
+  extractFunctionBlock_(frontendSource, "buildRdoMaterialRequestManagerMessage_")
+].join("\n");
 const deliveryHelperBlock = [
   extractFunctionBlock_(frontendSource, "validateRdoMaterialRequestDelivery_"),
   extractFunctionBlock_(frontendSource, "buildRdoMaterialRequestAlmoxExitMovement_"),
@@ -341,6 +345,80 @@ test("buildStockMovementsFromDailyLogs nao le materialRequests ou requestedQuant
   assert.doesNotMatch(buildMovementsBlock, /almoxExitId/);
 });
 
+test("decisao de material do RDO marca OK quando saldo e previsao atendem", () => {
+  const { buildRdoMaterialRequestDecision_ } = loadRdoDecisionHooks_({
+    predictedQuantity: 18,
+    availableQuantity: 30,
+    almoxItemId: "almox_cimento"
+  });
+
+  const decision = buildRdoMaterialRequestDecision_(baseMaterialRequest_({ requestedQuantity: 18 }));
+
+  assert.equal(decision.decisionStatus, "OK");
+  assert.equal(decision.status, "coerente");
+  assert.equal(decision.missingQuantity, 0);
+  assert.match(decision.managerMessage, /Status: OK/);
+});
+
+test("decisao de material do RDO marca atencao quando pedido passa pouco do previsto", () => {
+  const { buildRdoMaterialRequestDecision_ } = loadRdoDecisionHooks_({
+    predictedQuantity: 18,
+    availableQuantity: 30,
+    almoxItemId: "almox_cimento"
+  });
+
+  const decision = buildRdoMaterialRequestDecision_(baseMaterialRequest_({ requestedQuantity: 19 }));
+
+  assert.equal(decision.decisionStatus, "ATENÇÃO");
+  assert.equal(decision.status, "acima_do_previsto");
+  assert.match(decision.managerMessage, /Exigir confirmacao do gestor/);
+});
+
+test("decisao de material do RDO marca critico quando saldo e insuficiente", () => {
+  const { buildRdoMaterialRequestDecision_ } = loadRdoDecisionHooks_({
+    predictedQuantity: 18,
+    availableQuantity: 12,
+    almoxItemId: "almox_cimento"
+  });
+
+  const decision = buildRdoMaterialRequestDecision_(baseMaterialRequest_({ requestedQuantity: 20 }));
+
+  assert.equal(decision.decisionStatus, "CRÍTICO");
+  assert.equal(decision.status, "saldo_insuficiente");
+  assert.equal(decision.missingQuantity, 8);
+  assert.match(decision.managerMessage, /Faltam 8 saco/);
+  assert.match(decision.managerMessage, /Nao liberar agora/);
+});
+
+test("decisao de material do RDO marca critico quando item nao existe no almoxarifado", () => {
+  const { buildRdoMaterialRequestDecision_ } = loadRdoDecisionHooks_({
+    predictedQuantity: 18,
+    availableQuantity: null,
+    almoxItemId: ""
+  });
+
+  const decision = buildRdoMaterialRequestDecision_(baseMaterialRequest_({ requestedQuantity: 10 }));
+
+  assert.equal(decision.decisionStatus, "CRÍTICO");
+  assert.equal(decision.status, "sem_item_almoxarifado");
+  assert.match(decision.managerMessage, /item nao encontrado/);
+});
+
+test("decisao de material do RDO avisa quando nao ha previsao Stock AI mas saldo atende", () => {
+  const { buildRdoMaterialRequestDecision_ } = loadRdoDecisionHooks_({
+    predictedQuantity: null,
+    availableQuantity: 30,
+    almoxItemId: "almox_cimento"
+  });
+
+  const decision = buildRdoMaterialRequestDecision_(baseMaterialRequest_({ requestedQuantity: 10 }));
+
+  assert.equal(decision.decisionStatus, "ATENÇÃO");
+  assert.equal(decision.status, "aprovacao_recomendada");
+  assert.equal(decision.predictedQuantity, null);
+  assert.match(decision.managerMessage, /sem previsao tecnica/);
+});
+
 test("entrega de materialRequest aprovada valida somente com item e saldo suficiente", () => {
   const { validateRdoMaterialRequestDelivery_ } = loadRdoDeliveryHooks_();
   const result = validateRdoMaterialRequestDelivery_(
@@ -450,6 +528,8 @@ test("saida oficial da entrega do RDO e movimento exclusivo do Almoxarifado", ()
   assert.equal(movement.id, "almmov_test_1");
   assert.equal(movement.environmentId, "env_1");
   assert.equal(movement.itemId, "almox_item_1");
+  assert.equal(movement.almoxItemId, "almox_item_1");
+  assert.equal(movement.almoxExitId, "almmov_test_1");
   assert.equal(movement.type, "saida");
   assert.equal(movement.source, "rdo_material_request");
   assert.equal(movement.quantity, 10);
@@ -500,6 +580,37 @@ function loadRdoMovementHooks_() {
   };
 }
 
+function loadRdoDecisionHooks_(settings) {
+  const options = settings || {};
+  const sandbox = {
+    dailyLogDraft: {
+      productions: [{
+        id: "prod_1",
+        service: "Alvenaria",
+        quantity: 42,
+        unit: "m2"
+      }]
+    },
+    clean: (value) => String(value || "").trim(),
+    parseNumber_: parseNumberForTest_,
+    roundQuantity_: (value) => Math.round(parseNumberForTest_(value) * 1000) / 1000,
+    formatQuantity_: (value) => String(Math.round(parseNumberForTest_(value) * 1000) / 1000).replace(".", ","),
+    findPredictedMaterialForRdoRequest_: () => options.predictedQuantity === null
+      ? null
+      : { name: "Cimento", quantity: options.predictedQuantity, predictedQuantity: options.predictedQuantity, unit: "saco" },
+    getAlmoxBalanceForMaterialRequest_: () => ({
+      almoxItemId: options.almoxItemId || "",
+      availableQuantity: options.availableQuantity
+    })
+  };
+
+  vm.createContext(sandbox);
+  vm.runInContext(decisionHelperBlock, sandbox);
+  return {
+    buildRdoMaterialRequestDecision_: sandbox.buildRdoMaterialRequestDecision_
+  };
+}
+
 function loadRdoDeliveryHooks_() {
   let generatedId = 0;
   const sandbox = {
@@ -525,6 +636,22 @@ function loadRdoDeliveryHooks_() {
     buildRdoMaterialRequestAlmoxExitMovement_: sandbox.buildRdoMaterialRequestAlmoxExitMovement_,
     getRdoMaterialRequestDeliveryStatus_: sandbox.getRdoMaterialRequestDeliveryStatus_
   };
+}
+
+function baseMaterialRequest_(overrides) {
+  return Object.assign({
+    id: "req_decision",
+    productionId: "prod_1",
+    requestedName: "Cimento",
+    requestedQuantity: 10,
+    requestedUnit: "saco",
+    almoxItemId: "almox_cimento"
+  }, overrides || {});
+}
+
+function parseNumberForTest_(value) {
+  const number = Number(String(value || "0").replace(",", "."));
+  return Number.isFinite(number) ? number : 0;
 }
 
 function extractFunctionBlock_(source, functionName) {

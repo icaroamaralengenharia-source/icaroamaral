@@ -5851,45 +5851,126 @@
     const requestedQuantity = parseNumber_(request.requestedQuantity);
     const predictedQuantity = predicted ? roundQuantity_(parseNumber_(predicted.quantity || predicted.predictedQuantity || predicted.estimated)) : null;
     const availableQuantity = balance.availableQuantity;
+    const missingQuantity = availableQuantity === null ? null : roundQuantity_(Math.max(requestedQuantity - parseNumber_(availableQuantity), 0));
     let status = "pendente";
     let decision = "Informe material e quantidade para analisar.";
+    let decisionStatus = "ATENÇÃO";
+    let managerMessage = "";
 
     if (!request.requestedName || requestedQuantity <= 0) {
       status = "pendente";
+      decisionStatus = "ATENÇÃO";
+    } else if (!balance.almoxItemId) {
+      status = "sem_item_almoxarifado";
+      decision = "Material sem item correspondente no Almoxarifado.";
+      decisionStatus = "CRÍTICO";
     } else if (!request.productionId) {
       status = "aprovacao_recomendada";
       decision = "Solicitacao sem producao vinculada.";
+      decisionStatus = "ATENÇÃO";
     } else if (!production) {
       status = "aprovacao_recomendada";
       decision = "Producao vinculada nao encontrada.";
-    } else if (!predicted) {
-      status = "aprovacao_recomendada";
-      decision = "Material nao encontrado na previsao tecnica.";
+      decisionStatus = "ATENÇÃO";
     } else if (availableQuantity !== null && availableQuantity <= 0) {
       status = "saldo_insuficiente";
       decision = "Saldo indisponivel no almoxarifado.";
+      decisionStatus = "CRÍTICO";
     } else if (availableQuantity !== null && availableQuantity < requestedQuantity) {
       status = "saldo_insuficiente";
       decision = "Saldo menor que a quantidade solicitada.";
+      decisionStatus = "CRÍTICO";
+    } else if (!predicted) {
+      status = "aprovacao_recomendada";
+      decision = "Sem previsao tecnica do Stock AI para este material. Avaliar pelo saldo e exigir validacao do gestor.";
+      decisionStatus = "ATENÇÃO";
     } else if (predictedQuantity > 0 && requestedQuantity > predictedQuantity * 1.15) {
       status = "acima_do_previsto";
       decision = "Pedido mais de 15% acima do previsto pelo Stock AI.";
+      decisionStatus = "CRÍTICO";
+    } else if (predictedQuantity > 0 && requestedQuantity > predictedQuantity) {
+      status = "acima_do_previsto";
+      decision = "Pedido acima do previsto pelo Stock AI. Exigir confirmacao do gestor antes da entrega.";
+      decisionStatus = "ATENÇÃO";
     } else if (predictedQuantity > 0) {
       status = "coerente";
       decision = "Pedido coerente com a previsao tecnica.";
+      decisionStatus = "OK";
     } else {
       status = "aprovacao_recomendada";
       decision = "Sem previsao tecnica suficiente para liberar automaticamente.";
+      decisionStatus = "ATENÇÃO";
     }
+
+    managerMessage = buildRdoMaterialRequestManagerMessage_({
+      requestedName: request.requestedName,
+      requestedQuantity: requestedQuantity,
+      requestedUnit: request.requestedUnit || "un",
+      predictedQuantity: predictedQuantity,
+      availableQuantity: availableQuantity,
+      missingQuantity: missingQuantity,
+      decisionStatus: decisionStatus,
+      reason: decision
+    });
 
     return Object.assign({}, request, {
       almoxItemId: balance.almoxItemId || request.almoxItemId || "",
       predictedQuantity: predictedQuantity,
       availableQuantity: availableQuantity,
+      missingQuantity: missingQuantity,
       status: status,
       decision: decision,
+      decisionStatus: decisionStatus,
+      managerMessage: managerMessage,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  function buildRdoMaterialRequestManagerMessage_(data) {
+    const info = data || {};
+    const unit = clean(info.requestedUnit) || "un";
+    const requestedQuantity = parseNumber_(info.requestedQuantity);
+    const predictedQuantity = info.predictedQuantity === null || info.predictedQuantity === undefined
+      ? null
+      : roundQuantity_(parseNumber_(info.predictedQuantity));
+    const availableQuantity = info.availableQuantity === null || info.availableQuantity === undefined
+      ? null
+      : roundQuantity_(parseNumber_(info.availableQuantity));
+    const missingQuantity = info.missingQuantity === null || info.missingQuantity === undefined
+      ? null
+      : roundQuantity_(parseNumber_(info.missingQuantity));
+    const status = clean(info.decisionStatus) || "ATENÇÃO";
+    const reason = clean(info.reason) || "Solicitacao pendente de conferencia.";
+    let action = "Revisar a solicitacao antes da entrega.";
+
+    if (status === "OK") {
+      action = "Pode liberar apos confirmacao operacional do responsavel.";
+    } else if (status === "CRÍTICO") {
+      action = missingQuantity > 0
+        ? "Nao liberar agora. Comprar ou transferir material antes da entrega."
+        : "Nao liberar automaticamente. Exigir revisao do gestor.";
+    } else if (predictedQuantity === null) {
+      action = "Validar tecnicamente com o gestor, pois nao ha previsao do Stock AI.";
+    } else {
+      action = "Exigir confirmacao do gestor antes da entrega.";
+    }
+
+    return [
+      "Conferencia de material",
+      "",
+      "Material: " + (clean(info.requestedName) || "Material"),
+      "Solicitado: " + formatQuantity_(requestedQuantity) + " " + unit,
+      "Previsto pelo Stock AI: " + (predictedQuantity === null ? "sem previsao tecnica" : formatQuantity_(predictedQuantity) + " " + unit),
+      "Saldo no Almoxarifado: " + (availableQuantity === null ? "item nao encontrado" : formatQuantity_(availableQuantity) + " " + unit),
+      "",
+      "Status: " + status,
+      "",
+      "Motivo:",
+      reason + (missingQuantity > 0 ? " Faltam " + formatQuantity_(missingQuantity) + " " + unit + "." : ""),
+      "",
+      "Acao recomendada:",
+      action
+    ].join("\n");
   }
 
   function findPredictedMaterialForRdoRequest_(request, production) {
@@ -6116,11 +6197,14 @@
     const movementDate = clean(data.movementDate || options.movementDate) || getDefaultAlmoxMovementDate_();
     const movementTime = clean(data.movementTime || options.movementTime) || getDefaultAlmoxMovementTime_();
     const deliveredQuantity = parseNumber_(data.deliveredQuantity);
+    const movementId = clean(options.id) || createId_("almmov");
 
     return {
-      id: clean(options.id) || createId_("almmov"),
+      id: movementId,
       environmentId: clean(options.environmentId),
       itemId: request.almoxItemId,
+      almoxItemId: request.almoxItemId,
+      almoxExitId: movementId,
       type: "saida",
       quantity: deliveredQuantity,
       recipient: clean(data.recipient),
@@ -6279,7 +6363,8 @@
         "Solicitado: " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
         "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
         "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
-        "Status tecnico: " + request.status,
+        "Faltante: " + (request.missingQuantity === null || request.missingQuantity === undefined ? "-" : formatQuantity_(request.missingQuantity) + " " + (request.requestedUnit || "un")),
+        "Status: " + (request.decisionStatus || request.status),
         getRdoMaterialRequestApprovalLabel_(request),
         getRdoMaterialRequestDeliveryLabel_(request)
       ].join(" - ");
@@ -6290,7 +6375,7 @@
       dailyLogMaterialRequestsList.appendChild(createDiaryListItem_(
         request.requestedName || "Material solicitado",
         productionLabel + " - " + detail,
-        [request.decision, request.notes, request.rejectionReason, request.deliveryNote].filter(Boolean).join(" "),
+        [request.managerMessage || request.decision, request.notes, request.rejectionReason, request.deliveryNote].filter(Boolean).join(" "),
         actions
       ));
     });
