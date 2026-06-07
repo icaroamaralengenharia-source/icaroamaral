@@ -62,6 +62,11 @@
   const dailyLogAddProductionButton = document.getElementById("dailyLogAddProduction");
   const dailyLogCalculateMaterialsButton = document.getElementById("dailyLogCalculateMaterials");
   const dailyLogEstimatePanel = document.getElementById("dailyLogEstimatePanel");
+  const dailyLogAddMaterialRequestButton = document.getElementById("dailyLogAddMaterialRequest");
+  const dailyLogMaterialRequestProductionSelect = document.getElementById("dailyLogMaterialRequestProductionSelect");
+  const dailyLogMaterialRequestAlmoxSelect = document.getElementById("dailyLogMaterialRequestAlmoxSelect");
+  const dailyLogMaterialRequestsList = document.getElementById("dailyLogMaterialRequestsList");
+  const dailyLogMaterialRequestSummary = document.getElementById("dailyLogMaterialRequestSummary");
   const dailyLogAddMaterialButton = document.getElementById("dailyLogAddMaterial");
   const dailyLogAddToolButton = document.getElementById("dailyLogAddTool");
   const dailyLogAddPhotoButton = document.getElementById("dailyLogAddPhoto");
@@ -237,6 +242,7 @@
   let imageProcessingQueue = Promise.resolve();
   let activeAiTarget = null;
   let dailyLogDraft = createEmptyDailyLogDraft_();
+  let currentDailyLogMaterialRequests_ = [];
   let dailyLogSearchTerm = "";
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
@@ -3837,6 +3843,8 @@
       });
     }
 
+    bindRdoMaterialRequestEvents_();
+
     if (dailyLogEstimatePanel) {
       dailyLogEstimatePanel.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
@@ -5426,6 +5434,7 @@
     const formData = new FormData(dailyLogForm);
     const id = clean(formData.get("dailyLogId")) || createId_("dia");
     const now = new Date().toISOString();
+    const existingDailyLog = findDailyLog_(id);
 
     return {
       id: id,
@@ -5447,6 +5456,10 @@
       visits: clean(formData.get("visits")),
       productions: cloneDailyLogItems_(dailyLogDraft.productions),
       materials: cloneDailyLogItems_(dailyLogDraft.materials),
+      materialRequests: mergeRdoMaterialRequests_(
+        Array.isArray(existingDailyLog && existingDailyLog.materialRequests) ? existingDailyLog.materialRequests : [],
+        Array.isArray(currentDailyLogMaterialRequests_) ? currentDailyLogMaterialRequests_ : []
+      ),
       tools: cloneDailyLogItems_(dailyLogDraft.tools),
       safety: {
         occurrence: clean(formData.get("safetyOccurrence")) || "Nenhuma ocorrência",
@@ -5476,6 +5489,7 @@
     dailyLogForm.reset();
     dailyLogForm.elements.dailyLogId.value = "";
     dailyLogDraft = createEmptyDailyLogDraft_();
+    currentDailyLogMaterialRequests_ = [];
     clearDailyLogEstimate_();
 
     if (dailyLogForm.elements.date) {
@@ -5484,6 +5498,10 @@
 
     if (dailyLogForm.elements.responsible && currentUser) {
       dailyLogForm.elements.responsible.value = currentUser.name || "";
+    }
+
+    if (dailyLogForm.elements.materialRequestRequestedBy && currentUser) {
+      dailyLogForm.elements.materialRequestRequestedBy.value = currentUser.name || "";
     }
 
     if (dailyLogWorkSelect && appState.local && appState.local.lastWorkId) {
@@ -5543,6 +5561,7 @@
     dailyLogDraft.materials = cloneDailyLogItems_(logItem.materials);
     dailyLogDraft.tools = cloneDailyLogItems_(logItem.tools);
     dailyLogDraft.photos = cloneDailyLogItems_(logItem.photos);
+    currentDailyLogMaterialRequests_ = cloneDailyLogItems_(logItem.materialRequests);
     clearDailyLogEstimate_();
     renderDailyLogDraftLists_();
     setDailyLogStatus_("Diário carregado para edição.", "info");
@@ -5674,6 +5693,325 @@
     setDailyLogStatus_("Material adicionado ao diário.", "success");
   }
 
+  function createRdoMaterialRequestDraft_() {
+    const now = new Date().toISOString();
+    const productionId = clean(dailyLogForm.elements.materialRequestProductionId && dailyLogForm.elements.materialRequestProductionId.value);
+    const almoxItemId = clean(dailyLogForm.elements.materialRequestAlmoxItemId && dailyLogForm.elements.materialRequestAlmoxItemId.value);
+    const requestedName = clean(dailyLogForm.elements.materialRequestName && dailyLogForm.elements.materialRequestName.value);
+    const requestedQuantity = parseNumber_(dailyLogForm.elements.materialRequestQuantity && dailyLogForm.elements.materialRequestQuantity.value);
+    const requestedUnit = clean(dailyLogForm.elements.materialRequestUnit && dailyLogForm.elements.materialRequestUnit.value) || "un";
+    const requestedBy = clean(dailyLogForm.elements.materialRequestRequestedBy && dailyLogForm.elements.materialRequestRequestedBy.value) ||
+      (currentUser && (currentUser.name || currentUser.id)) || "";
+    const notes = clean(dailyLogForm.elements.materialRequestNotes && dailyLogForm.elements.materialRequestNotes.value);
+
+    return {
+      id: createId_("req"),
+      productionId: productionId,
+      materialId: "",
+      stockItemId: "",
+      almoxItemId: almoxItemId,
+      requestedName: requestedName,
+      requestedQuantity: requestedQuantity,
+      requestedUnit: requestedUnit,
+      predictedQuantity: null,
+      availableQuantity: null,
+      approvedQuantity: 0,
+      deliveredQuantity: 0,
+      status: "pendente",
+      decision: "pendente",
+      requestedBy: requestedBy,
+      approvedBy: "",
+      deliveredBy: "",
+      notes: notes,
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  function mergeRdoMaterialRequests_(existingRequests, currentRequests) {
+    const grouped = {};
+
+    (existingRequests || []).concat(currentRequests || []).forEach(function (request) {
+      if (!request || !request.id) {
+        return;
+      }
+      grouped[request.id] = Object.assign({}, request);
+    });
+
+    return Object.keys(grouped).map(function (id) {
+      return grouped[id];
+    }).sort(function (a, b) {
+      return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    });
+  }
+
+  function getRdoProductionOptions_() {
+    return (dailyLogDraft.productions || []).map(function (production) {
+      return {
+        id: production.id,
+        label: formatProductionSummary_(production),
+        production: production
+      };
+    });
+  }
+
+  function getAlmoxBalanceForMaterialRequest_(request) {
+    try {
+      if (request.almoxItemId && typeof getAlmoxItemBalance_ === "function") {
+        return {
+          almoxItemId: request.almoxItemId,
+          availableQuantity: roundQuantity_(getAlmoxItemBalance_(request.almoxItemId))
+        };
+      }
+
+      if (typeof calculateAlmoxBalances_ !== "function") {
+        return { almoxItemId: request.almoxItemId || "", availableQuantity: null };
+      }
+
+      const requestName = normalizeCompositionKey_(request.requestedName);
+      const requestUnit = normalizeUnitKey_(request.requestedUnit || "un");
+      const match = calculateAlmoxBalances_().find(function (balance) {
+        const item = balance.item || {};
+        return normalizeCompositionKey_(item.name) === requestName &&
+          normalizeUnitKey_(item.unit || "un") === requestUnit;
+      });
+
+      if (!match) {
+        return { almoxItemId: request.almoxItemId || "", availableQuantity: null };
+      }
+
+      return {
+        almoxItemId: match.item.id,
+        availableQuantity: roundQuantity_(match.balance)
+      };
+    } catch (error) {
+      console.warn("Nao foi possivel consultar saldo do almoxarifado para a solicitacao.", error);
+      return { almoxItemId: request.almoxItemId || "", availableQuantity: null };
+    }
+  }
+
+  function buildRdoMaterialRequestDecision_(request) {
+    const production = (dailyLogDraft.productions || []).find(function (item) {
+      return item.id === request.productionId;
+    }) || null;
+    const predicted = findPredictedMaterialForRdoRequest_(request, production);
+    const balance = getAlmoxBalanceForMaterialRequest_(request);
+    const requestedQuantity = parseNumber_(request.requestedQuantity);
+    const predictedQuantity = predicted ? roundQuantity_(parseNumber_(predicted.quantity || predicted.predictedQuantity || predicted.estimated)) : null;
+    const availableQuantity = balance.availableQuantity;
+    let status = "pendente";
+    let decision = "Informe material e quantidade para analisar.";
+
+    if (!request.requestedName || requestedQuantity <= 0) {
+      status = "pendente";
+    } else if (!request.productionId) {
+      status = "aprovacao_recomendada";
+      decision = "Solicitacao sem producao vinculada.";
+    } else if (!production) {
+      status = "aprovacao_recomendada";
+      decision = "Producao vinculada nao encontrada.";
+    } else if (!predicted) {
+      status = "aprovacao_recomendada";
+      decision = "Material nao encontrado na previsao tecnica.";
+    } else if (availableQuantity !== null && availableQuantity <= 0) {
+      status = "saldo_insuficiente";
+      decision = "Saldo indisponivel no almoxarifado.";
+    } else if (availableQuantity !== null && availableQuantity < requestedQuantity) {
+      status = "saldo_insuficiente";
+      decision = "Saldo menor que a quantidade solicitada.";
+    } else if (predictedQuantity > 0 && requestedQuantity > predictedQuantity * 1.15) {
+      status = "acima_do_previsto";
+      decision = "Pedido mais de 15% acima do previsto pelo Stock AI.";
+    } else if (predictedQuantity > 0) {
+      status = "coerente";
+      decision = "Pedido coerente com a previsao tecnica.";
+    } else {
+      status = "aprovacao_recomendada";
+      decision = "Sem previsao tecnica suficiente para liberar automaticamente.";
+    }
+
+    return Object.assign({}, request, {
+      almoxItemId: balance.almoxItemId || request.almoxItemId || "",
+      predictedQuantity: predictedQuantity,
+      availableQuantity: availableQuantity,
+      status: status,
+      decision: decision,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  function findPredictedMaterialForRdoRequest_(request, production) {
+    if (!production || !request || !request.requestedName) {
+      return null;
+    }
+
+    const prediction = calculateStockAiPredictedConsumption(production);
+    const predictedItems = prediction && Array.isArray(prediction.predictedItems) ? prediction.predictedItems : [];
+    const requestName = normalizeCompositionKey_(request.requestedName);
+    const requestUnit = normalizeUnitKey_(request.requestedUnit || "un");
+    let match = predictedItems.find(function (item) {
+      return normalizeCompositionKey_(item.name || item.material) === requestName &&
+        normalizeUnitKey_(item.unit || "un") === requestUnit;
+    });
+
+    if (!match) {
+      match = predictedItems.find(function (item) {
+        const itemName = normalizeCompositionKey_(item.name || item.material);
+        return itemName.indexOf(requestName) >= 0 || requestName.indexOf(itemName) >= 0;
+      });
+    }
+
+    if (match || typeof buildEstimatedMaterialsForProductions_ !== "function") {
+      return match || null;
+    }
+
+    const estimated = buildEstimatedMaterialsForProductions_([production], []);
+    return (estimated.items || []).find(function (item) {
+      return normalizeCompositionKey_(item.name || item.material) === requestName &&
+        normalizeUnitKey_(item.unit || "un") === requestUnit;
+    }) || null;
+  }
+
+  function addRdoMaterialRequestToState_() {
+    if (!dailyLogForm) {
+      return;
+    }
+
+    const request = buildRdoMaterialRequestDecision_(createRdoMaterialRequestDraft_());
+    currentDailyLogMaterialRequests_.push(request);
+    dailyLogForm.elements.materialRequestProductionId.value = "";
+    dailyLogForm.elements.materialRequestName.value = "";
+    dailyLogForm.elements.materialRequestQuantity.value = "";
+    dailyLogForm.elements.materialRequestUnit.value = "un";
+    dailyLogForm.elements.materialRequestAlmoxItemId.value = "";
+    dailyLogForm.elements.materialRequestRequestedBy.value = currentUser && currentUser.name ? currentUser.name : "";
+    dailyLogForm.elements.materialRequestNotes.value = "";
+    renderDailyLogDraftLists_();
+    setDailyLogStatus_("Solicitacao analisada e salva no RDO em modo simulacao.", "success");
+  }
+
+  function renderRdoMaterialRequestsList_() {
+    renderRdoMaterialRequestProductionOptions_();
+    renderRdoMaterialRequestAlmoxOptions_();
+
+    if (dailyLogMaterialRequestSummary) {
+      if (!currentDailyLogMaterialRequests_.length) {
+        dailyLogMaterialRequestSummary.textContent = "Nenhuma solicitacao registrada.";
+        dailyLogMaterialRequestSummary.className = "material-summary empty-list";
+      } else {
+        dailyLogMaterialRequestSummary.className = "material-summary";
+        dailyLogMaterialRequestSummary.textContent = buildDailyLogMaterialRequestsAuditText_({
+          materialRequests: currentDailyLogMaterialRequests_
+        });
+      }
+    }
+
+    if (!dailyLogMaterialRequestsList) {
+      return;
+    }
+
+    dailyLogMaterialRequestsList.innerHTML = "";
+    if (!currentDailyLogMaterialRequests_.length) {
+      dailyLogMaterialRequestsList.className = "diary-item-list empty-list";
+      dailyLogMaterialRequestsList.textContent = "Nenhuma solicitacao de material registrada.";
+      return;
+    }
+
+    dailyLogMaterialRequestsList.className = "diary-item-list";
+    currentDailyLogMaterialRequests_.forEach(function (request) {
+      const production = (dailyLogDraft.productions || []).find(function (item) {
+        return item.id === request.productionId;
+      });
+      const productionLabel = production ? formatProductionSummary_(production) : "Solicitacao avulsa";
+      const detail = [
+        "Solicitado: " + formatQuantity_(request.requestedQuantity) + " " + (request.requestedUnit || "un"),
+        "Previsto: " + (request.predictedQuantity === null ? "-" : formatQuantity_(request.predictedQuantity) + " " + (request.requestedUnit || "un")),
+        "Saldo: " + (request.availableQuantity === null ? "nao consultado" : formatQuantity_(request.availableQuantity) + " " + (request.requestedUnit || "un")),
+        "Status: " + request.status
+      ].join(" - ");
+
+      dailyLogMaterialRequestsList.appendChild(createDiaryListItem_(
+        request.requestedName || "Material solicitado",
+        productionLabel + " - " + detail,
+        [request.decision, request.notes].filter(Boolean).join(" "),
+        [
+          createDiaryActionButton_("Remover", "remove-material-request", request.id)
+        ]
+      ));
+    });
+  }
+
+  function bindRdoMaterialRequestEvents_() {
+    if (dailyLogAddMaterialRequestButton) {
+      dailyLogAddMaterialRequestButton.addEventListener("click", function () {
+        addRdoMaterialRequestToState_();
+      });
+    }
+  }
+
+  function buildDailyLogMaterialRequestsAuditText_(dailyLog) {
+    const requests = dailyLog && Array.isArray(dailyLog.materialRequests) ? dailyLog.materialRequests : [];
+    if (!requests.length) {
+      return "Nenhuma solicitacao de material registrada.";
+    }
+
+    const counts = requests.reduce(function (summary, request) {
+      const status = request.status || "pendente";
+      summary[status] = (summary[status] || 0) + 1;
+      return summary;
+    }, {});
+
+    return "Solicitacoes de material do dia: " + requests.length + ". " +
+      Object.keys(counts).map(function (status) {
+        return status + ": " + counts[status];
+      }).join("; ") + ".";
+  }
+
+  function renderRdoMaterialRequestProductionOptions_() {
+    if (!dailyLogMaterialRequestProductionSelect) {
+      return;
+    }
+
+    const selected = dailyLogMaterialRequestProductionSelect.value;
+    dailyLogMaterialRequestProductionSelect.innerHTML = "";
+    dailyLogMaterialRequestProductionSelect.appendChild(new Option("Solicitacao avulsa", ""));
+    getRdoProductionOptions_().forEach(function (option) {
+      dailyLogMaterialRequestProductionSelect.appendChild(new Option(option.label, option.id));
+    });
+    dailyLogMaterialRequestProductionSelect.value = selected;
+  }
+
+  function renderRdoMaterialRequestAlmoxOptions_() {
+    if (!dailyLogMaterialRequestAlmoxSelect || typeof calculateAlmoxBalances_ !== "function") {
+      return;
+    }
+
+    const selected = dailyLogMaterialRequestAlmoxSelect.value;
+    dailyLogMaterialRequestAlmoxSelect.innerHTML = "";
+    dailyLogMaterialRequestAlmoxSelect.appendChild(new Option("Consultar por nome", ""));
+
+    try {
+      calculateAlmoxBalances_().forEach(function (balance) {
+        const item = balance.item || {};
+        dailyLogMaterialRequestAlmoxSelect.appendChild(new Option(
+          (item.name || "Item") + " - saldo " + formatQuantity_(balance.balance) + " " + (item.unit || "un"),
+          item.id
+        ));
+      });
+    } catch (error) {
+      console.warn("Nao foi possivel listar itens do almoxarifado para o RDO.", error);
+    }
+
+    dailyLogMaterialRequestAlmoxSelect.value = selected;
+  }
+
+  // TODO Fase 2:
+  // Confirmar saida oficial no Almoxarifado.
+  // Vincular almoxExitId a solicitacao.
+  // Atualizar deliveredQuantity e status.
+  // Decidir regra anti-duplicidade entre almoxExitId, materials[] e consumo_rdo.
+  // Nao fazer isso na Fase 1.
+
   function addDailyLogTool_() {
     if (!dailyLogForm) {
       return;
@@ -5783,6 +6121,11 @@
       });
       clearDailyLogEstimate_();
       renderDailyLogDraftLists_();
+    } else if (action === "remove-material-request") {
+      currentDailyLogMaterialRequests_ = currentDailyLogMaterialRequests_.filter(function (item) {
+        return item.id !== id;
+      });
+      renderDailyLogDraftLists_();
     } else if (action === "edit-tool") {
       editDailyLogTool_(id);
     } else if (action === "remove-tool") {
@@ -5857,6 +6200,7 @@
 
   function renderDailyLogDraftLists_() {
     renderDailyLogProductionsDraft_();
+    renderRdoMaterialRequestsList_();
     renderDailyLogMaterialsDraft_();
     renderEstimatePanel_();
     renderDailyLogToolsDraft_();
@@ -15561,6 +15905,10 @@
 
     if (logItem.materials && logItem.materials.length) {
       parts.push("Materiais consumidos: " + logItem.materials.map(formatMaterialSummary_).join("; ") + ".");
+    }
+
+    if (logItem.materialRequests && logItem.materialRequests.length) {
+      parts.push("SOLICITACOES DE MATERIAL DO DIA: " + buildDailyLogMaterialRequestsAuditText_(logItem));
     }
 
     if (logItem.tools && logItem.tools.length) {

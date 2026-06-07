@@ -762,6 +762,59 @@
                 <button type="button" class="mini-button primary" id="dailyLogCalculateMaterials">Calcular materiais estimados</button>
                 <div id="dailyLogEstimatePanel" class="estimate-panel is-hidden"></div>
               </div>
+
+              <div class="form-subsection" id="diary-material-requests">
+                <h4>Solicitações de Material</h4>
+                <div class="inline-editor-grid">
+                  <label>
+                    Produção vinculada
+                    <select name="materialRequestProductionId" id="dailyLogMaterialRequestProductionSelect">
+                      <option value="">Solicitação avulsa</option>
+                    </select>
+                  </label>
+                  <label>
+                    Material solicitado
+                    <input name="materialRequestName" type="text">
+                  </label>
+                  <label>
+                    Quantidade solicitada
+                    <input name="materialRequestQuantity" type="number" min="0" step="0.10">
+                  </label>
+                  <label>
+                    Unidade
+                    <select name="materialRequestUnit">
+                      <option value="un">un</option>
+                      <option value="m">m</option>
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="kg">kg</option>
+                      <option value="saco">saco</option>
+                      <option value="lata">lata</option>
+                      <option value="caixa">caixa</option>
+                      <option value="barra">barra</option>
+                      <option value="rolo">rolo</option>
+                      <option value="litro">litro</option>
+                    </select>
+                  </label>
+                  <label>
+                    Item do almoxarifado
+                    <select name="materialRequestAlmoxItemId" id="dailyLogMaterialRequestAlmoxSelect">
+                      <option value="">Consultar por nome</option>
+                    </select>
+                  </label>
+                  <label>
+                    Solicitante/responsável
+                    <input name="materialRequestRequestedBy" type="text">
+                  </label>
+                  <label class="full-width">
+                    Observação
+                    <input name="materialRequestNotes" type="text">
+                  </label>
+                </div>
+                <button type="button" class="mini-button primary" id="dailyLogAddMaterialRequest">Analisar solicitação</button>
+                <div id="dailyLogMaterialRequestSummary" class="material-summary empty-list">Nenhuma solicitação registrada.</div>
+                <div id="dailyLogMaterialRequestsList" class="diary-item-list"></div>
+              </div>
               </details>
 
               <details class="rdo-macro-section" id="rdo-materiais">
