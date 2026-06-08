@@ -1479,9 +1479,10 @@
       <section class="route-panel" data-route="almoxarifado" aria-label="Almoxarifado">
         <div class="workspace-card stock-ia-hero">
           <div>
-            <p class="eyebrow">Controle interno</p>
-            <h3>Almoxarifado</h3>
-            <p>Controle entradas, sa&iacute;das, respons&aacute;veis, setores e alertas de estoque m&iacute;nimo.</p>
+            <p class="eyebrow" data-stock-full-text="eyebrow">Controle interno</p>
+            <h3 data-stock-full-text="title">Almoxarifado</h3>
+            <p data-stock-full-text="description">Controle entradas, sa&iacute;das, respons&aacute;veis, setores e alertas de estoque m&iacute;nimo.</p>
+            <p class="auth-note is-hidden" data-stock-full-banner>Modo Stock Full: controle de estoque para lojas, mercados e opera&ccedil;&otilde;es comerciais.</p>
           </div>
           <div class="stock-ia-badges" aria-label="Status do Almoxarifado">
             <button type="button" class="mini-button" data-almox-environment-create>Novo ambiente</button>
@@ -1496,17 +1497,17 @@
         <section class="workspace-card almox-manager-panel almox-command-center" id="almoxManagerPanel" aria-live="polite">
           <div class="section-row almox-manager-heading">
             <div>
-              <p class="eyebrow">Opera&ccedil;&atilde;o do almoxarifado</p>
-              <h3>Central do Gestor</h3>
-              <span class="auth-note">A&ccedil;&otilde;es, consultas, auditorias e alertas em uma primeira dobra objetiva.</span>
+              <p class="eyebrow" data-stock-full-text="managerEyebrow">Opera&ccedil;&atilde;o do almoxarifado</p>
+              <h3 data-stock-full-text="managerTitle">Central do Gestor</h3>
+              <span class="auth-note" data-stock-full-text="managerNote">A&ccedil;&otilde;es, consultas, auditorias e alertas em uma primeira dobra objetiva.</span>
             </div>
             <span class="almox-manager-status" id="almoxAlertsStatus">Alertas ativos</span>
           </div>
           <div class="almox-manager-actions">
-            <button type="button" class="mini-button primary" data-almox-action="item">Cadastrar item</button>
+            <button type="button" class="mini-button primary" data-almox-action="item" data-stock-full-text="buttonItem">Cadastrar item</button>
             <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
             <button type="button" class="mini-button primary" data-almox-action="exit">Registrar sa&iacute;da</button>
-            <a class="mini-button" href="#almoxItemsSection">Itens cadastrados</a>
+            <a class="mini-button" href="#almoxItemsSection" data-stock-full-text="itemsLink">Itens cadastrados</a>
             <a class="mini-button" href="#almoxHistorySection">Hist&oacute;rico</a>
             <a class="mini-button" href="#almoxSummaryText">Resumo</a>
             <button type="button" class="mini-button" id="almoxViewPanelButton">Visualizar painel</button>
@@ -1535,7 +1536,7 @@
           <article class="almox-elo-card" aria-label="Elo no Almoxarifado">
             <div>
               <span class="almox-elo-orb" aria-hidden="true">E</span>
-              <p class="eyebrow">Elo no Almoxarifado</p>
+              <p class="eyebrow" data-stock-full-text="eloEyebrow">Elo no Almoxarifado</p>
               <h3>Como posso ajudar no estoque?</h3>
               <span class="auth-note">Seu contexto continua aqui. O Elo analisa sem alterar saldo ou movimenta&ccedil;&otilde;es.</span>
             </div>
@@ -1560,7 +1561,7 @@
           </div>
           <div class="almox-action-grid">
             <button type="button" class="almox-action-button" data-almox-action="item">
-              <strong>Cadastrar item</strong>
+              <strong data-stock-full-text="quickItem">Cadastrar item</strong>
               <span>Ex.: tenho 200 máscaras no almoxarifado.</span>
             </button>
             <button type="button" class="almox-action-button" data-almox-action="entry">

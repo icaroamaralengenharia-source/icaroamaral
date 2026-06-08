@@ -8974,3 +8974,34 @@ body.stock-ai-public-mode .route-panel[data-route="almoxarifado"] > .stock-ia-he
     border-radius: 16px;
   }
 }
+body.stock-full-context .route-panel[data-route="almoxarifado"] [data-stock-full-banner] {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 8px;
+  color: #0f5132;
+  background: rgba(209, 250, 229, 0.78);
+  font-weight: 800;
+}
+
+body.stock-full-context.stock-full-profile-loja .route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-manager-report,
+body.stock-full-context.stock-full-profile-loja .route-panel[data-route="almoxarifado"] #almoxManagerPanel .almox-elo-card,
+body.stock-full-context.stock-full-profile-loja .route-panel[data-route="almoxarifado"] #almoxManagerPanel #almoxManagerCards {
+  opacity: 0.72;
+}
+
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] #almoxManagerPanel {
+  outline: 2px solid rgba(15, 118, 110, 0.2);
+}
+
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] .almox-manager-actions #almoxViewPanelButton,
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] .almox-manager-actions #almoxManagerAuditButton,
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] .almox-manager-actions #almoxEmailButton,
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] .almox-manager-actions #almoxDownloadPdfButton,
+body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almoxarifado"] .almox-manager-actions a[href="#almoxHistorySection"] {
+  border-color: rgba(15, 118, 110, 0.38);
+  background: rgba(240, 253, 250, 0.94);
+  color: #115e59;
+}

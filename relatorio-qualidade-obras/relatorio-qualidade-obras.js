@@ -1169,9 +1169,10 @@
   function initializeSaas_() {
     bindSaasEvents_();
     applyStockAiPublicMode_();
+    applyStockFullContext_();
 
-    if (isStockAiPublicDemo_() && (!currentUser || !hasLocalAccessSession_())) {
-      loginLocalFallback_("Visitante Stock AI", "demo@stock-ai.local");
+    if ((isStockAiPublicDemo_() || isStockFullContext_()) && (!currentUser || !hasLocalAccessSession_())) {
+      loginLocalFallback_(isStockFullContext_() ? "Visitante Stock Full" : "Visitante Stock AI", isStockFullContext_() ? "demo@stock-full.local" : "demo@stock-ai.local");
       return;
     }
 
@@ -1213,6 +1214,56 @@
     }
 
     showHomePanel_();
+  }
+
+  function getCurrentUrlParams_() {
+    try {
+      return new URLSearchParams(window.location.search || "");
+    } catch (error) {
+      return new URLSearchParams("");
+    }
+  }
+
+  function isStockFullContext_() {
+    return clean(getCurrentUrlParams_().get("produto")).toLowerCase() === "stock-full";
+  }
+
+  function getStockFullProfile_() {
+    const profile = clean(getCurrentUrlParams_().get("perfil")).toLowerCase();
+    return profile === "gestor" ? "gestor" : "loja";
+  }
+
+  function setStockFullText_(key, value) {
+    const element = document.querySelector("[data-stock-full-text='" + key + "']");
+    if (element) {
+      element.textContent = value;
+    }
+  }
+
+  function applyStockFullContext_() {
+    if (!isStockFullContext_()) {
+      return;
+    }
+
+    const profile = getStockFullProfile_();
+    document.body.classList.add("stock-full-context", "stock-full-profile-" + profile);
+    document.title = "Stock Full | " + (profile === "gestor" ? "Gestor" : "Loja");
+
+    setStockFullText_("eyebrow", profile === "gestor" ? "Painel do gestor" : "Loja / Operacao");
+    setStockFullText_("title", "Stock Full");
+    setStockFullText_("description", "Saiba o que entrou, o que saiu e o que precisa comprar. Controle estoque com saldo, alertas, historico e painel do gestor.");
+    setStockFullText_("managerEyebrow", profile === "gestor" ? "Gestao do estoque" : "Operacao da loja");
+    setStockFullText_("managerTitle", profile === "gestor" ? "Central do Gestor" : "Central da Loja");
+    setStockFullText_("managerNote", profile === "gestor" ? "Dashboard, alertas, auditoria, relatorio, PDF e e-mail para acompanhar a operacao." : "Acoes principais para cadastrar produto, registrar entrada, registrar saida e consultar saldo.");
+    setStockFullText_("buttonItem", "Cadastrar produto");
+    setStockFullText_("itemsLink", "Produtos cadastrados");
+    setStockFullText_("eloEyebrow", "Apoio operacional");
+    setStockFullText_("quickItem", "Cadastrar produto");
+
+    const banner = document.querySelector("[data-stock-full-banner]");
+    if (banner) {
+      banner.classList.remove("is-hidden");
+    }
   }
 
   function bindSaasEvents_() {

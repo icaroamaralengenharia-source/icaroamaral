@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const PRODUCT_NAMES = [
   "Cimento E2E",
@@ -172,5 +174,33 @@ test.describe("Almoxarifado", () => {
     await expect(page.locator(".almox-elo-card")).toBeVisible();
     await expect(page.locator(".almox-elo-input-row input")).toBeVisible();
     await expect(page.locator("#almoxManagerPanel")).toBeVisible();
+  });
+
+  test("Stock Full abre Loja e Gestor reaproveitando o Almoxarifado", async ({ page }) => {
+    const stockFullUrl = pathToFileURL(resolve("stock-full.html")).toString();
+    await page.goto(stockFullUrl);
+    await expect(page.locator("h1")).toHaveText("Stock Full");
+
+    await page.locator("a", { hasText: "Abrir Loja" }).first().click();
+    await expect(page).toHaveURL(/produto=stock-full/);
+    await expect(page).toHaveURL(/perfil=loja/);
+    await expect(page.locator("#almoxManagerPanel")).toBeVisible();
+    await expect(page.locator("[data-stock-full-banner]")).toContainText("Modo Stock Full");
+    await expect(page.locator("[data-stock-full-text='title']")).toHaveText("Stock Full");
+    await expect(page.locator("[data-almox-action='item']").first()).toContainText("Cadastrar produto");
+    await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();
+    await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
+
+    await page.goto(stockFullUrl);
+    await page.locator("a", { hasText: "Abrir Gestor" }).first().click();
+    await expect(page).toHaveURL(/produto=stock-full/);
+    await expect(page).toHaveURL(/perfil=gestor/);
+    await expect(page.locator("#almoxManagerPanel")).toBeVisible();
+    await expect(page.locator("[data-stock-full-text='managerTitle']")).toHaveText("Central do Gestor");
+    await expect(page.locator("#almoxManagerAuditButton")).toBeVisible();
+    await expect(page.locator("#almoxDownloadPdfButton")).toBeVisible();
+    await expect(page.locator("#almoxEmailButton")).toBeVisible();
+    await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();
+    await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
   });
 });

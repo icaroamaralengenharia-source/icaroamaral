@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Full | Controle de estoque</title>
+  <meta name="description" content="Stock Full controla entrada, saida, saldo, alertas, historico e painel do gestor para lojas, mercados, depositos e operacoes reais.">
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --ink: #14213d;
+      --muted: #5d6b82;
+      --line: #d9e1ee;
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --accent: #f59e0b;
+      --shadow: 0 24px 70px rgba(21, 33, 61, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    main {
+      min-height: 100vh;
+      display: grid;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    .stock-full-shell {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+    }
+
+    .stock-full-hero {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--primary);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 6vw, 5rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 1.2rem;
+      line-height: 1.65;
+    }
+
+    .stock-full-actions,
+    .stock-full-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--surface);
+      font-weight: 800;
+      text-decoration: none;
+      box-shadow: 0 10px 24px rgba(21, 33, 61, 0.08);
+    }
+
+    .button.primary {
+      border-color: var(--primary);
+      color: #ffffff;
+      background: var(--primary);
+    }
+
+    .button.primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .stock-full-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .stock-full-card {
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .stock-full-card strong {
+      display: block;
+      margin-bottom: 12px;
+      font-size: 1.35rem;
+    }
+
+    .stock-full-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .stock-full-card small {
+      color: var(--accent);
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        align-items: start;
+        padding-top: 28px;
+      }
+
+      .stock-full-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="stock-full-shell">
+      <section class="stock-full-hero" aria-labelledby="stock-full-title">
+        <div>
+          <p class="eyebrow">Controle de estoque comercial</p>
+          <h1 id="stock-full-title">Stock Full</h1>
+          <p class="lead">Saiba o que entrou, o que saiu e o que precisa comprar.</p>
+          <p class="lead">Controle de estoque para lojas, mercados, dep&oacute;sitos e opera&ccedil;&otilde;es reais.</p>
+        </div>
+        <div class="stock-full-actions">
+          <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=loja#app/almoxarifado">Abrir Loja</a>
+          <a class="button" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=gestor#app/almoxarifado">Abrir Gestor</a>
+          <a class="button" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20assistida%20do%20Stock%20Full." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
+        </div>
+      </section>
+
+      <section class="stock-full-grid" aria-label="Perfis do Stock Full">
+        <article class="stock-full-card">
+          <div>
+            <small>Perfil Loja</small>
+            <strong>Loja / Opera&ccedil;&atilde;o</strong>
+            <p>Entrada, sa&iacute;da, consulta de saldo e hist&oacute;rico simples.</p>
+          </div>
+          <div class="stock-full-card-actions">
+            <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=loja#app/almoxarifado">Abrir Loja</a>
+          </div>
+        </article>
+
+        <article class="stock-full-card">
+          <div>
+            <small>Perfil Gestor</small>
+            <strong>Gestor</strong>
+            <p>Dashboard, alertas, auditoria, relat&oacute;rio e vis&atilde;o por unidade.</p>
+          </div>
+          <div class="stock-full-card-actions">
+            <a class="button primary" href="relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=gestor#app/almoxarifado">Abrir Gestor</a>
+          </div>
+        </article>
+
+        <article class="stock-full-card">
+          <div>
+            <small>Implanta&ccedil;&atilde;o</small>
+            <strong>Implanta&ccedil;&atilde;o assistida</strong>
+            <p>Configura&ccedil;&atilde;o inicial, cadastro dos primeiros produtos e treinamento da equipe.</p>
+          </div>
+          <div class="stock-full-card-actions">
+            <a class="button primary" href="https://wa.me/?text=Ola.%20Quero%20solicitar%20implantacao%20assistida%20do%20Stock%20Full." target="_blank" rel="noopener">Solicitar implanta&ccedil;&atilde;o</a>
+          </div>
+        </article>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
