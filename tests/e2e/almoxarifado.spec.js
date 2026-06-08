@@ -214,6 +214,8 @@ test.describe("Almoxarifado", () => {
     await expect(page).toHaveURL(/perfil=loja/);
     await expect(page.locator("#almoxManagerPanel")).toBeVisible();
     await expect(page.locator("[data-stock-full-banner]")).toContainText("Modo Stock Full");
+    await expect(page.locator("#almoxOfflineStatus")).toContainText("Modo local");
+    await expect(page.locator("#almoxOfflineStatus")).toContainText("Não sincronizado na nuvem");
     await expect(page.locator("[data-stock-full-text='title']")).toHaveText("Stock Full");
     await expect(page.locator("[data-almox-action='item']").first()).toContainText("Cadastrar produto");
     await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();

@@ -57,6 +57,89 @@ test("stock saude me retorna 503 controlado sem Supabase", async () => {
   assert.equal(data.fallback, "localStorage");
 });
 
+test("stock full health responde com fallback local sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-full/health");
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.module, "stock-full");
+  assert.equal(data.database, "not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
+test("stock full me retorna 503 controlado sem Supabase", async () => {
+  const response = await fetch(baseUrl + "/api/stock-full/me");
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.ok, false);
+  assert.equal(data.error, "stock_full_database_not_configured");
+  assert.equal(data.fallback, "localStorage");
+});
+
+test("stock full me exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/me");
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full me reconhece profile autenticado", async () => {
+  const supabase = createMockStockSaudeSupabase_();
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/me", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.module, "stock-full");
+    assert.equal(data.mode, "remote");
+    assert.equal(data.profile.institution_id, "inst_auth");
+    assert.equal(data.profile.unit_id, "unit_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full me retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/me", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock saude items retorna 503 controlado sem Supabase", async () => {
   const response = await fetch(baseUrl + "/api/stock-saude/items?institution_id=inst_teste");
   const data = await response.json();
@@ -144,6 +227,19 @@ test("frontend Stock Saude prepara autenticacao Supabase sem remover fallback lo
   assert.match(content, /STOCK_SAUDE_DEMO_INSTITUTION_ID/);
   assert.match(content, /STOCK_SAUDE_DEMO_UNIT_ID/);
   assert.match(content, /STOCK_SAUDE_DEMO_PROFILE_ID/);
+  assert.doesNotMatch(content, /console\.(?:log|info|warn|error)\([^)]*token/i);
+});
+
+test("frontend Stock Full detecta token Supabase e preserva modo local", async () => {
+  const content = readFileSync(join("..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
+
+  assert.match(content, /function getStockFullSupabaseToken_\(\)/);
+  assert.match(content, /async function fetchStockFullMe_\(\)/);
+  assert.match(content, /async function initStockFullAuthContext_\(\)/);
+  assert.match(content, /\/api\/stock-full\/me/);
+  assert.match(content, /stockFullRuntimeMode = "local"/);
+  assert.match(content, /Conectado ao Stock Full/);
+  assert.match(content, /Não sincronizado na nuvem/);
   assert.doesNotMatch(content, /console\.(?:log|info|warn|error)\([^)]*token/i);
 });
 

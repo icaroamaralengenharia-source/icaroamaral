@@ -115,7 +115,9 @@ export function createApp(options = {}) {
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
   const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH, env });
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
+  const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
+  const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
 
   app.use(cors({
     origin(origin, callback) {
@@ -156,6 +158,39 @@ export function createApp(options = {}) {
       module: "stock-saude",
       database: supabaseClient ? "supabase_configured" : "not_configured",
       ...(supabaseClient ? {} : { fallback: "localStorage" })
+    });
+  });
+
+  app.get("/api/stock-full/health", (request, response) => {
+    const supabaseClient = stockFullSupabaseClient || getSupabaseClient(env);
+    response.json({
+      ok: true,
+      module: "stock-full",
+      database: supabaseClient ? "supabase_configured" : "not_configured",
+      ...(supabaseClient ? {} : { fallback: "localStorage" })
+    });
+  });
+
+  app.get("/api/stock-full/me", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    response.json({
+      ok: true,
+      module: "stock-full",
+      mode: "remote",
+      user: {
+        id: session.user.id,
+        email: session.user.email || ""
+      },
+      profile: session.profile
     });
   });
 
@@ -1059,6 +1094,19 @@ function requireStockSaudeDatabase_(env, response, databaseOverride = null) {
   return database;
 }
 
+function requireStockFullDatabase_(env, response, databaseOverride = null) {
+  const database = databaseOverride || getSupabaseClient(env);
+  if (!database) {
+    response.status(503).json({
+      ok: false,
+      error: "stock_full_database_not_configured",
+      fallback: "localStorage"
+    });
+    return null;
+  }
+  return database;
+}
+
 async function getSupabaseUserFromRequest_(request, supabase) {
   const authorization = clean_(request.headers.authorization);
   const match = authorization.match(/^Bearer\s+(.+)$/i);
@@ -1080,6 +1128,19 @@ async function getSupabaseUserFromRequest_(request, supabase) {
 }
 
 async function getStockSaudeProfileByAuthUser_(supabase, authUserId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,institution_id,unit_id,name,email,role")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
+
+async function getStockFullProfileByAuthUser_(supabase, authUserId) {
   const { data, error } = await supabase
     .from("profiles")
     .select("id,institution_id,unit_id,name,email,role")
@@ -1153,6 +1214,30 @@ async function requireStockSaudeAuth_(request, response, supabase) {
     };
   } catch (error) {
     response.status(500).json({ ok: false, error: "stock_saude_auth_lookup_failed" });
+    return null;
+  }
+}
+
+async function requireStockFullAuth_(request, response, supabase) {
+  try {
+    const userResult = await getSupabaseUserFromRequest_(request, supabase);
+    if (!userResult.ok) {
+      response.status(userResult.status).json({ ok: false, error: userResult.error });
+      return null;
+    }
+
+    const profile = await getStockFullProfileByAuthUser_(supabase, userResult.user.id);
+    if (!profile) {
+      response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
+      return null;
+    }
+
+    return {
+      user: userResult.user,
+      profile
+    };
+  } catch (error) {
+    response.status(500).json({ ok: false, error: "stock_full_auth_lookup_failed" });
     return null;
   }
 }

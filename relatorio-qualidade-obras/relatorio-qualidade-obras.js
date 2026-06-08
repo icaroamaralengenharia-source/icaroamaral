@@ -239,6 +239,15 @@
   const localAccessPassword = clean(config.localAccessPassword || "ObraReport2026");
   const imageCache = new Map();
   let appState = loadLocalData();
+  let stockFullRuntimeMode = "local";
+  let stockFullAuthContext = {
+    mode: "local",
+    user: null,
+    profile: null,
+    institutionId: "",
+    unitId: "",
+    role: "local"
+  };
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
@@ -1240,6 +1249,141 @@
     return profile === "gestor" ? "gestor" : "loja";
   }
 
+  function findStockFullSupabaseAccessToken_(value, depth) {
+    if (!value || depth > 5) {
+      return "";
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return "";
+      }
+      if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(trimmed)) {
+        return trimmed;
+      }
+      if ((trimmed.charAt(0) === "{" && trimmed.charAt(trimmed.length - 1) === "}") ||
+        (trimmed.charAt(0) === "[" && trimmed.charAt(trimmed.length - 1) === "]")) {
+        try {
+          return findStockFullSupabaseAccessToken_(JSON.parse(trimmed), depth + 1);
+        } catch (error) {
+          return "";
+        }
+      }
+      return "";
+    }
+
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        const token = findStockFullSupabaseAccessToken_(value[index], depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+      return "";
+    }
+
+    if (typeof value === "object") {
+      if (value.access_token) {
+        return findStockFullSupabaseAccessToken_(value.access_token, depth + 1);
+      }
+      if (value.currentSession) {
+        return findStockFullSupabaseAccessToken_(value.currentSession, depth + 1);
+      }
+      if (value.session) {
+        return findStockFullSupabaseAccessToken_(value.session, depth + 1);
+      }
+      const keys = Object.keys(value);
+      for (let index = 0; index < keys.length; index += 1) {
+        const token = findStockFullSupabaseAccessToken_(value[keys[index]], depth + 1);
+        if (token) {
+          return token;
+        }
+      }
+    }
+
+    return "";
+  }
+
+  function getStockFullSupabaseToken_() {
+    const stores = [getLocalStorage_(), window.sessionStorage || null].filter(Boolean);
+    for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
+      const store = stores[storeIndex];
+      for (let index = 0; index < store.length; index += 1) {
+        const key = store.key(index) || "";
+        const normalizedKey = key.toLowerCase();
+        if (normalizedKey.indexOf("supabase") < 0 && normalizedKey.indexOf("sb-") !== 0) {
+          continue;
+        }
+        const token = findStockFullSupabaseAccessToken_(store.getItem(key), 0);
+        if (token) {
+          return token;
+        }
+      }
+    }
+    return "";
+  }
+
+  async function fetchStockFullMe_() {
+    const token = getStockFullSupabaseToken_();
+    if (!token) {
+      return null;
+    }
+
+    const response = await fetch("/api/stock-full/me", {
+      headers: {
+        Authorization: "Bearer " + token
+      }
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  }
+
+  function setStockFullRuntimeMode_(mode, context) {
+    stockFullRuntimeMode = mode === "remote" ? "remote" : "local";
+    if (stockFullRuntimeMode === "remote" && context && context.profile) {
+      stockFullAuthContext = {
+        mode: "remote",
+        user: context.user || null,
+        profile: context.profile,
+        institutionId: clean(context.profile.institution_id),
+        unitId: clean(context.profile.unit_id),
+        role: clean(context.profile.role) || "usuario"
+      };
+    } else {
+      stockFullAuthContext = {
+        mode: "local",
+        user: null,
+        profile: null,
+        institutionId: "",
+        unitId: "",
+        role: "local"
+      };
+    }
+    updateAlmoxOfflineStatus_();
+  }
+
+  async function initStockFullAuthContext_() {
+    if (!isStockFullContext_()) {
+      return stockFullAuthContext;
+    }
+
+    try {
+      const session = await fetchStockFullMe_();
+      if (session && session.ok && session.profile) {
+        setStockFullRuntimeMode_("remote", session);
+        return stockFullAuthContext;
+      }
+    } catch (error) {
+      console.info("Stock Full: sessao Supabase indisponivel; mantendo modo local.");
+    }
+
+    setStockFullRuntimeMode_("local");
+    return stockFullAuthContext;
+  }
+
   function setStockFullText_(key, value) {
     const element = document.querySelector("[data-stock-full-text='" + key + "']");
     if (element) {
@@ -1271,6 +1415,8 @@
     if (banner) {
       banner.classList.remove("is-hidden");
     }
+
+    initStockFullAuthContext_();
   }
 
   function bindSaasEvents_() {
@@ -8017,6 +8163,14 @@
     }
 
     const connection = navigator.onLine === false ? "Offline" : "Online";
+    if (isStockFullContext_() && stockFullRuntimeMode === "remote") {
+      const profile = stockFullAuthContext.profile || {};
+      const organization = clean(profile.institution_name || profile.organization_name || profile.institution_id) || "organização autenticada";
+      const unit = clean(profile.unit_name || profile.unit_id);
+      almoxOfflineStatus.textContent = connection + " · Conectado ao Stock Full · Organização: " + organization +
+        (unit ? " · Unidade: " + unit : "") + " · Sincronização operacional ainda não ativada";
+      return;
+    }
     almoxOfflineStatus.textContent = connection + " · Modo local · Dados salvos neste navegador · Não sincronizado na nuvem";
   }
 
