@@ -126,6 +126,11 @@
   const almoxManagerAuditButton = document.getElementById("almoxManagerAuditButton");
   const almoxEmailButton = document.getElementById("almoxEmailButton");
   const almoxDownloadPdfButton = document.getElementById("almoxDownloadPdfButton");
+  const almoxExportBackupButton = document.getElementById("almoxExportBackupButton");
+  const almoxImportBackupButton = document.getElementById("almoxImportBackupButton");
+  const almoxQuickBackupButton = document.getElementById("almoxQuickBackupButton");
+  const almoxBackupFileInput = document.getElementById("almoxBackupFileInput");
+  const almoxOfflineStatus = document.getElementById("almoxOfflineStatus");
   const almoxMuteAlertsButton = document.getElementById("almoxMuteAlertsButton");
   const almoxPrepareEmailButton = document.getElementById("almoxPrepareEmailButton");
   const almoxEmailPanel = document.getElementById("almoxEmailPanel");
@@ -219,6 +224,8 @@
   const STOCK_QUICK_EXAMPLE_STORAGE_KEY = "obraReportStockIaQuickExample";
   const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
   const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
+  const ALMOX_BACKUP_SCHEMA_VERSION = "1.0";
+  const ALMOX_LAST_IMPORT_SAFETY_BACKUP_KEY = "obraReportAlmoxarifadoBackupBeforeImport";
   const STOCK_AI_COMPOSITIONS_LIBRARY_VERSION = "1.2";
   const STOCK_AI_DEMO_COMPOSITION_SOURCE = "Base técnica demonstrativa/editável";
   const STOCK_AI_DEMO_COMPOSITION_WARNING = "Composição demonstrativa/editável. Validar antes de orçamento, compra oficial ou medição contratual.";
@@ -1656,11 +1663,45 @@
       });
     }
 
+    if (almoxExportBackupButton) {
+      almoxExportBackupButton.addEventListener("click", function () {
+        handleExportAlmoxBackup_();
+      });
+    }
+
+    if (almoxQuickBackupButton) {
+      almoxQuickBackupButton.addEventListener("click", function () {
+        handleExportAlmoxBackup_({ quick: true });
+      });
+    }
+
+    if (almoxImportBackupButton) {
+      almoxImportBackupButton.addEventListener("click", function () {
+        if (almoxBackupFileInput) {
+          almoxBackupFileInput.click();
+        }
+      });
+    }
+
+    if (almoxBackupFileInput) {
+      almoxBackupFileInput.addEventListener("change", function () {
+        const file = almoxBackupFileInput.files && almoxBackupFileInput.files[0];
+        if (file) {
+          handleImportAlmoxBackupFile_(file);
+        }
+        almoxBackupFileInput.value = "";
+      });
+    }
+
     if (almoxMuteAlertsButton) {
       almoxMuteAlertsButton.addEventListener("click", function () {
         handleToggleAlmoxAlerts_();
       });
     }
+
+    updateAlmoxOfflineStatus_();
+    window.addEventListener("online", updateAlmoxOfflineStatus_);
+    window.addEventListener("offline", updateAlmoxOfflineStatus_);
 
     if (almoxParseNoteButton) {
       almoxParseNoteButton.addEventListener("click", function () {
@@ -7797,6 +7838,186 @@
 
     activeStockEnvironmentId = safeState.activeStockEnvironmentId;
     return safeState;
+  }
+
+  function buildAlmoxBackupPayload_(options) {
+    const settings = options || {};
+    const state = loadAlmoxState_();
+    const movements = Array.isArray(state.movements) ? state.movements : [];
+    const entries = movements.filter(function (movement) {
+      return movement && movement.type === "entrada";
+    });
+    const exits = movements.filter(function (movement) {
+      return movement && movement.type === "saida";
+    });
+    const storage = getLocalStorage_();
+
+    return {
+      schema: "stock-full-almoxarifado-backup",
+      schemaVersion: ALMOX_BACKUP_SCHEMA_VERSION,
+      product: "Stock Full",
+      source: "Almoxarifado",
+      exportedAt: new Date().toISOString(),
+      backupType: settings.quick ? "copia-seguranca-rapida" : "exportacao-manual",
+      data: {
+        produtos: JSON.parse(JSON.stringify(state.items || [])),
+        entradas: JSON.parse(JSON.stringify(entries)),
+        saidas: JSON.parse(JSON.stringify(exits)),
+        historico: JSON.parse(JSON.stringify(movements)),
+        configuracoesLocais: {
+          alertsMuted: Boolean(state.alertsMuted),
+          alertsMutedUntil: clean(state.alertsMutedUntil),
+          alertHistory: JSON.parse(JSON.stringify(state.alertHistory || [])),
+          approvalRequests: JSON.parse(JSON.stringify(state.approvalRequests || [])),
+          stockEnvironments: JSON.parse(JSON.stringify(state.stockEnvironments || [])),
+          activeStockEnvironmentId: clean(state.activeStockEnvironmentId),
+          stockMode: storage ? clean(storage.getItem(STOCK_MODE_STORAGE_KEY)) : "",
+          updatedAt: state.updatedAt || new Date().toISOString()
+        }
+      }
+    };
+  }
+
+  function getAlmoxBackupFileName_() {
+    const now = new Date();
+    const pad = function (value) {
+      return String(value).padStart(2, "0");
+    };
+    return "stock-full-backup-" +
+      now.getFullYear() + "-" +
+      pad(now.getMonth() + 1) + "-" +
+      pad(now.getDate()) + "-" +
+      pad(now.getHours()) + "-" +
+      pad(now.getMinutes()) + ".json";
+  }
+
+  function downloadAlmoxBackupPayload_(payload, fileName) {
+    const content = JSON.stringify(payload, null, 2);
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName || getAlmoxBackupFileName_();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  function handleExportAlmoxBackup_(options) {
+    try {
+      downloadAlmoxBackupPayload_(buildAlmoxBackupPayload_(options || {}));
+      showAlmoxToast_((options && options.quick) ? "Copia de seguranca baixada." : "Backup do Stock Full exportado.", "success");
+    } catch (error) {
+      console.warn("Nao foi possivel exportar backup do almoxarifado.", error);
+      showAlmoxToast_("Nao foi possivel exportar o backup.", "error");
+    }
+  }
+
+  function handleImportAlmoxBackupFile_(file) {
+    if (!file || !/\.json$/i.test(file.name || "")) {
+      showAlmoxToast_("Selecione um backup .json exportado pelo Stock Full.", "error");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      try {
+        const parsed = JSON.parse(String(event.target && event.target.result || ""));
+        const validation = validateAlmoxBackupPayload_(parsed);
+        if (!validation.ok) {
+          showAlmoxToast_(validation.message, "error");
+          return;
+        }
+
+        const confirmed = window.confirm("Importar este backup vai substituir os dados locais atuais do Almoxarifado/Stock Full neste navegador. Deseja continuar?");
+        if (!confirmed) {
+          showAlmoxToast_("Importacao cancelada. Nenhum dado foi alterado.", "info");
+          return;
+        }
+
+        saveCurrentAlmoxSafetyBackup_();
+        saveAlmoxState_(buildAlmoxStateFromBackup_(parsed));
+        restoreAlmoxBackupLocalSettings_(parsed);
+        renderAlmoxarifadoPanel_();
+        showAlmoxToast_("Backup importado. Saldo, produtos e historico foram restaurados.", "success");
+      } catch (error) {
+        console.warn("Nao foi possivel importar backup do almoxarifado.", error);
+        showAlmoxToast_("Backup invalido ou corrompido.", "error");
+      }
+    };
+    reader.onerror = function () {
+      showAlmoxToast_("Nao foi possivel ler o arquivo de backup.", "error");
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  function validateAlmoxBackupPayload_(payload) {
+    if (!payload || payload.schema !== "stock-full-almoxarifado-backup") {
+      return { ok: false, message: "Este arquivo nao parece ser um backup do Stock Full." };
+    }
+
+    if (payload.schemaVersion !== ALMOX_BACKUP_SCHEMA_VERSION) {
+      return { ok: false, message: "Versao de backup incompatível com esta tela." };
+    }
+
+    const data = payload.data || {};
+    if (!Array.isArray(data.produtos) || !Array.isArray(data.historico)) {
+      return { ok: false, message: "Backup sem produtos ou historico validos." };
+    }
+
+    return { ok: true, message: "" };
+  }
+
+  function buildAlmoxStateFromBackup_(payload) {
+    const data = payload.data || {};
+    const settings = data.configuracoesLocais || {};
+    return normalizeAlmoxEnvironmentState_({
+      items: Array.isArray(data.produtos) ? data.produtos : [],
+      movements: Array.isArray(data.historico) ? data.historico : [],
+      alertsMuted: Boolean(settings.alertsMuted),
+      alertsMutedUntil: clean(settings.alertsMutedUntil),
+      alertHistory: Array.isArray(settings.alertHistory) ? settings.alertHistory : [],
+      approvalRequests: Array.isArray(settings.approvalRequests) ? settings.approvalRequests : [],
+      stockEnvironments: Array.isArray(settings.stockEnvironments) ? settings.stockEnvironments : [],
+      activeStockEnvironmentId: clean(settings.activeStockEnvironmentId),
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  function saveCurrentAlmoxSafetyBackup_() {
+    try {
+      const storage = getLocalStorage_();
+      if (storage) {
+        storage.setItem(ALMOX_LAST_IMPORT_SAFETY_BACKUP_KEY, JSON.stringify(buildAlmoxBackupPayload_({ quick: true })));
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel criar copia de seguranca antes da importacao.", error);
+    }
+  }
+
+  function restoreAlmoxBackupLocalSettings_(payload) {
+    try {
+      const storage = getLocalStorage_();
+      const settings = payload && payload.data && payload.data.configuracoesLocais ? payload.data.configuracoesLocais : {};
+      const stockMode = clean(settings.stockMode);
+      if (storage && stockMode) {
+        storage.setItem(STOCK_MODE_STORAGE_KEY, stockMode === "almoxarifado" ? "almoxarifado" : "obra");
+      }
+    } catch (error) {
+      console.warn("Nao foi possivel restaurar configuracoes locais do backup.", error);
+    }
+  }
+
+  function updateAlmoxOfflineStatus_() {
+    if (!almoxOfflineStatus) {
+      return;
+    }
+
+    const connection = navigator.onLine === false ? "Offline" : "Online";
+    almoxOfflineStatus.textContent = connection + " · Modo local · Dados salvos neste navegador · Não sincronizado na nuvem";
   }
 
   function normalizeAlmoxEnvironmentState_(state) {

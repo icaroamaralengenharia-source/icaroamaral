@@ -125,7 +125,7 @@ test.describe("Almoxarifado", () => {
     });
   });
 
-  test("fluxo completo de estoque, auditoria, historico e Elo", async ({ page }) => {
+  test("fluxo completo de estoque, auditoria, historico, backup e Elo", async ({ page }, testInfo) => {
     await loginLocal(page);
     await submitClient(page);
     await submitWork(page);
@@ -153,6 +153,33 @@ test.describe("Almoxarifado", () => {
     await page.locator("#almoxModal [data-almox-modal-close]").last().click();
     await expect(page.locator("#almoxModal")).toHaveClass(/is-hidden/);
 
+    await page.locator("#almoxManagerPanel a[href='#almoxHistorySection']").click();
+    await expect(page.locator("#almoxHistorySection")).toContainText("Mestre E2E");
+    await expect(page.locator("#almoxHistorySection")).toContainText("NF-E2E");
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.locator("#almoxExportBackupButton").click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^stock-full-backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}\.json$/);
+    const backupPath = testInfo.outputPath("stock-full-backup.json");
+    await download.saveAs(backupPath);
+    await expect(page.locator("#almoxActionMessage")).toContainText(/Backup|exportado/i);
+
+    await page.evaluate(() => {
+      window.localStorage.removeItem("obraReportAlmoxarifadoData");
+    });
+    await page.reload();
+    await goToRoute(page, "almoxarifado");
+    await expect(page.locator("#almoxManagerPanel")).toBeVisible();
+    await expect(page.locator("#almoxItemsSection")).not.toContainText(PRODUCT_NAMES[0]);
+
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toMatch(/substituir os dados locais/i);
+      await dialog.accept();
+    });
+    await page.locator("#almoxBackupFileInput").setInputFiles(backupPath);
+    await expect(page.locator("#almoxActionMessage")).toContainText(/Backup importado/i);
+    await expect(page.locator("#almoxItemsSection")).toContainText(PRODUCT_NAMES[0]);
     await page.locator("#almoxManagerPanel a[href='#almoxHistorySection']").click();
     await expect(page.locator("#almoxHistorySection")).toContainText("Mestre E2E");
     await expect(page.locator("#almoxHistorySection")).toContainText("NF-E2E");

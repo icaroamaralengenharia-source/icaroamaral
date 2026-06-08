@@ -1514,7 +1514,18 @@
             <button type="button" class="mini-button" id="almoxManagerAuditButton">Gerar auditoria</button>
             <button type="button" class="mini-button" id="almoxEmailButton">Enviar por e-mail</button>
             <button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button>
+            <button type="button" class="mini-button" id="almoxExportBackupButton">Exportar backup</button>
+            <button type="button" class="mini-button" id="almoxImportBackupButton">Importar backup</button>
+            <button type="button" class="mini-button" id="almoxQuickBackupButton">Baixar c&oacute;pia de seguran&ccedil;a agora</button>
             <button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button>
+          </div>
+          <input class="is-hidden" id="almoxBackupFileInput" type="file" accept="application/json,.json">
+          <div class="almox-offline-panel" id="almoxOfflinePanel" aria-live="polite">
+            <div>
+              <strong>Status operacional</strong>
+              <span id="almoxOfflineStatus">Modo local · Dados salvos neste navegador · Não sincronizado na nuvem</span>
+            </div>
+            <p>Se limpar os dados do navegador, trocar de computador ou usar aba anônima, os dados locais podem ser perdidos. Exporte backup periodicamente.</p>
           </div>
           <div class="almox-email-panel is-hidden" id="almoxEmailPanel">
             <label>

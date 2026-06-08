@@ -9005,3 +9005,34 @@ body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almox
   background: rgba(240, 253, 250, 0.94);
   color: #115e59;
 }
+
+.almox-offline-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: rgba(240, 253, 250, 0.78);
+  color: #1f2937;
+}
+
+.almox-offline-panel strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #115e59;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.almox-offline-panel span {
+  color: #0f5132;
+  font-weight: 800;
+}
+
+.almox-offline-panel p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
