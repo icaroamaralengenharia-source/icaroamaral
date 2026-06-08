@@ -222,6 +222,152 @@ export function createApp(options = {}) {
     });
   });
 
+  app.get("/api/stock-full/items", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        items: (data || []).map(mapStockFullItemFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/items", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_create_failed" });
+    }
+  });
+
+  app.put("/api/stock-full/items/:id", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const itemId = clean_(request.params.id);
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile, { update: true });
+    if (!itemId) {
+      response.status(400).json({ ok: false, error: "item_id_required" });
+      return;
+    }
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .update(validation.payload)
+        .eq("id", itemId)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_update_failed" });
+    }
+  });
+
+  app.delete("/api/stock-full/items/:id", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const itemId = clean_(request.params.id);
+    if (!itemId) {
+      response.status(400).json({ ok: false, error: "item_id_required" });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", itemId)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_delete_failed" });
+    }
+  });
+
   app.get("/api/stock-saude/items", async (request, response) => {
     const database = getStockSaudeDatabase(response);
     if (!database) {
@@ -1240,6 +1386,54 @@ async function requireStockFullAuth_(request, response, supabase) {
     response.status(500).json({ ok: false, error: "stock_full_auth_lookup_failed" });
     return null;
   }
+}
+
+function validateStockFullItemPayload_(body, profile, options = {}) {
+  const update = Boolean(options.update);
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    name: clean_(body.name),
+    unit: clean_(body.unit) || "un",
+    category: clean_(body.category) || "Geral",
+    min_quantity: parsePositiveNumber_(body.minQuantity ?? body.min_quantity ?? body.minimumStock, 0),
+    current_quantity: parsePositiveNumber_(body.currentQuantity ?? body.current_quantity ?? body.initialQuantity, 0),
+    location: clean_(body.location),
+    notes: clean_(body.notes),
+    updated_at: new Date().toISOString()
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.name) {
+    return { ok: false, error: "name_required" };
+  }
+  if (!payload.unit) {
+    return { ok: false, error: "unit_required" };
+  }
+  if (!update) {
+    payload.created_by = clean_(profile && profile.id);
+  }
+  return { ok: true, payload };
+}
+
+function mapStockFullItemFromDatabase_(item) {
+  const source = item || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    name: source.name || "",
+    unit: source.unit || "un",
+    category: source.category || "Geral",
+    minQuantity: parsePositiveNumber_(source.min_quantity, 0),
+    currentQuantity: parsePositiveNumber_(source.current_quantity, 0),
+    location: source.location || "",
+    notes: source.notes || "",
+    isActive: source.is_active !== false,
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || "",
+    updatedAt: source.updated_at || ""
+  };
 }
 
 function canStockSaudeRole_(profile, action) {
