@@ -251,6 +251,7 @@
   let stockFullRemoteItems = [];
   let stockFullRemoteItemsLoaded = false;
   let stockFullRemoteEntries = [];
+  let stockFullRemoteExits = [];
   let stockFullRemoteAuditLog = [];
   let currentUser = getCurrentUser_();
   let activeReportId = null;
@@ -1362,7 +1363,12 @@
 
     const response = await fetch(url, requestOptions);
     if (!response.ok) {
-      return null;
+      try {
+        const errorData = await response.json();
+        return Object.assign({ ok: false, status: response.status }, errorData || {});
+      } catch (error) {
+        return { ok: false, status: response.status };
+      }
     }
     return await response.json();
   }
@@ -1431,6 +1437,19 @@
     return { ok: true, entries: stockFullRemoteEntries };
   }
 
+  async function loadStockFullRemoteExits_() {
+    if (!isStockFullRemoteActive_()) {
+      return { ok: false };
+    }
+
+    const data = await fetchStockFullJson_("/api/stock-full/exits");
+    if (!data || !data.ok || !Array.isArray(data.exits)) {
+      throw new Error("stock_full_remote_exits_unavailable");
+    }
+    stockFullRemoteExits = data.exits;
+    return { ok: true, exits: stockFullRemoteExits };
+  }
+
   async function loadStockFullRemoteAuditLog_() {
     if (!isStockFullRemoteActive_()) {
       return { ok: false };
@@ -1474,6 +1493,14 @@
     });
   }
 
+  async function createStockFullRemoteExit_(exit) {
+    return await fetchStockFullJson_("/api/stock-full/exits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(exit)
+    });
+  }
+
   function setStockFullRuntimeMode_(mode, context) {
     stockFullRuntimeMode = mode === "remote" ? "remote" : "local";
     if (stockFullRuntimeMode === "remote" && context && context.profile) {
@@ -1497,6 +1524,7 @@
       stockFullRemoteItems = [];
       stockFullRemoteItemsLoaded = false;
       stockFullRemoteEntries = [];
+      stockFullRemoteExits = [];
       stockFullRemoteAuditLog = [];
     }
     updateAlmoxOfflineStatus_();
@@ -1515,6 +1543,9 @@
           await loadStockFullRemoteItems_();
           await loadStockFullRemoteEntries_().catch(function () {
             stockFullRemoteEntries = [];
+          });
+          await loadStockFullRemoteExits_().catch(function () {
+            stockFullRemoteExits = [];
           });
           await loadStockFullRemoteAuditLog_().catch(function () {
             stockFullRemoteAuditLog = [];
@@ -8320,7 +8351,7 @@
       const organization = clean(profile.institution_name || profile.organization_name || profile.institution_id) || "organização autenticada";
       const unit = clean(profile.unit_name || profile.unit_id);
       almoxOfflineStatus.textContent = connection + " · Conectado ao Stock Full · Organização: " + organization +
-        (unit ? " · Unidade: " + unit : "") + " · Produtos e entradas na nuvem · Saídas ainda locais";
+        (unit ? " · Unidade: " + unit : "") + " · Produtos, entradas e saídas na nuvem";
       return;
     }
     almoxOfflineStatus.textContent = connection + " · Modo local · Dados salvos neste navegador · Não sincronizado na nuvem";
@@ -8901,7 +8932,7 @@
     }
   }
 
-  function handleAlmoxExitSubmit_(event) {
+  async function handleAlmoxExitSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
@@ -8917,7 +8948,9 @@
       return;
     }
 
-    const result = saveAlmoxExitFromFormData_(formData);
+    const result = isStockFullRemoteActive_()
+      ? await saveStockFullRemoteExitFromFormData_(formData)
+      : saveAlmoxExitFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
       return;
@@ -8926,6 +8959,59 @@
     event.target.reset();
     renderAlmoxarifadoPanel_();
     showAlmoxToast_("Saída registrada com responsável e setor.", "success");
+  }
+
+  async function saveStockFullRemoteExitFromFormData_(formData) {
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe a quantidade de saída."
+      };
+    }
+
+    try {
+      const result = await createStockFullRemoteExit_({
+        itemId: itemId,
+        quantity: quantity,
+        destination: clean(formData.get("sector")) || clean(formData.get("recipient")),
+        responsible: clean(formData.get("responsible")),
+        notes: clean(formData.get("notes"))
+      });
+      if (result && result.error === "stock_full_insufficient_quantity") {
+        return {
+          ok: false,
+          message: "Saldo insuficiente na nuvem para registrar a saída."
+        };
+      }
+      if (!result || !result.ok || !result.item || !result.exit) {
+        throw new Error("stock_full_remote_exit_create_failed");
+      }
+
+      const updatedItem = mapStockFullRemoteItemToAlmox_(result.item);
+      stockFullRemoteItems = stockFullRemoteItems.map(function (item) {
+        return item.id === updatedItem.id ? updatedItem : item;
+      });
+      if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
+        stockFullRemoteItems.push(updatedItem);
+      }
+      stockFullRemoteExits.unshift(result.exit);
+      await loadStockFullRemoteAuditLog_().catch(function () {
+        stockFullRemoteAuditLog = [];
+      });
+      // TODO Fase futura: importação/sincronização controlada de saídas locais para nuvem.
+      return {
+        ok: true,
+        exit: result.exit,
+        item: updatedItem
+      };
+    } catch (error) {
+      console.info("Stock Full: saida remota indisponivel; registrando saida no modo local.");
+      setStockFullRuntimeMode_("local");
+      return saveAlmoxExitFromFormData_(formData);
+    }
   }
 
   function saveAlmoxItemFromFormData_(formData) {
@@ -11306,9 +11392,13 @@
       ? (isStockFullRemoteActive_()
         ? await saveStockFullRemoteEntryFromFormData_(formData)
         : saveAlmoxEntryFromFormData_(formData))
-      : (type === "exit" ? saveAlmoxExitFromFormData_(formData) : (isStockFullRemoteActive_()
-        ? await saveStockFullRemoteItemFromFormData_(formData)
-        : saveAlmoxItemFromFormData_(formData)));
+      : (type === "exit"
+        ? (isStockFullRemoteActive_()
+          ? await saveStockFullRemoteExitFromFormData_(formData)
+          : saveAlmoxExitFromFormData_(formData))
+        : (isStockFullRemoteActive_()
+          ? await saveStockFullRemoteItemFromFormData_(formData)
+          : saveAlmoxItemFromFormData_(formData)));
 
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");

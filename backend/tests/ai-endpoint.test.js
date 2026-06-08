@@ -549,6 +549,256 @@ test("stock full audit-log lista somente logs da instituicao autenticada", async
   }
 });
 
+test("stock full exits exige Authorization quando Supabase esta configurado", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId: "sf_item_1", quantity: 2 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "authentication_required");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full exits retorna 403 quando profile nao existe", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ itemId: "sf_item_1", quantity: 2 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full cria saida remota reduz saldo e registra auditoria", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullItems: [
+        {
+          id: "sf_item_1",
+          institution_id: "inst_auth",
+          name: "Caderno universitario",
+          unit: "un",
+          category: "Papelaria",
+          min_quantity: 5,
+          current_quantity: 20,
+          is_active: true
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        itemId: "sf_item_1",
+        quantity: 6,
+        destination: "Balcao",
+        responsible: "Operador Teste",
+        notes: "Saida remota"
+      })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.mode, "remote");
+    assert.equal(data.exit.itemId, "sf_item_1");
+    assert.equal(data.exit.quantity, 6);
+    assert.equal(data.item.currentQuantity, 14);
+
+    const auditResponse = await fetch(testServer.baseUrl + "/api/stock-full/audit-log", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const auditData = await auditResponse.json();
+    assert.equal(auditResponse.status, 200);
+    assert.equal(auditData.auditLog.length, 1);
+    assert.equal(auditData.auditLog[0].action, "stock_full_exit_created");
+    assert.equal(auditData.auditLog[0].entityType, "stock_full_exit");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full bloqueia saida maior que saldo remoto", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullItems: [
+        {
+          id: "sf_item_1",
+          institution_id: "inst_auth",
+          name: "Caneta",
+          unit: "un",
+          current_quantity: 5,
+          is_active: true
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ itemId: "sf_item_1", quantity: 6 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 409);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_insufficient_quantity");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full bloqueia saida para item de outra instituicao", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullItems: [
+        {
+          id: "sf_item_outro",
+          institution_id: "outra_inst",
+          name: "Item protegido",
+          unit: "un",
+          current_quantity: 10,
+          is_active: true
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ itemId: "sf_item_outro", quantity: 3 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 404);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_item_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full bloqueia saida para item inativo", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullItems: [
+        {
+          id: "sf_item_inativo",
+          institution_id: "inst_auth",
+          name: "Item inativo",
+          unit: "un",
+          current_quantity: 10,
+          is_active: false
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ itemId: "sf_item_inativo", quantity: 3 })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 404);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_item_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full exits lista somente saidas da instituicao autenticada", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullExits: [
+        {
+          id: "sf_exit_1",
+          institution_id: "inst_auth",
+          item_id: "sf_item_1",
+          quantity: 3,
+          created_at: "2026-06-08T10:00:00.000Z"
+        },
+        {
+          id: "sf_exit_outro",
+          institution_id: "outra_inst",
+          item_id: "sf_item_outro",
+          quantity: 9,
+          created_at: "2026-06-08T11:00:00.000Z"
+        }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.exits.length, 1);
+    assert.equal(data.exits[0].id, "sf_exit_1");
+    assert.equal(data.exits[0].quantity, 3);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock saude items retorna 503 controlado sem Supabase", async () => {
   const response = await fetch(baseUrl + "/api/stock-saude/items?institution_id=inst_teste");
   const data = await response.json();
@@ -661,19 +911,22 @@ test("frontend Stock Full prepara API remota de produtos sem sincronizar movimen
   assert.match(content, /async function deleteStockFullRemoteItem_/);
   assert.match(content, /\/api\/stock-full\/items/);
   assert.match(content, /TODO Fase 3: sincronizacao\/importacao controlada de itens locais para nuvem/);
-  assert.match(content, /Saídas ainda locais/);
+  assert.match(content, /Produtos, entradas e saídas na nuvem/);
 });
 
-test("frontend Stock Full prepara entradas remotas e preserva saidas locais", async () => {
+test("frontend Stock Full prepara entradas e saidas remotas sem sincronizacao automatica", async () => {
   const content = readFileSync(join("..", "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
 
   assert.match(content, /async function createStockFullRemoteEntry_/);
   assert.match(content, /async function loadStockFullRemoteEntries_/);
+  assert.match(content, /async function createStockFullRemoteExit_/);
+  assert.match(content, /async function loadStockFullRemoteExits_/);
   assert.match(content, /async function loadStockFullRemoteAuditLog_/);
   assert.match(content, /\/api\/stock-full\/entries/);
+  assert.match(content, /\/api\/stock-full\/exits/);
   assert.match(content, /\/api\/stock-full\/audit-log/);
   assert.match(content, /TODO Fase futura: importação\/sincronização controlada de entradas locais para nuvem/);
-  assert.doesNotMatch(content, /\/api\/stock-full\/exits/);
+  assert.match(content, /TODO Fase futura: importação\/sincronização controlada de saídas locais para nuvem/);
 });
 
 test("stock saude items exige Authorization quando Supabase esta configurado", async () => {
@@ -4347,6 +4600,7 @@ function createMockStockSaudeSupabase_(options = {}) {
   const items = (options.items || []).slice();
   const stockFullItems = (options.stockFullItems || []).slice();
   const stockFullEntries = (options.stockFullEntries || []).slice();
+  const stockFullExits = (options.stockFullExits || []).slice();
   const stockFullAuditLogs = (options.stockFullAuditLogs || []).slice();
   const entries = (options.entries || []).slice();
   const exits = (options.exits || []).slice();
@@ -4392,6 +4646,9 @@ function createMockStockSaudeSupabase_(options = {}) {
       }
       if (table === "stock_full_entries") {
         return createMockStockFullEntriesQuery_(stockFullEntries);
+      }
+      if (table === "stock_full_exits") {
+        return createMockStockFullExitsQuery_(stockFullExits);
       }
       if (table === "stock_full_audit_log") {
         return createMockStockFullAuditLogQuery_(stockFullAuditLogs);
@@ -4623,6 +4880,43 @@ function createMockStockFullEntriesQuery_(entries) {
     },
     then(resolve) {
       const data = entries.filter((entry) => filters.every((filter) => entry[filter.column] === filter.value));
+      return Promise.resolve({ data, error: null }).then(resolve);
+    }
+  };
+  return query;
+}
+
+function createMockStockFullExitsQuery_(exits) {
+  const filters = [];
+  const query = {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      filters.push({ column, value });
+      return this;
+    },
+    order() {
+      return this;
+    },
+    insert(payload) {
+      const exit = Object.assign({
+        id: "stock_full_exit_" + String(exits.length + 1),
+        created_at: new Date().toISOString()
+      }, Array.isArray(payload) ? payload[0] : payload);
+      exits.push(exit);
+      return {
+        select() {
+          return {
+            async single() {
+              return { data: exit, error: null };
+            }
+          };
+        }
+      };
+    },
+    then(resolve) {
+      const data = exits.filter((exit) => filters.every((filter) => exit[filter.column] === filter.value));
       return Promise.resolve({ data, error: null }).then(resolve);
     }
   };

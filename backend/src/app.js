@@ -468,6 +468,113 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/stock-full/exits", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_exits")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        exits: (data || []).map(mapStockFullExitFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_exits_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/exits", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockFullExitPayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
+      if (!item) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const currentQuantity = parsePositiveNumber_(item.current_quantity, 0);
+      if (validation.payload.quantity > currentQuantity) {
+        response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity" });
+        return;
+      }
+
+      const nextQuantity = currentQuantity - validation.payload.quantity;
+      const { data: updatedItem, error: updateError } = await database
+        .from("stock_full_items")
+        .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
+        .eq("id", item.id)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (updateError) {
+        throw updateError;
+      }
+      if (!updatedItem) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const { data: exit, error: exitError } = await database
+        .from("stock_full_exits")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (exitError) {
+        throw exitError;
+      }
+
+      await createStockFullAuditLog_(database, {
+        institutionId: session.profile.institution_id,
+        action: "stock_full_exit_created",
+        entityType: "stock_full_exit",
+        entityId: exit.id,
+        description: "Saída registrada para " + (updatedItem.name || "produto") + ": " +
+          validation.payload.quantity + " " + (updatedItem.unit || "un") + ".",
+        createdBy: session.profile.id
+      });
+
+      response.json({
+        ok: true,
+        mode: "remote",
+        exit: mapStockFullExitFromDatabase_(exit),
+        item: mapStockFullItemFromDatabase_(updatedItem)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_exits_create_failed" });
+    }
+  });
+
   app.get("/api/stock-full/audit-log", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -1595,6 +1702,29 @@ function validateStockFullEntryPayload_(body, profile) {
   return { ok: true, payload };
 }
 
+function validateStockFullExitPayload_(body, profile) {
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    item_id: clean_(body.itemId ?? body.item_id),
+    quantity: parsePositiveNumber_(body.quantity),
+    destination: clean_(body.destination),
+    responsible: clean_(body.responsible),
+    notes: clean_(body.notes),
+    created_by: clean_(profile && profile.id)
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.item_id) {
+    return { ok: false, error: "item_id_required" };
+  }
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+    return { ok: false, error: "quantity_required" };
+  }
+  return { ok: true, payload };
+}
+
 async function getStockFullItemForProfile_(database, itemId, profile) {
   const { data, error } = await database
     .from("stock_full_items")
@@ -1619,6 +1749,21 @@ function mapStockFullEntryFromDatabase_(entry) {
     unitCost: source.unit_cost === null || source.unit_cost === undefined ? null : parsePositiveNumber_(source.unit_cost, 0),
     supplier: source.supplier || "",
     invoiceNumber: source.invoice_number || "",
+    notes: source.notes || "",
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || ""
+  };
+}
+
+function mapStockFullExitFromDatabase_(exit) {
+  const source = exit || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    itemId: source.item_id || "",
+    quantity: parsePositiveNumber_(source.quantity, 0),
+    destination: source.destination || "",
+    responsible: source.responsible || "",
     notes: source.notes || "",
     createdBy: source.created_by || "",
     createdAt: source.created_at || ""
