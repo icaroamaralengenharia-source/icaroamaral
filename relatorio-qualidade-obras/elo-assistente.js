@@ -8625,11 +8625,33 @@
   }
 
   function calculateEloOperationalPrediction_(message) {
+    const engines = [window.StockAiCompositionEngine, window.StockAiObrasEngine].filter(Boolean);
+    for (let index = 0; index < engines.length; index += 1) {
+      const engine = engines[index];
+      if (typeof engine.parseRequest === "function" && typeof engine.calculateMultipleServices === "function") {
+        const parsed = engine.parseRequest(message);
+        const services = parsed && Array.isArray(parsed.services) ? parsed.services : [];
+        if (services.length) {
+          const result = engine.calculateMultipleServices(services);
+          const items = result && Array.isArray(result.predictedItems) ? result.predictedItems : [];
+          const firstPrediction = result && Array.isArray(result.predictions) ? result.predictions[0] : null;
+          if (items.length) {
+            return {
+              service: services[0],
+              prediction: Object.assign({}, result, {
+                composition: firstPrediction && firstPrediction.composition ? firstPrediction.composition : null
+              }),
+              predictedItems: items
+            };
+          }
+        }
+      }
+    }
+
     const service = parseEloOperationalService_(message);
     if (!service) {
       return null;
     }
-    const engines = [window.StockAiCompositionEngine, window.StockAiObrasEngine].filter(Boolean);
     for (let index = 0; index < engines.length; index += 1) {
       const engine = engines[index];
       const calculate = engine.calculatePredictedConsumption || engine.calculateStockAiPredictedConsumption;
@@ -8718,7 +8740,7 @@
     let hasMissing = false;
 
     if (!balances.length) {
-      almoxLines.push("- Não encontrei saldo cadastrado no Almoxarifado para comparar.");
+      almoxLines.push("- Não encontrei saldo do Almoxarifado disponível nesta tela para comparar.");
     } else {
       prediction.predictedItems.forEach(function (item) {
         const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);

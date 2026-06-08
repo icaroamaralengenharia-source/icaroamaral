@@ -3202,6 +3202,29 @@ test("frontend do Elo registra plano Stock IA apenas como planejamento local", a
   assert.doesNotMatch(content, /approval-requests/i);
 });
 
+test("Elo standalone carrega motor Stock AI antes do assistente", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../elo.html", import.meta.url), "utf8");
+  const stockEngineIndex = content.indexOf("relatorio-qualidade-obras/stock-ai-composition-engine.js");
+  const eloAssistantIndex = content.indexOf("relatorio-qualidade-obras/elo-assistente.js");
+
+  assert.ok(stockEngineIndex > 0);
+  assert.ok(eloAssistantIndex > stockEngineIndex);
+});
+
+test("Elo standalone operacional mostra previsao sem saldo disponivel", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho 14 pilares 20x30 com 3m. Posso executar?");
+
+  assert.equal(response.sessionTheme, "elo_operacional_obras");
+  assert.match(response.fullAnswer, /Previsão Stock AI/);
+  assert.match(response.fullAnswer, /Fonte: Base técnica demonstrativa\/editável/);
+  assert.match(response.fullAnswer, /Aco CA-50: 251,37 kg/i);
+  assert.match(response.fullAnswer, /Não encontrei saldo do Almoxarifado disponível nesta tela para comparar\./);
+  assert.deepEqual(sandbox.__almoxMovements, []);
+});
+
 test("Elo operacional responde com saldo suficiente sem criar movimentacao", async () => {
   const sandbox = await loadEloOperationalSandbox_([
     { name: "Bloco ceramico", unit: "un", balance: 620, realBalance: 620 },
@@ -3310,7 +3333,7 @@ test("Elo operacional mostra previsao mesmo com almoxarifado vazio", async () =>
   const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
 
   assert.match(response.fullAnswer, /Previsão Stock AI/);
-  assert.match(response.fullAnswer, /Não encontrei saldo cadastrado no Almoxarifado para comparar/);
+  assert.match(response.fullAnswer, /Não encontrei saldo do Almoxarifado disponível nesta tela para comparar/);
   assert.match(response.fullAnswer, /Almoxarifado sem saldo comparável/);
 });
 
