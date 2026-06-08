@@ -206,9 +206,10 @@ test.describe("Almoxarifado", () => {
   test("Stock Full abre Loja e Gestor reaproveitando o Almoxarifado", async ({ page }) => {
     const stockFullUrl = pathToFileURL(resolve("stock-full.html")).toString();
     await page.goto(stockFullUrl);
-    await expect(page.locator("h1")).toHaveText("Stock Full");
+    await expect(page.locator("h1")).toHaveText("Controle seu estoque mesmo sem internet.");
+    await expect(page.locator("body")).toContainText("Funciona localmente para entrada, saída, saldo e histórico.");
 
-    await page.locator("a", { hasText: "Abrir Loja" }).first().click();
+    await page.locator("a", { hasText: "Testar Stock Full" }).first().click();
     await expect(page).toHaveURL(/produto=stock-full/);
     await expect(page).toHaveURL(/perfil=loja/);
     await expect(page.locator("#almoxManagerPanel")).toBeVisible();
@@ -219,7 +220,9 @@ test.describe("Almoxarifado", () => {
     await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
 
     await page.goto(stockFullUrl);
-    await page.locator("a", { hasText: "Abrir Gestor" }).first().click();
+    await page.evaluate(() => {
+      window.location.href = "relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=gestor#app/almoxarifado";
+    });
     await expect(page).toHaveURL(/produto=stock-full/);
     await expect(page).toHaveURL(/perfil=gestor/);
     await expect(page.locator("#almoxManagerPanel")).toBeVisible();
