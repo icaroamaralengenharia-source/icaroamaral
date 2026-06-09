@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Elo Projeto</title>
+    <style>
+      :root {
+        color: #17211d;
+        background: #f6f4ef;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 46px 22px;
+      }
+
+      .hero {
+        border-bottom: 1px solid #d8d2c6;
+        padding-bottom: 30px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(40px, 7vw, 72px);
+      }
+
+      .lead {
+        color: #1c3f34;
+        font-size: clamp(22px, 3vw, 34px);
+        font-weight: 700;
+        margin: 0 0 16px;
+      }
+
+      p {
+        color: #4a554f;
+        font-size: 18px;
+        line-height: 1.55;
+        max-width: 760px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+      }
+
+      .button {
+        background: #1c3f34;
+        border-radius: 6px;
+        color: #ffffff;
+        display: inline-block;
+        font-weight: 700;
+        padding: 12px 15px;
+        text-decoration: none;
+      }
+
+      .button.secondary {
+        background: #ffffff;
+        border: 1px solid #1c3f34;
+        color: #1c3f34;
+      }
+
+      .examples {
+        background: #ffffff;
+        border: 1px solid #d8d2c6;
+        border-radius: 8px;
+        margin-top: 32px;
+        padding: 22px;
+      }
+
+      h2 {
+        margin: 0 0 14px;
+      }
+
+      code {
+        background: #edf0ed;
+        border-radius: 4px;
+        display: block;
+        font-size: 16px;
+        margin: 8px 0;
+        padding: 10px;
+        white-space: normal;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>Elo Projeto</h1>
+        <p class="lead">Projetos inteligentes para constru&ccedil;&atilde;o civil</p>
+        <p>Crie plantas, terrenos, recuos, implanta&ccedil;&atilde;o, cotas autom&aacute;ticas e pranchas PDF em uma experi&ecirc;ncia orientada por comandos simples.</p>
+        <div class="actions">
+          <a class="button" href="#comandos">Ver comandos</a>
+          <a class="button secondary" href="index.html">Voltar &agrave; p&aacute;gina inicial</a>
+        </div>
+      </section>
+
+      <section class="examples" id="comandos" aria-label="Exemplos de comandos">
+        <h2>Exemplos de comandos</h2>
+        <code>criar casa 8x10 com 2 quartos</code>
+        <code>definir terreno 10x25</code>
+        <code>validar recuos</code>
+        <code>gerar pdf da prancha</code>
+      </section>
+    </main>
+  </body>
+</html>
