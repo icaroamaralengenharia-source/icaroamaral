@@ -76,8 +76,50 @@
         padding: 22px;
       }
 
+      .command-box {
+        background: #ffffff;
+        border: 1px solid #d8d2c6;
+        border-radius: 8px;
+        margin-top: 32px;
+        padding: 22px;
+      }
+
       h2 {
         margin: 0 0 14px;
+      }
+
+      label {
+        color: #17211d;
+        display: block;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+      }
+
+      textarea {
+        border: 1px solid #c8c2b7;
+        border-radius: 6px;
+        box-sizing: border-box;
+        color: #17211d;
+        font: 18px/1.5 Arial, Helvetica, sans-serif;
+        min-height: 110px;
+        padding: 14px;
+        resize: vertical;
+        width: 100%;
+      }
+
+      .status {
+        color: #1c3f34;
+        font-size: 15px;
+        font-weight: 700;
+        margin: 12px 0 0;
+      }
+
+      .hint {
+        color: #4a554f;
+        font-size: 15px;
+        margin: 12px 0 0;
       }
 
       code {
@@ -98,9 +140,20 @@
         <p class="lead">Projetos inteligentes para constru&ccedil;&atilde;o civil</p>
         <p>Crie plantas, terrenos, recuos, implanta&ccedil;&atilde;o, cotas autom&aacute;ticas e pranchas PDF em uma experi&ecirc;ncia orientada por comandos simples.</p>
         <div class="actions">
-          <a class="button" href="#comandos">Ver comandos</a>
+          <a class="button" href="#comando">Escrever comando</a>
           <a class="button secondary" href="index.html">Voltar &agrave; p&aacute;gina inicial</a>
         </div>
+      </section>
+
+      <section class="command-box" id="comando" aria-label="Digite um comando para o Elo Projeto">
+        <label for="elo-command">Digite um comando para o Elo Projeto</label>
+        <textarea id="elo-command">criar casa 8x10 com 2 quartos</textarea>
+        <div class="actions">
+          <button class="button" type="button" id="copy-command">Copiar comando</button>
+          <button class="button secondary" type="button" id="example-command">Usar exemplo de prancha</button>
+        </div>
+        <p class="status" id="command-status">Comando pronto para copiar e testar no editor t&eacute;cnico.</p>
+        <p class="hint">Esta p&aacute;gina p&uacute;blica apresenta o Elo Projeto. A execu&ccedil;&atilde;o completa dos comandos acontece no app t&eacute;cnico do CADISTA IA.</p>
       </section>
 
       <section class="examples" id="comandos" aria-label="Exemplos de comandos">
@@ -111,5 +164,28 @@
         <code>gerar pdf da prancha</code>
       </section>
     </main>
+    <script>
+      const commandInput = document.getElementById('elo-command');
+      const statusText = document.getElementById('command-status');
+      document.getElementById('example-command').addEventListener('click', () => {
+        commandInput.value = 'gerar pdf da prancha';
+        commandInput.focus();
+        statusText.textContent = 'Exemplo carregado. Copie o comando para testar no editor tecnico.';
+      });
+      document.getElementById('copy-command').addEventListener('click', async () => {
+        const text = commandInput.value.trim();
+        if (!text) {
+          statusText.textContent = 'Digite um comando antes de copiar.';
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          statusText.textContent = 'Comando copiado.';
+        } catch (error) {
+          commandInput.select();
+          statusText.textContent = 'Selecione e copie o comando manualmente.';
+        }
+      });
+    </script>
   </body>
 </html>
