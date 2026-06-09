@@ -116,10 +116,62 @@
         margin: 12px 0 0;
       }
 
+      .status.error {
+        color: #8a3a12;
+      }
+
       .hint {
         color: #4a554f;
         font-size: 15px;
         margin: 12px 0 0;
+      }
+
+      .result-panel {
+        background: #f8faf8;
+        border: 1px solid #d8d2c6;
+        border-radius: 8px;
+        display: none;
+        margin-top: 18px;
+        padding: 16px;
+      }
+
+      .result-panel.is-visible {
+        display: block;
+      }
+
+      .result-panel h2 {
+        font-size: 20px;
+        margin: 0 0 10px;
+      }
+
+      .result-panel pre {
+        background: #edf0ed;
+        border-radius: 6px;
+        color: #17211d;
+        font: 15px/1.45 Consolas, "Courier New", monospace;
+        margin: 10px 0 0;
+        overflow-x: auto;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+
+      .output-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .output-links a,
+      .output-links span {
+        background: #ffffff;
+        border: 1px solid #d8d2c6;
+        border-radius: 999px;
+        color: #1c3f34;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 8px 10px;
+        text-decoration: none;
       }
 
       code {
@@ -149,11 +201,13 @@
         <label for="elo-command">Digite um comando para o Elo Projeto</label>
         <textarea id="elo-command">criar casa 8x10 com 2 quartos</textarea>
         <div class="actions">
+          <button class="button" type="button" id="run-command">Executar comando</button>
           <button class="button" type="button" id="copy-command">Copiar comando</button>
           <button class="button secondary" type="button" id="example-command">Usar exemplo de prancha</button>
         </div>
         <p class="status" id="command-status">Comando pronto para copiar e testar no editor t&eacute;cnico.</p>
-        <p class="hint">Esta p&aacute;gina p&uacute;blica apresenta o Elo Projeto. A execu&ccedil;&atilde;o completa dos comandos acontece no app t&eacute;cnico do CADISTA IA.</p>
+        <p class="hint">Esta p&aacute;gina p&uacute;blica tenta executar comandos no backend de teste do CADISTA IA. Se a API estiver offline, um fallback demo local mostra uma pr&eacute;via segura para valida&ccedil;&atilde;o.</p>
+        <div class="result-panel" id="command-result" aria-live="polite"></div>
       </section>
 
       <section class="examples" id="comandos" aria-label="Exemplos de comandos">
@@ -165,25 +219,121 @@
       </section>
     </main>
     <script>
+      window.CADISTA_IA_API_URL = window.CADISTA_IA_API_URL || '';
+
       const commandInput = document.getElementById('elo-command');
       const statusText = document.getElementById('command-status');
+      const resultPanel = document.getElementById('command-result');
+      const apiUrlFromQuery = new URLSearchParams(window.location.search).get('api');
+      const configuredApiUrl = (apiUrlFromQuery || window.CADISTA_IA_API_URL || '').replace(/\/+$/, '');
+
+      const setStatus = (message, isError = false) => {
+        statusText.textContent = message;
+        statusText.classList.toggle('error', isError);
+      };
+
+      const escapeHtml = (value) => String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+      const showResult = (title, message, options = {}) => {
+        const outputs = options.outputs || {};
+        const outputItems = Object.entries(outputs).map(([label, value]) => {
+          const safeLabel = escapeHtml(label.toUpperCase());
+          const safeValue = escapeHtml(value);
+          if (/^(https?:\/\/|\/)/.test(String(value))) {
+            return `<a href="${safeValue}" target="_blank" rel="noopener">${safeLabel}</a>`;
+          }
+          return `<span>${safeLabel}: ${safeValue}</span>`;
+        }).join('');
+
+        resultPanel.innerHTML = `
+          <h2>${escapeHtml(title)}</h2>
+          <pre>${escapeHtml(message)}</pre>
+          ${outputItems ? `<div class="output-links">${outputItems}</div>` : ''}
+        `;
+        resultPanel.classList.add('is-visible');
+      };
+
+      const buildDemoResult = (text, reason) => {
+        const normalized = text.toLowerCase();
+        const dimensionMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*x\s*(\d+(?:[,.]\d+)?)/);
+        const roomsMatch = normalized.match(/(\d+)\s+quarto/);
+        const width = dimensionMatch ? Number(dimensionMatch[1].replace(',', '.')) : 8;
+        const depth = dimensionMatch ? Number(dimensionMatch[2].replace(',', '.')) : 10;
+        const bedrooms = roomsMatch ? Number(roomsMatch[1]) : 2;
+        const area = width * depth;
+
+        return [
+          'MODO DEMO LOCAL',
+          reason ? `Motivo: ${reason}` : 'Motivo: API de teste nao configurada.',
+          '',
+          `Comando recebido: ${text}`,
+          `Planta conceitual: casa ${width}m x ${depth}m`,
+          `Area aproximada: ${area.toFixed(2)} m2`,
+          `Programa inicial: sala, cozinha, banheiro social e ${bedrooms} quarto(s).`,
+          '',
+          'Para gerar PDF/DXF reais, configure a URL do backend CADISTA IA de teste em window.CADISTA_IA_API_URL ou use ?api=https://sua-api-de-teste.'
+        ].join('\n');
+      };
+
+      const runCommand = async () => {
+        const text = commandInput.value.trim();
+        if (!text) {
+          setStatus('Digite um comando antes de executar.', true);
+          return;
+        }
+
+        if (!configuredApiUrl) {
+          setStatus('API nao configurada. Exibindo fallback demo local.', true);
+          showResult('Resultado demo', buildDemoResult(text));
+          return;
+        }
+
+        setStatus('Executando comando no backend de teste...');
+        try {
+          const response = await fetch(`${configuredApiUrl}/commands/text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const detail = payload.detail || {};
+            throw new Error(detail.message || payload.message || 'A API retornou erro ao executar o comando.');
+          }
+
+          setStatus('Comando executado no backend de teste.');
+          showResult('Resultado da API CADISTA IA', payload.message || 'Comando executado com sucesso.', {
+            outputs: payload.outputs || {}
+          });
+        } catch (error) {
+          setStatus('API indisponivel. Exibindo fallback demo local.', true);
+          showResult('Resultado demo', buildDemoResult(text, error.message));
+        }
+      };
+
       document.getElementById('example-command').addEventListener('click', () => {
         commandInput.value = 'gerar pdf da prancha';
         commandInput.focus();
-        statusText.textContent = 'Exemplo carregado. Copie o comando para testar no editor tecnico.';
+        setStatus('Exemplo carregado. Execute o comando para testar a API ou o fallback demo.');
       });
+      document.getElementById('run-command').addEventListener('click', runCommand);
       document.getElementById('copy-command').addEventListener('click', async () => {
         const text = commandInput.value.trim();
         if (!text) {
-          statusText.textContent = 'Digite um comando antes de copiar.';
+          setStatus('Digite um comando antes de copiar.', true);
           return;
         }
         try {
           await navigator.clipboard.writeText(text);
-          statusText.textContent = 'Comando copiado.';
+          setStatus('Comando copiado.');
         } catch (error) {
           commandInput.select();
-          statusText.textContent = 'Selecione e copie o comando manualmente.';
+          setStatus('Selecione e copie o comando manualmente.', true);
         }
       });
     </script>
