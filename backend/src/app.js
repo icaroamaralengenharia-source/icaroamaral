@@ -222,6 +222,389 @@ export function createApp(options = {}) {
     });
   });
 
+  app.get("/api/stock-full/items", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        items: (data || []).map(mapStockFullItemFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/items", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (error) {
+        throw error;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_create_failed" });
+    }
+  });
+
+  app.put("/api/stock-full/items/:id", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const itemId = clean_(request.params.id);
+    const validation = validateStockFullItemPayload_(request.body || {}, session.profile, { update: true });
+    if (!itemId) {
+      response.status(400).json({ ok: false, error: "item_id_required" });
+      return;
+    }
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .update(validation.payload)
+        .eq("id", itemId)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_update_failed" });
+    }
+  });
+
+  app.delete("/api/stock-full/items/:id", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const itemId = clean_(request.params.id);
+    if (!itemId) {
+      response.status(400).json({ ok: false, error: "item_id_required" });
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_items")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", itemId)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+      response.json({ ok: true, mode: "remote", item: mapStockFullItemFromDatabase_(data) });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_items_delete_failed" });
+    }
+  });
+
+  app.get("/api/stock-full/entries", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_entries")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        entries: (data || []).map(mapStockFullEntryFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_entries_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/entries", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockFullEntryPayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
+      if (!item) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const nextQuantity = parsePositiveNumber_(item.current_quantity, 0) + validation.payload.quantity;
+      const { data: updatedItem, error: updateError } = await database
+        .from("stock_full_items")
+        .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
+        .eq("id", item.id)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (updateError) {
+        throw updateError;
+      }
+      if (!updatedItem) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const { data: entry, error: entryError } = await database
+        .from("stock_full_entries")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (entryError) {
+        throw entryError;
+      }
+
+      await createStockFullAuditLog_(database, {
+        institutionId: session.profile.institution_id,
+        action: "entry_created",
+        entityType: "stock_full_entries",
+        entityId: entry.id,
+        description: "Entrada registrada para " + (updatedItem.name || "produto") + ".",
+        createdBy: session.profile.id
+      });
+
+      response.json({
+        ok: true,
+        mode: "remote",
+        entry: mapStockFullEntryFromDatabase_(entry),
+        item: mapStockFullItemFromDatabase_(updatedItem)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_entries_create_failed" });
+    }
+  });
+
+  app.get("/api/stock-full/exits", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_exits")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        exits: (data || []).map(mapStockFullExitFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_exits_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/exits", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const validation = validateStockFullExitPayload_(request.body || {}, session.profile);
+    if (!validation.ok) {
+      response.status(400).json({ ok: false, error: validation.error });
+      return;
+    }
+
+    try {
+      const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
+      if (!item) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const currentQuantity = parsePositiveNumber_(item.current_quantity, 0);
+      if (validation.payload.quantity > currentQuantity) {
+        response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity" });
+        return;
+      }
+
+      const nextQuantity = currentQuantity - validation.payload.quantity;
+      const { data: updatedItem, error: updateError } = await database
+        .from("stock_full_items")
+        .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
+        .eq("id", item.id)
+        .eq("institution_id", session.profile.institution_id)
+        .eq("is_active", true)
+        .select("*")
+        .maybeSingle();
+      if (updateError) {
+        throw updateError;
+      }
+      if (!updatedItem) {
+        response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
+        return;
+      }
+
+      const { data: exit, error: exitError } = await database
+        .from("stock_full_exits")
+        .insert(validation.payload)
+        .select("*")
+        .single();
+      if (exitError) {
+        throw exitError;
+      }
+
+      await createStockFullAuditLog_(database, {
+        institutionId: session.profile.institution_id,
+        action: "stock_full_exit_created",
+        entityType: "stock_full_exit",
+        entityId: exit.id,
+        description: "Saída registrada para " + (updatedItem.name || "produto") + ": " +
+          validation.payload.quantity + " " + (updatedItem.unit || "un") + ".",
+        createdBy: session.profile.id
+      });
+
+      response.json({
+        ok: true,
+        mode: "remote",
+        exit: mapStockFullExitFromDatabase_(exit),
+        item: mapStockFullItemFromDatabase_(updatedItem)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_exits_create_failed" });
+    }
+  });
+
+  app.get("/api/stock-full/audit-log", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data, error } = await database
+        .from("stock_full_audit_log")
+        .select("*")
+        .eq("institution_id", session.profile.institution_id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        throw error;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        auditLog: (data || []).map(mapStockFullAuditLogFromDatabase_)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_audit_log_query_failed" });
+    }
+  });
+
   app.get("/api/stock-saude/items", async (request, response) => {
     const database = getStockSaudeDatabase(response);
     if (!database) {
@@ -1240,6 +1623,190 @@ async function requireStockFullAuth_(request, response, supabase) {
     response.status(500).json({ ok: false, error: "stock_full_auth_lookup_failed" });
     return null;
   }
+}
+
+function validateStockFullItemPayload_(body, profile, options = {}) {
+  const update = Boolean(options.update);
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    name: clean_(body.name),
+    unit: clean_(body.unit) || "un",
+    category: clean_(body.category) || "Geral",
+    min_quantity: parsePositiveNumber_(body.minQuantity ?? body.min_quantity ?? body.minimumStock, 0),
+    current_quantity: parsePositiveNumber_(body.currentQuantity ?? body.current_quantity ?? body.initialQuantity, 0),
+    location: clean_(body.location),
+    notes: clean_(body.notes),
+    updated_at: new Date().toISOString()
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.name) {
+    return { ok: false, error: "name_required" };
+  }
+  if (!payload.unit) {
+    return { ok: false, error: "unit_required" };
+  }
+  if (!update) {
+    payload.created_by = clean_(profile && profile.id);
+  }
+  return { ok: true, payload };
+}
+
+function mapStockFullItemFromDatabase_(item) {
+  const source = item || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    name: source.name || "",
+    unit: source.unit || "un",
+    category: source.category || "Geral",
+    minQuantity: parsePositiveNumber_(source.min_quantity, 0),
+    currentQuantity: parsePositiveNumber_(source.current_quantity, 0),
+    location: source.location || "",
+    notes: source.notes || "",
+    isActive: source.is_active !== false,
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || "",
+    updatedAt: source.updated_at || ""
+  };
+}
+
+function validateStockFullEntryPayload_(body, profile) {
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    item_id: clean_(body.itemId ?? body.item_id),
+    quantity: parsePositiveNumber_(body.quantity),
+    unit_cost: body.unitCost === undefined && body.unit_cost === undefined
+      ? null
+      : parsePositiveNumber_(body.unitCost ?? body.unit_cost, null),
+    supplier: clean_(body.supplier),
+    invoice_number: clean_(body.invoiceNumber ?? body.invoice_number),
+    notes: clean_(body.notes),
+    created_by: clean_(profile && profile.id)
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.item_id) {
+    return { ok: false, error: "item_id_required" };
+  }
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+    return { ok: false, error: "quantity_required" };
+  }
+  if (payload.unit_cost !== null && (!Number.isFinite(payload.unit_cost) || payload.unit_cost < 0)) {
+    return { ok: false, error: "unit_cost_invalid" };
+  }
+  return { ok: true, payload };
+}
+
+function validateStockFullExitPayload_(body, profile) {
+  const payload = {
+    institution_id: clean_(profile && profile.institution_id),
+    item_id: clean_(body.itemId ?? body.item_id),
+    quantity: parsePositiveNumber_(body.quantity),
+    destination: clean_(body.destination),
+    responsible: clean_(body.responsible),
+    notes: clean_(body.notes),
+    created_by: clean_(profile && profile.id)
+  };
+
+  if (!payload.institution_id) {
+    return { ok: false, error: "institution_id_required" };
+  }
+  if (!payload.item_id) {
+    return { ok: false, error: "item_id_required" };
+  }
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+    return { ok: false, error: "quantity_required" };
+  }
+  return { ok: true, payload };
+}
+
+async function getStockFullItemForProfile_(database, itemId, profile) {
+  const { data, error } = await database
+    .from("stock_full_items")
+    .select("*")
+    .eq("id", itemId)
+    .eq("institution_id", profile.institution_id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
+
+function mapStockFullEntryFromDatabase_(entry) {
+  const source = entry || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    itemId: source.item_id || "",
+    quantity: parsePositiveNumber_(source.quantity, 0),
+    unitCost: source.unit_cost === null || source.unit_cost === undefined ? null : parsePositiveNumber_(source.unit_cost, 0),
+    supplier: source.supplier || "",
+    invoiceNumber: source.invoice_number || "",
+    notes: source.notes || "",
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || ""
+  };
+}
+
+function mapStockFullExitFromDatabase_(exit) {
+  const source = exit || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    itemId: source.item_id || "",
+    quantity: parsePositiveNumber_(source.quantity, 0),
+    destination: source.destination || "",
+    responsible: source.responsible || "",
+    notes: source.notes || "",
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || ""
+  };
+}
+
+async function createStockFullAuditLog_(database, data) {
+  const payload = {
+    institution_id: clean_(data.institutionId),
+    action: clean_(data.action),
+    entity_type: clean_(data.entityType),
+    entity_id: clean_(data.entityId) || null,
+    description: clean_(data.description),
+    created_by: clean_(data.createdBy)
+  };
+
+  if (!payload.institution_id || !payload.action || !payload.entity_type) {
+    return null;
+  }
+
+  const { data: auditLog, error } = await database
+    .from("stock_full_audit_log")
+    .insert(payload)
+    .select("*")
+    .single();
+  if (error) {
+    throw error;
+  }
+  return auditLog;
+}
+
+function mapStockFullAuditLogFromDatabase_(record) {
+  const source = record || {};
+  return {
+    id: source.id,
+    institution_id: source.institution_id,
+    action: source.action || "",
+    entityType: source.entity_type || "",
+    entityId: source.entity_id || "",
+    description: source.description || "",
+    createdBy: source.created_by || "",
+    createdAt: source.created_at || ""
+  };
 }
 
 function canStockSaudeRole_(profile, action) {

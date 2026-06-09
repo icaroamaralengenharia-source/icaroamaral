@@ -248,6 +248,11 @@
     unitId: "",
     role: "local"
   };
+  let stockFullRemoteItems = [];
+  let stockFullRemoteItemsLoaded = false;
+  let stockFullRemoteEntries = [];
+  let stockFullRemoteExits = [];
+  let stockFullRemoteAuditLog = [];
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
@@ -1341,6 +1346,161 @@
     return await response.json();
   }
 
+  async function fetchStockFullJson_(url, options) {
+    const token = getStockFullSupabaseToken_();
+    if (!token) {
+      return null;
+    }
+
+    const requestOptions = Object.assign({
+      headers: {
+        Authorization: "Bearer " + token
+      }
+    }, options || {});
+    requestOptions.headers = Object.assign({}, requestOptions.headers || {}, {
+      Authorization: "Bearer " + token
+    });
+
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) {
+      try {
+        const errorData = await response.json();
+        return Object.assign({ ok: false, status: response.status }, errorData || {});
+      } catch (error) {
+        return { ok: false, status: response.status };
+      }
+    }
+    return await response.json();
+  }
+
+  function isStockFullRemoteActive_() {
+    return isStockFullContext_() && stockFullRuntimeMode === "remote" && Boolean(stockFullAuthContext.profile);
+  }
+
+  function mapStockFullRemoteItemToAlmox_(item) {
+    return {
+      id: clean(item.id),
+      environmentId: getActiveStockEnvironmentId_(),
+      fiscalCode: "",
+      name: clean(item.name),
+      category: clean(item.category) || "Geral",
+      unit: clean(item.unit) || "un",
+      initialQuantity: parseNumber_(item.currentQuantity),
+      minimumStock: parseNumber_(item.minQuantity),
+      location: clean(item.location),
+      expirationDate: "",
+      notes: clean(item.notes),
+      createdAt: clean(item.createdAt) || new Date().toISOString(),
+      updatedAt: clean(item.updatedAt) || new Date().toISOString(),
+      remoteSource: "stock-full"
+    };
+  }
+
+  function mapAlmoxItemToStockFullRemotePayload_(item, options) {
+    const settings = options || {};
+    return {
+      name: clean(item.name),
+      unit: clean(item.unit) || "un",
+      category: clean(item.category) || "Geral",
+      minQuantity: parseNumber_(item.minimumStock),
+      currentQuantity: parseNumber_(settings.currentQuantity),
+      location: clean(item.location),
+      notes: clean(item.notes)
+    };
+  }
+
+  async function loadStockFullRemoteItems_() {
+    if (!isStockFullRemoteActive_()) {
+      return { ok: false };
+    }
+
+    const data = await fetchStockFullJson_("/api/stock-full/items");
+    if (!data || !data.ok || !Array.isArray(data.items)) {
+      throw new Error("stock_full_remote_items_unavailable");
+    }
+    stockFullRemoteItems = data.items.map(mapStockFullRemoteItemToAlmox_);
+    stockFullRemoteItemsLoaded = true;
+    updateAlmoxOfflineStatus_();
+    return { ok: true, items: stockFullRemoteItems };
+  }
+
+  async function loadStockFullRemoteEntries_() {
+    if (!isStockFullRemoteActive_()) {
+      return { ok: false };
+    }
+
+    const data = await fetchStockFullJson_("/api/stock-full/entries");
+    if (!data || !data.ok || !Array.isArray(data.entries)) {
+      throw new Error("stock_full_remote_entries_unavailable");
+    }
+    stockFullRemoteEntries = data.entries;
+    return { ok: true, entries: stockFullRemoteEntries };
+  }
+
+  async function loadStockFullRemoteExits_() {
+    if (!isStockFullRemoteActive_()) {
+      return { ok: false };
+    }
+
+    const data = await fetchStockFullJson_("/api/stock-full/exits");
+    if (!data || !data.ok || !Array.isArray(data.exits)) {
+      throw new Error("stock_full_remote_exits_unavailable");
+    }
+    stockFullRemoteExits = data.exits;
+    return { ok: true, exits: stockFullRemoteExits };
+  }
+
+  async function loadStockFullRemoteAuditLog_() {
+    if (!isStockFullRemoteActive_()) {
+      return { ok: false };
+    }
+
+    const data = await fetchStockFullJson_("/api/stock-full/audit-log");
+    if (!data || !data.ok || !Array.isArray(data.auditLog)) {
+      throw new Error("stock_full_remote_audit_log_unavailable");
+    }
+    stockFullRemoteAuditLog = data.auditLog;
+    return { ok: true, auditLog: stockFullRemoteAuditLog };
+  }
+
+  async function createStockFullRemoteItem_(item, options) {
+    return await fetchStockFullJson_("/api/stock-full/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(mapAlmoxItemToStockFullRemotePayload_(item, options))
+    });
+  }
+
+  async function updateStockFullRemoteItem_(id, item, options) {
+    return await fetchStockFullJson_("/api/stock-full/items/" + encodeURIComponent(id), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(mapAlmoxItemToStockFullRemotePayload_(item, options))
+    });
+  }
+
+  async function deleteStockFullRemoteItem_(id) {
+    return await fetchStockFullJson_("/api/stock-full/items/" + encodeURIComponent(id), {
+      method: "DELETE"
+    });
+  }
+
+  async function createStockFullRemoteEntry_(entry) {
+    return await fetchStockFullJson_("/api/stock-full/entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry)
+    });
+  }
+
+  async function createStockFullRemoteExit_(exit) {
+    return await fetchStockFullJson_("/api/stock-full/exits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(exit)
+    });
+  }
+
   function setStockFullRuntimeMode_(mode, context) {
     stockFullRuntimeMode = mode === "remote" ? "remote" : "local";
     if (stockFullRuntimeMode === "remote" && context && context.profile) {
@@ -1361,6 +1521,11 @@
         unitId: "",
         role: "local"
       };
+      stockFullRemoteItems = [];
+      stockFullRemoteItemsLoaded = false;
+      stockFullRemoteEntries = [];
+      stockFullRemoteExits = [];
+      stockFullRemoteAuditLog = [];
     }
     updateAlmoxOfflineStatus_();
   }
@@ -1374,6 +1539,24 @@
       const session = await fetchStockFullMe_();
       if (session && session.ok && session.profile) {
         setStockFullRuntimeMode_("remote", session);
+        try {
+          await loadStockFullRemoteItems_();
+          await loadStockFullRemoteEntries_().catch(function () {
+            stockFullRemoteEntries = [];
+          });
+          await loadStockFullRemoteExits_().catch(function () {
+            stockFullRemoteExits = [];
+          });
+          await loadStockFullRemoteAuditLog_().catch(function () {
+            stockFullRemoteAuditLog = [];
+          });
+          if (getRoute_() === "almoxarifado") {
+            renderAlmoxarifadoPanel_();
+          }
+        } catch (remoteError) {
+          console.info("Stock Full: produtos remotos indisponiveis; mantendo modo local.");
+          setStockFullRuntimeMode_("local");
+        }
         return stockFullAuthContext;
       }
     } catch (error) {
@@ -7933,7 +8116,7 @@
       const mutedUntil = clean(parsed.alertsMutedUntil) || (parsed.alertsMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "");
       const alertsMuted = Boolean(parsed.alertsMuted) && (!mutedUntil || new Date(mutedUntil).getTime() > Date.now());
       return normalizeAlmoxEnvironmentState_({
-        items: Array.isArray(parsed.items) ? parsed.items : [],
+        items: isStockFullRemoteActive_() && stockFullRemoteItemsLoaded ? stockFullRemoteItems : (Array.isArray(parsed.items) ? parsed.items : []),
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         alertsMuted: alertsMuted,
         alertsMutedUntil: alertsMuted ? mutedUntil : "",
@@ -8168,7 +8351,7 @@
       const organization = clean(profile.institution_name || profile.organization_name || profile.institution_id) || "organização autenticada";
       const unit = clean(profile.unit_name || profile.unit_id);
       almoxOfflineStatus.textContent = connection + " · Conectado ao Stock Full · Organização: " + organization +
-        (unit ? " · Unidade: " + unit : "") + " · Sincronização operacional ainda não ativada";
+        (unit ? " · Unidade: " + unit : "") + " · Produtos, entradas e saídas na nuvem";
       return;
     }
     almoxOfflineStatus.textContent = connection + " · Modo local · Dados salvos neste navegador · Não sincronizado na nuvem";
@@ -8595,10 +8778,12 @@
     });
   }
 
-  function handleAlmoxItemSubmit_(event) {
+  async function handleAlmoxItemSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
-    const result = saveAlmoxItemFromFormData_(formData);
+    const result = isStockFullRemoteActive_()
+      ? await saveStockFullRemoteItemFromFormData_(formData)
+      : saveAlmoxItemFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
       return;
@@ -8617,7 +8802,61 @@
     showAlmoxToast_("Item cadastrado com sucesso.", "success");
   }
 
-  function handleAlmoxEntrySubmit_(event) {
+  async function saveStockFullRemoteItemFromFormData_(formData) {
+    const name = clean(formData.get("name"));
+    const initialQuantity = parseNumber_(formData.get("initialQuantity"));
+    const minimumStock = parseNumber_(formData.get("minimumStock"));
+
+    if (!name) {
+      return {
+        ok: false,
+        message: "Informe o nome do item."
+      };
+    }
+    if (initialQuantity < 0 || minimumStock < 0) {
+      return {
+        ok: false,
+        message: "Informe quantidades iguais ou maiores que zero."
+      };
+    }
+
+    const item = {
+      id: "",
+      environmentId: getActiveStockEnvironmentId_(),
+      fiscalCode: clean(formData.get("fiscalCode")),
+      name: name,
+      category: clean(formData.get("category")) || "Geral",
+      unit: clean(formData.get("unit")) || "un",
+      initialQuantity: initialQuantity,
+      minimumStock: minimumStock,
+      location: clean(formData.get("location")),
+      expirationDate: clean(formData.get("expirationDate")),
+      notes: clean(formData.get("notes")),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      const result = await createStockFullRemoteItem_(item, { currentQuantity: initialQuantity });
+      if (!result || !result.ok || !result.item) {
+        throw new Error("stock_full_remote_item_create_failed");
+      }
+      const remoteItem = mapStockFullRemoteItemToAlmox_(result.item);
+      stockFullRemoteItems.push(remoteItem);
+      stockFullRemoteItemsLoaded = true;
+      // TODO Fase 3: sincronizacao/importacao controlada de itens locais para nuvem.
+      return {
+        ok: true,
+        item: remoteItem
+      };
+    } catch (error) {
+      console.info("Stock Full: cadastro remoto indisponivel; salvando item no modo local.");
+      setStockFullRuntimeMode_("local");
+      return saveAlmoxItemFromFormData_(formData);
+    }
+  }
+
+  async function handleAlmoxEntrySubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
@@ -8633,7 +8872,9 @@
       return;
     }
 
-    const result = saveAlmoxEntryFromFormData_(formData);
+    const result = isStockFullRemoteActive_()
+      ? await saveStockFullRemoteEntryFromFormData_(formData)
+      : saveAlmoxEntryFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
       return;
@@ -8644,7 +8885,54 @@
     showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
   }
 
-  function handleAlmoxExitSubmit_(event) {
+  async function saveStockFullRemoteEntryFromFormData_(formData) {
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe a quantidade de entrada."
+      };
+    }
+
+    try {
+      const result = await createStockFullRemoteEntry_({
+        itemId: itemId,
+        quantity: quantity,
+        supplier: clean(formData.get("responsible")),
+        invoiceNumber: clean(formData.get("documentNumber")),
+        notes: clean(formData.get("notes"))
+      });
+      if (!result || !result.ok || !result.item || !result.entry) {
+        throw new Error("stock_full_remote_entry_create_failed");
+      }
+
+      const updatedItem = mapStockFullRemoteItemToAlmox_(result.item);
+      stockFullRemoteItems = stockFullRemoteItems.map(function (item) {
+        return item.id === updatedItem.id ? updatedItem : item;
+      });
+      if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
+        stockFullRemoteItems.push(updatedItem);
+      }
+      stockFullRemoteEntries.unshift(result.entry);
+      await loadStockFullRemoteAuditLog_().catch(function () {
+        stockFullRemoteAuditLog = [];
+      });
+      // TODO Fase futura: importação/sincronização controlada de entradas locais para nuvem.
+      return {
+        ok: true,
+        entry: result.entry,
+        item: updatedItem
+      };
+    } catch (error) {
+      console.info("Stock Full: entrada remota indisponivel; registrando entrada no modo local.");
+      setStockFullRuntimeMode_("local");
+      return saveAlmoxEntryFromFormData_(formData);
+    }
+  }
+
+  async function handleAlmoxExitSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
@@ -8660,7 +8948,9 @@
       return;
     }
 
-    const result = saveAlmoxExitFromFormData_(formData);
+    const result = isStockFullRemoteActive_()
+      ? await saveStockFullRemoteExitFromFormData_(formData)
+      : saveAlmoxExitFromFormData_(formData);
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");
       return;
@@ -8669,6 +8959,59 @@
     event.target.reset();
     renderAlmoxarifadoPanel_();
     showAlmoxToast_("Saída registrada com responsável e setor.", "success");
+  }
+
+  async function saveStockFullRemoteExitFromFormData_(formData) {
+    const itemId = clean(formData.get("itemId"));
+    const quantity = parseNumber_(formData.get("quantity"));
+
+    if (!itemId || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Escolha um item e informe a quantidade de saída."
+      };
+    }
+
+    try {
+      const result = await createStockFullRemoteExit_({
+        itemId: itemId,
+        quantity: quantity,
+        destination: clean(formData.get("sector")) || clean(formData.get("recipient")),
+        responsible: clean(formData.get("responsible")),
+        notes: clean(formData.get("notes"))
+      });
+      if (result && result.error === "stock_full_insufficient_quantity") {
+        return {
+          ok: false,
+          message: "Saldo insuficiente na nuvem para registrar a saída."
+        };
+      }
+      if (!result || !result.ok || !result.item || !result.exit) {
+        throw new Error("stock_full_remote_exit_create_failed");
+      }
+
+      const updatedItem = mapStockFullRemoteItemToAlmox_(result.item);
+      stockFullRemoteItems = stockFullRemoteItems.map(function (item) {
+        return item.id === updatedItem.id ? updatedItem : item;
+      });
+      if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
+        stockFullRemoteItems.push(updatedItem);
+      }
+      stockFullRemoteExits.unshift(result.exit);
+      await loadStockFullRemoteAuditLog_().catch(function () {
+        stockFullRemoteAuditLog = [];
+      });
+      // TODO Fase futura: importação/sincronização controlada de saídas locais para nuvem.
+      return {
+        ok: true,
+        exit: result.exit,
+        item: updatedItem
+      };
+    } catch (error) {
+      console.info("Stock Full: saida remota indisponivel; registrando saida no modo local.");
+      setStockFullRuntimeMode_("local");
+      return saveAlmoxExitFromFormData_(formData);
+    }
   }
 
   function saveAlmoxItemFromFormData_(formData) {
@@ -11018,12 +11361,12 @@
     form.appendChild(actions);
   }
 
-  function handleAlmoxModalSubmit_(event) {
+  async function handleAlmoxModalSubmit_(event) {
     event.preventDefault();
-    submitAlmoxModalForm_(event.target);
+    await submitAlmoxModalForm_(event.target);
   }
 
-  function submitAlmoxModalForm_(form) {
+  async function submitAlmoxModalForm_(form) {
     if (!form) {
       return;
     }
@@ -11046,8 +11389,16 @@
     }
 
     const result = type === "entry"
-      ? saveAlmoxEntryFromFormData_(formData)
-      : (type === "exit" ? saveAlmoxExitFromFormData_(formData) : saveAlmoxItemFromFormData_(formData));
+      ? (isStockFullRemoteActive_()
+        ? await saveStockFullRemoteEntryFromFormData_(formData)
+        : saveAlmoxEntryFromFormData_(formData))
+      : (type === "exit"
+        ? (isStockFullRemoteActive_()
+          ? await saveStockFullRemoteExitFromFormData_(formData)
+          : saveAlmoxExitFromFormData_(formData))
+        : (isStockFullRemoteActive_()
+          ? await saveStockFullRemoteItemFromFormData_(formData)
+          : saveAlmoxItemFromFormData_(formData)));
 
     if (!result.ok) {
       showAlmoxToast_(result.message, "error");

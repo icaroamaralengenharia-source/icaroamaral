@@ -235,4 +235,112 @@ test.describe("Almoxarifado", () => {
     await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();
     await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
   });
+
+  test.skip("Stock Full autenticado carrega produtos remotos sem alterar movimentacoes", async ({ page }) => {
+    let createPayload = null;
+
+    await page.route("**/api/stock-full/me", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          module: "stock-full",
+          mode: "remote",
+          user: { id: "auth_e2e", email: "gestor@stockfull.local" },
+          profile: {
+            id: "profile_e2e",
+            institution_id: "inst_e2e",
+            unit_id: "unit_e2e",
+            name: "Gestor Stock Full",
+            email: "gestor@stockfull.local",
+            role: "gestor"
+          }
+        })
+      });
+    });
+
+    await page.route("**/api/stock-full/items", async (route) => {
+      if (route.request().method() === "POST") {
+        createPayload = route.request().postDataJSON();
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            mode: "remote",
+            item: {
+              id: "remote_item_created",
+              institution_id: "inst_e2e",
+              name: createPayload.name,
+              unit: createPayload.unit,
+              category: createPayload.category,
+              minQuantity: createPayload.minQuantity,
+              currentQuantity: createPayload.currentQuantity,
+              location: createPayload.location,
+              notes: createPayload.notes,
+              isActive: true
+            }
+          })
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          mode: "remote",
+          items: [
+            {
+              id: "remote_item_1",
+              institution_id: "inst_e2e",
+              name: "Produto remoto E2E",
+              unit: "un",
+              category: "Papelaria",
+              minQuantity: 3,
+              currentQuantity: 9,
+              location: "Prateleira 1",
+              notes: "",
+              isActive: true
+            }
+          ]
+        })
+      });
+    });
+
+    await page.evaluate(() => {
+      const payload = JSON.stringify({
+        currentSession: { access_token: "valid.token.e2e" }
+      });
+      window.localStorage.setItem("sb-stock-full-auth-token", payload);
+      window.sessionStorage.setItem("sb-stock-full-auth-token", payload);
+    });
+
+    await page.goto("/relatorio-qualidade-obras.html?produto=stock-full&perfil=loja#app/almoxarifado");
+    await expect(page.locator("#almoxOfflineStatus")).toContainText("Produtos sincronizados na nuvem");
+    await expect(page.locator("#almoxOfflineStatus")).toContainText("Movimentações ainda locais");
+    await expect(page.locator("#almoxItemsSection")).toContainText("Produto remoto E2E");
+
+    await openAlmoxModal(page, "item");
+    const form = page.locator("#almoxModal form");
+    await form.locator("[name='name']").fill("Produto remoto criado E2E");
+    await form.locator("[name='category']").fill("Eletronicos");
+    await form.locator("[name='unit']").fill("un");
+    await form.locator("[name='initialQuantity']").fill("4");
+    await form.locator("[name='minimumStock']").fill("2");
+    await form.locator("[name='location']").fill("Balcao");
+    await submitAlmoxModal(page, form);
+
+    await expect(page.locator("#almoxItemsSection")).toContainText("Produto remoto criado E2E");
+    expect(createPayload).toMatchObject({
+      name: "Produto remoto criado E2E",
+      unit: "un",
+      category: "Eletronicos",
+      minQuantity: 2,
+      currentQuantity: 4,
+      location: "Balcao"
+    });
+  });
 });

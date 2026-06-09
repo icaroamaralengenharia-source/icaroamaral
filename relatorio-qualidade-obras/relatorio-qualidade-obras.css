@@ -9036,3 +9036,82 @@ body.stock-full-context.stock-full-profile-gestor .route-panel[data-route="almox
   font-size: 0.9rem;
   line-height: 1.5;
 }
+
+/* Ajuste responsivo: Entrada Assistida dentro do Stock Full sem corte lateral. */
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal > *,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal label,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .auth-note,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-status,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-commercial,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-ocr-review,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-file-preview {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-summary {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-summary > div {
+  min-width: 0;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-options {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-option,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .mini-button,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal input,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal textarea {
+  overflow-wrap: anywhere;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal input,
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal input[type="file"] {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-actions .mini-button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+
+.route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .route-panel[data-route="almoxarifado"] #almoxNotaFiscal .almox-note-summary {
+    grid-template-columns: 1fr;
+  }
+}
