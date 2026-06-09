@@ -8688,6 +8688,172 @@
     }
   }
 
+  function normalizeEloStockBalanceTerm_(value) {
+    return normalizeText(value)
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(function (word) {
+        return word.length > 3 && word.slice(-1) === "s" ? word.slice(0, -1) : word;
+      })
+      .join(" ");
+  }
+
+  function isEloStockBalanceQuestion_(message) {
+    const text = normalizeText(message);
+    const asksBalance = hasAnyTerm(text, [
+      "quantas", "quantos", "quanto tenho", "qual saldo", "saldo de", "saldo do",
+      "saldo da", "tenho em estoque", "tenho no estoque", "tem no estoque",
+      "existe em estoque", "disponivel em estoque"
+    ]);
+    const stockContext = hasAnyTerm(text, ["estoque", "saldo", "almoxarifado", "stock full", "stock"]);
+    return asksBalance && stockContext;
+  }
+
+  function extractEloStockBalanceQuery_(message) {
+    const stopwords = {
+      a: true,
+      as: true,
+      o: true,
+      os: true,
+      de: true,
+      da: true,
+      das: true,
+      do: true,
+      dos: true,
+      em: true,
+      no: true,
+      na: true,
+      nos: true,
+      nas: true,
+      meu: true,
+      minha: true,
+      minhas: true,
+      meus: true,
+      estoque: true,
+      almoxarifado: true,
+      stock: true,
+      full: true,
+      saldo: true,
+      atual: true,
+      item: true,
+      itens: true,
+      produto: true,
+      produtos: true,
+      unidade: true,
+      unidades: true,
+      qtd: true,
+      quantidade: true,
+      quantas: true,
+      quantos: true,
+      quanto: true,
+      qual: true,
+      quais: true,
+      tenho: true,
+      tem: true,
+      existe: true,
+      existem: true,
+      disponivel: true,
+      disponiveis: true
+    };
+    return normalizeText(message)
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(function (word) {
+        return word && !stopwords[word];
+      })
+      .join(" ")
+      .trim();
+  }
+
+  function scoreEloStockBalanceMatch_(query, balance) {
+    const itemName = normalizeEloStockBalanceTerm_(balance && balance.name);
+    const normalizedQuery = normalizeEloStockBalanceTerm_(query);
+    if (!itemName || !normalizedQuery) {
+      return 0;
+    }
+    if (itemName === normalizedQuery) {
+      return 100;
+    }
+    if (itemName.indexOf(normalizedQuery) >= 0 || normalizedQuery.indexOf(itemName) >= 0) {
+      return 80;
+    }
+    return normalizedQuery.split(/\s+/).reduce(function (score, word) {
+      return word && itemName.indexOf(word) >= 0 ? score + 20 : score;
+    }, 0);
+  }
+
+  function findEloStockBalanceByQuestion_(message, balances) {
+    const query = extractEloStockBalanceQuery_(message);
+    if (!query) {
+      return null;
+    }
+    return (balances || []).map(function (balance) {
+      return {
+        balance: balance,
+        score: scoreEloStockBalanceMatch_(query, balance)
+      };
+    }).sort(function (a, b) {
+      return b.score - a.score;
+    }).filter(function (entry) {
+      return entry.score > 0;
+    })[0] || null;
+  }
+
+  function formatEloStockQuantity_(value) {
+    const number = Number(value || 0);
+    return String(Math.round(number * 1000) / 1000).replace(".", ",");
+  }
+
+  function buildEloStockBalanceAnswer_(message) {
+    if (!isEloStockBalanceQuestion_(message)) {
+      return null;
+    }
+    const balances = getEloOperationalAlmoxBalances_();
+    const match = findEloStockBalanceByQuestion_(message, balances);
+    if (!match || !match.balance) {
+      return {
+        shortAnswer: "Não encontrei esse item no estoque atual.",
+        fullAnswer: "Não encontrei esse item no estoque atual. Confira se o nome está cadastrado no Almoxarifado/Stock Full ou pergunte usando o nome do produto como aparece na lista.",
+        nextAction: "Abra a lista de itens ou tente perguntar pelo nome exato do produto.",
+        canSave: false,
+        sessionTheme: "stock_full_saldo"
+      };
+    }
+
+    const item = match.balance;
+    const unit = item.unit || "un";
+    const quantity = formatEloStockQuantity_(item.balance || item.realBalance || 0);
+    const minimum = Number(item.minimumStock || 0);
+    const lines = [
+      "Você tem " + quantity + " " + unit + " de " + (item.name || "item") + " no estoque atual.",
+      "",
+      "Resumo:",
+      "- Saldo atual: " + quantity + " " + unit,
+      "- Entradas registradas: " + formatEloStockQuantity_(item.entries || 0) + " " + unit,
+      "- Saídas registradas: " + formatEloStockQuantity_(item.exits || 0) + " " + unit
+    ];
+    if (minimum > 0) {
+      lines.push("- Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit);
+      if (Number(item.balance || item.realBalance || 0) < minimum) {
+        lines.push("- Alerta: abaixo do estoque mínimo.");
+      }
+    }
+    if (item.status && normalizeText(item.status) !== "ok") {
+      lines.push("- Status: " + item.status + ".");
+    }
+    lines.push("");
+    lines.push("Fonte: saldo consolidado do Almoxarifado/Stock Full nesta tela. Nenhum movimento foi criado.");
+
+    return {
+      shortAnswer: lines[0],
+      fullAnswer: lines.join("\n"),
+      nextAction: "Se quiser, posso ajudar a conferir itens abaixo do mínimo ou próximos do vencimento.",
+      canSave: false,
+      sessionTheme: "stock_full_saldo"
+    };
+  }
+
   function isEloOperationalUnitCompatible_(predictedUnit, balanceUnit) {
     const predicted = normalizeEloOperationalUnit_(predictedUnit || "un");
     const balance = normalizeEloOperationalUnit_(balanceUnit || "un");
@@ -11136,6 +11302,16 @@
       appendAssistantMessage(cleanQuestion, stockIaPlanConfirmationAnswer, false, confirmationResponse);
       saveConversation(cleanQuestion, stockIaPlanConfirmationAnswer);
       rememberSessionTurn(cleanQuestion, confirmationResponse, stockIaPlanConfirmationAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    const stockBalanceResponse = buildEloStockBalanceAnswer_(cleanQuestion);
+    if (stockBalanceResponse) {
+      const stockBalanceAnswer = formatResponse(stockBalanceResponse);
+      appendAssistantMessage(cleanQuestion, stockBalanceAnswer, false, stockBalanceResponse);
+      saveConversation(cleanQuestion, stockBalanceAnswer);
+      rememberSessionTurn(cleanQuestion, stockBalanceResponse, stockBalanceAnswer);
       clearProductAttachmentPreview();
       return;
     }
