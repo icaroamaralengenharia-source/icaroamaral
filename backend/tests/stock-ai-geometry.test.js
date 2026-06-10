@@ -269,6 +269,66 @@ test("Stock AI Obras pergunta dados complementares quando geometria esta incompl
   assert.match(answer, /Qual o comprimento, largura e espessura do radier/);
 });
 
+test("Stock AI Obras pede parametros obrigatorios para calcada antes de calcular", () => {
+  const answer = engine.buildAnswerFromMessage("calcada 10x10 com 10cm");
+
+  assert.match(answer, /STATUS: needs_confirmation/);
+  assert.match(answer, /A calcada sera feita com qual tipo de concreto/);
+  assert.match(answer, /A calcada tera malha\/tela de aco/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras nao pergunta armadura quando calcada informa sem tela", () => {
+  const answer = engine.buildAnswerFromMessage("calcada 10x10 com 10cm, concreto simples sem tela");
+
+  assert.doesNotMatch(answer, /A calcada tera malha\/tela de aco/);
+});
+
+test("Stock AI Obras calcula calcada com concreto simples sem tela e espessura", () => {
+  const answer = engine.buildAnswerFromMessage("calcada 10x10 com 10cm concreto simples sem tela");
+
+  assert.doesNotMatch(answer, /STATUS: needs_confirmation/);
+  assert.doesNotMatch(answer, /A calcada sera feita com qual tipo de concreto/);
+  assert.doesNotMatch(answer, /A calcada tera malha\/tela de aco/);
+  assert.doesNotMatch(answer, /Informe volume/);
+  assert.match(answer, /Volume calculado: 10 m x 10 m x 0,1 m = 10 m3/);
+  assert.match(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras pede tipo de bloco para parede antes de calcular", () => {
+  const answer = engine.buildAnswerFromMessage("parede 20m por 3m");
+
+  assert.match(answer, /STATUS: needs_confirmation/);
+  assert.match(answer, /Qual tipo de bloco sera utilizado/);
+  assert.match(answer, /Qual a espessura da parede\/bloco/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras nao pergunta bloco nem espessura quando parede ja informa parametros", () => {
+  const answer = engine.buildAnswerFromMessage("parede 20m por 3m com bloco ceramico 9cm");
+
+  assert.doesNotMatch(answer, /Qual tipo de bloco sera utilizado/);
+  assert.doesNotMatch(answer, /Qual a espessura da parede\/bloco/);
+});
+
+test("Stock AI Obras pede tipo de laje quando espessura existe mas tipo falta", () => {
+  const answer = engine.buildAnswerFromMessage("laje 8x10 com 10cm");
+
+  assert.match(answer, /STATUS: needs_confirmation/);
+  assert.match(answer, /Qual tipo de laje sera executada/);
+  assert.doesNotMatch(answer, /Qual a espessura da laje/);
+  assert.doesNotMatch(answer, /CONSUMO PREVISTO/);
+});
+
+test("Stock AI Obras calcula laje macica quando tipo ja foi informado", () => {
+  const answer = engine.buildAnswerFromMessage("laje 8x10 com 10cm maciça");
+
+  assert.doesNotMatch(answer, /STATUS: needs_confirmation/);
+  assert.doesNotMatch(answer, /Qual tipo de laje sera executada/);
+  assert.match(answer, /Volume calculado: 80 m2 x 0,1 m = 8 m3/);
+  assert.match(answer, /CONSUMO PREVISTO/);
+});
+
 test("Stock AI Obras calcula quantitativos em metro linear", () => {
   const cases = [
     ["tenho 24 metros de rufo", "rufo", 24],
@@ -401,6 +461,7 @@ test("Stock AI Obras extrai estoque real quando ha gatilho explicito", () => {
 
   assert.match(answer, /Bloco ceramico: 500 un/);
   assert.match(answer, /Cimento: 10 saco/);
+  assert.doesNotMatch(answer, /por 3 m/);
 });
 
 test("Stock AI Obras nao usa quantidade de estoque como quantitativo do servico", () => {

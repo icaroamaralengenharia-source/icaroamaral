@@ -14,6 +14,89 @@
   let withdrawalDeviationHistory = [];
   let withdrawalManagerAlerts = [];
 
+  const SERVICE_REQUIRED_PARAMS = {
+    parede: {
+      label: "Parede / alvenaria",
+      required: ["tipo_bloco", "espessura"],
+      questions: {
+        tipo_bloco: {
+          label: "Qual tipo de bloco sera utilizado?",
+          options: [
+            "Bloco ceramico baiano",
+            "Bloco ceramico de vedacao",
+            "Bloco de concreto de vedacao",
+            "Bloco estrutural de concreto"
+          ]
+        },
+        espessura: {
+          label: "Qual a espessura da parede/bloco?",
+          options: ["9 cm", "11,5 cm", "14 cm", "19 cm"]
+        }
+      }
+    },
+    calcada: {
+      label: "Calcada / piso de concreto",
+      required: ["tipo_concreto", "armada"],
+      questions: {
+        tipo_concreto: {
+          label: "A calcada sera feita com qual tipo de concreto?",
+          options: ["Concreto preparado em obra", "Concreto usinado", "Concreto simples"]
+        },
+        armada: {
+          label: "A calcada tera malha/tela de aco?",
+          options: [
+            "Nao, concreto simples sem malha",
+            "Sim, com tela soldada Q61",
+            "Sim, com tela soldada Q92",
+            "Sim, mas ainda nao sei qual tela"
+          ]
+        }
+      }
+    },
+    laje: {
+      label: "Laje",
+      required: ["tipo_laje", "espessura"],
+      questions: {
+        tipo_laje: {
+          label: "Qual tipo de laje sera executada?",
+          options: ["Laje macica", "Laje trelicada", "Laje pre-moldada", "Radier / laje de piso"]
+        },
+        espessura: {
+          label: "Qual a espessura da laje?",
+          options: ["8 cm", "10 cm", "12 cm", "15 cm"]
+        }
+      }
+    },
+    contrapiso: {
+      label: "Contrapiso",
+      required: ["espessura", "traco"],
+      questions: {
+        espessura: {
+          label: "Qual a espessura do contrapiso?",
+          options: ["3 cm", "4 cm", "5 cm", "6 cm"]
+        },
+        traco: {
+          label: "Qual traco/composicao deseja considerar?",
+          options: ["Traco comum em obra", "Composicao SINAPI/ORSE mais proxima", "Ainda nao sei"]
+        }
+      }
+    },
+    reboco: {
+      label: "Reboco / revestimento argamassado",
+      required: ["faces", "espessura"],
+      questions: {
+        faces: {
+          label: "O reboco sera aplicado em quantas faces?",
+          options: ["Uma face", "Duas faces"]
+        },
+        espessura: {
+          label: "Qual espessura media do reboco?",
+          options: ["1,5 cm", "2 cm", "2,5 cm", "3 cm"]
+        }
+      }
+    }
+  };
+
   const CONTROLLED_SERVICES = [
     {
       id: "pilar",
@@ -3249,6 +3332,9 @@
     if (serviceType === "radier") {
       return "Radier demonstrativo";
     }
+    if (serviceType === "calcada") {
+      return "Concreto simples";
+    }
     if (serviceType === "laje") {
       return geometryType === "volume" ? "Laje macica demonstrativa" : "Laje macica ou pre-moldada";
     }
@@ -4231,6 +4317,27 @@
           "Area base calculada: " + formatMeters(length) + " x " + formatMeters(width) + " = " + formatSquareMeters(area) + ". Confirmar inclinacao/fator de cobertura.",
           { length: length, width: width, area: area },
           label
+        );
+      }
+    }
+
+    if (hasAny(text, ["calcada", "passeio", "piso de concreto"])) {
+      const sidewalkPlanMatch = originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      const thicknessMatch = originalMessage.match(new RegExp("(?:espessura|com)\\s*" + number + "\\s*(cm|centimetros?|m|metros?)", "i"));
+      if (sidewalkPlanMatch && thicknessMatch) {
+        const length = parseDimensionNumber(sidewalkPlanMatch[1]);
+        const width = parseDimensionNumber(sidewalkPlanMatch[2]);
+        const area = roundQuantity(length * width);
+        const thickness = parseStructuralDimension(thicknessMatch[1], thicknessMatch[2]);
+        const volume = roundQuantity(area * thickness);
+        return buildGeometryResult(
+          "calcada",
+          "volume",
+          volume,
+          "m3",
+          "Volume calculado: " + formatMeters(length) + " x " + formatMeters(width) + " x " + formatMeters(thickness) + " = " + formatCubicMeters(volume),
+          { length: length, width: width, thickness: thickness, area: area },
+          "Calcada"
         );
       }
     }
@@ -7238,6 +7345,193 @@
     return true;
   }
 
+  function getMissingRequiredParams(serviceKey, parsedParams) {
+    const rule = SERVICE_REQUIRED_PARAMS[serviceKey];
+    const params = parsedParams || {};
+    if (!rule) return [];
+
+    return rule.required.filter(function (param) {
+      const value = params[param];
+      return value === undefined || value === null || value === "";
+    });
+  }
+
+  function buildRequiredParamQuestions(serviceKey, missingParams) {
+    const rule = SERVICE_REQUIRED_PARAMS[serviceKey];
+    if (!rule) return [];
+
+    return (missingParams || []).map(function (param) {
+      const question = rule.questions[param] || {};
+      return {
+        param: param,
+        label: question.label || "Informe o parametro: " + param,
+        options: question.options || []
+      };
+    });
+  }
+
+  function parseServiceRequiredParams(message) {
+    const text = normalize(message);
+    const params = {};
+
+    if (hasTerm(text, "concreto simples")) {
+      params.tipo_concreto = "concreto_simples";
+      params.armada = false;
+    } else if (hasTerm(text, "concreto usinado")) {
+      params.tipo_concreto = "concreto_usinado";
+    } else if (hasTerm(text, "concreto preparado") || hasTerm(text, "preparado em obra")) {
+      params.tipo_concreto = "concreto_preparado_em_obra";
+    }
+
+    if (hasTerm(text, "sem tela") || hasTerm(text, "sem malha")) {
+      params.armada = false;
+    } else if (hasTerm(text, "com tela") || hasTerm(text, "com malha") || /\bq\s*(61|92)\b/i.test(text)) {
+      params.armada = true;
+    }
+
+    if (hasTerm(text, "baiano")) {
+      params.tipo_bloco = "bloco_ceramico_baiano";
+    } else if (hasTerm(text, "bloco ceramico") || hasTerm(text, "tijolo ceramico")) {
+      params.tipo_bloco = "bloco_ceramico";
+    } else if (hasTerm(text, "bloco estrutural")) {
+      params.tipo_bloco = "bloco_estrutural_concreto";
+    } else if (hasTerm(text, "bloco concreto") || hasTerm(text, "bloco de concreto")) {
+      params.tipo_bloco = "bloco_concreto";
+    }
+
+    const thicknessMatch = text.match(/\b(1[1459](?:[,.]5)?|[345689]|10|12|15)\s*cm\b/);
+    if (thicknessMatch) {
+      params.espessura = thicknessMatch[1].replace(",", ".") + "cm";
+    }
+
+    if (hasTerm(text, "laje macica") || hasTerm(text, "macica")) {
+      params.tipo_laje = "laje_macica";
+    } else if (hasTerm(text, "trelicada") || hasTerm(text, "trelicado")) {
+      params.tipo_laje = "laje_trelicada";
+    } else if (hasTerm(text, "pre moldada") || hasTerm(text, "premoldada")) {
+      params.tipo_laje = "laje_pre_moldada";
+    } else if (hasTerm(text, "radier")) {
+      params.tipo_laje = "radier";
+    }
+
+    if (hasTerm(text, "duas faces") || hasTerm(text, "2 faces") || hasTerm(text, "dois lados")) {
+      params.faces = "duas";
+    } else if (hasTerm(text, "uma face") || hasTerm(text, "1 face") || hasTerm(text, "um lado")) {
+      params.faces = "uma";
+    }
+
+    if (hasTerm(text, "traco comum") || hasTerm(text, "traco em obra")) {
+      params.traco = "comum_obra";
+    } else if (hasTerm(text, "sinapi") || hasTerm(text, "orse")) {
+      params.traco = "sinapi_orse";
+    }
+
+    return params;
+  }
+
+  function getRequiredServiceKey(service, request) {
+    const text = normalize(request && request.originalMessage || "");
+    const serviceType = normalize(service && (service.serviceType || service.controlledServiceId || service.materialHint || service.service));
+    if (serviceType.indexOf("calcada") >= 0 || hasTerm(text, "calcada") || hasTerm(text, "passeio")) {
+      return "calcada";
+    }
+    if ((serviceType.indexOf("alvenaria") >= 0 || serviceType.indexOf("parede") >= 0) && (hasTerm(text, "parede") || hasTerm(text, "alvenaria"))) {
+      return "parede";
+    }
+    if (serviceType.indexOf("laje") >= 0 || (hasTerm(text, "laje") && serviceType.indexOf("cobertura") < 0)) {
+      return "laje";
+    }
+    if (serviceType.indexOf("contrapiso") >= 0 || hasTerm(text, "contrapiso")) {
+      return "contrapiso";
+    }
+    if (serviceType.indexOf("reboco") >= 0 || serviceType.indexOf("emboco") >= 0 || hasTerm(text, "reboco") || hasTerm(text, "emboco")) {
+      return "reboco";
+    }
+    return "";
+  }
+
+  function isDirectRequiredParamRequest(serviceKey, request) {
+    const normalized = normalize(request && request.originalMessage || "");
+    const original = String(request && request.originalMessage || "").toLowerCase();
+    if (request && request.geometry && request.geometry.detected && !request.geometry.complete) {
+      return false;
+    }
+    const hasQuantitativeContext = Boolean(request && request.quantity) ||
+      Boolean(request && request.geometry && request.geometry.detected) ||
+      /\d+(?:[.,]\d+)?\s*(?:m|metro|metros)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?/.test(original);
+
+    if (!hasQuantitativeContext) {
+      return false;
+    }
+    if (serviceKey === "parede") {
+      return /^\s*(parede|alvenaria)\s+\d+(?:[.,]\d+)?\s*(?:m|metro|metros)?\s+por\s+\d+(?:[.,]\d+)?/.test(original);
+    }
+    if (serviceKey === "calcada") {
+      return /^\s*(calcada|calçada|passeio)\s+\d+(?:[.,]\d+)?\s*(?:m|metro|metros)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?/.test(original);
+    }
+    if (serviceKey === "laje") {
+      return /^\s*laje\s+\d+(?:[.,]\d+)?\s*(?:m|metro|metros)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?/.test(original);
+    }
+    if (serviceKey === "contrapiso") return /^contrapiso\b/.test(normalized);
+    if (serviceKey === "reboco") return /^(reboco|emboco)\b/.test(normalized);
+    return false;
+  }
+
+  function buildRequiredParamConfirmation(request) {
+    const parsedParams = parseServiceRequiredParams(request.originalMessage);
+    const checks = [];
+    const services = (request.services && request.services.length)
+      ? request.services
+      : [findControlledServiceByText(request.originalMessage)].filter(Boolean).map(function (service) {
+        return {
+          service: service.nomeTecnico,
+          serviceType: service.id,
+          controlledServiceId: service.id
+        };
+      });
+    services.forEach(function (service) {
+      const serviceKey = getRequiredServiceKey(service, request);
+      if (!isDirectRequiredParamRequest(serviceKey, request)) return;
+      const missing = getMissingRequiredParams(serviceKey, parsedParams);
+      if (!serviceKey || !missing.length) return;
+      checks.push({
+        service: serviceKey,
+        label: SERVICE_REQUIRED_PARAMS[serviceKey].label,
+        questions: buildRequiredParamQuestions(serviceKey, missing)
+      });
+    });
+    if (!checks.length) return null;
+    return {
+      status: "needs_confirmation",
+      service: checks[0].service,
+      message: "Antes de calcular " + checks[0].label + ", preciso confirmar alguns dados tecnicos.",
+      checks: checks,
+      questions: checks.reduce(function (list, check) {
+        return list.concat(check.questions);
+      }, [])
+    };
+  }
+
+  function formatRequiredParamConfirmation(confirmation) {
+    const lines = [
+      "STATUS: needs_confirmation",
+      confirmation.message,
+      "",
+      "PERGUNTAS COMPLEMENTARES"
+    ];
+    confirmation.questions.forEach(function (question) {
+      lines.push("- " + question.label);
+      (question.options || []).forEach(function (option) {
+        lines.push("  - " + option);
+      });
+    });
+    lines.push("");
+    lines.push("OBSERVACOES");
+    lines.push("- Nao vou assumir dados tecnicos obrigatorios sem confirmacao.");
+    lines.push("- Nenhum calculo de consumo foi feito.");
+    return lines.join("\n");
+  }
+
   function buildParameterQuestions(request) {
     const questions = [];
     const text = normalize(request.originalMessage);
@@ -7728,6 +8022,13 @@
     }
     const controlledService = findControlledServiceByText(message);
     const wantsCompositionSuggestion = hasAny(normalize(message), ["qual composicao", "composicoes", "sinapi", "orse", "codigo"]);
+    if (request.compositionCodeQuery) {
+      return buildCompositionCodeLookupAnswer(request, { stockItems: stockItems });
+    }
+    const requiredParamConfirmation = buildRequiredParamConfirmation(request);
+    if (requiredParamConfirmation && requiredParamConfirmation.questions.length) {
+      return formatRequiredParamConfirmation(requiredParamConfirmation);
+    }
     if (controlledService && isControlledServiceInputIncomplete(controlledService, request) && !request.quantity && !wantsCompositionSuggestion) {
       return buildControlledServiceIncompleteAnswer(controlledService, request);
     }
@@ -7739,9 +8040,6 @@
         }))
         .concat(["", "OBSERVACOES", "- Geometria incompleta ou invalida. Corrija as medidas antes de buscar composicao.", "- Nenhum coeficiente foi inventado."])
         .join("\n");
-    }
-    if (request.compositionCodeQuery) {
-      return buildCompositionCodeLookupAnswer(request, { stockItems: stockItems });
     }
     const geometryQuestions = request.geometry && request.geometry.questions || [];
     const parameterQuestions = buildParameterQuestions(request).concat(geometryQuestions).filter(function (question, index, list) {
@@ -7965,6 +8263,11 @@
     findControlledServiceByText: findControlledServiceByText,
     getControlledServiceById: getControlledServiceById,
     getControlledServiceRequiredData: getControlledServiceRequiredData,
+    serviceRequiredParams: SERVICE_REQUIRED_PARAMS,
+    getMissingRequiredParams: getMissingRequiredParams,
+    buildRequiredParamQuestions: buildRequiredParamQuestions,
+    parseServiceRequiredParams: parseServiceRequiredParams,
+    buildRequiredParamConfirmation: buildRequiredParamConfirmation,
     isControlledServiceInputIncomplete: isControlledServiceInputIncomplete,
     getControlledServiceSearchPriority: getControlledServiceSearchPriority,
     isCompositionCompatibleWithControlledService: isCompositionCompatibleWithControlledService,
