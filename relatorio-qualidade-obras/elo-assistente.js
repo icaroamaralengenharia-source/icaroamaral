@@ -1305,6 +1305,7 @@
     }
 
     syncEloVectorMemories();
+    ELO_UI.pendingSavePrompt = null;
     const eloContext = getEloContext();
     const payload = {
       message: sanitizeUserText(question),
@@ -1348,10 +1349,12 @@
             if (data.stockIaLaunchPlan) {
               setPendingStockIaPlan(data.stockIaLaunchPlan);
             }
-            return sanitizeUserText(data.answer);
+            ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
+            return sanitizeEloAnswerForDisplay(data.answer);
           }
           if (data && data.fallback && data.answer) {
-            return sanitizeUserText(data.answer);
+            ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
+            return sanitizeEloAnswerForDisplay(data.answer);
           }
           if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
             return formatEloAttachmentErrors_(data.attachmentErrors);
@@ -1380,10 +1383,12 @@
         if (data.stockIaLaunchPlan) {
           setPendingStockIaPlan(data.stockIaLaunchPlan);
         }
-        return sanitizeUserText(data.answer);
+        ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
+        return sanitizeEloAnswerForDisplay(data.answer);
       }
       if (data && data.fallback && data.answer) {
-        return sanitizeUserText(data.answer);
+        ELO_UI.pendingSavePrompt = normalizeEloSavePrompt(data.savePrompt);
+        return sanitizeEloAnswerForDisplay(data.answer);
       }
       if (data && Array.isArray(data.attachmentErrors) && data.attachmentErrors.length) {
         return formatEloAttachmentErrors_(data.attachmentErrors);
@@ -3717,6 +3722,69 @@
     });
   }
 
+  function shouldShowEloSavePrompt(input) {
+    const userMessage = normalizeText(input && input.userMessage);
+    const assistantResponse = normalizeText(input && input.assistantResponse);
+    const intent = normalizeText(input && input.intent);
+    const combined = [userMessage, intent].join(" ");
+    const context = sanitizeUserText(input && input.context) || getEloContext();
+
+    if (!combined.trim() && !assistantResponse) {
+      return { show: false, reason: "empty", suggestedTarget: "none" };
+    }
+
+    if (isSimpleEloCalculation(combined)) {
+      return { show: false, reason: "simple_calculation", suggestedTarget: "none" };
+    }
+
+    if (["teste", "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite"].indexOf(combined.trim()) >= 0) {
+      return { show: false, reason: "low_future_value", suggestedTarget: "none" };
+    }
+
+    if (hasAnyTerm(combined, ["biblioteca", "guardar na biblioteca", "guarde na biblioteca", "usar depois", "resumo de reuniao", "resumo de reunião", "roadmap", "especificacao de produto", "especificação de produto"])) {
+      return { show: true, reason: "reusable_technical_content", suggestedTarget: "library" };
+    }
+
+    if (hasAnyTerm(combined, ["guarde", "guardar", "lembre", "lembrar", "prefiro", "minha preferencia", "minha preferência", "regra de negocio", "regra de negócio", "preferencia permanente", "preferência permanente"])) {
+      return { show: true, reason: "durable_memory", suggestedTarget: "memory" };
+    }
+
+    if (hasAnyTerm(combined, ["decisao estrategica", "decisão estratégica", "estrategia do projeto", "estratégia do projeto", "planejamento importante", "plano de acao", "plano de ação", "roadmap", "stock full"]) && assistantResponse.length > 220) {
+      return { show: true, reason: "strategic_decision", suggestedTarget: "both" };
+    }
+
+    if (context === "saude" && hasAnyTerm(combined, ["protocolo", "auditoria", "compras", "validade", "lote"])) {
+      return { show: true, reason: "health_operations_reference", suggestedTarget: "library" };
+    }
+
+    return { show: false, reason: "not_reusable_enough", suggestedTarget: "none" };
+  }
+
+  function isSimpleEloCalculation(normalizedText) {
+    const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(normalizedText);
+    const hasCalculationTerm = hasAnyTerm(normalizedText, [
+      "quantos",
+      "quanto",
+      "calcule",
+      "calcular",
+      "preciso",
+      "bloco",
+      "blocos",
+      "concreto",
+      "laje",
+      "calcada",
+      "calçada",
+      "piso",
+      "revestimento",
+      "tinta",
+      "argamassa",
+      "m2",
+      "m3"
+    ]);
+    const asksToSave = hasAnyTerm(normalizedText, ["guardar", "guarde", "lembrar", "lembre", "resumo", "relatorio", "relatório", "orcamento", "orçamento", "planejamento"]);
+    return hasMeasure && hasCalculationTerm && !asksToSave;
+  }
+
   function scoreLibraryItem(item, normalizedQuestion) {
     const normalizedParts = normalizedQuestion.split(" ").filter(function (part) {
       return part.length > 2;
@@ -3797,35 +3865,43 @@
   const ELO_PROJECT_PRIORITIES = ["alta", "media", "baixa"];
   const ELO_PROJECT_SUGGESTIONS = [
     {
-      name: "ObraReport",
+      name: "CADISTA",
       status: "ativo",
       priority: "alta",
-      description: "SaaS de relatórios, RDO, materiais, PDF e Elo Assistente.",
-      nextAction: "Continuar evolução comercial e validar com clientes.",
+      description: "SaaS para gerar planta baixa tecnica, PDF e DXF a partir de geometria, croqui ou imagem.",
+      nextAction: "Validar o motor geometrico procedural com terreno, recuos, ambientes e exportacao.",
       notes: ""
     },
     {
-      name: "Stock IA",
-      status: "ideia",
-      priority: "media",
-      description: "App/controle inteligente de almoxarifado com OCR, IA e estoque offline.",
-      nextAction: "Definir MVP e primeiro fluxo de estoque.",
-      notes: ""
-    },
-    {
-      name: "CADISTA IA",
-      status: "pausado",
-      priority: "media",
-      description: "Copiloto técnico para transformar croquis/PDFs em plantas, cortes e pranchas.",
-      nextAction: "Retomar motor geométrico quando ObraReport estabilizar.",
+      name: "Stock Full",
+      status: "ativo",
+      priority: "alta",
+      description: "SaaS de estoque e almoxarifado para lojistas, com entradas, saidas, saldo e auditoria.",
+      nextAction: "Consolidar fluxo operacional simples e confiavel para usuarios reais.",
       notes: ""
     },
     {
       name: "Elo",
       status: "ativo",
       priority: "alta",
-      description: "Companheiro digital com memória, biblioteca, rotina e futura busca/voz/hardware.",
-      nextAction: "Evoluir projetos, objetivos e contexto pessoal.",
+      description: "Assistente contextual com memoria, biblioteca, personalidade unica e cerebro oficial.",
+      nextAction: "Evoluir recuperacao de contexto, auditoria de resposta e unificacao dos widgets.",
+      notes: ""
+    },
+    {
+      name: "Stock Saúde",
+      status: "ativo",
+      priority: "media",
+      description: "Controle operacional de estoque de saude com lote, validade, rastreabilidade e auditoria.",
+      nextAction: "Priorizar seguranca operacional, controle por lote e alertas de validade.",
+      notes: ""
+    },
+    {
+      name: "ObraReport",
+      status: "ativo",
+      priority: "alta",
+      description: "SaaS de relatórios, RDO, materiais, PDF e Elo Assistente.",
+      nextAction: "Continuar evolução comercial e validar com clientes.",
       notes: ""
     }
   ];
@@ -3990,7 +4066,7 @@
       if (text.indexOf("projeto") >= 0 || text.indexOf("objetivo") >= 0) {
         return {
           shortAnswer: "Ainda não há projetos salvos no Elo.",
-          fullAnswer: "Abra Projetos para adicionar seus projetos ou usar a lista sugerida com ObraReport, Stock IA, CADISTA IA e Elo.",
+          fullAnswer: "Abra Projetos para adicionar seus projetos ou usar a lista sugerida com CADISTA, Stock Full, Elo, Stock Saúde e ObraReport.",
           nextAction: "Clique em Projetos no painel do Elo.",
           canSave: false
         };
@@ -4240,6 +4316,74 @@
       .toLowerCase();
   }
 
+  function isEloOfficialProjectQuestion_(message) {
+    const text = normalizeText(message);
+    return hasAnyTerm(text, [
+      "cadista",
+      "stock",
+      "stock full",
+      "stock saude",
+      "stock saúde",
+      "obrareport",
+      "obra report",
+      "elo",
+      "elo informe"
+    ]);
+  }
+
+  function buildEloOnlineUnavailableResponse_() {
+    const answer = "Não consegui consultar o Elo online neste momento.";
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "Tente novamente em instantes.",
+      canSave: false,
+      sessionTheme: "elo_online_indisponivel",
+      sessionIntent: "backend_required"
+    };
+  }
+
+  function sanitizeEloAnswerForDisplay(value) {
+    const forbiddenLine = /^\s*(?:guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|guardar biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)\s*$/i;
+    const forbiddenControlsLine = /^\s*(?:[\s.,;:|•·-]+|guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)+\s*$/i;
+    return String(value || "")
+      .replace(/[<>]/g, "")
+      .replace(/Deseja guardar isso para eu lembrar depois\??/gi, "")
+      .replace(/Deseja guardar isso na Biblioteca do Elo\??/gi, "")
+      .replace(/Deseja guardar isso na Biblioteca\??/gi, "")
+      .replace(/Deseja guardar isso para a Biblioteca\??/gi, "")
+      .replace(/Salvar esta conversa\??/gi, "")
+      .replace(/\s*Guardar\s*[.,;:|•·-]+\s*Não guardar\s*[.,;:|•·-]+\s*Guardar na Biblioteca\s*[.,;:|•·-]+\s*Não guardar na Biblioteca\s*$/gi, "")
+      .replace(/\s*Guardar\s*[.,;:|•·-]+\s*Nao guardar\s*[.,;:|•·-]+\s*Guardar na Biblioteca\s*[.,;:|•·-]+\s*Nao guardar na Biblioteca\s*$/gi, "")
+      .replace(/\bGuardar na Biblioteca\b/gi, "")
+      .replace(/\bNão guardar na Biblioteca\b/gi, "")
+      .replace(/\bNao guardar na Biblioteca\b/gi, "")
+      .split(/\r?\n/)
+      .filter(function (line) {
+        return !forbiddenLine.test(line) && !forbiddenControlsLine.test(line);
+      })
+      .map(function (line) {
+        return line.replace(/\s+/g, " ").trim();
+      })
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function normalizeEloSavePrompt(savePrompt) {
+    if (!savePrompt || typeof savePrompt !== "object" || typeof savePrompt.show !== "boolean") {
+      return null;
+    }
+    const show = savePrompt.show === true;
+    const suggestedTarget = show ? sanitizeUserText(savePrompt.suggestedTarget || savePrompt.type || "memory") : "none";
+    return {
+      show: show,
+      type: show && suggestedTarget === "library" ? "library" : (show ? "memory" : "none"),
+      suggestedTarget: show ? suggestedTarget : "none",
+      reason: sanitizeUserText(savePrompt.reason || "")
+    };
+  }
+
   function createElement(tag, className, text) {
     const element = document.createElement(tag);
     if (className) {
@@ -4431,7 +4575,7 @@
       return item[1];
     });
 
-    const knownProjects = ["ObraReport", "Stock IA", "CADISTA IA", "Elo"];
+    const knownProjects = ["CADISTA", "Stock Full", "Elo", "Stock Saúde", "ObraReport"];
     profile.projetos = knownProjects.filter(function (project) {
       return normalized.indexOf(normalizeText(project)) >= 0;
     });
@@ -10921,6 +11065,7 @@
     attachments: [],
     contextLabel: null,
     suggestions: null,
+    pendingSavePrompt: null,
     hasOpenedGreeting: false,
     awaitingStandaloneName: false
   };
@@ -11095,12 +11240,11 @@
   function getContextSuggestions(context) {
     if (isStandaloneMode()) {
       return [
-        { label: "Me mostre o que você faz", question: "Me mostre o que você faz" },
-        { label: "Quero criar um RDO", question: "Quero criar um RDO" },
-        { label: "Quero lançar material", question: "Quero lançar material" },
-        { label: "Quero gerar um PDF", question: "Quero gerar PDF" },
-        { label: "O que devo priorizar?", question: "O que devo priorizar?" },
-        { label: "O que lembra de mim?", question: "O que você lembra de mim?" }
+        { label: "CADISTA", question: "resuma nosso plano do CADISTA" },
+        { label: "Stock Full", question: "resuma o projeto Stock Full" },
+        { label: "Elo", question: "como evoluir o Elo" },
+        { label: "Stock Saúde", question: "como controlar validade de medicamentos no Stock Saúde" },
+        { label: "ObraReport", question: "resuma o plano do ObraReport" }
       ];
     }
 
@@ -11302,26 +11446,6 @@
       appendAssistantMessage(cleanQuestion, stockIaPlanConfirmationAnswer, false, confirmationResponse);
       saveConversation(cleanQuestion, stockIaPlanConfirmationAnswer);
       rememberSessionTurn(cleanQuestion, confirmationResponse, stockIaPlanConfirmationAnswer);
-      clearProductAttachmentPreview();
-      return;
-    }
-
-    const stockBalanceResponse = buildEloStockBalanceAnswer_(cleanQuestion);
-    if (stockBalanceResponse) {
-      const stockBalanceAnswer = formatResponse(stockBalanceResponse);
-      appendAssistantMessage(cleanQuestion, stockBalanceAnswer, false, stockBalanceResponse);
-      saveConversation(cleanQuestion, stockBalanceAnswer);
-      rememberSessionTurn(cleanQuestion, stockBalanceResponse, stockBalanceAnswer);
-      clearProductAttachmentPreview();
-      return;
-    }
-
-    const operationalConstructionResponse = buildEloOperationalConstructionAnswer_(cleanQuestion);
-    if (operationalConstructionResponse) {
-      const operationalAnswer = formatResponse(operationalConstructionResponse);
-      appendAssistantMessage(cleanQuestion, operationalAnswer, false, operationalConstructionResponse);
-      saveConversation(cleanQuestion, operationalAnswer);
-      rememberSessionTurn(cleanQuestion, operationalConstructionResponse, operationalAnswer);
       clearProductAttachmentPreview();
       return;
     }
@@ -11545,21 +11669,43 @@
         return;
       }
 
-      const memoryRecallAnswer = isEloLongTermMemoryQuestion(cleanQuestion) ? buildEloLongTermMemoryAnswer(cleanQuestion) : "";
-      const response = memoryRecallAnswer ? {
-        shortAnswer: memoryRecallAnswer,
-        fullAnswer: memoryRecallAnswer,
-        nextAction: "Me diga se devo guardar, corrigir ou esquecer alguma informação.",
-        canSave: false,
-        sessionTheme: "memoria",
-        sessionIntent: "memoria_permanente"
-      } : applyEloCommunicationLayer(cleanQuestion, buildResponse(cleanQuestion));
+      const response = buildEloLocalFallbackResponseForQuestion_(cleanQuestion);
       const answer = formatResponse(response);
       response.realQuestionId = registerRealQuestion(cleanQuestion, answer, response);
       appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
       saveConversation(cleanQuestion, answer);
       rememberSessionTurn(cleanQuestion, response, answer);
     });
+  }
+
+  function buildEloLocalFallbackResponseForQuestion_(question) {
+    if (isEloOfficialProjectQuestion_(question)) {
+      return buildEloOnlineUnavailableResponse_();
+    }
+
+    const memoryRecallAnswer = isEloLongTermMemoryQuestion(question) ? buildEloLongTermMemoryAnswer(question) : "";
+    if (memoryRecallAnswer) {
+      return {
+        shortAnswer: memoryRecallAnswer,
+        fullAnswer: memoryRecallAnswer,
+        nextAction: "Me diga se devo guardar, corrigir ou esquecer alguma informação.",
+        canSave: false,
+        sessionTheme: "memoria",
+        sessionIntent: "memoria_permanente"
+      };
+    }
+
+    const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
+    if (stockBalanceResponse) {
+      return stockBalanceResponse;
+    }
+
+    const operationalConstructionResponse = buildEloOperationalConstructionAnswer_(question);
+    if (operationalConstructionResponse) {
+      return operationalConstructionResponse;
+    }
+
+    return applyEloCommunicationLayer(question, buildResponse(question));
   }
 
   function buildProductAttachmentControls() {
@@ -12204,7 +12350,16 @@
   }
 
   function appendAssistantMessage(question, answer, canSave, response) {
-    const message = appendMessage("assistant", answer);
+    const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
+    const pendingSavePrompt = response && response.savePrompt !== undefined
+      ? normalizeEloSavePrompt(response.savePrompt)
+      : ELO_UI.pendingSavePrompt;
+    if (response) {
+      response.savePrompt = pendingSavePrompt;
+    }
+    ELO_UI.pendingSavePrompt = null;
+
+    const message = appendMessage("assistant", cleanAnswer);
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {
@@ -12267,54 +12422,7 @@
     }
 
     if (canSave) {
-      const saveQuestion = createElement("span", "elo-privacy", "Deseja guardar isso para eu lembrar depois?");
-      saveQuestion.classList.add("elo-secondary-response-action");
-      message.appendChild(saveQuestion);
-      const saveButton = createElement("button", "elo-inline-button", "Guardar");
-      const dontSaveButton = createElement("button", "elo-inline-button", "Não guardar");
-      saveButton.classList.add("elo-secondary-response-action");
-      dontSaveButton.classList.add("elo-secondary-response-action");
-      saveButton.type = "button";
-      dontSaveButton.type = "button";
-      saveButton.addEventListener("click", function () {
-        saveUsefulAnswer(question, answer);
-        saveButton.disabled = true;
-        dontSaveButton.disabled = true;
-        appendMessage("system", "Guardado na memória local do Elo.");
-      });
-      dontSaveButton.addEventListener("click", function () {
-        saveButton.disabled = true;
-        dontSaveButton.disabled = true;
-      });
-      const libraryQuestion = createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca do Elo?");
-      const libraryButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
-      const dontSaveLibraryButton = createElement("button", "elo-inline-button", "Não guardar na Biblioteca");
-      libraryQuestion.classList.add("elo-secondary-response-action");
-      libraryButton.classList.add("elo-secondary-response-action");
-      dontSaveLibraryButton.classList.add("elo-secondary-response-action");
-      libraryButton.type = "button";
-      dontSaveLibraryButton.type = "button";
-      libraryButton.addEventListener("click", function () {
-        const result = createLibraryItemFromAnswer(question, answer);
-        libraryButton.disabled = true;
-        dontSaveLibraryButton.disabled = true;
-        if (result.ok) {
-          appendMessage("system", "Guardado na Biblioteca do Elo: " + result.item.title + ".");
-        } else if (result.reason === "sensitive") {
-          appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
-        } else {
-          appendMessage("system", "Não consegui guardar na Biblioteca porque faltou título ou conteúdo.");
-        }
-      });
-      dontSaveLibraryButton.addEventListener("click", function () {
-        libraryButton.disabled = true;
-        dontSaveLibraryButton.disabled = true;
-      });
-      actions.appendChild(saveButton);
-      actions.appendChild(dontSaveButton);
-      message.appendChild(libraryQuestion);
-      actions.appendChild(libraryButton);
-      actions.appendChild(dontSaveLibraryButton);
+      appendEloSavePrompt(message, question, cleanAnswer, response);
     }
 
     if (response && response.diagnosticText) {
@@ -12328,6 +12436,77 @@
 
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+  }
+
+  function appendEloSavePrompt(message, question, answer, response) {
+    const apiDecision = normalizeEloSavePrompt(response && response.savePrompt);
+    const decision = apiDecision || shouldShowEloSavePrompt({
+      userMessage: question,
+      assistantResponse: answer,
+      context: getEloContext(),
+      intent: response && response.sessionIntent
+    });
+    if (!decision.show) {
+      return;
+    }
+
+    removePendingEloSavePrompts();
+
+    const prompt = createElement("div", "elo-save-prompt elo-save-card");
+    const label = createElement("span", "elo-privacy", "Salvar esta conversa?");
+    const memoryButton = createElement("button", "elo-inline-button", "Memória");
+    const libraryButton = createElement("button", "elo-inline-button", "Biblioteca");
+    const noneButton = createElement("button", "elo-inline-button", "Não salvar");
+    const buttons = [memoryButton, libraryButton, noneButton];
+
+    memoryButton.type = "button";
+    libraryButton.type = "button";
+    noneButton.type = "button";
+    prompt.dataset.saveState = "pending";
+    prompt.dataset.saveTarget = decision.suggestedTarget;
+    prompt.title = decision.reason;
+
+    function disableButtons() {
+      prompt.dataset.saveState = "done";
+      buttons.forEach(function (button) {
+        button.disabled = true;
+      });
+    }
+
+    memoryButton.addEventListener("click", function () {
+      saveUsefulAnswer(question, answer);
+      disableButtons();
+      appendMessage("system", "Guardado na memória local do Elo.");
+    });
+
+    libraryButton.addEventListener("click", function () {
+      const result = createLibraryItemFromAnswer(question, answer);
+      disableButtons();
+      if (result.ok) {
+        appendMessage("system", "Guardado na Biblioteca do Elo: " + result.item.title + ".");
+      } else if (result.reason === "sensitive") {
+        appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
+      } else {
+        appendMessage("system", "Não consegui guardar na Biblioteca porque faltou título ou conteúdo.");
+      }
+    });
+
+    noneButton.addEventListener("click", disableButtons);
+
+    prompt.appendChild(label);
+    prompt.appendChild(memoryButton);
+    prompt.appendChild(libraryButton);
+    prompt.appendChild(noneButton);
+    message.appendChild(prompt);
+  }
+
+  function removePendingEloSavePrompts() {
+    if (!ELO_UI.messages) {
+      return;
+    }
+    ELO_UI.messages.querySelectorAll(".elo-save-prompt[data-save-state='pending'], .elo-save-card[data-save-state='pending']").forEach(function (prompt) {
+      prompt.remove();
+    });
   }
 
   function prepareControlledWebSearch(webSearch, prepareButton, cancelButton) {
@@ -12384,34 +12563,14 @@
     }
 
     const message = appendMessage("assistant", answerParts.join("\n"));
-    const actions = createElement("div", "elo-message-actions");
-    const saveButton = createElement("button", "elo-inline-button", "Guardar na Biblioteca");
-    const dontSaveButton = createElement("button", "elo-inline-button", "Não guardar");
-
-    message.appendChild(createElement("span", "elo-privacy", "Deseja guardar isso na Biblioteca?"));
-
-    saveButton.type = "button";
-    dontSaveButton.type = "button";
-    saveButton.addEventListener("click", function () {
-      const saveResult = saveLibraryItem({
-        title: suggestLibraryTitle(question),
-        content: result.answer,
-        category: suggestLibraryCategory(question),
-        tags: ["Busca controlada", "Elo"],
-        source: "busca_controlada"
-      });
-      saveButton.disabled = true;
-      dontSaveButton.disabled = true;
-      appendMessage("system", saveResult.ok ? "Guardado na Biblioteca do Elo." : "Não consegui guardar essa resposta na Biblioteca.");
+    appendEloSavePrompt(message, question, result.answer, {
+      savePrompt: {
+        show: true,
+        type: "library",
+        suggestedTarget: "library",
+        reason: "controlled_web_search"
+      }
     });
-    dontSaveButton.addEventListener("click", function () {
-      saveButton.disabled = true;
-      dontSaveButton.disabled = true;
-    });
-
-    actions.appendChild(saveButton);
-    actions.appendChild(dontSaveButton);
-    message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 

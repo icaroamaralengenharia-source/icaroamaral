@@ -1281,6 +1281,29 @@ test("Stock AI Obras bridge expoe fluxo seguro de upload oficial", () => {
   assert.match(bridge, /ColumnMap invalido/);
 });
 
+test("Stock AI Obras bridge nao intercepta conhecimento institucional do Elo", () => {
+  const bridge = readFileSync(join(testDir, "..", "..", "stock-ai-obras-bridge.js"), "utf8");
+  const guardStart = bridge.indexOf("function isInstitutionalEloProjectQuestion_");
+  const answerStart = bridge.indexOf("function answerStockAiObrasQuestion_");
+  const answerEnd = bridge.indexOf("function bindStockAiObrasBridge_", answerStart);
+  const answerBlock = bridge.slice(answerStart, answerEnd);
+
+  assert.ok(guardStart > 0);
+  assert.match(bridge.slice(guardStart, answerStart), /cadista/);
+  assert.match(bridge.slice(guardStart, answerStart), /stock full/);
+  assert.match(bridge.slice(guardStart, answerStart), /stock saude/);
+  assert.match(bridge.slice(guardStart, answerStart), /obrareport/);
+  assert.match(bridge.slice(guardStart, answerStart), /quais projetos/);
+  assert.match(answerBlock, /isInstitutionalEloProjectQuestion_\(question\)/);
+  assert.equal(answerBlock.indexOf("isInstitutionalEloProjectQuestion_(question)") < answerBlock.indexOf("getStockAiObrasAnswer_(question)"), true);
+  assert.match(answerBlock, /return false/);
+  assert.match(answerBlock, /event\.stopImmediatePropagation\(\)/);
+  assert.match(bridge, /calcule materiais/);
+  assert.match(bridge, /composicao/);
+  assert.match(bridge, /sinapi/i);
+  assert.match(bridge, /orse/i);
+});
+
 test("Stock AI Obras documenta interface de upload de base oficial", () => {
   assert.equal(existsSync(officialBaseUploadGuidePath), true);
 

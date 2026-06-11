@@ -25,6 +25,35 @@
     });
   }
 
+  function isInstitutionalEloProjectQuestion_(question) {
+    const text = normalize_(question);
+    if (!text) {
+      return false;
+    }
+    const projectTerms = [
+      "cadista",
+      "stock full",
+      "stock saude",
+      "obrareport",
+      "obra report",
+      "elo",
+      "elo informe"
+    ];
+    const institutionalTerms = [
+      "quem e",
+      "o que e",
+      "qual o plano",
+      "plano do",
+      "quais projetos",
+      "projetos existem",
+      "resuma",
+      "resumo",
+      "estrategia",
+      "roadmap"
+    ];
+    return hasAny_(text, projectTerms) && hasAny_(text, institutionalTerms);
+  }
+
   function appendBridgeMessage_(kind, text) {
     const messages = document.querySelector(".elo-messages");
     if (!messages) {
@@ -497,6 +526,8 @@
       "calcular materiais",
       "calcule materiais",
       "quanto material",
+      "sinapi",
+      "orse",
       "qual material",
       "material eu preciso",
       "materiais eu preciso",
@@ -686,6 +717,10 @@
 
   function answerStockAiObrasQuestion_(input, event) {
     const question = clean_(input && input.value);
+    if (isInstitutionalEloProjectQuestion_(question)) {
+      return false;
+    }
+
     const answer = getStockAiObrasAnswer_(question);
     if (!answer) {
       return false;

@@ -108,6 +108,578 @@ const ACTIONS = new Set([
   "reviewReport"
 ]);
 const PATHOLOGY_KNOWLEDGE_BASE = loadPathologyKnowledgeBase_();
+export const PROJECT_KNOWLEDGE = {
+  cadista: {
+    name: "CADISTA",
+    aliases: ["cadista", "cadista ia"],
+    summary: "SaaS para transformar dados geometricos, croquis ou imagens em planta baixa tecnica, PDF tecnico e DXF editavel.",
+    strategy: "Comecar pelo gerador procedural antes de IA avancada, validando primeiro o motor geometrico e exportacoes.",
+    flow: ["terreno", "recuos", "ocupacao", "orientacao solar", "setorizacao", "ambientes minimos", "circulacao", "validacao", "planta"],
+    priorities: ["biblioteca de ambientes", "programa de necessidades", "terreno e recuos", "setorizacao", "gerador de layout", "validacao", "PDF tecnico", "DXF editavel"]
+  },
+  stockfull: {
+    name: "Stock Full",
+    aliases: ["stock full", "almoxarifado"],
+    summary: "SaaS de controle de estoque e almoxarifado para lojistas e operacoes com entrada, saida, saldo e auditoria.",
+    strategy: "Manter operacao simples, rastreavel e confiavel antes de adicionar automacoes mais complexas.",
+    flow: ["cadastro de produto", "entrada", "saida", "saldo", "alertas", "auditoria"],
+    priorities: ["cadastro rapido", "movimentacao segura", "saldo confiavel", "produtos parados", "relatorios operacionais"]
+  },
+  stockobras: {
+    name: "Stock AI Obras",
+    aliases: ["stock ai", "stock obras", "stock ai obras"],
+    summary: "Camada tecnica para prever consumo de materiais de obra a partir de servicos, quantitativos e composicoes.",
+    strategy: "Evoluir com catalogo controlado, bases oficiais importadas e conferencia operacional sem criar baixas indevidas.",
+    flow: ["servico", "quantitativo", "composicao", "consumo previsto", "estoque", "conferencia", "aprovacao"],
+    priorities: ["geometria confiavel", "composicoes controladas", "importacao oficial", "auditoria previsto x real", "fila de aprovacao"]
+  },
+  stocksaude: {
+    name: "Stock Saúde",
+    aliases: ["stock saude", "stock saúde", "saude", "saúde"],
+    summary: "Controle operacional de estoque de saude com foco em medicamentos, lote, validade, rastreabilidade e auditoria.",
+    strategy: "Priorizar seguranca operacional, validade, lote e trilha de auditoria antes de automacoes avancadas.",
+    flow: ["produto", "lote", "validade", "entrada", "saida", "saldo", "auditoria"],
+    priorities: ["controle por lote", "alerta de validade", "rastreabilidade", "perfis de acesso", "auditoria"]
+  },
+  obrareport: {
+    name: "ObraReport",
+    aliases: ["obrareport", "relatorio", "relatório", "rdo"],
+    summary: "SaaS para relatorios tecnicos de obras, RDO, fotos, materiais, inconformidades, revisao e PDF.",
+    strategy: "Consolidar fluxo vendavel de relatorio/RDO/PDF e usar o Elo como copiloto tecnico contextual.",
+    flow: ["cliente", "obra", "relatorio", "fotos", "inconformidades", "revisao", "PDF", "RDO"],
+    priorities: ["fluxo de relatorio", "PDF confiavel", "RDO", "materiais", "auditoria de consumo", "experiencia comercial"]
+  },
+  elo: {
+    name: "Elo",
+    aliases: ["elo"],
+    summary: "Assistente contextual com personalidade unica, memoria, biblioteca, historico resumido e contexto de produto.",
+    strategy: "Unificar todos os Elos no cerebro oficial e fazer o assistente pensar antes de responder.",
+    flow: ["classificador", "memoria relevante", "biblioteca relevante", "contexto do produto", "contexto mestre", "LLM", "resposta limpa"],
+    priorities: ["cerebro oficial", "recuperacao relevante", "personalidade consistente", "salvamento por metadado", "auditoria de contexto"]
+  },
+  eloinforme: {
+    name: "Elo Informe",
+    aliases: ["elo informe", "bueiro", "boeiro", "ocorrencia urbana", "prefeitura"],
+    summary: "Ideia de produto para registro e encaminhamento de ocorrencias urbanas com linguagem simples para cidadaos.",
+    strategy: "Validar primeiro o fluxo de registro, localizacao, categoria e encaminhamento antes de automacoes avancadas.",
+    flow: ["ocorrencia", "localizacao", "categoria", "evidencia", "resumo", "encaminhamento"],
+    priorities: ["registro simples", "classificacao", "geolocalizacao", "comprovante", "painel de acompanhamento"]
+  }
+};
+const PROJECT_ALIASES = {
+  cadista: PROJECT_KNOWLEDGE.cadista.aliases,
+  elo: PROJECT_KNOWLEDGE.elo.aliases,
+  eloinforme: PROJECT_KNOWLEDGE.eloinforme.aliases,
+  stockfull: PROJECT_KNOWLEDGE.stockfull.aliases,
+  stockobras: PROJECT_KNOWLEDGE.stockobras.aliases,
+  stocksaude: PROJECT_KNOWLEDGE.stocksaude.aliases.concat(["medicamento", "medicamentos", "lote", "validade"]),
+  obrareport: PROJECT_KNOWLEDGE.obrareport.aliases
+};
+
+export function normalizeEloText(message) {
+  let text = String(message || "").trim();
+  const replacements = [
+    [/\boq\b/gi, "o que"],
+    [/\boque\b/gi, "o que"],
+    [/\bpq\b/gi, "por que"],
+    [/\bvc\b/gi, "você"],
+    [/\bvcs\b/gi, "vocês"],
+    [/\btbm\b/gi, "também"],
+    [/\btb\b/gi, "também"],
+    [/\bn\b/gi, "não"],
+    [/\bnao\b/gi, "não"],
+    [/\bpra\b/gi, "para"],
+    [/\bpro\b/gi, "para o"],
+    [/\bpros\b/gi, "para os"],
+    [/\bq\b/gi, "que"],
+    [/\bkd\b/gi, "cadê"],
+    [/\bdps\b/gi, "depois"],
+    [/\bagr\b/gi, "agora"],
+    [/\bhj\b/gi, "hoje"],
+    [/\baki\b/gi, "aqui"],
+    [/\baq\b/gi, "aqui"],
+    [/\bcmg\b/gi, "comigo"],
+    [/\bblz\b/gi, "beleza"],
+    [/\bmsg\b/gi, "mensagem"],
+    [/\bcodex\b/gi, "Codex"],
+    [/\belo\b/gi, "Elo"],
+    [/\bstock full\b/gi, "Stock Full"],
+    [/\bstock ai\b/gi, "Stock AI"],
+    [/\bobrareport\b/gi, "ObraReport"]
+  ];
+  const typoHints = [
+    { wrong: "xi iu", right: "se eu" },
+    { wrong: "iscriver", right: "escrever" },
+    { wrong: "acim", right: "assim" },
+    { wrong: "fass", right: "faça" },
+    { wrong: "fazr", right: "fazer" },
+    { wrong: "trasnformar", right: "transformar" },
+    { wrong: "mê dê", right: "me dê" },
+    { wrong: "vcê", right: "você" },
+    { wrong: "vocÊ", right: "você" },
+    { wrong: "codigo", right: "código" },
+    { wrong: "trasnforme", right: "transforme" }
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+  typoHints.forEach((item) => {
+    text = text.replace(new RegExp(item.wrong, "gi"), item.right);
+  });
+
+  return text.replace(/\s+/g, " ").trim();
+}
+
+export function detectEloIntent(message, context = "geral", history = []) {
+  const text = normalizeEloDecisionText_(message);
+  if (/\b(codigo|codex|prompt|implementar|crie a tarefa|faca os codigos|faca o codigo)\b/.test(text)) {
+    return "codex_task_or_code";
+  }
+  if (/\b(analise|analisar|opiniao|sincera|o que acha|melhorar)\b/.test(text)) {
+    return "analysis_or_feedback";
+  }
+  if (/\b(resuma|resumo|resumir|rapido|em poucas palavras)\b/.test(text)) {
+    return "summary";
+  }
+  if (/\b(calcular|calcule|quantos|quanto|m2|m²|m3|m³|bloco|concreto|laje|parede|piso|argamassa|tinta)\b/.test(text)) {
+    return "technical_calculation";
+  }
+  if (/\b(vender|marketing|lancar|cliente|lojista|anuncio|video|frase|copy)\b/.test(text)) {
+    return "marketing_strategy";
+  }
+  if (/\b(retomar|continuar|voltar|proximo passo)\b/.test(text)) {
+    return "continue_project";
+  }
+  if (/\b(erro|bug|quebrou|nao funciona|corrigir|consertar)\b/.test(text)) {
+    return "debug_or_fix";
+  }
+  if (/\b(guardar|salvar|lembrar|memoria|biblioteca)\b/.test(text)) {
+    return "memory_or_library";
+  }
+  if (/\b(explica|explique|entender|como funciona|por que)\b/.test(text)) {
+    return "explanation";
+  }
+  return "general_conversation";
+}
+
+export function extractContextKeywords_(text) {
+  const normalized = normalizeEloSearchText_(text);
+  const keywords = [];
+  const add = (keyword) => {
+    if (keyword && !keywords.includes(keyword)) {
+      keywords.push(keyword);
+    }
+  };
+
+  if (/\bprojetos?\b/.test(normalized)) {
+    add("projetos");
+  }
+
+  Object.values(PROJECT_ALIASES).forEach((aliases) => {
+    aliases.forEach((alias) => {
+      const normalizedAlias = normalizeEloSearchText_(alias);
+      if (hasEloSearchPhrase_(normalized, normalizedAlias)) {
+        if (normalizedAlias.startsWith("stock ")) {
+          add("stock");
+        }
+        add(normalizedAlias);
+      }
+    });
+  });
+
+  return keywords;
+}
+
+export function buildProjectKnowledgeContext_(input = {}) {
+  const sourceText = typeof input === "string"
+    ? input
+    : [
+      input.projectKnowledgeQuery,
+      input.message,
+      input.userMessage,
+      input.eloIntentSummary,
+      input.productContextSummary,
+      input.relevantMemoriesSummary,
+      input.libraryRelevantSummary
+    ].map(clean_).filter(Boolean).join(" ");
+  const keywords = extractContextKeywords_(sourceText);
+  const wantsProjectInventory = keywords.includes("projetos");
+  const selectedKeys = wantsProjectInventory
+    ? ["cadista", "stockfull", "elo", "stocksaude", "obrareport"]
+    : Object.keys(PROJECT_KNOWLEDGE).filter((key) => {
+      const aliases = PROJECT_KNOWLEDGE[key].aliases || [];
+      return keywords.includes(key) || aliases.some((alias) => keywords.includes(normalizeEloSearchText_(alias)));
+    });
+
+  if (!selectedKeys.length) {
+    return "";
+  }
+
+  const blocks = selectedKeys.map((key) => {
+    const project = PROJECT_KNOWLEDGE[key];
+    return [
+      "[" + project.name + "]",
+      "Resumo: " + project.summary,
+      "Estrategia: " + project.strategy,
+      "Fluxo: " + project.flow.join(" -> "),
+      "Prioridades: " + project.priorities.join("; ")
+    ].join("\n");
+  });
+
+  return [
+    "Conhecimento permanente dos projetos do usuario.",
+    "Prioridade: quando a pergunta citar um projeto abaixo, use este conhecimento antes de conhecimento geral do modelo.",
+    "Nao substitua este conhecimento por respostas genericas.",
+    blocks.join("\n\n")
+  ].join("\n");
+}
+
+export function detectEloIntent_(message, context = {}, history = [], options = {}) {
+  const text = normalizeEloDecisionText_(message);
+  const eloContext = normalizeEloContext_(context && context.eloContext ? context.eloContext : context);
+  const categories = [];
+  const add = (category) => {
+    if (category && !categories.includes(category)) {
+      categories.push(category);
+    }
+  };
+
+  if (!text || /\b(oi|ola|olá|bom dia|boa tarde|boa noite|quem e voce|quem é você)\b/.test(text)) add("conversa");
+  if (/\b(calcular|calcule|quantos|quanto|m2|m²|m3|m³|20x3|8x10|parede|laje|concreto|bloco|cabo)\b/.test(text)) add("cálculo");
+  if (/\b(explique|explica|o que e|o que é|como funciona|conceito|tecnica|técnica)\b/.test(text)) add("pergunta técnica");
+  if (/\b(lembre|lembrar|memoria|memória|prefiro|preferencia|preferência|gosto de)\b/.test(text)) add("memória");
+  if (/\b(biblioteca|guardar na biblioteca|guarde na biblioteca|documentar para consultar)\b/.test(text)) add("biblioteca");
+  if (/\b(relatorio|relatório|rdo|diario de obra|diário de obra|exportar relatorio|exportar relatório)\b/.test(text)) add("relatório");
+  if (/\b(pdf|exportar|gerar pdf)\b/.test(text)) {
+    add("pdf");
+    add("relatório");
+  }
+  if (/\b(estoque|almoxarifado|stock full|entrada|saida|saída|saldo|produto|produtos parados|auditoria)\b/.test(text)) add("estoque");
+  if (/\b(obra|obras|parede|laje|concreto|bloco|alvenaria|piso|argamassa|canteiro|fissura|infiltracao|infiltração)\b/.test(text)) add("obras");
+  if (/\b(saude|saúde|medicamento|medicamentos|lote|validade|hospital|farmacia|farmácia)\b/.test(text)) add("saúde");
+  if (/\b(planejamento|estrategia|estratégia|roadmap|plano|prioridade|proximo passo|próximo passo)\b/.test(text)) add("planejamento");
+  if (/\b(resumo|resuma|resumir|sintese|síntese)\b/.test(text)) add("resumo");
+  if (/\b(documento|documentos|contrato|arquivo|texto anexado)\b/.test(text)) add("documento");
+  if (options.hasAttachments || /\b(anexo|anexei|arquivo anexado|pdf anexado)\b/.test(text)) add("anexo");
+
+  if (eloContext === "obras") add("obras");
+  if (eloContext === "saude") add("saúde");
+  if (!categories.length) add("conversa");
+
+  const priority = ["anexo", "pdf", "memória", "biblioteca", "cálculo", "estoque", "saúde", "obras", "relatório", "resumo", "planejamento", "pergunta técnica", "conversa"];
+  const primary = priority.find((category) => categories.includes(category)) || categories[0];
+  const productContext = inferEloProductContext_(categories, eloContext, text, history);
+
+  return {
+    primary,
+    categories,
+    productContext,
+    needsMemory: categories.some((category) => ["memória", "resumo", "conversa", "planejamento"].includes(category)),
+    needsLibrary: categories.some((category) => ["biblioteca", "documento", "resumo", "pergunta técnica"].includes(category)),
+    hasAttachment: categories.includes("anexo")
+  };
+}
+
+function inferEloProductContext_(categories, eloContext, text, history = []) {
+  if (categories.includes("saúde") || eloContext === "saude") return "saúde";
+  if (categories.includes("estoque") && /\b(stock full|almoxarifado|entrada|saida|saída|produtos parados)\b/.test(text)) return "estoque";
+  if (categories.includes("obras") || eloContext === "obras") return "obras";
+  if (/\b(elo)\b/.test(text) || normalizeEloDecisionText_(getEloHistoryText_(history)).includes("elo")) return "elo";
+  return "geral";
+}
+
+function detectEloProjectContextFromText_(text) {
+  if (/\b(stock full|loja|lojista|almoxarifado|entrada|saida|estoque)\b/.test(text)) {
+    return "stock_full";
+  }
+  if (/\b(stock ai obras|sinapi|orse|composicao|obra|bloco|laje|concreto|parede|piso|argamassa)\b/.test(text)) {
+    return "stock_ai_obras";
+  }
+  if (/\b(obrareport|relatorio|rdo|diario de obra|patologia|fissura|infiltracao)\b/.test(text)) {
+    return "obrareport";
+  }
+  if (/\b(stock saude|medicamento|lote|validade|saude|hospital|posto)\b/.test(text)) {
+    return "stock_saude";
+  }
+  if (/\b(cadista|planta|layout|casa|ambiente|terreno|recuo)\b/.test(text)) {
+    return "cadista_ai";
+  }
+  if (/\b(elo informe|bueiro|boeiro|buraco|ocorrencia urbana|prefeitura|cidadao)\b/.test(text)) {
+    return "elo_informe";
+  }
+  if (/\belo\b/.test(text)) {
+    return "elo_core";
+  }
+  return "";
+}
+
+function isImplicitEloContinuation_(text) {
+  if (!text) return true;
+  return /\b(retomar|continuar|voltar|proximo passo|isso|esse projeto|essa ideia|essa resposta|vamos|e agora)\b/.test(text);
+}
+
+function getEloHistoryText_(history = []) {
+  if (!Array.isArray(history)) return "";
+  return history
+    .slice(-6)
+    .map((entry) => clean_(entry && entry.content))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function sanitizeEloUserProfile_(userProfile = {}) {
+  if (!userProfile || typeof userProfile !== "object") return {};
+  const name = clean_(userProfile.name).slice(0, 120);
+  const style = clean_(userProfile.style).slice(0, 240);
+  return {
+    ...(name ? { name } : {}),
+    ...(style ? { style } : {})
+  };
+}
+
+export function detectEloProjectContext(message, currentContext = "geral", history = []) {
+  const text = normalizeEloDecisionText_(message);
+  const directContext = detectEloProjectContextFromText_(text);
+  if (directContext) return directContext;
+
+  if (isImplicitEloContinuation_(text)) {
+    const historyContext = detectEloProjectContextFromText_(normalizeEloDecisionText_(getEloHistoryText_(history)));
+    if (historyContext) return historyContext;
+  }
+
+  return currentContext || "geral";
+}
+
+export function detectEloTone(originalMessage) {
+  const text = normalizeEloDecisionText_(originalMessage);
+  if (/\bkk|kkkk|haha|rsrs\b/.test(text)) return "brincalhao_informal";
+  if (/\b(cara|mano|pelo amor|urgente|rapido)\b/.test(text)) return "direto_apressado";
+  if (/\b(nao entendi|confuso|perdido)\b/.test(text)) return "confuso";
+  if (/\b(amei|top|perfeito|boa)\b/.test(text)) return "positivo";
+  if (/\b(ruim|horrivel|pessimo|bagunca)\b/.test(text)) return "frustrado";
+  return "neutro";
+}
+
+export function detectExpectedEloAnswerStyle(original, normalized, intent) {
+  const text = normalizeEloDecisionText_(original);
+  if (intent === "codex_task_or_code") return "prompt_pronto_para_copiar";
+  if (/\b(rapido|resumo|so diga|direto)\b/.test(text)) {
+    return "curto_direto";
+  }
+  if (/\b(codigo completo|prompt completo|passo a passo|onde clicar)\b/.test(text)) {
+    return "detalhado_pratico";
+  }
+  if (intent === "technical_calculation") return "resultado_primeiro_com_calculo_curto";
+  if (intent === "marketing_strategy") return "opiniao_sincera_com_recomendacao";
+  return "natural_objetivo";
+}
+
+export function shouldEloAskClarification({ originalMessage, normalizedMessage, detectedIntent, projectContext, history } = {}) {
+  const text = normalizeEloDecisionText_(normalizedMessage);
+  if (detectedIntent === "technical_calculation") {
+    const hasNumbers = /\d/.test(text);
+    const hasKnownItem = /\b(bloco|parede|laje|concreto|piso|argamassa|tinta|telha|cabo|estoque)\b/.test(text);
+    if (hasNumbers && hasKnownItem) return false;
+  }
+  if (["codex_task_or_code", "analysis_or_feedback", "marketing_strategy"].includes(detectedIntent)) return false;
+  if (detectedIntent === "continue_project" && projectContext !== "geral") return false;
+  if (String(originalMessage || "").trim().length < 4) return true;
+  return false;
+}
+
+export function interpretEloUserMessage({ message, history = [], context = "geral", userProfile = {} } = {}) {
+  const raw = String(message || "").trim();
+  const normalized = normalizeEloText(raw);
+  const profile = sanitizeEloUserProfile_(userProfile);
+  const intent = detectEloIntent(normalized, context, history);
+  const tone = detectEloTone(raw);
+  const projectContext = detectEloProjectContext(normalized, context, history);
+  const expectedAnswerStyle = detectExpectedEloAnswerStyle(raw, normalized, intent);
+
+  return {
+    originalMessage: raw,
+    normalizedMessage: normalized,
+    detectedIntent: intent,
+    emotionalTone: tone,
+    projectContext,
+    expectedAnswerStyle,
+    context,
+    userProfile: profile,
+    shouldAskClarification: shouldEloAskClarification({
+      originalMessage: raw,
+      normalizedMessage: normalized,
+      detectedIntent: intent,
+      projectContext,
+      history
+    })
+  };
+}
+
+export function getEloPersonalityPrompt_(input = "geral") {
+  if (input && typeof input === "object" && input.interpretation) {
+    const interpretation = input.interpretation;
+    const userProfile = interpretation.userProfile || {};
+    const userName = clean_(userProfile.name || "Ícaro Amaral");
+    const userStyle = clean_(userProfile.style || "direto, prático e objetivo");
+    return [
+      "Você é o Elo, assistente técnico e estratégico de " + userName + ".",
+      "Perfil do usuário:\nNome: " + userName + "\nEstilo preferido: " + userStyle,
+      "Antes de responder, considere esta interpretação da mensagem do usuário:",
+      "Mensagem original:\n" + clean_(interpretation.originalMessage),
+      "Mensagem normalizada:\n" + clean_(interpretation.normalizedMessage),
+      "Intenção detectada:\n" + clean_(interpretation.detectedIntent),
+      "Tom emocional:\n" + clean_(interpretation.emotionalTone),
+      "Contexto provável:\n" + clean_(interpretation.projectContext),
+      "Estilo esperado:\n" + clean_(interpretation.expectedAnswerStyle),
+      "Regras de conversa:",
+      "- Responda ao que o usuário quis dizer, não apenas ao texto literal.",
+      "- Entenda erros de digitação, abreviações e frases incompletas.",
+      "- Não corrija o usuário de forma pedante.",
+      "- Não diga 'você quis dizer' se a intenção estiver clara.",
+      "- Responda primeiro, explique depois.",
+      "- Não repita a pergunta do usuário.",
+      "- Pergunte apenas se faltar informação essencial.",
+      "- Não escreva convites de salvamento, botões, 'Guardar', 'Não guardar' ou 'Biblioteca do Elo' dentro da resposta.",
+      "- Seja direto, natural, profissional e útil.",
+      "- Para " + userName.split(" ")[0] + ", adapte a linguagem ao estilo preferido quando informado.",
+      "- Quando ele pedir código, prompt ou Codex, entregue algo pronto para copiar.",
+      "- Quando ele pedir opinião, seja sincero.",
+      "- Quando ele estiver falando de projeto, use o contexto do projeto.",
+      "- Evite respostas genéricas."
+    ].join("\n\n");
+  }
+
+  const context = normalizeEloContext_(input);
+  const contextTone = {
+    geral: "adapte exemplos para projetos, decisões, documentos e planejamento pessoal ou profissional.",
+    obras: "adapte exemplos para obra, engenharia civil, RDO, materiais, medição, consumo, estoque de obra e documentação técnica.",
+    saude: "adapte exemplos para saúde, almoxarifado hospitalar, farmácia, validade, lote, rastreabilidade, compras e auditoria."
+  };
+
+  return [
+    "Padrão único de conversa do Elo:",
+    "Responda primeiro de forma direta. Depois explique só o necessário. Depois sugira um próximo passo prático quando isso ajudar.",
+    "Não repita a pergunta do usuário. Não comece com 'Você quer...' quando a intenção já estiver clara.",
+    "Se houver dados suficientes, responda direto. Se faltar dado essencial, pergunte apenas o que falta.",
+    "Use linguagem natural, profissional, objetiva e curta. Evite burocracia, rodeios e respostas longas para pedidos simples.",
+    "Nunca inclua texto de salvamento ou botões na resposta. Não escreva 'Deseja guardar', 'Guardar', 'Não guardar' ou 'Biblioteca do Elo' como chamada de ação; isso é metadado da interface.",
+    "Em cálculos simples, destaque o resultado, mostre a base considerada, perdas ou variações quando fizer sentido e finalize com uma observação útil.",
+    "Para blocos, concreto, laje, calçada, piso, revestimento, tinta, argamassa, itens de estoque e consumo de obra, entregue números claros e premissas assumidas.",
+    contextTone[context]
+  ].join(" ");
+}
+
+export function buildEloMasterContext_(context = {}) {
+  const eloContext = normalizeEloContext_(context.eloContext);
+  return [
+    buildEloContextPrompt_(eloContext),
+    buildProjectKnowledgeContext_(context),
+    getEloPersonalityPrompt_(eloContext)
+  ].filter(Boolean).join(" ");
+}
+
+export function formatEloFinalResponse_({ result, explanation, nextStep, warnings } = {}) {
+  const parts = [];
+  const directResult = clean_(result);
+  const shortExplanation = clean_(explanation);
+  const practicalNextStep = clean_(nextStep);
+  const technicalWarnings = Array.isArray(warnings)
+    ? warnings.map(clean_).filter(Boolean)
+    : (clean_(warnings) ? [clean_(warnings)] : []);
+
+  if (directResult) {
+    parts.push(directResult);
+  }
+  if (shortExplanation) {
+    parts.push(shortExplanation);
+  }
+  if (practicalNextStep) {
+    parts.push(practicalNextStep);
+  }
+  if (technicalWarnings.length) {
+    parts.push("Aviso técnico: " + technicalWarnings.join(" "));
+  }
+
+  return sanitizeEloAnswerText_(parts.join("\n\n"));
+}
+
+export function shouldShowEloSavePrompt_({ userMessage, assistantResponse, context, intent } = {}) {
+  const text = normalizeEloDecisionText_([userMessage, intent].join(" "));
+  const answer = normalizeEloDecisionText_(assistantResponse);
+  const eloContext = normalizeEloContext_(context && context.eloContext);
+
+  if (!text && !answer) {
+    return { show: false, reason: "empty", suggestedTarget: "none" };
+  }
+
+  if (isSimpleEloCalculation_(text)) {
+    return { show: false, reason: "simple_calculation", suggestedTarget: "none" };
+  }
+
+  if (["teste", "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite"].includes(text.trim())) {
+    return { show: false, reason: "low_future_value", suggestedTarget: "none" };
+  }
+
+  if (hasAnyEloDecisionTerm_(text, ["biblioteca", "guardar na biblioteca", "guarde na biblioteca", "usar depois", "resumo de reuniao", "resumo de reunião", "roadmap", "especificacao de produto", "especificação de produto"])) {
+    return { show: true, reason: "reusable_technical_content", suggestedTarget: "library" };
+  }
+
+  if (hasAnyEloDecisionTerm_(text, ["guarde", "guardar", "lembre", "lembrar", "prefiro", "minha preferencia", "minha preferência", "regra de negocio", "regra de negócio", "preferencia permanente", "preferência permanente"])) {
+    return { show: true, reason: "durable_memory", suggestedTarget: "memory" };
+  }
+
+  if (hasAnyEloDecisionTerm_(text, ["decisao estrategica", "decisão estratégica", "estrategia do projeto", "estratégia do projeto", "planejamento importante", "plano de acao", "plano de ação", "roadmap", "stock full"]) && answer.length > 220) {
+    return { show: true, reason: "strategic_decision", suggestedTarget: "both" };
+  }
+
+  if (eloContext === "saude" && hasAnyEloDecisionTerm_(text, ["protocolo", "auditoria", "compras", "validade", "lote"])) {
+    return { show: true, reason: "health_operations_reference", suggestedTarget: "library" };
+  }
+
+  return { show: false, reason: "not_reusable_enough", suggestedTarget: "none" };
+}
+
+function sanitizeEloAnswerText_(value) {
+  const forbiddenLine = /^\s*(?:guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|guardar biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)\s*$/i;
+  const cleanedLines = String(value || "")
+    .replace(/Deseja guardar isso para eu lembrar depois\??/gi, "")
+    .replace(/Deseja guardar isso na Biblioteca do Elo\??/gi, "")
+    .replace(/Deseja guardar isso na Biblioteca\??/gi, "")
+    .replace(/Deseja guardar isso para a Biblioteca\??/gi, "")
+    .replace(/Salvar esta conversa\??/gi, "")
+    .replace(/\bGuardar na Biblioteca\b/gi, "")
+    .replace(/\bNão guardar na Biblioteca\b/gi, "")
+    .replace(/\bNao guardar na Biblioteca\b/gi, "")
+    .split(/\r?\n/)
+    .filter((line) => !forbiddenLine.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return cleanedLines
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildEloSavePromptMeta_(decision) {
+  const safeDecision = decision && typeof decision === "object" ? decision : {};
+  const show = safeDecision.show === true;
+  const suggestedTarget = show ? clean_(safeDecision.suggestedTarget || safeDecision.type || "memory") : "none";
+  const type = !show
+    ? "none"
+    : (suggestedTarget === "library" ? "library" : "memory");
+
+  return {
+    show,
+    type,
+    suggestedTarget: show ? suggestedTarget : "none",
+    reason: clean_(safeDecision.reason || (show ? "valuable_context" : "not_reusable_enough"))
+  };
+}
 
 export function createApp(options = {}) {
   const app = express();
@@ -1409,38 +1981,74 @@ export function createApp(options = {}) {
 
     validation.payload.context.documentsSummary = chatRequest.documentsSummary;
     validation.payload.context.attachmentErrors = chatRequest.attachmentErrors;
+    validation.payload.interpretation = interpretEloUserMessage({
+      message: validation.payload.message,
+      history: validation.payload.history,
+      context: validation.payload.context.eloContext,
+      userProfile: {
+        name: "Ícaro Amaral",
+        style: "direto, prático, informal, constrói SaaS próprios"
+      }
+    });
+    validation.payload.eloIntent = detectEloIntent_(validation.payload.message, validation.payload.context, validation.payload.history, {
+      hasAttachments: Boolean(chatRequest.documents.length || chatRequest.attachmentErrors.length)
+    });
 
     if (!env.OPENAI_API_KEY) {
+      const answer = sanitizeEloAnswerText_(buildEloOfflineFallbackAnswer_(chatRequest.documents, chatRequest.attachmentErrors, validation.payload.interpretation));
+      const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
+        userMessage: validation.payload.message,
+        assistantResponse: answer,
+        context: validation.payload.context,
+        intent: validation.payload.interpretation.detectedIntent
+      }));
       response.status(503).json({
         ok: false,
         mode: "fallback_required",
         fallback: true,
-        answer: buildEloOfflineFallbackAnswer_(chatRequest.documents, chatRequest.attachmentErrors),
+        answer,
+        savePrompt,
         error: "Backend do Elo sem OPENAI_API_KEY configurada.",
+        interpretation: validation.payload.interpretation,
         attachmentErrors: chatRequest.attachmentErrors
       });
       return;
     }
 
     try {
-      validation.payload.context.relevantMemoriesSummary = await searchEloRelevantMemories_(
-        eloVectorMemoryStore,
-        validation.payload.message,
-        validation.payload.context.deviceId
-      );
-      if (validation.payload.context.eloContext === "obras") {
-        const auditoriaContext = buildAuditoriaConsumoContext(validation.payload.message);
-        validation.payload.context.obraComposicaoContext = auditoriaContext || buildPrevisaoConsumoContext(validation.payload.message);
-        if (!auditoriaContext) {
-          validation.payload.stockIaLaunchPlan = buildStockIaLaunchPlan(validation.payload.message);
-        }
+      const relevantContext = await getEloRelevantContext_({
+        payload: validation.payload,
+        memoryStore: eloVectorMemoryStore,
+        documents: chatRequest.documents,
+        attachmentErrors: chatRequest.attachmentErrors
+      });
+      Object.assign(validation.payload.context, relevantContext.context);
+      validation.payload.history = relevantContext.compactHistory;
+      validation.payload.eloIntent = relevantContext.intent;
+      if (relevantContext.context.stockIaLaunchPlan) {
+        validation.payload.stockIaLaunchPlan = relevantContext.context.stockIaLaunchPlan;
       }
-      const answer = await callOpenAiElo_(validation.payload, env);
+      const answer = sanitizeEloAnswerText_(await callOpenAiElo_(validation.payload, env));
+      const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
+        userMessage: validation.payload.message,
+        assistantResponse: answer,
+        context: validation.payload.context,
+        intent: validation.payload.interpretation.detectedIntent
+      }));
       response.json({
         ok: true,
         mode: "remote",
         fallback: false,
         answer,
+        savePrompt,
+        interpretation: validation.payload.interpretation,
+        eloIntent: validation.payload.eloIntent,
+        contextSummary: {
+          conversationSummary: validation.payload.context.conversationSummary || "",
+          productContextSummary: validation.payload.context.productContextSummary || "",
+          hasRelevantMemory: Boolean(validation.payload.context.relevantMemoriesSummary),
+          hasRelevantLibrary: Boolean(validation.payload.context.libraryRelevantSummary)
+        },
         documents: chatRequest.documents.map((document) => ({
           fileName: document.fileName,
           mimeType: document.mimeType,
@@ -1451,11 +2059,20 @@ export function createApp(options = {}) {
       });
     } catch (error) {
       console.error("Falha no Elo online:", error);
+      const answer = sanitizeEloAnswerText_(buildEloLocalFallbackResponse_(validation.payload.interpretation));
+      const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
+        userMessage: validation.payload.message,
+        assistantResponse: answer,
+        context: validation.payload.context,
+        intent: validation.payload.interpretation.detectedIntent
+      }));
       response.status(502).json({
         ok: false,
         mode: "fallback_required",
         fallback: true,
-        answer: "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.",
+        answer,
+        savePrompt,
+        interpretation: validation.payload.interpretation,
         attachmentErrors: chatRequest.attachmentErrors
       });
     }
@@ -2314,7 +2931,7 @@ function buildEloAttachmentErrorAnswer_(errors) {
   return "Não consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraível.";
 }
 
-function buildEloOfflineFallbackAnswer_(documents, errors) {
+function buildEloOfflineFallbackAnswer_(documents, errors, interpretation = null) {
   const readableDocuments = Array.isArray(documents) ? documents.filter((document) => document && document.text) : [];
   const attachmentErrors = Array.isArray(errors) ? errors.filter(Boolean) : [];
 
@@ -2327,7 +2944,29 @@ function buildEloOfflineFallbackAnswer_(documents, errors) {
     return buildEloAttachmentErrorAnswer_(attachmentErrors);
   }
 
-  return "Não consegui acessar minha inteligência online agora, mas ainda posso conversar com você de forma local.";
+  return buildEloLocalFallbackResponse_(interpretation);
+}
+
+export function buildEloLocalFallbackResponse_(interpretation) {
+  const intent = interpretation && interpretation.detectedIntent;
+
+  if (intent === "codex_task_or_code") {
+    return "Entendi. Você quer um código ou prompt pronto para aplicar no projeto. Me diga qual arquivo ou função devo alterar, ou envie o trecho atual para eu montar a tarefa completa.";
+  }
+  if (intent === "technical_calculation") {
+    return "Entendi o cálculo. Me passe as medidas principais e o tipo de material que eu retorno a quantidade aproximada e uma margem de perda.";
+  }
+  if (intent === "marketing_strategy") {
+    return "Entendi. Vou analisar como estratégia de venda: clareza da mensagem, dor do cliente, promessa, prova visual e chamada para ação.";
+  }
+  if (intent === "continue_project") {
+    return "Entendi. Vamos retomar esse projeto pelo ponto mais seguro: revisar o estado atual, identificar o próximo ganho real e só depois mexer no código.";
+  }
+  if (intent === "analysis_or_feedback") {
+    return "Entendi. Vou analisar qualidade, clareza, riscos, pontos fracos e melhoria prática.";
+  }
+
+  return "Entendi. Em forma local, vou responder considerando o que você quis dizer, mesmo que a mensagem tenha vindo informal ou com erro de digitação.";
 }
 
 function parseEloMultipartFormData_(request, env) {
@@ -2594,10 +3233,251 @@ function validateEloChatRequest_(body) {
         mode: clean_(context.mode || ""),
         eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
-        memoriesSummary: clean_(context.memoriesSummary || "").slice(0, 2500)
+        memoriesSummary: cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
+        librarySummary: cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
+        productContext: clean_(context.productContext || "").slice(0, 80),
+        screenContext: clean_(context.screenContext || "").slice(0, 1200)
       }
     }
   };
+}
+
+export function buildConversationSummary_(history = []) {
+  const entries = Array.isArray(history) ? history.filter((item) => item && item.content) : [];
+  if (entries.length <= 8) {
+    return "";
+  }
+
+  const olderText = entries
+    .slice(0, -6)
+    .map((item) => clean_(item.content))
+    .filter(Boolean)
+    .join(" ");
+  const allText = entries
+    .map((item) => clean_(item.content))
+    .filter(Boolean)
+    .join(" ");
+  const normalized = normalizeEloDecisionText_(allText);
+  const facts = [];
+  const add = (fact) => {
+    if (fact && !facts.includes(fact)) {
+      facts.push(fact);
+    }
+  };
+
+  if (/\b(elo|cerebro oficial|cérebro oficial|arquitetura)\b/.test(normalized)) add("usuario trabalha no projeto Elo e esta unificando a arquitetura");
+  if (/\b(stock full|lojista|loja|estoque)\b/.test(normalized)) add("ha contexto sobre Stock Full, estoque e lojistas");
+  if (/\b(cadista|planta|dxf|pdf tecnico|pdf técnico)\b/.test(normalized)) add("ha contexto sobre CADISTA IA e geracao tecnica");
+  if (/\b(respostas curtas|prefiro respostas curtas|direto)\b/.test(normalized)) add("usuario prefere respostas curtas e diretas");
+  if (/\b(memoria|memória|lembre|guardar)\b/.test(normalized)) add("conversa envolve memoria e recuperacao de preferencias");
+  if (/\b(biblioteca|documento|resumo)\b/.test(normalized)) add("conversa envolve biblioteca, documentos ou resumos");
+  if (/\b(obra|parede|concreto|laje|bloco|rdo)\b/.test(normalized)) add("ha contexto tecnico de obras, calculos e relatorios");
+  if (/\b(saude|saúde|medicamento|lote|validade)\b/.test(normalized) && !/\b(fica para depois|deixar para depois|para depois)\b/.test(normalized)) add("ha contexto operacional de saude, lote e validade");
+
+  if (!facts.length) {
+    const excerpt = clean_(olderText).slice(0, 420);
+    if (excerpt) {
+      add("historico anterior resumido: " + excerpt);
+    }
+  }
+
+  return facts.length ? "Resumo atual:\n" + facts.slice(0, 8).map((fact) => "- " + fact).join("\n") : "";
+}
+
+export async function getEloRelevantContext_({ payload, memoryStore, documents = [], attachmentErrors = [] } = {}) {
+  const safePayload = payload || {};
+  const context = safePayload.context || {};
+  const intent = safePayload.eloIntent || detectEloIntent_(safePayload.message, context, safePayload.history, {
+    hasAttachments: Boolean(documents.length || attachmentErrors.length)
+  });
+  const contextKeywords = extractContextKeywords_(safePayload.message);
+  const recentHistoryText = getEloHistoryText_(safePayload.history);
+  const query = buildEloContextQuery_(safePayload.message, intent);
+  const conversationSummary = buildConversationSummary_(safePayload.history);
+  const compactHistory = compactEloHistory_(safePayload.history, conversationSummary);
+  const relevantMemoriesSummary = await searchEloRelevantMemories_(memoryStore, query, context.deviceId, {
+    categories: intent.categories,
+    keywords: contextKeywords,
+    historyText: recentHistoryText,
+    includeProjectInventory: contextKeywords.includes("projetos"),
+    limit: 5
+  });
+  const filteredLocalMemories = filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
+    keywords: contextKeywords,
+    historyText: recentHistoryText
+  });
+  const libraryRelevantSummary = filterRelevantContextLines_(context.librarySummary, query, intent.categories, 5, {
+    keywords: contextKeywords,
+    historyText: recentHistoryText
+  });
+  const productContextSummary = buildEloProductContextSummary_(intent, context);
+  const resultContext = {
+    eloIntentSummary: formatEloIntentSummary_(intent),
+    conversationSummary,
+    relevantMemoriesSummary: [relevantMemoriesSummary, filteredLocalMemories].filter(Boolean).join("\n").slice(0, 2200),
+    libraryRelevantSummary,
+    productContextSummary,
+    projectKnowledgeQuery: [safePayload.message, contextKeywords.join(" ")].filter(Boolean).join(" "),
+    compactHistory
+  };
+
+  if (documents.length) {
+    resultContext.documentsSummary = context.documentsSummary;
+  }
+  if (attachmentErrors.length) {
+    resultContext.attachmentErrors = attachmentErrors;
+  }
+  if (context.eloContext === "obras") {
+    const auditoriaContext = buildAuditoriaConsumoContext(safePayload.message);
+    resultContext.obraComposicaoContext = auditoriaContext || buildPrevisaoConsumoContext(safePayload.message);
+    if (!auditoriaContext) {
+      resultContext.stockIaLaunchPlan = buildStockIaLaunchPlan(safePayload.message);
+    }
+  }
+
+  return {
+    intent,
+    context: resultContext,
+    compactHistory
+  };
+}
+
+function buildEloContextQuery_(message, intent) {
+  return [message, intent && intent.categories ? intent.categories.join(" ") : "", intent && intent.productContext].filter(Boolean).join(" ");
+}
+
+function compactEloHistory_(history = [], summary = "") {
+  const entries = Array.isArray(history) ? history : [];
+  const recent = entries.slice(summary ? -6 : -12);
+  if (!summary) {
+    return recent;
+  }
+  return [{ role: "assistant", content: summary }].concat(recent);
+}
+
+function filterRelevantContextLines_(summary, query, categories = [], limit = 5, options = {}) {
+  const lines = String(summary || "").split(/\r?\n+/).map(clean_).filter(Boolean);
+  if (!lines.length) {
+    return "";
+  }
+  const queryTokens = new Set(tokenizeSemanticText_([query].concat(categories).join(" ")));
+  const scored = lines.map((line) => {
+    const tokens = tokenizeSemanticText_(line);
+    const lexicalScore = tokens.reduce((total, token) => total + (queryTokens.has(token) ? 1 : 0), 0);
+    const contextScore = scoreEloContextText_(line, {
+      query,
+      categories,
+      keywords: options.keywords || [],
+      historyText: options.historyText || ""
+    });
+    const score = lexicalScore + contextScore;
+    return { line, score };
+  }).filter((item) => item.score > 0)
+    .sort((first, second) => second.score - first.score)
+    .slice(0, limit);
+
+  return scored.length ? scored.map((item) => item.line).join("\n") : "";
+}
+
+function expandContextKeywordAliases_(keywords = []) {
+  const normalizedKeywords = keywords.map(normalizeEloSearchText_).filter(Boolean);
+  const terms = new Set(normalizedKeywords);
+
+  Object.entries(PROJECT_ALIASES).forEach(([projectKey, aliases]) => {
+    const normalizedAliases = aliases.map(normalizeEloSearchText_).filter(Boolean);
+    if (normalizedKeywords.includes(projectKey) || normalizedAliases.some((alias) => normalizedKeywords.includes(alias))) {
+      normalizedAliases.forEach((alias) => terms.add(alias));
+      if (projectKey.startsWith("stock")) {
+        terms.add("stock");
+      }
+    }
+  });
+
+  return Array.from(terms);
+}
+
+function scoreEloContextText_(text, { query = "", categories = [], keywords = [], historyText = "" } = {}) {
+  const normalizedText = normalizeEloSearchText_(text);
+  if (!normalizedText) {
+    return 0;
+  }
+
+  const normalizedQuery = normalizeEloSearchText_([query].concat(categories).join(" "));
+  const normalizedHistory = normalizeEloSearchText_(historyText);
+  const aliasTerms = expandContextKeywordAliases_(keywords);
+  const directKeywords = keywords.map(normalizeEloSearchText_).filter(Boolean);
+  let score = 0;
+
+  aliasTerms.forEach((alias) => {
+    if (hasEloSearchPhrase_(normalizedText, alias)) {
+      score += 20;
+    }
+  });
+
+  directKeywords.forEach((keyword) => {
+    if (hasEloSearchPhrase_(normalizedText, keyword)) {
+      score += 10;
+    }
+  });
+
+  aliasTerms.concat(directKeywords).forEach((keyword) => {
+    if (hasEloSearchPhrase_(normalizedHistory, keyword) && hasEloSearchPhrase_(normalizedText, keyword)) {
+      score += 5;
+    }
+  });
+
+  if (directKeywords.includes("projetos")) {
+    if (/\b(projeto|roadmap|plano|estrategia|estrategico)\b/.test(normalizedText)) {
+      score += 12;
+    }
+    if (getProjectAliasHits_(normalizedText).length) {
+      score += 12;
+    }
+  }
+
+  tokenizeSemanticText_(normalizedText).forEach((token) => {
+    if (normalizedQuery.includes(token)) {
+      score += 1;
+    }
+  });
+
+  return score;
+}
+
+function getProjectAliasHits_(normalizedText) {
+  const hits = [];
+  Object.entries(PROJECT_ALIASES).forEach(([projectKey, aliases]) => {
+    if (aliases.some((alias) => hasEloSearchPhrase_(normalizedText, normalizeEloSearchText_(alias)))) {
+      hits.push(projectKey);
+    }
+  });
+  return hits;
+}
+
+function formatEloIntentSummary_(intent) {
+  if (!intent) {
+    return "";
+  }
+  return [
+    "Intencao principal: " + intent.primary,
+    "Categorias: " + intent.categories.join(", "),
+    "Contexto de produto: " + intent.productContext
+  ].join("\n");
+}
+
+function buildEloProductContextSummary_(intent, context = {}) {
+  const productContext = intent && intent.productContext ? intent.productContext : normalizeEloContext_(context.eloContext);
+  const screenContext = clean_(context.screenContext);
+  const base = {
+    geral: "Use o Elo Geral: memoria, biblioteca, documentos, planejamento e decisoes.",
+    elo: "Use o contexto do Elo: arquitetura, memoria, biblioteca, personalidade e unificacao do cerebro oficial.",
+    obras: "Use o contexto de Obras: engenharia civil, calculos, RDO, relatorios, materiais, PDF tecnico e consumo.",
+    estoque: "Use o contexto de Estoque/Stock Full: entradas, saidas, saldo, produtos parados, auditoria e almoxarifado.",
+    saúde: "Use o contexto de Saude: medicamentos, lote, validade, rastreabilidade, compras e auditoria.",
+    saude: "Use o contexto de Saude: medicamentos, lote, validade, rastreabilidade, compras e auditoria."
+  }[productContext] || "Use o contexto geral do Elo.";
+
+  return screenContext ? base + "\nContexto visivel do produto:\n" + screenContext : base;
 }
 
 function validateEloVectorMemoryRequest_(body) {
@@ -3063,17 +3943,49 @@ function createStableId_(value) {
   return "id_" + positiveHash_(value).toString(36);
 }
 
-export async function searchEloRelevantMemories_(store, query, ownerId) {
+export async function searchEloRelevantMemories_(store, query, ownerId, options = {}) {
   try {
     const safeOwnerId = sanitizeEloDeviceId_(ownerId);
     if (!safeOwnerId) {
       return "";
     }
-    const items = await store.search(query, safeOwnerId, 5);
+    const limit = Number(options.limit || 5);
+    const searchedItems = await store.search(query, safeOwnerId, Math.max(limit * 3, 12));
+    const listedItems = options.includeProjectInventory && store && typeof store.list === "function"
+      ? store.list().filter((item) => item.ownerId === safeOwnerId)
+      : [];
+    const byId = new Map();
+    searchedItems.concat(listedItems).forEach((item) => {
+      const key = item.id || item.text;
+      const current = byId.get(key);
+      if (!current || Number(item.score || 0) > Number(current.score || 0)) {
+        byId.set(key, item);
+      }
+    });
+    const items = Array.from(byId.values())
+      .map((item) => ({
+        ...item,
+        contextScore: scoreEloContextText_([item.category, item.text].join(" "), {
+          query,
+          categories: options.categories || [],
+          keywords: options.keywords || extractContextKeywords_(query),
+          historyText: options.historyText || ""
+        })
+      }))
+      .filter((item) => Number(item.score || 0) > 0.08 || item.contextScore > 0)
+      .sort((first, second) => {
+        const firstScore = first.contextScore + Number(first.score || 0);
+        const secondScore = second.contextScore + Number(second.score || 0);
+        return secondScore - firstScore;
+      })
+      .slice(0, limit);
     if (!items.length) {
       return "";
     }
-    return items.map((item) => "- [" + item.category + "; score " + item.score.toFixed(2) + "] " + item.text).join("\n");
+    return items.map((item) => {
+      const score = Number(item.score || 0) + (Number(item.contextScore || 0) / 100);
+      return "- [" + item.category + "; score " + score.toFixed(2) + "] " + item.text;
+    }).join("\n");
   } catch (error) {
     return "";
   }
@@ -3172,10 +4084,25 @@ async function callOpenAiVision_(payload, env) {
 
 async function callOpenAiElo_(payload, env) {
   const model = env.OPENAI_ELO_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
+  const interpretation = payload.interpretation || interpretEloUserMessage({
+    message: payload.message,
+    history: payload.history,
+    context: payload.context && payload.context.eloContext,
+    userProfile: {
+      name: "Ícaro Amaral",
+      style: "direto, prático, informal, constrói SaaS próprios"
+    }
+  });
   const input = [
     {
       role: "system",
-      content: buildEloSystemPrompt_(payload.context)
+      content: [
+        buildEloSystemPrompt_(payload.context),
+        getEloPersonalityPrompt_({
+          interpretation,
+          context: payload.context && payload.context.eloContext
+        })
+      ].join("\n\n")
     }
   ];
 
@@ -3188,7 +4115,16 @@ async function callOpenAiElo_(payload, env) {
 
   input.push({
     role: "user",
-    content: payload.message
+    content: [
+      "Mensagem original do usuário:",
+      interpretation.originalMessage,
+      "",
+      "Mensagem interpretada:",
+      interpretation.normalizedMessage,
+      "",
+      "Responda considerando a intenção detectada:",
+      interpretation.detectedIntent
+    ].join("\n")
   });
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -3218,25 +4154,31 @@ async function callOpenAiElo_(payload, env) {
     throw new Error("O Elo online respondeu sem texto utilizável.");
   }
 
-  return outputText;
+  return sanitizeEloAnswerText_(outputText);
 }
 
 export function buildEloSystemPrompt_(context = {}) {
   const eloContext = normalizeEloContext_(context.eloContext);
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
+  const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
+  const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
+  const libraryRelevantSummary = clean_(context.libraryRelevantSummary || "").slice(0, 1800);
+  const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
   const obraComposicaoContext = eloContext === "obras" ? clean_(context.obraComposicaoContext || "").slice(0, 3000) : "";
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
-    buildEloContextPrompt_(eloContext),
+    buildEloMasterContext_(context),
     "Você é o Elo, um companheiro digital com memória recente.",
     "Você não é humano, não é consciente e não finge sentir emoções.",
     "Você é uma IA criada para conversar, organizar pensamentos, acompanhar projetos, lembrar contexto recente e ajudar a pessoa a transformar ideias em próximos passos.",
     "Tom: português do Brasil; acolhedor, direto e inteligente; calmo, presente e honesto; sem parecer atendimento genérico; sem repetir 'como posso ajudar hoje?' em toda resposta; sem bajulação; sem drama; sem respostas longas demais.",
     "Missão: ajudar a pessoa a pensar com clareza, organizar projetos, lembrar decisões, priorizar próximos passos, refletir sobre objetivos e acompanhar sua jornada ao longo do tempo.",
     "Estilo: responda com presença. Não seja robótico. Não seja genérico. Não seja professoral demais. Não responda como FAQ. Interprete o que a pessoa está tentando resolver.",
-    "Quando fizer sentido, responda em 3 partes: 1. o que percebo; 2. o que isso significa; 3. próximo passo simples.",
+    "Estrutura preferida: resultado direto; explicação curta; próximo passo opcional; aviso técnico opcional.",
+    "Quando o pedido for reflexivo, pode organizar em: o que percebo; o que isso significa; próximo passo simples.",
+    "Raciocinio contextual: antes de responder, considere a intencao detectada, memoria relevante, biblioteca relevante, historico resumido e contexto do produto. Use somente o que tiver relacao com a pergunta atual.",
     "Memória: use apenas o histórico recente e o contexto enviado no payload. Não diga que lembra de meses ou anos se isso não estiver no contexto. Se não souber, diga com honestidade. Se houver contexto ou memórias, use naturalmente.",
     "Documentos: quando houver conteúdo extraído de anexo, use-o como fonte de contexto. Cite que está usando o documento anexado quando a resposta depender dele. Não invente informação que não apareça no documento. Se não encontrar algo no documento, diga claramente.",
     "Com documentos, você pode resumir, extrair pontos principais, organizar em tabela textual, comparar com histórico e explicar em linguagem simples.",
@@ -3247,6 +4189,18 @@ export function buildEloSystemPrompt_(context = {}) {
     "Se perguntarem 'o que você lembra de mim?', use o contexto disponível. Se não houver contexto suficiente, diga: 'Agora eu só tenho acesso ao contexto recente desta conversa. Com a memória permanente ativada, vou conseguir lembrar melhor do que for importante para você.'"
   ];
 
+  if (eloIntentSummary) {
+    prompt.push("Classificacao de intencao do pedido:\n" + eloIntentSummary);
+  }
+
+  if (productContextSummary) {
+    prompt.push("Contexto de produto relevante:\n" + productContextSummary);
+  }
+
+  if (conversationSummary) {
+    prompt.push("Historico inteligente resumido:\n" + conversationSummary);
+  }
+
   if (memoriesSummary) {
     prompt.push("Contexto salvo sobre a pessoa:\n" + memoriesSummary);
     prompt.push("Use esse contexto com naturalidade, sem repetir 'segundo minha memoria' em toda resposta. Quando a pessoa perguntar o que voce lembra, responda com base nesse contexto salvo.");
@@ -3255,6 +4209,11 @@ export function buildEloSystemPrompt_(context = {}) {
   if (relevantMemoriesSummary) {
     prompt.push("Contexto relevante recuperado:\n" + relevantMemoriesSummary);
     prompt.push("Use o contexto relevante recuperado quando ele se conectar ao pedido atual, mesmo que a pessoa use palavras diferentes das memÃ³rias originais.");
+  }
+
+  if (libraryRelevantSummary) {
+    prompt.push("Biblioteca relevante recuperada:\n" + libraryRelevantSummary);
+    prompt.push("Use a biblioteca somente quando ela ajudar a responder o pedido atual. Nao diga que a biblioteca esta vazia se houver contexto recuperado.");
   }
 
   if (documentsSummary) {
@@ -4144,6 +5103,68 @@ function safeValue_(value) {
 
 function clean_(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanMultiline_(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => clean_(line))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function normalizeEloSearchText_(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasEloSearchPhrase_(normalizedText, normalizedPhrase) {
+  if (!normalizedText || !normalizedPhrase) {
+    return false;
+  }
+  return (" " + normalizedText + " ").includes(" " + normalizedPhrase + " ");
+}
+
+function normalizeEloDecisionText_(value) {
+  return clean_(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function hasAnyEloDecisionTerm_(text, terms) {
+  return terms.some((term) => text.includes(normalizeEloDecisionText_(term)));
+}
+
+function isSimpleEloCalculation_(text) {
+  const calculationTerms = [
+    "quantos",
+    "quanto",
+    "calcule",
+    "calcular",
+    "preciso",
+    "bloco",
+    "blocos",
+    "concreto",
+    "laje",
+    "calcada",
+    "calçada",
+    "piso",
+    "revestimento",
+    "tinta",
+    "argamassa",
+    "m2",
+    "m3"
+  ];
+  const reusableTerms = ["guardar", "guarde", "lembrar", "lembre", "resumo", "relatorio", "relatório", "orcamento", "orçamento", "planejamento"];
+  const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(text);
+  return hasMeasure && hasAnyEloDecisionTerm_(text, calculationTerms) && !hasAnyEloDecisionTerm_(text, reusableTerms);
 }
 
 function cleanBase64_(value) {

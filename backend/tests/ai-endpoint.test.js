@@ -5,27 +5,453 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createContext, runInContext } from "node:vm";
 import {
+  buildEloLocalFallbackResponse_,
+  buildConversationSummary_,
   buildEloSystemPrompt_,
+  buildEloMasterContext_,
+  buildProjectKnowledgeContext_,
   buildPathologyContext,
   buildVisionUserPrompt_,
   createApp,
   createEloVectorMemoryStore_,
+  detectEloIntent_,
   buildPrevisaoConsumoContext,
   buildAuditoriaConsumoContext,
   buildStockIaLaunchPlan,
   extractQuantidadeServico,
+  extractContextKeywords_,
   extractPrevistoRealConsumo,
   findObraComposicaoContext,
+  formatEloFinalResponse_,
   formatImageAnalysis_,
+  getEloRelevantContext_,
+  interpretEloUserMessage,
+  normalizeEloText,
   normalizeImageAnalysis_,
+  PROJECT_KNOWLEDGE,
   reindexEloVectorMemoryFile_,
   searchEloRelevantMemories_,
-  searchPathologyKnowledge
+  searchPathologyKnowledge,
+  shouldShowEloSavePrompt_
 } from "../src/app.js";
 
 let server;
 let baseUrl;
 let eloVectorMemoryStore;
+
+test("elo master prompt aplica resposta direta em todos os contextos", () => {
+  const prompt = buildEloMasterContext_({ eloContext: "obras" });
+
+  assert.match(prompt, /forma direta/i);
+  assert.match(prompt, /Não repita a pergunta/i);
+  assert.match(prompt, /cálculos simples/i);
+  assert.match(prompt, /Não comece com 'Você quer/i);
+});
+
+test("elo final response monta resultado explicacao proximo passo e aviso", () => {
+  const answer = formatEloFinalResponse_({
+    result: "Resultado: 750 blocos cerâmicos",
+    explanation: "Área considerada: 20 m x 3 m = 60 m².",
+    nextStep: "Informe portas e janelas para descontar da conta.",
+    warnings: "Valide perdas conforme execução."
+  });
+
+  assert.match(answer, /Resultado: 750 blocos/);
+  assert.match(answer, /Área considerada/);
+  assert.match(answer, /Informe portas/);
+  assert.match(answer, /Aviso técnico/);
+});
+
+test("elo save prompt nao aparece para calculo simples isolado", () => {
+  const answer = formatEloFinalResponse_({
+    result: "Resultado: 750 blocos cerâmicos.\n\nDeseja guardar isso para eu lembrar depois?\nGuardar\nNão guardar",
+    explanation: "Área considerada: 20 m x 3 m = 60 m²."
+  });
+  const decision = shouldShowEloSavePrompt_({
+    userMessage: "calcule parede 20x3 com bloco cerâmico",
+    assistantResponse: answer,
+    context: { eloContext: "obras" }
+  });
+
+  assert.match(answer, /Resultado: 750 blocos/);
+  assert.doesNotMatch(answer, /Deseja guardar/i);
+  assert.doesNotMatch(answer, /Biblioteca do Elo/i);
+  assert.doesNotMatch(answer, /^Guardar$/im);
+  assert.doesNotMatch(answer, /^Não guardar$/im);
+  assert.equal(decision.show, false);
+  assert.equal(decision.reason, "simple_calculation");
+});
+
+test("elo save prompt direciona memoria e biblioteca conforme valor futuro", () => {
+  const memoryDecision = shouldShowEloSavePrompt_({
+    userMessage: "lembre que a estratégia do Cadista AI é começar com gerador procedural antes de IA avançada",
+    assistantResponse: "Registrado como dado da obra.",
+    context: { eloContext: "obras" }
+  });
+  const libraryDecision = shouldShowEloSavePrompt_({
+    userMessage: "monte um resumo estratégico do projeto Stock Full para eu guardar na biblioteca",
+    assistantResponse: "Resumo estratégico do projeto Stock Full...",
+    context: { eloContext: "obras" }
+  });
+
+  assert.equal(memoryDecision.show, true);
+  assert.equal(memoryDecision.suggestedTarget, "memory");
+  assert.equal(libraryDecision.show, true);
+  assert.equal(libraryDecision.suggestedTarget, "library");
+});
+
+test("frontend do Elo renderiza somente um bloco visual de salvamento", () => {
+  const source = readFileSync(join("..", "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const saveTitleMatches = source.match(/Salvar esta conversa\?/g) || [];
+
+  assert.equal(saveTitleMatches.length, 1);
+  assert.match(source, /function sanitizeEloAnswerForDisplay/);
+  assert.match(source, /function removePendingEloSavePrompts/);
+  assert.match(source, /elo-save-prompt elo-save-card/);
+  assert.doesNotMatch(source, /createElement\("button", "elo-inline-button", "Guardar na Biblioteca"\)/);
+  assert.doesNotMatch(source, /createElement\("span", "elo-privacy", "Deseja guardar isso na Biblioteca\?"\)/);
+});
+
+test("frontend do Elo standalone mostra sugestoes dos projetos oficiais", () => {
+  const source = readFileSync(join("..", "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const suggestionsFunctionStart = source.indexOf("function getContextSuggestions");
+  const standaloneStart = source.indexOf("if (isStandaloneMode())", suggestionsFunctionStart);
+  const standaloneEnd = source.indexOf("const route = String(window.location.hash", standaloneStart);
+  const standaloneBlock = source.slice(standaloneStart, standaloneEnd);
+
+  assert.ok(suggestionsFunctionStart > 0);
+  assert.match(standaloneBlock, /label: "CADISTA"/);
+  assert.match(standaloneBlock, /label: "Stock Full"/);
+  assert.match(standaloneBlock, /label: "Elo"/);
+  assert.match(standaloneBlock, /label: "Stock Saúde"/);
+  assert.match(standaloneBlock, /label: "ObraReport"/);
+  assert.doesNotMatch(standaloneBlock, /Quero criar um RDO/);
+  assert.doesNotMatch(standaloneBlock, /Quero lançar material/);
+});
+
+test("frontend do Elo sugere os cinco projetos oficiais", () => {
+  const source = readFileSync(join("..", "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const suggestionsStart = source.indexOf("const ELO_PROJECT_SUGGESTIONS");
+  const suggestionsEnd = source.indexOf("function createProjectId", suggestionsStart);
+  const suggestionsBlock = source.slice(suggestionsStart, suggestionsEnd);
+
+  ["CADISTA", "Stock Full", "Elo", "Stock Saúde", "ObraReport"].forEach((name) => {
+    assert.match(suggestionsBlock, new RegExp('name: "' + name + '"'));
+  });
+  assert.doesNotMatch(suggestionsBlock, /name: "Stock IA"/);
+  assert.doesNotMatch(suggestionsBlock, /name: "CADISTA IA"/);
+});
+
+test("elo normaliza texto informal e erros comuns", () => {
+  const normalized = normalizeEloText("TUDO O QUE EU ESCREVO, ATE XI IU ISCRIVER ACIM, VOCÊ ENTENDE kk");
+
+  assert.match(normalized, /se eu escrever assim/i);
+  assert.match(normalized, /VOCÊ ENTENDE kk/i);
+});
+
+test("elo interpreta intencoes reais dos exemplos manuais", () => {
+  const examples = [
+    ["faz o codigo completo cara", "codex_task_or_code", "direto_apressado", "prompt_pronto_para_copiar"],
+    ["quero fazer uma parede de 20x3 quantos blocos eu preciso? será bloco cerâmico", "technical_calculation", "neutro", "resultado_primeiro_com_calculo_curto"],
+    ["vamos retomar o elo", "continue_project", "neutro", "natural_objetivo"],
+    ["analise essa resposta", "analysis_or_feedback", "neutro", "natural_objetivo"],
+    ["isso ficou bom pra vender o stock full?", "marketing_strategy", "neutro", "opiniao_sincera_com_recomendacao"],
+    ["faça pro codex", "codex_task_or_code", "neutro", "prompt_pronto_para_copiar"]
+  ];
+
+  examples.forEach(([message, intent, tone, style]) => {
+    const interpretation = interpretEloUserMessage({ message, context: "geral" });
+    assert.equal(interpretation.detectedIntent, intent);
+    assert.equal(interpretation.emotionalTone, tone);
+    assert.equal(interpretation.expectedAnswerStyle, style);
+  });
+
+  assert.equal(interpretEloUserMessage({ message: "vamos retomar o elo", context: "geral" }).projectContext, "elo_core");
+  assert.equal(interpretEloUserMessage({ message: "isso ficou bom pra vender o stock full?", context: "geral" }).projectContext, "stock_full");
+
+  const resumedStockFull = interpretEloUserMessage({
+    message: "vamos continuar",
+    context: "geral",
+    history: [{ role: "user", content: "Estou montando o Stock Full para lojistas controlarem estoque." }]
+  });
+  const profiled = interpretEloUserMessage({
+    message: "faz o codigo completo cara",
+    userProfile: { name: "Ícaro Amaral", style: "direto, prático, informal" }
+  });
+
+  assert.equal(resumedStockFull.projectContext, "stock_full");
+  assert.equal(resumedStockFull.shouldAskClarification, false);
+  assert.deepEqual(profiled.userProfile, { name: "Ícaro Amaral", style: "direto, prático, informal" });
+});
+
+test("elo fallback local usa intencao detectada", () => {
+  const codeInterpretation = interpretEloUserMessage({ message: "faz o codigo completo cara" });
+  const marketingInterpretation = interpretEloUserMessage({ message: "isso ficou bom pra vender o stock full?" });
+
+  assert.match(buildEloLocalFallbackResponse_(codeInterpretation), /código ou prompt pronto/i);
+  assert.match(buildEloLocalFallbackResponse_(marketingInterpretation), /estratégia de venda/i);
+});
+
+test("elo 2.0 classifica intencao contextual por categoria", () => {
+  const calc = detectEloIntent_("calcule parede 20x3", { eloContext: "obras" });
+  const pdf = detectEloIntent_("quero gerar PDF", { eloContext: "obras" });
+  const memory = detectEloIntent_("lembre que gosto de respostas curtas", { eloContext: "geral" });
+  const health = detectEloIntent_("como controlar validade de medicamentos", { eloContext: "saude" });
+
+  assert.equal(calc.primary, "cálculo");
+  assert.ok(calc.categories.includes("obras"));
+  assert.equal(calc.productContext, "obras");
+  assert.equal(pdf.primary, "pdf");
+  assert.ok(pdf.categories.includes("relatório"));
+  assert.equal(memory.primary, "memória");
+  assert.equal(memory.needsMemory, true);
+  assert.equal(health.productContext, "saúde");
+  assert.ok(health.categories.includes("saúde"));
+});
+
+test("elo 2.0 resume historico longo e preserva preferencias", () => {
+  const history = [
+    { role: "user", content: "Estou retomando o projeto Elo e a arquitetura do cérebro oficial." },
+    { role: "assistant", content: "Vamos organizar a unificação." },
+    { role: "user", content: "Lembre que prefiro respostas curtas e diretas." },
+    { role: "assistant", content: "Preferência anotada." },
+    { role: "user", content: "Também estou validando memória e biblioteca." },
+    { role: "assistant", content: "Certo." },
+    { role: "user", content: "Agora quero testar obras e PDF." },
+    { role: "assistant", content: "Vamos testar." },
+    { role: "user", content: "calcule parede 20x3" }
+  ];
+  const summary = buildConversationSummary_(history);
+
+  assert.match(summary, /projeto Elo/i);
+  assert.match(summary, /respostas curtas/i);
+  assert.match(summary, /memoria|memória/i);
+  assert.match(summary, /obras/i);
+});
+
+test("elo 2.0 recupera somente contexto relevante de memoria e biblioteca", async () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  await store.upsert({
+    ownerId: "elo_dev_contextual",
+    id: "cadista",
+    text: "CADISTA IA deve começar com gerador procedural antes de IA avançada.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+  await store.upsert({
+    ownerId: "elo_dev_contextual",
+    id: "saude",
+    text: "Stock Saude controla validade de medicamentos por lote.",
+    category: "saude",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const relevant = await getEloRelevantContext_({
+    memoryStore: store,
+    payload: {
+      message: "qual o plano do CADISTA IA?",
+      history: [],
+      context: {
+        eloContext: "geral",
+        deviceId: "elo_dev_contextual",
+        memoriesSummary: "- Prefiro respostas curtas.\n- Stock Saude usa lote e validade.\n- CADISTA IA prioriza geometria procedural.",
+        librarySummary: "- Stock Full: estoque para lojistas.\n- CADISTA IA: motor geometrico, PDF e DXF.\n- Jogo: roteiro narrativo."
+      },
+      eloIntent: detectEloIntent_("qual o plano do CADISTA IA?", { eloContext: "geral" })
+    }
+  });
+
+  assert.match(relevant.context.relevantMemoriesSummary, /CADISTA IA/i);
+  assert.doesNotMatch(relevant.context.relevantMemoriesSummary, /Stock Saude controla validade/i);
+  assert.match(relevant.context.libraryRelevantSummary, /CADISTA IA/i);
+  assert.doesNotMatch(relevant.context.libraryRelevantSummary, /Jogo/i);
+});
+
+test("elo 2.0 extrai palavras-chave de contexto por projeto", () => {
+  assert.deepEqual(extractContextKeywords_("resuma nosso plano do CADISTA"), ["cadista"]);
+  assert.deepEqual(extractContextKeywords_("quais projetos do stock full"), ["projetos", "stock", "stock full"]);
+  assert.deepEqual(extractContextKeywords_("como evoluir o elo"), ["elo"]);
+});
+
+test("elo project knowledge v1 monta contexto permanente por projeto", () => {
+  const cadista = buildProjectKnowledgeContext_("resuma nosso plano do CADISTA");
+  const inventory = buildProjectKnowledgeContext_("quais projetos eu tenho");
+
+  assert.equal(PROJECT_KNOWLEDGE.cadista.name, "CADISTA");
+  assert.match(cadista, /Conhecimento permanente dos projetos/i);
+  assert.match(cadista, /CADISTA/i);
+  assert.match(cadista, /terreno -> recuos -> ocupacao -> orientacao solar/i);
+  assert.match(cadista, /biblioteca de ambientes/i);
+  assert.doesNotMatch(cadista, /Stock Saúde/i);
+  assert.match(inventory, /Stock Full/i);
+  assert.match(inventory, /ObraReport/i);
+});
+
+test("prompt mestre do Elo prioriza conhecimento de projeto", () => {
+  const prompt = buildEloSystemPrompt_({
+    projectKnowledgeQuery: "resuma nosso plano do CADISTA"
+  });
+
+  assert.match(prompt, /Conhecimento permanente dos projetos do usuario/i);
+  assert.match(prompt, /Prioridade: quando a pergunta citar um projeto/i);
+  assert.match(prompt, /Nao substitua este conhecimento por respostas genericas/i);
+  assert.match(prompt, /CADISTA/i);
+  assert.match(prompt, /gerador procedural/i);
+});
+
+test("elo 2.0 prioriza contexto do CADISTA quando o projeto e citado", async () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  await store.upsert({
+    ownerId: "elo_dev_project_aliases",
+    id: "cadista-plano",
+    text: "CADISTA IA sera inicialmente procedural: terreno, recuos, orientacao solar, setorizacao, ambientes minimos, circulacao, validacao e planta automatica.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+  await store.upsert({
+    ownerId: "elo_dev_project_aliases",
+    id: "saude-validade",
+    text: "Stock Saude controla validade de medicamentos por lote.",
+    category: "saude",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const relevant = await getEloRelevantContext_({
+    memoryStore: store,
+    payload: {
+      message: "resuma nosso plano do CADISTA",
+      history: [{ role: "user", content: "Ontem falamos do CADISTA e do gerador procedural." }],
+      context: {
+        eloContext: "geral",
+        deviceId: "elo_dev_project_aliases",
+        memoriesSummary: "- Stock Saude usa lote e validade.\n- CADISTA IA prioriza biblioteca de ambientes e gerador de layout.",
+        librarySummary: "- CADISTA: biblioteca de ambientes, programa de necessidades, terreno, recuos, setorizacao e validacao.\n- Stock Full: estoque para lojistas."
+      },
+      eloIntent: detectEloIntent_("resuma nosso plano do CADISTA", { eloContext: "geral" })
+    }
+  });
+
+  assert.match(relevant.context.relevantMemoriesSummary, /CADISTA IA/i);
+  assert.match(relevant.context.libraryRelevantSummary, /CADISTA/i);
+  assert.doesNotMatch(relevant.context.relevantMemoriesSummary.split("\n")[0], /Stock Saude/i);
+  assert.doesNotMatch(relevant.context.libraryRelevantSummary.split("\n")[0], /Stock Full/i);
+});
+
+test("elo 2.0 recupera multiplos projetos em pergunta ampla", async () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  const baseMemory = {
+    ownerId: "elo_dev_project_inventory",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  };
+  await store.upsert({ ...baseMemory, id: "cadista", text: "CADISTA IA: motor geometrico procedural para plantas, PDF e DXF." });
+  await store.upsert({ ...baseMemory, id: "stockfull", text: "Stock Full: estoque para lojistas, entradas, saidas e saldo." });
+  await store.upsert({ ...baseMemory, id: "elo", text: "Elo: cerebro oficial com memoria, biblioteca e personalidade unica." });
+
+  const relevant = await getEloRelevantContext_({
+    memoryStore: store,
+    payload: {
+      message: "quais projetos eu tenho",
+      history: [],
+      context: {
+        eloContext: "geral",
+        deviceId: "elo_dev_project_inventory",
+        librarySummary: "- CADISTA: planta automatica.\n- Stock Full: almoxarifado para lojistas.\n- Elo: memoria e biblioteca."
+      },
+      eloIntent: detectEloIntent_("quais projetos eu tenho", { eloContext: "geral" })
+    }
+  });
+
+  assert.match(relevant.context.relevantMemoriesSummary, /CADISTA IA/i);
+  assert.match(relevant.context.relevantMemoriesSummary, /Stock Full/i);
+  assert.match(relevant.context.relevantMemoriesSummary, /Elo/i);
+  assert.match(relevant.context.libraryRelevantSummary, /CADISTA/i);
+  assert.match(relevant.context.libraryRelevantSummary, /Stock Full/i);
+});
+
+test("elo 2.0 prioriza contexto do Elo sem misturar CADISTA", async () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  await store.upsert({
+    ownerId: "elo_dev_elo_context",
+    id: "elo-core",
+    text: "Elo 2.0 deve usar classificador, memoria relevante, biblioteca relevante e contexto mestre antes do LLM.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+  await store.upsert({
+    ownerId: "elo_dev_elo_context",
+    id: "cadista-core",
+    text: "CADISTA IA deve gerar plantas tecnicas por geometria procedural.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const relevant = await getEloRelevantContext_({
+    memoryStore: store,
+    payload: {
+      message: "como evoluir o elo",
+      history: [],
+      context: {
+        eloContext: "geral",
+        deviceId: "elo_dev_elo_context",
+        librarySummary: "- Elo: unificacao do cerebro oficial, memoria, biblioteca e personalidade.\n- CADISTA: gerador procedural de plantas."
+      },
+      eloIntent: detectEloIntent_("como evoluir o elo", { eloContext: "geral" })
+    }
+  });
+
+  assert.match(relevant.context.relevantMemoriesSummary, /Elo 2\.0/i);
+  assert.match(relevant.context.libraryRelevantSummary, /Elo/i);
+  assert.doesNotMatch(relevant.context.relevantMemoriesSummary.split("\n")[0], /CADISTA/i);
+  assert.doesNotMatch(relevant.context.libraryRelevantSummary.split("\n")[0], /CADISTA/i);
+});
+
+test("elo 2.0 contexto de saude nao recupera CADISTA", async () => {
+  const store = createEloVectorMemoryStore_({ memoryOnly: true });
+  await store.upsert({
+    ownerId: "elo_dev_health_context",
+    id: "cadista-core",
+    text: "CADISTA IA deve gerar plantas tecnicas por geometria procedural.",
+    category: "projeto",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+  await store.upsert({
+    ownerId: "elo_dev_health_context",
+    id: "saude-validade",
+    text: "Stock Saude controla validade de medicamentos por lote e rastreabilidade.",
+    category: "saude",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    updatedAt: "2026-06-01T00:00:00.000Z"
+  });
+
+  const relevant = await getEloRelevantContext_({
+    memoryStore: store,
+    payload: {
+      message: "como controlar validade de medicamentos",
+      history: [],
+      context: {
+        eloContext: "saude",
+        deviceId: "elo_dev_health_context",
+        memoriesSummary: "- CADISTA IA usa gerador procedural.\n- Stock Saude usa lote, validade e rastreabilidade.",
+        librarySummary: "- CADISTA: planta automatica.\n- Stock Saude: validade de medicamentos por lote."
+      },
+      eloIntent: detectEloIntent_("como controlar validade de medicamentos", { eloContext: "saude" })
+    }
+  });
+
+  assert.match(relevant.context.relevantMemoriesSummary, /Stock Saude/i);
+  assert.match(relevant.context.libraryRelevantSummary, /Stock Saude/i);
+  assert.doesNotMatch(relevant.context.relevantMemoriesSummary, /CADISTA/i);
+  assert.doesNotMatch(relevant.context.libraryRelevantSummary, /CADISTA/i);
+});
 
 test("stock demo health continua funcionando", async () => {
   const response = await fetch(baseUrl + "/api/stock-demo/health");
@@ -2843,6 +3269,158 @@ test("elo chat sem chave solicita fallback local", async () => {
   assert.match(data.answer, /forma local/);
 });
 
+test("elo chat separa savePrompt do answer limpo", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      const payload = JSON.parse(options.body);
+      const inputText = JSON.stringify(payload.input);
+      let text = "Resposta limpa do Elo.";
+      if (/calcule parede 20x3/i.test(inputText)) {
+        text = "Resultado: 750 blocos cerâmicos.\n\nDeseja guardar isso para eu lembrar depois?\nGuardar\nNão guardar";
+      } else if (/Cadista AI/i.test(inputText)) {
+        text = "A estratégia faz sentido: começar pelo gerador procedural reduz risco antes da IA avançada.\n\nDeseja guardar isso para eu lembrar depois?\nGuardar";
+      } else if (/Stock Full/i.test(inputText)) {
+        text = "Resumo estratégico do projeto Stock Full: foco em controle simples para lojistas.\n\nDeseja guardar isso na Biblioteca do Elo?\nGuardar na Biblioteca";
+      }
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text }] }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      async function post(message) {
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "http://127.0.0.1:5500"
+          },
+          body: JSON.stringify({
+            message,
+            history: [],
+            context: { source: "elo", mode: "standalone", eloContext: "obras" }
+          })
+        });
+        return response.json();
+      }
+
+      const calc = await post("calcule parede 20x3 com bloco cerâmico");
+      const memory = await post("lembre que a estratégia do Cadista AI é começar com gerador procedural antes de IA avançada");
+      const library = await post("monte um resumo estratégico do projeto Stock Full para eu guardar na biblioteca");
+
+      assert.equal(calc.savePrompt.show, false);
+      assert.equal(calc.savePrompt.type, "none");
+      assert.match(calc.answer, /Resultado: 750 blocos/i);
+      assert.doesNotMatch(calc.answer, /Deseja guardar|Biblioteca do Elo|^Guardar$|^Não guardar$/im);
+
+      assert.equal(memory.savePrompt.show, true);
+      assert.equal(memory.savePrompt.type, "memory");
+      assert.doesNotMatch(memory.answer, /Deseja guardar|^Guardar$/im);
+
+      assert.equal(library.savePrompt.show, true);
+      assert.equal(library.savePrompt.type, "library");
+      assert.doesNotMatch(library.answer, /Deseja guardar|Biblioteca do Elo|Guardar na Biblioteca/im);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("elo chat oficial responde perguntas abertas sem texto legado do frontend", async () => {
+  const originalFetch = globalThis.fetch;
+  const openAiInputs = [];
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      const payload = JSON.parse(options.body);
+      const inputText = JSON.stringify(payload.input);
+      openAiInputs.push(inputText);
+      let text = "Resposta do cérebro oficial do Elo.";
+      if (/calcule parede 20x3/i.test(inputText)) {
+        text = "Área da parede: 60 m². Para bloco cerâmico, considere uma estimativa conforme o bloco escolhido e margem de perda.";
+      } else if (/guarde na biblioteca um resumo do projeto Stock Full/i.test(inputText)) {
+        text = "Resumo do projeto Stock Full: controle simples de estoque para lojistas, com entradas, saídas, saldo e alertas operacionais.";
+      } else if (/quero gerar PDF/i.test(inputText)) {
+        text = "No contexto do ObraReport, revise os dados do relatório, fotos e conclusão técnica antes de gerar o PDF.";
+      } else if (/prefiro respostas curtas/i.test(inputText)) {
+        text = "Preferência registrada no contexto: respostas curtas no Elo.";
+      }
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text }] }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      async function post(message) {
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "http://127.0.0.1:5500"
+          },
+          body: JSON.stringify({
+            message,
+            history: [],
+            eloContext: "obras",
+            context: { source: "elo", mode: "obrareport", eloContext: "obras" }
+          })
+        });
+        assert.equal(response.status, 200);
+        return response.json();
+      }
+
+      const calc = await post("calcule parede 20x3 com bloco cerâmico");
+      const library = await post("guarde na biblioteca um resumo do projeto Stock Full");
+      const pdf = await post("quero gerar PDF");
+      const memory = await post("lembre que prefiro respostas curtas no Elo");
+
+      assert.equal(openAiInputs.length, 4);
+      assert.match(calc.answer, /60 m²|60 m2/i);
+      assert.equal(calc.savePrompt.show, false);
+      assert.equal(calc.savePrompt.type, "none");
+      assert.doesNotMatch(calc.answer, /Para registrar materiais|Deseja guardar|Biblioteca do Elo/i);
+
+      assert.match(library.answer, /Stock Full/i);
+      assert.equal(library.savePrompt.show, true);
+      assert.equal(library.savePrompt.type, "library");
+      assert.doesNotMatch(library.answer, /Sua biblioteca local ainda não tem itens|Deseja guardar|Guardar na Biblioteca/i);
+
+      assert.match(pdf.answer, /PDF|ObraReport/i);
+      assert.doesNotMatch(pdf.answer, /Para registrar materiais/i);
+
+      assert.equal(memory.savePrompt.show, true);
+      assert.equal(memory.savePrompt.type, "memory");
+      assert.doesNotMatch(memory.answer, /Deseja guardar|Guardar|Não guardar/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("prompt mestre do Elo define identidade, memoria e limites", () => {
   const prompt = buildEloSystemPrompt_();
 
@@ -3777,6 +4355,171 @@ test("payload enviado ao LLM contem resumo do documento", async () => {
       assert.match(data.answer, /30 dias/i);
       assert.match(payloadText, /Prazo de entrega: 30 dias/i);
       assert.match(payloadText, /contrato-valido\.pdf/i);
+      assert.match(payloadText, /Mensagem original do usuário/i);
+      assert.match(payloadText, /Mensagem interpretada/i);
+      assert.match(payloadText, /Intenção detectada/i);
+      assert.match(payloadText, /summary/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo 2.0 monta contexto mestre antes do LLM", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      openAiPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "Resposta contextual sobre o Elo com memória e biblioteca relevantes." }
+            ]
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const storeResponse = await fetch(url + "/api/elo/vector-memory", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({
+          deviceId: "elo_dev_contextual_endpoint",
+          memory: {
+            id: "elo_pref_curta",
+            text: "Prefiro respostas curtas no Elo durante a unificacao da arquitetura.",
+            category: "preferencia"
+          }
+        })
+      });
+      assert.equal(storeResponse.status, 200);
+
+      const longHistory = [
+        { role: "user", content: "Estou unificando o cérebro oficial do Elo." },
+        { role: "assistant", content: "Vamos manter o backend como cérebro." },
+        { role: "user", content: "Lembre que prefiro respostas curtas." },
+        { role: "assistant", content: "Certo." },
+        { role: "user", content: "Também quero biblioteca relevante." },
+        { role: "assistant", content: "Vou considerar isso." },
+        { role: "user", content: "O Stock Saúde fica para depois." },
+        { role: "assistant", content: "Entendido." },
+        { role: "user", content: "Agora fale do Elo." }
+      ];
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({
+          message: "resuma o plano do Elo 2.0",
+          history: longHistory,
+          eloContext: "geral",
+          context: {
+            source: "elo",
+            mode: "standalone",
+            eloContext: "geral",
+            deviceId: "elo_dev_contextual_endpoint",
+            librarySummary: "- Elo 2.0: classificador, memoria relevante, biblioteca e contexto mestre.\n- Stock Saude: lote e validade."
+          }
+        })
+      });
+      const data = await response.json();
+      const promptText = JSON.stringify(openAiPayload.input);
+
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.equal(data.eloIntent.primary, "resumo");
+      assert.match(promptText, /Classificacao de intencao do pedido/i);
+      assert.match(promptText, /Historico inteligente resumido/i);
+      assert.match(promptText, /usuario trabalha no projeto Elo/i);
+      assert.match(promptText, /Contexto relevante recuperado/i);
+      assert.match(promptText, /Prefiro respostas curtas/i);
+      assert.match(promptText, /Biblioteca relevante recuperada/i);
+      assert.match(promptText, /Elo 2\.0: classificador/i);
+      assert.doesNotMatch(promptText, /Stock Saude: lote e validade/i);
+      assert.equal(data.contextSummary.hasRelevantMemory, true);
+      assert.equal(data.contextSummary.hasRelevantLibrary, true);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("endpoint do Elo injeta conhecimento permanente do projeto citado", async () => {
+  const originalFetch = globalThis.fetch;
+  let openAiPayload = null;
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      openAiPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        output: [
+          {
+            content: [
+              { type: "output_text", text: "O CADISTA começa pelo gerador procedural, com terreno, recuos, setorizacao e validacao antes de PDF e DXF." }
+            ]
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({
+          message: "resuma nosso plano do CADISTA",
+          history: [],
+          context: {
+            source: "elo",
+            mode: "standalone",
+            eloContext: "geral"
+          }
+        })
+      });
+      const data = await response.json();
+      const promptText = JSON.stringify(openAiPayload.input);
+
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.match(promptText, /Conhecimento permanente dos projetos do usuario/i);
+      assert.match(promptText, /CADISTA/i);
+      assert.match(promptText, /terreno -> recuos -> ocupacao -> orientacao solar/i);
+      assert.match(promptText, /Conhecimento permanente dos projetos.*CADISTA/s);
+      assert.doesNotMatch(promptText, /Stock Saude: lote e validade/i);
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -3971,6 +4714,50 @@ test("frontend do Elo envia eloContext no JSON e multipart", async () => {
   assert.match(content, /stock-ai/);
 });
 
+test("frontend do Elo chama endpoint oficial antes dos handlers legados", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+  const askStart = content.indexOf("function askElo");
+  const firstOnlineCall = content.indexOf("requestEloOnlineAnswer(cleanQuestion", askStart);
+  const fallbackStart = content.indexOf("function buildEloLocalFallbackResponseForQuestion_");
+  const fallbackEnd = content.indexOf("function buildProductAttachmentControls", fallbackStart);
+
+  assert.ok(askStart > 0);
+  assert.ok(firstOnlineCall > askStart);
+  assert.ok(fallbackStart > firstOnlineCall);
+
+  const askBeforeFallback = content.slice(askStart, fallbackStart);
+  assert.doesNotMatch(askBeforeFallback, /buildEloStockBalanceAnswer_/);
+  assert.doesNotMatch(askBeforeFallback, /buildEloOperationalConstructionAnswer_/);
+  assert.doesNotMatch(askBeforeFallback, /applyEloCommunicationLayer\(cleanQuestion/);
+  assert.doesNotMatch(askBeforeFallback, /buildResponse\(cleanQuestion\)/);
+
+  const fallbackBlock = content.slice(fallbackStart, fallbackEnd);
+  assert.match(fallbackBlock, /buildEloStockBalanceAnswer_/);
+  assert.match(fallbackBlock, /buildEloOperationalConstructionAnswer_/);
+  assert.match(fallbackBlock, /applyEloCommunicationLayer\(question, buildResponse\(question\)\)/);
+});
+
+test("frontend do Elo nao usa fallback local para conhecimento institucional", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+  const guardStart = content.indexOf("function isEloOfficialProjectQuestion_");
+  const fallbackStart = content.indexOf("function buildEloLocalFallbackResponseForQuestion_");
+  const fallbackEnd = content.indexOf("function buildProductAttachmentControls", fallbackStart);
+  const fallbackBlock = content.slice(fallbackStart, fallbackEnd);
+
+  assert.ok(guardStart > 0);
+  assert.match(content.slice(guardStart, fallbackStart), /cadista/);
+  assert.match(content.slice(guardStart, fallbackStart), /stock full/);
+  assert.match(content.slice(guardStart, fallbackStart), /stock saude/);
+  assert.match(content.slice(guardStart, fallbackStart), /obrareport/);
+  assert.match(content.slice(guardStart, fallbackStart), /elo informe/);
+  assert.match(fallbackBlock, /isEloOfficialProjectQuestion_\(question\)/);
+  assert.match(fallbackBlock, /buildEloOnlineUnavailableResponse_\(\)/);
+  assert.equal(fallbackBlock.indexOf("isEloOfficialProjectQuestion_(question)") < fallbackBlock.indexOf("buildResponse(question)"), true);
+  assert.match(content, /Não consegui consultar o Elo online neste momento\./);
+});
+
 test("frontend do Elo registra plano Stock IA apenas como planejamento local", async () => {
   const { readFile } = await import("node:fs/promises");
   const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
@@ -3982,6 +4769,20 @@ test("frontend do Elo registra plano Stock IA apenas como planejamento local", a
   assert.match(content, /Nenhum saldo de estoque foi alterado/);
   assert.doesNotMatch(content, /fetch\([^)]*stock-demo/i);
   assert.doesNotMatch(content, /approval-requests/i);
+});
+
+test("paginas reais do Elo carregam assistente com cache-buster da correcao", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const pages = await Promise.all([
+    readFile(new URL("../../elo.html", import.meta.url), "utf8"),
+    readFile(new URL("../../stock-ai-obras.html", import.meta.url), "utf8"),
+    readFile(new URL("../../relatorio-qualidade-obras/relatorio-qualidade-obras.html", import.meta.url), "utf8")
+  ]);
+
+  pages.forEach((content) => {
+    assert.match(content, /elo-assistente\.js\?v=20260611-elo-official-fallbacks/);
+    assert.doesNotMatch(content, /<script src="(?:relatorio-qualidade-obras\/)?elo-assistente\.js"><\/script>/);
+  });
 });
 
 test("Elo standalone carrega motor Stock AI antes do assistente", async () => {

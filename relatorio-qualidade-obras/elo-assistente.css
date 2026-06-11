@@ -286,6 +286,24 @@
   line-height: 1.35;
 }
 
+.elo-save-prompt,
+.elo-save-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.elo-save-prompt .elo-privacy,
+.elo-save-card .elo-privacy {
+  width: 100%;
+  font-weight: 800;
+}
+
 .elo-memory-list {
   display: grid;
   gap: 8px;
