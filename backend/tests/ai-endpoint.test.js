@@ -192,6 +192,36 @@ test("elo fallback local usa intencao detectada", () => {
   assert.match(buildEloLocalFallbackResponse_(marketingInterpretation), /venda/i);
 });
 
+test("elo fallback offline responde assunto direto em perguntas simples", () => {
+  const cases = [
+    ["receita de bolo de cenoura", /cenoura|ovos|farinha|fermento/i],
+    ["receita de pizza na panela", /pizza na panela|frigideira|massa/i],
+    ["como funciona uma laje maciça", /placa de concreto armado|cargas|armadura/i],
+    ["como fazer uma parede de 4 metros?", /4 metros|altura|prumo|argamassa/i],
+    ["o que você acha desse banheiro?", /banheiro|box|vaso|ventilação/i],
+    ["vale a pena continuar o CADISTA?", /Vale continuar|provar valor/i],
+    ["estou desanimado com o projeto", /cansaço|vitória menor/i]
+  ];
+
+  cases.forEach(([message, expected]) => {
+    const interpretation = interpretEloUserMessage({ message });
+    const answer = buildEloLocalFallbackResponse_(interpretation);
+
+    assert.match(answer, expected, message);
+    assert.doesNotMatch(answer, /Em forma local|Vou analisar|Entendi\./i, message);
+  });
+});
+
+test("elo diferencia explicacao tecnica de calculo no fallback offline", () => {
+  const explanation = interpretEloUserMessage({ message: "como funciona uma laje maciça" });
+  const calculation = interpretEloUserMessage({ message: "quanto concreto vai numa laje maciça 5x4" });
+
+  assert.equal(explanation.detectedIntent, "explanation");
+  assert.equal(calculation.detectedIntent, "technical_calculation");
+  assert.match(buildEloLocalFallbackResponse_(explanation), /funciona como uma placa/i);
+  assert.match(buildEloLocalFallbackResponse_(calculation), /medidas principais|material|quantidade aproximada/i);
+});
+
 test("elo 2.0 classifica intencao contextual por categoria", () => {
   const calc = detectEloIntent_("calcule parede 20x3", { eloContext: "obras" });
   const pdf = detectEloIntent_("quero gerar PDF", { eloContext: "obras" });
@@ -3266,8 +3296,25 @@ test("elo chat sem chave solicita fallback local", async () => {
   assert.equal(data.ok, false);
   assert.equal(data.mode, "fallback_required");
   assert.equal(data.fallback, true);
-  assert.match(data.answer, /caminho mais prático/i);
+  assert.match(data.answer, /modo offline|Elo online ativo/i);
   assert.doesNotMatch(data.answer, /forma local/i);
+});
+
+test("elo chat sem chave responde pergunta simples pelo fallback inteligente", async () => {
+  const response = await postEloChat_({
+    message: "receita de bolo de cenoura",
+    history: [],
+    context: {
+      source: "elo",
+      mode: "standalone"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.equal(data.fallback, true);
+  assert.match(data.answer, /cenoura|ovos|farinha|fermento/i);
+  assert.doesNotMatch(data.answer, /projeto|próxima ação|retrabalho/i);
 });
 
 test("elo chat separa savePrompt do answer limpo", async () => {

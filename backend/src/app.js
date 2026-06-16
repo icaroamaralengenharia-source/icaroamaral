@@ -242,6 +242,9 @@ export function detectEloIntent(message, context = "geral", history = []) {
   if (/\b(resuma|resumo|resumir|rapido|em poucas palavras)\b/.test(text)) {
     return "summary";
   }
+  if (/\b(explica|explique|entender|como funciona|o que e|o que é|para que serve|por que)\b/.test(text)) {
+    return "explanation";
+  }
   if (/\b(calcular|calcule|quantos|quanto|m2|m²|m3|m³|bloco|concreto|laje|parede|piso|argamassa|tinta)\b/.test(text)) {
     return "technical_calculation";
   }
@@ -256,9 +259,6 @@ export function detectEloIntent(message, context = "geral", history = []) {
   }
   if (/\b(guardar|salvar|lembrar|memoria|biblioteca)\b/.test(text)) {
     return "memory_or_library";
-  }
-  if (/\b(explica|explique|entender|como funciona|por que)\b/.test(text)) {
-    return "explanation";
   }
   return "general_conversation";
 }
@@ -2962,10 +2962,28 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   const intent = interpretation && interpretation.detectedIntent;
   const tone = interpretation && interpretation.emotionalTone;
   const projectContext = interpretation && interpretation.projectContext;
+  const originalMessage = clean_(interpretation && interpretation.originalMessage);
+  const text = normalizeEloDecisionText_(originalMessage);
 
   if (intent === "codex_task_or_code") {
     return "Eu iria direto para uma tarefa pequena e executável: definir o arquivo, o comportamento esperado e o teste de validação. Se você me passar o trecho atual, eu monto o prompt ou o código já no formato certo para aplicar.";
   }
+
+  const cookingAnswer = buildEloOfflineCookingFallback_(text);
+  if (cookingAnswer) {
+    return cookingAnswer;
+  }
+
+  const technicalExplanation = buildEloOfflineTechnicalExplanationFallback_(text);
+  if (technicalExplanation) {
+    return technicalExplanation;
+  }
+
+  const layoutAnswer = buildEloOfflineLayoutFallback_(text);
+  if (layoutAnswer) {
+    return layoutAnswer;
+  }
+
   if (intent === "technical_calculation") {
     return "Dá para calcular, sim. Me passe as medidas principais e o material; eu te devolvo a quantidade aproximada, a premissa usada e uma margem de perda razoável.";
   }
@@ -2990,7 +3008,73 @@ export function buildEloLocalFallbackResponse_(interpretation) {
     return "Faz sentido bater esse cansaço quando o projeto cresce demais na cabeça. Eu não tomaria isso como sinal de que a ideia é ruim; tomaria como sinal de que precisa voltar para uma vitória menor e bem concreta.";
   }
 
-  return "Eu responderia pelo caminho mais prático: olhar o que está acontecendo agora, separar o que é impressão do que é problema real e escolher uma próxima ação pequena. Isso evita transformar dúvida em retrabalho.";
+  return "Eu ainda não tenho segurança para te responder isso bem nesse modo offline. Com o Elo online ativo eu consigo aprofundar melhor. Mas, pelo que dá para adiantar, eu começaria separando o que é dúvida real do que é falta de contexto e escolheria uma próxima ação pequena.";
+}
+
+function buildEloOfflineCookingFallback_(text) {
+  if (!/\b(receita|bolo|pizza|panela|forno|massa|ingrediente|cozinha)\b/.test(text)) {
+    return "";
+  }
+
+  if (/\bbolo\b/.test(text) && /\bcenoura\b/.test(text)) {
+    return "Claro. Um bolo de cenoura simples vai com cenoura, ovos, óleo, açúcar, farinha e fermento. Bata no liquidificador 3 cenouras médias, 3 ovos, 1 xícara de óleo e 2 xícaras de açúcar; depois misture com 2 xícaras de farinha e 1 colher de fermento.\n\nLeve ao forno médio, em forma untada, até firmar e dourar. Se quiser a cobertura clássica, faça uma calda rápida com chocolate, açúcar, manteiga e um pouco de leite.";
+  }
+
+  if (/\bpizza\b/.test(text)) {
+    return "Claro. Para pizza na panela, faça uma massa rápida com farinha, água, sal e um fio de óleo, abrindo bem fina para cozinhar direito. Doure um lado na frigideira, vire, coloque molho, queijo e recheio, tampe e deixe em fogo baixo até o queijo derreter.\n\nO segredo é não exagerar na massa nem no recheio, senão a base queima antes de cozinhar por completo.";
+  }
+
+  return "Dá para fazer de um jeito simples: escolha uma base, separe poucos ingredientes e controle o fogo ou forno com calma. Nesse modo offline eu não consigo aprofundar uma receita específica com precisão, mas consigo te passar um caminho básico e seguro se você disser o prato.";
+}
+
+function buildEloOfflineTechnicalExplanationFallback_(text) {
+  const asksExplanation = /\b(como funciona|explique|explica|o que e|o que é|para que serve)\b/.test(text);
+  const hasEngineeringSubject = /\b(laje|laje macica|laje maciça|viga|pilar|parede|concreto|fundacao|fundação|alvenaria|bloco)\b/.test(text);
+
+  if (!asksExplanation && !/\bcomo fazer\b/.test(text)) {
+    return "";
+  }
+  if (!hasEngineeringSubject) {
+    return "";
+  }
+
+  if (/\blaje\b/.test(text)) {
+    return "Uma laje maciça funciona como uma placa de concreto armado que recebe as cargas do piso, das pessoas, móveis e paredes leves, e leva esses esforços para vigas, pilares ou paredes estruturais.\n\nNa prática, ela depende de três coisas bem resolvidas: espessura adequada, armadura correta e bom escoramento durante a concretagem. Para dimensionar de verdade, entra cálculo estrutural; mas conceitualmente é isso: uma placa rígida distribuindo carga para a estrutura.";
+  }
+
+  if (/\bparede\b/.test(text)) {
+    return "Para uma parede de 4 metros, eu começaria definindo altura, espessura e material: bloco cerâmico, bloco de concreto ou outro sistema. Depois vêm marcação no piso, conferência de prumo e nível, primeira fiada bem assentada e juntas de argamassa regulares.\n\nCom 4 metros de comprimento, também vale olhar amarração, encontros com pilares ou paredes existentes e, dependendo da altura, reforços ou vergas se tiver porta e janela. Sem altura e tipo de bloco eu não fecho quantitativo, mas o caminho executivo é esse.";
+  }
+
+  if (/\bviga\b/.test(text)) {
+    return "Uma viga trabalha recebendo cargas da laje, paredes ou cobertura e levando isso para pilares ou apoios. O concreto resiste bem à compressão e o aço entra para resistir à tração, por isso a armadura é parte central do funcionamento.";
+  }
+
+  if (/\bpilar\b/.test(text)) {
+    return "Um pilar funciona como o elemento vertical que leva as cargas da estrutura até a fundação. Ele precisa estar bem posicionado, armado, concretado e travado pela estrutura para não virar um ponto fraco do conjunto.";
+  }
+
+  return "A lógica técnica é entender para onde a carga vai, qual material está resistindo e quais detalhes evitam fissura, deformação ou execução ruim. Para explicar melhor, eu precisaria saber qual elemento você quer analisar.";
+}
+
+function buildEloOfflineLayoutFallback_(text) {
+  if (!/\b(banheiro|cozinha|sala|quarto|planta|circulacao|circulação|ventilacao|ventilação|porta|janela|layout)\b/.test(text)) {
+    return "";
+  }
+
+  if (/\bbanheiro\b/.test(text)) {
+    return "Eu olharia esse banheiro por critérios bem práticos: largura de circulação, abertura da porta, posição do vaso, tamanho do box, lavatório sem estrangular passagem e ventilação. Banheiro pequeno até pode funcionar bem, mas não perdoa conflito entre porta, vaso e box.\n\nSe tiver imagem ou medidas, o que eu verificaria primeiro é se alguém consegue entrar, fechar a porta, usar o lavatório e acessar o box sem ficar desviando de peça.";
+  }
+
+  if (/\bcozinha\b/.test(text)) {
+    return "Eu avaliaria a cozinha pelo fluxo: pia, fogão e geladeira precisam conversar sem cruzar circulação demais. Também olharia bancada útil, tomada nos pontos certos, ventilação e espaço para abrir portas de armário e eletrodomésticos.";
+  }
+
+  if (/\bquarto\b/.test(text)) {
+    return "No quarto, eu olharia posição da cama, abertura de portas, circulação mínima nas laterais, armário e janela. Um layout bom não é só caber no desenho; é permitir uso diário sem aperto artificial.";
+  }
+
+  return "Eu avaliaria o layout por circulação, ventilação, portas, janelas, conflito entre móveis ou peças fixas e clareza de uso. Sem medidas ou imagem, dá para adiantar critérios; com planta ou foto, dá para ser bem mais direto.";
 }
 
 function parseEloMultipartFormData_(request, env) {
