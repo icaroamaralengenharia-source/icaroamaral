@@ -576,7 +576,8 @@ export function getEloPersonalityPrompt_(input = "geral") {
     "Quando houver desânimo, frustração, dúvida ou insegurança, reconheça o contexto sem autoajuda genérica e responda com firmeza profissional.",
     "Nunca inclua texto de salvamento ou botões na resposta. Não escreva 'Deseja guardar', 'Guardar', 'Não guardar' ou 'Biblioteca do Elo' como chamada de ação; isso é metadado da interface.",
     "Em cálculos simples, destaque o resultado, mostre a base considerada, perdas ou variações quando fizer sentido e finalize com uma observação útil.",
-    "Para blocos, concreto, laje, calçada, piso, revestimento, tinta, argamassa, itens de estoque e consumo de obra, entregue números claros e premissas assumidas.",
+    "Regra dura para quantitativos de materiais de obra: não invente consumo. Para blocos, tijolos, cimento, areia, argamassa, concreto, chapisco, emboço, reboco, pintura, piso, orçamento e consumo de material, use Stock AI Obras, SINAPI/ORSE importado ou composição interna. Se não houver base confiável, diga que só pode fazer estimativa preliminar e peça os dados técnicos que faltam.",
+    "Para blocos e tijolos, nunca use coeficiente fixo genérico por m2 sem dimensão do bloco, junta, espessura da parede, perda e tipo de assentamento.",
     contextTone[context]
   ].join(" ");
 }
@@ -2969,6 +2970,13 @@ export function buildEloLocalFallbackResponse_(interpretation) {
     return "Eu iria direto para uma tarefa pequena e executável: definir o arquivo, o comportamento esperado e o teste de validação. Se você me passar o trecho atual, eu monto o prompt ou o código já no formato certo para aplicar.";
   }
 
+  const safeConstructionQuantityAnswer = buildSafeConstructionQuantityResponse_(originalMessage, {
+    source: "fallback_offline"
+  });
+  if (safeConstructionQuantityAnswer) {
+    return safeConstructionQuantityAnswer;
+  }
+
   const cookingAnswer = buildEloOfflineCookingFallback_(text);
   if (cookingAnswer) {
     return cookingAnswer;
@@ -3009,6 +3017,57 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   }
 
   return "Eu ainda não tenho segurança para te responder isso bem nesse modo offline. Com o Elo online ativo eu consigo aprofundar melhor. Mas, pelo que dá para adiantar, eu começaria separando o que é dúvida real do que é falta de contexto e escolheria uma próxima ação pequena.";
+}
+
+export function detectConstructionQuantityIntent_(message) {
+  const text = normalizeObraSearchText_(message);
+  if (!text) {
+    return false;
+  }
+
+  const hasQuantityAction = /\b(quantos|quanto|quantidade|calcule|calcular|materiais?|material|consumo|orcamento|orçamento|previsao|previsão|estimativa|estimar)\b/.test(text);
+  const hasConstructionMaterial = /\b(bloco|blocos|tijolo|tijolos|cimento|areia|argamassa|concreto|reboco|chapisco|emboco|emboço|pintura|tinta|piso|revestimento|alvenaria|parede|laje)\b/.test(text);
+  const hasMeasuredService = /\b(m2|m3|metros quadrados|metro quadrado|metros cubicos|metro cubico)\b/.test(text) && hasConstructionMaterial;
+  const hasMetricDimensions = /\d+(?:[.,]\d+)?\s*m(?:etros?)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?\s*m?/.test(text) && hasConstructionMaterial;
+
+  return Boolean((hasQuantityAction && hasConstructionMaterial) || hasMeasuredService || hasMetricDimensions);
+}
+
+export function buildSafeConstructionQuantityResponse_(message, context = {}) {
+  if (!detectConstructionQuantityIntent_(message)) {
+    return "";
+  }
+
+  const text = normalizeObraSearchText_(message);
+  const baseContext = buildPrevisaoConsumoContext(message);
+  const sourceLabel = clean_(context && context.source);
+  const lines = [
+    "Eu não vou cravar esse consumo sem uma composição/base técnica. Posso fazer uma estimativa preliminar, mas para valor confiável preciso consultar SINAPI/ORSE ou uma composição cadastrada."
+  ];
+
+  if (baseContext) {
+    lines.push("Existe uma base interna/demonstrativa que pode orientar a conversa, mas ela não substitui SINAPI/ORSE nem composição oficial de orçamento.");
+  } else {
+    lines.push("O caminho seguro é passar pelo Stock AI Obras ou por uma composição interna antes de transformar isso em lista de compra ou orçamento.");
+  }
+
+  if (/\b(bloco|blocos|tijolo|tijolos|alvenaria|parede)\b/.test(text)) {
+    lines.push("Para blocos ou tijolos, preciso pelo menos da dimensão do bloco, junta, espessura da parede, perda e tipo de assentamento. Sem isso, qualquer número fixo por m² vira chute.");
+  }
+
+  if (/\b(reboco|emboco|emboço|chapisco|argamassa)\b/.test(text)) {
+    lines.push("Para reboco, chapisco ou emboço, preciso de área, espessura, traço/base de composição e perda adotada. Sem esses dados, dá para falar de premissa, não de consumo fechado.");
+  }
+
+  if (/\b(concreto|laje)\b/.test(text)) {
+    lines.push("Para concreto, primeiro separo o volume geométrico da composição de consumo. Volume pode ser calculado com dimensões; consumo de insumos depende do traço ou composição.");
+  }
+
+  if (sourceLabel === "prompt_context") {
+    lines.push("Instrução para o Elo online: se responder, deixe explícito se está usando composição interna, Stock AI Obras, SINAPI/ORSE ou apenas estimativa preliminar.");
+  }
+
+  return lines.join("\n\n");
 }
 
 function buildEloOfflineCookingFallback_(text) {
@@ -3434,6 +3493,11 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
   }
   if (attachmentErrors.length) {
     resultContext.attachmentErrors = attachmentErrors;
+  }
+  if (detectConstructionQuantityIntent_(safePayload.message)) {
+    resultContext.constructionQuantitySafetyContext = buildSafeConstructionQuantityResponse_(safePayload.message, {
+      source: "prompt_context"
+    });
   }
   if (context.eloContext === "obras") {
     const auditoriaContext = buildAuditoriaConsumoContext(safePayload.message);
@@ -4275,6 +4339,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
   const documentsSummary = clean_(context.documentsSummary || "").slice(0, MAX_ELO_DOCUMENT_CONTEXT_LENGTH);
   const obraComposicaoContext = eloContext === "obras" ? clean_(context.obraComposicaoContext || "").slice(0, 3000) : "";
+  const constructionQuantitySafetyContext = clean_(context.constructionQuantitySafetyContext || "").slice(0, 1800);
   const attachmentErrors = Array.isArray(context.attachmentErrors) ? context.attachmentErrors.map(clean_).filter(Boolean).slice(0, 4).join("\n") : "";
   const prompt = [
     buildEloMasterContext_(context),
@@ -4326,6 +4391,10 @@ export function buildEloSystemPrompt_(context = {}) {
 
   if (documentsSummary) {
     prompt.push("Conteúdo extraído de documentos anexados:\n" + documentsSummary);
+  }
+
+  if (constructionQuantitySafetyContext) {
+    prompt.push("[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA]\n" + constructionQuantitySafetyContext);
   }
 
   if (obraComposicaoContext) {

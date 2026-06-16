@@ -17,7 +17,9 @@ import {
   detectEloIntent_,
   buildPrevisaoConsumoContext,
   buildAuditoriaConsumoContext,
+  buildSafeConstructionQuantityResponse_,
   buildStockIaLaunchPlan,
+  detectConstructionQuantityIntent_,
   extractQuantidadeServico,
   extractContextKeywords_,
   extractPrevistoRealConsumo,
@@ -219,7 +221,39 @@ test("elo diferencia explicacao tecnica de calculo no fallback offline", () => {
   assert.equal(explanation.detectedIntent, "explanation");
   assert.equal(calculation.detectedIntent, "technical_calculation");
   assert.match(buildEloLocalFallbackResponse_(explanation), /funciona como uma placa/i);
-  assert.match(buildEloLocalFallbackResponse_(calculation), /medidas principais|material|quantidade aproximada/i);
+  assert.match(buildEloLocalFallbackResponse_(calculation), /composição\/base técnica|SINAPI\/ORSE|estimativa preliminar/i);
+});
+
+test("elo trava quantitativo de materiais sem composicao confiavel", () => {
+  const cases = [
+    "parede de bloco cerâmico 10m x 2,5m, chapisco, emboço e reboco",
+    "quantos blocos vão em 25m² de parede?",
+    "calcule materiais para reboco"
+  ];
+
+  cases.forEach((message) => {
+    assert.equal(detectConstructionQuantityIntent_(message), true, message);
+    const answer = buildSafeConstructionQuantityResponse_(message);
+
+    assert.match(answer, /não vou cravar esse consumo sem uma composição\/base técnica/i, message);
+    assert.match(answer, /SINAPI\/ORSE|composição cadastrada|Stock AI Obras/i, message);
+    assert.match(answer, /estimativa preliminar/i, message);
+    assert.doesNotMatch(answer, /60\s*blocos?\s*\/?\s*m[²2]/i, message);
+  });
+});
+
+test("elo pede parametros especificos para blocos e reboco no fallback seguro", () => {
+  const blocos = buildEloLocalFallbackResponse_(interpretEloUserMessage({
+    message: "quantos blocos vão em 25m² de parede?"
+  }));
+  const reboco = buildEloLocalFallbackResponse_(interpretEloUserMessage({
+    message: "calcule materiais para reboco"
+  }));
+
+  assert.match(blocos, /dimensão do bloco|junta|espessura da parede|perda|assentamento/i);
+  assert.doesNotMatch(blocos, /60\s*blocos?\s*\/?\s*m[²2]/i);
+  assert.match(reboco, /área|espessura|traço|composição|perda/i);
+  assert.match(reboco, /não de consumo fechado/i);
 });
 
 test("elo 2.0 classifica intencao contextual por categoria", () => {
@@ -4510,6 +4544,32 @@ test("endpoint do Elo 2.0 monta contexto mestre antes do LLM", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("endpoint do Elo injeta trava tecnica para quantitativos de obra", async () => {
+  const payload = {
+    message: "parede de bloco cerâmico 10m x 2,5m, chapisco, emboço e reboco",
+    history: [],
+    context: {
+      source: "elo",
+      mode: "standalone",
+      eloContext: "obras"
+    }
+  };
+  payload.eloIntent = detectEloIntent_(payload.message, payload.context, payload.history);
+
+  const relevantContext = await getEloRelevantContext_({
+    payload,
+    memoryStore: { search: async () => [] }
+  });
+  const prompt = buildEloSystemPrompt_(Object.assign({}, payload.context, relevantContext.context));
+
+  assert.match(prompt, /\[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA\]/i);
+  assert.match(prompt, /não vou cravar esse consumo sem uma composição\/base técnica/i);
+  assert.match(prompt, /Stock AI Obras|SINAPI\/ORSE|composição cadastrada/i);
+  assert.match(prompt, /dimensão do bloco|junta|espessura da parede|perda|assentamento/i);
+  assert.match(prompt, /\[BASE TECNICA DE COMPOSICOES|\[PREVISAO DEMONSTRATIVA DE CONSUMO/i);
+  assert.doesNotMatch(prompt, /60\s*blocos?\s*\/?\s*m[²2]/i);
 });
 
 test("endpoint do Elo injeta conhecimento permanente do projeto citado", async () => {
