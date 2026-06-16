@@ -1299,6 +1299,8 @@
     });
   }
 
+  // ELO_TRANSPORT_API
+  // The backend is the primary answer source. Local fallback only runs when this call is unavailable.
   function requestEloOnlineAnswer(question, attachments) {
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
@@ -11678,6 +11680,8 @@
     });
   }
 
+  // ELO_LOCAL_FALLBACK
+  // Keep this path small and explicit so it does not compete with successful backend responses.
   function buildEloLocalFallbackResponseForQuestion_(question) {
     if (isEloOfficialProjectQuestion_(question)) {
       return buildEloOnlineUnavailableResponse_();
@@ -11708,6 +11712,7 @@
     return applyEloCommunicationLayer(question, buildResponse(question));
   }
 
+  // ELO_ATTACHMENTS
   function buildProductAttachmentControls() {
     const button = createElement("button", "elo-attach-button", "Anexar");
     button.type = "button";
@@ -12100,54 +12105,6 @@
 
   function appendImportantMemoryPrompt(question, candidate) {
     return appendImportantMemoryPromptV2(question, candidate);
-    const typeLabel = {
-      projeto: "projeto",
-      objetivo: "objetivo",
-      preferencia: "preferência"
-    };
-    const message = appendMessage(
-      "assistant",
-      "Isso parece " + (candidate.tipo === "preferencia" ? "uma preferência importante" : "um " + typeLabel[candidate.tipo] + " importante") + ".\n\n" +
-      candidate.titulo + "\n\nDeseja guardar como projeto, objetivo ou preferência?"
-    );
-    const actions = createElement("div", "elo-message-actions");
-    const options = [
-      ["projeto", "Guardar como projeto"],
-      ["objetivo", "Guardar como objetivo"],
-      ["preferencia", "Guardar como preferência"]
-    ];
-    const buttons = [];
-
-    options.forEach(function (option) {
-      const button = createElement("button", "elo-inline-button", option[1]);
-      button.type = "button";
-      button.addEventListener("click", function () {
-        const result = saveImportantMemory(candidate, option[0]);
-        buttons.forEach(function (item) {
-          item.disabled = true;
-        });
-        if (result.ok) {
-          appendMessage("system", "Memória importante salva como " + typeLabel[option[0]] + ": " + result.item.titulo + ".");
-        } else {
-          appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
-        }
-      });
-      buttons.push(button);
-      actions.appendChild(button);
-    });
-
-    const cancelButton = createElement("button", "elo-inline-button", "Não guardar");
-    cancelButton.type = "button";
-    cancelButton.addEventListener("click", function () {
-      buttons.concat([cancelButton]).forEach(function (item) {
-        item.disabled = true;
-      });
-      appendMessage("system", "Tudo bem. Não vou guardar essa memória importante.");
-    });
-    buttons.push(cancelButton);
-    actions.appendChild(cancelButton);
-    message.appendChild(actions);
-    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
   function appendImportantMemoryPromptV2(question, candidate) {
@@ -12852,6 +12809,7 @@
     container.appendChild(form);
   }
 
+  // ELO_LIBRARY_PROJECTS_UI
   function showProjects() {
     const message = appendMessage("system", "Projetos e Objetivos do Elo");
     const panel = createElement("div", "elo-projects-panel");
@@ -13645,67 +13603,6 @@
 
   function showLocalDocuments() {
     return showLocalDocumentsV2();
-    const message = appendMessage("system", "Documentos do Elo");
-    const panel = createElement("div", "elo-documents-panel");
-    const status = createElement("p", "elo-privacy", "Documentos ficam salvos apenas neste navegador. PDFs e OCR ainda não foram ativados.");
-    const controls = createElement("div", "elo-library-controls");
-    const searchInput = createElement("input", "elo-library-search");
-    const addButton = createElement("button", "elo-inline-button", "Adicionar documento");
-    const exportButton = createElement("button", "elo-inline-button", "Exportar documentos");
-    const clearButton = createElement("button", "elo-inline-button", "Limpar documentos");
-    const form = buildLocalDocumentForm(function (result) {
-      if (result.ok) {
-        status.textContent = "Documento salvo: " + result.document.title + ".";
-        renderLocalDocumentList(list, searchInput.value);
-      } else if (result.reason === "sensitive") {
-        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
-      } else {
-        status.textContent = "Preencha título e texto, ou importe um arquivo .txt/.md.";
-      }
-    });
-    const list = createElement("div", "elo-documents-list");
-
-    searchInput.type = "search";
-    searchInput.placeholder = "Buscar nos documentos";
-    addButton.type = "button";
-    exportButton.type = "button";
-    clearButton.type = "button";
-
-    searchInput.addEventListener("input", function () {
-      renderLocalDocumentList(list, searchInput.value);
-    });
-    addButton.addEventListener("click", function () {
-      form.classList.toggle("is-hidden");
-    });
-    exportButton.addEventListener("click", function () {
-      const exported = JSON.stringify(getDocumentsStorage(), null, 2);
-      const blob = new Blob([exported], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "elo-documentos-locais.json";
-      link.click();
-      URL.revokeObjectURL(url);
-      status.textContent = "Arquivo JSON dos documentos preparado.";
-    });
-    clearButton.addEventListener("click", function () {
-      clearLocalDocuments();
-      status.textContent = "Documentos locais limpos. Dados do ObraReport não foram alterados.";
-      renderLocalDocumentList(list, searchInput.value);
-    });
-
-    controls.appendChild(searchInput);
-    controls.appendChild(addButton);
-    controls.appendChild(exportButton);
-    controls.appendChild(clearButton);
-    panel.appendChild(status);
-    panel.appendChild(controls);
-    panel.appendChild(form);
-    panel.appendChild(list);
-    message.appendChild(panel);
-
-    renderLocalDocumentList(list, "");
-    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
   function buildLocalDocumentForm(onSave) {
