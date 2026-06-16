@@ -149,6 +149,54 @@
   background: #f3fbfa;
 }
 
+.elo-message.is-typing .elo-message-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.elo-typing-label {
+  white-space: nowrap;
+}
+
+.elo-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.elo-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: eloTypingPulse 1s infinite ease-in-out;
+}
+
+.elo-typing-dots span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.elo-typing-dots span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes eloTypingPulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.36;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 .elo-message-actions,
 .elo-feedback-actions,
 .elo-web-search-actions {

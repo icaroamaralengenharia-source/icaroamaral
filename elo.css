@@ -77,18 +77,18 @@ input {
   width: 100%;
   overflow: hidden;
   display: grid;
-  align-items: center;
+  align-items: start;
   justify-items: center;
-  padding: clamp(76px, 10vh, 108px) 18px clamp(34px, 7vh, 64px);
+  padding: clamp(30px, 4vh, 46px) 18px clamp(22px, 4vh, 42px);
   background: transparent;
 }
 
 .elo-product-center {
   position: relative;
-  width: min(900px, 100%);
+  width: min(1180px, 100%);
   display: grid;
   justify-items: center;
-  align-content: center;
+  align-content: start;
   gap: 0;
   transform: none;
 }
@@ -104,18 +104,19 @@ input {
 
 .elo-product-brand {
   display: grid;
+  grid-template-columns: auto auto;
   align-items: center;
-  justify-items: center;
-  gap: 6px;
+  justify-items: start;
+  gap: 10px;
   color: var(--elo-product-text);
   text-decoration: none;
-  text-align: center;
+  text-align: left;
 }
 
 .elo-mark {
   position: relative;
-  width: 68px;
-  height: 68px;
+  width: 42px;
+  height: 42px;
   display: inline-block;
   flex: 0 0 auto;
   border-radius: 999px;
@@ -126,7 +127,7 @@ input {
 .elo-mark::before {
   position: absolute;
   inset: 22%;
-  border: 8px solid #071019;
+  border: 5px solid #071019;
   border-left-color: transparent;
   border-radius: 999px;
   content: "";
@@ -138,7 +139,7 @@ input {
   bottom: 19%;
   width: 35%;
   height: 35%;
-  border: 8px solid #071019;
+  border: 5px solid #071019;
   border-top-color: transparent;
   border-radius: 999px;
   content: "";
@@ -151,16 +152,16 @@ input {
 
 .elo-brand-name {
   color: rgba(255, 255, 255, 0.96);
-  font-size: clamp(2.5rem, 4.5vw, 3.7rem);
+  font-size: clamp(1.7rem, 2.5vw, 2.2rem);
   font-weight: 300;
   line-height: 1;
   letter-spacing: -0.035em;
 }
 
 .elo-product-brand small {
-  margin-top: 2px;
+  margin-top: 0;
   color: rgba(246, 249, 252, 0.68);
-  font-size: clamp(0.92rem, 1.35vw, 1.06rem);
+  font-size: clamp(0.78rem, 1vw, 0.9rem);
   line-height: 1.2;
 }
 
@@ -168,17 +169,17 @@ input {
   display: grid;
   justify-items: center;
   gap: 0;
-  margin-top: clamp(34px, 6vh, 56px);
+  margin-top: clamp(10px, 2vh, 18px);
   text-align: center;
 }
 
 .elo-hero-title {
-  min-height: 72px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   margin: 0;
   color: rgba(245, 250, 255, 0.94);
-  font-size: clamp(2.1rem, 5vw, 4.2rem);
+  font-size: clamp(1.65rem, 2.6vw, 2.7rem);
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: -0.055em;
@@ -186,7 +187,7 @@ input {
 }
 
 .elo-product-heading p {
-  margin: 12px 0 0;
+  margin: 6px 0 0;
   color: rgba(220, 234, 250, 0.62);
   font-size: clamp(0.95rem, 1.5vw, 1.1rem);
   line-height: 1.5;
@@ -273,8 +274,8 @@ input {
 }
 
 .elo-product-chat {
-  width: min(900px, 100%);
-  margin: 26px auto 0;
+  width: min(1120px, 100%);
+  margin: clamp(14px, 2.2vh, 20px) auto 0;
 }
 
 .elo-product-chat .elo-widget,
@@ -305,7 +306,9 @@ input {
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active {
-  max-height: min(62vh, 520px);
+  height: min(78vh, 760px);
+  min-height: min(660px, calc(100svh - 150px));
+  max-height: min(78vh, 760px);
   grid-template-rows: minmax(0, 1fr) auto;
   border-radius: 28px;
 }
@@ -340,9 +343,9 @@ input {
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
-  max-height: min(42vh, 360px);
-  min-height: 120px;
-  padding: 10px 10px 4px;
+  max-height: none;
+  min-height: 0;
+  padding: 14px 14px 8px;
   overflow-y: auto;
 }
 
@@ -465,7 +468,7 @@ input {
 }
 
 .elo-product-chat .elo-message {
-  max-width: min(720px, 100%);
+  max-width: min(820px, 100%);
 }
 
 .elo-product-chat .elo-message-bubble {
@@ -492,6 +495,56 @@ input {
   background: rgba(15, 28, 46, 0.64);
 }
 
+.elo-product-chat .elo-message.is-typing .elo-message-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: 100%;
+  color: rgba(232, 243, 255, 0.78);
+  background: rgba(19, 36, 58, 0.58);
+}
+
+.elo-product-chat .elo-typing-label {
+  white-space: nowrap;
+}
+
+.elo-product-chat .elo-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.elo-product-chat .elo-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(127, 182, 230, 0.9);
+  animation: eloTypingPulse 1s infinite ease-in-out;
+}
+
+.elo-product-chat .elo-typing-dots span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.elo-product-chat .elo-typing-dots span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes eloTypingPulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.38;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 @media (max-width: 640px) {
   .elo-product-top {
     top: 14px;
@@ -499,9 +552,9 @@ input {
   }
 
   .elo-product-shell {
-    align-items: center;
+    align-items: start;
     justify-items: center;
-    padding: 82px 12px 28px;
+    padding: 72px 12px 20px;
   }
 
   .elo-product-center {
@@ -523,13 +576,13 @@ input {
   }
 
   .elo-product-heading {
-    margin-top: 32px;
+    margin-top: 22px;
   }
 
   .elo-hero-title {
-    min-height: 58px;
-    max-width: 12ch;
-    font-size: clamp(2rem, 10vw, 3rem);
+    min-height: 44px;
+    max-width: 16ch;
+    font-size: clamp(1.7rem, 8vw, 2.6rem);
     line-height: 1.08;
     letter-spacing: -0.045em;
   }
@@ -539,7 +592,7 @@ input {
   }
 
   .elo-attachment-preview {
-    margin-top: 32px;
+    margin-top: 20px;
   }
 
   .elo-attachment-chip {
@@ -555,6 +608,13 @@ input {
     max-height: 90px;
     padding: 6px;
     border-radius: 999px;
+  }
+
+  .elo-product-chat .elo-standalone-panel.is-chat-active {
+    height: min(74vh, 680px);
+    min-height: calc(100svh - 220px);
+    max-height: min(74vh, 680px);
+    border-radius: 22px;
   }
 
   .elo-product-chat .elo-messages {

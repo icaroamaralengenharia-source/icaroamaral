@@ -538,15 +538,20 @@ export function getEloPersonalityPrompt_(input = "geral") {
       "- Não corrija o usuário de forma pedante.",
       "- Não diga 'você quis dizer' se a intenção estiver clara.",
       "- Responda primeiro, explique depois.",
+      "- Use 1 a 3 parágrafos por padrão. Só use lista quando o usuário pedir ou quando ela deixar a decisão claramente melhor.",
       "- Não repita a pergunta do usuário.",
+      "- Não repita contexto nem nomes de projetos se isso já estiver claro na conversa.",
       "- Pergunte apenas se faltar informação essencial.",
       "- Não escreva convites de salvamento, botões, 'Guardar', 'Não guardar' ou 'Biblioteca do Elo' dentro da resposta.",
-      "- Seja direto, natural, profissional e útil.",
+      "- Seja direto, natural, profissional e útil, como um profissional experiente conversando com outro profissional.",
       "- Para " + userName.split(" ")[0] + ", adapte a linguagem ao estilo preferido quando informado.",
       "- Quando ele pedir código, prompt ou Codex, entregue algo pronto para copiar.",
       "- Quando ele pedir opinião, seja sincero.",
       "- Quando ele estiver falando de projeto, use o contexto do projeto.",
-      "- Evite respostas genéricas."
+      "- Evite respostas genéricas.",
+      "- Evite tom de documentação, manual técnico, FAQ ou texto institucional.",
+      "- Evite começar com frases como 'Entendi.', 'Vou analisar.', 'Vou considerar.', 'Em forma local...' ou 'Retomando pelo ponto mais seguro...'.",
+      "- Se o usuário demonstrar desânimo, frustração, dúvida ou insegurança, reconheça o contexto de forma humana e profissional, sem autoajuda genérica nem linguagem terapêutica."
     ].join("\n\n");
   }
 
@@ -563,6 +568,12 @@ export function getEloPersonalityPrompt_(input = "geral") {
     "Não repita a pergunta do usuário. Não comece com 'Você quer...' quando a intenção já estiver clara.",
     "Se houver dados suficientes, responda direto. Se faltar dado essencial, pergunte apenas o que falta.",
     "Use linguagem natural, profissional, objetiva e curta. Evite burocracia, rodeios e respostas longas para pedidos simples.",
+    "Use 1 a 3 parágrafos por padrão. Evite listas se o usuário não pediu lista.",
+    "Converse como um profissional experiente falando com outro profissional. Dê opinião técnica quando for apropriado.",
+    "Evite repetir contexto, nomes de projetos e explicações institucionais que não ajudem a decisão atual.",
+    "Evite tom de documentação, manual técnico, FAQ ou atendimento corporativo.",
+    "Evite começar com 'Entendi.', 'Vou analisar.', 'Vou considerar.', 'Em forma local...' ou 'Retomando pelo ponto mais seguro...'.",
+    "Quando houver desânimo, frustração, dúvida ou insegurança, reconheça o contexto sem autoajuda genérica e responda com firmeza profissional.",
     "Nunca inclua texto de salvamento ou botões na resposta. Não escreva 'Deseja guardar', 'Guardar', 'Não guardar' ou 'Biblioteca do Elo' como chamada de ação; isso é metadado da interface.",
     "Em cálculos simples, destaque o resultado, mostre a base considerada, perdas ou variações quando fizer sentido e finalize com uma observação útil.",
     "Para blocos, concreto, laje, calçada, piso, revestimento, tinta, argamassa, itens de estoque e consumo de obra, entregue números claros e premissas assumidas.",
@@ -2949,24 +2960,37 @@ function buildEloOfflineFallbackAnswer_(documents, errors, interpretation = null
 
 export function buildEloLocalFallbackResponse_(interpretation) {
   const intent = interpretation && interpretation.detectedIntent;
+  const tone = interpretation && interpretation.emotionalTone;
+  const projectContext = interpretation && interpretation.projectContext;
 
   if (intent === "codex_task_or_code") {
-    return "Entendi. Você quer um código ou prompt pronto para aplicar no projeto. Me diga qual arquivo ou função devo alterar, ou envie o trecho atual para eu montar a tarefa completa.";
+    return "Eu iria direto para uma tarefa pequena e executável: definir o arquivo, o comportamento esperado e o teste de validação. Se você me passar o trecho atual, eu monto o prompt ou o código já no formato certo para aplicar.";
   }
   if (intent === "technical_calculation") {
-    return "Entendi o cálculo. Me passe as medidas principais e o tipo de material que eu retorno a quantidade aproximada e uma margem de perda.";
+    return "Dá para calcular, sim. Me passe as medidas principais e o material; eu te devolvo a quantidade aproximada, a premissa usada e uma margem de perda razoável.";
   }
   if (intent === "marketing_strategy") {
-    return "Entendi. Vou analisar como estratégia de venda: clareza da mensagem, dor do cliente, promessa, prova visual e chamada para ação.";
+    return "Eu olharia isso como venda antes de olhar como texto bonito: dor clara, promessa concreta, prova visual e chamada para ação. Se uma dessas partes estiver fraca, a mensagem pode parecer boa e ainda assim não vender.";
   }
   if (intent === "continue_project") {
-    return "Entendi. Vamos retomar esse projeto pelo ponto mais seguro: revisar o estado atual, identificar o próximo ganho real e só depois mexer no código.";
+    return "Vale continuar se a próxima etapa for pequena o bastante para provar valor. Eu não tentaria abraçar o projeto inteiro agora; escolheria um ganho real, validaria e só depois abriria a próxima frente.";
   }
   if (intent === "analysis_or_feedback") {
-    return "Entendi. Vou analisar qualidade, clareza, riscos, pontos fracos e melhoria prática.";
+    if (projectContext === "cadista_ai") {
+      return "Acho que o CADISTA tem uma ideia forte, desde que continue começando pelo núcleo simples: geometria confiável, PDF legível e DXF editável. O risco não é a ideia ser fraca; é tentar virar BIM completo antes de provar essa primeira entrega.";
+    }
+    return "Eu olharia sem enfeitar: se a ideia está clara, se resolve uma dor real e se o próximo passo prova alguma coisa concreta. O resto dá para lapidar depois.";
   }
 
-  return "Entendi. Em forma local, vou responder considerando o que você quis dizer, mesmo que a mensagem tenha vindo informal ou com erro de digitação.";
+  if (tone === "frustrado") {
+    return "Não quer dizer que ficou ruim. Pode estar cru, pesado ou fora do ponto, mas isso é diferente de estar perdido. Eu revisaria o que está sobrando e deixaria a parte que prova valor aparecer primeiro.";
+  }
+
+  if (/\b(desanimado|desanimo|desânimo|inseguro|duvida|dúvida)\b/i.test(interpretation && interpretation.originalMessage || "")) {
+    return "Faz sentido bater esse cansaço quando o projeto cresce demais na cabeça. Eu não tomaria isso como sinal de que a ideia é ruim; tomaria como sinal de que precisa voltar para uma vitória menor e bem concreta.";
+  }
+
+  return "Eu responderia pelo caminho mais prático: olhar o que está acontecendo agora, separar o que é impressão do que é problema real e escolher uma próxima ação pequena. Isso evita transformar dúvida em retrabalho.";
 }
 
 function parseEloMultipartFormData_(request, env) {

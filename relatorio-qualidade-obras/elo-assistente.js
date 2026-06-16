@@ -11065,6 +11065,8 @@
     attachmentButton: null,
     attachmentStatus: null,
     attachments: [],
+    typingIndicator: null,
+    activeRequestStartedAt: 0,
     contextLabel: null,
     suggestions: null,
     pendingSavePrompt: null,
@@ -11435,6 +11437,8 @@
     const attachedFiles = Array.prototype.slice.call(attachments || []);
 
     appendMessage("user", cleanQuestion);
+    markEloInteraction_("elo:send");
+    appendTypingIndicator();
 
     const stockIaPlanConfirmationAnswer = tryConfirmPendingStockIaPlan(cleanQuestion);
     if (stockIaPlanConfirmationAnswer) {
@@ -12064,6 +12068,9 @@
   }
 
   function appendMessage(kind, text) {
+    if (kind !== "user") {
+      removeTypingIndicator();
+    }
     const message = createElement("article", "elo-message " + kind);
     const bubble = createElement("div", "elo-message-bubble", text);
     message.appendChild(bubble);
@@ -12073,6 +12080,59 @@
     }
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
     return message;
+  }
+
+  function appendTypingIndicator() {
+    removeTypingIndicator();
+    if (!ELO_UI.messages) {
+      return null;
+    }
+
+    const message = createElement("article", "elo-message assistant is-typing");
+    message.setAttribute("aria-live", "polite");
+    message.setAttribute("data-elo-typing", "true");
+    const bubble = createElement("div", "elo-message-bubble elo-typing-bubble");
+    const label = createElement("span", "elo-typing-label", "Elo está pensando");
+    const dots = createElement("span", "elo-typing-dots");
+    [0, 1, 2].forEach(function () {
+      dots.appendChild(createElement("span", ""));
+    });
+
+    bubble.appendChild(label);
+    bubble.appendChild(dots);
+    message.appendChild(bubble);
+    ELO_UI.messages.appendChild(message);
+    if (ELO_UI.panel) {
+      ELO_UI.panel.classList.add("is-chat-active");
+    }
+    ELO_UI.typingIndicator = message;
+    ELO_UI.activeRequestStartedAt = nowEloPerformance_();
+    markEloInteraction_("elo:typing-visible");
+    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+    return message;
+  }
+
+  function removeTypingIndicator() {
+    if (ELO_UI.typingIndicator && ELO_UI.typingIndicator.parentNode) {
+      ELO_UI.typingIndicator.remove();
+    }
+    ELO_UI.typingIndicator = null;
+  }
+
+  function nowEloPerformance_() {
+    return window.performance && typeof window.performance.now === "function"
+      ? window.performance.now()
+      : Date.now();
+  }
+
+  function markEloInteraction_(name) {
+    if (window.performance && typeof window.performance.mark === "function") {
+      try {
+        window.performance.mark(name);
+      } catch (error) {
+        // Performance marks are diagnostic only.
+      }
+    }
   }
 
   function appendPersonalMemoryPrompt(question, memoryItem) {
@@ -12307,6 +12367,7 @@
   }
 
   function appendAssistantMessage(question, answer, canSave, response) {
+    markEloInteraction_("elo:answer-visible");
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
     const pendingSavePrompt = response && response.savePrompt !== undefined
       ? normalizeEloSavePrompt(response.savePrompt)

@@ -188,8 +188,8 @@ test("elo fallback local usa intencao detectada", () => {
   const codeInterpretation = interpretEloUserMessage({ message: "faz o codigo completo cara" });
   const marketingInterpretation = interpretEloUserMessage({ message: "isso ficou bom pra vender o stock full?" });
 
-  assert.match(buildEloLocalFallbackResponse_(codeInterpretation), /código ou prompt pronto/i);
-  assert.match(buildEloLocalFallbackResponse_(marketingInterpretation), /estratégia de venda/i);
+  assert.match(buildEloLocalFallbackResponse_(codeInterpretation), /tarefa pequena e executável/i);
+  assert.match(buildEloLocalFallbackResponse_(marketingInterpretation), /venda/i);
 });
 
 test("elo 2.0 classifica intencao contextual por categoria", () => {
@@ -3266,7 +3266,8 @@ test("elo chat sem chave solicita fallback local", async () => {
   assert.equal(data.ok, false);
   assert.equal(data.mode, "fallback_required");
   assert.equal(data.fallback, true);
-  assert.match(data.answer, /forma local/);
+  assert.match(data.answer, /caminho mais prático/i);
+  assert.doesNotMatch(data.answer, /forma local/i);
 });
 
 test("elo chat separa savePrompt do answer limpo", async () => {
