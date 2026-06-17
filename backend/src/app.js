@@ -500,6 +500,7 @@ export function interpretEloUserMessage({ message, history = [], context = "gera
   const tone = detectEloTone(raw);
   const projectContext = detectEloProjectContext(normalized, eloContext, history);
   const expectedAnswerStyle = detectExpectedEloAnswerStyle(raw, normalized, intent);
+  const operationalRoute = routeEloRequest_({ message: raw, history, context: { eloContext } });
 
   return {
     originalMessage: raw,
@@ -510,6 +511,7 @@ export function interpretEloUserMessage({ message, history = [], context = "gera
     expectedAnswerStyle,
     context: eloContext,
     eloContext,
+    operationalRoute,
     userProfile: profile,
     shouldAskClarification: shouldEloAskClarification({
       originalMessage: raw,
@@ -2011,6 +2013,35 @@ export function createApp(options = {}) {
     validation.payload.eloIntent = detectEloIntent_(validation.payload.message, validation.payload.context, validation.payload.history, {
       hasAttachments: Boolean(chatRequest.documents.length || chatRequest.attachmentErrors.length)
     });
+    validation.payload.operationalRoute = routeEloRequest_({
+      message: validation.payload.message,
+      history: validation.payload.history,
+      context: validation.payload.context
+    });
+
+    if (shouldUseCadistaOperationalGuard_(validation.payload.operationalRoute)) {
+      const answer = sanitizeEloAnswerText_(buildCadistaUnsupportedExecutionAnswer_(validation.payload.operationalRoute));
+      response.json({
+        ok: true,
+        mode: "operational_guard",
+        fallback: false,
+        answer,
+        savePrompt: buildEloSavePromptMeta_({ show: false, reason: "operational_guard", suggestedTarget: "none" }),
+        interpretation: validation.payload.interpretation,
+        eloIntent: validation.payload.eloIntent,
+        operationalRoute: validation.payload.operationalRoute,
+        contextSummary: {
+          conversationSummary: "",
+          productContextSummary: buildEloProductContextSummary_(validation.payload.eloIntent, validation.payload.context),
+          hasRelevantMemory: false,
+          hasRelevantLibrary: false
+        },
+        documents: [],
+        stockIaLaunchPlan: null,
+        attachmentErrors: chatRequest.attachmentErrors
+      });
+      return;
+    }
 
     if (!env.OPENAI_API_KEY) {
       const answer = sanitizeEloAnswerText_(buildEloOfflineFallbackAnswer_(chatRequest.documents, chatRequest.attachmentErrors, validation.payload.interpretation));
@@ -2933,6 +2964,248 @@ function normalizeEloContext_(value) {
   return ["geral", "obras", "saude"].includes(context) ? context : "geral";
 }
 
+function parseCadistaDimension_(message, labelPattern) {
+  const text = normalizeEloDecisionText_(message);
+  const dimensionPattern = "(\\d+(?:[,.]\\d+)?)\\s*(?:m|metros?)?\\s*(?:x|por)\\s*(\\d+(?:[,.]\\d+)?)\\s*(?:m|metros?)?";
+  const labelMatch = text.match(new RegExp(labelPattern + "[^\\d]{0,40}" + dimensionPattern, "i"));
+  const fallbackMatch = text.match(new RegExp(dimensionPattern, "i"));
+  const match = labelMatch || fallbackMatch;
+  if (!match) {
+    return null;
+  }
+  const width = Number(match[1].replace(",", "."));
+  const depth = Number(match[2].replace(",", "."));
+  if (!Number.isFinite(width) || !Number.isFinite(depth) || width <= 0 || depth <= 0) {
+    return null;
+  }
+  return { width, depth };
+}
+
+function parseCadistaCount_(message, patterns) {
+  const text = normalizeEloDecisionText_(message);
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const count = Number(match[1].replace(",", "."));
+      if (Number.isFinite(count) && count > 0) {
+        return Math.floor(count);
+      }
+    }
+  }
+  return null;
+}
+
+function mergeCadistaProjectState_(state, message) {
+  const text = normalizeEloDecisionText_(message);
+  const next = Object.assign({}, state, {
+    missingData: Array.isArray(state.missingData) ? state.missingData.slice() : []
+  });
+  const hasTerrainTerm = /\b(terreno|lote)\b/.test(text);
+  const hasHouseTerm = /\b(casa|planta|sobrado|edificacao|edificação|construcao|construção|area construida|área construída)\b/.test(text);
+  const dimension = parseCadistaDimension_(message, hasTerrainTerm ? "\\b(?:terreno|lote)\\b" : "\\b(?:casa|planta|sobrado|edificacao|edificação|construcao|construção|area construida|área construída)\\b");
+
+  if (dimension && hasTerrainTerm) {
+    next.terrain = dimension;
+  } else if (dimension && (hasHouseTerm || !next.house)) {
+    next.house = dimension;
+  }
+
+  const bedrooms = parseCadistaCount_(message, [/(\d+)\s+quartos?\b/i, /(\d+)\s+dormitorios?\b/i, /(\d+)\s+dormitórios?\b/i]);
+  if (bedrooms !== null) {
+    next.bedrooms = bedrooms;
+  }
+
+  const suites = parseCadistaCount_(message, [/(\d+)\s+suites?\b/i, /(\d+)\s+suítes?\b/i]);
+  if (suites !== null) {
+    next.suites = suites;
+  } else if (/\b(suite|suíte)\b/.test(text)) {
+    next.suites = next.suites || true;
+  }
+
+  if (/\b(garagem|vaga|vagas|carro|carros)\b/.test(text)) {
+    next.garage = true;
+  }
+
+  const floors = parseCadistaCount_(message, [/(\d+)\s+pavimentos?\b/i, /(\d+)\s+andares?\b/i]);
+  if (floors !== null) {
+    next.floors = floors;
+  } else if (/\b(terrea|térrea)\b/.test(text)) {
+    next.floors = 1;
+  }
+
+  if (/\b(recuo|recuos|afastamento|afastamentos)\b/.test(text)) {
+    next.setbacks = next.setbacks || { requested: true, officialValidationRequiresLocalCode: true };
+  }
+
+  if (/\b(prancha|pdf|dxf|svg|arquivo|exportar|gerar planta|planta real|criar planta)\b/.test(text)) {
+    next.sheet = "real_output_required";
+    next.executionStatus = "awaiting_engine";
+  } else if (/\b(layout|conceitual|preliminar|organizar|propor|sugerir)\b/.test(text) && next.sheet !== "real_output_required") {
+    next.sheet = "conceptual";
+  }
+
+  return next;
+}
+
+export function buildCadistaProjectState_(input = {}) {
+  const history = Array.isArray(input.history) ? input.history : [];
+  const message = clean_(input.message || "");
+  let state = {
+    product: "CADISTA AI",
+    terrain: null,
+    house: null,
+    bedrooms: null,
+    suites: null,
+    garage: null,
+    floors: null,
+    setbacks: null,
+    sheet: "none",
+    executionStatus: "conceptual_only",
+    missingData: []
+  };
+
+  history.concat(message ? [{ role: "user", content: message }] : [])
+    .filter((item) => item && item.role === "user" && clean_(item.content))
+    .forEach((item) => {
+      state = mergeCadistaProjectState_(state, item.content);
+    });
+
+  const missing = [];
+  if (!state.terrain) missing.push("dimensoes do terreno");
+  if (!state.house) missing.push("dimensoes da casa/area construida");
+  if (state.bedrooms === null) missing.push("numero de quartos");
+  if (state.garage === null) missing.push("garagem");
+  if (state.floors === null) missing.push("pavimentos");
+  if (!state.setbacks) missing.push("recuos/norma local");
+  if (state.sheet === "real_output_required") missing.push("motor CADISTA ativo com output real");
+
+  state.missingData = missing;
+  if (state.sheet === "real_output_required") {
+    state.executionStatus = "awaiting_engine";
+  }
+  return state;
+}
+
+function detectEloMemoryKind_(message) {
+  const text = normalizeEloDecisionText_(message);
+  if (/\b(prefiro|preferencia|preferência|gosto de|nao gosto|não gosto)\b/.test(text)) return "preferencia";
+  if (/\b(decidi|decisao|decisão|aprovado|definido|vamos fazer)\b/.test(text)) return "decisao";
+  if (/\b(terreno|casa|quartos?|suite|suíte|garagem|recuos?|prancha|pdf|dxf)\b/.test(text)) return "dado_de_projeto";
+  return "conversa_descartavel";
+}
+
+function isCadistaDomain_(context, text) {
+  return normalizeEloContext_(context && context.eloContext) === "cadista" ||
+    /\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta baixa|terreno|recuo|recuos|suite|suíte|garagem|prancha|dxf|svg)\b/.test(text);
+}
+
+export function routeEloRequest_(input = {}) {
+  const message = clean_(input.message || "");
+  const history = Array.isArray(input.history) ? input.history : [];
+  const context = input.context && typeof input.context === "object" ? input.context : {};
+  const text = normalizeEloDecisionText_(message);
+  const domain = isCadistaDomain_(context, text)
+    ? "cadista"
+    : (normalizeEloContext_(context.eloContext) === "obras" ? "obras" : (normalizeEloContext_(context.eloContext) === "saude" ? "saude" : "geral"));
+  let intent = "conversation";
+
+  if (/\b(lembre|lembrar|guardar|salvar memoria|salvar memória|prefiro|preferencia|preferência)\b/.test(text)) intent = "remember";
+  else if (/\b(validar|confere|conferir|recuo|recuos|norma|codigo de obras|código de obras)\b/.test(text)) intent = "validate";
+  else if (/\b(gerar|criar|exportar|emitir|baixar)\b/.test(text) && /\b(prancha|pdf|dxf|svg|planta|arquivo)\b/.test(text)) intent = "generate";
+  else if (/\b(executar|rodar|processar)\b/.test(text)) intent = "execute";
+  else if (/\b(retomar|continuar|proximo passo|próximo passo|e agora|quero|terreno|suite|suíte|garagem)\b/.test(text) && history.length) intent = "continue_project";
+  else if (/\?$|\b(como|qual|quais|quando|onde|por que|porque|o que)\b/.test(text)) intent = "question";
+
+  const projectState = domain === "cadista" ? buildCadistaProjectState_({ message, history, context }) : null;
+  const missingData = projectState ? projectState.missingData.slice() : [];
+  const unsupportedExecution = domain === "cadista" && ["generate", "execute"].includes(intent);
+  const needsBasis = domain === "cadista" && intent === "validate" && /recuo|recuos|norma|codigo|código/.test(text);
+  if (needsBasis && !missingData.includes("recuos/norma local")) {
+    missingData.push("recuos/norma local");
+  }
+  const needsData = Boolean((projectState && missingData.length) || needsBasis || unsupportedExecution);
+
+  return {
+    domain,
+    intent,
+    needsData,
+    missingData,
+    canExecute: !unsupportedExecution,
+    shouldAskClarifyingQuestion: Boolean(needsData && (intent === "generate" || intent === "execute" || intent === "validate")),
+    safetyLevel: unsupportedExecution ? "unsupported_execution" : (needsBasis ? "needs_basis" : "safe"),
+    memoryKind: detectEloMemoryKind_(message),
+    projectState
+  };
+}
+
+function formatCadistaDimension_(dimension) {
+  if (!dimension) return "";
+  return formatObraQuantity_(dimension.width) + " x " + formatObraQuantity_(dimension.depth) + " m";
+}
+
+function formatCadistaKnownData_(state) {
+  if (!state) return "nenhum dado de projeto confirmado";
+  const items = [];
+  if (state.terrain) items.push("terreno " + formatCadistaDimension_(state.terrain));
+  if (state.house) items.push("casa/área " + formatCadistaDimension_(state.house));
+  if (state.bedrooms !== null) items.push(state.bedrooms + " quarto(s)");
+  if (state.suites) items.push(state.suites === true ? "suíte" : state.suites + " suíte(s)");
+  if (state.garage) items.push("garagem");
+  if (state.floors !== null) items.push(state.floors + " pavimento(s)");
+  if (state.setbacks) items.push("recuos solicitados");
+  return items.length ? items.join("; ") : "nenhum dado de projeto confirmado";
+}
+
+function formatCadistaMissingData_(state, limit = 6) {
+  const missing = state && Array.isArray(state.missingData) ? state.missingData : [];
+  return missing.length ? missing.slice(0, limit).join("; ") : "nenhum dado essencial pendente para orientação conceitual";
+}
+
+function shouldUseCadistaOperationalGuard_(route) {
+  return Boolean(route && route.domain === "cadista" && (
+    route.safetyLevel === "unsupported_execution" ||
+    (route.intent === "validate" && route.safetyLevel === "needs_basis")
+  ));
+}
+
+function buildCadistaUnsupportedExecutionAnswer_(route) {
+  const safeRoute = route || {};
+  const state = safeRoute.projectState || buildCadistaProjectState_({});
+  const isValidation = safeRoute.intent === "validate";
+  const opening = isValidation
+    ? "Posso orientar a validação dos recuos, mas não vou tratar isso como validação oficial sem a norma municipal, zoneamento ou parâmetros legais do lote."
+    : "Posso preparar a orientação conceitual, mas para gerar planta, prancha, PDF, DXF ou SVG real preciso do motor CADISTA ativo e de um output confirmado pelo backend.";
+  return [
+    opening,
+    "Dados que já tenho: " + formatCadistaKnownData_(state) + ".",
+    "Dados faltantes: " + formatCadistaMissingData_(state) + ".",
+    isValidation
+      ? "Próximo passo seguro: informe cidade/norma, recuo frontal, laterais e fundo exigidos; com isso eu confiro conceitualmente a implantação."
+      : "Próximo passo seguro: completar os dados faltantes e então acionar o motor CADISTA quando ele estiver disponível. Até lá, a resposta fica conceitual."
+  ].join("\n\n");
+}
+
+function formatEloOperationalSummary_(route) {
+  if (!route) return "";
+  const state = route.projectState;
+  const lines = [
+    "[ROTEADOR OPERACIONAL DO ELO]",
+    "Dominio: " + route.domain,
+    "Intencao: " + route.intent,
+    "Nivel de seguranca: " + route.safetyLevel,
+    "Pode executar agora: " + (route.canExecute ? "sim" : "nao"),
+    "Deve perguntar dado faltante: " + (route.shouldAskClarifyingQuestion ? "sim" : "nao"),
+    "Tipo de memoria seletiva: " + route.memoryKind
+  ];
+  if (state) {
+    lines.push("Estado CADISTA: " + JSON.stringify(state));
+    lines.push("Dados conhecidos: " + formatCadistaKnownData_(state));
+    lines.push("Dados faltantes: " + formatCadistaMissingData_(state));
+    lines.push("Regra: nunca afirmar execução real, PDF, DXF, SVG, prancha ou planta criada sem output confirmado do backend.");
+  }
+  return lines.join("\n");
+}
+
 function getSafePositiveInteger_(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
@@ -2998,10 +3271,11 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   }
 
   if (eloContext === "cadista" || projectContext === "cadista_ai") {
-    return [
-      "Não consegui acessar o motor completo do Elo/CADISTA agora. Posso orientar conceitualmente, mas não vou afirmar que gerei planta, PDF, DXF ou prancha técnica sem um retorno real do backend.",
-      "Para avançar com segurança, me passe dimensões do terreno, recuos obrigatórios, programa de necessidades, número de quartos, garagem, pavimentos e qualquer restrição importante."
-    ].join("\n\n");
+    const route = interpretation && interpretation.operationalRoute ? interpretation.operationalRoute : routeEloRequest_({
+      message: originalMessage,
+      context: { eloContext: "cadista" }
+    });
+    return buildCadistaUnsupportedExecutionAnswer_(route);
   }
 
   const layoutAnswer = buildEloOfflineLayoutFallback_(text);
@@ -3501,6 +3775,11 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     historyText: recentHistoryText
   });
   const productContextSummary = buildEloProductContextSummary_(intent, context);
+  const operationalRoute = routeEloRequest_({
+    message: safePayload.message,
+    history: safePayload.history,
+    context
+  });
   const projectKnowledgeQuery = [
     safePayload.message,
     context.projectKnowledgeQuery,
@@ -3513,6 +3792,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     relevantMemoriesSummary: [relevantMemoriesSummary, filteredLocalMemories].filter(Boolean).join("\n").slice(0, 2200),
     libraryRelevantSummary,
     productContextSummary,
+    operationalSummary: formatEloOperationalSummary_(operationalRoute),
     projectKnowledgeQuery,
     compactHistory
   };
@@ -4372,6 +4652,7 @@ export function buildEloSystemPrompt_(context = {}) {
   const memoriesSummary = clean_(context.memoriesSummary || "").slice(0, 2500);
   const relevantMemoriesSummary = clean_(context.relevantMemoriesSummary || "").slice(0, 1800);
   const eloIntentSummary = clean_(context.eloIntentSummary || "").slice(0, 900);
+  const operationalSummary = clean_(context.operationalSummary || "").slice(0, 2500);
   const conversationSummary = clean_(context.conversationSummary || "").slice(0, 1400);
   const libraryRelevantSummary = clean_(context.libraryRelevantSummary || "").slice(0, 1800);
   const productContextSummary = clean_(context.productContextSummary || "").slice(0, 1400);
@@ -4402,6 +4683,10 @@ export function buildEloSystemPrompt_(context = {}) {
 
   if (eloIntentSummary) {
     prompt.push("Classificacao de intencao do pedido:\n" + eloIntentSummary);
+  }
+
+  if (operationalSummary) {
+    prompt.push("Resumo operacional deterministico:\n" + operationalSummary);
   }
 
   if (productContextSummary) {

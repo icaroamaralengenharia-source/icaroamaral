@@ -9,6 +9,7 @@ import {
   buildConversationSummary_,
   buildEloSystemPrompt_,
   buildEloMasterContext_,
+  buildCadistaProjectState_,
   buildProjectKnowledgeContext_,
   buildPathologyContext,
   buildVisionUserPrompt_,
@@ -32,6 +33,7 @@ import {
   normalizeImageAnalysis_,
   PROJECT_KNOWLEDGE,
   reindexEloVectorMemoryFile_,
+  routeEloRequest_,
   searchEloRelevantMemories_,
   searchPathologyKnowledge,
   shouldShowEloSavePrompt_
@@ -82,6 +84,83 @@ test("elo save prompt nao aparece para calculo simples isolado", () => {
   assert.doesNotMatch(answer, /^Não guardar$/im);
   assert.equal(decision.show, false);
   assert.equal(decision.reason, "simple_calculation");
+});
+
+test("roteador operacional do Elo monta estado CADISTA por mensagem e historico", () => {
+  const history = [
+    { role: "user", content: "criar casa 8x10 com 2 quartos" },
+    { role: "user", content: "o terreno e 10x25" }
+  ];
+  const route = routeEloRequest_({
+    message: "quero uma suite e garagem",
+    history,
+    context: { eloContext: "cadista" }
+  });
+
+  assert.equal(route.domain, "cadista");
+  assert.equal(route.intent, "continue_project");
+  assert.equal(route.safetyLevel, "safe");
+  assert.deepEqual(route.projectState.house, { width: 8, depth: 10 });
+  assert.deepEqual(route.projectState.terrain, { width: 10, depth: 25 });
+  assert.equal(route.projectState.bedrooms, 2);
+  assert.equal(route.projectState.suites, true);
+  assert.equal(route.projectState.garage, true);
+});
+
+test("estado CADISTA marca prancha PDF e DXF como execucao dependente de motor real", () => {
+  const state = buildCadistaProjectState_({
+    history: [
+      { role: "user", content: "criar casa 8x10 com 2 quartos" },
+      { role: "user", content: "o terreno e 10x25" }
+    ],
+    message: "gerar prancha preliminar em PDF e DXF"
+  });
+
+  assert.equal(state.sheet, "real_output_required");
+  assert.equal(state.executionStatus, "awaiting_engine");
+  assert.ok(state.missingData.includes("motor CADISTA ativo com output real"));
+});
+
+test("roteador CADISTA bloqueia promessa de execucao real e valida recuos com base", () => {
+  const generateRoute = routeEloRequest_({
+    message: "gerar prancha preliminar",
+    history: [{ role: "user", content: "terreno 10x25 e casa 8x10 com 2 quartos" }],
+    context: { eloContext: "cadista" }
+  });
+  const setbackRoute = routeEloRequest_({
+    message: "validar recuos",
+    history: [{ role: "user", content: "terreno 10x25 e casa 8x10 com 2 quartos" }],
+    context: { eloContext: "cadista" }
+  });
+
+  assert.equal(generateRoute.intent, "generate");
+  assert.equal(generateRoute.canExecute, false);
+  assert.equal(generateRoute.safetyLevel, "unsupported_execution");
+  assert.equal(setbackRoute.intent, "validate");
+  assert.equal(setbackRoute.safetyLevel, "needs_basis");
+  assert.ok(setbackRoute.missingData.includes("recuos/norma local"));
+});
+
+test("roteador preserva pergunta geral fora do CADISTA", () => {
+  const route = routeEloRequest_({
+    message: "qual e o proximo passo do Elo?",
+    context: { eloContext: "geral" }
+  });
+
+  assert.equal(route.domain, "geral");
+  assert.equal(route.intent, "question");
+  assert.equal(route.projectState, null);
+});
+
+test("prompt mestre do Elo inclui resumo operacional CADISTA", () => {
+  const prompt = buildEloSystemPrompt_({
+    eloContext: "cadista",
+    operationalSummary: "Dominio: cadista\nIntencao: generate\nPode executar agora: nao\nRegra: nunca afirmar execução real sem output confirmado."
+  });
+
+  assert.match(prompt, /Resumo operacional deterministico/i);
+  assert.match(prompt, /Dominio: cadista/i);
+  assert.match(prompt, /nunca afirmar execu/i);
 });
 
 test("elo save prompt direciona memoria e biblioteca conforme valor futuro", () => {
