@@ -226,6 +226,8 @@
       const resultPanel = document.getElementById('command-result');
       const apiUrlFromQuery = new URLSearchParams(window.location.search).get('api');
       const configuredApiUrl = (apiUrlFromQuery || window.CADISTA_IA_API_URL || '').replace(/\/+$/, '');
+      const eloProjectHistory = [];
+      const maxEloProjectHistory = 8;
 
       const setStatus = (message, isError = false) => {
         statusText.textContent = message;
@@ -280,6 +282,146 @@
         ].join('\n');
       };
 
+      const rememberEloProjectMessage = (role, content) => {
+        const safeRole = role === 'assistant' ? 'assistant' : 'user';
+        const safeContent = String(content || '').trim();
+        if (!safeContent) {
+          return;
+        }
+        eloProjectHistory.push({
+          role: safeRole,
+          content: safeContent.slice(0, 1200)
+        });
+        while (eloProjectHistory.length > maxEloProjectHistory) {
+          eloProjectHistory.shift();
+        }
+      };
+
+      const buildEloChatPayload = (text) => ({
+        message: text,
+        text,
+        source: 'elo-projeto',
+        mode: 'cadista',
+        eloContext: 'cadista',
+        projectContext: {
+          product: 'CADISTA AI',
+          page: 'elo-projeto',
+          intent: 'project_command',
+          currentProject: 'CADISTA AI',
+          capabilitiesExpected: [
+            'interpretar comando textual',
+            'responder sobre planta baixa',
+            'validar terreno/recuos',
+            'explicar próximos passos',
+            'evitar inventar quantitativos sem base técnica'
+          ]
+        },
+        context: {
+          source: 'elo-projeto',
+          mode: 'cadista',
+          eloContext: 'cadista',
+          productContextSummary: [
+            'Produto: CADISTA AI.',
+            'Página: Elo Projeto.',
+            'Objetivo: interpretar comandos textuais de projeto arquitetônico e orientar próximos passos com segurança.',
+            'Limite: não prometer PDF, DXF ou planta técnica real sem confirmação explícita do backend.'
+          ].join(' '),
+          projectKnowledgeQuery: 'CADISTA CADISTA IA planta baixa PDF técnico DXF terreno recuos Elo Projeto',
+          projectContext: {
+            product: 'CADISTA AI',
+            page: 'elo-projeto',
+            intent: 'project_command',
+            currentProject: 'CADISTA AI',
+            capabilitiesExpected: [
+              'interpretar comando textual',
+              'responder sobre planta baixa',
+              'validar terreno/recuos',
+              'explicar próximos passos',
+              'evitar inventar quantitativos sem base técnica'
+            ]
+          }
+        },
+        history: eloProjectHistory.slice(-maxEloProjectHistory)
+      });
+
+      const readResponsePayload = async (response) => {
+        const rawText = await response.text();
+        if (!rawText) {
+          return {};
+        }
+        try {
+          return JSON.parse(rawText);
+        } catch (error) {
+          return rawText;
+        }
+      };
+
+      const extractResponseMessage = (payload) => {
+        if (typeof payload === 'string') {
+          return payload.trim();
+        }
+        if (!payload || typeof payload !== 'object') {
+          return '';
+        }
+        return String(
+          payload.message ||
+          payload.reply ||
+          payload.answer ||
+          payload.text ||
+          payload.output ||
+          ''
+        ).trim();
+      };
+
+      const postJson = async (url, body) => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const payload = await readResponsePayload(response);
+        return { response, payload };
+      };
+
+      const requestEloChat = async (text) => {
+        const result = await postJson(`${configuredApiUrl}/api/elo/chat`, buildEloChatPayload(text));
+        if (!result.response.ok) {
+          const detail = result.payload && typeof result.payload === 'object' ? result.payload.detail || {} : {};
+          const message = detail.message || result.payload.message || result.payload.error || 'A rota /api/elo/chat retornou erro.';
+          const error = new Error(message);
+          error.status = result.response.status;
+          throw error;
+        }
+        const message = extractResponseMessage(result.payload);
+        if (!message) {
+          const error = new Error('A rota /api/elo/chat respondeu sem texto utilizável.');
+          error.status = result.response.status;
+          throw error;
+        }
+        return {
+          message,
+          outputs: result.payload && typeof result.payload === 'object' ? result.payload.outputs || {} : {},
+          source: 'elo-chat'
+        };
+      };
+
+      const requestLegacyCommand = async (text, previousError) => {
+        const result = await postJson(`${configuredApiUrl}/commands/text`, { text });
+        if (!result.response.ok) {
+          const detail = result.payload && typeof result.payload === 'object' ? result.payload.detail || {} : {};
+          throw new Error(detail.message || result.payload.message || previousError.message || 'A API retornou erro ao executar o comando.');
+        }
+        const message = extractResponseMessage(result.payload);
+        if (!message) {
+          throw new Error(previousError.message || 'A API antiga respondeu sem texto utilizável.');
+        }
+        return {
+          message,
+          outputs: result.payload && typeof result.payload === 'object' ? result.payload.outputs || {} : {},
+          source: 'commands-text'
+        };
+      };
+
       const runCommand = async () => {
         const text = commandInput.value.trim();
         if (!text) {
@@ -293,22 +435,25 @@
           return;
         }
 
-        setStatus('Executando comando no backend de teste...');
+        setStatus('Executando comando no backend do Elo...');
         try {
-          const response = await fetch(`${configuredApiUrl}/commands/text`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            const detail = payload.detail || {};
-            throw new Error(detail.message || payload.message || 'A API retornou erro ao executar o comando.');
+          rememberEloProjectMessage('user', text);
+          let result;
+          try {
+            result = await requestEloChat(text);
+          } catch (chatError) {
+            if (chatError.status === 404 || chatError.status === 405) {
+              setStatus('Rota do Elo indisponivel. Tentando API CADISTA antiga...');
+              result = await requestLegacyCommand(text, chatError);
+            } else {
+              throw chatError;
+            }
           }
 
-          setStatus('Comando executado no backend de teste.');
-          showResult('Resultado da API CADISTA IA', payload.message || 'Comando executado com sucesso.', {
-            outputs: payload.outputs || {}
+          rememberEloProjectMessage('assistant', result.message);
+          setStatus(result.source === 'elo-chat' ? 'Comando respondido pelo backend do Elo.' : 'Comando respondido pela API CADISTA antiga.');
+          showResult(result.source === 'elo-chat' ? 'Resposta do Elo Projeto' : 'Resultado da API CADISTA IA', result.message, {
+            outputs: result.outputs || {}
           });
         } catch (error) {
           setStatus('API indisponivel. Exibindo fallback demo local.', true);

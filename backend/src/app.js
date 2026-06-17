@@ -111,7 +111,7 @@ const PATHOLOGY_KNOWLEDGE_BASE = loadPathologyKnowledgeBase_();
 export const PROJECT_KNOWLEDGE = {
   cadista: {
     name: "CADISTA",
-    aliases: ["cadista", "cadista ia"],
+    aliases: ["cadista", "cadista ia", "cadista ai", "cadista-ai", "elo-projeto"],
     summary: "SaaS para transformar dados geometricos, croquis ou imagens em planta baixa tecnica, PDF tecnico e DXF editavel.",
     strategy: "Comecar pelo gerador procedural antes de IA avancada, validando primeiro o motor geometrico e exportacoes.",
     flow: ["terreno", "recuos", "ocupacao", "orientacao solar", "setorizacao", "ambientes minimos", "circulacao", "validacao", "planta"],
@@ -358,6 +358,7 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
   if (/\b(estoque|almoxarifado|stock full|entrada|saida|saída|saldo|produto|produtos parados|auditoria)\b/.test(text)) add("estoque");
   if (/\b(obra|obras|parede|laje|concreto|bloco|alvenaria|piso|argamassa|canteiro|fissura|infiltracao|infiltração)\b/.test(text)) add("obras");
   if (/\b(saude|saúde|medicamento|medicamentos|lote|validade|hospital|farmacia|farmácia)\b/.test(text)) add("saúde");
+  if (/\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta baixa|terreno|recuo|recuos|ambiente|ambientes|porta|janela|cota|cotas|prancha|dxf|svg)\b/.test(text)) add("cadista");
   if (/\b(planejamento|estrategia|estratégia|roadmap|plano|prioridade|proximo passo|próximo passo)\b/.test(text)) add("planejamento");
   if (/\b(resumo|resuma|resumir|sintese|síntese)\b/.test(text)) add("resumo");
   if (/\b(documento|documentos|contrato|arquivo|texto anexado)\b/.test(text)) add("documento");
@@ -365,9 +366,10 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
 
   if (eloContext === "obras") add("obras");
   if (eloContext === "saude") add("saúde");
+  if (eloContext === "cadista") add("cadista");
   if (!categories.length) add("conversa");
 
-  const priority = ["anexo", "pdf", "memória", "biblioteca", "cálculo", "estoque", "saúde", "obras", "relatório", "resumo", "planejamento", "pergunta técnica", "conversa"];
+  const priority = ["anexo", "pdf", "memória", "biblioteca", "cálculo", "cadista", "estoque", "saúde", "obras", "relatório", "resumo", "planejamento", "pergunta técnica", "conversa"];
   const primary = priority.find((category) => categories.includes(category)) || categories[0];
   const productContext = inferEloProductContext_(categories, eloContext, text, history);
 
@@ -382,6 +384,7 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
 }
 
 function inferEloProductContext_(categories, eloContext, text, history = []) {
+  if (categories.includes("cadista") || eloContext === "cadista") return "cadista";
   if (categories.includes("saúde") || eloContext === "saude") return "saúde";
   if (categories.includes("estoque") && /\b(stock full|almoxarifado|entrada|saida|saída|produtos parados)\b/.test(text)) return "estoque";
   if (categories.includes("obras") || eloContext === "obras") return "obras";
@@ -491,10 +494,11 @@ export function shouldEloAskClarification({ originalMessage, normalizedMessage, 
 export function interpretEloUserMessage({ message, history = [], context = "geral", userProfile = {} } = {}) {
   const raw = String(message || "").trim();
   const normalized = normalizeEloText(raw);
+  const eloContext = normalizeEloContext_(context);
   const profile = sanitizeEloUserProfile_(userProfile);
-  const intent = detectEloIntent(normalized, context, history);
+  const intent = detectEloIntent(normalized, eloContext, history);
   const tone = detectEloTone(raw);
-  const projectContext = detectEloProjectContext(normalized, context, history);
+  const projectContext = detectEloProjectContext(normalized, eloContext, history);
   const expectedAnswerStyle = detectExpectedEloAnswerStyle(raw, normalized, intent);
 
   return {
@@ -504,7 +508,8 @@ export function interpretEloUserMessage({ message, history = [], context = "gera
     emotionalTone: tone,
     projectContext,
     expectedAnswerStyle,
-    context,
+    context: eloContext,
+    eloContext,
     userProfile: profile,
     shouldAskClarification: shouldEloAskClarification({
       originalMessage: raw,
@@ -559,7 +564,8 @@ export function getEloPersonalityPrompt_(input = "geral") {
   const contextTone = {
     geral: "adapte exemplos para projetos, decisões, documentos e planejamento pessoal ou profissional.",
     obras: "adapte exemplos para obra, engenharia civil, RDO, materiais, medição, consumo, estoque de obra e documentação técnica.",
-    saude: "adapte exemplos para saúde, almoxarifado hospitalar, farmácia, validade, lote, rastreabilidade, compras e auditoria."
+    saude: "adapte exemplos para saúde, almoxarifado hospitalar, farmácia, validade, lote, rastreabilidade, compras e auditoria.",
+    cadista: "adapte exemplos para CADISTA AI, plantas por texto, terreno, recuos, ambientes, aberturas, cotas, prancha tecnica, SVG, PDF e DXF quando o backend confirmar."
   };
 
   return [
@@ -2920,7 +2926,10 @@ function parseJsonField_(value, fallback) {
 }
 
 function normalizeEloContext_(value) {
-  const context = clean_(value).toLowerCase();
+  const context = clean_(value).toLowerCase().replace(/_/g, "-");
+  if (["cadista", "cadista-ai", "cadista-ia", "elo-projeto"].includes(context)) {
+    return "cadista";
+  }
   return ["geral", "obras", "saude"].includes(context) ? context : "geral";
 }
 
@@ -2963,6 +2972,7 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   const intent = interpretation && interpretation.detectedIntent;
   const tone = interpretation && interpretation.emotionalTone;
   const projectContext = interpretation && interpretation.projectContext;
+  const eloContext = normalizeEloContext_(interpretation && interpretation.eloContext);
   const originalMessage = clean_(interpretation && interpretation.originalMessage);
   const text = normalizeEloDecisionText_(originalMessage);
 
@@ -2985,6 +2995,13 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   const technicalExplanation = buildEloOfflineTechnicalExplanationFallback_(text);
   if (technicalExplanation) {
     return technicalExplanation;
+  }
+
+  if (eloContext === "cadista" || projectContext === "cadista_ai") {
+    return [
+      "Não consegui acessar o motor completo do Elo/CADISTA agora. Posso orientar conceitualmente, mas não vou afirmar que gerei planta, PDF, DXF ou prancha técnica sem um retorno real do backend.",
+      "Para avançar com segurança, me passe dimensões do terreno, recuos obrigatórios, programa de necessidades, número de quartos, garagem, pavimentos e qualquer restrição importante."
+    ].join("\n\n");
   }
 
   const layoutAnswer = buildEloOfflineLayoutFallback_(text);
@@ -3355,6 +3372,9 @@ function validateEloChatRequest_(body) {
   const message = clean_(body.message);
   const context = body.context && typeof body.context === "object" ? body.context : {};
   const eloContext = normalizeEloContext_(body.eloContext || context.eloContext);
+  const projectContext = context.projectContext && typeof context.projectContext === "object"
+    ? context.projectContext
+    : (body.projectContext && typeof body.projectContext === "object" ? body.projectContext : {});
   const rawHistory = Array.isArray(body.history) ? body.history : [];
   const history = rawHistory
     .filter((item) => item && (item.role === "user" || item.role === "assistant"))
@@ -3396,14 +3416,17 @@ function validateEloChatRequest_(body) {
       message,
       history,
       context: {
-        source: clean_(context.source || "elo"),
-        mode: clean_(context.mode || ""),
+        source: clean_(context.source || body.source || "elo"),
+        mode: clean_(context.mode || body.mode || ""),
         eloContext,
         deviceId: sanitizeEloDeviceId_(context.deviceId || ""),
         memoriesSummary: cleanMultiline_(context.memoriesSummary || "").slice(0, 2500),
         librarySummary: cleanMultiline_(context.librarySummary || context.documentsLibrarySummary || "").slice(0, 3000),
         productContext: clean_(context.productContext || "").slice(0, 80),
-        screenContext: clean_(context.screenContext || "").slice(0, 1200)
+        screenContext: clean_(context.screenContext || "").slice(0, 1200),
+        productContextSummary: cleanMultiline_(context.productContextSummary || "").slice(0, 1400),
+        projectKnowledgeQuery: clean_(context.projectKnowledgeQuery || "").slice(0, 700),
+        projectContext
       }
     }
   };
@@ -3478,13 +3501,19 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     historyText: recentHistoryText
   });
   const productContextSummary = buildEloProductContextSummary_(intent, context);
+  const projectKnowledgeQuery = [
+    safePayload.message,
+    context.projectKnowledgeQuery,
+    context.eloContext === "cadista" ? "CADISTA CADISTA IA CADISTA AI elo-projeto planta baixa terreno recuos ambientes portas janelas cotas prancha SVG PDF DXF" : "",
+    contextKeywords.join(" ")
+  ].filter(Boolean).join(" ");
   const resultContext = {
     eloIntentSummary: formatEloIntentSummary_(intent),
     conversationSummary,
     relevantMemoriesSummary: [relevantMemoriesSummary, filteredLocalMemories].filter(Boolean).join("\n").slice(0, 2200),
     libraryRelevantSummary,
     productContextSummary,
-    projectKnowledgeQuery: [safePayload.message, contextKeywords.join(" ")].filter(Boolean).join(" "),
+    projectKnowledgeQuery,
     compactHistory
   };
 
@@ -3640,16 +3669,25 @@ function formatEloIntentSummary_(intent) {
 function buildEloProductContextSummary_(intent, context = {}) {
   const productContext = intent && intent.productContext ? intent.productContext : normalizeEloContext_(context.eloContext);
   const screenContext = clean_(context.screenContext);
+  const providedContext = clean_(context.productContextSummary);
+  const projectContext = context.projectContext && typeof context.projectContext === "object" ? context.projectContext : {};
+  const projectProduct = clean_(projectContext.product || "");
   const base = {
     geral: "Use o Elo Geral: memoria, biblioteca, documentos, planejamento e decisoes.",
     elo: "Use o contexto do Elo: arquitetura, memoria, biblioteca, personalidade e unificacao do cerebro oficial.",
+    cadista: "Use o contexto do CADISTA AI: geracao e validacao de plantas por texto, terreno, recuos, programa de necessidades, ambientes, portas/janelas, cotas, prancha tecnica, SVG, PDF e DXF quando disponiveis. Diferencie orientacao conceitual de execucao real. Nao prometa planta, PDF ou DXF se o backend CADISTA nao confirmar outputs reais. Peca dados faltantes como dimensoes do terreno, recuos, numero de quartos, garagem, pavimentos e restricoes.",
     obras: "Use o contexto de Obras: engenharia civil, calculos, RDO, relatorios, materiais, PDF tecnico e consumo.",
     estoque: "Use o contexto de Estoque/Stock Full: entradas, saidas, saldo, produtos parados, auditoria e almoxarifado.",
     saúde: "Use o contexto de Saude: medicamentos, lote, validade, rastreabilidade, compras e auditoria.",
     saude: "Use o contexto de Saude: medicamentos, lote, validade, rastreabilidade, compras e auditoria."
   }[productContext] || "Use o contexto geral do Elo.";
 
-  return screenContext ? base + "\nContexto visivel do produto:\n" + screenContext : base;
+  return [
+    base,
+    projectProduct ? "Produto informado no payload: " + projectProduct + "." : "",
+    providedContext,
+    screenContext ? "Contexto visivel do produto:\n" + screenContext : ""
+  ].filter(Boolean).join("\n");
 }
 
 function validateEloVectorMemoryRequest_(body) {
@@ -4425,6 +4463,17 @@ function buildEloContextPrompt_(eloContext) {
       "Atue como assistente especializado em engenharia civil, relatorios tecnicos, RDO, patologias construtivas, materiais de obra, medicoes, consumo previsto, auditoria de obra e apoio ao ObraReport/Stock IA.",
       "Priorize obra, fissuras, infiltracoes, concreto, alvenaria, acabamento, estoque de obra, SINAPI/ORSE futuramente e documentacao tecnica.",
       "Nao misture medicamentos, farmacia hospitalar ou saude, exceto se o usuario pedir explicitamente."
+    ].join(" ");
+  }
+
+  if (eloContext === "cadista") {
+    return [
+      "Contexto ativo: Elo CADISTA.",
+      "Atue como assistente tecnico de projeto para o CADISTA AI, modulo de geracao e validacao de plantas por texto.",
+      "Trabalhe com terreno, recuos, programa de necessidades, ambientes, portas, janelas, cotas, prancha tecnica, SVG, PDF e DXF somente quando esses recursos estiverem disponiveis e confirmados pelo backend.",
+      "Diferencie claramente orientacao conceitual de execucao real: nao afirme que criou planta, gerou PDF, gerou DXF, validou prancha ou salvou arquivo se nao houver output real confirmado.",
+      "Quando faltar dado essencial, peça somente o que falta: dimensoes do terreno, recuos, numero de quartos, garagem, pavimentos, ambientes desejados, orientacao, acesso, restricoes e padrao de entrega.",
+      "Nao invente quantitativos tecnicos de obra sem base confiavel. Responda como assistente tecnico de projeto, nao como vendedor."
     ].join(" ");
   }
 
