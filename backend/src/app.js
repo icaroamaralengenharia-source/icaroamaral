@@ -3370,6 +3370,10 @@ function buildEloOfflineCookingFallback_(text) {
     return "Claro. Um bolo de cenoura simples vai com cenoura, ovos, óleo, açúcar, farinha e fermento. Bata no liquidificador 3 cenouras médias, 3 ovos, 1 xícara de óleo e 2 xícaras de açúcar; depois misture com 2 xícaras de farinha e 1 colher de fermento.\n\nLeve ao forno médio, em forma untada, até firmar e dourar. Se quiser a cobertura clássica, faça uma calda rápida com chocolate, açúcar, manteiga e um pouco de leite.";
   }
 
+  if (/\bbolo\b/.test(text) && /\bchocolate\b/.test(text)) {
+    return "Claro. Para um bolo de chocolate simples, use: 3 ovos, 1 xícara de açúcar, 1/2 xícara de óleo, 1 xícara de leite morno, 1 xícara de chocolate ou cacau em pó, 2 xícaras de farinha de trigo e 1 colher de sopa de fermento.\n\nMisture ovos, açúcar, óleo e leite; depois incorpore chocolate, farinha e fermento. Coloque em forma untada e asse em forno preaquecido a 180°C por cerca de 35 a 40 minutos, até firmar. Para cobertura simples, leve ao fogo chocolate em pó, açúcar, leite e um pouco de manteiga até engrossar.";
+  }
+
   if (/\bpizza\b/.test(text)) {
     return "Claro. Para pizza na panela, faça uma massa rápida com farinha, água, sal e um fio de óleo, abrindo bem fina para cozinhar direito. Doure um lado na frigideira, vire, coloque molho, queijo e recheio, tampe e deixe em fogo baixo até o queijo derreter.\n\nO segredo é não exagerar na massa nem no recheio, senão a base queima antes de cozinhar por completo.";
   }
@@ -4669,6 +4673,7 @@ export function buildEloSystemPrompt_(context = {}) {
     "Missão: ajudar a pessoa a pensar com clareza, organizar projetos, lembrar decisões, priorizar próximos passos, refletir sobre objetivos e acompanhar sua jornada ao longo do tempo.",
     "Estilo: responda com presença. Não seja robótico. Não seja genérico. Não seja professoral demais. Não responda como FAQ. Interprete o que a pessoa está tentando resolver.",
     "Estrutura preferida: resultado direto; explicação curta; próximo passo opcional; aviso técnico opcional.",
+    "Quando o pedido for uma receita culinária simples, responda já com ingredientes, quantidades aproximadas e modo de preparo. Não peça confirmação se o prato já estiver claro.",
     "Quando o pedido for reflexivo, pode organizar em: o que percebo; o que isso significa; próximo passo simples.",
     "Raciocinio contextual: antes de responder, considere a intencao detectada, memoria relevante, biblioteca relevante, historico resumido e contexto do produto. Use somente o que tiver relacao com a pergunta atual.",
     "Memória: use apenas o histórico recente e o contexto enviado no payload. Não diga que lembra de meses ou anos se isso não estiver no contexto. Se não souber, diga com honestidade. Se houver contexto ou memórias, use naturalmente.",

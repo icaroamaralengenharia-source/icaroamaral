@@ -368,6 +368,14 @@ input {
   margin: clamp(14px, 2.2vh, 20px) auto 0;
 }
 
+body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
+  padding-top: clamp(16px, 2vh, 24px);
+}
+
+.elo-product-chat:has(.elo-standalone-panel.is-chat-active) {
+  margin-top: 12px;
+}
+
 .elo-product-chat .elo-widget,
 .elo-product-chat .elo-standalone-widget {
   position: static;
@@ -408,9 +416,9 @@ input {
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active {
-  height: min(78vh, 760px);
-  min-height: min(660px, calc(100svh - 150px));
-  max-height: min(78vh, 760px);
+  height: clamp(270px, 31vh, 340px);
+  min-height: min(270px, calc(100svh - 340px));
+  max-height: min(38vh, 360px);
   grid-template-rows: minmax(0, 1fr) auto;
   border-radius: 28px;
 }
@@ -441,13 +449,13 @@ input {
   display: grid;
   align-content: end;
   justify-items: stretch;
-  gap: 10px;
+  gap: 12px;
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
   max-height: none;
   min-height: 0;
-  padding: 14px 14px 8px;
+  padding: 12px 14px 6px;
   overflow-y: auto;
 }
 
@@ -510,7 +518,7 @@ input {
   border: 0;
   color: var(--elo-product-text);
   background: transparent;
-  font-size: clamp(1.1rem, 1.8vw, 1.28rem);
+  font-size: clamp(1.18rem, 1.9vw, 1.38rem);
   outline: 0;
 }
 
@@ -571,7 +579,7 @@ input {
 }
 
 .elo-product-chat .elo-message {
-  max-width: min(820px, 100%);
+  max-width: min(900px, 100%);
 }
 
 .elo-product-chat .elo-message-bubble {
@@ -580,6 +588,9 @@ input {
   color: var(--elo-product-text);
   background: rgba(19, 36, 58, 0.72);
   box-shadow: none;
+  padding: 11px 14px;
+  font-size: clamp(1.12rem, 1.45vw, 1.28rem);
+  line-height: 1.5;
 }
 
 .elo-product-chat .elo-message.user {
@@ -590,6 +601,7 @@ input {
   color: #ffffff;
   border-color: rgba(127, 182, 230, 0.22);
   background: rgba(30, 111, 174, 0.26);
+  font-weight: 650;
 }
 
 .elo-product-chat .elo-message.system .elo-message-bubble {
@@ -694,6 +706,11 @@ input {
     font-size: 1.05rem;
   }
 
+  body:has(.elo-standalone-panel.is-chat-active) .elo-discovery-panel,
+  body:has(.elo-standalone-panel.is-chat-active) .elo-capability-grid {
+    display: none;
+  }
+
   .elo-discovery-panel {
     gap: 10px;
     margin-top: 16px;
@@ -745,15 +762,15 @@ input {
   }
 
   .elo-product-chat .elo-standalone-panel.is-chat-active {
-    height: min(74vh, 680px);
-    min-height: calc(100svh - 220px);
-    max-height: min(74vh, 680px);
+    height: min(40vh, 340px);
+    min-height: min(300px, calc(100svh - 300px));
+    max-height: min(40vh, 340px);
     border-radius: 22px;
   }
 
   .elo-product-chat .elo-messages {
     max-height: 0;
-    gap: 8px;
+    gap: 10px;
   }
 
   .elo-product-chat .elo-input-row {
@@ -766,7 +783,13 @@ input {
 
   .elo-product-chat .elo-input {
     height: 48px;
-    font-size: 1rem;
+    font-size: 1.08rem;
+  }
+
+  .elo-product-chat .elo-message-bubble {
+    padding: 10px 12px;
+    font-size: 1.06rem;
+    line-height: 1.48;
   }
 
   .elo-product-chat .elo-send-button {

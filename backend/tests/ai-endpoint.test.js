@@ -276,6 +276,7 @@ test("elo fallback local usa intencao detectada", () => {
 test("elo fallback offline responde assunto direto em perguntas simples", () => {
   const cases = [
     ["receita de bolo de cenoura", /cenoura|ovos|farinha|fermento/i],
+    ["receita de bolo de chocolate", /chocolate|ovos|farinha|fermento|180°C/i],
     ["receita de pizza na panela", /pizza na panela|frigideira|massa/i],
     ["como funciona uma laje maciça", /placa de concreto armado|cargas|armadura/i],
     ["como fazer uma parede de 4 metros?", /4 metros|altura|prumo|argamassa/i],
