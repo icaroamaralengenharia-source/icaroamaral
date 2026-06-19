@@ -275,6 +275,7 @@ test("elo fallback local usa intencao detectada", () => {
 
 test("elo fallback offline responde assunto direto em perguntas simples", () => {
   const cases = [
+    ["oi", /Me diga o que voce quer retomar|continuo direto/i],
     ["receita de bolo de cenoura", /cenoura|ovos|farinha|fermento/i],
     ["receita de bolo de chocolate", /chocolate|ovos|farinha|fermento|180°C/i],
     ["receita de pizza na panela", /pizza na panela|frigideira|massa/i],
@@ -290,7 +291,7 @@ test("elo fallback offline responde assunto direto em perguntas simples", () => 
     const answer = buildEloLocalFallbackResponse_(interpretation);
 
     assert.match(answer, expected, message);
-    assert.doesNotMatch(answer, /Em forma local|Vou analisar|Entendi\./i, message);
+    assert.doesNotMatch(answer, /Em forma local|Vou analisar|Entendi\.|modo offline|nao tenho seguranca|não tenho segurança/i, message);
   });
 });
 

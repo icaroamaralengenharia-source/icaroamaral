@@ -446,10 +446,10 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   padding: 0;
   overflow: hidden;
   scroll-behavior: auto;
-  display: grid;
-  align-content: end;
-  justify-items: stretch;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  overscroll-behavior: contain;
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
@@ -457,6 +457,7 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   min-height: 0;
   padding: 12px 14px 6px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .elo-product-chat .elo-messages:empty {
@@ -582,6 +583,10 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   max-width: min(900px, 100%);
 }
 
+.elo-product-chat .elo-message.user {
+  align-self: flex-end;
+}
+
 .elo-product-chat .elo-message-bubble {
   border: 1px solid rgba(127, 182, 230, 0.18);
   border-radius: 22px;
@@ -593,9 +598,6 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   line-height: 1.5;
 }
 
-.elo-product-chat .elo-message.user {
-  justify-self: end;
-}
 
 .elo-product-chat .elo-message.user .elo-message-bubble {
   color: #ffffff;

@@ -3241,6 +3241,10 @@ function buildEloOfflineFallbackAnswer_(documents, errors, interpretation = null
   return buildEloLocalFallbackResponse_(interpretation);
 }
 
+function isEloGreeting_(text) {
+  return /^(oi|ola|opa|bom dia|boa tarde|boa noite|hello|hi|ei|e ai)$/.test(clean_(text));
+}
+
 export function buildEloLocalFallbackResponse_(interpretation) {
   const intent = interpretation && interpretation.detectedIntent;
   const tone = interpretation && interpretation.emotionalTone;
@@ -3248,6 +3252,10 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   const eloContext = normalizeEloContext_(interpretation && interpretation.eloContext);
   const originalMessage = clean_(interpretation && interpretation.originalMessage);
   const text = normalizeEloDecisionText_(originalMessage);
+
+  if (isEloGreeting_(text)) {
+    return "Oi. Me diga o que voce quer retomar ou resolver agora, e eu continuo direto pelo ponto certo.";
+  }
 
   if (intent === "codex_task_or_code") {
     return "Eu iria direto para uma tarefa pequena e executável: definir o arquivo, o comportamento esperado e o teste de validação. Se você me passar o trecho atual, eu monto o prompt ou o código já no formato certo para aplicar.";
@@ -3270,6 +3278,10 @@ export function buildEloLocalFallbackResponse_(interpretation) {
     return technicalExplanation;
   }
 
+  if (intent === "continue_project") {
+    return "Vale continuar se a proxima etapa for pequena o bastante para provar valor. Eu nao tentaria abracar o projeto inteiro agora; escolheria um ganho real, validaria e so depois abriria a proxima frente.";
+  }
+
   if (eloContext === "cadista" || projectContext === "cadista_ai") {
     const route = interpretation && interpretation.operationalRoute ? interpretation.operationalRoute : routeEloRequest_({
       message: originalMessage,
@@ -3289,9 +3301,7 @@ export function buildEloLocalFallbackResponse_(interpretation) {
   if (intent === "marketing_strategy") {
     return "Eu olharia isso como venda antes de olhar como texto bonito: dor clara, promessa concreta, prova visual e chamada para ação. Se uma dessas partes estiver fraca, a mensagem pode parecer boa e ainda assim não vender.";
   }
-  if (intent === "continue_project") {
-    return "Vale continuar se a próxima etapa for pequena o bastante para provar valor. Eu não tentaria abraçar o projeto inteiro agora; escolheria um ganho real, validaria e só depois abriria a próxima frente.";
-  }
+
   if (intent === "analysis_or_feedback") {
     if (projectContext === "cadista_ai") {
       return "Acho que o CADISTA tem uma ideia forte, desde que continue começando pelo núcleo simples: geometria confiável, PDF legível e DXF editável. O risco não é a ideia ser fraca; é tentar virar BIM completo antes de provar essa primeira entrega.";
