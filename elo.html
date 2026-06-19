@@ -28,8 +28,40 @@
         <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
           <span class="elo-rotating-text" data-elo-rotating-text>Como posso <span class="elo-highlight">te ajudar</span> hoje?</span>
         </h1>
-        <p>Seu contexto continua aqui.</p>
+        <p>Memória, projetos, documentos e ferramentas continuam aqui.</p>
       </div>
+      <section class="elo-discovery-panel" aria-label="Atalhos do ecossistema Elo">
+        <p>Seu assistente para projetos, relatórios, documentos e CADISTA IA.</p>
+        <div class="elo-prompt-chips" aria-label="Sugestões rápidas">
+          <button type="button" data-elo-prompt="Abrir ou orientar o CADISTA IA">CADISTA IA</button>
+          <button type="button" data-elo-prompt="Me ajude com um relatório técnico">Relatórios</button>
+          <button type="button" data-elo-prompt="Resuma meus projetos">Projetos</button>
+          <button type="button" data-elo-prompt="Quais ferramentas de engenharia posso usar?">Ferramentas</button>
+          <button type="button" data-elo-prompt="Analisar um PDF ou imagem">Analisar PDF</button>
+        </div>
+      </section>
+      <section class="elo-capability-grid" aria-label="Capacidades do Elo">
+        <article>
+          <strong>CADISTA IA</strong>
+          <span>Criar, revisar e orientar projetos arquitetônicos e CAD.</span>
+          <button type="button" data-elo-prompt="Quero usar o CADISTA IA">Quero usar o CADISTA IA</button>
+        </article>
+        <article>
+          <strong>Relatórios técnicos</strong>
+          <span>Apoio para inspeções, laudos, RDOs e documentos.</span>
+          <button type="button" data-elo-prompt="Me ajude com um relatório técnico">Me ajude com um relatório técnico</button>
+        </article>
+        <article>
+          <strong>Projetos e memória</strong>
+          <span>Continuar ideias, decisões e próximos passos.</span>
+          <button type="button" data-elo-prompt="Resuma meus projetos">Resuma meus projetos</button>
+        </article>
+        <article>
+          <strong>Ferramentas</strong>
+          <span>Análise de arquivos, documentos, planilhas e engenharia.</span>
+          <button type="button" data-elo-prompt="Quais ferramentas posso usar?">Quais ferramentas posso usar?</button>
+        </article>
+      </section>
       <div class="elo-attachment-preview" data-elo-attachment-preview>
         <div class="elo-attachment-chip">
           <span class="elo-attachment-icon" aria-hidden="true">▣</span>
@@ -41,6 +73,7 @@
       <div class="elo-product-chat" aria-label="Conversa com o Elo">
         <section class="elo-standalone-panel" aria-label="Elo">
           <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
+          <p class="elo-input-hint">Pergunte, anexe um arquivo ou escolha um atalho.</p>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
@@ -208,12 +241,29 @@
 
     }
 
+    function initEloPromptShortcuts() {
+      const buttons = document.querySelectorAll("[data-elo-prompt]");
+      const input = document.querySelector(".elo-input");
+
+      if (!buttons.length || !input) {
+        return;
+      }
+
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          input.value = button.getAttribute("data-elo-prompt") || "";
+          input.focus();
+        });
+      });
+    }
+
     window.ELO_PRODUCT_MODE = true;
     window.ELO_SKIP_AUTO_WIDGET = true;
     window.ELO_DISABLE_AUTOFOCUS = true;
 
     document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
     document.addEventListener("DOMContentLoaded", initEloMinimalInput);
+    document.addEventListener("DOMContentLoaded", initEloPromptShortcuts);
     document.addEventListener("DOMContentLoaded", function () {
       if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
         window.EloAssistente.mountMinimal({

@@ -193,6 +193,96 @@ input {
   line-height: 1.5;
 }
 
+.elo-discovery-panel {
+  width: min(900px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: clamp(16px, 2.4vh, 24px);
+  text-align: center;
+}
+
+.elo-discovery-panel p {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(236, 246, 255, 0.82);
+  font-size: clamp(0.98rem, 1.45vw, 1.12rem);
+  line-height: 1.45;
+}
+
+.elo-prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.elo-prompt-chips button,
+.elo-capability-grid button {
+  border: 1px solid rgba(127, 182, 230, 0.2);
+  color: rgba(240, 248, 255, 0.92);
+  background: rgba(19, 36, 58, 0.5);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.elo-prompt-chips button {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.elo-prompt-chips button:hover,
+.elo-capability-grid button:hover {
+  border-color: rgba(127, 182, 230, 0.46);
+  background: rgba(30, 111, 174, 0.28);
+  transform: translateY(-1px);
+}
+
+.elo-capability-grid {
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: clamp(16px, 2.5vh, 24px);
+}
+
+.elo-capability-grid article {
+  min-height: 158px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(127, 182, 230, 0.18);
+  border-radius: 18px;
+  background: rgba(19, 36, 58, 0.46);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.elo-capability-grid strong {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.elo-capability-grid span {
+  color: rgba(220, 234, 250, 0.64);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.elo-capability-grid button {
+  align-self: end;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .elo-rotating-text {
   display: inline-block;
   opacity: 1;
@@ -288,14 +378,14 @@ input {
 
 .elo-product-chat .elo-standalone-panel {
   position: static;
-  min-height: 72px;
-  max-height: 90px;
+  min-height: 108px;
+  max-height: 126px;
   display: grid;
   grid-template-rows: auto;
   gap: 0;
   padding: 8px;
   border: 1px solid rgba(100, 155, 210, 0.28);
-  border-radius: 999px;
+  border-radius: 30px;
   background:
     linear-gradient(145deg, rgba(19, 36, 58, 0.9), rgba(15, 28, 46, 0.86));
   outline: none;
@@ -303,6 +393,18 @@ input {
   overflow: hidden;
   width: 100%;
   backdrop-filter: blur(20px);
+}
+
+.elo-product-chat .elo-input-hint {
+  display: none;
+  margin: 0 16px 6px;
+  color: rgba(220, 234, 250, 0.58);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.elo-product-chat .elo-standalone-panel:not(.is-chat-active) .elo-input-hint {
+  display: block;
 }
 
 .elo-product-chat .elo-standalone-panel.is-chat-active {
@@ -591,6 +693,37 @@ input {
     font-size: 0.98rem;
   }
 
+  .elo-discovery-panel {
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .elo-prompt-chips {
+    gap: 7px;
+  }
+
+  .elo-prompt-chips button {
+    min-height: 32px;
+    padding: 0 11px;
+    font-size: 0.8rem;
+  }
+
+  .elo-capability-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .elo-capability-grid article {
+    min-height: auto;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .elo-capability-grid button {
+    width: 100%;
+  }
+
   .elo-attachment-preview {
     margin-top: 20px;
   }
@@ -604,10 +737,10 @@ input {
   }
 
   .elo-product-chat .elo-standalone-panel {
-    min-height: 72px;
-    max-height: 90px;
+    min-height: 102px;
+    max-height: 120px;
     padding: 6px;
-    border-radius: 999px;
+    border-radius: 24px;
   }
 
   .elo-product-chat .elo-standalone-panel.is-chat-active {
