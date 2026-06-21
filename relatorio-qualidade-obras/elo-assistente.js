@@ -921,7 +921,8 @@
     lastTheme: "",
     lastContext: "",
     recentIntents: [],
-    lastRecommendation: ""
+    lastRecommendation: "",
+    lastOperationalWallEstimate: null
   };
 
   function rememberSessionTurn(question, response, answer) {
@@ -8770,6 +8771,203 @@
     };
   }
 
+
+  function parseEloWallServiceBriefing_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    if (!hasAnyTerm(text, ["parede", "muro", "alvenaria"]) || !hasAnyTerm(text, ["bloco", "tijolo", "ceramico", "ceramico", "baiano"])) {
+      return null;
+    }
+
+    const numbers = [];
+    raw.replace(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/gi, function (_, value) {
+      numbers.push(parseEloOperationalNumber_(value));
+      return _;
+    });
+    let height = 0;
+    let length = 0;
+    let area = 0;
+
+    const heightMatch = raw.match(/(?:altura|alto|h)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i);
+    const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i);
+    if (heightMatch) {
+      height = parseEloOperationalNumber_(heightMatch[1]);
+    }
+    if (lengthMatch) {
+      length = parseEloOperationalNumber_(lengthMatch[1]);
+    }
+    if ((!height || !length) && numbers.length >= 2) {
+      const sorted = numbers.slice().sort(function (a, b) { return a - b; });
+      height = height || sorted[0];
+      length = length || sorted[sorted.length - 1];
+    }
+    if (height > 0 && length > 0) {
+      area = height * length;
+    } else {
+      const areaMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
+      area = areaMatch ? parseEloOperationalNumber_(areaMatch[1]) : 0;
+    }
+    if (area <= 0) {
+      return null;
+    }
+
+    return {
+      length: length || 0,
+      height: height || 0,
+      area: area,
+      coatingArea: area * 2,
+      hasChapisco: hasAnyTerm(text, ["chapisco", "chapiscar"]),
+      hasReboco: hasAnyTerm(text, ["reboco", "rebocar", "emboco", "emboco"]),
+      wantsBudget: hasAnyTerm(text, ["orcamento", "orcamento", "custo", "preco", "preco", "valor"]),
+      wantsReferenceBudget: hasAnyTerm(text, ["referencia", "referencia", "padrao", "padrao", "estimativa", "preliminar"]),
+      raw: raw
+    };
+  }
+
+  function roundEloWallQuantity_(value, decimals) {
+    const factor = Math.pow(10, typeof decimals === "number" ? decimals : 2);
+    return Math.round(parseEloOperationalNumber_(value) * factor) / factor;
+  }
+
+  function formatEloWallMoney_(value) {
+    const number = roundEloWallQuantity_(value, 2);
+    return "R$ " + String(number.toFixed(2)).replace(".", ",");
+  }
+
+  function buildEloWallEstimate_(briefing) {
+    const area = briefing.area;
+    const coatingArea = briefing.coatingArea;
+    const blocks = Math.ceil(area * 12.5 * 1.08);
+    const layingCement = Math.ceil(area * 0.095);
+    const layingSand = roundEloWallQuantity_(area * 0.017, 2);
+    const chapiscoCement = briefing.hasChapisco ? Math.ceil(coatingArea * 0.05) : 0;
+    const chapiscoSand = briefing.hasChapisco ? roundEloWallQuantity_(coatingArea * 0.006, 2) : 0;
+    const plasterCement = briefing.hasReboco ? Math.ceil(coatingArea * 0.115) : 0;
+    const plasterSand = briefing.hasReboco ? roundEloWallQuantity_(coatingArea * 0.020, 2) : 0;
+    const waterLiters = Math.ceil((layingCement + chapiscoCement + plasterCement) * 28);
+
+    return {
+      length: briefing.length,
+      height: briefing.height,
+      area: roundEloWallQuantity_(area, 2),
+      coatingArea: roundEloWallQuantity_(coatingArea, 2),
+      blocks: blocks,
+      layingCement: layingCement,
+      layingSand: layingSand,
+      chapiscoCement: chapiscoCement,
+      chapiscoSand: chapiscoSand,
+      plasterCement: plasterCement,
+      plasterSand: plasterSand,
+      waterLiters: waterLiters,
+      hasChapisco: briefing.hasChapisco,
+      hasReboco: briefing.hasReboco
+    };
+  }
+
+  function buildEloWallBudget_(estimate) {
+    const prices = [
+      { label: "Bloco ceramico baiano 14x19x39", quantity: estimate.blocks, unit: "un", unitPrice: 1.45 },
+      { label: "Cimento 50 kg - assentamento", quantity: estimate.layingCement, unit: "sc", unitPrice: 38 },
+      { label: "Areia media - assentamento", quantity: estimate.layingSand, unit: "m3", unitPrice: 145 }
+    ];
+    if (estimate.hasChapisco) {
+      prices.push({ label: "Cimento 50 kg - chapisco", quantity: estimate.chapiscoCement, unit: "sc", unitPrice: 38 });
+      prices.push({ label: "Areia media - chapisco", quantity: estimate.chapiscoSand, unit: "m3", unitPrice: 145 });
+    }
+    if (estimate.hasReboco) {
+      prices.push({ label: "Cimento 50 kg - reboco", quantity: estimate.plasterCement, unit: "sc", unitPrice: 38 });
+      prices.push({ label: "Areia media - reboco", quantity: estimate.plasterSand, unit: "m3", unitPrice: 145 });
+    }
+    const subtotal = prices.reduce(function (sum, item) {
+      return sum + item.quantity * item.unitPrice;
+    }, 0);
+    const loss = subtotal * 0.08;
+    return { items: prices, subtotal: subtotal, loss: loss, total: subtotal + loss };
+  }
+
+  function formatEloWallEstimateLines_(estimate) {
+    const lines = [
+      "Area da parede: " + formatEloOperationalQuantity_(estimate.area) + " m2" + (estimate.length && estimate.height ? " (" + formatEloOperationalQuantity_(estimate.length) + " m x " + formatEloOperationalQuantity_(estimate.height) + " m)" : ""),
+      "Area de revestimento nos 2 lados: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2",
+      "",
+      "Lista tecnica aproximada:",
+      "- Bloco ceramico baiano 14x19x39: " + estimate.blocks + " un",
+      "- Cimento para assentamento: " + estimate.layingCement + " sacos de 50 kg",
+      "- Areia media para assentamento: " + formatEloOperationalQuantity_(estimate.layingSand) + " m3"
+    ];
+    if (estimate.hasChapisco) {
+      lines.push("- Cimento para chapisco nos 2 lados: " + estimate.chapiscoCement + " sacos de 50 kg");
+      lines.push("- Areia media para chapisco nos 2 lados: " + formatEloOperationalQuantity_(estimate.chapiscoSand) + " m3");
+    }
+    if (estimate.hasReboco) {
+      lines.push("- Cimento para reboco nos 2 lados: " + estimate.plasterCement + " sacos de 50 kg");
+      lines.push("- Areia media para reboco nos 2 lados: " + formatEloOperationalQuantity_(estimate.plasterSand) + " m3");
+    }
+    lines.push("- Agua de preparo: cerca de " + estimate.waterLiters + " litros");
+    lines.push("");
+    lines.push("Referencia usada: bloco 14x19x39 cm, junta media de 1 cm, perda de 8%, chapisco fino e reboco medio de 2 cm nos dois lados.");
+    return lines;
+  }
+
+  function formatEloWallBudgetLines_(estimate) {
+    const budget = buildEloWallBudget_(estimate);
+    const lines = formatEloWallEstimateLines_(estimate);
+    lines.push("");
+    lines.push("Orcamento preliminar de materiais, com precos padrao editaveis:");
+    budget.items.forEach(function (item) {
+      lines.push("- " + item.label + ": " + formatEloOperationalQuantity_(item.quantity) + " " + item.unit + " x " + formatEloWallMoney_(item.unitPrice) + " = " + formatEloWallMoney_(item.quantity * item.unitPrice));
+    });
+    lines.push("- Reserva tecnica/perdas comerciais 8%: " + formatEloWallMoney_(budget.loss));
+    lines.push("");
+    lines.push("Total preliminar de materiais: " + formatEloWallMoney_(budget.total));
+    lines.push("Nao inclui mao de obra, frete, ferramentas, andaime, tela, aditivos, cal ou variacao regional de preco.");
+    return lines;
+  }
+
+  function buildEloWallServiceAnswer_(message) {
+    const briefing = parseEloWallServiceBriefing_(message);
+    if (!briefing) {
+      return null;
+    }
+    const estimate = buildEloWallEstimate_(briefing);
+    ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
+    window.__eloLastOperationalWallEstimate = estimate;
+    const wantsBudget = briefing.wantsBudget || briefing.wantsReferenceBudget;
+    const lines = wantsBudget ? formatEloWallBudgetLines_(estimate) : formatEloWallEstimateLines_(estimate);
+    return {
+      shortAnswer: wantsBudget ? "Montei um orcamento preliminar para essa parede." : "Montei a lista de materiais para essa parede.",
+      fullAnswer: lines.join("\n"),
+      nextAction: wantsBudget ? "Se quiser, eu separo agora mao de obra e BDI." : "Se quiser orcamento, diga: quero o orcamento com referencia padrao.",
+      canSave: true,
+      sessionTheme: "elo_operacional_parede",
+      sessionIntent: wantsBudget ? "orcamento_parede" : "lista_materiais_parede"
+    };
+  }
+
+  function buildEloWallContinuationAnswer_(message) {
+    const text = normalizeText(message);
+    const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
+    if (!estimate) {
+      return null;
+    }
+    const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
+    const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade", "precisa", "preciso"]) || text === "sim";
+    if (wantsBudget || wantsDetail) {
+      ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
+      window.__eloLastOperationalWallEstimate = estimate;
+      const lines = wantsBudget ? formatEloWallBudgetLines_(estimate) : formatEloWallEstimateLines_(estimate);
+      return {
+        shortAnswer: wantsBudget ? "Usei a parede anterior e montei o orcamento padrao." : "Detalhei a parede anterior com consumo tecnico.",
+        fullAnswer: lines.join("\n"),
+        nextAction: wantsBudget ? "Se quiser, eu separo mao de obra, prazo e preco por m2." : "Se quiser orcamento, diga: quero orcamento padrao.",
+        canSave: true,
+        sessionTheme: "elo_operacional_parede",
+        sessionIntent: wantsBudget ? "orcamento_parede" : "detalhe_parede"
+      };
+    }
+    return null;
+  }
+
   function calculateEloOperationalPrediction_(message) {
     const engines = [window.StockAiCompositionEngine, window.StockAiObrasEngine].filter(Boolean);
     for (let index = 0; index < engines.length; index += 1) {
@@ -11440,6 +11638,16 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);
+    if (immediateWallResponse) {
+      const immediateWallAnswer = formatResponse(immediateWallResponse);
+      appendAssistantMessage(cleanQuestion, immediateWallAnswer, immediateWallResponse.canSave !== false, immediateWallResponse);
+      saveConversation(cleanQuestion, immediateWallAnswer);
+      rememberSessionTurn(cleanQuestion, immediateWallResponse, immediateWallAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const stockIaPlanConfirmationAnswer = tryConfirmPendingStockIaPlan(cleanQuestion);
     if (stockIaPlanConfirmationAnswer) {
       const confirmationResponse = {
@@ -11701,6 +11909,16 @@
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
       };
+    }
+
+    const wallContinuationResponse = buildEloWallContinuationAnswer_(question);
+    if (wallContinuationResponse) {
+      return wallContinuationResponse;
+    }
+
+    const wallServiceResponse = buildEloWallServiceAnswer_(question);
+    if (wallServiceResponse) {
+      return wallServiceResponse;
     }
 
     const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
