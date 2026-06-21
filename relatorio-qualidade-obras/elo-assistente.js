@@ -8788,13 +8788,44 @@
     let length = 0;
     let area = 0;
 
-    const heightMatch = raw.match(/(?:altura|alto|h)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i);
-    const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i);
+    const heightMatch = raw.match(/(?:altura|alto|h)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
+      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
+    const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
+      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
+    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)/i);
     if (heightMatch) {
       height = parseEloOperationalNumber_(heightMatch[1]);
     }
     if (lengthMatch) {
       length = parseEloOperationalNumber_(lengthMatch[1]);
+    }
+    if ((!height || !length) && simplePairMatch) {
+      const firstPairValue = parseEloOperationalNumber_(simplePairMatch[1]);
+      const secondPairValue = parseEloOperationalNumber_(simplePairMatch[2]);
+      if (firstPairValue > 0 && secondPairValue > 0) {
+        height = height || Math.min(firstPairValue, secondPairValue);
+        length = length || Math.max(firstPairValue, secondPairValue);
+      }
+    }
+    const allWallNumbers = [];
+    raw.replace(/(\d+(?:[,.]\d+)?)/g, function (_, value) {
+      const parsed = parseEloOperationalNumber_(value);
+      if (parsed > 0) {
+        allWallNumbers.push(parsed);
+      }
+      return _;
+    });
+    if (height > 0 && !length && allWallNumbers.length) {
+      const lengthCandidate = allWallNumbers.filter(function (value) {
+        return Math.abs(value - height) > 0.01;
+      }).sort(function (a, b) { return b - a; })[0];
+      length = lengthCandidate || 0;
+    }
+    if (length > 0 && !height && allWallNumbers.length) {
+      const heightCandidate = allWallNumbers.filter(function (value) {
+        return Math.abs(value - length) > 0.01;
+      }).sort(function (a, b) { return a - b; })[0];
+      height = heightCandidate || 0;
     }
     if ((!height || !length) && numbers.length >= 2) {
       const sorted = numbers.slice().sort(function (a, b) { return a - b; });
@@ -8818,7 +8849,7 @@
       coatingArea: area * 2,
       hasChapisco: hasAnyTerm(text, ["chapisco", "chapiscar"]),
       hasReboco: hasAnyTerm(text, ["reboco", "rebocar", "emboco", "emboco"]),
-      wantsBudget: hasAnyTerm(text, ["orcamento", "orcamento", "custo", "preco", "preco", "valor"]),
+      wantsBudget: hasAnyTerm(text, ["orcamento", "orcamento", "orca", "orcar", "custo", "preco", "preco", "valor"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|valor|custo|preco|pre.o/.test(text),
       wantsReferenceBudget: hasAnyTerm(text, ["referencia", "referencia", "padrao", "padrao", "estimativa", "preliminar"]),
       raw: raw
     };
@@ -8950,8 +8981,54 @@
     if (!estimate) {
       return null;
     }
-    const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
-    const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade", "precisa", "preciso"]) || text === "sim";
+    const wantsLabor = /mao\s*de\s*obra|m.o|servico|pedreiro|quanto\s+cobrar|preco\s+do\s+servico|pre.o\s+do\s+servico/.test(text);
+    const wantsLoss = /perda|perdas|desperdicio|desperd.cio|quebra|sobra|10\s*(?:%|por cento)|15\s*(?:%|por cento)/.test(text);
+    const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
+    const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade"]) || text === "sim";
+    if (wantsLabor) {
+      const masonryLabor = estimate.area * 65;
+      const coatingLabor = estimate.coatingArea * 38;
+      const totalLabor = masonryLabor + coatingLabor;
+      return {
+        shortAnswer: "Usei a parede anterior e estimei a mao de obra.",
+        fullAnswer: [
+          "Mao de obra preliminar para a parede anterior:",
+          "- Area de alvenaria: " + formatEloOperationalQuantity_(estimate.area) + " m2",
+          "- Chapisco/reboco nos 2 lados: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2",
+          "- Assentamento de bloco, referencia R$ 65,00/m2: " + formatEloWallMoney_(masonryLabor),
+          "- Chapisco + reboco, referencia R$ 38,00/m2 de face: " + formatEloWallMoney_(coatingLabor),
+          "",
+          "Total preliminar de mao de obra: " + formatEloWallMoney_(totalLabor),
+          "Referencia simples. Ajuste por altura, andaime, produtividade da equipe, prazo, acesso e padrao de acabamento."
+        ].join("\n"),
+        nextAction: "Se quiser, eu junto materiais + mao de obra em um orcamento unico.",
+        canSave: true,
+        sessionTheme: "elo_operacional_parede",
+        sessionIntent: "mao_de_obra_parede"
+      };
+    }
+    if (wantsLoss) {
+      const lossMatch = text.match(/(\d+(?:[,.]\d+)?)\s*(?:%|por cento)/);
+      const lossPercent = lossMatch ? parseEloOperationalNumber_(lossMatch[1]) : 10;
+      const baseBlocks = Math.ceil(estimate.area * 12.5);
+      const blocksWithLoss = Math.ceil(baseBlocks * (1 + lossPercent / 100));
+      return {
+        shortAnswer: "Recalculei a perda para a parede anterior.",
+        fullAnswer: [
+          "Perda tecnica aplicada sobre a parede anterior:",
+          "- Area de alvenaria: " + formatEloOperationalQuantity_(estimate.area) + " m2",
+          "- Blocos sem perda: " + baseBlocks + " un",
+          "- Perda adotada: " + formatEloOperationalQuantity_(lossPercent) + "%",
+          "- Blocos com perda: " + blocksWithLoss + " un",
+          "",
+          "Use perda maior quando houver muitos recortes, vergas, rasgos, transporte ruim ou bloco com quebra frequente."
+        ].join("\n"),
+        nextAction: "Se quiser, eu atualizo tambem cimento e areia com essa perda.",
+        canSave: true,
+        sessionTheme: "elo_operacional_parede",
+        sessionIntent: "perda_parede"
+      };
+    }
     if (wantsBudget || wantsDetail) {
       ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
       window.__eloLastOperationalWallEstimate = estimate;
@@ -9249,8 +9326,11 @@
     let hasInsufficient = false;
     let hasMissing = false;
 
+    const standaloneOperationalMode = isStandaloneMode();
     if (!balances.length) {
-      almoxLines.push("- Não encontrei saldo do Almoxarifado disponível nesta tela para comparar.");
+      almoxLines.push(standaloneOperationalMode
+        ? "- Sem estoque vinculado nesta pagina. Use esta resposta como previsao tecnica de materiais."
+        : "- Nao encontrei saldo do Almoxarifado disponivel nesta tela para comparar.");
     } else {
       prediction.predictedItems.forEach(function (item) {
         const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
@@ -9274,8 +9354,10 @@
     let resultTitle = "✅ Saldo suficiente";
     let recommendation = "A obra pode executar esse serviço sem necessidade de compra.";
     if (!balances.length) {
-      resultTitle = "⚠️ Almoxarifado sem saldo comparável";
-      recommendation = "Cadastrar saldo no Almoxarifado antes de liberar compra ou execução.";
+      resultTitle = standaloneOperationalMode ? "Previsao tecnica de materiais" : "Almoxarifado sem saldo comparavel";
+      recommendation = standaloneOperationalMode
+        ? "Se quiser, informe precos locais para eu montar o orcamento preliminar."
+        : "Cadastrar saldo no Almoxarifado antes de liberar compra ou execucao.";
     } else if (hasMissing) {
       resultTitle = "🚨 Material não encontrado no Almoxarifado";
       recommendation = "Cadastrar o item ou transferir material antes de liberar a execução.";
@@ -9292,13 +9374,13 @@
         predictedLines.join("\n"),
         scaleAlerts.length ? "\n" + scaleAlerts.join("\n") : "",
         "",
-        "📦 Almoxarifado",
+        standaloneOperationalMode ? "Observacao" : "Almoxarifado",
         almoxLines.join("\n"),
         "",
         resultTitle,
         recommendation,
         "",
-        "Observação: esta conversa apenas consulta e recomenda. A baixa oficial continua no fluxo do RDO/Almoxarifado."
+        standaloneOperationalMode ? "Observacao: esta conversa e uma previsao tecnica. Confira medidas, perdas e precos locais antes da compra." : "Observacao: esta conversa apenas consulta e recomenda. A baixa oficial continua no fluxo do RDO/Almoxarifado."
       ].join("\n"),
       nextAction: recommendation,
       canSave: false,
@@ -9413,6 +9495,241 @@
     return null;
   }
 
+
+  function buildEloStockPurchaseAnswer_(message) {
+    const text = normalizeText(message);
+    const stockIntent = /estoque|almoxarifado|comprar|compra|pedido|reposicao|reposi.ao|acabando|acabou|saldo|saida|sa.da|baixar|retirada/.test(text);
+    const materialIntent = /cimento|areia|bloco|tijolo|argamassa|piso|concreto|aco|a.o|brita|material|materiais/.test(text);
+    if (!stockIntent || !materialIntent) {
+      return null;
+    }
+    return {
+      shortAnswer: "Organize isso pelo fluxo de estoque e compras.",
+      fullAnswer: [
+        "Fluxo pratico para material/estoque:",
+        "1. Registre a saida do material para a obra ou frente de servico.",
+        "2. Confira o saldo atual no almoxarifado antes de comprar de novo.",
+        "3. Se o saldo ficou abaixo do minimo, gere uma reposicao/compras.",
+        "4. Anote destino, responsavel e data para fechar o historico.",
+        "",
+        "Se voce me disser item, quantidade que saiu e obra, eu monto o lancamento sugerido e a compra de reposicao."
+      ].join("\n"),
+      nextAction: "Informe item, quantidade, unidade e obra.",
+      canSave: true,
+      sessionTheme: "estoque",
+      sessionIntent: "estoque_compras"
+    };
+  }
+
+  function buildEloOnboardingConstructionAnswer_(message) {
+    const text = normalizeText(message);
+    const firstUse = /sou leigo|nao sei usar|nunca usei|primeiro uso|por onde comeco|por onde come.o|como come.o|come.ar uma vistoria|fazer vistoria simples/.test(text);
+    const clientWork = /cadastrei cliente|cadastro de cliente|cadastrar cliente|cadastrar obra|cadastro da obra|cliente.*obra|obra.*cliente/.test(text);
+    if (!firstUse && !clientWork) {
+      return null;
+    }
+    const lines = clientWork ? [
+      "Depois de cadastrar o cliente, o proximo passo e cadastrar a obra:",
+      "1. Abra Obras.",
+      "2. Crie uma nova obra vinculada a esse cliente.",
+      "3. Informe nome da obra, endereco, responsavel e tipo de servico.",
+      "4. Depois entre na obra e gere RDO, vistoria, relatorio ou PDF.",
+      "",
+      "Essa ordem evita relatorio solto sem cliente e sem obra vinculada."
+    ] : [
+      "Para comecar simples no ObraReport:",
+      "1. Cadastre o cliente.",
+      "2. Cadastre a obra vinculada ao cliente.",
+      "3. Abra um RDO ou relatorio tecnico.",
+      "4. Anexe fotos e descreva o que foi visto ou executado.",
+      "5. Revise e gere o PDF.",
+      "",
+      "Se for vistoria simples, comece por: ambiente, problema observado, fotos, causa provavel e recomendacao."
+    ];
+    return {
+      shortAnswer: clientWork ? "O proximo passo e cadastrar a obra vinculada ao cliente." : "Comece pelo fluxo cliente, obra, registro e PDF.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Diga qual cliente/obra voce quer registrar que eu te guio no preenchimento.",
+      canSave: true,
+      sessionTheme: "onboarding_obras",
+      sessionIntent: clientWork ? "cadastro_obra" : "primeiro_uso"
+    };
+  }
+
+  function buildEloSlabSafetyAnswer_(message) {
+    const text = normalizeText(message);
+    if (!/laje|concretagem|concretar|viga|pilar|forma|escora|escoramento/.test(text) || !/conferir|antes|seguranca|seguran.a|cuidado|checklist|mestre/.test(text)) {
+      return null;
+    }
+    return {
+      shortAnswer: "Antes da concretagem, faca um checklist de seguranca e conferencia tecnica.",
+      fullAnswer: [
+        "Checklist rapido antes de liberar laje/viga/pilar:",
+        "- Formas travadas, limpas, alinhadas e sem frestas grandes.",
+        "- Escoramento firme, contraventado e apoiado em base segura.",
+        "- Armaduras conferidas: bitola, espacamento, cobrimento e transpasse.",
+        "- Passagens eletricas/hidraulicas revisadas antes do concreto.",
+        "- Acesso seguro para equipe, bomba/carrinho e vibrador.",
+        "- Concreto confirmado: volume, traco/fck, horario e plano de cura.",
+        "- Registrar fotos e responsavel no RDO antes, durante e depois.",
+        "",
+        "Se houver duvida estrutural, nao libere sem o engenheiro responsavel."
+      ].join("\n"),
+      nextAction: "Se quiser, eu transformo isso em checklist de vistoria para PDF.",
+      canSave: true,
+      sessionTheme: "seguranca_obra",
+      sessionIntent: "checklist_concretagem"
+    };
+  }
+
+  function buildEloConsumptionAuditAnswer_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    const wantsAudit = /confere|alto|baixo|demais|auditoria|desperdicio|desperd.cio|consumo|usei|usamos|gastou|gastamos/.test(text);
+    if (!wantsAudit) {
+      return null;
+    }
+    const areaMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
+    const blocksMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:blocos?|tijolos?)/i);
+    const cementMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:sacos?|sc)\s*(?:de\s*)?cimento/i);
+    const area = areaMatch ? parseEloOperationalNumber_(areaMatch[1]) : 0;
+    if (area > 0 && blocksMatch) {
+      const actualBlocks = parseEloOperationalNumber_(blocksMatch[1]);
+      const expectedBlocks = Math.ceil(area * 12.5 * 1.08);
+      const status = actualBlocks < expectedBlocks * 0.75 ? "muito abaixo do esperado" : actualBlocks > expectedBlocks * 1.25 ? "acima do esperado" : "dentro de uma faixa aceitavel";
+      return {
+        shortAnswer: "Comparei o consumo de blocos com uma referencia tecnica.",
+        fullAnswer: [
+          "Auditoria rapida de consumo:",
+          "- Area informada: " + formatEloOperationalQuantity_(area) + " m2",
+          "- Blocos usados: " + formatEloOperationalQuantity_(actualBlocks) + " un",
+          "- Referencia esperada com perda: cerca de " + expectedBlocks + " un",
+          "- Leitura: consumo " + status + ".",
+          "",
+          "Se estiver muito diferente, confira se a area foi medida corretamente, se houve reaproveitamento, meia parede, vao de portas/janelas ou lancamento incompleto."
+        ].join("\n"),
+        nextAction: "Envie tambem cimento e areia usados para eu fechar a auditoria.",
+        canSave: true,
+        sessionTheme: "auditoria_material",
+        sessionIntent: "auditoria_blocos"
+      };
+    }
+    if (area > 0 && cementMatch) {
+      const actualCement = parseEloOperationalNumber_(cementMatch[1]);
+      const expectedCement = Math.max(1, Math.ceil(area * 0.095));
+      const status = actualCement > expectedCement * 1.8 ? "alto" : actualCement < expectedCement * 0.5 ? "baixo" : "aceitavel";
+      return {
+        shortAnswer: "Comparei o consumo de cimento com uma referencia rapida.",
+        fullAnswer: [
+          "Auditoria rapida de cimento:",
+          "- Area informada: " + formatEloOperationalQuantity_(area) + " m2",
+          "- Cimento usado: " + formatEloOperationalQuantity_(actualCement) + " sacos",
+          "- Referencia inicial para assentamento: cerca de " + expectedCement + " sacos",
+          "- Leitura: consumo " + status + ".",
+          "",
+          "Ajuste se tambem entrou chapisco, reboco, perdas, retrabalho ou outro servico no mesmo lancamento."
+        ].join("\n"),
+        nextAction: "Se quiser, eu separo por assentamento, chapisco e reboco.",
+        canSave: true,
+        sessionTheme: "auditoria_material",
+        sessionIntent: "auditoria_cimento"
+      };
+    }
+    return null;
+  }
+
+  function buildEloAmbiguousMaterialAnswer_(message) {
+    const text = normalizeText(message);
+    const asksMaterial = /material|materiais|lista|quantos|quanto vai|comprar|orcamento|or.amento/.test(text);
+    const hasConstructionSubject = /parede|muro|alvenaria|bloco|tijolo|reboco|chapisco|piso|contrapiso|laje/.test(text);
+    const hasQuantity = /\d/.test(text);
+    if (!asksMaterial || !hasConstructionSubject || hasQuantity) {
+      return null;
+    }
+    return {
+      shortAnswer: "Consigo calcular, mas preciso da medida principal.",
+      fullAnswer: [
+        "Para eu montar a lista sem chutar, envie assim:",
+        "- Parede: comprimento x altura, tipo de bloco e se tera chapisco/reboco nos dois lados.",
+        "- Piso/contrapiso/reboco: area em m2 e espessura quando souber.",
+        "- Concreto/laje: volume em m3 ou area + espessura.",
+        "",
+        "Exemplo: parede de bloco baiano 8 por 3, chapisco e reboco dos dois lados."
+      ].join("\n"),
+      nextAction: "Informe as medidas e eu calculo a lista.",
+      canSave: false,
+      sessionTheme: "materiais",
+      sessionIntent: "pedir_medidas"
+    };
+  }
+
+
+  function buildEloTechnicalReportDraftAnswer_(message) {
+    const text = normalizeText(message);
+    const wantsReport = hasAnyTerm(text, ["relatorio", "laudo", "vistoria", "parecer", "descrever", "escrever"]) || /relat|laudo|vistoria|parecer|descrev|escrev/.test(text);
+    const hasPathology = hasAnyTerm(text, ["infiltracao", "umidade", "mofo", "trinca", "fissura", "rachadura", "vazamento", "banheiro", "parede"]) || /infiltra|umidade|mofo|trinca|fissura|rachadura|vazamento|banheiro|parede/.test(text);
+    if (!wantsReport || !hasPathology) {
+      return null;
+    }
+    const subject = hasAnyTerm(text, ["trinca", "fissura", "rachadura"]) || /trinca|fissura|rachadura/.test(text)
+      ? "trinca/fissura"
+      : hasAnyTerm(text, ["infiltracao", "umidade", "mofo", "vazamento"]) || /infiltra|umidade|mofo|vazamento/.test(text)
+        ? "infiltracao/umidade"
+        : "manifestacao observada";
+    return {
+      shortAnswer: "Monte o relato tecnico com evidencias, causa provavel e recomendacao.",
+      fullAnswer: [
+        "Sugestao de texto-base para " + subject + ":",
+        "",
+        "Durante a vistoria, foi observada manifestacao patologica aparente em parede/ambiente informado, com sinais visiveis que devem ser registrados por fotografia e localizacao.",
+        "",
+        "Estrutura recomendada:",
+        "1. Identifique o ambiente e o ponto exato.",
+        "2. Descreva o que aparece na foto, sem exagerar a conclusao.",
+        "3. Informe causa provavel: umidade, falha de impermeabilizacao, movimentacao, fissura de revestimento ou outra hipotese visivel.",
+        "4. Recomende verificacao complementar antes de definir reparo definitivo.",
+        "5. Anexe fotos gerais e fotos de detalhe com legenda.",
+        "",
+        "Frase segura: 'A avaliacao visual indica necessidade de verificacao tecnica complementar para confirmar causa e definir o tratamento adequado.'"
+      ].join("\n"),
+      nextAction: "Se quiser, me diga o ambiente, tamanho aproximado e o que aparece na foto que eu redijo o texto final.",
+      canSave: true,
+      sessionTheme: "relatorio",
+      sessionIntent: "relatorio_manifestacao"
+    };
+  }
+
+  function buildEloDailyWorkLogAnswer_(message) {
+    const text = normalizeText(message);
+    const looksLikeDailyLog = hasAnyTerm(text, ["hoje", "ontem", "fizemos", "executamos", "foi feito", "lan?ar", "lancar", "diario", "rdo"]);
+    const hasWork = hasAnyTerm(text, ["alvenaria", "reboco", "limpeza", "piso", "concreto", "forma", "armacao", "pintura", "obra"]);
+    if (!looksLikeDailyLog || !hasWork) {
+      return null;
+    }
+    return {
+      shortAnswer: "Isso pode virar um registro de RDO.",
+      fullAnswer: [
+        "Registro sugerido para o Diario de Obras/RDO:",
+        "",
+        "Servicos executados:",
+        "- Alvenaria/reboco/limpeza ou servicos informados pela equipe.",
+        "",
+        "Como preencher:",
+        "1. Informe data, obra e responsavel.",
+        "2. Lance os servicos executados com quantidade quando houver medicao.",
+        "3. Registre equipe, ocorrencias e materiais consumidos.",
+        "4. Anexe fotos do antes, durante e depois.",
+        "5. Gere o PDF do RDO quando revisar tudo.",
+        "",
+        "Texto curto: 'Foram executados servicos de alvenaria, reboco e limpeza da frente de trabalho, conforme andamento da obra e registros fotograficos anexos.'"
+      ].join("\n"),
+      nextAction: "Se quiser, me passe quantidades e equipe que eu organizo o RDO completo.",
+      canSave: true,
+      sessionTheme: "rdo",
+      sessionIntent: "rdo_registro_diario"
+    };
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -9429,6 +9746,51 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const wallContinuationAnswer = buildEloWallContinuationAnswer_(cleanQuestion);
+    if (wallContinuationAnswer) {
+      return wallContinuationAnswer;
+    }
+
+    const consumptionAuditAnswer = buildEloConsumptionAuditAnswer_(cleanQuestion);
+    if (consumptionAuditAnswer) {
+      return consumptionAuditAnswer;
+    }
+
+    const wallServiceAnswer = buildEloWallServiceAnswer_(cleanQuestion);
+    if (wallServiceAnswer) {
+      return wallServiceAnswer;
+    }
+
+    const slabSafetyAnswer = buildEloSlabSafetyAnswer_(cleanQuestion);
+    if (slabSafetyAnswer) {
+      return slabSafetyAnswer;
+    }
+
+    const ambiguousMaterialAnswer = buildEloAmbiguousMaterialAnswer_(cleanQuestion);
+    if (ambiguousMaterialAnswer) {
+      return ambiguousMaterialAnswer;
+    }
+
+    const stockPurchaseAnswer = buildEloStockPurchaseAnswer_(cleanQuestion);
+    if (stockPurchaseAnswer) {
+      return stockPurchaseAnswer;
+    }
+
+    const onboardingConstructionAnswer = buildEloOnboardingConstructionAnswer_(cleanQuestion);
+    if (onboardingConstructionAnswer) {
+      return onboardingConstructionAnswer;
+    }
+
+    const technicalReportDraftAnswer = buildEloTechnicalReportDraftAnswer_(cleanQuestion);
+    if (technicalReportDraftAnswer) {
+      return technicalReportDraftAnswer;
+    }
+
+    const dailyWorkLogAnswer = buildEloDailyWorkLogAnswer_(cleanQuestion);
+    if (dailyWorkLogAnswer) {
+      return dailyWorkLogAnswer;
     }
 
     const operationalConstructionAnswer = buildEloOperationalConstructionAnswer_(cleanQuestion);
