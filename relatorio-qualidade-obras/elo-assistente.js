@@ -8912,8 +8912,25 @@
     const subtotal = prices.reduce(function (sum, item) {
       return sum + item.quantity * item.unitPrice;
     }, 0);
-    const loss = subtotal * 0.08;
-    return { items: prices, subtotal: subtotal, loss: loss, total: subtotal + loss };
+    const lossPercent = estimate.budgetLossPercent || estimate.lossPercent || 8;
+    const loss = subtotal * (lossPercent / 100);
+    return { items: prices, subtotal: subtotal, loss: loss, lossPercent: lossPercent, total: subtotal + loss };
+  }
+
+  function buildEloWallLaborEstimate_(estimate) {
+    const masonryLabor = estimate.area * 65;
+    const coatingLabor = estimate.coatingArea * 38;
+    return {
+      masonryLabor: masonryLabor,
+      coatingLabor: coatingLabor,
+      totalLabor: masonryLabor + coatingLabor
+    };
+  }
+
+  function rememberEloWallEstimate_(estimate) {
+    ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
+    window.__eloLastOperationalWallEstimate = estimate;
+    return estimate;
   }
 
   function formatEloWallEstimateLines_(estimate) {
@@ -8936,7 +8953,7 @@
     }
     lines.push("- Agua de preparo: cerca de " + estimate.waterLiters + " litros");
     lines.push("");
-    lines.push("Referencia usada: bloco 14x19x39 cm, junta media de 1 cm, perda de 8%, chapisco fino e reboco medio de 2 cm nos dois lados.");
+    lines.push("Referencia usada: bloco 14x19x39 cm, junta media de 1 cm, perda de " + formatEloOperationalQuantity_(estimate.lossPercent || 8) + "%, chapisco fino e reboco medio de 2 cm nos dois lados.");
     return lines;
   }
 
@@ -8948,10 +8965,26 @@
     budget.items.forEach(function (item) {
       lines.push("- " + item.label + ": " + formatEloOperationalQuantity_(item.quantity) + " " + item.unit + " x " + formatEloWallMoney_(item.unitPrice) + " = " + formatEloWallMoney_(item.quantity * item.unitPrice));
     });
-    lines.push("- Reserva tecnica/perdas comerciais 8%: " + formatEloWallMoney_(budget.loss));
+    lines.push("- Reserva tecnica/perdas comerciais " + formatEloOperationalQuantity_(budget.lossPercent) + "%: " + formatEloWallMoney_(budget.loss));
     lines.push("");
     lines.push("Total preliminar de materiais: " + formatEloWallMoney_(budget.total));
-    lines.push("Nao inclui mao de obra, frete, ferramentas, andaime, tela, aditivos, cal ou variacao regional de preco.");
+    lines.push("Nao inclui frete, ferramentas, andaime, tela, aditivos, cal ou variacao regional de preco.");
+    return lines;
+  }
+
+  function formatEloWallFullBudgetLines_(estimate) {
+    const labor = estimate.labor || buildEloWallLaborEstimate_(estimate);
+    estimate.labor = labor;
+    const materialBudget = buildEloWallBudget_(estimate);
+    const lines = formatEloWallBudgetLines_(estimate);
+    lines.push("");
+    lines.push("Mao de obra preliminar:");
+    lines.push("- Assentamento de bloco, referencia R$ 65,00/m2: " + formatEloWallMoney_(labor.masonryLabor));
+    lines.push("- Chapisco/reboco, referencia R$ 38,00/m2 de face: " + formatEloWallMoney_(labor.coatingLabor));
+    lines.push("- Total preliminar de mao de obra: " + formatEloWallMoney_(labor.totalLabor));
+    lines.push("");
+    lines.push("Total geral preliminar: " + formatEloWallMoney_(materialBudget.total + labor.totalLabor));
+    lines.push("Inclui materiais + mao de obra preliminar. Ainda nao inclui frete, andaime, ferramentas, impostos, BDI ou variacao regional.");
     return lines;
   }
 
@@ -8961,8 +8994,9 @@
       return null;
     }
     const estimate = buildEloWallEstimate_(briefing);
-    ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
-    window.__eloLastOperationalWallEstimate = estimate;
+    estimate.lossPercent = 8;
+    estimate.budgetLossPercent = 8;
+    rememberEloWallEstimate_(estimate);
     const wantsBudget = briefing.wantsBudget || briefing.wantsReferenceBudget;
     const lines = wantsBudget ? formatEloWallBudgetLines_(estimate) : formatEloWallEstimateLines_(estimate);
     return {
@@ -8986,19 +9020,19 @@
     const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
     const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade"]) || text === "sim";
     if (wantsLabor) {
-      const masonryLabor = estimate.area * 65;
-      const coatingLabor = estimate.coatingArea * 38;
-      const totalLabor = masonryLabor + coatingLabor;
+      const labor = buildEloWallLaborEstimate_(estimate);
+      estimate.labor = labor;
+      rememberEloWallEstimate_(estimate);
       return {
         shortAnswer: "Usei a parede anterior e estimei a mao de obra.",
         fullAnswer: [
           "Mao de obra preliminar para a parede anterior:",
           "- Area de alvenaria: " + formatEloOperationalQuantity_(estimate.area) + " m2",
           "- Chapisco/reboco nos 2 lados: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2",
-          "- Assentamento de bloco, referencia R$ 65,00/m2: " + formatEloWallMoney_(masonryLabor),
-          "- Chapisco + reboco, referencia R$ 38,00/m2 de face: " + formatEloWallMoney_(coatingLabor),
+          "- Assentamento de bloco, referencia R$ 65,00/m2: " + formatEloWallMoney_(labor.masonryLabor),
+          "- Chapisco + reboco, referencia R$ 38,00/m2 de face: " + formatEloWallMoney_(labor.coatingLabor),
           "",
-          "Total preliminar de mao de obra: " + formatEloWallMoney_(totalLabor),
+          "Total preliminar de mao de obra: " + formatEloWallMoney_(labor.totalLabor),
           "Referencia simples. Ajuste por altura, andaime, produtividade da equipe, prazo, acesso e padrao de acabamento."
         ].join("\n"),
         nextAction: "Se quiser, eu junto materiais + mao de obra em um orcamento unico.",
@@ -9012,6 +9046,11 @@
       const lossPercent = lossMatch ? parseEloOperationalNumber_(lossMatch[1]) : 10;
       const baseBlocks = Math.ceil(estimate.area * 12.5);
       const blocksWithLoss = Math.ceil(baseBlocks * (1 + lossPercent / 100));
+      estimate.lossPercent = lossPercent;
+      estimate.budgetLossPercent = lossPercent;
+      estimate.blocks = blocksWithLoss;
+      estimate.baseBlocks = baseBlocks;
+      rememberEloWallEstimate_(estimate);
       return {
         shortAnswer: "Recalculei a perda para a parede anterior.",
         fullAnswer: [
@@ -9030,16 +9069,19 @@
       };
     }
     if (wantsBudget || wantsDetail) {
-      ELO_SESSION_MEMORY.lastOperationalWallEstimate = estimate;
-      window.__eloLastOperationalWallEstimate = estimate;
-      const lines = wantsBudget ? formatEloWallBudgetLines_(estimate) : formatEloWallEstimateLines_(estimate);
+      rememberEloWallEstimate_(estimate);
+      const wantsEverything = /tudo|total|geral|completo|materiais?\s*\+\s*mao|mao\s*de\s*obra/.test(text) || !!estimate.labor;
+      const lines = wantsBudget
+        ? (wantsEverything ? formatEloWallFullBudgetLines_(estimate) : formatEloWallBudgetLines_(estimate))
+        : formatEloWallEstimateLines_(estimate);
+      rememberEloWallEstimate_(estimate);
       return {
-        shortAnswer: wantsBudget ? "Usei a parede anterior e montei o orcamento padrao." : "Detalhei a parede anterior com consumo tecnico.",
+        shortAnswer: wantsBudget ? (wantsEverything ? "Usei a parede anterior e montei o total com materiais e mao de obra." : "Usei a parede anterior e montei o orcamento padrao.") : "Detalhei a parede anterior com consumo tecnico.",
         fullAnswer: lines.join("\n"),
-        nextAction: wantsBudget ? "Se quiser, eu separo mao de obra, prazo e preco por m2." : "Se quiser orcamento, diga: quero orcamento padrao.",
+        nextAction: wantsBudget ? "Se quiser, eu preparo esse servico para lancar no RDO." : "Se quiser orcamento, diga: quero orcamento padrao.",
         canSave: true,
         sessionTheme: "elo_operacional_parede",
-        sessionIntent: wantsBudget ? "orcamento_parede" : "detalhe_parede"
+        sessionIntent: wantsBudget ? (wantsEverything ? "orcamento_total_parede" : "orcamento_parede") : "detalhe_parede"
       };
     }
     return null;
@@ -9664,6 +9706,66 @@
   }
 
 
+
+  function buildEloWallRdoAnswer_(message) {
+    const text = normalizeText(message);
+    const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
+    if (!estimate || !/rdo|diario|diario de obra|lan.ar|lancar|registre|registrar/.test(text)) {
+      return null;
+    }
+    const wantsLink = /link|abrir|rota|onde|mostra|mostrar/.test(text);
+    const labor = estimate.labor || null;
+    const materialBudget = buildEloWallBudget_(estimate);
+    const rdoRoute = "relatorio-qualidade-obras/relatorio-qualidade-obras.html#app/diario";
+    const lines = [
+      "Resumo pronto para lancar no Diario de Obras/RDO:",
+      "",
+      "Servico executado:",
+      "- Execucao de parede em bloco ceramico baiano 14x19x39 cm.",
+      "- Dimensoes consideradas: " + (estimate.length && estimate.height ? formatEloOperationalQuantity_(estimate.length) + " m x " + formatEloOperationalQuantity_(estimate.height) + " m" : formatEloOperationalQuantity_(estimate.area) + " m2"),
+      "- Area de alvenaria: " + formatEloOperationalQuantity_(estimate.area) + " m2",
+      "- Revestimento previsto nos 2 lados: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2" + (estimate.hasReboco ? " de reboco" : ""),
+      "- Perda tecnica adotada: " + formatEloOperationalQuantity_(estimate.lossPercent || 8) + "%",
+      "",
+      "Materiais previstos:",
+      "- Bloco ceramico baiano: " + estimate.blocks + " un",
+      "- Cimento para assentamento: " + estimate.layingCement + " sacos de 50 kg",
+      "- Areia media para assentamento: " + formatEloOperationalQuantity_(estimate.layingSand) + " m3"
+    ];
+    if (estimate.hasChapisco) {
+      lines.push("- Cimento para chapisco: " + estimate.chapiscoCement + " sacos de 50 kg");
+      lines.push("- Areia media para chapisco: " + formatEloOperationalQuantity_(estimate.chapiscoSand) + " m3");
+    }
+    if (estimate.hasReboco) {
+      lines.push("- Cimento para reboco: " + estimate.plasterCement + " sacos de 50 kg");
+      lines.push("- Areia media para reboco: " + formatEloOperationalQuantity_(estimate.plasterSand) + " m3");
+    }
+    lines.push("");
+    lines.push("Orcamento de apoio:");
+    lines.push("- Materiais: " + formatEloWallMoney_(materialBudget.total));
+    if (labor) {
+      lines.push("- Mao de obra: " + formatEloWallMoney_(labor.totalLabor));
+      lines.push("- Total geral preliminar: " + formatEloWallMoney_(materialBudget.total + labor.totalLabor));
+    }
+    lines.push("");
+    lines.push("Texto sugerido para o RDO:");
+    lines.push("'Foi executada parede em bloco ceramico baiano, com area aproximada de " + formatEloOperationalQuantity_(estimate.area) + " m2, considerando preparo para revestimento/reboco nas faces informadas. Foram previstos materiais conforme consumo tecnico, com perda adotada de " + formatEloOperationalQuantity_(estimate.lossPercent || 8) + "%.'");
+    lines.push("");
+    lines.push("Link/rota do Diario de Obras: " + rdoRoute);
+    if (wantsLink) {
+      lines.push("Abra essa rota e registre em Execucao e Materiais do RDO.");
+    }
+    return {
+      shortAnswer: "Preparei o lancamento dessa parede para o RDO.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Abra " + rdoRoute + " e cole o resumo em Execucao/Materiais.",
+      canSave: true,
+      sessionTheme: "rdo",
+      sessionIntent: "rdo_parede_contextual"
+    };
+  }
+
+
   function buildEloTechnicalReportDraftAnswer_(message) {
     const text = normalizeText(message);
     const wantsReport = hasAnyTerm(text, ["relatorio", "laudo", "vistoria", "parecer", "descrever", "escrever"]) || /relat|laudo|vistoria|parecer|descrev|escrev/.test(text);
@@ -9746,6 +9848,11 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const wallRdoAnswer = buildEloWallRdoAnswer_(cleanQuestion);
+    if (wallRdoAnswer) {
+      return wallRdoAnswer;
     }
 
     const wallContinuationAnswer = buildEloWallContinuationAnswer_(cleanQuestion);
