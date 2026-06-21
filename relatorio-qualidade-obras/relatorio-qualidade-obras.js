@@ -149,6 +149,12 @@
   const almoxDashboardRisk = document.getElementById("almoxDashboardRisk");
   const almoxDashboardExpiration = document.getElementById("almoxDashboardExpiration");
   const almoxDashboardTrend = document.getElementById("almoxDashboardTrend");
+  const stockFullDashboard = document.getElementById("stockFullDashboard");
+  const stockFullMetricCards = document.getElementById("stockFullMetricCards");
+  const stockFullQuickSearch = document.getElementById("stockFullQuickSearch");
+  const stockFullMonitorRows = document.getElementById("stockFullMonitorRows");
+  const stockFullUrgentList = document.getElementById("stockFullUrgentList");
+  const stockFullActivityList = document.getElementById("stockFullActivityList");
   const almoxActionMessage = document.getElementById("almoxActionMessage");
   const almoxModal = document.getElementById("almoxModal");
   const almoxNoteTextInput = document.getElementById("almoxNoteTextInput");
@@ -1825,6 +1831,13 @@
       const summaryClose = target && target.closest ? target.closest("[data-almox-summary-close]") : null;
       const summaryItem = target && target.closest ? target.closest("[data-almox-summary-item]") : null;
       const summaryAction = target && target.closest ? target.closest("[data-almox-summary-action]") : null;
+      const stockFullAction = target && target.closest ? target.closest("[data-stock-full-dashboard-action]") : null;
+
+      if (stockFullAction) {
+        event.preventDefault();
+        handleStockFullDashboardAction_(stockFullAction.dataset.stockFullDashboardAction || "summary");
+        return;
+      }
 
       if (almoxEloAction) {
         event.preventDefault();
@@ -1931,6 +1944,9 @@
         almoxSearchTerm = clean(almoxSearchInput.value);
         renderAlmoxarifadoPanel_();
       });
+    }
+    if (stockFullQuickSearch) {
+      stockFullQuickSearch.addEventListener("input", renderStockFullDashboard_);
     }
 
     if (almoxItemForm) {
@@ -2146,9 +2162,12 @@
     bindAlmoxHistoryControls_();
 
     window.addEventListener("hashchange", function () {
-      if (currentUser && hasLocalAccessSession_() && window.location.hash.indexOf("#app/") === 0) {
-        showDashboardPanel_(getRouteFromHash_());
-        return;
+      if (hasLocalAccessSession_() && window.location.hash.indexOf("#app/") === 0) {
+        currentUser = currentUser || getCurrentUser_();
+        if (currentUser) {
+          showDashboardPanel_(getRouteFromHash_());
+          return;
+        }
       }
 
       if (isRestrictedRouteHash_() && !hasLocalAccessSession_()) {
@@ -11195,6 +11214,7 @@
     renderAlmoxSummaryCards_();
     renderAlmoxFlowStatus_();
     renderAlmoxDashboard_();
+    renderStockFullDashboard_();
     renderAlmoxTopManagerPanel_();
     renderAlmoxItems_();
     renderAlmoxHistory_();
@@ -12481,6 +12501,267 @@
     return "30 dias";
   }
 
+  function renderStockFullDashboard_() {
+    if (!stockFullDashboard) {
+      return;
+    }
+
+    if (!isStockFullContext_()) {
+      stockFullDashboard.classList.add("is-hidden");
+      return;
+    }
+
+    stockFullDashboard.classList.remove("is-hidden");
+    const viewModel = buildStockFullDashboardViewModel_();
+    renderStockFullMetrics_(viewModel);
+    renderStockFullMonitor_(viewModel);
+    renderStockFullUrgentList_(viewModel);
+    renderStockFullActivity_(viewModel);
+  }
+
+  function buildStockFullDashboardViewModel_() {
+    const dashboard = buildAlmoxDashboardViewModel_();
+    const data = dashboard.data || collectAlmoxManagerData_();
+    const todayMovements = getAlmoxMovementsByPeriod_(data.movements, "today");
+    const todayExits = todayMovements.filter(function (movement) { return movement.type === "saida"; });
+    const totalBalance = data.balances.reduce(function (sum, balance) {
+      return sum + Math.max(0, parseNumber_(balance.balance));
+    }, 0);
+    const periodExitQuantity = dashboard.periodExits.reduce(function (sum, movement) {
+      return sum + Math.max(0, parseNumber_(movement.quantity));
+    }, 0);
+    const turnover = totalBalance > 0 ? periodExitQuantity / totalBalance : 0;
+    const movedByItem = {};
+    dashboard.topMovedItems.forEach(function (entry) {
+      movedByItem[entry.itemId] = entry;
+    });
+    const query = clean(stockFullQuickSearch && stockFullQuickSearch.value).toLowerCase();
+    const monitorItems = data.balances.map(function (balance) {
+      return buildStockFullMonitorItem_(balance, movedByItem[balance.item.id] || null);
+    }).filter(function (item) {
+      if (!query) return true;
+      return clean(item.name).toLowerCase().indexOf(query) >= 0 || clean(item.sku).toLowerCase().indexOf(query) >= 0;
+    }).sort(function (a, b) {
+      return a.statusRank - b.statusRank || clean(a.name).localeCompare(clean(b.name));
+    });
+    const urgentItems = data.zeroItems.concat(data.criticalItems).map(function (balance) {
+      return buildStockFullMonitorItem_(balance, movedByItem[balance.item.id] || null);
+    }).slice(0, 5);
+
+    return {
+      dashboard: dashboard,
+      data: data,
+      monitorItems: monitorItems,
+      urgentItems: urgentItems,
+      recentMovements: (data.recentMovements || []).slice(0, 6),
+      metrics: [
+        {
+          label: "Total de Itens",
+          value: data.balances.length,
+          note: data.balances.length ? "catalogo ativo" : "cadastre produtos",
+          className: "status-muted"
+        },
+        {
+          label: "Alertas de Reposicao",
+          value: data.zeroItems.length + data.criticalItems.length,
+          suffix: "itens",
+          note: data.zeroItems.length ? "critico/zerado" : (data.criticalItems.length ? "abaixo do minimo" : "sem alertas"),
+          className: data.zeroItems.length ? "status-danger" : (data.criticalItems.length ? "status-warning" : "status-ok")
+        },
+        {
+          label: "Giro de Estoque",
+          value: turnover > 0 ? turnover.toFixed(1).replace(".", ",") + "x" : "0x",
+          note: turnover >= 0.4 ? "ritmo saudavel" : (periodExitQuantity > 0 ? "giro baixo" : "sem saidas no periodo"),
+          className: turnover >= 0.4 ? "status-ok" : "status-muted"
+        },
+        {
+          label: "Saidas Hoje",
+          value: todayExits.length,
+          suffix: todayExits.length === 1 ? "ordem" : "ordens",
+          note: todayExits.length ? "operacao ativa" : "sem saidas hoje",
+          className: todayExits.length ? "status-warning" : "status-muted"
+        }
+      ]
+    };
+  }
+
+  function buildStockFullMonitorItem_(balance, moved) {
+    const item = balance.item || {};
+    const quantity = parseNumber_(balance.balance);
+    const minimum = parseNumber_(item.minimumStock);
+    let status = "OK";
+    let statusClass = "status-ok";
+    let statusRank = 3;
+    if (quantity <= 0) {
+      status = "Zerado";
+      statusClass = "status-danger";
+      statusRank = 0;
+    } else if (minimum > 0 && quantity < minimum) {
+      status = "Critico";
+      statusClass = "status-danger";
+      statusRank = 1;
+    } else if (minimum > 0 && quantity <= minimum * 1.25) {
+      status = "Atencao";
+      statusClass = "status-warning";
+      statusRank = 2;
+    }
+
+    const movedQuantity = moved ? parseNumber_(moved.quantity) : 0;
+    const turnoverLabel = movedQuantity >= 20 ? "Alto" : (movedQuantity > 0 ? "Medio" : "Baixo");
+    const shortage = Math.max(0, minimum - quantity);
+    return {
+      id: item.id || "",
+      name: item.name || "Produto sem nome",
+      sku: item.fiscalCode || item.code || item.category || "SKU local",
+      unit: item.unit || "un",
+      quantity: quantity,
+      minimum: minimum,
+      shortage: shortage,
+      turnoverLabel: turnoverLabel,
+      status: status,
+      statusClass: statusClass,
+      statusRank: statusRank
+    };
+  }
+
+  function renderStockFullMetrics_(viewModel) {
+    if (!stockFullMetricCards) return;
+    stockFullMetricCards.innerHTML = "";
+    viewModel.metrics.forEach(function (metric) {
+      const card = document.createElement("article");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      const note = document.createElement("small");
+      card.className = "stock-full-metric-card " + (metric.className || "status-muted");
+      label.textContent = metric.label;
+      value.textContent = String(metric.value) + (metric.suffix ? " " + metric.suffix : "");
+      note.textContent = metric.note || "";
+      card.appendChild(label);
+      card.appendChild(value);
+      card.appendChild(note);
+      stockFullMetricCards.appendChild(card);
+    });
+  }
+
+  function renderStockFullMonitor_(viewModel) {
+    if (!stockFullMonitorRows) return;
+    stockFullMonitorRows.innerHTML = "";
+    const header = document.createElement("div");
+    header.className = "stock-full-monitor-row is-header";
+    ["Produto / SKU", "Qtd", "Min", "Giro", "Status"].forEach(function (text) {
+      const cell = document.createElement("span");
+      cell.textContent = text;
+      header.appendChild(cell);
+    });
+    stockFullMonitorRows.appendChild(header);
+
+    if (!viewModel.monitorItems.length) {
+      const empty = document.createElement("p");
+      empty.className = "stock-full-empty";
+      empty.textContent = stockFullQuickSearch && stockFullQuickSearch.value ? "Nenhum produto encontrado para esta busca." : "Cadastre produtos para iniciar o monitoramento.";
+      stockFullMonitorRows.appendChild(empty);
+      return;
+    }
+
+    viewModel.monitorItems.slice(0, 9).forEach(function (item) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "stock-full-monitor-row";
+      row.dataset.almoxSummaryItem = "true";
+      row.dataset.almoxItemId = item.id;
+      row.innerHTML =
+        "<span><strong></strong><small></small></span>" +
+        "<span></span>" +
+        "<span></span>" +
+        "<span></span>" +
+        "<span><i></i></span>";
+      row.children[0].querySelector("strong").textContent = item.name;
+      row.children[0].querySelector("small").textContent = item.sku;
+      row.children[1].textContent = formatQuantity_(item.quantity) + " " + item.unit;
+      row.children[2].textContent = formatQuantity_(item.minimum) + " " + item.unit;
+      row.children[3].textContent = item.turnoverLabel;
+      row.children[4].querySelector("i").className = item.statusClass;
+      row.children[4].appendChild(document.createTextNode(item.status));
+      stockFullMonitorRows.appendChild(row);
+    });
+  }
+
+  function renderStockFullUrgentList_(viewModel) {
+    if (!stockFullUrgentList) return;
+    stockFullUrgentList.innerHTML = "";
+    if (!viewModel.urgentItems.length) {
+      const empty = document.createElement("p");
+      empty.className = "stock-full-empty";
+      empty.textContent = "Nenhum item abaixo do minimo agora.";
+      stockFullUrgentList.appendChild(empty);
+      return;
+    }
+
+    viewModel.urgentItems.forEach(function (item) {
+      const row = document.createElement("article");
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      const note = document.createElement("span");
+      const button = document.createElement("button");
+      row.className = "stock-full-urgent-item";
+      title.textContent = item.name;
+      note.textContent = item.shortage > 0
+        ? "Faltam " + formatQuantity_(item.shortage) + " " + item.unit + " para o minimo"
+        : "Saldo zerado. Reposicao urgente.";
+      button.type = "button";
+      button.className = "mini-button compact";
+      button.dataset.almoxAction = "entry";
+      button.dataset.almoxItemId = item.id;
+      button.textContent = "Pedir item";
+      info.appendChild(title);
+      info.appendChild(note);
+      row.appendChild(info);
+      row.appendChild(button);
+      stockFullUrgentList.appendChild(row);
+    });
+  }
+
+  function renderStockFullActivity_(viewModel) {
+    if (!stockFullActivityList) return;
+    stockFullActivityList.innerHTML = "";
+    if (!viewModel.recentMovements.length) {
+      const empty = document.createElement("p");
+      empty.className = "stock-full-empty";
+      empty.textContent = "Nenhuma movimentacao recente registrada.";
+      stockFullActivityList.appendChild(empty);
+      return;
+    }
+
+    viewModel.recentMovements.forEach(function (entry) {
+      const row = document.createElement("article");
+      const icon = document.createElement("span");
+      const text = document.createElement("p");
+      const meta = document.createElement("small");
+      const isEntry = entry.movement && entry.movement.type === "entrada";
+      row.className = "stock-full-activity-item " + (isEntry ? "is-entry" : "is-exit");
+      icon.textContent = isEntry ? "+" : "-";
+      text.textContent = (isEntry ? "+ " : "- ") + entry.quantity + " " + entry.material;
+      meta.textContent = entry.sectorOrOrigin + " | " + entry.dateTime;
+      row.appendChild(icon);
+      row.appendChild(text);
+      row.appendChild(meta);
+      stockFullActivityList.appendChild(row);
+    });
+  }
+
+  function handleStockFullDashboardAction_(action) {
+    if (action === "entry" || action === "exit" || action === "item") {
+      openAlmoxModal_(action, {});
+      return;
+    }
+    if (action === "pdf") {
+      handleDownloadAlmoxPdf_();
+      return;
+    }
+    if (action === "summary") {
+      handleGenerateAlmoxSummary_();
+    }
+  }
   function renderAlmoxManagerPanel_() {
     if (!almoxManagerCards && !almoxManagerSummaryText && !almoxManagerAuditText) {
       return;

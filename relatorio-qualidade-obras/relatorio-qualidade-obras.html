@@ -1491,6 +1491,57 @@
           </div>
         </div>
 
+        <section class="workspace-card stock-full-dashboard is-hidden" id="stockFullDashboard" aria-live="polite">
+          <header class="stock-full-dashboard-hero">
+            <div>
+              <p class="eyebrow">Modulo independente</p>
+              <h3>Stock Full v2.0</h3>
+              <span>Controle de estoque inteligente e operacao de loja.</span>
+            </div>
+            <div class="stock-full-dashboard-actions">
+              <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry">+ Entrada rapida</button>
+              <button type="button" class="mini-button" data-stock-full-dashboard-action="exit">- Saida rapida</button>
+              <button type="button" class="mini-button" data-stock-full-dashboard-action="pdf">PDF</button>
+            </div>
+          </header>
+          <div class="stock-full-metric-grid" id="stockFullMetricCards"></div>
+          <div class="stock-full-dashboard-grid">
+            <section class="stock-full-monitor-panel">
+              <div class="stock-full-panel-heading">
+                <div>
+                  <h4>Monitor de Estoque Rapido</h4>
+                  <p>Visao geral e status de reposicao imediata.</p>
+                </div>
+                <label class="stock-full-search">
+                  <span>Buscar SKU</span>
+                  <input id="stockFullQuickSearch" type="search" placeholder="Buscar produto ou SKU...">
+                </label>
+              </div>
+              <div class="stock-full-monitor-table" id="stockFullMonitorRows" role="table" aria-label="Monitor rapido de estoque"></div>
+            </section>
+            <aside class="stock-full-side-stack">
+              <section class="stock-full-side-panel">
+                <div class="stock-full-panel-heading compact">
+                  <div>
+                    <h4>Comprar Urgentemente</h4>
+                    <p>Itens identificados abaixo do minimo.</p>
+                  </div>
+                </div>
+                <div class="stock-full-urgent-list" id="stockFullUrgentList"></div>
+              </section>
+              <section class="stock-full-side-panel">
+                <div class="stock-full-panel-heading compact">
+                  <div>
+                    <h4>Atividade Recente da Loja</h4>
+                    <p>Entradas e saidas mais recentes.</p>
+                  </div>
+                </div>
+                <div class="stock-full-activity-list" id="stockFullActivityList"></div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
         <section class="almox-environment-header almox-environment-technical" id="almoxEnvironmentHeader" aria-live="polite"></section>
         <section class="workspace-card stock-demo-access-panel" id="almoxDemoAccessPanel" aria-live="polite"></section>
 
