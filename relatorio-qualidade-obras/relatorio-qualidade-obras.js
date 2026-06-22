@@ -5224,7 +5224,21 @@
     return normalized || "un";
   }
 
+  function validateStockIaTechnicalQuestion_(message) {
+    const validator = window.EloTechnicalValidator || {};
+    if (typeof validator.validateTechnicalQuestion !== "function") {
+      return "";
+    }
+    const validation = validator.validateTechnicalQuestion(message, {
+      entry: "stock_ia_obras"
+    });
+    return validation && validation.shouldRespond ? validation.answer : "";
+  }
   function buildStockAiCompositionAnswerFromMessage(message) {
+    const technicalValidationAnswer = validateStockIaTechnicalQuestion_(message);
+    if (technicalValidationAnswer) {
+      return technicalValidationAnswer;
+    }
     const centralEngine = window.StockAiCompositionEngine || {};
     if (typeof centralEngine.buildAnswerFromMessage === "function") {
       const centralAnswer = clean(centralEngine.buildAnswerFromMessage(message, {

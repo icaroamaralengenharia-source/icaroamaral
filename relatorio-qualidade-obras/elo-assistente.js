@@ -8894,8 +8894,12 @@
     return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
   }
 
+  function hasEloNoWallOpenings_(text) {
+    return /parede\s+integra|parede\s+inteira|sem\s+vaos?|sem\s+v\.o|sem\s+aberturas?|sem\s+portas?[\s,]+(?:e\s+)?sem\s+janelas?|sem\s+janelas?[\s,]+(?:e\s+)?sem\s+portas?/.test(text);
+  }
+
   function hasEloWallOpenings_(text) {
-    return /porta|portas|janela|janelas|vao|v.o|abertura|sem\s+porta|sem\s+janela|sem\s+v.o|sem\s+abertura/.test(text);
+    return hasEloNoWallOpenings_(text) || extractEloWallOpenings_(text).items.length > 0;
   }
 
   function hasEloWallCoatingSide_(text) {
@@ -8978,9 +8982,11 @@
     const coating = /dois\s+lados|2\s+lados|ambos\s+os\s+lados|duas\s+faces/.test(text)
       ? "dois lados"
       : (/um\s+lado|1\s+lado|uma\s+face/.test(text) ? "um lado" : "informado pelo usuário");
-    const hasNoOpenings = /sem\s+porta|sem\s+janela|sem\s+v.o|sem\s+abertura/.test(text);
-    const openings = hasNoOpenings ? "nenhum" : "não informado";
-    const liquidArea = grossArea !== null && hasNoOpenings ? grossArea : null;
+    const openingsSummary = extractEloWallOpenings_(text);
+    const openings = openingsSummary.hasNoOpenings ? "nenhum" : (openingsSummary.label || "não informado");
+    const liquidArea = grossArea !== null && (openingsSummary.hasNoOpenings || openingsSummary.totalArea > 0)
+      ? Math.max(0, grossArea - openingsSummary.totalArea)
+      : null;
     return [
       "",
       "Premissas utilizadas:",
@@ -9012,11 +9018,44 @@
     return { length: length || null, height: height || null };
   }
 
+  function extractEloWallOpenings_(message) {
+    const text = normalizeText(message || "");
+    if (hasEloNoWallOpenings_(text)) {
+      return { hasNoOpenings: true, items: [], totalArea: 0, label: "nenhum" };
+    }
+    const items = [];
+    const pattern = /(?:\b(\d+)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const quantity = match[1] ? parseInt(match[1], 10) : 1;
+      const type = /janela/.test(match[2]) ? "janela" : "porta";
+      const width = parseEloOperationalNumber_(match[3]);
+      const height = parseEloOperationalNumber_(match[4]);
+      if (quantity > 0 && width > 0 && height > 0) {
+        const area = quantity * width * height;
+        items.push({ quantity: quantity, type: type, width: width, height: height, area: area });
+      }
+    }
+    const totalArea = items.reduce(function (sum, item) { return sum + item.area; }, 0);
+    const label = items.map(function (item) {
+      const typeLabel = item.quantity === 1 ? item.type : item.type + "s";
+      return item.quantity + " " + typeLabel + " " + formatEloWallPremiseNumber_(item.width) + " x " + formatEloWallPremiseNumber_(item.height) + " m = " + formatEloWallPremiseMeasure_(item.area, "m²");
+    }).join("; ");
+    return { hasNoOpenings: false, items: items, totalArea: totalArea, label: label };
+  }
+
+  function formatEloWallPremiseNumber_(value) {
+    if (value === null || value === undefined || !isFinite(value)) {
+      return "0,00";
+    }
+    return value.toFixed(2).replace(".", ",");
+  }
+
   function formatEloWallPremiseMeasure_(value, unit) {
     if (value === null || value === undefined || !isFinite(value) || value <= 0) {
       return unit === "m²" ? "não calculada" : "não informado";
     }
-    return value.toFixed(2).replace(".", ",") + " " + unit;
+    return formatEloWallPremiseNumber_(value) + " " + unit;
   }
   function buildEloPremiseCollectionQuestion_(shortAnswer, fullAnswer, nextAction, intent) {
     return {
@@ -9095,9 +9134,9 @@
 
     if (!hasEloWallOpenings_(text)) {
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso saber se há portas ou janelas.",
-        "Existem portas ou janelas? Se não houver, responda: sem portas e sem janelas.",
-        "Informe os vãos ou confirme que não existem aberturas.",
+        "Antes de calcular, preciso saber se existem vãos para descontar.",
+        "Antes de calcular, preciso saber se existem vãos para descontar.\nA parede terá portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede íntegra, sem vãos.",
+        "Informe portas/janelas com medidas ou confirme: parede íntegra, sem vãos.",
         "confirmar_vaos_parede"
       ));
     }
@@ -9199,9 +9238,9 @@
       }
       if (masonryWallSubject && !hasEloWallOpenings_(text)) {
         return {
-          shortAnswer: "Antes de calcular, preciso saber se h� portas ou janelas.",
-          fullAnswer: "Antes de calcular, confirme se existem portas, janelas ou outros v�os para descontar da parede. Se n�o houver, diga: sem portas e sem janelas.",
-          nextAction: "Informe os v�os ou confirme que n�o existem aberturas.",
+          shortAnswer: "Antes de calcular, preciso saber se existem vãos para descontar.",
+          fullAnswer: "Antes de calcular, preciso saber se existem vãos para descontar.\nA parede terá portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede íntegra, sem vãos.",
+          nextAction: "Informe portas/janelas com medidas ou confirme: parede íntegra, sem vãos.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_vaos_parede"

@@ -64,14 +64,16 @@ const STRESS_SCENARIOS = [
     group: "obras",
     message: "calcule parede 20x3 com bloco cer\u00e2mico",
     eloContext: "obras",
-    expect: /parede|alvenaria|60\s*m|bloco/i,
-    savePrompt: "none"
+    expect: /dimensão real do bloco|bloco cerâmico/i,
+    savePrompt: "none",
+    mode: "technical_validation"
   },
   {
     group: "obras",
     message: "quanto concreto para uma laje 8x10 com 10 cm",
     eloContext: "obras",
-    expect: /concreto|laje|8\s*m|m3|m\u00b3/i
+    expect: /FCK do concreto|concreto/i,
+    mode: "technical_validation"
   },
   {
     group: "obras",
@@ -152,7 +154,7 @@ test("stress test do Elo encaminha conversas reais ao cerebro oficial", async ()
         }
       }
 
-      assert.equal(openAiCalls.length, STRESS_SCENARIOS.length);
+      assert.equal(openAiCalls.length, STRESS_SCENARIOS.filter((scenario) => scenario.mode !== "technical_validation").length);
       assert.equal(forbiddenHits.length, 0, formatForbiddenHits_(forbiddenHits));
     });
   } finally {
@@ -173,13 +175,17 @@ test("stress test do Elo mantem consistencia em sequencia de conversa", async ()
 
       for (const message of CONSISTENCY_MESSAGES) {
         const data = await client.ask(message, "obras");
-        assertValidEloResponse_(data, { group: "consistencia", message });
+        assertValidEloResponse_(data, {
+          group: "consistencia",
+          message,
+          mode: message === "calcule parede 20x3" ? "technical_validation" : "remote"
+        });
         collectForbiddenHits_(data.answer, "consistencia: " + message, forbiddenHits);
         answers.push(data.answer);
       }
 
-      assert.equal(openAiCalls.length, CONSISTENCY_MESSAGES.length);
-      assert.match(answers[1], /parede|60\s*m|alvenaria/i);
+      assert.equal(openAiCalls.length, CONSISTENCY_MESSAGES.length - 1);
+      assert.match(answers[1], /dimensão real do bloco|bloco cerâmico/i);
       assert.match(answers[2], /PDF|relat[o\u00f3]rio/i);
       assert.match(answers[3], /biblioteca|conte[u\u00fa]do|guardar/i);
       assert.match(answers[4], /conversa|parede|PDF|biblioteca/i);
@@ -346,7 +352,7 @@ async function withTemporaryEloServer_(callback) {
 
 function assertValidEloResponse_(data, scenario) {
   assert.equal(data.ok, true, scenario.message);
-  assert.equal(data.mode, "remote", scenario.message);
+  assert.equal(data.mode, scenario.mode || "remote", scenario.message);
   assert.equal(data.fallback, false, scenario.message);
   assert.equal(typeof data.answer, "string", scenario.message);
   assert.ok(data.answer.trim().length > 0, scenario.message);

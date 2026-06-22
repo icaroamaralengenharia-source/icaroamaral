@@ -487,7 +487,21 @@
     });
   }
 
+  function validateStockAiObrasTechnicalQuestion_(question) {
+    const validator = window.EloTechnicalValidator || {};
+    if (typeof validator.validateTechnicalQuestion !== "function") {
+      return "";
+    }
+    const validation = validator.validateTechnicalQuestion(question, {
+      entry: "stock_obras_bridge"
+    });
+    return validation && validation.shouldRespond ? validation.answer : "";
+  }
   function getStockAiObrasAnswer_(question) {
+    const technicalValidationAnswer = validateStockAiObrasTechnicalQuestion_(question);
+    if (technicalValidationAnswer) {
+      return technicalValidationAnswer;
+    }
     const centralEngine = window.StockAiCompositionEngine || {};
     const centralGeometry = typeof centralEngine.parseGeometryRequest === "function"
       ? centralEngine.parseGeometryRequest(question)

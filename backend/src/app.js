@@ -4,6 +4,7 @@ import Busboy from "busboy";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
 
@@ -24,6 +25,8 @@ const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
 const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const ELO_VECTOR_SCHEMA_VERSION = 2;
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_DIR = join(BACKEND_DIR, "..");
+const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -701,6 +704,37 @@ function buildEloSavePromptMeta_(decision) {
   };
 }
 
+let eloTechnicalValidatorCache_ = null;
+
+function getEloTechnicalValidator_() {
+  if (eloTechnicalValidatorCache_) {
+    return eloTechnicalValidatorCache_;
+  }
+  const source = readFileSync(ELO_TECHNICAL_VALIDATOR_PATH, "utf8");
+  const sandbox = { console, window: {} };
+  sandbox.globalThis = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: ELO_TECHNICAL_VALIDATOR_PATH });
+  eloTechnicalValidatorCache_ = sandbox.window.EloTechnicalValidator || null;
+  return eloTechnicalValidatorCache_;
+}
+
+function getEloTechnicalValidationResult_(message, options = {}) {
+  try {
+    const validator = getEloTechnicalValidator_();
+    if (!validator || typeof validator.validateTechnicalQuestion !== "function") {
+      return null;
+    }
+    return validator.validateTechnicalQuestion(message, options);
+  } catch (error) {
+    return null;
+  }
+}
+
+function validateEloTechnicalQuestion_(message, options = {}) {
+  const result = getEloTechnicalValidationResult_(message, options);
+  return result && result.shouldRespond ? result : null;
+}
 export function createApp(options = {}) {
   const app = express();
   const env = options.env || process.env;
@@ -2019,6 +2053,35 @@ export function createApp(options = {}) {
       context: validation.payload.context
     });
 
+    const technicalValidation = validateEloTechnicalQuestion_(validation.payload.message, {
+      entry: "backend_elo_chat",
+      context: validation.payload.context
+    });
+    if (technicalValidation) {
+      const answer = sanitizeEloAnswerText_(technicalValidation.answer);
+      response.json({
+        ok: true,
+        mode: "technical_validation",
+        fallback: false,
+        answer,
+        savePrompt: buildEloSavePromptMeta_({ show: false, reason: technicalValidation.reason || "technical_validation", suggestedTarget: "none" }),
+        interpretation: validation.payload.interpretation,
+        eloIntent: validation.payload.eloIntent,
+        operationalRoute: validation.payload.operationalRoute,
+        technicalValidation,
+        contextSummary: {
+          conversationSummary: "",
+          productContextSummary: buildEloProductContextSummary_(validation.payload.eloIntent, validation.payload.context),
+          hasRelevantMemory: false,
+          hasRelevantLibrary: false
+        },
+        documents: [],
+        stockIaLaunchPlan: null,
+        attachmentErrors: chatRequest.attachmentErrors
+      });
+      return;
+    }
+
     if (shouldUseCadistaOperationalGuard_(validation.payload.operationalRoute)) {
       const answer = sanitizeEloAnswerText_(buildCadistaUnsupportedExecutionAnswer_(validation.payload.operationalRoute));
       response.json({
@@ -3335,6 +3398,17 @@ export function detectConstructionQuantityIntent_(message) {
 }
 
 export function buildSafeConstructionQuantityResponse_(message, context = {}) {
+  const technicalValidation = getEloTechnicalValidationResult_(message, {
+    entry: "backend_safe_quantity_response",
+    context
+  });
+  if (technicalValidation && technicalValidation.shouldRespond) {
+    return technicalValidation.answer;
+  }
+  if (technicalValidation && technicalValidation.preliminary) {
+    return "";
+  }
+
   if (!detectConstructionQuantityIntent_(message)) {
     return "";
   }
@@ -3822,7 +3896,7 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
       source: "prompt_context"
     });
   }
-  if (context.eloContext === "obras") {
+  if (context.eloContext === "obras" && !resultContext.constructionQuantitySafetyContext) {
     const auditoriaContext = buildAuditoriaConsumoContext(safePayload.message);
     resultContext.obraComposicaoContext = auditoriaContext || buildPrevisaoConsumoContext(safePayload.message);
     if (!auditoriaContext) {

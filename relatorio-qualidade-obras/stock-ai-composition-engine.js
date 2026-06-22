@@ -7989,8 +7989,28 @@
     return lines.join("\n");
   }
 
+  function validateStockAiTechnicalQuestionBeforeAnswer(message, options) {
+    const settings = options || {};
+    if (settings.skipTechnicalValidation === true) {
+      return "";
+    }
+    const validator = window.EloTechnicalValidator || {};
+    if (typeof validator.validateTechnicalQuestion !== "function") {
+      return "";
+    }
+    const validation = validator.validateTechnicalQuestion(message, {
+      entry: settings.entry || "stock_ai_composition_engine",
+      hasValidatedTechnicalBase: settings.hasValidatedTechnicalBase === true,
+      technicalBase: settings.technicalBase || ""
+    });
+    return validation && validation.shouldRespond ? validation.answer : "";
+  }
   function buildAnswerFromMessage(message, options) {
     const settings = options || {};
+    const technicalValidationAnswer = validateStockAiTechnicalQuestionBeforeAnswer(message, settings);
+    if (technicalValidationAnswer) {
+      return technicalValidationAnswer;
+    }
     const withdrawal = buildWithdrawalConference(message, settings);
     if (withdrawal.detected) {
       return withdrawal.answer;

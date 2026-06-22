@@ -280,7 +280,7 @@ test("elo fallback offline responde assunto direto em perguntas simples", () => 
     ["receita de bolo de chocolate", /chocolate|ovos|farinha|fermento|180°C/i],
     ["receita de pizza na panela", /pizza na panela|frigideira|massa/i],
     ["como funciona uma laje maciça", /placa de concreto armado|cargas|armadura/i],
-    ["como fazer uma parede de 4 metros?", /4 metros|altura|prumo|argamassa/i],
+    ["como fazer uma parede de 4 metros?", /dimensão real do bloco cerâmico|dimensão do bloco/i],
     ["o que você acha desse banheiro?", /banheiro|box|vaso|ventilação/i],
     ["vale a pena continuar o CADISTA?", /Vale continuar|provar valor/i],
     ["estou desanimado com o projeto", /cansaço|vitória menor/i]
@@ -302,28 +302,23 @@ test("elo diferencia explicacao tecnica de calculo no fallback offline", () => {
   assert.equal(explanation.detectedIntent, "explanation");
   assert.equal(calculation.detectedIntent, "technical_calculation");
   assert.match(buildEloLocalFallbackResponse_(explanation), /funciona como uma placa/i);
-  assert.match(buildEloLocalFallbackResponse_(calculation), /composição\/base técnica|SINAPI\/ORSE|estimativa preliminar/i);
+  assert.match(buildEloLocalFallbackResponse_(calculation), /FCK do concreto/i);
 });
 
-test("elo trava quantitativo de materiais sem composicao confiavel", () => {
-  const cases = [
-    "parede de bloco cerâmico 10m x 2,5m, chapisco, emboço e reboco",
-    "quantos blocos vão em 25m² de parede?",
-    "calcule materiais para reboco"
-  ];
+test("elo fallback seguro usa validador tecnico comum", () => {
+  const concrete = buildSafeConstructionQuantityResponse_("calcule concreto para laje 20 m² com 8 cm");
+  const wallMissingBlock = buildSafeConstructionQuantityResponse_("quantos blocos vão em 25m² de parede?");
+  const wallMissingBase = buildSafeConstructionQuantityResponse_("Faça o orçamento de parede bloco 14x19x39, 20 m de comprimento, 2,80 m de altura, sem portas, sem janelas, perda 10%, revestimento dos dois lados, espessura 2 cm.");
 
-  cases.forEach((message) => {
-    assert.equal(detectConstructionQuantityIntent_(message), true, message);
-    const answer = buildSafeConstructionQuantityResponse_(message);
-
-    assert.match(answer, /não vou cravar esse consumo sem uma composição\/base técnica/i, message);
-    assert.match(answer, /SINAPI\/ORSE|composição cadastrada|Stock AI Obras/i, message);
-    assert.match(answer, /estimativa preliminar/i, message);
-    assert.doesNotMatch(answer, /60\s*blocos?\s*\/?\s*m[²2]/i, message);
-  });
+  assert.match(concrete, /FCK do concreto/);
+  assert.match(wallMissingBlock, /dimensão real do bloco cerâmico/);
+  assert.match(wallMissingBase, /Para gerar quantitativo, mão de obra ou valor com segurança/);
+  assert.match(wallMissingBase, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(wallMissingBase, /Premissas utilizadas:/);
+  assert.doesNotMatch(wallMissingBase, /60\s*blocos?\s*\/?\s*m[²2]/i);
 });
 
-test("elo pede parametros especificos para blocos e reboco no fallback seguro", () => {
+test("elo pede parametros especificos antes de qualquer consumo no fallback seguro", () => {
   const blocos = buildEloLocalFallbackResponse_(interpretEloUserMessage({
     message: "quantos blocos vão em 25m² de parede?"
   }));
@@ -331,10 +326,9 @@ test("elo pede parametros especificos para blocos e reboco no fallback seguro", 
     message: "calcule materiais para reboco"
   }));
 
-  assert.match(blocos, /dimensão do bloco|junta|espessura da parede|perda|assentamento/i);
+  assert.match(blocos, /dimensão real do bloco cerâmico|dimensão do bloco/i);
   assert.doesNotMatch(blocos, /60\s*blocos?\s*\/?\s*m[²2]/i);
-  assert.match(reboco, /área|espessura|traço|composição|perda/i);
-  assert.match(reboco, /não de consumo fechado/i);
+  assert.match(reboco, /um lado ou nos dois lados|espessura|composição/i);
 });
 
 test("elo 2.0 classifica intencao contextual por categoria", () => {
@@ -3392,6 +3386,24 @@ test("elo chat exige mensagem", async () => {
   assert.equal(data.fallback, true);
 });
 
+test("elo chat protege concreto sem FCK antes do fallback online", async () => {
+  const response = await postEloChat_({
+    message: "Quero calcular concreto para uma laje de 20 m² com 8 cm de espessura.",
+    history: [],
+    context: {
+      source: "elo",
+      mode: "standalone",
+      eloContext: "obras"
+    }
+  });
+  const data = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(data.ok, true);
+  assert.equal(data.mode, "technical_validation");
+  assert.match(data.answer, /preciso confirmar o FCK do concreto/);
+  assert.doesNotMatch(data.answer, /cimento|areia|brita/i);
+});
 test("elo chat sem chave solicita fallback local", async () => {
   const response = await postEloChat_({
     message: "Oi Elo, voce esta online?",
@@ -3486,7 +3498,8 @@ test("elo chat separa savePrompt do answer limpo", async () => {
 
       assert.equal(calc.savePrompt.show, false);
       assert.equal(calc.savePrompt.type, "none");
-      assert.match(calc.answer, /Resultado: 750 blocos/i);
+      assert.equal(calc.mode, "technical_validation");
+      assert.match(calc.answer, /dimensão real do bloco cerâmico/i);
       assert.doesNotMatch(calc.answer, /Deseja guardar|Biblioteca do Elo|^Guardar$|^Não guardar$/im);
 
       assert.equal(memory.savePrompt.show, true);
@@ -3561,8 +3574,9 @@ test("elo chat oficial responde perguntas abertas sem texto legado do frontend",
       const pdf = await post("quero gerar PDF");
       const memory = await post("lembre que prefiro respostas curtas no Elo");
 
-      assert.equal(openAiInputs.length, 4);
-      assert.match(calc.answer, /60 m²|60 m2/i);
+      assert.equal(openAiInputs.length, 3);
+      assert.equal(calc.mode, "technical_validation");
+      assert.match(calc.answer, /dimensão real do bloco cerâmico/i);
       assert.equal(calc.savePrompt.show, false);
       assert.equal(calc.savePrompt.type, "none");
       assert.doesNotMatch(calc.answer, /Para registrar materiais|Deseja guardar|Biblioteca do Elo/i);
@@ -4646,10 +4660,8 @@ test("endpoint do Elo injeta trava tecnica para quantitativos de obra", async ()
   const prompt = buildEloSystemPrompt_(Object.assign({}, payload.context, relevantContext.context));
 
   assert.match(prompt, /\[TRAVA TECNICA PARA QUANTITATIVOS DE OBRA\]/i);
-  assert.match(prompt, /não vou cravar esse consumo sem uma composição\/base técnica/i);
-  assert.match(prompt, /Stock AI Obras|SINAPI\/ORSE|composição cadastrada/i);
-  assert.match(prompt, /dimensão do bloco|junta|espessura da parede|perda|assentamento/i);
-  assert.match(prompt, /\[BASE TECNICA DE COMPOSICOES|\[PREVISAO DEMONSTRATIVA DE CONSUMO/i);
+  assert.match(prompt, /dimensão real do bloco cerâmico/i);
+  assert.doesNotMatch(prompt, /\[BASE TECNICA DE COMPOSICOES|\[PREVISAO DEMONSTRATIVA DE CONSUMO/i);
   assert.doesNotMatch(prompt, /60\s*blocos?\s*\/?\s*m[²2]/i);
 });
 
@@ -4747,7 +4759,7 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
       }
     }, async (url) => {
       const obrasResponse = await postEloChatMultipartTo_(url, {
-        message: "Vou executar 250 m2 de alvenaria",
+        message: "Vou executar 250 m2 de alvenaria. Autorizo estimativa preliminar NÃO OFICIAL.",
         context: {
           source: "elo",
           mode: "standalone",
@@ -4756,7 +4768,7 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
         eloContext: "obras"
       });
       const saudeResponse = await postEloChatMultipartTo_(url, {
-        message: "Vou executar 250 m2 de alvenaria",
+        message: "Vou executar 250 m2 de alvenaria. Autorizo estimativa preliminar NÃO OFICIAL.",
         context: {
           source: "elo",
           mode: "standalone",
@@ -4765,7 +4777,7 @@ test("endpoint do Elo injeta previsao de consumo apenas no contexto obras", asyn
         eloContext: "saude"
       });
       const geralResponse = await postEloChatMultipartTo_(url, {
-        message: "Vou executar 250 m2 de alvenaria",
+        message: "Vou executar 250 m2 de alvenaria. Autorizo estimativa preliminar NÃO OFICIAL.",
         context: {
           source: "elo",
           mode: "standalone",
@@ -4984,6 +4996,43 @@ test("Elo standalone carrega motor Stock AI antes do assistente", async () => {
   assert.ok(eloAssistantIndex > stockEngineIndex);
 });
 
+test("validador tecnico compartilhado cobre entradas de Stock e Elo", () => {
+  const validator = loadEloTechnicalValidatorSandbox_();
+
+  const concrete = validator.validateTechnicalQuestion("calcule concreto para laje 20 m² com 8 cm", { entry: "elo_principal" });
+  const missingBlock = validator.validateTechnicalQuestion("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.", { entry: "stock_obras" });
+  const missingOpenings = validator.validateTechnicalQuestion("Quero fazer uma parede de bloco baiano 14x19x39 com 2,80 m de altura e 20 m de comprimento.", { entry: "stock_obras" });
+  const missingBase = validator.validateTechnicalQuestion("Faça o orçamento de uma parede de bloco baiano 14x19x39 com 2,80 m de altura e 20 m de comprimento, sem portas, sem janelas, perda de 10%, revestimento dos dois lados, espessura 2 cm.", { entry: "stock_full" });
+  const authorized = validator.validateTechnicalQuestion("Tenho concreto de 2 m3 FCK 20 MPa. Autorizo estimativa preliminar NÃO OFICIAL.", { entry: "stock_ia" });
+
+  assert.match(concrete.answer, /FCK do concreto/);
+  assert.match(missingBlock.answer, /dimensão real do bloco cerâmico/);
+  assert.match(missingOpenings.answer, /A parede terá portas ou janelas/);
+  assert.match(missingBase.answer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(missingBase.answer, /Premissas utilizadas:/);
+  assert.equal(authorized.allowed, true);
+  assert.equal(authorized.shouldRespond, false);
+  assert.equal(authorized.kind, "preliminary_authorized");
+});
+
+test("paginas do Elo carregam validador tecnico antes dos motores", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const pages = await Promise.all([
+    readFile(new URL("../../elo.html", import.meta.url), "utf8"),
+    readFile(new URL("../../stock-ai-obras.html", import.meta.url), "utf8"),
+    readFile(new URL("../../relatorio-qualidade-obras/relatorio-qualidade-obras.html", import.meta.url), "utf8")
+  ]);
+
+  pages.forEach((content) => {
+    const validatorIndex = content.indexOf("elo-technical-validator.js");
+    const stockEngineIndex = content.indexOf("stock-ai-composition-engine.js");
+    const eloAssistantIndex = content.indexOf("elo-assistente.js");
+
+    assert.ok(validatorIndex > 0);
+    assert.ok(stockEngineIndex > validatorIndex);
+    assert.ok(eloAssistantIndex > validatorIndex);
+  });
+});
 test("Elo operacional bloqueia quantitativo sem composicao tecnica", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
@@ -5025,6 +5074,34 @@ test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar co
   assert.doesNotMatch(second.fullAnswer, /Dimensões consideradas:/);
   assert.match(second.fullAnswer, /Bloco considerado: 14x19x39/);
   assert.match(second.fullAnswer, /Perda adotada: 10%/);
+  assert.doesNotMatch(second.fullAnswer, /Cimento|Areia|Bloco ceramico: \d/i);
+});
+test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39");
+
+  assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
+  assert.match(second.fullAnswer, /Antes de calcular, preciso saber se existem vãos para descontar/);
+  assert.match(second.fullAnswer, /A parede terá portas ou janelas/);
+  assert.match(second.fullAnswer, /1 porta de 0,80 x 2,10 m/);
+  assert.match(second.fullAnswer, /2 janelas de 1,20 x 1,00 m/);
+  assert.match(second.fullAnswer, /parede íntegra, sem vãos/);
+  assert.doesNotMatch(second.fullAnswer, /Base técnica utilizada/);
+});
+
+test("Elo desconta vaos informados nas premissas de parede", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39, 1 porta de 0,80 x 2,10 m, 2 janelas de 1,20 x 1,00 m, perda de 10%, revestimento dos dois lados.");
+
+  assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
+  assert.match(second.fullAnswer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(second.fullAnswer, /Área bruta: 56,00 m²/);
+  assert.match(second.fullAnswer, /Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²/);
+  assert.match(second.fullAnswer, /Área líquida considerada: 51,92 m²/);
   assert.doesNotMatch(second.fullAnswer, /Cimento|Areia|Bloco ceramico: \d/i);
 });
 test("Elo standalone operacional mostra previsao sem saldo disponivel", async () => {
@@ -5384,8 +5461,17 @@ function writeEloVectorTestFile_(path, items) {
   }, null, 2), "utf8");
 }
 
+function loadEloTechnicalValidatorSandbox_() {
+  const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
+  const sandbox = { console, window: {} };
+  sandbox.globalThis = sandbox.window;
+  createContext(sandbox);
+  runInContext(validatorContent, sandbox);
+  return sandbox.window.EloTechnicalValidator;
+}
 async function loadEloOperationalSandbox_(balances) {
-  const stockEngineContent = readFileSync(new URL("../../relatorio-qualidade-obras/stock-ai-composition-engine.js", import.meta.url), "utf8");
+    const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
+const stockEngineContent = readFileSync(new URL("../../relatorio-qualidade-obras/stock-ai-composition-engine.js", import.meta.url), "utf8");
   const eloContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
   const storage = new Map();
   const element = {
@@ -5453,6 +5539,7 @@ async function loadEloOperationalSandbox_(balances) {
   };
 
   createContext(sandbox);
+  runInContext(validatorContent, sandbox);
   runInContext(stockEngineContent, sandbox);
   runInContext(eloContent, sandbox);
   return sandbox;
