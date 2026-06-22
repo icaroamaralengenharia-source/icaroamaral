@@ -1578,38 +1578,16 @@
 
           <div class="stock-full-metric-grid" id="stockFullMetricCards"></div>
 
-          <section class="stock-full-secondary-grid" aria-label="Indicadores complementares do Stock Full">
-            <article class="stock-full-secondary-card"><span>Estoque</span><div><strong>856</strong><small>Itens em estoque</small><em>ativos</em></div></article>
-            <article class="stock-full-secondary-card is-warning"><span>!</span><div><strong>23</strong><small>Itens em alerta</small><em>abaixo do mínimo</em></div></article>
-            <article class="stock-full-secondary-card is-danger"><span>Validade</span><div><strong>7</strong><small>Itens vencendo</small><em>prox. 30 dias</em></div></article>
-            <article class="stock-full-secondary-card is-info"><span>Fornec.</span><div><strong>74</strong><small>Fornecedores</small><em>cadastrados</em></div></article>
-          </section>
+          <section class="stock-full-secondary-grid" id="stockFullSecondaryCards" aria-label="Indicadores reais complementares do Stock Full"></section>
 
-          <section class="stock-full-chart-grid" aria-label="Graficos do Stock Full">
+          <section class="stock-full-chart-grid" aria-label="Graficos reais do Stock Full">
             <article class="stock-full-chart-card stock-full-category-card">
-              <header><h4>Estoque por categoria</h4><span>painel gerencial</span></header>
-              <div class="stock-full-category-content">
-                <div class="stock-full-donut" aria-hidden="true"></div>
-                <ul>
-                  <li><i style="--c:#2f8cff"></i><span>Mat. de Construção</span><strong>38%</strong></li>
-                  <li><i style="--c:#22c55e"></i><span>Ferramentas</span><strong>18%</strong></li>
-                  <li><i style="--c:#f59e0b"></i><span>Elétrico</span><strong>14%</strong></li>
-                  <li><i style="--c:#8b5cf6"></i><span>Hidráulico</span><strong>12%</strong></li>
-                  <li><i style="--c:#ef4444"></i><span>Acabamentos</span><strong>10%</strong></li>
-                  <li><i style="--c:#94a3b8"></i><span>Outros</span><strong>8%</strong></li>
-                </ul>
-              </div>
+              <h3>Estoque por categoria</h3>
+              <div class="stock-full-category-content" id="stockFullCategoryChart"></div>
             </article>
             <article class="stock-full-chart-card">
-              <header><h4>Evolução do estoque (valor)</h4><span>6 meses</span></header>
-              <div class="stock-full-line-chart" aria-label="Evolucao operacional dos ultimos seis meses">
-                <span style="--h:22%"><b>Jan</b></span>
-                <span style="--h:31%"><b>Fev</b></span>
-                <span style="--h:43%"><b>Mar</b></span>
-                <span style="--h:61%"><b>Abr</b></span>
-                <span style="--h:70%"><b>Mai</b></span>
-                <span style="--h:92%"><b>Jun</b></span>
-              </div>
+              <h3>Evolução do estoque</h3>
+              <div class="stock-full-line-chart" id="stockFullEvolutionChart"></div>
             </article>
           </section>
 
@@ -1659,12 +1637,7 @@
                     <p>Recomendacoes operacionais baseadas no comportamento do estoque.</p>
                   </div>
                 </div>
-                <ul class="stock-full-ai-list">
-                  <li><span>Tendencia</span>O consumo de cimento aumentou 23% em relacao ao mes anterior.</li>
-                  <li><span>!</span>7 itens têm risco de falta nas próximas 2 semanas.</li>
-                  <li><span>$</span>Você pode economizar até R$ 3.850,00 consolidando compras de aço.</li>
-                  <li><span>Validade</span>3 produtos com validade proxima.</li>
-                </ul>
+                <ul class="stock-full-ai-list" id="stockFullAiList"></ul>
               </section>
             </aside>
           </div>

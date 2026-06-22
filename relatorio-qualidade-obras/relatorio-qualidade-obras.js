@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -1532,7 +1532,9 @@
   }
 
   function mapSupabaseMovementToAlmox_(movement) {
-    return { id: clean(movement.id), companyId: clean(movement.company_id), environmentId: getStockFullCompanyEnvironmentId_(clean(movement.company_id)), itemId: clean(movement.product_id), productId: clean(movement.product_id), type: clean(movement.type), quantity: parseNumber_(movement.quantity), unitCost: parseNumber_(movement.unit_cost), total: parseNumber_(movement.total), reason: clean(movement.reason), supplier: clean(movement.supplier), documentNumber: clean(movement.supplier), destination: clean(movement.destination), responsible: clean(movement.responsible), notes: clean(movement.notes), date: clean(movement.created_at), createdAt: clean(movement.created_at), remoteSource: "supabase" };
+    const mapped = { id: clean(movement.id), companyId: clean(movement.company_id), environmentId: getStockFullCompanyEnvironmentId_(clean(movement.company_id)), itemId: clean(movement.product_id), productId: clean(movement.product_id), type: clean(movement.type), quantity: parseNumber_(movement.quantity), unitCost: parseNumber_(movement.unit_cost), total: parseNumber_(movement.total), reason: clean(movement.reason), supplier: clean(movement.supplier), documentNumber: clean(movement.supplier), destination: clean(movement.destination), responsible: clean(movement.responsible), notes: clean(movement.notes), date: clean(movement.created_at), createdAt: clean(movement.created_at), remoteSource: "supabase" };
+    mapped.origin = getStockFullMovementOrigin_(mapped);
+    return mapped;
   }
 
   async function loadStockFullRemoteDataFromSupabase_() {
@@ -1569,7 +1571,7 @@
     const mapped = mapSupabaseProductToAlmox_(data);
     stockFullRemoteItems.unshift(mapped);
     if (currentQuantity > 0) {
-      const movementResult = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: data.id, type: "entrada", quantity: currentQuantity, unit_cost: payload.cost_price, total: currentQuantity * payload.cost_price, reason: "Saldo inicial", supplier: payload.supplier, responsible: session.userName, notes: "Movimentacao inicial criada junto ao produto.", created_by: clean(session.profileId) }).select("*").single();
+      const movementResult = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: data.id, type: "entrada", quantity: currentQuantity, unit_cost: payload.cost_price, total: currentQuantity * payload.cost_price, reason: "Saldo inicial", supplier: payload.supplier, responsible: session.userName, notes: "Origem: initial_stock. Movimentacao inicial criada junto ao produto.", created_by: clean(session.profileId) }).select("*").single();
       if (!movementResult.error && movementResult.data) stockFullRemoteEntries.unshift(mapSupabaseMovementToAlmox_(movementResult.data));
     }
     await createStockFullSupabaseAudit_("product_created", "products", data.id, "Produto criado: " + mapped.name);
@@ -1588,7 +1590,7 @@
     if (nextStock < 0) return { ok: false, error: "stock_full_insufficient_quantity" };
     const updated = await client.from("products").update({ current_stock: nextStock, updated_at: new Date().toISOString() }).eq("id", productId).eq("company_id", session.companyId).select("*").single();
     if (updated.error) throw updated.error;
-    const inserted = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: productId, type: movement.type, quantity: quantity, unit_cost: parseNumber_(movement.unitCost), total: parseNumber_(movement.total) || quantity * parseNumber_(movement.unitCost), reason: clean(movement.reason || movement.purpose), supplier: clean(movement.documentNumber || movement.supplier), destination: clean(movement.destination || movement.sector || movement.recipient), responsible: clean(movement.responsible) || session.userName, notes: clean(movement.notes), created_by: clean(session.profileId) }).select("*").single();
+    const inserted = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: productId, type: movement.type, quantity: quantity, unit_cost: parseNumber_(movement.unitCost), total: parseNumber_(movement.total) || quantity * parseNumber_(movement.unitCost), reason: clean(movement.reason || movement.purpose) || (movement.type === "saida" ? "Saida manual" : "Entrada manual"), supplier: clean(movement.documentNumber || movement.supplier), destination: clean(movement.destination || movement.sector || movement.recipient), responsible: clean(movement.responsible) || session.userName, notes: clean(movement.notes), created_by: clean(session.profileId) }).select("*").single();
     if (inserted.error) throw inserted.error;
     const mappedItem = mapSupabaseProductToAlmox_(updated.data);
     stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === mappedItem.id ? mappedItem : item; });
@@ -8785,6 +8787,7 @@
           unitCost: parseNumber_(row.costPrice),
           total: parseNumber_(row.currentStock) * parseNumber_(row.costPrice),
           reason: "Importacao CSV",
+          origin: "csv_import",
           responsible: getCurrentStockFullSession_().userName,
           documentNumber: "CSV",
           date: getDefaultAlmoxMovementDate_(),
@@ -9621,7 +9624,8 @@
         quantity: quantity,
         supplier: clean(formData.get("responsible")),
         invoiceNumber: clean(formData.get("documentNumber")),
-        notes: clean(formData.get("notes"))
+        notes: clean(formData.get("notes")),
+        reason: "Entrada manual"
       });
       if (!result || !result.ok || !result.item || !result.entry) {
         throw new Error("stock_full_remote_entry_create_failed");
@@ -9697,7 +9701,8 @@
         quantity: quantity,
         destination: clean(formData.get("sector")) || clean(formData.get("recipient")),
         responsible: clean(formData.get("responsible")),
-        notes: clean(formData.get("notes"))
+        notes: clean(formData.get("notes")),
+        reason: "Entrada manual"
       });
       if (result && result.error === "stock_full_insufficient_quantity") {
         return {
@@ -9786,6 +9791,7 @@
         unitCost: parseNumber_(formData.get("costPrice")),
         total: initialQuantity * parseNumber_(formData.get("costPrice")),
         reason: "Saldo inicial",
+        origin: "initial_stock",
         date: defaultMovementDate,
         movementDate: defaultMovementDate,
         movementTime: defaultMovementTime,
@@ -9828,7 +9834,8 @@
       documentNumber: clean(formData.get("documentNumber")),
       unitCost: parseNumber_(formData.get("unitCost")),
       total: quantity * parseNumber_(formData.get("unitCost")),
-      reason: clean(formData.get("reason")) || "Entrada",
+      reason: clean(formData.get("reason")) || "Entrada manual",
+      origin: "manual_entry",
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
@@ -9876,7 +9883,8 @@
       responsible: clean(formData.get("responsible")) || getCurrentStockFullSession_().userName,
       unitCost: 0,
       total: 0,
-      reason: clean(formData.get("purpose")) || "Saida",
+      reason: clean(formData.get("purpose")) || "Saida manual",
+      origin: "manual_exit",
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
@@ -12555,7 +12563,7 @@
     const data = collectAlmoxManagerData_();
     const periodMovements = getAlmoxMovementsByPeriod_(data.movements, almoxDashboardPeriod);
     const periodEntries = periodMovements.filter(function (movement) {
-      return movement.type === "entrada";
+      return movement.type === "entrada" && (!isStockFullContext_() || isStockFullManualEntry_(movement));
     });
     const periodExits = periodMovements.filter(function (movement) {
       return movement.type === "saida";
@@ -13222,11 +13230,72 @@
     renderStockFullEvolutionChart_(viewModel);
     renderStockFullAiList_(viewModel);
   }
+  function getStockFullMovementOrigin_(movement) {
+    const explicit = clean(movement && (movement.origin || movement.movementOrigin || movement.sourceType)).toLowerCase();
+    if (explicit === "initial_stock" || explicit === "manual_entry" || explicit === "manual_exit" || explicit === "csv_import" || explicit === "adjustment") {
+      return explicit;
+    }
+
+    const text = normalizeCompositionKey_([
+      movement && movement.reason,
+      movement && movement.notes,
+      movement && movement.documentNumber,
+      movement && movement.source,
+      movement && movement.remoteSource
+    ].join(" "));
+
+    if ((movement && movement.type) === "ajuste" || text.indexOf("ajuste") >= 0 || text.indexOf("adjustment") >= 0) {
+      return "adjustment";
+    }
+    if (text.indexOf("csv") >= 0 || text.indexOf("importacao") >= 0 || text.indexOf("importado") >= 0) {
+      return "csv_import";
+    }
+    if (text.indexOf("initial_stock") >= 0 || text.indexOf("saldo inicial") >= 0 || text.indexOf("entrada inicial") >= 0 || text.indexOf("movimentacao inicial") >= 0) {
+      return "initial_stock";
+    }
+    if (movement && movement.type === "saida") {
+      return "manual_exit";
+    }
+    if (movement && movement.type === "entrada") {
+      return "manual_entry";
+    }
+    return "adjustment";
+  }
+
+  function isStockFullManualEntry_(movement) {
+    return movement && movement.type === "entrada" && getStockFullMovementOrigin_(movement) === "manual_entry";
+  }
+
+  function isStockFullInitialStock_(movement) {
+    return getStockFullMovementOrigin_(movement) === "initial_stock";
+  }
+
+  function isStockFullCsvImport_(movement) {
+    return getStockFullMovementOrigin_(movement) === "csv_import";
+  }
+
+  function formatStockFullMovementOriginLabel_(movement) {
+    const origin = getStockFullMovementOrigin_(movement);
+    if (origin === "initial_stock") return "Cadastro com saldo inicial";
+    if (origin === "manual_entry") return "Entrada manual";
+    if (origin === "manual_exit") return "Saída manual";
+    if (origin === "csv_import") return "Importação CSV";
+    return "Ajuste de estoque";
+  }
+
+  function countStockFullMovementsByOrigin_(movements, origin) {
+    return (movements || []).filter(function (movement) {
+      return getStockFullMovementOrigin_(movement) === origin;
+    }).length;
+  }
 
   function buildStockFullDashboardViewModel_() {
     const dashboard = buildAlmoxDashboardViewModel_();
     const data = dashboard.data || collectAlmoxManagerData_();
     const todayMovements = getAlmoxMovementsByPeriod_(data.movements, "today");
+    const todayManualEntries = todayMovements.filter(isStockFullManualEntry_);
+    const todayInitialStock = todayMovements.filter(isStockFullInitialStock_);
+    const todayCsvImports = todayMovements.filter(isStockFullCsvImport_);
     const todayExits = todayMovements.filter(function (movement) { return movement.type === "saida"; });
     const totalBalance = data.balances.reduce(function (sum, balance) {
       return sum + Math.max(0, parseNumber_(balance.balance));
@@ -13252,18 +13321,22 @@
       return buildStockFullMonitorItem_(balance, movedByItem[balance.item.id] || null);
     }).slice(0, 5);
 
-    const secondary = buildStockFullSecondaryMetrics_(data);
+    const secondary = buildStockFullSecondaryMetrics_(data, {
+      todayManualEntries: todayManualEntries,
+      todayInitialStock: todayInitialStock,
+      todayCsvImports: todayCsvImports
+    });
     return {
       dashboard: dashboard,
       data: data,
       monitorItems: monitorItems,
       urgentItems: urgentItems,
       recentMovements: (data.recentMovements || []).slice(0, 6),
-      recentEntries: buildAlmoxRecentMovements_(data.recentEntries || [], data.itemsById || {}).slice(0, 4),
+      recentEntries: buildAlmoxRecentMovements_((data.recentEntries || []).filter(isStockFullManualEntry_), data.itemsById || {}).slice(0, 4),
       recentExits: buildAlmoxRecentMovements_(data.recentExits || [], data.itemsById || {}).slice(0, 4),
       secondaryMetrics: secondary,
       categories: buildStockFullCategoryMetrics_(data),
-      recommendations: buildStockFullRecommendations_(data, todayMovements, todayExits),
+      recommendations: buildStockFullRecommendations_(data, todayManualEntries, todayExits, todayInitialStock, todayCsvImports),
       metrics: [
         {
           label: "Total de Itens",
@@ -13285,6 +13358,13 @@
           className: turnover >= 0.4 ? "status-ok" : "status-muted"
         },
         {
+          label: "Entradas Hoje",
+          value: todayManualEntries.length,
+          suffix: todayManualEntries.length === 1 ? "entrada manual" : "entradas manuais",
+          note: todayManualEntries.length ? "operacional" : "sem entrada manual hoje",
+          className: todayManualEntries.length ? "status-ok" : "status-muted"
+        },
+        {
           label: "Saidas Hoje",
           value: todayExits.length,
           suffix: todayExits.length === 1 ? "ordem" : "ordens",
@@ -13303,7 +13383,7 @@
     return parseNumber_(item && (item.costPrice || item.averageCost || item.unitCost));
   }
 
-  function buildStockFullSecondaryMetrics_(data) {
+  function buildStockFullSecondaryMetrics_(data, activity) {
     const balances = data.balances || [];
     const itemsInStock = balances.filter(function (balance) {
       return getStockFullItemBalanceQuantity_(balance) > 0;
@@ -13322,6 +13402,9 @@
       const date = new Date(balance.item.expirationDate);
       return !Number.isNaN(date.getTime()) && date >= today && date <= limit;
     }).length;
+    const todayManualEntries = (activity && activity.todayManualEntries) || [];
+    const todayInitialStock = (activity && activity.todayInitialStock) || [];
+    const todayCsvImports = (activity && activity.todayCsvImports) || [];
     const suppliers = {};
     balances.forEach(function (balance) {
       const supplier = clean(balance.item && balance.item.supplier);
@@ -13331,7 +13414,10 @@
       { label: "Itens em estoque", value: itemsInStock, note: itemsInStock === 1 ? "produto com saldo" : "produtos com saldo", className: "status-muted", icon: "Estoque" },
       { label: "Itens em alerta", value: alertItems, note: alertItems ? "abaixo do mínimo ou zerados" : "sem alertas", className: alertItems ? "is-warning" : "status-ok", icon: "!" },
       { label: "Itens vencendo", value: datedItems.length ? expiring : "Não configurado", note: datedItems.length ? "próximos 30 dias" : "cadastre validade nos produtos", className: expiring ? "is-danger" : "status-muted", icon: "Validade" },
-      { label: "Fornecedores", value: Object.keys(suppliers).length, note: Object.keys(suppliers).length === 1 ? "fornecedor cadastrado" : "fornecedores cadastrados", className: "is-info", icon: "Fornec." }
+      { label: "Fornecedores", value: Object.keys(suppliers).length, note: Object.keys(suppliers).length === 1 ? "fornecedor cadastrado" : "fornecedores cadastrados", className: "is-info", icon: "Fornec." },
+      { label: "Entradas manuais hoje", value: todayManualEntries.length, note: "não inclui saldo inicial nem CSV", className: todayManualEntries.length ? "status-ok" : "status-muted", icon: "Entrada" },
+      { label: "Saldo inicial cadastrado hoje", value: todayInitialStock.length, note: "criado junto ao produto", className: todayInitialStock.length ? "status-muted" : "status-muted", icon: "Inicial" },
+      { label: "Produtos importados hoje", value: todayCsvImports.length, note: "origem CSV", className: todayCsvImports.length ? "is-info" : "status-muted", icon: "CSV" }
     ];
   }
 
@@ -13353,7 +13439,7 @@
     });
   }
 
-  function buildStockFullRecommendations_(data, todayMovements, todayExits) {
+  function buildStockFullRecommendations_(data, todayManualEntries, todayExits, todayInitialStock, todayCsvImports) {
     const balances = data.balances || [];
     const alerts = balances.filter(function (balance) {
       const quantity = getStockFullItemBalanceQuantity_(balance);
@@ -13373,11 +13459,19 @@
     if (todayExits.length) {
       messages.push({ label: "Saídas", text: "Foram registradas " + todayExits.length + " saída(s) hoje." });
     }
-    const entriesToday = (todayMovements || []).filter(function (movement) { return movement.type === "entrada"; }).length;
+    const entriesToday = (todayManualEntries || []).length;
+    const initialToday = (todayInitialStock || []).length;
+    const csvToday = (todayCsvImports || []).length;
     if (entriesToday) {
-      messages.push({ label: "Entradas", text: "Foram registradas " + entriesToday + " entrada(s) hoje." });
+      messages.push({ label: "Entradas", text: "Foram registradas " + entriesToday + " entrada(s) manual(is) hoje." });
     }
-    if (!todayExits.length && !entriesToday) {
+    if (initialToday) {
+      messages.push({ label: "Saldo inicial", text: initialToday + " produto(s) receberam saldo inicial hoje." });
+    }
+    if (csvToday) {
+      messages.push({ label: "CSV", text: csvToday + " produto(s) foram importados por CSV hoje." });
+    }
+    if (!todayExits.length && !entriesToday && !initialToday && !csvToday) {
       messages.push({ label: "Movimento", text: "Nenhuma movimentação registrada hoje." });
     }
     return messages;
@@ -14014,7 +14108,7 @@
       alertHistory: activeAlertHistory,
       recentMovements: buildAlmoxRecentMovements_(movements, itemsById),
       recentExits: movements.filter(function (movement) { return movement.type === "saida"; }).slice(0, 5),
-      recentEntries: movements.filter(function (movement) { return movement.type === "entrada"; }).slice(0, 5)
+      recentEntries: movements.filter(function (movement) { return movement.type === "entrada" && (!isStockFullContext_() || isStockFullManualEntry_(movement)); }).slice(0, 5)
     };
   }
 
@@ -14093,13 +14187,13 @@
         movement: movement,
         item: item,
         dateTime: formatAlmoxDateTime_(movement),
-        type: movement.type === "entrada" ? "Entrada" : "Saida",
+        type: isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) : (movement.type === "entrada" ? "Entrada" : "Saida"),
         material: item.name || "Item",
         quantity: formatQuantity_(movement.quantity) + " " + (item.unit || "un"),
         responsible: movement.responsible || movement.recipient || "-",
         sectorOrOrigin: movement.type === "entrada"
-          ? (movement.documentNumber || "Origem/nota nao informada")
-          : (movement.sector || "Setor/destino nao informado")
+          ? (isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) + " - " + (movement.documentNumber || movement.reason || "origem sem documento") : (movement.documentNumber || "Origem/nota nao informada"))
+          : (isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) + " - " + (movement.sector || "setor/destino nao informado") : (movement.sector || "Setor/destino nao informado"))
       };
     });
   }
@@ -14144,8 +14238,14 @@
     const exitsWithoutSector = exits.filter(function (movement) {
       return !clean(movement.sector);
     });
-    const entriesWithoutOrigin = entries.filter(function (movement) {
-      return !clean(movement.documentNumber);
+    const manualEntries = entries.filter(isStockFullManualEntry_);
+    const initialStockEntries = entries.filter(isStockFullInitialStock_);
+    const csvImportEntries = entries.filter(isStockFullCsvImport_);
+    const manualExits = exits.filter(function (movement) {
+      return getStockFullMovementOrigin_(movement) === "manual_exit";
+    });
+    const entriesWithoutOrigin = manualEntries.filter(function (movement) {
+      return !clean(movement.documentNumber) && !clean(movement.reason) && !clean(movement.supplier);
     });
     const invalidMovements = data.movements.filter(function (movement) {
       return parseNumber_(movement.quantity) <= 0 || !data.itemsById[movement.itemId];
@@ -14797,7 +14897,7 @@
     const details = document.createElement("div");
 
     card.className = "almox-history-item " + (movement.type === "entrada" ? "is-entry" : "is-exit");
-    title.textContent = movement.type === "entrada" ? "Entrada" : "Saída";
+    title.textContent = isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) : (movement.type === "entrada" ? "Entrada" : "Saída");
     date.className = "auth-note";
     date.textContent = formatAlmoxDateTime_(movement);
     header.appendChild(title);
@@ -14805,6 +14905,9 @@
     card.appendChild(header);
 
     details.appendChild(createAlmoxHistoryLine_(formatAlmoxMovementText_(movement, item)));
+    if (isStockFullContext_()) {
+      details.appendChild(createAlmoxHistoryLine_("Origem: " + formatStockFullMovementOriginLabel_(movement)));
+    }
     if (movement.recipient) {
       details.appendChild(createAlmoxHistoryLine_("Para: " + movement.recipient));
     }
@@ -14836,10 +14939,12 @@
   function formatAlmoxMovementText_(movement, item) {
     const quantity = formatQuantity_(movement.quantity) + " " + (item.unit || "un");
     if (movement.type === "entrada") {
-      return "Entrada — " + quantity + " de " + (item.name || "item") + (movement.documentNumber ? " — origem/nota: " + movement.documentNumber : "") + ".";
+      const entryLabel = isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) : "Entrada";
+      return entryLabel + " — " + quantity + " de " + (item.name || "item") + (movement.documentNumber ? " — origem/nota: " + movement.documentNumber : "") + ".";
     }
 
-    return "Saída — " + quantity + " de " + (item.name || "item") +
+    const exitLabel = isStockFullContext_() ? formatStockFullMovementOriginLabel_(movement) : "Saída";
+    return exitLabel + " — " + quantity + " de " + (item.name || "item") +
       (movement.recipient ? " para " + movement.recipient : "") +
       (movement.sector ? " — " + movement.sector : "") +
       (movement.purpose ? " — " + movement.purpose : "") + ".";
@@ -15006,8 +15111,14 @@
     const exitsWithoutSector = exits.filter(function (movement) {
       return !clean(movement.sector);
     });
-    const entriesWithoutOrigin = entries.filter(function (movement) {
-      return !clean(movement.documentNumber);
+    const manualEntries = entries.filter(isStockFullManualEntry_);
+    const initialStockEntries = entries.filter(isStockFullInitialStock_);
+    const csvImportEntries = entries.filter(isStockFullCsvImport_);
+    const manualExits = exits.filter(function (movement) {
+      return getStockFullMovementOrigin_(movement) === "manual_exit";
+    });
+    const entriesWithoutOrigin = manualEntries.filter(function (movement) {
+      return !clean(movement.documentNumber) && !clean(movement.reason) && !clean(movement.supplier);
     });
     const invalidMovements = activeMovements.filter(function (movement) {
       return parseNumber_(movement.quantity) <= 0 || !itemsById[movement.itemId];
@@ -15053,10 +15164,16 @@
       issues.push("Alertas automaticos ativos: " + summarizeStockIaList_(activeAlerts.map(function (alert) { return alert.message; }), 5) + ".");
     }
 
+    const originInsight = " Origens consideradas: " +
+      initialStockEntries.length + " saldo(s) inicial(is), " +
+      manualEntries.length + " entrada(s) manual(is), " +
+      csvImportEntries.length + " importação(ões) CSV e " +
+      manualExits.length + " saída(s) manual(is).";
     const dashboardInsight = " Dashboard: risco geral " + dashboard.shortage.label +
       ", tendencia operacional: " + dashboard.trend.label +
       ", material mais movimentado em " + dashboard.periodLabel + ": " +
-      (topMoved ? topMoved.name + " com " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + " retiradas." : "sem saidas no periodo.");
+      (topMoved ? topMoved.name + " com " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + " retiradas." : "sem saidas no periodo.") +
+      originInsight;
 
     if (!issues.length) {
       return buildAlmoxReportIntro_() + " Nao foram encontradas inconsistencias criticas. O estoque esta dentro dos parametros cadastrados. Tendencia operacional: " + dashboard.trend.label;
@@ -15688,6 +15805,7 @@
       documentNumber: clean(data.documentNumber),
       notes: clean(data.notes),
       source: clean(data.source) || "manual",
+      origin: clean(data.origin) || getStockFullMovementOrigin_(data),
       noteId: clean(data.noteId) || null,
       mode: clean(data.mode) || "obra",
       recipientName: clean(data.recipientName),
