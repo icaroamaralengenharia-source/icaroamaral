@@ -1834,10 +1834,22 @@
       const summaryItem = target && target.closest ? target.closest("[data-almox-summary-item]") : null;
       const summaryAction = target && target.closest ? target.closest("[data-almox-summary-action]") : null;
       const stockFullAction = target && target.closest ? target.closest("[data-stock-full-dashboard-action]") : null;
+      const managerShortcut = target && target.closest ? target.closest("[data-almox-manager-shortcut]") : null;
 
       if (stockFullAction) {
         event.preventDefault();
         handleStockFullDashboardAction_(stockFullAction.dataset.stockFullDashboardAction || "summary");
+        return;
+      }
+
+      if (managerShortcut) {
+        event.preventDefault();
+        const shortcut = managerShortcut.dataset.almoxManagerShortcut || "";
+        if (shortcut === "audit") {
+          handleGenerateAlmoxAudit_();
+        } else if (shortcut === "backup") {
+          handleExportAlmoxBackup_();
+        }
         return;
       }
 
@@ -8389,7 +8401,7 @@
         (unit ? " · Unidade: " + unit : "") + " · Produtos, entradas e saídas na nuvem";
       return;
     }
-    almoxOfflineStatus.textContent = connection + " · Modo local · Dados salvos neste navegador · Não sincronizado na nuvem";
+    almoxOfflineStatus.textContent = connection + " · Operacao ativa · Dados disponiveis neste dispositivo · Backup recomendado";
   }
 
   function normalizeAlmoxEnvironmentState_(state) {
@@ -8585,11 +8597,11 @@
     return {
       id: DEFAULT_STOCK_ENVIRONMENT_ID,
       mode: "almoxarifado",
-      clientName: "Demonstração",
+      clientName: "Cliente Stock Full",
       workName: "",
       institutionType: "Prefeitura / secretaria / loja",
-      unitName: "Almoxarifado",
-      environmentName: "Almoxarifado demonstrativo",
+      unitName: "Unidade Operacional",
+      environmentName: "Estoque principal",
       responsible: "Gestor",
       managerEmail: "",
       warehouseEmail: "",
@@ -10960,7 +10972,7 @@
     subtitle.className = "auth-note";
     subtitle.textContent = environment.mode === "obra"
       ? "Stock IA Obra filtrando itens, histórico, dashboard e auditoria deste ambiente."
-      : "Almoxarifado IA filtrando itens, histórico, dashboard e auditoria desta unidade.";
+      : "Stock Full organizando itens, historico, dashboard e auditoria desta unidade.";
     info.appendChild(eyebrow);
     info.appendChild(title);
     info.appendChild(subtitle);
@@ -12570,6 +12582,8 @@
       monitorItems: monitorItems,
       urgentItems: urgentItems,
       recentMovements: (data.recentMovements || []).slice(0, 6),
+      recentEntries: buildAlmoxRecentMovements_(data.recentEntries || [], data.itemsById || {}).slice(0, 4),
+      recentExits: buildAlmoxRecentMovements_(data.recentExits || [], data.itemsById || {}).slice(0, 4),
       metrics: [
         {
           label: "Total de Itens",
@@ -12778,8 +12792,12 @@
       return;
     }
 
-    const entries = viewModel.recentMovements.filter(function (entry) { return entry.movement && entry.movement.type === "entrada"; });
-    const exits = viewModel.recentMovements.filter(function (entry) { return !(entry.movement && entry.movement.type === "entrada"); });
+    const entries = viewModel.recentEntries && viewModel.recentEntries.length
+      ? viewModel.recentEntries
+      : viewModel.recentMovements.filter(function (entry) { return entry.movement && entry.movement.type === "entrada"; });
+    const exits = viewModel.recentExits && viewModel.recentExits.length
+      ? viewModel.recentExits
+      : viewModel.recentMovements.filter(function (entry) { return !(entry.movement && entry.movement.type === "entrada"); });
 
     if (stockFullActivityList) {
       viewModel.recentMovements.forEach(function (entry) { appendStockFullActivityItem_(stockFullActivityList, entry); });
@@ -13050,9 +13068,9 @@
       return;
     }
 
-    const title = "Alerta Stock IA";
+    const title = "Alerta Stock Full";
     const options = {
-      body: alert.message.replace(/^Alerta Stock IA:\s*/i, ""),
+      body: alert.message.replace(/^Alerta Stock Full:\s*/i, ""),
       tag: alert.key
     };
 
@@ -13070,17 +13088,17 @@
     const name = item.name || "Item";
 
     if (kind === "zero") {
-      return "Alerta Stock IA: " + name + " esta zerado. Reposicao urgente.";
+      return "Alerta Stock Full: " + name + " esta zerado. Reposicao urgente.";
     }
     if (kind === "critical") {
-      return "Alerta Stock IA: " + name + " esta abaixo do estoque minimo. Saldo atual: " +
+      return "Alerta Stock Full: " + name + " esta abaixo do estoque minimo. Saldo atual: " +
         formatQuantity_(balance.balance) + " " + (item.unit || "un") + ".";
     }
     if (kind === "expiration" && expiration) {
-      return "Alerta Stock IA: " + name + " " + expiration.message;
+      return "Alerta Stock Full: " + name + " " + expiration.message;
     }
 
-    return "Alerta Stock IA: verificar item critico no almoxarifado.";
+    return "Alerta Stock Full: verificar item critico no almoxarifado.";
   }
 
   function formatAlmoxAlertMuteUntil_(value) {
@@ -13376,18 +13394,18 @@
       ? clean(environment.workName)
       : clean(environment.unitName);
     return {
-      clientName: clean(environment.clientName) || clean(client.name) || "Cliente demonstrativo",
+      clientName: clean(environment.clientName) || clean(client.name) || "Cliente Stock Full",
       unitName: environmentUnit || clean(work.name) || clean(work.address) || "Almoxarifado Central",
-      environmentName: clean(environment.environmentName) || "Ambiente Stock IA",
+      environmentName: clean(environment.environmentName) || "Estoque principal",
       responsibleName: clean(environment.responsible) || clean(currentUser && currentUser.name) || "Gestor responsavel",
-      systemName: "Stock IA / ObraReport",
+      systemName: "Stock Full",
       emittedAt: formatDateTime_(new Date().toISOString())
     };
   }
 
   function buildAlmoxReportIntro_() {
     const profile = getAlmoxReportProfile_();
-    return "Relatorio gerado pelo Stock IA para " + profile.clientName +
+    return "Relatorio gerado pelo Stock Full para " + profile.clientName +
       ", unidade " + profile.unitName + ", ambiente " + profile.environmentName + ", em " + profile.emittedAt + ".";
   }
 
@@ -14072,7 +14090,7 @@
     const dashboard = buildAlmoxDashboardViewModel_();
     const topMoved = dashboard.topMovedItems[0];
 
-    return buildAlmoxReportIntro_() + " O almoxarifado possui " + balances.length + " item(ns) cadastrado(s), com saldo total de " +
+    return buildAlmoxReportIntro_() + " O estoque possui " + balances.length + " item(ns) cadastrado(s), com saldo total de " +
       formatQuantity_(totalBalance) + " unidade(s). Ha " + belowMinimum + " item(ns) abaixo do minimo e " +
       zeroItems + " item(ns) zerado(s). Foram registradas " + activeMovements.length +
       " movimentacao(oes) recentes. A ultima entrada foi " + describeMovement(lastEntry) +
@@ -14171,10 +14189,10 @@
       (topMoved ? topMoved.name + " com " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + " retiradas." : "sem saidas no periodo.");
 
     if (!issues.length) {
-      return buildAlmoxReportIntro_() + " Nao foram encontradas inconsistencias criticas. O almoxarifado esta dentro dos parametros cadastrados. Tendencia operacional: " + dashboard.trend.label;
+      return buildAlmoxReportIntro_() + " Nao foram encontradas inconsistencias criticas. O estoque esta dentro dos parametros cadastrados. Tendencia operacional: " + dashboard.trend.label;
     }
 
-    return buildAlmoxReportIntro_() + " Auditoria do almoxarifado: " + issues.join(" ") +
+    return buildAlmoxReportIntro_() + " Auditoria do estoque: " + issues.join(" ") +
       dashboardInsight +
       " Risco de falta: " + (zeroItems.length || belowMinimum.length ? "alto para itens criticos." : "baixo no momento.") +
       " Recomendacao de reposicao: priorize itens zerados e abaixo do minimo." +
@@ -14424,12 +14442,12 @@
   function handleGenerateAlmoxAudit_() {
     const audit = buildAlmoxAuditText_();
     almoxLastAuditText = audit;
-    renderAlmoxGeneratedReport_("Auditoria do almoxarifado", buildAlmoxReportViewModel_());
+    renderAlmoxGeneratedReport_("Auditoria do estoque", buildAlmoxReportViewModel_());
     renderAlmoxTopManagerPanel_();
     if (almoxGeneratedReport) {
       almoxGeneratedReport.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    showAlmoxToast_("Auditoria do almoxarifado gerada.", "success");
+    showAlmoxToast_("Auditoria do estoque gerada.", "success");
   }
 
   function handleDownloadAlmoxPdf_() {

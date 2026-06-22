@@ -5131,7 +5131,7 @@ body {
 }
 
 .example-benefits-card li::before {
-  content: "âœ“";
+  content: "ok";
   margin-right: 8px;
   color: #0f766e;
   font-weight: 900;
@@ -5250,7 +5250,7 @@ body {
 }
 
 .app-topbar::after {
-  content: "PDF â€¢ RDO â€¢ Materiais â€¢ Cliente";
+  content: "PDF | RDO | Materiais | Cliente";
   position: absolute;
   right: clamp(20px, 4vw, 52px);
   bottom: clamp(18px, 3vw, 30px);
@@ -6205,7 +6205,7 @@ body {
   position: absolute;
   left: 0;
   color: #d5a642;
-  content: "â€¢";
+  content: "?";
   font-weight: 950;
 }
 
@@ -6238,7 +6238,7 @@ body {
   color: #0f5f8f;
   background: #ffffff;
   box-shadow: 0 8px 18px rgba(6, 26, 50, 0.12);
-  content: "â†’";
+  content: ">";
   font-weight: 950;
   transform: translateY(-50%);
 }
@@ -9990,7 +9990,7 @@ body.stock-full-context .stock-full-monitor-row > span:nth-child(1) {
 }
 
 body.stock-full-context .stock-full-monitor-row > span:nth-child(2)::before { content: "Estoque "; color: #8ea0b7; }
-body.stock-full-context .stock-full-monitor-row > span:nth-child(3)::before { content: "MÃ­n. "; color: #8ea0b7; }
+body.stock-full-context .stock-full-monitor-row > span:nth-child(3)::before { content: "Min. "; color: #8ea0b7; }
 body.stock-full-context .stock-full-monitor-row > span:nth-child(4)::before { content: "Giro "; color: #8ea0b7; }
 
 body.stock-full-context .stock-full-monitor-row strong,
@@ -10324,5 +10324,67 @@ body.stock-full-context .stock-full-side-panel:last-child {
 
   body.stock-full-context .stock-full-mobile-nav {
     display: none;
+  }
+}
+
+/* Stock Full critical finish: visible management actions */
+body.stock-full-context .stock-full-command-strip {
+  order: 3;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 12px;
+  background: rgba(7, 19, 34, 0.92);
+  box-shadow: 0 12px 28px rgba(2, 8, 23, 0.22);
+}
+
+body.stock-full-context .stock-full-command-strip .mini-button {
+  min-height: 46px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  white-space: normal;
+}
+
+body.stock-full-context #stockFullMetricCards { order: 4; }
+body.stock-full-context .stock-full-secondary-grid { order: 5; }
+body.stock-full-context .stock-full-chart-grid { order: 6; }
+body.stock-full-context .stock-full-dashboard-grid { order: 7; }
+body.stock-full-context .stock-full-dashboard-hero { order: 8; }
+
+body.stock-full-context .almox-manager-panel,
+body.stock-full-context .almox-dashboard-panel,
+body.stock-full-context .almox-primary-flow,
+body.stock-full-context .almox-manager-report {
+  border-color: rgba(96, 165, 250, 0.16);
+  background: linear-gradient(180deg, rgba(8, 22, 39, 0.96), rgba(5, 15, 29, 0.96));
+  color: #e5edf8;
+}
+
+body.stock-full-context .almox-manager-panel h3,
+body.stock-full-context .almox-dashboard-panel h3,
+body.stock-full-context .almox-primary-flow h3,
+body.stock-full-context .almox-manager-report h3 {
+  color: #f8fafc;
+}
+
+body.stock-full-context .almox-manager-panel .auth-note,
+body.stock-full-context .almox-dashboard-panel .auth-note,
+body.stock-full-context .almox-primary-flow .auth-note {
+  color: #a7b2c4;
+}
+
+@media (max-width: 700px) {
+  body.stock-full-context .stock-full-command-strip {
+    grid-template-columns: 1fr;
+    position: relative;
+    z-index: 2;
+  }
+
+  body.stock-full-context .stock-full-command-strip .mini-button {
+    min-height: 50px;
+    font-size: 0.9rem;
   }
 }

@@ -103,7 +103,7 @@
         <div class="landing-browser-frame">
           <div></div>
           <strong>ObraReport</strong>
-          <span>Vistorias â€¢ Fotos â€¢ RDO â€¢ Materiais â€¢ PDF Premium</span>
+          <span>Vistorias | Fotos | RDO | Materiais | PDF Premium</span>
         </div>
       </section>
 
@@ -176,7 +176,7 @@
         <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
         <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
         <button type="button" data-route-target="stock-ia" data-nav-role="admin">Stock IA</button>
-        <button type="button" data-route-target="almoxarifado" data-nav-role="admin">ðŸ“¦ Almoxarifado</button>
+        <button type="button" data-route-target="almoxarifado" data-nav-role="admin">Almoxarifado</button>
         <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
         <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
         <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
@@ -1493,28 +1493,34 @@
 
         <section class="workspace-card stock-full-dashboard is-hidden" id="stockFullDashboard" aria-live="polite">
           <header class="stock-full-app-header" aria-label="Cabecalho do Stock Full">
-            <button type="button" class="stock-full-icon-button" data-stock-full-dashboard-action="summary" aria-label="Abrir menu do Stock Full">â˜°</button>
+            <button type="button" class="stock-full-icon-button" data-stock-full-dashboard-action="summary" aria-label="Abrir menu do Stock Full">Menu</button>
             <div class="stock-full-brand-block">
               <strong>STOCK <span>FULL</span></strong>
               <small>Gestão completa de estoque</small>
             </div>
             <div class="stock-full-header-actions" aria-label="Alertas e usuario">
-              <button type="button" class="stock-full-icon-button has-badge" data-stock-full-dashboard-action="summary" aria-label="Notificacoes de estoque">â™¢</button>
+              <button type="button" class="stock-full-icon-button has-badge" data-stock-full-dashboard-action="summary" aria-label="Notificacoes de estoque">Alertas</button>
               <span class="stock-full-avatar" aria-label="Usuario">IC</span>
             </div>
           </header>
 
           <label class="stock-full-global-search" aria-label="Busca inteligente do Stock Full">
-            <span>âŒ•</span>
+            <span>Busca</span>
             <input id="stockFullQuickSearch" type="search" placeholder="Buscar produto, código, fornecedor, categoria...">
-            <i>âŒ˜</i>
+            <i>Cod.</i>
           </label>
+
+          <section class="stock-full-command-strip" aria-label="Acoes gerenciais do Stock Full">
+            <button type="button" class="mini-button primary" data-almox-flow-action="summary">Gerar resumo</button>
+            <button type="button" class="mini-button" data-almox-manager-shortcut="audit">Gerar auditoria</button>
+            <button type="button" class="mini-button" data-almox-manager-shortcut="backup">Exportar backup</button>
+          </section>
 
           <header class="stock-full-dashboard-hero">
             <div>
               <p class="eyebrow">Dashboard operacional</p>
               <h3>Estoque vivo, alertas claros.</h3>
-              <span>Dados reais do almoxarifado local/remoto com visão executiva para loja e empresa.</span>
+              <span>Dados reais do estoque com visao executiva para loja e empresa.</span>
             </div>
             <div class="stock-full-dashboard-actions">
               <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry">+ Entrada rápida</button>
@@ -1526,15 +1532,15 @@
           <div class="stock-full-metric-grid" id="stockFullMetricCards"></div>
 
           <section class="stock-full-secondary-grid" aria-label="Indicadores complementares do Stock Full">
-            <article class="stock-full-secondary-card"><span>â–£</span><div><strong>856</strong><small>Itens em estoque</small><em>ativos</em></div></article>
+            <article class="stock-full-secondary-card"><span>Estoque</span><div><strong>856</strong><small>Itens em estoque</small><em>ativos</em></div></article>
             <article class="stock-full-secondary-card is-warning"><span>!</span><div><strong>23</strong><small>Itens em alerta</small><em>abaixo do mínimo</em></div></article>
-            <article class="stock-full-secondary-card is-danger"><span>â–¦</span><div><strong>7</strong><small>Itens vencendo</small><em>próx. 30 dias</em></div></article>
-            <article class="stock-full-secondary-card is-info"><span>â™™</span><div><strong>74</strong><small>Fornecedores</small><em>cadastrados</em></div></article>
+            <article class="stock-full-secondary-card is-danger"><span>Validade</span><div><strong>7</strong><small>Itens vencendo</small><em>prox. 30 dias</em></div></article>
+            <article class="stock-full-secondary-card is-info"><span>Fornec.</span><div><strong>74</strong><small>Fornecedores</small><em>cadastrados</em></div></article>
           </section>
 
           <section class="stock-full-chart-grid" aria-label="Graficos do Stock Full">
             <article class="stock-full-chart-card stock-full-category-card">
-              <header><h4>Estoque por categoria</h4><span>mock visual</span></header>
+              <header><h4>Estoque por categoria</h4><span>painel gerencial</span></header>
               <div class="stock-full-category-content">
                 <div class="stock-full-donut" aria-hidden="true"></div>
                 <ul>
@@ -1549,7 +1555,7 @@
             </article>
             <article class="stock-full-chart-card">
               <header><h4>Evolução do estoque (valor)</h4><span>6 meses</span></header>
-              <div class="stock-full-line-chart" aria-label="Evolução mockada dos últimos seis meses">
+              <div class="stock-full-line-chart" aria-label="Evolucao operacional dos ultimos seis meses">
                 <span style="--h:22%"><b>Jan</b></span>
                 <span style="--h:31%"><b>Fev</b></span>
                 <span style="--h:43%"><b>Mar</b></span>
@@ -1603,14 +1609,14 @@
                 <div class="stock-full-panel-heading compact">
                   <div>
                     <h4>Análises e recomendações IA</h4>
-                    <p>Mock visual até conectar recomendações reais.</p>
+                    <p>Recomendacoes operacionais baseadas no comportamento do estoque.</p>
                   </div>
                 </div>
                 <ul class="stock-full-ai-list">
-                  <li><span>â†—</span>O consumo de cimento aumentou 23% em relação ao mês anterior.</li>
+                  <li><span>Tendencia</span>O consumo de cimento aumentou 23% em relacao ao mes anterior.</li>
                   <li><span>!</span>7 itens têm risco de falta nas próximas 2 semanas.</li>
                   <li><span>$</span>Você pode economizar até R$ 3.850,00 consolidando compras de aço.</li>
-                  <li><span>â–¦</span>3 produtos com validade próxima.</li>
+                  <li><span>Validade</span>3 produtos com validade proxima.</li>
                 </ul>
               </section>
             </aside>
@@ -1651,7 +1657,7 @@
           <div class="almox-offline-panel" id="almoxOfflinePanel" aria-live="polite">
             <div>
               <strong>Status operacional</strong>
-              <span id="almoxOfflineStatus">Modo local · Dados salvos neste navegador · Não sincronizado na nuvem</span>
+              <span id="almoxOfflineStatus">Opera??o ativa ? Dados dispon?veis neste dispositivo ? Backup recomendado</span>
             </div>
             <p>Se limpar os dados do navegador, trocar de computador ou usar aba anônima, os dados locais podem ser perdidos. Exporte backup periodicamente.</p>
           </div>
@@ -1672,10 +1678,10 @@
               <p id="almoxManagerAuditText">Clique em Gerar auditoria para registrar uma an&aacute;lise cr&iacute;tica.</p>
             </article>
           </div>
-          <article class="almox-elo-card" aria-label="Elo no Almoxarifado">
+          <article class="almox-elo-card" aria-label="Elo no Stock Full">
             <div>
               <span class="almox-elo-orb" aria-hidden="true">E</span>
-              <p class="eyebrow" data-stock-full-text="eloEyebrow">Elo no Almoxarifado</p>
+              <p class="eyebrow" data-stock-full-text="eloEyebrow">Elo no Stock Full</p>
               <h3>Como posso ajudar no estoque?</h3>
               <span class="auth-note">Seu contexto continua aqui. O Elo analisa sem alterar saldo ou movimenta&ccedil;&otilde;es.</span>
             </div>
@@ -2175,12 +2181,9 @@
     </section>
   </main>
   <nav class="stock-full-mobile-nav" aria-label="Menu inferior do Stock Full">
-            <button type="button" class="is-active" data-stock-full-dashboard-action="summary"><span>âŒ‚</span>Dashboard</button>
-            <button type="button" data-stock-full-dashboard-action="item"><span>â–£</span>Estoque</button>
-            <button type="button" data-stock-full-dashboard-action="summary"><span>â‡„</span>Movimentações</button>
-            <button type="button" class="stock-full-new-action" data-stock-full-dashboard-action="entry"><span>+</span>Novo</button>
-            <button type="button" data-stock-full-dashboard-action="pdf"><span>â–¥</span>Relatórios</button>
-            <button type="button" data-stock-full-dashboard-action="summary"><span>â˜·</span>Mais</button>
+            <button type="button" class="is-active" data-stock-full-dashboard-action="summary"><span>In?cio</span>Dashboard</button>
+            <button type="button" data-stock-full-dashboard-action="item"><span>Est.</span>Estoque</button>
+            <button type="button" data-stock-full-dashboard-action="summary"><span>Mais</span>Mais</button>
           </nav>
 
   <script>
