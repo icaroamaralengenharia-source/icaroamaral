@@ -729,9 +729,23 @@
     return lines.join("\n");
   }
 
+  function shouldLetEloHandleStockObrasBriefing_(question) {
+    const text = normalize_(question);
+    const elo = window.EloAssistente || {};
+    const state = typeof elo.getStockObrasBriefingForTest === "function" ? elo.getStockObrasBriefingForTest() : null;
+    const activeBriefing = !!(state && state.active);
+    const hasBlockOnlyAnswer = /^\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}$/.test(clean_(question));
+    const isWallComposition = hasAny_(text, ["alvenaria", "parede", "muro", "bloco ceramico", "tijolo", "chapisco", "reboco"]) &&
+      hasAny_(text, ["composicao", "compor", "calcular", "calcule", "fazer", "faca", "quantitativo"]);
+    const isOpeningFollowUp = activeBriefing && hasAny_(text, ["porta", "janela", "vao", "vaos"]);
+    return !!(elo && typeof elo.buildPremiseQuestionForTest === "function" && (isWallComposition || hasBlockOnlyAnswer || isOpeningFollowUp));
+  }
   function answerStockAiObrasQuestion_(input, event) {
     const question = clean_(input && input.value);
     if (isInstitutionalEloProjectQuestion_(question)) {
+      return false;
+    }
+    if (shouldLetEloHandleStockObrasBriefing_(question)) {
       return false;
     }
 

@@ -923,7 +923,8 @@
     recentIntents: [],
     lastRecommendation: "",
     lastOperationalWallEstimate: null,
-    pendingQuantitativePremises: null
+    pendingQuantitativePremises: null,
+    stockObrasCompositionBriefing: null
   };
 
   function rememberSessionTurn(question, response, answer) {
@@ -8886,8 +8887,20 @@
     return /passeio|cal.ada|residencial|garagem|carga\s+pesada|trafego|tr.fego|industrial|veiculo|ve.culo|pedestre/.test(text);
   }
 
+  function extractEloBlockDimensionCm_(message) {
+    const match = String(message || "").match(/\b(\d{1,2})\s*x\s*(\d{1,2})\s*x\s*(\d{1,2})\b/i);
+    if (!match) {
+      return null;
+    }
+    const dimensions = [parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10)];
+    if (dimensions.some(function (value) { return !isFinite(value) || value <= 0; })) {
+      return null;
+    }
+    return dimensions;
+  }
+
   function hasEloBlockDimension_(text) {
-    return /\b(?:29|39)\s*x\s*19\s*x\s*14\b|\b14\s*x\s*19\s*x\s*(?:29|39)\b|bloco[^\n]{0,60}\d{2}\s*x\s*\d{2}\s*x\s*\d{2}/.test(text);
+    return !!extractEloBlockDimensionCm_(text);
   }
 
   function hasEloWallLengthHeight_(text) {
@@ -9018,16 +9031,30 @@
     return { length: length || null, height: height || null };
   }
 
+  function parseEloOpeningQuantity_(value) {
+    const text = normalizeText(value || "");
+    if (!text) {
+      return 1;
+    }
+    if (/^um$|^uma$/.test(text)) {
+      return 1;
+    }
+    if (/^dois$|^duas$/.test(text)) {
+      return 2;
+    }
+    const parsed = parseInt(text, 10);
+    return isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }
   function extractEloWallOpenings_(message) {
     const text = normalizeText(message || "");
     if (hasEloNoWallOpenings_(text)) {
       return { hasNoOpenings: true, items: [], totalArea: 0, label: "nenhum" };
     }
     const items = [];
-    const pattern = /(?:\b(\d+)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
+    const pattern = /(?:\b(\d+|um|uma|dois|duas)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      const quantity = match[1] ? parseInt(match[1], 10) : 1;
+      const quantity = parseEloOpeningQuantity_(match[1]);
       const type = /janela/.test(match[2]) ? "janela" : "porta";
       const width = parseEloOperationalNumber_(match[3]);
       const height = parseEloOperationalNumber_(match[4]);
@@ -9057,10 +9084,240 @@
     }
     return formatEloWallPremiseNumber_(value) + " " + unit;
   }
-  function buildEloPremiseCollectionQuestion_(shortAnswer, fullAnswer, nextAction, intent) {
+  function createEloStockObrasCompositionBriefing_() {
     return {
-      shortAnswer: shortAnswer,
-      fullAnswer: fullAnswer,
+      active: false,
+      area_bruta_m2: null,
+      servicos_solicitados: [],
+      bloco_ceramico_dimensao_cm: null,
+      vaos: {
+        portas: [],
+        janelas: [],
+        sem_vaos: false
+      },
+      area_vaos_m2: 0,
+      area_liquida_m2: null,
+      pending_question: "",
+      updatedAt: Date.now()
+    };
+  }
+
+  function cloneEloStockObrasCompositionBriefing_(briefing) {
+    return JSON.parse(JSON.stringify(briefing || createEloStockObrasCompositionBriefing_()));
+  }
+
+  function resetEloStockObrasCompositionBriefing_() {
+    ELO_SESSION_MEMORY.stockObrasCompositionBriefing = createEloStockObrasCompositionBriefing_();
+    return ELO_SESSION_MEMORY.stockObrasCompositionBriefing;
+  }
+
+  function getEloStockObrasCompositionBriefing_() {
+    if (!ELO_SESSION_MEMORY.stockObrasCompositionBriefing) {
+      resetEloStockObrasCompositionBriefing_();
+    }
+    return ELO_SESSION_MEMORY.stockObrasCompositionBriefing;
+  }
+
+  function extractEloStockObrasGrossAreaM2_(message) {
+    const match = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    return match ? parseEloOperationalNumber_(match[1]) : null;
+  }
+
+  function extractEloStockObrasRequestedServices_(message) {
+    const text = normalizeText(message || "");
+    const services = [];
+    if (/alvenaria|parede|muro|bloco|tijolo/.test(text)) {
+      services.push("alvenaria com bloco ceramico");
+    }
+    if (/chapisco|chapiscar/.test(text)) {
+      services.push("chapisco");
+    }
+    if (/reboco|rebocar|embo.o|emboco|revestimento/.test(text)) {
+      services.push("reboco");
+    }
+    return services;
+  }
+
+  function mergeEloStockObrasServices_(current, next) {
+    const merged = Array.isArray(current) ? current.slice() : [];
+    (next || []).forEach(function (service) {
+      if (merged.indexOf(service) < 0) {
+        merged.push(service);
+      }
+    });
+    return merged;
+  }
+
+  function mapEloStockObrasOpenings_(items, type) {
+    return (items || []).filter(function (item) {
+      return item.type === type;
+    }).map(function (item) {
+      return {
+        quantidade: item.quantity,
+        largura_m: item.width,
+        altura_m: item.height,
+        area_m2: item.area
+      };
+    });
+  }
+
+  function calculateEloStockObrasLiquidArea_(briefing) {
+    const portas = briefing.vaos && Array.isArray(briefing.vaos.portas) ? briefing.vaos.portas : [];
+    const janelas = briefing.vaos && Array.isArray(briefing.vaos.janelas) ? briefing.vaos.janelas : [];
+    const openingsArea = portas.concat(janelas).reduce(function (sum, item) {
+      return sum + (parseEloOperationalNumber_(item.area_m2) || 0);
+    }, 0);
+    briefing.area_vaos_m2 = openingsArea;
+    briefing.area_liquida_m2 = briefing.area_bruta_m2 !== null && (briefing.vaos.sem_vaos || openingsArea > 0)
+      ? Math.max(0, briefing.area_bruta_m2 - openingsArea)
+      : null;
+    return briefing;
+  }
+
+  function isEloStockObrasBriefingComplete_(briefing) {
+    const hasOpeningsDecision = !!(briefing && briefing.vaos && (briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length));
+    return !!(briefing && briefing.area_bruta_m2 > 0 && briefing.bloco_ceramico_dimensao_cm && hasOpeningsDecision);
+  }
+
+  function updateEloStockObrasCompositionBriefing_(currentMessage, combinedMessage, forceNew) {
+    const briefing = forceNew ? resetEloStockObrasCompositionBriefing_() : getEloStockObrasCompositionBriefing_();
+    const currentRaw = sanitizeUserText(currentMessage || "");
+    const combinedRaw = sanitizeUserText(combinedMessage || currentRaw);
+    briefing.active = true;
+
+    const area = extractEloStockObrasGrossAreaM2_(combinedRaw) || extractEloStockObrasGrossAreaM2_(currentRaw);
+    if (area > 0) {
+      briefing.area_bruta_m2 = area;
+    }
+
+    briefing.servicos_solicitados = mergeEloStockObrasServices_(briefing.servicos_solicitados, extractEloStockObrasRequestedServices_(combinedRaw));
+
+    const currentBlock = extractEloBlockDimensionCm_(currentRaw);
+    const combinedBlock = extractEloBlockDimensionCm_(combinedRaw);
+    if (currentBlock || combinedBlock) {
+      briefing.bloco_ceramico_dimensao_cm = currentBlock || combinedBlock;
+    }
+
+    const combinedText = normalizeText(combinedRaw);
+    const openings = extractEloWallOpenings_(combinedRaw);
+    if (hasEloNoWallOpenings_(combinedText)) {
+      briefing.vaos.sem_vaos = true;
+      briefing.vaos.portas = [];
+      briefing.vaos.janelas = [];
+    } else if (openings.items.length) {
+      briefing.vaos.sem_vaos = false;
+      briefing.vaos.portas = mapEloStockObrasOpenings_(openings.items, "porta");
+      briefing.vaos.janelas = mapEloStockObrasOpenings_(openings.items, "janela");
+    }
+
+    briefing.updatedAt = Date.now();
+    calculateEloStockObrasLiquidArea_(briefing);
+    return briefing;
+  }
+
+  function formatEloStockObrasBlockDimension_(briefing) {
+    return (briefing.bloco_ceramico_dimensao_cm || []).join(" x ") + " cm";
+  }
+
+  function formatEloStockObrasOpenings_(briefing) {
+    const portas = briefing.vaos.portas.map(function (item) {
+      const label = item.quantidade === 1 ? "porta" : "portas";
+      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "m²");
+    });
+    const janelas = briefing.vaos.janelas.map(function (item) {
+      const label = item.quantidade === 1 ? "janela" : "janelas";
+      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "m²");
+    });
+    return portas.concat(janelas).join("; ") || "nenhum";
+  }
+
+  function buildEloStockObrasCompositionResponse_(briefing, alreadyConsidered) {
+    const services = briefing.servicos_solicitados.length ? briefing.servicos_solicitados.join(", ") : "alvenaria com bloco ceramico";
+    const openingSummary = formatEloStockObrasOpenings_(briefing);
+    const lines = [
+      alreadyConsidered ? "A porta informada ja estava considerada no briefing acumulado." : "Quantitativo geometrico consolidado para composicao:",
+      "- Area bruta de alvenaria: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Bloco ceramico: " + formatEloStockObrasBlockDimension_(briefing),
+      "- Servicos solicitados: " + services,
+      "- Vaos descontados: " + openingSummary,
+      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2, "m²"),
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "",
+      "Base para composicao:",
+      "- Alvenaria com bloco ceramico: aplicar sobre " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
+      briefing.servicos_solicitados.indexOf("chapisco") >= 0 ? "- Chapisco: usar a area liquida consolidada, conforme lados definidos no criterio da base." : "",
+      briefing.servicos_solicitados.indexOf("reboco") >= 0 ? "- Reboco: usar a area liquida consolidada, conforme lados definidos no criterio da base." : "",
+      "",
+      "Nao localizei coeficiente SINAPI/ORSE confiavel nesse fluxo local. Posso manter o quantitativo geometrico consolidado e vincular a composicao quando a base tecnica for informada."
+    ].filter(Boolean);
+    return {
+      shortAnswer: "Area liquida consolidada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe o codigo/composicao SINAPI/ORSE para eu vincular os coeficientes, ou autorize uma estimativa preliminar marcada como nao oficial.",
+      canSave: false,
+      sessionTheme: "stock_obras_composicao",
+      sessionIntent: "briefing_composicao_consolidado"
+    };
+  }
+
+  function buildEloStockObrasBriefingResponse_(currentMessage, combinedMessage, isPendingWall, shouldStart) {
+    const currentText = normalizeText(currentMessage || "");
+    const existing = ELO_SESSION_MEMORY.stockObrasCompositionBriefing;
+    const hasActiveBriefing = !!(existing && existing.active);
+    const currentHasOpeningWithoutMeasure = /\b(?:uma|um|1)\s+(?:porta|janela)\b/.test(currentText) && !extractEloWallOpenings_(currentMessage).items.length;
+    if (hasActiveBriefing && isEloStockObrasBriefingComplete_(existing) && currentHasOpeningWithoutMeasure) {
+      return buildEloStockObrasCompositionResponse_(calculateEloStockObrasLiquidArea_(existing), true);
+    }
+    if (!isPendingWall && !shouldStart && !hasActiveBriefing) {
+      return null;
+    }
+    const relevantFollowUp = /porta|janela|vao|vãos|bloco|tijolo|alvenaria|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    if (!isPendingWall && !shouldStart && hasActiveBriefing && !relevantFollowUp) {
+      return null;
+    }
+
+    const briefing = updateEloStockObrasCompositionBriefing_(currentMessage, combinedMessage, !isPendingWall && shouldStart);
+    if (!briefing.area_bruta_m2) {
+      briefing.pending_question = "area_bruta_m2";
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso da area da alvenaria.",
+        "Informe a area em m², ou comprimento x altura da parede.",
+        "Informe a area bruta de alvenaria.",
+        "confirmar_medidas_parede"
+      ));
+    }
+    if (!briefing.bloco_ceramico_dimensao_cm) {
+      briefing.pending_question = "bloco_ceramico_dimensao";
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso confirmar a dimensao do bloco.",
+        "Qual a dimensao do bloco? Ex.: 29x19x14, 39x19x14 ou outra medida real do bloco ceramico.",
+        "Informe a dimensao real do bloco para eu continuar.",
+        "confirmar_bloco_parede"
+      ));
+    }
+    if (!briefing.vaos.sem_vaos && !briefing.vaos.portas.length && !briefing.vaos.janelas.length) {
+      briefing.pending_question = "vaos";
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso saber se existem vaos para descontar.",
+        "A parede tera portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede integra, sem vaos.",
+        "Informe portas/janelas com medidas ou confirme: parede integra, sem vaos.",
+        "confirmar_vaos_parede"
+      ));
+    }
+
+    briefing.pending_question = "";
+    clearEloPendingPremises_();
+    return buildEloStockObrasCompositionResponse_(briefing, false);
+  }
+  function buildEloPremiseCollectionQuestion_(shortAnswer, fullAnswer, nextAction, intent) {
+    const cleanShortAnswer = String(shortAnswer || "").trim();
+    let cleanFullAnswer = String(fullAnswer || "").trim();
+    if (cleanShortAnswer && cleanFullAnswer.indexOf(cleanShortAnswer + "\n") === 0) {
+      cleanFullAnswer = cleanFullAnswer.slice(cleanShortAnswer.length).trim();
+    }
+    return {
+      shortAnswer: cleanShortAnswer,
+      fullAnswer: cleanFullAnswer,
       nextAction: nextAction,
       canSave: false,
       sessionTheme: "premissas_quantitativo",
@@ -9104,7 +9361,9 @@
     const currentText = normalizeText(message);
     const isPendingWall = pending && pending.type === "wall";
     const shouldStart = shouldStartEloWallPremiseCollection_(currentText);
-    if (!isPendingWall && !shouldStart) {
+    const activeStockObrasBriefing = ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active;
+    const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vãos|bloco|tijolo|alvenaria|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    if (!isPendingWall && !shouldStart && !stockObrasFollowUp) {
       return null;
     }
 
@@ -9112,6 +9371,11 @@
     const text = normalizeText(combinedMessage);
     if (!hasEloWallSubject_(text) && isPendingWall) {
       return null;
+    }
+
+    const stockObrasBriefingResponse = buildEloStockObrasBriefingResponse_(message, combinedMessage, isPendingWall, shouldStart);
+    if (stockObrasBriefingResponse) {
+      return stockObrasBriefingResponse;
     }
 
     if (!hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
@@ -15779,7 +16043,11 @@
     mountMinimal: mountMinimalEloChat,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
-    buildPremiseQuestionForTest: buildEloPremiseQuestion_
+    buildPremiseQuestionForTest: buildEloPremiseQuestion_,
+    resetStockObrasBriefingForTest: resetEloStockObrasCompositionBriefing_,
+    getStockObrasBriefingForTest: function () {
+      return cloneEloStockObrasCompositionBriefing_(ELO_SESSION_MEMORY.stockObrasCompositionBriefing);
+    }
   });
 
   // ELO_BOOTSTRAP
