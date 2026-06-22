@@ -4984,16 +4984,59 @@ test("Elo standalone carrega motor Stock AI antes do assistente", async () => {
   assert.ok(eloAssistantIndex > stockEngineIndex);
 });
 
-test("Elo standalone operacional mostra previsao sem saldo disponivel", async () => {
+test("Elo operacional bloqueia quantitativo sem composicao tecnica", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
   const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho 14 pilares 20x30 com 3m. Posso executar?");
+
+  assert.equal(response.sessionTheme, "base_tecnica_quantitativo");
+  assert.match(response.fullAnswer, /Para gerar quantitativo, mão de obra ou valor com segurança/);
+  assert.match(response.fullAnswer, /SINAPI ou ORSE/);
+  assert.doesNotMatch(response.fullAnswer, /Aco CA-50: 251,37 kg/i);
+});
+test("Elo pre-validador pede premissas obrigatorias antes da base tecnica", async () => {
+  const concreteSandbox = await loadEloOperationalSandbox_([]);
+  const blockSandbox = await loadEloOperationalSandbox_([]);
+  const coatingSandbox = await loadEloOperationalSandbox_([]);
+
+  const concrete = concreteSandbox.window.EloAssistente.buildPremiseQuestionForTest("calcule concreto para laje 20 m² com 8 cm");
+  const block = blockSandbox.window.EloAssistente.buildPremiseQuestionForTest("calcule parede 8x3 com reboco nos dois lados, sem portas e sem janelas, perda 8%");
+  const coating = coatingSandbox.window.EloAssistente.buildPremiseQuestionForTest("calcule reboco de 50 m²");
+
+  assert.match(concrete.fullAnswer, /preciso confirmar o FCK do concreto/);
+  assert.match(block.fullAnswer, /dimens.o do bloco|medida real do bloco cer.mico/);
+  assert.match(coating.fullAnswer, /um lado ou nos dois lados da parede/);
+});
+test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar composicao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39, sem portas, sem janelas, perda de 10%, revestimento dos dois lados.");
+
+  assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
+  assert.match(second.fullAnswer, /Para gerar quantitativo, mão de obra ou valor com segurança/);
+  assert.match(second.fullAnswer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(second.fullAnswer, /Premissas utilizadas:/);
+  assert.match(second.fullAnswer, /Comprimento da parede: 20,00 m/);
+  assert.match(second.fullAnswer, /Altura da parede: 2,80 m/);
+  assert.match(second.fullAnswer, /Área bruta: 56,00 m²/);
+  assert.match(second.fullAnswer, /Vãos descontados: nenhum/);
+  assert.match(second.fullAnswer, /Área líquida considerada: 56,00 m²/);
+  assert.doesNotMatch(second.fullAnswer, /Dimensões consideradas:/);
+  assert.match(second.fullAnswer, /Bloco considerado: 14x19x39/);
+  assert.match(second.fullAnswer, /Perda adotada: 10%/);
+  assert.doesNotMatch(second.fullAnswer, /Cimento|Areia|Bloco ceramico: \d/i);
+});
+test("Elo standalone operacional mostra previsao sem saldo disponivel", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho 14 pilares 20x30 com 3m FCK 25 MPa. Posso executar? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.equal(response.sessionTheme, "elo_operacional_obras");
   assert.match(response.fullAnswer, /Previsão Stock AI/);
   assert.match(response.fullAnswer, /Fonte: Base técnica demonstrativa\/editável/);
   assert.match(response.fullAnswer, /Aco CA-50: 251,37 kg/i);
-  assert.match(response.fullAnswer, /Não encontrei saldo do Almoxarifado disponível nesta tela para comparar\./);
+  assert.match(response.fullAnswer, /Nao encontrei saldo do Almoxarifado disponivel nesta tela para comparar\./);
   assert.deepEqual(sandbox.__almoxMovements, []);
 });
 
@@ -5005,7 +5048,7 @@ test("Elo operacional responde com saldo suficiente sem criar movimentacao", asy
     { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.equal(response.sessionTheme, "elo_operacional_obras");
   assert.match(response.fullAnswer, /Previsão Stock AI/);
@@ -5025,7 +5068,7 @@ test("Elo operacional interpreta parede 12 m x 3 m como 36 m2", async () => {
     { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede 12 m x 3 m. Dá para executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede 12 m x 3 m com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Dá para executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Bloco ceramico: 491,4 un/i);
   assert.match(response.fullAnswer, /Areia: 0,68 m³/i);
@@ -5040,7 +5083,7 @@ test("Elo operacional alerta saldo insuficiente e nao altera estoque", async () 
     { name: "Argamassa de assentamento", unit: "kg", balance: 900, realBalance: 900 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Material insuficiente/);
   assert.match(response.fullAnswer, /faltam/i);
@@ -5054,7 +5097,7 @@ test("Elo operacional calcula piso e compara estoque sem converter unidade errad
     { name: "Rejunte", unit: "kg", balance: 20, realBalance: 20 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho piso de 30 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho piso de 30 m². Posso executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Piso ceramico: 32,445 m²/i);
   assert.match(response.fullAnswer, /Saldo suficiente/);
@@ -5067,7 +5110,7 @@ test("Elo operacional calcula reboco e compara estoque", async () => {
     { name: "Areia", unit: "m3", balance: 2, realBalance: 2 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho reboco de 50 m². Posso fazer amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho reboco de 50 m², revestimento dos dois lados. Posso fazer amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Reboco|Previsão Stock AI/);
   assert.match(response.fullAnswer, /Areia: 1,05 m³/i);
@@ -5081,7 +5124,7 @@ test("Elo operacional trata concreto por volume sem converter m3 para m2", async
     { name: "Brita", unit: "m3", balance: 5, realBalance: 5 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho concreto de 2 m³. Tenho material?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho concreto de 2 m3 FCK 20 MPa. Tenho material? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Previsão Stock AI/);
   assert.doesNotMatch(response.fullAnswer, /2000 m³|2000 m3/i);
@@ -5093,7 +5136,7 @@ test("Elo operacional informa item inexistente no almoxarifado", async () => {
     { name: "Areia", unit: "m3", balance: 2, realBalance: 2 }
   ]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Material não encontrado no Almoxarifado/);
   assert.match(response.fullAnswer, /Bloco ceramico: não encontrado/i);
@@ -5102,11 +5145,11 @@ test("Elo operacional informa item inexistente no almoxarifado", async () => {
 test("Elo operacional mostra previsao mesmo com almoxarifado vazio", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 40 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã? Autorizo estimativa preliminar NÃO OFICIAL.");
 
   assert.match(response.fullAnswer, /Previsão Stock AI/);
-  assert.match(response.fullAnswer, /Não encontrei saldo do Almoxarifado disponível nesta tela para comparar/);
-  assert.match(response.fullAnswer, /Almoxarifado sem saldo comparável/);
+  assert.match(response.fullAnswer, /Nao encontrei saldo do Almoxarifado disponivel nesta tela para comparar/);
+  assert.match(response.fullAnswer, /Almoxarifado sem saldo comparavel/);
 });
 
 test("Elo operacional pede dados quando Stock AI nao consegue prever", async () => {
@@ -5139,7 +5182,7 @@ test("Elo operacional indica fonte real quando composicao importada estiver disp
     keywords: ["alvenaria", "parede", "bloco"]
   }]);
 
-  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 10 m². Posso executar amanhã?");
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 10 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã?");
 
   assert.match(response.fullAnswer, /Fonte: SINAPI real\/importada/);
   assert.match(response.fullAnswer, /Bloco teste real: 20 un/);

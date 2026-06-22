@@ -922,7 +922,8 @@
     lastContext: "",
     recentIntents: [],
     lastRecommendation: "",
-    lastOperationalWallEstimate: null
+    lastOperationalWallEstimate: null,
+    pendingQuantitativePremises: null
   };
 
   function rememberSessionTurn(question, response, answer) {
@@ -8851,10 +8852,404 @@
       hasReboco: hasAnyTerm(text, ["reboco", "rebocar", "emboco", "emboco"]),
       wantsBudget: hasAnyTerm(text, ["orcamento", "orcamento", "orca", "orcar", "custo", "preco", "preco", "valor"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|valor|custo|preco|pre.o/.test(text),
       wantsReferenceBudget: hasAnyTerm(text, ["referencia", "referencia", "padrao", "padrao", "estimativa", "preliminar"]),
+      blockDimension: (raw.match(/\b((?:29|39)\s*x\s*19\s*x\s*14|14\s*x\s*19\s*x\s*(?:29|39))\b/i) || [])[1] || "14x19x39 cm",
+      coatingSides: /um\s+lado|1\s+lado|uma\s+face/.test(text) ? "1 lado" : "2 lados",
       raw: raw
     };
   }
 
+  function hasEloQuantitativeIntent_(text) {
+    return /quantitativo|quantidade|quantos|quanto\s+vai|calcule|calcular|calcula|lista|materiais|material|orcamento|or.amento|custo|preco|pre.o|valor|comprar|consumo|tenho\s+material/.test(text);
+  }
+
+  function hasEloConcreteSubject_(text) {
+    return /concreto|piso\s+de\s+concreto|laje|contrapiso|radier|viga|pilar|sapata|baldrame|fundacao|funda..o/.test(text);
+  }
+
+  function hasEloWallSubject_(text) {
+    return /parede|muro|alvenaria|bloco|bloco\s+baiano|tijolo|chapisco|embo.o|emboco|reboco|revestimento/.test(text);
+  }
+
+  function hasEloConcreteFck_(text) {
+    return /\bfck\s*\d{2}\b|\d{2}\s*mpa\b/.test(text);
+  }
+
+  function hasEloConcreteThickness_(text) {
+    return /espessura|\b\d+(?:[,.]\d+)?\s*cm\b|\b\d+(?:[,.]\d+)?\s*(?:m|metros?)\s+de\s+espessura/.test(text);
+  }
+
+  function hasEloAreaOrDimensions_(text) {
+    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m�|metros?\s+quadrados?|m3|m\^3|m�|metros?\s+cubicos?)\b/.test(text) || /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text);
+  }
+
+  function hasEloConcreteUse_(text) {
+    return /passeio|cal.ada|residencial|garagem|carga\s+pesada|trafego|tr.fego|industrial|veiculo|ve.culo|pedestre/.test(text);
+  }
+
+  function hasEloBlockDimension_(text) {
+    return /\b(?:29|39)\s*x\s*19\s*x\s*14\b|\b14\s*x\s*19\s*x\s*(?:29|39)\b|bloco[^\n]{0,60}\d{2}\s*x\s*\d{2}\s*x\s*\d{2}/.test(text);
+  }
+
+  function hasEloWallLengthHeight_(text) {
+    return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
+  }
+
+  function hasEloWallOpenings_(text) {
+    return /porta|portas|janela|janelas|vao|v.o|abertura|sem\s+porta|sem\s+janela|sem\s+v.o|sem\s+abertura/.test(text);
+  }
+
+  function hasEloWallCoatingSide_(text) {
+    return /um\s+lado|1\s+lado|dois\s+lados|2\s+lados|ambos\s+os\s+lados|duas\s+faces|uma\s+face|face\s+interna|face\s+externa|sem\s+revestimento|sem\s+reboco|sem\s+chapisco/.test(text);
+  }
+
+  function hasEloLossPremise_(text) {
+    return /perda|perdas|desperdicio|desperd.cio|quebra|sobra|\d+(?:[,.]\d+)?\s*(?:%|por cento)/.test(text);
+  }
+
+  function isEloPreliminaryEstimateAuthorized_(message) {
+    const text = normalizeText(message);
+    return /autorizo|pode\s+fazer|pode\s+seguir|faca|faça|quero|aceito/.test(text) && /estimativa\s+preliminar|nao\s+oficial|não\s+oficial/.test(text);
+  }
+
+  function buildEloMissingTechnicalCompositionResponse_(premiseMessage) {
+    const premiseText = normalizeText(premiseMessage || "");
+    const lines = [
+      "Para gerar quantitativo, mão de obra ou valor com segurança, preciso localizar uma composição técnica, como SINAPI ou ORSE. No momento não encontrei uma composição correspondente com os dados informados. Posso continuar de duas formas:",
+      "1. você informa o código/composição SINAPI/ORSE;",
+      "2. eu faço uma estimativa preliminar, claramente marcada como NÃO OFICIAL."
+    ];
+    if (premiseText) {
+      lines.push("", formatEloTechnicalBaseLine_(null, false));
+      lines.push.apply(lines, formatEloCollectedWallPremises_(premiseMessage));
+    }
+    return {
+      shortAnswer: "Preciso de uma composição técnica para calcular com segurança.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe o código/composição SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃO OFICIAL.",
+      canSave: false,
+      sessionTheme: "base_tecnica_quantitativo",
+      sessionIntent: "bloquear_sem_composicao_tecnica"
+    };
+  }
+
+  function isEloValidatedTechnicalComposition_(composition) {
+    if (!composition) {
+      return false;
+    }
+    const metadata = composition.metadata || {};
+    const source = normalizeText(composition.source || composition.sourceName || "");
+    return composition.isRealComposition === true ||
+      metadata.isRealComposition === true ||
+      metadata.validatedInternalComposition === true ||
+      metadata.composicaoInternaValidada === true ||
+      source.indexOf("sinapi") >= 0 ||
+      source.indexOf("orse") >= 0 ||
+      source.indexOf("composicao interna validada") >= 0 ||
+      source.indexOf("composição interna validada") >= 0;
+  }
+
+  function hasEloValidatedTechnicalBase_(prediction) {
+    return !!(prediction && prediction.prediction && isEloValidatedTechnicalComposition_(prediction.prediction.composition));
+  }
+
+  function formatEloTechnicalBaseLine_(composition, allowPreliminary) {
+    if (allowPreliminary) {
+      return "Base técnica utilizada: Estimativa preliminar NÃO OFICIAL autorizada pelo usuário";
+    }
+    if (!composition) {
+      return "Base técnica utilizada: composição técnica não localizada";
+    }
+    const source = composition.source || "composição interna validada";
+    const code = composition.code || composition.id || "sem código";
+    const date = composition.sourceDate ? " | referência " + composition.sourceDate : "";
+    const region = composition.sourceRegion ? " | " + composition.sourceRegion : "";
+    return "Base técnica utilizada: " + source + " | código " + code + date + region;
+  }
+  function formatEloCollectedWallPremises_(message) {
+    const text = normalizeText(message || "");
+    if (!hasEloWallSubject_(text)) {
+      return [];
+    }
+    const original = sanitizeUserText(message || "");
+    const dimensions = extractEloWallDimensions_(original);
+    const grossArea = dimensions.length && dimensions.height ? dimensions.length * dimensions.height : null;
+    const block = (original.match(/\b(?:bloco\s*)?(14\s*x\s*19\s*x\s*(?:29|39)|(?:29|39)\s*x\s*19\s*x\s*14)\b/i) || [])[1] || "informada pelo usuário";
+    const loss = (original.match(/\b\d+(?:[,.]\d+)?\s*(?:%|por cento)/i) || [])[0] || "informada pelo usuário";
+    const coating = /dois\s+lados|2\s+lados|ambos\s+os\s+lados|duas\s+faces/.test(text)
+      ? "dois lados"
+      : (/um\s+lado|1\s+lado|uma\s+face/.test(text) ? "um lado" : "informado pelo usuário");
+    const hasNoOpenings = /sem\s+porta|sem\s+janela|sem\s+v.o|sem\s+abertura/.test(text);
+    const openings = hasNoOpenings ? "nenhum" : "não informado";
+    const liquidArea = grossArea !== null && hasNoOpenings ? grossArea : null;
+    return [
+      "",
+      "Premissas utilizadas:",
+      "- Serviço considerado: parede/alvenaria de bloco cerâmico",
+      "- Comprimento da parede: " + formatEloWallPremiseMeasure_(dimensions.length, "m"),
+      "- Altura da parede: " + formatEloWallPremiseMeasure_(dimensions.height, "m"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(grossArea, "m²"),
+      "- Vãos descontados: " + openings,
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(liquidArea, "m²"),
+      "- Bloco considerado: " + block.replace(/\s+/g, ""),
+      "- Perda adotada: " + loss,
+      "- Lados revestidos: " + coating
+    ];
+  }
+
+  function extractEloWallDimensions_(message) {
+    const source = sanitizeUserText(message || "");
+    const lengthMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s+de\s+comprimento\b/i);
+    const heightMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s+de\s+altura\b/i);
+    let length = lengthMatch ? parseEloOperationalNumber_(lengthMatch[1]) : null;
+    let height = heightMatch ? parseEloOperationalNumber_(heightMatch[1]) : null;
+    if ((!length || !height)) {
+      const pairMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+      if (pairMatch) {
+        length = length || parseEloOperationalNumber_(pairMatch[1]);
+        height = height || parseEloOperationalNumber_(pairMatch[2]);
+      }
+    }
+    return { length: length || null, height: height || null };
+  }
+
+  function formatEloWallPremiseMeasure_(value, unit) {
+    if (value === null || value === undefined || !isFinite(value) || value <= 0) {
+      return unit === "m²" ? "não calculada" : "não informado";
+    }
+    return value.toFixed(2).replace(".", ",") + " " + unit;
+  }
+  function buildEloPremiseCollectionQuestion_(shortAnswer, fullAnswer, nextAction, intent) {
+    return {
+      shortAnswer: shortAnswer,
+      fullAnswer: fullAnswer,
+      nextAction: nextAction,
+      canSave: false,
+      sessionTheme: "premissas_quantitativo",
+      sessionIntent: intent
+    };
+  }
+
+  function getEloPendingPremiseText_(message) {
+    const pending = ELO_SESSION_MEMORY.pendingQuantitativePremises;
+    const current = sanitizeUserText(message || "");
+    if (!pending || !pending.raw) {
+      return current;
+    }
+    const normalizedCurrent = normalizeText(current);
+    if (pending.sessionIntent === "confirmar_vaos_parede" && /^(nao|não|nao ha|não há|sem)$/.test(normalizedCurrent)) {
+      return pending.raw + " sem portas e sem janelas";
+    }
+    return pending.raw + " " + current;
+  }
+
+  function shouldStartEloWallPremiseCollection_(text) {
+    return /parede|muro|alvenaria|bloco|bloco\\s+baiano|tijolo/.test(text) && (/fazer|executar|calcule|calcular|calcula|quantitativo|quantidade|orcamento|or.amento|custo|preco|pre.o|valor|material|materiais|parede|muro|alvenaria|bloco/.test(text));
+  }
+
+  function saveEloPendingPremises_(type, raw, response) {
+    ELO_SESSION_MEMORY.pendingQuantitativePremises = {
+      type: type,
+      raw: sanitizeUserText(raw).slice(0, 800),
+      sessionIntent: response.sessionIntent || "",
+      updatedAt: Date.now()
+    };
+    return response;
+  }
+
+  function clearEloPendingPremises_() {
+    ELO_SESSION_MEMORY.pendingQuantitativePremises = null;
+  }
+
+  function buildEloWallPremiseCollectionResponse_(message) {
+    const pending = ELO_SESSION_MEMORY.pendingQuantitativePremises;
+    const currentText = normalizeText(message);
+    const isPendingWall = pending && pending.type === "wall";
+    const shouldStart = shouldStartEloWallPremiseCollection_(currentText);
+    if (!isPendingWall && !shouldStart) {
+      return null;
+    }
+
+    const combinedMessage = getEloPendingPremiseText_(message);
+    const text = normalizeText(combinedMessage);
+    if (!hasEloWallSubject_(text) && isPendingWall) {
+      return null;
+    }
+
+    if (!hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso do comprimento e da altura.",
+        "Informe comprimento e altura, ou a área em m². Ex.: parede com 20 m de comprimento e 2,80 m de altura.",
+        "Informe comprimento x altura ou área da parede.",
+        "confirmar_medidas_parede"
+      ));
+    }
+
+    if (!hasEloBlockDimension_(text)) {
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso confirmar a dimensão do bloco.",
+        "Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico.",
+        "Informe a dimensão real do bloco para eu continuar a coleta de premissas.",
+        "confirmar_bloco_parede"
+      ));
+    }
+
+    if (!hasEloWallOpenings_(text)) {
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso saber se há portas ou janelas.",
+        "Existem portas ou janelas? Se não houver, responda: sem portas e sem janelas.",
+        "Informe os vãos ou confirme que não existem aberturas.",
+        "confirmar_vaos_parede"
+      ));
+    }
+
+    if (!hasEloLossPremise_(text)) {
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso confirmar a perda adotada.",
+        "Deseja considerar perdas? Informe a perda em porcentagem, por exemplo 8% ou 10%.",
+        "Informe a perda técnica que devo considerar.",
+        "confirmar_perda_parede"
+      ));
+    }
+
+    if (!hasEloWallCoatingSide_(text)) {
+      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
+        "Antes de calcular, preciso confirmar o revestimento.",
+        "Haverá revestimento? Um lado ou dois lados?",
+        "Informe se haverá revestimento e se será em um lado ou nos dois lados.",
+        "confirmar_lados_revestimento"
+      ));
+    }
+
+    clearEloPendingPremises_();
+    return isPendingWall ? buildEloMissingTechnicalCompositionResponse_(combinedMessage) : null;
+  }
+  function buildEloPremiseQuestion_(message) {
+    const collectionResponse = buildEloWallPremiseCollectionResponse_(message);
+    if (collectionResponse) {
+      return collectionResponse;
+    }
+    const text = normalizeText(message);
+    if (!hasEloQuantitativeIntent_(text)) {
+      return null;
+    }
+    if (hasEloConcreteSubject_(text)) {
+      if (!hasEloConcreteFck_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso confirmar o FCK do concreto.",
+          fullAnswer: "Antes de calcular, preciso confirmar o FCK do concreto. Qual ser� o FCK desejado? Ex.: 15, 20, 25 ou 30 MPa. Tamb�m confirme o uso: passeio, piso residencial, garagem ou �rea com carga pesada.",
+          nextAction: "Informe FCK e uso do concreto para eu continuar sem chutar premissas.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_fck_concreto"
+        };
+      }
+      if (/piso|laje|contrapiso|radier/.test(text) && !hasEloConcreteThickness_(text) && !/m3|m\^3|m�|metros?\s+cubicos?/.test(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso da espessura.",
+          fullAnswer: "Antes de calcular, confirme a espessura do concreto. Ex.: 7 cm para passeio, 8 a 10 cm para piso residencial ou espessura definida em projeto.",
+          nextAction: "Informe a espessura e mantenha o FCK confirmado.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_espessura_concreto"
+        };
+      }
+      if (!hasEloAreaOrDimensions_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso da �rea, dimens�es ou volume.",
+          fullAnswer: "Antes de calcular concreto, informe �rea + espessura, dimens�es ou volume em m�. Ex.: piso de concreto 20 m� com 8 cm, FCK 20 MPa, uso residencial.",
+          nextAction: "Informe �rea/dimens�es ou volume para eu calcular.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_medidas_concreto"
+        };
+      }
+      if (/piso|radier|contrapiso/.test(text) && !hasEloConcreteUse_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso confirmar o uso do concreto.",
+          fullAnswer: "Antes de calcular, confirme o uso: passeio, piso residencial, garagem ou �rea com carga pesada. Isso muda a premissa t�cnica e o consumo recomendado.",
+          nextAction: "Informe o tipo de uso do piso/radier.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_uso_concreto"
+        };
+      }
+      return null;
+    }
+    if (hasEloWallSubject_(text)) {
+      const masonryWallSubject = /bloco|tijolo|alvenaria|parede|muro/.test(text);
+      if (masonryWallSubject && !hasEloBlockDimension_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso confirmar a dimens�o do bloco.",
+          fullAnswer: "Antes de calcular, preciso confirmar a dimens�o real do bloco cer�mico. Ele � 29x19x14, 39x19x14 ou outra medida?",
+          nextAction: "Informe a dimens�o do bloco para eu calcular com seguran�a.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_bloco_parede"
+        };
+      }
+      if (masonryWallSubject && !hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso do comprimento e da altura.",
+          fullAnswer: "Antes de calcular a parede, informe comprimento e altura, ou a �rea em m�. Ex.: parede 8 m x 3 m com bloco 39x19x14.",
+          nextAction: "Informe comprimento x altura ou �rea da parede.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_medidas_parede"
+        };
+      }
+      if (masonryWallSubject && !hasEloWallOpenings_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso saber se h� portas ou janelas.",
+          fullAnswer: "Antes de calcular, confirme se existem portas, janelas ou outros v�os para descontar da parede. Se n�o houver, diga: sem portas e sem janelas.",
+          nextAction: "Informe os v�os ou confirme que n�o existem aberturas.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_vaos_parede"
+        };
+      }
+      if (/chapisco|embo.o|emboco|reboco|revestimento/.test(text) && !hasEloWallCoatingSide_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso confirmar os lados do revestimento.",
+          fullAnswer: "Voc� deseja considerar revestimento em um lado ou nos dois lados da parede?",
+          nextAction: "Informe um lado ou dois lados para eu calcular o revestimento.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_lados_revestimento"
+        };
+      }
+      if (masonryWallSubject && !hasEloLossPremise_(text)) {
+        return {
+          shortAnswer: "Antes de calcular, preciso confirmar a perda adotada.",
+          fullAnswer: "Qual perda t�cnica devo considerar? Se n�o houver crit�rio pr�prio, posso usar 8% para alvenaria simples ou 10% quando houver muitos recortes e perdas de transporte.",
+          nextAction: "Informe a perda em porcentagem para eu concluir o quantitativo.",
+          canSave: false,
+          sessionTheme: "premissas_quantitativo",
+          sessionIntent: "confirmar_perda_parede"
+        };
+      }
+    }
+    return null;
+  }
+
+  function extractEloFckLabel_(message) {
+    const text = normalizeText(message);
+    const match = text.match(/\bfck\s*(\d{2})\b/) || text.match(/\b(\d{2})\s*mpa\b/);
+    return match ? match[1] + " MPa" : "não informado";
+  }
+
+  function formatEloQuantitativePremises_(message, extraLines) {
+    const text = normalizeText(message);
+    const lines = ["", "Premissas utilizadas:"];
+    (extraLines || []).forEach(function (line) {
+      if (line) {
+        lines.push("- " + line);
+      }
+    });
+    if (hasEloConcreteSubject_(text)) {
+      lines.push("- FCK: " + extractEloFckLabel_(message));
+    }
+    return lines;
+  }
   function roundEloWallQuantity_(value, decimals) {
     const factor = Math.pow(10, typeof decimals === "number" ? decimals : 2);
     return Math.round(parseEloOperationalNumber_(value) * factor) / factor;
@@ -8891,7 +9286,10 @@
       plasterSand: plasterSand,
       waterLiters: waterLiters,
       hasChapisco: briefing.hasChapisco,
-      hasReboco: briefing.hasReboco
+      hasReboco: briefing.hasReboco,
+      blockDimension: briefing.blockDimension || "14x19x39 cm",
+      coatingSides: briefing.coatingSides || "2 lados",
+      raw: briefing.raw || ""
     };
   }
 
@@ -8935,6 +9333,7 @@
 
   function formatEloWallEstimateLines_(estimate) {
     const lines = [
+      formatEloTechnicalBaseLine_(null, estimate.preliminaryAuthorized === true),
       "Area da parede: " + formatEloOperationalQuantity_(estimate.area) + " m2" + (estimate.length && estimate.height ? " (" + formatEloOperationalQuantity_(estimate.length) + " m x " + formatEloOperationalQuantity_(estimate.height) + " m)" : ""),
       "Area de revestimento nos 2 lados: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2",
       "",
@@ -8954,6 +9353,13 @@
     lines.push("- Agua de preparo: cerca de " + estimate.waterLiters + " litros");
     lines.push("");
     lines.push("Referencia usada: bloco 14x19x39 cm, junta media de 1 cm, perda de " + formatEloOperationalQuantity_(estimate.lossPercent || 8) + "%, chapisco fino e reboco medio de 2 cm nos dois lados.");
+    lines.push.apply(lines, formatEloQuantitativePremises_(estimate.raw || "", [
+      "Dimensoes consideradas: " + (estimate.length && estimate.height ? formatEloOperationalQuantity_(estimate.length) + " m x " + formatEloOperationalQuantity_(estimate.height) + " m" : formatEloOperationalQuantity_(estimate.area) + " m2"),
+      "Bloco considerado: " + (estimate.blockDimension || "14x19x39 cm"),
+      "Perda adotada: " + formatEloOperationalQuantity_(estimate.lossPercent || 8) + "%",
+      "Lados revestidos: " + (estimate.coatingSides || "2 lados"),
+      estimate.hasReboco ? "Espessura de reboco: 2 cm" : "Reboco: nao considerado"
+    ]));
     return lines;
   }
 
@@ -8994,6 +9400,11 @@
       return null;
     }
     const estimate = buildEloWallEstimate_(briefing);
+    const allowPreliminary = isEloPreliminaryEstimateAuthorized_(message);
+    if (!allowPreliminary) {
+      return buildEloMissingTechnicalCompositionResponse_(message);
+    }
+    estimate.preliminaryAuthorized = true;
     estimate.lossPercent = 8;
     estimate.budgetLossPercent = 8;
     rememberEloWallEstimate_(estimate);
@@ -9020,6 +9431,10 @@
     const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
     const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade"]) || text === "sim";
     if (wantsLabor) {
+      if (!isEloPreliminaryEstimateAuthorized_(message)) {
+        return buildEloMissingTechnicalCompositionResponse_(message);
+      }
+      estimate.preliminaryAuthorized = true;
       const labor = buildEloWallLaborEstimate_(estimate);
       estimate.labor = labor;
       rememberEloWallEstimate_(estimate);
@@ -9042,6 +9457,10 @@
       };
     }
     if (wantsLoss) {
+      if (!isEloPreliminaryEstimateAuthorized_(message)) {
+        return buildEloMissingTechnicalCompositionResponse_(message);
+      }
+      estimate.preliminaryAuthorized = true;
       const lossMatch = text.match(/(\d+(?:[,.]\d+)?)\s*(?:%|por cento)/);
       const lossPercent = lossMatch ? parseEloOperationalNumber_(lossMatch[1]) : 10;
       const baseBlocks = Math.ceil(estimate.area * 12.5);
@@ -9069,6 +9488,10 @@
       };
     }
     if (wantsBudget || wantsDetail) {
+      if (!isEloPreliminaryEstimateAuthorized_(message)) {
+        return buildEloMissingTechnicalCompositionResponse_(message);
+      }
+      estimate.preliminaryAuthorized = true;
       rememberEloWallEstimate_(estimate);
       const wantsEverything = /tudo|total|geral|completo|materiais?\s*\+\s*mao|mao\s*de\s*obra/.test(text) || !!estimate.labor;
       const lines = wantsBudget
@@ -9346,6 +9769,10 @@
     if (!isEloOperationalConstructionQuestion_(message)) {
       return null;
     }
+    const premiseQuestion = buildEloPremiseQuestion_(message);
+    if (premiseQuestion) {
+      return premiseQuestion;
+    }
     const prediction = calculateEloOperationalPrediction_(message);
     if (!prediction || !prediction.predictedItems.length) {
       return {
@@ -9359,6 +9786,11 @@
 
     const balances = getEloOperationalAlmoxBalances_();
     const sourceLabel = getEloOperationalPredictionSource_(prediction.prediction);
+    const composition = prediction.prediction && prediction.prediction.composition ? prediction.prediction.composition : null;
+    const allowPreliminary = isEloPreliminaryEstimateAuthorized_(message);
+    if (!hasEloValidatedTechnicalBase_(prediction) && !allowPreliminary) {
+      return buildEloMissingTechnicalCompositionResponse_(message);
+    }
     const scaleAlerts = buildEloOperationalScaleAlerts_(prediction);
     const predictedLines = prediction.predictedItems.map(function (item) {
       const quantity = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
@@ -9413,7 +9845,12 @@
       fullAnswer: [
         "📐 Previsão Stock AI",
         "Fonte: " + sourceLabel,
+        formatEloTechnicalBaseLine_(composition, allowPreliminary),
         predictedLines.join("\n"),
+        formatEloQuantitativePremises_(message, [
+          "Serviço considerado: " + ((prediction.service && (prediction.service.service || prediction.service.serviceType)) || "serviço técnico"),
+          "Quantidade considerada: " + formatEloOperationalQuantity_((prediction.service && prediction.service.quantity) || 0) + " " + formatEloOperationalDisplayUnit_((prediction.service && prediction.service.unit) || "")
+        ]).join("\n"),
         scaleAlerts.length ? "\n" + scaleAlerts.join("\n") : "",
         "",
         standaloneOperationalMode ? "Observacao" : "Almoxarifado",
@@ -9848,6 +10285,11 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const premiseQuestion = buildEloPremiseQuestion_(cleanQuestion);
+    if (premiseQuestion) {
+      return premiseQuestion;
     }
 
     const wallRdoAnswer = buildEloWallRdoAnswer_(cleanQuestion);
@@ -12106,6 +12548,16 @@
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
+
+    const premiseQuestion = buildEloPremiseQuestion_(cleanQuestion);
+    if (premiseQuestion) {
+      const premiseAnswer = formatResponse(premiseQuestion);
+      appendAssistantMessage(cleanQuestion, premiseAnswer, false, premiseQuestion);
+      saveConversation(cleanQuestion, premiseAnswer);
+      rememberSessionTurn(cleanQuestion, premiseQuestion, premiseAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
 
     const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);
     if (immediateWallResponse) {
@@ -15286,7 +15738,9 @@
   window.EloAssistente = Object.assign({}, window.EloAssistente || {}, {
     ask: askElo,
     mountMinimal: mountMinimalEloChat,
-    buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_
+    buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
+    buildResponseForTest: buildResponse,
+    buildPremiseQuestionForTest: buildEloPremiseQuestion_
   });
 
   // ELO_BOOTSTRAP
