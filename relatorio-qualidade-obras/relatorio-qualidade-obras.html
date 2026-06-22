@@ -1491,16 +1491,37 @@
           </div>
         </div>
 
+        <section class="workspace-card stock-full-login-panel is-hidden" id="stockFullLoginPanel" aria-live="polite">
+          <div class="stock-full-login-card">
+            <div>
+              <p class="eyebrow">Acesso SaaS</p>
+              <h3>Entrar no Stock Full</h3>
+              <span>Controle multiempresa com estoque, alertas, auditoria e backup isolados por empresa.</span>
+            </div>
+            <form id="stockFullLoginForm" class="stock-full-login-form">
+              <label>E-mail
+                <input name="email" type="email" value="manoel@manoelimportados.com" autocomplete="email" required>
+              </label>
+              <label>Senha
+                <input name="password" type="password" value="123456" autocomplete="current-password" required>
+              </label>
+              <button type="submit" class="mini-button primary">Entrar</button>
+              <button type="button" class="mini-button" data-stock-full-demo-login="manoel">Acessar Manoel Importados</button>
+              <p id="stockFullLoginStatus" class="auth-note">Use manoel@manoelimportados.com / 123456 para o acesso demonstrativo.</p>
+            </form>
+          </div>
+        </section>
+
         <section class="workspace-card stock-full-dashboard is-hidden" id="stockFullDashboard" aria-live="polite">
           <header class="stock-full-app-header" aria-label="Cabecalho do Stock Full">
             <button type="button" class="stock-full-icon-button" data-stock-full-dashboard-action="summary" aria-label="Abrir menu do Stock Full">Menu</button>
             <div class="stock-full-brand-block">
               <strong>STOCK <span>FULL</span></strong>
-              <small>Gestão completa de estoque</small>
+              <small id="stockFullCompanyName">Gestão completa de estoque</small><em id="stockFullUserMeta">Usuario: -</em>
             </div>
             <div class="stock-full-header-actions" aria-label="Alertas e usuario">
               <button type="button" class="stock-full-icon-button has-badge" data-stock-full-dashboard-action="summary" aria-label="Notificacoes de estoque">Alertas</button>
-              <span class="stock-full-avatar" aria-label="Usuario">IC</span>
+              <button type="button" class="stock-full-icon-button" id="stockFullLogoutButton">Sair</button><span class="stock-full-avatar" id="stockFullAvatar" aria-label="Usuario">SF</span>
             </div>
           </header>
 
@@ -1511,9 +1532,33 @@
           </label>
 
           <section class="stock-full-command-strip" aria-label="Acoes gerenciais do Stock Full">
-            <button type="button" class="mini-button primary" data-almox-flow-action="summary">Gerar resumo</button>
-            <button type="button" class="mini-button" data-almox-manager-shortcut="audit">Gerar auditoria</button>
-            <button type="button" class="mini-button" data-almox-manager-shortcut="backup">Exportar backup</button>
+            <button type="button" class="mini-button primary" data-almox-flow-action="summary" data-stock-full-permission="reports:view">Gerar resumo</button>
+            <button type="button" class="mini-button" data-almox-manager-shortcut="audit" data-stock-full-permission="reports:audit">Gerar auditoria</button>
+            <button type="button" class="mini-button" data-almox-manager-shortcut="backup" data-stock-full-permission="backup:export">Exportar backup</button>
+            <button type="button" class="mini-button" id="stockFullImportButton" data-stock-full-permission="products:import">Importar produtos</button>
+            <button type="button" class="mini-button" id="stockFullTemplateButton" data-stock-full-permission="products:import">Baixar modelo CSV</button>
+            <input class="is-hidden" id="stockFullCsvInput" type="file" accept=".csv,text/csv">
+          </section>
+
+          <section class="stock-full-admin-panel" id="stockFullAdminPanel" aria-label="Administracao da empresa">
+            <div class="stock-full-panel-heading compact">
+              <div>
+                <h4>Administracao da empresa</h4>
+                <p>Conta, usuarios, importacao e seguranca operacional.</p>
+              </div>
+              <span id="stockFullCompanyStatus">Ativo</span>
+            </div>
+            <div class="stock-full-admin-grid" id="stockFullAdminGrid"></div>
+            <div class="stock-full-import-preview is-hidden" id="stockFullImportPreview">
+              <div class="stock-full-panel-heading compact">
+                <div>
+                  <h4>Pre-visualizacao CSV</h4>
+                  <p id="stockFullImportStatus">Nenhum arquivo selecionado.</p>
+                </div>
+                <button type="button" class="mini-button primary" id="stockFullConfirmImportButton">Confirmar importacao</button>
+              </div>
+              <div id="stockFullImportRows" class="stock-full-import-rows"></div>
+            </div>
           </section>
 
           <header class="stock-full-dashboard-hero">
@@ -1523,9 +1568,9 @@
               <span>Dados reais do estoque com visao executiva para loja e empresa.</span>
             </div>
             <div class="stock-full-dashboard-actions">
-              <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry">+ Entrada rápida</button>
-              <button type="button" class="mini-button" data-stock-full-dashboard-action="exit">- Saída rápida</button>
-              <button type="button" class="mini-button" data-stock-full-dashboard-action="pdf">PDF</button>
+              <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry" data-stock-full-permission="movements:in">+ Entrada rápida</button>
+              <button type="button" class="mini-button" data-stock-full-dashboard-action="exit" data-stock-full-permission="movements:out">- Saída rápida</button>
+              <button type="button" class="mini-button" data-stock-full-dashboard-action="pdf" data-stock-full-permission="reports:view">PDF</button>
             </div>
           </header>
 
@@ -1638,17 +1683,17 @@
             <span class="almox-manager-status" id="almoxAlertsStatus">Alertas ativos</span>
           </div>
           <div class="almox-manager-actions">
-            <button type="button" class="mini-button primary" data-almox-action="item" data-stock-full-text="buttonItem">Cadastrar item</button>
-            <button type="button" class="mini-button primary" data-almox-action="entry">Registrar entrada</button>
-            <button type="button" class="mini-button primary" data-almox-action="exit">Registrar sa&iacute;da</button>
+            <button type="button" class="mini-button primary" data-almox-action="item" data-stock-full-text="buttonItem" data-stock-full-permission="products:create">Cadastrar item</button>
+            <button type="button" class="mini-button primary" data-almox-action="entry" data-stock-full-permission="movements:in">Registrar entrada</button>
+            <button type="button" class="mini-button primary" data-almox-action="exit" data-stock-full-permission="movements:out">Registrar sa&iacute;da</button>
             <a class="mini-button" href="#almoxItemsSection" data-stock-full-text="itemsLink">Itens cadastrados</a>
             <a class="mini-button" href="#almoxHistorySection">Hist&oacute;rico</a>
             <a class="mini-button" href="#almoxSummaryText">Resumo</a>
             <button type="button" class="mini-button" id="almoxViewPanelButton">Visualizar painel</button>
-            <button type="button" class="mini-button" id="almoxManagerAuditButton">Gerar auditoria</button>
+            <button type="button" class="mini-button" id="almoxManagerAuditButton" data-stock-full-permission="reports:audit">Gerar auditoria</button>
             <button type="button" class="mini-button" id="almoxEmailButton">Enviar por e-mail</button>
             <button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button>
-            <button type="button" class="mini-button" id="almoxExportBackupButton">Exportar backup</button>
+            <button type="button" class="mini-button" id="almoxExportBackupButton" data-stock-full-permission="backup:export">Exportar backup</button>
             <button type="button" class="mini-button" id="almoxImportBackupButton">Importar backup</button>
             <button type="button" class="mini-button" id="almoxQuickBackupButton">Baixar c&oacute;pia de seguran&ccedil;a agora</button>
             <button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button>

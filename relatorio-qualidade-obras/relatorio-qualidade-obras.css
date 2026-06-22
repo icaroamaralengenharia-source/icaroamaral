@@ -10388,3 +10388,161 @@ body.stock-full-context .almox-primary-flow .auth-note {
     font-size: 0.9rem;
   }
 }
+
+
+/* Stock Full SaaS aberto 1 */
+body.stock-full-context.stock-full-auth-required .stock-full-dashboard,
+body.stock-full-context.stock-full-auth-required .almox-environment-header,
+body.stock-full-context.stock-full-auth-required .almox-manager-panel,
+body.stock-full-context.stock-full-auth-required .almox-dashboard-panel,
+body.stock-full-context.stock-full-auth-required .almox-priority-card,
+body.stock-full-context.stock-full-auth-required #almoxItemsSection,
+body.stock-full-context.stock-full-auth-required #almoxHistorySection {
+  display: none !important;
+}
+
+body.stock-full-context .stock-full-login-panel {
+  max-width: 980px;
+  margin: 18px auto;
+  padding: 0;
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.2), transparent 34%), #071321;
+  color: #f8fafc;
+}
+
+body.stock-full-context .stock-full-login-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 24px;
+  padding: 24px;
+  align-items: center;
+}
+
+body.stock-full-context .stock-full-login-card h3,
+body.stock-full-context .stock-full-admin-panel h4 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+body.stock-full-context .stock-full-login-card span,
+body.stock-full-context .stock-full-login-card .auth-note,
+body.stock-full-context .stock-full-admin-panel p {
+  color: #a7b2c4;
+}
+
+body.stock-full-context .stock-full-login-form {
+  display: grid;
+  gap: 12px;
+}
+
+body.stock-full-context .stock-full-login-form label {
+  display: grid;
+  gap: 6px;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+body.stock-full-context .stock-full-login-form input,
+body.stock-full-context .stock-full-import-preview input {
+  min-height: 44px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+}
+
+body.stock-full-context .stock-full-brand-block em {
+  display: block;
+  margin-top: 2px;
+  color: #a7b2c4;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+body.stock-full-context .stock-full-admin-panel {
+  order: 4;
+  padding: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 14px;
+  background: rgba(7, 19, 34, 0.92);
+  color: #f8fafc;
+}
+
+body.stock-full-context .stock-full-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+body.stock-full-context .stock-full-admin-card {
+  min-height: 76px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.74);
+}
+
+body.stock-full-context .stock-full-admin-card span {
+  display: block;
+  color: #8ea0b7;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.stock-full-context .stock-full-admin-card strong {
+  display: block;
+  margin-top: 6px;
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
+body.stock-full-context .stock-full-admin-card small {
+  display: block;
+  color: #38bdf8;
+  margin-top: 4px;
+}
+
+body.stock-full-context .stock-full-import-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+body.stock-full-context .stock-full-import-rows {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+body.stock-full-context .stock-full-import-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 0.8fr 0.8fr 0.6fr;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #dbeafe;
+  font-size: 0.82rem;
+}
+
+body.stock-full-context [data-stock-full-permission][disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+@media (max-width: 760px) {
+  body.stock-full-context .stock-full-login-card,
+  body.stock-full-context .stock-full-admin-grid,
+  body.stock-full-context .stock-full-import-row {
+    grid-template-columns: 1fr;
+  }
+
+  body.stock-full-context .stock-full-login-card {
+    padding: 18px;
+  }
+}

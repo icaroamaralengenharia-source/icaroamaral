@@ -149,6 +149,23 @@
   const almoxDashboardRisk = document.getElementById("almoxDashboardRisk");
   const almoxDashboardExpiration = document.getElementById("almoxDashboardExpiration");
   const almoxDashboardTrend = document.getElementById("almoxDashboardTrend");
+  const stockFullLoginPanel = document.getElementById("stockFullLoginPanel");
+  const stockFullLoginForm = document.getElementById("stockFullLoginForm");
+  const stockFullLoginStatus = document.getElementById("stockFullLoginStatus");
+  const stockFullCompanyName = document.getElementById("stockFullCompanyName");
+  const stockFullUserMeta = document.getElementById("stockFullUserMeta");
+  const stockFullAvatar = document.getElementById("stockFullAvatar");
+  const stockFullLogoutButton = document.getElementById("stockFullLogoutButton");
+  const stockFullImportButton = document.getElementById("stockFullImportButton");
+  const stockFullTemplateButton = document.getElementById("stockFullTemplateButton");
+  const stockFullCsvInput = document.getElementById("stockFullCsvInput");
+  const stockFullAdminPanel = document.getElementById("stockFullAdminPanel");
+  const stockFullAdminGrid = document.getElementById("stockFullAdminGrid");
+  const stockFullImportPreview = document.getElementById("stockFullImportPreview");
+  const stockFullImportStatus = document.getElementById("stockFullImportStatus");
+  const stockFullImportRows = document.getElementById("stockFullImportRows");
+  const stockFullConfirmImportButton = document.getElementById("stockFullConfirmImportButton");
+  const stockFullCompanyStatus = document.getElementById("stockFullCompanyStatus");
   const stockFullDashboard = document.getElementById("stockFullDashboard");
   const stockFullMetricCards = document.getElementById("stockFullMetricCards");
   const stockFullQuickSearch = document.getElementById("stockFullQuickSearch");
@@ -233,6 +250,7 @@
   const STOCK_MODE_STORAGE_KEY = "obrareport_stock_mode_v1";
   const ALMOX_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const ALMOX_BACKUP_SCHEMA_VERSION = "1.0";
+  const STOCK_FULL_SESSION_STORAGE_KEY = "stockFullSession";
   const ALMOX_LAST_IMPORT_SAFETY_BACKUP_KEY = "obraReportAlmoxarifadoBackupBeforeImport";
   const STOCK_AI_COMPOSITIONS_LIBRARY_VERSION = "1.2";
   const STOCK_AI_DEMO_COMPOSITION_SOURCE = "Base técnica demonstrativa/editável";
@@ -1838,12 +1856,20 @@
 
       if (stockFullAction) {
         event.preventDefault();
+        if (stockFullAction.dataset.stockFullPermission && !canStockFull_(stockFullAction.dataset.stockFullPermission)) {
+          showAlmoxToast_("Usuario sem permissao para esta acao.", "error");
+          return;
+        }
         handleStockFullDashboardAction_(stockFullAction.dataset.stockFullDashboardAction || "summary");
         return;
       }
 
       if (managerShortcut) {
         event.preventDefault();
+        if (managerShortcut.dataset.stockFullPermission && !canStockFull_(managerShortcut.dataset.stockFullPermission)) {
+          showAlmoxToast_("Usuario sem permissao para esta acao.", "error");
+          return;
+        }
         const shortcut = managerShortcut.dataset.almoxManagerShortcut || "";
         if (shortcut === "audit") {
           handleGenerateAlmoxAudit_();
@@ -1919,6 +1945,10 @@
       }
 
       event.preventDefault();
+      if (actionButton.dataset.stockFullPermission && !canStockFull_(actionButton.dataset.stockFullPermission)) {
+        showAlmoxToast_("Usuario sem permissao para esta acao.", "error");
+        return;
+      }
       openAlmoxModal_(actionButton.dataset.almoxAction || "item", {
         itemId: actionButton.dataset.almoxItemId || ""
       });
@@ -1963,6 +1993,50 @@
       stockFullQuickSearch.addEventListener("input", renderStockFullDashboard_);
     }
 
+    if (stockFullLoginForm) {
+      stockFullLoginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const formData = new FormData(stockFullLoginForm);
+        handleStockFullLogin_(formData.get("email"), formData.get("password"));
+      });
+    }
+
+    document.querySelectorAll("[data-stock-full-demo-login]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        handleStockFullLogin_("manoel@manoelimportados.com", "123456");
+      });
+    });
+
+    if (stockFullLogoutButton) {
+      stockFullLogoutButton.addEventListener("click", clearStockFullSession_);
+    }
+
+    if (stockFullImportButton) {
+      stockFullImportButton.addEventListener("click", function () {
+        if (!canStockFull_("products:import")) {
+          showAlmoxToast_("Usuario sem permissao para importar produtos.", "error");
+          return;
+        }
+        if (stockFullCsvInput) stockFullCsvInput.click();
+      });
+    }
+
+    if (stockFullTemplateButton) {
+      stockFullTemplateButton.addEventListener("click", downloadStockFullCsvTemplate_);
+    }
+
+    if (stockFullCsvInput) {
+      stockFullCsvInput.addEventListener("change", function () {
+        const file = stockFullCsvInput.files && stockFullCsvInput.files[0];
+        if (file) handleStockFullCsvFile_(file);
+        stockFullCsvInput.value = "";
+      });
+    }
+
+    if (stockFullConfirmImportButton) {
+      stockFullConfirmImportButton.addEventListener("click", confirmStockFullCsvImport_);
+    }
+
     if (almoxItemForm) {
       almoxItemForm.addEventListener("submit", handleAlmoxItemSubmit_);
     }
@@ -1995,6 +2069,10 @@
 
     if (almoxManagerAuditButton) {
       almoxManagerAuditButton.addEventListener("click", function () {
+        if (!canStockFull_("reports:audit")) {
+          showAlmoxToast_("Usuario sem permissao para gerar auditoria.", "error");
+          return;
+        }
         handleGenerateAlmoxAudit_();
       });
     }
@@ -2024,6 +2102,10 @@
 
     if (almoxExportBackupButton) {
       almoxExportBackupButton.addEventListener("click", function () {
+        if (!canStockFull_("backup:export")) {
+          showAlmoxToast_("Usuario sem permissao para exportar backup.", "error");
+          return;
+        }
         handleExportAlmoxBackup_();
       });
     }
@@ -8155,6 +8237,331 @@
     showStockIaToast_(copied ? "Resumo do estoque gerado e copiado." : "Resumo gerado. Copie o texto na resposta do assistente.", copied ? "success" : "info");
   }
 
+  const STOCK_FULL_COMPANIES = [
+    { companyId: "company_manoel_importados", companyName: "Manoel Importados", document: "", phone: "", responsibleName: "Manoel", createdAt: "2026-06-22T00:00:00.000Z", status: "Ativo" },
+    { companyId: "company_loja_teste_sul", companyName: "Loja Teste Sul", document: "", phone: "", responsibleName: "Ana Sul", createdAt: "2026-06-22T00:00:00.000Z", status: "Ativo" }
+  ];
+
+  const STOCK_FULL_USERS = [
+    { userId: "user_manoel", userName: "Manoel", userEmail: "manoel@manoelimportados.com", password: "123456", companyId: "company_manoel_importados", companyName: "Manoel Importados", role: "admin" },
+    { userId: "user_joao_estoque", userName: "Joao Estoque", userEmail: "joao@manoelimportados.com", password: "123456", companyId: "company_manoel_importados", companyName: "Manoel Importados", role: "estoquista" },
+    { userId: "user_carla_vendas", userName: "Carla Vendas", userEmail: "carla@manoelimportados.com", password: "123456", companyId: "company_manoel_importados", companyName: "Manoel Importados", role: "vendedor" },
+    { userId: "user_sul_admin", userName: "Loja Sul", userEmail: "sul@lojateste.com", password: "123456", companyId: "company_loja_teste_sul", companyName: "Loja Teste Sul", role: "admin" }
+  ];
+
+  const STOCK_FULL_ROLE_PERMISSIONS = {
+    admin: ["products:create", "products:update", "movements:in", "movements:out", "reports:view", "reports:audit", "backup:export", "users:manage", "products:import"],
+    estoquista: ["products:create", "products:update", "movements:in", "movements:out", "reports:view", "reports:audit"],
+    vendedor: ["movements:out", "reports:view"],
+    leitura: ["reports:view"]
+  };
+
+  let stockFullPendingCsvRows = [];
+
+  function getCurrentStockFullSession_() {
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(STOCK_FULL_SESSION_STORAGE_KEY) : "";
+      const session = raw ? JSON.parse(raw) : null;
+      return session && session.isAuthenticated ? session : { isAuthenticated: false };
+    } catch (error) {
+      return { isAuthenticated: false };
+    }
+  }
+
+  function getCurrentCompanyId_() {
+    const session = getCurrentStockFullSession_();
+    return clean(session.companyId);
+  }
+
+  function requireStockFullAuth_() {
+    if (!isStockFullContext_()) {
+      return true;
+    }
+    return Boolean(getCurrentStockFullSession_().isAuthenticated && getCurrentCompanyId_());
+  }
+
+  function filterStockFullByCompany_(items) {
+    const companyId = getCurrentCompanyId_();
+    if (!isStockFullContext_() || !companyId) {
+      return items || [];
+    }
+    return (items || []).filter(function (item) {
+      return clean(item.companyId) === companyId;
+    });
+  }
+
+  function createCompanyScopedRecord_(record) {
+    const session = getCurrentStockFullSession_();
+    const companyId = clean(session.companyId);
+    const environmentId = getStockFullCompanyEnvironmentId_(companyId);
+    return Object.assign({}, record || {}, {
+      companyId: companyId,
+      environmentId: environmentId || clean(record && record.environmentId),
+      createdBy: clean((record && record.createdBy) || session.userId || session.userEmail)
+    });
+  }
+
+  function canStockFull_(permission) {
+    if (!isStockFullContext_()) return true;
+    const session = getCurrentStockFullSession_();
+    if (!session.isAuthenticated) return false;
+    const permissions = STOCK_FULL_ROLE_PERMISSIONS[session.role] || [];
+    return permissions.indexOf(permission) >= 0;
+  }
+
+  function getStockFullCompany_(companyId) {
+    return STOCK_FULL_COMPANIES.find(function (company) { return company.companyId === companyId; }) || STOCK_FULL_COMPANIES[0];
+  }
+
+  function getStockFullCompanyEnvironmentId_(companyId) {
+    return companyId ? "env_" + companyId : DEFAULT_STOCK_ENVIRONMENT_ID;
+  }
+
+  function ensureStockFullCompanyEnvironment_() {
+    if (!isStockFullContext_() || !requireStockFullAuth_()) return;
+    const session = getCurrentStockFullSession_();
+    const state = loadAlmoxState_();
+    const environmentId = getStockFullCompanyEnvironmentId_(session.companyId);
+    if (!state.stockEnvironments.some(function (environment) { return environment.id === environmentId; })) {
+      state.stockEnvironments.push({
+        id: environmentId,
+        companyId: session.companyId,
+        mode: "almoxarifado",
+        clientName: session.companyName,
+        workName: "",
+        institutionType: "Empresa",
+        unitName: session.companyName,
+        environmentName: "Estoque principal",
+        responsible: session.userName,
+        managerEmail: session.userEmail,
+        warehouseEmail: "",
+        createdAt: new Date().toISOString()
+      });
+    }
+    state.activeStockEnvironmentId = environmentId;
+    saveAlmoxState_(state);
+  }
+
+  function setStockFullSession_(session) {
+    const previous = getCurrentStockFullSession_();
+    const storage = getLocalStorage_();
+    if (storage) {
+      storage.setItem(STOCK_FULL_SESSION_STORAGE_KEY, JSON.stringify(session));
+    }
+    if (clean(previous.companyId) !== clean(session.companyId)) {
+      almoxLastSummaryText = "";
+      almoxLastAuditText = "";
+      almoxSearchTerm = "";
+      if (almoxSearchInput) almoxSearchInput.value = "";
+      if (stockFullQuickSearch) stockFullQuickSearch.value = "";
+      if (almoxGeneratedReport) almoxGeneratedReport.classList.add("is-hidden");
+    }
+    ensureStockFullCompanyEnvironment_();
+    renderAlmoxarifadoPanel_();
+  }
+
+  function clearStockFullSession_() {
+    const storage = getLocalStorage_();
+    if (storage) storage.removeItem(STOCK_FULL_SESSION_STORAGE_KEY);
+    stockFullPendingCsvRows = [];
+    renderAlmoxarifadoPanel_();
+  }
+
+  function handleStockFullLogin_(email, password) {
+    const user = STOCK_FULL_USERS.find(function (candidate) {
+      return clean(candidate.userEmail).toLowerCase() === clean(email).toLowerCase() && String(candidate.password) === String(password || "");
+    });
+    if (!user) {
+      if (stockFullLoginStatus) stockFullLoginStatus.textContent = "E-mail ou senha invalidos.";
+      return false;
+    }
+    setStockFullSession_({
+      isAuthenticated: true,
+      userId: user.userId,
+      userName: user.userName,
+      userEmail: user.userEmail,
+      companyId: user.companyId,
+      companyName: user.companyName,
+      role: user.role
+    });
+    return true;
+  }
+
+  function renderStockFullSaasShell_() {
+    if (!isStockFullContext_()) return true;
+    const authenticated = requireStockFullAuth_();
+    document.body.classList.toggle("stock-full-auth-required", !authenticated);
+    if (stockFullLoginPanel) stockFullLoginPanel.classList.toggle("is-hidden", authenticated);
+    if (stockFullDashboard) stockFullDashboard.classList.toggle("is-hidden", !authenticated);
+    if (!authenticated) {
+      if (stockFullCompanyName) stockFullCompanyName.textContent = "Gestao completa de estoque";
+      if (stockFullUserMeta) stockFullUserMeta.textContent = "Usuario: acesso necessario";
+      if (stockFullAvatar) stockFullAvatar.textContent = "SF";
+      return false;
+    }
+    ensureStockFullCompanyEnvironment_();
+    const session = getCurrentStockFullSession_();
+    if (stockFullCompanyName) stockFullCompanyName.textContent = session.companyName;
+    if (stockFullUserMeta) stockFullUserMeta.textContent = "Usuario: " + session.userName + " · " + formatStockFullRole_(session.role);
+    if (stockFullAvatar) stockFullAvatar.textContent = clean(session.userName).slice(0, 2).toUpperCase() || "SF";
+    return true;
+  }
+
+  function formatStockFullRole_(role) {
+    return role === "admin" ? "Admin" : (role === "estoquista" ? "Estoquista" : (role === "vendedor" ? "Vendedor" : "Leitura"));
+  }
+
+  function applyStockFullPermissions_() {
+    if (!isStockFullContext_()) return;
+    Array.from(document.querySelectorAll("[data-stock-full-permission]")).forEach(function (element) {
+      const allowed = canStockFull_(element.dataset.stockFullPermission || "");
+      element.toggleAttribute("disabled", !allowed);
+      element.setAttribute("aria-disabled", allowed ? "false" : "true");
+    });
+  }
+
+  function renderStockFullAdminPanel_() {
+    if (!stockFullAdminGrid || !requireStockFullAuth_()) return;
+    const session = getCurrentStockFullSession_();
+    const company = getStockFullCompany_(session.companyId);
+    const state = loadAlmoxState_();
+    const products = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const users = STOCK_FULL_USERS.filter(function (user) { return user.companyId === session.companyId; });
+    const backupKey = "stockFullLastBackup_" + session.companyId;
+    const lastBackup = clean(getLocalStorage_() && getLocalStorage_().getItem(backupKey)) || "Ainda nao exportado";
+    if (stockFullCompanyStatus) stockFullCompanyStatus.textContent = company.status || "Ativo";
+    stockFullAdminGrid.innerHTML = [
+      ["Empresa", company.companyName, company.document || "Documento pendente"],
+      ["Usuario logado", session.userName, formatStockFullRole_(session.role)],
+      ["Usuarios", users.length, users.map(function (user) { return user.userName + " - " + formatStockFullRole_(user.role); }).join(" | ")],
+      ["Produtos", products.length, "Empresa isolada"],
+      ["Ultimo backup", lastBackup, "Exportacao por empresa"],
+      ["Status", company.status || "Ativo", "Conta operacional"]
+    ].map(function (item) {
+      return "<article class=\"stock-full-admin-card\"><span>" + escapeHtml_(item[0]) + "</span><strong>" + escapeHtml_(String(item[1])) + "</strong><small>" + escapeHtml_(String(item[2])) + "</small></article>";
+    }).join("");
+  }
+
+  function parseStockFullCsv_(text) {
+    const lines = String(text || "").split(/\r?\n/).filter(function (line) { return clean(line); });
+    if (lines.length < 2) return [];
+    const headers = splitStockFullCsvLine_(lines[0]).map(function (header) { return clean(header); });
+    return lines.slice(1).map(function (line) {
+      const values = splitStockFullCsvLine_(line);
+      return headers.reduce(function (record, header, index) {
+        record[header] = clean(values[index]);
+        return record;
+      }, {});
+    }).filter(function (record) { return clean(record.name) && clean(record.unit); });
+  }
+
+  function splitStockFullCsvLine_(line) {
+    const result = [];
+    let value = "";
+    let quoted = false;
+    String(line || "").split("").forEach(function (char) {
+      if (char === '"') { quoted = !quoted; return; }
+      if (char === "," && !quoted) { result.push(value); value = ""; return; }
+      value += char;
+    });
+    result.push(value);
+    return result;
+  }
+
+  function handleStockFullCsvFile_(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      stockFullPendingCsvRows = parseStockFullCsv_(String(event.target && event.target.result || ""));
+      renderStockFullImportPreview_();
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  function renderStockFullImportPreview_() {
+    if (!stockFullImportPreview || !stockFullImportRows || !stockFullImportStatus) return;
+    stockFullImportPreview.classList.remove("is-hidden");
+    stockFullImportStatus.textContent = stockFullPendingCsvRows.length + " produto(s) valido(s) encontrados.";
+    stockFullImportRows.innerHTML = stockFullPendingCsvRows.slice(0, 5).map(function (row) {
+      return "<article class=\"stock-full-import-row\"><strong>" + escapeHtml_(row.name) + "</strong><span>" + escapeHtml_(row.sku || "sem SKU") + "</span><span>" + escapeHtml_(row.category || "Geral") + "</span><span>" + escapeHtml_(row.currentStock || "0") + " " + escapeHtml_(row.unit || "un") + "</span></article>";
+    }).join("");
+  }
+
+  function confirmStockFullCsvImport_() {
+    if (!canStockFull_("products:import")) { showAlmoxToast_("Usuario sem permissao para importar produtos.", "error"); return; }
+    if (!stockFullPendingCsvRows.length) { showAlmoxToast_("Selecione um CSV valido antes de importar.", "error"); return; }
+    const state = loadAlmoxState_();
+    const companyId = getCurrentCompanyId_();
+    const environmentId = getStockFullCompanyEnvironmentId_(companyId);
+    const now = new Date().toISOString();
+    stockFullPendingCsvRows.forEach(function (row) {
+      const item = createCompanyScopedRecord_({
+        id: createId_("alm"),
+        fiscalCode: row.sku,
+        sku: row.sku,
+        name: row.name,
+        category: row.category || "Geral",
+        unit: row.unit || "un",
+        initialQuantity: 0,
+        minimumStock: parseNumber_(row.minStock),
+        minStock: parseNumber_(row.minStock),
+        currentStock: parseNumber_(row.currentStock),
+        costPrice: parseNumber_(row.costPrice),
+        salePrice: parseNumber_(row.salePrice),
+        supplier: row.supplier,
+        location: "",
+        expirationDate: "",
+        notes: "Importado por CSV.",
+        createdAt: now,
+        updatedAt: now
+      });
+      item.environmentId = environmentId;
+      state.items.push(item);
+      if (parseNumber_(row.currentStock) > 0) {
+        state.movements.push(createCompanyScopedRecord_({
+          id: createId_("almmov"),
+          environmentId: environmentId,
+          itemId: item.id,
+          productId: item.id,
+          type: "entrada",
+          quantity: parseNumber_(row.currentStock),
+          unitCost: parseNumber_(row.costPrice),
+          total: parseNumber_(row.currentStock) * parseNumber_(row.costPrice),
+          reason: "Importacao CSV",
+          responsible: getCurrentStockFullSession_().userName,
+          documentNumber: "CSV",
+          date: getDefaultAlmoxMovementDate_(),
+          movementDate: getDefaultAlmoxMovementDate_(),
+          movementTime: getDefaultAlmoxMovementTime_(),
+          movementDateTime: buildAlmoxMovementDateTime_(getDefaultAlmoxMovementDate_(), getDefaultAlmoxMovementTime_()),
+          notes: "Saldo inicial importado por CSV.",
+          createdAt: now
+        }));
+      }
+    });
+    saveAlmoxState_(state);
+    stockFullPendingCsvRows = [];
+    if (stockFullImportPreview) stockFullImportPreview.classList.add("is-hidden");
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_("Produtos importados para a empresa atual.", "success");
+  }
+
+  function downloadStockFullCsvTemplate_() {
+    const csv = "name,sku,category,unit,currentStock,minStock,costPrice,salePrice,supplier\n" +
+      "Cimento CP-II 50kg,CIM-001,Material de Construcao,saco,100,20,24.50,32.00,Fornecedor A\n" +
+      "Tubo PVC 100mm,TUB-100,Hidraulica,un,30,10,55.00,79.90,Fornecedor B\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "stock-full-modelo-produtos.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   function loadAlmoxState_() {
     try {
       const storage = getLocalStorage_();
@@ -8219,7 +8626,10 @@
   function buildAlmoxBackupPayload_(options) {
     const settings = options || {};
     const state = loadAlmoxState_();
-    const movements = Array.isArray(state.movements) ? state.movements : [];
+    const session = getCurrentStockFullSession_();
+    const company = getStockFullCompany_(session.companyId);
+    const companyItems = filterAlmoxItemsByActiveEnvironment_(state.items);
+    const movements = filterAlmoxMovementsByActiveEnvironment_(Array.isArray(state.movements) ? state.movements : []);
     const entries = movements.filter(function (movement) {
       return movement && movement.type === "entrada";
     });
@@ -8236,7 +8646,12 @@
       exportedAt: new Date().toISOString(),
       backupType: settings.quick ? "copia-seguranca-rapida" : "exportacao-manual",
       data: {
-        produtos: JSON.parse(JSON.stringify(state.items || [])),
+        company: JSON.parse(JSON.stringify(company || {})),
+        user: JSON.parse(JSON.stringify(session || {})),
+        products: JSON.parse(JSON.stringify(companyItems || [])),
+        movements: JSON.parse(JSON.stringify(movements)),
+        audit: almoxLastAuditText || buildAlmoxAuditText_(),
+        produtos: JSON.parse(JSON.stringify(companyItems || [])),
         entradas: JSON.parse(JSON.stringify(entries)),
         saidas: JSON.parse(JSON.stringify(exits)),
         historico: JSON.parse(JSON.stringify(movements)),
@@ -8256,15 +8671,15 @@
 
   function getAlmoxBackupFileName_() {
     const now = new Date();
+    const session = getCurrentStockFullSession_();
+    const companySlug = normalizeStockEnvironmentTitlePart_(session.companyName || "stock-full").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "stock-full";
     const pad = function (value) {
       return String(value).padStart(2, "0");
     };
-    return "stock-full-backup-" +
+    return "stock-full-backup-" + companySlug + "-" +
       now.getFullYear() + "-" +
       pad(now.getMonth() + 1) + "-" +
-      pad(now.getDate()) + "-" +
-      pad(now.getHours()) + "-" +
-      pad(now.getMinutes()) + ".json";
+      pad(now.getDate()) + ".json";
   }
 
   function downloadAlmoxBackupPayload_(payload, fileName) {
@@ -8284,7 +8699,11 @@
 
   function handleExportAlmoxBackup_(options) {
     try {
-      downloadAlmoxBackupPayload_(buildAlmoxBackupPayload_(options || {}));
+      const payload = buildAlmoxBackupPayload_(options || {});
+      downloadAlmoxBackupPayload_(payload);
+      const storage = getLocalStorage_();
+      const companyId = getCurrentCompanyId_();
+      if (storage && companyId) storage.setItem("stockFullLastBackup_" + companyId, formatDateOnly_(payload.exportedAt));
       showAlmoxToast_((options && options.quick) ? "Copia de seguranca baixada." : "Backup do Stock Full exportado.", "success");
     } catch (error) {
       console.warn("Nao foi possivel exportar backup do almoxarifado.", error);
@@ -8435,30 +8854,27 @@
 
     safeState.items = safeState.items.map(function (item) {
       const environmentId = clean(item.environmentId);
-      if (environmentId && environmentIds.has(environmentId)) {
-        return item;
-      }
-
-      return Object.assign({}, item, {
+      const currentCompanyId = isStockFullContext_() ? getCurrentCompanyId_() : "";
+      const nextItem = environmentId && environmentIds.has(environmentId) ? item : Object.assign({}, item, {
         environmentId: safeState.activeStockEnvironmentId
       });
+      if (currentCompanyId && !clean(nextItem.companyId)) {
+        return Object.assign({}, nextItem, { companyId: currentCompanyId });
+      }
+      return nextItem;
     });
 
     safeState.movements = safeState.movements.map(function (movement) {
       const environmentId = clean(movement.environmentId);
-      if (environmentId && environmentIds.has(environmentId)) {
-        return movement;
+      const currentCompanyId = isStockFullContext_() ? getCurrentCompanyId_() : "";
+      const relatedItem = safeState.items.find(function (item) { return item.id === movement.itemId; });
+      const nextMovement = environmentId && environmentIds.has(environmentId) ? movement : Object.assign({}, movement, {
+        environmentId: relatedItem && relatedItem.environmentId ? relatedItem.environmentId : safeState.activeStockEnvironmentId
+      });
+      if (currentCompanyId && !clean(nextMovement.companyId)) {
+        return Object.assign({}, nextMovement, { companyId: currentCompanyId, productId: nextMovement.productId || nextMovement.itemId });
       }
-
-      const relatedItem = safeState.items.find(function (item) {
-        return item.id === movement.itemId;
-      });
-
-      return Object.assign({}, movement, {
-        environmentId: relatedItem && relatedItem.environmentId
-          ? relatedItem.environmentId
-          : safeState.activeStockEnvironmentId
-      });
+      return nextMovement;
     });
 
     safeState.alertHistory = safeState.alertHistory.map(function (alert) {
@@ -8709,14 +9125,14 @@
 
   function filterAlmoxItemsByActiveEnvironment_(items) {
     const environmentId = getActiveStockEnvironmentId_();
-    return (items || []).filter(function (item) {
+    return filterStockFullByCompany_(items || []).filter(function (item) {
       return clean(item.environmentId) === environmentId;
     });
   }
 
   function filterAlmoxMovementsByActiveEnvironment_(movements) {
     const environmentId = getActiveStockEnvironmentId_();
-    return (movements || []).filter(function (movement) {
+    return filterStockFullByCompany_(movements || []).filter(function (movement) {
       return clean(movement.environmentId) === environmentId;
     });
   }
@@ -9071,60 +9487,61 @@
     const defaultMovementTime = getDefaultAlmoxMovementTime_();
 
     if (!name) {
-      return {
-        ok: false,
-        message: "Informe o nome do item."
-      };
+      return { ok: false, message: "Informe o nome do item." };
     }
 
     if (initialQuantity < 0 || minimumStock < 0) {
-      return {
-        ok: false,
-        message: "Informe quantidades iguais ou maiores que zero."
-      };
+      return { ok: false, message: "Informe quantidades iguais ou maiores que zero." };
     }
 
-    const item = {
+    const item = createCompanyScopedRecord_({
       id: createId_("alm"),
       environmentId: environmentId,
-      fiscalCode: clean(formData.get("fiscalCode")),
+      fiscalCode: clean(formData.get("fiscalCode") || formData.get("sku")),
+      sku: clean(formData.get("sku") || formData.get("fiscalCode")),
       name: name,
       category: clean(formData.get("category")) || "Geral",
       unit: clean(formData.get("unit")) || "un",
       initialQuantity: 0,
       minimumStock: minimumStock,
+      minStock: minimumStock,
+      currentStock: initialQuantity,
+      costPrice: parseNumber_(formData.get("costPrice")),
+      salePrice: parseNumber_(formData.get("salePrice")),
+      supplier: clean(formData.get("supplier")),
       location: clean(formData.get("location")),
       expirationDate: clean(formData.get("expirationDate")),
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    };
+    });
     state.items.push(item);
 
     if (initialQuantity > 0) {
-      state.movements.push({
+      state.movements.push(createCompanyScopedRecord_({
         id: createId_("almmov"),
         environmentId: environmentId,
         itemId: item.id,
+        productId: item.id,
         type: "entrada",
         quantity: initialQuantity,
-        responsible: "Saldo inicial",
+        responsible: getCurrentStockFullSession_().userName || "Saldo inicial",
         documentNumber: "",
+        unitCost: parseNumber_(formData.get("costPrice")),
+        total: initialQuantity * parseNumber_(formData.get("costPrice")),
+        reason: "Saldo inicial",
         date: defaultMovementDate,
         movementDate: defaultMovementDate,
         movementTime: defaultMovementTime,
         movementDateTime: buildAlmoxMovementDateTime_(defaultMovementDate, defaultMovementTime),
         notes: "Entrada inicial do cadastro.",
         createdAt: new Date().toISOString()
-      });
+      }));
     }
 
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
-    return {
-      ok: true,
-      item: item
-    };
+    return { ok: true, item: item };
   }
 
   function saveAlmoxEntryFromFormData_(formData) {
@@ -9137,39 +9554,35 @@
     const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
 
     if (!itemId || quantity <= 0) {
-      return {
-        ok: false,
-        message: "Escolha um item e informe a quantidade de entrada."
-      };
+      return { ok: false, message: "Escolha um item e informe a quantidade de entrada." };
     }
 
-    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId; })) {
-      return {
-        ok: false,
-        message: "Material não encontrado no almoxarifado."
-      };
+    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId && (!getCurrentCompanyId_() || clean(item.companyId) === getCurrentCompanyId_()); })) {
+      return { ok: false, message: "Material não encontrado no almoxarifado." };
     }
 
-    state.movements.push({
+    state.movements.push(createCompanyScopedRecord_({
       id: createId_("almmov"),
       environmentId: environmentId,
       itemId: itemId,
+      productId: itemId,
       type: "entrada",
       quantity: quantity,
-      responsible: clean(formData.get("responsible")),
+      responsible: clean(formData.get("responsible")) || getCurrentStockFullSession_().userName,
       documentNumber: clean(formData.get("documentNumber")),
+      unitCost: parseNumber_(formData.get("unitCost")),
+      total: quantity * parseNumber_(formData.get("unitCost")),
+      reason: clean(formData.get("reason")) || "Entrada",
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
       movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
-    });
+    }));
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
-    return {
-      ok: true
-    };
+    return { ok: true };
   }
 
   function saveAlmoxExitFromFormData_(formData) {
@@ -9182,49 +9595,42 @@
     const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
 
     if (!itemId || quantity <= 0) {
-      return {
-        ok: false,
-        message: "Escolha um item e informe a quantidade de saída."
-      };
+      return { ok: false, message: "Escolha um item e informe a quantidade de saída." };
     }
 
-    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId; })) {
-      return {
-        ok: false,
-        message: "Material não encontrado no almoxarifado."
-      };
+    if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId && (!getCurrentCompanyId_() || clean(item.companyId) === getCurrentCompanyId_()); })) {
+      return { ok: false, message: "Material não encontrado no almoxarifado." };
     }
 
     const balance = getAlmoxItemBalance_(itemId, state);
     if (quantity > balance) {
-      return {
-        ok: false,
-        message: "Saldo insuficiente para esta saída."
-      };
+      return { ok: false, message: "Saldo insuficiente para esta saída." };
     }
 
-    state.movements.push({
+    state.movements.push(createCompanyScopedRecord_({
       id: createId_("almmov"),
       environmentId: environmentId,
       itemId: itemId,
+      productId: itemId,
       type: "saida",
       quantity: quantity,
       recipient: clean(formData.get("recipient")),
       sector: clean(formData.get("sector")),
       purpose: clean(formData.get("purpose")),
-      responsible: clean(formData.get("responsible")),
+      responsible: clean(formData.get("responsible")) || getCurrentStockFullSession_().userName,
+      unitCost: 0,
+      total: 0,
+      reason: clean(formData.get("purpose")) || "Saida",
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
       movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
-    });
+    }));
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
-    return {
-      ok: true
-    };
+    return { ok: true };
   }
 
   function handleImportAlmoxXmlNote_(file) {
@@ -11236,6 +11642,10 @@
     ensureAlmoxEnvironmentMigrationPersisted_();
     applyStockAiPublicUrlContext_();
     startStockDemoRemoteSync_();
+    if (isStockFullContext_() && !renderStockFullSaasShell_()) {
+      applyStockFullPermissions_();
+      return;
+    }
     renderActiveStockEnvironmentHeader_();
     renderAlmoxDemoAccessPanel_();
     renderAlmoxSelects_();
@@ -11247,6 +11657,8 @@
     renderAlmoxItems_();
     renderAlmoxHistory_();
     renderAlmoxParsedNoteItems_();
+    renderStockFullAdminPanel_();
+    applyStockFullPermissions_();
 
     if (almoxSummaryText) {
       almoxSummaryText.textContent = buildAlmoxSummaryText_();
@@ -11357,10 +11769,14 @@
       appendStockIaTextarea_(form, "notes", "Observação", "");
     } else {
       appendStockIaField_(form, "name", "Nome do item", "text", "", true);
+      appendStockIaField_(form, "sku", "SKU / codigo", "text", "", false);
       appendStockIaField_(form, "category", "Categoria", "text", "", false);
       appendStockIaField_(form, "unit", "Unidade", "text", "un", true);
       appendStockIaField_(form, "initialQuantity", "Quantidade inicial", "number", "", false, "0.001");
       appendStockIaField_(form, "minimumStock", "Estoque mínimo", "number", "", false, "0.001");
+      appendStockIaField_(form, "costPrice", "Custo unitario", "number", "", false, "0.01");
+      appendStockIaField_(form, "salePrice", "Preco de venda", "number", "", false, "0.01");
+      appendStockIaField_(form, "supplier", "Fornecedor", "text", "", false);
       appendStockIaField_(form, "location", "Local/almoxarifado", "text", "", false);
       appendStockIaField_(form, "expirationDate", "Data de vencimento", "date", "", false);
       appendStockIaTextarea_(form, "notes", "Observação", "");
