@@ -176,6 +176,10 @@
   const stockFullActivityList = document.getElementById("stockFullActivityList");
   const stockFullEntryList = document.getElementById("stockFullEntryList");
   const stockFullExitList = document.getElementById("stockFullExitList");
+  const stockFullSecondaryCards = document.getElementById("stockFullSecondaryCards");
+  const stockFullCategoryChart = document.getElementById("stockFullCategoryChart");
+  const stockFullEvolutionChart = document.getElementById("stockFullEvolutionChart");
+  const stockFullAiList = document.getElementById("stockFullAiList");
   const almoxActionMessage = document.getElementById("almoxActionMessage");
   const almoxModal = document.getElementById("almoxModal");
   const almoxNoteTextInput = document.getElementById("almoxNoteTextInput");
@@ -332,17 +336,21 @@
     editable: false
   };
 
+  const isStockFullIsolatedApp_ = Boolean(document.body && document.body.dataset && document.body.dataset.stockFullApp === "true");
+
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
     todayInput.valueAsDate = new Date();
   }
 
-  renderFotoUnidadeFields();
-  renderInconformidadeFields();
-  initializeWizard_();
-  initializeDraft_();
-  initializeAiAssistant_();
-  initializeDailyLogModule_();
+  if (!isStockFullIsolatedApp_) {
+    renderFotoUnidadeFields();
+    renderInconformidadeFields();
+    initializeWizard_();
+    initializeDraft_();
+    initializeAiAssistant_();
+    initializeDailyLogModule_();
+  }
   initializeSaas_();
 
   if (openReportButton && homePanel && reportPanel) {
@@ -1222,7 +1230,7 @@
     applyStockAiPublicMode_();
     applyStockFullContext_();
 
-    if ((isStockAiPublicDemo_() || isStockFullContext_()) && (!currentUser || !hasLocalAccessSession_())) {
+    if ((isStockAiPublicDemo_() || (isStockFullContext_() && !isStockFullIsolatedApp_)) && (!currentUser || !hasLocalAccessSession_())) {
       loginLocalFallback_(isStockFullContext_() ? "Visitante Stock Full" : "Visitante Stock AI", isStockFullContext_() ? "demo@stock-full.local" : "demo@stock-ai.local");
       return;
     }
@@ -1276,7 +1284,13 @@
   }
 
   function isStockFullContext_() {
-    return clean(getCurrentUrlParams_().get("produto")).toLowerCase() === "stock-full";
+    if (clean(getCurrentUrlParams_().get("produto")).toLowerCase() === "stock-full") {
+      return true;
+    }
+    if (document.body && document.body.dataset && document.body.dataset.stockFullApp === "true") {
+      return true;
+    }
+    return /(^|\/)(stock-full-app|stockfull)\.html$/i.test(clean(window.location.pathname));
   }
 
   function getStockFullProfile_() {
@@ -1802,7 +1816,7 @@
     setStockFullText_("title", "Stock Full");
     setStockFullText_("description", "Saiba o que entrou, o que saiu e o que precisa comprar. Controle estoque com saldo, alertas, historico e painel do gestor.");
     setStockFullText_("managerEyebrow", profile === "gestor" ? "Gestao do estoque" : "Operacao da loja");
-    setStockFullText_("managerTitle", profile === "gestor" ? "Central do Gestor" : "Central da Loja");
+    setStockFullText_("managerTitle", isStockFullIsolatedApp_ ? "Central do Stock Full" : (profile === "gestor" ? "Central do Gestor" : "Central da Loja"));
     setStockFullText_("managerNote", profile === "gestor" ? "Dashboard, alertas, auditoria, relatorio, PDF e e-mail para acompanhar a operacao." : "Acoes principais para cadastrar produto, registrar entrada, registrar saida e consultar saldo.");
     setStockFullText_("buttonItem", "Cadastrar produto");
     setStockFullText_("itemsLink", "Produtos cadastrados");
@@ -1814,7 +1828,14 @@
       banner.classList.remove("is-hidden");
     }
 
-    initStockFullAuthContext_();
+    const stockFullAuthInit = initStockFullAuthContext_();
+    if (isStockFullIsolatedApp_ && stockFullAuthInit && typeof stockFullAuthInit.then === "function") {
+      stockFullAuthInit.then(function () {
+        renderAlmoxarifadoPanel_();
+      }).catch(function () {
+        renderAlmoxarifadoPanel_();
+      });
+    }
   }
 
   function bindSaasEvents_() {
@@ -2192,7 +2213,9 @@
 
     document.querySelectorAll("[data-stock-full-demo-login]").forEach(function (button) {
       button.addEventListener("click", function () {
-        handleStockFullLogin_("manoel@manoelimportados.com", "123456");
+        const demo = clean(button.dataset.stockFullDemoLogin).toLowerCase();
+        const email = demo === "sul" ? "sul@lojateste.com" : "manoel@manoelimportados.com";
+        handleStockFullLogin_(email, "123456");
       });
     });
 
@@ -13194,6 +13217,10 @@
     renderStockFullMonitor_(viewModel);
     renderStockFullUrgentList_(viewModel);
     renderStockFullActivity_(viewModel);
+    renderStockFullSecondaryCards_(viewModel);
+    renderStockFullCategoryChart_(viewModel);
+    renderStockFullEvolutionChart_(viewModel);
+    renderStockFullAiList_(viewModel);
   }
 
   function buildStockFullDashboardViewModel_() {
@@ -13225,6 +13252,7 @@
       return buildStockFullMonitorItem_(balance, movedByItem[balance.item.id] || null);
     }).slice(0, 5);
 
+    const secondary = buildStockFullSecondaryMetrics_(data);
     return {
       dashboard: dashboard,
       data: data,
@@ -13233,6 +13261,9 @@
       recentMovements: (data.recentMovements || []).slice(0, 6),
       recentEntries: buildAlmoxRecentMovements_(data.recentEntries || [], data.itemsById || {}).slice(0, 4),
       recentExits: buildAlmoxRecentMovements_(data.recentExits || [], data.itemsById || {}).slice(0, 4),
+      secondaryMetrics: secondary,
+      categories: buildStockFullCategoryMetrics_(data),
+      recommendations: buildStockFullRecommendations_(data, todayMovements, todayExits),
       metrics: [
         {
           label: "Total de Itens",
@@ -13263,6 +13294,95 @@
       ]
     };
   }
+
+  function getStockFullItemBalanceQuantity_(balance) {
+    return parseNumber_(balance && balance.balance);
+  }
+
+  function getStockFullItemCost_(item) {
+    return parseNumber_(item && (item.costPrice || item.averageCost || item.unitCost));
+  }
+
+  function buildStockFullSecondaryMetrics_(data) {
+    const balances = data.balances || [];
+    const itemsInStock = balances.filter(function (balance) {
+      return getStockFullItemBalanceQuantity_(balance) > 0;
+    }).length;
+    const alertItems = balances.filter(function (balance) {
+      const quantity = getStockFullItemBalanceQuantity_(balance);
+      const minimum = parseNumber_(balance.item && balance.item.minimumStock);
+      return quantity <= 0 || (minimum > 0 && quantity <= minimum);
+    }).length;
+    const today = new Date();
+    const limit = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30, 23, 59, 59, 999);
+    const datedItems = balances.filter(function (balance) {
+      return clean(balance.item && balance.item.expirationDate);
+    });
+    const expiring = datedItems.filter(function (balance) {
+      const date = new Date(balance.item.expirationDate);
+      return !Number.isNaN(date.getTime()) && date >= today && date <= limit;
+    }).length;
+    const suppliers = {};
+    balances.forEach(function (balance) {
+      const supplier = clean(balance.item && balance.item.supplier);
+      if (supplier) suppliers[normalizeCompositionKey_(supplier)] = supplier;
+    });
+    return [
+      { label: "Itens em estoque", value: itemsInStock, note: itemsInStock === 1 ? "produto com saldo" : "produtos com saldo", className: "status-muted", icon: "Estoque" },
+      { label: "Itens em alerta", value: alertItems, note: alertItems ? "abaixo do mínimo ou zerados" : "sem alertas", className: alertItems ? "is-warning" : "status-ok", icon: "!" },
+      { label: "Itens vencendo", value: datedItems.length ? expiring : "Não configurado", note: datedItems.length ? "próximos 30 dias" : "cadastre validade nos produtos", className: expiring ? "is-danger" : "status-muted", icon: "Validade" },
+      { label: "Fornecedores", value: Object.keys(suppliers).length, note: Object.keys(suppliers).length === 1 ? "fornecedor cadastrado" : "fornecedores cadastrados", className: "is-info", icon: "Fornec." }
+    ];
+  }
+
+  function buildStockFullCategoryMetrics_(data) {
+    const groups = {};
+    (data.balances || []).forEach(function (balance) {
+      const item = balance.item || {};
+      const category = clean(item.category) || "Sem categoria";
+      const key = normalizeCompositionKey_(category);
+      const quantity = Math.max(0, getStockFullItemBalanceQuantity_(balance));
+      const value = quantity * getStockFullItemCost_(item);
+      if (!groups[key]) groups[key] = { label: category, count: 0, quantity: 0, value: 0 };
+      groups[key].count += 1;
+      groups[key].quantity += quantity;
+      groups[key].value += value;
+    });
+    return Object.keys(groups).map(function (key) { return groups[key]; }).sort(function (a, b) {
+      return b.count - a.count || clean(a.label).localeCompare(clean(b.label));
+    });
+  }
+
+  function buildStockFullRecommendations_(data, todayMovements, todayExits) {
+    const balances = data.balances || [];
+    const alerts = balances.filter(function (balance) {
+      const quantity = getStockFullItemBalanceQuantity_(balance);
+      const minimum = parseNumber_(balance.item && balance.item.minimumStock);
+      return quantity <= 0 || (minimum > 0 && quantity <= minimum);
+    }).length;
+    const messages = [];
+    if (!balances.length) {
+      messages.push({ label: "Cadastro", text: "Cadastre seus primeiros produtos para gerar análises." });
+      return messages;
+    }
+    if (alerts) {
+      messages.push({ label: "Alerta", text: "Existem " + alerts + " item(ns) abaixo do estoque mínimo ou zerados." });
+    } else {
+      messages.push({ label: "Estoque", text: "Nenhum item abaixo do mínimo neste momento." });
+    }
+    if (todayExits.length) {
+      messages.push({ label: "Saídas", text: "Foram registradas " + todayExits.length + " saída(s) hoje." });
+    }
+    const entriesToday = (todayMovements || []).filter(function (movement) { return movement.type === "entrada"; }).length;
+    if (entriesToday) {
+      messages.push({ label: "Entradas", text: "Foram registradas " + entriesToday + " entrada(s) hoje." });
+    }
+    if (!todayExits.length && !entriesToday) {
+      messages.push({ label: "Movimento", text: "Nenhuma movimentação registrada hoje." });
+    }
+    return messages;
+  }
+
 
   function buildStockFullMonitorItem_(balance, moved) {
     const item = balance.item || {};
@@ -13429,6 +13549,107 @@
     empty.textContent = message;
     container.appendChild(empty);
   }
+
+  function renderStockFullSecondaryCards_(viewModel) {
+    if (!stockFullSecondaryCards) return;
+    stockFullSecondaryCards.innerHTML = "";
+    (viewModel.secondaryMetrics || []).forEach(function (metric) {
+      const card = document.createElement("article");
+      const icon = document.createElement("span");
+      const body = document.createElement("div");
+      const value = document.createElement("strong");
+      const label = document.createElement("small");
+      const note = document.createElement("em");
+      card.className = "stock-full-secondary-card " + (metric.className || "status-muted");
+      icon.textContent = metric.icon || "";
+      value.textContent = String(metric.value);
+      label.textContent = metric.label;
+      note.textContent = metric.note || "";
+      body.appendChild(value);
+      body.appendChild(label);
+      body.appendChild(note);
+      card.appendChild(icon);
+      card.appendChild(body);
+      stockFullSecondaryCards.appendChild(card);
+    });
+  }
+
+  function renderStockFullCategoryChart_(viewModel) {
+    if (!stockFullCategoryChart) return;
+    stockFullCategoryChart.innerHTML = "";
+    const categories = viewModel.categories || [];
+    if (!categories.length) {
+      appendStockFullEmpty_(stockFullCategoryChart, "Cadastre produtos para visualizar categorias.");
+      return;
+    }
+    const total = categories.reduce(function (sum, item) { return sum + item.count; }, 0) || 1;
+    const colors = ["#2f8cff", "#22c55e", "#f59e0b", "#8b5cf6", "#ef4444", "#94a3b8"];
+    const donut = document.createElement("div");
+    const list = document.createElement("ul");
+    let start = 0;
+    const segments = categories.slice(0, 6).map(function (item, index) {
+      const pct = Math.round((item.count / total) * 100);
+      const end = start + pct;
+      const segment = colors[index % colors.length] + " " + start + "% " + end + "%";
+      start = end;
+      const row = document.createElement("li");
+      const swatch = document.createElement("span");
+      const label = document.createElement("span");
+      const strong = document.createElement("strong");
+      swatch.style.setProperty("--c", colors[index % colors.length]);
+      label.textContent = item.label;
+      strong.textContent = pct + "%";
+      row.appendChild(swatch);
+      row.appendChild(label);
+      row.appendChild(strong);
+      list.appendChild(row);
+      return segment;
+    });
+    donut.className = "stock-full-donut";
+    donut.style.background = "conic-gradient(" + segments.join(", ") + ")";
+    stockFullCategoryChart.appendChild(donut);
+    stockFullCategoryChart.appendChild(list);
+  }
+
+  function renderStockFullEvolutionChart_(viewModel) {
+    if (!stockFullEvolutionChart) return;
+    stockFullEvolutionChart.innerHTML = "";
+    const movements = ((viewModel.data && viewModel.data.movements) || []).slice().sort(function (a, b) {
+      return new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0);
+    });
+    if (movements.length < 2) {
+      appendStockFullEmpty_(stockFullEvolutionChart, "A evolução será exibida após novas movimentações.");
+      return;
+    }
+    const groups = {};
+    movements.forEach(function (movement) {
+      const date = new Date(movement.date || movement.createdAt || Date.now());
+      const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+      groups[key] = (groups[key] || 0) + 1;
+    });
+    const entries = Object.keys(groups).sort().slice(-6).map(function (key) { return { key: key, value: groups[key] }; });
+    const max = Math.max.apply(null, entries.map(function (entry) { return entry.value; })) || 1;
+    entries.forEach(function (entry) {
+      const bar = document.createElement("span");
+      bar.title = entry.key + ": " + entry.value + " movimentação(ões)";
+      bar.style.setProperty("--h", Math.max(12, Math.round((entry.value / max) * 100)) + "%");
+      stockFullEvolutionChart.appendChild(bar);
+    });
+  }
+
+  function renderStockFullAiList_(viewModel) {
+    if (!stockFullAiList) return;
+    stockFullAiList.innerHTML = "";
+    (viewModel.recommendations || []).forEach(function (message) {
+      const item = document.createElement("li");
+      const label = document.createElement("span");
+      label.textContent = message.label;
+      item.appendChild(label);
+      item.appendChild(document.createTextNode(message.text));
+      stockFullAiList.appendChild(item);
+    });
+  }
+
 
   function renderStockFullActivity_(viewModel) {
     const containers = [stockFullActivityList, stockFullEntryList, stockFullExitList].filter(Boolean);
