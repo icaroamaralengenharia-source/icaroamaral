@@ -5015,6 +5015,121 @@ test("validador tecnico compartilhado cobre entradas de Stock e Elo", () => {
   assert.equal(authorized.kind, "preliminary_authorized");
 });
 
+test("validador tecnico compartilhado cobre pavimentacao e pintura do dia a dia", () => {
+  const validator = loadEloTechnicalValidatorSandbox_();
+
+  const pavementNoArea = validator.validateTechnicalQuestion("Quero fazer piso intertravado", { entry: "elo_principal" });
+  const pavementNoJoint = validator.validateTechnicalQuestion("Quero fazer piso intertravado em 30 m²", { entry: "stock_obras" });
+  const pavementNoPiece = validator.validateTechnicalQuestion("Piso intertravado 30 m², junta 5 mm", { entry: "stock_obras" });
+  const pavementInformal = validator.validateTechnicalQuestion("Quero colocar intertravado na garagem 5x5.", { entry: "stock_obras" });
+  const cobblestone = validator.validateTechnicalQuestion("Quero calçar 80 m² com paralelepípedo", { entry: "stock_full" });
+  const paintingNoArea = validator.validateTechnicalQuestion("Quero pintar uma parede", { entry: "elo_principal" });
+  const paintingNoEnvironment = validator.validateTechnicalQuestion("Quero pintar 50 m² de parede", { entry: "backend" });
+  const paintingInformal = validator.validateTechnicalQuestion("Pinta uma casa de 120 m² quanto custa?", { entry: "backend" });
+  const paintingNoSystem = validator.validateTechnicalQuestion("Quero pintar 50 m² de parede interna", { entry: "backend" });
+  const paintingMissingBase = validator.validateTechnicalQuestion("Pintura interna 50 m², reboco novo, selador + 2 demãos de tinta acrílica", { entry: "stock_ia" });
+  const preliminary = validator.validateTechnicalQuestion("Autorizo estimativa NÃO OFICIAL para pintura interna 50 m², reboco novo, selador + 2 demãos de tinta acrílica", { entry: "stock_ia" });
+
+  assert.match(pavementNoArea.answer, /dimensões do piso ou da área total/);
+  assert.match(pavementNoJoint.answer, /largura da junta/);
+  assert.match(pavementNoPiece.answer, /dimensão da peça/);
+  assert.match(pavementInformal.answer, /largura da junta/);
+  assert.match(cobblestone.answer, new RegExp("largura da junta|base/assentamento"));
+  assert.match(paintingNoArea.answer, /área ou das dimensões/);
+  assert.match(paintingNoEnvironment.answer, /interna ou externa/);
+  assert.match(paintingInformal.answer, /interna ou externa/);
+  assert.match(paintingNoSystem.answer, /Qual sistema deseja considerar/);
+  assert.match(paintingMissingBase.answer, /Para calcular pintura com segurança/);
+  assert.match(paintingMissingBase.answer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(paintingMissingBase.answer, /Premissas utilizadas:/);
+  assert.match(paintingMissingBase.answer, /Área considerada: 50,00 m²/);
+  assert.doesNotMatch(paintingMissingBase.answer, /litros|latas|mão de obra|R$/i);
+  assert.equal(preliminary.allowed, true);
+  assert.equal(preliminary.shouldRespond, false);
+  assert.equal(preliminary.kind, "preliminary_authorized");
+  assert.equal(preliminary.preliminary, true);
+});
+
+test("validador tecnico alinha respostas de piso e pintura em todas as entradas", () => {
+  const validator = loadEloTechnicalValidatorSandbox_();
+  const entries = [
+    "elo_principal",
+    "widget_elo",
+    "stock_obras",
+    "stock_full_stock_ia_chat",
+    "backend_api_elo_chat",
+    "elo_projeto_api_elo_chat"
+  ];
+  const prompts = [
+    ["Quero colocar intertravado na garagem 5x5", /largura da junta/],
+    ["Quanto de tinta compro para 50 m²?", /interna ou externa/],
+    ["Pintura interna 80 m² com massa corrida", /número de demãos|sistema/i],
+    ["Piso intertravado 30 m² junta 5 mm", /dimensão da peça/],
+    ["Pintura externa muro 40 m², selador + 2 demãos de tinta acrílica", /Base técnica utilizada: composição técnica não localizada/]
+  ];
+
+  entries.forEach((entry) => {
+    prompts.forEach(([prompt, expected]) => {
+      const validation = validator.validateTechnicalQuestion(prompt, { entry });
+      assert.equal(validation.shouldRespond, true, entry + " :: " + prompt);
+      assert.match(validation.answer, expected, entry + " :: " + prompt);
+      assert.doesNotMatch(validation.answer, /litros|latas|R$|consumo estimado/i, entry + " :: " + prompt);
+    });
+  });
+});
+
+test("Stock Obras usa o validador comum para piso e pintura antes do motor local", () => {
+  const sandbox = loadStockAiCompositionSandbox_();
+  const engine = sandbox.window.StockAiCompositionEngine;
+
+  assert.match(engine.buildAnswerFromMessage("Quero colocar intertravado na garagem 5x5", { entry: "stock_obras" }), /largura da junta/);
+  assert.match(engine.buildAnswerFromMessage("Quanto de tinta compro para 50 m²?", { entry: "stock_obras" }), /interna ou externa/);
+  assert.match(engine.buildAnswerFromMessage("Pintura interna 80 m² com massa corrida", { entry: "stock_obras" }), /número de demãos|sistema/i);
+  assert.match(engine.buildAnswerFromMessage("Piso intertravado 30 m² junta 5 mm", { entry: "stock_obras" }), /dimensão da peça/);
+  const blocked = engine.buildAnswerFromMessage("Pintura externa muro 40 m², selador + 2 demãos de tinta acrílica", { entry: "stock_obras" });
+  assert.match(blocked, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(blocked, /Premissas utilizadas:/);
+  assert.doesNotMatch(blocked, /litros|latas|R$|consumo estimado/i);
+});
+
+test("backend e Elo Projeto via api elo chat aplicam o mesmo validador de piso e pintura", async () => {
+  await withTemporaryEloServer_({
+    env: {
+      AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500"
+    }
+  }, async (url) => {
+    const contexts = [
+      { source: "elo", mode: "standalone", eloContext: "obras" },
+      { source: "elo-projeto", mode: "standalone", eloContext: "obras" }
+    ];
+    const prompts = [
+      ["Quero colocar intertravado na garagem 5x5", /largura da junta/],
+      ["Quanto de tinta compro para 50 m²?", /interna ou externa/],
+      ["Pintura interna 80 m² com massa corrida", /número de demãos|sistema/i],
+      ["Piso intertravado 30 m² junta 5 mm", /dimensão da peça/],
+      ["Pintura externa muro 40 m², selador + 2 demãos de tinta acrílica", /Base técnica utilizada: composição técnica não localizada/]
+    ];
+
+    for (const context of contexts) {
+      for (const [message, expected] of prompts) {
+        const response = await fetch(url + "/api/elo/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "http://127.0.0.1:5500"
+          },
+          body: JSON.stringify({ message, history: [], context })
+        });
+        const data = await response.json();
+        assert.equal(response.status, 200, context.source + " :: " + message);
+        assert.equal(data.mode, "technical_validation", context.source + " :: " + message);
+        assert.match(data.answer, expected, context.source + " :: " + message);
+        assert.doesNotMatch(data.answer, /litros|latas|R$|consumo estimado/i, context.source + " :: " + message);
+      }
+    }
+  });
+});
+
 test("paginas do Elo carregam validador tecnico antes dos motores", async () => {
   const { readFile } = await import("node:fs/promises");
   const pages = await Promise.all([
@@ -5468,6 +5583,16 @@ function loadEloTechnicalValidatorSandbox_() {
   createContext(sandbox);
   runInContext(validatorContent, sandbox);
   return sandbox.window.EloTechnicalValidator;
+}
+function loadStockAiCompositionSandbox_() {
+  const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
+  const stockEngineContent = readFileSync(new URL("../../relatorio-qualidade-obras/stock-ai-composition-engine.js", import.meta.url), "utf8");
+  const sandbox = { console, window: {} };
+  sandbox.globalThis = sandbox.window;
+  createContext(sandbox);
+  runInContext(validatorContent, sandbox);
+  runInContext(stockEngineContent, sandbox);
+  return sandbox;
 }
 async function loadEloOperationalSandbox_(balances) {
     const validatorContent = readFileSync(new URL("../../relatorio-qualidade-obras/elo-technical-validator.js", import.meta.url), "utf8");
