@@ -155,6 +155,8 @@
   const stockFullMonitorRows = document.getElementById("stockFullMonitorRows");
   const stockFullUrgentList = document.getElementById("stockFullUrgentList");
   const stockFullActivityList = document.getElementById("stockFullActivityList");
+  const stockFullEntryList = document.getElementById("stockFullEntryList");
+  const stockFullExitList = document.getElementById("stockFullExitList");
   const almoxActionMessage = document.getElementById("almoxActionMessage");
   const almoxModal = document.getElementById("almoxModal");
   const almoxNoteTextInput = document.getElementById("almoxNoteTextInput");
@@ -12641,15 +12643,19 @@
   function renderStockFullMetrics_(viewModel) {
     if (!stockFullMetricCards) return;
     stockFullMetricCards.innerHTML = "";
-    viewModel.metrics.forEach(function (metric) {
+    viewModel.metrics.forEach(function (metric, index) {
       const card = document.createElement("article");
+      const icon = document.createElement("i");
       const label = document.createElement("span");
       const value = document.createElement("strong");
       const note = document.createElement("small");
-      card.className = "stock-full-metric-card " + (metric.className || "status-muted");
+      card.className = "stock-full-metric-card " + (metric.className || "status-muted") + " metric-" + index;
+      icon.className = "stock-full-metric-icon";
+      icon.textContent = ["$", "▣", "↧", "↥"][index] || "•";
       label.textContent = metric.label;
       value.textContent = String(metric.value) + (metric.suffix ? " " + metric.suffix : "");
       note.textContent = metric.note || "";
+      card.appendChild(icon);
       card.appendChild(label);
       card.appendChild(value);
       card.appendChild(note);
@@ -12735,32 +12741,57 @@
     });
   }
 
+  function appendStockFullActivityItem_(container, entry) {
+    const row = document.createElement("article");
+    const icon = document.createElement("span");
+    const text = document.createElement("p");
+    const meta = document.createElement("small");
+    const amount = document.createElement("em");
+    const isEntry = entry.movement && entry.movement.type === "entrada";
+    row.className = "stock-full-activity-item " + (isEntry ? "is-entry" : "is-exit");
+    icon.textContent = isEntry ? "+" : "-";
+    text.textContent = entry.material;
+    amount.textContent = (isEntry ? "+ " : "- ") + entry.quantity;
+    meta.textContent = entry.sectorOrOrigin + " | " + entry.dateTime;
+    row.appendChild(icon);
+    row.appendChild(text);
+    row.appendChild(amount);
+    row.appendChild(meta);
+    container.appendChild(row);
+  }
+
+  function appendStockFullEmpty_(container, message) {
+    const empty = document.createElement("p");
+    empty.className = "stock-full-empty";
+    empty.textContent = message;
+    container.appendChild(empty);
+  }
+
   function renderStockFullActivity_(viewModel) {
-    if (!stockFullActivityList) return;
-    stockFullActivityList.innerHTML = "";
+    const containers = [stockFullActivityList, stockFullEntryList, stockFullExitList].filter(Boolean);
+    if (!containers.length) return;
+    containers.forEach(function (container) { container.innerHTML = ""; });
     if (!viewModel.recentMovements.length) {
-      const empty = document.createElement("p");
-      empty.className = "stock-full-empty";
-      empty.textContent = "Nenhuma movimentacao recente registrada.";
-      stockFullActivityList.appendChild(empty);
+      containers.forEach(function (container) {
+        appendStockFullEmpty_(container, "Nenhuma movimentacao recente registrada.");
+      });
       return;
     }
 
-    viewModel.recentMovements.forEach(function (entry) {
-      const row = document.createElement("article");
-      const icon = document.createElement("span");
-      const text = document.createElement("p");
-      const meta = document.createElement("small");
-      const isEntry = entry.movement && entry.movement.type === "entrada";
-      row.className = "stock-full-activity-item " + (isEntry ? "is-entry" : "is-exit");
-      icon.textContent = isEntry ? "+" : "-";
-      text.textContent = (isEntry ? "+ " : "- ") + entry.quantity + " " + entry.material;
-      meta.textContent = entry.sectorOrOrigin + " | " + entry.dateTime;
-      row.appendChild(icon);
-      row.appendChild(text);
-      row.appendChild(meta);
-      stockFullActivityList.appendChild(row);
-    });
+    const entries = viewModel.recentMovements.filter(function (entry) { return entry.movement && entry.movement.type === "entrada"; });
+    const exits = viewModel.recentMovements.filter(function (entry) { return !(entry.movement && entry.movement.type === "entrada"); });
+
+    if (stockFullActivityList) {
+      viewModel.recentMovements.forEach(function (entry) { appendStockFullActivityItem_(stockFullActivityList, entry); });
+    }
+    if (stockFullEntryList) {
+      if (!entries.length) appendStockFullEmpty_(stockFullEntryList, "Nenhuma entrada recente registrada.");
+      entries.slice(0, 4).forEach(function (entry) { appendStockFullActivityItem_(stockFullEntryList, entry); });
+    }
+    if (stockFullExitList) {
+      if (!exits.length) appendStockFullEmpty_(stockFullExitList, "Nenhuma saida recente registrada.");
+      exits.slice(0, 4).forEach(function (entry) { appendStockFullActivityItem_(stockFullExitList, entry); });
+    }
   }
 
   function handleStockFullDashboardAction_(action) {

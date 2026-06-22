@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -103,7 +103,7 @@
         <div class="landing-browser-frame">
           <div></div>
           <strong>ObraReport</strong>
-          <span>Vistorias • Fotos • RDO • Materiais • PDF Premium</span>
+          <span>Vistorias â€¢ Fotos â€¢ RDO â€¢ Materiais â€¢ PDF Premium</span>
         </div>
       </section>
 
@@ -120,7 +120,7 @@
     <section class="auth-panel is-hidden" id="loginPanel" aria-labelledby="login-title">
       <div class="section-title">
         <span></span>
-          <h2 id="login-title">Acesso restrito — ObraReport</h2>
+          <h2 id="login-title">Acesso restrito â€” ObraReport</h2>
       </div>
 
       <form id="loginForm" class="auth-form">
@@ -176,7 +176,7 @@
         <button type="button" data-route-target="relatorios" data-nav-role="admin">Relatórios</button>
         <button type="button" data-route-target="diario" data-nav-role="admin">Diário de Obras</button>
         <button type="button" data-route-target="stock-ia" data-nav-role="admin">Stock IA</button>
-        <button type="button" data-route-target="almoxarifado" data-nav-role="admin">📦 Almoxarifado</button>
+        <button type="button" data-route-target="almoxarifado" data-nav-role="admin">ðŸ“¦ Almoxarifado</button>
         <button type="button" data-route-target="planos" data-nav-role="admin">Planos</button>
         <button type="button" data-route-target="administracao" data-nav-role="admin">Administração</button>
         <button type="button" data-route-target="cliente" data-nav-role="client">Painel</button>
@@ -238,7 +238,7 @@
 
         <section class="workspace-card">
           <div class="section-row">
-            <h3>Últimos documentos</h3>
+            <h3>Ãšltimos documentos</h3>
           </div>
           <div id="clientPortalRecentDocs" class="entity-list empty-list">Nenhum documento vinculado com segurança ao seu acesso.</div>
         </section>
@@ -416,7 +416,7 @@
 
         <section class="workspace-card recent-report-card">
           <div class="section-row">
-            <h3>Últimos relatórios</h3>
+            <h3>Ãšltimos relatórios</h3>
             <button type="button" class="mini-button" data-dashboard-action="historico">Ver histórico</button>
           </div>
           <div id="recentReportsList" class="entity-list empty-list">Nenhum relatório criado ainda.</div>
@@ -1356,7 +1356,7 @@
                   <th>Total consumido</th>
                   <th>Custo total</th>
                   <th>Diários</th>
-                  <th>Último uso</th>
+                  <th>Ãšltimo uso</th>
                 </tr>
               </thead>
               <tbody id="stockTopMaterialsRows">
@@ -1492,30 +1492,82 @@
         </div>
 
         <section class="workspace-card stock-full-dashboard is-hidden" id="stockFullDashboard" aria-live="polite">
+          <header class="stock-full-app-header" aria-label="Cabecalho do Stock Full">
+            <button type="button" class="stock-full-icon-button" data-stock-full-dashboard-action="summary" aria-label="Abrir menu do Stock Full">â˜°</button>
+            <div class="stock-full-brand-block">
+              <strong>STOCK <span>FULL</span></strong>
+              <small>Gestão completa de estoque</small>
+            </div>
+            <div class="stock-full-header-actions" aria-label="Alertas e usuario">
+              <button type="button" class="stock-full-icon-button has-badge" data-stock-full-dashboard-action="summary" aria-label="Notificacoes de estoque">â™¢</button>
+              <span class="stock-full-avatar" aria-label="Usuario">IC</span>
+            </div>
+          </header>
+
+          <label class="stock-full-global-search" aria-label="Busca inteligente do Stock Full">
+            <span>âŒ•</span>
+            <input id="stockFullQuickSearch" type="search" placeholder="Buscar produto, código, fornecedor, categoria...">
+            <i>âŒ˜</i>
+          </label>
+
           <header class="stock-full-dashboard-hero">
             <div>
-              <p class="eyebrow">Modulo independente</p>
-              <h3>Stock Full v2.0</h3>
-              <span>Controle de estoque inteligente e operacao de loja.</span>
+              <p class="eyebrow">Dashboard operacional</p>
+              <h3>Estoque vivo, alertas claros.</h3>
+              <span>Dados reais do almoxarifado local/remoto com visão executiva para loja e empresa.</span>
             </div>
             <div class="stock-full-dashboard-actions">
-              <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry">+ Entrada rapida</button>
-              <button type="button" class="mini-button" data-stock-full-dashboard-action="exit">- Saida rapida</button>
+              <button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry">+ Entrada rápida</button>
+              <button type="button" class="mini-button" data-stock-full-dashboard-action="exit">- Saída rápida</button>
               <button type="button" class="mini-button" data-stock-full-dashboard-action="pdf">PDF</button>
             </div>
           </header>
+
           <div class="stock-full-metric-grid" id="stockFullMetricCards"></div>
+
+          <section class="stock-full-secondary-grid" aria-label="Indicadores complementares do Stock Full">
+            <article class="stock-full-secondary-card"><span>â–£</span><div><strong>856</strong><small>Itens em estoque</small><em>ativos</em></div></article>
+            <article class="stock-full-secondary-card is-warning"><span>!</span><div><strong>23</strong><small>Itens em alerta</small><em>abaixo do mínimo</em></div></article>
+            <article class="stock-full-secondary-card is-danger"><span>â–¦</span><div><strong>7</strong><small>Itens vencendo</small><em>próx. 30 dias</em></div></article>
+            <article class="stock-full-secondary-card is-info"><span>â™™</span><div><strong>74</strong><small>Fornecedores</small><em>cadastrados</em></div></article>
+          </section>
+
+          <section class="stock-full-chart-grid" aria-label="Graficos do Stock Full">
+            <article class="stock-full-chart-card stock-full-category-card">
+              <header><h4>Estoque por categoria</h4><span>mock visual</span></header>
+              <div class="stock-full-category-content">
+                <div class="stock-full-donut" aria-hidden="true"></div>
+                <ul>
+                  <li><i style="--c:#2f8cff"></i><span>Mat. de Construção</span><strong>38%</strong></li>
+                  <li><i style="--c:#22c55e"></i><span>Ferramentas</span><strong>18%</strong></li>
+                  <li><i style="--c:#f59e0b"></i><span>Elétrico</span><strong>14%</strong></li>
+                  <li><i style="--c:#8b5cf6"></i><span>Hidráulico</span><strong>12%</strong></li>
+                  <li><i style="--c:#ef4444"></i><span>Acabamentos</span><strong>10%</strong></li>
+                  <li><i style="--c:#94a3b8"></i><span>Outros</span><strong>8%</strong></li>
+                </ul>
+              </div>
+            </article>
+            <article class="stock-full-chart-card">
+              <header><h4>Evolução do estoque (valor)</h4><span>6 meses</span></header>
+              <div class="stock-full-line-chart" aria-label="Evolução mockada dos últimos seis meses">
+                <span style="--h:22%"><b>Jan</b></span>
+                <span style="--h:31%"><b>Fev</b></span>
+                <span style="--h:43%"><b>Mar</b></span>
+                <span style="--h:61%"><b>Abr</b></span>
+                <span style="--h:70%"><b>Mai</b></span>
+                <span style="--h:92%"><b>Jun</b></span>
+              </div>
+            </article>
+          </section>
+
           <div class="stock-full-dashboard-grid">
             <section class="stock-full-monitor-panel">
               <div class="stock-full-panel-heading">
                 <div>
-                  <h4>Monitor de Estoque Rapido</h4>
-                  <p>Visao geral e status de reposicao imediata.</p>
+                  <h4>Produtos em alerta</h4>
+                  <p>Itens reais abaixo do mínimo, zerados ou próximos da reposição.</p>
                 </div>
-                <label class="stock-full-search">
-                  <span>Buscar SKU</span>
-                  <input id="stockFullQuickSearch" type="search" placeholder="Buscar produto ou SKU...">
-                </label>
+                <button type="button" class="stock-full-link-button" data-stock-full-dashboard-action="summary">Ver todos</button>
               </div>
               <div class="stock-full-monitor-table" id="stockFullMonitorRows" role="table" aria-label="Monitor rapido de estoque"></div>
             </section>
@@ -1523,8 +1575,8 @@
               <section class="stock-full-side-panel">
                 <div class="stock-full-panel-heading compact">
                   <div>
-                    <h4>Comprar Urgentemente</h4>
-                    <p>Itens identificados abaixo do minimo.</p>
+                    <h4>Comprar urgentemente</h4>
+                    <p>Lista real baseada no mínimo cadastrado.</p>
                   </div>
                 </div>
                 <div class="stock-full-urgent-list" id="stockFullUrgentList"></div>
@@ -1532,14 +1584,39 @@
               <section class="stock-full-side-panel">
                 <div class="stock-full-panel-heading compact">
                   <div>
-                    <h4>Atividade Recente da Loja</h4>
-                    <p>Entradas e saidas mais recentes.</p>
+                    <h4>Entradas recentes</h4>
+                    <p>Recebimentos mais novos.</p>
                   </div>
                 </div>
-                <div class="stock-full-activity-list" id="stockFullActivityList"></div>
+                <div class="stock-full-activity-list" id="stockFullEntryList"></div>
+              </section>
+              <section class="stock-full-side-panel">
+                <div class="stock-full-panel-heading compact">
+                  <div>
+                    <h4>Saídas recentes</h4>
+                    <p>Consumo e retiradas da loja.</p>
+                  </div>
+                </div>
+                <div class="stock-full-activity-list" id="stockFullExitList"></div>
+              </section>
+              <section class="stock-full-side-panel stock-full-ai-panel">
+                <div class="stock-full-panel-heading compact">
+                  <div>
+                    <h4>Análises e recomendações IA</h4>
+                    <p>Mock visual até conectar recomendações reais.</p>
+                  </div>
+                </div>
+                <ul class="stock-full-ai-list">
+                  <li><span>â†—</span>O consumo de cimento aumentou 23% em relação ao mês anterior.</li>
+                  <li><span>!</span>7 itens têm risco de falta nas próximas 2 semanas.</li>
+                  <li><span>$</span>Você pode economizar até R$ 3.850,00 consolidando compras de aço.</li>
+                  <li><span>â–¦</span>3 produtos com validade próxima.</li>
+                </ul>
               </section>
             </aside>
           </div>
+
+
         </section>
 
         <section class="almox-environment-header almox-environment-technical" id="almoxEnvironmentHeader" aria-live="polite"></section>
@@ -2097,6 +2174,14 @@
       </section>
     </section>
   </main>
+  <nav class="stock-full-mobile-nav" aria-label="Menu inferior do Stock Full">
+            <button type="button" class="is-active" data-stock-full-dashboard-action="summary"><span>âŒ‚</span>Dashboard</button>
+            <button type="button" data-stock-full-dashboard-action="item"><span>â–£</span>Estoque</button>
+            <button type="button" data-stock-full-dashboard-action="summary"><span>â‡„</span>Movimentações</button>
+            <button type="button" class="stock-full-new-action" data-stock-full-dashboard-action="entry"><span>+</span>Novo</button>
+            <button type="button" data-stock-full-dashboard-action="pdf"><span>â–¥</span>Relatórios</button>
+            <button type="button" data-stock-full-dashboard-action="summary"><span>â˜·</span>Mais</button>
+          </nav>
 
   <script>
     window.OBRAREPORT_API_BASE_URL = "https://obrareport-backend.onrender.com";
