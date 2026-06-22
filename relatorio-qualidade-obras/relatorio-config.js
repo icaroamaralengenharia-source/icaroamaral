@@ -9,6 +9,9 @@
     maxImagePixels: 1638400,
     jpegQuality: 0.72,
     aiAssistantUrl: apiBaseUrl + "/api/ai/improve-text",
-    aiImageAnalysisUrl: apiBaseUrl + "/api/ai/analyze-image"
+    aiImageAnalysisUrl: apiBaseUrl + "/api/ai/analyze-image",
+    stockFullSupabaseUrl: String(window.STOCK_FULL_SUPABASE_URL || "").trim(),
+    stockFullSupabaseAnonKey: String(window.STOCK_FULL_SUPABASE_ANON_KEY || "").trim(),
+    stockFullPasswordRedirectUrl: String(window.STOCK_FULL_PASSWORD_REDIRECT_URL || window.location.origin + window.location.pathname + "?produto=stock-full&perfil=loja#app/almoxarifado").trim()
   };
 })();

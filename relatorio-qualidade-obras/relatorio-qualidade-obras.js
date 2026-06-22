@@ -152,12 +152,14 @@
   const stockFullLoginPanel = document.getElementById("stockFullLoginPanel");
   const stockFullLoginForm = document.getElementById("stockFullLoginForm");
   const stockFullLoginStatus = document.getElementById("stockFullLoginStatus");
+  const stockFullRecoverPasswordButton = document.getElementById("stockFullRecoverPasswordButton");
   const stockFullCompanyName = document.getElementById("stockFullCompanyName");
   const stockFullUserMeta = document.getElementById("stockFullUserMeta");
   const stockFullAvatar = document.getElementById("stockFullAvatar");
   const stockFullLogoutButton = document.getElementById("stockFullLogoutButton");
   const stockFullImportButton = document.getElementById("stockFullImportButton");
   const stockFullTemplateButton = document.getElementById("stockFullTemplateButton");
+  const stockFullMigrateButton = document.getElementById("stockFullMigrateButton");
   const stockFullCsvInput = document.getElementById("stockFullCsvInput");
   const stockFullAdminPanel = document.getElementById("stockFullAdminPanel");
   const stockFullAdminGrid = document.getElementById("stockFullAdminGrid");
@@ -275,6 +277,8 @@
     role: "local"
   };
   let stockFullRemoteItems = [];
+  let stockFullSupabaseClient = null;
+  let stockFullSupabaseClientPromise = null;
   let stockFullRemoteItemsLoaded = false;
   let stockFullRemoteEntries = [];
   let stockFullRemoteExits = [];
@@ -1435,7 +1439,170 @@
     };
   }
 
+
+  function isStockFullSupabaseConfigured_() {
+    return Boolean(clean(config.stockFullSupabaseUrl) && clean(config.stockFullSupabaseAnonKey));
+  }
+
+  async function getStockFullSupabaseClient_() {
+    if (!isStockFullSupabaseConfigured_()) return null;
+    if (stockFullSupabaseClient) return stockFullSupabaseClient;
+    if (!stockFullSupabaseClientPromise) {
+      stockFullSupabaseClientPromise = new Promise(function (resolve) {
+        function createClient() {
+          if (window.supabase && window.supabase.createClient) {
+            stockFullSupabaseClient = window.supabase.createClient(config.stockFullSupabaseUrl, config.stockFullSupabaseAnonKey);
+            resolve(stockFullSupabaseClient);
+            return true;
+          }
+          return false;
+        }
+        if (createClient()) return;
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+        script.async = true;
+        script.onload = function () { createClient() || resolve(null); };
+        script.onerror = function () { console.info("Stock Full: SDK Supabase indisponivel; usando fallback local."); resolve(null); };
+        document.head.appendChild(script);
+      });
+    }
+    return await stockFullSupabaseClientPromise;
+  }
+
+  async function getStockFullSupabaseSession_() {
+    const client = await getStockFullSupabaseClient_();
+    if (!client) return null;
+    const result = await client.auth.getSession();
+    return result && result.data ? result.data.session : null;
+  }
+
+  async function fetchStockFullSupabaseProfile_(client, authUser) {
+    if (!client || !authUser) return null;
+    const { data, error } = await client.from("profiles").select("*, companies(*)").eq("auth_user_id", authUser.id).single();
+    if (error || !data) throw (error || new Error("stock_full_profile_not_found"));
+    const company = data.companies || {};
+    return { profileId: clean(data.id), userId: clean(authUser.id), userName: clean(data.full_name || authUser.email), userEmail: clean(authUser.email || data.email), companyId: clean(data.company_id), companyName: clean(company.name) || "Stock Full", company: company, role: clean(data.role) || "admin" };
+  }
+
+  async function handleStockFullSupabaseLogin_(email, password) {
+    const client = await getStockFullSupabaseClient_();
+    if (!client) return false;
+    const { data, error } = await client.auth.signInWithPassword({ email: clean(email), password: String(password || "") });
+    if (error || !data || !data.user) { if (stockFullLoginStatus) stockFullLoginStatus.textContent = "E-mail ou senha invalidos no Supabase Auth."; return false; }
+    const profile = await fetchStockFullSupabaseProfile_(client, data.user);
+    setStockFullSession_(Object.assign({ isAuthenticated: true, mode: "supabase" }, profile));
+    setStockFullRuntimeMode_("remote", { user: data.user, profile: { id: profile.profileId, company_id: profile.companyId, name: profile.userName, email: profile.userEmail, role: profile.role } });
+    await loadStockFullRemoteDataFromSupabase_();
+    if (stockFullLoginStatus) stockFullLoginStatus.textContent = "Login conectado ao Supabase.";
+    return true;
+  }
+
+  async function handleStockFullPasswordRecovery_() {
+    const client = await getStockFullSupabaseClient_();
+    const emailInput = stockFullLoginForm ? stockFullLoginForm.querySelector("[name='email']") : null;
+    const email = clean(emailInput && emailInput.value);
+    if (!client) { showAlmoxToast_("Supabase Auth nao configurado neste ambiente.", "error"); return; }
+    if (!email) { showAlmoxToast_("Informe o e-mail para recuperar a senha.", "error"); return; }
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: clean(config.stockFullPasswordRedirectUrl) });
+    if (error) { showAlmoxToast_("Nao foi possivel enviar recuperacao de senha.", "error"); return; }
+    showAlmoxToast_("Enviamos o link de recuperacao de senha.", "success");
+  }
+
+  async function stockFullSupabaseSignOut_() {
+    const client = await getStockFullSupabaseClient_();
+    if (client) await client.auth.signOut();
+  }
+
+  function mapSupabaseProductToAlmox_(product) {
+    return { id: clean(product.id), companyId: clean(product.company_id), environmentId: getStockFullCompanyEnvironmentId_(clean(product.company_id)), fiscalCode: clean(product.sku), sku: clean(product.sku), name: clean(product.name), category: clean(product.category) || "Geral", unit: clean(product.unit) || "un", initialQuantity: parseNumber_(product.current_stock), currentStock: parseNumber_(product.current_stock), minimumStock: parseNumber_(product.min_stock), minStock: parseNumber_(product.min_stock), costPrice: parseNumber_(product.cost_price), salePrice: parseNumber_(product.sale_price), supplier: clean(product.supplier), location: clean(product.location), expirationDate: clean(product.expiration_date), notes: clean(product.notes), createdAt: clean(product.created_at), updatedAt: clean(product.updated_at), remoteSource: "supabase" };
+  }
+
+  function mapSupabaseMovementToAlmox_(movement) {
+    return { id: clean(movement.id), companyId: clean(movement.company_id), environmentId: getStockFullCompanyEnvironmentId_(clean(movement.company_id)), itemId: clean(movement.product_id), productId: clean(movement.product_id), type: clean(movement.type), quantity: parseNumber_(movement.quantity), unitCost: parseNumber_(movement.unit_cost), total: parseNumber_(movement.total), reason: clean(movement.reason), supplier: clean(movement.supplier), documentNumber: clean(movement.supplier), destination: clean(movement.destination), responsible: clean(movement.responsible), notes: clean(movement.notes), date: clean(movement.created_at), createdAt: clean(movement.created_at), remoteSource: "supabase" };
+  }
+
+  async function loadStockFullRemoteDataFromSupabase_() {
+    const client = await getStockFullSupabaseClient_();
+    const session = getCurrentStockFullSession_();
+    if (!client || session.mode !== "supabase") return { ok: false };
+    const results = await Promise.all([client.from("products").select("*").eq("company_id", session.companyId).eq("is_active", true).order("name", { ascending: true }), client.from("stock_movements").select("*").eq("company_id", session.companyId).order("created_at", { ascending: false }), client.from("audit_logs").select("*").eq("company_id", session.companyId).order("created_at", { ascending: false })]);
+    if (results[0].error || results[1].error || results[2].error) throw (results[0].error || results[1].error || results[2].error);
+    stockFullRemoteItems = (results[0].data || []).map(mapSupabaseProductToAlmox_);
+    stockFullRemoteItemsLoaded = true;
+    const mappedMovements = (results[1].data || []).map(mapSupabaseMovementToAlmox_);
+    stockFullRemoteEntries = mappedMovements.filter(function (movement) { return movement.type === "entrada"; });
+    stockFullRemoteExits = mappedMovements.filter(function (movement) { return movement.type === "saida"; });
+    stockFullRemoteAuditLog = results[2].data || [];
+    updateAlmoxOfflineStatus_();
+    return { ok: true };
+  }
+
+  async function createStockFullSupabaseAudit_(action, entityType, entityId, description, metadata) {
+    const client = await getStockFullSupabaseClient_();
+    const session = getCurrentStockFullSession_();
+    if (!client || session.mode !== "supabase") return null;
+    return await client.from("audit_logs").insert({ company_id: session.companyId, profile_id: clean(session.profileId), action: clean(action), entity_type: clean(entityType), entity_id: clean(entityId) || null, description: clean(description), metadata: metadata || {} });
+  }
+
+  async function createStockFullSupabaseProduct_(item, options) {
+    const client = await getStockFullSupabaseClient_();
+    const session = getCurrentStockFullSession_();
+    if (!client || session.mode !== "supabase") return null;
+    const currentQuantity = parseNumber_((options || {}).currentQuantity || item.currentStock || item.initialQuantity);
+    const payload = { company_id: session.companyId, name: clean(item.name), sku: clean(item.sku || item.fiscalCode), category: clean(item.category) || "Geral", unit: clean(item.unit) || "un", current_stock: currentQuantity, min_stock: parseNumber_(item.minimumStock || item.minStock), cost_price: parseNumber_(item.costPrice || item.averageCost), sale_price: parseNumber_(item.salePrice), supplier: clean(item.supplier), location: clean(item.location), expiration_date: clean(item.expirationDate) || null, notes: clean(item.notes), created_by: clean(session.profileId) };
+    const { data, error } = await client.from("products").insert(payload).select("*").single();
+    if (error) throw error;
+    const mapped = mapSupabaseProductToAlmox_(data);
+    stockFullRemoteItems.unshift(mapped);
+    if (currentQuantity > 0) {
+      const movementResult = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: data.id, type: "entrada", quantity: currentQuantity, unit_cost: payload.cost_price, total: currentQuantity * payload.cost_price, reason: "Saldo inicial", supplier: payload.supplier, responsible: session.userName, notes: "Movimentacao inicial criada junto ao produto.", created_by: clean(session.profileId) }).select("*").single();
+      if (!movementResult.error && movementResult.data) stockFullRemoteEntries.unshift(mapSupabaseMovementToAlmox_(movementResult.data));
+    }
+    await createStockFullSupabaseAudit_("product_created", "products", data.id, "Produto criado: " + mapped.name);
+    return { ok: true, item: mapped };
+  }
+
+  async function createStockFullSupabaseMovement_(movement) {
+    const client = await getStockFullSupabaseClient_();
+    const session = getCurrentStockFullSession_();
+    if (!client || session.mode !== "supabase") return null;
+    const productId = clean(movement.itemId || movement.productId);
+    const quantity = parseNumber_(movement.quantity);
+    const product = stockFullRemoteItems.find(function (item) { return item.id === productId; });
+    if (!product || quantity <= 0) return { ok: false, error: "stock_full_item_not_found" };
+    const nextStock = movement.type === "saida" ? parseNumber_(product.currentStock) - quantity : parseNumber_(product.currentStock) + quantity;
+    if (nextStock < 0) return { ok: false, error: "stock_full_insufficient_quantity" };
+    const updated = await client.from("products").update({ current_stock: nextStock, updated_at: new Date().toISOString() }).eq("id", productId).eq("company_id", session.companyId).select("*").single();
+    if (updated.error) throw updated.error;
+    const inserted = await client.from("stock_movements").insert({ company_id: session.companyId, product_id: productId, type: movement.type, quantity: quantity, unit_cost: parseNumber_(movement.unitCost), total: parseNumber_(movement.total) || quantity * parseNumber_(movement.unitCost), reason: clean(movement.reason || movement.purpose), supplier: clean(movement.documentNumber || movement.supplier), destination: clean(movement.destination || movement.sector || movement.recipient), responsible: clean(movement.responsible) || session.userName, notes: clean(movement.notes), created_by: clean(session.profileId) }).select("*").single();
+    if (inserted.error) throw inserted.error;
+    const mappedItem = mapSupabaseProductToAlmox_(updated.data);
+    stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === mappedItem.id ? mappedItem : item; });
+    const mappedMovement = mapSupabaseMovementToAlmox_(inserted.data);
+    if (movement.type === "entrada") stockFullRemoteEntries.unshift(mappedMovement); else stockFullRemoteExits.unshift(mappedMovement);
+    await createStockFullSupabaseAudit_(movement.type === "entrada" ? "movement_in_created" : "movement_out_created", "stock_movements", inserted.data.id, "Movimentacao registrada: " + movement.type);
+    return { ok: true, item: mappedItem, movement: mappedMovement, entry: mappedMovement, exit: mappedMovement };
+  }
+
+  async function migrateStockFullLocalDataToSupabase_() {
+    const client = await getStockFullSupabaseClient_();
+    const session = getCurrentStockFullSession_();
+    if (!client || session.mode !== "supabase") { showAlmoxToast_("Entre com Supabase Auth para migrar dados locais.", "error"); return; }
+    const state = loadAlmoxState_();
+    const localItems = (state.items || []).filter(function (item) { return clean(item.companyId) === session.companyId || !clean(item.companyId); });
+    let migrated = 0;
+    for (const item of localItems) { const result = await createStockFullSupabaseProduct_(item, { currentQuantity: getAlmoxItemBalance_(item.id, state) }); if (result && result.ok) migrated += 1; }
+    await client.from("imports").insert({ company_id: session.companyId, source: "localStorage", file_name: "dados-locais-stock-full", status: "concluido", total_rows: localItems.length, valid_rows: migrated, invalid_rows: Math.max(0, localItems.length - migrated), imported_by: clean(session.profileId) });
+    await createStockFullSupabaseAudit_("local_migration", "imports", null, "Migracao local para Supabase", { total: localItems.length, migrated: migrated });
+    await loadStockFullRemoteDataFromSupabase_();
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_(migrated + " produto(s) migrado(s) para o Supabase.", "success");
+  }
+
   async function loadStockFullRemoteItems_() {
+    if (getCurrentStockFullSession_().mode === "supabase") {
+      return await loadStockFullRemoteDataFromSupabase_();
+    }
     if (!isStockFullRemoteActive_()) {
       return { ok: false };
     }
@@ -1490,6 +1657,9 @@
   }
 
   async function createStockFullRemoteItem_(item, options) {
+    if (getCurrentStockFullSession_().mode === "supabase") {
+      return await createStockFullSupabaseProduct_(item, options || {});
+    }
     return await fetchStockFullJson_("/api/stock-full/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1512,6 +1682,9 @@
   }
 
   async function createStockFullRemoteEntry_(entry) {
+    if (getCurrentStockFullSession_().mode === "supabase") {
+      return await createStockFullSupabaseMovement_(Object.assign({}, entry, { type: "entrada" }));
+    }
     return await fetchStockFullJson_("/api/stock-full/entries", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1520,6 +1693,9 @@
   }
 
   async function createStockFullRemoteExit_(exit) {
+    if (getCurrentStockFullSession_().mode === "supabase") {
+      return await createStockFullSupabaseMovement_(Object.assign({}, exit, { type: "saida" }));
+    }
     return await fetchStockFullJson_("/api/stock-full/exits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1559,6 +1735,19 @@
   async function initStockFullAuthContext_() {
     if (!isStockFullContext_()) {
       return stockFullAuthContext;
+    }
+
+    try {
+      const supabaseSession = await getStockFullSupabaseSession_();
+      if (supabaseSession && supabaseSession.user) {
+        const profile = await fetchStockFullSupabaseProfile_(await getStockFullSupabaseClient_(), supabaseSession.user);
+        setStockFullSession_(Object.assign({ isAuthenticated: true, mode: "supabase" }, profile));
+        setStockFullRuntimeMode_("remote", { user: supabaseSession.user, profile: { id: profile.profileId, company_id: profile.companyId, name: profile.userName, email: profile.userEmail, role: profile.role } });
+        await loadStockFullRemoteDataFromSupabase_();
+        return stockFullAuthContext;
+      }
+    } catch (error) {
+      console.info("Stock Full: sessao Supabase indisponivel; mantendo fallback.");
     }
 
     try {
@@ -1994,10 +2183,10 @@
     }
 
     if (stockFullLoginForm) {
-      stockFullLoginForm.addEventListener("submit", function (event) {
+      stockFullLoginForm.addEventListener("submit", async function (event) {
         event.preventDefault();
         const formData = new FormData(stockFullLoginForm);
-        handleStockFullLogin_(formData.get("email"), formData.get("password"));
+        await handleStockFullLogin_(formData.get("email"), formData.get("password"));
       });
     }
 
@@ -2008,7 +2197,15 @@
     });
 
     if (stockFullLogoutButton) {
-      stockFullLogoutButton.addEventListener("click", clearStockFullSession_);
+      stockFullLogoutButton.addEventListener("click", async function () { await stockFullSupabaseSignOut_(); clearStockFullSession_(); });
+    }
+
+    if (stockFullRecoverPasswordButton) {
+      stockFullRecoverPasswordButton.addEventListener("click", handleStockFullPasswordRecovery_);
+    }
+
+    if (stockFullMigrateButton) {
+      stockFullMigrateButton.addEventListener("click", migrateStockFullLocalDataToSupabase_);
     }
 
     if (stockFullImportButton) {
@@ -8311,7 +8508,14 @@
   }
 
   function getStockFullCompany_(companyId) {
-    return STOCK_FULL_COMPANIES.find(function (company) { return company.companyId === companyId; }) || STOCK_FULL_COMPANIES[0];
+    const localCompany = STOCK_FULL_COMPANIES.find(function (company) { return company.companyId === companyId; });
+    if (localCompany) return localCompany;
+    const session = getCurrentStockFullSession_();
+    if (clean(session.companyId) === clean(companyId)) {
+      const company = session.company || {};
+      return { companyId: session.companyId, companyName: session.companyName || "Stock Full", document: clean(company.document), phone: clean(company.phone), responsibleName: clean(company.responsible_name) || session.userName, createdAt: clean(company.created_at), status: clean(company.status) || "Ativo" };
+    }
+    return STOCK_FULL_COMPANIES[0];
   }
 
   function getStockFullCompanyEnvironmentId_(companyId) {
@@ -8368,7 +8572,16 @@
     renderAlmoxarifadoPanel_();
   }
 
-  function handleStockFullLogin_(email, password) {
+  async function handleStockFullLogin_(email, password) {
+    if (isStockFullSupabaseConfigured_()) {
+      try {
+        const remoteOk = await handleStockFullSupabaseLogin_(email, password);
+        if (remoteOk) return true;
+      } catch (error) {
+        console.info("Stock Full: login Supabase falhou; fallback local disponivel para desenvolvimento.");
+        if (stockFullLoginStatus) stockFullLoginStatus.textContent = "Nao foi possivel conectar ao Supabase. Fallback local disponivel para desenvolvimento.";
+      }
+    }
     const user = STOCK_FULL_USERS.find(function (candidate) {
       return clean(candidate.userEmail).toLowerCase() === clean(email).toLowerCase() && String(candidate.password) === String(password || "");
     });
@@ -8427,7 +8640,7 @@
     const company = getStockFullCompany_(session.companyId);
     const state = loadAlmoxState_();
     const products = filterAlmoxItemsByActiveEnvironment_(state.items);
-    const users = STOCK_FULL_USERS.filter(function (user) { return user.companyId === session.companyId; });
+    const users = session.mode === "supabase" ? [{ userName: session.userName, role: session.role }] : STOCK_FULL_USERS.filter(function (user) { return user.companyId === session.companyId; });
     const backupKey = "stockFullLastBackup_" + session.companyId;
     const lastBackup = clean(getLocalStorage_() && getLocalStorage_().getItem(backupKey)) || "Ainda nao exportado";
     if (stockFullCompanyStatus) stockFullCompanyStatus.textContent = company.status || "Ativo";
@@ -8488,9 +8701,29 @@
     }).join("");
   }
 
-  function confirmStockFullCsvImport_() {
+  async function confirmStockFullCsvImport_() {
     if (!canStockFull_("products:import")) { showAlmoxToast_("Usuario sem permissao para importar produtos.", "error"); return; }
     if (!stockFullPendingCsvRows.length) { showAlmoxToast_("Selecione um CSV valido antes de importar.", "error"); return; }
+    if (getCurrentStockFullSession_().mode === "supabase") {
+      const client = await getStockFullSupabaseClient_();
+      const session = getCurrentStockFullSession_();
+      let imported = 0;
+      for (const row of stockFullPendingCsvRows) {
+        const item = { name: row.name, sku: row.sku, fiscalCode: row.sku, category: row.category || "Geral", unit: row.unit || "un", minimumStock: parseNumber_(row.minStock), minStock: parseNumber_(row.minStock), currentStock: parseNumber_(row.currentStock), costPrice: parseNumber_(row.costPrice), salePrice: parseNumber_(row.salePrice), supplier: row.supplier };
+        const result = await createStockFullSupabaseProduct_(item, { currentQuantity: parseNumber_(row.currentStock) });
+        if (result && result.ok) imported += 1;
+      }
+      if (client) {
+        await client.from("imports").insert({ company_id: session.companyId, source: "csv", file_name: "importacao-stock-full.csv", status: "concluido", total_rows: stockFullPendingCsvRows.length, valid_rows: imported, invalid_rows: Math.max(0, stockFullPendingCsvRows.length - imported), imported_by: clean(session.profileId) });
+        await createStockFullSupabaseAudit_("csv_import", "imports", null, "Importacao CSV", { total: stockFullPendingCsvRows.length, imported: imported });
+      }
+      stockFullPendingCsvRows = [];
+      if (stockFullImportPreview) stockFullImportPreview.classList.add("is-hidden");
+      await loadStockFullRemoteDataFromSupabase_();
+      renderAlmoxarifadoPanel_();
+      showAlmoxToast_("Produtos importados no Supabase.", "success");
+      return;
+    }
     const state = loadAlmoxState_();
     const companyId = getCurrentCompanyId_();
     const environmentId = getStockFullCompanyEnvironmentId_(companyId);
@@ -8820,7 +9053,7 @@
         (unit ? " · Unidade: " + unit : "") + " · Produtos, entradas e saídas na nuvem";
       return;
     }
-    almoxOfflineStatus.textContent = connection + " · Operacao ativa · Dados disponiveis neste dispositivo · Backup recomendado";
+    almoxOfflineStatus.textContent = connection + " · Operacao ativa · Dados disponiveis neste dispositivo · Não sincronizado na nuvem · Backup recomendado";
   }
 
   function normalizeAlmoxEnvironmentState_(state) {

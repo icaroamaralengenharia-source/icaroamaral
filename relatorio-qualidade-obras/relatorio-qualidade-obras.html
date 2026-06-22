@@ -1506,8 +1506,9 @@
                 <input name="password" type="password" value="123456" autocomplete="current-password" required>
               </label>
               <button type="submit" class="mini-button primary">Entrar</button>
+              <button type="button" class="mini-button" id="stockFullRecoverPasswordButton">Recuperar senha</button>
               <button type="button" class="mini-button" data-stock-full-demo-login="manoel">Acessar Manoel Importados</button>
-              <p id="stockFullLoginStatus" class="auth-note">Use manoel@manoelimportados.com / 123456 para o acesso demonstrativo.</p>
+              <p id="stockFullLoginStatus" class="auth-note">Use Supabase Auth configurado ou o fallback local de desenvolvimento.</p>
             </form>
           </div>
         </section>
@@ -1537,6 +1538,7 @@
             <button type="button" class="mini-button" data-almox-manager-shortcut="backup" data-stock-full-permission="backup:export">Exportar backup</button>
             <button type="button" class="mini-button" id="stockFullImportButton" data-stock-full-permission="products:import">Importar produtos</button>
             <button type="button" class="mini-button" id="stockFullTemplateButton" data-stock-full-permission="products:import">Baixar modelo CSV</button>
+            <button type="button" class="mini-button" id="stockFullMigrateButton" data-stock-full-permission="products:import">Migrar dados locais</button>
             <input class="is-hidden" id="stockFullCsvInput" type="file" accept=".csv,text/csv">
           </section>
 
