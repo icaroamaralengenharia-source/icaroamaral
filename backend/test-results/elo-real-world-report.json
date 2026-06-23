@@ -1,0 +1,2580 @@
+{
+  "generatedAt": "2026-06-23T18:43:22.361Z",
+  "total": 170,
+  "passed": 170,
+  "failed": 0,
+  "warnings": 0,
+  "categories": {
+    "quantitativos": {
+      "total": 25,
+      "passed": 25,
+      "failed": 0,
+      "warnings": 0
+    },
+    "custos": {
+      "total": 25,
+      "passed": 25,
+      "failed": 0,
+      "warnings": 0
+    },
+    "produtividade": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "warnings": 0
+    },
+    "patologias": {
+      "total": 25,
+      "passed": 25,
+      "failed": 0,
+      "warnings": 0
+    },
+    "geometria": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "warnings": 0
+    },
+    "legislacao": {
+      "total": 15,
+      "passed": 15,
+      "failed": 0,
+      "warnings": 0
+    },
+    "dono_de_casa": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "warnings": 0
+    },
+    "memoria_elo_10a": {
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "warnings": 0
+    }
+  },
+  "cases": [
+    {
+      "id": "ELO-001",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos blocos gasto para uma parede de 10x3?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 30,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 10,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 30,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-002",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos blocos cerâmicos 14x19x29 são necessários para uma parede de 42 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 10,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 42,00 m²\n- Bloco considerado: 14x19x29\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-003",
+      "categoria": "quantitativos",
+      "pergunta": "Tenho parede 12 m por 2,80 m, sem portas e sem janelas. Qual a área?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 33,60 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: nenhum\n- Área total de vãos: não calculada\n- Área líquida considerada: 33,60 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-004",
+      "categoria": "quantitativos",
+      "pergunta": "Parede 8x3 com uma porta 0,80x2,10. Calcule área líquida.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 24,00 m². Área líquida considerada: 22,32 m².\nPremissas utilizadas:\n- Comprimento da parede: 8,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 24,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²\n- Área total de vãos: 1,68 m²\n- Área líquida considerada: 22,32 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-005",
+      "categoria": "quantitativos",
+      "pergunta": "Quanto chapisco preciso para 50 m² de parede interna?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 50,00 m². Área líquida considerada: 48,32 m².\nPremissas utilizadas:\n- Comprimento da parede: 8,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 50,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²\n- Área total de vãos: 1,68 m²\n- Área líquida considerada: 48,32 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-006",
+      "categoria": "quantitativos",
+      "pergunta": "Quanto reboco para parede de 20 m x 2,80 m nos dois lados?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-007",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos m² de pintura em uma parede de 5 m por 3 m?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 15,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 5,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 15,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-008",
+      "categoria": "quantitativos",
+      "pergunta": "Quantas telhas cerâmicas preciso para telhado de 120 m²?",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 120,00 m². Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-009",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos pisos cerâmicos 60x60 para 36 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica: 3600,00 m².\n\nPremissas utilizadas:\n- Comprimento: 60,00 m\n- Largura: 60,00 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-010",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos sacos de argamassa para assentar 25 m² de piso?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 25,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 5,00 m\n- Altura da parede: 3,00 m\n- Área bruta: 25,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-011",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos blocos para muro 30 m por 2 m com bloco 14x19x39?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 60,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 60,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-012",
+      "categoria": "quantitativos",
+      "pergunta": "Quero calcular contrapiso de 80 m² com 5 cm.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-013",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos m³ de areia para contrapiso de 40 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-014",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos m³ de concreto para radier 10x12 com 10 cm?",
+      "resposta": "Resposta principal\nVolume geométrico: 12,00 m³.\n\nPremissas utilizadas:\n- Comprimento: 10,00 m\n- Largura: 12,00 m\n- Área: 120,00 m²\n- Espessura: 10,00 cm\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área ou volume geométrico.\n\nPróxima ação\nAntes de calcular consumo, mão de obra, produtividade ou custo, preciso confirmar o FCK do concreto e localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-015",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos litros de tinta para 90 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-016",
+      "categoria": "quantitativos",
+      "pergunta": "Quantas barras de aço para uma viga de 5 m?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-017",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos metros de rodapé para sala 4x5?",
+      "resposta": "Resposta principal\nPerímetro/metros lineares: 18,00 m.\n\nPremissas utilizadas:\n- Comprimento: 4,00 m\n- Largura: 5,00 m\n- Cálculo: 2 x (comprimento + largura)\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular metros lineares.\n\nPróxima ação\nPara orçamento, produtividade, perdas ou custo do rodapé, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-018",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos m² de forro para ambiente 3,5x4,2?",
+      "resposta": "Resposta principal\nÁrea geométrica: 14,70 m².\n\nPremissas utilizadas:\n- Comprimento: 3,50 m\n- Largura: 4,20 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-019",
+      "categoria": "quantitativos",
+      "pergunta": "Calcule o volume de concreto de 14 pilares 20x30 com 3 m.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-020",
+      "categoria": "quantitativos",
+      "pergunta": "Calcule concreto de viga 15x40 com 6 m.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 80,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 30,00 m\n- Altura da parede: 2,00 m\n- Área bruta: 80,00 m²\n- Bloco considerado: 14x19x39\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-021",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos blocos baianos para parede 15 m por 2,80 m?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 42,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-022",
+      "categoria": "quantitativos",
+      "pergunta": "Tenho 3 paredes de 4 m por 2,70 m. Qual área total?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 42,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-023",
+      "categoria": "quantitativos",
+      "pergunta": "Calcule área de revestimento de banheiro 2x3 com pé direito 2,60.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 42,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-024",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos m² de impermeabilização para laje 8x10?",
+      "resposta": "Resposta principal\nÁrea geométrica: 80,00 m².\n\nPremissas utilizadas:\n- Comprimento: 8,00 m\n- Largura: 10,00 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-025",
+      "categoria": "quantitativos",
+      "pergunta": "Quantos blocos preciso para parede com janela e porta?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 42,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria quando possível",
+        "premissas",
+        "não inventar composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-026",
+      "categoria": "custos",
+      "pergunta": "Quanto custa a alvenaria de uma casa de 120 m²?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre residência/obra completa. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: residência/obra completa;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 120,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-027",
+      "categoria": "custos",
+      "pergunta": "Qual o custo de uma parede de 100 m² com bloco 14x19x29?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n- Confirme vãos de portas e janelas para evitar quantitativo bruto acima do necessário.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-028",
+      "categoria": "custos",
+      "pergunta": "Orçamento de concreto fck 25 para 12 m³.",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-029",
+      "categoria": "custos",
+      "pergunta": "Quanto custa executar 80 m² de contrapiso?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-030",
+      "categoria": "custos",
+      "pergunta": "Quanto custa pintar 200 m² de parede interna?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 200,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-031",
+      "categoria": "custos",
+      "pergunta": "Qual o custo de mão de obra para 150 m² de piso cerâmico?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 150,00 m².\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-032",
+      "categoria": "custos",
+      "pergunta": "Quanto custa uma laje maciça de 75 m²?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 75,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-033",
+      "categoria": "custos",
+      "pergunta": "Faça orçamento de reboco para 60 m².",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 60,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: não informado\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-034",
+      "categoria": "custos",
+      "pergunta": "Qual custo por m² de uma casa padrão médio usando SINAPI Bahia?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre residência/obra completa. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: residência/obra completa;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 60,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-035",
+      "categoria": "custos",
+      "pergunta": "Quanto custa construir 80 m² em Vitória da Conquista?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-036",
+      "categoria": "custos",
+      "pergunta": "Orçamento oficial para muro 20x2,5.",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-037",
+      "categoria": "custos",
+      "pergunta": "Qual preço de chapisco por m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 42,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 42,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-038",
+      "categoria": "custos",
+      "pergunta": "Quanto custa concreto armado de 50 m³?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-039",
+      "categoria": "custos",
+      "pergunta": "Qual BDI aplicar em obra residencial pequena?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre residência/obra completa. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: residência/obra completa;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-040",
+      "categoria": "custos",
+      "pergunta": "Quanto custa fundação de casa térrea de 100 m²?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre residência/obra completa. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: residência/obra completa;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-041",
+      "categoria": "custos",
+      "pergunta": "Qual custo de telhado cerâmico 120 m²?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 120,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-042",
+      "categoria": "custos",
+      "pergunta": "Quanto custa assentamento de bloco cerâmico?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 120,00 m², padrão médio.\nPara calcular custo da alvenaria, preciso completar o serviço:\n- metragem ou área da parede;\n- dimensão do bloco;\n- vãos de portas/janelas;\n- perda e revestimento;\n- base SINAPI/ORSE ou composição interna validada.\nSem essa composição, não gero custo oficial; posso apenas seguir para uma estimativa preliminar se você autorizar explicitamente como NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-043",
+      "categoria": "custos",
+      "pergunta": "Orçamento de pintura externa muro 40 m².",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 40,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-044",
+      "categoria": "custos",
+      "pergunta": "Quanto custa trocar piso de um apartamento de 70 m²?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 70,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-045",
+      "categoria": "custos",
+      "pergunta": "Faça custo total de banheiro 2x3 com revestimento.",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 70,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-046",
+      "categoria": "custos",
+      "pergunta": "Quanto custa mão de obra de pedreiro por dia?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 70,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-047",
+      "categoria": "custos",
+      "pergunta": "Quanto gasto de material para reboco de 100 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-048",
+      "categoria": "custos",
+      "pergunta": "Qual custo de uma sapata 80x80x30?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-049",
+      "categoria": "custos",
+      "pergunta": "Quanto custa uma viga baldrame de 30 m?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-050",
+      "categoria": "custos",
+      "pergunta": "Dê um orçamento completo de residência sem composição.",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre residência/obra completa. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: residência/obra completa;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 100,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "bloquear custo oficial sem base",
+        "premissas",
+        "base técnica"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-051",
+      "categoria": "produtividade",
+      "pergunta": "Qual a produtividade de pedreiro para alvenaria?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 100,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-052",
+      "categoria": "produtividade",
+      "pergunta": "Quantos dias 2 pedreiros e 2 serventes levam para 200 m² de alvenaria?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-053",
+      "categoria": "produtividade",
+      "pergunta": "Quantos homens-hora para executar 100 m² de reboco?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 100,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-054",
+      "categoria": "produtividade",
+      "pergunta": "Quantos homens-hora para assentar 1.000 blocos?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 100,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-055",
+      "categoria": "produtividade",
+      "pergunta": "Qual produtividade diária de servente em contrapiso?",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 100,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-056",
+      "categoria": "produtividade",
+      "pergunta": "Quanto tempo para concretar 12 m³ com equipe de 4 pessoas?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-057",
+      "categoria": "produtividade",
+      "pergunta": "Quantos dias para pintar 300 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-058",
+      "categoria": "produtividade",
+      "pergunta": "Qual equipe para chapisco de 80 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-059",
+      "categoria": "produtividade",
+      "pergunta": "Quantos pedreiros preciso para levantar 60 m² de parede em 2 dias?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-060",
+      "categoria": "produtividade",
+      "pergunta": "Produtividade para assentamento de piso cerâmico.",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 60,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-061",
+      "categoria": "produtividade",
+      "pergunta": "Qual produção diária de reboco interno?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-062",
+      "categoria": "produtividade",
+      "pergunta": "Equipe para executar laje de 75 m².",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-063",
+      "categoria": "produtividade",
+      "pergunta": "Quantos serventes para descarregar 500 blocos?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-064",
+      "categoria": "produtividade",
+      "pergunta": "Tempo para fazer contrapiso de garagem 5x5.",
+      "resposta": "Resposta principal\nÁrea geométrica: 25,00 m².\n\nPremissas utilizadas:\n- Comprimento: 5,00 m\n- Largura: 5,00 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-065",
+      "categoria": "produtividade",
+      "pergunta": "Quantos dias para telhado de 120 m²?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-066",
+      "categoria": "produtividade",
+      "pergunta": "Produtividade de carpinteiro em forma de viga.",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 120,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-067",
+      "categoria": "produtividade",
+      "pergunta": "Produtividade de armador para CA-50.",
+      "resposta": "Lembrei da obra cidade não informada/NÃO INFORMADA, 120,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-068",
+      "categoria": "produtividade",
+      "pergunta": "Equipe necessária para fundação de casa de 80 m².",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-069",
+      "categoria": "produtividade",
+      "pergunta": "Cronograma físico para alvenaria e reboco.",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-070",
+      "categoria": "produtividade",
+      "pergunta": "Prazo para obra residencial de 120 m² padrão médio.",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 120,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "produtividade exige composição",
+        "auditor",
+        "não inventar prazo oficial"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-071",
+      "categoria": "patologias",
+      "pergunta": "A parede está com trinca diagonal perto da janela. O que pode ser?",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-072",
+      "categoria": "patologias",
+      "pergunta": "A laje apresenta infiltração depois da chuva.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-073",
+      "categoria": "patologias",
+      "pergunta": "O reboco está soltando em placas.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-074",
+      "categoria": "patologias",
+      "pergunta": "Piso cerâmico está estufando.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-075",
+      "categoria": "patologias",
+      "pergunta": "Pintura externa descascando em menos de 6 meses.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n- base mal preparada;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-076",
+      "categoria": "patologias",
+      "pergunta": "Apareceu mofo no quarto.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-077",
+      "categoria": "patologias",
+      "pergunta": "Concreto ficou esfarelando na superfície.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- cobrimento insuficiente;\n- corrosão de armadura;\n- concreto mal adensado ou degradado;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-078",
+      "categoria": "patologias",
+      "pergunta": "Parede com umidade subindo do rodapé.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-079",
+      "categoria": "patologias",
+      "pergunta": "Fissuras finas no contrapiso recém feito.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n- base mal preparada;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-080",
+      "categoria": "patologias",
+      "pergunta": "Telhado com vazamento no encontro da parede.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-081",
+      "categoria": "patologias",
+      "pergunta": "Revestimento cerâmico oco ao bater.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-082",
+      "categoria": "patologias",
+      "pergunta": "Trinca horizontal em muro de divisa.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-083",
+      "categoria": "patologias",
+      "pergunta": "Porta emperrando depois da obra.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- execução inadequada;\n- movimentação da base;\n- umidade ou falta de manutenção;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-084",
+      "categoria": "patologias",
+      "pergunta": "Janela com infiltração na esquadria.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-085",
+      "categoria": "patologias",
+      "pergunta": "Pilar com armadura aparecendo.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- cobrimento insuficiente;\n- corrosão de armadura;\n- concreto mal adensado ou degradado;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial.\n\nPróxima ação:\n- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-086",
+      "categoria": "patologias",
+      "pergunta": "Viga com fissura no meio do vão.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial.\n\nPróxima ação:\n- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-087",
+      "categoria": "patologias",
+      "pergunta": "Laje cedendo visualmente. O que fazer?",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- execução inadequada;\n- movimentação da base;\n- umidade ou falta de manutenção;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial.\n\nPróxima ação:\n- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-088",
+      "categoria": "patologias",
+      "pergunta": "Argamassa de assentamento virou pó.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-089",
+      "categoria": "patologias",
+      "pergunta": "Bolhas na pintura interna.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n- base mal preparada;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-090",
+      "categoria": "patologias",
+      "pergunta": "Cheiro de esgoto no banheiro novo.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- falha de impermeabilização;\n- entrada de água por cobertura/esquadria;\n- umidade ascendente ou vazamento oculto;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-091",
+      "categoria": "patologias",
+      "pergunta": "Rachadura grande na fundação.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial.\n\nPróxima ação:\n- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-092",
+      "categoria": "patologias",
+      "pergunta": "Piso drenante empoçando água.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-093",
+      "categoria": "patologias",
+      "pergunta": "Contrapiso sem caimento no box.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-094",
+      "categoria": "patologias",
+      "pergunta": "Manchas brancas no revestimento.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-095",
+      "categoria": "patologias",
+      "pergunta": "Muro inclinando para o vizinho.",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- execução inadequada;\n- movimentação da base;\n- umidade ou falta de manutenção;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial.\n\nPróxima ação:\n- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura.",
+      "resultadoEsperado": [
+        "orientação técnica",
+        "alertas",
+        "responsável técnico quando necessário"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-096",
+      "categoria": "geometria",
+      "pergunta": "Qual a área de uma parede 10x3?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-097",
+      "categoria": "geometria",
+      "pergunta": "Qual volume de laje 8x10 com 12 cm?",
+      "resposta": "Resposta principal\nVolume geométrico: 9,60 m³.\n\nPremissas utilizadas:\n- Comprimento: 8,00 m\n- Largura: 10,00 m\n- Área: 80,00 m²\n- Espessura: 12,00 cm\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área ou volume geométrico.\n\nPróxima ação\nAntes de calcular consumo, mão de obra, produtividade ou custo, preciso confirmar o FCK do concreto e localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-098",
+      "categoria": "geometria",
+      "pergunta": "Qual perímetro de quarto 3,50x4,00?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 100,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 15,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 100,00 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-099",
+      "categoria": "geometria",
+      "pergunta": "Qual área líquida de parede 12x2,80 com porta 0,90x2,10?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 31,71 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²\n- Área total de vãos: 1,89 m²\n- Área líquida considerada: 31,71 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-100",
+      "categoria": "geometria",
+      "pergunta": "Calcule área bruta e área líquida com duas janelas 1,20x1,00.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 29,31 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²\n- Área total de vãos: 4,29 m²\n- Área líquida considerada: 29,31 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-101",
+      "categoria": "geometria",
+      "pergunta": "Qual volume de pilar 20x30 com 3 m?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 29,31 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²\n- Área total de vãos: 4,29 m²\n- Área líquida considerada: 29,31 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-102",
+      "categoria": "geometria",
+      "pergunta": "Qual volume de viga 20x40 com 5 m?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 29,31 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²\n- Área total de vãos: 4,29 m²\n- Área líquida considerada: 29,31 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-103",
+      "categoria": "geometria",
+      "pergunta": "Qual área de piso de ambiente 4,2x5,3?",
+      "resposta": "Resposta principal\nÁrea geométrica: 22,26 m².\n\nPremissas utilizadas:\n- Comprimento: 4,20 m\n- Largura: 5,30 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-104",
+      "categoria": "geometria",
+      "pergunta": "Qual área de telhado de 6x8 com 30% de inclinação?",
+      "resposta": "Resposta principal\nÁrea geométrica: 48,00 m².\n\nPremissas utilizadas:\n- Comprimento: 6,00 m\n- Largura: 8,00 m\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.\n\nPróxima ação\nPara consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-105",
+      "categoria": "geometria",
+      "pergunta": "Quantos metros lineares de rodapé em sala 4x5 com porta 0,80?",
+      "resposta": "Resposta principal\nPerímetro/metros lineares: 18,00 m.\n\nPremissas utilizadas:\n- Comprimento: 4,00 m\n- Largura: 5,00 m\n- Cálculo: 2 x (comprimento + largura)\n\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular metros lineares.\n\nPróxima ação\nPara orçamento, produtividade, perdas ou custo do rodapé, preciso localizar composição SINAPI/ORSE ou interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-106",
+      "categoria": "geometria",
+      "pergunta": "Área de fachada 8 m por 6 m.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 29,31 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²\n- Área total de vãos: 4,29 m²\n- Área líquida considerada: 29,31 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-107",
+      "categoria": "geometria",
+      "pergunta": "Volume de concreto para sapata 80x80x30 cm.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 33,60 m². Área líquida considerada: 29,31 m².\nPremissas utilizadas:\n- Comprimento da parede: 12,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 33,60 m²\n- Bloco considerado: 80x80x30\n- Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²\n- Área total de vãos: 4,29 m²\n- Área líquida considerada: 29,31 m²\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- perda adotada em porcentagem, por exemplo 8% ou 10%\n- se haverá revestimento em um lado, nos dois lados ou sem revestimento\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-108",
+      "categoria": "geometria",
+      "pergunta": "Área de reboco de duas faces em parede 20x2,8.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-109",
+      "categoria": "geometria",
+      "pergunta": "Área de pintura em 4 paredes de quarto 3x4 e altura 2,8.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-110",
+      "categoria": "geometria",
+      "pergunta": "Volume de contrapiso 30 m² com 4 cm.",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 30,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-111",
+      "categoria": "geometria",
+      "pergunta": "Área de muro 25 m por 2,2 m.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-112",
+      "categoria": "geometria",
+      "pergunta": "Área de janela 1,50x1,20.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 54,20 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 1,80 m²\n- Área líquida considerada: 54,20 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-113",
+      "categoria": "geometria",
+      "pergunta": "Área de porta 0,80x2,10.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-114",
+      "categoria": "geometria",
+      "pergunta": "Comprimento total de 5 vigas de 4 m.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-115",
+      "categoria": "geometria",
+      "pergunta": "Área total de 6 cômodos de 12 m².",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 12,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "geometria imediata",
+        "memória de cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-116",
+      "categoria": "legislacao",
+      "pergunta": "Qual norma usar para concreto armado?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-117",
+      "categoria": "legislacao",
+      "pergunta": "Preciso de ART para reforma pequena?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-118",
+      "categoria": "legislacao",
+      "pergunta": "Qual norma trata desempenho de edificações?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-119",
+      "categoria": "legislacao",
+      "pergunta": "Posso construir muro na divisa sem consultar prefeitura?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-120",
+      "categoria": "legislacao",
+      "pergunta": "Qual recuo obrigatório em terreno urbano?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-121",
+      "categoria": "legislacao",
+      "pergunta": "Qual largura mínima de porta de banheiro acessível?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-122",
+      "categoria": "legislacao",
+      "pergunta": "Preciso de alvará para ampliar a casa?",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 12,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-123",
+      "categoria": "legislacao",
+      "pergunta": "O que é Habite-se?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-124",
+      "categoria": "legislacao",
+      "pergunta": "Qual norma para instalações elétricas residenciais?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-125",
+      "categoria": "legislacao",
+      "pergunta": "Qual norma para instalações hidráulicas?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-126",
+      "categoria": "legislacao",
+      "pergunta": "Qual responsabilidade do engenheiro em obra residencial?",
+      "resposta": "Entendi. Salvei na memória da obra: cidade não informada/NÃO INFORMADA, 12,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-127",
+      "categoria": "legislacao",
+      "pergunta": "Posso usar SINAPI para orçamento público?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre composição técnica. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: composição técnica;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 12,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-128",
+      "categoria": "legislacao",
+      "pergunta": "BDI tem regra obrigatória?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: não informado\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 12,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-129",
+      "categoria": "legislacao",
+      "pergunta": "Qual documentação para regularizar obra?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-130",
+      "categoria": "legislacao",
+      "pergunta": "Preciso seguir código de obras municipal?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "orientação",
+        "não inventar lei local",
+        "recomendar responsável quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-131",
+      "categoria": "dono_de_casa",
+      "pergunta": "Minha obra está gastando muito cimento. O que eu verifico?",
+      "resposta": "Entendi. Salvei na memória da obra: stá gastando muito cimento, cidade não informada/NÃO INFORMADA, 12,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-132",
+      "categoria": "dono_de_casa",
+      "pergunta": "O pedreiro pediu mais areia do que o combinado.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-133",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como saber se o reboco está bem feito?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-134",
+      "categoria": "dono_de_casa",
+      "pergunta": "O orçamento ficou 20% mais caro. É normal?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: NÃO INFORMADA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: stá gastando muito cimento\n- Cidade/UF: não informada / NÃO INFORMADA\n- Área aproximada da obra: 12,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: não informada\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-135",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como comparar duas propostas de empreiteiro?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-136",
+      "categoria": "dono_de_casa",
+      "pergunta": "Devo comprar material todo de uma vez?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-137",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como controlar entrada e saída de material na obra?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-138",
+      "categoria": "dono_de_casa",
+      "pergunta": "O mestre pediu para concretar sem engenheiro. Pode?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-139",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como saber se uma trinca é perigosa?",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- movimentação estrutural ou de alvenaria;\n- retração/acomodação;\n- falha em verga, contraverga, junta ou fundação;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-140",
+      "categoria": "dono_de_casa",
+      "pergunta": "Posso trocar bloco cerâmico por bloco de concreto?",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n- cobrimento insuficiente;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-141",
+      "categoria": "dono_de_casa",
+      "pergunta": "Qual melhor etapa para instalar esquadrias?",
+      "resposta": "Entendi. Salvei na memória da obra: stá gastando muito cimento, cidade não informada/NÃO INFORMADA, 12,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-142",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como evitar desperdício de piso?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-143",
+      "categoria": "dono_de_casa",
+      "pergunta": "O que conferir antes de pagar medição?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-144",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como organizar cronograma da reforma?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-145",
+      "categoria": "dono_de_casa",
+      "pergunta": "Vale a pena fazer contrapiso antes do reboco?",
+      "resposta": "Triagem técnica\nNão dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.\n\nPossíveis causas:\n- base mal preparada;\n- argamassa inadequada ou cura insuficiente;\n- umidade por trás do revestimento;\n\nO que verificar:\n- quando apareceu e se está aumentando;\n- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;\n- fotos, medidas, localização e histórico de execução/manutenção;\n- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.\n\nRisco:\n- Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.\n\nPróxima ação:\n- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-146",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como saber se o concreto chegou bom?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-147",
+      "categoria": "dono_de_casa",
+      "pergunta": "O que perguntar antes de contratar pedreiro?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-148",
+      "categoria": "dono_de_casa",
+      "pergunta": "Como conferir se a quantidade de bloco está correta?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-149",
+      "categoria": "dono_de_casa",
+      "pergunta": "O empreiteiro não quer dar recibo.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-150",
+      "categoria": "dono_de_casa",
+      "pergunta": "Olá",
+      "resposta": "Estou aqui com você. Quer começar por onde?",
+      "resultadoEsperado": [
+        "linguagem simples",
+        "sem cálculo indevido",
+        "sem auditor em saudação quando aplicável"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-151",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Minha obra Residencial Alfa fica em Vitória da Conquista-BA e tem 120 m².",
+      "resposta": "Entendi. Salvei na memória da obra: Residencial Alfa, Vitória da Conquista/BA, 120,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "salvar memória",
+        "resposta curta",
+        "não iniciar cálculo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-152",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Quanto custa a alvenaria?",
+      "resposta": "Lembrei da obra Residencial Alfa, Vitória da Conquista/BA, 120,00 m², padrão médio.\nPara calcular custo da alvenaria, preciso completar o serviço:\n- metragem ou área da parede;\n- dimensão do bloco;\n- vãos de portas/janelas;\n- perda e revestimento;\n- base SINAPI/ORSE ou composição interna validada.\nSem essa composição, não gero custo oficial; posso apenas seguir para uma estimativa preliminar se você autorizar explicitamente como NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "lembrar obra",
+        "pedir premissas faltantes"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-153",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Qual produtividade da equipe?",
+      "resposta": "Lembrei da obra Residencial Alfa, Vitória da Conquista/BA, 120,00 m², padrão médio.\nPara produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.\nPosso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL.",
+      "resultadoEsperado": [
+        "lembrar obra",
+        "auditor",
+        "bloquear produtividade oficial sem composição"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-154",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Atualize área para 140 m².",
+      "resposta": "Entendi. Salvei na memória da obra: Residencial Alfa, Vitória da Conquista/BA, 140,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "atualizar memória"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-155",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Atualize padrão para alto padrão.",
+      "resposta": "Entendi. Salvei na memória da obra: Residencial Alfa, Vitória da Conquista/BA, 140,00 m², padrão médio. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "atualizar memória"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-156",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Estamos na fase de acabamento.",
+      "resposta": "Entendi. Salvei na memória da obra: Residencial Alfa, Vitória da Conquista/BA, 140,00 m², padrão médio, etapa de acabamento. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "atualizar memória"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-157",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Troque para Obra Beta.",
+      "resposta": "Entendi. Salvei na memória da obra: Beta, Vitória da Conquista/BA, 140,00 m², padrão médio, etapa de acabamento. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "criar contexto separado"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-158",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "A Obra Beta fica em Feira de Santana-BA.",
+      "resposta": "Entendi. Salvei na memória da obra: Beta, Feira de Santana/BA, 140,00 m², padrão médio, etapa de acabamento. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-159",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "A área da Obra Beta é 80 m².",
+      "resposta": "Entendi. Salvei na memória da obra: Beta, Feira de Santana/BA, 80,00 m², padrão médio, etapa de acabamento. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-160",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Qual custo de concreto para essa obra?",
+      "resposta": "Resposta principal\nEntendi que é uma pergunta técnica de obras sobre serviço de obra. Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.\n\nMemória de cálculo:\n- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.\n- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.\n\nPremissas utilizadas:\n- Serviço solicitado: serviço de obra;\n- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;\n- UF/mês SINAPI/ORSE: BA;\n- Preços unitários: não informados.\n\nMemória permanente de obra\n- Obra/projeto: Beta\n- Cidade/UF: Feira de Santana / BA\n- Área aproximada da obra: 80,00 m²\n- Tipo de obra: residencial\n- Padrão construtivo: padrão médio\n- Etapa atual: de acabamento\n\nBase técnica utilizada: não localizada\n- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.\n\nAlertas do auditor:\n- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.\n- Falta espessura e/ou FCK para avançar além da geometria ou do briefing.\n\nPróxima ação recomendada\nInforme o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.\n\nNão vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-161",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Volte para Residencial Alfa.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-162",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Quanto custa a pintura?",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-163",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Use como etapa atual: alvenaria.",
+      "resposta": "Entendi. Salvei na memória da obra: Beta, Feira de Santana/BA, 80,00 m², padrão médio, etapa atual. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-164",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Registre que usamos bloco 14x19x29 com frequência.",
+      "resposta": "Resposta principal\nÁrea geométrica da parede: 56,00 m². Área líquida considerada: 52,52 m².\nPremissas utilizadas:\n- Comprimento da parede: 20,00 m\n- Altura da parede: 2,80 m\n- Área bruta: 56,00 m²\n- Bloco considerado: 14x19x29\n- Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 1 janela 1,50 x 1,20 m = 1,80 m²\n- Área total de vãos: 3,48 m²\n- Área líquida considerada: 52,52 m²\n- Lados revestidos: dois lados\nBase técnica utilizada\n- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.\nPróxima ação\nAinda preciso confirmar:\n- perda adotada em porcentagem, por exemplo 8% ou 10%\nDepois vou verificar SINAPI/ORSE ou composição interna validada.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-165",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Obrigado",
+      "resposta": "Por nada. Quando quiser, posso continuar pela obra atual ou responder outra dúvida técnica.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-166",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Como funciona o CADISTA?",
+      "resposta": "O CADISTA é o módulo para transformar dados de projeto em planta técnica, com foco em PDF/DXF e evolução para leitura de croquis. Se quiser, posso explicar o fluxo de uso ou ajudar a montar um briefing de planta.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-167",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Quem criou você?",
+      "resposta": "Sou o Elo, assistente do ecossistema da WIA Engenharia para apoiar obras, relatórios, memória técnica e produtos como CADISTA e Stock.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-168",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Boa noite",
+      "resposta": "Estou aqui com você. Quer começar por onde?",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-169",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Qual é a cidade da obra atual?",
+      "resposta": "Na memória da obra atual tenho: Beta, Feira de Santana/BA, 80,00 m², padrão médio, etapa atual.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    },
+    {
+      "id": "ELO-170",
+      "categoria": "memoria_elo_10a",
+      "pergunta": "Atualize cidade para Salvador-BA.",
+      "resposta": "Entendi. Salvei na memória da obra: Beta, Salvador/BA, 80,00 m², padrão médio, etapa atual. Vou usar esses dados como contexto nas próximas perguntas técnicas.",
+      "resultadoEsperado": [
+        "continuidade",
+        "memória discreta",
+        "sem falso positivo"
+      ],
+      "status": "PASS",
+      "observacoes": [
+        "Nenhuma"
+      ]
+    }
+  ]
+}

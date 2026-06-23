@@ -5359,6 +5359,62 @@ test("Elo continua contexto tecnico e consulta SINAPI apos premissas em pergunta
   assert.match(second.fullAnswer, /Memória de cálculo/);
 });
 
+test("Elo Nota 10A memoriza dados permanentes da obra e reutiliza em pergunta tecnica", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const saved = sandbox.window.EloAssistente.buildResponseForTest("Minha obra Residencial Alfa fica em Vitória da Conquista-BA e tem 120 m², padrão médio.");
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Quanto custa a alvenaria?");
+  const workMemory = JSON.parse(sandbox.localStorage.getItem("elo_work_memory_v1"));
+
+  assert.match(saved.fullAnswer, /Entendi\. Salvei na memória da obra: Residencial Alfa, Vitória da Conquista\/BA, 120,00 m², padrão médio/);
+  assert.doesNotMatch(saved.fullAnswer, /Memória de cálculo|Base técnica utilizada|Alertas do auditor/);
+  assert.match(response.fullAnswer, /Lembrei da obra Residencial Alfa, Vitória da Conquista\/BA, 120,00 m², padrão médio/);
+  assert.match(response.fullAnswer, /completar o serviço/i);
+  assert.match(response.fullAnswer, /metragem ou área da parede/i);
+  assert.match(response.fullAnswer, /base SINAPI\/ORSE|composição interna validada/i);
+  assert.doesNotMatch(response.fullAnswer, /Memória permanente de obra|Memória de cálculo|Alertas do auditor/);
+  assert.equal(workMemory.activeProjectId, "residencial_alfa");
+  assert.equal(workMemory.projects.residencial_alfa.uf, "BA");
+  assert.equal(sandbox.localStorage.getItem("elo_long_term_memory_v1"), null);
+});
+
+test("Elo Nota 10A alerta produtividade sem composicao validada", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Qual a produtividade de pedreiro e servente para executar alvenaria?");
+
+  assert.match(response.fullAnswer, /composição validada|SINAPI\/ORSE/);
+  assert.match(response.fullAnswer, /não vou tratar produtividade.*como dado oficial/i);
+  assert.match(response.fullAnswer, /Sem composição, não vou tratar produtividade/);
+  assert.doesNotMatch(response.fullAnswer, /SINAPI real\/importada/);
+});
+
+test("Elo Nota 10A nao aplica estrutura tecnica em conversa simples", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("oi, tudo bem?");
+
+  assert.doesNotMatch(response.fullAnswer, /Memória de cálculo/);
+  assert.doesNotMatch(response.fullAnswer, /Base técnica utilizada/);
+  assert.doesNotMatch(response.fullAnswer, /Alertas do auditor/);
+});
+test("Elo Nota 10A organiza resposta tecnica no padrao principal calculo premissas base auditor", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Gere orçamento oficial de uma residência de 120 m² padrão médio em Vitória da Conquista-BA.");
+  const answer = response.fullAnswer;
+
+  const order = [
+    answer.indexOf("Resposta principal"),
+    answer.indexOf("Memória de cálculo"),
+    answer.indexOf("Premissas utilizadas"),
+    answer.indexOf("Base técnica utilizada"),
+    answer.indexOf("Alertas do auditor"),
+    answer.indexOf("Próxima ação recomendada")
+  ];
+  assert.ok(order.every((index) => index >= 0));
+  assert.deepEqual(order.slice().sort((a, b) => a - b), order);
+});
 test("Elo responde geometria de volume sem exigir SINAPI", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 

@@ -7,6 +7,7 @@
     importantMemoryStorageKey: "obrareport_elo_memorias_importantes_v1",
     documentsStorageKey: "obrareport_elo_documentos_v1",
     longTermMemoryStorageKey: "elo_long_term_memory_v1",
+    workMemoryStorageKey: "elo_work_memory_v1",
     deviceIdStorageKey: "elo_device_id_v1",
     realQuestionsStorageKey: "obrareport_elo_perguntas_reais_v1",
     userProfileStorageKey: "obrareport_elo_perfil_usuario_v1",
@@ -914,6 +915,233 @@
     }).join("; ") + ".";
   }
 
+
+  // ELO_WORK_MEMORY
+  function createEloWorkMemory_() {
+    return {
+      activeProjectId: "obra_atual",
+      projects: {
+        obra_atual: {
+          id: "obra_atual",
+          nome: "não informado",
+          cidade: "não informada",
+          uf: "não informada",
+          area_m2: null,
+          tipo_obra: "não informado",
+          padrao_construtivo: "não informado",
+          etapa_atual: "não informada",
+          materiais_citados: [],
+          dimensoes_recorrentes: [],
+          updatedAt: ""
+        }
+      }
+    };
+  }
+
+  function normalizeEloWorkMemory_(memory) {
+    const base = createEloWorkMemory_();
+    const source = memory && typeof memory === "object" ? memory : {};
+    const projects = source.projects && typeof source.projects === "object" ? source.projects : {};
+    Object.keys(projects).forEach(function (key) {
+      const item = projects[key] || {};
+      const id = sanitizeUserText(item.id || key) || key;
+      base.projects[id] = Object.assign({}, base.projects.obra_atual, {
+        id: id,
+        nome: sanitizeUserText(item.nome) || "não informado",
+        cidade: sanitizeUserText(item.cidade) || "não informada",
+        uf: sanitizeUserText(item.uf).toUpperCase() || "não informada",
+        area_m2: parseEloOperationalNumber_(item.area_m2) || null,
+        tipo_obra: sanitizeUserText(item.tipo_obra) || "não informado",
+        padrao_construtivo: sanitizeUserText(item.padrao_construtivo) || "não informado",
+        etapa_atual: sanitizeUserText(item.etapa_atual) || "não informada",
+        materiais_citados: Array.isArray(item.materiais_citados) ? item.materiais_citados.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
+        dimensoes_recorrentes: Array.isArray(item.dimensoes_recorrentes) ? item.dimensoes_recorrentes.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
+        updatedAt: sanitizeUserText(item.updatedAt) || ""
+      });
+    });
+    base.activeProjectId = sanitizeUserText(source.activeProjectId) || "obra_atual";
+    if (!base.projects[base.activeProjectId]) {
+      base.activeProjectId = "obra_atual";
+    }
+    return base;
+  }
+
+  function getEloWorkMemory_() {
+    try {
+      const raw = window.localStorage.getItem(ELO_CONFIG.workMemoryStorageKey);
+      return normalizeEloWorkMemory_(raw ? JSON.parse(raw) : null);
+    } catch (error) {
+      return createEloWorkMemory_();
+    }
+  }
+
+  function setEloWorkMemory_(memory) {
+    try {
+      window.localStorage.setItem(ELO_CONFIG.workMemoryStorageKey, JSON.stringify(normalizeEloWorkMemory_(memory)));
+    } catch (error) {
+      // Memória de obra local pode falhar em modo privado. O Elo segue sem persistir.
+    }
+  }
+
+  function getActiveEloWorkProject_() {
+    const memory = getEloWorkMemory_();
+    return memory.projects[memory.activeProjectId] || memory.projects.obra_atual;
+  }
+
+  function pushUniqueEloWorkMemoryItem_(list, value) {
+    const clean = sanitizeUserText(value);
+    if (!clean) return list || [];
+    const current = Array.isArray(list) ? list.slice() : [];
+    if (!current.some(function (item) { return normalizeText(item) === normalizeText(clean); })) {
+      current.unshift(clean);
+    }
+    return current.slice(0, 20);
+  }
+
+  function extractEloWorkMemoryFacts_(message) {
+    const raw = sanitizeUserText(message || "");
+    const text = normalizeText(raw);
+    const facts = {};
+    const nameMatch = raw.match(/(?:obra|projeto|resid[êe]ncia|casa)\s+(?:chamada|nomeada|é|e|se chama)?\s*([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][\wÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç\s]{2,50}?)(?:\s+(?:fica|em|tem|com|está|esta|é|e)\b|[,.]|$)/i);
+    if (nameMatch && !/fica|tem|com|padrao|padrão|area|área/i.test(nameMatch[1])) {
+      facts.nome = sanitizeUserText(nameMatch[1]);
+    }
+    const cityUfMatch = raw.match(/\b(?:em|fica em|cidade de|cidade para|atualize cidade para|mude cidade para)\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][\wÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç\s]+?)[\s,-]+([A-Z]{2})\b/);
+    if (cityUfMatch) {
+      facts.cidade = sanitizeUserText(cityUfMatch[1]).replace(/\s+$/, "");
+      facts.uf = sanitizeUserText(cityUfMatch[2]).toUpperCase();
+    }
+    const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    if (areaMatch) {
+      facts.area_m2 = parseEloOperationalNumber_(areaMatch[1]);
+    }
+    if (/residencial|resid[êe]ncia|casa/.test(text)) facts.tipo_obra = "residencial";
+    if (/comercial|loja|galpao|galpão|empresa/.test(text)) facts.tipo_obra = /galpao|galpão/.test(text) ? "galpão" : "comercial";
+    if (/padrao\s+(medio|m[eé]dio)|padrão\s+(medio|m[eé]dio)/.test(text)) facts.padrao_construtivo = "padrão médio";
+    if (/alto\s+padrao|alto\s+padrão/.test(text)) facts.padrao_construtivo = "alto padrão";
+    if (/baixo\s+padrao|baixo\s+padrão|popular/.test(text)) facts.padrao_construtivo = "popular";
+    const etapaMatch = text.match(/\b(?:etapa|fase)\s+(?:atual\s+)?(?:e|é|:)?\s*([a-z0-9\s]{3,40})/);
+    if (etapaMatch) facts.etapa_atual = sanitizeUserText(etapaMatch[1]);
+    const materialMatches = raw.match(/\b(?:cimento|bloco|tijolo|areia|brita|aço|aco|ca-50|concreto|telha|argamassa|tinta|pvc)\b/gi) || [];
+    facts.materiais_citados = materialMatches.map(function (item) { return sanitizeUserText(item).toLowerCase(); });
+    const dimensions = raw.match(/\b\d+(?:[,.]\d+)?\s*(?:m|cm)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?(?:\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?)?\b/gi) || [];
+    facts.dimensoes_recorrentes = dimensions.map(sanitizeUserText);
+    return facts;
+  }
+
+  function hasEloTechnicalCalculationIntent_(message) {
+    const text = normalizeText(message || "");
+    return /calcular|calcule|calcula|quantos?|quanto\s+custa|custo|or.amento|orcamento|valor|pre.o|preco|composi..o|composicao|sinapi|orse|quantitativo|consumo|material|materiais|m.o\s+de\s+obra|mao\s+de\s+obra|produtividade|equipe|pedreiro|servente|homens?-hora|cronograma|curva\s+abc|bdi|executar|execu..o|fazer\s+conta|preciso\s+de\s+quantidade/.test(text);
+  }
+
+  function hasEloWorkMemoryFacts_(facts) {
+    return Object.keys(facts || {}).some(function (key) {
+      return Array.isArray(facts[key]) ? facts[key].length : facts[key] !== undefined && facts[key] !== null && facts[key] !== "";
+    });
+  }
+
+  function isEloWorkMemoryOnlyMessage_(message) {
+    const text = normalizeText(message || "");
+    if (hasEloTechnicalCalculationIntent_(message)) {
+      return false;
+    }
+    const facts = extractEloWorkMemoryFacts_(message);
+    if (!hasEloWorkMemoryFacts_(facts)) {
+      return false;
+    }
+    return /\b(?:minha\s+obra|obra|projeto|residencia|residência|casa)\b/.test(text) || facts.nome || facts.cidade || facts.uf || facts.area_m2 || facts.padrao_construtivo || facts.etapa_atual;
+  }
+
+  function formatEloWorkMemorySavedSummary_(project) {
+    const parts = [];
+    if (project.nome && project.nome !== "não informado") parts.push(project.nome);
+    if ((project.cidade && project.cidade !== "não informada") || (project.uf && project.uf !== "não informada")) {
+      parts.push(((project.cidade && project.cidade !== "não informada") ? project.cidade : "cidade não informada") + "/" + ((project.uf && project.uf !== "não informada") ? project.uf : "UF não informada"));
+    }
+    if (project.area_m2) parts.push(formatEloWallPremiseMeasure_(project.area_m2, "m²"));
+    if (project.padrao_construtivo && project.padrao_construtivo !== "não informado") parts.push(project.padrao_construtivo);
+    if (project.etapa_atual && project.etapa_atual !== "não informada") parts.push("etapa " + project.etapa_atual);
+    return parts.length ? parts.join(", ") : "obra atual";
+  }
+
+  function buildEloWorkMemorySavedAnswer_(message) {
+    const project = updateEloWorkMemoryFromMessage_(message);
+    const summary = formatEloWorkMemorySavedSummary_(project);
+    const answer = "Entendi. Salvei na memória da obra: " + summary + ". Vou usar esses dados como contexto nas próximas perguntas técnicas.";
+    return {
+      shortAnswer: "Salvei esses dados na memória da obra.",
+      fullAnswer: answer,
+      nextAction: "Faça uma pergunta técnica quando quiser usar esse contexto.",
+      canSave: false,
+      sessionTheme: "memoria_obra",
+      sessionIntent: "salvar_memoria_obra"
+    };
+  }
+  function updateEloWorkMemoryFromMessage_(message) {
+    if (!isEloConstructionTechnicalQuestion_(message)) {
+      return getActiveEloWorkProject_();
+    }
+    const facts = extractEloWorkMemoryFacts_(message);
+    const hasFacts = hasEloWorkMemoryFacts_(facts);
+    const memory = getEloWorkMemory_();
+    const current = Object.assign({}, memory.projects[memory.activeProjectId] || memory.projects.obra_atual);
+    if (facts.nome) {
+      const id = normalizeText(facts.nome).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "obra_atual";
+      memory.activeProjectId = id;
+      memory.projects[id] = Object.assign({}, memory.projects[id] || current, { id: id, nome: facts.nome });
+    }
+    const active = Object.assign({}, memory.projects[memory.activeProjectId] || current);
+    ["cidade", "uf", "tipo_obra", "padrao_construtivo", "etapa_atual"].forEach(function (key) {
+      if (facts[key]) active[key] = facts[key];
+    });
+    if (facts.area_m2 > 0) active.area_m2 = facts.area_m2;
+    (facts.materiais_citados || []).forEach(function (item) {
+      active.materiais_citados = pushUniqueEloWorkMemoryItem_(active.materiais_citados, item);
+    });
+    (facts.dimensoes_recorrentes || []).forEach(function (item) {
+      active.dimensoes_recorrentes = pushUniqueEloWorkMemoryItem_(active.dimensoes_recorrentes, item);
+    });
+    if (hasFacts) {
+      active.updatedAt = new Date().toISOString();
+      memory.projects[memory.activeProjectId] = active;
+      setEloWorkMemory_(memory);
+    }
+    return active;
+  }
+
+  function formatEloWorkMemoryLines_(project) {
+    const obra = project || getActiveEloWorkProject_();
+    return [
+      "- Obra/projeto: " + (obra.nome || "não informado"),
+      "- Cidade/UF: " + ((obra.cidade && obra.cidade !== "não informada") ? obra.cidade : "não informada") + " / " + ((obra.uf && obra.uf !== "não informada") ? obra.uf : "não informada"),
+      "- Área aproximada da obra: " + (obra.area_m2 ? formatEloWallPremiseMeasure_(obra.area_m2, "m²") : "não informada"),
+      "- Tipo de obra: " + (obra.tipo_obra || "não informado"),
+      "- Padrão construtivo: " + (obra.padrao_construtivo || "não informado"),
+      "- Etapa atual: " + (obra.etapa_atual || "não informada")
+    ];
+  }
+
+  function buildEloTechnicalAuditorAlerts_(message, options) {
+    const text = normalizeText(message || "");
+    const alerts = [];
+    const opts = options || {};
+    if (/custo|or.amento|orcamento|valor|pre.o|preco|bdi|cronograma|curva\s+abc/.test(text) && !opts.hasOfficialBase) {
+      alerts.push("- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.");
+    }
+    if (/produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|homens?-hora|horas?/.test(text) && !opts.hasOfficialBase) {
+      alerts.push("- Produtividade e mão de obra dependem de composição validada; sem isso, a resposta fica limitada a briefing técnico.");
+    }
+    if (/v[aã]o|viga|laje|pilar|sapata|estrutura|balanço|balanco/.test(text) && /(\b[6-9]\s*m\b|\b1\d\s*m\b|\d+(?:[,.]\d+)?\s*m\s+de\s+v[aã]o)/.test(text)) {
+      alerts.push("- Vão estrutural suspeito: confirme projeto estrutural e responsável técnico antes de executar.");
+    }
+    if (/concreto|laje|contrapiso|piso/.test(text) && !/espessura|\d+(?:[,.]\d+)?\s*cm|\bfck\s*\d{2}|\d{2}\s*mpa/.test(text) && /calcular|quantos|or.amento|orcamento|custo|consumo/.test(text)) {
+      alerts.push("- Falta espessura e/ou FCK para avançar além da geometria ou do briefing.");
+    }
+    if (/parede|alvenaria|bloco|tijolo/.test(text) && /quantos|consumo|or.amento|orcamento|custo/.test(text) && !/porta|janela|sem\s+v[aã]os|sem\s+portas|sem\s+janelas/.test(text)) {
+      alerts.push("- Confirme vãos de portas e janelas para evitar quantitativo bruto acima do necessário.");
+    }
+    return alerts;
+  }
   // ELO_SESSION_MEMORY
   const ELO_SESSION_MEMORY = {
     lastQuestion: "",
@@ -9469,19 +9697,20 @@
       : { predictedItems: [] };
     const metadata = composition.metadata || {};
     const calculatedItems = formatEloStockObrasCalculatedItems_(prediction.predictedItems || prediction.items || [], briefing.perda_percentual);
+    const project = getActiveEloWorkProject_();
+    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria", { hasOfficialBase: true });
     const lines = [
+      "Resposta principal",
       "Briefing técnico consolidado; composição oficial localizada.",
       "",
-      "Base técnica utilizada: " + buildEloStockObrasTechnicalBaseLabel_(composition),
-      "",
-      "Composição localizada:",
-      "- Código: " + (composition.code || composition.id || "sem código"),
-      "- Descrição: " + (composition.description || composition.name || composition.service || "sem descrição"),
-      "- Unidade: " + (composition.productionUnit || composition.unit || "m²"),
-      "- Fonte: " + (composition.source || "não informada"),
-      "- UF/mês: " + (composition.sourceRegion || metadata.state || "não informada") + " / " + (composition.sourceDate || metadata.referenceMonth || "não informado"),
+      "Memória de cálculo:",
+      "- Área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + " x coeficientes oficiais da composição " + (composition.code || composition.id || "selecionada") + ".",
       "",
       "Premissas utilizadas:",
+      "Memória permanente de obra:",
+      formatEloWorkMemoryLines_(project).join("\n"),
+      "",
+      "Premissas do serviço:",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
       "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
@@ -9493,8 +9722,21 @@
       "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
       briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
       "",
-      "Memória de cálculo:",
-      "- Área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + " x coeficientes oficiais da composição " + (composition.code || composition.id || "selecionada") + ".",
+      "Base técnica utilizada: " + (composition.source || "composição interna validada"),
+      "- " + buildEloStockObrasTechnicalBaseLabel_(composition),
+      "",
+      "Composição localizada:",
+      "- Código: " + (composition.code || composition.id || "sem código"),
+      "- Descrição: " + (composition.description || composition.name || composition.service || "sem descrição"),
+      "- Unidade: " + (composition.productionUnit || composition.unit || "m²"),
+      "- Fonte: " + (composition.source || "não informada"),
+      "- UF/mês: " + (composition.sourceRegion || metadata.state || "não informada") + " / " + (composition.sourceDate || metadata.referenceMonth || "não informado"),
+      "",
+      "Alertas do auditor:",
+      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta crítico adicional com a composição localizada. Confirme aderência da composição ao serviço real antes de executar."),
+      "",
+      "Próxima ação recomendada",
+      "Revise os insumos calculados e confirme se a composição oficial corresponde ao serviço desejado.",
       "",
       "Consumo calculado pelo motor Stock Obras:"
     ].filter(Boolean);
@@ -9520,12 +9762,21 @@
       return buildEloStockObrasOfficialCompositionResponse_(briefing, officialComposition);
     }
     const openingSummary = formatEloStockObrasOpenings_(briefing);
+    const project = getActiveEloWorkProject_();
+    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria orçamento custo produtividade", { hasOfficialBase: false });
     const lines = [
+      "Resposta principal",
       alreadyConsidered ? "A premissa informada já estava considerada no briefing acumulado." : "Briefing técnico consolidado, mas ainda preciso de uma composição SINAPI/ORSE ou interna validada para calcular consumo, mão de obra, produtividade ou custo com segurança.",
       "",
-      "Base técnica utilizada: não localizada",
+      "Memória de cálculo:",
+      "- Área bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²") + " - vãos " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²") + " = área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
+      "- Consumo, produtividade, mão de obra e custo oficial ainda bloqueados por falta de base técnica válida.",
       "",
       "Premissas utilizadas:",
+      "Memória permanente de obra:",
+      formatEloWorkMemoryLines_(project).join("\n"),
+      "",
+      "Premissas do serviço:",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
       "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
@@ -9537,7 +9788,13 @@
       "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
       briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
       "",
-      "Não vou gerar quantitativo, consumo, mão de obra, produtividade ou valor oficial sem base técnica.",
+      "Base técnica utilizada: não localizada",
+      "- Não vou gerar quantitativo oficial, consumo, mão de obra, produtividade ou valor sem SINAPI, ORSE ou composição interna validada.",
+      "",
+      "Alertas do auditor:",
+      auditorAlerts.join("\n"),
+      "",
+      "Próxima ação recomendada",
       "Você pode informar o código/composição SINAPI/ORSE ou autorizar explicitamente uma estimativa preliminar NÃO OFICIAL."
     ].filter(Boolean);
     return {
@@ -9615,7 +9872,7 @@
         "Resposta principal",
         "Área geométrica da parede: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²") + "." + ((briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) ? " Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + "." : ""),
         "",
-        "Premissas utilizadas",
+        "Premissas utilizadas:",
         registeredLines.join("\n"),
         "",
         "Base técnica utilizada",
@@ -10408,6 +10665,7 @@
     if (!isEloOperationalConstructionQuestion_(message)) {
       return null;
     }
+    updateEloWorkMemoryFromMessage_(message);
     const premiseQuestion = buildEloPremiseQuestion_(message);
     if (premiseQuestion) {
       return premiseQuestion;
@@ -10963,7 +11221,7 @@
         "Resposta principal",
         "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".",
         "",
-        "Premissas utilizadas",
+        "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
         "- Área: " + formatEloWallPremiseMeasure_(area, "m²"),
@@ -10990,7 +11248,7 @@
         "Resposta principal",
         "Perímetro/metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
         "",
-        "Premissas utilizadas",
+        "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
         "- Cálculo: 2 x (comprimento + largura)",
@@ -11015,7 +11273,7 @@
         "Resposta principal",
         "Área geométrica: " + formatEloWallPremiseMeasure_(area, "m²") + ".",
         "",
-        "Premissas utilizadas",
+        "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
         "",
@@ -11038,31 +11296,92 @@
   }
   function isEloHighLevelConstructionBudgetQuestion_(message) {
     const text = normalizeText(message || "");
-    return isEloConstructionTechnicalQuestion_(message) && /composi..o|composicao|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|horas?\s+necessarias|\bbdi\b|custo|or.amento|orcamento|valor|cronograma|curva\s+abc|insumos?.*80|participa..o\s+percentual|participacao\s+percentual|reduzir\s+o\s+custo|otimiza..o|otimizacao|sacos?\s+de\s+cimento|kg\s+de\s+a.o|kg\s+de\s+aco|estimativa\s+de\s+blocos|quantitativos\s+principais/.test(text);
+    return isEloConstructionTechnicalQuestion_(message) && /composi..o|composicao|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|horas?\s+necessarias|\bbdi\b|quanto\s+custa|custo|or.amento|orcamento|valor|cronograma|curva\s+abc|insumos?.*80|participa..o\s+percentual|participacao\s+percentual|reduzir\s+o\s+custo|otimiza..o|otimizacao|sacos?\s+de\s+cimento|kg\s+de\s+a.o|kg\s+de\s+aco|estimativa\s+de\s+blocos|quantitativos\s+principais/.test(text);
+  }
+  function buildEloConciseMissingServicePremisesAnswer_(message, project) {
+    const text = normalizeText(message || "");
+    if (!/alvenaria|parede|bloco|tijolo/.test(text) || !/quanto\s+custa|custo|or.amento|orcamento|valor|pre.o|preco/.test(text)) {
+      return null;
+    }
+    const hasGeometry = hasEloWallLengthHeight_(text) || /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text);
+    if (hasGeometry) {
+      return null;
+    }
+    const summary = formatEloWorkMemorySavedSummary_(project || getActiveEloWorkProject_());
+    const answer = [
+      "Lembrei da obra " + summary + ".",
+      "Para calcular custo da alvenaria, preciso completar o serviço:",
+      "- metragem ou área da parede;",
+      "- dimensão do bloco;",
+      "- vãos de portas/janelas;",
+      "- perda e revestimento;",
+      "- base SINAPI/ORSE ou composição interna validada.",
+      "Sem essa composição, não gero custo oficial; posso apenas seguir para uma estimativa preliminar se você autorizar explicitamente como NÃO OFICIAL."
+    ].join("\n");
+    return {
+      shortAnswer: "Preciso das premissas da alvenaria antes do custo.",
+      fullAnswer: answer,
+      nextAction: "Informe área ou comprimento x altura, bloco, vãos, perda, revestimento e composição SINAPI/ORSE.",
+      canSave: false,
+      sessionTheme: "base_tecnica_quantitativo",
+      sessionIntent: "pedir_premissas_alvenaria"
+    };
   }
   function buildEloConstructionTechnicalFallback_(message) {
     const text = normalizeText(message || "");
     const subject = /casa|resid.ncia|residencia/.test(text)
       ? "residência/obra completa"
-      : /produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora/.test(text)
+      : /produtividade|equipe|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora/.test(text)
         ? "produtividade e mão de obra"
         : /sinapi|orse|composi..o|composicao/.test(text)
           ? "composição técnica"
           : "serviço de obra";
+    const project = updateEloWorkMemoryFromMessage_(message);
+    const conciseMissingPremises = buildEloConciseMissingServicePremisesAnswer_(message, project);
+    if (conciseMissingPremises) {
+      return conciseMissingPremises;
+    }
+    if (/produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|equipe/.test(text)) {
+      const summary = formatEloWorkMemorySavedSummary_(project || getActiveEloWorkProject_());
+      const answer = [
+        "Lembrei da obra " + summary + ".",
+        "Para produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.",
+        "Posso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL."
+      ].join("\n");
+      return {
+        shortAnswer: "Preciso de composição validada para produtividade oficial.",
+        fullAnswer: answer,
+        nextAction: "Informe o serviço exato e a composição SINAPI/ORSE, ou autorize estimativa NÃO OFICIAL.",
+        canSave: false,
+        sessionTheme: "base_tecnica_quantitativo",
+        sessionIntent: "bloquear_produtividade_sem_composicao"
+      };
+    }
+    const auditorAlerts = buildEloTechnicalAuditorAlerts_(message, { hasOfficialBase: false });
     const lines = [
       "Resposta principal",
       "Entendi que é uma pergunta técnica de obras sobre " + subject + ". Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.",
       "",
-      "Premissas utilizadas",
+      "Memória de cálculo:",
+      "- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.",
+      "- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.",
+      "",
+      "Premissas utilizadas:",
       "- Serviço solicitado: " + subject + ";",
-      "- Quantidade, área, volume ou escopo: conforme informado pelo usuário, ainda sujeito a conferência técnica;",
-      "- UF/mês SINAPI/ORSE: não confirmado, salvo quando informado na pergunta;",
+      "- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;",
+      "- UF/mês SINAPI/ORSE: " + ((project.uf && project.uf !== "não informada") ? project.uf : "não confirmado") + ";",
       "- Preços unitários: não informados.",
       "",
-      "Base técnica utilizada",
-      "- Não localizada nesta etapa. Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.",
+      "Memória permanente de obra",
+      formatEloWorkMemoryLines_(project).join("\n"),
       "",
-      "Próxima ação",
+      "Base técnica utilizada: não localizada",
+      "- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.",
+      "",
+      "Alertas do auditor:",
+      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar."),
+      "",
+      "Próxima ação recomendada",
       "Informe o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.",
       "",
       "Não vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base."
@@ -11078,9 +11397,125 @@
   }
 
   // ELO_RESPONSE_ENGINE
+  function buildEloWorkMemoryQuestionAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!/\b(qual|quais|me diga|informe|lembre)\b/.test(text) || !/obra atual|memoria da obra|memória da obra|cidade da obra|area da obra|área da obra|padrao da obra|padrão da obra/.test(text)) {
+      return null;
+    }
+    const project = getActiveEloWorkProject_();
+    const summary = formatEloWorkMemorySavedSummary_(project);
+    return {
+      shortAnswer: "Tenho estes dados da obra atual.",
+      fullAnswer: "Na memória da obra atual tenho: " + summary + ".",
+      nextAction: "Faça uma pergunta técnica ou atualize algum dado da obra.",
+      canSave: false,
+      sessionTheme: "memoria_obra",
+      sessionIntent: "consultar_memoria_obra"
+    };
+  }
+
+  function buildEloNaturalSimpleAnswer_(message) {
+    const text = normalizeText(message || "").trim();
+    const social = getSocialGreetingResponse(message);
+    if (social) {
+      return social;
+    }
+    if (/^(obrigado|obrigada|valeu|grato|grata)\b/.test(text)) {
+      return {
+        shortAnswer: "Por nada.",
+        fullAnswer: "Por nada. Quando quiser, posso continuar pela obra atual ou responder outra dúvida técnica.",
+        nextAction: "Envie a próxima pergunta quando quiser.",
+        canSave: false,
+        sessionTheme: "conversa",
+        sessionIntent: "agradecimento"
+      };
+    }
+    if (/cadista/.test(text)) {
+      return {
+        shortAnswer: "O CADISTA transforma dados de projeto em desenho técnico.",
+        fullAnswer: "O CADISTA é o módulo para transformar dados de projeto em planta técnica, com foco em PDF/DXF e evolução para leitura de croquis. Se quiser, posso explicar o fluxo de uso ou ajudar a montar um briefing de planta.",
+        nextAction: "Diga se quer entender o CADISTA ou criar um briefing de planta.",
+        canSave: false,
+        sessionTheme: "cadista",
+        sessionIntent: "explicar_cadista"
+      };
+    }
+    if (/quem\s+criou\s+voce|quem\s+criou\s+você/.test(text)) {
+      return {
+        shortAnswer: "Fui criado para apoiar seus projetos técnicos.",
+        fullAnswer: "Sou o Elo, assistente do ecossistema da WIA Engenharia para apoiar obras, relatórios, memória técnica e produtos como CADISTA e Stock.",
+        nextAction: "Pergunte algo sobre a obra ou sobre os produtos quando quiser.",
+        canSave: false,
+        sessionTheme: "conversa",
+        sessionIntent: "identidade"
+      };
+    }
+    if (hasEloTechnicalCalculationIntent_(message) || isEloConstructionTechnicalQuestion_(message)) {
+      return null;
+    }
+    return null;
+  }
+  function isEloConstructionPathologyQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
+  }
+
+  function buildEloConstructionPathologyAnswer_(message) {
+    if (!isEloConstructionPathologyQuestion_(message)) {
+      return null;
+    }
+    const text = normalizeText(message || "");
+    const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundação|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vão/.test(text);
+    const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
+    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
+    const causes = [];
+    if (/trinca|fissura|rachadura/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
+    if (moisture) causes.push("falha de impermeabilização", "entrada de água por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
+    if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trás do revestimento");
+    if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");
+    if (!causes.length) causes.push("execução inadequada", "movimentação da base", "umidade ou falta de manutenção");
+    const uniqueCauses = causes.filter(function (item, index) { return causes.indexOf(item) === index; }).slice(0, 4);
+    const risk = structuralRisk
+      ? "Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial."
+      : moisture
+        ? "Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento."
+        : "Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.";
+    const answer = [
+      "Triagem técnica",
+      "Não dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.",
+      "",
+      "Possíveis causas:",
+      uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
+      "",
+      "O que verificar:",
+      "- quando apareceu e se está aumentando;",
+      "- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;",
+      "- fotos, medidas, localização e histórico de execução/manutenção;",
+      "- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.",
+      "",
+      "Risco:",
+      "- " + risk,
+      "",
+      "Próxima ação:",
+      structuralRisk
+        ? "- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura."
+        : "- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa."
+    ].join("\n");
+    return {
+      shortAnswer: "Isso pede triagem técnica antes de qualquer reparo.",
+      fullAnswer: answer,
+      nextAction: structuralRisk ? "Chame um engenheiro para vistoria presencial." : "Envie fotos, localização e histórico para afinar a triagem.",
+      canSave: false,
+      sessionTheme: "patologia_obras",
+      sessionIntent: "triagem_patologia"
+    };
+  }
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
     const normalizedQuestion = normalizeText(cleanQuestion);
+    if (normalizedQuestion && isEloConstructionTechnicalQuestion_(cleanQuestion)) {
+      updateEloWorkMemoryFromMessage_(cleanQuestion);
+    }
 
     if (!normalizedQuestion) {
       return {
@@ -11095,6 +11530,23 @@
       return getCrisisSupportResponse();
     }
 
+    if (isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
+      return buildEloWorkMemorySavedAnswer_(cleanQuestion);
+    }
+    const workMemoryQuestion = buildEloWorkMemoryQuestionAnswer_(cleanQuestion);
+    if (workMemoryQuestion) {
+      return workMemoryQuestion;
+    }
+
+    const naturalSimpleAnswer = buildEloNaturalSimpleAnswer_(cleanQuestion);
+    if (naturalSimpleAnswer) {
+      return naturalSimpleAnswer;
+    }
+
+    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (pathologyAnswer) {
+      return pathologyAnswer;
+    }
     const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
     if (geometryLayerAnswer) {
       return geometryLayerAnswer;
@@ -13370,6 +13822,10 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (pathologyAnswer) {
+      return pathologyAnswer;
+    }
     const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
     if (geometryLayerAnswer) {
       const geometryAnswer = formatResponse(geometryLayerAnswer);
