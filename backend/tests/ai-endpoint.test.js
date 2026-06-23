@@ -5399,6 +5399,76 @@ test("Elo mostra area liquida de parede com vaos antes de buscar composicao", as
   assert.match(response.fullAnswer, /revestimento/);
   assert.doesNotMatch(response.fullAnswer, /Base técnica utilizada: não localizada/);
 });
+test("Elo recalcula perda a partir do consumo liquido sem acumular perda base", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.window.StockAiCompositionEngine.setExternalCompositionCatalog([{
+    id: "sinapi_alvenaria_perda_teste",
+    code: "SINAPI-PERDA-TESTE",
+    service: "Alvenaria SINAPI com perda base",
+    productionUnit: "m2",
+    source: "SINAPI",
+    sourceRegion: "BA",
+    sourceDate: "2026-06",
+    isRealComposition: true,
+    lossPercent: 5,
+    inputs: [
+      { name: "Bloco teste perda", quantityPerUnit: 13, unit: "un" }
+    ],
+    keywords: ["alvenaria", "parede", "bloco"]
+  }]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("PAREDE 10 X 3, bloco 14x19x29, sem portas, sem janelas, perda 10%, sem revestimento");
+
+  assert.match(response.fullAnswer, /Base técnica utilizada: SINAPI/);
+  assert.match(response.fullAnswer, /Consumo líquido: 390 un/);
+  assert.match(response.fullAnswer, /Perda base da composição: 5% \| consumo com perda base: 409,5 un/);
+  assert.match(response.fullAnswer, /Perda adotada: 10%/);
+  assert.match(response.fullAnswer, /Consumo final: 429 un/);
+  assert.doesNotMatch(response.fullAnswer, /450|450,45|450,5/);
+  sandbox.window.StockAiCompositionEngine.clearExternalCompositionCatalog();
+});
+
+test("Elo interpreta percentual isolado como perda pendente em todas as paginas que carregam elo-assistente", async () => {
+  const pages = [
+    "/elo.html",
+    "/stock-ai-obras.html",
+    "/relatorio-qualidade-obras/relatorio-qualidade-obras.html"
+  ];
+
+  for (const pathname of pages) {
+    const sandbox = await loadEloOperationalSandbox_([]);
+    sandbox.location.pathname = pathname;
+    const first = sandbox.window.EloAssistente.buildResponseForTest("PAREDE 10 X 3");
+    const second = sandbox.window.EloAssistente.buildResponseForTest("10%");
+
+    assert.match(first.fullAnswer, /Área geométrica da parede: 30,00 m²|Área bruta: 30,00 m²/);
+    assert.match(second.fullAnswer, /Perda adotada: 10%|perda adotada/i);
+    assert.match(second.fullAnswer, /Área geométrica da parede: 30,00 m²|Área bruta: 30,00 m²/);
+    assert.doesNotMatch(second.fullAnswer, /RDO|avanço físico|progresso|Posso te ajudar/i);
+  }
+});
+test("Elo substitui contexto quando usuario informa nova parede completa", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("PAREDE 10 X 3");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("10%");
+  const third = sandbox.window.EloAssistente.buildResponseForTest("Tenho uma parede de 12 m por 2,80 m com uma porta 0,90x2,10 e duas janelas 1,20x1,00. Quantos blocos 14x19x29 preciso?");
+  const fourth = sandbox.window.EloAssistente.buildResponseForTest("10%");
+
+  assert.match(first.fullAnswer, /Área geométrica da parede: 30,00 m²|Área bruta: 30,00 m²/);
+  assert.match(second.fullAnswer, /Perda adotada: 10%/);
+  assert.match(third.fullAnswer, /Comprimento da parede: 12,00 m/);
+  assert.match(third.fullAnswer, /Altura da parede: 2,80 m/);
+  assert.match(third.fullAnswer, /Área bruta: 33,60 m²/);
+  assert.match(third.fullAnswer, /Área total de vãos: 4,29 m²/);
+  assert.match(third.fullAnswer, /Área líquida considerada: 29,31 m²/);
+  assert.doesNotMatch(third.fullAnswer, /Comprimento da parede: 10,00 m|Área bruta: 30,00 m²|Perda adotada: 10%/);
+  assert.match(fourth.fullAnswer, /Comprimento da parede: 12,00 m/);
+  assert.match(fourth.fullAnswer, /Área bruta: 33,60 m²/);
+  assert.match(fourth.fullAnswer, /Área líquida considerada: 29,31 m²/);
+  assert.match(fourth.fullAnswer, /Perda adotada: 10%/);
+  assert.doesNotMatch(fourth.fullAnswer, /RDO|avanço físico|progresso|Posso te ajudar/i);
+});
 test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
@@ -5586,7 +5656,9 @@ test("Elo operacional indica fonte real quando composicao importada estiver disp
   const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 10 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã?");
 
   assert.match(response.fullAnswer, /Fonte: SINAPI real\/importada|Base técnica utilizada: SINAPI|- Fonte: SINAPI/);
-  assert.match(response.fullAnswer, /Bloco teste real: 20 un/);
+  assert.match(response.fullAnswer, /Bloco teste real/);
+  assert.match(response.fullAnswer, /Consumo líquido: 20 un/);
+  assert.match(response.fullAnswer, /Consumo final: 21,6 un/);
   sandbox.window.StockAiCompositionEngine.clearExternalCompositionCatalog();
 });
 

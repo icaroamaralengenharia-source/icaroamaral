@@ -5225,15 +5225,23 @@
       return result;
     }
 
-    const lossMultiplier = 1 + (parseNumber(compositionData.lossPercent) / 100);
+    const baseLossPercent = parseNumber(compositionData.lossPercent);
+    const lossMultiplier = 1 + (baseLossPercent / 100);
     result.predictedItems = getCompositionInputs(compositionData).map(function (mat, index) {
       const coefficient = parseNumber(mat.quantityPerUnit || mat.coefficient);
-      const quantity = roundQuantity(executedQuantity * coefficient * lossMultiplier);
+      const liquidQuantity = roundQuantity(executedQuantity * coefficient);
+      const quantity = roundQuantity(liquidQuantity * lossMultiplier);
       return {
         id: mat.id || "pred_" + index,
         name: mat.name || mat.material,
         material: mat.name || mat.material,
         coefficient: coefficient,
+        consumptionLiquid: liquidQuantity,
+        consumo_liquido: liquidQuantity,
+        baseLossPercent: baseLossPercent,
+        perda_base: baseLossPercent,
+        consumptionWithBaseLoss: quantity,
+        consumo_com_perda: quantity,
         quantity: quantity,
         predictedQuantity: quantity,
         unit: mat.unit || "un",
@@ -5272,6 +5280,12 @@
           material: name,
           quantity: 0,
           predictedQuantity: 0,
+          consumptionLiquid: 0,
+          consumo_liquido: 0,
+          consumptionWithBaseLoss: 0,
+          consumo_com_perda: 0,
+          baseLossPercent: parseNumber(item.baseLossPercent || item.perda_base),
+          perda_base: parseNumber(item.baseLossPercent || item.perda_base),
           unit: unit,
           note: "Consumo previsto por composicao tecnica.",
           source: clean(item.source),
@@ -5282,6 +5296,12 @@
       }
       grouped[key].quantity += parseNumber(item.quantity || item.predictedQuantity);
       grouped[key].predictedQuantity = grouped[key].quantity;
+      grouped[key].consumptionLiquid += parseNumber(item.consumptionLiquid || item.consumo_liquido || item.quantity || item.predictedQuantity);
+      grouped[key].consumo_liquido = grouped[key].consumptionLiquid;
+      grouped[key].consumptionWithBaseLoss += parseNumber(item.consumptionWithBaseLoss || item.consumo_com_perda || item.quantity || item.predictedQuantity);
+      grouped[key].consumo_com_perda = grouped[key].consumptionWithBaseLoss;
+      grouped[key].baseLossPercent = Math.max(grouped[key].baseLossPercent || 0, parseNumber(item.baseLossPercent || item.perda_base));
+      grouped[key].perda_base = grouped[key].baseLossPercent;
       grouped[key].sources = grouped[key].sources.concat(item.sources || []);
       if (!grouped[key].source && clean(item.source)) {
         grouped[key].source = clean(item.source);
@@ -5294,6 +5314,10 @@
       const item = grouped[key];
       item.quantity = roundQuantity(item.quantity);
       item.predictedQuantity = item.quantity;
+      item.consumptionLiquid = roundQuantity(item.consumptionLiquid);
+      item.consumo_liquido = item.consumptionLiquid;
+      item.consumptionWithBaseLoss = roundQuantity(item.consumptionWithBaseLoss);
+      item.consumo_com_perda = item.consumptionWithBaseLoss;
       if (item.sources.length) {
         item.note += " Origem: " + item.sources.join("; ") + ".";
       }
@@ -5553,15 +5577,23 @@
 
   function buildStockAIReportConsumptionFromComposition(service, compositionData) {
     const executedQuantity = parseNumber(service && service.quantity);
-    const lossMultiplier = 1 + (parseNumber(compositionData && compositionData.lossPercent) / 100);
+    const baseLossPercent = parseNumber(compositionData && compositionData.lossPercent);
+    const lossMultiplier = 1 + (baseLossPercent / 100);
     const items = ((compositionData && (compositionData.materials || compositionData.inputs)) || []).map(function (input, index) {
       const coefficient = parseNumber(input.quantityPerUnit !== undefined ? input.quantityPerUnit : input.coefficient);
-      const quantity = roundQuantity(executedQuantity * coefficient * lossMultiplier);
+      const liquidQuantity = roundQuantity(executedQuantity * coefficient);
+      const quantity = roundQuantity(liquidQuantity * lossMultiplier);
       return {
         id: input.id || "report_pred_" + index,
         name: input.name || input.material,
         material: input.name || input.material,
         coefficient: coefficient,
+        consumptionLiquid: liquidQuantity,
+        consumo_liquido: liquidQuantity,
+        baseLossPercent: baseLossPercent,
+        perda_base: baseLossPercent,
+        consumptionWithBaseLoss: quantity,
+        consumo_com_perda: quantity,
         quantity: quantity,
         predictedQuantity: quantity,
         unit: input.unit || "un",

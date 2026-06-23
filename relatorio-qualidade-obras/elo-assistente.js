@@ -8906,7 +8906,23 @@
   function hasEloWallLengthHeight_(text) {
     return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
   }
-
+  function isEloNewCompleteWallBriefingMessage_(message) {
+    const raw = sanitizeUserText(message || "");
+    const text = normalizeText(raw);
+    if (!/\b(?:parede|muro|alvenaria)\b/.test(text)) {
+      return false;
+    }
+    const dimensions = extractEloWallDimensions_(raw);
+    const hasWallGeometry = dimensions.length > 0 && dimensions.height > 0;
+    if (!hasWallGeometry) {
+      return false;
+    }
+    return hasEloBlockDimension_(raw) ||
+      hasEloWallOpenings_(text) ||
+      hasEloLossPremise_(text) ||
+      hasEloWallCoatingSide_(text) ||
+      /\b(?:nova|outra|tenho|quero|preciso|quantos|calcule|calcular)\b/.test(text);
+  }
   function hasEloNoWallOpenings_(text) {
     return /parede\s+integra|parede\s+inteira|sem\s+vaos?|sem\s+v\.o|sem\s+aberturas?|sem\s+portas?[\s,]+(?:e\s+)?sem\s+janelas?|sem\s+janelas?[\s,]+(?:e\s+)?sem\s+portas?/.test(text);
   }
@@ -9416,12 +9432,24 @@
       (reference ? " | referência " + reference : "");
   }
 
-  function formatEloStockObrasCalculatedItems_(items) {
+  function formatEloStockObrasCalculatedItems_(items, adoptedLossPercent) {
     return (items || []).slice(0, 12).map(function (item) {
       const name = item.name || item.material || "Insumo sem nome";
-      const quantity = item.predictedQuantity !== undefined ? item.predictedQuantity : item.quantity;
       const unit = item.unit || "un";
-      return "- " + name + ": " + formatEloOperationalQuantity_(quantity) + " " + formatEloOperationalDisplayUnit_(unit);
+      const baseLoss = parseEloOperationalNumber_(item.baseLossPercent !== undefined ? item.baseLossPercent : item.perda_base);
+      const liquid = parseEloOperationalNumber_(item.consumptionLiquid !== undefined ? item.consumptionLiquid : item.consumo_liquido);
+      const originalFinal = parseEloOperationalNumber_(item.consumptionWithBaseLoss !== undefined ? item.consumptionWithBaseLoss : item.consumo_com_perda);
+      const fallbackQuantity = parseEloOperationalNumber_(item.predictedQuantity !== undefined ? item.predictedQuantity : item.quantity);
+      const safeLiquid = liquid > 0 ? liquid : (baseLoss > 0 ? fallbackQuantity / (1 + baseLoss / 100) : fallbackQuantity);
+      const loss = adoptedLossPercent !== null && adoptedLossPercent !== undefined ? parseEloOperationalNumber_(adoptedLossPercent) : baseLoss;
+      const finalQuantity = safeLiquid * (1 + Math.max(0, loss) / 100);
+      return [
+        "- " + name,
+        "  - Consumo líquido: " + formatEloOperationalQuantity_(safeLiquid) + " " + formatEloOperationalDisplayUnit_(unit),
+        "  - Perda base da composição: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (originalFinal > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(originalFinal) + " " + formatEloOperationalDisplayUnit_(unit) : ""),
+        "  - Perda adotada: " + formatEloOperationalQuantity_(loss || 0) + "%",
+        "  - Consumo final: " + formatEloOperationalQuantity_(finalQuantity) + " " + formatEloOperationalDisplayUnit_(unit)
+      ].join("\n");
     });
   }
 
@@ -9440,7 +9468,7 @@
       ? engine.calculateMultipleServices([service])
       : { predictedItems: [] };
     const metadata = composition.metadata || {};
-    const calculatedItems = formatEloStockObrasCalculatedItems_(prediction.predictedItems || prediction.items || []);
+    const calculatedItems = formatEloStockObrasCalculatedItems_(prediction.predictedItems || prediction.items || [], briefing.perda_percentual);
     const lines = [
       "Briefing técnico consolidado; composição oficial localizada.",
       "",
@@ -9569,10 +9597,19 @@
         "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
         "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²")
       ];
+      if (briefing.bloco_ceramico_dimensao_cm) {
+        registeredLines.push("- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing));
+      }
       if (briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) {
         registeredLines.push("- Vãos descontados: " + formatEloStockObrasOpenings_(briefing));
         registeredLines.push("- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"));
         registeredLines.push("- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"));
+      }
+      if (briefing.perda_percentual !== null) {
+        registeredLines.push("- Perda adotada: " + formatEloStockObrasLoss_(briefing));
+      }
+      if (briefing.revestimento_lados) {
+        registeredLines.push("- Lados revestidos: " + formatEloStockObrasCoating_(briefing));
       }
       const fullAnswer = [
         "Resposta principal",
@@ -9661,15 +9698,18 @@
       return null;
     }
 
-    const combinedMessage = getEloPendingPremiseText_(message);
+    const startsNewWallBriefing = isPendingWall && isEloNewCompleteWallBriefingMessage_(message);
+    const effectivePendingWall = isPendingWall && !startsNewWallBriefing;
+    const effectiveShouldStart = shouldStart || startsNewWallBriefing;
+    const combinedMessage = startsNewWallBriefing ? sanitizeUserText(message || "") : getEloPendingPremiseText_(message);
     const text = normalizeText(combinedMessage);
     if (isEloPreliminaryEstimateAuthorized_(message) || isEloPreliminaryEstimateAuthorized_(combinedMessage)) {
       return null;
     }
-    if (!hasEloWallSubject_(text) && isPendingWall) {
+    if (!hasEloWallSubject_(text) && effectivePendingWall) {
       return null;
     }
-    const stockObrasBriefingResponse = buildEloStockObrasBriefingResponse_(message, combinedMessage, isPendingWall, shouldStart);
+    const stockObrasBriefingResponse = buildEloStockObrasBriefingResponse_(message, combinedMessage, effectivePendingWall, effectiveShouldStart);
     if (stockObrasBriefingResponse) {
       return stockObrasBriefingResponse;
     }
