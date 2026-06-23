@@ -9087,9 +9087,14 @@
   function createEloStockObrasCompositionBriefing_() {
     return {
       active: false,
+      comprimento_m: null,
+      altura_m: null,
       area_bruta_m2: null,
       servicos_solicitados: [],
       bloco_ceramico_dimensao_cm: null,
+      perda_percentual: null,
+      revestimento_lados: "",
+      espessura_revestimento_cm: null,
       vaos: {
         portas: [],
         janelas: [],
@@ -9123,6 +9128,37 @@
     return match ? parseEloOperationalNumber_(match[1]) : null;
   }
 
+  function extractEloStockObrasLossPercent_(message) {
+    const match = String(message || "").match(/(?:perda(?:s)?\s*(?:de|adotada|considerada)?\s*)?(\d+(?:[,.]\d+)?)\s*(?:%|por cento)/i);
+    return match ? parseEloOperationalNumber_(match[1]) : null;
+  }
+
+  function extractEloStockObrasCoatingSides_(message) {
+    const text = normalizeText(message || "");
+    if (/sem\s+revestimento|sem\s+reboco|sem\s+chapisco/.test(text)) {
+      return "sem revestimento";
+    }
+    if (/dois\s+lados|2\s+lados|ambos\s+os\s+lados|duas\s+faces/.test(text)) {
+      return "dois lados";
+    }
+    if (/um\s+lado|1\s+lado|uma\s+face|face\s+interna|face\s+externa/.test(text)) {
+      return "um lado";
+    }
+    return "";
+  }
+
+  function extractEloStockObrasCoatingThicknessCm_(message) {
+    const match = String(message || "").match(/(?:espessura|camada)[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*(cm|mm|m)\b/i);
+    if (!match) {
+      return null;
+    }
+    const value = parseEloOperationalNumber_(match[1]);
+    const unit = normalizeText(match[2]);
+    if (unit === "mm") return value / 10;
+    if (unit === "m") return value * 100;
+    return value;
+  }
+
   function extractEloStockObrasRequestedServices_(message) {
     const text = normalizeText(message || "");
     const services = [];
@@ -9132,8 +9168,11 @@
     if (/chapisco|chapiscar/.test(text)) {
       services.push("chapisco");
     }
-    if (/reboco|rebocar|embo.o|emboco|revestimento/.test(text)) {
+    if (/reboco|rebocar|embo.o|emboco/.test(text)) {
       services.push("reboco");
+    }
+    if (/revestimento/.test(text) && services.indexOf("revestimento") < 0) {
+      services.push("revestimento");
     }
     return services;
   }
@@ -9167,6 +9206,9 @@
     const openingsArea = portas.concat(janelas).reduce(function (sum, item) {
       return sum + (parseEloOperationalNumber_(item.area_m2) || 0);
     }, 0);
+    if ((!briefing.area_bruta_m2 || briefing.area_bruta_m2 <= 0) && briefing.comprimento_m > 0 && briefing.altura_m > 0) {
+      briefing.area_bruta_m2 = briefing.comprimento_m * briefing.altura_m;
+    }
     briefing.area_vaos_m2 = openingsArea;
     briefing.area_liquida_m2 = briefing.area_bruta_m2 !== null && (briefing.vaos.sem_vaos || openingsArea > 0)
       ? Math.max(0, briefing.area_bruta_m2 - openingsArea)
@@ -9176,7 +9218,7 @@
 
   function isEloStockObrasBriefingComplete_(briefing) {
     const hasOpeningsDecision = !!(briefing && briefing.vaos && (briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length));
-    return !!(briefing && briefing.area_bruta_m2 > 0 && briefing.bloco_ceramico_dimensao_cm && hasOpeningsDecision);
+    return !!(briefing && briefing.area_bruta_m2 > 0 && briefing.bloco_ceramico_dimensao_cm && hasOpeningsDecision && briefing.perda_percentual !== null && briefing.revestimento_lados);
   }
 
   function updateEloStockObrasCompositionBriefing_(currentMessage, combinedMessage, forceNew) {
@@ -9185,12 +9227,33 @@
     const combinedRaw = sanitizeUserText(combinedMessage || currentRaw);
     briefing.active = true;
 
+    const dimensions = extractEloWallDimensions_(combinedRaw);
+    if (dimensions.length > 0) {
+      briefing.comprimento_m = dimensions.length;
+    }
+    if (dimensions.height > 0) {
+      briefing.altura_m = dimensions.height;
+    }
     const area = extractEloStockObrasGrossAreaM2_(combinedRaw) || extractEloStockObrasGrossAreaM2_(currentRaw);
     if (area > 0) {
       briefing.area_bruta_m2 = area;
+    } else if (briefing.comprimento_m > 0 && briefing.altura_m > 0) {
+      briefing.area_bruta_m2 = briefing.comprimento_m * briefing.altura_m;
     }
 
     briefing.servicos_solicitados = mergeEloStockObrasServices_(briefing.servicos_solicitados, extractEloStockObrasRequestedServices_(combinedRaw));
+    const lossPercent = extractEloStockObrasLossPercent_(combinedRaw) || extractEloStockObrasLossPercent_(currentRaw);
+    if (lossPercent !== null && lossPercent >= 0) {
+      briefing.perda_percentual = lossPercent;
+    }
+    const coatingSides = extractEloStockObrasCoatingSides_(combinedRaw) || extractEloStockObrasCoatingSides_(currentRaw);
+    if (coatingSides) {
+      briefing.revestimento_lados = coatingSides;
+    }
+    const coatingThickness = extractEloStockObrasCoatingThicknessCm_(combinedRaw) || extractEloStockObrasCoatingThicknessCm_(currentRaw);
+    if (coatingThickness !== null && coatingThickness > 0) {
+      briefing.espessura_revestimento_cm = coatingThickness;
+    }
 
     const currentBlock = extractEloBlockDimensionCm_(currentRaw);
     const combinedBlock = extractEloBlockDimensionCm_(combinedRaw);
@@ -9216,7 +9279,23 @@
   }
 
   function formatEloStockObrasBlockDimension_(briefing) {
-    return (briefing.bloco_ceramico_dimensao_cm || []).join(" x ") + " cm";
+    return (briefing.bloco_ceramico_dimensao_cm || []).join("x");
+  }
+
+  function formatEloStockObrasLoss_(briefing) {
+    if (briefing.perda_percentual === null) {
+      return "não informada";
+    }
+    const value = Number(briefing.perda_percentual);
+    return (Number.isInteger(value) ? String(value) : formatEloWallPremiseNumber_(value)) + "%";
+  }
+
+  function formatEloStockObrasCoating_(briefing) {
+    return briefing.revestimento_lados || "não informado";
+  }
+
+  function formatEloStockObrasThickness_(briefing) {
+    return briefing.espessura_revestimento_cm !== null ? formatEloWallPremiseMeasure_(briefing.espessura_revestimento_cm, "cm") : "não informada";
   }
 
   function formatEloStockObrasOpenings_(briefing) {
@@ -9232,28 +9311,32 @@
   }
 
   function buildEloStockObrasCompositionResponse_(briefing, alreadyConsidered) {
-    const services = briefing.servicos_solicitados.length ? briefing.servicos_solicitados.join(", ") : "alvenaria com bloco ceramico";
+    calculateEloStockObrasLiquidArea_(briefing);
     const openingSummary = formatEloStockObrasOpenings_(briefing);
     const lines = [
-      alreadyConsidered ? "A porta informada ja estava considerada no briefing acumulado." : "Quantitativo geometrico consolidado para composicao:",
-      "- Area bruta de alvenaria: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
-      "- Bloco ceramico: " + formatEloStockObrasBlockDimension_(briefing),
-      "- Servicos solicitados: " + services,
-      "- Vaos descontados: " + openingSummary,
-      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2, "m²"),
-      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      alreadyConsidered ? "A premissa informada já estava considerada no briefing acumulado." : "Briefing técnico consolidado, mas ainda preciso de uma composição SINAPI/ORSE ou interna validada para calcular consumo, mão de obra, produtividade ou custo com segurança.",
       "",
-      "Base para composicao:",
-      "- Alvenaria com bloco ceramico: aplicar sobre " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
-      briefing.servicos_solicitados.indexOf("chapisco") >= 0 ? "- Chapisco: usar a area liquida consolidada, conforme lados definidos no criterio da base." : "",
-      briefing.servicos_solicitados.indexOf("reboco") >= 0 ? "- Reboco: usar a area liquida consolidada, conforme lados definidos no criterio da base." : "",
+      "Base técnica utilizada: não localizada",
       "",
-      "Nao localizei coeficiente SINAPI/ORSE confiavel nesse fluxo local. Posso manter o quantitativo geometrico consolidado e vincular a composicao quando a base tecnica for informada."
+      "Premissas utilizadas:",
+      "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
+      "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Vãos descontados: " + openingSummary,
+      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2, "m²"),
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
+      "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
+      "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
+      briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
+      "",
+      "Não vou gerar quantitativo, consumo, mão de obra, produtividade ou valor oficial sem base técnica.",
+      "Você pode informar o código/composição SINAPI/ORSE ou autorizar explicitamente uma estimativa preliminar NÃO OFICIAL."
     ].filter(Boolean);
     return {
-      shortAnswer: "Area liquida consolidada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
+      shortAnswer: "Briefing técnico consolidado; base técnica não localizada.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Informe o codigo/composicao SINAPI/ORSE para eu vincular os coeficientes, ou autorize uma estimativa preliminar marcada como nao oficial.",
+      nextAction: "Informe o código/composição SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃO OFICIAL.",
       canSave: false,
       sessionTheme: "stock_obras_composicao",
       sessionIntent: "briefing_composicao_consolidado"
@@ -9277,31 +9360,47 @@
     }
 
     const briefing = updateEloStockObrasCompositionBriefing_(currentMessage, combinedMessage, !isPendingWall && shouldStart);
+    const missing = [];
+    let intent = "confirmar_premissas_parede";
     if (!briefing.area_bruta_m2) {
-      briefing.pending_question = "area_bruta_m2";
-      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso da area da alvenaria.",
-        "Informe a area em m², ou comprimento x altura da parede.",
-        "Informe a area bruta de alvenaria.",
-        "confirmar_medidas_parede"
-      ));
+      missing.push("comprimento e altura, ou área bruta da parede");
+      intent = "confirmar_medidas_parede";
     }
     if (!briefing.bloco_ceramico_dimensao_cm) {
-      briefing.pending_question = "bloco_ceramico_dimensao";
-      return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso confirmar a dimensao do bloco.",
-        "Qual a dimensao do bloco? Ex.: 29x19x14, 39x19x14 ou outra medida real do bloco ceramico.",
-        "Informe a dimensao real do bloco para eu continuar.",
-        "confirmar_bloco_parede"
-      ));
+      missing.push("dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico");
+      intent = "confirmar_bloco_parede";
     }
     if (!briefing.vaos.sem_vaos && !briefing.vaos.portas.length && !briefing.vaos.janelas.length) {
-      briefing.pending_question = "vaos";
+      missing.push("se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos");
+      if (intent === "confirmar_premissas_parede") intent = "confirmar_vaos_parede";
+    }
+    if (briefing.perda_percentual === null) {
+      missing.push("perda adotada em porcentagem, por exemplo 8% ou 10%");
+      if (intent === "confirmar_premissas_parede") intent = "confirmar_perda_parede";
+    }
+    if (!briefing.revestimento_lados) {
+      missing.push("se haverá revestimento em um lado, nos dois lados ou sem revestimento");
+      if (intent === "confirmar_premissas_parede") intent = "confirmar_lados_revestimento";
+    }
+    if (missing.length) {
+      briefing.pending_question = intent;
+      const fullAnswer = [
+        "Antes de calcular, preciso completar o briefing técnico da parede.",
+        "Já registrei:",
+        "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
+        "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
+        "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+        "",
+        "Ainda preciso confirmar:",
+        missing.map(function (item) { return "- " + item; }).join("\n"),
+        "",
+        "Depois vou verificar SINAPI/ORSE ou composição interna validada."
+      ].filter(Boolean).join("\n");
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso saber se existem vaos para descontar.",
-        "A parede tera portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede integra, sem vaos.",
-        "Informe portas/janelas com medidas ou confirme: parede integra, sem vaos.",
-        "confirmar_vaos_parede"
+        "Antes de calcular, preciso completar o briefing técnico da parede.",
+        fullAnswer,
+        "Informe as premissas pendentes para eu consolidar antes de buscar SINAPI/ORSE.",
+        intent
       ));
     }
 
@@ -9369,8 +9468,17 @@
 
     const combinedMessage = getEloPendingPremiseText_(message);
     const text = normalizeText(combinedMessage);
+    if (isEloPreliminaryEstimateAuthorized_(message) || isEloPreliminaryEstimateAuthorized_(combinedMessage)) {
+      return null;
+    }
     if (!hasEloWallSubject_(text) && isPendingWall) {
       return null;
+    }
+    if (hasEloWallLengthHeight_(text) || /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
+      const prediction = calculateEloOperationalPrediction_(combinedMessage);
+      if (hasEloValidatedTechnicalBase_(prediction)) {
+        return null;
+      }
     }
 
     const stockObrasBriefingResponse = buildEloStockObrasBriefingResponse_(message, combinedMessage, isPendingWall, shouldStart);

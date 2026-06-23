@@ -5177,9 +5177,12 @@ test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar co
   const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
   const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39, sem portas, sem janelas, perda de 10%, revestimento dos dois lados.");
 
+  assert.match(first.shortAnswer, /Antes de calcular, preciso completar o briefing técnico da parede/);
   assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
-  assert.match(second.fullAnswer, /Para gerar quantitativo, mão de obra ou valor com segurança/);
-  assert.match(second.fullAnswer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(first.fullAnswer, /Área bruta: 56,00 m²/);
+  assert.doesNotMatch(first.fullAnswer, /Base técnica utilizada/);
+  assert.match(second.fullAnswer, /Briefing técnico consolidado/);
+  assert.match(second.fullAnswer, /Base técnica utilizada: não localizada/);
   assert.match(second.fullAnswer, /Premissas utilizadas:/);
   assert.match(second.fullAnswer, /Comprimento da parede: 20,00 m/);
   assert.match(second.fullAnswer, /Altura da parede: 2,80 m/);
@@ -5187,6 +5190,7 @@ test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar co
   assert.match(second.fullAnswer, /Vãos descontados: nenhum/);
   assert.match(second.fullAnswer, /Área líquida considerada: 56,00 m²/);
   assert.doesNotMatch(second.fullAnswer, /Dimensões consideradas:/);
+  assert.doesNotMatch(second.fullAnswer, /Di.rio de Obras|RDO|materiais consumidos/i);
   assert.match(second.fullAnswer, /Bloco considerado: 14x19x39/);
   assert.match(second.fullAnswer, /Perda adotada: 10%/);
   assert.doesNotMatch(second.fullAnswer, /Cimento|Areia|Bloco ceramico: \d/i);
@@ -5198,8 +5202,8 @@ test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
   const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39");
 
   assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
-  assert.match(second.fullAnswer, /Antes de calcular, preciso saber se existem vãos para descontar/);
-  assert.match(second.fullAnswer, /A parede terá portas ou janelas/);
+  assert.match(second.shortAnswer, /Antes de calcular, preciso completar o briefing técnico da parede/);
+  assert.match(second.fullAnswer, /portas ou janelas/);
   assert.match(second.fullAnswer, /1 porta de 0,80 x 2,10 m/);
   assert.match(second.fullAnswer, /2 janelas de 1,20 x 1,00 m/);
   assert.match(second.fullAnswer, /parede íntegra, sem vãos/);
@@ -5213,7 +5217,7 @@ test("Elo desconta vaos informados nas premissas de parede", async () => {
   const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x39, 1 porta de 0,80 x 2,10 m, 2 janelas de 1,20 x 1,00 m, perda de 10%, revestimento dos dois lados.");
 
   assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
-  assert.match(second.fullAnswer, /Base técnica utilizada: composição técnica não localizada/);
+  assert.match(second.fullAnswer, /Base técnica utilizada: não localizada/);
   assert.match(second.fullAnswer, /Área bruta: 56,00 m²/);
   assert.match(second.fullAnswer, /Vãos descontados: 1 porta 0,80 x 2,10 m = 1,68 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²/);
   assert.match(second.fullAnswer, /Área líquida considerada: 51,92 m²/);
