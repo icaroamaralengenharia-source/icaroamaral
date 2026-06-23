@@ -3573,10 +3573,14 @@
     );
   }
 
+  function stripBlockDimensionTriplesFromGeometryText(value) {
+    return clean(value).replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
+  }
+
   function extractWallAreaDimensions(originalMessage) {
     const number = "(-?\\d+(?:[.,]\\d+)?)";
     const wallTerm = "(?:muro|parede|alvenaria)";
-    const source = clean(originalMessage);
+    const source = stripBlockDimensionTriplesFromGeometryText(originalMessage);
     const match = source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+comprimento|comprimento)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s+altura|altura)?", "i")) ||
       source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?(?:\\s*de\\s*comprimento)?[\\s\\S]{0,80}?(?:altura|alto)\\s*(?:de\\s*)?" + number + "\\s*(?:m|metros?)?", "i")) ||
       source.match(new RegExp(wallTerm + "[\\s\\S]{0,120}?" + number + "\\s*(?:m|metros?)?(?:\\s*de\\s*comprimento)?[\\s\\S]{0,80}?" + number + "\\s*(?:m|metros?)?\\s*(?:de\\s*)?(?:altura|alto)", "i"));
@@ -4459,7 +4463,8 @@
     if (hasAny(text, ["parede", "muro", "alvenaria"])) {
       const isWall = hasTerm(text, "muro");
       const wall = extractWallAreaDimensions(originalMessage);
-      const wallMatch = wall ? [null, wall.length, wall.height] : originalMessage.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
+      const geometrySource = stripBlockDimensionTriplesFromGeometryText(originalMessage);
+      const wallMatch = wall ? [null, wall.length, wall.height] : geometrySource.match(new RegExp(number + "\\s*(?:m|metros?)?\\s*(?:x|por)\\s*" + number + "\\s*(?:m|metros?)?", "i"));
       if (wallMatch) {
         const length = wall ? wall.length : parseDimensionNumber(wallMatch[1]);
         const height = wall ? wall.height : parseDimensionNumber(wallMatch[2]);

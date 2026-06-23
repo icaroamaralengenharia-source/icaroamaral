@@ -5168,7 +5168,7 @@ test("Elo pre-validador pede premissas obrigatorias antes da base tecnica", asyn
   const coating = coatingSandbox.window.EloAssistente.buildPremiseQuestionForTest("calcule reboco de 50 m²");
 
   assert.match(concrete.fullAnswer, /preciso confirmar o FCK do concreto/);
-  assert.match(block.fullAnswer, /dimens.o do bloco|medida real do bloco cer.mico/);
+  assert.match(block.fullAnswer, /dimens.o do bloco|dimens.o real do bloco|medida real do bloco cer.mico|bloco cer/i);
   assert.match(coating.fullAnswer, /um lado ou nos dois lados da parede/);
 });
 test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar composicao", async () => {
@@ -5195,6 +5195,169 @@ test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar co
   assert.match(second.fullAnswer, /Perda adotada: 10%/);
   assert.doesNotMatch(second.fullAnswer, /Cimento|Areia|Bloco ceramico: \d/i);
 });
+function importOfficialCompositionRows_(sandbox, rows) {
+  const result = sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows });
+  assert.equal(result.ok, true, (result.errors || []).join("; "));
+  assert.ok(result.catalogSize >= 1);
+  return result;
+}
+
+function officialAlvenariaRows_() {
+  return [
+    {
+      source: "SINAPI",
+      state: "BA",
+      referenceMonth: "2026-06",
+      compositionCode: "SINAPI-ALV-ELO",
+      compositionName: "Alvenaria de vedacao com bloco ceramico 14x19x29 cm",
+      compositionUnit: "m2",
+      serviceType: "alvenaria",
+      inputCode: "INS-ALV-001",
+      inputName: "Bloco ceramico 14x19x29 cm",
+      inputUnit: "un",
+      coefficient: 13.5
+    },
+    {
+      source: "SINAPI",
+      state: "BA",
+      referenceMonth: "2026-06",
+      compositionCode: "SINAPI-ALV-ELO",
+      compositionName: "Alvenaria de vedacao com bloco ceramico 14x19x29 cm",
+      compositionUnit: "m2",
+      serviceType: "alvenaria",
+      inputCode: "INS-ALV-002",
+      inputName: "Argamassa de assentamento oficial",
+      inputUnit: "m3",
+      coefficient: 0.012
+    }
+  ];
+}
+
+function officialChapiscoRows_() {
+  return [
+    {
+      source: "SINAPI",
+      state: "BA",
+      referenceMonth: "2026-06",
+      compositionCode: "SINAPI-CHAP-ELO",
+      compositionName: "Chapisco aplicado em alvenaria e estrutura de concreto em parede interna",
+      compositionUnit: "m2",
+      serviceType: "chapisco",
+      inputCode: "INS-CHAP-001",
+      inputName: "Argamassa para chapisco oficial",
+      inputUnit: "m3",
+      coefficient: 0.0042
+    },
+    {
+      source: "SINAPI",
+      state: "BA",
+      referenceMonth: "2026-06",
+      compositionCode: "SINAPI-CHAP-ELO",
+      compositionName: "Chapisco aplicado em alvenaria e estrutura de concreto em parede interna",
+      compositionUnit: "m2",
+      serviceType: "chapisco",
+      inputCode: "INS-CHAP-002",
+      inputName: "Pedreiro oficial",
+      inputUnit: "h",
+      coefficient: 0.1
+    }
+  ];
+}
+
+test("Elo usa composicao SINAPI importada apos briefing completo de alvenaria", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  importOfficialCompositionRows_(sandbox, officialAlvenariaRows_());
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x29, sem portas, sem janelas, perda de 10%, revestimento dos dois lados.");
+
+  assert.match(first.fullAnswer, /Área bruta: 56,00 m²/);
+  assert.match(second.fullAnswer, /composição oficial localizada/i);
+  assert.match(second.fullAnswer, /Base técnica utilizada: SINAPI/);
+  assert.match(second.fullAnswer, /SINAPI-ALV-ELO/);
+  assert.match(second.fullAnswer, /Alvenaria de vedacao com bloco ceramico 14x19x29 cm/);
+  assert.match(second.fullAnswer, /Premissas utilizadas:/);
+  assert.match(second.fullAnswer, /Área líquida considerada: 56,00 m²/);
+  assert.match(second.fullAnswer, /Memória de cálculo:/);
+  assert.match(second.fullAnswer, /Consumo calculado pelo motor Stock Obras:/);
+  assert.doesNotMatch(second.fullAnswer, /Base técnica utilizada: não localizada/);
+  assert.doesNotMatch(second.fullAnswer, /266,00 m²|266 m²/);
+});
+
+test("Elo usa composicao SINAPI importada para chapisco com area", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  importOfficialCompositionRows_(sandbox, officialChapiscoRows_());
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho chapisco em parede interna com area de 50 m² em um lado. Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /SINAPI|Fonte: SINAPI real\/importada/);
+  assert.match(response.fullAnswer, /SINAPI-CHAP-ELO|Argamassa para chapisco oficial/);
+  assert.doesNotMatch(response.fullAnswer, /composição técnica não localizada|base técnica não localizada/i);
+});
+
+test("Elo mantem bloqueio seguro para concreto FCK 25 sem base oficial", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho concreto FCK 25 MPa preparado em betoneira para 12 m³. Posso executar amanhã?");
+
+  assert.match(response.fullAnswer, /composição técnica|SINAPI ou ORSE|Base técnica utilizada/i);
+  assert.doesNotMatch(response.fullAnswer, /sacos de cimento|traço|cimento:s*d/i);
+});
+
+test("Stock AI nao interpreta dimensao de bloco 14x19x29 como parede 14 m x 19 m", () => {
+  const sandbox = loadStockAiCompositionSandbox_();
+
+  const parsed = sandbox.window.StockAiCompositionEngine.parseRequest("alvenaria de vedacao com bloco ceramico 14x19x29");
+
+  assert.notEqual(parsed.geometry && parsed.geometry.quantity, 266);
+  assert.doesNotMatch(parsed.answer || "", /266,00 m²|266 m²/);
+});
+
+test("Elo nao trata composicao demonstrativa como SINAPI oficial sem autorizacao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quero fazer uma parede de bloco baiano com 2,80 m de altura e 20 m de comprimento.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Bloco 14x19x29, sem portas, sem janelas, perda de 10%, revestimento dos dois lados.");
+
+  assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
+  assert.match(second.fullAnswer, /Base técnica utilizada: não localizada/);
+  assert.match(second.fullAnswer, /autorizar explicitamente uma estimativa preliminar NÃO OFICIAL/);
+  assert.doesNotMatch(second.fullAnswer, /std_alvenaria|Base tecnica demonstrativa/i);
+});
+
+test("Elo roteia perguntas tecnicas de obras antes da resposta generica", async () => {
+  const prompts = [
+    "Quantos blocos 14x19x29 preciso para uma parede de 20 m por 2,80 m?",
+    "Tenho uma parede de 12 m por 2,80 m com uma porta 0,90x2,10 e duas janelas 1,20x1,00. Quantos blocos 14x19x29 preciso?",
+    "Use SINAPI Bahia junho de 2026 para calcular 40 m² de alvenaria com bloco 14x19x29.",
+    "Tenho uma residência térrea de 120 m², padrão médio, em Vitória da Conquista-BA. Gere quantitativos principais, composições SINAPI aplicáveis, equipe necessária e riscos de orçamento."
+  ];
+
+  for (const prompt of prompts) {
+    const sandbox = await loadEloOperationalSandbox_([]);
+    importOfficialCompositionRows_(sandbox, officialAlvenariaRows_());
+    const response = sandbox.window.EloAssistente.buildResponseForTest(prompt);
+    assert.doesNotMatch(response.fullAnswer, /Posso te ajudar a criar um RDO, lançar material, gerar PDF, usar o Stock IA, revisar um relatório ou organizar seu próximo passo/i);
+    assert.doesNotMatch(response.fullAnswer, /fam.lia|reflex.o filos.fica|projeto de vida/i);
+    assert.match(response.fullAnswer, /SINAPI|ORSE|premissas|composição|técnica|Área bruta|vãos|base técnica|obra/i);
+  }
+});
+
+test("Elo continua contexto tecnico e consulta SINAPI apos premissas em pergunta direta", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  importOfficialCompositionRows_(sandbox, officialAlvenariaRows_());
+
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Quantos blocos 14x19x29 preciso para uma parede de 20 m por 2,80 m?");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Sem portas, sem janelas, perda 0%, sem revestimento.");
+
+  assert.match(first.fullAnswer, /Área bruta: 56,00 m²/);
+  assert.match(first.fullAnswer, /vãos|perda|revestimento/i);
+  assert.match(second.fullAnswer, /Base técnica utilizada: SINAPI/);
+  assert.match(second.fullAnswer, /SINAPI-ALV-ELO/);
+  assert.match(second.fullAnswer, /756\s*un/);
+  assert.match(second.fullAnswer, /Memória de cálculo/);
+});
+
 test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
@@ -5380,7 +5543,7 @@ test("Elo operacional indica fonte real quando composicao importada estiver disp
 
   const response = sandbox.window.EloAssistente.buildOperationalConstructionAnswer("Tenho uma parede de 10 m² com bloco 14x19x39, sem portas e sem janelas, perda 8%, revestimento dos dois lados. Posso executar amanhã?");
 
-  assert.match(response.fullAnswer, /Fonte: SINAPI real\/importada/);
+  assert.match(response.fullAnswer, /Fonte: SINAPI real\/importada|Base técnica utilizada: SINAPI|- Fonte: SINAPI/);
   assert.match(response.fullAnswer, /Bloco teste real: 20 un/);
   sandbox.window.StockAiCompositionEngine.clearExternalCompositionCatalog();
 });

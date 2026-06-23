@@ -8955,12 +8955,23 @@
     }
     const metadata = composition.metadata || {};
     const source = normalizeText(composition.source || composition.sourceName || "");
+    const inputs = (Array.isArray(composition.inputs) ? composition.inputs : (Array.isArray(composition.materials) ? composition.materials : []));
+    const hasPositiveInputs = inputs.some(function (input) {
+      const coefficient = parseEloOperationalNumber_(input && (
+        input.coefficient !== undefined ? input.coefficient :
+          input.quantityPerUnit !== undefined ? input.quantityPerUnit :
+            input.coeficiente
+      ));
+      return coefficient > 0;
+    });
+    if ((composition.isMock || composition.mockOnly || metadata.isMock || metadata.mockOnly) && !metadata.validatedInternalComposition && !metadata.composicaoInternaValidada) {
+      return false;
+    }
     return composition.isRealComposition === true ||
       metadata.isRealComposition === true ||
       metadata.validatedInternalComposition === true ||
       metadata.composicaoInternaValidada === true ||
-      source.indexOf("sinapi") >= 0 ||
-      source.indexOf("orse") >= 0 ||
+      ((source.indexOf("sinapi") >= 0 || source.indexOf("orse") >= 0) && hasPositiveInputs) ||
       source.indexOf("composicao interna validada") >= 0 ||
       source.indexOf("composição interna validada") >= 0;
   }
@@ -9022,13 +9033,18 @@
     let length = lengthMatch ? parseEloOperationalNumber_(lengthMatch[1]) : null;
     let height = heightMatch ? parseEloOperationalNumber_(heightMatch[1]) : null;
     if ((!length || !height)) {
-      const pairMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+      const geometrySource = stripEloBlockDimensionTriples_(source);
+      const pairMatch = geometrySource.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
       if (pairMatch) {
         length = length || parseEloOperationalNumber_(pairMatch[1]);
         height = height || parseEloOperationalNumber_(pairMatch[2]);
       }
     }
     return { length: length || null, height: height || null };
+  }
+
+  function stripEloBlockDimensionTriples_(message) {
+    return sanitizeUserText(message || "").replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
   }
 
   function parseEloOpeningQuantity_(value) {
@@ -9310,8 +9326,171 @@
     return portas.concat(janelas).join("; ") || "nenhum";
   }
 
+  function getEloStockObrasEngine_() {
+    if (typeof window !== "undefined" && window.StockAiCompositionEngine) {
+      return window.StockAiCompositionEngine;
+    }
+    if (typeof globalThis !== "undefined" && globalThis.StockAiCompositionEngine) {
+      return globalThis.StockAiCompositionEngine;
+    }
+    return null;
+  }
+
+  function getEloCompositionInputs_(composition) {
+    const rawInputs = composition && (composition.inputs || composition.materials);
+    return Array.isArray(rawInputs) ? rawInputs : [];
+  }
+
+  function hasEloPositiveCompositionInputs_(composition) {
+    return getEloCompositionInputs_(composition).some(function (input) {
+      const coefficient = parseEloOperationalNumber_(input && (
+        input.coefficient !== undefined ? input.coefficient :
+          input.quantityPerUnit !== undefined ? input.quantityPerUnit :
+            input.coeficiente
+      ));
+      return coefficient > 0;
+    });
+  }
+
+  function isEloOfficialStockAiComposition_(composition) {
+    if (!composition || !hasEloPositiveCompositionInputs_(composition)) {
+      return false;
+    }
+    const metadata = composition.metadata || {};
+    if (composition.isMock || composition.mockOnly || metadata.isMock || metadata.mockOnly) {
+      return false;
+    }
+    const source = normalizeText(composition.source || composition.sourceName || "");
+    const sourceType = normalizeText(composition.sourceType || metadata.sourceType || "");
+    return composition.isRealComposition === true ||
+      metadata.isRealComposition === true ||
+      metadata.isOfficial === true ||
+      sourceType === "official_imported_file" ||
+      source.indexOf("sinapi") >= 0 ||
+      source.indexOf("orse") >= 0;
+  }
+
+  function buildEloStockObrasCompositionQueries_(briefing) {
+    const block = formatEloStockObrasBlockDimension_(briefing);
+    const hasBlock = block && block !== "não informada";
+    return [
+      "alvenaria de vedacao" + (hasBlock ? " bloco ceramico " + block : ""),
+      "alvenaria bloco ceramico" + (hasBlock ? " " + block : ""),
+      "parede bloco ceramico" + (hasBlock ? " " + block : ""),
+      "alvenaria de vedacao bloco baiano",
+      "alvenaria de vedacao"
+    ].filter(function (query, index, list) {
+      return query && list.indexOf(query) === index;
+    });
+  }
+
+  function findEloStockObrasOfficialComposition_(briefing) {
+    const engine = getEloStockObrasEngine_();
+    if (!engine) {
+      return null;
+    }
+    const candidates = [];
+    buildEloStockObrasCompositionQueries_(briefing).forEach(function (query) {
+      if (typeof engine.searchImportedOfficialCompositions === "function") {
+        candidates.push.apply(candidates, engine.searchImportedOfficialCompositions(query, { limit: 8, controlledService: "alvenaria" }) || []);
+      }
+      if (typeof engine.findComposition === "function") {
+        candidates.push(engine.findComposition({ service: query, unit: "m2", serviceType: "alvenaria" }));
+      }
+      if (typeof engine.findBestComposition === "function") {
+        candidates.push(engine.findBestComposition({ service: query, unit: "m2", serviceType: "alvenaria" }));
+      }
+    });
+    return candidates.filter(isEloOfficialStockAiComposition_)[0] || null;
+  }
+
+  function buildEloStockObrasTechnicalBaseLabel_(composition) {
+    const metadata = composition.metadata || {};
+    const source = composition.source || "composição interna validada";
+    const code = composition.code || composition.id || "sem código";
+    const unit = composition.productionUnit || composition.unit || "m²";
+    const reference = composition.sourceDate || metadata.referenceMonth || "";
+    const region = composition.sourceRegion || metadata.state || "";
+    return source + " | código " + code + " | unidade " + unit +
+      (region ? " | " + region : "") +
+      (reference ? " | referência " + reference : "");
+  }
+
+  function formatEloStockObrasCalculatedItems_(items) {
+    return (items || []).slice(0, 12).map(function (item) {
+      const name = item.name || item.material || "Insumo sem nome";
+      const quantity = item.predictedQuantity !== undefined ? item.predictedQuantity : item.quantity;
+      const unit = item.unit || "un";
+      return "- " + name + ": " + formatEloOperationalQuantity_(quantity) + " " + formatEloOperationalDisplayUnit_(unit);
+    });
+  }
+
+  function buildEloStockObrasOfficialCompositionResponse_(briefing, composition) {
+    const engine = getEloStockObrasEngine_();
+    calculateEloStockObrasLiquidArea_(briefing);
+    const openingSummary = formatEloStockObrasOpenings_(briefing);
+    const service = {
+      service: composition.service || composition.name || composition.description || "Alvenaria",
+      serviceType: "alvenaria",
+      quantity: briefing.area_liquida_m2,
+      unit: composition.productionUnit || composition.unit || "m2",
+      composition: composition
+    };
+    const prediction = engine && typeof engine.calculateMultipleServices === "function"
+      ? engine.calculateMultipleServices([service])
+      : { predictedItems: [] };
+    const metadata = composition.metadata || {};
+    const calculatedItems = formatEloStockObrasCalculatedItems_(prediction.predictedItems || prediction.items || []);
+    const lines = [
+      "Briefing técnico consolidado; composição oficial localizada.",
+      "",
+      "Base técnica utilizada: " + buildEloStockObrasTechnicalBaseLabel_(composition),
+      "",
+      "Composição localizada:",
+      "- Código: " + (composition.code || composition.id || "sem código"),
+      "- Descrição: " + (composition.description || composition.name || composition.service || "sem descrição"),
+      "- Unidade: " + (composition.productionUnit || composition.unit || "m²"),
+      "- Fonte: " + (composition.source || "não informada"),
+      "- UF/mês: " + (composition.sourceRegion || metadata.state || "não informada") + " / " + (composition.sourceDate || metadata.referenceMonth || "não informado"),
+      "",
+      "Premissas utilizadas:",
+      "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
+      "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Vãos descontados: " + openingSummary,
+      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
+      "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
+      "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
+      briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
+      "",
+      "Memória de cálculo:",
+      "- Área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + " x coeficientes oficiais da composição " + (composition.code || composition.id || "selecionada") + ".",
+      "",
+      "Consumo calculado pelo motor Stock Obras:"
+    ].filter(Boolean);
+    if (calculatedItems.length) {
+      lines.push.apply(lines, calculatedItems);
+    } else {
+      lines.push("- A composição foi localizada, mas não retornou insumos calculáveis.");
+    }
+    return {
+      shortAnswer: "Briefing técnico consolidado; composição oficial localizada.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Revise os insumos calculados e confirme se a composição oficial corresponde ao serviço desejado.",
+      canSave: true,
+      sessionTheme: "stock_obras_composicao",
+      sessionIntent: "briefing_composicao_oficial_localizada"
+    };
+  }
+
   function buildEloStockObrasCompositionResponse_(briefing, alreadyConsidered) {
     calculateEloStockObrasLiquidArea_(briefing);
+    const officialComposition = findEloStockObrasOfficialComposition_(briefing);
+    if (officialComposition) {
+      return buildEloStockObrasOfficialCompositionResponse_(briefing, officialComposition);
+    }
     const openingSummary = formatEloStockObrasOpenings_(briefing);
     const lines = [
       alreadyConsidered ? "A premissa informada já estava considerada no briefing acumulado." : "Briefing técnico consolidado, mas ainda preciso de uma composição SINAPI/ORSE ou interna validada para calcular consumo, mão de obra, produtividade ou custo com segurança.",
@@ -9323,7 +9502,7 @@
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
       "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
       "- Vãos descontados: " + openingSummary,
-      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2, "m²"),
+      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
       "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
@@ -9438,7 +9617,8 @@
   }
 
   function shouldStartEloWallPremiseCollection_(text) {
-    return /parede|muro|alvenaria|bloco|bloco\\s+baiano|tijolo/.test(text) && (/fazer|executar|calcule|calcular|calcula|quantitativo|quantidade|orcamento|or.amento|custo|preco|pre.o|valor|material|materiais|parede|muro|alvenaria|bloco/.test(text));
+    const hasMasonrySubject = /alvenaria|bloco|bloco\s+baiano|tijolo/.test(text) || (/parede|muro/.test(text) && !/chapisco|embo.o|emboco|reboco|revestimento/.test(text));
+    return hasMasonrySubject && (/fazer|executar|calcule|calcular|calcula|quantitativo|quantidade|quantos|orcamento|or.amento|custo|preco|pre.o|valor|material|materiais|parede|muro|alvenaria|bloco/.test(text));
   }
 
   function saveEloPendingPremises_(type, raw, response) {
@@ -9474,13 +9654,6 @@
     if (!hasEloWallSubject_(text) && isPendingWall) {
       return null;
     }
-    if (hasEloWallLengthHeight_(text) || /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
-      const prediction = calculateEloOperationalPrediction_(combinedMessage);
-      if (hasEloValidatedTechnicalBase_(prediction)) {
-        return null;
-      }
-    }
-
     const stockObrasBriefingResponse = buildEloStockObrasBriefingResponse_(message, combinedMessage, isPendingWall, shouldStart);
     if (stockObrasBriefingResponse) {
       return stockObrasBriefingResponse;
@@ -10680,6 +10853,45 @@
     };
   }
 
+  function isEloConstructionTechnicalQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
+  }
+
+  function buildEloConstructionTechnicalFallback_(message) {
+    const text = normalizeText(message || "");
+    const subject = /casa|resid.ncia|residencia/.test(text)
+      ? "residência/obra completa"
+      : /produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora/.test(text)
+        ? "produtividade e mão de obra"
+        : /sinapi|orse|composi..o|composicao/.test(text)
+          ? "composição técnica"
+          : "serviço de obra";
+    const lines = [
+      "Entendi que é uma pergunta técnica de obras sobre " + subject + ".",
+      "",
+      "Para responder com segurança, preciso consolidar premissas e localizar uma base técnica SINAPI/ORSE ou composição interna validada.",
+      "",
+      "Dados mínimos úteis:",
+      "- serviço desejado e unidade de medição;",
+      "- área, comprimento x altura, volume ou quantidade;",
+      "- tipo/dimensão do material principal, quando aplicável;",
+      "- vãos, perdas, espessuras e lados revestidos, quando aplicável;",
+      "- UF e mês de referência da base SINAPI/ORSE;",
+      "- preços unitários, se a pergunta envolver custo.",
+      "",
+      "Não vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base."
+    ];
+    return {
+      shortAnswer: "Preciso tratar isso como pergunta técnica de obras.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe as premissas do serviço ou o código/composição SINAPI/ORSE para eu continuar.",
+      canSave: false,
+      sessionTheme: "base_tecnica_quantitativo",
+      sessionIntent: "roteamento_tecnico_obras"
+    };
+  }
+
   // ELO_RESPONSE_ENGINE
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
@@ -10756,6 +10968,10 @@
     const operationalConstructionAnswer = buildEloOperationalConstructionAnswer_(cleanQuestion);
     if (operationalConstructionAnswer) {
       return operationalConstructionAnswer;
+    }
+
+    if (isEloConstructionTechnicalQuestion_(cleanQuestion)) {
+      return buildEloConstructionTechnicalFallback_(cleanQuestion);
     }
 
     const operationalAnswer = buildEloOperationalAnswer(cleanQuestion, {
