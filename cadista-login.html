@@ -1,0 +1,153 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acesso ao CADISTA IA</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Arial, Helvetica, sans-serif;
+      --ink: #10231f;
+      --muted: #55645f;
+      --line: #cfd8d4;
+      --brand: #0f4a3e;
+      --brand-dark: #0a352d;
+      --bg: #f5f7f6;
+      --danger: #9b1c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main {
+      width: min(420px, calc(100vw - 32px));
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 18px 45px rgba(16, 35, 31, 0.12);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #273c36;
+    }
+    input {
+      width: 100%;
+      border: 1px solid #aebcb7;
+      border-radius: 6px;
+      padding: 12px 13px;
+      font-size: 1rem;
+      color: var(--ink);
+      background: #fff;
+    }
+    input:focus {
+      outline: 3px solid rgba(15, 74, 62, 0.18);
+      border-color: var(--brand);
+    }
+    button {
+      width: 100%;
+      margin-top: 20px;
+      border: 0;
+      border-radius: 6px;
+      padding: 12px 14px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { background: var(--brand-dark); }
+    button:disabled { opacity: 0.7; cursor: wait; }
+    .restricted {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: #6b4d0f;
+      font-weight: 800;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+    }
+    .message {
+      min-height: 20px;
+      margin-top: 14px;
+      color: var(--danger);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="restricted">Acesso restrito</span>
+    <h1>Acesso ao CADISTA IA</h1>
+    <p>Ferramenta tecnica para geracao de plantas por IA.</p>
+    <form id="login-form" autocomplete="on">
+      <label for="username">Usuario</label>
+      <input id="username" name="username" autocomplete="username" required />
+      <label for="password">Senha</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button id="submit-button" type="submit">Entrar</button>
+      <div id="message" class="message" role="alert" aria-live="polite"></div>
+    </form>
+  </main>
+  <script>
+    const API_BASE_URL = "https://cadista-ia-api.onrender.com";
+    const TOKEN_KEY = "cadista_access_token";
+    const form = document.getElementById("login-form");
+    const message = document.getElementById("message");
+    const button = document.getElementById("submit-button");
+
+    function nextUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next") || "/cadista/";
+      return next.startsWith("/") ? next : "/cadista/";
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      message.textContent = "";
+      button.disabled = true;
+      button.textContent = "Entrando...";
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/cadista/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: form.username.value.trim(),
+            password: form.password.value,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok || !payload.token) {
+          throw new Error(payload?.detail?.message || payload?.message || "Usuario ou senha invalidos.");
+        }
+        window.localStorage.setItem(TOKEN_KEY, payload.token);
+        window.location.href = nextUrl();
+      } catch (error) {
+        message.textContent = error.message || "Nao foi possivel entrar.";
+      } finally {
+        button.disabled = false;
+        button.textContent = "Entrar";
+      }
+    });
+  </script>
+</body>
+</html>
