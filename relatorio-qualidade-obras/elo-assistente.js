@@ -1002,29 +1002,35 @@
     const raw = sanitizeUserText(message || "");
     const text = normalizeText(raw);
     const facts = {};
-    const nameMatch = raw.match(/(?:obra|projeto|resid[êe]ncia|casa)\s+(?:chamada|nomeada|é|e|se chama)?\s*([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][\wÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç\s]{2,50}?)(?:\s+(?:fica|em|tem|com|está|esta|é|e)\b|[,.]|$)/i);
-    if (nameMatch && !/fica|tem|com|padrao|padrão|area|área/i.test(nameMatch[1])) {
-      facts.nome = sanitizeUserText(nameMatch[1]);
+    const switchMatch = raw.match(/\b(?:troque|mude|altere|volte)\s+(?:para|pra)\s+(?:a\s+)?(?:obra|projeto)\s+([^,.]{1,50}?)(?:\s+(?:em|fica|tem|com)\b|[,.]|$)/i);
+    const scopedWorkMatch = raw.match(/\b(?:na|no|nesta|nesse)\s+(?:obra|projeto)\s+([^,.]{1,50}?)(?:\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer|fica|em|tem|com)\b|[,.]|$)/i);
+    const nameMatch = raw.match(/(?:minha\s+)?(?:obra|projeto|residencia|casa)\s+(?:chamada|nomeada|e|se chama)?\s*([^,.]{2,50}?)(?:\s+(?:fica|em|tem|com|esta|e)\b|[,.]|$)/i);
+    const nameCandidate = switchMatch ? switchMatch[1] : (scopedWorkMatch ? scopedWorkMatch[1] : (nameMatch ? nameMatch[1] : ""));
+    if (switchMatch) {
+      facts.switchProject = true;
     }
-    const cityUfMatch = raw.match(/\b(?:em|fica em|cidade de|cidade para|atualize cidade para|mude cidade para)\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][\wÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç\s]+?)[\s,-]+([A-Z]{2})\b/);
+    if (nameCandidate && !/\b(?:essa|dessa|nesta|nessa|daquela|para|sem|perder|contexto|atual)\b/i.test(nameCandidate) && !/fica|tem|com|padrao|area/i.test(normalizeText(nameCandidate))) {
+      facts.nome = sanitizeUserText(nameCandidate).replace(/\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer)\b.*$/i, "");
+    }
+    const cityUfMatch = raw.match(/\b(?:fica\s+em|em|cidade\s+de|cidade\s+para|atualize\s+cidade\s+para|mude\s+cidade\s+para)\s+([^,.;\/\-]+?)\s*[-\/,]\s*([A-Z]{2})\b/i);
     if (cityUfMatch) {
       facts.cidade = sanitizeUserText(cityUfMatch[1]).replace(/\s+$/, "");
       facts.uf = sanitizeUserText(cityUfMatch[2]).toUpperCase();
     }
-    const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|metros?\s+quadrados?)/i);
     if (areaMatch) {
       facts.area_m2 = parseEloOperationalNumber_(areaMatch[1]);
     }
-    if (/residencial|resid[êe]ncia|casa/.test(text)) facts.tipo_obra = "residencial";
-    if (/comercial|loja|galpao|galpão|empresa/.test(text)) facts.tipo_obra = /galpao|galpão/.test(text) ? "galpão" : "comercial";
-    if (/padrao\s+(medio|m[eé]dio)|padrão\s+(medio|m[eé]dio)/.test(text)) facts.padrao_construtivo = "padrão médio";
-    if (/alto\s+padrao|alto\s+padrão/.test(text)) facts.padrao_construtivo = "alto padrão";
-    if (/baixo\s+padrao|baixo\s+padrão|popular/.test(text)) facts.padrao_construtivo = "popular";
-    const etapaMatch = text.match(/\b(?:etapa|fase)\s+(?:atual\s+)?(?:e|é|:)?\s*([a-z0-9\s]{3,40})/);
+    if (/residencial|residencia|casa/.test(text)) facts.tipo_obra = "residencial";
+    if (/comercial|loja|galpao|empresa/.test(text)) facts.tipo_obra = /galpao/.test(text) ? "galp\u00e3o" : "comercial";
+    if (/padrao\s+(medio|medio)/.test(text)) facts.padrao_construtivo = "padr\u00e3o m\u00e9dio";
+    if (/alto\s+padrao/.test(text)) facts.padrao_construtivo = "alto padr\u00e3o";
+    if (/baixo\s+padrao|popular/.test(text)) facts.padrao_construtivo = "popular";
+    const etapaMatch = text.match(/\b(?:etapa|fase)\s+(?:atual\s+)?(?:e|:)??\s*([a-z0-9\s]{3,40})/);
     if (etapaMatch) facts.etapa_atual = sanitizeUserText(etapaMatch[1]);
-    const materialMatches = raw.match(/\b(?:cimento|bloco|tijolo|areia|brita|aço|aco|ca-50|concreto|telha|argamassa|tinta|pvc)\b/gi) || [];
+    const materialMatches = text.match(/\b(?:cimento|bloco|tijolo|areia|brita|aco|ca-50|concreto|telha|argamassa|tinta|pvc)\b/gi) || [];
     facts.materiais_citados = materialMatches.map(function (item) { return sanitizeUserText(item).toLowerCase(); });
-    const dimensions = raw.match(/\b\d+(?:[,.]\d+)?\s*(?:m|cm)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?(?:\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?)?\b/gi) || [];
+    const dimensions = raw.match(/\b\d+(?:[,.]\d+)?\s*(?:m|cm)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?(?:\s*(?:x|por)\s*\d+(?:[,.]\d+)?\s*(?:m|cm)?)?\b/gi) || [];
     facts.dimensoes_recorrentes = dimensions.map(sanitizeUserText);
     return facts;
   }
@@ -1050,6 +1056,11 @@
       return false;
     }
     return /\b(?:minha\s+obra|obra|projeto|residencia|residência|casa)\b/.test(text) || facts.nome || facts.cidade || facts.uf || facts.area_m2 || facts.padrao_construtivo || facts.etapa_atual;
+  }
+
+  function isEloWorkMemoryQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /qual\s+contexto\s+voce\s+tem|qual\s+contexto\s+voc?\s+tem|lembra\s+(?:da\s+)?minha\s+obra|qual\s+cidade\s+da\s+obra|qual\s+uf\s+da\s+obra|use\s+a\s+cidade\s+da\s+obra|qual\s+referencia\s+de\s+uf|qual\s+refer?ncia\s+de\s+uf|o\s+que\s+voce\s+sabe\s+da\s+minha\s+obra|o\s+que\s+voc?\s+sabe\s+da\s+minha\s+obra|memoria\s+da\s+obra|mem?ria\s+da\s+obra|obra\s+atual/.test(text);
   }
 
   function formatEloWorkMemorySavedSummary_(project) {
@@ -1088,7 +1099,8 @@
     if (facts.nome) {
       const id = normalizeText(facts.nome).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "obra_atual";
       memory.activeProjectId = id;
-      memory.projects[id] = Object.assign({}, memory.projects[id] || current, { id: id, nome: facts.nome });
+      const baseProject = facts.switchProject && !memory.projects[id] ? createEloWorkMemory_().projects.obra_atual : (memory.projects[id] || current);
+      memory.projects[id] = Object.assign({}, baseProject, { id: id, nome: facts.nome });
     }
     const active = Object.assign({}, memory.projects[memory.activeProjectId] || current);
     ["cidade", "uf", "tipo_obra", "padrao_construtivo", "etapa_atual"].forEach(function (key) {
@@ -11399,7 +11411,7 @@
   // ELO_RESPONSE_ENGINE
   function buildEloWorkMemoryQuestionAnswer_(message) {
     const text = normalizeText(message || "");
-    if (!/\b(qual|quais|me diga|informe|lembre)\b/.test(text) || !/obra atual|memoria da obra|memória da obra|cidade da obra|area da obra|área da obra|padrao da obra|padrão da obra/.test(text)) {
+    if (!isEloWorkMemoryQuestion_(message)) {
       return null;
     }
     const project = getActiveEloWorkProject_();
@@ -11460,8 +11472,48 @@
     return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
+  function hasEloBudgetOrCompositionIntent_(message) {
+    const text = normalizeText(message || "");
+    return /orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
+  }
+
+  function isEloPaintingBudgetQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /pintura|tinta|demaos?|selador|massa\s+corrida|massa\s+acrilica|parede\s+pintada|piso\s+pintado|acabamento\s+de\s+pintura/.test(text) && /orcar|orce|orcamento|custo|valor|quanto|calcular|calcule|consumo|comprar|compro/.test(text);
+  }
+
+  function buildEloPaintingBudgetBriefingAnswer_(message) {
+    if (!isEloPaintingBudgetQuestion_(message)) {
+      return null;
+    }
+    clearEloPendingPremises_();
+    const project = getActiveEloWorkProject_();
+    const memoryLines = formatEloWorkMemoryLines_(project);
+    const answer = [
+      "Resposta principal",
+      "Entendi que o pedido agora e pintura. Vou tratar como novo servico e nao vou reaproveitar o briefing pendente de parede/alvenaria.",
+      "",
+      "Premissas utilizadas",
+      memoryLines.join("\n"),
+      "",
+      "Base tecnica utilizada",
+      "- Ainda nao localizada. Para orcamento ou consumo oficial, preciso de composicao SINAPI/ORSE ou interna validada.",
+      "",
+      "Proxima acao recomendada",
+      "Para seguir, confirme: area de pintura, ambiente interno ou externo, tipo de superficie, sistema de pintura (selador/massa/tinta), numero de demaos e se deseja orcamento oficial por composicao ou estimativa NAO OFICIAL."
+    ].join("\n");
+    return {
+      shortAnswer: "Vou tratar isso como pintura e pedir as premissas certas.",
+      fullAnswer: answer,
+      nextAction: "Confirme area, ambiente, superficie, sistema e demaos.",
+      canSave: false,
+      sessionTheme: "pintura_orcamento",
+      sessionIntent: "briefing_pintura"
+    };
+  }
+
   function buildEloConstructionPathologyAnswer_(message) {
-    if (!isEloConstructionPathologyQuestion_(message)) {
+    if (!isEloConstructionPathologyQuestion_(message) || hasEloBudgetOrCompositionIntent_(message)) {
       return null;
     }
     const text = normalizeText(message || "");
@@ -11541,6 +11593,11 @@
     const naturalSimpleAnswer = buildEloNaturalSimpleAnswer_(cleanQuestion);
     if (naturalSimpleAnswer) {
       return naturalSimpleAnswer;
+    }
+
+    const paintingBudgetAnswer = buildEloPaintingBudgetBriefingAnswer_(cleanQuestion);
+    if (paintingBudgetAnswer) {
+      return paintingBudgetAnswer;
     }
 
     const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);

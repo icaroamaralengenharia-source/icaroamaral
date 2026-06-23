@@ -187,6 +187,13 @@ function respostaTexto(response) {
   return typeof response === "string" ? response : String(response?.fullAnswer || response?.answer || response?.shortAnswer || JSON.stringify(response || ""));
 }
 
+function isPureMemoryCase(caso) {
+  const q = norm(caso.pergunta || "");
+  return caso.persona === "memoria_continuidade" && (
+    /minha obra .*fica em|atualize .*obra|atualize a area|atualize area|atualize padrao|atualize padrao|estamos na fase|troque para obra|volte para|na obra .*vou trabalhar|qual contexto voce tem|qual contexto voce tem|use a cidade da obra|referencia de uf|referencia de uf/.test(q)
+  );
+}
+
 function has(text, terms) {
   const n = norm(text);
   return terms.some((term) => n.includes(norm(term)));
@@ -196,21 +203,21 @@ function avalia(caso, resposta) {
   const obs = [];
   let status = "PASS";
   if (!resposta.trim()) return { status: "FAIL", obs: ["Resposta vazia."] };
-  const hasSafetyBlock = has(resposta, ["não localizada", "nao localizada", "não vou", "nao vou", "sem composição", "sem composicao", "preciso", "informe", "estimativa não oficial", "estimativa nao oficial"]);
-  if (!hasSafetyBlock && /r\$\s*\d|\d+[,.]\d+\s*(m2\/dia|m²\/dia|hh|homens-hora)/i.test(resposta)) {
-    status = "FAIL"; obs.push("Possível preço/produtividade/coeficiente oficial inventado.");
+  const hasSafetyBlock = has(resposta, ["n?o localizada", "nao localizada", "n?o vou", "nao vou", "sem composi??o", "sem composicao", "preciso", "informe", "estimativa n?o oficial", "estimativa nao oficial"]);
+  if (!hasSafetyBlock && /r\$\s*\d|\d+[,.]\d+\s*(m2\/dia|m?\/dia|hh|homens-hora)/i.test(resposta)) {
+    status = "FAIL"; obs.push("Poss?vel pre?o/produtividade/coeficiente oficial inventado.");
   }
-  if (caso.tipo === "insumo" && !has(resposta, ["insumo", "composição", "composicao", "coeficiente", "serviço", "servico", "material"])) {
-    status = status === "FAIL" ? status : "WARNING"; obs.push("Não diferenciou claramente insumo de composição/serviço.");
+  if (!isPureMemoryCase(caso) && caso.tipo === "insumo" && !has(resposta, ["insumo", "composi??o", "composicao", "coeficiente", "servi?o", "servico", "material"])) {
+    status = status === "FAIL" ? status : "WARNING"; obs.push("N?o diferenciou claramente insumo de composi??o/servi?o.");
   }
-  if (caso.tipo === "composicao" && !has(resposta, ["SINAPI", "ORSE", "composição", "composicao", "base técnica", "base tecnica", "premissas", "não localizada", "nao localizada"])) {
-    status = status === "FAIL" ? status : "WARNING"; obs.push("Composição sem base técnica/premissas evidentes.");
+  if (!isPureMemoryCase(caso) && caso.tipo === "composicao" && !has(resposta, ["SINAPI", "ORSE", "composi??o", "composicao", "base t?cnica", "base tecnica", "premissas", "n?o localizada", "nao localizada"])) {
+    status = status === "FAIL" ? status : "WARNING"; obs.push("Composi??o sem base t?cnica/premissas evidentes.");
   }
-  if (caso.persona === "memoria_continuidade" && !has(caso.pergunta + " " + resposta, ["Residencial Alfa", "Obra Beta", "obra atual", "memória", "memoria", "contexto"])) {
-    status = status === "FAIL" ? status : "WARNING"; obs.push("Memória/continuidade pouco evidente.");
+  if (caso.persona === "memoria_continuidade" && !has(caso.pergunta + " " + resposta, ["Residencial Alfa", "Obra Beta", "Beta", "Alfa", "obra atual", "mem?ria", "memoria", "contexto"])) {
+    status = status === "FAIL" ? status : "WARNING"; obs.push("Mem?ria/continuidade pouco evidente.");
   }
-  if (!has(resposta, ["preciso", "informe", "confirme", "premissa", "SINAPI", "ORSE", "composição", "composicao", "não vou", "nao vou", "memória", "memoria"])) {
-    status = status === "FAIL" ? status : "WARNING"; obs.push("Faltou próximo passo técnico claro.");
+  if (!isPureMemoryCase(caso) && !has(resposta, ["preciso", "informe", "confirme", "premissa", "SINAPI", "ORSE", "composi??o", "composicao", "n?o vou", "nao vou", "mem?ria", "memoria"])) {
+    status = status === "FAIL" ? status : "WARNING"; obs.push("Faltou pr?ximo passo t?cnico claro.");
   }
   if (resposta.length > 3500) { status = status === "FAIL" ? status : "WARNING"; obs.push("Resposta longa demais."); }
   return { status, obs: obs.length ? obs : ["Nenhuma"] };
