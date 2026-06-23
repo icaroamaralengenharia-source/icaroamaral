@@ -5180,7 +5180,8 @@ test("Elo coleta premissas de parede em mensagens sequenciais antes de buscar co
   assert.match(first.shortAnswer, /Antes de calcular, preciso completar o briefing técnico da parede/);
   assert.match(first.fullAnswer, /Qual a dimensão do bloco/);
   assert.match(first.fullAnswer, /Área bruta: 56,00 m²/);
-  assert.doesNotMatch(first.fullAnswer, /Base técnica utilizada/);
+  assert.match(first.fullAnswer, /Base técnica utilizada/);
+  assert.match(first.fullAnswer, /Geometria informada pelo usuário/);
   assert.match(second.fullAnswer, /Briefing técnico consolidado/);
   assert.match(second.fullAnswer, /Base técnica utilizada: não localizada/);
   assert.match(second.fullAnswer, /Premissas utilizadas:/);
@@ -5358,6 +5359,46 @@ test("Elo continua contexto tecnico e consulta SINAPI apos premissas em pergunta
   assert.match(second.fullAnswer, /Memória de cálculo/);
 });
 
+test("Elo responde geometria de volume sem exigir SINAPI", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Quantos m³ de concreto são necessários para uma laje maciça de 8 m x 10 m com 12 cm de espessura?");
+
+  assert.match(response.fullAnswer, /Resposta principal/);
+  assert.match(response.fullAnswer, /Volume geométrico: 9,60 m³/);
+  assert.match(response.fullAnswer, /Premissas utilizadas/);
+  assert.match(response.fullAnswer, /Área: 80,00 m²/);
+  assert.match(response.fullAnswer, /Espessura: 12,00 cm/);
+  assert.match(response.fullAnswer, /Geometria informada pelo usuário/);
+  assert.match(response.fullAnswer, /FCK do concreto/);
+  assert.doesNotMatch(response.fullAnswer, /Base técnica utilizada: não localizada/);
+});
+
+test("Elo responde metros lineares de rodape sem composicao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Quantos metros lineares de rodapé existem em um quarto de 3,50 m x 4,00 m?");
+
+  assert.match(response.fullAnswer, /Perímetro\/metros lineares: 15,00 m/);
+  assert.match(response.fullAnswer, /Cálculo: 2 x \(comprimento \+ largura\)/);
+  assert.match(response.fullAnswer, /SINAPI\/ORSE não é necessária para calcular metros lineares/);
+  assert.doesNotMatch(response.fullAnswer, /Base técnica utilizada: não localizada/);
+});
+
+test("Elo mostra area liquida de parede com vaos antes de buscar composicao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+
+  const response = sandbox.window.EloAssistente.buildResponseForTest("Tenho uma parede de 12 m por 2,80 m com uma porta 0,90x2,10 e duas janelas 1,20x1,00. Quantos blocos 14x19x29 preciso?");
+
+  assert.match(response.fullAnswer, /Resposta principal/);
+  assert.match(response.fullAnswer, /Área geométrica da parede: 33,60 m²/);
+  assert.match(response.fullAnswer, /Área líquida considerada: 29,31 m²/);
+  assert.match(response.fullAnswer, /Vãos descontados: 1 porta 0,90 x 2,10 m = 1,89 m²; 2 janelas 1,20 x 1,00 m = 2,40 m²/);
+  assert.match(response.fullAnswer, /Ainda preciso confirmar:/);
+  assert.match(response.fullAnswer, /perda adotada/);
+  assert.match(response.fullAnswer, /revestimento/);
+  assert.doesNotMatch(response.fullAnswer, /Base técnica utilizada: não localizada/);
+});
 test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
 
@@ -5370,7 +5411,8 @@ test("Elo exige vaos obrigatorios depois da dimensao do bloco", async () => {
   assert.match(second.fullAnswer, /1 porta de 0,80 x 2,10 m/);
   assert.match(second.fullAnswer, /2 janelas de 1,20 x 1,00 m/);
   assert.match(second.fullAnswer, /parede íntegra, sem vãos/);
-  assert.doesNotMatch(second.fullAnswer, /Base técnica utilizada/);
+  assert.match(second.fullAnswer, /Base técnica utilizada/);
+  assert.match(second.fullAnswer, /Geometria informada pelo usuário/);
 });
 
 test("Elo desconta vaos informados nas premissas de parede", async () => {

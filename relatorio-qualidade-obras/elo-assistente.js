@@ -3766,7 +3766,7 @@
   }
 
   function isSimpleEloCalculation(normalizedText) {
-    const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(normalizedText);
+    const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(normalizedText);
     const hasCalculationTerm = hasAnyTerm(normalizedText, [
       "quantos",
       "quanto",
@@ -8742,7 +8742,7 @@
 
   function parseEloOperationalService_(message) {
     const text = normalizeText(message);
-    const dimensionMatch = String(message || "").match(/(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
+    const dimensionMatch = String(message || "").match(/(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
     const quantityMatch = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|m3|m³|metros?\s+quadrados?|metros?\s+cubicos?|metros?\s+cúbicos?|sacos?|un|und|unidades?)/i);
     const quantity = dimensionMatch
       ? parseEloOperationalNumber_(dimensionMatch[1]) * parseEloOperationalNumber_(dimensionMatch[2])
@@ -8794,7 +8794,7 @@
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
     const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
-    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)/i);
+    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
     if (heightMatch) {
       height = parseEloOperationalNumber_(heightMatch[1]);
     }
@@ -8880,7 +8880,7 @@
   }
 
   function hasEloAreaOrDimensions_(text) {
-    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m�|metros?\s+quadrados?|m3|m\^3|m�|metros?\s+cubicos?)\b/.test(text) || /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text);
+    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m�|metros?\s+quadrados?|m3|m\^3|m³|metros?\s+cubicos?)\b/.test(text) || /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?/.test(text);
   }
 
   function hasEloConcreteUse_(text) {
@@ -8904,7 +8904,7 @@
   }
 
   function hasEloWallLengthHeight_(text) {
-    return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
+    return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
   }
 
   function hasEloNoWallOpenings_(text) {
@@ -9034,7 +9034,7 @@
     let height = heightMatch ? parseEloOperationalNumber_(heightMatch[1]) : null;
     if ((!length || !height)) {
       const geometrySource = stripEloBlockDimensionTriples_(source);
-      const pairMatch = geometrySource.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+      const pairMatch = geometrySource.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
       if (pairMatch) {
         length = length || parseEloOperationalNumber_(pairMatch[1]);
         height = height || parseEloOperationalNumber_(pairMatch[2]);
@@ -9044,7 +9044,7 @@
   }
 
   function stripEloBlockDimensionTriples_(message) {
-    return sanitizeUserText(message || "").replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:x|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
+    return sanitizeUserText(message || "").replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|×|\?|por)\s*\d{1,2}\s*(?:x|×|\?|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
   }
 
   function parseEloOpeningQuantity_(value) {
@@ -9067,7 +9067,7 @@
       return { hasNoOpenings: true, items: [], totalArea: 0, label: "nenhum" };
     }
     const items = [];
-    const pattern = /(?:\b(\d+|um|uma|dois|duas)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
+    const pattern = /(?:\b(\d+|um|uma|dois|duas)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const quantity = parseEloOpeningQuantity_(match[1]);
@@ -9562,14 +9562,29 @@
       if (intent === "confirmar_premissas_parede") intent = "confirmar_lados_revestimento";
     }
     if (missing.length) {
+      calculateEloStockObrasLiquidArea_(briefing);
       briefing.pending_question = intent;
-      const fullAnswer = [
-        "Antes de calcular, preciso completar o briefing técnico da parede.",
-        "Já registrei:",
+      const registeredLines = [
         "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
         "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
-        "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+        "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²")
+      ];
+      if (briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) {
+        registeredLines.push("- Vãos descontados: " + formatEloStockObrasOpenings_(briefing));
+        registeredLines.push("- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"));
+        registeredLines.push("- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"));
+      }
+      const fullAnswer = [
+        "Resposta principal",
+        "Área geométrica da parede: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²") + "." + ((briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) ? " Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + "." : ""),
         "",
+        "Premissas utilizadas",
+        registeredLines.join("\n"),
+        "",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.",
+        "",
+        "Próxima ação",
         "Ainda preciso confirmar:",
         missing.map(function (item) { return "- " + item; }).join("\n"),
         "",
@@ -9727,7 +9742,7 @@
           sessionIntent: "confirmar_fck_concreto"
         };
       }
-      if (/piso|laje|contrapiso|radier/.test(text) && !hasEloConcreteThickness_(text) && !/m3|m\^3|m�|metros?\s+cubicos?/.test(text)) {
+      if (/piso|laje|contrapiso|radier/.test(text) && !hasEloConcreteThickness_(text) && !/m3|m\^3|m³|metros?\s+cubicos?/.test(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso da espessura.",
           fullAnswer: "Antes de calcular, confirme a espessura do concreto. Ex.: 7 cm para passeio, 8 a 10 cm para piso residencial ou espessura definida em projeto.",
@@ -10858,6 +10873,133 @@
     return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
   }
 
+  function extractEloGeometryPair_(message) {
+    const source = stripEloBlockDimensionTriples_(message || "");
+    const match = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+    if (!match) {
+      return null;
+    }
+    const first = parseEloOperationalNumber_(match[1]);
+    const second = parseEloOperationalNumber_(match[2]);
+    if (!(first > 0) || !(second > 0)) {
+      return null;
+    }
+    return { first: first, second: second };
+  }
+
+  function extractEloGeometryThicknessM_(message) {
+    const text = sanitizeUserText(message || "");
+    const cmMatch = text.match(/(?:espessura\s*(?:de)?\s*)?(\d+(?:[,.]\d+)?)\s*cm\b/i);
+    if (cmMatch) {
+      return { meters: parseEloOperationalNumber_(cmMatch[1]) / 100, label: formatEloWallPremiseMeasure_(parseEloOperationalNumber_(cmMatch[1]), "cm") };
+    }
+    const meterMatch = text.match(/espessura\s*(?:de)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/i);
+    if (meterMatch) {
+      return { meters: parseEloOperationalNumber_(meterMatch[1]), label: formatEloWallPremiseMeasure_(parseEloOperationalNumber_(meterMatch[1]), "m") };
+    }
+    return null;
+  }
+
+  function buildEloGeometryLayerAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!isEloConstructionTechnicalQuestion_(message)) {
+      return null;
+    }
+    if (/parede|muro|alvenaria|bloco|tijolo/.test(text)) {
+      return null;
+    }
+    const pair = extractEloGeometryPair_(message);
+    if (!pair) {
+      return null;
+    }
+    const area = pair.first * pair.second;
+    const wantsRodape = /rodape|rodap.|perimetro|metro\s+linear|metros\s+lineares/.test(text);
+    const wantsVolume = /volume|m3|m³|concreto|laje|radier|contrapiso/.test(text);
+    const thickness = extractEloGeometryThicknessM_(message);
+    if (wantsVolume && thickness && thickness.meters > 0) {
+      const volume = area * thickness.meters;
+      const needsFck = hasEloConcreteSubject_(text) && !hasEloConcreteFck_(text);
+      const lines = [
+        "Resposta principal",
+        "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".",
+        "",
+        "Premissas utilizadas",
+        "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
+        "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
+        "- Área: " + formatEloWallPremiseMeasure_(area, "m²"),
+        "- Espessura: " + thickness.label,
+        "",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área ou volume geométrico.",
+        "",
+        "Próxima ação",
+        needsFck ? "Antes de calcular consumo, mão de obra, produtividade ou custo, preciso confirmar o FCK do concreto e localizar composição SINAPI/ORSE ou interna validada." : "Para consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada."
+      ];
+      return {
+        shortAnswer: "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".",
+        fullAnswer: lines.join("\n"),
+        nextAction: needsFck ? "Informe o FCK do concreto para avançar para premissas e composição." : "Informe a composição SINAPI/ORSE ou as premissas técnicas para avançar.",
+        canSave: false,
+        sessionTheme: "geometria_obras",
+        sessionIntent: "geometria_volume"
+      };
+    }
+    if (wantsRodape) {
+      const perimeter = 2 * (pair.first + pair.second);
+      const lines = [
+        "Resposta principal",
+        "Perímetro/metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
+        "",
+        "Premissas utilizadas",
+        "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
+        "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
+        "- Cálculo: 2 x (comprimento + largura)",
+        "",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular metros lineares.",
+        "",
+        "Próxima ação",
+        "Para orçamento, produtividade, perdas ou custo do rodapé, preciso localizar composição SINAPI/ORSE ou interna validada."
+      ];
+      return {
+        shortAnswer: "Metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
+        fullAnswer: lines.join("\n"),
+        nextAction: "Informe composição ou padrão de rodapé se quiser avançar para orçamento.",
+        canSave: false,
+        sessionTheme: "geometria_obras",
+        sessionIntent: "geometria_metros_lineares"
+      };
+    }
+    if (/area|área|m2|m²|laje|piso|telhado|cobertura/.test(text)) {
+      const lines = [
+        "Resposta principal",
+        "Área geométrica: " + formatEloWallPremiseMeasure_(area, "m²") + ".",
+        "",
+        "Premissas utilizadas",
+        "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
+        "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
+        "",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.",
+        "",
+        "Próxima ação",
+        "Para consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada."
+      ];
+      return {
+        shortAnswer: "Área geométrica: " + formatEloWallPremiseMeasure_(area, "m²") + ".",
+        fullAnswer: lines.join("\n"),
+        nextAction: "Informe premissas e composição técnica se quiser avançar para orçamento.",
+        canSave: false,
+        sessionTheme: "geometria_obras",
+        sessionIntent: "geometria_area"
+      };
+    }
+    return null;
+  }
+  function isEloHighLevelConstructionBudgetQuestion_(message) {
+    const text = normalizeText(message || "");
+    return isEloConstructionTechnicalQuestion_(message) && /composi..o|composicao|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|horas?\s+necessarias|\bbdi\b|custo|or.amento|orcamento|valor|cronograma|curva\s+abc|insumos?.*80|participa..o\s+percentual|participacao\s+percentual|reduzir\s+o\s+custo|otimiza..o|otimizacao|sacos?\s+de\s+cimento|kg\s+de\s+a.o|kg\s+de\s+aco|estimativa\s+de\s+blocos|quantitativos\s+principais/.test(text);
+  }
   function buildEloConstructionTechnicalFallback_(message) {
     const text = normalizeText(message || "");
     const subject = /casa|resid.ncia|residencia/.test(text)
@@ -10868,17 +11010,20 @@
           ? "composição técnica"
           : "serviço de obra";
     const lines = [
-      "Entendi que é uma pergunta técnica de obras sobre " + subject + ".",
+      "Resposta principal",
+      "Entendi que é uma pergunta técnica de obras sobre " + subject + ". Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.",
       "",
-      "Para responder com segurança, preciso consolidar premissas e localizar uma base técnica SINAPI/ORSE ou composição interna validada.",
+      "Premissas utilizadas",
+      "- Serviço solicitado: " + subject + ";",
+      "- Quantidade, área, volume ou escopo: conforme informado pelo usuário, ainda sujeito a conferência técnica;",
+      "- UF/mês SINAPI/ORSE: não confirmado, salvo quando informado na pergunta;",
+      "- Preços unitários: não informados.",
       "",
-      "Dados mínimos úteis:",
-      "- serviço desejado e unidade de medição;",
-      "- área, comprimento x altura, volume ou quantidade;",
-      "- tipo/dimensão do material principal, quando aplicável;",
-      "- vãos, perdas, espessuras e lados revestidos, quando aplicável;",
-      "- UF e mês de referência da base SINAPI/ORSE;",
-      "- preços unitários, se a pergunta envolver custo.",
+      "Base técnica utilizada",
+      "- Não localizada nesta etapa. Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.",
+      "",
+      "Próxima ação",
+      "Informe o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.",
       "",
       "Não vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base."
     ];
@@ -10908,6 +11053,15 @@
 
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
+    }
+
+    const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
+    if (geometryLayerAnswer) {
+      return geometryLayerAnswer;
+    }
+
+    if (isEloHighLevelConstructionBudgetQuestion_(cleanQuestion)) {
+      return buildEloConstructionTechnicalFallback_(cleanQuestion);
     }
 
     const premiseQuestion = buildEloPremiseQuestion_(cleanQuestion);
@@ -13175,6 +13329,26 @@
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
+
+    const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
+    if (geometryLayerAnswer) {
+      const geometryAnswer = formatResponse(geometryLayerAnswer);
+      appendAssistantMessage(cleanQuestion, geometryAnswer, geometryLayerAnswer.canSave !== false, geometryLayerAnswer);
+      saveConversation(cleanQuestion, geometryAnswer);
+      rememberSessionTurn(cleanQuestion, geometryLayerAnswer, geometryAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    if (isEloHighLevelConstructionBudgetQuestion_(cleanQuestion)) {
+      const technicalAnswer = buildEloConstructionTechnicalFallback_(cleanQuestion);
+      const formattedTechnicalAnswer = formatResponse(technicalAnswer);
+      appendAssistantMessage(cleanQuestion, formattedTechnicalAnswer, technicalAnswer.canSave !== false, technicalAnswer);
+      saveConversation(cleanQuestion, formattedTechnicalAnswer);
+      rememberSessionTurn(cleanQuestion, technicalAnswer, formattedTechnicalAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
 
     const premiseQuestion = buildEloPremiseQuestion_(cleanQuestion);
     if (premiseQuestion) {
