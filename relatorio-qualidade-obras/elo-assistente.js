@@ -1324,6 +1324,483 @@
       sessionIntent: "technical_proposal_package"
     };
   }
+  function getEloBrowserStorage_() {
+    try {
+      if (typeof window === "undefined" || !window.localStorage) return null;
+      return window.localStorage;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readEloJsonFromStorage_(key) {
+    const storage = getEloBrowserStorage_();
+    if (!storage || !key) return null;
+    try {
+      const raw = storage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getEloStorageKeys_(patterns) {
+    const storage = getEloBrowserStorage_();
+    if (!storage) return [];
+    const normalizedPatterns = (patterns || []).map(function (pattern) { return normalizeText(pattern); });
+    const keys = [];
+    try {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index) || "";
+        const normalizedKey = normalizeText(key);
+        if (!normalizedPatterns.length || normalizedPatterns.some(function (pattern) { return normalizedKey.indexOf(pattern) >= 0; })) {
+          keys.push(key);
+        }
+      }
+    } catch (error) {
+      return [];
+    }
+    return keys;
+  }
+
+  function flattenEloText_(value, limit) {
+    const max = limit || 140;
+    if (value == null) return "";
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      return sanitizeUserText(String(value)).slice(0, max);
+    }
+    if (Array.isArray(value)) {
+      return value.map(function (item) { return flattenEloText_(item, Math.max(40, Math.floor(max / 2))); }).filter(Boolean).slice(0, 4).join("; ").slice(0, max);
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).slice(0, 8).map(function (key) {
+        const text = flattenEloText_(value[key], 80);
+        return text ? sanitizeUserText(key) + ": " + text : "";
+      }).filter(Boolean).join("; ").slice(0, max);
+    }
+    return "";
+  }
+
+  function collectEloObjects_(value, predicate, output, depth) {
+    const list = output || [];
+    if (list.length >= 80 || depth > 5 || value == null) return list;
+    if (Array.isArray(value)) {
+      value.forEach(function (item) { collectEloObjects_(item, predicate, list, depth + 1); });
+      return list;
+    }
+    if (typeof value !== "object") return list;
+    try {
+      if (predicate(value)) list.push(value);
+    } catch (error) {
+      // Ignora objetos parcialmente incompatíveis.
+    }
+    Object.keys(value).slice(0, 40).forEach(function (key) {
+      collectEloObjects_(value[key], predicate, list, depth + 1);
+    });
+    return list;
+  }
+
+  function uniqueEloObjects_(items) {
+    const seen = new Set();
+    return (items || []).filter(function (item) {
+      const key = String(item.id || item.uid || item.date || item.createdAt || "") + "|" + flattenEloText_(item, 180);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function getEloSaasState_() {
+    return readEloJsonFromStorage_("obrareport-saas-v1") || {};
+  }
+
+  function getEloRdoContext_() {
+    const state = getEloSaasState_();
+    let records = Array.isArray(state.dailyLogs) ? state.dailyLogs.slice() : [];
+    getEloStorageKeys_(["rdo", "daily", "diario", "diário"]).forEach(function (key) {
+      const parsed = readEloJsonFromStorage_(key);
+      records = records.concat(collectEloObjects_(parsed, function (item) {
+        return !!(item && (item.productions || item.materials || item.team || item.occurrences || item.safety || item.weather) && (item.date || item.workId || item.createdAt));
+      }, [], 0));
+    });
+    records = uniqueEloObjects_(records).sort(function (a, b) {
+      return String(b.date || b.createdAt || b.updatedAt || "").localeCompare(String(a.date || a.createdAt || a.updatedAt || ""));
+    });
+    return { records: records.slice(0, 12), latest: records[0] || null };
+  }
+
+  function summarizeEloRdoContext_(context) {
+    const latest = context && context.latest;
+    if (!latest) return null;
+    const productions = flattenEloText_(latest.productions || latest.services || latest.executedServices || latest.activities, 240) || "não informado";
+    const team = flattenEloText_(latest.team || latest.crew || latest.workers, 180) || "não informado";
+    const materials = flattenEloText_(latest.materials || latest.materialRequests || latest.consumptions, 220) || "não informado";
+    const occurrences = flattenEloText_(latest.occurrences || latest.incidents || latest.notes, 220) || "sem ocorrência registrada";
+    const safety = flattenEloText_(latest.safety || latest.safetyNotes || latest.security, 180) || "sem apontamento registrado";
+    const photos = Array.isArray(latest.photos || latest.attachments) ? String((latest.photos || latest.attachments).length) + " anexo(s)" : "não informado";
+    return {
+      date: sanitizeUserText(latest.date || latest.createdAt || latest.updatedAt || "não informada"),
+      work: sanitizeUserText(latest.workName || latest.obra || latest.work || latest.projectName || "obra não informada"),
+      productions: productions,
+      team: team,
+      materials: materials,
+      occurrences: occurrences,
+      safety: safety,
+      photos: photos
+    };
+  }
+
+  function getEloStockContext_() {
+    const state = readEloJsonFromStorage_("obrareport_stock_master_v1") || {};
+    const almox = readEloJsonFromStorage_("obraReportAlmoxarifadoData") || {};
+    let items = [];
+    [state.items, state.products, almox.items, almox.products, almox.materials, almox].forEach(function (source) {
+      items = items.concat(collectEloObjects_(source, function (item) {
+        return !!(item && (item.name || item.description || item.material || item.itemName || item.productName) && (item.unit || item.unidade || item.currentStock != null || item.balance != null || item.saldo != null || item.initialBalance != null));
+      }, [], 0));
+    });
+    const movements = collectEloObjects_(state["movements"] || almox["movements"] || almox["history"], function (item) {
+      return !!(item && (item.type || item.source || item.quantity != null) && (item.itemName || item.name || item.material || item.stockItemId));
+    }, [], 0);
+    const normalizedItems = uniqueEloObjects_(items).map(function (item) {
+      const name = sanitizeUserText(item.name || item.description || item.material || item.itemName || item.productName || "Material");
+      const unit = sanitizeUserText(item.unit || item.unidade || item.measureUnit || "un");
+      const stockValue = parseFloat(String(item.currentStock != null ? item.currentStock : item.balance != null ? item.balance : item.saldo != null ? item.saldo : item.initialBalance != null ? item.initialBalance : 0).replace(",", "."));
+      const minValue = parseFloat(String(item.minimumStock != null ? item.minimumStock : item.minStock != null ? item.minStock : item.minimum != null ? item.minimum : item.minimo != null ? item.minimo : 0).replace(",", "."));
+      return {
+        name: name,
+        unit: unit,
+        stock: isFinite(stockValue) ? stockValue : 0,
+        minimum: isFinite(minValue) ? minValue : 0,
+        category: sanitizeUserText(item.category || item.categoria || ""),
+        raw: item
+      };
+    });
+    const critical = normalizedItems.filter(function (item) {
+      return item.minimum > 0 ? item.stock <= item.minimum : item.stock <= 0;
+    });
+    return { items: normalizedItems, critical: critical, movements: movements };
+  }
+
+  function summarizeEloStockContext_(context, message) {
+    const text = normalizeText(message || "");
+    if (!context || !context.items.length) return null;
+    const materialMatch = text.match(/cimento|bloco|tijolo|areia|brita|aco|aço|vergalhao|vergalhão|tubo|argamassa|cal|tinta/);
+    const focus = materialMatch ? context.items.filter(function (item) { return normalizeText(item.name).indexOf(materialMatch[0]) >= 0; }) : [];
+    const selected = focus.length ? focus : context.critical.slice(0, 6);
+    return {
+      total: context.items.length,
+      criticalCount: context.critical.length,
+      selected: selected.slice(0, 8),
+      materialSearched: materialMatch ? materialMatch[0] : ""
+    };
+  }
+
+  function getEloReportsContext_() {
+    const state = getEloSaasState_();
+    let records = Array.isArray(state.reports) ? state.reports.slice() : [];
+    const draft = readEloJsonFromStorage_("relatorio-fiscalizacao-draft-v2");
+    if (draft) records.push(draft);
+    getEloStorageKeys_(["report", "relatorio", "relatório", "quality"]).forEach(function (key) {
+      const parsed = readEloJsonFromStorage_(key);
+      records = records.concat(collectEloObjects_(parsed, function (item) {
+        return !!(item && (item.inconformidades || item.nonconformities || item.risks || item.recommendations || item.conclusion || item.report) && (item.obra || item.work || item.client || item.cliente || item.createdAt || item.dataVistoria));
+      }, [], 0));
+    });
+    records = uniqueEloObjects_(records).sort(function (a, b) {
+      return String(b.dataVistoria || b.date || b.createdAt || b.updatedAt || "").localeCompare(String(a.dataVistoria || a.date || a.createdAt || a.updatedAt || ""));
+    });
+    return { records: records.slice(0, 12), latest: records[0] || null };
+  }
+
+  function summarizeEloReportsContext_(context) {
+    const latest = context && context.latest;
+    if (!latest) return null;
+    const report = latest.report && typeof latest.report === "object" ? latest.report : latest;
+    return {
+      title: sanitizeUserText(report.title || report.tipoRelatorio || report.type || "Relatório técnico"),
+      client: sanitizeUserText(report.cliente || report.client || report.clientName || "cliente não informado"),
+      work: sanitizeUserText(report.obra || report.work || report.workName || report.projectName || "obra não informada"),
+      date: sanitizeUserText(report.dataVistoria || report.date || report.createdAt || report.updatedAt || "data não informada"),
+      nonconformities: flattenEloText_(report.inconformidades || report.nonconformities || report.issues, 260) || "não informado",
+      risks: flattenEloText_(report.risks || report.riscos || report.criticalRisks, 220) || "não informado",
+      recommendations: flattenEloText_(report.recommendations || report.recomendacoes || report.actions, 240) || "não informado",
+      pending: flattenEloText_(report.pending || report.pendencias || report.todo, 220) || "não informado",
+      conclusion: flattenEloText_(report.conclusion || report.conclusao || report.summary, 260) || "conclusão não cadastrada"
+    };
+  }
+
+  function isEloRdoOperationalQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
+  }
+
+  function isEloStockOperationalQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /preciso\s+comprar|estoque\s+critico|estoque\s+crítico|materiais\s+estao\s+acabando|materiais\s+estão\s+acabando|faltam\s+blocos|falta\s+bloco|tem\s+cimento\s+suficiente|quanto\s+tenho\s+de\s+cimento|almoxarifado|saldo\s+atual/.test(text);
+  }
+
+  function isEloReportsOperationalQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /ultimo\s+relatorio|último\s+relatório|inconformidades|riscos\s+da\s+obra|conclusao\s+do\s+relatorio|conclusão\s+do\s+relatório|pendencias\s+tecnicas|pendências\s+técnicas/.test(text);
+  }
+
+  function isEloIntegratedOperationalQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /como\s+esta\s+a\s+obra|como\s+está\s+a\s+obra|(?:^o\s+que\s+falta\??$|o\s+que\s+falta\s+(?:na\s+obra|para\s+amanha|para\s+amanhã))|quais\s+riscos\s+da\s+obra|resolver\s+amanha|resolver\s+amanhã|resumo\s+geral\s+da\s+obra|diagnostico\s+geral|diagnóstico\s+geral/.test(text);
+  }
+
+  function isEloOperationalPdfQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /gerar\s+pdf|exportar\s+pdf|imprimir|documento\s+para\s+cliente|relatorio\s+para\s+cliente|relatório\s+para\s+cliente/.test(text);
+  }
+
+  function isEloOperationalWizardQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /nao\s+sei\s+por\s+onde\s+comecar|não\s+sei\s+por\s+onde\s+começar|me\s+ajuda\s+a\s+organizar\s+a\s+obra|^fazer\s+orcamento(?:\s+residencial)?$|^fazer\s+orçamento(?:\s+residencial)?$|^fazer\s+relatorio$|^fazer\s+relatório$/.test(text);
+  }
+
+  function buildEloRdoOperationalAnswer_(message) {
+    if (!isEloRdoOperationalQuestion_(message)) return null;
+    const summary = summarizeEloRdoContext_(getEloRdoContext_());
+    if (!summary) {
+      return {
+        shortAnswer: "Não encontrei RDO registrado nesta obra.",
+        fullAnswer: "Não encontrei RDO registrado nesta obra. Cadastre o diário de obra para eu gerar o resumo operacional.",
+        nextAction: "Cadastre o diário de obra ou importe um RDO antes de pedir o resumo operacional.",
+        canSave: false,
+        sessionTheme: "rdo_operacional",
+        sessionIntent: "rdo_resumo"
+      };
+    }
+    const answer = [
+      "RDO — RESUMO OPERACIONAL",
+      "",
+      "Data: " + summary.date,
+      "Obra: " + summary.work,
+      "",
+      "Serviços executados: " + summary.productions,
+      "Equipe: " + summary.team,
+      "Materiais usados: " + summary.materials,
+      "Ocorrências: " + summary.occurrences,
+      "Segurança: " + summary.safety,
+      "Fotos/anexos: " + summary.photos,
+      "",
+      "Pendências para amanhã:",
+      "- Revisar ocorrências, materiais consumidos e serviços planejados para o próximo RDO.",
+      "",
+      "Documento preliminar assistido por sistema computacional.",
+      "Não substitui análise técnica profissional."
+    ].join("\n");
+    return {
+      shortAnswer: "Resumo operacional do RDO preparado.",
+      fullAnswer: answer,
+      nextAction: "Revise o RDO e complemente pendências antes de enviar ao cliente ou equipe.",
+      canSave: true,
+      sessionTheme: "rdo_operacional",
+      sessionIntent: "rdo_resumo"
+    };
+  }
+
+  function buildEloStockOperationalAnswer_(message) {
+    if (!isEloStockOperationalQuestion_(message)) return null;
+    const summary = summarizeEloStockContext_(getEloStockContext_(), message);
+    if (!summary) {
+      return {
+        shortAnswer: "Não encontrei dados de almoxarifado carregados.",
+        fullAnswer: "Não encontrei dados de almoxarifado carregados. Cadastre materiais ou importe movimentações para eu analisar.",
+        nextAction: "Cadastre materiais, saldos mínimos e movimentações no almoxarifado.",
+        canSave: false,
+        sessionTheme: "almoxarifado_operacional",
+        sessionIntent: "stock_resumo"
+      };
+    }
+    const rows = summary.selected.length
+      ? summary.selected.map(function (item) {
+          const suggestion = item.minimum > 0 && item.stock <= item.minimum ? "repor até ficar acima do mínimo" : item.stock <= 0 ? "validar compra ou saldo" : "acompanhar";
+          return "- " + item.name + ": saldo " + item.stock + " " + item.unit + "; mínimo " + item.minimum + " " + item.unit + "; sugestão: " + suggestion + ".";
+        }).join("\n")
+      : "- Nenhum item crítico encontrado com os dados carregados.";
+    const answer = [
+      "ALMOXARIFADO — RESUMO OPERACIONAL",
+      "",
+      "Itens cadastrados: " + summary.total,
+      "Itens críticos: " + summary.criticalCount,
+      summary.materialSearched ? "Material consultado: " + summary.materialSearched : "Consulta: materiais críticos e reposição",
+      "",
+      "Itens críticos / saldo atual:",
+      rows,
+      "",
+      "Consumo recente: conferir histórico de saídas e vínculos com RDO.",
+      "Materiais sem movimentação: revisar no almoxarifado se houver divergência de saldo.",
+      "",
+      "Documento preliminar assistido por sistema computacional.",
+      "Não substitui análise técnica profissional."
+    ].join("\n");
+    return {
+      shortAnswer: "Resumo operacional do almoxarifado preparado.",
+      fullAnswer: answer,
+      nextAction: "Revise saldos mínimos, últimas saídas e compras pendentes antes de comprar.",
+      canSave: true,
+      sessionTheme: "almoxarifado_operacional",
+      sessionIntent: "stock_resumo"
+    };
+  }
+
+  function buildEloReportsOperationalAnswer_(message) {
+    if (!isEloReportsOperationalQuestion_(message)) return null;
+    const summary = summarizeEloReportsContext_(getEloReportsContext_());
+    if (!summary) {
+      return {
+        shortAnswer: "Não encontrei relatório técnico cadastrado.",
+        fullAnswer: "Não encontrei relatório técnico cadastrado. Crie ou importe um relatório para eu resumir.",
+        nextAction: "Crie ou importe um relatório técnico antes de pedir conclusão, riscos ou pendências.",
+        canSave: false,
+        sessionTheme: "relatorios_operacionais",
+        sessionIntent: "relatorio_resumo"
+      };
+    }
+    const answer = [
+      "RELATÓRIOS — RESUMO TÉCNICO",
+      "",
+      "Último relatório: " + summary.title,
+      "Cliente/obra: " + summary.client + " / " + summary.work,
+      "Data: " + summary.date,
+      "",
+      "Inconformidades: " + summary.nonconformities,
+      "Riscos: " + summary.risks,
+      "Recomendações: " + summary.recommendations,
+      "Pendências: " + summary.pending,
+      "",
+      "Conclusão sugerida:",
+      summary.conclusion,
+      "",
+      "Documento preliminar assistido por sistema computacional.",
+      "Não substitui análise técnica profissional."
+    ].join("\n");
+    return {
+      shortAnswer: "Resumo técnico do relatório preparado.",
+      fullAnswer: answer,
+      nextAction: "Revise inconformidades, riscos e conclusão antes de emitir ao cliente.",
+      canSave: true,
+      sessionTheme: "relatorios_operacionais",
+      sessionIntent: "relatorio_resumo"
+    };
+  }
+
+  function buildEloIntegratedOperationalAnswer_(message) {
+    if (!isEloIntegratedOperationalQuestion_(message)) return null;
+    const rdo = summarizeEloRdoContext_(getEloRdoContext_());
+    const stock = summarizeEloStockContext_(getEloStockContext_(), message);
+    const report = summarizeEloReportsContext_(getEloReportsContext_());
+    const answer = [
+      "DIAGNÓSTICO GERAL DA OBRA",
+      "",
+      "Execução / RDO:",
+      rdo ? "- Último RDO em " + rdo.date + ": " + rdo.productions : "- Não encontrei RDO registrado nesta obra.",
+      "",
+      "Materiais / Almoxarifado:",
+      stock ? "- " + stock.total + " item(ns) cadastrados; " + stock.criticalCount + " crítico(s)." : "- Não encontrei dados de almoxarifado carregados.",
+      "",
+      "Riscos técnicos / Relatórios:",
+      report ? "- " + report.risks : "- Não encontrei relatório técnico cadastrado.",
+      "",
+      "Próximas ações:",
+      "- Atualizar RDO do dia;",
+      "- revisar materiais críticos antes da próxima frente;",
+      "- revisar inconformidades e pendências técnicas cadastradas.",
+      "",
+      "Alertas:",
+      "- Este diagnóstico depende dos dados realmente cadastrados nos módulos.",
+      "- Documento preliminar assistido por sistema computacional.",
+      "- Não substitui análise técnica profissional."
+    ].join("\n");
+    return {
+      shortAnswer: "Diagnóstico geral da obra preparado.",
+      fullAnswer: answer,
+      nextAction: "Atualize RDO, almoxarifado e relatório técnico para deixar o diagnóstico mais confiável.",
+      canSave: true,
+      sessionTheme: "diagnostico_operacional_obra",
+      sessionIntent: "diagnostico_geral"
+    };
+  }
+
+  function escapeEloHtml_(value) {
+    return sanitizeUserText(value || "").replace(/[&<>\"]/g, function (char) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[char] || char;
+    });
+  }
+
+  function buildEloOperationalPrintableAnswer_(message) {
+    if (!isEloOperationalPdfQuestion_(message)) return null;
+    const diagnostic = buildEloIntegratedOperationalAnswer_("resumo geral da obra") || buildEloRdoOperationalAnswer_("resuma o RDO de hoje") || buildEloStockOperationalAnswer_("o que preciso comprar") || buildEloReportsOperationalAnswer_("resuma o último relatório");
+    const content = diagnostic ? diagnostic.fullAnswer : "Não encontrei dados operacionais suficientes para montar o documento.";
+    const html = [
+      "<section class=\"elo-print-document\">",
+      "  <header>",
+      "    <h1>Documento operacional preliminar</h1>",
+      "    <p>Empresa: ObraReport / Elo</p>",
+      "    <p>Data: " + escapeEloHtml_(new Date().toLocaleDateString("pt-BR")) + "</p>",
+      "  </header>",
+      "  <main>",
+      "    <h2>Resumo executivo</h2>",
+      "    <pre>" + escapeEloHtml_(content) + "</pre>",
+      "    <h2>Pendências</h2>",
+      "    <p>Atualizar RDO, almoxarifado e relatórios antes da emissão definitiva.</p>",
+      "    <h2>Avisos profissionais</h2>",
+      "    <p>Documento preliminar assistido por sistema computacional. Não substitui análise técnica profissional.</p>",
+      "    <h2>Assinatura</h2>",
+      "    <p>________________________________________</p>",
+      "  </main>",
+      "</section>"
+    ].join("\n");
+    const answer = [
+      "DOCUMENTO PARA PDF / IMPRESSÃO",
+      "",
+      "Ainda não gerei um arquivo PDF nativo nesta etapa. Abaixo está o HTML limpo para impressão.",
+      "Use Ctrl+P ou Imprimir para salvar como PDF.",
+      "",
+      "```html",
+      html,
+      "```"
+    ].join("\n");
+    return {
+      shortAnswer: "Documento imprimível preparado.",
+      fullAnswer: answer,
+      nextAction: "Use Ctrl+P ou Imprimir para salvar como PDF e revise antes de enviar ao cliente.",
+      canSave: true,
+      sessionTheme: "documento_operacional_pdf",
+      sessionIntent: "pdf_operacional"
+    };
+  }
+
+  function buildEloOperationalWizardAnswer_(message) {
+    if (!isEloOperationalWizardQuestion_(message)) return null;
+    return {
+      shortAnswer: "Vamos organizar por etapas.",
+      fullAnswer: [
+        "Vamos organizar por etapas:",
+        "1. Qual obra estamos analisando?",
+        "2. Você quer orçamento, RDO, estoque, relatório ou resumo geral?",
+        "3. Já existe RDO lançado?",
+        "4. Já existe almoxarifado cadastrado?",
+        "5. Deseja gerar documento para cliente?"
+      ].join("\n"),
+      nextAction: "Responda a primeira etapa com nome da obra e objetivo principal.",
+      canSave: false,
+      sessionTheme: "wizard_operacional",
+      sessionIntent: "wizard_operacional"
+    };
+  }
+
+  function buildEloOperationalEcosystemAnswer_(message) {
+    return buildEloOperationalPrintableAnswer_(message)
+      || buildEloIntegratedOperationalAnswer_(message)
+      || buildEloRdoOperationalAnswer_(message)
+      || buildEloStockOperationalAnswer_(message)
+      || buildEloReportsOperationalAnswer_(message)
+      || buildEloOperationalWizardAnswer_(message);
+  }
   function buildEloTechnicalAuditorAlerts_(message, options) {
     const text = normalizeText(message || "");
     const alerts = [];
@@ -13045,6 +13522,11 @@
 
     clearEloPendingContextIfTopicChanged_(cleanQuestion);
 
+    const operationalEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
+    if (operationalEcosystemAnswer) {
+      return operationalEcosystemAnswer;
+    }
+
     const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
     if (technicalProposalPackageAnswer) {
       return technicalProposalPackageAnswer;
@@ -15377,6 +15859,16 @@
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
+
+    const operationalChatEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
+    if (operationalChatEcosystemAnswer) {
+      const operationalAnswer = formatResponse(operationalChatEcosystemAnswer);
+      appendAssistantMessage(cleanQuestion, operationalAnswer, operationalChatEcosystemAnswer.canSave !== false, operationalChatEcosystemAnswer);
+      saveConversation(cleanQuestion, operationalAnswer);
+      rememberSessionTurn(cleanQuestion, operationalChatEcosystemAnswer, operationalAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
 
     const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
     if (technicalProposalPackageAnswer) {
