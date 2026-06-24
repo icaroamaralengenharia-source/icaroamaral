@@ -2131,7 +2131,7 @@
     const text = normalizeText(message || "");
     if (!/cliente|obra|casa|parede|sapata|baldrame|pilar|viga|proposta/.test(text)) return null;
     if (/gerar\s+pdf|exportar\s+pdf|proposta\s+em\s+pdf|documento\s+para\s+cliente|imprimir\s+proposta|baixar\s+proposta/.test(text)) return null;
-    if (/orcamento\s+tecnico|orçamento\s+técnico|continuar\s+o\s+orcamento|continuar\s+o\s+orçamento|orce|pintura|composicao|composição|coeficiente|sinapi|orse|mao\s+de\s+obra|mão\s+de\s+obra|produtividade|insumo|servico|serviço|executar|contratar|comprar|como\s+calcular|o\s+que\s+falta|que\s+dados|preciso\s+montar/.test(text)) return null;
+    if (/orcamento\s+tecnico|orçamento\s+técnico|orcamento\s+residencial|orçamento\s+residencial|orcamento\s+preliminar|orçamento\s+preliminar|casa\s+terrea|casa\s+térrea|continuar\s+o\s+orcamento|continuar\s+o\s+orçamento|orce|pintura|composicao|composição|coeficiente|sinapi|orse|mao\s+de\s+obra|mão\s+de\s+obra|produtividade|insumo|servico|serviço|executar|contratar|comprar|como\s+calcular|o\s+que\s+falta|que\s+dados|preciso\s+montar/.test(text)) return null;
     const facts = parseEloLooseProjectBriefing_(message);
     if (!facts) return null;
     if (facts.parede && facts.fundacao && facts.estrutura) {

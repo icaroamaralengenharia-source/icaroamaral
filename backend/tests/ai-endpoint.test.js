@@ -5486,6 +5486,10 @@ test("Elo recalcula perda a partir do consumo liquido sem acumular perda base", 
 
 test("Elo publico acumula orçamento residencial em mensagens naturais", async () => {
   const sandbox = await loadEloOperationalSandbox_([]);
+  const standalone = sandbox.window.EloAssistente.buildResponseForTest("Quero orçamento residencial preliminar para uma casa térrea de 120 m².");
+  assert.match(standalone.fullAnswer, /Vou montar um orçamento residencial preliminar/);
+  assert.doesNotMatch(standalone.fullAnswer, /BRIEFING DA OBRA/);
+
   const first = sandbox.window.EloAssistente.buildResponseForTest("Minha obra Residencial Alfa fica em Vitória da Conquista-BA, tem 120 m² e padrão médio.");
   const second = sandbox.window.EloAssistente.buildResponseForTest("Quero orçamento residencial preliminar para uma casa térrea de 120 m².");
   const third = sandbox.window.EloAssistente.buildResponseForTest("80 m de parede com 2,80 m de altura portas e janelas 18 m²");
