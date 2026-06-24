@@ -1140,6 +1140,190 @@
     ];
   }
 
+
+  function isEloTechnicalProposalTrigger_(message) {
+    const text = normalizeText(message || "");
+    return /gerar\s+(?:proposta|relatorio|relat.rio|orcamento|or.amento|documento)|preparar\s+para\s+cliente|proposta\s+tecnica|proposta\s+t.cnica|documento\s+para\s+cliente/.test(text);
+  }
+
+  function isEloTechnicalProposalSourceResponse_(response) {
+    if (!response) return false;
+    const themes = ["wall_complete_package", "structural_package", "foundation_package", "residential_budget_package", "stock_obras_composicao"];
+    const intents = ["wall_complete_package", "structural_package", "foundation_package", "residential_budget_package", "orcamentista_assistido_alvenaria", "briefing_composicao_consolidado"];
+    return themes.indexOf(response.sessionTheme) >= 0 || intents.indexOf(response.sessionIntent) >= 0;
+  }
+
+  function rememberEloTechnicalProposalSource_(question, response, answer) {
+    const rawAnswer = String(answer || response && response.fullAnswer || "").trim();
+    if (!rawAnswer) return;
+    ELO_SESSION_MEMORY.lastTechnicalPackage = {
+      question: sanitizeUserText(question || "").slice(0, 800),
+      answer: rawAnswer.slice(0, 16000),
+      theme: response && response.sessionTheme || "",
+      intent: response && response.sessionIntent || "",
+      nextAction: sanitizeUserText(response && response.nextAction || "").slice(0, 500),
+      savedAt: new Date().toISOString()
+    };
+  }
+
+  function extractEloProposalSection_(source, titlePatterns) {
+    const lines = String(source || "").split(/\r?\n/);
+    const wanted = titlePatterns.map(function (pattern) { return normalizeText(pattern.source || String(pattern)); });
+    let start = -1;
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = normalizeText(lines[index]).replace(/^#+\s*/, "").replace(/^\d+\.\s*/, "").trim();
+      if (line && wanted.some(function (title) { return line.indexOf(title) >= 0; })) {
+        start = index + 1;
+        break;
+      }
+    }
+    if (start < 0) return "";
+    const collected = [];
+    for (let index = start; index < lines.length; index += 1) {
+      const current = lines[index];
+      const normalized = normalizeText(current).replace(/^#+\s*/, "").replace(/^\d+\.\s*/, "");
+      const isNextSection = index > start && (/^\s*#{1,3}\s+/.test(current) || /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9 .]{5,80}\s*$/.test(current)) && !/^\s*-/.test(current);
+      if (isNextSection) break;
+      collected.push(current);
+    }
+    return collected.join("\n").trim().slice(0, 2500);
+  }
+
+  function buildEloProposalHtml_(markdown) {
+    const escaped = String(markdown || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return [
+      "<article class=\"elo-technical-proposal\">",
+      escaped
+        .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+        .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+        .replace(/^- (.*)$/gm, "<p>• $1</p>")
+        .replace(/\n\n/g, "\n"),
+      "</article>"
+    ].join("\n");
+  }
+
+  function buildEloTechnicalProposalPackageResponse_(message) {
+    if (!isEloTechnicalProposalTrigger_(message)) return null;
+    const source = ELO_SESSION_MEMORY.lastTechnicalPackage;
+    if (!source || !source.answer) {
+      const project = getActiveEloWorkProject_();
+      const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+      const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
+      const date = new Date().toLocaleDateString("pt-BR");
+      const markdownLines = [
+        "# PROPOSTA TÉCNICA PRELIMINAR",
+        "",
+        "Cliente: " + client,
+        "Obra: " + ((project.nome && project.nome !== "não informado") ? project.nome : "obra atual"),
+        "Data: " + date,
+        "",
+        "## RESUMO EXECUTIVO",
+        "Documento preliminar aberto para organização do orçamento assistido. Nenhum cálculo novo foi criado nesta etapa.",
+        "",
+        "## Descrição simples",
+        "Ainda não há pacote técnico consolidado vinculado a esta proposta. Use este documento como capa preliminar e gere Parede Completa, Fundação Completa, Pacote Estrutural ou Orçamento Residencial Preliminar para preencher os quantitativos.",
+        "",
+        "## SERVIÇOS CONSIDERADOS",
+        "- Fundação: pendente de pacote técnico.",
+        "- Estrutura: pendente de pacote técnico.",
+        "- Alvenaria: pendente de pacote técnico.",
+        "- Revestimentos: pendente de pacote técnico.",
+        "",
+        "## QUANTITATIVOS",
+        "Nenhum quantitativo consolidado foi localizado na memória técnica atual.",
+        "",
+        "## COMPOSIÇÕES UTILIZADAS",
+        "Nenhuma composição SINAPI, ORSE ou base oficial validada foi localizada para esta proposta.",
+        "",
+        "## CUSTOS ENCONTRADOS",
+        "Nenhum custo real foi encontrado. Nenhum valor foi estimado.",
+        "",
+        "## PENDÊNCIAS TÉCNICAS",
+        "- Gerar pacote técnico antes do envio comercial.",
+        "- Confirmar projeto, memorial, composições oficiais e responsabilidade técnica profissional.",
+        "- Aço estrutural não calculado automaticamente. Necessário projeto estrutural quando aplicável.",
+        "",
+        "## RESPONSABILIDADE TÉCNICA",
+        "Documento preliminar assistido por sistema computacional.",
+        "",
+        "Não substitui projeto executivo, memorial descritivo, orçamento executivo ou responsabilidade técnica profissional.",
+        "",
+        "## HTML ESTRUTURADO",
+        "```html",
+        buildEloProposalHtml_("# PROPOSTA TÉCNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\nDocumento preliminar aberto para organização do orçamento assistido.\n\n## QUANTITATIVOS\nNenhum quantitativo consolidado foi localizado.\n\n## COMPOSIÇÕES UTILIZADAS\nNenhuma composição oficial localizada.\n\n## CUSTOS ENCONTRADOS\nNenhum custo real encontrado.\n\n## PENDÊNCIAS TÉCNICAS\nGerar pacote técnico antes do envio comercial."),
+        "```"
+      ];
+      return {
+        shortAnswer: "Proposta técnica preliminar aberta sem custos estimados.",
+        fullAnswer: markdownLines.join("\n"),
+        nextAction: "Gere um pacote técnico para preencher quantitativos e composições antes de enviar ao cliente.",
+        canSave: true,
+        sessionTheme: "technical_proposal_package",
+        sessionIntent: "technical_proposal_package_empty"
+      };
+    }
+    const project = getActiveEloWorkProject_();
+    const sourceText = source.answer;
+    const executive = extractEloProposalSection_(sourceText, ["Resumo executivo", "Resposta principal"]) || "Proposta preliminar montada a partir do último pacote técnico calculado pelo Elo.";
+    const quantities = extractEloProposalSection_(sourceText, ["Quantitativos", "Totais consolidados", "Memória de cálculo", "Memoria de calculo", "Volumes individuais"]) || "Ver quantitativos no pacote técnico de origem abaixo.";
+    const compositions = extractEloProposalSection_(sourceText, ["Composições oficiais utilizadas", "Composicoes oficiais utilizadas", "Composições utilizadas", "Composicoes utilizadas", "Composições encontradas", "Composicoes encontradas"]) || "Nenhuma composição oficial foi localizada ou selecionada no pacote de origem.";
+    const costs = extractEloProposalSection_(sourceText, ["Custos encontrados", "Custos"]) || "Somente serão exibidos valores quando houver preço real na base técnica carregada. Nenhum valor foi estimado.";
+    const pending = extractEloProposalSection_(sourceText, ["Pendências técnicas", "Pendencias tecnicas", "Composições não localizadas", "Composicoes nao localizadas", "Observações técnicas", "Observacoes tecnicas", "Avisos profissionais"]) || "Confirmar projeto, memorial, composições oficiais faltantes, aço estrutural e responsabilidade técnica profissional.";
+    const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+    const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
+    const date = new Date().toLocaleDateString("pt-BR");
+    const markdownLines = [
+      "# PROPOSTA TÉCNICA PRELIMINAR",
+      "",
+      "Cliente: " + client,
+      "Obra: " + ((project.nome && project.nome !== "não informado") ? project.nome : "obra atual"),
+      "Data: " + date,
+      "",
+      "## RESUMO EXECUTIVO",
+      executive,
+      "",
+      "## Descrição simples",
+      "Documento preliminar preparado a partir do último pacote técnico calculado pelo Elo Orçamentista Assistido. O conteúdo abaixo organiza os dados para apresentação ao cliente sem criar novos cálculos.",
+      "",
+      "## SERVIÇOS CONSIDERADOS",
+      "- Fundação",
+      "- Estrutura",
+      "- Alvenaria",
+      "- Revestimentos",
+      "",
+      "## QUANTITATIVOS",
+      quantities,
+      "",
+      "## COMPOSIÇÕES UTILIZADAS",
+      compositions,
+      "",
+      "## CUSTOS ENCONTRADOS",
+      costs,
+      "",
+      "## PENDÊNCIAS TÉCNICAS",
+      pending,
+      "- Projeto estrutural, aço e detalhamento executivo dependem de responsável técnico habilitado quando aplicável.",
+      "- Composição ausente deve ser complementada com SINAPI, ORSE ou base oficial validada antes de fechamento comercial.",
+      "",
+      "## RESPONSABILIDADE TÉCNICA",
+      "Documento preliminar assistido por sistema computacional.",
+      "",
+      "Não substitui projeto executivo, memorial descritivo, orçamento executivo ou responsabilidade técnica profissional.",
+      "",
+      "## HTML ESTRUTURADO",
+      "```html",
+      buildEloProposalHtml_("# PROPOSTA TÉCNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\n" + executive + "\n\n## QUANTITATIVOS\n" + quantities + "\n\n## COMPOSIÇÕES UTILIZADAS\n" + compositions + "\n\n## CUSTOS ENCONTRADOS\n" + costs + "\n\n## PENDÊNCIAS TÉCNICAS\n" + pending),
+      "```"
+    ];
+    return {
+      shortAnswer: "Proposta técnica preliminar preparada para cliente.",
+      fullAnswer: markdownLines.join("\n"),
+      nextAction: "Revise cliente, obra, escopo e pendências antes de enviar ao cliente.",
+      canSave: true,
+      sessionTheme: "technical_proposal_package",
+      sessionIntent: "technical_proposal_package"
+    };
+  }
   function buildEloTechnicalAuditorAlerts_(message, options) {
     const text = normalizeText(message || "");
     const alerts = [];
@@ -1171,7 +1355,8 @@
     lastRecommendation: "",
     lastOperationalWallEstimate: null,
     pendingQuantitativePremises: null,
-    stockObrasCompositionBriefing: null
+    stockObrasCompositionBriefing: null,
+    lastTechnicalPackage: null
   };
 
   function rememberSessionTurn(question, response, answer) {
@@ -1183,6 +1368,9 @@
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
     ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
     ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(response.nextAction || "").slice(0, 260);
+    if (response && isEloTechnicalProposalSourceResponse_(response)) {
+      rememberEloTechnicalProposalSource_(question, response, answer || response.fullAnswer || response.shortAnswer || "");
+    }
     if (detectedIntent) {
       ELO_SESSION_MEMORY.recentIntents = [detectedIntent].concat(ELO_SESSION_MEMORY.recentIntents.filter(function (item) {
         return item !== detectedIntent;
@@ -9902,8 +10090,8 @@
       return [
         "- " + input.nome + " (" + input.codigo + ")",
         "  - Coeficiente: " + formatEloOperationalQuantity_(input.coeficiente) + " " + formatEloOperationalDisplayUnit_(input.unidade) + "/" + formatEloOperationalDisplayUnit_(contract.unidade),
-        "  - Consumo liquido: " + formatEloOperationalQuantity_(liquid) + " " + formatEloOperationalDisplayUnit_(input.unidade),
-        "  - Perda base da composicao: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (baseLoss > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(baseLossQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade) : ""),
+        "  - Consumo líquido: " + formatEloOperationalQuantity_(liquid) + " " + formatEloOperationalDisplayUnit_(input.unidade),
+        "  - Perda base da composição: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (baseLoss > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(baseLossQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade) : ""),
         "  - Perda adotada: " + formatEloOperationalQuantity_(adoptedLoss || 0) + "%",
         "  - Consumo final: " + formatEloOperationalQuantity_(finalQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade),
         hasPrice ? "  - Custo unitario: R$ " + formatEloOperationalQuantity_(input.precoUnitario) + " | custo do insumo: R$ " + formatEloOperationalQuantity_(cost) : "  - Custo unitario: nao informado; custo nao calculado."
@@ -10064,7 +10252,7 @@
       "",
       "Memória de cálculo:",
       "- Area bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m2") + " - vaos " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m2") + " = area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m2") + ".",
-      "- Consumo calculado pelo Elo Orcamentista Assistido com base nas composicoes oficiais localizadas.",
+      "- Consumo calculado pelo Elo Orcamentista Assistido com base em composição oficial localizada.",
       "",
       "Base tecnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
       "Base técnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
@@ -10083,6 +10271,7 @@
     lines.push("", "Quantitativos");
     services.forEach(function (service) {
       lines.push("- " + service.label + ": area de referencia " + formatEloWallPremiseMeasure_(service.quantity, "m2"));
+      lines.push("  - Consumo calculado pelo motor Stock Obras: " + formatEloWallPremiseMeasure_(service.quantity, "m2") + " de referência.");
       lines.push("  - Consumo calculado pelo Elo Orcamentista Assistido.");
       if (service.budgetItems.lines.length) lines.push(service.budgetItems.lines.join("\n"));
     });
@@ -12789,6 +12978,10 @@
       return workMemoryQuestion;
     }
 
+    const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
+    if (technicalProposalPackageAnswer) {
+      return technicalProposalPackageAnswer;
+    }
     const technicalSourcePreferenceAnswer = buildEloTechnicalSourcePreferenceAnswer_(cleanQuestion);
     if (technicalSourcePreferenceAnswer) {
       return technicalSourcePreferenceAnswer;
@@ -12820,19 +13013,23 @@
     }
     const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
     if (residentialBudgetPackageQuickAnswer) {
+      rememberEloTechnicalProposalSource_(cleanQuestion, residentialBudgetPackageQuickAnswer, residentialBudgetPackageQuickAnswer.fullAnswer || residentialBudgetPackageQuickAnswer.shortAnswer || "");
       return residentialBudgetPackageQuickAnswer;
     }
     const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
     if (wallCompletePackageQuickAnswer) {
+      rememberEloTechnicalProposalSource_(cleanQuestion, wallCompletePackageQuickAnswer, wallCompletePackageQuickAnswer.fullAnswer || wallCompletePackageQuickAnswer.shortAnswer || "");
       return wallCompletePackageQuickAnswer;
     }
 
     const foundationPackageQuickAnswer = buildEloFoundationPackageQuickAnswer_(cleanQuestion);
     if (foundationPackageQuickAnswer) {
+      rememberEloTechnicalProposalSource_(cleanQuestion, foundationPackageQuickAnswer, foundationPackageQuickAnswer.fullAnswer || foundationPackageQuickAnswer.shortAnswer || "");
       return foundationPackageQuickAnswer;
     }
     const structuralPackageQuickAnswer = buildEloStructuralPackageQuickAnswer_(cleanQuestion);
     if (structuralPackageQuickAnswer) {
+      rememberEloTechnicalProposalSource_(cleanQuestion, structuralPackageQuickAnswer, structuralPackageQuickAnswer.fullAnswer || structuralPackageQuickAnswer.shortAnswer || "");
       return structuralPackageQuickAnswer;
     }
 
@@ -15112,6 +15309,15 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
+    if (technicalProposalPackageAnswer) {
+      const proposalAnswer = formatResponse(technicalProposalPackageAnswer);
+      appendAssistantMessage(cleanQuestion, proposalAnswer, technicalProposalPackageAnswer.canSave !== false, technicalProposalPackageAnswer);
+      saveConversation(cleanQuestion, proposalAnswer);
+      rememberSessionTurn(cleanQuestion, technicalProposalPackageAnswer, proposalAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
     const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
     if (pathologyAnswer) {
       return pathologyAnswer;
