@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   "use strict";
 
   // ELO_CONFIG
@@ -13984,7 +13984,23 @@
       sessionIntent: "triagem_patologia"
     };
   }
+  const ELO_BRAIN_CONTEXT = { technical: { facts: {}, services: {}, audit: {} } };
+
   function buildEloTechnicalEngineAnswer_(message) {
+    const router = (typeof window !== "undefined" && window.EloBrainRouter) ? window.EloBrainRouter : null;
+    if (router && typeof router.routeEloBrain === "function") {
+      const routed = router.routeEloBrain(message, ELO_BRAIN_CONTEXT);
+      if (!routed || routed.brain !== "technical" || !routed.result || !routed.result.fullAnswer) {
+        return null;
+      }
+      routed.result.eloBrain = {
+        brain: routed.brain,
+        reason: routed.reason,
+        confidence: routed.confidence,
+        context: routed.context && routed.context.technical ? routed.context.technical : null
+      };
+      return routed.result;
+    }
     const engine = (typeof window !== "undefined" && window.EloTechnicalEngine) ? window.EloTechnicalEngine : null;
     if (!engine || typeof engine.buildResponse !== "function") {
       return null;
@@ -19665,3 +19681,4 @@
     }
   }
 })();
+
