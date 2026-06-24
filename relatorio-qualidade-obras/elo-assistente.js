@@ -13984,6 +13984,17 @@
       sessionIntent: "triagem_patologia"
     };
   }
+  function buildEloTechnicalEngineAnswer_(message) {
+    const engine = (typeof window !== "undefined" && window.EloTechnicalEngine) ? window.EloTechnicalEngine : null;
+    if (!engine || typeof engine.buildResponse !== "function") {
+      return null;
+    }
+    const response = engine.buildResponse(message, {});
+    if (!response || !response.fullAnswer) {
+      return null;
+    }
+    return response;
+  }
   function buildResponse(question) {
     const cleanQuestion = sanitizeUserText(question);
     const normalizedQuestion = normalizeText(cleanQuestion);
@@ -14000,6 +14011,10 @@
       };
     }
 
+    const technicalEngineAnswer = buildEloTechnicalEngineAnswer_(cleanQuestion);
+    if (technicalEngineAnswer) {
+      return technicalEngineAnswer;
+    }
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
     }
@@ -16358,6 +16373,15 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const technicalChatEngineAnswer = buildEloTechnicalEngineAnswer_(cleanQuestion);
+    if (technicalChatEngineAnswer) {
+      const technicalText = formatResponse(technicalChatEngineAnswer);
+      appendAssistantMessage(cleanQuestion, technicalText, false, technicalChatEngineAnswer);
+      saveConversation(cleanQuestion, technicalText);
+      rememberSessionTurn(cleanQuestion, technicalChatEngineAnswer, technicalText);
+      clearProductAttachmentPreview();
+      return;
+    }
     const operationalChatEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
     if (operationalChatEcosystemAnswer) {
       const operationalAnswer = formatResponse(operationalChatEcosystemAnswer);
