@@ -219,7 +219,8 @@
     }
     const response = engine.buildResponse(enriched, { facts: context.technical.facts });
     if (response && response.technicalEngine) response.technicalEngine.routerMessage = enriched;
-    if (response && response.fullAnswer) return response;
+    const responseMode = response && response.technicalEngine && response.technicalEngine.mode;
+    if (response && response.fullAnswer && !(serviceId && responseMode === "project_facts")) return response;
     const search = root.CompositionSearchEngine || null;
     const searchResult = search && typeof search.searchOfficialCompositions === "function" ? search.searchOfficialCompositions(enriched, { limit: 5 }) : null;
     const lines = ["ANALISE TECNICA", "- Brain tecnico acionado pelo roteador."];
@@ -227,7 +228,7 @@
       lines.push("", "BUSCA NA BASE OFICIAL", "- Encontrei composicoes relacionadas, mas preciso de parametros para calcular com seguranca.");
       searchResult.candidates.slice(0, 3).forEach(function (candidate) { lines.push("- " + candidate.code + " - " + candidate.description + " (score " + candidate.score + ")"); });
     } else {
-      lines.push("", "BUSCA NA BASE OFICIAL", "- Nao encontrei composicao suficiente para calcular automaticamente.");
+      lines.push("", "BUSCA NA BASE OFICIAL", "- Procurei por: " + enriched, "- Nao encontrei composicao suficiente para calcular automaticamente.");
     }
     lines.push("", "OBSERVACAO", "- Nenhum coeficiente foi inventado.");
     return { shortAnswer: "Analise tecnica registrada.", fullAnswer: lines.join("\n"), nextAction: "Informe o servico, quantitativo ou codigo oficial se quiser calcular.", canSave: false, sessionTheme: "elo_technical_brain", sessionIntent: "technical_router_fallback", technicalEngine: { mode: "technical_router_fallback", compositionSearch: searchResult, routerMessage: enriched } };
@@ -272,5 +273,6 @@
     ensureContext: ensureContext
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
 
 
