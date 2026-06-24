@@ -119,13 +119,17 @@
     const compositionMatches = resolveCompositionMatches(workPackages, quantityResult.quantities, facts);
     const consumptionResult = consumptionEngine.calculateConsumptionFromCompositions(quantityResult.quantities, compositionMatches);
     const budgetTable = tableEngine.buildBudgetTable({ workPackages: workPackages, quantities: quantityResult.quantities, compositionMatches: compositionMatches, consumptions: consumptionResult.consumptions, audits: null });
+    const projectRecordEngine = root.EloProjectRecordEngine || null;
+    const executiveEngine = root.EloExecutiveBudgetEngine || null;
+    const uiDataEngine = root.EloUiDataEngine || null;
+    const graphEngine = root.EloTechnicalKnowledgeGraph || null;
     const packageMissing = [];
     (workPackages.packages || []).forEach(function (pack) {
       (pack.missing || []).forEach(function (item) { packageMissing.push({ id: pack.id + ":" + item, message: pack.name + ": faltam dados - " + item + "." }); });
     });
     const missing = quantityResult.missing.concat(packageMissing);
     const confidence = Math.max(0.25, Math.min(0.9, 0.35 + (facts.builtAreaM2 ? 0.12 : 0) + (facts.wallMaterial ? 0.08 : 0) + (facts.roofMaterial ? 0.08 : 0) + (facts.floorMaterial ? 0.08 : 0) + (budgetTable.summary.readyRows * 0.03) - Math.min(0.25, missing.length * 0.01)));
-    return {
+    const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
       projectFacts: facts,
@@ -141,6 +145,15 @@
       scope: (workPackages.packages || []).map(function (pack) { return { id: pack.id, service: pack.name, status: pack.status, unit: pack.services[0] && pack.services[0].unit || "", searchTerms: (pack.searchTerms || []).join(" ") }; }),
       compositions: compositionMatches.map(function (match) { return { scopeId: match.packageId, serviceId: match.serviceId, service: match.service, query: match.query, found: match.found, candidates: match.candidates }; })
     };
+    const projectRecord = projectRecordEngine ? projectRecordEngine.buildOrUpdateProjectRecord(technicalContext && technicalContext.projectRecord || null, { budget: baseBudget, projectFacts: facts, origin: "orçamento", summary: baseBudget.summary }) : null;
+    const executiveReadiness = executiveEngine ? executiveEngine.evaluateExecutiveReadiness(projectRecord, baseBudget) : null;
+    const dashboardData = uiDataEngine ? uiDataEngine.buildEloDashboardData({ projectRecord: projectRecord, budget: baseBudget, executiveReadiness: executiveReadiness }) : null;
+    const knowledgeGraphHints = graphEngine ? graphEngine.expandSearchTermsFromGraph([facts.roofMaterial, facts.wallMaterial, facts.floorMaterial, facts.projectType].filter(Boolean).join(" ")).slice(0, 20) : [];
+    baseBudget.projectRecord = projectRecord;
+    baseBudget.executiveReadiness = executiveReadiness;
+    baseBudget.dashboardData = dashboardData;
+    baseBudget.knowledgeGraphHints = knowledgeGraphHints;
+    return baseBudget;
   }
 
   function formatQuantity(item) {
@@ -170,6 +183,30 @@
     if (b.consumptions.length) b.consumptions.slice(0, 6).forEach(function (consumption) { lines.push("- " + consumption.compositionCode + ": " + consumption.inputs.length + " insumo(s), memória: " + consumption.memory.join("; ")); }); else lines.push("- Nenhum consumo calculado ainda; faltam composição compatível e quantitativo seguro.");
     lines.push("", "Tabela preliminar:");
     lines.push("- Linhas: " + b.budgetTable.summary.totalRows + " | prontas: " + b.budgetTable.summary.readyRows + " | pendentes: " + b.budgetTable.summary.pendingRows + " | bloqueadas: " + b.budgetTable.summary.blockedRows);
+    if (b.projectRecord) {
+      const recordSummary = root.EloProjectRecordEngine && root.EloProjectRecordEngine.summarizeProjectRecord ? root.EloProjectRecordEngine.summarizeProjectRecord(b.projectRecord) : {};
+      lines.push("", "PRONTUÁRIO DA OBRA");
+      lines.push("- Obra: " + (b.projectRecord.project && b.projectRecord.project.name || "não informada"));
+      lines.push("- Tipo: " + (b.projectRecord.project && b.projectRecord.project.type || facts.projectType || "não definido"));
+      lines.push("- Área: " + (b.projectRecord.project && b.projectRecord.project.builtAreaM2 ? b.projectRecord.project.builtAreaM2 + " m²" : "não informada"));
+      lines.push("- Revisão: R" + (recordSummary.revision || 0));
+      lines.push("- Status: " + (b.projectRecord.status || "preliminary"));
+    }
+    if (b.executiveReadiness) {
+      lines.push("", "PRONTIDÃO PARA EXECUTIVO");
+      lines.push("- Score: " + Math.round((b.executiveReadiness.score || 0) * 100) + "%");
+      const blockers = (b.executiveReadiness.blockers || []).slice(0, 5);
+      if (blockers.length) blockers.forEach(function (item) { lines.push("- Bloqueio: " + item.message); }); else lines.push("- Sem bloqueios principais registrados.");
+    }
+    if (b.dashboardData) {
+      const cardValue = function (id) { const card = (b.dashboardData.cards || []).find(function (item) { return item.id === id; }); return card ? card.value : 0; };
+      lines.push("", "PAINEL");
+      lines.push("- Pacotes: " + cardValue("packages"));
+      lines.push("- Pendências: " + cardValue("pending"));
+      lines.push("- Composições localizadas: " + cardValue("compositions"));
+      lines.push("- Consumos calculados: " + cardValue("consumptions"));
+      lines.push("- Auditorias críticas: " + cardValue("critical-audits"));
+    }
     lines.push("", "6. Pendências");
     if (b.missing.length) b.missing.slice(0, 12).forEach(function (item) { lines.push("- " + item.message); }); else lines.push("- Nenhuma pendência crítica registrada nesta etapa preliminar.");
     lines.push("", "7. Próxima pergunta", nextQuestion(b));
@@ -179,3 +216,7 @@
 
   root.EloBudgetEngine = { version: VERSION, buildPreliminaryBudget: buildPreliminaryBudget, buildBudgetReportText: buildBudgetReportText };
 })(typeof window !== "undefined" ? window : globalThis);
+
+
+
+

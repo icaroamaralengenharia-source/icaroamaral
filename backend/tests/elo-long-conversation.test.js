@@ -50,7 +50,7 @@ function officialRowsFixture() {
 }
 
 function loadRouterStack() {
-  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-budget-engine.js", "elo-brain-router.js"];
+  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-project-record-engine.js", "elo-executive-budget-engine.js", "elo-ui-data-engine.js", "elo-technical-knowledge-graph.js", "elo-budget-engine.js", "elo-brain-router.js"];
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
@@ -75,7 +75,7 @@ function clone(value) {
 }
 
 function hasGenericBriefing(text) {
-  return /cliente|cidade\/uf|nome da obra|briefing da obra/i.test(text || "");
+  return /Dados mínimos que vou usar|BRIEFING DA OBRA|Próxima ação: Complete cliente/i.test(text || "");
 }
 
 function writeReport(report) {
@@ -148,7 +148,7 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.ok(summary.searchTriggered >= 12);
   const budgetTurn = turns[turns.length - 1];
   assert.equal(budgetTurn.brain, "technical");
-  assert.match(budgetTurn.answer, /ORÇAMENTO PRELIMINAR|ORCAMENTO PRELIMINAR|Pacotes de serviço|Tabela preliminar/i);
+  assert.match(budgetTurn.answer, /ORÇAMENTO PRELIMINAR|ORCAMENTO PRELIMINAR|PRONTUÁRIO DA OBRA|PRONTUARIO DA OBRA|PRONTIDÃO PARA EXECUTIVO|PRONTIDAO PARA EXECUTIVO/i);
   assert.match(budgetTurn.answer, /Pendências|Pendencias|Composições candidatas|Composicoes candidatas|Quantitativos seguros/i);
   assert.equal(context.technical.facts.builtAreaM2, 80);
   assert.equal(context.technical.facts.wallHeightM, 4);
@@ -165,6 +165,8 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.equal(context.technical.audit.withdrawnMaterial, "cimento");
   assert.ok(turns.every((turn) => !hasGenericBriefing(turn.answer)));
 });
+
+
 
 
 

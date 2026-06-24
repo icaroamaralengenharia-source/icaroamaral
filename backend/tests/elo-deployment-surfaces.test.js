@@ -22,6 +22,10 @@ const expectedOrder = [
   "elo-consumption-engine.js",
   "elo-audit-engine.js",
   "elo-budget-table-engine.js",
+  "elo-project-record-engine.js",
+  "elo-executive-budget-engine.js",
+  "elo-ui-data-engine.js",
+  "elo-technical-knowledge-graph.js",
   "elo-budget-engine.js",
   "elo-brain-router.js",
   "elo-assistente.js"
@@ -47,7 +51,11 @@ test("superficies do Elo carregam motores novos na ordem correta", () => {
     assert.ok(positions["elo-quantity-engine.js"] < positions["elo-consumption-engine.js"], `${surface.name}: QuantityEngine antes de ConsumptionEngine`);
     assert.ok(positions["elo-consumption-engine.js"] < positions["elo-audit-engine.js"], `${surface.name}: ConsumptionEngine antes de AuditEngine`);
     assert.ok(positions["elo-audit-engine.js"] < positions["elo-budget-table-engine.js"], `${surface.name}: AuditEngine antes de BudgetTableEngine`);
-    assert.ok(positions["elo-budget-table-engine.js"] < positions["elo-budget-engine.js"], `${surface.name}: BudgetTableEngine antes de EloBudgetEngine`);
+    assert.ok(positions["elo-budget-table-engine.js"] < positions["elo-project-record-engine.js"], `${surface.name}: BudgetTableEngine antes de ProjectRecordEngine`);
+    assert.ok(positions["elo-project-record-engine.js"] < positions["elo-executive-budget-engine.js"], `${surface.name}: ProjectRecordEngine antes de ExecutiveBudgetEngine`);
+    assert.ok(positions["elo-executive-budget-engine.js"] < positions["elo-ui-data-engine.js"], `${surface.name}: ExecutiveBudgetEngine antes de UiDataEngine`);
+    assert.ok(positions["elo-ui-data-engine.js"] < positions["elo-technical-knowledge-graph.js"], `${surface.name}: UiDataEngine antes de KnowledgeGraph`);
+    assert.ok(positions["elo-technical-knowledge-graph.js"] < positions["elo-budget-engine.js"], `${surface.name}: KnowledgeGraph antes de EloBudgetEngine`);
     assert.ok(positions["elo-budget-engine.js"] < positions["elo-brain-router.js"], `${surface.name}: EloBudgetEngine antes de EloBrainRouter`);
     assert.ok(positions["elo-brain-router.js"] < positions["elo-assistente.js"], `${surface.name}: EloBrainRouter antes de elo-assistente`);
   });
@@ -69,6 +77,7 @@ test("elo-assistente usa EloBrainRouter antes dos fluxos antigos", () => {
   assert.match(source, /routed\.brain !== "technical"/, "mensagens conversacionais devem continuar no fluxo atual");
   assert.match(source, /window\.EloTechnicalEngine/, "fallback tecnico ainda preserva EloTechnicalEngine quando router nao existir");
 });
+
 
 
 

@@ -214,6 +214,7 @@
     const facts = Object.assign({}, context.technical.facts || {}, { originalMessage: message });
     const budget = budgetEngine.buildPreliminaryBudget(facts, context.technical || {});
     context.technical.facts = Object.assign(context.technical.facts || {}, budget.projectFacts || {});
+    if (budget.projectRecord) context.technical.projectRecord = budget.projectRecord;
     const fullAnswer = budgetEngine.buildBudgetReportText(budget);
     return {
       shortAnswer: "Orçamento preliminar estruturado.",
@@ -310,6 +311,7 @@
     ensureContext: ensureContext
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
 
 
 

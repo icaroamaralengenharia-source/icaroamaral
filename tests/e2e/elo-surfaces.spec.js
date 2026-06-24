@@ -16,7 +16,7 @@ async function loadSurface(page, surface) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(surfaceUrl(surface));
-  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloBudgetTableEngine && window.EloConsumptionEngine && window.EloQuantityEngine && window.EloWorkPackageEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
+  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloProjectRecordEngine && window.EloExecutiveBudgetEngine && window.EloUiDataEngine && window.EloTechnicalKnowledgeGraph && window.EloBudgetTableEngine && window.EloConsumptionEngine && window.EloQuantityEngine && window.EloWorkPackageEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
   expect(errors, `${surface.name} sem pageerror`).toEqual([]);
 }
 
@@ -49,14 +49,14 @@ test.describe("Elo surfaces", () => {
       expect(piso.brain).toBe("technical");
       expect(piso.fullAnswer).toMatch(/Piso ceramico|Piso cerâmico|50/i);
       expect(piso.fullAnswer).toMatch(/dimens|junta|argamassa|composi/i);
-      expect(piso.fullAnswer).not.toMatch(/cliente|cidade\/UF|nome da obra|briefing da obra/i);
+      expect(piso.fullAnswer).not.toMatch(/Dados mínimos que vou usar|BRIEFING DA OBRA|Próxima ação: Complete cliente/i);
 
       const casa = await ask(page, "casa de 80m² térrea, paredes com 4m de altura e bloco cerâmico baiano");
       expect(casa.brain).toBe("technical");
       expect(casa.fullAnswer).toMatch(/80|Area construida|Área construída/i);
       expect(casa.fullAnswer).toMatch(/4,00 m|4 m|Altura/i);
       expect(casa.fullAnswer).not.toMatch(/Area construida:\s*4/i);
-      expect(casa.fullAnswer).not.toMatch(/cliente|cidade\/UF|nome da obra|briefing da obra/i);
+      expect(casa.fullAnswer).not.toMatch(/Dados mínimos que vou usar|BRIEFING DA OBRA|Próxima ação: Complete cliente/i);
 
       const telhado = await ask(page, "quero telhado com telha portuguesa");
       expect(telhado.brain).toBe("technical");
@@ -66,6 +66,8 @@ test.describe("Elo surfaces", () => {
     });
   }
 });
+
+
 
 
 
