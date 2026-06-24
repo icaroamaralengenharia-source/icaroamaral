@@ -1049,6 +1049,9 @@
 
   function isEloWorkMemoryOnlyMessage_(message) {
     const text = normalizeText(message || "");
+    if (typeof parseEloResidentialBudgetPackageRequest_ === "function" && parseEloResidentialBudgetPackageRequest_(message)) {
+      return false;
+    }
     if (typeof collectEloFoundationPackageElements_ === "function" && collectEloFoundationPackageElements_(message).length) {
       return false;
     }
@@ -10308,6 +10311,213 @@
   }
 
 
+
+  function parseEloResidentialArea_(message) {
+    const raw = String(message || "");
+    const match = raw.match(/(?:casa|residencia|residência|obra)[^\n\r]{0,60}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i) || raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    return match ? parseEloOperationalNumber_(match[1]) : 0;
+  }
+
+  function parseEloResidentialWallPackage_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    if (!/parede|paredes|alvenaria/.test(text)) return null;
+    const wallMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?paredes?[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?altura/i) || raw.match(/paredes?[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?altura/i);
+    const areaMatch = raw.match(/(?:area|área)\s+(?:bruta\s+)?(?:de\s+)?(?:parede|paredes|alvenaria)[^\n\r]{0,30}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²)/i);
+    let length = 0;
+    let height = 0;
+    let grossArea = 0;
+    if (wallMatch) {
+      length = parseEloOperationalNumber_(wallMatch[1]);
+      height = parseEloOperationalNumber_(wallMatch[2]);
+      grossArea = length * height;
+    } else if (areaMatch) {
+      grossArea = parseEloOperationalNumber_(areaMatch[1]);
+    }
+    if (!grossArea) return null;
+    const openingsMatch = raw.match(/(?:portas?\s+e\s+janelas?|vaos|vãos|aberturas?)[^\n\r]{0,40}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²)/i);
+    const openingsArea = openingsMatch ? parseEloOperationalNumber_(openingsMatch[1]) : 0;
+    const netArea = Math.max(0, grossArea - openingsArea);
+    return {
+      length: length,
+      height: height,
+      grossArea: grossArea,
+      openingsArea: openingsArea,
+      netArea: netArea,
+      coatingArea: netArea * 2
+    };
+  }
+
+  function collectEloResidentialStructureElements_(message) {
+    const raw = String(message || "");
+    const elements = [];
+    function add(snippet) {
+      const geometry = parseEloStructuralPackageRequest_(snippet);
+      if (geometry && !geometry.incomplete) elements.push(geometry);
+    }
+    Array.from(raw.matchAll(/(\d{1,3})\s+pilares?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
+      add(match[1] + " pilares " + match[2] + " x " + match[3] + " x " + match[4]);
+    });
+    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?vigas?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
+      add("viga " + match[1] + " m " + match[2] + " x " + match[3]);
+    });
+    return elements.filter(function (element, index, list) {
+      const key = element.type + ":" + element.quantity + ":" + formatEloOperationalQuantity_(element.length) + ":" + formatEloOperationalQuantity_(element.width) + ":" + formatEloOperationalQuantity_(element.height);
+      return list.findIndex(function (other) {
+        return other.type + ":" + other.quantity + ":" + formatEloOperationalQuantity_(other.length) + ":" + formatEloOperationalQuantity_(other.width) + ":" + formatEloOperationalQuantity_(other.height) === key;
+      }) === index;
+    });
+  }
+
+  function parseEloResidentialBudgetPackageRequest_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    const hasResidentialIntent = /orcamento|orçamento|residencial|residencia|residência|casa|obra|preliminar|custa|custo/.test(text);
+    if (!hasResidentialIntent) return null;
+    const wall = parseEloResidentialWallPackage_(raw);
+    const foundationAll = collectEloFoundationPackageElements_(raw);
+    const foundationElements = foundationAll.filter(function (element) { return element.type === "sapata" || element.type === "bloco_fundacao" || element.type === "viga_baldrame"; });
+    const structureElements = collectEloResidentialStructureElements_(raw).filter(function (element) { return element.type === "pilar" || element.type === "viga_aerea"; });
+    const area = parseEloResidentialArea_(raw);
+    if (!wall && !foundationElements.length && !structureElements.length) return null;
+    if (!/orcamento|orçamento|preliminar|custa|custo|residencial|casa|obra/.test(text) && (wall ? 1 : 0) + (foundationElements.length ? 1 : 0) + (structureElements.length ? 1 : 0) < 2) return null;
+    return { type: "residential_budget_package", area: area, wall: wall, foundationElements: foundationElements, structureElements: structureElements };
+  }
+
+  function findEloResidentialWallComposition_(serviceId, wall) {
+    if (!wall) return { candidates: [] };
+    const briefing = {
+      area_liquida_m2: wall.netArea,
+      area_bruta_m2: wall.grossArea,
+      area_vaos_m2: wall.openingsArea,
+      perda_percentual: 0,
+      revestimento_lados: "dois lados",
+      bloco_ceramico_dimensao_cm: null,
+      vaos: { sem_vaos: wall.openingsArea <= 0, portas: [], janelas: [] }
+    };
+    return { briefing: briefing, candidates: findEloWallPackageOfficialCandidates_(serviceId, briefing) };
+  }
+
+  function addEloResidentialCompositionResult_(bucket, label, quantity, composition) {
+    const contract = buildEloTechnicalCompositionContract_(composition);
+    if (!contract.valid) return;
+    const budgetItems = buildEloAssistedBudgetItems_({ area_liquida_m2: quantity, perda_percentual: 0 }, contract, composition);
+    bucket.used.push({ label: label, quantity: quantity, contract: contract, budgetItems: budgetItems });
+    if (budgetItems.hasAnyPrice) {
+      bucket.hasAnyCost = true;
+      bucket.totalCost += budgetItems.totalWithPrices || 0;
+      bucket.hasMissingCost = bucket.hasMissingCost || !!budgetItems.hasMissingPrice;
+    }
+  }
+
+  function buildEloResidentialMultipleChoiceResponse_(conflicts) {
+    const lines = ["# ORÇAMENTO RESIDENCIAL PRELIMINAR", "", "Encontrei mais de uma composicao oficial compativel para um ou mais serviços.", "", "Nao vou assumir automaticamente. Informe qual deseja utilizar:", ""];
+    conflicts.forEach(function (conflict) {
+      lines.push(conflict.label + ":");
+      conflict.candidates.slice(0, 5).forEach(function (candidate, index) {
+        const contract = buildEloTechnicalCompositionContract_(candidate);
+        lines.push((index + 1) + ". " + contract.codigo + " | " + contract.descricao + " | unidade " + contract.unidade + " | " + contract.fonte + (contract.uf ? " " + contract.uf : "") + (contract.mes ? " " + contract.mes : ""));
+      });
+      lines.push("");
+    });
+    lines.push("## Avisos profissionais", "Este orçamento é preliminar e assistido. Não substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade técnica profissional.");
+    return { shortAnswer: "Mais de uma composicao encontrada para o orçamento residencial.", fullAnswer: lines.join("\n"), nextAction: "Informe os códigos das composições escolhidas para consolidar o orçamento preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_composition_choice" };
+  }
+
+  function buildEloResidentialBudgetPackageResponse_(residential) {
+    if (!residential) return null;
+    const foundationConcrete = residential.foundationElements.reduce(function (sum, element) { return sum + (element.totalVolume || 0); }, 0);
+    const foundationExcavation = residential.foundationElements.reduce(function (sum, element) { return sum + getEloFoundationExcavationVolume_(element); }, 0);
+    const foundationForm = residential.foundationElements.reduce(function (sum, element) { return sum + (element.formArea || 0); }, 0);
+    const structureConcrete = residential.structureElements.reduce(function (sum, element) { return sum + (element.totalVolume || 0); }, 0);
+    const structureForm = residential.structureElements.reduce(function (sum, element) { return sum + (element.formArea || 0); }, 0);
+    const bucket = { used: [], missing: [], conflicts: [], totalCost: 0, hasAnyCost: false, hasMissingCost: false };
+    if (residential.wall) {
+      [
+        { id: "alvenaria", label: "Alvenaria", quantity: residential.wall.netArea },
+        { id: "chapisco", label: "Chapisco", quantity: residential.wall.coatingArea },
+        { id: "reboco_emboco", label: "Reboco", quantity: residential.wall.coatingArea },
+        { id: "pintura", label: "Pintura", quantity: residential.wall.coatingArea }
+      ].forEach(function (service) {
+        const found = findEloResidentialWallComposition_(service.id, residential.wall).candidates;
+        if (found.length > 1) bucket.conflicts.push({ label: service.label, candidates: found });
+        else if (found.length === 1) addEloResidentialCompositionResult_(bucket, service.label, service.quantity, found[0]);
+        else bucket.missing.push(service.label);
+      });
+    }
+    const allStructural = residential.foundationElements.concat(residential.structureElements);
+    allStructural.forEach(function (element) {
+      const candidates = findEloStructuralOfficialCandidates_(element.type);
+      const label = getEloStructuralElementLabel_(element.type);
+      if (candidates.length > 1) bucket.conflicts.push({ label: label, candidates: candidates });
+      else if (candidates.length === 1) addEloResidentialCompositionResult_(bucket, label, element.totalVolume || 0, candidates[0]);
+      else bucket.missing.push(label);
+    });
+    if (bucket.conflicts.length) return buildEloResidentialMultipleChoiceResponse_(bucket.conflicts);
+    const totalConcrete = foundationConcrete + structureConcrete;
+    const totalForm = foundationForm + structureForm;
+    const lines = [
+      "# ORÇAMENTO RESIDENCIAL PRELIMINAR",
+      "",
+      "## 1. Resumo executivo",
+      "- Área informada: " + (residential.area ? formatEloWallPremiseMeasure_(residential.area, "m²") : "não informada"),
+      "- Parede completa: " + (residential.wall ? "considerada" : "não informada"),
+      "- Fundação completa: " + (residential.foundationElements.length ? "considerada" : "não informada"),
+      "- Estrutura simples: " + (residential.structureElements.length ? "considerada" : "não informada"),
+      "- Concreto total geral: " + formatEloOperationalQuantity_(totalConcrete) + " m3",
+      "- Forma total geral: " + formatEloOperationalQuantity_(totalForm) + " m2",
+      "- Escavação total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3",
+      "- Área de alvenaria: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.netArea, "m²") : "não informada"),
+      "- Área de revestimento/pintura: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.coatingArea, "m²") : "não informada"),
+      "",
+      "## 2. Premissas informadas"
+    ];
+    if (residential.wall) {
+      lines.push("- Paredes: área bruta " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "m²") + "; vãos " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "m²") + "; área líquida " + formatEloWallPremiseMeasure_(residential.wall.netArea, "m²") + ".");
+    } else lines.push("- Paredes: não informadas.");
+    residential.foundationElements.forEach(function (element) { lines.push("- Fundação: " + getEloFoundationElementSummary_(element)); });
+    residential.structureElements.forEach(function (element) { lines.push("- Estrutura: " + getEloFoundationElementSummary_(element)); });
+    lines.push("", "## 3. Parede completa");
+    if (residential.wall) {
+      lines.push("- Área bruta de parede: " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "m²"));
+      lines.push("- Área de vãos: " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "m²"));
+      lines.push("- Área líquida: " + formatEloWallPremiseMeasure_(residential.wall.netArea, "m²"));
+      lines.push("- Área técnica para chapisco/reboco/pintura: " + formatEloWallPremiseMeasure_(residential.wall.coatingArea, "m²") + " (duas faces)." );
+    } else lines.push("- Não informada nesta solicitação.");
+    lines.push("", "## 4. Fundação completa");
+    if (residential.foundationElements.length) {
+      residential.foundationElements.forEach(function (element) { lines.push("- " + getEloFoundationElementSummary_(element)); });
+      lines.push("- Concreto da fundação: " + formatEloOperationalQuantity_(foundationConcrete) + " m3");
+      lines.push("- Escavação geométrica: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
+      lines.push("- Forma da fundação: " + formatEloOperationalQuantity_(foundationForm) + " m2");
+    } else lines.push("- Não informada nesta solicitação.");
+    lines.push("", "## 5. Estrutura simples");
+    if (residential.structureElements.length) {
+      residential.structureElements.forEach(function (element) { lines.push("- " + getEloFoundationElementSummary_(element)); });
+      lines.push("- Volume de pilares/vigas: " + formatEloOperationalQuantity_(structureConcrete) + " m3");
+      lines.push("- Forma lateral: " + formatEloOperationalQuantity_(structureForm) + " m2");
+    } else lines.push("- Não informada nesta solicitação.");
+    lines.push("", "## 6. Totais consolidados", "- Concreto total geral: " + formatEloOperationalQuantity_(totalConcrete) + " m3", "- Forma total geral: " + formatEloOperationalQuantity_(totalForm) + " m2", "- Escavação total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
+    lines.push("", "## 7. Composições oficiais utilizadas");
+    if (bucket.used.length) bucket.used.forEach(function (item) { lines.push("- " + item.label + ": " + item.contract.fonte + " | " + item.contract.codigo + " | " + item.contract.descricao + " | unidade " + item.contract.unidade + " | " + (item.contract.uf || "UF não informada") + " / " + (item.contract.mes || "mês não informado")); });
+    else lines.push("- Nenhuma composição oficial localizada para os serviços informados.");
+    lines.push("", "## 8. Custos encontrados");
+    if (bucket.hasAnyCost) lines.push("- Custo parcial encontrado: R$ " + formatEloOperationalQuantity_(bucket.totalCost) + (bucket.hasMissingCost ? ". Existem insumos sem preço; não trate como custo total definitivo." : "."));
+    else lines.push("- Custo parcial não encontrado: nenhum preço oficial suficiente localizado; custo não calculado.");
+    lines.push("", "## 9. Pendências técnicas");
+    if (bucket.missing.length) bucket.missing.forEach(function (label) { lines.push("- " + label + ": composição oficial não localizada na base atualmente carregada."); });
+    else lines.push("- Nenhuma pendência de composição para os serviços localizados na base atual.");
+    lines.push("- Aço não calculado automaticamente. Necessário projeto estrutural.");
+    lines.push("- Confirmar memorial descritivo, padrão de acabamento, perdas executivas, BDI, encargos e preços vigentes antes de contratação.");
+    lines.push("", "## 10. Avisos profissionais", "Este orçamento é preliminar e assistido. Não substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade técnica profissional.", "Não faço dimensionamento estrutural nem detalhamento de armaduras normativas.");
+    return { shortAnswer: "Orçamento residencial preliminar consolidado para revisão técnica.", fullAnswer: lines.join("\n"), nextAction: bucket.missing.length ? "Importe ou informe as composições oficiais faltantes para completar o orçamento preliminar." : "Revise premissas, preços e responsabilidades técnicas antes de apresentar ao cliente.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_package" };
+  }
+
+  function buildEloResidentialBudgetPackageQuickAnswer_(message) {
+    const residential = parseEloResidentialBudgetPackageRequest_(message);
+    if (!residential) return null;
+    return buildEloResidentialBudgetPackageResponse_(residential);
+  }
   function buildEloFoundationElementSnippet_(type, match) {
     if (!match) return "";
     if (type === "sapata") return match[1] + " sapatas " + match[2] + " x " + match[3] + " x " + match[4];
@@ -12608,6 +12818,10 @@
     if (pathologyAnswer) {
       return pathologyAnswer;
     }
+    const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
+    if (residentialBudgetPackageQuickAnswer) {
+      return residentialBudgetPackageQuickAnswer;
+    }
     const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
     if (wallCompletePackageQuickAnswer) {
       return wallCompletePackageQuickAnswer;
@@ -14901,6 +15115,16 @@
     const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
     if (pathologyAnswer) {
       return pathologyAnswer;
+    }
+
+    const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
+    if (residentialBudgetPackageQuickAnswer) {
+      const residentialAnswer = formatResponse(residentialBudgetPackageQuickAnswer);
+      appendAssistantMessage(cleanQuestion, residentialAnswer, residentialBudgetPackageQuickAnswer.canSave !== false, residentialBudgetPackageQuickAnswer);
+      saveConversation(cleanQuestion, residentialAnswer);
+      rememberSessionTurn(cleanQuestion, residentialBudgetPackageQuickAnswer, residentialAnswer);
+      clearProductAttachmentPreview();
+      return;
     }
     const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
     if (wallCompletePackageQuickAnswer) {
