@@ -65,6 +65,7 @@
   function isBudgetIntent(message, context) {
     const text = normalize(message);
     if (/orcamento|orçamento|orcar|orçar|orcamento preliminar|orçamento preliminar|orcamento completo|orçamento completo|orcamento residencial|orçamento residencial|quanto fica|quanto custa|por etapas/.test(text) && /casa|obra|terrea|térrea|residencial|tudo|preliminar|completo|orcamento|orçamento/.test(text)) return true;
+    if (/casa|residencial|terrea|térrea/.test(text) && /\d+(?:[,.]\d+)?\s*m[²2]/i.test(message) && /bloco|telha|piso|fundacao|fundação|estrutura|cobertura/.test(text)) return true;
     if (/gerar resumo do orcamento|gerar resumo do orçamento|resumo do orcamento|resumo do orçamento|gera orcamento preliminar|gera orçamento preliminar|gerar orçamento preliminar|gerar orcamento preliminar/.test(text)) return true;
     if (/quanto fica tudo|quanto fica tudo\?|quanto fica/.test(text) && context && context.technical && (context.technical.activeService || Object.keys(context.technical.services || {}).length)) return true;
     return false;
@@ -309,6 +310,7 @@
     ensureContext: ensureContext
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
 
 
 

@@ -50,7 +50,7 @@ function officialRowsFixture() {
 }
 
 function loadRouterStack() {
-  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-budget-engine.js", "elo-brain-router.js"];
+  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-budget-engine.js", "elo-brain-router.js"];
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
@@ -64,9 +64,9 @@ function loadRouterStack() {
     searchCalls.push({ query, result });
     return result;
   };
-  vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[2]), "utf8"), sandbox, { filename: files[2] });
-  vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[3]), "utf8"), sandbox, { filename: files[3] });
-  vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[4]), "utf8"), sandbox, { filename: files[4] });
+  for (let index = 2; index < files.length; index += 1) {
+    vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[index]), "utf8"), sandbox, { filename: files[index] });
+  }
   return { router: sandbox.window.EloBrainRouter, searchCalls };
 }
 
@@ -148,8 +148,8 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.ok(summary.searchTriggered >= 12);
   const budgetTurn = turns[turns.length - 1];
   assert.equal(budgetTurn.brain, "technical");
-  assert.match(budgetTurn.answer, /ORÇAMENTO PRELIMINAR|ORCAMENTO PRELIMINAR|Escopo técnico inicial|Escopo tecnico inicial/i);
-  assert.match(budgetTurn.answer, /Pendências|Pendencias|Composições SINAPI|Composicoes SINAPI/i);
+  assert.match(budgetTurn.answer, /ORÇAMENTO PRELIMINAR|ORCAMENTO PRELIMINAR|Pacotes de serviço|Tabela preliminar/i);
+  assert.match(budgetTurn.answer, /Pendências|Pendencias|Composições candidatas|Composicoes candidatas|Quantitativos seguros/i);
   assert.equal(context.technical.facts.builtAreaM2, 80);
   assert.equal(context.technical.facts.wallHeightM, 4);
   assert.equal(context.technical.facts.wallMaterial, "bloco ceramico baiano");
@@ -165,6 +165,8 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.equal(context.technical.audit.withdrawnMaterial, "cimento");
   assert.ok(turns.every((turn) => !hasGenericBriefing(turn.answer)));
 });
+
+
 
 
 
