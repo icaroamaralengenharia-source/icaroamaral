@@ -123,6 +123,9 @@ test("CompositionSearchEngine busca telha portuguesa na base oficial", () => {
 
   assert.equal(result.found, true);
   assert.equal(result.indexedCount, 7);
+  assert.equal(result.indexedInputCount, 7);
+  assert.equal(result.indexedUniqueInputCount, 7);
+  assert.equal(typeof result.indexDurationMs, "number");
   assert.equal(result.candidates[0].code, "SINAPI-COB-001");
   assert.match(result.candidates[0].reasons.join(" "), /sinonimo|telha|cobertura/);
 });

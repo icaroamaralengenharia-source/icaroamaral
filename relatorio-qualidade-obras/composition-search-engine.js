@@ -1,39 +1,326 @@
 ﻿(function (root) {
   "use strict";
-  const VERSION = "20260624-composition-search-v1";
+
+  const VERSION = "20260624-composition-search-v2-real-index";
+  const DEFAULT_LIMIT = 8;
   const SYNONYMS = [
-    ["telhado", ["cobertura"]], ["telha portuguesa", ["telha ceramica portuguesa"]], ["telha colonial", ["telha ceramica colonial"]],
-    ["piso ceramico", ["revestimento ceramico"]], ["assentar piso", ["revestimento ceramico"]], ["porcelanato", ["revestimento porcelanato"]],
-    ["reboco", ["emboco", "massa unica"]], ["parede", ["alvenaria"]], ["bloco baiano", ["bloco ceramico"]],
-    ["bloco ceramico baiano", ["bloco ceramico"]], ["contrapiso", ["regularizacao", "piso cimentado"]],
-    ["cimento", ["cimento portland"]], ["areia", ["areia media"]], ["brita", ["pedra britada"]],
-    ["laje", ["concreto", "laje"]], ["sapata", ["fundacao", "sapata"]], ["impermeabilizante", ["impermeabilizacao"]],
-    ["pintura", ["aplicacao de tinta"]], ["rejunte", ["rejuntamento"]], ["argamassa", ["argamassa"]]
+    ["telhado", ["cobertura"]],
+    ["telha portuguesa", ["telha ceramica portuguesa"]],
+    ["telha colonial", ["telha ceramica colonial"]],
+    ["piso ceramico", ["revestimento ceramico"]],
+    ["assentar piso", ["revestimento ceramico"]],
+    ["porcelanato", ["revestimento porcelanato"]],
+    ["reboco", ["emboco", "massa unica"]],
+    ["parede", ["alvenaria"]],
+    ["bloco baiano", ["bloco ceramico"]],
+    ["bloco ceramico baiano", ["bloco ceramico"]],
+    ["contrapiso", ["regularizacao", "piso cimentado"]],
+    ["cimento", ["cimento portland"]],
+    ["areia", ["areia media"]],
+    ["brita", ["pedra britada"]],
+    ["laje", ["concreto", "laje"]],
+    ["sapata", ["fundacao", "sapata"]],
+    ["impermeabilizante", ["impermeabilizacao"]],
+    ["pintura", ["aplicacao de tinta"]],
+    ["rejunte", ["rejuntamento"]],
+    ["argamassa", ["argamassa"]]
   ];
-  const STOPWORDS = { a:1, o:1, os:1, as:1, de:1, da:1, do:1, das:1, dos:1, para:1, com:1, sem:1, em:1, no:1, na:1, nos:1, nas:1, um:1, uma:1, que:1, quero:1, vou:1, fazer:1, saber:1, preciso:1, quantos:1, quantas:1, quanto:1, material:1, materiais:1, chao:1, m2:1, m3:1, un:1, und:1, kg:1, l:1, m:1 };
-  function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
-  function normalize(v) { return clean(v).replace(/m[²2]/gi, "m2").replace(/m[³3]/gi, "m3").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ç/g, "c").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim(); }
-  function singularToken(t) { const v = normalize(t); if (v.length <= 3) return v; if (/coes$/.test(v)) return v.replace(/coes$/, "cao"); if (/oes$/.test(v)) return v.replace(/oes$/, "ao"); if (/ais$/.test(v)) return v.replace(/ais$/, "al"); if (/eis$/.test(v)) return v.replace(/eis$/, "el"); if (/s$/.test(v) && !/ss$/.test(v)) return v.slice(0, -1); return v; }
-  function tokenize(v) { const seen = {}; return normalize(v).split(" ").map(singularToken).filter(function (t) { if (!t || t.length < 2 || STOPWORDS[t] || seen[t]) return false; seen[t] = 1; return true; }); }
-  function normalizeUnit(v) { const t = normalize(v); if (/^(m2|metro quadrado|metros quadrado)$/.test(t)) return "m2"; if (/^(m3|metro cubico|metros cubico)$/.test(t)) return "m3"; if (/^(m|metro)$/.test(t)) return "m"; if (/^(un|und|unidade)$/.test(t)) return "un"; if (/^(kg|quilo)$/.test(t)) return "kg"; if (/^(l|litro)$/.test(t)) return "l"; return t; }
-  function expandQuery(query, options) { const s = options || {}; const raw = [query, s.service, s.normalizedService, s.material, s.context, s.unit, s.quantity].filter(Boolean).join(" "); const n = normalize(raw); const expansions = []; SYNONYMS.forEach(function (entry) { if (n.indexOf(normalize(entry[0])) >= 0) entry[1].forEach(function (term) { expansions.push(term); }); }); const normalizedQuery = normalize([raw].concat(expansions).join(" ")); return { raw: clean(query), normalizedQuery, expansions, terms: tokenize(normalizedQuery) }; }
-  function inputsOf(c) { return c && (c.inputs || c.materials || c.insumos || []) || []; }
-  function field(c, names) { for (let i = 0; i < names.length; i += 1) { const v = c && c[names[i]]; if (v !== undefined && v !== null && clean(v)) return v; } return ""; }
-  function codeOf(c) { return clean(field(c, ["code", "id", "compositionCode", "codigo"])); }
-  function descriptionOf(c) { return clean(field(c, ["description", "name", "service", "compositionName", "nome"])); }
-  function sourceOf(c) { return clean(field(c, ["source", "sourceName", "base", "provider"])) || "base oficial"; }
-  function unitOf(c) { return normalizeUnit(field(c, ["unit", "productionUnit", "compositionUnit", "unidade"])); }
-  function isOfficial(engine, c) { const md = c && c.metadata || {}; const src = normalize(sourceOf(c)); return !!(c && ((engine && typeof engine.isRealComposition === "function" && engine.isRealComposition(c)) || c.isOfficial === true || c.isRealComposition === true || md.isRealComposition === true || /sinapi|orse/.test(src))); }
-  function collectEntries(options) { const s = options || {}; const engine = s.engine || root.StockAiCompositionEngine || null; const list = []; function add(items, location) { (items || []).forEach(function (item) { if (isOfficial(engine, item)) list.push({ composition: item, location }); }); } add(s.compositions, "options.compositions"); if (engine) { if (typeof engine.getImportedOfficialBaseCatalog === "function") add(engine.getImportedOfficialBaseCatalog(), "StockAiCompositionEngine.importedOfficialBaseCatalog"); if (typeof engine.getExternalCompositionCatalog === "function") add(engine.getExternalCompositionCatalog(), "StockAiCompositionEngine.externalCompositionCatalog"); if (typeof engine.getCompositions === "function") add(engine.getCompositions(), "StockAiCompositionEngine.getCompositions"); } const seen = {}; return list.filter(function (entry) { const key = [sourceOf(entry.composition), codeOf(entry.composition), descriptionOf(entry.composition), unitOf(entry.composition)].map(normalize).join("|"); if (!key || seen[key]) return false; seen[key] = 1; return true; }); }
-  function locations(entries) { const seen = {}; return (entries || []).map(function (e) { return e.location; }).filter(function (loc) { if (!loc || seen[loc]) return false; seen[loc] = 1; return true; }); }
-  function haystackOf(c) { const inputs = inputsOf(c).map(function (i) { return [i.code, i.name, i.description, i.material, i.unit].join(" "); }).join(" "); return normalize([codeOf(c), descriptionOf(c), field(c, ["serviceType", "category", "classe"]), unitOf(c), sourceOf(c), inputs].join(" ")); }
-  function hasToken(haystack, token) { const wanted = singularToken(token); return haystack.split(" ").some(function (part) { return singularToken(part) === wanted; }); }
-  function scoreEntry(entry, expanded, options) { const c = entry.composition; const h = haystackOf(c); const d = normalize(descriptionOf(c)); const inp = normalize(inputsOf(c).map(function (i) { return [i.name, i.description, i.material, i.code].join(" "); }).join(" ")); const code = normalize(codeOf(c)); const reqUnit = normalizeUnit((options || {}).unit || ""); const compUnit = unitOf(c); let raw = 0; const reasons = []; if (code && expanded.normalizedQuery === code) { raw += 120; reasons.push("bateu codigo oficial " + codeOf(c)); } else if (code && expanded.normalizedQuery.indexOf(code) >= 0) { raw += 90; reasons.push("bateu codigo oficial " + codeOf(c)); } expanded.expansions.forEach(function (term) { if (h.indexOf(normalize(term)) >= 0) { raw += 28; reasons.push("bateu sinonimo tecnico " + term); } }); expanded.terms.forEach(function (term) { if (hasToken(d, term)) { raw += 14; reasons.push("bateu termo " + term + " na descricao"); } else if (hasToken(inp, term)) { raw += 8; reasons.push("bateu termo " + term + " nos insumos"); } else if (hasToken(h, term)) { raw += 5; reasons.push("bateu termo " + term); } }); if (raw > 0 && reqUnit && compUnit && reqUnit === compUnit) { raw += 16; reasons.push("unidade compativel " + compUnit); } if (raw > 0 && reqUnit && compUnit && reqUnit !== compUnit) raw -= 12; if (raw > 0 && /sinapi/.test(normalize(sourceOf(c)))) raw += 3; if (raw > 0 && /orse/.test(normalize(sourceOf(c)))) raw += 2; return { rawScore: raw, score: Math.max(0, Math.min(0.99, raw / 140)), reasons: reasons.filter(function (r, i) { return reasons.indexOf(r) === i; }).slice(0, 8) }; }
-  function candidate(entry, scored) { const c = entry.composition; return { code: codeOf(c), description: descriptionOf(c), unit: unitOf(c), source: sourceOf(c), score: Number(scored.score.toFixed(2)), reasons: scored.reasons, inputs: inputsOf(c).slice(), composition: c, indexedFrom: entry.location }; }
-  function searchOfficialCompositions(query, options) { const s = options || {}; const expanded = expandQuery(query, s); const entries = collectEntries(s); const ranked = entries.map(function (entry) { return { entry, scored: scoreEntry(entry, expanded, s) }; }).filter(function (item) { return item.scored.rawScore > 0; }).sort(function (a, b) { return b.scored.rawScore - a.scored.rawScore || codeOf(a.entry.composition).localeCompare(codeOf(b.entry.composition)); }); const candidates = ranked.slice(0, Number(s.limit || 8) || 8).map(function (item) { return candidate(item.entry, item.scored); }); if (!candidates.length) return { found: false, query: clean(query), normalizedQuery: expanded.normalizedQuery, searchedTerms: expanded.terms, indexedCount: entries.length, baseLocations: locations(entries), reason: "no_official_composition_found" }; return { found: true, query: clean(query), normalizedQuery: expanded.normalizedQuery, searchedTerms: expanded.terms, indexedCount: entries.length, baseLocations: locations(entries), candidates }; }
-  function getIndexStats(options) { const entries = collectEntries(options || {}); return { version: VERSION, totalCompositions: entries.length, baseLocations: locations(entries) }; }
-  root.CompositionSearchEngine = { version: VERSION, synonyms: SYNONYMS.slice(), normalize, tokenize, expandQuery, collectOfficialCompositions: function (options) { return collectEntries(options || {}).map(function (entry) { return entry.composition; }); }, getIndexStats, searchOfficialCompositions };
+  const STOPWORDS = { a: 1, o: 1, os: 1, as: 1, de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, com: 1, sem: 1, em: 1, no: 1, na: 1, nos: 1, nas: 1, um: 1, uma: 1, que: 1, quero: 1, vou: 1, fazer: 1, saber: 1, preciso: 1, quantos: 1, quantas: 1, quanto: 1, material: 1, materiais: 1, chao: 1, m2: 1, m3: 1, un: 1, und: 1, kg: 1, l: 1, m: 1 };
+  let cachedIndex = null;
+
+  function clean(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function normalize(value) {
+    return clean(value)
+      .replace(/m[²2]/gi, "m2")
+      .replace(/m[³3]/gi, "m3")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/ç/g, "c")
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function singularToken(token) {
+    const value = normalize(token);
+    if (value.length <= 3) return value;
+    if (/coes$/.test(value)) return value.replace(/coes$/, "cao");
+    if (/oes$/.test(value)) return value.replace(/oes$/, "ao");
+    if (/ais$/.test(value)) return value.replace(/ais$/, "al");
+    if (/eis$/.test(value)) return value.replace(/eis$/, "el");
+    if (/s$/.test(value) && !/ss$/.test(value)) return value.slice(0, -1);
+    return value;
+  }
+
+  function tokenize(value) {
+    const seen = {};
+    return normalize(value).split(" ").map(singularToken).filter(function (token) {
+      if (!token || token.length < 2 || STOPWORDS[token] || seen[token]) return false;
+      seen[token] = 1;
+      return true;
+    });
+  }
+
+  function normalizeUnit(value) {
+    const text = normalize(value);
+    if (/^(m2|metro quadrado|metros quadrado)$/.test(text)) return "m2";
+    if (/^(m3|metro cubico|metros cubico)$/.test(text)) return "m3";
+    if (/^(m|metro)$/.test(text)) return "m";
+    if (/^(un|und|unidade)$/.test(text)) return "un";
+    if (/^(kg|quilo)$/.test(text)) return "kg";
+    if (/^(l|litro)$/.test(text)) return "l";
+    return text;
+  }
+
+  function expandQuery(query, options) {
+    const settings = options || {};
+    const raw = [query, settings.service, settings.normalizedService, settings.material, settings.context, settings.unit, settings.quantity].filter(Boolean).join(" ");
+    const normalized = normalize(raw);
+    const expansions = [];
+    SYNONYMS.forEach(function (entry) {
+      if (normalized.indexOf(normalize(entry[0])) >= 0) {
+        entry[1].forEach(function (term) { expansions.push(term); });
+      }
+    });
+    const normalizedQuery = normalize([raw].concat(expansions).join(" "));
+    return { raw: clean(query), normalizedQuery: normalizedQuery, expansions: expansions, terms: tokenize(normalizedQuery) };
+  }
+
+  function inputsOf(composition) {
+    return composition && (composition.inputs || composition.materials || composition.insumos || []) || [];
+  }
+
+  function field(composition, names) {
+    for (let index = 0; index < names.length; index += 1) {
+      const value = composition && composition[names[index]];
+      if (value !== undefined && value !== null && clean(value)) return value;
+    }
+    return "";
+  }
+
+  function codeOf(composition) { return clean(field(composition, ["code", "id", "compositionCode", "codigo"])); }
+  function descriptionOf(composition) { return clean(field(composition, ["description", "name", "service", "compositionName", "nome"])); }
+  function sourceOf(composition) { return clean(field(composition, ["source", "sourceName", "base", "provider"])) || "base oficial"; }
+  function unitOf(composition) { return normalizeUnit(field(composition, ["unit", "productionUnit", "compositionUnit", "unidade"])); }
+
+  function isOfficialComposition(engine, composition) {
+    if (!composition) return false;
+    const metadata = composition.metadata || {};
+    const source = normalize(sourceOf(composition));
+    return (engine && typeof engine.isRealComposition === "function" && engine.isRealComposition(composition)) ||
+      composition.isOfficial === true || composition.isRealComposition === true || metadata.isRealComposition === true || /sinapi|orse/.test(source);
+  }
+
+  function collectEntries(options) {
+    const settings = options || {};
+    const engine = settings.engine || root.StockAiCompositionEngine || null;
+    const list = [];
+    function add(items, location) {
+      (items || []).forEach(function (item) {
+        if (isOfficialComposition(engine, item)) list.push({ composition: item, location: location });
+      });
+    }
+    add(settings.compositions, "options.compositions");
+    if (engine) {
+      if (typeof engine.getImportedOfficialBaseCatalog === "function") add(engine.getImportedOfficialBaseCatalog(), "StockAiCompositionEngine.importedOfficialBaseCatalog");
+      if (typeof engine.getExternalCompositionCatalog === "function") add(engine.getExternalCompositionCatalog(), "StockAiCompositionEngine.externalCompositionCatalog");
+      if (typeof engine.getCompositions === "function") add(engine.getCompositions(), "StockAiCompositionEngine.getCompositions");
+    }
+    const seen = {};
+    return list.filter(function (entry) {
+      const key = [sourceOf(entry.composition), codeOf(entry.composition), descriptionOf(entry.composition), unitOf(entry.composition)].map(normalize).join("|");
+      if (!key || seen[key]) return false;
+      seen[key] = 1;
+      return true;
+    });
+  }
+
+  function signature(entries) {
+    return (entries || []).map(function (entry) {
+      const composition = entry.composition;
+      return [entry.location, sourceOf(composition), codeOf(composition), unitOf(composition), inputsOf(composition).length].join(":");
+    }).join("|");
+  }
+
+  function locations(entries) {
+    const seen = {};
+    return (entries || []).map(function (entry) { return entry.location; }).filter(function (location) {
+      if (!location || seen[location]) return false;
+      seen[location] = 1;
+      return true;
+    });
+  }
+
+  function buildIndex(options) {
+    const startedAt = Date.now();
+    const entries = collectEntries(options || {});
+    const key = signature(entries);
+    if (cachedIndex && cachedIndex.key === key) {
+      return Object.assign({}, cachedIndex, { indexDurationMs: 0, fromCache: true });
+    }
+    const uniqueInputs = {};
+    let totalInputs = 0;
+    const items = entries.map(function (entry) {
+      const composition = entry.composition;
+      const inputs = inputsOf(composition);
+      totalInputs += inputs.length;
+      const inputsText = normalize(inputs.map(function (input) {
+        const inputKey = clean(input.code || input.id || input.name || input.description || input.material);
+        if (inputKey) uniqueInputs[inputKey] = 1;
+        return [input.code, input.name, input.description, input.material, input.unit].join(" ");
+      }).join(" "));
+      const description = normalize(descriptionOf(composition));
+      const haystack = normalize([codeOf(composition), descriptionOf(composition), field(composition, ["serviceType", "category", "classe"]), unitOf(composition), sourceOf(composition), inputsText].join(" "));
+      return {
+        entry: entry,
+        code: normalize(codeOf(composition)),
+        description: description,
+        inputsText: inputsText,
+        haystack: haystack,
+        unit: unitOf(composition)
+      };
+    });
+    cachedIndex = {
+      key: key,
+      items: items,
+      totalCompositions: entries.length,
+      totalInputs: totalInputs,
+      uniqueInputs: Object.keys(uniqueInputs).length,
+      baseLocations: locations(entries),
+      indexDurationMs: Date.now() - startedAt,
+      fromCache: false
+    };
+    return cachedIndex;
+  }
+
+  function hasToken(haystack, token) {
+    const wanted = singularToken(token);
+    return haystack.split(" ").some(function (part) { return singularToken(part) === wanted; });
+  }
+
+  function scoreIndexed(indexed, expanded, options) {
+    const composition = indexed.entry.composition;
+    const requestedUnit = normalizeUnit((options || {}).unit || "");
+    let raw = 0;
+    const reasons = [];
+    if (indexed.code && expanded.normalizedQuery === indexed.code) {
+      raw += 120;
+      reasons.push("bateu codigo oficial " + codeOf(composition));
+    } else if (indexed.code && expanded.normalizedQuery.indexOf(indexed.code) >= 0) {
+      raw += 90;
+      reasons.push("bateu codigo oficial " + codeOf(composition));
+    }
+    expanded.expansions.forEach(function (term) {
+      const normalizedTerm = normalize(term);
+      if (indexed.description.indexOf(normalizedTerm) >= 0) {
+        raw += 28;
+        reasons.push("bateu sinonimo tecnico " + term + " na descricao");
+      } else if (indexed.inputsText.indexOf(normalizedTerm) >= 0) {
+        raw += 8;
+        reasons.push("bateu sinonimo tecnico " + term + " nos insumos");
+      } else if (indexed.haystack.indexOf(normalizedTerm) >= 0) {
+        raw += 5;
+        reasons.push("bateu sinonimo tecnico " + term);
+      }
+    });
+    expanded.terms.forEach(function (term) {
+      if (hasToken(indexed.description, term)) {
+        raw += 14;
+        reasons.push("bateu termo " + term + " na descricao");
+      } else if (hasToken(indexed.inputsText, term)) {
+        raw += 8;
+        reasons.push("bateu termo " + term + " nos insumos");
+      } else if (hasToken(indexed.haystack, term)) {
+        raw += 5;
+        reasons.push("bateu termo " + term);
+      }
+    });
+    if (raw > 0 && requestedUnit && indexed.unit && requestedUnit === indexed.unit) {
+      raw += 16;
+      reasons.push("unidade compativel " + indexed.unit);
+    }
+    if (raw > 0 && requestedUnit && indexed.unit && requestedUnit !== indexed.unit) raw -= 12;
+    if (raw > 0 && /sinapi/.test(normalize(sourceOf(composition)))) raw += 3;
+    if (raw > 0 && /orse/.test(normalize(sourceOf(composition)))) raw += 2;
+    return { rawScore: raw, score: Math.max(0, Math.min(0.99, raw / 140)), reasons: reasons.filter(function (reason, index) { return reasons.indexOf(reason) === index; }).slice(0, 8) };
+  }
+
+  function candidate(indexed, scored) {
+    const composition = indexed.entry.composition;
+    return {
+      code: codeOf(composition),
+      description: descriptionOf(composition),
+      unit: unitOf(composition),
+      source: sourceOf(composition),
+      score: Number(scored.score.toFixed(2)),
+      reasons: scored.reasons,
+      inputs: inputsOf(composition).slice(),
+      composition: composition,
+      indexedFrom: indexed.entry.location
+    };
+  }
+
+  function searchOfficialCompositions(query, options) {
+    const startedAt = Date.now();
+    const settings = options || {};
+    const expanded = expandQuery(query, settings);
+    const index = buildIndex(settings);
+    const ranked = index.items.map(function (indexed) {
+      return { indexed: indexed, scored: scoreIndexed(indexed, expanded, settings) };
+    }).filter(function (item) {
+      return item.scored.rawScore > 0;
+    }).sort(function (a, b) {
+      return b.scored.rawScore - a.scored.rawScore || codeOf(a.indexed.entry.composition).localeCompare(codeOf(b.indexed.entry.composition));
+    });
+    const candidates = ranked.slice(0, Number(settings.limit || DEFAULT_LIMIT) || DEFAULT_LIMIT).map(function (item) {
+      return candidate(item.indexed, item.scored);
+    });
+    const base = {
+      query: clean(query),
+      normalizedQuery: expanded.normalizedQuery,
+      searchedTerms: expanded.terms,
+      indexedCount: index.totalCompositions,
+      indexedInputCount: index.totalInputs,
+      indexedUniqueInputCount: index.uniqueInputs,
+      baseLocations: index.baseLocations,
+      indexDurationMs: index.indexDurationMs,
+      searchDurationMs: Date.now() - startedAt
+    };
+    if (!candidates.length) return Object.assign(base, { found: false, reason: "no_official_composition_found" });
+    return Object.assign(base, { found: true, candidates: candidates });
+  }
+
+  function getIndexStats(options) {
+    const index = buildIndex(options || {});
+    return {
+      version: VERSION,
+      totalCompositions: index.totalCompositions,
+      totalInputs: index.totalInputs,
+      uniqueInputs: index.uniqueInputs,
+      baseLocations: index.baseLocations,
+      indexDurationMs: index.indexDurationMs,
+      fromCache: index.fromCache
+    };
+  }
+
+  function clearIndexCache() {
+    cachedIndex = null;
+  }
+
+  root.CompositionSearchEngine = {
+    version: VERSION,
+    synonyms: SYNONYMS.slice(),
+    normalize: normalize,
+    tokenize: tokenize,
+    expandQuery: expandQuery,
+    collectOfficialCompositions: function (options) { return collectEntries(options || {}).map(function (entry) { return entry.composition; }); },
+    clearIndexCache: clearIndexCache,
+    getIndexStats: getIndexStats,
+    searchOfficialCompositions: searchOfficialCompositions
+  };
 })(typeof window !== "undefined" ? window : globalThis);
-
-
 
