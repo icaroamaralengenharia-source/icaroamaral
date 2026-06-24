@@ -4981,7 +4981,7 @@ test("paginas reais do Elo carregam assistente com cache-buster da correcao", as
   ]);
 
   pages.forEach((content) => {
-    assert.match(content, /elo-assistente\.js\?v=20260611-elo-official-fallbacks/);
+    assert.match(content, /elo-assistente\.js\?v=20260624-public-flow-v19/);
     assert.doesNotMatch(content, /<script src="(?:relatorio-qualidade-obras\/)?elo-assistente\.js"><\/script>/);
   });
 });
@@ -5482,6 +5482,29 @@ test("Elo recalcula perda a partir do consumo liquido sem acumular perda base", 
   assert.match(response.fullAnswer, /Consumo final: 429 un/);
   assert.doesNotMatch(response.fullAnswer, /450|450,45|450,5/);
   sandbox.window.StockAiCompositionEngine.clearExternalCompositionCatalog();
+});
+
+test("Elo publico acumula orçamento residencial em mensagens naturais", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const first = sandbox.window.EloAssistente.buildResponseForTest("Minha obra Residencial Alfa fica em Vitória da Conquista-BA, tem 120 m² e padrão médio.");
+  const second = sandbox.window.EloAssistente.buildResponseForTest("Quero orçamento residencial preliminar para uma casa térrea de 120 m².");
+  const third = sandbox.window.EloAssistente.buildResponseForTest("80 m de parede com 2,80 m de altura portas e janelas 18 m²");
+  const fourth = sandbox.window.EloAssistente.buildResponseForTest("8 sapatas 1,20 x 1,20 x 0,40 8 blocos 1,50 x 1,50 x 0,60 42 m de baldrame 15 x 30");
+
+  assert.match(first.fullAnswer, /Residencial Alfa/);
+  assert.doesNotMatch(first.fullAnswer, /Residencial Alfa fica/);
+  assert.match(second.fullAnswer, /Residencial Alfa/);
+  assert.match(second.fullAnswer, /Vitória da Conquista\/BA/);
+  assert.match(second.fullAnswer, /Cliente é opcional/);
+  assert.match(third.fullAnswer, /Registrei a alvenaria/);
+  assert.match(third.fullAnswer, /Área bruta: 224,00 m²/);
+  assert.match(third.fullAnswer, /Vãos: 18,00 m²/);
+  assert.match(third.fullAnswer, /Área líquida: 206,00 m²/);
+  assert.match(fourth.fullAnswer, /Registrei a fundação/);
+  assert.match(fourth.fullAnswer, /8 sapatas 1,20 m x 1,20 m x 0,40 m/);
+  assert.match(fourth.fullAnswer, /8 blocos 1,50 m x 1,50 m x 0,60 m/);
+  assert.match(fourth.fullAnswer, /42,00 m de baldrame 15 x 30/);
+  assert.match(fourth.fullAnswer, /Posso consolidar o orçamento preliminar agora/);
 });
 
 test("Elo interpreta percentual isolado como perda pendente em todas as paginas que carregam elo-assistente", async () => {

@@ -1012,8 +1012,10 @@
     if (switchMatch) {
       facts.switchProject = true;
     }
-    if (nameCandidate && !/\b(?:essa|dessa|nesta|nessa|daquela|para|sem|perder|contexto|atual)\b/i.test(nameCandidate) && !/fica|tem|com|padrao|area/i.test(normalizeText(nameCandidate))) {
-      facts.nome = sanitizeUserText(nameCandidate).replace(/\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer)\b.*$/i, "");
+    if (nameCandidate && !/\b(?:essa|dessa|nesta|nessa|daquela|para|sem|perder|contexto|atual)\b/i.test(nameCandidate) && !/fica|tem|com|padrao|area|terrea|térrea|\d|m2|m²/i.test(normalizeText(nameCandidate))) {
+      facts.nome = sanitizeUserText(nameCandidate)
+        .replace(/\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer)\b.*$/i, "")
+        .replace(/\s+(?:fica|em|tem|com|esta|e)\b.*$/i, "");
     }
     const cityUfMatch = raw.match(/\b(?:fica\s+em|em|cidade\s+de|cidade\s+para|atualize\s+cidade\s+para|mude\s+cidade\s+para)\s+([^,.;\/\-]+?)\s*[-\/,]\s*([A-Z]{2})\b/i);
     if (cityUfMatch) {
@@ -1022,7 +1024,10 @@
     }
     const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|metros?\s+quadrados?)/i);
     if (areaMatch) {
-      facts.area_m2 = parseEloOperationalNumber_(areaMatch[1]);
+      const beforeArea = raw.slice(Math.max(0, areaMatch.index - 40), areaMatch.index).toLowerCase();
+      if (!/portas?|janelas?|v[ãa]os?|aberturas?/.test(beforeArea)) {
+        facts.area_m2 = parseEloOperationalNumber_(areaMatch[1]);
+      }
     }
     if (/residencial|residencia|casa/.test(text)) facts.tipo_obra = "residencial";
     if (/comercial|loja|galpao|empresa/.test(text)) facts.tipo_obra = /galpao/.test(text) ? "galp\u00e3o" : "comercial";
@@ -1049,9 +1054,132 @@
     });
   }
 
+  function getEloResidentialBriefingState_() {
+    const state = ELO_SESSION_MEMORY.residentialBudgetBriefing || {};
+    return {
+      active: Boolean(state.active),
+      createdAt: state.createdAt || "",
+      updatedAt: state.updatedAt || "",
+      wall: state.wall || null,
+      foundation: Array.isArray(state.foundation) ? state.foundation : [],
+      structure: Array.isArray(state.structure) ? state.structure : []
+    };
+  }
+
+  function setEloResidentialBriefingState_(state) {
+    ELO_SESSION_MEMORY.residentialBudgetBriefing = Object.assign(getEloResidentialBriefingState_(), state || {}, {
+      active: true,
+      updatedAt: new Date().toISOString()
+    });
+    if (!ELO_SESSION_MEMORY.residentialBudgetBriefing.createdAt) {
+      ELO_SESSION_MEMORY.residentialBudgetBriefing.createdAt = ELO_SESSION_MEMORY.residentialBudgetBriefing.updatedAt;
+    }
+    return ELO_SESSION_MEMORY.residentialBudgetBriefing;
+  }
+
+  function isEloResidentialBudgetStartQuestion_(message) {
+    const text = normalizeText(message || "");
+    if (/oficial|sinapi|orse|composi/.test(text)) return false;
+    return /preliminar|por\s+etapas|orcamento\s+residencial|orçamento\s+residencial|casa\s+terrea|casa\s+térrea/.test(text) && /residencial|residencia|residência|casa|obra/.test(text);
+  }
+
+  function isEloResidentialWallPartialMessage_(message) {
+    const text = normalizeText(message || "");
+    return /parede|paredes|alvenaria/.test(text) && /altura|portas?|janelas?|v[ãa]os?|\d/.test(text);
+  }
+
+  function isEloResidentialFoundationPartialMessage_(message) {
+    const text = normalizeText(message || "");
+    return /sapatas?|blocos?|baldrame|fundacao|fundação/.test(text) && /\d/.test(text);
+  }
+
+  function mergeEloResidentialBriefingFactsFromMessage_(message) {
+    const state = getEloResidentialBriefingState_();
+    const wall = parseEloResidentialWallPackage_(message);
+    const foundation = collectEloFoundationPackageElements_(message).filter(function (element) {
+      return element.type === "sapata" || element.type === "bloco_fundacao" || element.type === "viga_baldrame";
+    });
+    const structure = collectEloResidentialStructureElements_(message).filter(function (element) {
+      return element.type === "pilar" || element.type === "viga_aerea";
+    });
+    return setEloResidentialBriefingState_({
+      wall: wall || state.wall,
+      foundation: foundation.length ? foundation : state.foundation,
+      structure: structure.length ? structure : state.structure
+    });
+  }
+
+  function formatEloFoundationElementSummary_(element) {
+    if (!element) return "";
+    if (element.type === "sapata") return "- " + (element.quantity || 0) + " sapatas " + formatEloWallPremiseMeasure_(element.width, "m") + " x " + formatEloWallPremiseMeasure_(element.length, "m") + " x " + formatEloWallPremiseMeasure_(element.height, "m");
+    if (element.type === "bloco_fundacao") return "- " + (element.quantity || 0) + " blocos " + formatEloWallPremiseMeasure_(element.width, "m") + " x " + formatEloWallPremiseMeasure_(element.length, "m") + " x " + formatEloWallPremiseMeasure_(element.height, "m");
+    if (element.type === "viga_baldrame") return "- " + formatEloWallPremiseMeasure_(element.length || 0, "m") + " de baldrame " + formatEloOperationalQuantity_((element.width || 0) * 100) + " x " + formatEloOperationalQuantity_((element.height || 0) * 100);
+    return "- " + (element.label || element.type || "elemento");
+  }
+
+  function buildEloResidentialBudgetFlowAnswer_(message) {
+    const hasActive = getEloResidentialBriefingState_().active;
+    const isStart = isEloResidentialBudgetStartQuestion_(message);
+    const isWall = hasActive && isEloResidentialWallPartialMessage_(message);
+    const isFoundation = hasActive && isEloResidentialFoundationPartialMessage_(message);
+    if (!isStart && !isWall && !isFoundation) return null;
+
+    if (isStart) {
+      updateEloWorkMemoryFromMessage_(message);
+      setEloResidentialBriefingState_({ active: true });
+      const project = getActiveEloWorkProject_();
+      const obra = project.nome && !/^n[ãa]o informad/.test(project.nome) ? project.nome : "obra atual";
+      const cidadeUf = [project.cidade, project.uf].filter(function (value) { return value && !/^n[ãa]o informad/.test(String(value)); }).join("/") || "cidade/UF não informada";
+      return {
+        shortAnswer: "Vou montar o orçamento residencial preliminar por etapas.",
+        fullAnswer: "Certo. Vou montar um orçamento residencial preliminar para " + obra + " (" + cidadeUf + "). Informe paredes, fundação e estrutura quando souber. Cliente é opcional e não vou travar o orçamento por isso.",
+        nextAction: "Informe primeiro paredes/alvenaria, fundação ou estrutura.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "residential_budget_briefing_start"
+      };
+    }
+
+    const state = mergeEloResidentialBriefingFactsFromMessage_(message);
+    if (isWall && state.wall) {
+      const wall = state.wall;
+      return {
+        shortAnswer: "Alvenaria registrada no orçamento em andamento.",
+        fullAnswer: [
+          "Registrei a alvenaria:",
+          "- Comprimento total: " + formatEloWallPremiseMeasure_(wall.length, "m"),
+          "- Altura: " + formatEloWallPremiseMeasure_(wall.height, "m"),
+          "- Área bruta: " + formatEloWallPremiseMeasure_(wall.grossArea, "m²"),
+          "- Vãos: " + formatEloWallPremiseMeasure_(wall.openingsArea || 0, "m²"),
+          "- Área líquida: " + formatEloWallPremiseMeasure_(wall.netArea, "m²") + "."
+        ].join("\n"),
+        nextAction: "Agora informe fundação, pilares/vigas ou peça para consolidar o orçamento preliminar.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "residential_budget_wall_recorded"
+      };
+    }
+
+    if (isFoundation && state.foundation.length) {
+      const lines = ["Registrei a fundação:"].concat(state.foundation.map(formatEloFoundationElementSummary_)).concat(["", "Posso consolidar o orçamento preliminar agora ou você quer informar pilares e vigas?"]);
+      return {
+        shortAnswer: "Fundação registrada no orçamento em andamento.",
+        fullAnswer: lines.join("\n"),
+        nextAction: "Diga 'consolidar orçamento preliminar' ou informe pilares e vigas.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "residential_budget_foundation_recorded"
+      };
+    }
+    return null;
+  }
+
   function isEloWorkMemoryOnlyMessage_(message) {
     const text = normalizeText(message || "");
     if (typeof parseEloResidentialBudgetPackageRequest_ === "function" && parseEloResidentialBudgetPackageRequest_(message)) {
+      return false;
+    }
+    if (isEloResidentialWallPartialMessage_(message) || isEloResidentialFoundationPartialMessage_(message)) {
       return false;
     }
     if (typeof collectEloFoundationPackageElements_ === "function" && collectEloFoundationPackageElements_(message).length) {
@@ -13876,6 +14004,10 @@
       return getCrisisSupportResponse();
     }
 
+    const residentialBudgetFlowAnswer = buildEloResidentialBudgetFlowAnswer_(cleanQuestion);
+    if (residentialBudgetFlowAnswer) {
+      return residentialBudgetFlowAnswer;
+    }
     if (isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
       return buildEloWorkMemorySavedAnswer_(cleanQuestion);
     }
@@ -16248,6 +16380,16 @@
     const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
     if (pathologyAnswer) {
       return pathologyAnswer;
+    }
+
+    const residentialBudgetFlowAnswerForUi = buildEloResidentialBudgetFlowAnswer_(cleanQuestion);
+    if (residentialBudgetFlowAnswerForUi) {
+      const residentialFlowText = formatResponse(residentialBudgetFlowAnswerForUi);
+      appendAssistantMessage(cleanQuestion, residentialFlowText, residentialBudgetFlowAnswerForUi.canSave !== false, residentialBudgetFlowAnswerForUi);
+      saveConversation(cleanQuestion, residentialFlowText);
+      rememberSessionTurn(cleanQuestion, residentialBudgetFlowAnswerForUi, residentialFlowText);
+      clearProductAttachmentPreview();
+      return;
     }
 
     const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
@@ -19482,6 +19624,7 @@
     buildResponseForTest: buildResponse,
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
     getBudgetRecordsForTest: getEloBudgetRecords_,
+    getResidentialBudgetBriefingForTest: getEloResidentialBriefingState_,
     clearBudgetRecordsForTest: function () { setEloBudgetRecords_([]); writeEloBudgetJsonToStorage_(ELO_CONFIG.budgetCounterStorageKey, {}); ELO_SESSION_MEMORY.lastBudgetSource = null; },
     resetStockObrasBriefingForTest: resetEloStockObrasCompositionBriefing_,
     getStockObrasBriefingForTest: function () {
