@@ -62,6 +62,14 @@
     if (/\b(isso\s+esta\s+certo|isso\s+ta\s+certo|quanto\s+cimento|quantos\s+sacos|resumo\s+tecnico)\b/i.test(text) && context && context.technical && context.technical.activeService) { score += 0.35; reasons.push("pergunta tecnica com contexto ativo"); }
     return { score: Math.min(0.99, score), reasons: reasons };
   }
+  function isBudgetIntent(message, context) {
+    const text = normalize(message);
+    if (/orcamento|orçamento|orcar|orçar|orcamento preliminar|orçamento preliminar|orcamento completo|orçamento completo|orcamento residencial|orçamento residencial|quanto fica|quanto custa|por etapas/.test(text) && /casa|obra|terrea|térrea|residencial|tudo|preliminar|completo|orcamento|orçamento/.test(text)) return true;
+    if (/gerar resumo do orcamento|gerar resumo do orçamento|resumo do orcamento|resumo do orçamento|gera orcamento preliminar|gera orçamento preliminar|gerar orçamento preliminar|gerar orcamento preliminar/.test(text)) return true;
+    if (/quanto fica tudo|quanto fica tudo\?|quanto fica/.test(text) && context && context.technical && (context.technical.activeService || Object.keys(context.technical.services || {}).length)) return true;
+    return false;
+  }
+
   function scoreConversational(message) {
     const text = normalize(message);
     let score = 0;
@@ -199,7 +207,29 @@
     lines.push("", "OBSERVACAO", "- Nenhum coeficiente foi inventado; calculos dependem de composicao oficial e parametros completos.");
     return lines.join("\n");
   }
+  function callBudgetBrain(message, context) {
+    const budgetEngine = root.EloBudgetEngine || null;
+    if (!budgetEngine || typeof budgetEngine.buildPreliminaryBudget !== "function") return null;
+    const facts = Object.assign({}, context.technical.facts || {}, { originalMessage: message });
+    const budget = budgetEngine.buildPreliminaryBudget(facts, context.technical || {});
+    context.technical.facts = Object.assign(context.technical.facts || {}, budget.projectFacts || {});
+    const fullAnswer = budgetEngine.buildBudgetReportText(budget);
+    return {
+      shortAnswer: "Orçamento preliminar estruturado.",
+      fullAnswer: fullAnswer,
+      nextAction: budget.missing && budget.missing.length ? "Responda as pendências principais para evoluir o orçamento." : "Revise escopo e composições antes de transformar em orçamento executivo.",
+      canSave: true,
+      sessionTheme: "elo_preliminary_budget",
+      sessionIntent: "preliminary_budget",
+      technicalEngine: { mode: "preliminary_budget", budget: budget, context: context.technical }
+    };
+  }
+
   function callTechnicalBrain(message, context, serviceId) {
+    if (isBudgetIntent(message, context)) {
+      const budgetResponse = callBudgetBrain(message, context);
+      if (budgetResponse) return budgetResponse;
+    }
     const engine = root.EloTechnicalEngine || null;
     const prefix = buildContextPrefix(context, serviceId);
     const enriched = clean([prefix, message].filter(Boolean).join("; "));
@@ -247,6 +277,11 @@
   function routeEloBrain(message, context) {
     const ctx = ensureContext(context);
     const text = clean(message);
+    if (isBudgetIntent(text, ctx)) {
+      ctx.technical.lastMessage = text;
+      const result = callBudgetBrain(text, ctx);
+      if (result) return { brain: "technical", reason: "intencao de orcamento preliminar", confidence: 0.82, result: result, context: ctx };
+    }
     const technical = scoreTechnical(text, ctx);
     const conversational = scoreConversational(text);
     const serviceId = detectService(text, ctx);
@@ -257,6 +292,7 @@
     }
     if (chooseTechnical || explicitTechnical) {
       rememberFacts(text, ctx);
+      ctx.technical.lastMessage = text;
       rememberAudit(text, ctx);
       const activeService = serviceId || ctx.technical.activeService || "";
       if (activeService) rememberServiceData(text, ctx, activeService);
@@ -273,6 +309,10 @@
     ensureContext: ensureContext
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
+
+
+
 
 
 

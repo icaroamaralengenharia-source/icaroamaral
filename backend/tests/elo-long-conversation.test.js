@@ -35,7 +35,8 @@ const CONVERSATION = [
   ["vou fazer contrapiso 30m² 3cm", "technical"],
   ["quanto cimento?", "technical"],
   ["estou cansado disso tudo", "conversational"],
-  ["mas vamos terminar, gera um resumo técnico", "technical"]
+  ["mas vamos terminar, gera um resumo técnico", "technical"],
+  ["gera orçamento preliminar agora", "technical"]
 ];
 
 function officialRowsFixture() {
@@ -49,13 +50,13 @@ function officialRowsFixture() {
 }
 
 function loadRouterStack() {
-  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-brain-router.js"];
+  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-budget-engine.js", "elo-brain-router.js"];
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[0]), "utf8"), sandbox, { filename: files[0] });
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[1]), "utf8"), sandbox, { filename: files[1] });
-  sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows: officialRowsFixture() });
+  sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows: officialRowsFixture() }, { state: "BA", referenceMonth: "2026-06" });
   const originalSearch = sandbox.window.CompositionSearchEngine.searchOfficialCompositions.bind(sandbox.window.CompositionSearchEngine);
   const searchCalls = [];
   sandbox.window.CompositionSearchEngine.searchOfficialCompositions = function wrappedSearch(query, options) {
@@ -65,6 +66,7 @@ function loadRouterStack() {
   };
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[2]), "utf8"), sandbox, { filename: files[2] });
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[3]), "utf8"), sandbox, { filename: files[3] });
+  vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", files[4]), "utf8"), sandbox, { filename: files[4] });
   return { router: sandbox.window.EloBrainRouter, searchCalls };
 }
 
@@ -144,6 +146,10 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.ok(summary.technical >= 15);
   assert.ok(summary.conversational >= 3);
   assert.ok(summary.searchTriggered >= 12);
+  const budgetTurn = turns[turns.length - 1];
+  assert.equal(budgetTurn.brain, "technical");
+  assert.match(budgetTurn.answer, /ORÇAMENTO PRELIMINAR|ORCAMENTO PRELIMINAR|Escopo técnico inicial|Escopo tecnico inicial/i);
+  assert.match(budgetTurn.answer, /Pendências|Pendencias|Composições SINAPI|Composicoes SINAPI/i);
   assert.equal(context.technical.facts.builtAreaM2, 80);
   assert.equal(context.technical.facts.wallHeightM, 4);
   assert.equal(context.technical.facts.wallMaterial, "bloco ceramico baiano");
@@ -159,3 +165,6 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.equal(context.technical.audit.withdrawnMaterial, "cimento");
   assert.ok(turns.every((turn) => !hasGenericBriefing(turn.answer)));
 });
+
+
+

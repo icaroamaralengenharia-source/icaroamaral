@@ -16,7 +16,7 @@ async function loadSurface(page, surface) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(surfaceUrl(surface));
-  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
+  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
   expect(errors, `${surface.name} sem pageerror`).toEqual([]);
 }
 
@@ -66,4 +66,5 @@ test.describe("Elo surfaces", () => {
     });
   }
 });
+
 
