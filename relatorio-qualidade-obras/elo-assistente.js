@@ -1356,8 +1356,73 @@
     lastOperationalWallEstimate: null,
     pendingQuantitativePremises: null,
     stockObrasCompositionBriefing: null,
-    lastTechnicalPackage: null
+    lastTechnicalPackage: null,
+    activeConversationTopic: ""
   };
+
+  function detectEloConversationTopic_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return "conversa_geral";
+    if (/\bcadista\b|planta\s+baixa|gerar\s+planta|croqui|dxf|desenho\s+cad/.test(text)) return "cadista";
+    if (/\bstock\b|estoque|almoxarifado|saldo\s+de|cimento\s+em\s+estoque|produto\b/.test(text)) return "stock";
+    if (/proposta|preparar\s+para\s+cliente|gerar\s+documento|documento\s+para\s+cliente/.test(text)) return "proposta_tecnica";
+    if (/orcamento\s+residencial|orçamento\s+residencial|orcamento\s+preliminar|orçamento\s+preliminar|casa\s+terrea|casa\s+térrea|resid[eê]ncia/.test(text)) return "orcamento_residencial";
+    if (/fundacao|fundação|sapata|baldrame|bloco\s+de\s+fundacao|bloco\s+de\s+fundação|radier/.test(text)) return "fundacao";
+    if (/estrutura|estrutural|pilar|viga|laje/.test(text)) return "estrutura";
+    if (/parede\s+completa|alvenaria\s+completa|parede\s+pronta/.test(text)) return "parede_completa";
+    if (/parede|alvenaria|bloco|tijolo|baiano|reboco|chapisco|embo[cç]o/.test(text)) return "parede";
+    if (/relatorio|relatório|rdo|diario|diário/.test(text)) return "relatorio";
+    return "conversa_geral";
+  }
+
+  function isEloPendingContextContinuation_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    if (/^(?:op[cç][aã]o\s*)?\d{1,2}$/.test(text)) return true;
+    if (/^\d{1,2}\s*%$/.test(text)) return true;
+    if (/^\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}$/.test(text)) return true;
+    if (/^(?:sem\s+)?(?:portas?|janelas?|vaos|v[aã]os|revestimento|chapisco|reboco)\b/.test(text)) return true;
+    if (/^(?:uma?|duas?|dois|tr[eê]s|\d+)\s+(?:porta|janela|vao|v[aã]o)\b/.test(text)) return true;
+    if (/^(?:perda\s+)?\d{1,2}\s*%/.test(text)) return true;
+    if (/^(?:um|dois|2|1)\s+lados?/.test(text)) return true;
+    return false;
+  }
+
+  function hasEloExplicitTopicSwitchMarker_(message) {
+    const text = normalizeText(message || "");
+    return /\bagora\b|vamos\s+para|mudar\s+para|trocar\s+para|calcule\s+fundacao|calcule\s+fundação|fundacao\s+completa|fundação\s+completa|estrutura|proposta|orcamento\s+residencial|orçamento\s+residencial|\bcadista\b|\bstock\b|relatorio|relatório/.test(text);
+  }
+
+  function detectEloTopicSwitch_(previousTopic, newMessage) {
+    const nextTopic = detectEloConversationTopic_(newMessage);
+    if (!previousTopic || previousTopic === "conversa_geral" || nextTopic === "conversa_geral") {
+      return { switched: false, previousTopic: previousTopic || "", nextTopic: nextTopic };
+    }
+    if (previousTopic === nextTopic) {
+      return { switched: false, previousTopic: previousTopic, nextTopic: nextTopic };
+    }
+    if (isEloPendingContextContinuation_(newMessage) && !hasEloExplicitTopicSwitchMarker_(newMessage)) {
+      return { switched: false, previousTopic: previousTopic, nextTopic: previousTopic };
+    }
+    return { switched: true, previousTopic: previousTopic, nextTopic: nextTopic };
+  }
+
+  function clearEloPendingContextIfTopicChanged_(message) {
+    const previousTopic = ELO_SESSION_MEMORY.activeConversationTopic || "";
+    const switchState = detectEloTopicSwitch_(previousTopic, message);
+    const nextTopic = switchState.nextTopic || detectEloConversationTopic_(message);
+    if (switchState.switched) {
+      clearEloPendingPremises_();
+      if (ELO_SESSION_MEMORY.stockObrasCompositionBriefing) {
+        ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active = false;
+        ELO_SESSION_MEMORY.stockObrasCompositionBriefing.pending_question = "";
+      }
+    }
+    if (nextTopic && nextTopic !== "conversa_geral") {
+      ELO_SESSION_MEMORY.activeConversationTopic = nextTopic;
+    }
+    return switchState;
+  }
 
   function rememberSessionTurn(question, response, answer) {
     const normalizedQuestion = normalizeText(question);
@@ -12978,6 +13043,8 @@
       return workMemoryQuestion;
     }
 
+    clearEloPendingContextIfTopicChanged_(cleanQuestion);
+
     const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
     if (technicalProposalPackageAnswer) {
       return technicalProposalPackageAnswer;
@@ -15304,6 +15371,8 @@
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+
+    clearEloPendingContextIfTopicChanged_(cleanQuestion);
 
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
