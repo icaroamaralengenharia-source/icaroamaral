@@ -23,7 +23,11 @@
     ["impermeabilizante", ["impermeabilizacao"]],
     ["pintura", ["aplicacao de tinta"]],
     ["rejunte", ["rejuntamento"]],
-    ["argamassa", ["argamassa"]]
+    ["argamassa", ["argamassa"]],
+    ["ac ii", ["argamassa colante ac ii"]],
+    ["ac iii", ["argamassa colante ac iii"]],
+    ["saco", ["cimento portland", "argamassa"]],
+    ["sacos", ["cimento portland", "argamassa"]]
   ];
   const STOPWORDS = { a: 1, o: 1, os: 1, as: 1, de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, com: 1, sem: 1, em: 1, no: 1, na: 1, nos: 1, nas: 1, um: 1, uma: 1, que: 1, quero: 1, vou: 1, fazer: 1, saber: 1, preciso: 1, quantos: 1, quantas: 1, quanto: 1, material: 1, materiais: 1, chao: 1, m2: 1, m3: 1, un: 1, und: 1, kg: 1, l: 1, m: 1 };
   let cachedIndex = null;
@@ -40,6 +44,16 @@
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/ç/g, "c")
+      .replace(/\bxapisco\b/g, "chapisco")
+      .replace(/\brebocu\b/g, "reboco")
+      .replace(/\bparedi\b/g, "parede")
+      .replace(/\bbloko\b/g, "bloco")
+      .replace(/\bqnto\b/g, "quanto")
+      .replace(/\bqtos\b/g, "quantos")
+      .replace(/\bpresiso\b/g, "preciso")
+      .replace(/\bfaze\b/g, "fazer")
+      .replace(/\bac2\b/g, "ac ii")
+      .replace(/\bac iii\b/g, "ac iii")
       .replace(/[^a-z0-9]+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -155,16 +169,26 @@
     });
   }
 
+  function tokenSet(value) {
+    const set = {};
+    tokenize(value).forEach(function (token) { set[token] = 1; });
+    return set;
+  }
   function buildIndex(options) {
+    const settings = options || {};
+    if (cachedIndex && !settings.compositions && !settings.engine) {
+      return Object.assign({}, cachedIndex, { indexDurationMs: 0, fromCache: true });
+    }
     const startedAt = Date.now();
-    const entries = collectEntries(options || {});
+    const entries = collectEntries(settings);
     const key = signature(entries);
     if (cachedIndex && cachedIndex.key === key) {
       return Object.assign({}, cachedIndex, { indexDurationMs: 0, fromCache: true });
     }
     const uniqueInputs = {};
     let totalInputs = 0;
-    const items = entries.map(function (entry) {
+    const tokenIndex = {};
+    const items = entries.map(function (entry, itemIndex) {
       const composition = entry.composition;
       const inputs = inputsOf(composition);
       totalInputs += inputs.length;
@@ -175,18 +199,27 @@
       }).join(" "));
       const description = normalize(descriptionOf(composition));
       const haystack = normalize([codeOf(composition), descriptionOf(composition), field(composition, ["serviceType", "category", "classe"]), unitOf(composition), sourceOf(composition), inputsText].join(" "));
+      const haystackTokens = tokenSet(haystack);
+      Object.keys(haystackTokens).forEach(function (token) {
+        if (!tokenIndex[token]) tokenIndex[token] = [];
+        tokenIndex[token].push(itemIndex);
+      });
       return {
         entry: entry,
         code: normalize(codeOf(composition)),
         description: description,
         inputsText: inputsText,
         haystack: haystack,
+        descriptionTokens: tokenSet(description),
+        inputsTokens: tokenSet(inputsText),
+        haystackTokens: haystackTokens,
         unit: unitOf(composition)
       };
     });
     cachedIndex = {
       key: key,
       items: items,
+      tokenIndex: tokenIndex,
       totalCompositions: entries.length,
       totalInputs: totalInputs,
       uniqueInputs: Object.keys(uniqueInputs).length,
@@ -197,9 +230,8 @@
     return cachedIndex;
   }
 
-  function hasToken(haystack, token) {
-    const wanted = singularToken(token);
-    return haystack.split(" ").some(function (part) { return singularToken(part) === wanted; });
+  function hasToken(tokenSetObject, token) {
+    return !!(tokenSetObject && tokenSetObject[singularToken(token)]);
   }
 
   function scoreIndexed(indexed, expanded, options) {
@@ -228,13 +260,13 @@
       }
     });
     expanded.terms.forEach(function (term) {
-      if (hasToken(indexed.description, term)) {
+      if (hasToken(indexed.descriptionTokens, term)) {
         raw += 14;
         reasons.push("bateu termo " + term + " na descricao");
-      } else if (hasToken(indexed.inputsText, term)) {
+      } else if (hasToken(indexed.inputsTokens, term)) {
         raw += 8;
         reasons.push("bateu termo " + term + " nos insumos");
-      } else if (hasToken(indexed.haystack, term)) {
+      } else if (hasToken(indexed.haystackTokens, term)) {
         raw += 5;
         reasons.push("bateu termo " + term);
       }
@@ -264,12 +296,23 @@
     };
   }
 
+  function collectCandidateItems(index, expanded) {
+    const byIndex = {};
+    const tokens = expanded.terms.concat(tokenize(expanded.expansions.join(" ")));
+    tokens.forEach(function (token) {
+      (index.tokenIndex[token] || []).forEach(function (itemIndex) { byIndex[itemIndex] = 1; });
+    });
+    const keys = Object.keys(byIndex);
+    if (!keys.length) return [];
+    return keys.map(function (key) { return index.items[Number(key)]; }).filter(Boolean);
+  }
   function searchOfficialCompositions(query, options) {
     const startedAt = Date.now();
     const settings = options || {};
     const expanded = expandQuery(query, settings);
     const index = buildIndex(settings);
-    const ranked = index.items.map(function (indexed) {
+    const candidateItems = collectCandidateItems(index, expanded);
+    const ranked = candidateItems.map(function (indexed) {
       return { indexed: indexed, scored: scoreIndexed(indexed, expanded, settings) };
     }).filter(function (item) {
       return item.scored.rawScore > 0;
@@ -323,4 +366,7 @@
     searchOfficialCompositions: searchOfficialCompositions
   };
 })(typeof window !== "undefined" ? window : globalThis);
+
+
+
 
