@@ -9737,6 +9737,51 @@
   }
 
 
+
+  function getEloCompositionEquivalentKey_(composition) {
+    const code = normalizeText(getEloCompositionCode_(composition));
+    const description = normalizeText(getEloCompositionDescription_(composition))
+      .replace(/\b(argamassa|bloco|tinta|cimento|areia|insumo|oficial)\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return [normalizeText(composition && (composition.source || "")), code || description, normalizeText(getEloCompositionUnit_(composition))].join("|");
+  }
+
+  function dedupeEloCompositionCandidates_(candidates) {
+    const seen = {};
+    return (candidates || []).filter(function (candidate) {
+      const key = getEloCompositionEquivalentKey_(candidate);
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+
+  function getEloCompositionServiceType_(composition) {
+    return normalizeText([
+      composition && composition.serviceType,
+      composition && composition.metadata && composition.metadata.serviceType,
+      composition && composition.tipoServico,
+      composition && composition.tipo_servico
+    ].filter(Boolean).join(" "));
+  }
+
+  function isEloCompositionForService_(composition, serviceType) {
+    const wanted = normalizeText(serviceType || "");
+    const current = getEloCompositionServiceType_(composition);
+    if (!wanted) return true;
+    if (current) {
+      if (wanted === "reboco_emboco") return current === "reboco_emboco" || current === "reboco" || current === "emboco";
+      return current === wanted;
+    }
+    const description = normalizeText(getEloCompositionDescription_(composition));
+    if (wanted === "alvenaria") return /alvenaria|bloco|tijolo/.test(description) && !/chapisco|reboco|emboco|pintura|tinta/.test(description);
+    if (wanted === "chapisco") return /chapisco/.test(description);
+    if (wanted === "reboco_emboco") return /reboco|emboco/.test(description);
+    if (wanted === "pintura") return /pintura|tinta|selador/.test(description);
+    return true;
+  }
   function sortEloCompositionCandidatesByPreference_(candidates) {
     const preferredSource = getEloTechnicalSourcePreference_();
     const list = (candidates || []).slice();
@@ -9760,13 +9805,15 @@
     const candidates = [];
     buildEloStockObrasCompositionQueries_(briefing).forEach(function (query) {
       if (typeof engine.searchImportedOfficialCompositions === "function") {
-        candidates.push.apply(candidates, engine.searchImportedOfficialCompositions(query, { limit: 8, controlledService: "alvenaria" }) || []);
+        candidates.push.apply(candidates, (engine.searchImportedOfficialCompositions(query, { limit: 8, controlledService: "alvenaria" }) || []).filter(function (candidate) { return isEloCompositionForService_(candidate, "alvenaria"); }));
       }
       if (typeof engine.findComposition === "function") {
-        candidates.push(engine.findComposition({ service: query, unit: "m2", serviceType: "alvenaria" }));
+        const externalCandidate = engine.findComposition({ service: query, unit: "m2", serviceType: "alvenaria" });
+        if (externalCandidate && isEloCompositionForService_(externalCandidate, "alvenaria")) candidates.push(externalCandidate);
       }
       if (typeof engine.findBestComposition === "function") {
-        candidates.push(engine.findBestComposition({ service: query, unit: "m2", serviceType: "alvenaria" }));
+        const bestCandidate = engine.findBestComposition({ service: query, unit: "m2", serviceType: "alvenaria" });
+        if (bestCandidate && isEloCompositionForService_(bestCandidate, "alvenaria")) candidates.push(bestCandidate);
       }
     });
     const seen = {};
@@ -9782,7 +9829,7 @@
       seen[key] = true;
       return true;
     });
-    return sortEloCompositionCandidatesByPreference_(validCandidates);
+    return sortEloCompositionCandidatesByPreference_(dedupeEloCompositionCandidates_(validCandidates));
   }
 
   function buildEloStockObrasTechnicalBaseLabel_(composition) {
@@ -9898,6 +9945,143 @@
     };
   }
 
+
+  function buildEloWallPackageServiceQueries_(serviceId, briefing) {
+    const block = formatEloStockObrasBlockDimension_(briefing);
+    const hasBlock = !!block;
+    if (serviceId === "chapisco") return ["chapisco parede interna", "chapisco alvenaria", "chapisco parede", "chapisco"];
+    if (serviceId === "reboco_emboco") return ["reboco parede interna", "revestimento argamassado parede", "emboco parede", "emboco parede", "reboco"];
+    if (serviceId === "pintura") return ["pintura parede interna", "pintura acrilica parede", "pintura parede", "tinta acrilica parede", "pintura"];
+    return buildEloStockObrasCompositionQueries_(briefing).concat(hasBlock ? ["argamassa assentamento bloco " + block] : ["argamassa assentamento bloco"]);
+  }
+
+  function findEloWallPackageOfficialCandidates_(serviceId, briefing) {
+    const engine = getEloStockObrasEngine_();
+    if (!engine) return [];
+    const candidates = [];
+    buildEloWallPackageServiceQueries_(serviceId, briefing).forEach(function (query) {
+      if (typeof engine.searchImportedOfficialCompositions === "function") {
+        const options = serviceId === "pintura" ? { limit: 8 } : { limit: 8, controlledService: serviceId };
+        candidates.push.apply(candidates, (engine.searchImportedOfficialCompositions(query, options) || []).filter(function (candidate) { return isEloCompositionForService_(candidate, serviceId); }));
+      }
+    });
+    const seen = {};
+    return sortEloCompositionCandidatesByPreference_(candidates.filter(function (candidate) {
+      const contract = buildEloTechnicalCompositionContract_(candidate);
+      if (!contract.valid) return false;
+      const haystack = normalizeText([contract.codigo, contract.descricao, contract.fonte, candidate && candidate.serviceType].join(" "));
+      if (serviceId === "pintura" && !/pintura|tinta|selador|massa/.test(haystack)) return false;
+      const key = getEloCompositionCandidateKey_(candidate);
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }));
+  }
+
+  function getEloWallPackageServiceQuantity_(serviceId, briefing) {
+    const area = parseEloOperationalNumber_(briefing && briefing.area_liquida_m2);
+    return serviceId === "alvenaria" ? area : area * 2;
+  }
+
+  function buildEloWallPackageMultipleChoiceResponse_(briefing, serviceLabel, candidates) {
+    calculateEloStockObrasLiquidArea_(briefing);
+    const lines = ["PAREDE COMPLETA", "Encontrei mais de uma composicao tecnica oficial compativel para " + serviceLabel + ".", "", "Nao vou assumir automaticamente. Informe qual deseja utilizar:", ""];
+    candidates.slice(0, 5).forEach(function (candidate, index) {
+      const contract = buildEloTechnicalCompositionContract_(candidate);
+      lines.push((index + 1) + ". " + contract.codigo + " | " + contract.descricao + " | unidade " + contract.unidade + " | " + contract.fonte + (contract.uf ? " " + contract.uf : "") + (contract.mes ? " " + contract.mes : ""));
+    });
+    lines.push("", buildEloBudgetMvpScopeNotice_());
+    return { shortAnswer: "Mais de uma composicao encontrada para " + serviceLabel + ".", fullAnswer: lines.join("\n"), nextAction: "Informe o codigo da composicao escolhida para continuar o pacote Parede Completa.", canSave: false, sessionTheme: "wall_complete_package", sessionIntent: "wall_complete_package_composition_choice" };
+  }
+
+  function buildEloWallPackageServiceResult_(serviceId, label, briefing, composition, quantity, lossPercent) {
+    const contract = buildEloTechnicalCompositionContract_(composition);
+    if (!contract.valid) return null;
+    const serviceBriefing = Object.assign({}, briefing, { area_liquida_m2: quantity, perda_percentual: lossPercent });
+    const budgetItems = buildEloAssistedBudgetItems_(serviceBriefing, contract, composition);
+    return { id: serviceId, label: label, quantity: quantity, contract: contract, budgetItems: budgetItems };
+  }
+
+  function buildEloWallCompletePackageResponse_(briefing, masonryComposition) {
+    calculateEloStockObrasLiquidArea_(briefing);
+    const services = [];
+    const missing = [];
+    const multiple = [];
+    const serviceDefs = [
+      { id: "alvenaria", label: "Alvenaria", quantity: getEloWallPackageServiceQuantity_("alvenaria", briefing), candidates: [masonryComposition], loss: briefing.perda_percentual },
+      { id: "chapisco", label: "Chapisco", quantity: getEloWallPackageServiceQuantity_("chapisco", briefing), candidates: findEloWallPackageOfficialCandidates_("chapisco", briefing), loss: 0 },
+      { id: "reboco_emboco", label: "Reboco", quantity: getEloWallPackageServiceQuantity_("reboco_emboco", briefing), candidates: findEloWallPackageOfficialCandidates_("reboco_emboco", briefing), loss: 0 },
+      { id: "pintura", label: "Pintura", quantity: getEloWallPackageServiceQuantity_("pintura", briefing), candidates: findEloWallPackageOfficialCandidates_("pintura", briefing), loss: 0 }
+    ];
+    serviceDefs.forEach(function (service) {
+      const candidates = sortEloCompositionCandidatesByPreference_(dedupeEloCompositionCandidates_(service.candidates || []));
+      if (candidates.length > 1) { multiple.push({ label: service.label, candidates: candidates }); return; }
+      if (!candidates.length) { missing.push("- Nao encontrei composicao oficial para " + service.label.toLowerCase() + " na base atualmente carregada."); return; }
+      const result = buildEloWallPackageServiceResult_(service.id, service.label, briefing, candidates[0], service.quantity, service.loss);
+      if (result) services.push(result); else missing.push("- A composicao encontrada para " + service.label.toLowerCase() + " nao passou no contrato tecnico oficial.");
+    });
+    if (multiple.length) return buildEloWallPackageMultipleChoiceResponse_(briefing, multiple[0].label, multiple[0].candidates);
+    const openingSummary = formatEloStockObrasOpenings_(briefing);
+    const project = getActiveEloWorkProject_();
+    const coatingArea = parseEloOperationalNumber_(briefing.area_liquida_m2) * 2;
+    const totalCost = services.reduce(function (sum, service) { return sum + (service.budgetItems.hasAnyPrice ? service.budgetItems.totalWithPrices : 0); }, 0);
+    const hasAnyCost = services.some(function (service) { return service.budgetItems.hasAnyPrice; });
+    const hasMissingCost = services.some(function (service) { return service.budgetItems.hasMissingPrice; });
+    const lines = [
+      "PAREDE COMPLETA",
+      "Orcamento assistido de alvenaria e parede completa pronto para revisao tecnica.",
+      "Bloco de revisao do orcamento assistido",
+      "# Relatorio Tecnico de Orcamento - Alvenaria",
+      (missing.length ? "Relatorio parcial auditavel. " : "") + "Pacote tecnico consolidado para revisao. Calculei a geometria e usei somente composicoes oficiais/importadas validadas onde elas existem.",
+      "",
+      "Premissas utilizadas:",
+      "Premissas",
+      "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
+      "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
+      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m2"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Area de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m2"),
+      "- Vaos descontados: " + openingSummary,
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m2"),
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Area tecnica para chapisco/reboco/pintura: " + formatEloWallPremiseMeasure_(coatingArea, "m2") + " (duas faces do pacote parede completa; confirme se for apenas uma face).",
+      "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
+      "- Perda da alvenaria: " + formatEloStockObrasLoss_(briefing),
+      "",
+      "Memoria permanente de obra",
+      formatEloWorkMemoryLines_(project).join("\n"),
+      "",
+      "Memória de cálculo:",
+      "- Area bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m2") + " - vaos " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m2") + " = area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m2") + ".",
+      "- Consumo calculado pelo Elo Orcamentista Assistido com base nas composicoes oficiais localizadas.",
+      "",
+      "Base tecnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
+      "Base técnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
+      "",
+      "Servicos considerados",
+      "1. Alvenaria",
+      "2. Argamassa de assentamento (como insumo da composicao oficial de alvenaria quando presente)",
+      "3. Chapisco",
+      "4. Reboco",
+      "5. Pintura",
+      "",
+      "Composicoes utilizadas"
+    ];
+    services.forEach(function (service) { lines.push("- " + service.label + ": " + service.contract.fonte + " | " + service.contract.codigo + " | " + service.contract.descricao + " | unidade " + service.contract.unidade + " | " + (service.contract.uf || "UF nao informada") + " / " + (service.contract.mes || "mes nao informado")); });
+    if (missing.length) { lines.push("", "Composicoes nao localizadas"); lines.push.apply(lines, missing); }
+    lines.push("", "Quantitativos");
+    services.forEach(function (service) {
+      lines.push("- " + service.label + ": area de referencia " + formatEloWallPremiseMeasure_(service.quantity, "m2"));
+      lines.push("  - Consumo calculado pelo Elo Orcamentista Assistido.");
+      if (service.budgetItems.lines.length) lines.push(service.budgetItems.lines.join("\n"));
+    });
+    lines.push("", "Custos encontrados");
+    if (hasAnyCost) lines.push("- Custo parcial calculado com os precos existentes nas composicoes: R$ " + formatEloOperationalQuantity_(totalCost) + (hasMissingCost ? ". Existem insumos sem preco; nao trate como custo total oficial." : "."));
+    else lines.push("- Precos unitarios nao informados nas composicoes carregadas; custo total nao calculado.");
+    lines.push("", "Observacoes tecnicas", "- Nao usei composicao demonstrativa, mock ou coeficiente ficticio.", "- Argamassa de assentamento foi rastreada como insumo da alvenaria quando constou na composicao oficial.", "- Confirme se chapisco, reboco e pintura serao em uma ou duas faces antes de contratar.", "", "Aviso MVP", buildEloBudgetMvpScopeNotice_());
+    return { shortAnswer: "Pacote Parede Completa consolidado para revisao tecnica.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Importe ou informe as composicoes oficiais faltantes para completar o pacote." : "Revise as composicoes, precos e faces consideradas antes de fechar o orcamento.", canSave: true, sessionTheme: "wall_complete_package", sessionIntent: "wall_complete_package" };
+  }
+
   function buildEloStockObrasOfficialCompositionResponse_(briefing, composition) {
     calculateEloStockObrasLiquidArea_(briefing);
     const contract = buildEloTechnicalCompositionContract_(composition);
@@ -9987,10 +10171,10 @@
     calculateEloStockObrasLiquidArea_(briefing);
     const officialCandidates = findEloStockObrasOfficialCompositionCandidates_(briefing);
     if (officialCandidates.length > 1) {
-      return buildEloStockObrasCompositionChoiceResponse_(briefing, officialCandidates);
+      return buildEloWallPackageMultipleChoiceResponse_(briefing, "Alvenaria", officialCandidates);
     }
     if (officialCandidates.length === 1) {
-      return buildEloStockObrasOfficialCompositionResponse_(briefing, officialCandidates[0]);
+      return buildEloWallCompletePackageResponse_(briefing, officialCandidates[0]);
     }
     const openingSummary = formatEloStockObrasOpenings_(briefing);
     const project = getActiveEloWorkProject_();
@@ -10038,6 +10222,54 @@
       sessionTheme: "stock_obras_composicao",
       sessionIntent: "briefing_composicao_consolidado"
     };
+  }
+
+
+  function extractEloBlockDimensionFromComposition_(composition) {
+    const text = String(getEloCompositionDescription_(composition) || "");
+    const match = text.match(/(\d{1,2})\s*x\s*(\d{1,2})\s*x\s*(\d{1,2})/i);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  }
+
+  function buildEloWallCompletePackageQuickAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!/parede|alvenaria|bloco|tijolo/.test(text) || !hasEloWallLengthHeight_(text)) {
+      return null;
+    }
+    const hasExplicitBlockDimension = !!extractEloBlockDimensionCm_(message);
+    const asksOnlyBlocks = /quantos\s+blocos|blocos?.*(?:preciso|gasto|necessario|necessários|necessarios)/.test(text);
+    const hasBudgetIntent = /orcamento|orçamento|orcar|custo|preco|preço|valor|quanto\s+custa/.test(text);
+    if (asksOnlyBlocks || (!hasExplicitBlockDimension && /bloco|tijolo|baiano/.test(text)) || (hasBudgetIntent && !hasExplicitBlockDimension)) {
+      return null;
+    }
+    const briefing = updateEloStockObrasCompositionBriefing_(message, message, true);
+    if (!briefing.area_bruta_m2) {
+      return null;
+    }
+    const candidates = findEloStockObrasOfficialCompositionCandidates_(briefing);
+    if (candidates.length > 1) {
+      return buildEloWallPackageMultipleChoiceResponse_(briefing, "Alvenaria", candidates);
+    }
+    if (!candidates.length) {
+      return null;
+    }
+    if (!briefing.bloco_ceramico_dimensao_cm) {
+      briefing.bloco_ceramico_dimensao_cm = extractEloBlockDimensionFromComposition_(candidates[0]);
+    }
+    if (!briefing.bloco_ceramico_dimensao_cm) {
+      return null;
+    }
+    if (!briefing.vaos.sem_vaos && !briefing.vaos.portas.length && !briefing.vaos.janelas.length) {
+      briefing.vaos.sem_vaos = true;
+    }
+    if (briefing.perda_percentual === null) {
+      briefing.perda_percentual = 0;
+    }
+    if (!briefing.revestimento_lados) {
+      briefing.revestimento_lados = "dois lados";
+    }
+    calculateEloStockObrasLiquidArea_(briefing);
+    return buildEloWallCompletePackageResponse_(briefing, candidates[0]);
   }
 
   function buildEloStockObrasBriefingResponse_(currentMessage, combinedMessage, isPendingWall, shouldStart) {
@@ -11770,6 +12002,9 @@
       "Escopo atual:",
       "Alvenaria.",
       "",
+      "Escopo atual do pacote:",
+      "Parede Completa.",
+      "",
       "Os quantitativos e custos apresentados referem-se apenas aos servicos atualmente suportados pelo motor de orcamento.",
       "",
       "Outras disciplinas podem exigir complementacao tecnica, validacao profissional ou composicoes adicionais."
@@ -11990,6 +12225,12 @@
     if (pathologyAnswer) {
       return pathologyAnswer;
     }
+    const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
+    if (wallCompletePackageQuickAnswer) {
+      return wallCompletePackageQuickAnswer;
+    }
+
+
     const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
     if (geometryLayerAnswer) {
       return geometryLayerAnswer;
@@ -14269,6 +14510,16 @@
     if (pathologyAnswer) {
       return pathologyAnswer;
     }
+    const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
+    if (wallCompletePackageQuickAnswer) {
+      const packageAnswer = formatResponse(wallCompletePackageQuickAnswer);
+      appendAssistantMessage(cleanQuestion, packageAnswer, wallCompletePackageQuickAnswer.canSave !== false, wallCompletePackageQuickAnswer);
+      saveConversation(cleanQuestion, packageAnswer);
+      rememberSessionTurn(cleanQuestion, wallCompletePackageQuickAnswer, packageAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const geometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
     if (geometryLayerAnswer) {
       const geometryAnswer = formatResponse(geometryLayerAnswer);
