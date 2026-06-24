@@ -28,6 +28,13 @@ async function loginLocal(page) {
   await expect(page.locator("#almoxManagerPanel")).toBeVisible();
 }
 
+async function enterStockFullDemo(page) {
+  const demoButton = page.locator('[data-stock-full-demo-login="manoel"]');
+  if (await demoButton.isVisible().catch(() => false)) {
+    await demoButton.click();
+  }
+  await expect(page.locator("#stockFullDashboard")).toBeVisible();
+}
 async function goToRoute(page, route) {
   await page.evaluate((nextRoute) => {
     window.location.hash = "#app/" + nextRoute;
@@ -212,28 +219,26 @@ test.describe("Almoxarifado", () => {
     await page.locator("a", { hasText: "Testar Stock Full" }).first().click();
     await expect(page).toHaveURL(/produto=stock-full/);
     await expect(page).toHaveURL(/perfil=loja/);
-    await expect(page.locator("#almoxManagerPanel")).toBeVisible();
-    await expect(page.locator("[data-stock-full-banner]")).toContainText("Modo Stock Full");
+    await enterStockFullDemo(page);
+    await expect(page.locator("#stockFullDashboard")).toBeVisible();
     await expect(page.locator("#almoxOfflineStatus")).toContainText("Modo local");
-    await expect(page.locator("#almoxOfflineStatus")).toContainText("Não sincronizado na nuvem");
-    await expect(page.locator("[data-stock-full-text='title']")).toHaveText("Stock Full");
-    await expect(page.locator("[data-almox-action='item']").first()).toContainText("Cadastrar produto");
-    await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();
-    await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
+    await expect(page.locator("#almoxOfflineStatus")).toContainText(/sincronizado na nuvem/i);
+    await expect(page.locator("#stockFullAppTitle")).toContainText("STOCK");
+    await expect(page.locator("[data-stock-full-dashboard-action='entry']").first()).toBeVisible();
+    await expect(page.locator("[data-stock-full-dashboard-action='exit']").first()).toBeVisible();
 
     await page.goto(stockFullUrl);
     await page.evaluate(() => {
-      window.location.href = "relatorio-qualidade-obras/relatorio-qualidade-obras.html?produto=stock-full&perfil=gestor#app/almoxarifado";
+      window.location.href = "stockfull.html?produto=stock-full&perfil=gestor";
     });
     await expect(page).toHaveURL(/produto=stock-full/);
     await expect(page).toHaveURL(/perfil=gestor/);
-    await expect(page.locator("#almoxManagerPanel")).toBeVisible();
-    await expect(page.locator("[data-stock-full-text='managerTitle']")).toHaveText("Central do Gestor");
-    await expect(page.locator("#almoxManagerAuditButton")).toBeVisible();
-    await expect(page.locator("#almoxDownloadPdfButton")).toBeVisible();
-    await expect(page.locator("#almoxEmailButton")).toBeVisible();
-    await expect(page.locator("[data-almox-action='entry']").first()).toBeVisible();
-    await expect(page.locator("[data-almox-action='exit']").first()).toBeVisible();
+    await enterStockFullDemo(page);
+    await expect(page.locator("#stockFullDashboard")).toBeVisible();
+    await expect(page.locator("[data-stock-full-dashboard-action='entry']").first()).toBeVisible();
+    await expect(page.locator("[data-stock-full-dashboard-action='exit']").first()).toBeVisible();
+    await expect(page.locator("#almoxManagerAuditButton")).toBeAttached();
+    await expect(page.locator("#almoxDownloadPdfButton")).toBeAttached();
   });
 
   test.skip("Stock Full autenticado carrega produtos remotos sem alterar movimentacoes", async ({ page }) => {

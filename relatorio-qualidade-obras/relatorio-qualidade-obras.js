@@ -9079,6 +9079,10 @@
         (unit ? " · Unidade: " + unit : "") + " · Produtos, entradas e saídas na nuvem";
       return;
     }
+    if (isStockFullContext_()) {
+      almoxOfflineStatus.textContent = connection + " · Modo local · Operacao ativa · Dados disponiveis neste dispositivo · Não sincronizado na nuvem · Backup recomendado";
+      return;
+    }
     almoxOfflineStatus.textContent = connection + " · Operacao ativa · Dados disponiveis neste dispositivo · Não sincronizado na nuvem · Backup recomendado";
   }
 
