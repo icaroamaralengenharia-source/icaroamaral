@@ -109,3 +109,57 @@ test("EloTechnicalEngine cobre os casos obrigatorios com parametros minimos", ()
     assert.deepEqual(Array.from(result.missing), missing, message);
   });
 });
+
+function eloOfficialRowsFixture() {
+  return [{
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-PISO-ELO-001",
+    compositionName: "Revestimento ceramico para piso com argamassa colante",
+    compositionUnit: "m2",
+    serviceType: "piso_ceramico",
+    inputCode: "SINAPI-ARG-ELO",
+    inputName: "Argamassa colante",
+    inputUnit: "kg",
+    coefficient: "4,2"
+  }, {
+    source: "SINAPI",
+    state: "BA",
+    referenceMonth: "2026-01",
+    compositionCode: "SINAPI-ALV-ELO-001",
+    compositionName: "Alvenaria de vedacao com bloco ceramico",
+    compositionUnit: "m2",
+    serviceType: "alvenaria",
+    inputCode: "SINAPI-BLOCO-ELO",
+    inputName: "Bloco ceramico",
+    inputUnit: "un",
+    coefficient: "13,5"
+  }];
+}
+
+function loadEngineWithSearchFixture() {
+  const stockSource = readFileSync(join(repoDir, "relatorio-qualidade-obras", "stock-ai-composition-engine.js"), "utf8");
+  const searchSource = readFileSync(join(repoDir, "relatorio-qualidade-obras", "composition-search-engine.js"), "utf8");
+  const eloSource = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-technical-engine.js"), "utf8");
+  const sandbox = { console, window: {} };
+  sandbox.globalThis = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(stockSource, sandbox, { filename: "stock-ai-composition-engine.js" });
+  vm.runInContext(searchSource, sandbox, { filename: "composition-search-engine.js" });
+  sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows: eloOfficialRowsFixture() });
+  vm.runInContext(eloSource, sandbox, { filename: "elo-technical-engine.js" });
+  return sandbox.window.EloTechnicalEngine;
+}
+
+test("EloTechnicalEngine usa CompositionSearchEngine antes de bloquear calculo", () => {
+  const engine = loadEngineWithSearchFixture();
+  const result = engine.analyze("Vou assentar 50m2 de piso ceramico no chao.");
+
+  assert.equal(result.service.id, "piso_ceramico");
+  assert.equal(result.compositionSearch.found, true);
+  assert.equal(result.compositionSearch.candidates[0].code, "SINAPI-PISO-ELO-001");
+  assert.match(result.answer, /Encontrei composicoes oficiais relacionadas/);
+  assert.match(result.answer, /Qual a dimensao da peca/);
+  assert.equal(result.compositionResolution.status, "not_checked");
+});

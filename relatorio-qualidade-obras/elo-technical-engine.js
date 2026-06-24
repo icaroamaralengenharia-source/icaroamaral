@@ -1,12 +1,12 @@
-(function (root) {
+﻿(function (root) {
   "use strict";
 
-  const VERSION = "20260624-technical-engine-v1";
+  const VERSION = "20260624-technical-engine-v2-search";
 
   const CATALOG = {
     piso_ceramico: {
       label: "Piso ceramico",
-      aliases: ["piso ceramico", "porcelanato", "assentar piso", "assentamento de piso"],
+      aliases: ["piso ceramico", "porcelanato", "assentar piso", "assentamento de piso", "revestimento ceramico"],
       unit: "m2",
       required: ["area", "dimensao_peca", "junta", "tipo_argamassa"],
       questions: {
@@ -39,7 +39,7 @@
     },
     contrapiso: {
       label: "Contrapiso",
-      aliases: ["contrapiso", "regularizacao de piso"],
+      aliases: ["contrapiso", "regularizacao de piso", "regularização de piso", "piso cimentado"],
       unit: "m2",
       required: ["area", "espessura"],
       questions: {
@@ -138,9 +138,9 @@
   }
 
   function unit(value) {
-    const text = normalize(value);
-    if (/^(m2|m²|metro quadrado|metros quadrados)$/.test(text)) return "m2";
-    if (/^(m3|m³|metro cubico|metros cubicos)$/.test(text)) return "m3";
+    const text = normalize(value).replace(/²/g, "2").replace(/³/g, "3");
+    if (/^(m2|metro quadrado|metros quadrados)$/.test(text)) return "m2";
+    if (/^(m3|metro cubico|metros cubicos)$/.test(text)) return "m3";
     if (/^(m|metro|metros)$/.test(text)) return "m";
     if (/^(kg|quilo|quilos)$/.test(text)) return "kg";
     if (/^(l|litro|litros)$/.test(text)) return "l";
@@ -237,9 +237,44 @@
     return composition.isRealComposition === true || composition.isOfficial === true || metadata.isRealComposition === true || /sinapi|orse/.test(source);
   }
 
-  function resolveComposition(service, quantityUnit) {
+  function buildSearchQuery(message, service, params, quantity) {
+    return [
+      message,
+      service && service.rule && service.rule.label,
+      service && service.id,
+      params && params.tipo_bloco,
+      params && params.tipo_argamassa,
+      params && params.ambiente,
+      quantity && quantity.unit,
+      quantity && quantity.value
+    ].filter(Boolean).join(" ");
+  }
+
+  function searchOfficialCompositions(message, service, params, quantity, options) {
+    const search = root.CompositionSearchEngine || null;
+    if (!search || typeof search.searchOfficialCompositions !== "function") {
+      return { found: false, candidates: [], searchedTerms: [], indexedCount: 0, reason: "composition_search_engine_unavailable" };
+    }
+    return search.searchOfficialCompositions(buildSearchQuery(message, service, params, quantity), Object.assign({}, options || {}, {
+      service: service && service.rule && service.rule.label,
+      normalizedService: service && service.id,
+      material: params && (params.tipo_bloco || params.tipo_argamassa),
+      context: params && params.ambiente,
+      unit: quantity && quantity.unit || service && service.rule && service.rule.unit,
+      quantity: quantity && quantity.value
+    }));
+  }
+
+  function resolveComposition(service, quantityUnit, searchResult) {
     const engine = root.StockAiCompositionEngine || null;
-    if (!engine || !service) return { status: "engine_unavailable", composition: null, candidates: [] };
+    if (searchResult && searchResult.candidates && searchResult.candidates.length) {
+      const official = searchResult.candidates.filter(function (candidate) {
+        return candidate && candidate.composition && inputsOf(candidate.composition).length > 0;
+      });
+      if (official.length === 1) return { status: "unique", composition: official[0].composition, candidates: official.map(function (item) { return item.composition; }), search: searchResult };
+      if (official.length > 1) return { status: "multiple", composition: null, candidates: official.map(function (item) { return item.composition; }), searchCandidates: official, search: searchResult };
+    }
+    if (!engine || !service) return { status: "engine_unavailable", composition: null, candidates: [], search: searchResult || null };
     let candidates = [];
     if (typeof engine.searchImportedOfficialCompositions === "function") {
       candidates = candidates.concat(engine.searchImportedOfficialCompositions(service.rule.label, { limit: 8, controlledService: service.id }) || []);
@@ -255,9 +290,9 @@
     }).filter(function (item) {
       return isOfficial(engine, item) && inputsOf(item).length > 0;
     });
-    if (candidates.length === 1) return { status: "unique", composition: candidates[0], candidates: candidates };
-    if (candidates.length > 1) return { status: "multiple", composition: null, candidates: candidates };
-    return { status: "not_found", composition: null, candidates: [] };
+    if (candidates.length === 1) return { status: "unique", composition: candidates[0], candidates: candidates, search: searchResult || null };
+    if (candidates.length > 1) return { status: "multiple", composition: null, candidates: candidates, search: searchResult || null };
+    return { status: "not_found", composition: null, candidates: [], search: searchResult || null };
   }
 
   function calculateConsumption(composition, quantity) {
@@ -279,6 +314,24 @@
     return (items || []).slice();
   }
 
+  function appendSearchSummary(lines, searchResult) {
+    if (!searchResult || searchResult.reason === "composition_search_engine_unavailable") {
+      lines.push("BUSCA NA BASE OFICIAL", "- Buscador tecnico ainda nao carregado nesta pagina.");
+      return;
+    }
+    lines.push("BUSCA NA BASE OFICIAL", "- Composicoes indexadas: " + (searchResult.indexedCount || 0));
+    if (searchResult.baseLocations && searchResult.baseLocations.length) lines.push("- Origem do indice: " + searchResult.baseLocations.join(", "));
+    if (searchResult.found) {
+      lines.push("- Encontrei composicoes oficiais relacionadas, mas preciso de parametros tecnicos para escolher/calcular com seguranca.");
+      searchResult.candidates.slice(0, 3).forEach(function (candidate) {
+        lines.push("- " + (candidate.code || "sem codigo") + " - " + candidate.description + " (score " + candidate.score + ")");
+        (candidate.reasons || []).slice(0, 2).forEach(function (reason) { lines.push("  motivo: " + reason); });
+      });
+    } else {
+      lines.push("- Nenhuma composicao oficial localizada para os termos: " + (searchResult.searchedTerms || []).join(", "));
+    }
+  }
+
   function factsAnswer(facts) {
     const lines = ["FATOS TECNICOS REGISTRADOS"];
     if (facts.areaConstruidaM2) lines.push("- Area construida: " + formatNumber(facts.areaConstruidaM2) + " m2");
@@ -291,8 +344,10 @@
   }
 
   function technicalAnswer(analysis) {
-    const lines = ["SERVICO IDENTIFICADO", "- " + analysis.service.rule.label, "- Modo: motor tecnico de consumo/auditoria", ""];
+    const lines = ["SERVICO IDENTIFICADO", "- " + analysis.service.rule.label, "- Modo: auditor tecnico com busca na base oficial", ""];
     if (analysis.quantity.value > 0) lines.push("QUANTIDADE DO SERVICO", "- " + formatNumber(analysis.quantity.value) + " " + (analysis.quantity.unit || analysis.service.rule.unit), "");
+    appendSearchSummary(lines, analysis.compositionSearch);
+    lines.push("");
     if (analysis.missing.length) {
       lines.push("PARAMETROS FALTANTES");
       analysis.missing.forEach(function (param) {
@@ -303,10 +358,18 @@
     }
     if (analysis.compositionResolution.status === "multiple") {
       lines.push("COMPOSICOES ENCONTRADAS");
-      analysis.compositionResolution.candidates.slice(0, 5).forEach(function (candidate) {
-        lines.push("- " + clean(candidate.code || candidate.id || "sem codigo") + " - " + clean(candidate.name || candidate.description || candidate.service));
-      });
-      lines.push("", "PROXIMO PARAMETRO NECESSARIO", "- Informe o codigo da composicao correta.");
+      const searchCandidates = analysis.compositionResolution.searchCandidates || [];
+      if (searchCandidates.length) {
+        searchCandidates.slice(0, 5).forEach(function (candidate) {
+          lines.push("- " + clean(candidate.code || "sem codigo") + " - " + clean(candidate.description || "") + " (score " + candidate.score + ")");
+          (candidate.reasons || []).slice(0, 2).forEach(function (reason) { lines.push("  motivo: " + reason); });
+        });
+      } else {
+        analysis.compositionResolution.candidates.slice(0, 5).forEach(function (candidate) {
+          lines.push("- " + clean(candidate.code || candidate.id || "sem codigo") + " - " + clean(candidate.name || candidate.description || candidate.service));
+        });
+      }
+      lines.push("", "PROXIMO PARAMETRO NECESSARIO", "- Informe o codigo da composicao correta ou o parametro que diferencia as opcoes.");
       return lines.join("\n");
     }
     if (!analysis.compositionResolution.composition) {
@@ -322,6 +385,13 @@
     return lines.join("\n");
   }
 
+  function searchOnlyAnswer(message, facts, searchResult, quantity) {
+    const lines = ["BUSCA TECNICA NA BASE OFICIAL", "- Modo: auditor tecnico pesquisando composicoes oficiais", ""];
+    if (quantity && quantity.value > 0) lines.push("QUANTIDADE INFORMADA", "- " + formatNumber(quantity.value) + " " + quantity.unit, "");
+    appendSearchSummary(lines, searchResult);
+    lines.push("", "PROXIMO PARAMETRO NECESSARIO", "- Informe area/volume/unidade do servico e o parametro que diferencia a composicao, quando houver.", "", "OBSERVACAO", "- Nao calculei consumo porque ainda falta selecionar uma composicao oficial e confirmar o quantitativo executavel.", "- Nenhum coeficiente foi inventado.");
+    return { detected: true, mode: "technical_search", facts: facts || {}, quantity: quantity || { value: 0, unit: "" }, compositionSearch: searchResult, missing: ["composicao"], answer: lines.join("\n") };
+  }
 
   function analyzeMultipleServices(message, facts) {
     const text = normalize(message);
@@ -330,18 +400,26 @@
     if (/\b(reboco|emboco|emboco|massa unica)\b/.test(text)) ids.push("reboco");
     if (ids.length < 2) return null;
     const quantity = extractQuantity(message);
-    const lines = ["SERVICOS IDENTIFICADOS", "- Modo: motor tecnico de consumo/auditoria"];
+    const lines = ["SERVICOS IDENTIFICADOS", "- Modo: auditor tecnico com busca na base oficial"];
     ids.forEach(function (id) { lines.push("- " + CATALOG[id].label); });
     if (quantity.value > 0) lines.push("", "QUANTIDADE INFORMADA", "- " + formatNumber(quantity.value) + " " + (quantity.unit || "m2") + " para conferencia dos servicos citados");
-    lines.push("", "PARAMETROS FALTANTES");
+    lines.push("");
     const details = ids.map(function (id) {
-      const params = extractParameters(message, { id: id, rule: CATALOG[id] }, facts || {});
+      const service = { id: id, rule: CATALOG[id] };
+      const params = extractParameters(message, service, facts || {});
       if (quantity.value > 0 && quantity.unit === "m2") params.area = quantity.value;
+      const searchResult = searchOfficialCompositions(message + " " + CATALOG[id].label, service, params, quantity, { limit: 5 });
+      lines.push("BUSCA OFICIAL - " + CATALOG[id].label);
+      appendSearchSummary(lines, searchResult);
+      lines.push("");
       const missing = discoverMissingParameters(id, params);
-      missing.forEach(function (param) { lines.push("- " + CATALOG[id].label + ": " + CATALOG[id].questions[param]); });
-      return { id: id, missing: missing };
+      return { id: id, missing: missing, compositionSearch: searchResult };
     });
-    lines.push("", "OBSERVACOES", "- Nao calculei consumo porque ainda faltam parametros tecnicos obrigatorios.", "- Nenhum coeficiente foi inventado.", "- Depois dos parametros, o motor tenta localizar composicao SINAPI/ORSE oficial para cada servico.");
+    lines.push("PARAMETROS FALTANTES");
+    details.forEach(function (detail) {
+      detail.missing.forEach(function (param) { lines.push("- " + CATALOG[detail.id].label + ": " + CATALOG[detail.id].questions[param]); });
+    });
+    lines.push("", "OBSERVACOES", "- Nao calculei consumo porque ainda faltam parametros tecnicos obrigatorios.", "- Nenhum coeficiente foi inventado.");
     return {
       detected: true,
       mode: "technical_consumption",
@@ -361,15 +439,17 @@
     if (multiService) return multiService;
     const service = normalizeService(message);
     const text = normalize(message);
-    if (service && service.id === "alvenaria" && /area construida|orcamento|casa/.test(text) && !/\b(executar|executou|fazer|construir|assentar|levantar|pediu)\b/.test(text)) {
+    if (service && service.id === "alvenaria" && /area construida|orcamento|casa/.test(text) && !/\b(executar|executou|fazer|construir|assentar|levantar|pediu|gasto|gasta)\b/.test(text)) {
       return { detected: true, mode: "project_facts", facts: facts, answer: factsAnswer(facts) };
     }
+    const quantity = extractQuantity(message);
     if (!service) {
+      const searchResult = searchOfficialCompositions(message, null, {}, quantity, { limit: 5 });
+      if (searchResult && searchResult.found) return searchOnlyAnswer(message, facts, searchResult, quantity);
       const hasFacts = Object.keys(facts).some(function (key) { return facts[key] !== undefined && facts[key] !== ""; });
       return { detected: hasFacts, mode: hasFacts ? "project_facts" : "not_technical", facts: facts, answer: hasFacts ? factsAnswer(facts) : "" };
     }
     const params = extractParameters(message, service, facts);
-    const quantity = extractQuantity(message);
     if (!quantity.value && params.area) {
       quantity.value = params.area;
       quantity.unit = "m2";
@@ -378,10 +458,11 @@
       quantity.value = params.volume;
       quantity.unit = "m3";
     }
+    const compositionSearch = searchOfficialCompositions(message, service, params, quantity, { limit: 8 });
     const missing = discoverMissingParameters(service.id, params);
-    const compositionResolution = missing.length ? { status: "not_checked", composition: null, candidates: [] } : resolveComposition(service, quantity.unit || service.rule.unit);
+    const compositionResolution = missing.length ? { status: "not_checked", composition: null, candidates: [], search: compositionSearch } : resolveComposition(service, quantity.unit || service.rule.unit, compositionSearch);
     const consumption = compositionResolution.composition && quantity.value > 0 ? calculateConsumption(compositionResolution.composition, quantity.value) : [];
-    const analysis = { detected: true, mode: "technical_consumption", service: service, facts: facts, params: params, quantity: quantity, missing: missing, compositionResolution: compositionResolution, consumption: consumption };
+    const analysis = { detected: true, mode: "technical_consumption", service: service, facts: facts, params: params, quantity: quantity, missing: missing, compositionSearch: compositionSearch, compositionResolution: compositionResolution, consumption: consumption };
     analysis.answer = technicalAnswer(analysis);
     return analysis;
   }
@@ -410,6 +491,7 @@
     normalizeService: normalizeService,
     discoverMissingParameters: discoverMissingParameters,
     resolveComposition: resolveComposition,
+    searchOfficialCompositions: searchOfficialCompositions,
     calculateConsumption: calculateConsumption,
     convertUnits: convertUnits
   };

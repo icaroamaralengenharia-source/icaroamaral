@@ -1917,6 +1917,10 @@
     return importedOfficialBaseCatalog.slice();
   }
 
+  function getImportedOfficialBaseCatalog() {
+    return importedOfficialBaseCatalog.slice();
+  }
+
   function getImportedOfficialBaseStats() {
     const sources = {};
     const states = {};
@@ -8357,6 +8361,7 @@
     importSinapiAnaliticoXlsx: importSinapiAnaliticoXlsx,
     searchImportedOfficialCompositions: searchImportedOfficialCompositions,
     clearImportedOfficialBase: clearImportedOfficialBase,
+    getImportedOfficialBaseCatalog: getImportedOfficialBaseCatalog,
     getImportedOfficialBaseStats: getImportedOfficialBaseStats,
     validateCompositionSchema: validateCompositionSchema,
     parseGeometryRequest: parseGeometryRequest,
