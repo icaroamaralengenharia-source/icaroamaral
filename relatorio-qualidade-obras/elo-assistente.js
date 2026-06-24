@@ -9780,6 +9780,11 @@
     if (wanted === "chapisco") return /chapisco/.test(description);
     if (wanted === "reboco_emboco") return /reboco|emboco/.test(description);
     if (wanted === "pintura") return /pintura|tinta|selador/.test(description);
+    if (wanted === "sapata") return /sapata/.test(description);
+    if (wanted === "bloco_fundacao") return /bloco.*fundacao|bloco.*fundacao|fundacao/.test(description) && !/sapata/.test(description);
+    if (wanted === "viga_baldrame") return /baldrame|viga.*fundacao|viga.*fundacao/.test(description);
+    if (wanted === "pilar") return /pilar|coluna/.test(description);
+    if (wanted === "viga_aerea") return /viga/.test(description) && !/baldrame|fundacao|fundacao/.test(description);
     return true;
   }
   function sortEloCompositionCandidatesByPreference_(candidates) {
@@ -10080,6 +10085,229 @@
     else lines.push("- Precos unitarios nao informados nas composicoes carregadas; custo total nao calculado.");
     lines.push("", "Observacoes tecnicas", "- Nao usei composicao demonstrativa, mock ou coeficiente ficticio.", "- Argamassa de assentamento foi rastreada como insumo da alvenaria quando constou na composicao oficial.", "- Confirme se chapisco, reboco e pintura serao em uma ou duas faces antes de contratar.", "", "Aviso MVP", buildEloBudgetMvpScopeNotice_());
     return { shortAnswer: "Pacote Parede Completa consolidado para revisao tecnica.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Importe ou informe as composicoes oficiais faltantes para completar o pacote." : "Revise as composicoes, precos e faces consideradas antes de fechar o orcamento.", canSave: true, sessionTheme: "wall_complete_package", sessionIntent: "wall_complete_package" };
+  }
+
+
+  function normalizeEloStructuralDimension_(value, mode) {
+    const number = parseEloOperationalNumber_(value);
+    if (!isFinite(number) || number <= 0) return 0;
+    if (mode === "section") return number > 5 ? number / 100 : number;
+    return number;
+  }
+
+  function extractEloStructuralQuantity_(message, elementRegex) {
+    const raw = String(message || "");
+    const before = raw.match(new RegExp("(?:^|\\b)(\\d{1,3})\\s+(?:" + elementRegex + ")", "i"));
+    if (before) return Math.max(1, parseInt(before[1], 10));
+    const after = raw.match(new RegExp("(?:" + elementRegex + ")\\D{0,20}(\\d{1,3})\\s*(?:un|unidades|pecas|peças)", "i"));
+    if (after) return Math.max(1, parseInt(after[1], 10));
+    return 1;
+  }
+
+  function extractEloStructuralTriple_(message) {
+    const raw = String(message || "");
+    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i);
+    return match ? [match[1], match[2], match[3]] : null;
+  }
+
+  function extractEloStructuralLengthAndSection_(message) {
+    const raw = String(message || "");
+    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i) ||
+      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)/i);
+    if (!match) return null;
+    if (/\d+(?:[,.]\d+)?\s*(?:cm)?\s*(?:x|×|por)/i.test(match[0]) && /(?:m|metros?)\s*$/i.test(match[0])) {
+      return { length: normalizeEloStructuralDimension_(match[3], "length"), width: normalizeEloStructuralDimension_(match[1], "section"), height: normalizeEloStructuralDimension_(match[2], "section") };
+    }
+    return { length: normalizeEloStructuralDimension_(match[1], "length"), width: normalizeEloStructuralDimension_(match[2], "section"), height: normalizeEloStructuralDimension_(match[3], "section") };
+  }
+
+  function parseEloStructuralPackageRequest_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    const structuralBlockPattern = /(?:^|\b)\d{1,3}\s+blocos?\s+\d+(?:[,.]\d+)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?/;
+    const wallBlockOnly = /parede|alvenaria|tijolo|baiano|ceramico|cer.mico/.test(text) || (/\bbloco\b/.test(text) && !/fundacao|funda..o|sapata|baldrame|pilar|\bviga\b/.test(text) && !structuralBlockPattern.test(text));
+    if (wallBlockOnly) return null;
+    let type = "";
+    if (/sapata/.test(text)) type = "sapata";
+    else if (/bloco.*fundacao|bloco.*funda..o|fundacao|funda..o/.test(text) && /bloco/.test(text)) type = "bloco_fundacao";
+    else if (structuralBlockPattern.test(text)) type = "bloco_fundacao";
+    else if (/baldrame/.test(text)) type = "viga_baldrame";
+    else if (/pilar|coluna/.test(text)) type = "pilar";
+    else if (/\bviga\b/.test(text)) type = "viga_aerea";
+    if (!type) return null;
+
+    if (type === "sapata" || type === "bloco_fundacao" || type === "pilar") {
+      const triple = extractEloStructuralTriple_(raw);
+      if (!triple) return { type: type, incomplete: true };
+      const quantity = extractEloStructuralQuantity_(raw, type === "sapata" ? "sapatas?" : (type === "pilar" ? "pilares?|colunas?" : "blocos?"));
+      const width = normalizeEloStructuralDimension_(triple[0], type === "pilar" ? "section" : "length");
+      const length = normalizeEloStructuralDimension_(triple[1], type === "pilar" ? "section" : "length");
+      const height = normalizeEloStructuralDimension_(triple[2], "length");
+      if (!width || !length || !height) return { type: type, incomplete: true };
+      const unitVolume = width * length * height;
+      const totalVolume = unitVolume * quantity;
+      return {
+        type: type,
+        quantity: quantity,
+        width: width,
+        length: length,
+        height: height,
+        unitVolume: unitVolume,
+        totalVolume: totalVolume,
+        excavationVolume: type === "sapata" ? totalVolume : 0,
+        formArea: type === "pilar" ? 2 * (width + length) * height * quantity : 0
+      };
+    }
+
+    const section = extractEloStructuralLengthAndSection_(raw);
+    if (!section || !section.length || !section.width || !section.height) return { type: type, incomplete: true };
+    const totalVolume = section.length * section.width * section.height;
+    return {
+      type: type,
+      quantity: 1,
+      width: section.width,
+      length: section.length,
+      height: section.height,
+      unitVolume: totalVolume,
+      totalVolume: totalVolume,
+      excavationVolume: 0,
+      formArea: 2 * section.length * section.height
+    };
+  }
+
+  function getEloStructuralElementLabel_(type) {
+    if (type === "sapata") return "Sapata isolada";
+    if (type === "bloco_fundacao") return "Bloco de Fundacao";
+    if (type === "viga_baldrame") return "Viga baldrame";
+    if (type === "pilar") return "Pilar";
+    if (type === "viga_aerea") return "Viga aerea";
+    return "Elemento estrutural";
+  }
+
+  function buildEloStructuralCompositionQueries_(type) {
+    if (type === "sapata") return ["sapata isolada concreto", "sapata fundacao", "concreto sapata"];
+    if (type === "bloco_fundacao") return ["bloco de fundacao concreto", "bloco fundacao", "concreto bloco fundacao"];
+    if (type === "viga_baldrame") return ["viga baldrame concreto", "baldrame concreto", "forma viga baldrame"];
+    if (type === "pilar") return ["pilar concreto armado", "concreto pilar", "forma pilar"];
+    if (type === "viga_aerea") return ["viga concreto armado", "concreto viga", "forma viga"];
+    return ["estrutura concreto"];
+  }
+
+  function findEloStructuralOfficialCandidates_(type) {
+    const engine = getEloStockObrasEngine_();
+    if (!engine) return [];
+    const candidates = [];
+    buildEloStructuralCompositionQueries_(type).forEach(function (query) {
+      if (typeof engine.searchImportedOfficialCompositions === "function") {
+        candidates.push.apply(candidates, (engine.searchImportedOfficialCompositions(query, { limit: 8, controlledService: type }) || []).filter(function (candidate) { return isEloCompositionForService_(candidate, type); }));
+      }
+      if (typeof engine.findComposition === "function") {
+        const externalCandidate = engine.findComposition({ service: query, unit: "m3", serviceType: type });
+        if (externalCandidate && isEloCompositionForService_(externalCandidate, type)) candidates.push(externalCandidate);
+      }
+      if (typeof engine.findBestComposition === "function") {
+        const bestCandidate = engine.findBestComposition({ service: query, unit: "m3", serviceType: type });
+        if (bestCandidate && isEloCompositionForService_(bestCandidate, type)) candidates.push(bestCandidate);
+      }
+    });
+    return sortEloCompositionCandidatesByPreference_(dedupeEloCompositionCandidates_(candidates.filter(function (candidate) {
+      return buildEloTechnicalCompositionContract_(candidate).valid;
+    })));
+  }
+
+  function buildEloStructuralMultipleChoiceResponse_(geometry, candidates) {
+    const label = getEloStructuralElementLabel_(geometry.type);
+    const lines = [
+      "PACOTE ESTRUTURAL",
+      "Encontrei mais de uma composicao tecnica oficial compativel para " + label + ".",
+      "",
+      "Nao vou assumir automaticamente. Informe qual deseja utilizar:",
+      ""
+    ];
+    candidates.slice(0, 5).forEach(function (candidate, index) {
+      const contract = buildEloTechnicalCompositionContract_(candidate);
+      lines.push((index + 1) + ". " + contract.codigo + " | " + contract.descricao + " | unidade " + contract.unidade + " | " + contract.fonte + (contract.uf ? " " + contract.uf : "") + (contract.mes ? " " + contract.mes : ""));
+    });
+    lines.push("", "Observacoes tecnicas", "- Os quantitativos apresentados nao substituem projeto estrutural.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
+    return { shortAnswer: "Mais de uma composicao estrutural encontrada.", fullAnswer: lines.join("\n"), nextAction: "Informe o codigo da composicao escolhida para continuar o pacote estrutural.", canSave: false, sessionTheme: "structural_package", sessionIntent: "structural_package_composition_choice" };
+  }
+
+  function buildEloStructuralPackageResponse_(geometry) {
+    if (!geometry || geometry.incomplete) {
+      return {
+        shortAnswer: "Antes de calcular, preciso das dimensoes completas do elemento estrutural.",
+        fullAnswer: [
+          "PACOTE ESTRUTURAL",
+          "Antes de calcular, preciso das dimensoes completas do elemento estrutural.",
+          "",
+          "Exemplos:",
+          "- 8 sapatas 1,20 x 1,20 x 0,40",
+          "- Baldrame 40 m 15 x 30",
+          "- 12 pilares 20 x 20 x 3",
+          "",
+          "Observacoes tecnicas",
+          "- Nao faço dimensionamento estrutural.",
+          "- Armadura e detalhamento exigem projeto estrutural por profissional habilitado."
+        ].join("\n"),
+        nextAction: "Informe quantidade e dimensoes do elemento.",
+        canSave: false,
+        sessionTheme: "structural_package",
+        sessionIntent: "structural_package_missing_dimensions"
+      };
+    }
+    const candidates = findEloStructuralOfficialCandidates_(geometry.type);
+    if (candidates.length > 1) return buildEloStructuralMultipleChoiceResponse_(geometry, candidates);
+    const composition = candidates[0] || null;
+    const contract = composition ? buildEloTechnicalCompositionContract_(composition) : null;
+    const serviceBriefing = { area_liquida_m2: geometry.totalVolume, perda_percentual: 0 };
+    const budgetItems = composition ? buildEloAssistedBudgetItems_(serviceBriefing, contract, composition) : { lines: [], hasAnyPrice: false, hasMissingPrice: false, totalWithPrices: 0 };
+    const label = getEloStructuralElementLabel_(geometry.type);
+    const lines = [
+      "PACOTE ESTRUTURAL",
+      "Relatorio estrutural quantitativo para revisao tecnica. Calculei apenas geometria simples e busquei composicoes oficiais/importadas validadas quando disponiveis.",
+      "",
+      "Elemento",
+      label,
+      "",
+      "Premissas",
+      "- Quantidade: " + formatEloOperationalQuantity_(geometry.quantity || 1),
+      geometry.type === "viga_baldrame" || geometry.type === "viga_aerea" ? "- Comprimento: " + formatEloWallPremiseMeasure_(geometry.length, "m") : "- Largura: " + formatEloWallPremiseMeasure_(geometry.width, "m"),
+      geometry.type === "viga_baldrame" || geometry.type === "viga_aerea" ? "- Secao: " + formatEloWallPremiseMeasure_(geometry.width, "m") + " x " + formatEloWallPremiseMeasure_(geometry.height, "m") : "- Comprimento/profundidade: " + formatEloWallPremiseMeasure_(geometry.length, "m"),
+      geometry.type === "viga_baldrame" || geometry.type === "viga_aerea" ? "" : "- Altura: " + formatEloWallPremiseMeasure_(geometry.height, "m"),
+      "",
+      "Memoria de calculo",
+      "- Volume unitario: " + formatEloOperationalQuantity_(geometry.unitVolume) + " m3",
+      "- Volume total: " + formatEloOperationalQuantity_(geometry.totalVolume) + " m3",
+      geometry.excavationVolume ? "- Escavacao estimada: " + formatEloOperationalQuantity_(geometry.excavationVolume) + " m3" : "",
+      geometry.formArea ? "- Area de forma lateral: " + formatEloOperationalQuantity_(geometry.formArea) + " m2" : "",
+      "",
+      "Composicoes encontradas"
+    ].filter(function (line) { return line !== ""; });
+    if (contract && contract.valid) {
+      lines.push("- Fonte: " + contract.fonte);
+      lines.push("- Codigo: " + contract.codigo);
+      lines.push("- Descricao: " + contract.descricao);
+      lines.push("- Unidade: " + contract.unidade);
+      lines.push("- UF/mes: " + (contract.uf || "nao informada") + " / " + (contract.mes || "nao informado"));
+    } else {
+      lines.push("- Nao encontrei composicao oficial para " + label.toLowerCase() + " na base atualmente carregada.");
+    }
+    lines.push("", "Quantitativos");
+    lines.push("- Concreto/geometria: " + formatEloOperationalQuantity_(geometry.totalVolume) + " m3");
+    if (geometry.formArea) lines.push("- Forma lateral estimada: " + formatEloOperationalQuantity_(geometry.formArea) + " m2");
+    if (budgetItems.lines.length) lines.push(budgetItems.lines.join("\n"));
+    lines.push("- Aco nao calculado automaticamente. Necessario projeto estrutural." );
+    lines.push("", "Custos encontrados");
+    if (budgetItems.hasAnyPrice) lines.push("- Custo parcial calculado com os precos existentes nas composicoes: R$ " + formatEloOperationalQuantity_(budgetItems.totalWithPrices) + (budgetItems.hasMissingPrice ? ". Existem insumos sem preco; nao trate como custo total oficial." : "."));
+    else lines.push("- Precos oficiais nao informados ou composicao nao localizada; custo total nao calculado.");
+    lines.push("", "Observacoes tecnicas", "- Os quantitativos apresentados nao substituem projeto estrutural.", "- Nao faço dimensionamento estrutural nem calculo armaduras normativas.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
+    return { shortAnswer: "Pacote estrutural consolidado para revisao tecnica.", fullAnswer: lines.join("\n"), nextAction: contract && contract.valid ? "Revise geometria, composicao e premissas com o responsavel tecnico." : "Importe ou informe composicao SINAPI/ORSE oficial para completar custos e consumos.", canSave: true, sessionTheme: "structural_package", sessionIntent: "structural_package" };
+  }
+
+  function buildEloStructuralPackageQuickAnswer_(message) {
+    const geometry = parseEloStructuralPackageRequest_(message);
+    if (!geometry) return null;
+    return buildEloStructuralPackageResponse_(geometry);
   }
 
   function buildEloStockObrasOfficialCompositionResponse_(briefing, composition) {
@@ -12228,6 +12456,11 @@
     const wallCompletePackageQuickAnswer = buildEloWallCompletePackageQuickAnswer_(cleanQuestion);
     if (wallCompletePackageQuickAnswer) {
       return wallCompletePackageQuickAnswer;
+    }
+
+    const structuralPackageQuickAnswer = buildEloStructuralPackageQuickAnswer_(cleanQuestion);
+    if (structuralPackageQuickAnswer) {
+      return structuralPackageQuickAnswer;
     }
 
 
