@@ -27,6 +27,7 @@
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
   const ELO_STOCK_IA_PENDING_PLAN_KEY = "obraReport.stockIa.pendingLaunchPlan";
+  const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
@@ -9609,21 +9610,103 @@
   }
 
   function isEloOfficialStockAiComposition_(composition) {
-    if (!composition || !hasEloPositiveCompositionInputs_(composition)) {
-      return false;
-    }
-    const metadata = composition.metadata || {};
-    if (composition.isMock || composition.mockOnly || metadata.isMock || metadata.mockOnly) {
-      return false;
-    }
-    const source = normalizeText(composition.source || composition.sourceName || "");
-    const sourceType = normalizeText(composition.sourceType || metadata.sourceType || "");
-    return composition.isRealComposition === true ||
+    return buildEloTechnicalCompositionContract_(composition).valid;
+  }
+
+  function getEloCompositionCode_(composition) {
+    return composition && (composition.code || composition.id || composition.compositionCode) || "";
+  }
+
+  function getEloCompositionDescription_(composition) {
+    return composition && (composition.description || composition.name || composition.service || composition.compositionName) || "";
+  }
+
+  function getEloCompositionUnit_(composition) {
+    return composition && (composition.productionUnit || composition.unit || composition.compositionUnit) || "m2";
+  }
+
+  function getEloInputCoefficient_(input) {
+    return parseEloOperationalNumber_(input && (
+      input.coefficient !== undefined ? input.coefficient :
+        input.quantityPerUnit !== undefined ? input.quantityPerUnit :
+          input.coeficiente
+    ));
+  }
+
+  function getEloInputUnitPrice_(input) {
+    return parseEloOperationalNumber_(input && (
+      input.unitPrice !== undefined ? input.unitPrice :
+        input.precoUnitario !== undefined ? input.precoUnitario :
+          input.preco_unitario !== undefined ? input.preco_unitario :
+            input.price !== undefined ? input.price :
+              input.cost !== undefined ? input.cost :
+                input.custo_unitario
+    ));
+  }
+
+  function buildEloTechnicalCompositionContract_(composition) {
+    const metadata = composition && composition.metadata || {};
+    const source = composition && (composition.source || composition.sourceName) || "";
+    const sourceType = composition && (composition.sourceType || metadata.sourceType) || "";
+    const normalizedSource = normalizeText(source);
+    const normalizedSourceType = normalizeText(sourceType);
+    const inputs = getEloCompositionInputs_(composition).map(function (input, index) {
+      const coefficient = getEloInputCoefficient_(input);
+      return {
+        index: index,
+        codigo: input && (input.code || input.codigo || input.id) || "insumo_" + (index + 1),
+        nome: input && (input.name || input.material || input.descricao) || "Insumo sem nome",
+        unidade: input && (input.unit || input.unidade) || "un",
+        coeficiente: coefficient,
+        precoUnitario: getEloInputUnitPrice_(input)
+      };
+    });
+    const hasPositiveInputs = inputs.some(function (input) { return input.coeficiente > 0; });
+    const isMock = !!(composition && (composition.isMock || composition.mockOnly || metadata.isMock || metadata.mockOnly));
+    const isOfficial = !!(composition && (
+      composition.isRealComposition === true ||
+      composition.isOfficial === true ||
       metadata.isRealComposition === true ||
       metadata.isOfficial === true ||
-      sourceType === "official_imported_file" ||
-      source.indexOf("sinapi") >= 0 ||
-      source.indexOf("orse") >= 0;
+      normalizedSourceType === "official_imported_file" ||
+      normalizedSource === "sinapi" ||
+      normalizedSource === "orse" ||
+      normalizedSource.indexOf("sinapi") >= 0 ||
+      normalizedSource.indexOf("orse") >= 0
+    ));
+    const isInternalValidated = !!(composition && (
+      composition.isInternalValidated === true ||
+      composition.internalValidated === true ||
+      metadata.isInternalValidated === true ||
+      metadata.internalValidated === true ||
+      metadata.validatedInternal === true
+    ));
+    const isDemonstrative = isMock ||
+      (!isOfficial && !isInternalValidated) ||
+      normalizedSource.indexOf("demonstrativa") >= 0 ||
+      normalizedSource.indexOf("editavel") >= 0 ||
+      normalizedSource.indexOf("mock") >= 0;
+    const reasons = [];
+    if (!composition) reasons.push("Composicao ausente.");
+    if (isMock) reasons.push("Composicao marcada como mock/teste.");
+    if (isDemonstrative) reasons.push("Composicao demonstrativa/editavel nao pode ser base oficial.");
+    if (!hasPositiveInputs) reasons.push("Composicao sem coeficientes/insumos positivos.");
+    if (!isOfficial && !isInternalValidated) reasons.push("Fonte tecnica oficial ou interna validada nao confirmada.");
+    return {
+      valid: !!composition && !isMock && !isDemonstrative && hasPositiveInputs && (isOfficial || isInternalValidated),
+      codigo: getEloCompositionCode_(composition) || "sem codigo",
+      descricao: getEloCompositionDescription_(composition) || "sem descricao",
+      unidade: getEloCompositionUnit_(composition),
+      fonte: source || (isInternalValidated ? "composicao interna validada" : "nao informada"),
+      uf: composition && (composition.sourceRegion || composition.state || metadata.state) || "",
+      mes: composition && (composition.sourceDate || composition.referenceMonth || metadata.referenceMonth) || "",
+      sourceType: sourceType,
+      oficial: isOfficial,
+      internaValidada: isInternalValidated,
+      demonstrativa: isDemonstrative,
+      insumos: inputs,
+      reasons: reasons
+    };
   }
 
   function buildEloStockObrasCompositionQueries_(briefing) {
@@ -9641,9 +9724,38 @@
   }
 
   function findEloStockObrasOfficialComposition_(briefing) {
+    return findEloStockObrasOfficialCompositionCandidates_(briefing)[0] || null;
+  }
+
+  function getEloCompositionCandidateKey_(composition) {
+    return [
+      normalizeText(composition && (composition.source || "")),
+      normalizeText(getEloCompositionCode_(composition)),
+      normalizeText(getEloCompositionDescription_(composition)),
+      normalizeText(getEloCompositionUnit_(composition))
+    ].join("|");
+  }
+
+
+  function sortEloCompositionCandidatesByPreference_(candidates) {
+    const preferredSource = getEloTechnicalSourcePreference_();
+    const list = (candidates || []).slice();
+    if (!preferredSource) {
+      return list;
+    }
+    return list.sort(function (first, second) {
+      const firstSource = String(first && first.source || "").toUpperCase();
+      const secondSource = String(second && second.source || "").toUpperCase();
+      const firstScore = firstSource === preferredSource ? 0 : 1;
+      const secondScore = secondSource === preferredSource ? 0 : 1;
+      return firstScore - secondScore;
+    });
+  }
+
+  function findEloStockObrasOfficialCompositionCandidates_(briefing) {
     const engine = getEloStockObrasEngine_();
     if (!engine) {
-      return null;
+      return [];
     }
     const candidates = [];
     buildEloStockObrasCompositionQueries_(briefing).forEach(function (query) {
@@ -9657,7 +9769,20 @@
         candidates.push(engine.findBestComposition({ service: query, unit: "m2", serviceType: "alvenaria" }));
       }
     });
-    return candidates.filter(isEloOfficialStockAiComposition_)[0] || null;
+    const seen = {};
+    const validCandidates = candidates.filter(function (candidate) {
+      const contract = buildEloTechnicalCompositionContract_(candidate);
+      if (!contract.valid) {
+        return false;
+      }
+      const key = getEloCompositionCandidateKey_(candidate);
+      if (seen[key]) {
+        return false;
+      }
+      seen[key] = true;
+      return true;
+    });
+    return sortEloCompositionCandidatesByPreference_(validCandidates);
   }
 
   function buildEloStockObrasTechnicalBaseLabel_(composition) {
@@ -9693,85 +9818,179 @@
     });
   }
 
-  function buildEloStockObrasOfficialCompositionResponse_(briefing, composition) {
-    const engine = getEloStockObrasEngine_();
-    calculateEloStockObrasLiquidArea_(briefing);
-    const openingSummary = formatEloStockObrasOpenings_(briefing);
-    const service = {
-      service: composition.service || composition.name || composition.description || "Alvenaria",
-      serviceType: "alvenaria",
-      quantity: briefing.area_liquida_m2,
-      unit: composition.productionUnit || composition.unit || "m2",
-      composition: composition
+  function buildEloAssistedBudgetItems_(briefing, contract, composition) {
+    const serviceQuantity = parseEloOperationalNumber_(briefing && briefing.area_liquida_m2);
+    const baseLoss = parseEloOperationalNumber_(composition && (composition.lossPercent !== undefined ? composition.lossPercent : composition.perda_base));
+    const adoptedLoss = briefing && briefing.perda_percentual !== null && briefing.perda_percentual !== undefined
+      ? parseEloOperationalNumber_(briefing.perda_percentual)
+      : baseLoss;
+    let totalWithPrices = 0;
+    let hasAnyPrice = false;
+    let hasMissingPrice = false;
+    const lines = (contract.insumos || []).filter(function (input) {
+      return input.coeficiente > 0;
+    }).map(function (input) {
+      const liquid = serviceQuantity * input.coeficiente;
+      const finalQuantity = liquid * (1 + Math.max(0, adoptedLoss) / 100);
+      const hasPrice = input.precoUnitario > 0;
+      const cost = hasPrice ? finalQuantity * input.precoUnitario : 0;
+      if (hasPrice) {
+        hasAnyPrice = true;
+        totalWithPrices += cost;
+      } else {
+        hasMissingPrice = true;
+      }
+      const baseLossQuantity = liquid * (1 + Math.max(0, baseLoss) / 100);
+      return [
+        "- " + input.nome + " (" + input.codigo + ")",
+        "  - Coeficiente: " + formatEloOperationalQuantity_(input.coeficiente) + " " + formatEloOperationalDisplayUnit_(input.unidade) + "/" + formatEloOperationalDisplayUnit_(contract.unidade),
+        "  - Consumo liquido: " + formatEloOperationalQuantity_(liquid) + " " + formatEloOperationalDisplayUnit_(input.unidade),
+        "  - Perda base da composicao: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (baseLoss > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(baseLossQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade) : ""),
+        "  - Perda adotada: " + formatEloOperationalQuantity_(adoptedLoss || 0) + "%",
+        "  - Consumo final: " + formatEloOperationalQuantity_(finalQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade),
+        hasPrice ? "  - Custo unitario: R$ " + formatEloOperationalQuantity_(input.precoUnitario) + " | custo do insumo: R$ " + formatEloOperationalQuantity_(cost) : "  - Custo unitario: nao informado; custo nao calculado."
+      ].join("\n");
+    });
+    return {
+      lines: lines,
+      hasAnyPrice: hasAnyPrice,
+      hasMissingPrice: hasMissingPrice,
+      totalWithPrices: totalWithPrices,
+      adoptedLoss: adoptedLoss || 0
     };
-    const prediction = engine && typeof engine.calculateMultipleServices === "function"
-      ? engine.calculateMultipleServices([service])
-      : { predictedItems: [] };
-    const metadata = composition.metadata || {};
-    const calculatedItems = formatEloStockObrasCalculatedItems_(prediction.predictedItems || prediction.items || [], briefing.perda_percentual);
+  }
+
+  function buildEloStockObrasCompositionChoiceResponse_(briefing, candidates) {
+    calculateEloStockObrasLiquidArea_(briefing);
     const project = getActiveEloWorkProject_();
-    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria", { hasOfficialBase: true });
     const lines = [
       "Resposta principal",
-      "Briefing técnico consolidado; composição oficial localizada.",
-      "",
-      "Memória de cálculo:",
-      "- Área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + " x coeficientes oficiais da composição " + (composition.code || composition.id || "selecionada") + ".",
+      "Encontrei mais de uma composicao tecnica compativel para a alvenaria. Antes de calcular consumo ou custo, preciso que voce confirme qual composicao deseja usar.",
       "",
       "Premissas utilizadas:",
-      "Memória permanente de obra:",
+      "Memoria permanente de obra:",
       formatEloWorkMemoryLines_(project).join("\n"),
       "",
-      "Premissas do serviço:",
+      "Premissas do servico:",
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
+      "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
+      "",
+      "Base tecnica utilizada: aguardando selecao da composicao",
+      "",
+      "Composicoes encontradas:"
+    ];
+    candidates.slice(0, 5).forEach(function (candidate, index) {
+      const contract = buildEloTechnicalCompositionContract_(candidate);
+      lines.push((index + 1) + ". " + contract.codigo + " | " + contract.descricao + " | unidade " + contract.unidade + " | " + contract.fonte + (contract.uf ? " " + contract.uf : "") + (contract.mes ? " " + contract.mes : ""));
+    });
+    lines.push("");
+    lines.push.apply(lines, ["", buildEloBudgetMvpScopeNotice_(), ""]);
+    lines.push("Proxima acao recomendada");
+    lines.push("Informe o codigo da composicao escolhida para eu gerar o calculo auditavel.");
+    return {
+      shortAnswer: "Mais de uma composicao tecnica encontrada; preciso da sua escolha.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe o codigo da composicao escolhida.",
+      canSave: false,
+      sessionTheme: "stock_obras_composicao",
+      sessionIntent: "briefing_composicao_escolha"
+    };
+  }
+
+  function buildEloStockObrasOfficialCompositionResponse_(briefing, composition) {
+    calculateEloStockObrasLiquidArea_(briefing);
+    const contract = buildEloTechnicalCompositionContract_(composition);
+    if (!contract.valid) {
+      return buildEloStockObrasCompositionResponse_(briefing, false);
+    }
+    const openingSummary = formatEloStockObrasOpenings_(briefing);
+    const project = getActiveEloWorkProject_();
+    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria", { hasOfficialBase: true });
+    const budgetItems = buildEloAssistedBudgetItems_(briefing, contract, composition);
+    const costSummary = budgetItems.hasAnyPrice
+      ? "- Custo parcial calculado com os insumos que possuem preco: R$ " + formatEloOperationalQuantity_(budgetItems.totalWithPrices) + (budgetItems.hasMissingPrice ? ". Existem insumos sem preco; nao trate como custo total oficial." : ".")
+      : "- Precos unitarios nao informados na composicao importada; custo total nao calculado.";
+    const lines = [
+      "Resposta principal",
+      "Orcamento assistido de alvenaria pronto para revisao tecnica. A composicao foi localizada e o consumo foi calculado de forma auditavel.",
+      "",
+      "Memória de cálculo:",
+      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Area liquida: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Formula de consumo: area liquida x coeficiente da composicao x (1 + perda adotada).",
+      "",
+      "Premissas utilizadas:",
+      "Memoria permanente de obra:",
+      formatEloWorkMemoryLines_(project).join("\n"),
+      "",
+      "Premissas do servico:",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
-      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
-      "- Vãos descontados: " + openingSummary,
-      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
-      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
+      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Vaos descontados: " + openingSummary,
+      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
       "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
       briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
       "",
-      "Base técnica utilizada: " + (composition.source || "composição interna validada"),
-      "- " + buildEloStockObrasTechnicalBaseLabel_(composition),
+      "Base tecnica utilizada: " + contract.fonte,
+      "- Codigo: " + contract.codigo,
+      "- Descricao: " + contract.descricao,
+      "- Unidade: " + contract.unidade,
+      "- Fonte: " + contract.fonte,
+      "- UF/mes: " + (contract.uf || "nao informada") + " / " + (contract.mes || "nao informado"),
       "",
-      "Composição localizada:",
-      "- Código: " + (composition.code || composition.id || "sem código"),
-      "- Descrição: " + (composition.description || composition.name || composition.service || "sem descrição"),
-      "- Unidade: " + (composition.productionUnit || composition.unit || "m²"),
-      "- Fonte: " + (composition.source || "não informada"),
-      "- UF/mês: " + (composition.sourceRegion || metadata.state || "não informada") + " / " + (composition.sourceDate || metadata.referenceMonth || "não informado"),
+      "Consumo calculado pelo Elo Orcamentista Assistido:",
+      budgetItems.lines.length ? budgetItems.lines.join("\n") : "- A composicao foi localizada, mas nao retornou insumos calculaveis.",
+      "",
+      "Resumo financeiro:",
+      costSummary,
+      "",
+      buildEloBudgetMvpScopeNotice_(),
       "",
       "Alertas do auditor:",
-      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta crítico adicional com a composição localizada. Confirme aderência da composição ao serviço real antes de executar."),
+      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta critico adicional com a composicao localizada. Confirme aderencia da composicao ao servico real antes de executar."),
+      budgetItems.hasMissingPrice ? "- Existem insumos sem preco unitario; custo total oficial permanece pendente." : "",
       "",
-      "Próxima ação recomendada",
-      "Revise os insumos calculados e confirme se a composição oficial corresponde ao serviço desejado.",
+      "Bloco de revisao do orcamento assistido",
+      "- Servico: alvenaria",
+      "- Composicao selecionada: " + contract.codigo + " - " + contract.descricao,
+      "- Resultado parcial: consumo calculado; custo " + (budgetItems.hasAnyPrice && !budgetItems.hasMissingPrice ? "calculado com precos informados" : "pendente de precos unitarios completos"),
+      "- Pendencias: " + (budgetItems.hasMissingPrice ? "informar precos unitarios ausentes antes de fechar custo oficial" : "validar aderencia da composicao ao servico executado"),
       "",
-      "Consumo calculado pelo motor Stock Obras:"
+      "# Relatorio Tecnico de Orcamento - Alvenaria",
+      "1. Identificacao: " + (project && project.nome ? project.nome : "obra atual"),
+      "2. Escopo: alvenaria com bloco " + formatEloStockObrasBlockDimension_(briefing),
+      "3. Premissas: area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ", perda " + formatEloStockObrasLoss_(briefing) + ".",
+      "4. Base tecnica: " + contract.fonte + " | " + contract.codigo + " | " + contract.unidade + ".",
+      "5. Memoria de calculo: area liquida x coeficientes oficiais/importados.",
+      "6. Consumos: detalhados acima por insumo.",
+      "7. Custos: " + (budgetItems.hasAnyPrice ? "parciais conforme precos informados." : "nao calculados por falta de precos unitarios."),
+      "8. Alertas: validar composicao, perdas, vaos e precos antes da contratacao.",
+      "9. Proxima acao: deseja gerar o relatorio tecnico final em Markdown/HTML?"
     ].filter(Boolean);
-    if (calculatedItems.length) {
-      lines.push.apply(lines, calculatedItems);
-    } else {
-      lines.push("- A composição foi localizada, mas não retornou insumos calculáveis.");
-    }
     return {
-      shortAnswer: "Briefing técnico consolidado; composição oficial localizada.",
+      shortAnswer: "Orcamento assistido de alvenaria pronto para revisao tecnica.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Revise os insumos calculados e confirme se a composição oficial corresponde ao serviço desejado.",
+      nextAction: "Revise a composicao, complete precos unitarios se necessario e confirme se deseja gerar o relatorio tecnico final.",
       canSave: true,
       sessionTheme: "stock_obras_composicao",
-      sessionIntent: "briefing_composicao_oficial_localizada"
+      sessionIntent: "orcamentista_assistido_alvenaria"
     };
   }
 
   function buildEloStockObrasCompositionResponse_(briefing, alreadyConsidered) {
     calculateEloStockObrasLiquidArea_(briefing);
-    const officialComposition = findEloStockObrasOfficialComposition_(briefing);
-    if (officialComposition) {
-      return buildEloStockObrasOfficialCompositionResponse_(briefing, officialComposition);
+    const officialCandidates = findEloStockObrasOfficialCompositionCandidates_(briefing);
+    if (officialCandidates.length > 1) {
+      return buildEloStockObrasCompositionChoiceResponse_(briefing, officialCandidates);
+    }
+    if (officialCandidates.length === 1) {
+      return buildEloStockObrasOfficialCompositionResponse_(briefing, officialCandidates[0]);
     }
     const openingSummary = formatEloStockObrasOpenings_(briefing);
     const project = getActiveEloWorkProject_();
@@ -9806,6 +10025,8 @@
       "Alertas do auditor:",
       auditorAlerts.join("\n"),
       "",
+      buildEloBudgetMvpScopeNotice_(),
+      "",
       "Próxima ação recomendada",
       "Você pode informar o código/composição SINAPI/ORSE ou autorizar explicitamente uma estimativa preliminar NÃO OFICIAL."
     ].filter(Boolean);
@@ -9830,7 +10051,7 @@
     if (!isPendingWall && !shouldStart && !hasActiveBriefing) {
       return null;
     }
-    const relevantFollowUp = /porta|janela|vao|vãos|bloco|tijolo|alvenaria|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    const relevantFollowUp = /porta|janela|vao|vãos|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
     if (!isPendingWall && !shouldStart && hasActiveBriefing && !relevantFollowUp) {
       return null;
     }
@@ -9938,8 +10159,13 @@
   }
 
   function shouldStartEloWallPremiseCollection_(text) {
-    const hasMasonrySubject = /alvenaria|bloco|bloco\s+baiano|tijolo/.test(text) || (/parede|muro/.test(text) && !/chapisco|embo.o|emboco|reboco|revestimento/.test(text));
-    return hasMasonrySubject && (/fazer|executar|calcule|calcular|calcula|quantitativo|quantidade|quantos|orcamento|or.amento|custo|preco|pre.o|valor|material|materiais|parede|muro|alvenaria|bloco/.test(text));
+    if (/produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|equipe|prazo/.test(text)) {
+      return false;
+    }
+    const hasExplicitWallSubject = /bloco|bloco\s+baiano|tijolo|parede|muro/.test(text) && !/chapisco|embo.o|emboco|reboco/.test(text);
+    const hasExecutableMasonry = /alvenaria/.test(text) && /fazer|executar|levantar|assentar|orcar|orce|calcule|calcular|quantos|bloco|tijolo|parede|muro/.test(text);
+    const hasMasonrySubject = hasExplicitWallSubject || hasExecutableMasonry;
+    return hasMasonrySubject && (/fazer|executar|levantar|assentar|orcar|orce|calcule|calcular|calcula|quantitativo|quantidade|quantos|orcamento|or.amento|custo|custa|preco|pre.o|valor|material|materiais|parede|muro|bloco|tijolo/.test(text));
   }
 
   function saveEloPendingPremises_(type, raw, response) {
@@ -9960,9 +10186,15 @@
     const pending = ELO_SESSION_MEMORY.pendingQuantitativePremises;
     const currentText = normalizeText(message);
     const isPendingWall = pending && pending.type === "wall";
+    const isGenericBudgetOrProductivity = /quanto\s+custa|custo|orcamento|or.amento|produtividade|equipe|prazo|m.o\s+de\s+obra|mao\s+de\s+obra/.test(currentText) &&
+      !/bloco|porta|janela|vao|vãos|perda|revestimento|sem\s+portas|sem\s+janelas|\d{1,2}\s*x\s*\d{1,2}|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    if (isPendingWall && isGenericBudgetOrProductivity) {
+      clearEloPendingPremises_();
+      return null;
+    }
     const shouldStart = shouldStartEloWallPremiseCollection_(currentText);
     const activeStockObrasBriefing = ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active;
-    const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vãos|bloco|tijolo|alvenaria|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vãos|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
     if (!isPendingWall && !shouldStart && !stockObrasFollowUp) {
       return null;
     }
@@ -11396,6 +11628,8 @@
       "Próxima ação recomendada",
       "Informe o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.",
       "",
+      buildEloBudgetMvpScopeNotice_(),
+      "",
       "Não vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base."
     ];
     return {
@@ -11477,6 +11711,141 @@
     return /orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
   }
 
+
+  function getEloTechnicalSourcePreference_() {
+    try {
+      const value = String(window.sessionStorage && window.sessionStorage.getItem(ELO_TECH_SOURCE_PREFERENCE_KEY) || "").toUpperCase();
+      return value === "SINAPI" || value === "ORSE" ? value : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function setEloTechnicalSourcePreference_(source) {
+    const normalizedSource = String(source || "").toUpperCase();
+    if (normalizedSource !== "SINAPI" && normalizedSource !== "ORSE") {
+      return "";
+    }
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(ELO_TECH_SOURCE_PREFERENCE_KEY, normalizedSource);
+      }
+    } catch (error) {
+      // Preferencia temporaria; se o navegador bloquear storage, a resposta ainda continua segura.
+    }
+    return normalizedSource;
+  }
+
+  function detectEloTechnicalSourcePreferenceRequest_(message) {
+    const text = normalizeText(message || "").trim();
+    if (/^(quero|prefiro|usar|use|priorize|priorizar|trabalhar\s+com)\s+orse$/.test(text) || /^orse$/.test(text)) {
+      return "ORSE";
+    }
+    if (/^(quero|prefiro|usar|use|priorize|priorizar|trabalhar\s+com)\s+sinapi$/.test(text) || /^sinapi$/.test(text)) {
+      return "SINAPI";
+    }
+    return "";
+  }
+
+  function buildEloTechnicalSourcePreferenceAnswer_(message) {
+    const source = detectEloTechnicalSourcePreferenceRequest_(message);
+    if (!source) {
+      return null;
+    }
+    setEloTechnicalSourcePreference_(source);
+    return {
+      shortAnswer: "Preferencia tecnica registrada: " + source + ".",
+      fullAnswer: "Entendido. Vou priorizar composicoes " + source + " quando houver equivalentes disponiveis.",
+      nextAction: "Informe o servico, dimensoes e premissas para eu buscar a composicao adequada.",
+      canSave: false,
+      sessionTheme: "fonte_tecnica_orcamento",
+      sessionIntent: "preferencia_fonte_tecnica"
+    };
+  }
+
+  function getEloBudgetMvpScopeNoticeLines_() {
+    return [
+      "MVP Elo Orcamentista Assistido v1",
+      "",
+      "Escopo atual:",
+      "Alvenaria.",
+      "",
+      "Os quantitativos e custos apresentados referem-se apenas aos servicos atualmente suportados pelo motor de orcamento.",
+      "",
+      "Outras disciplinas podem exigir complementacao tecnica, validacao profissional ou composicoes adicionais."
+    ];
+  }
+
+  function buildEloBudgetMvpScopeNotice_() {
+    return getEloBudgetMvpScopeNoticeLines_().join("\n");
+  }
+
+  function buildEloGenericPriceQuestionAnswer_(message) {
+    const text = normalizeText(message || "").trim();
+    if (!/^(quanto\s+custa|qual\s+o\s+preco|qual\s+o\s+valor|custo\??|preco\??|valor\??)\??$/.test(text)) {
+      return null;
+    }
+    const lines = [
+      "Preciso identificar qual servico deseja orcar.",
+      "",
+      "Exemplos:",
+      "- parede de alvenaria",
+      "- reboco",
+      "- pintura",
+      "- contrapiso",
+      "",
+      "Informe o servico e suas dimensoes.",
+      "",
+      buildEloBudgetMvpScopeNotice_()
+    ];
+    return {
+      shortAnswer: "Preciso saber qual servico deseja orcar.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe o servico, dimensoes e premissas principais.",
+      canSave: false,
+      sessionTheme: "orcamento_servico_indefinido",
+      sessionIntent: "pedir_servico_para_preco"
+    };
+  }
+
+  function buildEloMultipleCompositionGuidanceAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!/mais\s+de\s+uma\s+composi..o|multiplas\s+composi..es|varias\s+composi..es|composi..es\s+compativeis/.test(text)) {
+      return null;
+    }
+    const briefing = getEloStockObrasCompositionBriefing_();
+    const candidates = sortEloCompositionCandidatesByPreference_(findEloStockObrasOfficialCompositionCandidates_(briefing));
+    const lines = [
+      "Encontrei mais de uma composicao compativel quando a base tecnica possui alternativas.",
+      "",
+      "Nao vou assumir automaticamente. A escolha precisa considerar bloco, funcao da parede, unidade, UF/mes e aderencia ao servico real.",
+      "",
+      "Composicoes para escolha:"
+    ];
+    if (candidates.length) {
+      candidates.slice(0, 5).forEach(function (candidate, index) {
+        const contract = buildEloTechnicalCompositionContract_(candidate);
+        lines.push((index + 1) + ". " + contract.codigo + " | " + contract.descricao + " | unidade " + contract.unidade + " | " + contract.fonte + (contract.uf ? " " + contract.uf : "") + (contract.mes ? " " + contract.mes : ""));
+      });
+    } else {
+      lines.push("1. Bloco ceramico 8 furos");
+      lines.push("2. Bloco ceramico estrutural");
+      lines.push("3. Bloco de concreto");
+    }
+    lines.push("");
+    lines.push("Informe qual deseja utilizar.");
+    lines.push("");
+    lines.push(buildEloBudgetMvpScopeNotice_());
+    return {
+      shortAnswer: "Preciso que voce escolha a composicao compativel.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe o codigo ou o tipo de composicao desejada.",
+      canSave: false,
+      sessionTheme: "stock_obras_composicao",
+      sessionIntent: "orientar_multiplas_composicoes"
+    };
+  }
+
   function isEloPaintingBudgetQuestion_(message) {
     const text = normalizeText(message || "");
     return /pintura|tinta|demaos?|selador|massa\s+corrida|massa\s+acrilica|parede\s+pintada|piso\s+pintado|acabamento\s+de\s+pintura/.test(text) && /orcar|orce|orcamento|custo|valor|quanto|calcular|calcule|consumo|comprar|compro/.test(text);
@@ -11498,6 +11867,8 @@
       "",
       "Base tecnica utilizada",
       "- Ainda nao localizada. Para orcamento ou consumo oficial, preciso de composicao SINAPI/ORSE ou interna validada.",
+      "",
+      buildEloBudgetMvpScopeNotice_(),
       "",
       "Proxima acao recomendada",
       "Para seguir, confirme: area de pintura, ambiente interno ou externo, tipo de superficie, sistema de pintura (selador/massa/tinta), numero de demaos e se deseja orcamento oficial por composicao ou estimativa NAO OFICIAL."
@@ -11590,6 +11961,21 @@
       return workMemoryQuestion;
     }
 
+    const technicalSourcePreferenceAnswer = buildEloTechnicalSourcePreferenceAnswer_(cleanQuestion);
+    if (technicalSourcePreferenceAnswer) {
+      return technicalSourcePreferenceAnswer;
+    }
+
+    const genericPriceQuestionAnswer = buildEloGenericPriceQuestionAnswer_(cleanQuestion);
+    if (genericPriceQuestionAnswer) {
+      return genericPriceQuestionAnswer;
+    }
+
+    const multipleCompositionGuidanceAnswer = buildEloMultipleCompositionGuidanceAnswer_(cleanQuestion);
+    if (multipleCompositionGuidanceAnswer) {
+      return multipleCompositionGuidanceAnswer;
+    }
+
     const naturalSimpleAnswer = buildEloNaturalSimpleAnswer_(cleanQuestion);
     if (naturalSimpleAnswer) {
       return naturalSimpleAnswer;
@@ -11609,13 +11995,13 @@
       return geometryLayerAnswer;
     }
 
-    if (isEloHighLevelConstructionBudgetQuestion_(cleanQuestion)) {
-      return buildEloConstructionTechnicalFallback_(cleanQuestion);
-    }
-
     const premiseQuestion = buildEloPremiseQuestion_(cleanQuestion);
     if (premiseQuestion) {
       return premiseQuestion;
+    }
+
+    if (isEloHighLevelConstructionBudgetQuestion_(cleanQuestion)) {
+      return buildEloConstructionTechnicalFallback_(cleanQuestion);
     }
 
     const wallRdoAnswer = buildEloWallRdoAnswer_(cleanQuestion);
