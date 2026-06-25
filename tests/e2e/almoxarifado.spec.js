@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -239,6 +239,112 @@ test.describe("Almoxarifado", () => {
     await expect(page.locator("[data-stock-full-dashboard-action='exit']").first()).toBeVisible();
     await expect(page.locator("#almoxManagerAuditButton")).toBeAttached();
     await expect(page.locator("#almoxDownloadPdfButton")).toBeAttached();
+  });
+
+
+  test("fila offline do Stock Full processa pendencias sem duplicar", async ({ page, context }) => {
+    const stockFullUrl = pathToFileURL(resolve("stockfull.html")).toString();
+    await page.goto(stockFullUrl);
+    await enterStockFullDemo(page);
+    await context.setOffline(true);
+
+    const queued = await page.evaluate(() => {
+      const keys = window.StockFullSync.storageKeys;
+      window.localStorage.removeItem(keys.queue);
+      window.localStorage.removeItem(keys.meta);
+      window.localStorage.removeItem(keys.idMap);
+      window.localStorage.removeItem(keys.syncedMovements);
+      const productId = window.StockFullSync.createTemporaryId("product");
+      const entryId = window.StockFullSync.createTemporaryId("movement");
+      const exitId = window.StockFullSync.createTemporaryId("movement");
+      window.StockFullSync.enqueue("product:create", {
+        id: productId,
+        name: "Produto Offline E2E",
+        unit: "un",
+        category: "Offline",
+        initialQuantity: 10,
+        currentStock: 10,
+        minimumStock: 2,
+        updatedAt: "2026-06-24T10:00:00.000Z"
+      }, { localOperationKey: "product:create:" + productId });
+      window.StockFullSync.enqueue("stock:entry", {
+        id: entryId,
+        itemId: productId,
+        productId,
+        type: "entrada",
+        quantity: 5,
+        responsible: "E2E",
+        createdAt: "2026-06-24T10:01:00.000Z"
+      }, { localOperationKey: "stock:entry:" + entryId });
+      window.StockFullSync.enqueue("stock:exit", {
+        id: exitId,
+        itemId: productId,
+        productId,
+        type: "saida",
+        quantity: 3,
+        responsible: "E2E",
+        createdAt: "2026-06-24T10:02:00.000Z"
+      }, { localOperationKey: "stock:exit:" + exitId });
+      return {
+        productId,
+        queue: window.StockFullSync.getQueue(),
+        canBlockInvalidExit: window.StockFullStock.canExit(999, 12) === false
+      };
+    });
+
+    expect(queued.productId).toMatch(/^tmp_product_/);
+    expect(queued.queue).toHaveLength(3);
+    expect(queued.queue.map((item) => item.status)).toEqual(["pending", "pending", "pending"]);
+    expect(queued.canBlockInvalidExit).toBe(true);
+    await expect(page.locator("#stockFullSyncStatus")).toContainText(/Offline|Pendente/i);
+    await expect(page.locator("#stockFullSyncDetails")).toContainText("3 pendência");
+
+    await context.setOffline(false);
+    await page.evaluate(() => {
+      const calls = [];
+      window.__stockFullSyncCalls = calls;
+      window.StockFullSync.configure({
+        transport: {
+          async createProduct(payload) {
+            calls.push({ type: "product", id: payload.id });
+            return { ok: true, item: { id: "remote_product_e2e" } };
+          },
+          async createEntry(payload) {
+            calls.push({ type: "entry", itemId: payload.itemId });
+            return { ok: true, entry: { id: "remote_entry_e2e" } };
+          },
+          async createExit(payload) {
+            calls.push({ type: "exit", itemId: payload.itemId });
+            return { ok: true, exit: { id: "remote_exit_e2e" } };
+          }
+        }
+      });
+    });
+
+    await Promise.all([
+      page.locator("#stockFullSyncNowButton").click(),
+      page.locator("#stockFullSyncNowButton").click().catch(() => {})
+    ]);
+    await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue().every((item) => item.status === "synced"))).toBe(true);
+
+    const result = await page.evaluate(() => ({
+      calls: window.__stockFullSyncCalls,
+      queue: window.StockFullSync.getQueue(),
+      map: window.StockFullSync.getIdMap(),
+      meta: window.StockFullSync.getMeta()
+    }));
+    expect(result.calls).toEqual([
+      { type: "product", id: queued.productId },
+      { type: "entry", itemId: queued.productId },
+      { type: "exit", itemId: queued.productId }
+    ]);
+    expect(result.map[queued.productId]).toBe("remote_product_e2e");
+    expect(result.meta.pendingCount).toBe(0);
+    await expect(page.locator("#stockFullSyncStatus")).toContainText("Online");
+
+    await page.locator("#stockFullSyncNowButton").click();
+    const callsAfterSecondSync = await page.evaluate(() => window.__stockFullSyncCalls.length);
+    expect(callsAfterSecondSync).toBe(3);
   });
 
   test.skip("Stock Full autenticado carrega produtos remotos sem alterar movimentacoes", async ({ page }) => {
