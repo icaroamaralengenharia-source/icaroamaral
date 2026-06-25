@@ -1,7 +1,7 @@
 ﻿(function (root) {
   "use strict";
 
-  const VERSION = "20260624-elo-budget-engine-v2-structured";
+  const VERSION = "20260624-elo-budget-engine-v3-operational";
 
   function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
   function normalize(value) { return clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
@@ -128,6 +128,8 @@
     const exportEngine = root.EloExportEngine || null;
     const baseStatusEngine = root.EloBaseStatusEngine || null;
     const traceabilityEngine = root.EloTraceabilityEngine || null;
+    const priceEngine = root.EloPriceEngine || null;
+    const dashboardView = root.EloDashboardView || null;
     const packageMissing = [];
     (workPackages.packages || []).forEach(function (pack) {
       (pack.missing || []).forEach(function (item) { packageMissing.push({ id: pack.id + ":" + item, message: pack.name + ": faltam dados - " + item + "." }); });
@@ -160,18 +162,35 @@
     const knowledgeGraphHints = graphEngine ? graphEngine.expandSearchTermsFromGraph([facts.roofMaterial, facts.wallMaterial, facts.floorMaterial, facts.projectType].filter(Boolean).join(" ")).slice(0, 20) : [];
     const selectableCompositions = selectionEngine ? selectionEngine.listSelectableCompositions(baseBudget) : [];
     const traceability = traceabilityEngine ? traceabilityEngine.buildTraceabilityEntries({ quantities: baseBudget.quantities, consumptions: baseBudget.consumptions, compositions: baseBudget.compositionMatches, blocked: baseBudget.consumptionBlocked }) : [];
+    const priceStatus = priceEngine ? priceEngine.attachPricesToBudgetRows(baseBudget.budgetTable && baseBudget.budgetTable.rows || [], technicalContext && technicalContext.priceSource || {}) : { pricedRows: [], missingPrices: [], canTotal: false, totals: null };
+    baseBudget.priceStatus = priceStatus;
+    const executiveClosing = executiveEngine && executiveEngine.prepareExecutiveClosing ? executiveEngine.prepareExecutiveClosing(savedRecord, baseBudget, { requireBdi: true }) : closingChecklist;
     const executivePreview = executiveReadiness && executiveReadiness.executivePreview || null;
     const exportData = exportEngine ? { budgetCsv: exportEngine.exportBudgetToCsv(baseBudget.budgetTable), projectJson: exportEngine.exportProjectRecordToJson(savedRecord), executivePreviewCsv: exportEngine.exportExecutivePreviewToCsv(executivePreview) } : null;
     baseBudget.projectRecord = savedRecord;
     baseBudget.projectRecordSaved = !!(projectStore && savedRecord);
     baseBudget.projectRecordId = savedRecord && savedRecord.id || "";
+    baseBudget.backendSaveStatus = projectStore && projectStore.getLastBackendStatus ? projectStore.getLastBackendStatus() : { source: savedRecord && savedRecord.persistenceSource || "local", ok: true };
     baseBudget.executiveReadiness = executiveReadiness;
     baseBudget.closingChecklist = closingChecklist;
+    baseBudget.executiveClosing = executiveClosing;
     baseBudget.dashboardData = dashboardData;
     baseBudget.knowledgeGraphHints = knowledgeGraphHints;
     baseBudget.selectableCompositions = selectableCompositions;
     baseBudget.traceability = traceability;
     baseBudget.exportData = exportData;
+    baseBudget.dashboardActionsAvailable = true;
+    if (dashboardData) {
+      dashboardData.projectRecordId = baseBudget.projectRecordId;
+      dashboardData.baseStatus = baseBudget.baseStatus;
+      dashboardData.executiveClosing = executiveClosing;
+      dashboardData.closingChecklist = closingChecklist;
+      dashboardData.selectableCompositions = selectableCompositions;
+      dashboardData.missing = baseBudget.missing;
+      dashboardData.audits = savedRecord && savedRecord.audits || [];
+    }
+    baseBudget.operationalDashboardHtml = dashboardView && dashboardData ? dashboardView.buildDashboardHtml(dashboardData) : "";
+    if (dashboardView && dashboardView.setLastBudget) dashboardView.setLastBudget(baseBudget);
     return baseBudget;
   }
 

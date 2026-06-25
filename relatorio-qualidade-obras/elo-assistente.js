@@ -17427,6 +17427,29 @@
     });
   }
 
+
+
+  function renderEloOperationalDashboardFromResponse_(response) {
+    try {
+      const budget = response && response.technicalEngine && response.technicalEngine.budget;
+      if (!budget || !window.EloDashboardView || !window.document) return;
+      const target = window.document.getElementById("elo-operational-dashboard") || window.document.querySelector(".elo-operational-dashboard-container");
+      const dashboardData = budget.dashboardData || {};
+      if (window.EloDashboardView.setLastBudget) window.EloDashboardView.setLastBudget(budget);
+      window.EloDashboardView.renderEloDashboard(target || "#elo-operational-dashboard", Object.assign({}, dashboardData, {
+        projectRecordId: budget.projectRecordId,
+        baseStatus: budget.baseStatus,
+        executiveClosing: budget.executiveClosing,
+        closingChecklist: budget.closingChecklist,
+        selectableCompositions: budget.selectableCompositions,
+        missing: budget.missing,
+        audits: budget.projectRecord && budget.projectRecord.audits || []
+      }));
+    } catch (error) {
+      // O painel operacional nunca deve travar a conversa do ELO.
+    }
+  }
+
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
@@ -17439,6 +17462,7 @@
     ELO_UI.pendingSavePrompt = null;
 
     const message = appendMessage("assistant", cleanAnswer);
+    renderEloOperationalDashboardFromResponse_(response);
     const actions = createElement("div", "elo-message-actions");
 
     if (response && response.libraryItem) {

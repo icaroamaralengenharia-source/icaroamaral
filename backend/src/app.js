@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
+import { defaultEloProjectsStore } from "./elo-projects-store.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -1887,6 +1888,80 @@ export function createApp(options = {}) {
     }
 
     response.json(result.payload);
+  });
+
+
+  const eloProjectsStore = options.eloProjectsStore || defaultEloProjectsStore;
+  function handleEloProjectError_(error, response) {
+    const status = error && error.status || 500;
+    response.status(status).json({ ok: false, error: error && error.message || "elo_projects_error" });
+  }
+
+  app.post("/api/elo/projects", (request, response) => {
+    try {
+      const record = eloProjectsStore.createProject(request.body || {});
+      response.status(201).json({ ok: true, source: "backend", project: record });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/projects", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", projects: eloProjectsStore.listProjects(request.query || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/projects/:id", (request, response) => {
+    try {
+      const project = eloProjectsStore.getProject(request.params.id);
+      if (!project) return response.status(404).json({ ok: false, error: "project_not_found" });
+      response.json({ ok: true, source: "backend", project });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.put("/api/elo/projects/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", project: eloProjectsStore.updateProject(request.params.id, request.body || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/projects/:id/revisions", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.appendRevision(request.params.id, request.body || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/projects/:id/audits", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.appendAudit(request.params.id, request.body || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/projects/:id/compositions/select", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.selectComposition(request.params.id, request.body || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/projects/:id/executive/checklist", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.saveExecutiveChecklist(request.params.id, request.body || {}) });
+    } catch (error) {
+      handleEloProjectError_(error, response);
+    }
   });
 
   app.post("/api/ai/improve-text", async (request, response) => {

@@ -1,7 +1,7 @@
 ﻿(function (root) {
   "use strict";
 
-  const VERSION = "20260624-elo-executive-budget-v1";
+  const VERSION = "20260624-elo-executive-budget-v2-controlled-closing";
   function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
   function add(list, id, message) { if (!list.some(function (x) { return x.id === id; })) list.push({ id, message }); }
 
@@ -61,6 +61,60 @@
     const nextActions = blockers.map(function (item) { return "Resolver: " + item.message; });
     return { canClose: blockers.length === 0, checklist: checklist, blockers: blockers, nextActions: nextActions };
   }
-  root.EloExecutiveBudgetEngine = { version: VERSION, evaluateExecutiveReadiness, buildExecutiveBudgetPreview, buildExecutiveClosingChecklist };
+
+
+  function prepareExecutiveClosing(projectRecord, budget, options) {
+    const record = projectRecord || {};
+    const b = budget || {};
+    const opts = options || {};
+    const readiness = evaluateExecutiveReadiness(record, b);
+    const checklistBase = buildExecutiveClosingChecklist(record, b);
+    const priceStatus = b.priceStatus || {};
+    const blockers = [].concat(readiness.blockers || [], checklistBase.blockers || []);
+    const nextActions = [].concat(checklistBase.nextActions || []);
+    const rows = b.budgetTable && b.budgetTable.rows || [];
+    const selected = record.compositionSelections || [];
+    const lockedRows = [];
+    const priceRequirements = [];
+    rows.forEach(function (row, index) {
+      const rowId = row.rowId || row.id || "row_" + index;
+      const hasQuantity = row.quantity !== undefined && row.quantity !== null && row.quantity !== "" && !(row.pending || []).length;
+      const hasComposition = selected.some(function (item) { return item.selected === true && (item.serviceId === row.serviceId || item.service === row.service || item.code === row.compositionCode); });
+      const hasPrice = !!((priceStatus.pricedRows || []).find(function (priced) { return (priced.rowId === rowId || priced.service === row.service) && priced.unitPrice != null; }));
+      const unitCompatible = !/blocked|incompatible|pendente/i.test(String(row.consumptionStatus || ""));
+      const ok = hasQuantity && hasComposition && hasPrice && unitCompatible;
+      if (ok) lockedRows.push({ rowId: rowId, service: row.service, status: "lockable" });
+      if (!hasPrice) priceRequirements.push({ rowId: rowId, service: row.service, reason: "price_missing" });
+    });
+    if ((b.compositionMatches || []).some(function (m) { return m.found && !selected.some(function (s) { return s.selected === true && s.serviceId === m.serviceId; }); })) add(blockers, "candidate_compositions", "Existem composi??es candidatas n?o confirmadas.");
+    if (priceRequirements.length) add(blockers, "prices", "Existem linhas sem pre?o informado ou validado.");
+    if (opts.requireBdi !== false && !(record.premises && (record.premises.bdi !== undefined || record.premises.bdiExempt === true))) add(blockers, "bdi", "BDI obrigat?rio ausente ou n?o dispensado.");
+    const uniqueBlockers = [];
+    blockers.forEach(function (item) { add(uniqueBlockers, item.id, item.message); });
+    uniqueBlockers.forEach(function (item) { if (!nextActions.some(function (a) { return a.indexOf(item.message) >= 0; })) nextActions.push("Resolver: " + item.message); });
+    const checks = Math.max(1, rows.length + checklistBase.checklist.length + 3);
+    const failed = uniqueBlockers.length + priceRequirements.length;
+    const score = Math.max(0, Math.min(1, (checks - failed) / checks));
+    return { canClose: uniqueBlockers.length === 0 && priceRequirements.length === 0, score: Number(score.toFixed(2)), checklist: checklistBase.checklist, blockers: uniqueBlockers, nextActions: nextActions, lockedRows: lockedRows, priceRequirements: priceRequirements, bdiRequirement: { required: opts.requireBdi !== false, present: !!(record.premises && (record.premises.bdi !== undefined || record.premises.bdiExempt === true)) } };
+  }
+
+  function lockExecutiveRow(projectRecord, rowId, data) {
+    const record = projectRecord || {};
+    const payload = data || {};
+    const checks = payload.checks || {};
+    const ok = checks.quantityConfirmed && checks.compositionSelected && checks.priceValidated && checks.premisesConfirmed && checks.unitCompatible !== false;
+    if (!ok) return Object.assign({}, record, { lockError: "row_checklist_not_ok", rowId: rowId });
+    const r = JSON.parse(JSON.stringify(record));
+    r.lockedRows = r.lockedRows || [];
+    if (r.lockedRows.some(function (row) { return row.rowId === rowId; })) return Object.assign(r, { lockError: "row_already_locked", rowId: rowId });
+    r.lockedRows.push(Object.assign({ rowId: rowId, lockedAt: new Date().toISOString(), status: "locked" }, payload));
+    r.revisions = r.revisions || [];
+    r.revisions.push({ number: r.revisions.length + 1, date: new Date().toISOString(), origin: "executive_lock", summary: "Linha executiva bloqueada: " + rowId });
+    r.history = r.history || [];
+    r.history.push({ at: new Date().toISOString(), type: "executive_row_locked", message: "Linha executiva bloqueada.", rowId: rowId });
+    return r;
+  }
+
+  root.EloExecutiveBudgetEngine = { version: VERSION, evaluateExecutiveReadiness, buildExecutiveBudgetPreview, buildExecutiveClosingChecklist, prepareExecutiveClosing, lockExecutiveRow };
 })(typeof window !== "undefined" ? window : globalThis);
 

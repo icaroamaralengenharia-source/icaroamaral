@@ -26,15 +26,17 @@ const expectedOrder = [
   "elo-executive-budget-engine.js",
   "elo-ui-data-engine.js",
   "elo-technical-knowledge-graph.js",
+  "elo-project-api-client.js",
   "elo-project-store.js",
   "elo-composition-selection-engine.js",
   "elo-export-engine.js",
   "elo-base-status-engine.js",
   "elo-traceability-engine.js",
+  "elo-price-engine.js",
+  "elo-dashboard-view.js",
   "elo-budget-engine.js",
   "elo-brain-router.js",
-  "elo-assistente.js",
-  "elo-dashboard-view.js"
+  "elo-assistente.js"
 ];
 
 function scriptPositions(html) {
@@ -61,15 +63,17 @@ test("superficies do Elo carregam motores novos na ordem correta", () => {
     assert.ok(positions["elo-project-record-engine.js"] < positions["elo-executive-budget-engine.js"], `${surface.name}: ProjectRecordEngine antes de ExecutiveBudgetEngine`);
     assert.ok(positions["elo-executive-budget-engine.js"] < positions["elo-ui-data-engine.js"], `${surface.name}: ExecutiveBudgetEngine antes de UiDataEngine`);
     assert.ok(positions["elo-ui-data-engine.js"] < positions["elo-technical-knowledge-graph.js"], `${surface.name}: UiDataEngine antes de KnowledgeGraph`);
-    assert.ok(positions["elo-technical-knowledge-graph.js"] < positions["elo-project-store.js"], `${surface.name}: KnowledgeGraph antes de ProjectStore`);
+    assert.ok(positions["elo-technical-knowledge-graph.js"] < positions["elo-project-api-client.js"], `${surface.name}: KnowledgeGraph antes de ProjectApiClient`);
+    assert.ok(positions["elo-project-api-client.js"] < positions["elo-project-store.js"], `${surface.name}: ProjectApiClient antes de ProjectStore`);
     assert.ok(positions["elo-project-store.js"] < positions["elo-composition-selection-engine.js"], `${surface.name}: ProjectStore antes de CompositionSelection`);
     assert.ok(positions["elo-composition-selection-engine.js"] < positions["elo-export-engine.js"], `${surface.name}: CompositionSelection antes de ExportEngine`);
     assert.ok(positions["elo-export-engine.js"] < positions["elo-base-status-engine.js"], `${surface.name}: ExportEngine antes de BaseStatus`);
     assert.ok(positions["elo-base-status-engine.js"] < positions["elo-traceability-engine.js"], `${surface.name}: BaseStatus antes de Traceability`);
-    assert.ok(positions["elo-traceability-engine.js"] < positions["elo-budget-engine.js"], `${surface.name}: Traceability antes de EloBudgetEngine`);
+    assert.ok(positions["elo-traceability-engine.js"] < positions["elo-price-engine.js"], `${surface.name}: Traceability antes de PriceEngine`);
+    assert.ok(positions["elo-price-engine.js"] < positions["elo-dashboard-view.js"], `${surface.name}: PriceEngine antes de DashboardView`);
+    assert.ok(positions["elo-dashboard-view.js"] < positions["elo-budget-engine.js"], `${surface.name}: DashboardView antes de EloBudgetEngine`);
     assert.ok(positions["elo-budget-engine.js"] < positions["elo-brain-router.js"], `${surface.name}: EloBudgetEngine antes de EloBrainRouter`);
     assert.ok(positions["elo-brain-router.js"] < positions["elo-assistente.js"], `${surface.name}: EloBrainRouter antes de elo-assistente`);
-    assert.ok(positions["elo-assistente.js"] < positions["elo-dashboard-view.js"], `${surface.name}: elo-assistente antes de DashboardView`);
   });
 });
 

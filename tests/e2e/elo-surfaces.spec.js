@@ -23,12 +23,14 @@ const requiredGlobals = [
   "EloExecutiveBudgetEngine",
   "EloUiDataEngine",
   "EloTechnicalKnowledgeGraph",
+  "EloProjectApiClient",
   "EloProjectStore",
   "EloDashboardView",
   "EloCompositionSelectionEngine",
   "EloExportEngine",
   "EloBaseStatusEngine",
   "EloTraceabilityEngine",
+  "EloPriceEngine",
   "EloAssistente"
 ];
 
@@ -64,6 +66,9 @@ async function ask(page, message) {
       traceabilityCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.traceability && response.technicalEngine.budget.traceability.length || 0,
       hasExportData: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.exportData),
       hasClosingChecklist: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.closingChecklist),
+      hasOperationalDashboardHtml: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.operationalDashboardHtml),
+      hasPriceStatus: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.priceStatus),
+      hasExecutiveClosing: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.executiveClosing),
       packageCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.workPackages && response.technicalEngine.budget.workPackages.packages && response.technicalEngine.budget.workPackages.packages.length || 0,
       candidateCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.compositionMatches && response.technicalEngine.budget.compositionMatches.filter((match) => match.candidates && match.candidates.length).length || 0
     };

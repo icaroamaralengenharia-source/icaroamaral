@@ -1,6 +1,6 @@
 ﻿(function (root) {
   "use strict";
-  const VERSION = "20260624-elo-project-store-v1";
+  const VERSION = "20260624-elo-project-store-v2-api-fallback";
   const KEY = "elo_project_records_v1";
   function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
   function now() { return new Date().toISOString(); }
@@ -29,7 +29,12 @@
     r.version = r.version || 1;
     return r;
   }
-  function saveProjectRecord(record) {
+  function queueBackendSave(record, action) {
+    const client = root.EloProjectApiClient;
+    if (!client || action && action.skipApiClient) return;
+    try { client.save(record).then(function (result) { root.__ELO_PROJECT_LAST_BACKEND_STATUS__ = { source: result && result.source || "backend", ok: !!(result && result.ok), projectId: record && record.id, at: now() }; }).catch(function () { root.__ELO_PROJECT_LAST_BACKEND_STATUS__ = { source: "local", ok: false, projectId: record && record.id, at: now(), reason: "backend_failed" }; }); } catch (_) { root.__ELO_PROJECT_LAST_BACKEND_STATUS__ = { source: "local", ok: false, projectId: record && record.id, at: now(), reason: "backend_unavailable" }; }
+  }
+  function saveProjectRecord(record, options) {
     const data = all();
     const existing = record && record.id && data[record.id] || null;
     const r = ensureRecord(record || {});
@@ -37,6 +42,8 @@
     r.history = (existing && existing.history || []).concat(r.history || [], [{ at: now(), type: "save", message: "Prontuário salvo localmente.", origin: "project_store" }]);
     data[r.id] = r;
     writeAll(data);
+    r.persistenceSource = "local";
+    queueBackendSave(r, options || {});
     return r;
   }
   function loadProjectRecord(projectId) { return all()[projectId] || null; }
@@ -55,5 +62,6 @@
   }
   function appendProjectRevision(projectId, revision) { const r = loadProjectRecord(projectId); if (!r) return null; r.revisions = r.revisions || []; r.revisions.push(Object.assign({ number: r.revisions.length, date: now(), origin: "local" }, revision || {})); return saveProjectRecord(r); }
   function appendProjectHistory(projectId, event) { const r = loadProjectRecord(projectId); if (!r) return null; r.history = r.history || []; r.history.push(Object.assign({ at: now(), type: "event", origin: "local" }, event || {})); return saveProjectRecord(r); }
-  root.EloProjectStore = { version: VERSION, saveProjectRecord, loadProjectRecord, listProjectRecords, deleteProjectRecord, createProjectRecordFromBudget, appendProjectRevision, appendProjectHistory };
+  function getLastBackendStatus() { return root.__ELO_PROJECT_LAST_BACKEND_STATUS__ || { source: "local", ok: true, reason: "not_attempted" }; }
+  root.EloProjectStore = { version: VERSION, saveProjectRecord, loadProjectRecord, listProjectRecords, deleteProjectRecord, createProjectRecordFromBudget, appendProjectRevision, appendProjectHistory, getLastBackendStatus };
 })(typeof window !== "undefined" ? window : globalThis);
