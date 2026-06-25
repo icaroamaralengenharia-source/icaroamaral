@@ -469,6 +469,13 @@
     };
   }
 
+  function normalizeSyncStatus(status) {
+    if (typeof status === "string") return status.toLowerCase();
+    if (status && typeof status.status === "string") return status.status.toLowerCase();
+    if (status && typeof status.state === "string") return status.state.toLowerCase();
+    return "";
+  }
+
   function ensureIndicator() {
     if (!core.isStockFullContext || !core.isStockFullContext()) return null;
     let panel = window.document.getElementById("stockFullSyncPanel");
@@ -490,7 +497,8 @@
   function renderIndicator(forcedStatus) {
     const panel = ensureIndicator();
     if (!panel) return;
-    const status = forcedStatus || getSyncStatusLabel();
+    const forcedStatusLabel = typeof forcedStatus === "string" ? forcedStatus : (forcedStatus && typeof forcedStatus.status === "string" ? forcedStatus.status : (forcedStatus && typeof forcedStatus.state === "string" ? forcedStatus.state : ""));
+    const status = forcedStatusLabel || getSyncStatusLabel();
     const meta = Object.assign({}, getMeta(), refreshSyncMetaSilently());
     const statusNode = window.document.getElementById("stockFullSyncStatus");
     const detailsNode = window.document.getElementById("stockFullSyncDetails");
@@ -501,7 +509,8 @@
       detailsNode.textContent = meta.pendingCount + " pendência(s) · última sync: " + lastSync + (meta.lastSyncError ? " · erro: " + meta.lastSyncError : "");
     }
     if (button) button.disabled = syncInProgress;
-    panel.dataset.syncStatus = status.toLowerCase().replace(/\s+/g, "-");
+    const normalizedStatus = normalizeSyncStatus(status) || "unknown";
+    panel.dataset.syncStatus = normalizedStatus.replace(/\s+/g, "-");
   }
 
   function scheduleAutoSync() {
