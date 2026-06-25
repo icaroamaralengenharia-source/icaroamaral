@@ -8,6 +8,30 @@ const surfaces = [
   { name: "relatorio-qualidade-obras.html", file: "relatorio-qualidade-obras/relatorio-qualidade-obras.html" }
 ];
 
+const requiredGlobals = [
+  "EloBrainRouter",
+  "EloTechnicalEngine",
+  "CompositionSearchEngine",
+  "StockAiCompositionEngine",
+  "EloBudgetEngine",
+  "EloWorkPackageEngine",
+  "EloQuantityEngine",
+  "EloConsumptionEngine",
+  "EloAuditEngine",
+  "EloBudgetTableEngine",
+  "EloProjectRecordEngine",
+  "EloExecutiveBudgetEngine",
+  "EloUiDataEngine",
+  "EloTechnicalKnowledgeGraph",
+  "EloProjectStore",
+  "EloDashboardView",
+  "EloCompositionSelectionEngine",
+  "EloExportEngine",
+  "EloBaseStatusEngine",
+  "EloTraceabilityEngine",
+  "EloAssistente"
+];
+
 function surfaceUrl(surface) {
   return pathToFileURL(resolve(surface.file)).href;
 }
@@ -16,7 +40,9 @@ async function loadSurface(page, surface) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(surfaceUrl(surface));
-  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloProjectRecordEngine && window.EloExecutiveBudgetEngine && window.EloUiDataEngine && window.EloTechnicalKnowledgeGraph && window.EloProjectStore && window.EloDashboardView && window.EloCompositionSelectionEngine && window.EloExportEngine && window.EloBaseStatusEngine && window.EloTraceabilityEngine && window.EloBudgetTableEngine && window.EloConsumptionEngine && window.EloQuantityEngine && window.EloWorkPackageEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
+  await page.waitForFunction((globals) => globals.every((name) => window[name]), requiredGlobals);
+  const globalTypes = await page.evaluate((globals) => Object.fromEntries(globals.map((name) => [name, typeof window[name]])), requiredGlobals);
+  expect(Object.values(globalTypes), `${surface.name} globals definidos`).not.toContain("undefined");
   expect(errors, `${surface.name} sem pageerror`).toEqual([]);
 }
 
@@ -33,7 +59,13 @@ async function ask(page, message) {
       searchFound: !!(response && response.technicalEngine && response.technicalEngine.compositionSearch && response.technicalEngine.compositionSearch.found),
       searchIndexed: response && response.technicalEngine && response.technicalEngine.compositionSearch && response.technicalEngine.compositionSearch.indexedCount || 0,
       projectRecordId: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.projectRecordId || "",
-      hasDashboardData: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.dashboardData)
+      hasDashboardData: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.dashboardData),
+      hasBaseStatus: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.baseStatus),
+      traceabilityCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.traceability && response.technicalEngine.budget.traceability.length || 0,
+      hasExportData: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.exportData),
+      hasClosingChecklist: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.closingChecklist),
+      packageCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.workPackages && response.technicalEngine.budget.workPackages.packages && response.technicalEngine.budget.workPackages.packages.length || 0,
+      candidateCount: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.compositionMatches && response.technicalEngine.budget.compositionMatches.filter((match) => match.candidates && match.candidates.length).length || 0
     };
   }, message);
 }
