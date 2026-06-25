@@ -123,6 +123,11 @@
     const executiveEngine = root.EloExecutiveBudgetEngine || null;
     const uiDataEngine = root.EloUiDataEngine || null;
     const graphEngine = root.EloTechnicalKnowledgeGraph || null;
+    const projectStore = root.EloProjectStore || null;
+    const selectionEngine = root.EloCompositionSelectionEngine || null;
+    const exportEngine = root.EloExportEngine || null;
+    const baseStatusEngine = root.EloBaseStatusEngine || null;
+    const traceabilityEngine = root.EloTraceabilityEngine || null;
     const packageMissing = [];
     (workPackages.packages || []).forEach(function (pack) {
       (pack.missing || []).forEach(function (item) { packageMissing.push({ id: pack.id + ":" + item, message: pack.name + ": faltam dados - " + item + "." }); });
@@ -145,14 +150,28 @@
       scope: (workPackages.packages || []).map(function (pack) { return { id: pack.id, service: pack.name, status: pack.status, unit: pack.services[0] && pack.services[0].unit || "", searchTerms: (pack.searchTerms || []).join(" ") }; }),
       compositions: compositionMatches.map(function (match) { return { scopeId: match.packageId, serviceId: match.serviceId, service: match.service, query: match.query, found: match.found, candidates: match.candidates }; })
     };
+    const baseStatus = baseStatusEngine ? baseStatusEngine.getTechnicalBaseStatus() : null;
+    baseBudget.baseStatus = baseStatus;
     const projectRecord = projectRecordEngine ? projectRecordEngine.buildOrUpdateProjectRecord(technicalContext && technicalContext.projectRecord || null, { budget: baseBudget, projectFacts: facts, origin: "orçamento", summary: baseBudget.summary }) : null;
-    const executiveReadiness = executiveEngine ? executiveEngine.evaluateExecutiveReadiness(projectRecord, baseBudget) : null;
-    const dashboardData = uiDataEngine ? uiDataEngine.buildEloDashboardData({ projectRecord: projectRecord, budget: baseBudget, executiveReadiness: executiveReadiness }) : null;
+    const savedRecord = projectStore && projectRecord ? projectStore.createProjectRecordFromBudget(Object.assign({}, baseBudget, { projectRecord: projectRecord })) : projectRecord;
+    const executiveReadiness = executiveEngine ? executiveEngine.evaluateExecutiveReadiness(savedRecord, baseBudget) : null;
+    const closingChecklist = executiveEngine && executiveEngine.buildExecutiveClosingChecklist ? executiveEngine.buildExecutiveClosingChecklist(savedRecord, baseBudget) : null;
+    const dashboardData = uiDataEngine ? uiDataEngine.buildEloDashboardData({ projectRecord: savedRecord, budget: baseBudget, executiveReadiness: executiveReadiness }) : null;
     const knowledgeGraphHints = graphEngine ? graphEngine.expandSearchTermsFromGraph([facts.roofMaterial, facts.wallMaterial, facts.floorMaterial, facts.projectType].filter(Boolean).join(" ")).slice(0, 20) : [];
-    baseBudget.projectRecord = projectRecord;
+    const selectableCompositions = selectionEngine ? selectionEngine.listSelectableCompositions(baseBudget) : [];
+    const traceability = traceabilityEngine ? traceabilityEngine.buildTraceabilityEntries({ quantities: baseBudget.quantities, consumptions: baseBudget.consumptions, compositions: baseBudget.compositionMatches, blocked: baseBudget.consumptionBlocked }) : [];
+    const executivePreview = executiveReadiness && executiveReadiness.executivePreview || null;
+    const exportData = exportEngine ? { budgetCsv: exportEngine.exportBudgetToCsv(baseBudget.budgetTable), projectJson: exportEngine.exportProjectRecordToJson(savedRecord), executivePreviewCsv: exportEngine.exportExecutivePreviewToCsv(executivePreview) } : null;
+    baseBudget.projectRecord = savedRecord;
+    baseBudget.projectRecordSaved = !!(projectStore && savedRecord);
+    baseBudget.projectRecordId = savedRecord && savedRecord.id || "";
     baseBudget.executiveReadiness = executiveReadiness;
+    baseBudget.closingChecklist = closingChecklist;
     baseBudget.dashboardData = dashboardData;
     baseBudget.knowledgeGraphHints = knowledgeGraphHints;
+    baseBudget.selectableCompositions = selectableCompositions;
+    baseBudget.traceability = traceability;
+    baseBudget.exportData = exportData;
     return baseBudget;
   }
 
@@ -207,6 +226,11 @@
       lines.push("- Consumos calculados: " + cardValue("consumptions"));
       lines.push("- Auditorias críticas: " + cardValue("critical-audits"));
     }
+    lines.push("", "SITUAÇÃO DO PRODUTO");
+    lines.push("- Prontuário: " + (b.projectRecordSaved ? "salvo localmente" : "não salvo"));
+    if (b.baseStatus) lines.push("- Base técnica: " + (b.baseStatus.loaded ? ((b.baseStatus.source || "SINAPI") + " " + (b.baseStatus.state || "") + " " + (b.baseStatus.referenceMonth || "") + ", " + b.baseStatus.totalCompositions + " composições") : "não carregada"));
+    if (b.executiveReadiness) lines.push("- Prontidão executivo: " + Math.round((b.executiveReadiness.score || 0) * 100) + "%");
+    if (b.closingChecklist && b.closingChecklist.blockers && b.closingChecklist.blockers.length) lines.push("- Bloqueios principais: " + b.closingChecklist.blockers.slice(0, 3).map(function (item) { return item.message; }).join(" | "));
     lines.push("", "6. Pendências");
     if (b.missing.length) b.missing.slice(0, 12).forEach(function (item) { lines.push("- " + item.message); }); else lines.push("- Nenhuma pendência crítica registrada nesta etapa preliminar.");
     lines.push("", "7. Próxima pergunta", nextQuestion(b));
@@ -216,6 +240,8 @@
 
   root.EloBudgetEngine = { version: VERSION, buildPreliminaryBudget: buildPreliminaryBudget, buildBudgetReportText: buildBudgetReportText };
 })(typeof window !== "undefined" ? window : globalThis);
+
+
 
 
 

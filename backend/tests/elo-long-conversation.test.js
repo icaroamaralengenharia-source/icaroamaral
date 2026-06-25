@@ -50,7 +50,7 @@ function officialRowsFixture() {
 }
 
 function loadRouterStack() {
-  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-project-record-engine.js", "elo-executive-budget-engine.js", "elo-ui-data-engine.js", "elo-technical-knowledge-graph.js", "elo-budget-engine.js", "elo-brain-router.js"];
+  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-project-record-engine.js", "elo-project-store.js", "elo-executive-budget-engine.js", "elo-ui-data-engine.js", "elo-composition-selection-engine.js", "elo-export-engine.js", "elo-base-status-engine.js", "elo-traceability-engine.js", "elo-technical-knowledge-graph.js", "elo-budget-engine.js", "elo-brain-router.js"];
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
@@ -163,8 +163,11 @@ test("Elo preserva contexto tecnico em conversa longa", () => {
   assert.equal(context.technical.audit.executedAreaM2, 30);
   assert.equal(context.technical.audit.withdrawnQuantity, 15);
   assert.equal(context.technical.audit.withdrawnMaterial, "cimento");
+  assert.ok(context.technical.projectRecord);
+  assert.ok(turns[turns.length - 1].answer.match(/SITUAÇÃO DO PRODUTO|SITUACAO DO PRODUTO|PRONTIDÃO PARA EXECUTIVO|PRONTIDAO PARA EXECUTIVO/i));
   assert.ok(turns.every((turn) => !hasGenericBriefing(turn.answer)));
 });
+
 
 
 

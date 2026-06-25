@@ -23,7 +23,7 @@ function loadStack() {
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
-  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-project-record-engine.js", "elo-executive-budget-engine.js", "elo-ui-data-engine.js", "elo-technical-knowledge-graph.js", "elo-budget-engine.js", "elo-brain-router.js"];
+  const files = ["stock-ai-composition-engine.js", "composition-search-engine.js", "elo-technical-engine.js", "elo-work-package-engine.js", "elo-quantity-engine.js", "elo-consumption-engine.js", "elo-audit-engine.js", "elo-budget-table-engine.js", "elo-project-record-engine.js", "elo-project-store.js", "elo-executive-budget-engine.js", "elo-ui-data-engine.js", "elo-composition-selection-engine.js", "elo-export-engine.js", "elo-base-status-engine.js", "elo-traceability-engine.js", "elo-technical-knowledge-graph.js", "elo-budget-engine.js", "elo-brain-router.js"];
   for (const file of files) {
     vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", file), "utf8"), sandbox, { filename: file });
     if (file === "composition-search-engine.js") sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows: officialRowsFixture() }, { state: "BA", referenceMonth: "2026-06" });
@@ -61,6 +61,12 @@ test("casa térrea com bloco baiano telha portuguesa e piso 50m2 estrutura tabel
   assert.equal(budget.executiveReadiness.ready, false);
   assert.ok(budget.dashboardData.cards.length);
   assert.ok(budget.knowledgeGraphHints.includes("Cobertura"));
+  assert.ok(budget.projectRecordId);
+  assert.ok(budget.baseStatus);
+  assert.ok(budget.traceability.length);
+  assert.match(budget.exportData.budgetCsv, /Pacote;Serviço/);
+  assert.ok(budget.selectableCompositions.length);
+  assert.equal(budget.closingChecklist.canClose, false);
   assert.ok(budget.budgetTable.summary.readyRows >= 1);
 });
 
@@ -93,5 +99,6 @@ test("gerar resumo do orçamento retorna relatório textual estruturado", () => 
   assert.equal(routed.result.technicalEngine.mode, "preliminary_budget");
   assert.match(routed.result.fullAnswer, /Pacotes de serviço|PRONTUÁRIO DA OBRA|PRONTIDÃO PARA EXECUTIVO|PAINEL/i);
 });
+
 
 

@@ -37,5 +37,30 @@
     return { executivePreview: { rows, totals: null, bdi: projectRecord && projectRecord.premises && projectRecord.premises.bdi || null, schedule: [] }, blocked: rows.filter(function (r) { return r.status !== "ready"; }) };
   }
 
-  root.EloExecutiveBudgetEngine = { version: VERSION, evaluateExecutiveReadiness, buildExecutiveBudgetPreview };
+
+  function buildExecutiveClosingChecklist(projectRecord, budget) {
+    const record = projectRecord || {};
+    const project = record.project || {};
+    const premises = record.premises || {};
+    const b = budget || {};
+    const selected = (record.compositionSelections || []).filter(function (c) { return c.selected === true; }).length;
+    const pendingRows = b.budgetTable && b.budgetTable.summary && b.budgetTable.summary.pendingRows || 0;
+    const checklist = [
+      { id: "client", label: "Cliente/obra identificados", ok: !!(clean(record.client && record.client.name) || clean(project.name)), required: true },
+      { id: "city_uf", label: "Cidade/UF informada", ok: !!clean(project.cityUf || (project.city && project.state)), required: true },
+      { id: "base", label: "Base SINAPI carregada", ok: !!(b.baseStatus && b.baseStatus.loaded), required: true },
+      { id: "scope", label: "Escopo fechado", ok: !(record.workPackages || []).some(function (p) { return p.status !== "ready"; }), required: true },
+      { id: "quantities", label: "Quantidades completas", ok: pendingRows === 0, required: true },
+      { id: "compositions", label: "Composições confirmadas", ok: selected > 0 && selected >= ((b.compositionMatches || []).filter(function (m) { return m.found; }).length || 1), required: true },
+      { id: "prices", label: "Preços disponíveis", ok: !!premises.priceSource, required: true },
+      { id: "bdi", label: "BDI definido ou dispensado", ok: premises.bdi !== undefined || premises.bdiExempt === true, required: true },
+      { id: "revision", label: "Revisão atual registrada", ok: (record.revisions || []).length > 0, required: true },
+      { id: "responsible", label: "Responsável técnico informado", ok: !!clean(record.responsible || premises.responsibleEngineer), required: false }
+    ];
+    const blockers = checklist.filter(function (item) { return item.required && !item.ok; }).map(function (item) { return { id: item.id, message: item.label + " pendente." }; });
+    const nextActions = blockers.map(function (item) { return "Resolver: " + item.message; });
+    return { canClose: blockers.length === 0, checklist: checklist, blockers: blockers, nextActions: nextActions };
+  }
+  root.EloExecutiveBudgetEngine = { version: VERSION, evaluateExecutiveReadiness, buildExecutiveBudgetPreview, buildExecutiveClosingChecklist };
 })(typeof window !== "undefined" ? window : globalThis);
+

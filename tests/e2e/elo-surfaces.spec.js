@@ -16,7 +16,7 @@ async function loadSurface(page, surface) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(surfaceUrl(surface));
-  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloProjectRecordEngine && window.EloExecutiveBudgetEngine && window.EloUiDataEngine && window.EloTechnicalKnowledgeGraph && window.EloBudgetTableEngine && window.EloConsumptionEngine && window.EloQuantityEngine && window.EloWorkPackageEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
+  await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloBrainRouter && window.EloBudgetEngine && window.EloProjectRecordEngine && window.EloExecutiveBudgetEngine && window.EloUiDataEngine && window.EloTechnicalKnowledgeGraph && window.EloProjectStore && window.EloDashboardView && window.EloCompositionSelectionEngine && window.EloExportEngine && window.EloBaseStatusEngine && window.EloTraceabilityEngine && window.EloBudgetTableEngine && window.EloConsumptionEngine && window.EloQuantityEngine && window.EloWorkPackageEngine && window.EloTechnicalEngine && window.CompositionSearchEngine && window.StockAiCompositionEngine);
   expect(errors, `${surface.name} sem pageerror`).toEqual([]);
 }
 
@@ -31,7 +31,9 @@ async function ask(page, message) {
       reason: response && response.eloBrain && response.eloBrain.reason || "",
       technicalMode: response && response.technicalEngine && response.technicalEngine.mode || "",
       searchFound: !!(response && response.technicalEngine && response.technicalEngine.compositionSearch && response.technicalEngine.compositionSearch.found),
-      searchIndexed: response && response.technicalEngine && response.technicalEngine.compositionSearch && response.technicalEngine.compositionSearch.indexedCount || 0
+      searchIndexed: response && response.technicalEngine && response.technicalEngine.compositionSearch && response.technicalEngine.compositionSearch.indexedCount || 0,
+      projectRecordId: response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.projectRecordId || "",
+      hasDashboardData: !!(response && response.technicalEngine && response.technicalEngine.budget && response.technicalEngine.budget.dashboardData)
     };
   }, message);
 }
@@ -58,6 +60,12 @@ test.describe("Elo surfaces", () => {
       expect(casa.fullAnswer).not.toMatch(/Area construida:\s*4/i);
       expect(casa.fullAnswer).not.toMatch(/Dados mínimos que vou usar|BRIEFING DA OBRA|Próxima ação: Complete cliente/i);
 
+      const orcamento = await ask(page, "casa térrea 80m², bloco baiano, telha portuguesa, piso cerâmico 50m²");
+      expect(orcamento.brain).toBe("technical");
+      expect(orcamento.fullAnswer).toMatch(/SITUAÇÃO DO PRODUTO|PRONTUÁRIO DA OBRA|PAINEL/i);
+      expect(orcamento.projectRecordId, "orçamento preliminar deve produzir projectRecordId").not.toBe("");
+      expect(orcamento.hasDashboardData, "orçamento preliminar deve produzir dashboardData").toBe(true);
+
       const telhado = await ask(page, "quero telhado com telha portuguesa");
       expect(telhado.brain).toBe("technical");
       expect(telhado.fullAnswer).toMatch(/BUSCA NA BASE OFICIAL|composi/i);
@@ -66,6 +74,7 @@ test.describe("Elo surfaces", () => {
     });
   }
 });
+
 
 
 
