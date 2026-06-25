@@ -15,6 +15,7 @@ const surfaces = [
 
 const expectedOrder = [
   "stock-ai-composition-engine.js",
+  "sinapi-ba-202412-index.js",
   "composition-search-engine.js",
   "elo-technical-engine.js",
   "elo-work-package-engine.js",
@@ -40,7 +41,8 @@ const expectedOrder = [
 ];
 
 function scriptPositions(html) {
-  return Object.fromEntries(expectedOrder.map((script) => [script, html.indexOf(script)]));
+  const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)).map((match) => match[1]);
+  return Object.fromEntries(expectedOrder.map((script) => [script, scripts.findIndex((src) => src.includes(script))]));
 }
 
 test("superficies do Elo carregam motores novos na ordem correta", () => {
@@ -52,7 +54,8 @@ test("superficies do Elo carregam motores novos na ordem correta", () => {
       assert.ok(positions[script] >= 0, `${surface.name} deve carregar ${script}`);
     });
 
-    assert.ok(positions["stock-ai-composition-engine.js"] < positions["composition-search-engine.js"], `${surface.name}: StockAiCompositionEngine antes de CompositionSearchEngine`);
+    assert.ok(positions["stock-ai-composition-engine.js"] < positions["sinapi-ba-202412-index.js"], `${surface.name}: StockAiCompositionEngine antes da base SINAPI publica`);
+    assert.ok(positions["sinapi-ba-202412-index.js"] < positions["composition-search-engine.js"], `${surface.name}: base SINAPI publica antes de CompositionSearchEngine`);
     assert.ok(positions["composition-search-engine.js"] < positions["elo-technical-engine.js"], `${surface.name}: CompositionSearchEngine antes de EloTechnicalEngine`);
     assert.ok(positions["elo-technical-engine.js"] < positions["elo-work-package-engine.js"], `${surface.name}: EloTechnicalEngine antes de WorkPackageEngine`);
     assert.ok(positions["elo-work-package-engine.js"] < positions["elo-quantity-engine.js"], `${surface.name}: WorkPackageEngine antes de QuantityEngine`);

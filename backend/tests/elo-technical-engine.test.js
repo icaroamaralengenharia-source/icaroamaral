@@ -100,7 +100,7 @@ test("EloTechnicalEngine cobre os casos obrigatorios com parametros minimos", ()
     ["Vou pintar 200m2.", "pintura", ["tipo_tinta", "demaos", "selador", "massa_corrida"]],
     ["Vou construir um muro.", "muro", ["comprimento", "altura", "tipo_bloco"]],
     ["Vou fazer fundacao.", "fundacao", ["tipo_fundacao"]],
-    ["O pedreiro executou 10m2 de alvenaria.", "alvenaria", ["tipo_bloco", "espessura"]]
+    ["O pedreiro executou 10m2 de alvenaria.", "alvenaria", ["tipo_bloco", "dimensao_bloco"]]
   ];
 
   cases.forEach(([message, serviceId, missing]) => {

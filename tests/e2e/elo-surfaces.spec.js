@@ -103,6 +103,20 @@ test.describe("Elo surfaces", () => {
       expect(orcamento.projectRecordId, "orçamento preliminar deve produzir projectRecordId").not.toBe("");
       expect(orcamento.hasDashboardData, "orçamento preliminar deve produzir dashboardData").toBe(true);
 
+      const parede = await ask(page, "quero saber o material necessario pra fazer uma parede que mede 30metros da comprimento e 2,80 metros de altura");
+      expect(parede.brain).toBe("technical");
+      expect(parede.searchIndexed).toBe(7829);
+      expect(parede.searchFound).toBe(true);
+      expect(parede.fullAnswer).toMatch(/84,00 m2|84,00 m²/);
+      expect(parede.fullAnswer).toMatch(/30,00 x 2,80 = 84,00 m2|30,00 x 2,80 = 84,00 m²/);
+      expect(parede.fullAnswer).not.toMatch(/Qual a area de alvenaria/i);
+
+      const blocoBaiano = await ask(page, "40m² de parede, tipo baiano");
+      expect(blocoBaiano.searchIndexed).toBe(7829);
+      expect(blocoBaiano.searchFound).toBe(true);
+      expect(blocoBaiano.fullAnswer).toMatch(/Qual a dimensao do bloco baiano\? Exemplos: 9x19x29 ou 14x19x29\./);
+      expect(blocoBaiano.fullAnswer).not.toMatch(/Composicoes indexadas: 0|Qual a espessura da parede\/bloco/i);
+
       const telhado = await ask(page, "quero telhado com telha portuguesa");
       expect(telhado.brain).toBe("technical");
       expect(telhado.fullAnswer).toMatch(/BUSCA NA BASE OFICIAL|composi/i);

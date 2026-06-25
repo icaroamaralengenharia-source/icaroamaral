@@ -1,7 +1,7 @@
 ﻿(function (root) {
   "use strict";
 
-  const VERSION = "20260624-technical-engine-v2-search";
+  const VERSION = "20260625-technical-engine-v3-production-base-wall-parser";
 
   const CATALOG = {
     piso_ceramico: {
@@ -64,11 +64,11 @@
       label: "Alvenaria",
       aliases: ["alvenaria", "parede", "bloco ceramico", "bloco baiano", "tijolo"],
       unit: "m2",
-      required: ["area", "tipo_bloco", "espessura"],
+      required: ["area", "tipo_bloco", "dimensao_bloco"],
       questions: {
         area: "Qual a area de alvenaria em m2?",
         tipo_bloco: "Qual o tipo do bloco?",
-        espessura: "Qual a espessura da parede/bloco?"
+        dimensao_bloco: "Qual a dimensao do bloco? Exemplos: 9x19x29 ou 14x19x29."
       }
     },
     laje: {
@@ -148,7 +148,63 @@
     return text || "";
   }
 
+  function isWallContext(message) {
+    return /\b(parede|paredes|alvenaria|muro|muros)\b/.test(normalize(message));
+  }
+
+  function validWallPair(length, height) {
+    return length > 0 && height > 0 && height <= 8 && length >= 1;
+  }
+
+  function wallDimensionResult(length, height) {
+    if (!validWallPair(length, height)) return null;
+    const area = length * height;
+    return {
+      lengthM: length,
+      heightM: height,
+      areaM2: area,
+      formula: formatNumber(length) + " x " + formatNumber(height) + " = " + formatNumber(area) + " m2"
+    };
+  }
+
+  function extractWallDimensions(message) {
+    if (!isWallContext(message)) return null;
+    const original = clean(message);
+    const patterns = [
+      /(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:d[aeo]\s*)?(?:de\s*)?(?:comprimento|comp\.?|linear|extensao|extensão).*?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)/i,
+      /(?:comprimento|comp\.?|linear|extensao|extensão)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?.*?(?:altura|alto)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i,
+      /(?:altura|alto)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?.*?(?:comprimento|comp\.?|linear|extensao|extensão)\D{0,24}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i,
+      /(?:parede|paredes|alvenaria|muro|muros)\D{0,40}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i,
+      /\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i
+    ];
+    for (let index = 0; index < patterns.length; index += 1) {
+      const match = original.match(patterns[index]);
+      if (!match) continue;
+      let first = parseNumber(match[1]);
+      let second = parseNumber(match[2]);
+      if (index === 2) {
+        const height = first;
+        first = second;
+        second = height;
+      }
+      const result = wallDimensionResult(first, second);
+      if (result) return result;
+    }
+    return null;
+  }
+
   function extractQuantity(message) {
+    const wallDimensions = extractWallDimensions(message);
+    if (wallDimensions) {
+      return {
+        value: wallDimensions.areaM2,
+        unit: "m2",
+        source: "wall_dimensions",
+        lengthM: wallDimensions.lengthM,
+        heightM: wallDimensions.heightM,
+        formula: wallDimensions.formula
+      };
+    }
     const match = clean(message).match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|m3|m³|kg|quilo|quilos|litros?|l\b|un\b|und\b|unidade|unidades|m\b|metros?\b)/i);
     return match ? { value: parseNumber(match[1]), unit: unit(match[2]) } : { value: 0, unit: "" };
   }
@@ -162,6 +218,13 @@
     const height = original.match(/(?:paredes?.*?|pe\s*direito.*?|altura.*?)(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s*)?(?:altura)?/i) ||
       original.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*de\s*altura/i);
     if (height) facts.alturaParedeM = parseNumber(height[1]);
+    const wallDimensions = extractWallDimensions(message);
+    if (wallDimensions) {
+      facts.comprimentoParedeM = wallDimensions.lengthM;
+      facts.alturaParedeM = wallDimensions.heightM;
+      facts.areaParedeM2 = wallDimensions.areaM2;
+      facts.areaParedeFormula = wallDimensions.formula;
+    }
     if (/terrea|terrea/.test(text)) facts.tipoObra = "casa terrea";
     if (/bloco.*baiano|baiano/.test(text)) facts.tipoBloco = "bloco ceramico baiano";
     else if (/bloco.*ceramico|ceramico/.test(text)) facts.tipoBloco = "bloco ceramico de vedacao";
@@ -206,6 +269,7 @@
     if (/sem massa/.test(text)) params.massa_corrida = "nao";
     const piece = clean(message).match(/\b(\d{1,3}\s*x\s*\d{1,3}(?:\s*x\s*\d{1,3})?)\s*(?:cm)?\b/i);
     if (piece && service && service.id === "piso_ceramico") params.dimensao_peca = piece[1].replace(/\s*x\s*/g, "x");
+    if (piece && service && (service.id === "alvenaria" || service.id === "muro")) params.dimensao_bloco = piece[1].replace(/\s*x\s*/g, "x");
     const joint = clean(message).match(/junta\D{0,16}(\d+(?:[,.]\d+)?)\s*(mm|cm|m)\b/i);
     if (joint) params.junta = joint[1] + " " + joint[2];
     if (/argamassa/.test(text)) params.tipo_argamassa = "informado";
@@ -215,6 +279,8 @@
     if (/convencional|manual/.test(text)) params.tipo_lancamento = "convencional";
     if (/sapata|baldrame|estaca|radier/.test(text)) params.tipo_fundacao = text.match(/sapata|baldrame|estaca|radier/)[0];
     if (facts && facts.alturaParedeM) params.altura = facts.alturaParedeM;
+    if (facts && facts.comprimentoParedeM) params.comprimento = facts.comprimentoParedeM;
+    if (facts && facts.areaParedeM2) params.area = facts.areaParedeM2;
     return params;
   }
 
@@ -223,6 +289,13 @@
     return rule ? rule.required.filter(function (param) {
       return params[param] === undefined || params[param] === null || params[param] === "";
     }) : [];
+  }
+
+  function questionForParameter(service, params, param) {
+    if (service && service.id === "alvenaria" && param === "dimensao_bloco" && /baiano/.test(normalize(params && params.tipo_bloco))) {
+      return "Qual a dimensao do bloco baiano? Exemplos: 9x19x29 ou 14x19x29.";
+    }
+    return service && service.rule && service.rule.questions[param] || ("Informe " + param + ".");
   }
 
   function inputsOf(composition) {
@@ -244,6 +317,7 @@
       service && service.id,
       params && params.tipo_bloco,
       params && params.tipo_argamassa,
+      params && params.dimensao_bloco,
       params && params.ambiente,
       quantity && quantity.unit,
       quantity && quantity.value
@@ -321,6 +395,9 @@
     }
     lines.push("BUSCA NA BASE OFICIAL", "- Composicoes indexadas: " + (searchResult.indexedCount || 0));
     if (searchResult.baseLocations && searchResult.baseLocations.length) lines.push("- Origem do indice: " + searchResult.baseLocations.join(", "));
+    if (!searchResult.indexedCount) {
+      lines.push("- ATENCAO: a base oficial SINAPI nao esta carregada neste ambiente. Nao posso calcular consumo oficial.");
+    }
     if (searchResult.found) {
       lines.push("- Encontrei composicoes oficiais relacionadas, mas preciso de parametros tecnicos para escolher/calcular com seguranca.");
       searchResult.candidates.slice(0, 3).forEach(function (candidate) {
@@ -337,6 +414,7 @@
     if (facts.areaConstruidaM2) lines.push("- Area construida: " + formatNumber(facts.areaConstruidaM2) + " m2");
     if (facts.alturaParedeM) lines.push("- Altura/pe-direito informado: " + formatNumber(facts.alturaParedeM) + " m");
     if (facts.tipoBloco) lines.push("- Tipo de bloco: " + facts.tipoBloco);
+    if (facts.areaParedeFormula) lines.push("- Area de parede calculada: " + facts.areaParedeFormula);
     if (facts.tipoObra) lines.push("- Tipo de obra: " + facts.tipoObra);
     lines.push("", "PROXIMO PASSO TECNICO", "- Informe o servico e o quantitativo executado/previsto.");
     lines.push("", "OBSERVACAO", "- Nao confundi altura com area: altura fica em metros; area fica em m2.");
@@ -346,12 +424,13 @@
   function technicalAnswer(analysis) {
     const lines = ["SERVICO IDENTIFICADO", "- " + analysis.service.rule.label, "- Modo: auditor tecnico com busca na base oficial", ""];
     if (analysis.quantity.value > 0) lines.push("QUANTIDADE DO SERVICO", "- " + formatNumber(analysis.quantity.value) + " " + (analysis.quantity.unit || analysis.service.rule.unit), "");
+    if (analysis.quantity && analysis.quantity.source === "wall_dimensions") lines.push("AREA CALCULADA", "- " + analysis.quantity.formula, "");
     appendSearchSummary(lines, analysis.compositionSearch);
     lines.push("");
     if (analysis.missing.length) {
       lines.push("PARAMETROS FALTANTES");
       analysis.missing.forEach(function (param) {
-        lines.push("- " + (analysis.service.rule.questions[param] || ("Informe " + param + ".")));
+        lines.push("- " + questionForParameter(analysis.service, analysis.params, param));
       });
       lines.push("", "OBSERVACOES", "- Nao calculei consumo porque ainda faltam parametros tecnicos obrigatorios.", "- Nenhum coeficiente foi inventado.");
       return lines.join("\n");
@@ -417,7 +496,7 @@
     });
     lines.push("PARAMETROS FALTANTES");
     details.forEach(function (detail) {
-      detail.missing.forEach(function (param) { lines.push("- " + CATALOG[detail.id].label + ": " + CATALOG[detail.id].questions[param]); });
+      detail.missing.forEach(function (param) { lines.push("- " + CATALOG[detail.id].label + ": " + questionForParameter({ id: detail.id, rule: CATALOG[detail.id] }, {}, param)); });
     });
     lines.push("", "OBSERVACOES", "- Nao calculei consumo porque ainda faltam parametros tecnicos obrigatorios.", "- Nenhum coeficiente foi inventado.");
     return {
@@ -493,6 +572,7 @@
     resolveComposition: resolveComposition,
     searchOfficialCompositions: searchOfficialCompositions,
     calculateConsumption: calculateConsumption,
+    extractWallDimensions: extractWallDimensions,
     convertUnits: convertUnits
   };
 })(typeof window !== "undefined" ? window : globalThis);

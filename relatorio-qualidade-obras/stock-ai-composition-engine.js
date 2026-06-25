@@ -1870,6 +1870,31 @@
     });
   }
 
+  function loadImportedOfficialBaseCatalog(compositions, options) {
+    const settings = options || {};
+    const items = Array.isArray(compositions) ? compositions : [];
+    importedOfficialBaseCatalog = items.map(function (composition) {
+      return Object.assign({}, composition, {
+        source: clean(composition.source || settings.source || "SINAPI"),
+        sourceRegion: clean(composition.sourceRegion || settings.state || settings.uf || ""),
+        sourceDate: clean(composition.sourceDate || settings.referenceMonth || ""),
+        metadata: Object.assign({}, composition.metadata || {}, {
+          publicIndex: settings.publicIndex === true,
+          importedFrom: settings.importedFrom || composition.metadata && composition.metadata.importedFrom || "catalogo oficial pre-indexado"
+        })
+      });
+    }).filter(function (composition) {
+      return clean(composition.code || composition.id) && clean(composition.description || composition.name || composition.service) && (composition.inputs || composition.materials || []).length;
+    });
+    return {
+      ok: importedOfficialBaseCatalog.length > 0,
+      ready: importedOfficialBaseCatalog.length > 0,
+      imported: importedOfficialBaseCatalog.slice(),
+      catalogSize: importedOfficialBaseCatalog.length,
+      summary: buildImportSummary(importedOfficialBaseCatalog.length, importedOfficialBaseCatalog, [])
+    };
+  }
+
   function searchImportedOfficialCompositions(query, options) {
     const settings = options || {};
     const terms = normalize(query).split(" ").filter(Boolean);
@@ -8351,6 +8376,7 @@
     normalizeOfficialBaseRows: normalizeOfficialBaseRows,
     validateOfficialBaseImport: validateOfficialBaseImport,
     importOfficialBase: importOfficialBase,
+    loadImportedOfficialBaseCatalog: loadImportedOfficialBaseCatalog,
     parseOfficialBaseCsv: parseOfficialBaseCsv,
     importOfficialBaseCsv: importOfficialBaseCsv,
     parseOfficialBaseXlsx: parseOfficialBaseXlsx,
