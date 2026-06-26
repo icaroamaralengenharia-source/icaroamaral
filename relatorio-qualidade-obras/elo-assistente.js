@@ -1380,19 +1380,205 @@
   function saveEloBudgetRecord_(record) { if (!record) return null; const records = getEloBudgetRecords_(); records.push(record); setEloBudgetRecords_(records); return record; }
   function formatEloBudgetRecordDate_(iso) { const date = iso ? new Date(iso) : new Date(); return isNaN(date.getTime()) ? new Date().toLocaleDateString("pt-BR") : date.toLocaleDateString("pt-BR"); }
 
-  function buildEloBudgetRecordHtml_(record, innerOnly) {
-    const safe = record || {};
-    const markdown = safe.conteudo_markdown || "Conteudo tecnico nao informado.";
-    const section = ["<section class=\"elo-budget-pdf\" style=\"font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:920px;margin:0 auto;padding:32px;background:#fff\">", "<header style=\"border-bottom:3px solid #0f5ea8;padding-bottom:18px;margin-bottom:24px\"><p style=\"margin:0;color:#0f5ea8;font-weight:700;text-transform:uppercase;letter-spacing:.08em\">Icaro Amaral Engenharia</p><h1 style=\"margin:6px 0 4px;font-size:30px\">Proposta Tecnica Preliminar</h1><p style=\"margin:0;color:#64748b\">ObraReport + Elo - Documento preliminar assistido</p></header>", "<table style=\"width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px\"><tbody>", "<tr><td><strong>Numero</strong><br>" + escapeEloHtml_(safe.numero || "nao informado") + " v" + escapeEloHtml_(safe.versao || 1) + "</td><td><strong>Cliente</strong><br>" + escapeEloHtml_(safe.cliente || "nao informado") + "</td><td><strong>Obra</strong><br>" + escapeEloHtml_(safe.obra || "nao informado") + "</td></tr>", "<tr><td><strong>Cidade/UF</strong><br>" + escapeEloHtml_(safe.cidade_uf || "nao informado") + "</td><td><strong>Data</strong><br>" + escapeEloHtml_(formatEloBudgetRecordDate_(safe.data_criacao)) + "</td><td><strong>Status</strong><br>" + escapeEloHtml_(safe.status || "rascunho") + "</td></tr>", "</tbody></table>", "<h2>1. Resumo executivo</h2><div style=\"background:#f8fafc;border:1px solid #dbeafe;border-radius:12px;padding:16px;white-space:pre-wrap\">" + escapeEloHtml_(safe.resumo_executivo || "Registro preliminar assistido pelo Elo.") + "</div>", "<h2>2. Escopo e conteudo tecnico</h2><pre style=\"white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;line-height:1.45;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:18px\">" + escapeEloHtml_(markdown) + "</pre>", "<h2>3. Pendencias tecnicas</h2><div style=\"background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px;white-space:pre-wrap\">" + escapeEloHtml_(safe.pendencias || "Validar projeto, memorial, composicoes oficiais, precos, BDI e responsabilidade tecnica profissional.") + "</div>", "<h2>4. Avisos profissionais</h2><p><strong>Documento preliminar assistido por sistema computacional. Nao substitui projeto executivo, orcamento executivo, memorial descritivo ou responsabilidade tecnica profissional.</strong></p>", "<footer style=\"margin-top:36px;border-top:1px solid #cbd5e1;padding-top:18px;color:#64748b\">Documento gerado pelo Elo - Assistente Tecnico do ObraReport.<br>Assinatura: ________________________________________</footer>", "</section>"].join("\n");
-    if (innerOnly) return section;
-    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>" + escapeEloHtml_(safe.numero || "Orcamento Elo") + "</title></head><body style=\"margin:0;background:#e2e8f0;padding:24px\"><div style=\"max-width:920px;margin:0 auto 16px;text-align:right\"><button onclick=\"window.print()\" style=\"background:#0f5ea8;color:#fff;border:0;border-radius:999px;padding:12px 18px;font-weight:700;cursor:pointer\">Imprimir / Salvar como PDF</button></div>" + section + "</body></html>";
+
+  function getEloBudgetTechnicalBaseLabel_() {
+    try {
+      if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
+        const status = window.EloBaseStatusEngine.getTechnicalBaseStatus();
+        if (status && status.loaded) {
+          const source = status.source || status.base || "SINAPI";
+          const uf = status.state || status.uf || "BA";
+          const reference = status.referenceMonth || status.reference || "2024-12";
+          return source + " " + uf + " " + reference;
+        }
+      }
+    } catch (error) {}
+    return "SINAPI BA 2024-12";
   }
 
-  function openEloBudgetRecordPdf_(record) { const html = buildEloBudgetRecordHtml_(record, false); if (typeof window !== "undefined" && window.open) { const popup = window.open("", "_blank"); if (popup && popup.document) { popup.document.open(); popup.document.write(html); popup.document.close(); try { popup.focus(); } catch (error) {} } } return html; }
-  function buildEloBudgetSaveAnswer_(message) { const text = normalizeText(message || ""); if (!/salvar\s+orcamento|salvar\s+orçamento|salvar\s+proposta|registrar\s+orcamento|registrar\s+orçamento|guardar\s+esse\s+orcamento|guardar\s+esse\s+orçamento|anexar\s+(?:a|à)\s+obra/.test(text)) return null; const record = buildEloBudgetRecordFromLastAnswer_(); if (!record) return { shortAnswer: "Nao encontrei orcamento recente para salvar.", fullAnswer: "Nao encontrei um orcamento/proposta recente para salvar. Gere primeiro um orcamento ou proposta tecnica.", nextAction: "Gere Parede Completa, Fundacao Completa, Orcamento Residencial ou Proposta Tecnica antes de salvar.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_save_empty" }; saveEloBudgetRecord_(record); return { shortAnswer: "Orcamento salvo com sucesso.", fullAnswer: ["Orcamento salvo com sucesso.", "", "Numero: " + record.numero, "Status: " + record.status, "Cliente: " + record.cliente, "Obra: " + record.obra, "", "Voce pode pedir:", "- baixar PDF", "- gerar nova versao", "- listar orcamentos"].join("\n"), nextAction: "Peca 'baixar PDF' para gerar o documento profissional.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_saved" }; }
+  function getEloBudgetTechnicalBaseDetails_() {
+    try {
+      if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
+        const status = window.EloBaseStatusEngine.getTechnicalBaseStatus();
+        if (status && status.loaded) {
+          return {
+            label: getEloBudgetTechnicalBaseLabel_(),
+            compositions: status.totalCompositions || status.compositions || "",
+            inputs: status.totalInputs || status.inputs || "",
+            orse: status.hasOrse ? "ORSE disponivel quando carregada/validada." : "ORSE nao informado nesta sessao.",
+            internal: "Composicoes internas somente quando validadas; base demonstrativa nao deve ser tratada como oficial."
+          };
+        }
+      }
+    } catch (error) {}
+    return {
+      label: "SINAPI BA 2024-12",
+      compositions: "7829",
+      inputs: "40538",
+      orse: "ORSE nao informado nesta sessao.",
+      internal: "Composicoes internas somente quando validadas; base demonstrativa nao deve ser tratada como oficial."
+    };
+  }
+
+  function extractEloBudgetBuiltArea_(record) {
+    const text = String(record && record.conteudo_markdown || "");
+    const match = text.match(/casa\s+(?:terrea\s+)?de\s*(\d+(?:[,.]\d+)?)\s*m2/i) || text.match(/(\d+(?:[,.]\d+)?)\s*m2\s*(?:de\s*)?(?:area|construida)/i);
+    return match ? match[1].replace(".", ",") + " m\u00b2" : "nao informada";
+  }
+
+  function extractEloBudgetStandard_(record) {
+    const text = normalizeText(String(record && record.conteudo_markdown || ""));
+    const match = text.match(/padrao\s+(baixo|medio|alto|popular|luxo)/);
+    return match ? match[1].replace("medio", "medio") : "nao informado";
+  }
+
+  function extractEloWallServiceRow_(record) {
+    const text = String(record && record.conteudo_markdown || "");
+    const gross = text.match(/Area bruta:\s*([0-9,.]+)\s*x\s*([0-9,.]+)\s*=\s*([0-9,.]+)/i);
+    const openings = text.match(/Vaos?[^:\n]*:\s*([0-9,.]+)\s*m/i);
+    const net = text.match(/Area liquida[^:]*:\s*[^=\n]*=\s*([0-9,.]+)/i) || text.match(/area liquida de parede de\s*([0-9,.]+)/i);
+    if (!gross && !net) return null;
+    const quantity = net ? net[1].replace(".", ",") : gross[3].replace(".", ",");
+    return {
+      item: "01",
+      service: "Alvenaria / parede",
+      unit: "m\u00b2",
+      quantity: quantity,
+      base: "SINAPI/ORSE conforme composicao selecionada",
+      status: "quantitativo preliminar",
+      notes: [
+        gross ? "\u00c1rea bruta de parede = " + gross[1] + " x " + gross[2] + " = " + gross[3] + " m\u00b2" : "",
+        openings ? "Desconto de v\u00e3os = " + openings[1] + " m\u00b2" : "",
+        net ? "\u00c1rea l\u00edquida de parede = " + quantity + " m\u00b2" : ""
+      ].filter(Boolean)
+    };
+  }
+
+  function buildEloBudgetServiceRows_(record) {
+    const rows = [];
+    const wall = extractEloWallServiceRow_(record);
+    if (wall) rows.push(wall);
+    const text = normalizeText(String(record && record.conteudo_markdown || ""));
+    if (/fundacao|sapata|baldrame/.test(text)) {
+      rows.push({ item: String(rows.length + 1).padStart(2, "0"), service: "Fundacao", unit: "cj", quantity: "a validar", base: "SINAPI/ORSE ou projeto estrutural", status: "pendente de composicao/preco", notes: [] });
+    }
+    if (/estrutura|pilar|viga|laje/.test(text)) {
+      rows.push({ item: String(rows.length + 1).padStart(2, "0"), service: "Estrutura", unit: "cj", quantity: "a validar", base: "Projeto estrutural + base oficial", status: "pendente de detalhamento", notes: [] });
+    }
+    if (!rows.length) {
+      rows.push({ item: "01", service: record && record.titulo || "Servico preliminar", unit: "un", quantity: "a validar", base: "base tecnica pendente", status: "pendente", notes: [] });
+    }
+    return rows;
+  }
+
+  function buildEloBudgetPdfAction_(record, retry) {
+    return {
+      type: "budget_pdf",
+      label: retry ? "Abrir PDF novamente" : "\uD83D\uDCC4 Gerar PDF do Or\u00e7amento",
+      recordId: record && (record.id || record.numero) || "",
+      retry: Boolean(retry)
+    };
+  }
+
+  function buildEloBudgetSavedText_(record) {
+    const base = getEloBudgetTechnicalBaseLabel_();
+    return ["\u2705 Or\u00e7amento salvo.", (record.obra || "Obra atual") + " - " + (record.cidade_uf || "Cidade/UF n\u00e3o informada"), "Vers\u00e3o R" + Math.max(0, (record.versao || 1) - 1), "Base t\u00e9cnica: " + base, "", "[\uD83D\uDCC4 Gerar PDF do Or\u00e7amento]"].join("\n");
+  }
+
+  function buildEloBudgetRecordHtml_(record, innerOnly) {
+    const safe = record || {};
+    const base = getEloBudgetTechnicalBaseDetails_();
+    const area = safe.area_construida || extractEloBudgetBuiltArea_(safe);
+    const standard = safe.padrao || extractEloBudgetStandard_(safe);
+    const revision = "R" + Math.max(0, (safe.versao || 1) - 1);
+    const typeLabel = (safe.tipo || "orcamento_residencial").replace(/_/g, " ");
+    const rows = buildEloBudgetServiceRows_(safe);
+    const rowHtml = rows.map(function (row) {
+      return "<tr><td class=\"elo-col-item\">" + escapeEloHtml_(row.item) + "</td><td class=\"elo-col-service\"><strong>" + escapeEloHtml_(row.service) + "</strong>" + (row.notes && row.notes.length ? "<div class=\"elo-budget-row-notes\">" + row.notes.map(function (note) { return "<span>" + escapeEloHtml_(note) + "</span>"; }).join("") + "</div>" : "") + "</td><td>" + escapeEloHtml_(row.unit) + "</td><td><strong>" + escapeEloHtml_(row.quantity) + "</strong></td><td class=\"elo-col-base\">" + escapeEloHtml_(row.base) + "</td><td><span class=\"elo-status-pill\">" + escapeEloHtml_(row.status) + "</span></td></tr>";
+    }).join("\n");
+    const pendingText = safe.pendencias || "Confirmar projeto executivo, memorial, composi\u00e7\u00f5es oficiais, pre\u00e7os vigentes, BDI, encargos, a\u00e7o estrutural e responsabilidade t\u00e9cnica profissional quando aplic\u00e1vel.";
+    const pendingItems = pendingText.split(/\n|- /).map(function (item) { return sanitizeUserText(item); }).filter(Boolean).slice(0, 8);
+    const pendingHtml = pendingItems.length ? pendingItems.map(function (item) { return "<li>" + escapeEloHtml_(item) + "</li>"; }).join("\n") : "<li>Validar premissas t\u00e9cnicas antes do fechamento comercial.</li>";
+    const executiveSummary = "Este documento apresenta or\u00e7amento preliminar elaborado com base nas informa\u00e7\u00f5es fornecidas pelo cliente e nas composi\u00e7\u00f5es t\u00e9cnicas dispon\u00edveis. Os quantitativos e valores devem ser revisados ap\u00f3s projeto executivo, vistoria e valida\u00e7\u00e3o t\u00e9cnica.";
+    const css = [
+      "@page{size:A4;margin:13mm}",
+      "*{box-sizing:border-box}",
+      "html{background:#fff}",
+      "body{margin:0;background:#d8dee8;color:#111827;font-family:Arial,Helvetica,sans-serif;line-height:1.45}",
+      ".elo-print-toolbar{max-width:960px;margin:0 auto;padding:14px 0;text-align:right;color:#475569}",
+      ".elo-print-toolbar button{border:0;border-radius:8px;padding:10px 14px;margin-left:8px;font-weight:700;cursor:pointer}",
+      ".elo-print-primary{background:#0f5ea8;color:#fff}",
+      ".elo-print-secondary{background:#e5e7eb;color:#111827}",
+      ".elo-budget-pdf{max-width:960px;margin:0 auto;background:#fff;box-shadow:0 18px 50px rgba(15,23,42,.16)}",
+      ".elo-budget-cover{min-height:770px;padding:48px 54px 42px;display:flex;flex-direction:column;justify-content:space-between;border-top:10px solid #0f5ea8;page-break-after:always}",
+      ".elo-cover-top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}",
+      ".elo-brand{font-weight:800;color:#0f5ea8;letter-spacing:.08em;text-transform:uppercase;font-size:14px}",
+      ".elo-doc-badge{border:1px solid #bfdbfe;background:#eff6ff;color:#0f5ea8;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}",
+      ".elo-cover-title{font-size:34px;line-height:1.1;margin:28px 0 14px;color:#0f172a;text-transform:uppercase;max-width:720px}",
+      ".elo-cover-subtitle{font-size:16px;color:#475569;max-width:720px;margin:0}",
+      ".elo-highlight-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:28px 0 8px}",
+      ".elo-highlight{background:#0f5ea8;color:#fff;border-radius:8px;padding:14px 16px;min-height:72px}",
+      ".elo-highlight span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.8;margin-bottom:4px}",
+      ".elo-highlight strong{font-size:17px}",
+      ".elo-cover-grid,.elo-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:22px}",
+      ".elo-info-box{border:1px solid #dbe4ef;border-radius:8px;padding:13px 14px;background:#f8fafc;min-height:62px}",
+      ".elo-info-box span{display:block;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}",
+      ".elo-info-box strong{font-size:14px;color:#0f172a}",
+      ".elo-budget-section{padding:30px 54px;border-top:1px solid #e2e8f0;page-break-inside:avoid;break-inside:avoid}",
+      ".elo-budget-section h2{font-size:18px;margin:0 0 14px;color:#0f5ea8;text-transform:uppercase;letter-spacing:.06em;break-after:avoid;page-break-after:avoid}",
+      ".elo-budget-section p{margin:0 0 10px}",
+      ".elo-budget-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:12px;table-layout:fixed}",
+      ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:10px 9px;border:1px solid #0f5ea8;line-height:1.25}",
+      ".elo-budget-table td{vertical-align:top;padding:12px 9px;border:1px solid #dbe4ef;line-height:1.35}",
+      ".elo-budget-table tr:nth-child(even) td{background:#f8fafc}",
+      ".elo-col-item{width:7%;font-weight:700;color:#0f5ea8}.elo-col-service{width:31%}.elo-col-base{width:24%;word-break:normal;overflow-wrap:break-word}",
+      ".elo-budget-row-notes{margin-top:7px;color:#475569;font-size:10.5px;line-height:1.45}",
+      ".elo-budget-row-notes span{display:block;margin-top:2px}",
+      ".elo-status-pill{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:700;line-height:1.2}",
+      ".elo-warning{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:14px}",
+      ".elo-signature{margin-top:42px;border-top:1px solid #94a3b8;padding-top:12px;width:70%}",
+      ".elo-footer{padding:18px 54px;color:#64748b;font-size:11px;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:center}",
+      ".elo-footer span:nth-child(2){text-align:center}.elo-footer span:nth-child(3){text-align:right}",
+      "@media print{html,body{background:#fff!important}.elo-print-toolbar{display:none!important}.elo-budget-pdf{box-shadow:none;max-width:none}.elo-budget-cover{min-height:250mm}.elo-budget-section{page-break-inside:avoid;break-inside:avoid}.elo-budget-table{page-break-inside:auto}.elo-budget-table tr{page-break-inside:avoid;break-inside:avoid}}"
+    ].join("\n");
+    const section = [
+      "<section class=\"elo-budget-pdf\">",
+      "<div class=\"elo-budget-cover\">",
+      "<div>",
+      "<div class=\"elo-cover-top\"><div class=\"elo-brand\">\u00cdCARO AMARAL ENGENHARIA</div><div class=\"elo-doc-badge\">Documento preliminar</div></div>",
+      "<h1 class=\"elo-cover-title\">PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO</h1>",
+      "<p class=\"elo-cover-subtitle\">Documento profissional preliminar gerado pelo ELO para organiza\u00e7\u00e3o, revis\u00e3o e apresenta\u00e7\u00e3o do or\u00e7amento.</p>",
+      "<div class=\"elo-highlight-strip\"><div class=\"elo-highlight\"><span>C\u00f3digo</span><strong>" + escapeEloHtml_(safe.numero || "nao informado") + "</strong></div><div class=\"elo-highlight\"><span>Revis\u00e3o</span><strong>" + escapeEloHtml_(revision) + "</strong></div><div class=\"elo-highlight\"><span>Base</span><strong>" + escapeEloHtml_(base.label) + "</strong></div></div>",
+      "<div class=\"elo-cover-grid\">",
+      "<div class=\"elo-info-box\"><span>Obra</span><strong>" + escapeEloHtml_(safe.obra || "obra atual") + "</strong></div>",
+      "<div class=\"elo-info-box\"><span>Cliente</span><strong>" + escapeEloHtml_(safe.cliente || "Cliente n\u00e3o informado") + "</strong></div>",
+      "<div class=\"elo-info-box\"><span>Cidade/UF</span><strong>" + escapeEloHtml_(safe.cidade_uf || "nao informado") + "</strong></div>",
+      "<div class=\"elo-info-box\"><span>\u00c1rea constru\u00edda</span><strong>" + escapeEloHtml_(area) + "</strong></div>",
+      "<div class=\"elo-info-box\"><span>Data</span><strong>" + escapeEloHtml_(formatEloBudgetRecordDate_(safe.data_criacao)) + "</strong></div>",
+      "<div class=\"elo-info-box\"><span>Respons\u00e1vel t\u00e9cnico</span><strong>Engenheiro Civil \u00cdcaro Amaral de Ara\u00fajo</strong></div>",
+      "</div>",
+      "</div>",
+      "<div>Gerado pelo ELO - " + escapeEloHtml_(formatEloBudgetRecordDate_(new Date().toISOString())) + " - " + escapeEloHtml_(revision) + "</div>",
+      "</div>",
+      "<section class=\"elo-budget-section\"><h2>Resumo executivo</h2><p>" + escapeEloHtml_(executiveSummary) + "</p></section>",
+      "<section class=\"elo-budget-section\"><h2>Dados da obra</h2><div class=\"elo-data-grid\"><div class=\"elo-info-box\"><span>Obra</span><strong>" + escapeEloHtml_(safe.obra || "obra atual") + "</strong></div><div class=\"elo-info-box\"><span>Cliente</span><strong>" + escapeEloHtml_(safe.cliente || "Cliente n\u00e3o informado") + "</strong></div><div class=\"elo-info-box\"><span>Cidade/UF</span><strong>" + escapeEloHtml_(safe.cidade_uf || "nao informado") + "</strong></div><div class=\"elo-info-box\"><span>\u00c1rea</span><strong>" + escapeEloHtml_(area) + "</strong></div><div class=\"elo-info-box\"><span>Padr\u00e3o</span><strong>" + escapeEloHtml_(standard) + "</strong></div><div class=\"elo-info-box\"><span>Tipo</span><strong>" + escapeEloHtml_(typeLabel) + "</strong></div><div class=\"elo-info-box\"><span>Status</span><strong>" + escapeEloHtml_(safe.status || "rascunho") + "</strong></div><div class=\"elo-info-box\"><span>Revis\u00e3o</span><strong>" + escapeEloHtml_(revision) + "</strong></div></div></section>",
+      "<section class=\"elo-budget-section\"><h2>Base t\u00e9cnica</h2><p><strong>" + escapeEloHtml_(base.label) + "</strong></p><p>Composi\u00e7\u00f5es carregadas: " + escapeEloHtml_(base.compositions || "nao informado") + ". Insumos carregados: " + escapeEloHtml_(base.inputs || "nao informado") + ".</p><p>" + escapeEloHtml_(base.orse) + "</p><p>" + escapeEloHtml_(base.internal) + "</p></section>",
+      "<section class=\"elo-budget-section\"><h2>Tabela de servi\u00e7os / quantitativos</h2><table class=\"elo-budget-table\"><colgroup><col style=\"width:7%\"><col style=\"width:31%\"><col style=\"width:10%\"><col style=\"width:13%\"><col style=\"width:25%\"><col style=\"width:14%\"></colgroup><thead><tr><th>Item</th><th>Servi\u00e7o</th><th>Unidade</th><th>Quantidade</th><th>Base/Composi\u00e7\u00e3o</th><th>Status</th></tr></thead><tbody>" + rowHtml + "</tbody></table></section>",
+      "<section class=\"elo-budget-section\"><h2>Pend\u00eancias</h2><ul>" + pendingHtml + "</ul></section>",
+      "<section class=\"elo-budget-section\"><h2>Premissas e observa\u00e7\u00f5es</h2><div class=\"elo-warning\"><p>Or\u00e7amento preliminar; n\u00e3o substitui projeto executivo. Valores dependem de composi\u00e7\u00f5es e pre\u00e7os vigentes. A responsabilidade t\u00e9cnica ocorre conforme contrata\u00e7\u00e3o. Recomenda-se confer\u00eancia completa antes da execu\u00e7\u00e3o.</p></div></section>",
+      "<section class=\"elo-budget-section\"><h2>Responsabilidade t\u00e9cnica</h2><p><strong>Engenheiro Civil \u00cdcaro Amaral de Ara\u00fajo</strong></p><p>ART/RRT quando aplic\u00e1vel conforme escopo contratado e legisla\u00e7\u00e3o vigente.</p><div class=\"elo-signature\">Assinatura do respons\u00e1vel t\u00e9cnico<br>Data: ____/____/________</div></section>",
+      "<footer class=\"elo-footer\"><span>Gerado pelo ELO</span><span>\u00cdcaro Amaral Engenharia</span><span>" + escapeEloHtml_(formatEloBudgetRecordDate_(new Date().toISOString())) + " &middot; " + escapeEloHtml_(revision) + " &middot; " + escapeEloHtml_(base.label) + "</span></footer>",
+      "</section>"
+    ].join("\n");
+    if (innerOnly) return section;
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(safe.numero || "Orcamento Elo") + "</title><style>" + css + "</style></head><body><div class=\"elo-print-toolbar\"><span>Gerado pelo ELO</span><button class=\"elo-print-primary\" onclick=\"window.print()\">Imprimir / Salvar como PDF</button><button class=\"elo-print-secondary\" onclick=\"window.close()\">Fechar</button></div>" + section + "</body></html>";
+  }
+
+  function openEloBudgetRecordPdf_(record) { const html = buildEloBudgetRecordHtml_(record, false); let opened = false; if (typeof window !== "undefined" && window.open) { const popup = window.open("", "_blank"); if (popup && popup.document) { popup.document.open(); popup.document.write(html); popup.document.close(); try { popup.focus(); } catch (error) {} opened = true; } } if (typeof window !== "undefined") { window.__eloLastBudgetPdfPopupBlocked = !opened; window.__eloLastBudgetPdfRecordId = record && (record.id || record.numero) || ""; } return html; }
+  function buildEloBudgetSaveAnswer_(message) { const text = normalizeText(message || ""); if (!/salvar\s+orcamento|salvar\s+proposta|registrar\s+orcamento|registrar\s+proposta|guardar\s+esse\s+orcamento|anexar\s+a\s+obra/.test(text)) return null; const record = buildEloBudgetRecordFromLastAnswer_(); if (!record) return { shortAnswer: "Nao encontrei orcamento recente para salvar.", fullAnswer: "Nao encontrei um orcamento/proposta recente para salvar. Gere primeiro um orcamento ou proposta tecnica.", nextAction: "Gere Parede Completa, Fundacao Completa, Orcamento Residencial ou Proposta Tecnica antes de salvar.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_save_empty" }; saveEloBudgetRecord_(record); return { shortAnswer: "Orcamento salvo.", fullAnswer: buildEloBudgetSavedText_(record), nextAction: "Clique em Gerar PDF do Orcamento para materializar o documento.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_saved", budgetRecordId: record.id, pdfAction: buildEloBudgetPdfAction_(record, false) }; }
   function buildEloBudgetListAnswer_(message) { const text = normalizeText(message || ""); if (!/listar\s+orcamentos|listar\s+orçamentos|ultimos\s+orcamentos|últimos\s+orçamentos/.test(text)) return null; const records = getEloBudgetRecords_(); if (!records.length) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento para iniciar o historico local.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list_empty" }; const lines = ["ORCAMENTOS SALVOS", ""]; records.slice(-10).reverse().forEach(function (record, index) { lines.push((index + 1) + ". " + record.numero + " v" + (record.versao || 1) + " - " + (record.obra || "obra atual") + " - " + (record.status || "rascunho") + " - " + formatEloBudgetRecordDate_(record.data_criacao)); }); return { shortAnswer: "Historico local de orcamentos.", fullAnswer: lines.join("\n"), nextAction: "Peca 'ver orcamento ELO-AAAA-0001' ou 'baixar PDF do orcamento ELO-AAAA-0001'.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list" }; }
   function buildEloBudgetOpenAnswer_(message) { const text = normalizeText(message || ""); if (!/ver\s+orcamento|ver\s+orçamento|abrir\s+orcamento|abrir\s+orçamento/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento antes de abrir.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open_empty" }; return { shortAnswer: "Orcamento localizado: " + record.numero + ".", fullAnswer: [record.numero + " v" + (record.versao || 1), "Cliente: " + record.cliente, "Obra: " + record.obra, "Cidade/UF: " + record.cidade_uf, "Status: " + record.status, "", record.conteudo_markdown].join("\n"), nextAction: "Peca 'baixar PDF do orcamento " + record.numero + "' para gerar o documento.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open" }; }
-  function buildEloBudgetPdfAnswer_(message) { const text = normalizeText(message || ""); if (!/baixar\s+pdf|gerar\s+pdf|exportar\s+pdf|pdf\s+do\s+orcamento|pdf\s+do\s+orçamento|pdf\s+da\s+proposta|baixar\s+proposta/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return null; const html = openEloBudgetRecordPdf_(record); return { shortAnswer: "PDF profissional preparado.", fullAnswer: ["PDF profissional preparado para " + record.numero + " v" + (record.versao || 1) + ".", "", "Use o botao 'Imprimir / Salvar como PDF' na janela aberta ou Ctrl+P para baixar o arquivo.", "", "HTML gerado:", html].join("\n"), nextAction: "Revise o documento antes de enviar ao cliente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_pdf" }; }
+  function buildEloBudgetPdfAnswer_(message) { const text = normalizeText(message || ""); if (!/baixar\s+pdf|gerar\s+pdf|exportar\s+pdf|pdf\s+do\s+orcamento|pdf\s+da\s+proposta|baixar\s+proposta/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return null; openEloBudgetRecordPdf_(record); const blocked = typeof window !== "undefined" && window.__eloLastBudgetPdfPopupBlocked; return { shortAnswer: "PDF profissional preparado.", fullAnswer: blocked ? "PDF profissional preparado.\nO navegador bloqueou a nova janela.\nUse o botao Abrir PDF novamente para tentar de novo." : "PDF profissional preparado.\nO documento foi aberto em nova janela.\nUse Imprimir > Salvar como PDF.\nSe o navegador bloquear, clique em Abrir PDF novamente.", nextAction: blocked ? "Clique em Abrir PDF novamente." : "Revise o documento antes de enviar ao cliente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_pdf", budgetRecordId: record.id, pdfAction: buildEloBudgetPdfAction_(record, true) }; }
   function buildEloBudgetVersionAnswer_(message) { const text = normalizeText(message || ""); if (!/gerar\s+nova\s+versao|gerar\s+nova\s+versão|nova\s+versao|nova\s+versão/.test(text)) return null; const base = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!base) return { shortAnswer: "Nenhum orcamento salvo para versionar.", fullAnswer: "Nenhum orcamento salvo para gerar nova versao.", nextAction: "Salve primeiro um orcamento ou proposta.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version_empty" }; const records = getEloBudgetRecords_(); const nextVersion = records.filter(function (record) { return record.numero === base.numero; }).reduce(function (max, record) { return Math.max(max, record.versao || 1); }, base.versao || 1) + 1; const now = new Date().toISOString(); const clone = Object.assign({}, base, { id: base.numero + "-v" + nextVersion, versao: nextVersion, data_atualizacao: now, status: "revisao", hash_simples: simpleEloChecksum_((base.conteudo_markdown || "") + nextVersion + now) }); clone.conteudo_html = buildEloBudgetRecordHtml_(clone, true); saveEloBudgetRecord_(clone); return { shortAnswer: "Nova versao criada.", fullAnswer: "Nova versao criada.\n\nNumero: " + clone.numero + " v" + clone.versao + "\nStatus: " + clone.status + "\nObra: " + clone.obra, nextAction: "Peca 'baixar PDF do orcamento " + clone.numero + "' para exportar a versao mais recente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version" }; }
   function buildEloBudgetProductAnswer_(message) { return buildEloBudgetSaveAnswer_(message) || buildEloBudgetListAnswer_(message) || buildEloBudgetOpenAnswer_(message) || buildEloBudgetVersionAnswer_(message) || buildEloBudgetPdfAnswer_(message); }
 
@@ -17813,6 +17999,18 @@
     }
   }
 
+  function handleEloBudgetPdfAction_(action) {
+    const record = getEloBudgetRecordById_(action && action.recordId) || getLatestEloBudgetRecord_();
+    if (!record) {
+      appendMessage("system", "Nao encontrei orcamento salvo para gerar o PDF.");
+      return;
+    }
+    openEloBudgetRecordPdf_(record);
+    if (typeof window !== "undefined" && window.__eloLastBudgetPdfPopupBlocked) {
+      appendMessage("system", "O navegador bloqueou a nova janela. Libere pop-ups para este site e clique em Abrir PDF novamente.");
+    }
+  }
+
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
@@ -17845,6 +18043,16 @@
         appendMessage("system", response.localDocumentResult.document.title + "\n\n" + response.localDocumentResult.document.text);
       });
       actions.appendChild(documentButton);
+    }
+
+    if (response && response.pdfAction) {
+      const pdfButton = createElement("button", "elo-inline-button elo-budget-pdf-action", response.pdfAction.label || "Gerar PDF do Orcamento");
+      pdfButton.type = "button";
+      pdfButton.setAttribute("data-elo-action", "budget-pdf");
+      pdfButton.addEventListener("click", function () {
+        handleEloBudgetPdfAction_(response.pdfAction);
+      });
+      actions.appendChild(pdfButton);
     }
 
     if (response && Array.isArray(response.routineCards)) {
@@ -20052,6 +20260,9 @@
     buildInstantGreetingResponseForTest: buildEloInstantGreetingResponse_,
     detectPriorityIntentForTest: detectEloPriorityIntent_,
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
+    buildBudgetRecordHtmlForTest: buildEloBudgetRecordHtml_,
+    openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
+    setLastBudgetSourceForTest: function (source) { ELO_SESSION_MEMORY.lastBudgetSource = source; },
     getBudgetRecordsForTest: getEloBudgetRecords_,
     getResidentialBudgetBriefingForTest: getEloResidentialBriefingState_,
     clearBudgetRecordsForTest: function () { setEloBudgetRecords_([]); writeEloBudgetJsonToStorage_(ELO_CONFIG.budgetCounterStorageKey, {}); ELO_SESSION_MEMORY.lastBudgetSource = null; },

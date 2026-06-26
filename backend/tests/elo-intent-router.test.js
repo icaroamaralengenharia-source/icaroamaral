@@ -143,3 +143,60 @@ test("Elo expõe roteadores de anexo no motor compartilhado", () => {
   assert.equal(typeof assistant.ask, "function");
   assert.equal(typeof assistant.mountMinimal, "function");
 });
+
+
+test("PDF profissional de orcamento nao despeja HTML no chat e gera artefato completo", () => {
+  const { assistant, calls } = loadAssistant();
+  assistant.clearBudgetRecordsForTest();
+  assistant.setLastBudgetSourceForTest({
+    question: "orcamento residencial",
+    theme: "residential_budget_package",
+    intent: "residential_budget_package",
+    answer: [
+      "Orcamento residencial preliminar",
+      "Casa terrea de 120 m2.",
+      "Parede / alvenaria",
+      "Area bruta: 80,00 x 2,80 = 224,00 m2",
+      "Vaos de portas e janelas: 18,00 m2",
+      "Area liquida de parede: 224,00 - 18,00 = 206,00 m2.",
+      "Fundacao - 8 sapatas e 42 m de baldrame.",
+      "Estrutura - 12 pilares e 30 m de vigas.",
+      "Pendencias tecnicas",
+      "Confirmar BDI e composicoes oficiais."
+    ].join("\n")
+  });
+
+  const saved = assistant.buildResponseForTest("Salvar orcamento.");
+  assert.equal(saved.sessionIntent, "budget_saved");
+  assert.match(saved.fullAnswer, /Gerar PDF do Or/i);
+  assert.equal(saved.pdfAction.type, "budget_pdf");
+
+  const [record] = assistant.getBudgetRecordsForTest();
+  const html = assistant.buildBudgetRecordHtmlForTest(record, false);
+
+  assert.match(html, new RegExp("PROPOSTA T\\u00c9CNICA DE OR\\u00c7AMENTO"));
+  [
+    "PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO",
+    "\u00cdCARO AMARAL ENGENHARIA",
+    "\u00cdcaro Amaral de Ara\u00fajo",
+    "\u00c1rea constru\u00edda",
+    "Responsabilidade t\u00e9cnica",
+    "Tabela de servi\u00e7os / quantitativos",
+    "Premissas e observa\u00e7\u00f5es",
+    "SINAPI BA 2024-12",
+    "\u00c1rea l\u00edquida de parede = 206,00 m\u00b2",
+    "Imprimir / Salvar como PDF",
+    "Fechar"
+  ].forEach((expected) => assert.ok(html.includes(expected), expected));
+  const q = String.fromCharCode(63);
+  ["T" + q + "CNICA", "OR" + q + "AMENTO", "constru" + q + "da", "revis" + q + "o", "servi" + q + "os", "observa" + q + q + "es", "Ara" + q + "jo", q + "caro", "composi" + q + q + "o"].forEach((broken) => {
+    assert.ok(!html.includes(broken), broken);
+  });
+
+  const pdf = assistant.buildResponseForTest("Baixar PDF do orcamento " + record.numero + ".");
+  assert.equal(pdf.sessionIntent, "budget_pdf");
+  assert.doesNotMatch(pdf.fullAnswer, /<html|<section|HTML gerado/i);
+  assert.match(pdf.fullAnswer, /PDF profissional preparado|nova janela|Abrir PDF novamente/i);
+  assert.equal(pdf.pdfAction.type, "budget_pdf");
+  assertNoTechnicalCalls(calls);
+});
