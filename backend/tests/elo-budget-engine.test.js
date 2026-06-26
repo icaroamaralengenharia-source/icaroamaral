@@ -74,6 +74,23 @@ test("casa térrea com bloco baiano telha portuguesa e piso 50m2 estrutura tabel
   assert.ok(budget.budgetTable.summary.readyRows >= 1);
 });
 
+test("casa terrea com banheiro e quartos preserva tipologia residencial", () => {
+  const win = loadStack();
+  const message = "quero um orcamento de uma casa terrea simples, 70m2 de area construida, 1 banheiro, dois quartos de casal";
+  const budget = win.EloBudgetEngine.buildPreliminaryBudget({ originalMessage: message }, {});
+  const report = win.EloBudgetEngine.buildBudgetReportText(budget);
+
+  assert.equal(budget.projectFacts.projectType, "casa_terrea");
+  assert.equal(budget.projectFacts.builtAreaM2, 70);
+  assert.equal(budget.projectFacts.bathrooms, 1);
+  assert.equal(budget.projectFacts.bedrooms, 2);
+  assert.equal(budget.projectFacts.bedroomProfile, "casal");
+  assert.equal(budget.projectFacts.projectStandard, "simples");
+  assert.match(report, /Tipo: casa terrea/i);
+  assert.match(report, /Programa: 2 quartos de casal, 1 banheiro/i);
+  assert.doesNotMatch(report, /Tipo: banheiro/i);
+});
+
 test("paredes com 4m registra altura sem transformar em área", () => {
   const win = loadStack();
   const budget = win.EloBudgetEngine.buildPreliminaryBudget({ originalMessage: "paredes com 4m de altura" }, {});

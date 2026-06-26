@@ -105,7 +105,9 @@
     const facts = projectFacts || {};
     const ctx = technicalContext || {};
     const text = normalize([facts.projectType, facts.type, facts.tipoObra, facts.originalMessage, ctx.lastMessage].join(" "));
+    const hasHouseIntent = /casa|residencia|residencial|terrea/.test(text);
     if (/muro/.test(text)) return "muro";
+    if (hasHouseIntent) return "casa_terrea";
     if (/banheiro/.test(text)) return "banheiro";
     if (/reforma/.test(text)) return "reforma_simples";
     if (/telhado|cobertura/.test(text) && !/casa/.test(text)) return "telhado_cobertura";

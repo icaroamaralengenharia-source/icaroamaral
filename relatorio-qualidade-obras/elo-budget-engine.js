@@ -14,6 +14,27 @@
     return values.filter(function (value) { return value > 0; });
   }
 
+  function parseSmallCount(value) {
+    const text = normalize(value);
+    const direct = number(text);
+    if (direct) return direct;
+    const words = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6 };
+    return words[text] || 0;
+  }
+
+  function extractCountBeforeTerm(rawText, termPattern) {
+    const text = normalize(rawText);
+    const match = text.match(new RegExp("\\b(\\d+|um|uma|dois|duas|tres|quatro|cinco|seis)\\s+" + termPattern + "\\b"));
+    return match ? parseSmallCount(match[1]) : 0;
+  }
+
+  function buildProgramSummary(facts) {
+    const parts = [];
+    if (facts.bedrooms) parts.push(facts.bedrooms + " quarto" + (facts.bedrooms > 1 ? "s" : "") + (facts.bedroomProfile ? " de " + facts.bedroomProfile : ""));
+    if (facts.bathrooms) parts.push(facts.bathrooms + " banheiro" + (facts.bathrooms > 1 ? "s" : ""));
+    return parts.join(", ");
+  }
+
   function collectFacts(projectFacts, technicalContext) {
     const facts = clone(projectFacts);
     const tech = technicalContext || {};
@@ -31,6 +52,14 @@
     if (!facts.wallAreaM2 && wallAreaMatch) facts.wallAreaM2 = number(wallAreaMatch[1]);
 
     if (!facts.wallMaterial && /bloco\s+(baiano|ceramico|cerâmico)/i.test(rawText)) facts.wallMaterial = /baiano/i.test(rawText) ? "bloco ceramico baiano" : "bloco ceramico";
+    if (!facts.bathrooms) facts.bathrooms = extractCountBeforeTerm(rawText, "banheiros?");
+    if (!facts.bedrooms) facts.bedrooms = extractCountBeforeTerm(rawText, "quartos?");
+    if (!facts.bedroomProfile && /quartos?\s+de\s+casal/.test(text)) facts.bedroomProfile = "casal";
+    if (!facts.projectStandard && /simples/.test(text)) facts.projectStandard = "simples";
+    if (!facts.projectStandard && /economico/.test(text)) facts.projectStandard = "economico";
+    if (!facts.projectStandard && /padrao\s+medio/.test(text)) facts.projectStandard = "medio";
+    if (!facts.projectStandard && /alto\s+padrao/.test(text)) facts.projectStandard = "alto";
+    if (!facts.programSummary) facts.programSummary = buildProgramSummary(facts);
     if (!facts.roofMaterial && /telha\s+portuguesa/i.test(rawText)) facts.roofMaterial = "telha portuguesa";
     if (!facts.roofStructure && /estrutura\s+de\s+madeira/i.test(rawText)) facts.roofStructure = "estrutura de madeira";
     if (!facts.floorMaterial && /piso\s+ceramico|piso\s+cerâmico|porcelanato/i.test(rawText)) facts.floorMaterial = /porcelanato/i.test(rawText) ? "porcelanato" : "piso ceramico";
@@ -205,6 +234,8 @@
     lines.push("1. Dados identificados");
     lines.push("- Tipo: " + (facts.projectType || "nao definido").replace(/_/g, " "));
     if (facts.builtAreaM2) lines.push("- Área construída: " + Number(facts.builtAreaM2).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m²");
+    if (facts.programSummary) lines.push("- Programa: " + facts.programSummary);
+    if (facts.projectStandard) lines.push("- Padr\u00e3o: " + facts.projectStandard);
     if (facts.wallHeightM) lines.push("- Altura de paredes: " + Number(facts.wallHeightM).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m");
     if (facts.wallMaterial) lines.push("- Sistema de parede: " + facts.wallMaterial);
     if (facts.roofMaterial) lines.push("- Cobertura: " + facts.roofMaterial);
