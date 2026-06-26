@@ -7972,6 +7972,35 @@
     return buildSocialPresenceAnswer(question, buildSocialPresenceContext());
   }
 
+  function buildEloInstantGreetingResponse_(question) {
+    const kind = detectSocialGreeting(question);
+    if (!kind) {
+      return null;
+    }
+    const profile = getUserProfile();
+    const name = profile.userName ? ", " + profile.userName : "";
+    const text = stripEloAddress(question);
+    let opening = "Oi" + name + ".";
+    if (text === "bom dia") {
+      opening = "Bom dia" + name + ".";
+    } else if (text === "boa tarde") {
+      opening = "Boa tarde" + name + ".";
+    } else if (text === "boa noite") {
+      opening = "Boa noite" + name + ".";
+    } else if (kind === "checkin") {
+      opening = "Tudo bem por aqui" + (profile.userName ? ", " + profile.userName : "") + ".";
+    }
+    return {
+      shortAnswer: opening + " Estou pronto.",
+      fullAnswer: "Você quer fazer um orçamento, consultar uma composição SINAPI ou continuar uma obra?",
+      nextAction: "Diga se quer orçamento, composição SINAPI ou continuidade de obra.",
+      canSave: false,
+      sessionTheme: "conversa",
+      sessionIntent: "cumprimento_instantaneo",
+      fastPath: "greeting"
+    };
+  }
+
   function buildEloWakeCallAnswer() {
     const snapshot = getConnectedMemorySnapshot();
     const name = snapshot.userName ? snapshot.userName + ", " : "";
@@ -14027,6 +14056,11 @@
       };
     }
 
+    const instantGreetingAnswer = buildEloInstantGreetingResponse_(cleanQuestion);
+    if (instantGreetingAnswer) {
+      return instantGreetingAnswer;
+    }
+
     const technicalEngineAnswer = buildEloTechnicalEngineAnswer_(cleanQuestion);
     if (technicalEngineAnswer) {
       return technicalEngineAnswer;
@@ -16387,6 +16421,16 @@
 
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
+    const instantGreetingAnswer = buildEloInstantGreetingResponse_(cleanQuestion);
+    if (instantGreetingAnswer) {
+      const instantGreetingText = formatResponse(instantGreetingAnswer);
+      appendAssistantMessage(cleanQuestion, instantGreetingText, false, instantGreetingAnswer);
+      saveConversation(cleanQuestion, instantGreetingText);
+      rememberSessionTurn(cleanQuestion, instantGreetingAnswer, instantGreetingText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     appendTypingIndicator();
 
     const technicalChatEngineAnswer = buildEloTechnicalEngineAnswer_(cleanQuestion);
@@ -19686,6 +19730,7 @@
     mountMinimal: mountMinimalEloChat,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    buildInstantGreetingResponseForTest: buildEloInstantGreetingResponse_,
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
     getBudgetRecordsForTest: getEloBudgetRecords_,
     getResidentialBudgetBriefingForTest: getEloResidentialBriefingState_,

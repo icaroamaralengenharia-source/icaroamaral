@@ -53,3 +53,15 @@ test("Elo pergunta dimensao do bloco baiano depois de receber area da parede", (
   assert.match(result.answer, /Qual a dimensao do bloco baiano\? Exemplos: 9x19x29 ou 14x19x29\./);
   assert.doesNotMatch(result.answer, /Qual a espessura da parede\/bloco/i);
 });
+test("Elo mantem orcamento de parede na base oficial", () => {
+  const engine = loadEloProductionStack();
+  const result = engine.analyze("orçar parede de bloco cerâmico");
+
+  assert.equal(result.mode, "technical_consumption");
+  assert.equal(result.service.id, "alvenaria");
+  assert.deepEqual(Array.from(result.missing), ["area", "dimensao_bloco"]);
+  assert.equal(result.compositionSearch.indexedCount, 7829);
+  assert.equal(result.compositionSearch.found, true);
+  assert.match(result.answer, /BUSCA NA BASE OFICIAL/);
+  assert.doesNotMatch(result.answer, /Estou pronto/);
+});
