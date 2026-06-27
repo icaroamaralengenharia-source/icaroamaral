@@ -5933,6 +5933,88 @@ test("stock demo registra solicitacao de aprovacao", async () => {
   assert.equal(data.state.approvalRequests[0].status, "pending");
 });
 
+
+test("Elo PDF profissional central estrutura dados incompletos sem inventar", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const html = sandbox.window.EloAssistente.buildProfessionalPdfDocumentForTest({
+    numero: "ELO-TEST-0001",
+    conteudo_markdown: "Resposta principal\nOrcamento simples com dados incompletos.\n\nPendencias tecnicas\n- falta cliente;\n- falta composicao oficial."
+  }, { nomeDocumento: "Orcamento tecnico preliminar" });
+
+  assert.match(html, /elo-professional-pdf/);
+  assert.match(html, /Documento tecnico de engenharia/);
+  assert.match(html, /Cliente[\s\S]*nao informado/);
+  assert.match(html, /Pendencias e informacoes faltantes/);
+  assert.match(html, /falta composicao oficial/);
+  assert.match(html, /Responsabilidade t(?:e|é)cnica e revis(?:a|ã)o/);
+  assert.match(html, /Pagina/);
+});
+
+test("Elo PDF profissional central preserva composicao tecnica encontrada", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const html = sandbox.window.EloAssistente.buildProfessionalPdfDocumentForTest({
+    numero: "ELO-TEST-0002",
+    cliente: "Cliente Alfa",
+    obra: "Residencial Alfa",
+    cidade_uf: "Feira de Santana/BA",
+    conteudo_markdown: [
+      "Resposta principal",
+      "Orcamento com composicao tecnica encontrada.",
+      "",
+      "Premissas utilizadas",
+      "- Parede 40 m2; bloco 14x19x39.",
+      "",
+      "Composicoes utilizadas",
+      "- SINAPI 87519 - Alvenaria de bloco ceramico.",
+      "",
+      "Base tecnica utilizada",
+      "- SINAPI BA 2026-01 importada e validada.",
+      "",
+      "Memoria de calculo",
+      "- Area liquida: 40 m2."
+    ].join("\n")
+  }, { nomeDocumento: "Proposta tecnica preliminar" });
+
+  assert.match(html, /Cliente Alfa/);
+  assert.match(html, /Residencial Alfa/);
+  assert.match(html, /SINAPI 87519/);
+  assert.match(html, /SINAPI BA 2026-01 importada e validada/);
+  assert.match(html, /Area liquida: 40 m2/);
+});
+
+test("Elo PDF sem orcamento salvo responde sem quebrar", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.window.EloAssistente.clearBudgetRecordsForTest();
+  const response = sandbox.window.EloAssistente.buildResponseForTest("baixar PDF do orcamento");
+
+  assert.ok(response);
+  assert.doesNotMatch(response.fullAnswer || "", /TypeError|ReferenceError/);
+  assert.match((response.fullAnswer || "") + "\n" + (response.shortAnswer || ""), /Nenhum orcamento salvo|Documento profissional|Ainda nao encontrei orcamento salvo suficiente/i);
+});
+
+test("Elo PDF profissional usa o mesmo template nos tres pontos de entrada", async () => {
+  const pages = [
+    { pathname: "/elo.html", context: "geral" },
+    { pathname: "/elo-projeto.html", context: "cadista" },
+    { pathname: "/stock-ai-obras.html", context: "obras" }
+  ];
+
+  for (const page of pages) {
+    const sandbox = await loadEloOperationalSandbox_([]);
+    sandbox.location.pathname = page.pathname;
+    sandbox.document.body.dataset.eloContext = page.context;
+    const html = sandbox.window.EloAssistente.buildProfessionalPdfDocumentForTest({
+      numero: "ELO-SHARED-001",
+      conteudo_markdown: "Premissas utilizadas\n- teste compartilhado.\n\nBase tecnica utilizada\n- nao localizada."
+    }, { nomeDocumento: "Documento compartilhado" });
+
+    assert.match(html, /elo-professional-pdf/);
+    assert.match(html, /Documento compartilhado/);
+    assert.match(html, /Icaro Amaral Engenharia/);
+    assert.match(html, /Imprimir \/ Salvar como PDF/);
+  }
+});
+
 function writeEloVectorTestFile_(path, items) {
   writeFileSync(path, JSON.stringify({
     items,

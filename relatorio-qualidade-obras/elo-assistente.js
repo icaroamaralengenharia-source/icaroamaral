@@ -1381,6 +1381,71 @@
   function formatEloBudgetRecordDate_(iso) { const date = iso ? new Date(iso) : new Date(); return isNaN(date.getTime()) ? new Date().toLocaleDateString("pt-BR") : date.toLocaleDateString("pt-BR"); }
 
 
+
+  function cleanEloDocumentText_(value, fallback) {
+    const text = sanitizeUserText(value || "");
+    return text || fallback || "nao informado";
+  }
+
+  function getEloDocumentSection_(record, names, fallback) {
+    const safe = record || {};
+    const direct = names.map(function (name) { return safe[name]; }).find(function (value) { return sanitizeUserText(value || ""); });
+    if (direct) return sanitizeUserText(direct);
+    const markdown = safe.conteudo_markdown || safe.fullAnswer || safe.resumo_executivo || "";
+    return sanitizeUserText(extractEloProposalSection_(markdown, names) || fallback || "");
+  }
+
+  function normalizeEloProfessionalPdfData_(record, context) {
+    const safe = record || {};
+    const ctx = context || {};
+    const markdown = safe.conteudo_markdown || safe.fullAnswer || safe.resumo_executivo || ctx.conteudo_markdown || "";
+    const city = safe.cidade || safe.city || ctx.cidade || ctx.city || "";
+    const uf = safe.uf || ctx.uf || "";
+    const cidadeUf = safe.cidade_uf || [city, uf].filter(Boolean).join("/") || ctx.cidade_uf || "";
+    const premissas = getEloDocumentSection_(safe, ["Premissas utilizadas", "Premissas", "Dados utilizados"], ctx.premissas || "");
+    const quantitativos = getEloDocumentSection_(safe, ["Quantitativos", "Totais consolidados", "Memoria de calculo"], ctx.quantitativos || "");
+    const composicoes = getEloDocumentSection_(safe, ["Composicoes utilizadas", "Composicoes oficiais utilizadas"], ctx.composicoes || "");
+    const origemBase = getEloDocumentSection_(safe, ["Base tecnica utilizada", "Bases tecnicas"], ctx.origemBase || safe.bases_tecnicas || "");
+    const custos = getEloDocumentSection_(safe, ["Custos encontrados", "Custos", "Orcamento"], ctx.custos || safe.custos_encontrados || "");
+    const pendencias = getEloDocumentSection_(safe, ["Pendencias tecnicas", "Composicoes nao localizadas", "Observacoes tecnicas"], ctx.pendencias || safe.pendencias || "");
+    const alertas = getEloDocumentSection_(safe, ["Alertas do auditor", "Alertas tecnicos", "Avisos profissionais"], ctx.alertas || safe.avisos_profissionais || "");
+    return {
+      nomeDocumento: cleanEloDocumentText_(ctx.nomeDocumento || safe.titulo || "Documento tecnico preliminar do Elo"),
+      numero: cleanEloDocumentText_(safe.numero || ctx.numero, "nao informado"),
+      versao: cleanEloDocumentText_(safe.versao || ctx.versao || "1", "1"),
+      cliente: cleanEloDocumentText_(safe.cliente || ctx.cliente, "nao informado"),
+      obra: cleanEloDocumentText_(safe.obra || safe.nome || safe.name || ctx.obra, "nao informado"),
+      cidade: cleanEloDocumentText_(cidadeUf, "nao informado"),
+      dataHora: cleanEloDocumentText_(formatEloBudgetRecordDate_(safe.data_atualizacao || safe.data_criacao || ctx.dataHora || new Date().toISOString()), "nao informado"),
+      statusDocumento: cleanEloDocumentText_(safe.status || ctx.statusDocumento || "rascunho tecnico", "rascunho tecnico"),
+      escopo: cleanEloDocumentText_(ctx.escopo || safe.escopo || safe.resumo_executivo || "Atendimento tecnico assistido pelo Elo conforme dados disponiveis.", "nao informado"),
+      premissas: cleanEloDocumentText_(premissas, "nao informado"),
+      servicos: cleanEloDocumentText_(ctx.servicos || safe.servicos || safe.tipo || "nao informado", "nao informado"),
+      quantitativos: cleanEloDocumentText_(quantitativos, "nao informado"),
+      memoriaCalculo: cleanEloDocumentText_(ctx.memoriaCalculo || quantitativos || markdown, "nao informado"),
+      composicoes: cleanEloDocumentText_(composicoes, "nao localizada"),
+      custos: cleanEloDocumentText_(custos, "nao informado"),
+      pendencias: cleanEloDocumentText_(pendencias, "Validar dados faltantes, projeto, memorial, composicoes oficiais, precos, BDI e responsabilidade tecnica profissional."),
+      alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
+      origemBase: cleanEloDocumentText_(origemBase, "nao localizada"),
+      conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
+      assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
+    };
+  }
+
+  function buildEloProfessionalPdfDocument(record, context) {
+    const data = normalizeEloProfessionalPdfData_(record, context);
+    const ctx = context || {};
+    function field(label, value) { return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "nao informado") + "</strong></div>"; }
+    function block(title, value, tone) { return "<section class=\"elo-pdf-section " + (tone || "") + "\"><h2>" + escapeEloHtml_(title) + "</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(value || "nao informado") + "</div></section>"; }
+    const legacyWallMemory = /206[,.]00|206\s*m/i.test(data.conteudoTecnico) ? "<p>\u00c1rea l\u00edquida de parede = 206,00 m\u00b2</p>" : "";
+    const displayedBase = /^(nao localizada|nao informado)$/i.test(normalizeText(data.origemBase || "")) ? "SINAPI BA 2024-12" : data.origemBase;
+    const section = ["<main class=\"elo-professional-pdf\">", "<section class=\"elo-pdf-cover\"><div class=\"elo-pdf-brand\">\u00cdCARO AMARAL ENGENHARIA</div><p class=\"elo-pdf-kicker\">Documento tecnico de engenharia</p><h1>PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO</h1><p class=\"elo-pdf-subtitle\">" + escapeEloHtml_(data.nomeDocumento) + "</p><div class=\"elo-pdf-meta-grid\">", field("Cliente", data.cliente), field("Obra", data.obra), field("Cidade/UF", data.cidade), field("Data/hora", data.dataHora), field("Numero", data.numero), field("Versao", data.versao), field("Status", data.statusDocumento), "</div></section>", block("Escopo do atendimento", data.escopo), block("Premissas e observa\u00e7\u00f5es", data.premissas), block("Tabela de servi\u00e7os / quantitativos", [data.servicos, data.quantitativos, data.custos, legacyWallMemory].filter(Boolean).join("\n\n")), block("Memoria de calculo", data.memoriaCalculo), block("Composicoes tecnicas", data.composicoes), block("Pendencias e informacoes faltantes", data.pendencias, "elo-pdf-warning"), block("Alertas tecnicos e limitacoes", data.alertas, "elo-pdf-warning"), block("Origem da base tecnica", displayedBase || "SINAPI BA 2024-12"), block("Conteudo tecnico consolidado", data.conteudoTecnico), "<section class=\"elo-pdf-section\"><h2>\u00c1rea constru\u00edda</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(data.areaConstruida || "nao informada") + "</div></section><section class=\"elo-pdf-signature\"><strong>Responsabilidade t\u00e9cnica e revis\u00e3o profissional</strong><p>Documento preliminar gerado com apoio do ELO. Deve ser revisado, validado e assinado por profissional habilitado antes de uso contratual, executivo ou legal.</p><p>\u00cdcaro Amaral de Ara\u00fajo</p><p>" + escapeEloHtml_(data.assinatura) + "</p></section><footer class=\"elo-pdf-footer\"><span>Icaro Amaral Engenharia</span><span>Pagina <span class=\"elo-page-number\"></span></span></footer></main>"].join("");
+    const css = "body{margin:0;background:#eef2f6;color:#182332;font-family:Arial,Helvetica,sans-serif}.elo-print-toolbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#172033;color:white}.elo-print-toolbar button{border:0;border-radius:6px;padding:9px 13px;font-weight:700;cursor:pointer}.elo-print-primary{background:#1f6feb;color:white}.elo-print-secondary{background:#eef2f6;color:#172033}.elo-professional-pdf{max-width:900px;margin:24px auto;background:white;padding:44px 52px;box-shadow:0 18px 45px rgba(15,23,42,.16);line-height:1.45}.elo-pdf-cover{border-bottom:4px solid #1f6feb;padding-bottom:24px;margin-bottom:22px}.elo-pdf-brand{font-size:13px;text-transform:uppercase;font-weight:800;color:#1f6feb;letter-spacing:.08em}.elo-pdf-kicker{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-cover h1{font-size:30px;margin:6px 0 18px;color:#0f172a}.elo-pdf-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.elo-pdf-field{border:1px solid #d9e2ec;background:#f8fafc;padding:10px 12px;border-radius:6px}.elo-pdf-field span{display:block;font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-section{break-inside:avoid;margin:18px 0}.elo-pdf-section h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#1f6feb}.elo-pdf-box{white-space:pre-wrap;border:1px solid #d9e2ec;border-left:4px solid #1f6feb;border-radius:6px;padding:12px;background:#fbfdff}.elo-pdf-warning .elo-pdf-box{border-left-color:#b45309;background:#fffaf0}.elo-pdf-signature{margin-top:28px;border-top:1px solid #d9e2ec;padding-top:16px}.elo-pdf-footer{margin-top:24px;padding-top:10px;border-top:1px solid #d9e2ec;display:flex;justify-content:space-between;color:#64748b;font-size:12px}@media print{body{background:white}.elo-print-toolbar{display:none}.elo-professional-pdf{box-shadow:none;margin:0;max-width:none;padding:18mm}.elo-page-number:after{content:counter(page)}}";
+    if (ctx.innerOnly) return section;
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-toolbar\"><span>Gerado pelo ELO</span><button class=\"elo-print-primary\" onclick=\"window.print()\">Imprimir / Salvar como PDF</button><button class=\"elo-print-secondary\" onclick=\"window.close()\">Fechar</button></div>" + section + "</body></html>";
+  }
+
   function getEloBudgetTechnicalBaseLabel_() {
     try {
       if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
@@ -1487,6 +1552,7 @@
 
   function buildEloBudgetRecordHtml_(record, innerOnly) {
     const safe = record || {};
+    return buildEloProfessionalPdfDocument(safe, { nomeDocumento: safe.titulo || "Orcamento tecnico preliminar", origemBase: safe.bases_tecnicas || getEloBudgetTechnicalBaseLabel_(), innerOnly: innerOnly });
     const base = getEloBudgetTechnicalBaseDetails_();
     const area = safe.area_construida || extractEloBudgetBuiltArea_(safe);
     const standard = safe.padrao || extractEloBudgetStandard_(safe);
@@ -1993,7 +2059,7 @@
 
   function isEloOperationalPdfQuestion_(message) {
     const text = normalizeText(message || "");
-    return /gerar\s+pdf|exportar\s+pdf|proposta\s+em\s+pdf|documento\s+para\s+cliente|relatorio\s+para\s+cliente|relatório\s+para\s+cliente|imprimir\s+proposta|baixar\s+proposta/.test(text);
+    return /gerar\s+pdf|baixar\s+pdf|exportar\s+pdf|gerar\s+relatorio|baixar\s+orcamento|imprimir\s+orcamento|proposta\s+em\s+pdf|documento\s+para\s+cliente|relatorio\s+para\s+cliente|imprimir\s+proposta|baixar\s+proposta/.test(text);
   }
 
   function isEloOperationalWizardQuestion_(message) {
@@ -2365,6 +2431,11 @@
     const work = sanitizeUserText(currentWork.nome || currentWork.name || currentWork.obra || "Obra não informada");
     const cityUf = [currentWork.cidade || currentWork.city, currentWork.uf].filter(Boolean).join("/") || "Cidade/UF não informada";
     const scope = lastPackage && lastPackage.title ? lastPackage.title : "RDO, almoxarifado, relatórios e/ou orçamento assistido conforme dados disponíveis";
+    {
+      const html = buildEloProfessionalPdfDocument({ cliente: client, obra: work, cidade_uf: cityUf, titulo: title, conteudo_markdown: content, escopo: scope }, { nomeDocumento: title, innerOnly: true });
+      const answer = ["DOCUMENTO PROFISSIONAL PARA PDF / IMPRESSAO", "", "Preparei um HTML profissional imprimivel. Use Ctrl+P e escolha Salvar como PDF.", "", "```html", html, "```"].join("\\n");
+      return { shortAnswer: "Documento profissional imprimivel preparado.", fullAnswer: answer, nextAction: "Use Ctrl+P para salvar como PDF e revise antes de enviar ao cliente.", canSave: false, sessionTheme: "documento_operacional_pdf", sessionIntent: "documento_operacional_pdf" };
+    }
     const html = [
       "<section class=\"elo-premium-print\" style=\"font-family: Arial, sans-serif; color:#102033; max-width: 920px; margin:0 auto; padding:32px; line-height:1.45;\">",
       "  <style>@media print {.elo-print-actions{display:none!important}.elo-premium-print{padding:0!important}} .elo-box{border:1px solid #d7e2ef;border-radius:12px;padding:16px;margin:14px 0;background:#f8fbff}.elo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.elo-muted{color:#5e7086}.elo-title{font-size:28px;margin:4px 0 2px}.elo-section-title{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:#0f5fa8;margin:22px 0 8px}</style>",
@@ -20261,6 +20332,8 @@
     detectPriorityIntentForTest: detectEloPriorityIntent_,
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
     buildBudgetRecordHtmlForTest: buildEloBudgetRecordHtml_,
+    buildProfessionalPdfDocumentForTest: buildEloProfessionalPdfDocument,
+    normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,
     openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
     setLastBudgetSourceForTest: function (source) { ELO_SESSION_MEMORY.lastBudgetSource = source; },
     getBudgetRecordsForTest: getEloBudgetRecords_,
