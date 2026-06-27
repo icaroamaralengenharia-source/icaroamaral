@@ -1,9 +1,11 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const FAMILIES = {
     one: "CASA_TERREA_1_QUARTO",
-    two: "CASA_TERREA_2_QUARTOS"
+    two: "CASA_TERREA_2_QUARTOS",
+    threeSocial: "CASA_TERREA_3_QUARTOS_SOCIAL_INTEGRADO_SUITE",
+    threeFree: "CASA_TERREA_3_QUARTOS_SUITE_LIVRE"
   };
 
   const PREFERENCE_LABELS = {
@@ -13,7 +15,11 @@
     em_l: "em L",
     economica: "economica/popular",
     moderna: "moderna",
-    rural: "rural/varanda"
+    rural: "rural/varanda",
+    suite: "suite",
+    ilha: "ilha",
+    servico_externo: "servico externo",
+    corredor: "corredor"
   };
 
   const state = { open: false, intent: null };
@@ -39,11 +45,15 @@
     const text = normalizeText(input);
     if (/retangular|comprid|estreit|linear/.test(text)) return "retangular";
     if (/quadrad|chale/.test(text)) return "quadrada";
-    if (/conceito aberto|integrada|cozinha americana|open/.test(text)) return "conceito_aberto";
+    if (/conceito aberto|integrada|cozinha americana|open|social integrado|balcao/.test(text)) return "conceito_aberto";
     if (/em l|\bl\b/.test(text)) return "em_l";
     if (/barat|econom|popular|baixo custo|tiny|kitnet/.test(text)) return "economica";
-    if (/modern|premium|ilha|gourmet/.test(text)) return "moderna";
+    if (/modern|premium|gourmet/.test(text)) return "moderna";
     if (/rural|sitio|chacara|varanda|campo/.test(text)) return "rural";
+    if (/ilha/.test(text)) return "ilha";
+    if (/lavanderia externa|area de servico externa|servico externo/.test(text)) return "servico_externo";
+    if (/corredor|setor intimo|privacidade/.test(text)) return "corredor";
+    if (/suite|master/.test(text)) return "suite";
     return null;
   }
 
@@ -51,7 +61,16 @@
     const text = normalizeText(input);
     if (/(\b1\s*quarto\b|\bum\s+quarto\b|\bone\s+bedroom\b|\b1\s*bedroom\b)/.test(text)) return 1;
     if (/(\b2\s*quartos\b|\bdois\s+quartos\b|\btwo\s+bedroom\b|\b2\s*bedroom\b)/.test(text)) return 2;
+    if (/(\b3\s*quartos?\b|\btres\s+quartos?\b|\bthree\s+bedroom\b|\b3\s*bedroom\b|\bcasa\s+com\s+suite\b|\bsendo\s+uma\s+suite\b)/.test(text)) return 3;
     return null;
+  }
+
+  function detectThreeBedroomFamily(input) {
+    const text = normalizeText(input);
+    if (/(social integrado|sala.*jantar.*cozinha|jantar.*cozinha.*integr|cozinha americana|balcao|ilha|open concept|living dining kitchen|corredor|lavanderia externa|area de servico externa|servico externo|master suite|sendo uma suite)/.test(text)) {
+      return FAMILIES.threeSocial;
+    }
+    return FAMILIES.threeFree;
   }
 
   function detectCadistaHouseTemplateIntent(input) {
@@ -59,11 +78,11 @@
     const bedrooms = detectBedrooms(text);
     const lot = parseLot(text);
     const chooseByLot = /(nao sei|nao tenho certeza|escolha|melhor|recomende|sugira)/.test(text) && lot;
-    const requestedHouse = /(casa|planta|terrea|floor plan|house|kitnet|tiny|edicula|adu)/.test(text);
+    const requestedHouse = /(casa|planta|terrea|floor plan|house|kitnet|tiny|edicula|adu|residencia|suite)/.test(text);
     const inferredBedrooms = bedrooms || (chooseByLot ? 2 : null);
     if (!inferredBedrooms || !requestedHouse && !chooseByLot) return null;
     return {
-      family: inferredBedrooms === 1 ? FAMILIES.one : FAMILIES.two,
+      family: inferredBedrooms === 1 ? FAMILIES.one : inferredBedrooms === 2 ? FAMILIES.two : detectThreeBedroomFamily(text),
       bedrooms: inferredBedrooms,
       lot,
       preference: detectPreference(text),
@@ -75,19 +94,24 @@
     if (!intent) return null;
     if (intent.bedrooms === 1) return window.CadistaOneBedroomLibrary || null;
     if (intent.bedrooms === 2) return window.CadistaTwoBedroomLibrary || null;
+    if (intent.bedrooms === 3) return window.CadistaThreeBedroomLibrary || null;
     return null;
   }
 
   function preferenceMatches(model, preference) {
     if (!model || !preference) return true;
-    const tags = normalizeText([model.group, model.groupName, model.name].concat(model.tags || []).join(" "));
+    const tags = normalizeText([model.group, model.groupName, model.name, model.strategy, model.description].concat(model.tags || []).join(" "));
     if (preference === "retangular") return model.group === "rectangular" || /retangular|linear|estreita|comprida/.test(tags);
     if (preference === "quadrada") return model.group === "square" || /quadrada|chale/.test(tags);
-    if (preference === "conceito_aberto") return model.group === "open" || /conceito aberto|integrada|cozinha americana/.test(tags);
+    if (preference === "conceito_aberto") return model.group === "open" || /conceito aberto|integrada|cozinha americana|social integrado|open concept/.test(tags);
     if (preference === "em_l") return model.group === "lshape" || /em l|planta em l/.test(tags);
     if (preference === "economica") return model.group === "compact" || model.group === "popular" || /economica|popular|barata|tiny|kitnet/.test(tags);
     if (preference === "moderna") return /moderna|premium|ilha|gourmet|cozinha americana|social integrado/.test(tags);
     if (preference === "rural") return /rural|sitio|varanda|campo|cozinha maior/.test(tags);
+    if (preference === "suite") return /suite|master/.test(tags);
+    if (preference === "ilha") return /ilha|cozinha americana|social integrado/.test(tags);
+    if (preference === "servico_externo") return /lavanderia externa|area de servico externa|servico externo/.test(tags);
+    if (preference === "corredor") return /corredor|privacidade|setor intimo|quartos isolados/.test(tags);
     return true;
   }
 
@@ -95,18 +119,20 @@
     const library = getLibrary(intent);
     if (!library || !intent) return [];
     const text = [intent.rawInput, intent.preference ? PREFERENCE_LABELS[intent.preference] : "", intent.lot ? intent.lot.label : ""].filter(Boolean).join(" ");
-    const recommended = typeof library.recommend === "function" ? library.recommend(text, 12) : [];
-    const filtered = recommended.filter((model) => preferenceMatches(model, intent.preference));
-    const source = filtered.length ? filtered : recommended;
+    const recommended = typeof library.recommend === "function" ? library.recommend(Object.assign({}, intent, { rawInput: text }), 12) : [];
+    const familyFiltered = recommended.filter((model) => !intent.family || model.family === intent.family);
+    const filtered = familyFiltered.filter((model) => preferenceMatches(model, intent.preference));
+    const source = filtered.length ? filtered : familyFiltered.length ? familyFiltered : recommended;
     return source.slice(0, 3);
   }
 
   function buildIntroMessage(intent) {
-    if (!intent) return "Digite um pedido como casa 1 quarto, planta 2 quartos ou informe o terreno.";
-    const count = intent.bedrooms === 1 ? "1 quarto" : "2 quartos";
+    if (!intent) return "Digite um pedido como casa 1 quarto, planta 2 quartos, casa 3 quartos ou informe o terreno.";
+    const count = intent.bedrooms === 1 ? "1 quarto" : intent.bedrooms === 2 ? "2 quartos" : "3 quartos com suite";
+    const familyText = intent.bedrooms === 3 ? " A biblioteca 3Q tem 60 modelos-base, divididos entre social integrado com suite e suite livre." : "";
     const lotText = intent.lot ? ` Pelo terreno ${intent.lot.label}, posso sugerir 3 modelos mais adequados.` : " Se nao houver terreno, informe o tamanho do lote, por exemplo 8x20, 10x20 ou 12x25.";
     const styleText = " Posso organizar por estilo: retangular, quadrada, conceito aberto, em L, economica/popular, moderna ou rural/varanda.";
-    return `Tenho 30 modelos-base para casa terrea de ${count}.${lotText}${styleText}`;
+    return `Tenho ${intent.bedrooms === 3 ? "60" : "30"} modelos-base para casa terrea de ${count}.${familyText}${lotText}${styleText}`;
   }
 
   function buildCommand(model, intent) {
@@ -120,7 +146,7 @@
     const launcher = document.createElement("button");
     launcher.type = "button";
     launcher.className = "cadista-house-library-launcher";
-    launcher.textContent = "Modelos 1Q/2Q";
+    launcher.textContent = "Modelos 1Q/2Q/3Q";
 
     const panel = document.createElement("section");
     panel.className = "cadista-house-library-panel";
@@ -128,9 +154,9 @@
     panel.innerHTML = `
       <div class="cadista-house-library-head"><strong>Biblioteca residencial CADISTA</strong><button type="button" data-house-close aria-label="Fechar">x</button></div>
       <div class="cadista-house-library-body">
-        <textarea data-house-input placeholder="Ex.: casa de 2 quartos terreno 10x20 moderna"></textarea>
+        <textarea data-house-input placeholder="Ex.: casa de 3 quartos com suite terreno 10x25 moderna"></textarea>
         <div class="cadista-house-library-actions"><button type="button" data-house-detect>Detectar</button><button type="button" data-house-recommend>Recomendar 3</button></div>
-        <p class="cadista-house-library-note" data-house-note>Biblioteca atual: 60 modelos-base, sendo 30 de 1 quarto e 30 de 2 quartos.</p>
+        <p class="cadista-house-library-note" data-house-note>Biblioteca atual: 120 modelos-base, sendo 30 de 1 quarto, 30 de 2 quartos e 60 de 3 quartos.</p>
         <div class="cadista-house-library-grid" data-house-results></div>
       </div>`;
     document.body.appendChild(panel);
@@ -144,7 +170,7 @@
       const intent = detectCadistaHouseTemplateIntent(inputText || input.value);
       state.intent = intent;
       if (!intent) {
-        note.textContent = "Nao identifiquei se e casa terrea de 1 quarto ou 2 quartos. Informe algo como casa 1 quarto ou casa 2 quartos.";
+        note.textContent = "Nao identifiquei se e casa terrea de 1, 2 ou 3 quartos. Informe algo como casa 1 quarto, casa 2 quartos ou casa 3 quartos.";
         results.innerHTML = "";
         return;
       }
@@ -222,6 +248,7 @@
   }
 
   window.CadistaHouseTemplateLibrary = {
+    families: FAMILIES,
     detectCadistaHouseTemplateIntent,
     recommendCadistaTemplates,
     buildIntroMessage

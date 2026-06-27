@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const CRITERIA = [
@@ -44,6 +44,7 @@
     if (!intent) return null;
     if (intent.bedrooms === 1) return window.CadistaOneBedroomLibrary || null;
     if (intent.bedrooms === 2) return window.CadistaTwoBedroomLibrary || null;
+    if (intent.bedrooms === 3) return window.CadistaThreeBedroomLibrary || null;
     return null;
   }
 
@@ -68,13 +69,13 @@
   }
 
   function modelText(model) {
-    return normalizeText([model.name, model.group, model.strategy, model.description].concat(model.tags || []).join(" "));
+    return normalizeText([model.name, model.group, model.groupName, model.strategy, model.description].concat(model.tags || []).join(" "));
   }
-
 
   function hasRuralSignal(text) {
     return /(^|\s)(rural|sitio|varanda|campo|patio)(\s|$)/.test(text) || text.includes("cozinha maior");
   }
+
   function scoreCadistaModel(model, intent) {
     const text = modelText(model);
     const input = intent.normalizedInput || "";
@@ -92,55 +93,73 @@
     };
 
     if (profile === "estreito_profundo") {
-      if (/retangular|linear|estreita|longa|corredor lateral|geminada|tiny/.test(text)) scores.terrain += 22;
+      if (/retangular|linear|estreita|longa|corredor lateral|geminada|tiny|8x20/.test(text)) scores.terrain += 22;
       if (/em l|quadrada/.test(text)) scores.terrain += 8;
     } else if (profile === "medio") {
-      if (/retangular|conceito aberto|popular|compacta|l compacta/.test(text)) scores.terrain += 18;
+      if (/retangular|conceito aberto|popular|compacta|l compacta|social integrado/.test(text)) scores.terrain += 18;
       if (/quadrada|em l/.test(text)) scores.terrain += 12;
     } else if (profile === "largo") {
-      if (/em l|varanda|patio|familiar|rural|premium|moderna/.test(text)) scores.terrain += 22;
+      if (/em l|varanda|patio|familiar|rural|premium|moderna|ilha/.test(text)) scores.terrain += 22;
       if (/retangular/.test(text)) scores.terrain += 10;
     } else if (profile === "quadrado") {
-      if (/quadrada|conceito aberto|chale|nucleo molhado/.test(text)) scores.terrain += 22;
+      if (/quadrada|conceito aberto|chale|nucleo molhado|central/.test(text)) scores.terrain += 22;
       if (/retangular/.test(text)) scores.terrain += 10;
     }
 
     if (/pouca circulacao|circulacao curta|corredor minimo|integrada|conceito aberto|compacta|economica/.test(text)) scores.circulation += 14;
-    if (/corredor lateral|hall|quartos isolados/.test(text)) scores.circulation += 8;
+    if (/corredor lateral|hall|quartos isolados|corredor|setor intimo/.test(text)) scores.circulation += 8;
 
-    if (/varanda|patio|lateral|conceito aberto|social integrado/.test(text)) scores.lighting += 12;
+    if (/varanda|patio|lateral|conceito aberto|social integrado|open concept/.test(text)) scores.lighting += 12;
     if (hasRuralSignal(input) && hasRuralSignal(text)) scores.lighting += 8;
-    if (/varanda|patio|corredor lateral|rural|lateral|frente e fundos/.test(text)) scores.ventilation += 12;
+    if (/varanda|patio|corredor lateral|rural|lateral|frente e fundos|ventilacao cruzada/.test(text)) scores.ventilation += 12;
     if (hasRuralSignal(input) && hasRuralSignal(text)) scores.ventilation += 8;
 
-    if (/economica|barata|popular|tiny|kitnet|poucos recortes|pouca parede/.test(text)) scores.economy += 16;
-    if (intent.budget === "baixo") scores.economy += /economica|barata|popular|tiny|kitnet/.test(text) ? 12 : -5;
-    if (intent.budget === "baixo" && /retangular economica|popular economica|quadrada economica/.test(text)) scores.compatibility += 10;
-    if (intent.budget === "alto") scores.economy += /premium|gourmet|moderna|varanda/.test(text) ? 4 : 0;
+    if (/economica|barata|popular|tiny|kitnet|poucos recortes|pouca parede|volume simples/.test(text)) scores.economy += 16;
+    if (intent.budget === "baixo") scores.economy += /economica|barata|popular|tiny|kitnet|poucos recortes/.test(text) ? 12 : -5;
+    if (intent.budget === "baixo" && /retangular economica|popular economica|quadrada economica|popular 8x20/.test(text)) scores.compatibility += 10;
+    if (intent.budget === "alto") scores.economy += /premium|gourmet|moderna|varanda|ilha/.test(text) ? 4 : 0;
 
-    if (/retangular|quadrada|poucos recortes|linear|simples|popular/.test(text)) scores.structure += 14;
-    if (/em l|patio|premium/.test(text)) scores.structure += 7;
+    if (/retangular|quadrada|poucos recortes|linear|simples|popular|volume simples/.test(text)) scores.structure += 14;
+    if (/em l|patio|premium|ilha/.test(text)) scores.structure += 7;
 
-    if (/quartos isolados|intima|privacidade|quarto reservado|setor intimo|bloco separado/.test(text)) scores.privacy += 14;
+    if (/quartos isolados|intima|privacidade|quarto reservado|setor intimo|bloco separado|ala privativa/.test(text)) scores.privacy += 14;
     if (intent.bedrooms === 2 && /quartos lado a lado|quartos finais|quartos em bloco/.test(text)) scores.privacy += 8;
+    if (intent.bedrooms === 3 && /suite|master/.test(text)) scores.privacy += 10;
+    if (intent.bedrooms === 3 && /corredor|setor intimo|quartos isolados|ala privativa/.test(text)) scores.privacy += 9;
 
     if (/expansivel|ampliacao futura|mezanino futuro|adu|edicula|casa de fundo/.test(text)) scores.expansion += 16;
-    if (profile === "largo" && /em l|patio|expansivel/.test(text)) scores.expansion += 7;
+    if (profile === "largo" && /em l|patio|expansivel|varanda/.test(text)) scores.expansion += 7;
 
     if (intent.preference === "rural") scores.compatibility += hasRuralSignal(text) ? 42 : -35;
     if (intent.preference === "em_l" && /em l|planta em l/.test(text)) scores.compatibility += 14;
     if (intent.preference === "moderna" && /moderna|premium|ilha|cozinha americana/.test(text)) scores.compatibility += 12;
-    if (intent.preference === "economica" && /economica|barata|popular|tiny|kitnet/.test(text)) scores.compatibility += 12;
+    if (intent.preference === "economica" && /economica|barata|popular|tiny|kitnet|poucos recortes/.test(text)) scores.compatibility += 12;
+
+    if (intent.bedrooms === 3) {
+      scores.compatibility += /suite|master/.test(text) ? 14 : -12;
+      if (intent.family === "CASA_TERREA_3_QUARTOS_SOCIAL_INTEGRADO_SUITE") {
+        scores.compatibility += /social integrado|conceito aberto|cozinha americana|balcao|ilha|open concept/.test(text) ? 14 : -6;
+        scores.circulation += /corredor|circulacao curta|setor intimo/.test(text) ? 8 : 0;
+      }
+      if (/ilha/.test(input)) scores.compatibility += /ilha|cozinha americana|social integrado/.test(text) ? 12 : -4;
+      if (/cozinha americana|balcao|open concept|integrada/.test(input)) scores.compatibility += /cozinha americana|balcao|social integrado|open concept|integrada/.test(text) ? 12 : -4;
+      if (/lavanderia externa|area de servico externa|servico externo/.test(input)) scores.compatibility += /lavanderia externa|area de servico externa|servico externo/.test(text) ? 10 : -4;
+      if (/corredor|setor intimo|privacidade/.test(input)) scores.compatibility += /corredor|setor intimo|privacidade|quartos isolados/.test(text) ? 10 : -4;
+    }
 
     if (intent.preference) {
       const preferenceWords = {
         retangular: ["retangular", "linear", "estreita", "longa"],
         quadrada: ["quadrada", "chale"],
-        conceito_aberto: ["conceito aberto", "integrada", "cozinha americana", "social integrado"],
+        conceito_aberto: ["conceito aberto", "integrada", "cozinha americana", "social integrado", "open concept"],
         em_l: ["em l", "planta em l"],
         economica: ["economica", "barata", "popular", "tiny", "kitnet"],
         moderna: ["moderna", "premium", "ilha", "gourmet", "cozinha americana"],
-        rural: ["rural", "sitio", "varanda", "cozinha maior"]
+        rural: ["rural", "sitio", "varanda", "cozinha maior"],
+        suite: ["suite", "master"],
+        ilha: ["ilha", "cozinha americana", "social integrado"],
+        servico_externo: ["lavanderia externa", "area de servico externa", "servico externo"],
+        corredor: ["corredor", "setor intimo", "privacidade", "quartos isolados"]
       }[intent.preference] || [];
       scores.compatibility += hasAny(text, preferenceWords) ? 22 : -8;
     }
@@ -155,7 +174,7 @@
     const familyLibrary = getFamilyLibrary(intent);
     if (!intent || !houseLibrary || !familyLibrary) return [];
     const recommended = typeof houseLibrary.recommendCadistaTemplates === "function" ? houseLibrary.recommendCadistaTemplates(intent) : [];
-    const templates = Array.isArray(familyLibrary.templates) ? familyLibrary.templates : [];
+    const templates = Array.isArray(familyLibrary.templates) ? familyLibrary.templates.filter((model) => !intent.family || model.family === intent.family) : [];
     const seen = new Set();
     return recommended.concat(templates).filter((model) => {
       if (!model || seen.has(model.id)) return false;
@@ -168,12 +187,14 @@
     const reasons = [];
     const text = modelText(model);
     const profile = terrainProfile(intent.lot);
-    if (profile === "estreito_profundo" && /retangular|linear|geminada|tiny/.test(text)) reasons.push("aproveita melhor lote estreito e profundo");
-    if (profile === "medio" && /compacta|conceito aberto|popular|retangular/.test(text)) reasons.push("equilibra area social e setor intimo em lote medio");
-    if (profile === "largo" && /em l|varanda|patio|familiar/.test(text)) reasons.push("usa a largura para melhorar iluminacao, ventilacao e privacidade");
-    if (/economica|popular|tiny|poucos recortes|linear/.test(text)) reasons.push("reduz circulacao, paredes e complexidade estrutural");
-    if (/varanda|patio|corredor lateral|conceito aberto/.test(text)) reasons.push("favorece iluminacao e ventilacao natural");
-    if (/intima|quartos isolados|privacidade|bloco separado/.test(text)) reasons.push("separa melhor area social e quartos");
+    if (profile === "estreito_profundo" && /retangular|linear|geminada|tiny|8x20/.test(text)) reasons.push("aproveita melhor lote estreito e profundo");
+    if (profile === "medio" && /compacta|conceito aberto|popular|retangular|social integrado/.test(text)) reasons.push("equilibra area social e setor intimo em lote medio");
+    if (profile === "largo" && /em l|varanda|patio|familiar|ilha/.test(text)) reasons.push("usa a largura para melhorar iluminacao, ventilacao e privacidade");
+    if (/economica|popular|tiny|poucos recortes|linear|volume simples/.test(text)) reasons.push("reduz circulacao, paredes e complexidade estrutural");
+    if (/varanda|patio|corredor lateral|conceito aberto|social integrado/.test(text)) reasons.push("favorece iluminacao e ventilacao natural");
+    if (/intima|quartos isolados|privacidade|bloco separado|corredor|setor intimo/.test(text)) reasons.push("separa melhor area social e quartos");
+    if (intent.bedrooms === 3 && /suite|master/.test(text)) reasons.push("mantem suite no programa de tres quartos");
+    if (intent.family === "CASA_TERREA_3_QUARTOS_SOCIAL_INTEGRADO_SUITE" && /cozinha americana|balcao|ilha|social integrado|open concept/.test(text)) reasons.push("organiza sala, jantar e cozinha como nucleo social integrado");
     if (/expansivel|ampliacao futura|mezanino futuro/.test(text)) reasons.push("mantem possibilidade de ampliacao futura");
     if (intent.preference) reasons.push(`combina com a preferencia ${preferenceLabel(intent.preference)}`);
     if (!reasons.length) reasons.push("apresenta boa compatibilidade geral com o pedido e o programa informado");
@@ -188,7 +209,11 @@
       em_l: "em L",
       economica: "economica/popular",
       moderna: "moderna",
-      rural: "rural/varanda"
+      rural: "rural/varanda",
+      suite: "suite",
+      ilha: "ilha",
+      servico_externo: "servico externo",
+      corredor: "corredor"
     }[preference] || preference;
   }
 
@@ -199,7 +224,7 @@
 
   function adviseCadistaLayout(input) {
     const intent = typeof input === "string" ? buildIntent(input) : Object.assign(buildIntent(input && input.rawInput || "") || {}, input || {});
-    if (!intent) return { ok: false, question: "Informe se a casa e de 1 ou 2 quartos e, se possivel, o tamanho do terreno." };
+    if (!intent) return { ok: false, question: "Informe se a casa e de 1, 2 ou 3 quartos e, se possivel, o tamanho do terreno." };
     if (!intent.lot) return { ok: false, intent, question: "Qual a largura e profundidade do terreno? Exemplo: 8x20, 10x20 ou 12x25." };
     const ranked = buildCandidatePool(intent).map((model) => {
       const score = scoreCadistaModel(model, intent);
@@ -220,7 +245,7 @@
   function buildSummary(intent, recommendations) {
     if (!recommendations.length) return "Nao encontrei modelos compativeis na biblioteca atual.";
     const lot = intent.lot ? intent.lot.label : "terreno informado";
-    const bedrooms = intent.bedrooms === 1 ? "1 quarto" : "2 quartos";
+    const bedrooms = intent.bedrooms === 1 ? "1 quarto" : `${intent.bedrooms} quartos`;
     const preference = intent.preference ? ` ${preferenceLabel(intent.preference)}` : "";
     return `Para terreno ${lot} e casa de ${bedrooms}${preference}, recomendo o modelo ${recommendations[0].model.name} porque ${recommendations[0].justification.replace(/^[^:]+:\s*score\s*\d+\.\s*/i, "").replace(/\.$/, "")}.`;
   }
@@ -234,7 +259,7 @@
     const panel = document.createElement("section");
     panel.className = "cadista-layout-advisor-panel";
     panel.hidden = true;
-    panel.innerHTML = `<div class="cadista-layout-advisor-head"><strong>Escolha arquitetonica inteligente</strong><button type="button" data-advisor-close>x</button></div><div class="cadista-layout-advisor-body"><textarea data-advisor-input placeholder="Ex.: casa 2 quartos barata terreno 8x20"></textarea><button type="button" data-advisor-run>Analisar modelos</button><div data-advisor-output class="cadista-layout-advisor-output">Informe o pedido para receber 3 opcoes pontuadas.</div></div>`;
+    panel.innerHTML = `<div class="cadista-layout-advisor-head"><strong>Escolha arquitetonica inteligente</strong><button type="button" data-advisor-close>x</button></div><div class="cadista-layout-advisor-body"><textarea data-advisor-input placeholder="Ex.: casa 3 quartos barata terreno 8x20"></textarea><button type="button" data-advisor-run>Analisar modelos</button><div data-advisor-output class="cadista-layout-advisor-output">Informe o pedido para receber 3 opcoes pontuadas.</div></div>`;
     document.body.appendChild(panel);
     document.body.appendChild(launcher);
     const input = panel.querySelector("[data-advisor-input]");
