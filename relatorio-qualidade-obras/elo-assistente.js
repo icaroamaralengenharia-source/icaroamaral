@@ -14573,6 +14573,8 @@
         openings: null,
         assumptions: [],
         missingFields: [],
+        inheritedFields: [],
+        confirmedFields: [],
         budgetStage: "briefing"
       };
     }
@@ -14582,7 +14584,12 @@
       if (!text) return false;
       if (/orcamento\s+oficial|orçamento\s+oficial|orcamento\s+executivo|orçamento\s+executivo/.test(text)) return false;
       if (this.isWallBudgetIntent_(text)) return true;
+      if (this.isMaterialListIntent_(text)) return true;
       return /orcamento|orçamento|orcar|orçar|quanto\s+custa|quanto\s+gasto|quanto\s+fica|levantar\s+material|mao\s+de\s+obra|mão\s+de\s+obra/.test(text) && /casa|residencial|residencia|residência|obra|construir|construcao|construção|terrea|térrea|reforma|parede|muro|alvenaria/.test(text);
+    }
+
+    isMaterialListIntent_(text) {
+      return /lista\s+de\s+materiais|materiais\s+da\s+obra|materiais\s+dessa\s+casa|quais\s+materiais\s+vou\s+usar|faca\s+a\s+lista\s+de\s+materiais|faça\s+a\s+lista\s+de\s+materiais/.test(text);
     }
 
     isWallBudgetIntent_(text) {
@@ -14594,29 +14601,30 @@
     extractBudgetFacts(message, previousState = {}) {
       const raw = sanitizeUserText(message || "");
       const text = normalizeText(raw);
-      const facts = {};
+      const facts = { currentFields: [] };
       const previousType = previousState && previousState.type;
       if (this.isWallBudgetIntent_(text) || previousType === "wall") facts.type = "wall";
       else if (/reforma|reformar|renovacao|renovação/.test(text)) facts.type = "renovation";
       else if (/casa|residencial|residencia|residência|terrea|térrea|sobrado|construir|construcao|construção/.test(text) || previousType === "residential") facts.type = "residential";
 
       let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros\s+quadrados)/i);
-      if (match) facts.areaM2 = parseEloOperationalNumber_(match[1]);
+      if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
       match = raw.match(/\bem\s+([A-Za-zÀ-ÿ\s]+?)(?:\s*[-/]\s*|,\s*)([A-Za-z]{2})\b/i);
       if (match) {
         facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ");
         facts.state = sanitizeUserText(match[2]).toUpperCase();
+        facts.currentFields.push("city", "state");
       }
 
       match = raw.match(/\bpadrao\s+(simples|medio|m[eé]dio|alto|popular|baixo|standard|luxo)\b/i) || raw.match(/\bpadrão\s+(simples|medio|m[eé]dio|alto|popular|baixo|standard|luxo)\b/i);
-      if (match) facts.standard = normalizeText(match[1]);
-      if (/terrea|térrea/.test(text)) facts.floors = 1;
-      if (/sobrado|2\s+pavimentos|dois\s+pavimentos/.test(text)) facts.floors = 2;
+      if (match) { facts.standard = normalizeText(match[1]); facts.currentFields.push("standard"); }
+      if (/terrea|térrea/.test(text)) { facts.floors = 1; facts.currentFields.push("floors"); }
+      if (/sobrado|2\s+pavimentos|dois\s+pavimentos/.test(text)) { facts.floors = 2; facts.currentFields.push("floors"); }
       match = raw.match(/(\d+)\s+quartos?/i);
-      if (match) facts.rooms = parseInt(match[1], 10);
+      if (match) { facts.rooms = parseInt(match[1], 10); facts.currentFields.push("rooms"); }
       match = raw.match(/(\d+)\s+(?:banheiros?|lavabos?)/i);
-      if (match) facts.wetAreas = parseInt(match[1], 10);
+      if (match) { facts.wetAreas = parseInt(match[1], 10); facts.currentFields.push("wetAreas"); }
 
       if (facts.type === "wall" || previousType === "wall") {
         facts.dimensions = Object.assign({}, previousState.dimensions || {});
@@ -14627,20 +14635,32 @@
           facts.dimensions.grossAreaM2 = wall.area_bruta_m2;
           facts.dimensions.block = wall.bloco_ceramico_dimensao_cm ? wall.bloco_ceramico_dimensao_cm.join("x") : "";
           facts.openings = wall.vaos || null;
+          facts.currentFields.push("dimensions", "openings");
         }
       }
       return facts;
     }
 
     mergeBudgetState(previousState, newFacts) {
-      const merged = Object.assign({}, this.defaultState, previousState || {}, newFacts || {});
-      merged.assumptions = Array.isArray(merged.assumptions) ? merged.assumptions.slice(0) : [];
+      const currentFields = Array.isArray(newFacts && newFacts.currentFields) ? newFacts.currentFields.slice(0) : [];
+      const cleanFacts = Object.assign({}, newFacts || {});
+      delete cleanFacts.currentFields;
+      const previous = Object.assign({}, previousState || {});
+      const inheritedFields = [];
+      ["areaM2", "city", "state", "standard", "floors", "rooms", "wetAreas", "dimensions", "openings"].forEach(function (field) {
+        if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
+      });
+      const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
+      merged.confirmedFields = currentFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
+      merged.inheritedFields = inheritedFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
+      merged.assumptions = [];
       if (merged.type === "residential") {
         if (!merged.floors) {
           merged.floors = 1;
-          if (merged.assumptions.indexOf("Casa terrea adotada preliminarmente ate confirmacao.") < 0) merged.assumptions.push("Casa terrea adotada preliminarmente ate confirmacao.");
+          merged.assumptions.push("1 pavimento");
+        } else if (merged.confirmedFields.indexOf("floors") < 0 && merged.inheritedFields.indexOf("floors") < 0) {
+          merged.assumptions.push(merged.floors + " pavimento" + (merged.floors > 1 ? "s" : ""));
         }
-        if (!merged.standard && merged.assumptions.indexOf("Padrao de acabamento pendente; nao ha preco fechado.") < 0) merged.assumptions.push("Padrao de acabamento pendente; nao ha preco fechado.");
       }
       merged.missingFields = this.getMissingFields(merged);
       merged.budgetStage = this.resolveStage_(merged);
@@ -14710,15 +14730,34 @@
       });
     }
 
+    fieldWasCurrent_(state, field) {
+      return state && Array.isArray(state.confirmedFields) && state.confirmedFields.indexOf(field) >= 0;
+    }
+
+    fieldWasInherited_(state, field) {
+      return state && Array.isArray(state.inheritedFields) && state.inheritedFields.indexOf(field) >= 0;
+    }
+
     buildBudgetResponse(state, resolvedItems) {
       if (!state || state.type !== "residential") return null;
       const confirmed = [];
+      const inherited = [];
       const pending = state.missingFields || [];
+      const addFact = function (target, label, value) { if (value) target.push(label + ": " + value); };
+      const areaLabel = state.areaM2 > 0 ? formatEloOperationalQuantity_(state.areaM2) + " m2" : "";
+      const localLabel = [state.city, state.state].filter(Boolean).join("/");
+      if (this.fieldWasCurrent_(state, "areaM2")) addFact(confirmed, "area construida", areaLabel);
+      else if (this.fieldWasInherited_(state, "areaM2")) addFact(inherited, "area construida", areaLabel);
+      if (this.fieldWasCurrent_(state, "city") || this.fieldWasCurrent_(state, "state")) addFact(confirmed, "cidade/UF", localLabel);
+      else if (this.fieldWasInherited_(state, "city") || this.fieldWasInherited_(state, "state")) addFact(inherited, "cidade/UF", localLabel);
+      if (this.fieldWasCurrent_(state, "standard")) addFact(confirmed, "padrao", state.standard);
+      else if (this.fieldWasInherited_(state, "standard")) addFact(inherited, "padrao", state.standard);
+      if (this.fieldWasCurrent_(state, "floors")) addFact(confirmed, "pavimentos", String(state.floors));
+      else if (this.fieldWasInherited_(state, "floors")) addFact(inherited, "pavimentos", String(state.floors));
       const lines = ["ELO ORCAMENTISTA V2 - ORCAMENTO RESIDENCIAL PRELIMINAR", "", "Vou montar um orçamento residencial preliminar.", "", "Resumo da obra:", "- Tipo: residencia" + (state.floors ? " | pavimentos: " + state.floors : "")];
-      if (state.areaM2 > 0) confirmed.push("area construida: " + formatEloOperationalQuantity_(state.areaM2) + " m2");
-      if (state.city || state.state) confirmed.push("local: " + [state.city, state.state].filter(Boolean).join("/"));
-      if (state.standard) confirmed.push("padrao: " + state.standard);
-      lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado tecnico suficiente confirmado ainda.");
+      lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado tecnico suficiente confirmado na mensagem atual.");
+      lines.push("", "Dados herdados:", inherited.length ? inherited.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado herdado do orçamento anterior.");
+      if (inherited.length) lines.push("- Posso reutilizar esses dados ou deseja alterá-los?");
       lines.push("", "Dados assumidos:", state.assumptions.length ? state.assumptions.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma premissa automatica relevante.");
       lines.push("", "Dados pendentes:", pending.length ? pending.map(function (item) { return "- " + item; }).join("\n") : "- Sem pendencias minimas para escopo preliminar.");
       if (resolvedItems && resolvedItems.length) {
@@ -14730,7 +14769,7 @@
       return {
         shortAnswer: pending.length ? "Preciso de poucos dados para montar o orçamento." : "Montei o escopo preliminar do orçamento residencial.",
         fullAnswer: lines.join("\n"),
-        nextAction: pending.length ? "Informe " + pending.join(", ") + "." : "Importe/seleciona composicoes oficiais para quantificar e precificar.",
+        nextAction: pending.length ? "Informe " + pending.join(", ") + "." : "Importe ou selecione composicoes oficiais para quantificar e precificar.",
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
@@ -14738,6 +14777,39 @@
       };
     }
 
+    buildMaterialListResponse_(state) {
+      const groups = [
+        ["Serviços preliminares", ["tapume", "locação", "EPIs", "limpeza"]],
+        ["Fundação", ["concreto", "aço", "brita", "formas"]],
+        ["Estrutura", ["concreto", "aço", "escoras"]],
+        ["Alvenaria", ["blocos", "argamassa", "vergas"]],
+        ["Cobertura", ["madeira/metálica", "telhas", "cumeeiras"]],
+        ["Instalações elétricas", ["cabos", "eletrodutos", "quadro", "tomadas"]],
+        ["Instalações hidrossanitárias", ["tubos", "conexões", "registros"]],
+        ["Revestimentos", ["pisos", "revestimentos", "argamassa colante", "rejunte"]],
+        ["Pintura", ["selador", "massa", "tinta"]],
+        ["Esquadrias", ["portas", "janelas", "ferragens"]],
+        ["Limpeza final", ["sacos", "caçamba", "produtos"]]
+      ];
+      const lines = ["LISTA PRELIMINAR QUALITATIVA DE MATERIAIS", ""];
+      groups.forEach(function (group) {
+        lines.push(group[0]);
+        group[1].forEach(function (item) { lines.push("- " + item); });
+        lines.push("");
+      });
+      lines.push("Esta é uma lista preliminar qualitativa.");
+      lines.push("A quantificação dependerá do projeto, memorial e composições oficiais.");
+      lines.push("Não estou inventando quantidade nem preço.");
+      return {
+        shortAnswer: "Montei uma lista preliminar qualitativa de materiais.",
+        fullAnswer: lines.join("\n").trim(),
+        nextAction: "Para quantificar, informe projeto/memorial ou selecione composições oficiais SINAPI/ORSE.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "budget_v2_material_list",
+        budgetOrchestratorV2: { state: state }
+      };
+    }
     buildWallBriefingResponse_(state) {
       const missing = state.missingFields || [];
       return {
@@ -14768,7 +14840,10 @@
       const previous = ELO_SESSION_MEMORY.budgetOrchestratorV2 || {};
       const isBudgetIntent = this.detectBudgetIntent(message);
       if (!isBudgetIntent && /\bminha\s+obra\b/.test(text)) return null;
-      if (isBudgetIntent && /orcamento|orçamento/.test(text) && this.hasSavedProjectContext_()) return null;
+      if (this.isMaterialListIntent_(text) && (previous.type === "residential" || this.hasSavedProjectContext_())) {
+        return this.buildMaterialListResponse_(Object.assign({}, this.defaultState, previous, { type: previous.type || "residential" }));
+      }
+      if (!previous.type && isBudgetIntent && /orcamento|orçamento/.test(text) && this.hasSavedProjectContext_()) return null;
       const facts = this.extractBudgetFacts(message, previous);
       const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && Object.keys(facts).length > 0;
       if (!isBudgetIntent && !isContinuation) return null;
