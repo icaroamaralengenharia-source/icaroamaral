@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -42,13 +42,13 @@ function loadAssistant(pathname = "/elo.html") {
       EloBrainRouter: {
         routeEloBrain() {
           calls.router += 1;
-          throw new Error("EloBrainRouter nao deve ser chamado antes do Orcamentista V2");
+          return null;
         }
       },
       EloTechnicalEngine: {
         buildResponse() {
           calls.technical += 1;
-          throw new Error("EloTechnicalEngine nao deve ser chamado antes do Orcamentista V2");
+          return null;
         }
       },
       CompositionSearchEngine: {
@@ -197,4 +197,85 @@ test("Orcamentista V2 nao duplica campos entre confirmados herdados assumidos e 
   assert.doesNotMatch(inherited, /area construida|cidade\/UF|padrao/i);
   assert.doesNotMatch(assumed, /padrao|cidade|area/i);
   assert.doesNotMatch(pending, /area construida|cidade\/UF|padrao construtivo/i);
+});
+test("Orcamentista V2 libera mensagem obrigado depois de orcamento ativo", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const response = assistant.buildResponseForTest("obrigado");
+
+  assert.notEqual(response.sessionIntent, "budget_v2_scope");
+  assert.notEqual(response.sessionIntent, "budget_v2_briefing");
+  assert.doesNotMatch(response.fullAnswer || response.shortAnswer || "", /ELO ORCAMENTISTA V2|ORCAMENTO RESIDENCIAL PRELIMINAR/i);
+});
+
+test("Orcamentista V2 libera relatorio tecnico depois de orcamento ativo", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const response = assistant.buildResponseForTest("quero um relatório técnico");
+
+  assert.notEqual(response.sessionIntent, "budget_v2_scope");
+  assert.notEqual(response.sessionIntent, "budget_v2_briefing");
+  assert.doesNotMatch(response.fullAnswer || response.shortAnswer || "", /ELO ORCAMENTISTA V2|ORCAMENTO RESIDENCIAL PRELIMINAR/i);
+});
+
+test("Orcamentista V2 transforma dados herdados em confirmados apos confirmacao", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar para uma casa terrea de 120 m2.");
+  const response = assistant.buildResponseForTest("sim, pode reutilizar");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(state.inheritedFields.length, 0);
+  assert.ok(state.confirmedFields.includes("city"));
+  assert.ok(state.confirmedFields.includes("state"));
+  assert.ok(state.confirmedFields.includes("standard"));
+  assert.match(response.fullAnswer, /Dados confirmados:[\s\S]*cidade\/UF: Vitoria da Conquista\/BA/i);
+  assert.match(response.fullAnswer, /Dados confirmados:[\s\S]*padrao: medio/i);
+  assert.doesNotMatch(response.fullAnswer, /Dados herdados:[\s\S]*Vitoria da Conquista/i);
+});
+
+test("Orcamentista V2 novo orcamento limpa estado anterior", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const before = assistant.getBudgetOrchestratorV2StateForTest();
+  const response = assistant.buildResponseForTest("novo orçamento");
+  const after = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(response.sessionIntent, "budget_v2_reset");
+  assert.ok(before.budgetId);
+  assert.ok(after.budgetId);
+  assert.notEqual(after.budgetId, before.budgetId);
+  assert.equal(after.type, "unknown");
+  assert.equal(after.city, "");
+  assert.equal(after.standard, "");
+  assert.match(response.fullAnswer, /Zerei o orçamento anterior/i);
+});
+
+test("Orcamentista V2 depois de limpar nao confirma cidade e padrao antigos", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  assistant.buildResponseForTest("limpar orçamento");
+  const response = assistant.buildResponseForTest("Quero orcamento residencial preliminar para uma casa terrea de 80 m2.");
+
+  assert.match(response.fullAnswer, /Dados confirmados:[\s\S]*area construida: 80 m2/i);
+  assert.doesNotMatch(response.fullAnswer, /Dados confirmados:[\s\S]*Vitoria da Conquista/i);
+  assert.doesNotMatch(response.fullAnswer, /Dados confirmados:[\s\S]*padrao: medio/i);
+  assert.match(response.fullAnswer, /cidade\/UF/i);
+  assert.match(response.fullAnswer, /padrao construtivo/i);
+});
+
+test("Orcamentista V2 lista de materiais continua sendo continuacao valida", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const response = assistant.buildResponseForTest("materiais dessa casa");
+
+  assert.equal(response.sessionIntent, "budget_v2_material_list");
+  assert.match(response.fullAnswer, /LISTA PRELIMINAR QUALITATIVA DE MATERIAIS/i);
+  assert.doesNotMatch(response.fullAnswer, /R\$\s*\d/i);
 });

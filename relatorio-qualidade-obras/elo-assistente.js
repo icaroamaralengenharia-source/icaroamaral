@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   // ELO_CONFIG
@@ -14575,6 +14575,7 @@
         missingFields: [],
         inheritedFields: [],
         confirmedFields: [],
+        budgetId: "",
         budgetStage: "briefing"
       };
     }
@@ -14590,6 +14591,26 @@
 
     isMaterialListIntent_(text) {
       return /lista\s+de\s+materiais|materiais\s+da\s+obra|materiais\s+dessa\s+casa|quais\s+materiais\s+vou\s+usar|faca\s+a\s+lista\s+de\s+materiais|faça\s+a\s+lista\s+de\s+materiais/.test(text);
+    }
+
+    isBudgetResetIntent_(text) {
+      return /novo\s+orcamento|novo\s+orçamento|comecar\s+outro\s+orcamento|começar\s+outro\s+orçamento|limpar\s+orcamento|limpar\s+orçamento|trocar\s+obra|zerar\s+orcamento|zerar\s+orçamento/.test(text);
+    }
+
+    isContinuationIntent_(text) {
+      return /orcamento|orçamento|custo|preco|preço|quanto\s+custa|material|lista\s+de\s+materiais|composicao|composição|sinapi|orse|bdi|quantitativo|metro\s+quadrado|m2|m²|parede|casa|obra|fundacao|fundação|estrutura|alvenaria|cobertura|eletrica|elétrica|hidraulica|hidráulica|revestimento|pintura|esquadria|cronograma|memorial/.test(text);
+    }
+
+    isReuseInheritedConfirmation_(text) {
+      return /^(sim|pode|pode\s+reutilizar|mantem|mantém|manter|usa\s+esses\s+dados|pode\s+usar|sim\s+pode|ok|certo)(\b|[\s,.!])/i.test(text);
+    }
+
+    isInheritedChangeRequest_(text) {
+      return /^(nao|não)\b|alterar|mudar\s+cidade|mudar\s+padrao|mudar\s+padrão|outro\s+padrao|outro\s+padrão|outra\s+cidade/.test(text);
+    }
+
+    createBudgetId_() {
+      return "budget-" + Date.now();
     }
 
     isWallBudgetIntent_(text) {
@@ -14651,6 +14672,7 @@
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
       });
       const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
+      if (!merged.budgetId) merged.budgetId = this.createBudgetId_();
       merged.confirmedFields = currentFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
       merged.inheritedFields = inheritedFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
       merged.assumptions = [];
@@ -14667,6 +14689,64 @@
       return merged;
     }
 
+    buildResetResponse_() {
+      const state = Object.assign({}, this.defaultState, { budgetId: this.createBudgetId_(), missingFields: ["tipo de obra", "area construida", "cidade/UF", "padrao construtivo"], budgetStage: "briefing" });
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 = state;
+      return {
+        shortAnswer: "Zerei o orçamento anterior.",
+        fullAnswer: "Claro. Zerei o orçamento anterior. Para o novo orçamento, informe tipo de obra, área, cidade/UF e padrão.",
+        nextAction: "Informe tipo de obra, area, cidade/UF e padrao.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "budget_v2_reset",
+        budgetOrchestratorV2: { state: state }
+      };
+    }
+
+    confirmInheritedState_(state) {
+      const inherited = Array.isArray(state && state.inheritedFields) ? state.inheritedFields : [];
+      const confirmed = Array.isArray(state && state.confirmedFields) ? state.confirmedFields.slice(0) : [];
+      inherited.forEach(function (field) {
+        if (confirmed.indexOf(field) < 0) confirmed.push(field);
+      });
+      const next = Object.assign({}, this.defaultState, state || {}, { confirmedFields: confirmed, inheritedFields: [] });
+      if (!next.budgetId) next.budgetId = this.createBudgetId_();
+      next.missingFields = this.getMissingFields(next);
+      next.budgetStage = this.resolveStage_(next);
+      return next;
+    }
+
+    buildInheritedChangeRequestResponse_(state, text) {
+      const next = Object.assign({}, this.defaultState, state || {});
+      const clearField = function (field) {
+        next.confirmedFields = (next.confirmedFields || []).filter(function (item) { return item !== field; });
+        next.inheritedFields = (next.inheritedFields || []).filter(function (item) { return item !== field; });
+      };
+      let request = "Informe os dados que deseja alterar.";
+      if (/cidade|outra\s+cidade/.test(text)) {
+        next.city = "";
+        next.state = "";
+        clearField("city");
+        clearField("state");
+        request = "Informe a nova cidade/UF.";
+      } else if (/padrao|padrão|outro\s+padrao|outro\s+padrão/.test(text)) {
+        next.standard = "";
+        clearField("standard");
+        request = "Informe o novo padrão construtivo.";
+      }
+      next.missingFields = this.getMissingFields(next);
+      next.budgetStage = this.resolveStage_(next);
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
+      return {
+        shortAnswer: "Tudo bem, vamos alterar os dados herdados.",
+        fullAnswer: "Tudo bem. Não vou reutilizar automaticamente os dados herdados.\n\n" + request,
+        nextAction: request,
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "budget_v2_inherited_change",
+        budgetOrchestratorV2: { state: next }
+      };
+    }
     getMissingFields(state) {
       const missing = [];
       if (!state || state.type === "unknown") missing.push("tipo de obra");
@@ -14839,15 +14919,28 @@
       }
       const previous = ELO_SESSION_MEMORY.budgetOrchestratorV2 || {};
       const isBudgetIntent = this.detectBudgetIntent(message);
+      const hasInheritedFields = previous.inheritedFields && previous.inheritedFields.length;
+      if (this.isBudgetResetIntent_(text)) return this.buildResetResponse_();
       if (!isBudgetIntent && /\bminha\s+obra\b/.test(text)) return null;
+      if (!isBudgetIntent && previous.type && !this.isContinuationIntent_(text) && !(hasInheritedFields && (this.isReuseInheritedConfirmation_(text) || this.isInheritedChangeRequest_(text)))) return null;
+      if (hasInheritedFields && this.isReuseInheritedConfirmation_(text)) {
+        const confirmedState = this.confirmInheritedState_(previous);
+        ELO_SESSION_MEMORY.budgetOrchestratorV2 = confirmedState;
+        if (confirmedState.type === "wall") return this.buildWallBriefingResponse_(confirmedState);
+        const confirmedScope = this.buildPreliminaryScope(confirmedState);
+        confirmedState.services = confirmedScope;
+        const confirmedResolved = confirmedState.missingFields.length ? confirmedScope.map(function (item) { return Object.assign({}, item, { status: "pending_official_composition", composition: null }); }) : this.resolveCompositions(confirmedScope, context);
+        return this.buildBudgetResponse(confirmedState, confirmedResolved);
+      }
+      if (hasInheritedFields && this.isInheritedChangeRequest_(text)) return this.buildInheritedChangeRequestResponse_(previous, text);
       if (this.isMaterialListIntent_(text) && (previous.type === "residential" || this.hasSavedProjectContext_())) {
         return this.buildMaterialListResponse_(Object.assign({}, this.defaultState, previous, { type: previous.type || "residential" }));
       }
       if (!previous.type && isBudgetIntent && /orcamento|orçamento/.test(text) && this.hasSavedProjectContext_()) return null;
       const facts = this.extractBudgetFacts(message, previous);
-      const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && Object.keys(facts).length > 0;
-      if (!isBudgetIntent && !isContinuation) return null;
-      const next = this.mergeBudgetState(previous, facts);
+      const factKeys = Object.keys(facts).filter(function (key) { return key !== "currentFields"; });
+      const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && this.isContinuationIntent_(text) && factKeys.length > 0;
+      if (!isBudgetIntent && !isContinuation) return null;      const next = this.mergeBudgetState(previous, facts);
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
       if (next.type === "wall") return buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
       const scope = this.buildPreliminaryScope(next);
