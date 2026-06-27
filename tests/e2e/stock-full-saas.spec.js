@@ -201,8 +201,8 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
         keepsBackendSessionProduction: window.StockFullAppRuntime.shouldClearLocalOnlySession({ isAuthenticated: true, mode: "backend" }, true, productionLocation)
       };
     });
-    expect(result.productionBase).toBe("https://obrareport-backend.onrender.com/api/stock-full");
-    expect(result.productionItemUrl).toBe("https://obrareport-backend.onrender.com/api/stock-full/items");
+    expect(result.productionBase).toBe("https://obrareport-backend-stockfull.onrender.com/api/stock-full");
+    expect(result.productionItemUrl).toBe("https://obrareport-backend-stockfull.onrender.com/api/stock-full/items");
     expect(result.localhostBase).toBe("/api/stock-full");
     expect(result.demoAllowedProduction).toBe(false);
     expect(result.demoAllowedLocalhost).toBe(true);

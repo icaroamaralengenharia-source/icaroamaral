@@ -4,7 +4,7 @@
   const STOCK_FULL_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const STOCK_FULL_SESSION_STORAGE_KEY = "stockFullSession";
   const STOCK_FULL_DEVICE_STORAGE_KEY = "stockFullDeviceId";
-  const STOCK_FULL_PRODUCTION_API_BASE_URL = "https://obrareport-backend.onrender.com/api/stock-full";
+  const STOCK_FULL_PRODUCTION_API_BASE_URL = "https://obrareport-backend-stockfull.onrender.com/api/stock-full";
   const STOCK_FULL_ROLE_PERMISSIONS = {
     admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
     gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
