@@ -23,8 +23,8 @@ function createStorage(initial = {}) {
   };
 }
 
-function loadAssistant(pathname = "/elo.html") {
-  const calls = { router: 0, technical: 0, composition: 0 };
+function loadAssistant(pathname = "/elo.html", options = {}) {
+  const calls = { router: 0, technical: 0, composition: 0, budgetEngine: 0 };
   const sandbox = {
     console,
     document: { readyState: "complete", addEventListener() {}, body: { dataset: {}, getAttribute() { return ""; } } },
@@ -59,8 +59,15 @@ function loadAssistant(pathname = "/elo.html") {
       }
     }
   };
-  sandbox.globalThis = sandbox.window;
-  vm.createContext(sandbox);
+  if (options.budgetEngine) {
+    sandbox.window.EloBudgetEngine = {
+      buildPreliminaryBudget(projectFacts, technicalContext) {
+        calls.budgetEngine += 1;
+        return options.budgetEngine(projectFacts, technicalContext);
+      }
+    };
+  }
+  sandbox.globalThis = sandbox.window;  vm.createContext(sandbox);
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
   return { assistant: sandbox.window.EloAssistente, calls };
 }
@@ -278,4 +285,61 @@ test("Orcamentista V2 lista de materiais continua sendo continuacao valida", () 
   assert.equal(response.sessionIntent, "budget_v2_material_list");
   assert.match(response.fullAnswer, /LISTA PRELIMINAR QUALITATIVA DE MATERIAIS/i);
   assert.doesNotMatch(response.fullAnswer, /R\$\s*\d/i);
+});
+
+function mockStructuredBudget(projectFacts) {
+  return {
+    projectFacts,
+    scope: [
+      { id: "servicos_preliminares", service: "Servicos preliminares", status: "ready", unit: "m2" },
+      { id: "alvenaria", service: "Alvenaria", status: "pending", unit: "m2" }
+    ],
+    quantities: [{ packageId: "servicos_preliminares", serviceId: "area_construida", quantity: projectFacts.builtAreaM2, unit: "m2", source: "informed" }],
+    compositionMatches: [{ packageId: "alvenaria", serviceId: "alvenaria_bloco", found: false, candidates: [] }],
+    risks: ["Orcamento preliminar tecnico."],
+    missing: [{ id: "wall_material", message: "Informe sistema de parede." }],
+    budgetTable: { rows: [], summary: { readyRows: 0, pendingRows: 1 } }
+  };
+}
+
+test("BudgetEngineAdapter recebe estado do V2 e padroniza pacote interno", () => {
+  const { assistant } = loadAssistant("/elo.html", { budgetEngine: mockStructuredBudget });
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+
+  assert.equal(pack.budgetId, state.budgetId);
+  assert.equal(pack.facts.builtAreaM2, 120);
+  assert.equal(pack.facts.cityUf, "Vitoria da Conquista/BA");
+  assert.equal(pack.facts.projectStandard, "medio");
+  assert.ok(Array.isArray(pack.scope));
+  assert.ok(Array.isArray(pack.quantities));
+  assert.ok(Array.isArray(pack.compositions));
+  assert.ok(Array.isArray(pack.risks));
+});
+
+test("BudgetEngineAdapter chama EloBudgetEngine quando ha dados suficientes", () => {
+  const { assistant, calls } = loadAssistant("/elo.html", { budgetEngine: mockStructuredBudget });
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+
+  assert.equal(calls.budgetEngine, 1);
+  assert.equal(pack.source, "EloBudgetEngine");
+  assert.equal(pack.engineCalled, true);
+  assert.match(response.fullAnswer, /estruturado pelo motor tecnico/i);
+});
+
+test("BudgetEngineAdapter mantem fallback quando EloBudgetEngine nao esta disponivel", () => {
+  const { assistant, calls } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+
+  assert.equal(calls.budgetEngine, 0);
+  assert.equal(pack.source, "adapter_fallback");
+  assert.equal(pack.engineCalled, false);
+  assert.ok(pack.scope.length >= 5);
+  assert.match(response.fullAnswer, /pendente de composicao SINAPI\/ORSE oficial/i);
 });

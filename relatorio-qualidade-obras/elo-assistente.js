@@ -14556,9 +14556,127 @@
     };
   }
 
+  class BudgetEngineAdapter {
+    constructor(options = {}) {
+      this.options = options || {};
+    }
+
+    getRoot_() {
+      return typeof window !== "undefined" ? window : globalThis;
+    }
+
+    canUseTechnicalEngine_(state) {
+      return !!(state && state.type === "residential" && state.areaM2 > 0 && state.city && state.state && state.standard);
+    }
+
+    toEngineFacts_(state) {
+      const cityUf = [state.city, state.state].filter(Boolean).join("/");
+      return {
+        originalMessage: "orçamento residencial preliminar " + (state.areaM2 || "") + " m2 " + cityUf + " padrão " + (state.standard || ""),
+        projectType: "residential",
+        builtAreaM2: state.areaM2 || null,
+        areaConstruidaM2: state.areaM2 || null,
+        city: state.city || "",
+        state: state.state || "",
+        cityUf: cityUf,
+        projectStandard: state.standard || "",
+        floors: state.floors || null,
+        bedrooms: state.rooms || null,
+        bathrooms: state.wetAreas || null
+      };
+    }
+
+    fallbackScope_(state) {
+      if (!state || state.type !== "residential" || !(state.areaM2 > 0)) return [];
+      return [
+        ["servicos_preliminares", "Servicos preliminares"],
+        ["fundacao", "Fundacao estimada"],
+        ["estrutura", "Estrutura"],
+        ["alvenaria", "Alvenaria"],
+        ["cobertura", "Cobertura"],
+        ["instalacoes_eletricas", "Instalacoes eletricas"],
+        ["instalacoes_hidrossanitarias", "Instalacoes hidrossanitarias"],
+        ["revestimentos", "Revestimentos"],
+        ["pintura", "Pintura"],
+        ["esquadrias", "Esquadrias"],
+        ["limpeza_final", "Limpeza final"]
+      ].map(function (item, index) {
+        return { id: item[0], label: item[1], quantity: state.areaM2, unit: "m2", order: index + 1, status: "pending_official_composition", composition: null, source: "adapter_fallback" };
+      });
+    }
+
+    scopeFromBudget_(budget) {
+      const directScope = Array.isArray(budget && budget.scope) ? budget.scope : [];
+      if (directScope.length) {
+        return directScope.map(function (item, index) {
+          return {
+            id: item.scopeId || item.id || "scope_" + index,
+            label: item.service || item.name || item.label || item.id || "Servico",
+            unit: item.unit || "",
+            order: index + 1,
+            status: item.status || "technical_engine",
+            source: "EloBudgetEngine"
+          };
+        });
+      }
+      const packages = budget && budget.workPackages && budget.workPackages.packages || [];
+      return packages.map(function (pack, index) {
+        return { id: pack.id || "package_" + index, label: pack.name || pack.id || "Servico", unit: pack.services && pack.services[0] && pack.services[0].unit || "", order: index + 1, status: pack.status || "technical_engine", source: "EloBudgetEngine" };
+      });
+    }
+
+    adapt(state, context = {}) {
+      const facts = this.toEngineFacts_(state || {});
+      const packageBase = {
+        budgetId: state && state.budgetId || "",
+        facts: facts,
+        inheritedFacts: {},
+        assumptions: state && state.assumptions || [],
+        pendingFields: state && state.missingFields || [],
+        scope: [],
+        materials: [],
+        quantities: [],
+        compositions: [],
+        budget: null,
+        risks: [],
+        nextSteps: [],
+        source: "adapter_fallback",
+        engineCalled: false,
+        engineAvailable: false
+      };
+      const root = this.getRoot_();
+      const engine = root && root.EloBudgetEngine;
+      if (!this.canUseTechnicalEngine_(state) || !engine || typeof engine.buildPreliminaryBudget !== "function") {
+        packageBase.engineAvailable = !!(engine && typeof engine.buildPreliminaryBudget === "function");
+        packageBase.scope = this.fallbackScope_(state);
+        packageBase.nextSteps = packageBase.pendingFields.slice(0);
+        return packageBase;
+      }
+      try {
+        const budget = engine.buildPreliminaryBudget(facts, Object.assign({}, context || {}, { source: "BudgetEngineAdapter", budgetId: packageBase.budgetId }));
+        packageBase.engineCalled = true;
+        packageBase.engineAvailable = true;
+        packageBase.source = "EloBudgetEngine";
+        packageBase.scope = this.scopeFromBudget_(budget);
+        packageBase.quantities = budget && budget.quantities || [];
+        packageBase.compositions = budget && (budget.compositions || budget.compositionMatches) || [];
+        packageBase.budget = budget || null;
+        packageBase.risks = budget && budget.risks || [];
+        packageBase.nextSteps = (budget && budget.missing || []).map(function (item) { return item.message || item.id || String(item); });
+        return packageBase;
+      } catch (error) {
+        packageBase.engineAvailable = true;
+        packageBase.engineError = error && error.message || "budget_engine_error";
+        packageBase.scope = this.fallbackScope_(state);
+        packageBase.nextSteps = packageBase.pendingFields.slice(0);
+        return packageBase;
+      }
+    }
+  }
   class EloBudgetOrchestratorV2 {
     constructor(options = {}) {
       this.options = options || {};
+      this.budgetEngineAdapter = options.budgetEngineAdapter || new BudgetEngineAdapter();
       this.defaultState = {
         type: "unknown",
         areaM2: null,
@@ -14773,43 +14891,6 @@
       return "briefing";
     }
 
-    buildPreliminaryScope(state) {
-      if (!state || state.type !== "residential" || !(state.areaM2 > 0)) return [];
-      return [
-        ["servicos_preliminares", "Servicos preliminares"],
-        ["fundacao", "Fundacao estimada"],
-        ["estrutura", "Estrutura"],
-        ["alvenaria", "Alvenaria"],
-        ["cobertura", "Cobertura"],
-        ["instalacoes_eletricas", "Instalacoes eletricas"],
-        ["instalacoes_hidrossanitarias", "Instalacoes hidrossanitarias"],
-        ["revestimentos", "Revestimentos"],
-        ["pintura", "Pintura"],
-        ["esquadrias", "Esquadrias"],
-        ["limpeza_final", "Limpeza final"]
-      ].map(function (item, index) {
-        return { id: item[0], label: item[1], quantity: state.areaM2, unit: "m2", order: index + 1 };
-      });
-    }
-
-    resolveCompositions(scopeItems, context) {
-      const engine = typeof window !== "undefined" ? window.CompositionSearchEngine : null;
-      return (scopeItems || []).map(function (item) {
-        let candidates = [];
-        try {
-          if (engine && typeof engine.searchOfficialCompositions === "function") candidates = engine.searchOfficialCompositions(item.label, context || {}) || [];
-          else if (engine && typeof engine.search === "function") candidates = engine.search(item.label, context || {}) || [];
-        } catch (error) {
-          candidates = [];
-        }
-        const official = Array.isArray(candidates) ? candidates.find(function (candidate) {
-          const source = normalizeText(candidate && (candidate.source || candidate.fonte || ""));
-          return /sinapi|orse/.test(source) || candidate && candidate.isRealComposition === true;
-        }) : null;
-        return Object.assign({}, item, { composition: official || null, status: official ? "official_found" : "pending_official_composition" });
-      });
-    }
-
     fieldWasCurrent_(state, field) {
       return state && Array.isArray(state.confirmedFields) && state.confirmedFields.indexOf(field) >= 0;
     }
@@ -14818,11 +14899,12 @@
       return state && Array.isArray(state.inheritedFields) && state.inheritedFields.indexOf(field) >= 0;
     }
 
-    buildBudgetResponse(state, resolvedItems) {
+    buildBudgetResponse(state, budgetPackage) {
       if (!state || state.type !== "residential") return null;
       const confirmed = [];
       const inherited = [];
       const pending = state.missingFields || [];
+      const scopeItems = budgetPackage && Array.isArray(budgetPackage.scope) ? budgetPackage.scope : [];
       const addFact = function (target, label, value) { if (value) target.push(label + ": " + value); };
       const areaLabel = state.areaM2 > 0 ? formatEloOperationalQuantity_(state.areaM2) + " m2" : "";
       const localLabel = [state.city, state.state].filter(Boolean).join("/");
@@ -14840,9 +14922,9 @@
       if (inherited.length) lines.push("- Posso reutilizar esses dados ou deseja alterá-los?");
       lines.push("", "Dados assumidos:", state.assumptions.length ? state.assumptions.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma premissa automatica relevante.");
       lines.push("", "Dados pendentes:", pending.length ? pending.map(function (item) { return "- " + item; }).join("\n") : "- Sem pendencias minimas para escopo preliminar.");
-      if (resolvedItems && resolvedItems.length) {
+      if (scopeItems && scopeItems.length) {
         lines.push("", "Escopo preliminar:");
-        resolvedItems.forEach(function (item) { lines.push("- " + item.label + ": " + (item.status === "official_found" ? "composicao oficial localizada" : "pendente de composicao SINAPI/ORSE oficial")); });
+        scopeItems.forEach(function (item) { lines.push("- " + item.label + ": " + (/ready|technical|EloBudgetEngine|official_found/i.test(String(item.status || item.source || "")) ? "estruturado pelo motor tecnico" : "pendente de composicao SINAPI/ORSE oficial")); });
       }
       lines.push("", "Proximos passos:", pending.length ? "- Responder apenas os dados pendentes acima; eu continuo o mesmo orçamento." : "- Validar memorial, quantitativos, composicoes oficiais, BDI, encargos e precos vigentes.");
       lines.push("", "Aviso tecnico: nao vou inventar preco nem tratar base demonstrativa como orcamento oficial. Sem composicao SINAPI/ORSE/importada confiavel, o item fica pendente.");
@@ -14853,7 +14935,7 @@
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
-        budgetOrchestratorV2: { state: state, resolvedItems: resolvedItems || [] }
+        budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems }
       };
     }
 
@@ -14927,10 +15009,9 @@
         const confirmedState = this.confirmInheritedState_(previous);
         ELO_SESSION_MEMORY.budgetOrchestratorV2 = confirmedState;
         if (confirmedState.type === "wall") return this.buildWallBriefingResponse_(confirmedState);
-        const confirmedScope = this.buildPreliminaryScope(confirmedState);
-        confirmedState.services = confirmedScope;
-        const confirmedResolved = confirmedState.missingFields.length ? confirmedScope.map(function (item) { return Object.assign({}, item, { status: "pending_official_composition", composition: null }); }) : this.resolveCompositions(confirmedScope, context);
-        return this.buildBudgetResponse(confirmedState, confirmedResolved);
+        const confirmedPackage = this.budgetEngineAdapter.adapt(confirmedState, context);
+        confirmedState.services = confirmedPackage.scope || [];
+        return this.buildBudgetResponse(confirmedState, confirmedPackage);
       }
       if (hasInheritedFields && this.isInheritedChangeRequest_(text)) return this.buildInheritedChangeRequestResponse_(previous, text);
       if (this.isMaterialListIntent_(text) && (previous.type === "residential" || this.hasSavedProjectContext_())) {
@@ -14940,14 +15021,13 @@
       const facts = this.extractBudgetFacts(message, previous);
       const factKeys = Object.keys(facts).filter(function (key) { return key !== "currentFields"; });
       const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && this.isContinuationIntent_(text) && factKeys.length > 0;
-      if (!isBudgetIntent && !isContinuation) return null;      const next = this.mergeBudgetState(previous, facts);
+      if (!isBudgetIntent && !isContinuation) return null;
+      const next = this.mergeBudgetState(previous, facts);
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
       if (next.type === "wall") return buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
-      const scope = this.buildPreliminaryScope(next);
-      next.services = scope;
-      const resolved = next.missingFields.length ? scope.map(function (item) { return Object.assign({}, item, { status: "pending_official_composition", composition: null }); }) : this.resolveCompositions(scope, context);
-      return this.buildBudgetResponse(next, resolved);
-    }
+      const budgetPackage = this.budgetEngineAdapter.adapt(next, context);
+      next.services = budgetPackage.scope || [];
+      return this.buildBudgetResponse(next, budgetPackage);    }
   }
 
   function getEloBudgetOrchestratorV2_() {
