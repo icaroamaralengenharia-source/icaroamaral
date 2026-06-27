@@ -113,19 +113,25 @@
     return (Array.isArray(queue) ? queue : []).map(function (item) {
       const now = new Date().toISOString();
       const status = VALID_STATUSES.has(item && item.status) ? item.status : "pending";
+      const operationId = clean(item && (item.operationId || item.id)) || createTemporaryId("operation");
       return {
-        id: clean(item && item.id) || createTemporaryId("queue"),
+        id: operationId,
+        operationId: operationId,
+        deviceId: clean(item && item.deviceId) || getDeviceId(),
+        userId: clean(item && item.userId),
+        role: clean(item && item.role),
         operation: clean(item && (item.operation || item.type)) || "unknown",
         type: clean(item && (item.type || item.operation)) || "unknown",
         payload: item && item.payload && typeof item.payload === "object" ? item.payload : {},
-        companyId: clean(item && item.companyId),
+        companyId: clean(item && item.companyId) || getCompanyId(item && item.payload),
         createdAt: clean(item && item.createdAt) || now,
         updatedAt: clean(item && item.updatedAt) || now,
+        syncedAt: clean(item && item.syncedAt),
         status,
         attempts: Math.max(0, parseNumber(item && item.attempts)),
         lastError: clean(item && item.lastError),
         localOnly: item && item.localOnly === false ? false : true,
-        localOperationKey: clean(item && item.localOperationKey)
+        localOperationKey: clean(item && item.localOperationKey) || operationId
       };
     });
   }
@@ -144,6 +150,20 @@
     return clean(payload && (payload.companyId || payload.company_id || payload.institution_id)) || clean(session.companyId || session.institutionId || session.company_id || session.institution_id) || "local";
   }
 
+  function getDeviceId() {
+    return core.getDeviceId ? core.getDeviceId() : "device_local";
+  }
+
+  function getCurrentUserId() {
+    const session = core.getSession ? core.getSession() : {};
+    return clean(session.userId || session.profileId || session.userEmail || session.email);
+  }
+
+  function getCurrentRole() {
+    const session = core.getSession ? core.getSession() : {};
+    return clean(session.role) || "funcionario";
+  }
+
   function buildOperationKey(operation, payload) {
     const source = payload || {};
     const id = clean(source.id || source.localId || source.itemId || source.productId || source.movementId);
@@ -154,29 +174,37 @@
   function enqueueOperation(operation, payload, options) {
     const safePayload = Object.assign({}, payload || {});
     const safeOperation = clean(operation);
-    const localOperationKey = clean(options && options.localOperationKey) || buildOperationKey(safeOperation, safePayload);
+    const localOperationKey = clean(options && options.localOperationKey) || clean(safePayload.operationId) || buildOperationKey(safeOperation, safePayload);
+    const operationId = clean(options && options.operationId) || clean(safePayload.operationId) || localOperationKey || createTemporaryId("operation");
     const queue = getQueue();
     const duplicate = queue.find(function (item) {
-      return item.localOperationKey && item.localOperationKey === localOperationKey && item.status !== "failed" && item.status !== "conflict";
+      return ((item.operationId && item.operationId === operationId) || (item.localOperationKey && item.localOperationKey === localOperationKey)) && item.status !== "failed" && item.status !== "conflict";
     });
     if (duplicate) {
       renderIndicator();
       return duplicate;
     }
     const now = new Date().toISOString();
+    const companyId = clean(options && options.companyId) || getCompanyId(safePayload);
+    const deviceId = clean(options && options.deviceId) || getDeviceId();
     const item = {
-      id: createTemporaryId("queue"),
+      id: operationId,
+      operationId: operationId,
+      deviceId: deviceId,
+      userId: clean(options && options.userId) || getCurrentUserId(),
+      role: clean(options && options.role) || getCurrentRole(),
       operation: safeOperation,
       type: safeOperation,
-      payload: safePayload,
-      companyId: clean(options && options.companyId) || getCompanyId(safePayload),
+      payload: Object.assign({}, safePayload, { operationId: operationId, deviceId: deviceId, companyId: companyId }),
+      companyId: companyId,
       createdAt: now,
       updatedAt: now,
+      syncedAt: "",
       status: "pending",
       attempts: 0,
       lastError: "",
       localOnly: !(options && options.localOnly === false),
-      localOperationKey
+      localOperationKey: localOperationKey
     };
     queue.push(item);
     saveQueue(queue);
@@ -257,6 +285,9 @@
     const source = payload || {};
     return {
       id: clean(source.id),
+      operationId: clean(source.operationId),
+      deviceId: clean(source.deviceId) || getDeviceId(),
+      companyId: getCompanyId(source),
       name: clean(source.name),
       sku: clean(source.sku || source.fiscalCode),
       unit: clean(source.unit) || "un",
@@ -277,6 +308,9 @@
     const itemId = clean(source.itemId || source.productId);
     return {
       id: clean(source.id),
+      operationId: clean(source.operationId),
+      deviceId: clean(source.deviceId) || getDeviceId(),
+      companyId: getCompanyId(source),
       itemId: idMap[itemId] || itemId,
       quantity: parseNumber(source.quantity),
       unitCost: parseNumber(source.unitCost),
@@ -305,12 +339,12 @@
         saveQueue(queue);
         try {
           const result = await syncQueueItem(current, transport);
-          queue = markQueueItem(queue, current.id, { status: "synced", updatedAt: new Date().toISOString(), lastError: "", localOnly: false });
+          queue = markQueueItem(queue, current.id, { status: "synced", updatedAt: new Date().toISOString(), syncedAt: new Date().toISOString(), lastError: "", localOnly: false });
           applySyncResult(current, result);
           saveQueue(queue);
         } catch (error) {
           const safeError = clean(error && error.message) || "sync_failed";
-          const conflict = safeError.indexOf("conflict") >= 0;
+          const conflict = safeError.indexOf("conflict") >= 0 || safeError.indexOf("insufficient") >= 0 || safeError.indexOf("negative") >= 0;
           queue = markQueueItem(queue, current.id, { status: conflict ? "conflict" : "failed", updatedAt: new Date().toISOString(), lastError: safeError });
           saveQueue(queue);
           if (!conflict) throw error;
@@ -342,13 +376,23 @@
     if (item.operation === "product:create") return transport.createProduct(payload);
     if (item.operation === "product:update") return transport.updateProduct(Object.assign({}, payload, { remoteId: idMap[clean(payload.id)] || clean(payload.id) }));
     if (item.operation === "stock:entry") return syncMovementOnce(item, payload, transport.createEntry);
-    if (item.operation === "stock:exit") return syncMovementOnce(item, payload, transport.createExit);
+    if (item.operation === "stock:exit") return syncExitWithConflictPolicy(item, payload, transport);
     if (item.operation === "stock:adjust") return syncMovementOnce(item, payload, transport.createAdjustment || transport.createEntry);
     throw new Error("unknown_operation");
   }
 
+  async function syncExitWithConflictPolicy(item, payload, transport) {
+    if (transport && typeof transport.getProductBalance === "function") {
+      const balance = Number(await transport.getProductBalance(payload));
+      if (Number.isFinite(balance) && Number(payload.quantity || 0) > balance) {
+        throw new Error("conflict_insufficient_remote_stock");
+      }
+    }
+    return syncMovementOnce(item, payload, transport.createExit);
+  }
+
   async function syncMovementOnce(item, payload, handler) {
-    const movementKey = clean(item.localOperationKey) || buildOperationKey(item.operation, payload);
+    const movementKey = clean(item.operationId) || clean(item.localOperationKey) || clean(payload.operationId) || buildOperationKey(item.operation, payload);
     const syncedKeys = getSyncedMovementKeys();
     if (syncedKeys.includes(movementKey)) return { ok: true, duplicate: true };
     const result = await handler.call(null, payload);
@@ -506,7 +550,7 @@
     if (statusNode) statusNode.textContent = status;
     if (detailsNode) {
       const lastSync = clean(meta.lastSuccessfulSyncAt) || "nunca";
-      detailsNode.textContent = meta.pendingCount + " pendência(s) · última sync: " + lastSync + (meta.lastSyncError ? " · erro: " + meta.lastSyncError : "");
+      detailsNode.textContent = (meta.pendingCount > 0 || (window.navigator && window.navigator.onLine === false) ? "Modo offline - alteracoes serao sincronizadas quando a internet voltar. - " : "") + meta.pendingCount + " pendencia(s) - ultima sync: " + lastSync + (meta.lastSyncError ? " - erro: " + meta.lastSyncError : "");
     }
     if (button) button.disabled = syncInProgress;
     const normalizedStatus = normalizeSyncStatus(status) || "unknown";

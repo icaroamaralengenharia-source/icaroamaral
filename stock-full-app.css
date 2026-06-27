@@ -79,3 +79,31 @@
   background: #edf7ff;
   border-color: #8ec5f7;
 }
+.stock-full-app { overflow-x:hidden; }
+.stock-full-app__shell, .stock-full-app section, .stock-full-app article, .stock-full-app div { min-width:0; }
+.stock-full-app .mini-button, .stock-full-app .stock-full-link-button, .stock-full-app .stock-full-icon-button { max-width:100%; white-space:normal; text-align:center; }
+.stock-full-app [data-stock-full-permission][aria-disabled="true"] { pointer-events:none; opacity:.45; }
+.stock-full-app .almox-manager-actions > *, .stock-full-app .stock-full-command-strip > *, .stock-full-app .stock-full-dashboard-actions > * { flex:1 1 150px; }
+@media (max-width:430px) {
+  .stock-full-app__shell { width:100%; padding:8px 8px 92px; }
+  .stock-full-app__top, .stock-full-app .stock-full-app-header, .stock-full-app .stock-full-dashboard-hero, .stock-full-app__operations, .stock-full-app__search-card, .stock-full-app__list-section, .stock-full-app__summary-card, .stock-full-app .stock-full-admin-panel, .stock-full-app .stock-full-monitor-panel, .stock-full-app .stock-full-side-panel, .stock-full-app .stock-full-chart-card { border-radius:12px; padding:12px; }
+  .stock-full-app .stock-full-app-header { grid-template-columns:1fr auto; }
+  .stock-full-app .stock-full-app-header > .stock-full-icon-button:first-child { display:none; }
+  .stock-full-app .stock-full-header-actions { justify-content:end; }
+  .stock-full-app .stock-full-header-actions .has-badge { display:none; }
+  .stock-full-app .stock-full-brand-block strong { font-size:1.18rem; }
+  .stock-full-app .stock-full-global-search { grid-template-columns:1fr; }
+  .stock-full-app .stock-full-global-search span, .stock-full-app .stock-full-global-search i { display:none; }
+  .stock-full-app .stock-full-metric-grid, .stock-full-app .stock-full-secondary-grid { grid-template-columns:1fr; }
+  .stock-full-app .stock-full-command-strip, .stock-full-app .almox-manager-actions, .stock-full-app .stock-full-dashboard-actions { display:grid; grid-template-columns:1fr 1fr; }
+  .stock-full-app .stock-full-command-strip > *, .stock-full-app .almox-manager-actions > *, .stock-full-app .stock-full-dashboard-actions > * { min-width:0; width:100%; }
+  .stock-full-app .stock-full-mobile-nav { bottom:8px; width:calc(100% - 12px); border-radius:16px; padding:6px; }
+  .stock-full-app .stock-full-mobile-nav button { min-height:48px; font-size:.64rem; padding:4px 2px; }
+  .stock-full-app .stock-full-mobile-nav button span { font-size:.74rem; }
+  .stock-full-app .stock-full-mobile-nav .stock-full-new-action span { width:40px; height:40px; margin:-22px auto 2px; }
+}
+@media (max-width:370px) {
+  .stock-full-app .stock-full-command-strip, .stock-full-app .almox-manager-actions, .stock-full-app .stock-full-dashboard-actions { grid-template-columns:1fr; }
+  .stock-full-app h1 { font-size:1.85rem; }
+  .stock-full-app .stock-full-dashboard-hero h2 { font-size:1.6rem; }
+}

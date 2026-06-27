@@ -1,68 +1,19 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stock Full App | Gestão completa de estoque</title>
-  <meta name="description" content="Aplicativo Stock Full para estoque, entradas, saídas, auditoria, CSV, backup e multiempresa.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./stock-full-app.css">
+  <title>Stock Full App | Redirecionando</title>
+  <meta name="robots" content="noindex">
+  <script>
+    (function () {
+      var target = "stockfull.html" + (window.location.search || "") + (window.location.hash || "");
+      window.location.replace(target);
+    })();
+  </script>
 </head>
-<body class="stock-full-app" data-stock-full-app="true">
-  <form id="qualityReportForm" class="is-hidden" aria-hidden="true"></form>
-  <main class="stock-full-app__shell" aria-labelledby="stockFullAppTitle">
-    <section class="stock-full-app__top">
-      <div><span class="stock-full-app__eyebrow">Aplicativo SaaS</span><h1 id="stockFullAppTitle">STOCK <span>FULL</span></h1><p>Gestão completa de estoque para loja, empresa e operação multiempresa.</p></div>
-      <div class="stock-full-app__status"><strong id="stockFullCompanyName">Gestão completa de estoque</strong><small id="stockFullUserMeta">Usuário: acesso necessário</small></div>
-    </section>
-
-    <section class="stock-full-app__login stock-full-login-panel is-hidden" id="stockFullLoginPanel" aria-live="polite">
-      <div class="stock-full-login-card">
-        <div><p class="eyebrow">Acesso SaaS</p><h2>Entrar no Stock Full</h2><span>Controle multiempresa com estoque, alertas, auditoria e backup isolados por empresa.</span></div>
-        <form id="stockFullLoginForm" class="stock-full-login-form">
-          <label>E-mail<input name="email" type="email" value="manoel@manoelimportados.com" autocomplete="email" required></label>
-          <label>Senha<input name="password" type="password" value="123456" autocomplete="current-password" required></label>
-          <div class="stock-full-app__button-row"><button type="submit" class="mini-button primary">Entrar</button><button type="button" class="mini-button" id="stockFullRecoverPasswordButton">Recuperar senha</button></div>
-          <div class="stock-full-app__button-row"><button type="button" class="mini-button" data-stock-full-demo-login="manoel">Acessar Manoel Importados</button><button type="button" class="mini-button" data-stock-full-demo-login="sul">Acessar Loja Teste Sul</button></div>
-          <p id="stockFullLoginStatus" class="auth-note">Use Supabase Auth configurado ou o fallback local de desenvolvimento.</p>
-        </form>
-      </div>
-    </section>
-
-    <section class="route-panel" data-route="almoxarifado" aria-label="Aplicativo Stock Full">
-      <section class="stock-full-dashboard is-hidden" id="stockFullDashboard" aria-live="polite">
-        <header class="stock-full-app-header"><button type="button" class="stock-full-icon-button" data-stock-full-dashboard-action="summary">Menu</button><div class="stock-full-brand-block"><strong>STOCK <span>FULL</span></strong><small>Gestão completa de estoque</small><em>Aplicativo isolado</em></div><div class="stock-full-header-actions"><button type="button" class="stock-full-icon-button has-badge" data-stock-full-dashboard-action="summary">Alertas</button><button type="button" class="stock-full-icon-button" id="stockFullLogoutButton">Sair</button><span class="stock-full-avatar" id="stockFullAvatar">SF</span></div></header>
-        <label class="stock-full-global-search"><span>Busca</span><input id="stockFullQuickSearch" type="search" placeholder="Buscar produto, código, fornecedor, categoria..."><i>Cód.</i></label>
-        <section class="stock-full-command-strip"><button type="button" class="mini-button primary" data-almox-flow-action="summary" data-stock-full-permission="reports:view">Gerar resumo</button><button type="button" class="mini-button" data-almox-manager-shortcut="audit" data-stock-full-permission="reports:audit">Gerar auditoria</button><button type="button" class="mini-button" data-almox-manager-shortcut="backup" data-stock-full-permission="backup:export">Exportar backup</button><button type="button" class="mini-button" id="stockFullImportButton" data-stock-full-permission="products:import">Importar produtos</button><button type="button" class="mini-button" id="stockFullTemplateButton" data-stock-full-permission="products:import">Baixar modelo CSV</button><button type="button" class="mini-button" id="stockFullMigrateButton" data-stock-full-permission="products:import">Migrar dados locais</button><input class="is-hidden" id="stockFullCsvInput" type="file" accept=".csv,text/csv"></section>
-        <section class="stock-full-admin-panel" id="stockFullAdminPanel"><div class="stock-full-panel-heading compact"><div><h3>Administração da empresa</h3><p>Conta, usuários, importação e segurança operacional.</p></div><span id="stockFullCompanyStatus">Ativo</span></div><div class="stock-full-admin-grid" id="stockFullAdminGrid"></div><div class="stock-full-import-preview is-hidden" id="stockFullImportPreview"><div class="stock-full-panel-heading compact"><div><h4>Prévia da importação CSV</h4><p id="stockFullImportStatus">Confira os produtos antes de gravar.</p></div><button type="button" class="mini-button primary" id="stockFullConfirmImportButton">Confirmar importação</button></div><div id="stockFullImportRows" class="stock-full-import-rows"></div></div></section>
-        <header class="stock-full-dashboard-hero"><div><span>Dashboard operacional</span><h2>Estoque vivo, alertas claros.</h2><p>Dados reais do estoque com visão executiva para loja e empresa.</p></div><div class="stock-full-dashboard-actions"><button type="button" class="mini-button primary" data-stock-full-dashboard-action="entry" data-stock-full-permission="movements:in">+ Entrada rápida</button><button type="button" class="mini-button" data-stock-full-dashboard-action="exit" data-stock-full-permission="movements:out">- Saída rápida</button><button type="button" class="mini-button" data-stock-full-dashboard-action="pdf" data-stock-full-permission="reports:view">PDF</button></div></header>
-        <div class="stock-full-metric-grid" id="stockFullMetricCards"></div>
-        <section class="stock-full-secondary-grid" id="stockFullSecondaryCards" aria-label="Indicadores reais complementares do Stock Full"></section>
-        <section class="stock-full-chart-grid" aria-label="Graficos reais do Stock Full"><article class="stock-full-chart-card"><h3>Estoque por categoria</h3><div class="stock-full-category-content" id="stockFullCategoryChart"></div></article><article class="stock-full-chart-card"><h3>Evolução do estoque</h3><div class="stock-full-line-chart" id="stockFullEvolutionChart"></div></article></section>
-        <div class="stock-full-dashboard-grid"><section class="stock-full-monitor-panel"><div class="stock-full-panel-heading"><div><h3>Produtos em alerta</h3><p>Itens reais abaixo do mínimo, zerados ou próximos da reposição.</p></div><button type="button" class="stock-full-link-button" data-stock-full-dashboard-action="summary">Ver todos</button></div><div class="stock-full-monitor-table" id="stockFullMonitorRows" role="table"></div></section><aside class="stock-full-side-stack"><section class="stock-full-side-panel"><div class="stock-full-panel-heading compact"><div><h3>Itens para repor</h3><p>Lista real baseada no mínimo cadastrado.</p></div></div><div class="stock-full-urgent-list" id="stockFullUrgentList"></div></section><section class="stock-full-side-panel"><div class="stock-full-panel-heading compact"><div><h3>Entradas recentes</h3><p>Recebimentos mais novos.</p></div></div><div class="stock-full-activity-list" id="stockFullEntryList"></div></section><section class="stock-full-side-panel"><div class="stock-full-panel-heading compact"><div><h3>Saídas recentes</h3><p>Consumo e retiradas da loja.</p></div></div><div class="stock-full-activity-list" id="stockFullExitList"></div></section><section class="stock-full-side-panel stock-full-ai-panel"><div class="stock-full-panel-heading compact"><div><h3>Análises e recomendações IA</h3><p>Recomendações operacionais baseadas no comportamento do estoque.</p></div></div><ul class="stock-full-ai-list" id="stockFullAiList"></ul></section></aside></div>
-        <section class="stock-full-app__operations" id="almoxManagerPanel"><div class="stock-full-panel-heading"><div><p class="eyebrow" data-stock-full-text="managerEyebrow">Operação da loja</p><h3 data-stock-full-text="managerTitle">Central do Stock Full</h3><span class="auth-note" data-stock-full-text="managerNote">Ações, consultas, auditorias e alertas em uma visão objetiva.</span></div><strong id="almoxAlertsStatus">Alertas ativos</strong></div><div class="almox-manager-actions"><button type="button" class="mini-button primary" data-almox-action="item" data-stock-full-text="buttonItem" data-stock-full-permission="products:create">Cadastrar produto</button><button type="button" class="mini-button primary" data-almox-action="entry" data-stock-full-permission="movements:in">Registrar entrada</button><button type="button" class="mini-button primary" data-almox-action="exit" data-stock-full-permission="movements:out">Registrar saída</button><a class="mini-button" href="#almoxItemsSection" data-stock-full-text="itemsLink">Produtos cadastrados</a><a class="mini-button" href="#almoxHistorySection">Histórico</a><button type="button" class="mini-button" id="almoxViewPanelButton">Visualizar painel</button><button type="button" class="mini-button" id="almoxManagerAuditButton" data-stock-full-permission="reports:audit">Gerar auditoria</button><button type="button" class="mini-button" id="almoxDownloadPdfButton">Baixar PDF</button><button type="button" class="mini-button" id="almoxExportBackupButton" data-stock-full-permission="backup:export">Exportar backup</button><button type="button" class="mini-button" id="almoxImportBackupButton">Importar backup</button><button type="button" class="mini-button" id="almoxQuickBackupButton">Baixar cópia de segurança agora</button><button type="button" class="mini-button" id="almoxMuteAlertsButton">Silenciar alertas</button></div><input class="is-hidden" id="almoxBackupFileInput" type="file" accept="application/json,.json"><div class="almox-offline-panel" id="almoxOfflinePanel"><div><strong>Status operacional</strong><span id="almoxOfflineStatus">Operação ativa - dados disponíveis neste dispositivo - backup recomendado</span></div><p>Exporte backup periodicamente.</p></div><div class="almox-email-panel is-hidden" id="almoxEmailPanel"><label>E-mail de destino <input id="almoxEmailInput" type="email" autocomplete="email" placeholder="gestor@empresa.com.br"></label><button type="button" class="mini-button primary" id="almoxPrepareEmailButton">Preparar e-mail</button></div><div class="almox-manager-grid" id="almoxManagerCards"></div><div class="stock-full-app__report-pair"><article><strong>Último resumo gerado</strong><p id="almoxManagerSummaryText">Clique em Gerar resumo para registrar uma visão gerencial.</p></article><article><strong>Última auditoria gerada</strong><p id="almoxManagerAuditText">Clique em Gerar auditoria para registrar uma análise crítica.</p></article></div></section>
-        <section class="stock-full-app__generated is-hidden" id="almoxGeneratedReport"><h3 id="almoxGeneratedReportTitle">Resumo gerencial</h3><p id="almoxGeneratedReportText"></p></section><div class="stock-ia-cards" id="almoxSummaryCards"></div><div id="almoxFlowStatus" class="is-hidden"></div><div id="almoxDemoAccessPanel" class="is-hidden"></div>
-        <section class="stock-full-app__search-card"><div class="section-row"><h3>Buscar</h3><span>Filtre itens, destinatários, setores ou finalidades.</span></div><input class="almox-search-input" id="almoxSearchInput" type="search" placeholder="Buscar item, destinatário, setor ou finalidade"></section>
-        <section class="stock-full-app__list-section almox-items-section almox-items-expanded" id="almoxItemsSection"><div class="almox-items-header"><div><h3>Produtos cadastrados</h3><span class="auth-note">Cards com saldo, mínimo, local e ações rápidas.</span></div><div><strong id="almoxItemsCount">0 itens cadastrados</strong><button type="button" class="mini-button" id="almoxToggleItemsButton">Ocultar itens</button></div></div><div class="almox-items-grid" id="almoxItemsCards"></div><table class="almox-items-table is-hidden"><tbody id="almoxItemsRows"></tbody></table></section>
-        <section class="stock-full-app__list-section almox-history-section almox-history-expanded" id="almoxHistorySection"><div class="almox-history-header"><div><p class="eyebrow">Histórico</p><h3>Histórico do estoque</h3><span>Entradas, saídas, responsáveis, setores, origem e data/hora.</span></div><div><strong id="almoxHistoryCount">0 movimentações</strong><div class="almox-history-filters"><button type="button" class="active" data-almox-history-filter="all">Todas</button><button type="button" data-almox-history-filter="entrada">Entradas</button><button type="button" data-almox-history-filter="saida">Saídas</button></div><button type="button" class="mini-button" id="almoxToggleHistoryButton">Ocultar histórico</button></div></div><div class="almox-history-list" id="almoxHistoryList"></div><table class="almox-history-table is-hidden"><tbody id="almoxHistoryRows"></tbody></table></section>
-        <section class="stock-full-app__summary-card"><h3>Resumo do estoque</h3><p id="almoxSummaryText">Cadastre um item para iniciar o controle do Stock Full.</p></section>
-      </section>
-    </section>
-    <div class="stock-ia-toast is-hidden" id="almoxActionMessage" role="status" aria-live="polite"></div><div class="stock-ia-modal is-hidden" id="almoxModal" role="dialog" aria-modal="true"></div>
-    <nav class="stock-full-mobile-nav"><button type="button" class="is-active" data-stock-full-dashboard-action="summary"><span>Início</span>Dashboard</button><button type="button" data-stock-full-dashboard-action="item"><span>Est.</span>Estoque</button><button type="button" class="stock-full-new-action" data-stock-full-dashboard-action="entry"><span>+</span>Novo</button><button type="button" data-stock-full-dashboard-action="summary"><span>Rel.</span>Relatórios</button><button type="button" data-stock-full-dashboard-action="summary"><span>Mais</span>Mais</button></nav>
-  </main>
-  <script>window.STOCK_FULL_PASSWORD_REDIRECT_URL = window.location.origin + window.location.pathname;</script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./relatorio-qualidade-obras/relatorio-config.js?v=20260525-comercial1b"></script>
-  <script src="./stock-full-core.js"></script>
-  <script src="./stock-full-products.js"></script>
-  <script src="./stock-full-stock.js"></script>
-  <script src="./stock-full-dashboard.js"></script>
-  <script src="./stock-full-reports.js"></script>
-  <script src="./stock-full-sync.js"></script>
-  <script src="./stock-full-app.js"></script>
-  <script src="./relatorio-qualidade-obras/relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
+<body>
+  <p>Redirecionando para o Stock Full...</p>
+  <a href="stockfull.html">Abrir Stock Full</a>
 </body>
 </html>

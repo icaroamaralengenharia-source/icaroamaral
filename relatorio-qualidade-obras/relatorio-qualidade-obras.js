@@ -8472,10 +8472,13 @@
   ];
 
   const STOCK_FULL_ROLE_PERMISSIONS = {
-    admin: ["products:create", "products:update", "movements:in", "movements:out", "reports:view", "reports:audit", "backup:export", "users:manage", "products:import"],
-    estoquista: ["products:create", "products:update", "movements:in", "movements:out", "reports:view", "reports:audit"],
-    vendedor: ["movements:out", "reports:view"],
-    leitura: ["reports:view"]
+    admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    funcionario: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    operador: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    estoquista: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    vendedor: ["products:view", "movements:out", "history:view", "reports:view"],
+    leitura: ["products:view", "history:view", "reports:view"]
   };
 
   let stockFullPendingCsvRows = [];
@@ -8520,16 +8523,42 @@
     return Object.assign({}, record || {}, {
       companyId: companyId,
       environmentId: environmentId || clean(record && record.environmentId),
-      createdBy: clean((record && record.createdBy) || session.userId || session.userEmail)
+      createdBy: clean((record && record.createdBy) || session.userId || session.userEmail),
+      createdByRole: clean((record && record.createdByRole) || session.role)
     });
+  }
+
+  function appendStockFullLocalAudit_(state, action, entityType, entityId, description, metadata) {
+    if (!isStockFullContext_()) return state;
+    const auditLog = Array.isArray(state.auditLog) ? state.auditLog : [];
+    auditLog.unshift(createCompanyScopedRecord_({
+      id: createId_("sfaudit"),
+      action: clean(action),
+      entityType: clean(entityType),
+      entityId: clean(entityId),
+      description: clean(description),
+      metadata: metadata || {},
+      createdAt: new Date().toISOString()
+    }));
+    state.auditLog = auditLog.slice(0, 300);
+    return state;
   }
 
   function canStockFull_(permission) {
     if (!isStockFullContext_()) return true;
     const session = getCurrentStockFullSession_();
     if (!session.isAuthenticated) return false;
+    if (window.StockFullCore && typeof window.StockFullCore.canStockFull === "function") {
+      return window.StockFullCore.canStockFull(permission, session);
+    }
     const permissions = STOCK_FULL_ROLE_PERMISSIONS[session.role] || [];
     return permissions.indexOf(permission) >= 0;
+  }
+
+  function requireStockFullPermission_(permission, message) {
+    if (canStockFull_(permission)) return true;
+    showAlmoxToast_(message || "Usuario sem permissao para esta acao.", "error");
+    return false;
   }
 
   function getStockFullCompany_(companyId) {
@@ -8653,14 +8682,18 @@
   function applyStockFullPermissions_() {
     if (!isStockFullContext_()) return;
     Array.from(document.querySelectorAll("[data-stock-full-permission]")).forEach(function (element) {
-      const allowed = canStockFull_(element.dataset.stockFullPermission || "");
+      const permission = element.dataset.stockFullPermission || "";
+      const allowed = canStockFull_(permission);
       element.toggleAttribute("disabled", !allowed);
       element.setAttribute("aria-disabled", allowed ? "false" : "true");
+      if (element.id === "stockFullAdminPanel" || permission === "reports:audit" || permission === "backup:export" || permission === "products:import" || permission === "settings:view") {
+        element.classList.toggle("is-hidden", !allowed);
+      }
     });
   }
 
   function renderStockFullAdminPanel_() {
-    if (!stockFullAdminGrid || !requireStockFullAuth_()) return;
+    if (!stockFullAdminGrid || !requireStockFullAuth_() || !canStockFull_("settings:view")) return;
     const session = getCurrentStockFullSession_();
     const company = getStockFullCompany_(session.companyId);
     const state = loadAlmoxState_();
@@ -8835,6 +8868,7 @@
         alertsMutedUntil: alertsMuted ? mutedUntil : "",
         alertHistory: Array.isArray(parsed.alertHistory) ? parsed.alertHistory : [],
         approvalRequests: Array.isArray(parsed.approvalRequests) ? parsed.approvalRequests : [],
+        auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
         stockEnvironments: Array.isArray(parsed.stockEnvironments) ? parsed.stockEnvironments : [],
         activeStockEnvironmentId: clean(parsed.activeStockEnvironmentId),
         updatedAt: parsed.updatedAt || new Date().toISOString()
@@ -8848,6 +8882,7 @@
         alertsMutedUntil: "",
         alertHistory: [],
         approvalRequests: [],
+        auditLog: [],
         stockEnvironments: [],
         activeStockEnvironmentId: "",
         updatedAt: new Date().toISOString()
@@ -8864,6 +8899,7 @@
       alertsMutedUntil: clean(normalizedState.alertsMutedUntil),
       alertHistory: Array.isArray(normalizedState.alertHistory) ? normalizedState.alertHistory.slice(0, 80) : [],
       approvalRequests: Array.isArray(normalizedState.approvalRequests) ? normalizedState.approvalRequests.slice(0, 200) : [],
+      auditLog: Array.isArray(normalizedState.auditLog) ? normalizedState.auditLog.slice(0, 300) : [],
       stockEnvironments: Array.isArray(normalizedState.stockEnvironments) ? normalizedState.stockEnvironments : [],
       activeStockEnvironmentId: clean(normalizedState.activeStockEnvironmentId),
       updatedAt: new Date().toISOString()
@@ -8919,6 +8955,7 @@
           alertsMutedUntil: clean(state.alertsMutedUntil),
           alertHistory: JSON.parse(JSON.stringify(state.alertHistory || [])),
           approvalRequests: JSON.parse(JSON.stringify(state.approvalRequests || [])),
+          auditLog: JSON.parse(JSON.stringify(state.auditLog || [])),
           stockEnvironments: JSON.parse(JSON.stringify(state.stockEnvironments || [])),
           activeStockEnvironmentId: clean(state.activeStockEnvironmentId),
           stockMode: storage ? clean(storage.getItem(STOCK_MODE_STORAGE_KEY)) : "",
@@ -9094,6 +9131,7 @@
       alertsMutedUntil: clean(state.alertsMutedUntil),
       alertHistory: Array.isArray(state.alertHistory) ? state.alertHistory : [],
       approvalRequests: Array.isArray(state.approvalRequests) ? state.approvalRequests : [],
+      auditLog: Array.isArray(state.auditLog) ? state.auditLog : [],
       stockEnvironments: Array.isArray(state.stockEnvironments) ? state.stockEnvironments : [],
       activeStockEnvironmentId: clean(state.activeStockEnvironmentId),
       updatedAt: state.updatedAt || new Date().toISOString()
@@ -9507,6 +9545,7 @@
   async function handleAlmoxItemSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    if (isStockFullContext_() && !requireStockFullPermission_("products:create", "Funcionario nao pode cadastrar produto.")) return;
     const result = isStockFullRemoteActive_()
       ? await saveStockFullRemoteItemFromFormData_(formData)
       : saveAlmoxItemFromFormData_(formData);
@@ -9585,6 +9624,7 @@
   async function handleAlmoxEntrySubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:in", "Usuario sem permissao para registrar entrada.")) return;
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
       const requestResult = createStockApprovalRequestFromFormData_("entry", formData);
       if (!requestResult.ok) {
@@ -9662,6 +9702,7 @@
   async function handleAlmoxExitSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:out", "Usuario sem permissao para registrar saida.")) return;
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife") {
       const requestResult = createStockApprovalRequestFromFormData_("exit", formData);
       if (!requestResult.ok) {
@@ -9685,7 +9726,7 @@
 
     event.target.reset();
     renderAlmoxarifadoPanel_();
-    showAlmoxToast_("Saída registrada com responsável e setor.", "success");
+    showAlmoxToast_("Saida registrada com responsavel e setor.", "success");
   }
 
   async function saveStockFullRemoteExitFromFormData_(formData) {
@@ -9695,7 +9736,7 @@
     if (!itemId || quantity <= 0) {
       return {
         ok: false,
-        message: "Escolha um item e informe a quantidade de saída."
+        message: "Escolha um item e informe a quantidade de saida."
       };
     }
 
@@ -9781,9 +9822,10 @@
       updatedAt: new Date().toISOString()
     });
     state.items.push(item);
+    appendStockFullLocalAudit_(state, "product_created", "products", item.id, "Produto cadastrado: " + item.name);
 
     if (initialQuantity > 0) {
-      state.movements.push(createCompanyScopedRecord_({
+      const initialMovement = createCompanyScopedRecord_({
         id: createId_("almmov"),
         environmentId: environmentId,
         itemId: item.id,
@@ -9802,7 +9844,9 @@
         movementDateTime: buildAlmoxMovementDateTime_(defaultMovementDate, defaultMovementTime),
         notes: "Entrada inicial do cadastro.",
         createdAt: new Date().toISOString()
-      }));
+      });
+      state.movements.push(initialMovement);
+      appendStockFullLocalAudit_(state, "movement_in_created", "stock_movements", initialMovement.id, "Entrada inicial registrada", { itemId: item.id, quantity: initialQuantity });
     }
 
     saveAlmoxState_(state);
@@ -9824,10 +9868,10 @@
     }
 
     if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId && (!getCurrentCompanyId_() || clean(item.companyId) === getCurrentCompanyId_()); })) {
-      return { ok: false, message: "Material não encontrado no almoxarifado." };
+      return { ok: false, message: "Material nao encontrado no almoxarifado." };
     }
 
-    state.movements.push(createCompanyScopedRecord_({
+    const movement = createCompanyScopedRecord_({
       id: createId_("almmov"),
       environmentId: environmentId,
       itemId: itemId,
@@ -9846,7 +9890,9 @@
       movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
-    }));
+    });
+    state.movements.push(movement);
+    appendStockFullLocalAudit_(state, "movement_in_created", "stock_movements", movement.id, "Entrada registrada", { itemId: itemId, quantity: quantity });
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
     return { ok: true };
@@ -9862,19 +9908,19 @@
     const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
 
     if (!itemId || quantity <= 0) {
-      return { ok: false, message: "Escolha um item e informe a quantidade de saída." };
+      return { ok: false, message: "Escolha um item e informe a quantidade de saida." };
     }
 
     if (!state.items.some(function (item) { return item.id === itemId && clean(item.environmentId) === environmentId && (!getCurrentCompanyId_() || clean(item.companyId) === getCurrentCompanyId_()); })) {
-      return { ok: false, message: "Material não encontrado no almoxarifado." };
+      return { ok: false, message: "Material nao encontrado no almoxarifado." };
     }
 
     const balance = getAlmoxItemBalance_(itemId, state);
     if (quantity > balance) {
-      return { ok: false, message: "Saldo insuficiente para esta saída." };
+      return { ok: false, message: "Saldo insuficiente para esta saida." };
     }
 
-    state.movements.push(createCompanyScopedRecord_({
+    const movement = createCompanyScopedRecord_({
       id: createId_("almmov"),
       environmentId: environmentId,
       itemId: itemId,
@@ -9895,7 +9941,9 @@
       movementDateTime: movementDateTime,
       notes: clean(formData.get("notes")),
       createdAt: new Date().toISOString()
-    }));
+    });
+    state.movements.push(movement);
+    appendStockFullLocalAudit_(state, "movement_out_created", "stock_movements", movement.id, "Saida registrada", { itemId: itemId, quantity: quantity });
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
     return { ok: true };
@@ -12106,6 +12154,21 @@
     const type = form.dataset.almoxFormType || "item";
     const formData = new FormData(form);
 
+    if (isStockFullContext_()) {
+      const permission = type === "entry" ? "movements:in" : (type === "exit" ? "movements:out" : "products:create");
+      if (!requireStockFullPermission_(permission, "Usuario sem permissao para esta acao.")) return;
+      if (type === "exit") {
+        const state = loadAlmoxState_();
+        const itemId = clean(formData.get("itemId"));
+        const quantity = parseNumber_(formData.get("quantity"));
+        const balance = getAlmoxItemBalance_(itemId, state);
+        if (quantity > balance) {
+          showAlmoxToast_("Saldo insuficiente para esta saida.", "error");
+          return;
+        }
+      }
+    }
+
     if (isStockAiPublicDemo_() && getStockDemoRole_() === "almoxarife" && (type === "entry" || type === "exit")) {
       const requestResult = createStockApprovalRequestFromFormData_(type, formData);
       if (!requestResult.ok) {
@@ -12142,7 +12205,7 @@
     if (type === "entry") {
       showAlmoxToast_("Entrada registrada no almoxarifado.", "success");
     } else if (type === "exit") {
-      showAlmoxToast_("Saída registrada com responsável e setor.", "success");
+      showAlmoxToast_("Saida registrada com responsavel e setor.", "success");
     } else {
       showAlmoxToast_("Item cadastrado com sucesso.", "success");
     }

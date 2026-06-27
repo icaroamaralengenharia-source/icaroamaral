@@ -891,6 +891,10 @@ export function createApp(options = {}) {
       return;
     }
 
+    if (!requireStockFullPermission_(session.profile, "products:create", response)) {
+      return;
+    }
+
     const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
@@ -920,6 +924,10 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+
+    if (!requireStockFullPermission_(session.profile, "products:update", response)) {
       return;
     }
 
@@ -964,6 +972,10 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+
+    if (!requireStockFullPermission_(session.profile, "products:delete", response)) {
       return;
     }
 
@@ -1033,6 +1045,10 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+
+    if (!requireStockFullPermission_(session.profile, "movements:in", response)) {
       return;
     }
 
@@ -1136,6 +1152,10 @@ export function createApp(options = {}) {
       return;
     }
 
+    if (!requireStockFullPermission_(session.profile, "movements:out", response)) {
+      return;
+    }
+
     const validation = validateStockFullExitPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
@@ -1210,6 +1230,10 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
+      return;
+    }
+
+    if (!requireStockFullPermission_(session.profile, "reports:audit", response)) {
       return;
     }
 
@@ -2427,6 +2451,39 @@ async function requireStockFullAuth_(request, response, supabase) {
     response.status(500).json({ ok: false, error: "stock_full_auth_lookup_failed" });
     return null;
   }
+}
+
+function normalizeStockFullRole_(role) {
+  const value = clean_(role).toLowerCase();
+  if (value === "owner" || value === "admin" || value === "gestor" || value === "patrao") {
+    return "admin";
+  }
+  if (value === "employee" || value === "operador" || value === "funcionario") {
+    return "funcionario";
+  }
+  return value || "funcionario";
+}
+
+function canStockFullRole_(profile, action) {
+  const role = normalizeStockFullRole_(profile && profile.role);
+  const permissions = {
+    admin: new Set(["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"]),
+    gestor: new Set(["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"]),
+    funcionario: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
+    operador: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
+    estoquista: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
+    vendedor: new Set(["products:view", "movements:out", "history:view", "reports:view"]),
+    leitura: new Set(["products:view", "history:view", "reports:view"])
+  };
+  return Boolean(permissions[role] && permissions[role].has(action));
+}
+
+function requireStockFullPermission_(profile, action, response) {
+  if (canStockFullRole_(profile, action)) {
+    return true;
+  }
+  response.status(403).json({ ok: false, error: "permission_denied" });
+  return false;
 }
 
 function validateStockFullItemPayload_(body, profile, options = {}) {

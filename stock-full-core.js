@@ -3,6 +3,17 @@
 
   const STOCK_FULL_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const STOCK_FULL_SESSION_STORAGE_KEY = "stockFullSession";
+  const STOCK_FULL_DEVICE_STORAGE_KEY = "stockFullDeviceId";
+  const STOCK_FULL_ROLE_PERMISSIONS = {
+    admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    patrao: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
+    funcionario: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    operador: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    estoquista: ["products:view", "movements:in", "movements:out", "history:view", "reports:view"],
+    vendedor: ["products:view", "movements:out", "history:view", "reports:view"],
+    leitura: ["products:view", "history:view", "reports:view"]
+  };
 
   function clean(value) {
     return String(value || "").trim();
@@ -28,6 +39,13 @@
 
   function createId(prefix) {
     return clean(prefix || "sf") + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function normalizeRole(role) {
+    const value = clean(role).toLowerCase();
+    if (value === "owner" || value === "admin" || value === "gestor" || value === "patrao") return "admin";
+    if (value === "employee" || value === "operador" || value === "funcionario") return "funcionario";
+    return value || "funcionario";
   }
 
   function getLocalStorage() {
@@ -83,6 +101,22 @@
     return writeJson(STOCK_FULL_SESSION_STORAGE_KEY, session || {});
   }
 
+  function getDeviceId() {
+    const storage = getLocalStorage();
+    if (!storage) return "device_memory";
+    const existing = clean(storage.getItem(STOCK_FULL_DEVICE_STORAGE_KEY));
+    if (existing) return existing;
+    const next = createId("device");
+    storage.setItem(STOCK_FULL_DEVICE_STORAGE_KEY, next);
+    return next;
+  }
+
+  function canStockFull(action, roleOrSession) {
+    const role = normalizeRole(typeof roleOrSession === "string" ? roleOrSession : (roleOrSession && roleOrSession.role) || getSession().role);
+    const permissions = STOCK_FULL_ROLE_PERMISSIONS[role] || STOCK_FULL_ROLE_PERMISSIONS.funcionario;
+    return permissions.indexOf(clean(action)) >= 0;
+  }
+
   window.StockFullCore = {
     storageKey: STOCK_FULL_STORAGE_KEY,
     sessionStorageKey: STOCK_FULL_SESSION_STORAGE_KEY,
@@ -90,6 +124,7 @@
     parseNumber,
     roundQuantity,
     createId,
+    normalizeRole,
     getLocalStorage,
     readJson,
     writeJson,
@@ -97,6 +132,9 @@
     isStockFullContext,
     getProfile,
     getSession,
-    setSession
+    setSession,
+    getDeviceId,
+    canStockFull,
+    rolePermissions: STOCK_FULL_ROLE_PERMISSIONS
   };
 })(window);
