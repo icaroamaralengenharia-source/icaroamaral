@@ -1,4 +1,4 @@
-ï»¿(function (window) {
+(function (window) {
   "use strict";
 
   const core = window.StockFullCore || {};
@@ -221,7 +221,7 @@
 
   function getAuthToken() {
     const storage = getStorage();
-    const keys = ["sb-stock-full-auth-token", "stockFullSupabaseToken"];
+    const keys = ["sb-stock-full-auth-token", "sb-stock-full-backend-auth-token", "stockFullSupabaseToken"];
     for (let index = 0; index < keys.length; index += 1) {
       try {
         const raw = storage && storage.getItem(keys[index]);
@@ -240,10 +240,14 @@
     return clean(value).split(".").length >= 2;
   }
 
+  function buildApiUrl(path) {
+    return core.buildStockFullApiUrl ? core.buildStockFullApiUrl(path) : path;
+  }
+
   async function fetchJson(url, options) {
     const token = getAuthToken();
     if (!token) throw new Error("stock_full_auth_unavailable");
-    const response = await window.fetch(url, Object.assign({}, options || {}, {
+    const response = await window.fetch(buildApiUrl(url), Object.assign({}, options || {}, {
       headers: Object.assign({ Authorization: "Bearer " + token, "Content-Type": "application/json" }, options && options.headers || {})
     }));
     const data = await response.json().catch(function () { return {}; });
@@ -498,8 +502,8 @@
   function getSyncStatusLabel() {
     const meta = refreshSyncMetaSilently();
     if (syncInProgress) return "Sincronizando";
-    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincronizaÃ§Ã£o";
-    if (meta.pendingCount > 0) return "Pendente de sincronizaÃ§Ã£o";
+    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincronização";
+    if (meta.pendingCount > 0) return "Pendente de sincronização";
     if (window.navigator && window.navigator.onLine === false) return "Offline";
     return "Online";
   }
@@ -529,7 +533,7 @@
     panel = window.document.createElement("section");
     panel.id = "stockFullSyncPanel";
     panel.className = "stock-full-sync-panel";
-    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pendÃªncias</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
+    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pendências</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
     const commandStrip = window.document.querySelector(".stock-full-command-strip");
     if (commandStrip && commandStrip.parentNode) commandStrip.parentNode.insertBefore(panel, commandStrip.nextSibling);
     else target.insertBefore(panel, target.firstChild);

@@ -798,6 +798,55 @@ export function createApp(options = {}) {
     });
   });
 
+  app.post("/api/stock-full/login", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const email = clean_(request.body && request.body.email).toLowerCase();
+    const password = String(request.body && request.body.password || "");
+    if (!email || !password) {
+      response.status(400).json({ ok: false, error: "email_password_required" });
+      return;
+    }
+    if (!database.auth || typeof database.auth.signInWithPassword !== "function") {
+      response.status(503).json({ ok: false, error: "stock_full_auth_not_configured" });
+      return;
+    }
+
+    try {
+      const { data, error } = await database.auth.signInWithPassword({ email, password });
+      if (error || !data || !data.user || !data.session || !data.session.access_token) {
+        response.status(401).json({ ok: false, error: "invalid_credentials" });
+        return;
+      }
+
+      const profile = await getStockFullProfileByAuthUser_(database, data.user.id);
+      if (!profile) {
+        response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
+        return;
+      }
+
+      response.json({
+        ok: true,
+        module: "stock-full",
+        mode: "remote",
+        user: {
+          id: data.user.id,
+          email: data.user.email || email
+        },
+        profile,
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token || "",
+          expires_at: data.session.expires_at || null
+        }
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_login_failed" });
+    }
+  });
   app.get("/api/stock-full/me", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {

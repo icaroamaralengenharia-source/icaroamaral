@@ -13,7 +13,7 @@ async function openApp(page, login = "manoel", options = {}) {
       window.localStorage.removeItem("stockFullSyncedMovementKeys");
     });
   }
-  await page.goto(APP_URL);
+  await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
   const button = page.locator('[data-stock-full-demo-login="' + login + '"]');
   if (await button.isVisible().catch(() => false)) {
     await button.click();
@@ -22,7 +22,7 @@ async function openApp(page, login = "manoel", options = {}) {
 }
 
 async function openWithEmployeeSession(page) {
-  await page.goto(APP_URL);
+  await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
     window.localStorage.setItem("stockFullSession", JSON.stringify({
       isAuthenticated: true,
@@ -150,7 +150,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
   });
 
   test("empresa A nao ve dados da empresa B", async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
     await page.evaluate(() => {
       window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "local", userId: "a", userName: "Admin A", companyId: "company_manoel_importados", companyName: "Manoel Importados", role: "admin" }));
       window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify({
@@ -185,5 +185,115 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
     expect(metrics.clippedButtons).toBe(0);
     expect(consoleErrors.filter((text) => !/favicon|cdn.jsdelivr|supabase/i.test(text))).toEqual([]);
+  });
+  test("modo online real escolhe backend em producao e bloqueia demo", async ({ page }) => {
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    const result = await page.evaluate(() => {
+      const productionLocation = { protocol: "https:", hostname: "www.icaroamaral.com.br", origin: "https://www.icaroamaral.com.br", href: "https://www.icaroamaral.com.br/stockfull.html" };
+      const localhostLocation = { protocol: "http:", hostname: "localhost", origin: "http://localhost:5500", href: "http://localhost:5500/stockfull.html" };
+      return {
+        productionBase: window.StockFullCore.getStockFullApiBaseUrl(productionLocation),
+        productionItemUrl: window.StockFullCore.buildStockFullApiUrl("/api/stock-full/items", productionLocation),
+        localhostBase: window.StockFullCore.getStockFullApiBaseUrl(localhostLocation),
+        demoAllowedProduction: window.StockFullAppRuntime.isDemoLoginAllowedFor(productionLocation),
+        demoAllowedLocalhost: window.StockFullAppRuntime.isDemoLoginAllowedFor(localhostLocation),
+        clearsLocalSessionProduction: window.StockFullAppRuntime.shouldClearLocalOnlySession({ isAuthenticated: true, mode: "local" }, false, productionLocation),
+        keepsBackendSessionProduction: window.StockFullAppRuntime.shouldClearLocalOnlySession({ isAuthenticated: true, mode: "backend" }, true, productionLocation)
+      };
+    });
+    expect(result.productionBase).toBe("https://obrareport-backend.onrender.com/api/stock-full");
+    expect(result.productionItemUrl).toBe("https://obrareport-backend.onrender.com/api/stock-full/items");
+    expect(result.localhostBase).toBe("/api/stock-full");
+    expect(result.demoAllowedProduction).toBe(false);
+    expect(result.demoAllowedLocalhost).toBe(true);
+    expect(result.clearsLocalSessionProduction).toBe(true);
+    expect(result.keepsBackendSessionProduction).toBe(false);
+  });
+
+  test("fila offline sincroniza usando API backend configurada", async ({ page }) => {
+    const requests = [];
+    await page.route("https://backend.example/api/stock-full/entries", async (route) => {
+      requests.push({ url: route.request().url(), body: route.request().postDataJSON() });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, entry: { id: "entry_remote" }, item: { id: "prod_backend", currentQuantity: 15 } })
+      });
+    });
+    await page.addInitScript(() => {
+      window.STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ currentSession: { access_token: "token.test" }, access_token: "token.test" }));
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "backend", userId: "user_backend", userName: "Admin Backend", companyId: "inst_backend", companyName: "Empresa Backend", role: "admin" }));
+    });
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      window.localStorage.removeItem(window.StockFullSync.storageKeys.queue);
+      window.StockFullSync.enqueue("stock:entry", { id: "mov_backend", itemId: "prod_backend", quantity: 5 }, { operationId: "op_backend_1", companyId: "inst_backend" });
+    });
+    await page.evaluate(() => window.StockFullSync.processQueue());
+    await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue()[0].status)).toBe("synced");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe("https://backend.example/api/stock-full/entries");
+    expect(requests[0].body.operationId).toBe("op_backend_1");
+    expect(requests[0].body.companyId).toBe("inst_backend");
+  });
+
+  test("dois clientes simulados compartilham produto e saldo pelo backend", async ({ browser }) => {
+    const remote = { items: [], entries: [], exits: [] };
+    async function installRoutes(context) {
+      await context.route("https://backend.example/api/stock-full/items", async (route) => {
+        const request = route.request();
+        if (request.method() === "POST") {
+          const body = request.postDataJSON();
+          const item = { id: "prod_shared", name: body.name, currentQuantity: Number(body.currentQuantity || 0), institution_id: "inst_shared" };
+          remote.items = [item];
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, item }) });
+          return;
+        }
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: remote.items }) });
+      });
+      await context.route("https://backend.example/api/stock-full/entries", async (route) => {
+        const body = route.request().postDataJSON();
+        const item = remote.items[0];
+        item.currentQuantity = Number(item.currentQuantity || 0) + Number(body.quantity || 0);
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entry: { id: "entry_shared" }, item }) });
+      });
+    }
+
+    const contextA = await browser.newContext();
+    const contextB = await browser.newContext();
+    await installRoutes(contextA);
+    await installRoutes(contextB);
+    await contextA.addInitScript(() => {
+      window.STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ currentSession: { access_token: "token.admin" }, access_token: "token.admin" }));
+    });
+    await contextB.addInitScript(() => {
+      window.STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ currentSession: { access_token: "token.func" }, access_token: "token.func" }));
+    });
+
+    const admin = await contextA.newPage();
+    const worker = await contextB.newPage();
+    await admin.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await worker.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await admin.evaluate(async () => {
+      await fetch("/api/stock-full/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Produto compartilhado", currentQuantity: 0 }) });
+    });
+    const seenByWorker = await worker.evaluate(async () => {
+      const response = await fetch("/api/stock-full/items");
+      return await response.json();
+    });
+    expect(seenByWorker.items[0].name).toBe("Produto compartilhado");
+    await worker.evaluate(async () => {
+      await fetch("/api/stock-full/entries", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId: "prod_shared", quantity: 10 }) });
+    });
+    const seenByAdmin = await admin.evaluate(async () => {
+      const response = await fetch("/api/stock-full/items");
+      return await response.json();
+    });
+    expect(seenByAdmin.items[0].currentQuantity).toBe(10);
+    await contextA.close();
+    await contextB.close();
   });
 });

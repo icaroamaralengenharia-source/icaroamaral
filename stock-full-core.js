@@ -4,6 +4,7 @@
   const STOCK_FULL_STORAGE_KEY = "obraReportAlmoxarifadoData";
   const STOCK_FULL_SESSION_STORAGE_KEY = "stockFullSession";
   const STOCK_FULL_DEVICE_STORAGE_KEY = "stockFullDeviceId";
+  const STOCK_FULL_PRODUCTION_API_BASE_URL = "https://obrareport-backend.onrender.com/api/stock-full";
   const STOCK_FULL_ROLE_PERMISSIONS = {
     admin: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
     gestor: ["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"],
@@ -88,6 +89,44 @@
     return /(^|\/)(stock-full-app|stockfull)\.html$/i.test(clean(window.location && window.location.pathname));
   }
 
+  function normalizeLocation(locationLike) {
+    const source = locationLike || window.location || {};
+    return {
+      href: clean(source.href) || clean(source.toString && source.toString()) || "",
+      protocol: clean(source.protocol),
+      hostname: clean(source.hostname).toLowerCase(),
+      origin: clean(source.origin)
+    };
+  }
+
+  function isLocalDevLocation(locationLike) {
+    const location = normalizeLocation(locationLike);
+    return location.protocol === "file:" || location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "::1";
+  }
+
+  function isPublishedProductionLocation(locationLike) {
+    const location = normalizeLocation(locationLike);
+    return Boolean(location.hostname && !isLocalDevLocation(location));
+  }
+
+  function trimApiBase(value) {
+    return clean(value).replace(/\/+$/g, "");
+  }
+
+  function getStockFullApiBaseUrl(locationLike) {
+    const explicit = trimApiBase(window.STOCK_FULL_API_BASE_URL);
+    if (explicit) return explicit;
+    return isLocalDevLocation(locationLike) ? "/api/stock-full" : STOCK_FULL_PRODUCTION_API_BASE_URL;
+  }
+
+  function buildStockFullApiUrl(path, locationLike) {
+    const suffix = clean(path);
+    if (/^https?:\/\//i.test(suffix)) return suffix;
+    const base = getStockFullApiBaseUrl(locationLike);
+    const cleanSuffix = suffix.replace(/^\/?api\/stock-full\/?/i, "").replace(/^\/+/, "");
+    return cleanSuffix ? base + "/" + cleanSuffix : base;
+  }
+
   function getProfile() {
     return clean(getCurrentUrlParams().get("perfil")).toLowerCase() === "gestor" ? "gestor" : "loja";
   }
@@ -130,6 +169,10 @@
     writeJson,
     getCurrentUrlParams,
     isStockFullContext,
+    isLocalDevLocation,
+    isPublishedProductionLocation,
+    getStockFullApiBaseUrl,
+    buildStockFullApiUrl,
     getProfile,
     getSession,
     setSession,
