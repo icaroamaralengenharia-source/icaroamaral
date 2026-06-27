@@ -1429,6 +1429,7 @@
       alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
       origemBase: cleanEloDocumentText_(origemBase, "nao localizada"),
       conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
+      areaConstruida: cleanEloDocumentText_(safe.areaConstruida || safe.area_construida || ctx.areaConstruida, "nao informada"),
       assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
     };
   }
@@ -1446,6 +1447,157 @@
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-toolbar\"><span>Gerado pelo ELO</span><button class=\"elo-print-primary\" onclick=\"window.print()\">Imprimir / Salvar como PDF</button><button class=\"elo-print-secondary\" onclick=\"window.close()\">Fechar</button></div>" + section + "</body></html>";
   }
 
+  const ELO_BUDGET_V2_PDF_NOTICE = "Este documento é preliminar. Quantitativos e valores dependem de projeto, memorial, composições oficiais SINAPI/ORSE, BDI, encargos e preços vigentes.";
+
+  function formatBudgetV2PdfValue_(value) {
+    if (value === null || value === undefined || value === "") return "";
+    if (Array.isArray(value)) return value.map(formatBudgetV2PdfValue_).filter(Boolean).join("\n");
+    if (typeof value !== "object") return sanitizeUserText(String(value));
+    const preferred = value.label || value.name || value.service || value.description || value.message || value.id || "";
+    const quantity = value.quantity || value.qty || value.totalQuantity || "";
+    const unit = value.unit || "";
+    const status = value.status || "";
+    const source = value.source || value.base || "";
+    const parts = [preferred, quantity ? String(quantity) + (unit ? " " + unit : "") : "", status, source].filter(Boolean);
+    return sanitizeUserText(parts.join(" - "));
+  }
+
+  function formatBudgetV2PdfList_(title, value, fallback) {
+    const normalized = Array.isArray(value) ? value : (value && typeof value === "object" ? Object.keys(value).map(function (key) { return key + ": " + formatBudgetV2PdfValue_(value[key]); }) : []);
+    const lines = normalized.map(function (item) { return formatBudgetV2PdfValue_(item); }).filter(Boolean);
+    return title + "\n" + (lines.length ? lines.map(function (item) { return "- " + item; }).join("\n") : "- " + (fallback || "nao informado"));
+  }
+
+  function formatBudgetV2PdfFacts_(facts) {
+    const safe = facts || {};
+    const lines = [];
+    const cityUf = safe.cityUf || [safe.city, safe.state].filter(Boolean).join("/");
+    if (safe.projectType) lines.push("tipo: " + safe.projectType);
+    if (safe.builtAreaM2 || safe.areaConstruidaM2) lines.push("area construida: " + (safe.builtAreaM2 || safe.areaConstruidaM2) + " m2");
+    if (cityUf) lines.push("cidade/UF: " + cityUf);
+    if (safe.projectStandard) lines.push("padrao: " + safe.projectStandard);
+    if (safe.floors) lines.push("pavimentos: " + safe.floors);
+    return lines;
+  }
+
+  function formatBudgetV2PdfMaterials_(materials) {
+    if (!Array.isArray(materials) || !materials.length) return "Lista de materiais qualitativa\n- pendente de detalhamento qualitativo";
+    const lines = ["Lista de materiais qualitativa"];
+    materials.forEach(function (group) {
+      if (Array.isArray(group)) {
+        lines.push("- " + group.map(formatBudgetV2PdfValue_).filter(Boolean).join(": "));
+      } else if (group && typeof group === "object" && Array.isArray(group.items)) {
+        lines.push("- " + formatBudgetV2PdfValue_(group.title || group.label || group.name || "Grupo"));
+        group.items.forEach(function (item) { lines.push("  - " + formatBudgetV2PdfValue_(item)); });
+      } else {
+        lines.push("- " + formatBudgetV2PdfValue_(group));
+      }
+    });
+    return lines.join("\n");
+  }
+
+  function budgetV2HasReliableValues_(budget) {
+    if (!budget || typeof budget !== "object") return false;
+    const source = normalizeText([budget.source, budget.base, budget.origin, budget.priceSource, budget.referenceBase].filter(Boolean).join(" "));
+    const reliableSource = /sinapi|orse|oficial|importad|valid/.test(source) && !/demonstrativ/.test(source);
+    const total = budget.total || budget.totalCost || budget.valorTotal || budget.summary && (budget.summary.total || budget.summary.totalCost);
+    return !!(reliableSource && total);
+  }
+
+  function formatBudgetV2PdfBudget_(budget) {
+    if (!budgetV2HasReliableValues_(budget)) return "valores pendentes";
+    return formatBudgetV2PdfValue_(budget);
+  }
+
+  function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
+    const doc = budgetDocumentData || {};
+    const factsLines = formatBudgetV2PdfFacts_(doc.facts);
+    const inheritedLines = formatBudgetV2PdfFacts_(doc.inheritedFacts);
+    const assumptions = Array.isArray(doc.assumptions) ? doc.assumptions : [];
+    const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields : [];
+    const escopo = formatBudgetV2PdfList_("Escopo preliminar", doc.scope, "escopo pendente");
+    const materiais = formatBudgetV2PdfMaterials_(doc.materials);
+    const quantitativos = formatBudgetV2PdfList_("Quantitativos", doc.quantities, "quantitativos pendentes");
+    const composicoes = formatBudgetV2PdfList_("Composicoes", doc.compositions, "composicoes oficiais pendentes");
+    const custos = formatBudgetV2PdfBudget_(doc.budget);
+    const riscos = formatBudgetV2PdfList_("Riscos tecnicos", doc.risks, "validar premissas tecnicas");
+    const proximos = formatBudgetV2PdfList_("Proximos passos", doc.nextSteps, "validar projeto, memorial e composicoes oficiais");
+    const conteudo = [
+      "ELO ORCAMENTISTA V2",
+      "Tipo: Orçamento residencial preliminar",
+      "ID interno do orçamento: " + (doc.budgetId || "nao informado"),
+      "",
+      "Dados confirmados",
+      factsLines.length ? factsLines.map(function (item) { return "- " + item; }).join("\n") : "- nenhum dado confirmado",
+      "",
+      "Dados herdados",
+      inheritedLines.length ? inheritedLines.map(function (item) { return "- " + item; }).join("\n") : "- nenhum dado herdado",
+      "",
+      "Dados assumidos",
+      assumptions.length ? assumptions.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "- nenhuma premissa assumida",
+      "",
+      "Dados pendentes",
+      pending.length ? pending.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "- sem pendencias minimas informadas",
+      "",
+      escopo,
+      "",
+      materiais,
+      "",
+      quantitativos,
+      "",
+      composicoes,
+      "",
+      "Orçamento/valores",
+      "- " + custos,
+      "",
+      riscos,
+      "",
+      proximos,
+      "",
+      "Aviso técnico",
+      ELO_BUDGET_V2_PDF_NOTICE
+    ].join("\n");
+    const cityUf = doc.facts && (doc.facts.cityUf || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
+    const area = doc.facts && (doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2) ? (doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2) + " m2" : "";
+    return {
+      record: {
+        numero: doc.budgetId || "budget-v2",
+        titulo: "ELO Orçamentista V2",
+        tipo: "Orçamento residencial preliminar",
+        cidade_uf: cityUf,
+        areaConstruida: area,
+        escopo: escopo,
+        servicos: escopo,
+        quantitativos: quantitativos,
+        composicoes: composicoes,
+        custos_encontrados: custos,
+        pendencias: pending.length ? pending.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "Sem pendencias minimas informadas.",
+        avisos_profissionais: ELO_BUDGET_V2_PDF_NOTICE,
+        resumo_executivo: "Orçamento residencial preliminar estruturado pelo ELO Orçamentista V2.",
+        conteudo_markdown: conteudo,
+        bases_tecnicas: "SINAPI/ORSE somente quando composicoes oficiais forem importadas e validadas."
+      },
+      context: {
+        nomeDocumento: "ELO Orçamentista V2",
+        statusDocumento: "preliminar",
+        areaConstruida: area,
+        premissas: [
+          formatBudgetV2PdfList_("Dados confirmados", factsLines, "nenhum dado confirmado"),
+          formatBudgetV2PdfList_("Dados herdados", inheritedLines, "nenhum dado herdado"),
+          formatBudgetV2PdfList_("Dados assumidos", assumptions, "nenhuma premissa assumida")
+        ].join("\n\n"),
+        escopo: escopo,
+        servicos: materiais,
+        quantitativos: quantitativos,
+        composicoes: composicoes,
+        custos: custos,
+        pendencias: pending.length ? pending.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "Sem pendencias minimas informadas.",
+        alertas: [ELO_BUDGET_V2_PDF_NOTICE, riscos].join("\n\n"),
+        origemBase: "SINAPI/ORSE somente quando composicoes oficiais forem importadas e validadas.",
+        memoriaCalculo: conteudo
+      }
+    };
+  }
   function getEloBudgetTechnicalBaseLabel_() {
     try {
       if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
@@ -20831,6 +20983,7 @@
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
     buildBudgetRecordHtmlForTest: buildEloBudgetRecordHtml_,
     buildProfessionalPdfDocumentForTest: buildEloProfessionalPdfDocument,
+    buildBudgetV2ProfessionalPdfDataForTest: buildBudgetV2ProfessionalPdfData,
     normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,
     openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
     setLastBudgetSourceForTest: function (source) { ELO_SESSION_MEMORY.lastBudgetSource = source; },

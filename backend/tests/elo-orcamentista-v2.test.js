@@ -287,6 +287,79 @@ test("Orcamentista V2 lista de materiais continua sendo continuacao valida", () 
   assert.doesNotMatch(response.fullAnswer, /R\$\s*\d/i);
 });
 
+function sampleBudgetV2DocumentData() {
+  return {
+    budgetId: "budget-v2-test-001",
+    facts: {
+      projectType: "residential",
+      builtAreaM2: 120,
+      areaConstruidaM2: 120,
+      city: "Vitoria da Conquista",
+      state: "BA",
+      cityUf: "Vitoria da Conquista/BA",
+      projectStandard: "medio",
+      floors: 1
+    },
+    inheritedFacts: {
+      cityUf: "Vitoria da Conquista/BA",
+      projectStandard: "simples"
+    },
+    assumptions: ["1 pavimento"],
+    pendingFields: ["composicoes oficiais", "BDI"],
+    scope: [
+      { label: "Servicos preliminares", status: "pending_official_composition" },
+      { label: "Fundacao", status: "pending_official_composition" }
+    ],
+    materials: [
+      { title: "Fundacao", items: ["concreto", "aco", "brita", "formas"] },
+      { title: "Alvenaria", items: ["blocos", "argamassa", "vergas"] }
+    ],
+    quantities: [],
+    compositions: [],
+    budget: null,
+    risks: ["Validar memoriais e base oficial antes de contratar."],
+    nextSteps: ["Importar composicoes SINAPI/ORSE", "Validar BDI e encargos"]
+  };
+}
+
+test("BudgetV2ProfessionalPdfAdapter converte documento V2 para entrada do PDF existente", () => {
+  const { assistant } = loadAssistant();
+  const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(sampleBudgetV2DocumentData());
+
+  assert.equal(data.record.numero, "budget-v2-test-001");
+  assert.equal(data.record.titulo, "ELO Orçamentista V2");
+  assert.equal(data.context.nomeDocumento, "ELO Orçamentista V2");
+  assert.match(data.record.conteudo_markdown, /ID interno do orçamento: budget-v2-test-001/i);
+  assert.match(data.record.conteudo_markdown, /Tipo: Orçamento residencial preliminar/i);
+});
+
+test("BudgetV2ProfessionalPdfAdapter reutiliza template profissional com dados confirmados herdados e pendencias", () => {
+  const { assistant } = loadAssistant();
+  const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(sampleBudgetV2DocumentData());
+  const html = assistant.buildProfessionalPdfDocumentForTest(data.record, data.context);
+
+  assert.match(html, /elo-professional-pdf/);
+  assert.match(html, /ELO Orçamentista V2/);
+  assert.match(html, /Dados confirmados[\s\S]*area construida: 120 m2/i);
+  assert.match(html, /Dados confirmados[\s\S]*padrao: medio/i);
+  assert.match(html, /Dados herdados[\s\S]*Vitoria da Conquista\/BA/i);
+  assert.match(html, /Dados herdados[\s\S]*padrao: simples/i);
+  assert.match(html, /Pendencias e informacoes faltantes[\s\S]*composicoes oficiais/i);
+  assert.match(html, /BDI/i);
+});
+
+test("BudgetV2ProfessionalPdfAdapter inclui materiais qualitativos e nao inventa valores", () => {
+  const { assistant } = loadAssistant();
+  const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(sampleBudgetV2DocumentData());
+  const html = assistant.buildProfessionalPdfDocumentForTest(data.record, data.context);
+
+  assert.match(html, /Lista de materiais qualitativa/i);
+  assert.match(html, /Fundacao[\s\S]*concreto[\s\S]*aco/i);
+  assert.match(html, /Alvenaria[\s\S]*blocos[\s\S]*argamassa/i);
+  assert.match(html, /valores pendentes/i);
+  assert.doesNotMatch(html, /R\$\s*\d/i);
+  assert.match(html, /Este documento é preliminar\. Quantitativos e valores dependem de projeto, memorial, composições oficiais SINAPI\/ORSE, BDI, encargos e preços vigentes\./i);
+});
 function mockStructuredBudget(projectFacts) {
   return {
     projectFacts,
