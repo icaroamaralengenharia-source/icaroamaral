@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   function normalizeText(value) {
@@ -106,13 +106,15 @@
       { id: "suite", name: "suite", zone: "private", targetArea: 9.5 },
       { id: "banho_suite", name: "banheiro suite", zone: "wet", targetArea: 2.5 }
     ] : bedrooms === 1 ? [
-      { id: "social", name: "sala cozinha", zone: "social", targetArea: 11 },
-      { id: "servico", name: "servico", zone: "service", targetArea: 2 },
+      { id: "social", name: "sala", zone: "social", targetArea: 9 },
+      { id: "cozinha", name: "cozinha", zone: "service", targetArea: 4 },
+      { id: "servico", name: "area de servico", zone: "service", targetArea: 2 },
       { id: "banheiro_social", name: "banheiro", zone: "wet", targetArea: 2.4 },
       { id: "quarto_1", name: "quarto", zone: "private", targetArea: 7.5 }
     ] : [
-      { id: "social", name: "sala cozinha", zone: "social", targetArea: 13 },
-      { id: "servico", name: "servico", zone: "service", targetArea: 2 },
+      { id: "social", name: "sala", zone: "social", targetArea: 11 },
+      { id: "cozinha", name: "cozinha", zone: "service", targetArea: 4.5 },
+      { id: "servico", name: "area de servico", zone: "service", targetArea: 2 },
       { id: "banheiro_social", name: "banheiro", zone: "wet", targetArea: 2.4 },
       { id: "quarto_1", name: "quarto 1", zone: "private", targetArea: 7.5 },
       { id: "quarto_2", name: "quarto 2", zone: "private", targetArea: 7.5 }
@@ -147,7 +149,7 @@
     const bathDepth = Math.max(1.4, round(privateDepth * 0.24));
     const suiteDepth = round((privateDepth - bathDepth) * 0.56);
     return [
-      room("room-social", findRoom(roomSizes, "social", "sala jantar cozinha integradas").name, x, y, socialFamily ? w * 0.68 : w * 0.58, socialDepth, { sourceNodeId: "sala", zone: "social" }),
+      room("room-social", findRoom(roomSizes, "social", "sala e jantar integradas").name, x, y, socialFamily ? w * 0.68 : w * 0.58, socialDepth, { sourceNodeId: "sala", zone: "social" }),
       room("room-kitchen", findRoom(roomSizes, "cozinha", "cozinha").name, x + (socialFamily ? w * 0.68 : w * 0.58), y, w * (socialFamily ? 0.32 : 0.42), socialDepth * 0.7, { sourceNodeId: "cozinha", zone: "service" }),
       room("room-service", findRoom(roomSizes, "servico", "area de servico").name, x + w * 0.68, y + socialDepth * 0.7, w * 0.32, socialDepth * 0.3, { sourceNodeId: "servico", zone: "service" }),
       room("room-bedroom-1", findRoom(roomSizes, "quarto_1", "quarto 1").name, x, privateY, leftW, suiteDepth, { sourceNodeId: "quarto_1", zone: "private" }),
@@ -164,16 +166,23 @@
     const y = footprint.y;
     const w = footprint.width;
     const d = footprint.depth;
-    const socialDepth = bedrooms === 1 ? d * 0.48 : d * 0.4;
+    const frontDepth = bedrooms === 1 ? d * 0.38 : d * 0.36;
+    const serviceDepth = Math.max(1.25, d * 0.16);
+    const bathDepth = Math.max(1.55, d * 0.2);
+    const rightW = Math.max(1.85, w * 0.34);
+    const leftW = w - rightW;
+    const kitchenDepth = Math.max(2.25, frontDepth - serviceDepth);
     const rooms = [
-      room("room-social", findRoom(roomSizes, "social", "sala cozinha").name, x, y, w * 0.66, socialDepth, { sourceNodeId: "sala", zone: "social" }),
-      room("room-service", findRoom(roomSizes, "servico", "servico").name, x + w * 0.66, y, w * 0.34, socialDepth, { sourceNodeId: "servico", zone: "service" }),
-      room("room-bath", findRoom(roomSizes, "banheiro_social", "banheiro").name, x + w * 0.66, y + socialDepth, w * 0.34, d * 0.24, { sourceNodeId: "banheiro_social", zone: "wet" })
+      room("room-social", findRoom(roomSizes, "social", "sala").name, x, y, leftW, frontDepth, { sourceNodeId: "sala", zone: "social" }),
+      room("room-kitchen", findRoom(roomSizes, "cozinha", "cozinha").name, x + leftW, y, rightW, kitchenDepth, { sourceNodeId: "cozinha", zone: "service" }),
+      room("room-service", findRoom(roomSizes, "servico", "area de servico").name, x + leftW, y + kitchenDepth, rightW, serviceDepth, { sourceNodeId: "servico", zone: "service" }),
+      room("room-bath", findRoom(roomSizes, "banheiro_social", "banheiro").name, x + leftW, y + frontDepth, rightW, bathDepth, { sourceNodeId: "banheiro_social", zone: "wet" })
     ];
-    if (bedrooms === 1) rooms.push(room("room-bedroom-1", findRoom(roomSizes, "quarto_1", "quarto").name, x, y + socialDepth, w * 0.66, d - socialDepth, { sourceNodeId: "quarto_1", zone: "private" }));
-    else {
-      rooms.push(room("room-bedroom-1", findRoom(roomSizes, "quarto_1", "quarto 1").name, x, y + socialDepth, w * 0.5, d - socialDepth, { sourceNodeId: "quarto_1", zone: "private" }));
-      rooms.push(room("room-bedroom-2", findRoom(roomSizes, "quarto_2", "quarto 2").name, x + w * 0.5, y + socialDepth + d * 0.24, w * 0.5, d - socialDepth - d * 0.24, { sourceNodeId: "quarto_2", zone: "private" }));
+    if (bedrooms === 1) {
+      rooms.push(room("room-bedroom-1", findRoom(roomSizes, "quarto_1", "quarto").name, x, y + frontDepth, leftW, d - frontDepth, { sourceNodeId: "quarto_1", zone: "private" }));
+    } else {
+      rooms.push(room("room-bedroom-1", findRoom(roomSizes, "quarto_1", "quarto 1").name, x, y + frontDepth, w * 0.5, d - frontDepth, { sourceNodeId: "quarto_1", zone: "private" }));
+      rooms.push(room("room-bedroom-2", findRoom(roomSizes, "quarto_2", "quarto 2").name, x + w * 0.5, y + frontDepth + bathDepth, w * 0.5, d - frontDepth - bathDepth, { sourceNodeId: "quarto_2", zone: "private" }));
     }
     return rooms;
   }
