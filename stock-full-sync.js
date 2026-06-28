@@ -16,6 +16,8 @@
   let previousAlmoxState = null;
   let storagePatched = false;
   let autoSyncTimer = null;
+  let livePollTimer = null;
+  let livePollInProgress = false;
   let initialized = false;
 
   function isSupabaseConfigured() {
@@ -290,6 +292,7 @@
     return {
       id: clean(source.id),
       operationId: clean(source.operationId),
+      offlineUuid: clean(source.offlineUuid || source.offline_uuid || source.operationId),
       deviceId: clean(source.deviceId) || getDeviceId(),
       companyId: getCompanyId(source),
       name: clean(source.name),
@@ -313,6 +316,7 @@
     return {
       id: clean(source.id),
       operationId: clean(source.operationId),
+      offlineUuid: clean(source.offlineUuid || source.offline_uuid || source.operationId),
       deviceId: clean(source.deviceId) || getDeviceId(),
       companyId: getCompanyId(source),
       itemId: idMap[itemId] || itemId,
@@ -355,6 +359,7 @@
         }
       }
       saveMeta({ lastSuccessfulSyncAt: new Date().toISOString(), lastSyncError: "" });
+      refreshLivePanel();
     } catch (error) {
       saveMeta({ lastSyncError: clean(error && error.message) || "sync_failed" });
     } finally {
@@ -499,11 +504,117 @@
     };
   }
 
+
+  function getPendingExitQueue() {
+    return getQueue().filter(function (item) {
+      return item && item.operation === "stock:exit" && item.status !== "synced";
+    });
+  }
+
+  function formatLiveTime(value) {
+    if (!value) return "agora";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "agora";
+    return date.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderLiveRows(exits) {
+    const list = window.document.getElementById("stockFullLiveList");
+    if (!list) return;
+    list.innerHTML = "";
+    const safeExits = Array.isArray(exits) ? exits.slice(0, 8) : [];
+    if (!safeExits.length) {
+      const empty = window.document.createElement("div");
+      empty.className = "stock-full-activity-item";
+      empty.textContent = "Nenhuma saida online recente.";
+      list.appendChild(empty);
+      return;
+    }
+    safeExits.forEach(function (exit) {
+      const row = window.document.createElement("div");
+      row.className = "stock-full-activity-item";
+      const title = window.document.createElement("strong");
+      title.textContent = clean(exit.itemName) || clean(exit.itemId) || "Produto";
+      const detail = window.document.createElement("span");
+      detail.textContent = "Qtd. " + parseNumber(exit.quantity) + " " + (clean(exit.unit) || "un") + " - " + (clean(exit.employeeName || exit.responsible || exit.createdBy) || "Funcionario") + " - " + formatLiveTime(exit.createdAt);
+      const saldo = window.document.createElement("small");
+      const hasBalance = exit.currentQuantity !== undefined && exit.currentQuantity !== null && exit.currentQuantity !== "";
+      saldo.textContent = hasBalance ? "Saldo: " + parseNumber(exit.currentQuantity) : "Saldo indisponivel";
+      row.appendChild(title);
+      row.appendChild(detail);
+      row.appendChild(saldo);
+      list.appendChild(row);
+    });
+  }
+
+  function renderLivePendingRows() {
+    const list = window.document.getElementById("stockFullLivePendingList");
+    if (!list) return;
+    list.innerHTML = "";
+    const pending = getPendingExitQueue();
+    if (!pending.length) {
+      const empty = window.document.createElement("div");
+      empty.className = "stock-full-activity-item";
+      empty.textContent = "Sem saidas pendentes offline.";
+      list.appendChild(empty);
+      return;
+    }
+    pending.slice(0, 6).forEach(function (item) {
+      const payload = item.payload || {};
+      const row = window.document.createElement("div");
+      row.className = "stock-full-activity-item";
+      const title = window.document.createElement("strong");
+      title.textContent = "Pendente: " + (clean(payload.itemName || payload.itemId || payload.productId) || "produto");
+      const detail = window.document.createElement("span");
+      detail.textContent = "Qtd. " + parseNumber(payload.quantity) + " - " + clean(item.status || "pending") + " - " + formatLiveTime(item.createdAt);
+      row.appendChild(title);
+      row.appendChild(detail);
+      list.appendChild(row);
+    });
+  }
+
+  function renderLiveStatus(status) {
+    const node = window.document.getElementById("stockFullLiveStatus");
+    if (!node) return;
+    node.textContent = status || getSyncStatusLabel();
+  }
+
+  async function refreshLivePanel() {
+    if (!core.isStockFullContext || !core.isStockFullContext()) return;
+    renderLivePendingRows();
+    renderLiveStatus(getSyncStatusLabel());
+    if (window.navigator && window.navigator.onLine === false) return;
+    if (livePollInProgress) return;
+    livePollInProgress = true;
+    try {
+      const data = await fetchJson("/api/stock-full/live");
+      renderLiveRows(data.exits || []);
+      renderLiveStatus("Online");
+    } catch (error) {
+      renderLiveStatus("Offline");
+    } finally {
+      livePollInProgress = false;
+    }
+  }
+
+  function scheduleLivePoll(delay) {
+    if (livePollTimer) window.clearTimeout(livePollTimer);
+    livePollTimer = window.setTimeout(async function () {
+      await refreshLivePanel();
+      scheduleLivePoll(window.navigator && window.navigator.onLine === false ? 30000 : 8000);
+    }, delay || 1000);
+  }
+
+  function startLivePolling() {
+    renderLivePendingRows();
+    renderLiveStatus(getSyncStatusLabel());
+    scheduleLivePoll(1000);
+  }
   function getSyncStatusLabel() {
     const meta = refreshSyncMetaSilently();
     if (syncInProgress) return "Sincronizando";
-    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincronização";
-    if (meta.pendingCount > 0) return "Pendente de sincronização";
+    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincronizaï¿½ï¿½o";
+    if (meta.pendingCount > 0) return "Pendente de sincronizaï¿½ï¿½o";
     if (window.navigator && window.navigator.onLine === false) return "Offline";
     return "Online";
   }
@@ -533,7 +644,7 @@
     panel = window.document.createElement("section");
     panel.id = "stockFullSyncPanel";
     panel.className = "stock-full-sync-panel";
-    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pendências</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
+    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pendï¿½ncias</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
     const commandStrip = window.document.querySelector(".stock-full-command-strip");
     if (commandStrip && commandStrip.parentNode) commandStrip.parentNode.insertBefore(panel, commandStrip.nextSibling);
     else target.insertBefore(panel, target.firstChild);
@@ -583,6 +694,7 @@
     window.setTimeout(function () {
       renderIndicator();
       scheduleAutoSync();
+      startLivePolling();
     }, 500);
   }
 
@@ -609,6 +721,7 @@
     saveIdMap,
     getSyncStatusLabel,
     renderIndicator,
+    refreshLivePanel,
     storageKeys: {
       queue: QUEUE_STORAGE_KEY,
       meta: META_STORAGE_KEY,

@@ -1364,6 +1364,86 @@ test("stock full exits lista somente saidas da instituicao autenticada", async (
   }
 });
 
+
+
+test("stock full saida com mesma offline_uuid nao duplica baixa", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [
+      {
+        id: "sf_item_1",
+        institution_id: "inst_auth",
+        name: "Caderno universitario",
+        unit: "un",
+        current_quantity: 20,
+        is_active: true
+      }
+    ]
+  });
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const body = JSON.stringify({ itemId: "sf_item_1", quantity: 6, offline_uuid: "offline-exit-1", responsible: "Operador Teste" });
+    const firstResponse = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const first = await firstResponse.json();
+    const secondResponse = await fetch(testServer.baseUrl + "/api/stock-full/exits", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body
+    });
+    const second = await secondResponse.json();
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(secondResponse.status, 200);
+    assert.equal(first.item.currentQuantity, 14);
+    assert.equal(second.duplicate, true);
+    assert.equal(second.exit.offlineUuid, "offline-exit-1");
+    assert.equal(second.item.currentQuantity, 14);
+    assert.equal(supabase.stockFullExits.length, 1);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full live mostra saida online e isola outra empresa", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({
+      stockFullItems: [
+        { id: "sf_item_1", institution_id: "inst_auth", name: "Caneta azul", unit: "un", current_quantity: 7, is_active: true },
+        { id: "sf_item_b", institution_id: "outra_inst", name: "Produto B", unit: "un", current_quantity: 9, is_active: true }
+      ],
+      stockFullExits: [
+        { id: "sf_exit_1", institution_id: "inst_auth", item_id: "sf_item_1", quantity: 3, responsible: "Funcionario A", created_at: "2026-06-08T10:00:00.000Z" },
+        { id: "sf_exit_b", institution_id: "outra_inst", item_id: "sf_item_b", quantity: 4, responsible: "Funcionario B", created_at: "2026-06-08T11:00:00.000Z" }
+      ]
+    })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/live", {
+      headers: { Authorization: "Bearer valid-token" }
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.exits.length, 1);
+    assert.equal(data.exits[0].id, "sf_exit_1");
+    assert.equal(data.exits[0].itemName, "Caneta azul");
+    assert.equal(data.exits[0].employeeName, "Funcionario A");
+    assert.equal(data.exits[0].currentQuantity, 7);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock saude items retorna 503 controlado sem Supabase", async () => {
   const response = await fetch(baseUrl + "/api/stock-saude/items?institution_id=inst_teste");
   const data = await response.json();
@@ -6302,6 +6382,9 @@ function createMockStockSaudeSupabase_(options = {}) {
     auditLogs,
     invites,
     profiles,
+    stockFullItems,
+    stockFullEntries,
+    stockFullExits,
     auth: {
       async getUser(token) {
         if (token !== "valid-token") {
@@ -6569,6 +6652,10 @@ function createMockStockFullEntriesQuery_(entries) {
         }
       };
     },
+    async maybeSingle() {
+      const entry = entries.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      return { data: entry || null, error: null };
+    },
     then(resolve) {
       const data = entries.filter((entry) => filters.every((filter) => entry[filter.column] === filter.value));
       return Promise.resolve({ data, error: null }).then(resolve);
@@ -6605,6 +6692,10 @@ function createMockStockFullExitsQuery_(exits) {
           };
         }
       };
+    },
+    async maybeSingle() {
+      const exit = exits.find((candidate) => filters.every((filter) => candidate[filter.column] === filter.value));
+      return { data: exit || null, error: null };
     },
     then(resolve) {
       const data = exits.filter((exit) => filters.every((filter) => exit[filter.column] === filter.value));

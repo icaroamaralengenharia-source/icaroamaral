@@ -238,6 +238,59 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(requests[0].body.companyId).toBe("inst_backend");
   });
 
+
+  test("fila offline de saida persiste apos reload e sincroniza com offlineUuid", async ({ page }) => {
+    const requests = [];
+    await page.route("https://backend.example/api/stock-full/exits", async (route) => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, duplicate: true, exit: { id: "exit_remote", offlineUuid: "op_exit_reload" }, item: { id: "prod_backend", currentQuantity: 9 } })
+      });
+    });
+    await page.addInitScript(() => {
+      window.STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ currentSession: { access_token: "token.test" }, access_token: "token.test" }));
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "backend", userId: "user_backend", userName: "Funcionario Backend", companyId: "inst_backend", companyName: "Empresa Backend", role: "funcionario" }));
+    });
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      window.localStorage.removeItem(window.StockFullSync.storageKeys.queue);
+      window.localStorage.removeItem(window.StockFullSync.storageKeys.syncedMovements);
+      window.StockFullSync.enqueue("stock:exit", { id: "mov_exit_reload", itemId: "prod_backend", quantity: 2 }, { operationId: "op_exit_reload", companyId: "inst_backend" });
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue()[0].status)).toBe("pending");
+    await expect(page.locator("#stockFullLivePendingList")).toContainText("Pendente");
+    await page.evaluate(() => window.StockFullSync.processQueue());
+    await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue()[0].status)).toBe("synced");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].operationId).toBe("op_exit_reload");
+    expect(requests[0].offlineUuid).toBe("op_exit_reload");
+  });
+
+  test("painel ao vivo do patrao renderiza saida online", async ({ page }) => {
+    await page.route("https://backend.example/api/stock-full/live", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, exits: [{ id: "exit_live_1", itemName: "Caneta azul", quantity: 3, unit: "un", employeeName: "Funcionario A", currentQuantity: 7, createdAt: "2026-06-08T10:00:00.000Z" }] })
+      });
+    });
+    await page.addInitScript(() => {
+      window.STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ currentSession: { access_token: "token.test" }, access_token: "token.test" }));
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "backend", userId: "admin_backend", userName: "Patrao Backend", companyId: "inst_backend", companyName: "Empresa Backend", role: "patrao" }));
+    });
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#stockFullLivePanel")).toBeVisible();
+    await expect(page.locator("#stockFullLiveList")).toContainText("Caneta azul", { timeout: 5000 });
+    await expect(page.locator("#stockFullLiveList")).toContainText("Funcionario A");
+    await expect(page.locator("#stockFullLiveList")).toContainText("Saldo: 7");
+  });
+
+
   test("dois clientes simulados compartilham produto e saldo pelo backend", async ({ browser }) => {
     const remote = { items: [], entries: [], exits: [] };
     async function installRoutes(context) {
