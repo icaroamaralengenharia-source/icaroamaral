@@ -360,6 +360,48 @@ test("BudgetV2ProfessionalPdfAdapter inclui materiais qualitativos e nao inventa
   assert.doesNotMatch(html, /R\$\s*\d/i);
   assert.match(html, /Este documento Ã© preliminar\. Quantitativos e valores dependem de projeto, memorial, composiÃ§Ãµes oficiais SINAPI\/ORSE, BDI, encargos e preÃ§os vigentes\./i);
 });
+
+test("Orcamentista V2 mostra acao de PDF quando orçamento esta valido", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.ok(response.pdfAction);
+  assert.equal(response.pdfAction.type, "budget_v2_professional_pdf");
+  assert.equal(response.pdfAction.label, "Gerar PDF do orçamento");
+  assert.ok(response.budgetOrchestratorV2.budgetDocumentData);
+});
+
+test("Orcamentista V2 nao mostra acao de PDF em mensagem comum", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("bom dia");
+
+  assert.equal(response.pdfAction, undefined);
+});
+
+test("Orcamentista V2 bloqueia PDF quando faltam dados minimos", () => {
+  const { assistant } = loadAssistant();
+  const result = assistant.openBudgetV2ProfessionalPdfForTest({
+    budgetId: "budget-incompleto",
+    facts: { "area construida": "120 m2" },
+    pendingFields: ["cidade/UF", "padrao construtivo"]
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /Complete os dados mínimos do orçamento antes de gerar o PDF/i);
+});
+
+test("Orcamentista V2 acao de PDF usa template profissional existente", () => {
+  const { assistant } = loadAssistant();
+  const completeDocument = Object.assign({}, sampleBudgetV2DocumentData(), { pendingFields: [] });
+  const result = assistant.openBudgetV2ProfessionalPdfForTest(completeDocument);
+
+  assert.equal(result.ok, true);
+  assert.match(result.html, /elo-professional-pdf/);
+  assert.match(result.html, /ELO Or.amentista V2/);
+  assert.match(result.html, /Imprimir \/ Salvar como PDF/);
+});
 function mockStructuredBudget(projectFacts) {
   return {
     projectFacts,

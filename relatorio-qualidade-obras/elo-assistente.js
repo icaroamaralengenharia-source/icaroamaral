@@ -1598,6 +1598,100 @@
       }
     };
   }
+  function mapBudgetV2StateFact_(state, field) {
+    if (!state) return null;
+    const cityUf = [state.city, state.state].filter(Boolean).join("/");
+    const map = {
+      areaM2: ["area construida", state.areaM2 > 0 ? state.areaM2 + " m2" : ""],
+      city: ["cidade/UF", cityUf],
+      state: ["cidade/UF", cityUf],
+      standard: ["padrao", state.standard || ""],
+      floors: ["pavimentos", state.floors ? String(state.floors) : ""],
+      rooms: ["quartos", state.rooms ? String(state.rooms) : ""],
+      wetAreas: ["areas molhadas", state.wetAreas ? String(state.wetAreas) : ""]
+    };
+    return map[field] || null;
+  }
+
+  function collectBudgetV2StateFacts_(state, fields) {
+    const facts = {};
+    (Array.isArray(fields) ? fields : []).forEach(function (field) {
+      const pair = mapBudgetV2StateFact_(state, field);
+      if (pair && pair[1] && facts[pair[0]] === undefined) facts[pair[0]] = pair[1];
+    });
+    return facts;
+  }
+
+  function buildBudgetV2QualitativeMaterials_(scope) {
+    const groups = [];
+    (Array.isArray(scope) ? scope : []).forEach(function (item) {
+      const label = item && (item.label || item.service || item.name || item.id);
+      if (!label) return;
+      groups.push({ title: label, items: ["materiais a definir por projeto, memorial e composicoes oficiais"] });
+    });
+    return groups;
+  }
+
+  function buildBudgetV2DocumentDataFromState_(state, budgetPackage) {
+    const safeState = state || {};
+    const pack = budgetPackage || {};
+    const facts = collectBudgetV2StateFacts_(safeState, safeState.confirmedFields || []);
+    if (safeState.type === "residential") facts.projectType = "residential";
+    const inheritedFacts = collectBudgetV2StateFacts_(safeState, safeState.inheritedFields || []);
+    const scope = Array.isArray(pack.scope) ? pack.scope : [];
+    return {
+      budgetId: safeState.budgetId || pack.budgetId || "",
+      facts: facts,
+      inheritedFacts: inheritedFacts,
+      assumptions: Array.isArray(safeState.assumptions) ? safeState.assumptions : [],
+      pendingFields: Array.isArray(safeState.missingFields) ? safeState.missingFields : [],
+      scope: scope,
+      materials: Array.isArray(pack.materials) && pack.materials.length ? pack.materials : buildBudgetV2QualitativeMaterials_(scope),
+      quantities: Array.isArray(pack.quantities) ? pack.quantities : [],
+      compositions: Array.isArray(pack.compositions) ? pack.compositions : [],
+      budget: pack.budget || null,
+      risks: Array.isArray(pack.risks) ? pack.risks : [],
+      nextSteps: Array.isArray(pack.nextSteps) ? pack.nextSteps : []
+    };
+  }
+
+  function isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData) {
+    const doc = budgetDocumentData || {};
+    const facts = doc.facts || {};
+    const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields : [];
+    return !!(doc.budgetId && !pending.length && (facts["area construida"] || facts.builtAreaM2 || facts.areaConstruidaM2) && (facts["cidade/UF"] || facts.cityUf || facts.city) && (facts.padrao || facts.projectStandard));
+  }
+
+  function buildBudgetV2ProfessionalPdfAction_(budgetDocumentData) {
+    if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return null;
+    return {
+      type: "budget_v2_professional_pdf",
+      label: "Gerar PDF do orçamento",
+      budgetId: budgetDocumentData.budgetId || ""
+    };
+  }
+
+  function openBudgetV2ProfessionalPdf_(budgetDocumentData) {
+    if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) {
+      return { ok: false, message: "Complete os dados mínimos do orçamento antes de gerar o PDF." };
+    }
+    const data = buildBudgetV2ProfessionalPdfData(budgetDocumentData);
+    const html = buildEloProfessionalPdfDocument(data.record, data.context);
+    let opened = false;
+    if (typeof window !== "undefined" && window.open) {
+      const popup = window.open("", "_blank");
+      if (popup && popup.document) {
+        popup.document.open();
+        popup.document.write(html);
+        popup.document.close();
+        try { popup.focus(); } catch (error) {}
+        opened = true;
+      }
+      window.__eloLastBudgetV2PdfPopupBlocked = !opened;
+      window.__eloLastBudgetV2PdfBudgetId = budgetDocumentData.budgetId || "";
+    }
+    return { ok: true, html: html, opened: opened, data: data };
+  }
   function getEloBudgetTechnicalBaseLabel_() {
     try {
       if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
@@ -15080,6 +15174,12 @@
       }
       lines.push("", "Proximos passos:", pending.length ? "- Responder apenas os dados pendentes acima; eu continuo o mesmo orÃ§amento." : "- Validar memorial, quantitativos, composicoes oficiais, BDI, encargos e precos vigentes.");
       lines.push("", "Aviso tecnico: nao vou inventar preco nem tratar base demonstrativa como orcamento oficial. Sem composicao SINAPI/ORSE/importada confiavel, o item fica pendente.");
+      const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
+      const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
+      if (pdfAction) {
+        pdfAction.budgetDocumentData = budgetDocumentData;
+        ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData;
+      }
       return {
         shortAnswer: pending.length ? "Preciso de poucos dados para montar o orÃ§amento." : "Montei o escopo preliminar do orÃ§amento residencial.",
         fullAnswer: lines.join("\n"),
@@ -15087,7 +15187,8 @@
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
-        budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems }
+        pdfAction: pdfAction,
+        budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems, budgetDocumentData: budgetDocumentData }
       };
     }
 
@@ -18721,6 +18822,17 @@
   }
 
   function handleEloBudgetPdfAction_(action) {
+    if (action && action.type === "budget_v2_professional_pdf") {
+      const result = openBudgetV2ProfessionalPdf_(action.budgetDocumentData || ELO_SESSION_MEMORY.lastBudgetV2DocumentData);
+      if (!result.ok) {
+        appendMessage("system", result.message || "Complete os dados mínimos do orçamento antes de gerar o PDF.");
+        return;
+      }
+      if (typeof window !== "undefined" && window.__eloLastBudgetV2PdfPopupBlocked) {
+        appendMessage("system", "O navegador bloqueou a nova janela. Libere pop-ups para este site e clique em Gerar PDF do orçamento novamente.");
+      }
+      return;
+    }
     const record = getEloBudgetRecordById_(action && action.recordId) || getLatestEloBudgetRecord_();
     if (!record) {
       appendMessage("system", "Nao encontrei orcamento salvo para gerar o PDF.");
@@ -20984,6 +21096,9 @@
     buildBudgetRecordHtmlForTest: buildEloBudgetRecordHtml_,
     buildProfessionalPdfDocumentForTest: buildEloProfessionalPdfDocument,
     buildBudgetV2ProfessionalPdfDataForTest: buildBudgetV2ProfessionalPdfData,
+    buildBudgetV2DocumentDataFromStateForTest: buildBudgetV2DocumentDataFromState_,
+    buildBudgetV2ProfessionalPdfActionForTest: buildBudgetV2ProfessionalPdfAction_,
+    openBudgetV2ProfessionalPdfForTest: openBudgetV2ProfessionalPdf_,
     normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,
     openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
     setLastBudgetSourceForTest: function (source) { ELO_SESSION_MEMORY.lastBudgetSource = source; },
