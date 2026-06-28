@@ -1471,11 +1471,13 @@
   function formatBudgetV2PdfFacts_(facts) {
     const safe = facts || {};
     const lines = [];
-    const cityUf = safe.cityUf || [safe.city, safe.state].filter(Boolean).join("/");
+    const cityUf = safe.cityUf || safe["cidade/UF"] || [safe.city, safe.state].filter(Boolean).join("/");
+    const areaValue = safe["area construida"] || safe.builtAreaM2 || safe.areaConstruidaM2;
+    const standard = safe.padrao || safe.projectStandard;
     if (safe.projectType) lines.push("tipo: " + safe.projectType);
-    if (safe.builtAreaM2 || safe.areaConstruidaM2) lines.push("area construida: " + (safe.builtAreaM2 || safe.areaConstruidaM2) + " m2");
+    if (areaValue) lines.push("area construida: " + (/m2|m\^2|mÂ²/i.test(String(areaValue)) ? areaValue : areaValue + " m2"));
     if (cityUf) lines.push("cidade/UF: " + cityUf);
-    if (safe.projectStandard) lines.push("padrao: " + safe.projectStandard);
+    if (standard) lines.push("padrao: " + standard);
     if (safe.floors) lines.push("pavimentos: " + safe.floors);
     return lines;
   }
@@ -1557,8 +1559,9 @@
       "Aviso tÃ©cnico",
       ELO_BUDGET_V2_PDF_NOTICE
     ].join("\n");
-    const cityUf = doc.facts && (doc.facts.cityUf || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
-    const area = doc.facts && (doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2) ? (doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2) + " m2" : "";
+    const cityUf = doc.facts && (doc.facts.cityUf || doc.facts["cidade/UF"] || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
+    const rawArea = doc.facts && (doc.facts["area construida"] || doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2);
+    const area = rawArea ? (/m2|m\^2|mÂ²/i.test(String(rawArea)) ? String(rawArea) : rawArea + " m2") : "";
     return {
       record: {
         numero: doc.budgetId || "budget-v2",
@@ -1666,14 +1669,14 @@
     if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return null;
     return {
       type: "budget_v2_professional_pdf",
-      label: "Gerar PDF do orçamento",
+      label: "Gerar PDF do or\u00e7amento",
       budgetId: budgetDocumentData.budgetId || ""
     };
   }
 
   function openBudgetV2ProfessionalPdf_(budgetDocumentData) {
     if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) {
-      return { ok: false, message: "Complete os dados mínimos do orçamento antes de gerar o PDF." };
+      return { ok: false, message: "Complete os dados m\u00ednimos do or\u00e7amento antes de gerar o PDF." };
     }
     const data = buildBudgetV2ProfessionalPdfData(budgetDocumentData);
     const html = buildEloProfessionalPdfDocument(data.record, data.context);
@@ -14973,6 +14976,24 @@
       return /^(nao|nÃ£o)\b|alterar|mudar\s+cidade|mudar\s+padrao|mudar\s+padrÃ£o|outro\s+padrao|outro\s+padrÃ£o|outra\s+cidade/.test(text);
     }
 
+
+    isBudgetV2ExplicitNonContinuation_(text) {
+      return /^(obrigad[oa]?|valeu|ok\s+obrigad[oa]?|ola|oi|bom\s+dia|boa\s+tarde|boa\s+noite|quem\s+e\s+voce)\b/.test(text) ||
+        /relatorio\s+tecnico|abrir\s+cadista|\bcadista\b|stock\s+full/.test(text);
+    }
+
+    factsFillPendingFields_(previous, facts) {
+      const missing = Array.isArray(previous && previous.missingFields) ? previous.missingFields : [];
+      const fields = Array.isArray(facts && facts.currentFields) ? facts.currentFields : [];
+      if (!missing.length || !fields.length) return false;
+      return missing.some(function (field) {
+        if (field === "tipo de obra") return fields.indexOf("type") >= 0;
+        if (field === "area construida") return fields.indexOf("areaM2") >= 0;
+        if (field === "cidade/UF") return fields.indexOf("city") >= 0 || fields.indexOf("state") >= 0;
+        if (field === "padrao construtivo") return fields.indexOf("standard") >= 0;
+        return false;
+      });
+    }
     createBudgetId_() {
       return "budget-" + Date.now();
     }
@@ -14996,6 +15017,9 @@
       if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
       match = raw.match(/\bem\s+([A-Za-zÃ€-Ã¿\s]+?)(?:\s*[-/]\s*|,\s*)([A-Za-z]{2})\b/i);
+      if (!match && previousType === "residential" && Array.isArray(previousState.missingFields) && previousState.missingFields.indexOf("cidade/UF") >= 0) {
+        match = raw.match(/^\s*([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\s*$/i);
+      }
       if (match) {
         facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ");
         facts.state = sanitizeUserText(match[2]).toUpperCase();
@@ -15257,7 +15281,11 @@
       const hasInheritedFields = previous.inheritedFields && previous.inheritedFields.length;
       if (this.isBudgetResetIntent_(text)) return this.buildResetResponse_();
       if (!isBudgetIntent && /\bminha\s+obra\b/.test(text)) return null;
-      if (!isBudgetIntent && previous.type && !this.isContinuationIntent_(text) && !(hasInheritedFields && (this.isReuseInheritedConfirmation_(text) || this.isInheritedChangeRequest_(text)))) return null;
+      const facts = this.extractBudgetFacts(message, previous);
+      const factKeys = Object.keys(facts).filter(function (key) { return key !== "currentFields"; });
+      const fillsPendingField = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && this.factsFillPendingFields_(previous, facts);
+      if (!isBudgetIntent && previous.type && this.isBudgetV2ExplicitNonContinuation_(text)) return null;
+      if (!isBudgetIntent && previous.type && !this.isContinuationIntent_(text) && !fillsPendingField && !(hasInheritedFields && (this.isReuseInheritedConfirmation_(text) || this.isInheritedChangeRequest_(text)))) return null;
       if (hasInheritedFields && this.isReuseInheritedConfirmation_(text)) {
         const confirmedState = this.confirmInheritedState_(previous);
         ELO_SESSION_MEMORY.budgetOrchestratorV2 = confirmedState;
@@ -15270,12 +15298,14 @@
       if (this.isMaterialListIntent_(text) && (previous.type === "residential" || this.hasSavedProjectContext_())) {
         return this.buildMaterialListResponse_(Object.assign({}, this.defaultState, previous, { type: previous.type || "residential" }));
       }
-      if (!previous.type && isBudgetIntent && /orcamento|orÃ§amento/.test(text) && this.hasSavedProjectContext_()) return null;
-      const facts = this.extractBudgetFacts(message, previous);
-      const factKeys = Object.keys(facts).filter(function (key) { return key !== "currentFields"; });
-      const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && this.isContinuationIntent_(text) && factKeys.length > 0;
+      if (!previous.type && isBudgetIntent && /orcamento/.test(text) && this.hasSavedProjectContext_() && factKeys.length === 0) return null;
+      const isContinuation = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && (this.isContinuationIntent_(text) || fillsPendingField) && factKeys.length > 0;
       if (!isBudgetIntent && !isContinuation) return null;
       const next = this.mergeBudgetState(previous, facts);
+      if (fillsPendingField && Array.isArray(previous.confirmedFields) && previous.confirmedFields.length) {
+        next.confirmedFields = previous.confirmedFields.concat(next.confirmedFields || []).filter(function (field, index, list) { return list.indexOf(field) === index; });
+        next.inheritedFields = (next.inheritedFields || []).filter(function (field) { return next.confirmedFields.indexOf(field) < 0; });
+      }
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
       if (next.type === "wall") return buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
       const budgetPackage = this.budgetEngineAdapter.adapt(next, context);
@@ -15334,15 +15364,15 @@
       };
     }
 
-    const preTechnicalIntentAnswer = buildEloPreTechnicalIntentAnswer_(cleanQuestion);
-    if (preTechnicalIntentAnswer) {
-      return preTechnicalIntentAnswer;
-    }
-
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       rememberEloBudgetSource_(cleanQuestion, budgetOrchestratorV2Answer, budgetOrchestratorV2Answer.fullAnswer || budgetOrchestratorV2Answer.shortAnswer || "");
       return budgetOrchestratorV2Answer;
+    }
+
+    const preTechnicalIntentAnswer = buildEloPreTechnicalIntentAnswer_(cleanQuestion);
+    if (preTechnicalIntentAnswer) {
+      return preTechnicalIntentAnswer;
     }
     const technicalEngineAnswer = buildEloTechnicalEngineAnswer_(cleanQuestion);
     if (technicalEngineAnswer) {
@@ -17726,16 +17756,6 @@
       });
       return;
     }
-    const preTechnicalIntentAnswer = buildEloPreTechnicalIntentAnswer_(cleanQuestion);
-    if (preTechnicalIntentAnswer) {
-      const preTechnicalText = formatResponse(preTechnicalIntentAnswer);
-      appendAssistantMessage(cleanQuestion, preTechnicalText, preTechnicalIntentAnswer.canSave !== false, preTechnicalIntentAnswer);
-      saveConversation(cleanQuestion, preTechnicalText);
-      rememberSessionTurn(cleanQuestion, preTechnicalIntentAnswer, preTechnicalText);
-      clearProductAttachmentPreview();
-      return;
-    }
-
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       const budgetV2Text = formatResponse(budgetOrchestratorV2Answer);
@@ -17743,6 +17763,16 @@
       saveConversation(cleanQuestion, budgetV2Text);
       rememberSessionTurn(cleanQuestion, budgetOrchestratorV2Answer, budgetV2Text);
       rememberEloBudgetSource_(cleanQuestion, budgetOrchestratorV2Answer, budgetV2Text);
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    const preTechnicalIntentAnswer = buildEloPreTechnicalIntentAnswer_(cleanQuestion);
+    if (preTechnicalIntentAnswer) {
+      const preTechnicalText = formatResponse(preTechnicalIntentAnswer);
+      appendAssistantMessage(cleanQuestion, preTechnicalText, preTechnicalIntentAnswer.canSave !== false, preTechnicalIntentAnswer);
+      saveConversation(cleanQuestion, preTechnicalText);
+      rememberSessionTurn(cleanQuestion, preTechnicalIntentAnswer, preTechnicalText);
       clearProductAttachmentPreview();
       return;
     }
@@ -18825,11 +18855,11 @@
     if (action && action.type === "budget_v2_professional_pdf") {
       const result = openBudgetV2ProfessionalPdf_(action.budgetDocumentData || ELO_SESSION_MEMORY.lastBudgetV2DocumentData);
       if (!result.ok) {
-        appendMessage("system", result.message || "Complete os dados mínimos do orçamento antes de gerar o PDF.");
+        appendMessage("system", result.message || "Complete os dados m\u00ednimos do or\u00e7amento antes de gerar o PDF.");
         return;
       }
       if (typeof window !== "undefined" && window.__eloLastBudgetV2PdfPopupBlocked) {
-        appendMessage("system", "O navegador bloqueou a nova janela. Libere pop-ups para este site e clique em Gerar PDF do orçamento novamente.");
+        appendMessage("system", "O navegador bloqueou a nova janela. Libere pop-ups para este site e clique em Gerar PDF do or\u00e7amento novamente.");
       }
       return;
     }

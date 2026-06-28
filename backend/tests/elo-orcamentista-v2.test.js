@@ -361,7 +361,7 @@ test("BudgetV2ProfessionalPdfAdapter inclui materiais qualitativos e nao inventa
   assert.match(html, /Este documento Ã© preliminar\. Quantitativos e valores dependem de projeto, memorial, composiÃ§Ãµes oficiais SINAPI\/ORSE, BDI, encargos e preÃ§os vigentes\./i);
 });
 
-test("Orcamentista V2 mostra acao de PDF quando orçamento esta valido", () => {
+test("Orcamentista V2 mostra acao de PDF quando orcamento esta valido", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");
   const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
@@ -369,8 +369,49 @@ test("Orcamentista V2 mostra acao de PDF quando orçamento esta valido", () => {
   assert.equal(response.sessionIntent, "budget_v2_scope");
   assert.ok(response.pdfAction);
   assert.equal(response.pdfAction.type, "budget_v2_professional_pdf");
-  assert.equal(response.pdfAction.label, "Gerar PDF do orçamento");
+  assert.equal(response.pdfAction.label, "Gerar PDF do or\u00e7amento");
   assert.ok(response.budgetOrchestratorV2.budgetDocumentData);
+});
+
+
+test("Orcamentista V2 continua fluxo visual multi-etapa ate liberar PDF", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  let response = assistant.buildResponseForTest("120 m2");
+
+  assert.equal(response.sessionIntent, "budget_v2_briefing");
+  assert.match(response.fullAnswer, /cidade\/UF/i);
+  assert.match(response.fullAnswer, /padrao construtivo/i);
+  assert.equal(response.pdfAction, null);
+
+  response = assistant.buildResponseForTest("Vitoria da Conquista - BA");
+  assert.equal(response.sessionIntent, "budget_v2_briefing");
+  assert.match(response.fullAnswer, /cidade\/UF: Vitoria da Conquista\/BA/i);
+  assert.match(response.fullAnswer, /padrao construtivo/i);
+  assert.equal(response.pdfAction, null);
+
+  response = assistant.buildResponseForTest("Padrao medio");
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.match(response.fullAnswer, /padrao: medio/i);
+  assert.ok(response.pdfAction);
+  assert.equal(response.pdfAction.label, "Gerar PDF do or\u00e7amento");
+  const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(response.budgetOrchestratorV2.budgetDocumentData);
+  const html = assistant.buildProfessionalPdfDocumentForTest(data.record, data.context);
+  assert.match(html, /area construida: 120 m2/i);
+  assert.match(html, /cidade\/UF: Vitoria da Conquista\/BA/i);
+  assert.match(html, /padrao: medio/i);
+});
+
+test("Orcamentista V2 one-shot com dados minimos libera PDF", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.match(response.fullAnswer, /area construida: 120 m2/i);
+  assert.match(response.fullAnswer, /cidade\/UF: Vit.ria da Conquista\/BA/i);
+  assert.match(response.fullAnswer, /padrao: medio/i);
+  assert.ok(response.pdfAction);
+  assert.equal(response.pdfAction.label, "Gerar PDF do or\u00e7amento");
 });
 
 test("Orcamentista V2 nao mostra acao de PDF em mensagem comum", () => {
@@ -389,7 +430,7 @@ test("Orcamentista V2 bloqueia PDF quando faltam dados minimos", () => {
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.message, /Complete os dados mínimos do orçamento antes de gerar o PDF/i);
+  assert.equal(result.message, "Complete os dados m\u00ednimos do or\u00e7amento antes de gerar o PDF.");
 });
 
 test("Orcamentista V2 acao de PDF usa template profissional existente", () => {
