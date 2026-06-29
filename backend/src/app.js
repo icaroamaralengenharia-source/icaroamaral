@@ -8,6 +8,7 @@ import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
 import { defaultEloProjectsStore } from "./elo-projects-store.js";
+import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -2110,6 +2111,90 @@ export function createApp(options = {}) {
       response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.saveExecutiveChecklist(request.params.id, request.body || {}) });
     } catch (error) {
       handleEloProjectError_(error, response);
+    }
+  });
+
+  const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
+  function getEloBudgetContext_(request) {
+    return {
+      institutionId: clean_(request.headers["x-institution-id"] || request.query.institution_id || request.query.institutionId || request.body && (request.body.institution_id || request.body.institutionId)),
+      userId: clean_(request.headers["x-user-id"] || request.query.user_id || request.query.userId || request.body && (request.body.user_id || request.body.userId)),
+      projectId: clean_(request.query.project_id || request.query.projectId || request.body && (request.body.project_id || request.body.projectId)),
+      authenticated: Boolean(request.headers.authorization)
+    };
+  }
+  function handleEloBudgetError_(error, response) {
+    const status = error && error.status || 500;
+    response.status(status).json({ ok: false, error: error && error.message || "elo_budget_error" });
+  }
+
+  app.post("/api/elo/budgets", (request, response) => {
+    try {
+      const body = request.body || {};
+      const documentData = body.documentData || body.document_data;
+      const budget = eloBudgetService.createBudget(documentData, getEloBudgetContext_(request));
+      response.status(201).json({ ok: true, source: "backend", budget });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/budgets", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", budgets: eloBudgetService.listBudgets(getEloBudgetContext_(request)) });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/budgets/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", budget: eloBudgetService.getBudget(request.params.id, getEloBudgetContext_(request)) });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.put("/api/elo/budgets/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", budget: eloBudgetService.updateBudget(request.params.id, request.body || {}, getEloBudgetContext_(request)) });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/budgets/:id/versions", (request, response) => {
+    try {
+      const body = request.body || {};
+      const version = eloBudgetService.createVersion(request.params.id, body.documentData || body.document_data, getEloBudgetContext_(request));
+      response.status(201).json({ ok: true, source: "backend", version });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.post("/api/elo/budgets/:id/generate-pdf", (request, response) => {
+    try {
+      const document = eloBudgetService.generateBudgetPdf(request.params.id, getEloBudgetContext_(request));
+      response.status(201).json({ ok: true, documentId: document.id, budgetId: document.budget_id, html: document.html_content, fileName: document.file_name, document });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/budgets/:id/events", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", events: eloBudgetService.listEvents(request.params.id, getEloBudgetContext_(request)) });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
+    }
+  });
+
+  app.get("/api/elo/budgets/:id/documents", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", documents: eloBudgetService.listDocuments(request.params.id, getEloBudgetContext_(request)) });
+    } catch (error) {
+      handleEloBudgetError_(error, response);
     }
   });
 

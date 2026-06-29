@@ -8792,6 +8792,24 @@
     if (intent === "diagnosis") return buildEloPriorityDiagnosisFallbackAnswer_(message);
     return null;
   }
+
+  function hasEloNamedProjectContext_() {
+    const project = getActiveEloWorkProject_();
+    if (!project) return false;
+    const name = normalizeText(project.nome || "");
+    return !!(name && !/^nao\s+informad/.test(name) && name !== "obra atual");
+  }
+
+  function buildEloLegacyPriorityBeforeBudgetV2Answer_(message) {
+    const intent = detectEloPriorityIntent_(message);
+    if (intent === "project_memory") return buildEloPriorityProjectMemoryAnswer_(message);
+    if (intent === "budget") {
+      const priorityBudget = buildEloPriorityBudgetAreaAnswer_(message);
+      if (priorityBudget) return priorityBudget;
+      if (hasEloNamedProjectContext_()) return buildEloResidentialBudgetFlowAnswer_(message);
+    }
+    return null;
+  }
   function buildEloWakeCallAnswer() {
     const snapshot = getConnectedMemorySnapshot();
     const name = snapshot.userName ? snapshot.userName + ", " : "";
@@ -15364,6 +15382,11 @@
       };
     }
 
+    const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
+    if (legacyPriorityBeforeBudgetV2Answer) {
+      return legacyPriorityBeforeBudgetV2Answer;
+    }
+
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       rememberEloBudgetSource_(cleanQuestion, budgetOrchestratorV2Answer, budgetOrchestratorV2Answer.fullAnswer || budgetOrchestratorV2Answer.shortAnswer || "");
@@ -17756,6 +17779,16 @@
       });
       return;
     }
+    const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
+    if (legacyPriorityBeforeBudgetV2Answer) {
+      const legacyPriorityText = formatResponse(legacyPriorityBeforeBudgetV2Answer);
+      appendAssistantMessage(cleanQuestion, legacyPriorityText, legacyPriorityBeforeBudgetV2Answer.canSave !== false, legacyPriorityBeforeBudgetV2Answer);
+      saveConversation(cleanQuestion, legacyPriorityText);
+      rememberSessionTurn(cleanQuestion, legacyPriorityBeforeBudgetV2Answer, legacyPriorityText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       const budgetV2Text = formatResponse(budgetOrchestratorV2Answer);
