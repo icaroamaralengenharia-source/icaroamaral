@@ -21,6 +21,7 @@
     webSearchRequiresConfirmation: true,
     chatEndpoint: getEloBackendEndpoint_("/api/elo/chat"),
     vectorMemoryEndpoint: getEloBackendEndpoint_("/api/elo/vector-memory"),
+    budgetEndpoint: getEloBackendEndpoint_("/api/elo/budgets"),
     budgetRecordsStorageKey: "elo_budget_records_v1",
     budgetCounterStorageKey: "elo_budget_counter_v1"
   };
@@ -1695,6 +1696,49 @@
     }
     return { ok: true, html: html, opened: opened, data: data };
   }
+
+  function getSavedBudgetV2IdForDocument_(budgetDocumentData) {
+    const doc = budgetDocumentData || {};
+    const saved = ELO_SESSION_MEMORY.lastSavedBudgetV2 || null;
+    const savedDoc = saved && saved.document_data || ELO_SESSION_MEMORY.lastSavedBudgetV2DocumentData || null;
+    if (saved && saved.id && savedDoc && savedDoc.budgetId && doc.budgetId && savedDoc.budgetId === doc.budgetId) {
+      return saved.id;
+    }
+    return sanitizeUserText(doc.savedBudgetId || doc.transactionalBudgetId || "");
+  }
+
+  function buildBudgetV2TransactionalActions_(budgetDocumentData) {
+    if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return [];
+    const savedBudgetId = getSavedBudgetV2IdForDocument_(budgetDocumentData);
+    if (savedBudgetId) {
+      return [
+        { type: "budget_v2_update", label: "Atualizar orçamento", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
+        { type: "budget_v2_version", label: "Criar nova versão", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
+        { type: "budget_v2_controlled_pdf", label: "Gerar PDF controlado", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
+        { type: "budget_v2_events", label: "Ver eventos", budgetId: savedBudgetId },
+        { type: "budget_v2_list", label: "Meus Orçamentos" }
+      ];
+    }
+    return [
+      { type: "budget_v2_save", label: "Salvar orçamento", budgetDocumentData: budgetDocumentData },
+      { type: "budget_v2_list", label: "Meus Orçamentos" }
+    ];
+  }
+
+  function buildEloBudgetV2ListIntentAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!/(^|\s)(meus\s+orcamentos|orcamentos\s+elo|listar\s+orcamentos\s+elo|orcamentos\s+salvos\s+elo)(\s|$)/.test(text)) return null;
+    return {
+      shortAnswer: "Meus Orçamentos ELO.",
+      fullAnswer: "Meus Orçamentos ELO\n\nClique em Meus Orçamentos para carregar os orçamentos transacionais salvos.",
+      nextAction: "Carregar lista de orçamentos salvos.",
+      canSave: false,
+      sessionTheme: "residential_budget_package",
+      sessionIntent: "budget_v2_list",
+      budgetActions: [{ type: "budget_v2_list", label: "Meus Orçamentos" }]
+    };
+  }
+
   function getEloBudgetTechnicalBaseLabel_() {
     try {
       if (window.EloBaseStatusEngine && typeof window.EloBaseStatusEngine.getTechnicalBaseStatus === "function") {
@@ -15222,6 +15266,7 @@
         pdfAction.budgetDocumentData = budgetDocumentData;
         ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData;
       }
+      const budgetActions = buildBudgetV2TransactionalActions_(budgetDocumentData);
       return {
         shortAnswer: pending.length ? "Preciso de poucos dados para montar o orçamento." : "Montei o escopo preliminar do orçamento residencial.",
         fullAnswer: lines.join("\n"),
@@ -15230,6 +15275,7 @@
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
         pdfAction: pdfAction,
+        budgetActions: budgetActions,
         budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems, budgetDocumentData: budgetDocumentData }
       };
     }
@@ -15385,6 +15431,11 @@
     const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
     if (legacyPriorityBeforeBudgetV2Answer) {
       return legacyPriorityBeforeBudgetV2Answer;
+    }
+
+    const budgetV2ListIntentAnswer = buildEloBudgetV2ListIntentAnswer_(cleanQuestion);
+    if (budgetV2ListIntentAnswer) {
+      return budgetV2ListIntentAnswer;
     }
 
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
@@ -17789,6 +17840,16 @@
       return;
     }
 
+    const budgetV2ListIntentAnswer = buildEloBudgetV2ListIntentAnswer_(cleanQuestion);
+    if (budgetV2ListIntentAnswer) {
+      const budgetListText = formatResponse(budgetV2ListIntentAnswer);
+      appendAssistantMessage(cleanQuestion, budgetListText, false, budgetV2ListIntentAnswer);
+      saveConversation(cleanQuestion, budgetListText);
+      rememberSessionTurn(cleanQuestion, budgetV2ListIntentAnswer, budgetListText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       const budgetV2Text = formatResponse(budgetOrchestratorV2Answer);
@@ -18884,6 +18945,214 @@
     }
   }
 
+  function getEloBudgetApiHeaders_() {
+    return {
+      "Content-Type": "application/json",
+      "x-user-id": getEloDeviceId()
+    };
+  }
+
+  function requestEloBudgetApi_(path, options) {
+    if (!ELO_CONFIG.budgetEndpoint || !window.fetch) {
+      return Promise.reject(new Error("elo_budget_api_unavailable"));
+    }
+    const endpoint = ELO_CONFIG.budgetEndpoint.replace(/\/+$/g, "") + (path || "");
+    const requestOptions = Object.assign({}, options || {}, {
+      headers: Object.assign({}, getEloBudgetApiHeaders_(), options && options.headers || {})
+    });
+    return window.fetch(endpoint, requestOptions).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          const error = new Error(data.error || "elo_budget_api_error");
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+        return data;
+      });
+    });
+  }
+
+  function rememberSavedBudgetV2_(budget) {
+    if (!budget || !budget.id) return null;
+    ELO_SESSION_MEMORY.lastSavedBudgetV2 = budget;
+    ELO_SESSION_MEMORY.lastSavedBudgetV2DocumentData = budget.document_data || null;
+    if (budget.document_data) ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budget.document_data;
+    return budget;
+  }
+
+  function getBudgetV2DocumentDataForAction_(action) {
+    return action && action.budgetDocumentData || ELO_SESSION_MEMORY.lastBudgetV2DocumentData || ELO_SESSION_MEMORY.lastSavedBudgetV2DocumentData || null;
+  }
+
+  function openEloHtmlDocument_(html) {
+    let opened = false;
+    if (typeof window !== "undefined" && window.open) {
+      const popup = window.open("", "_blank");
+      if (popup && popup.document) {
+        popup.document.open();
+        popup.document.write(String(html || ""));
+        popup.document.close();
+        try { popup.focus(); } catch (error) {}
+        opened = true;
+      }
+    }
+    return opened;
+  }
+
+  function formatEloBudgetApiDate_(value) {
+    if (!value) return "sem data";
+    try { return new Date(value).toLocaleString("pt-BR"); } catch (error) { return String(value); }
+  }
+
+  function summarizeEloBudgetApiRecord_(budget) {
+    const doc = budget && budget.document_data || {};
+    const facts = doc.facts || {};
+    return [
+      "Título: " + sanitizeUserText(budget && budget.title || doc.title || "ELO Orçamentista V2"),
+      "Status: " + sanitizeUserText(budget && budget.status || "draft"),
+      "Versão atual: " + sanitizeUserText(budget && budget.current_version_id || "rascunho"),
+      "Área: " + sanitizeUserText(facts["area construida"] || facts.builtAreaM2 && facts.builtAreaM2 + " m2" || "pendente"),
+      "Cidade/UF: " + sanitizeUserText(facts["cidade/UF"] || facts.cityUf || [facts.city, facts.state].filter(Boolean).join("/") || "pendente"),
+      "Padrão: " + sanitizeUserText(facts.padrao || facts.projectStandard || "pendente")
+    ].join("\n");
+  }
+
+  function formatEloBudgetApiList_(budgets) {
+    if (!budgets || !budgets.length) return "Meus Orçamentos ELO\n\nNenhum orçamento transacional salvo ainda.";
+    const lines = ["Meus Orçamentos ELO", ""];
+    budgets.slice(0, 10).forEach(function (budget, index) {
+      lines.push((index + 1) + ". " + sanitizeUserText(budget.title || "ELO Orçamentista V2"));
+      lines.push("   ID: " + sanitizeUserText(budget.id));
+      lines.push("   Status: " + sanitizeUserText(budget.status || "draft") + " | versão: " + sanitizeUserText(budget.current_version_id || "rascunho"));
+      lines.push("   Criado: " + formatEloBudgetApiDate_(budget.created_at) + " | Atualizado: " + formatEloBudgetApiDate_(budget.updated_at));
+    });
+    return lines.join("\n");
+  }
+
+  function buildEloBudgetApiListActions_(budgets) {
+    return (budgets || []).slice(0, 5).reduce(function (actions, budget) {
+      if (!budget || !budget.id) return actions;
+      actions.push({ type: "budget_v2_open", label: "Abrir " + sanitizeUserText(budget.title || budget.id).slice(0, 28), budgetId: budget.id });
+      actions.push({ type: "budget_v2_controlled_pdf", label: "PDF " + sanitizeUserText(budget.title || budget.id).slice(0, 28), budgetId: budget.id });
+      actions.push({ type: "budget_v2_events", label: "Eventos " + sanitizeUserText(budget.title || budget.id).slice(0, 28), budgetId: budget.id });
+      return actions;
+    }, []);
+  }
+
+  function formatEloBudgetApiEvents_(events) {
+    if (!events || !events.length) return "Eventos do orçamento\n\nAinda não há eventos registrados.";
+    return ["Eventos do orçamento", ""].concat(events.slice(0, 20).map(function (event) {
+      return "- " + formatEloBudgetApiDate_(event.created_at) + " | " + sanitizeUserText(event.event_type || "evento") + " | " + sanitizeUserText(event.id || "");
+    })).join("\n");
+  }
+
+  function restoreBudgetV2StateFromDocumentData_(documentData, budgetId) {
+    const doc = documentData || {};
+    const facts = doc.facts || {};
+    const area = Number(facts.builtAreaM2 || facts.areaConstruidaM2 || String(facts["area construida"] || "").replace(/[^0-9.,]/g, "").replace(",", "."));
+    const cityUf = sanitizeUserText(facts["cidade/UF"] || facts.cityUf || "");
+    const parts = cityUf.split("/");
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = {
+      budgetId: doc.budgetId || budgetId || "",
+      type: "residential",
+      areaM2: Number.isFinite(area) && area > 0 ? area : 0,
+      city: sanitizeUserText(facts.city || parts[0] || ""),
+      state: sanitizeUserText(facts.state || parts[1] || ""),
+      standard: sanitizeUserText(facts.padrao || facts.projectStandard || ""),
+      floors: Number(facts.floors || 1) || 1,
+      assumptions: Array.isArray(doc.assumptions) ? doc.assumptions : [],
+      missingFields: Array.isArray(doc.pendingFields) ? doc.pendingFields : [],
+      confirmedFields: ["areaM2", "city", "state", "standard"].filter(function (field) {
+        if (field === "areaM2") return Number.isFinite(area) && area > 0;
+        if (field === "city") return Boolean(facts.city || parts[0]);
+        if (field === "state") return Boolean(facts.state || parts[1]);
+        return Boolean(facts.padrao || facts.projectStandard);
+      }),
+      inheritedFields: [],
+      budgetStage: "scope"
+    };
+  }
+
+  function handleEloBudgetTransactionalAction_(action, button) {
+    if (!action || !action.type) return;
+    if (button) button.disabled = true;
+    const documentData = getBudgetV2DocumentDataForAction_(action);
+    const fail = function (message) {
+      appendMessage("system", message || "Não consegui executar a ação transacional do orçamento agora.");
+    };
+    const done = function () { if (button) button.disabled = false; };
+
+    if (action.type === "budget_v2_save") {
+      if (!isBudgetV2ProfessionalPdfDataReady_(documentData)) { fail("Complete os dados mínimos do orçamento antes de salvar."); done(); return; }
+      requestEloBudgetApi_("", { method: "POST", body: JSON.stringify({ documentData: documentData }) })
+        .then(function (data) {
+          const budget = rememberSavedBudgetV2_(data.budget);
+          const text = "Orçamento salvo no ELO Transacional.\n\n" + summarizeEloBudgetApiRecord_(budget);
+          appendAssistantMessage("salvar orçamento", text, false, { sessionIntent: "budget_v2_saved", budgetActions: buildBudgetV2TransactionalActions_(budget.document_data) });
+        }).catch(function () { fail("Não consegui salvar no backend agora. O PDF local continua disponível nesta conversa."); }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_update") {
+      if (!action.budgetId || !documentData) { fail("Abra ou salve um orçamento antes de atualizar."); done(); return; }
+      requestEloBudgetApi_("/" + encodeURIComponent(action.budgetId), { method: "PUT", body: JSON.stringify({ status: "review", documentData: documentData }) })
+        .then(function (data) {
+          const budget = rememberSavedBudgetV2_(data.budget);
+          appendAssistantMessage("atualizar orçamento", "Orçamento atualizado.\n\n" + summarizeEloBudgetApiRecord_(budget), false, { sessionIntent: "budget_v2_updated", budgetActions: buildBudgetV2TransactionalActions_(budget.document_data) });
+        }).catch(function () { fail("Não consegui atualizar o orçamento no backend agora."); }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_version") {
+      if (!action.budgetId || !documentData) { fail("Abra ou salve um orçamento antes de criar nova versão."); done(); return; }
+      requestEloBudgetApi_("/" + encodeURIComponent(action.budgetId) + "/versions", { method: "POST", body: JSON.stringify({ documentData: documentData }) })
+        .then(function (data) { appendMessage("system", "Nova versão criada: v" + sanitizeUserText(data.version && data.version.version_number || "1") + "."); })
+        .catch(function () { fail("Não consegui criar nova versão no backend agora."); }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_controlled_pdf") {
+      if (!action.budgetId) { fail("Salve ou abra um orçamento antes de gerar PDF controlado."); done(); return; }
+      requestEloBudgetApi_("/" + encodeURIComponent(action.budgetId) + "/generate-pdf", { method: "POST", body: "{}" })
+        .then(function (data) {
+          const opened = data.html ? openEloHtmlDocument_(data.html) : false;
+          appendMessage("system", "PDF controlado gerado.\nDocumento: " + sanitizeUserText(data.documentId || "sem id") + "\nArquivo: " + sanitizeUserText(data.fileName || "elo-orcamento.html") + (opened ? "" : "\nO navegador bloqueou a janela do PDF."));
+        }).catch(function () {
+          const fallback = openBudgetV2ProfessionalPdf_(documentData);
+          fail(fallback.ok ? "Backend indisponível. Abri o PDF profissional local como contingência." : "Não consegui gerar PDF controlado e faltam dados para o PDF local.");
+        }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_events") {
+      if (!action.budgetId) { fail("Abra um orçamento antes de consultar eventos."); done(); return; }
+      requestEloBudgetApi_("/" + encodeURIComponent(action.budgetId) + "/events", { method: "GET" })
+        .then(function (data) { appendMessage("system", formatEloBudgetApiEvents_(data.events || [])); })
+        .catch(function () { fail("Não consegui carregar os eventos do orçamento agora."); }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_open") {
+      if (!action.budgetId) { fail("Informe o orçamento que deseja abrir."); done(); return; }
+      requestEloBudgetApi_("/" + encodeURIComponent(action.budgetId), { method: "GET" })
+        .then(function (data) {
+          const budget = rememberSavedBudgetV2_(data.budget);
+          restoreBudgetV2StateFromDocumentData_(budget.document_data, budget.id);
+          appendAssistantMessage("abrir orçamento", "Orçamento reaberto no ELO.\n\n" + summarizeEloBudgetApiRecord_(budget), false, { sessionIntent: "budget_v2_opened", budgetActions: buildBudgetV2TransactionalActions_(budget.document_data) });
+        }).catch(function () { fail("Não consegui abrir o orçamento agora."); }).finally(done);
+      return;
+    }
+
+    if (action.type === "budget_v2_list") {
+      requestEloBudgetApi_("", { method: "GET" })
+        .then(function (data) {
+          const budgets = data.budgets || [];
+          appendAssistantMessage("meus orçamentos", formatEloBudgetApiList_(budgets), false, { sessionIntent: "budget_v2_list_loaded", budgetActions: buildEloBudgetApiListActions_(budgets) });
+        }).catch(function () { fail("Não consegui carregar Meus Orçamentos ELO agora. Verifique se o backend local está ativo."); }).finally(done);
+    }
+  }
+
   function handleEloBudgetPdfAction_(action) {
     if (action && action.type === "budget_v2_professional_pdf") {
       const result = openBudgetV2ProfessionalPdf_(action.budgetDocumentData || ELO_SESSION_MEMORY.lastBudgetV2DocumentData);
@@ -18949,6 +19218,19 @@
         handleEloBudgetPdfAction_(response.pdfAction);
       });
       actions.appendChild(pdfButton);
+    }
+
+    if (response && Array.isArray(response.budgetActions)) {
+      response.budgetActions.forEach(function (budgetAction) {
+        if (!budgetAction || !budgetAction.label) return;
+        const actionButton = createElement("button", "elo-inline-button elo-budget-transaction-action", budgetAction.label);
+        actionButton.type = "button";
+        actionButton.setAttribute("data-elo-action", budgetAction.type || "budget-action");
+        actionButton.addEventListener("click", function () {
+          handleEloBudgetTransactionalAction_(budgetAction, actionButton);
+        });
+        actions.appendChild(actionButton);
+      });
     }
 
     if (response && Array.isArray(response.routineCards)) {
@@ -21161,6 +21443,8 @@
     buildBudgetV2ProfessionalPdfDataForTest: buildBudgetV2ProfessionalPdfData,
     buildBudgetV2DocumentDataFromStateForTest: buildBudgetV2DocumentDataFromState_,
     buildBudgetV2ProfessionalPdfActionForTest: buildBudgetV2ProfessionalPdfAction_,
+    buildBudgetV2TransactionalActionsForTest: buildBudgetV2TransactionalActions_,
+    buildEloBudgetV2ListIntentAnswerForTest: buildEloBudgetV2ListIntentAnswer_,
     openBudgetV2ProfessionalPdfForTest: openBudgetV2ProfessionalPdf_,
     normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,
     openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
