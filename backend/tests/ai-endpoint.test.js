@@ -6196,7 +6196,7 @@ test("Elo PDF profissional central estrutura dados incompletos sem inventar", as
 
   assert.match(html, /elo-professional-pdf/);
   assert.match(html, /Documento tecnico de engenharia/);
-  assert.match(html, /Cliente[\s\S]*nao informado/);
+  assert.match(html, /Cliente[\s\S]*Aguardando identifica..o/i);
   assert.match(html, /Pendencias e informacoes faltantes/);
   assert.match(html, /falta composicao oficial/);
   assert.match(html, /Responsabilidade t(?:e|é)cnica e revis(?:a|ã)o/);
