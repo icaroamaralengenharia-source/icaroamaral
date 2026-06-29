@@ -54,6 +54,8 @@ create table if not exists public.stock_full_entries (
   operation_id text,
   device_id text,
   sync_status text default 'synced',
+  source text default 'online',
+  synced_at timestamptz,
   item_id uuid not null,
   quantity numeric not null,
   unit_cost numeric,
@@ -75,6 +77,8 @@ create table if not exists public.stock_full_exits (
   operation_id text,
   device_id text,
   sync_status text default 'synced',
+  source text default 'online',
+  synced_at timestamptz,
   item_id uuid not null,
   quantity numeric not null,
   destination text,
@@ -93,13 +97,17 @@ alter table if exists public.stock_full_entries
   add column if not exists offline_uuid text,
   add column if not exists operation_id text,
   add column if not exists device_id text,
-  add column if not exists sync_status text default 'synced';
+  add column if not exists sync_status text default 'synced',
+  add column if not exists source text default 'online',
+  add column if not exists synced_at timestamptz;
 
 alter table if exists public.stock_full_exits
   add column if not exists offline_uuid text,
   add column if not exists operation_id text,
   add column if not exists device_id text,
-  add column if not exists sync_status text default 'synced';
+  add column if not exists sync_status text default 'synced',
+  add column if not exists source text default 'online',
+  add column if not exists synced_at timestamptz;
 
 create table if not exists public.stock_full_audit_log (
   id uuid primary key default gen_random_uuid(),
@@ -107,6 +115,14 @@ create table if not exists public.stock_full_audit_log (
   action text not null,
   entity_type text,
   entity_id uuid,
+  product_id uuid,
+  before_data jsonb,
+  after_data jsonb,
+  device_id text,
+  offline_uuid text,
+  operation_id text,
+  source text default 'online',
+  ip_address text,
   description text,
   created_by uuid,
   created_at timestamptz default now()
@@ -149,6 +165,12 @@ create unique index if not exists stock_full_exits_offline_uuid_idx
 
 create index if not exists stock_full_audit_log_institution_id_idx
   on public.stock_full_audit_log(institution_id);
+
+create index if not exists stock_full_audit_log_product_id_idx
+  on public.stock_full_audit_log(product_id);
+
+create index if not exists stock_full_audit_log_created_at_idx
+  on public.stock_full_audit_log(created_at desc);
 
 drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at

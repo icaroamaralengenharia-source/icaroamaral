@@ -268,13 +268,13 @@
         return fetchJson("/api/stock-full/items/" + encodeURIComponent(remoteId), { method: "PUT", body: JSON.stringify(mapProductPayload(payload)) });
       },
       async createEntry(payload) {
-        return fetchJson("/api/stock-full/entries", { method: "POST", body: JSON.stringify(mapMovementPayload(payload)) });
+        return sendMovementToSync("entrada", payload, "entry");
       },
       async createExit(payload) {
-        return fetchJson("/api/stock-full/exits", { method: "POST", body: JSON.stringify(mapMovementPayload(payload)) });
+        return sendMovementToSync("saida", payload, "exit");
       },
       async createAdjustment(payload) {
-        return fetchJson("/api/stock-full/entries", { method: "POST", body: JSON.stringify(mapMovementPayload(payload)) });
+        return sendMovementToSync("entrada", payload, "entry");
       }
     };
   }
@@ -328,6 +328,20 @@
       notes: clean(source.notes),
       reason: clean(source.reason || source.origin)
     };
+  }
+
+  async function sendMovementToSync(type, payload, resultKey) {
+    const movement = Object.assign({}, mapMovementPayload(payload), { type: type, source: "offline", syncStatus: "synced" });
+    const data = await fetchJson("/api/stock-full/sync", { method: "POST", body: JSON.stringify({ movements: [movement] }) });
+    const result = data && Array.isArray(data.results) ? data.results[0] : null;
+    const status = clean(result && result.status);
+    if (!result || (status !== "synced" && status !== "duplicate")) {
+      throw new Error(clean(result && result.message) || "stock_full_sync_failed");
+    }
+    const id = clean(result.movement_id);
+    const response = { ok: true, id: id, remoteId: id, duplicate: status === "duplicate" };
+    response[resultKey || "movement"] = { id: id };
+    return response;
   }
 
   async function processQueue() {
@@ -588,7 +602,7 @@
     livePollInProgress = true;
     try {
       const data = await fetchJson("/api/stock-full/live");
-      renderLiveRows(data.exits || []);
+      renderLiveRows(data.lastMovements || data.exits || []);
       renderLiveStatus("Online");
     } catch (error) {
       renderLiveStatus("Offline");
@@ -665,7 +679,7 @@
     if (statusNode) statusNode.textContent = status;
     if (detailsNode) {
       const lastSync = clean(meta.lastSuccessfulSyncAt) || "nunca";
-      detailsNode.textContent = (meta.pendingCount > 0 || (window.navigator && window.navigator.onLine === false) ? "Modo offline - alteracoes serao sincronizadas quando a internet voltar. - " : "") + meta.pendingCount + " pendencia(s) - ultima sync: " + lastSync + (meta.lastSyncError ? " - erro: " + meta.lastSyncError : "");
+      detailsNode.textContent = (meta.pendingCount > 0 || (window.navigator && window.navigator.onLine === false) ? "Modo offline - alteracoes serao sincronizadas quando a internet voltar. - " : "") + "Pendencias: " + meta.pendingCount + " - ultima sync: " + lastSync + (meta.lastSyncError ? " - Erro de sync: " + meta.lastSyncError : "");
     }
     if (button) button.disabled = syncInProgress;
     const normalizedStatus = normalizeSyncStatus(status) || "unknown";
