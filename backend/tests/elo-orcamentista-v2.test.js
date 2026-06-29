@@ -374,6 +374,52 @@ test("Orcamentista V2 mostra acao de PDF quando orcamento esta valido", () => {
 });
 
 
+test("Orcamentista V2 mostra acoes transacionais para orcamento valido", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+
+  assert.ok(Array.isArray(response.budgetActions));
+  assert.deepEqual(Array.from(response.budgetActions, (action) => action.label), ["Salvar orçamento", "Meus Orçamentos"]);
+  assert.equal(response.budgetActions[0].type, "budget_v2_save");
+  assert.ok(response.budgetActions[0].budgetDocumentData);
+});
+
+test("Orcamentista V2 troca acoes quando orcamento ja esta salvo", () => {
+  const { assistant } = loadAssistant();
+  const completeDocument = Object.assign({}, sampleBudgetV2DocumentData(), { pendingFields: [], savedBudgetId: "elo_budget_salvo_1" });
+  const actions = assistant.buildBudgetV2TransactionalActionsForTest(completeDocument);
+
+  assert.deepEqual(Array.from(actions, (action) => action.label), [
+    "Atualizar orçamento",
+    "Criar nova versão",
+    "Gerar PDF controlado",
+    "Ver eventos",
+    "Meus Orçamentos"
+  ]);
+  assert.equal(actions[2].type, "budget_v2_controlled_pdf");
+});
+
+test("Orcamentista V2 nao mostra acoes transacionais em mensagem comum", () => {
+  const { assistant } = loadAssistant();
+  const hello = assistant.buildResponseForTest("Olá");
+  const identity = assistant.buildResponseForTest("Quem é você?");
+
+  assert.equal(hello.pdfAction, undefined);
+  assert.equal(hello.budgetActions, undefined);
+  assert.equal(identity.pdfAction, undefined);
+  assert.equal(identity.budgetActions, undefined);
+});
+
+test("ELO reconhece atalho Meus Orcamentos sem capturar fluxo generico", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("Meus Orçamentos ELO");
+
+  assert.equal(response.sessionIntent, "budget_v2_list");
+  assert.ok(Array.isArray(response.budgetActions));
+  assert.equal(response.budgetActions[0].label, "Meus Orçamentos");
+});
+
 test("Orcamentista V2 continua fluxo visual multi-etapa ate liberar PDF", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");
