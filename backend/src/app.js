@@ -9,6 +9,7 @@ import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
 import { defaultEloProjectsStore } from "./elo-projects-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
+import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -2496,6 +2497,141 @@ export function createApp(options = {}) {
     }
   });
 
+  const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
+  function getObraReportContext_(request) {
+    return {
+      institutionId: clean_(request.headers["x-institution-id"] || request.query.institutionId || request.query.institution_id),
+      userId: clean_(request.headers["x-user-id"] || request.query.userId || request.query.user_id)
+    };
+  }
+  function handleObraReportError_(error, response) {
+    const status = Number(error && error.status) || 500;
+    response.status(status).json({ ok: false, error: error && error.message || "obrareport_transactional_error" });
+  }
+
+  app.post("/api/obrareport/reports", (request, response) => {
+    try {
+      const report = obraReportTransactionalService.createTechnicalReport(getObraReportContext_(request), request.body || {});
+      response.status(201).json({ ok: true, source: "backend", report });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/reports", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", reports: obraReportTransactionalService.listTechnicalReports(getObraReportContext_(request), request.query || {}) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/reports/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", report: obraReportTransactionalService.getTechnicalReport(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.put("/api/obrareport/reports/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", report: obraReportTransactionalService.updateTechnicalReport(getObraReportContext_(request), request.params.id, request.body || {}) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/reports/:id/versions", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", version: obraReportTransactionalService.createTechnicalReportVersion(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/reports/:id/generate-document", (request, response) => {
+    try {
+      const document = obraReportTransactionalService.generateTechnicalReportDocument(getObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, source: "backend", document });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/reports/:id/events", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", events: obraReportTransactionalService.listReportEvents(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/rdos", (request, response) => {
+    try {
+      const rdo = obraReportTransactionalService.createRdo(getObraReportContext_(request), request.body || {});
+      response.status(201).json({ ok: true, source: "backend", rdo });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/rdos", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", rdos: obraReportTransactionalService.listRdos(getObraReportContext_(request), request.query || {}) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/rdos/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", rdo: obraReportTransactionalService.getRdo(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.put("/api/obrareport/rdos/:id", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", rdo: obraReportTransactionalService.updateRdo(getObraReportContext_(request), request.params.id, request.body || {}) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/rdos/:id/versions", (request, response) => {
+    try {
+      response.status(201).json({ ok: true, source: "backend", version: obraReportTransactionalService.createRdoVersion(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/rdos/:id/generate-document", (request, response) => {
+    try {
+      const document = obraReportTransactionalService.generateRdoDocument(getObraReportContext_(request), request.params.id);
+      response.status(201).json({ ok: true, source: "backend", document });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.get("/api/obrareport/rdos/:id/events", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", events: obraReportTransactionalService.listRdoEvents(getObraReportContext_(request), request.params.id) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
+
+  app.post("/api/obrareport/documents/:id/prepare-email", (request, response) => {
+    try {
+      response.json({ ok: true, source: "backend", email: obraReportTransactionalService.prepareDocumentEmail(getObraReportContext_(request), request.params.id, request.body || {}) });
+    } catch (error) {
+      handleObraReportError_(error, response);
+    }
+  });
   app.post("/api/ai/improve-text", async (request, response) => {
     const validation = validateRequest_(request.body || {});
 
