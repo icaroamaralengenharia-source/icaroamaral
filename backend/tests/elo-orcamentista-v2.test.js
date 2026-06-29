@@ -326,13 +326,13 @@ test("BudgetV2ProfessionalPdfAdapter converte documento V2 para entrada do PDF e
   const { assistant } = loadAssistant();
   const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(sampleBudgetV2DocumentData());
 
-  assert.equal(data.record.numero, "budget-v2-test-001");
-  assert.equal(data.record.titulo, "ELO Orçamentista V2");
-  assert.equal(data.context.nomeDocumento, "ELO Orçamentista V2");
-  assert.match(data.record.conteudo_markdown, /ID interno do orçamento: budget-v2-test-001/i);
-  assert.match(data.record.conteudo_markdown, /Tipo: Orçamento residencial preliminar/i);
+  assert.match(data.record.numero, /^ELO-BA-\d{4}-\d{6}$/);
+  assert.match(data.record.titulo, /ELO Or.amentista V2/);
+  assert.match(data.context.nomeDocumento, /ELO Or.amentista V2/);
+  assert.match(data.record.conteudo_markdown, /N.mero do documento: ELO-BA-\d{4}-\d{6}/i);
+  assert.match(data.record.conteudo_markdown, /Tipo: Or.amento residencial preliminar/i);
+  assert.doesNotMatch(data.record.conteudo_markdown, /budget-v2-test-001|budget-|pending_official_composition|adapter_fallback|undefined|null|NaN/i);
 });
-
 test("BudgetV2ProfessionalPdfAdapter reutiliza template profissional com dados confirmados herdados e pendencias", () => {
   const { assistant } = loadAssistant();
   const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(sampleBudgetV2DocumentData());
