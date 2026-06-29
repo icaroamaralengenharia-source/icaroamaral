@@ -80,6 +80,7 @@
   function saveQueue(queue) {
     writeJson(QUEUE_STORAGE_KEY, normalizeQueue(queue));
     refreshSyncMeta();
+    renderLivePendingRows();
     renderIndicator();
   }
 
@@ -668,6 +669,7 @@
   }
 
   function renderIndicator(forcedStatus) {
+    renderLivePendingRows();
     const panel = ensureIndicator();
     if (!panel) return;
     const forcedStatusLabel = typeof forcedStatus === "string" ? forcedStatus : (forcedStatus && typeof forcedStatus.status === "string" ? forcedStatus.status : (forcedStatus && typeof forcedStatus.state === "string" ? forcedStatus.state : ""));

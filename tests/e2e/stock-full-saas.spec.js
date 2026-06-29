@@ -212,12 +212,12 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
 
   test("fila offline sincroniza usando API backend configurada", async ({ page }) => {
     const requests = [];
-    await page.route("https://backend.example/api/stock-full/entries", async (route) => {
+    await page.route("https://backend.example/api/stock-full/sync", async (route) => {
       requests.push({ url: route.request().url(), body: route.request().postDataJSON() });
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, entry: { id: "entry_remote" }, item: { id: "prod_backend", currentQuantity: 15 } })
+        body: JSON.stringify({ ok: true, results: [{ offline_uuid: "op_backend_1", status: "synced", movement_id: "entry_remote" }] })
       });
     });
     await page.addInitScript(() => {
@@ -233,20 +233,21 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await page.evaluate(() => window.StockFullSync.processQueue());
     await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue()[0].status)).toBe("synced");
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("https://backend.example/api/stock-full/entries");
-    expect(requests[0].body.operationId).toBe("op_backend_1");
-    expect(requests[0].body.companyId).toBe("inst_backend");
+    expect(requests[0].url).toBe("https://backend.example/api/stock-full/sync");
+    expect(requests[0].body.movements).toHaveLength(1);
+    expect(requests[0].body.movements[0].type).toBe("entrada");
+    expect(requests[0].body.movements[0].operationId).toBe("op_backend_1");
+    expect(requests[0].body.movements[0].offlineUuid).toBe("op_backend_1");
   });
-
 
   test("fila offline de saida persiste apos reload e sincroniza com offlineUuid", async ({ page }) => {
     const requests = [];
-    await page.route("https://backend.example/api/stock-full/exits", async (route) => {
+    await page.route("https://backend.example/api/stock-full/sync", async (route) => {
       requests.push(route.request().postDataJSON());
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, duplicate: true, exit: { id: "exit_remote", offlineUuid: "op_exit_reload" }, item: { id: "prod_backend", currentQuantity: 9 } })
+        body: JSON.stringify({ ok: true, results: [{ offline_uuid: "op_exit_reload", status: "duplicate", movement_id: "exit_remote" }] })
       });
     });
     await page.addInitScript(() => {
@@ -266,8 +267,10 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await page.evaluate(() => window.StockFullSync.processQueue());
     await expect.poll(async () => page.evaluate(() => window.StockFullSync.getQueue()[0].status)).toBe("synced");
     expect(requests).toHaveLength(1);
-    expect(requests[0].operationId).toBe("op_exit_reload");
-    expect(requests[0].offlineUuid).toBe("op_exit_reload");
+    expect(requests[0].movements).toHaveLength(1);
+    expect(requests[0].movements[0].type).toBe("saida");
+    expect(requests[0].movements[0].operationId).toBe("op_exit_reload");
+    expect(requests[0].movements[0].offlineUuid).toBe("op_exit_reload");
   });
 
   test("painel ao vivo do patrao renderiza saida online", async ({ page }) => {
