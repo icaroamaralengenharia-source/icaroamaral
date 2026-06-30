@@ -18336,6 +18336,11 @@
       return wallContinuationResponse;
     }
 
+    const localPathologyResponse = buildEloConstructionPathologyAnswer_(question);
+    if (localPathologyResponse) {
+      return applyEloCommunicationLayer(question, localPathologyResponse);
+    }
+
     const wallServiceResponse = buildEloWallServiceAnswer_(question);
     if (wallServiceResponse) {
       return wallServiceResponse;
