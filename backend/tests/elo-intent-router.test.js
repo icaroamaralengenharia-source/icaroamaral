@@ -142,6 +142,15 @@ test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", ()
   assert.notEqual(wallIndex, -1);
   assert.ok(pathologyIndex < wallIndex);
 });
+test("IntentRouter captura patologia no chat minimo antes do submit comum", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const captureIndex = source.indexOf("form.dataset.eloPathologyCaptureBound");
+  const regularIndex = source.indexOf("form.dataset.eloEngineBound", captureIndex);
+
+  assert.notEqual(captureIndex, -1);
+  assert.notEqual(regularIndex, -1);
+  assert.ok(captureIndex < regularIndex);
+});
 test("IntentRouter encaminha proposta e PDF sem busca SINAPI", () => {
   const { assistant, calls } = loadAssistant();
   const proposal = assistant.buildResponseForTest("Gerar proposta tecnica para cliente.");

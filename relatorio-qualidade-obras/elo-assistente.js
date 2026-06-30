@@ -21518,6 +21518,34 @@
       ELO_UI.input.value = "";
     }
 
+    function shouldPrioritizeMinimalPathology_() {
+      return !!buildEloConstructionPathologyAnswer_(ELO_UI.input && ELO_UI.input.value);
+    }
+
+    if (!form.dataset.eloPathologyCaptureBound) {
+      form.dataset.eloPathologyCaptureBound = "true";
+      form.addEventListener("submit", function (event) {
+        if (!shouldPrioritizeMinimalPathology_()) {
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        submitMinimalQuestion();
+      }, true);
+    }
+
+    if (!input.dataset.eloPathologyKeyCaptureBound) {
+      input.dataset.eloPathologyKeyCaptureBound = "true";
+      input.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" || event.shiftKey || !shouldPrioritizeMinimalPathology_()) {
+          return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        submitMinimalQuestion();
+      }, true);
+    }
+
     if (!form.dataset.eloEngineBound) {
       form.dataset.eloEngineBound = "true";
       form.addEventListener("submit", function (event) {
@@ -21535,7 +21563,6 @@
         }
       });
     }
-
     return true;
   }
 
