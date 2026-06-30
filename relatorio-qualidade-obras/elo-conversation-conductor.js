@@ -8,7 +8,7 @@
     { id: "engenheiro", terms: ["engenheiro", "engenheira", "engenharia"] },
     { id: "arquiteto", terms: ["arquiteto", "arquiteta", "arquitetura"] },
     { id: "construtora", terms: ["construtora", "incorporadora", "empreendimento"] },
-    { id: "sindico/condominio", terms: ["sindico", "sindica", "condominio", "condominial", "predio"] },
+    { id: "sindico_condominio", terms: ["sindico", "sindica", "condominio", "condominial", "predio"] },
     { id: "imobiliaria", terms: ["imobiliaria", "imoveis", "locacao", "locador", "proprietario"] },
     { id: "empresa com demanda de laudos", terms: ["empresa", "laudos recorrentes", "demanda de laudos", "varios laudos"] },
     { id: "prestador de servico/empreiteiro", terms: ["empreiteiro", "prestador", "mestre de obra", "pedreiro", "executo obra"] },
@@ -140,6 +140,171 @@
     }
     return "cold";
   }
+  function analyzeHiddenObjective(message, state) {
+    const text = normalize(message);
+    if (hasAny(text, ["cliente", "responder", "mandar mensagem", "explicar para ele", "explicar para ela", "resposta para cliente"])) return "responder_cliente";
+    if (hasAny(text, ["laudo", "parecer", "relatorio tecnico"])) return "elaborar_laudo";
+    if (hasAny(text, ["orcamento", "quanto custa", "valor", "preco"])) return "montar_orcamento";
+    if (hasAny(text, ["viabilidade", "vale a pena", "estudo", "simular"])) return "estudar_viabilidade";
+    if (hasAny(text, ["executar", "comecar obra", "fazer a obra", "contratar pedreiro"])) return "executar_obra";
+    if (hasAny(text, ["prefeitura", "banco", "cartorio", "habite-se", "regularizar"])) return "regularizar_documentacao";
+    if (hasAny(text, ["minha casa", "meu apartamento", "meu imovel"])) return "resolver_problema_pessoal";
+    if (hasAny(text, ["andamento", "prazo", "obra parada", "medicao"])) return "acompanhar_obra";
+    if (hasAny(text, ["vender", "proposta", "fechar servico", "apresentar servico"])) return "vender_servico";
+    if (hasAny(text, ["assembleia", "condominio", "sindico", "moradores"])) return "decisao_condominio";
+    return state && state.hiddenObjective || "desconhecido";
+  }
+
+  function detectUrgency(message) {
+    const text = normalize(message);
+    if (hasAny(text, ["risco", "urgente", "interditar", "perigo", "caiu", "vazando muito", "alagou", "estrutura", "rachadura aumentando", "cliente cobrando", "prazo hoje"])) return "alta";
+    if (hasAny(text, ["preciso resolver", "esta semana", "orcamento", "vistoria", "laudo", "cliente pediu"])) return "media";
+    if (hasAny(text, ["duvida", "curiosidade", "estudar", "entender", "bom dia", "oi"])) return "baixa";
+    return "baixa";
+  }
+
+  function buildConversationStrategy(payload) {
+    const hiddenObjective = payload && payload.hiddenObjective || "desconhecido";
+    const urgency = payload && payload.urgency || "baixa";
+    const intent = payload && payload.intent || "generica";
+    const stage = payload && payload.stage || STAGES.primeiro_contato;
+
+    if (stage === STAGES.primeiro_contato && hiddenObjective === "desconhecido" && urgency === "baixa") {
+      return {
+        mode: "resposta_curta",
+        goal: "entender o objetivo antes de conduzir",
+        question: "Me diga o que voce quer resolver agora.",
+        deliverable: "proxima acao clara",
+        tone: "leve",
+        shouldAskBeforeAnswer: false
+      };
+    }
+
+    if (urgency === "alta") {
+      return {
+        mode: "triagem_tecnica",
+        goal: "entender risco antes de qualquer orcamento ou entrega",
+        question: "Antes de qualquer orcamento, preciso entender se ha risco. Ha aumento rapido, vazamento ativo, deformacao, estalo, deslocamento ou risco as pessoas?",
+        deliverable: "triagem de risco",
+        tone: "direto e preventivo",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "responder_cliente") {
+      return {
+        mode: "consultoria_cliente",
+        goal: "transformar a situacao em uma resposta profissional para cliente",
+        question: "Voce quer responder de forma tecnica, tranquilizadora ou mais firme?",
+        deliverable: "mensagem pronta para cliente",
+        tone: "consultivo",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "elaborar_laudo") {
+      return {
+        mode: "coleta_para_documento",
+        goal: "coletar finalidade e destinatario antes de estruturar o documento",
+        question: "Esse laudo sera usado para cliente, condominio, justica, banco ou prefeitura?",
+        deliverable: "estrutura de laudo tecnico",
+        tone: "tecnico e organizado",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "montar_orcamento") {
+      return {
+        mode: "orcamento_guiado",
+        goal: "separar finalidade do orcamento antes de calcular ou listar dados",
+        question: "Esse orcamento e para apresentar ao cliente, estudar viabilidade ou executar a obra?",
+        deliverable: "orcamento preliminar organizado",
+        tone: "objetivo",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "decisao_condominio") {
+      return {
+        mode: "decisao_condominio",
+        goal: "organizar a decisao tecnica para sindico, moradores ou assembleia",
+        question: "A decisao e para orientar moradores, aprovar vistoria, contratar reparo ou registrar risco?",
+        deliverable: "resumo tecnico para condominio",
+        tone: "claro e institucional",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "regularizar_documentacao") {
+      return {
+        mode: "coleta_para_documento",
+        goal: "entender o orgao e a finalidade antes de montar a documentacao",
+        question: "A documentacao e para prefeitura, banco, cartorio ou regularizacao interna?",
+        deliverable: "checklist documental",
+        tone: "formal",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "acompanhar_obra" || intent === "rdo") {
+      return {
+        mode: "rdo_guiado",
+        goal: "transformar acompanhamento em registro objetivo da obra",
+        question: "Voce quer registrar status, prazo, pendencias ou ocorrencias do dia?",
+        deliverable: "status da obra ou RDO",
+        tone: "operacional",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    if (hiddenObjective === "vender_servico" || hiddenObjective === "estudar_viabilidade" || hiddenObjective === "executar_obra") {
+      return {
+        mode: "venda_sutil",
+        goal: "conduzir a conversa para uma decisao pratica sem discurso pesado",
+        question: "Voce quer usar isso para proposta, viabilidade ou execucao?",
+        deliverable: "roteiro de decisao",
+        tone: "consultivo e direto",
+        shouldAskBeforeAnswer: true
+      };
+    }
+
+    return {
+      mode: "resposta_curta",
+      goal: "responder sem alongar quando ainda falta contexto",
+      question: "Voce quer uma resposta tecnica para cliente ou uma triagem para vistoria?",
+      deliverable: "proxima acao clara",
+      tone: "leve",
+      shouldAskBeforeAnswer: false
+    };
+  }
+
+  function buildConsultantQuestion(strategy, state) {
+    if (!strategy || !strategy.question) return "";
+    const asked = normalize(state && state.lastConsultantQuestion || "");
+    const question = String(strategy.question || "").trim();
+    if (asked && asked === normalize(question)) return "";
+    return question;
+  }
+
+  function shouldAppendConsultantLayer(response, strategy) {
+    const text = normalize(response);
+    if (!text || !strategy || strategy.mode === "resposta_curta") return false;
+    if (text.length < 18) return false;
+    if (text.indexOf("para conduzir certo") >= 0) return false;
+    if (text.indexOf("proximo passo") >= 0) return false;
+    if (strategy.question && text.indexOf(normalize(strategy.question).slice(0, 38)) >= 0) return false;
+    return true;
+  }
+
+  function enhanceConsultativeResponse(payload) {
+    const response = String(payload && payload.response || "").trim();
+    const strategy = payload && payload.strategy;
+    const state = payload && payload.state || {};
+    if (!shouldAppendConsultantLayer(response, strategy)) return response;
+    const question = buildConsultantQuestion(strategy, state);
+    if (!question) return response;
+    return response + "\n\n**Para conduzir certo:** " + question + "\n**Entrega possivel:** " + strategy.deliverable;
+  }
 
   function detectStage(message, state) {
     const text = normalize(message);
@@ -175,7 +340,7 @@
     if (persona === "construtora") {
       return "O ELO transforma informacoes de obra em RDO, pendencias, relatorios, orcamento e comunicacao rastreavel para reduzir retrabalho.";
     }
-    if (persona === "sindico/condominio") {
+    if (persona === "sindico_condominio") {
       return "O ELO transforma queixas, fotos e ocorrencias do condominio em triagem tecnica, checklist de vistoria e relatorio preliminar.";
     }
     if (persona === "imobiliaria") {
@@ -197,7 +362,7 @@
     if (persona === "construtora") {
       return "O ELO pode organizar comunicacao tecnica, RDO, pendencias, relatorios e orcamento para reduzir retrabalho e deixar a obra mais rastreavel.";
     }
-    if (persona === "sindico/condominio") {
+    if (persona === "sindico_condominio") {
       return "O ELO pode transformar queixas, fotos e ocorrencias em triagem tecnica, checklist de vistoria e relatorio preliminar para tomada de decisao.";
     }
     if (persona === "imobiliaria") {
@@ -266,6 +431,9 @@
     const intent = detectIntent(message);
     const stage = detectStage(message, state);
     const offer = buildEloOffer({ persona: persona, pain: pain, intent: intent, stage: stage });
+    const hiddenObjective = analyzeHiddenObjective(message, state);
+    const urgency = detectUrgency(message);
+    const strategy = buildConversationStrategy({ persona: persona, pain: pain, intent: intent, hiddenObjective: hiddenObjective, urgency: urgency, stage: stage });
     const deliverable = chooseDeliverable(pain, intent);
 
     const nameMatch = text.match(/(?:me chamo|meu nome e|sou o|sou a)\s+([A-Za-zÀ-ÿ]{2,30})/i);
@@ -284,6 +452,11 @@
     next.offer = offer;
     next.lastSuggestedDeliverable = deliverable;
     next.leadTemperature = detectLeadTemperature(message);
+    next.hiddenObjective = hiddenObjective;
+    next.urgency = urgency;
+    next.strategyMode = strategy.mode;
+    next.strategyGoal = strategy.goal;
+    next.strategyDeliverable = strategy.deliverable;
 
     if (intent === "orcamento") next.serviceInterest = "orcamento";
     if (intent === "relatorio_laudo") next.serviceInterest = "relatorio/laudo tecnico";
@@ -361,6 +534,9 @@
     const persona = detectPersona(userMessage, previousState);
     const pain = detectPain(userMessage, previousState);
     const stage = detectStage(userMessage, previousState);
+    const hiddenObjective = analyzeHiddenObjective(userMessage, previousState);
+    const urgency = detectUrgency(userMessage);
+    const strategy = buildConversationStrategy({ persona: persona, pain: pain, intent: intent, hiddenObjective: hiddenObjective, urgency: urgency, stage: stage });
     const nextState = extractLightMemory(userMessage, previousState);
     const nextAction = buildCommercialNextStep({ persona: persona, pain: pain, intent: intent, stage: stage });
 
@@ -375,6 +551,15 @@
     }
 
     const baseResponse = addToneGuard(assistantResponse);
+    const finalizeConsultative = function (response) {
+      const enhanced = enhanceConsultativeResponse({ response: response, strategy: strategy, state: previousState });
+      if (enhanced !== response) {
+        nextState.lastConsultantQuestion = strategy.question || "";
+        nextState.updatedAt = new Date().toISOString();
+        saveState(nextState);
+      }
+      return enhanced;
+    };
 
     if (stage === STAGES.fechamento) {
       if (normalize(baseResponse).indexOf("caso real") >= 0) return baseResponse;
@@ -383,9 +568,12 @@
 
     if (responseAsksForTechnicalData(baseResponse)) {
       const line = buildLightCommercialLine({ persona: persona, pain: pain, intent: intent, stage: stage });
-      if (normalize(baseResponse).indexOf(normalize(line)) >= 0) return baseResponse;
-      return baseResponse.trim() + "\n\n" + line;
+      if (normalize(baseResponse).indexOf(normalize(line)) >= 0) return finalizeConsultative(baseResponse);
+      return finalizeConsultative(baseResponse.trim() + "\n\n" + line);
     }
+
+    const consultativeResponse = finalizeConsultative(baseResponse);
+    if (consultativeResponse !== baseResponse) return consultativeResponse;
 
     if (!nextAction || !shouldAppendAction(baseResponse)) {
       return baseResponse;
@@ -404,6 +592,14 @@
       if (global.localStorage) global.localStorage.removeItem(STORAGE_KEY);
     } catch (_) {}
   }
+
+  global.EloConversationStrategist = {
+    analyzeHiddenObjective: analyzeHiddenObjective,
+    detectUrgency: detectUrgency,
+    buildConsultantQuestion: buildConsultantQuestion,
+    buildConversationStrategy: buildConversationStrategy,
+    enhanceConsultativeResponse: enhanceConsultativeResponse
+  };
 
   global.EloConversationConductor = {
     detectIntent: detectIntent,
