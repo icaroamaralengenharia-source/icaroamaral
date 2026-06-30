@@ -112,6 +112,27 @@ test("IntentRouter faz triagem de rachadura sem pedir tipo de bloco", () => {
   assertNoTechnicalCalls(calls);
 });
 
+test("IntentRouter prioriza patologia antes de orcamento ou alvenaria", () => {
+  const { assistant, calls } = loadAssistant();
+  const messages = [
+    "tenho infiltracao na parede",
+    "parede com umidade subindo",
+    "apareceu mofo no quarto",
+    "tem uma trinca perto da janela",
+    "fissura na parede da sala",
+    "quanto custa consertar rachadura?",
+    "vazamento no banheiro"
+  ];
+
+  messages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(response.fullAnswer, /Triagem|vistoria|causas|verificar|Possiveis causas|Possíveis causas/i, message);
+    assert.doesNotMatch(response.fullAnswer, /Servico controlado identificado|tipo de bloco|composicao SINAPI|orçamento assistido de alvenaria/i, message);
+  });
+  assertNoTechnicalCalls(calls);
+});
 test("IntentRouter encaminha proposta e PDF sem busca SINAPI", () => {
   const { assistant, calls } = loadAssistant();
   const proposal = assistant.buildResponseForTest("Gerar proposta tecnica para cliente.");

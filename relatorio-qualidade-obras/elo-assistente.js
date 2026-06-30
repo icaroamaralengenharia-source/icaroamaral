@@ -14881,7 +14881,7 @@
   }
 
   function buildEloConstructionPathologyAnswer_(message) {
-    if (!isEloConstructionPathologyQuestion_(message) || hasEloBudgetOrCompositionIntent_(message)) {
+    if (!isEloConstructionPathologyQuestion_(message)) {
       return null;
     }
     const text = normalizeText(message || "");
@@ -15520,6 +15520,11 @@
       return getCrisisSupportResponse();
     }
 
+    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (pathologyAnswer) {
+      return pathologyAnswer;
+    }
+
     const residentialBudgetFlowAnswer = buildEloResidentialBudgetFlowAnswer_(cleanQuestion);
     if (residentialBudgetFlowAnswer) {
       return residentialBudgetFlowAnswer;
@@ -15570,10 +15575,6 @@
       return paintingBudgetAnswer;
     }
 
-    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
-    if (pathologyAnswer) {
-      return pathologyAnswer;
-    }
     const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
     if (residentialBudgetPackageQuickAnswer) {
       rememberEloTechnicalProposalSource_(cleanQuestion, residentialBudgetPackageQuickAnswer, residentialBudgetPackageQuickAnswer.fullAnswer || residentialBudgetPackageQuickAnswer.shortAnswer || "");
@@ -17968,6 +17969,16 @@
       clearProductAttachmentPreview();
       return;
     }
+    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (pathologyAnswer) {
+      const pathologyText = formatResponse(pathologyAnswer);
+      appendAssistantMessage(cleanQuestion, pathologyText, pathologyAnswer.canSave !== false, pathologyAnswer);
+      saveConversation(cleanQuestion, pathologyText);
+      rememberSessionTurn(cleanQuestion, pathologyAnswer, pathologyText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const operationalChatEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
     if (operationalChatEcosystemAnswer) {
       const operationalAnswer = formatResponse(operationalChatEcosystemAnswer);
@@ -17984,15 +17995,6 @@
       appendAssistantMessage(cleanQuestion, proposalAnswer, technicalProposalPackageAnswer.canSave !== false, technicalProposalPackageAnswer);
       saveConversation(cleanQuestion, proposalAnswer);
       rememberSessionTurn(cleanQuestion, technicalProposalPackageAnswer, proposalAnswer);
-      clearProductAttachmentPreview();
-      return;
-    }
-    const pathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
-    if (pathologyAnswer) {
-      const pathologyText = formatResponse(pathologyAnswer);
-      appendAssistantMessage(cleanQuestion, pathologyText, pathologyAnswer.canSave !== false, pathologyAnswer);
-      saveConversation(cleanQuestion, pathologyText);
-      rememberSessionTurn(cleanQuestion, pathologyAnswer, pathologyText);
       clearProductAttachmentPreview();
       return;
     }
