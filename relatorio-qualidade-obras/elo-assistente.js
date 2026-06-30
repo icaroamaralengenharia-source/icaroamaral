@@ -1388,6 +1388,23 @@
     return text || fallback || "nao informado";
   }
 
+  function sanitizeEloProfessionalPresentationText_(value) {
+    const text = sanitizeUserText(value || "");
+    if (!text) return "";
+    return text
+      .replace(/\bpending_official_composition\b/gi, "composicao oficial pendente de validacao")
+      .replace(/\badapter_fallback\b/gi, "item tecnico preliminar")
+      .replace(/\bpending\b/gi, "pendente de validacao")
+      .replace(/\b(undefined|null|NaN)\b/g, "Aguardando identificacao")
+      .replace(/\bbudget-[a-z0-9_-]+\b/gi, "documento tecnico ELO");
+  }
+
+  function cleanEloCommercialText_(value, fallback) {
+    const text = sanitizeEloProfessionalPresentationText_(value);
+    if (!text || /^(nao informado|nao informada|nao localizada)$/i.test(normalizeText(text))) return fallback || "Aguardando identificacao";
+    return text;
+  }
+
   function getEloDocumentSection_(record, names, fallback) {
     const safe = record || {};
     const direct = names.map(function (name) { return safe[name]; }).find(function (value) { return sanitizeUserText(value || ""); });
@@ -1411,61 +1428,91 @@
     const pendencias = getEloDocumentSection_(safe, ["Pendencias tecnicas", "Composicoes nao localizadas", "Observacoes tecnicas"], ctx.pendencias || safe.pendencias || "");
     const alertas = getEloDocumentSection_(safe, ["Alertas do auditor", "Alertas tecnicos", "Avisos profissionais"], ctx.alertas || safe.avisos_profissionais || "");
     return {
-      nomeDocumento: cleanEloDocumentText_(ctx.nomeDocumento || safe.titulo || "Documento tecnico preliminar do Elo"),
-      numero: cleanEloDocumentText_(safe.numero || ctx.numero, "nao informado"),
-      versao: cleanEloDocumentText_(safe.versao || ctx.versao || "1", "1"),
-      cliente: cleanEloDocumentText_(safe.cliente || ctx.cliente, "nao informado"),
-      obra: cleanEloDocumentText_(safe.obra || safe.nome || safe.name || ctx.obra, "nao informado"),
-      cidade: cleanEloDocumentText_(cidadeUf, "nao informado"),
-      dataHora: cleanEloDocumentText_(formatEloBudgetRecordDate_(safe.data_atualizacao || safe.data_criacao || ctx.dataHora || new Date().toISOString()), "nao informado"),
-      statusDocumento: cleanEloDocumentText_(safe.status || ctx.statusDocumento || "rascunho tecnico", "rascunho tecnico"),
-      escopo: cleanEloDocumentText_(ctx.escopo || safe.escopo || safe.resumo_executivo || "Atendimento tecnico assistido pelo Elo conforme dados disponiveis.", "nao informado"),
-      premissas: cleanEloDocumentText_(premissas, "nao informado"),
-      servicos: cleanEloDocumentText_(ctx.servicos || safe.servicos || safe.tipo || "nao informado", "nao informado"),
-      quantitativos: cleanEloDocumentText_(quantitativos, "nao informado"),
-      memoriaCalculo: cleanEloDocumentText_(ctx.memoriaCalculo || quantitativos || markdown, "nao informado"),
-      composicoes: cleanEloDocumentText_(composicoes, "nao localizada"),
-      custos: cleanEloDocumentText_(custos, "nao informado"),
-      pendencias: cleanEloDocumentText_(pendencias, "Validar dados faltantes, projeto, memorial, composicoes oficiais, precos, BDI e responsabilidade tecnica profissional."),
-      alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
-      origemBase: cleanEloDocumentText_(origemBase, "nao localizada"),
-      conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
-      areaConstruida: cleanEloDocumentText_(safe.areaConstruida || safe.area_construida || ctx.areaConstruida, "nao informada"),
-      assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
+      nomeDocumento: cleanEloCommercialText_(ctx.nomeDocumento || safe.titulo || "Documento tecnico preliminar do Elo", "Documento tecnico preliminar do Elo"),
+      numero: cleanEloCommercialText_(safe.numero || ctx.numero, "ELO-PENDENTE"),
+      versao: cleanEloCommercialText_(safe.versao || ctx.versao || "1", "1"),
+      cliente: cleanEloCommercialText_(safe.cliente || ctx.cliente, "Aguardando identificacao"),
+      obra: cleanEloCommercialText_(safe.obra || ctx.obra, "Aguardando identificacao"),
+      cidade: cleanEloCommercialText_(cidadeUf, "Aguardando identificacao"),
+      dataHora: cleanEloCommercialText_(formatEloBudgetRecordDate_(safe.data_atualizacao || safe.data_criacao || ctx.dataHora || new Date().toISOString()), "Aguardando identificacao"),
+      statusDocumento: cleanEloCommercialText_(safe.status || ctx.statusDocumento || "rascunho tecnico", "rascunho tecnico"),
+      resumoExecutivo: cleanEloCommercialText_(ctx.resumoExecutivo || safe.resumoExecutivo || safe.resumo_executivo, "Resumo tecnico preliminar gerado pelo ELO com base nos dados informados e pendencias declaradas."),
+      escopo: cleanEloCommercialText_(ctx.escopo || safe.escopo || safe.resumo_executivo || "Atendimento tecnico assistido pelo Elo conforme dados disponiveis.", "Aguardando identificacao"),
+      premissas: cleanEloCommercialText_(premissas, "Aguardando identificacao"),
+      servicos: cleanEloCommercialText_(ctx.servicos || safe.servicos || safe.tipo, "Aguardando identificacao"),
+      quantitativos: cleanEloCommercialText_(quantitativos, "quantitativos pendentes"),
+      memoriaCalculo: cleanEloCommercialText_(ctx.memoriaCalculo || quantitativos || markdown, "Aguardando identificacao"),
+      composicoes: cleanEloCommercialText_(composicoes, "composicoes oficiais pendentes de validacao"),
+      custos: cleanEloCommercialText_(custos, "valores pendentes"),
+      pendencias: cleanEloCommercialText_(pendencias, "Validar dados faltantes, projeto, memorial, composicoes oficiais, precos, BDI e responsabilidade tecnica profissional."),
+      alertas: cleanEloCommercialText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
+      origemBase: cleanEloCommercialText_(origemBase, "Base tecnica preliminar. SINAPI/ORSE pendente de validacao."),
+      conteudoTecnico: cleanEloCommercialText_(markdown, "Aguardando identificacao"),
+      areaConstruida: cleanEloCommercialText_(safe.areaConstruida || safe.area_construida || ctx.areaConstruida, "Aguardando identificacao"),
+      assinatura: cleanEloCommercialText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia"),
+      hashRastreabilidade: cleanEloCommercialText_(safe.hash || safe.hash_simples || ctx.hash || ctx.hashRastreabilidade, "Hash pendente")
     };
   }
 
   function buildEloProfessionalPdfDocument(record, context) {
     const data = normalizeEloProfessionalPdfData_(record, context);
     const ctx = context || {};
-    function field(label, value) { return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "nao informado") + "</strong></div>"; }
-    function block(title, value, tone) { return "<section class=\"elo-pdf-section " + (tone || "") + "\"><h2>" + escapeEloHtml_(title) + "</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(value || "nao informado") + "</div></section>"; }
+    function field(label, value) { return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "Aguardando identificacao") + "</strong></div>"; }
+    function block(title, value, tone) { return "<section class=\"elo-pdf-section " + (tone || "") + "\"><h2>" + escapeEloHtml_(title) + "</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(value || "Aguardando identificacao") + "</div></section>"; }
     const legacyWallMemory = /206[,.]00|206\s*m/i.test(data.conteudoTecnico) ? "<p>\u00c1rea l\u00edquida de parede = 206,00 m\u00b2</p>" : "";
-    const displayedBase = /^(nao localizada|nao informado)$/i.test(normalizeText(data.origemBase || "")) ? "SINAPI BA 2024-12" : data.origemBase;
-    const section = ["<main class=\"elo-professional-pdf\">", "<section class=\"elo-pdf-cover\"><div class=\"elo-pdf-brand\">\u00cdCARO AMARAL ENGENHARIA</div><p class=\"elo-pdf-kicker\">Documento tecnico de engenharia</p><h1>PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO</h1><p class=\"elo-pdf-subtitle\">" + escapeEloHtml_(data.nomeDocumento) + "</p><div class=\"elo-pdf-meta-grid\">", field("Cliente", data.cliente), field("Obra", data.obra), field("Cidade/UF", data.cidade), field("Data/hora", data.dataHora), field("Numero", data.numero), field("Versao", data.versao), field("Status", data.statusDocumento), "</div></section>", block("Escopo do atendimento", data.escopo), block("Premissas e observa\u00e7\u00f5es", data.premissas), block("Tabela de servi\u00e7os / quantitativos", [data.servicos, data.quantitativos, data.custos, legacyWallMemory].filter(Boolean).join("\n\n")), block("Memoria de calculo", data.memoriaCalculo), block("Composicoes tecnicas", data.composicoes), block("Pendencias e informacoes faltantes", data.pendencias, "elo-pdf-warning"), block("Alertas tecnicos e limitacoes", data.alertas, "elo-pdf-warning"), block("Origem da base tecnica", displayedBase || "SINAPI BA 2024-12"), block("Conteudo tecnico consolidado", data.conteudoTecnico), "<section class=\"elo-pdf-section\"><h2>\u00c1rea constru\u00edda</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(data.areaConstruida || "nao informada") + "</div></section><section class=\"elo-pdf-signature\"><strong>Responsabilidade t\u00e9cnica e revis\u00e3o profissional</strong><p>Documento preliminar gerado com apoio do ELO. Deve ser revisado, validado e assinado por profissional habilitado antes de uso contratual, executivo ou legal.</p><p>\u00cdcaro Amaral de Ara\u00fajo</p><p>" + escapeEloHtml_(data.assinatura) + "</p></section><footer class=\"elo-pdf-footer\"><span>Icaro Amaral Engenharia</span><span>Pagina <span class=\"elo-page-number\"></span></span></footer></main>"].join("");
-    const css = "body{margin:0;background:#eef2f6;color:#182332;font-family:Arial,Helvetica,sans-serif}.elo-print-toolbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#172033;color:white}.elo-print-toolbar button{border:0;border-radius:6px;padding:9px 13px;font-weight:700;cursor:pointer}.elo-print-primary{background:#1f6feb;color:white}.elo-print-secondary{background:#eef2f6;color:#172033}.elo-professional-pdf{max-width:900px;margin:24px auto;background:white;padding:44px 52px;box-shadow:0 18px 45px rgba(15,23,42,.16);line-height:1.45}.elo-pdf-cover{border-bottom:4px solid #1f6feb;padding-bottom:24px;margin-bottom:22px}.elo-pdf-brand{font-size:13px;text-transform:uppercase;font-weight:800;color:#1f6feb;letter-spacing:.08em}.elo-pdf-kicker{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-cover h1{font-size:30px;margin:6px 0 18px;color:#0f172a}.elo-pdf-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.elo-pdf-field{border:1px solid #d9e2ec;background:#f8fafc;padding:10px 12px;border-radius:6px}.elo-pdf-field span{display:block;font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-section{break-inside:avoid;margin:18px 0}.elo-pdf-section h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#1f6feb}.elo-pdf-box{white-space:pre-wrap;border:1px solid #d9e2ec;border-left:4px solid #1f6feb;border-radius:6px;padding:12px;background:#fbfdff}.elo-pdf-warning .elo-pdf-box{border-left-color:#b45309;background:#fffaf0}.elo-pdf-signature{margin-top:28px;border-top:1px solid #d9e2ec;padding-top:16px}.elo-pdf-footer{margin-top:24px;padding-top:10px;border-top:1px solid #d9e2ec;display:flex;justify-content:space-between;color:#64748b;font-size:12px}@media print{body{background:white}.elo-print-toolbar{display:none}.elo-professional-pdf{box-shadow:none;margin:0;max-width:none;padding:18mm}.elo-page-number:after{content:counter(page)}}";
+    const displayedBase = /^(nao localizada|nao informado)$/i.test(normalizeText(data.origemBase || "")) ? "Base tecnica preliminar. SINAPI/ORSE pendente de validacao." : data.origemBase;
+    const footerText = "Documento: " + data.numero + " | Versao: " + data.versao + " | Gerado em: " + data.dataHora + " | Base tecnica: " + (displayedBase || "Base tecnica preliminar") + " | Hash: " + data.hashRastreabilidade;
+    const section = ["<main class=\"elo-professional-pdf\">", "<section class=\"elo-pdf-cover\"><div class=\"elo-pdf-brand\">\u00cdCARO AMARAL ENGENHARIA</div><p class=\"elo-pdf-kicker\">Documento tecnico de engenharia</p><h1>PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO</h1><p class=\"elo-pdf-subtitle\">" + escapeEloHtml_(data.nomeDocumento) + "</p><div class=\"elo-pdf-meta-grid\">", field("Cliente", data.cliente), field("Obra", data.obra), field("Cidade/UF", data.cidade), field("Data/hora", data.dataHora), field("Numero", data.numero), field("Versao", data.versao), field("Status", data.statusDocumento), "</div></section>", block("Resumo Executivo", data.resumoExecutivo), block("Escopo do atendimento", data.escopo), block("Premissas e observa\u00e7\u00f5es", data.premissas), block("Servi\u00e7os previstos", [data.servicos, data.quantitativos, data.custos, legacyWallMemory].filter(Boolean).join("\n\n")), block("Memoria de calculo", data.memoriaCalculo), block("Composicoes tecnicas", data.composicoes), block("Pendencias e informacoes faltantes", data.pendencias, "elo-pdf-warning"), block("Alertas tecnicos e limitacoes", data.alertas, "elo-pdf-warning"), block("Origem da base tecnica", displayedBase || "Base tecnica preliminar. SINAPI/ORSE pendente de validacao."), block("Conteudo tecnico consolidado", data.conteudoTecnico), "<section class=\"elo-pdf-section\"><h2>\u00c1rea constru\u00edda</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(data.areaConstruida || "Aguardando identificacao") + "</div></section><section class=\"elo-pdf-signature\"><strong>Responsabilidade t\u00e9cnica e revis\u00e3o profissional</strong><p>Documento preliminar gerado com apoio do ELO. Deve ser revisado, validado e assinado por profissional habilitado antes de uso contratual, executivo ou legal.</p><p>\u00cdcaro Amaral de Ara\u00fajo</p><p>" + escapeEloHtml_(data.assinatura) + "</p></section><footer class=\"elo-pdf-footer\"><span>" + escapeEloHtml_(footerText) + "</span><span>Pagina <span class=\"elo-page-number\"></span></span></footer></main>"].join("");
+    const css = "body{margin:0;background:#eef2f6;color:#182332;font-family:Arial,Helvetica,sans-serif}.elo-print-toolbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#172033;color:white}.elo-print-toolbar button{border:0;border-radius:6px;padding:9px 13px;font-weight:700;cursor:pointer}.elo-print-primary{background:#1f6feb;color:white}.elo-print-secondary{background:#eef2f6;color:#172033}.elo-professional-pdf{max-width:900px;margin:24px auto;background:white;padding:44px 52px;box-shadow:0 18px 45px rgba(15,23,42,.16);line-height:1.45}.elo-pdf-cover{border-bottom:4px solid #1f6feb;padding-bottom:24px;margin-bottom:22px}.elo-pdf-brand{font-size:13px;text-transform:uppercase;font-weight:800;color:#1f6feb;letter-spacing:.08em}.elo-pdf-kicker{font-size:12px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-cover h1{font-size:30px;margin:6px 0 18px;color:#0f172a}.elo-pdf-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.elo-pdf-field{border:1px solid #d9e2ec;background:#f8fafc;padding:10px 12px;border-radius:6px}.elo-pdf-field span{display:block;font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700}.elo-pdf-section{break-inside:avoid;margin:18px 0}.elo-pdf-section h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#1f6feb}.elo-pdf-box{white-space:pre-wrap;border:1px solid #d9e2ec;border-left:4px solid #1f6feb;border-radius:6px;padding:12px;background:#fbfdff}.elo-pdf-warning .elo-pdf-box{border-left-color:#b45309;background:#fffaf0}.elo-pdf-signature{margin-top:28px;border-top:1px solid #d9e2ec;padding-top:16px}.elo-pdf-footer{margin-top:24px;padding-top:10px;border-top:1px solid #d9e2ec;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#64748b;font-size:11px}@media print{body{background:white}.elo-print-toolbar{display:none}.elo-professional-pdf{box-shadow:none;margin:0;max-width:none;padding:18mm}.elo-page-number:after{content:counter(page)}}";
     if (ctx.innerOnly) return section;
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-toolbar\"><span>Gerado pelo ELO</span><button class=\"elo-print-primary\" onclick=\"window.print()\">Imprimir / Salvar como PDF</button><button class=\"elo-print-secondary\" onclick=\"window.close()\">Fechar</button></div>" + section + "</body></html>";
   }
 
-  const ELO_BUDGET_V2_PDF_NOTICE = "Este documento é preliminar. Quantitativos e valores dependem de projeto, memorial, composições oficiais SINAPI/ORSE, BDI, encargos e preços vigentes.";
+  const ELO_BUDGET_V2_PDF_NOTICE = "Este documento \u00e9 preliminar. Quantitativos e valores dependem de projeto, memorial, composi\u00e7\u00f5es oficiais SINAPI/ORSE, BDI, encargos e pre\u00e7os vigentes.";
 
-  function formatBudgetV2PdfValue_(value) {
+  function getBudgetV2ProfessionalUf_(doc) {
+    const facts = doc && doc.facts || {};
+    const cityUf = facts.cityUf || facts["cidade/UF"] || "";
+    const state = facts.state || facts.uf || (String(cityUf).match(/\/\s*([A-Z]{2})\b/i) || [])[1] || "";
+    return /^[A-Z]{2}$/i.test(String(state)) ? String(state).toUpperCase() : "";
+  }
+
+  function buildBudgetV2ProfessionalNumber_(doc) {
+    const raw = [doc && (doc.budgetId || doc.documentId || doc.id) || "elo-budget-v2", JSON.stringify(doc && doc.facts || {})].join("|");
+    let hash = 0;
+    for (let index = 0; index < raw.length; index += 1) hash = ((hash << 5) - hash + raw.charCodeAt(index)) | 0;
+    const sequence = String(Math.abs(hash) % 1000000).padStart(6, "0");
+    const year = String(new Date().getFullYear());
+    const uf = getBudgetV2ProfessionalUf_(doc);
+    return ["ELO", uf, year, sequence].filter(Boolean).join("-");
+  }
+
+  function formatBudgetV2PdfStatus_(value) {
+    const normalized = normalizeText(value || "");
+    if (!normalized) return "";
+    if (/pending_official_composition|composicao.*pend/.test(normalized)) return "composicao oficial pendente de validacao";
+    if (/adapter_fallback|fallback/.test(normalized)) return "item tecnico preliminar";
+    if (/pending|pendente/.test(normalized)) return "pendente de validacao";
+    return sanitizeEloProfessionalPresentationText_(value);
+  }
+
+  function formatBudgetV2PdfValue_(value, options) {
     if (value === null || value === undefined || value === "") return "";
-    if (Array.isArray(value)) return value.map(formatBudgetV2PdfValue_).filter(Boolean).join("\n");
-    if (typeof value !== "object") return sanitizeUserText(String(value));
-    const preferred = value.label || value.name || value.service || value.description || value.message || value.id || "";
-    const quantity = value.quantity || value.qty || value.totalQuantity || "";
+    if (Array.isArray(value)) return value.map(function (item) { return formatBudgetV2PdfValue_(item, options); }).filter(Boolean).join("\n");
+    if (typeof value !== "object") return sanitizeEloProfessionalPresentationText_(String(value));
+    const preferred = value.label || value.name || value.service || value.description || value.message || "";
+    const quantity = options && options.omitQuantity ? "" : (value.quantity || value.qty || value.totalQuantity || "");
     const unit = value.unit || "";
-    const status = value.status || "";
-    const source = value.source || value.base || "";
+    const status = formatBudgetV2PdfStatus_(value.status || "");
+    const source = formatBudgetV2PdfStatus_(value.source || value.base || "");
     const parts = [preferred, quantity ? String(quantity) + (unit ? " " + unit : "") : "", status, source].filter(Boolean);
-    return sanitizeUserText(parts.join(" - "));
+    return sanitizeEloProfessionalPresentationText_(parts.join(" - "));
   }
 
   function formatBudgetV2PdfList_(title, value, fallback) {
     const normalized = Array.isArray(value) ? value : (value && typeof value === "object" ? Object.keys(value).map(function (key) { return key + ": " + formatBudgetV2PdfValue_(value[key]); }) : []);
-    const lines = normalized.map(function (item) { return formatBudgetV2PdfValue_(item); }).filter(Boolean);
+    const omitQuantity = /servi|escopo/i.test(normalizeText(title || ""));
+    const lines = normalized.map(function (item) { return formatBudgetV2PdfValue_(item, { omitQuantity: omitQuantity }); }).filter(Boolean);
     return title + "\n" + (lines.length ? lines.map(function (item) { return "- " + item; }).join("\n") : "- " + (fallback || "nao informado"));
   }
 
@@ -1512,23 +1559,43 @@
     return formatBudgetV2PdfValue_(budget);
   }
 
+  function formatBudgetV2PdfExecutiveSummary_(doc, professionalNumber, area, cityUf) {
+    const facts = doc.facts || {};
+    const standard = facts.padrao || facts.projectStandard || "Aguardando identificacao";
+    const lines = [
+      "Documento preliminar de or\u00e7amento residencial gerado pelo ELO Or\u00e7amentista V2 para apresenta\u00e7\u00e3o comercial e revis\u00e3o t\u00e9cnica.",
+      "Numero do documento: " + professionalNumber,
+      "Tipo da obra: or\u00e7amento residencial preliminar",
+      "\u00c1rea informada: " + (area || "Aguardando identificacao"),
+      "Localiza\u00e7\u00e3o: " + (cityUf || "Aguardando identificacao"),
+      "Padr\u00e3o informado: " + standard,
+      "Valores: pendentes at\u00e9 valida\u00e7\u00e3o por base oficial SINAPI/ORSE, BDI, encargos e pre\u00e7os vigentes."
+    ];
+    return sanitizeEloProfessionalPresentationText_(lines.join("\n"));
+  }
+
   function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
     const doc = budgetDocumentData || {};
     const factsLines = formatBudgetV2PdfFacts_(doc.facts);
     const inheritedLines = formatBudgetV2PdfFacts_(doc.inheritedFacts);
     const assumptions = Array.isArray(doc.assumptions) ? doc.assumptions : [];
     const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields : [];
-    const escopo = formatBudgetV2PdfList_("Escopo preliminar", doc.scope, "escopo pendente");
+    const escopo = formatBudgetV2PdfList_("Servi\u00e7os previstos", doc.scope, "escopo pendente");
     const materiais = formatBudgetV2PdfMaterials_(doc.materials);
     const quantitativos = formatBudgetV2PdfList_("Quantitativos", doc.quantities, "quantitativos pendentes");
     const composicoes = formatBudgetV2PdfList_("Composicoes", doc.compositions, "composicoes oficiais pendentes");
     const custos = formatBudgetV2PdfBudget_(doc.budget);
     const riscos = formatBudgetV2PdfList_("Riscos tecnicos", doc.risks, "validar premissas tecnicas");
     const proximos = formatBudgetV2PdfList_("Proximos passos", doc.nextSteps, "validar projeto, memorial e composicoes oficiais");
+    const cityUf = doc.facts && (doc.facts.cityUf || doc.facts["cidade/UF"] || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
+    const rawArea = doc.facts && (doc.facts["area construida"] || doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2);
+    const area = rawArea ? (/m2|m\^2/i.test(String(rawArea)) ? String(rawArea) : rawArea + " m2") : "";
+    const professionalNumber = buildBudgetV2ProfessionalNumber_(doc);
+    const resumoExecutivo = formatBudgetV2PdfExecutiveSummary_(doc, professionalNumber, area, cityUf);
     const conteudo = [
       "ELO ORCAMENTISTA V2",
-      "Tipo: Orçamento residencial preliminar",
-      "ID interno do orçamento: " + (doc.budgetId || "nao informado"),
+      "Tipo: Or\u00e7amento residencial preliminar",
+      "N\u00famero do documento: " + professionalNumber,
       "",
       "Dados confirmados",
       factsLines.length ? factsLines.map(function (item) { return "- " + item; }).join("\n") : "- nenhum dado confirmado",
@@ -1550,58 +1617,54 @@
       "",
       composicoes,
       "",
-      "Orçamento/valores",
+      "Or?amento/valores",
       "- " + custos,
       "",
       riscos,
       "",
       proximos,
       "",
-      "Aviso técnico",
+      "Aviso t\u00e9cnico",
       ELO_BUDGET_V2_PDF_NOTICE
     ].join("\n");
-    const cityUf = doc.facts && (doc.facts.cityUf || doc.facts["cidade/UF"] || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
-    const rawArea = doc.facts && (doc.facts["area construida"] || doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2);
-    const area = rawArea ? (/m2|m\^2|m²/i.test(String(rawArea)) ? String(rawArea) : rawArea + " m2") : "";
     return {
       record: {
-        numero: doc.budgetId || "budget-v2",
-        titulo: "ELO Orçamentista V2",
-        tipo: "Orçamento residencial preliminar",
+        numero: professionalNumber,
+        titulo: "ELO Or\u00e7amentista V2",
+        tipo: "Or\u00e7amento residencial preliminar",
+        cliente: "Aguardando identifica\u00e7\u00e3o",
+        obra: "Aguardando identifica\u00e7\u00e3o",
         cidade_uf: cityUf,
         areaConstruida: area,
         escopo: escopo,
-        servicos: escopo,
-        quantitativos: quantitativos,
+        resumoExecutivo: resumoExecutivo,
+        servicos: [escopo, materiais].filter(Boolean).join("\n\n"),
+        memoriaCalculo: [factsLines.join("\n"), inheritedLines.join("\n"), quantitativos].filter(Boolean).join("\n\n"),
         composicoes: composicoes,
+        pendencias: pending.length ? pending.map(formatBudgetV2PdfValue_).join("\n") : "sem pendencias minimas informadas",
+        avisos_profissionais: [riscos, ELO_BUDGET_V2_PDF_NOTICE].join("\n\n"),
         custos_encontrados: custos,
-        pendencias: pending.length ? pending.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "Sem pendencias minimas informadas.",
-        avisos_profissionais: ELO_BUDGET_V2_PDF_NOTICE,
-        resumo_executivo: "Orçamento residencial preliminar estruturado pelo ELO Orçamentista V2.",
-        conteudo_markdown: conteudo,
-        bases_tecnicas: "SINAPI/ORSE somente quando composicoes oficiais forem importadas e validadas."
+        bases_tecnicas: "Base tecnica preliminar. SINAPI/ORSE pendente de validacao.",
+        conteudo_markdown: sanitizeEloProfessionalPresentationText_(conteudo)
       },
       context: {
-        nomeDocumento: "ELO Orçamentista V2",
-        statusDocumento: "preliminar",
-        areaConstruida: area,
-        premissas: [
-          formatBudgetV2PdfList_("Dados confirmados", factsLines, "nenhum dado confirmado"),
-          formatBudgetV2PdfList_("Dados herdados", inheritedLines, "nenhum dado herdado"),
-          formatBudgetV2PdfList_("Dados assumidos", assumptions, "nenhuma premissa assumida")
-        ].join("\n\n"),
+        nomeDocumento: "ELO Or\u00e7amentista V2",
+        numero: professionalNumber,
+        resumoExecutivo: resumoExecutivo,
         escopo: escopo,
-        servicos: materiais,
-        quantitativos: quantitativos,
+        servicos: [escopo, materiais].filter(Boolean).join("\n\n"),
+        memoriaCalculo: [factsLines.join("\n"), inheritedLines.join("\n"), quantitativos].filter(Boolean).join("\n\n"),
         composicoes: composicoes,
+        pendencias: pending.length ? pending.map(formatBudgetV2PdfValue_).join("\n") : "sem pendencias minimas informadas",
+        alertas: [riscos, ELO_BUDGET_V2_PDF_NOTICE].join("\n\n"),
         custos: custos,
-        pendencias: pending.length ? pending.map(function (item) { return "- " + formatBudgetV2PdfValue_(item); }).join("\n") : "Sem pendencias minimas informadas.",
-        alertas: [ELO_BUDGET_V2_PDF_NOTICE, riscos].join("\n\n"),
-        origemBase: "SINAPI/ORSE somente quando composicoes oficiais forem importadas e validadas.",
-        memoriaCalculo: conteudo
+        origemBase: "Base tecnica preliminar. SINAPI/ORSE pendente de validacao.",
+        areaConstruida: area,
+        assinatura: "\u00cdcaro Amaral Engenharia"
       }
     };
   }
+
   function mapBudgetV2StateFact_(state, field) {
     if (!state) return null;
     const cityUf = [state.city, state.state].filter(Boolean).join("/");
@@ -1665,6 +1728,7 @@
     const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields : [];
     return !!(doc.budgetId && !pending.length && (facts["area construida"] || facts.builtAreaM2 || facts.areaConstruidaM2) && (facts["cidade/UF"] || facts.cityUf || facts.city) && (facts.padrao || facts.projectStandard));
   }
+
 
   function buildBudgetV2ProfessionalPdfAction_(budgetDocumentData) {
     if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return null;
@@ -17797,6 +17861,25 @@
     }
   }
 
+  function enhanceEloFinalResponse(userMessage, assistantResponse, context) {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.EloConversationConductor &&
+        typeof window.EloConversationConductor.enhanceResponse === "function"
+      ) {
+        return window.EloConversationConductor.enhanceResponse({
+          userMessage: userMessage,
+          assistantResponse: assistantResponse,
+          context: context || {}
+        });
+      }
+    } catch (error) {
+      console.warn("[ELO] Conversation conductor fallback:", error);
+    }
+
+    return assistantResponse;
+  }
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -17818,13 +17901,17 @@
     if (attachedPdf) {
       const statusMessage = appendMessage("assistant", "Lendo PDF...");
       buildEloPdfLocalSummary_(cleanQuestion, attachedFiles).then(function (pdfAnswer) {
-        updateEloMessage_(statusMessage, pdfAnswer);
-        saveConversation(cleanQuestion, pdfAnswer);
+        const conductedPdfAnswer = enhanceEloFinalResponse(cleanQuestion, pdfAnswer, {
+          sessionTheme: "pdf_reading",
+          source: "pdf"
+        });
+        updateEloMessage_(statusMessage, conductedPdfAnswer);
+        saveConversation(cleanQuestion, conductedPdfAnswer);
         rememberSessionTurn(cleanQuestion, {
           sessionTheme: "pdf_reading",
           sessionIntent: "pdf_reading",
           nextAction: "Peca uma pergunta especifica sobre o PDF ou um resumo por topicos."
-        }, pdfAnswer);
+        }, conductedPdfAnswer);
       }).finally(function () {
         clearProductAttachmentPreview();
       });
@@ -18599,21 +18686,26 @@
       }
 
       const answer = formatEloImageAnalysis_(result);
-      updateEloMessage_(statusMessage, answer);
-      saveConversation(cleanQuestion, answer);
+      const conductedAnswer = enhanceEloFinalResponse(cleanQuestion, answer, context);
+      updateEloMessage_(statusMessage, conductedAnswer);
+      saveConversation(cleanQuestion, conductedAnswer);
       rememberSessionTurn(cleanQuestion, {
         sessionTheme: "analise-visual",
         nextAction: "Valide a analise visual com o responsavel tecnico."
-      }, answer);
+      }, conductedAnswer);
     } catch (error) {
       const fallbackAnswer = buildEloImageFallbackAnswer_(file, error);
-      updateEloMessage_(statusMessage, fallbackAnswer);
-      saveConversation(cleanQuestion, fallbackAnswer);
+      const conductedFallbackAnswer = enhanceEloFinalResponse(cleanQuestion, fallbackAnswer, {
+        sessionTheme: "analise-visual",
+        sessionIntent: "image_analysis_fallback"
+      });
+      updateEloMessage_(statusMessage, conductedFallbackAnswer);
+      saveConversation(cleanQuestion, conductedFallbackAnswer);
       rememberSessionTurn(cleanQuestion, {
         sessionTheme: "analise-visual",
         sessionIntent: "image_analysis_fallback",
         nextAction: "Se quiser, envie uma foto mais nitida ou descreva o ponto da obra."
-      }, fallbackAnswer);
+      }, conductedFallbackAnswer);
     } finally {
       ELO_UI.attachments = [];
       if (ELO_UI.attachmentInput) {
@@ -19178,7 +19270,8 @@
 
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
-    const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
+    const conductedAnswer = enhanceEloFinalResponse(question, answer, response || {});
+    const cleanAnswer = sanitizeEloAnswerForDisplay(conductedAnswer);
     const pendingSavePrompt = response && response.savePrompt !== undefined
       ? normalizeEloSavePrompt(response.savePrompt)
       : ELO_UI.pendingSavePrompt;

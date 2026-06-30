@@ -181,7 +181,7 @@ test("PDF profissional de orcamento nao despeja HTML no chat e gera artefato com
     "\u00cdcaro Amaral de Ara\u00fajo",
     "\u00c1rea constru\u00edda",
     "Responsabilidade t\u00e9cnica",
-    "Tabela de servi\u00e7os / quantitativos",
+    "Servi\u00e7os previstos",
     "Premissas e observa\u00e7\u00f5es",
     "SINAPI BA 2024-12",
     "\u00c1rea l\u00edquida de parede = 206,00 m\u00b2",
