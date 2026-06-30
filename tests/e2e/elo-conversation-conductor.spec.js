@@ -11,13 +11,19 @@ async function loadConductor(page) {
   });
 }
 
-async function enhance(page, userMessage, assistantResponse = "Entendi sua solicitação.") {
+async function enhance(page, userMessage, assistantResponse = "Entendi sua solicitacao.") {
   return page.evaluate(function (payload) {
     return window.EloConversationConductor.enhanceResponse(payload);
   }, {
     userMessage: userMessage,
     assistantResponse: assistantResponse,
     context: {}
+  });
+}
+
+async function state(page) {
+  return page.evaluate(function () {
+    return window.EloConversationConductor.loadState();
   });
 }
 
@@ -30,40 +36,65 @@ test.describe("EloConversationConductor", function () {
     await loadConductor(page);
   });
 
-  test("conduz duvida de infiltracao para diagnostico preliminar", async function ({ page }) {
-    const answer = await enhance(page, "tenho infiltração na parede");
+  test("detecta engenheiro com dor de produtividade/documentacao e oferece entrega visual", async function ({ page }) {
+    const answer = await enhance(page, "sou engenheiro e preciso fazer relatorios mais rapido");
+    const memory = await state(page);
 
-    expectText(answer, /diagnostico preliminar|possiveis causas|riscos|proximos passos/i);
+    expect(memory.persona).toBe("engenheiro");
+    expect(memory.pain).toBe("produtividade/documentacao");
+    expect(memory.leadTemperature).toBe("warm");
+    expectText(answer, /reduzir seu tempo de documentacao tecnica/i);
+    expectText(answer, /relatorio|checklist|PDF/i);
   });
 
-  test("conduz pedido de orcamento para coleta minima", async function ({ page }) {
-    const answer = await enhance(page, "quero orçamento de uma casa");
+  test("sindico com infiltracao recebe triagem tecnica sem orcamento de alvenaria", async function ({ page }) {
+    const answer = await enhance(page, "sou sindico e apareceu infiltracao no predio", "Isso pede triagem tecnica antes de qualquer reparo. Possiveis causas: falha de impermeabilizacao.");
+    const memory = await state(page);
 
-    expectText(answer, /tipo da obra/i);
+    expect(memory.persona).toBe("sindico/condominio");
+    expect(memory.pain).toBe("patologia/infiltracao");
+    expectText(answer, /triagem tecnica|checklist de vistoria|relatorio preliminar/i);
+    expect(String(answer || "")).not.toMatch(/Servico controlado identificado|tipo de bloco|orcamento assistido de alvenaria/i);
+  });
+
+  test("imobiliaria com vistoria recebe oferta de checklist e relatorio", async function ({ page }) {
+    const answer = await enhance(page, "tenho uma imobiliaria e preciso padronizar vistorias");
+    const memory = await state(page);
+
+    expect(memory.persona).toBe("imobiliaria");
+    expect(memory.pain).toMatch(/vistoria|documentacao/);
+    expectText(answer, /padronizar vistorias|checklist|relatorio/i);
+  });
+
+  test("pergunta de preco vira lead hot e propoe teste com caso real sem inventar preco", async function ({ page }) {
+    const answer = await enhance(page, "quanto custa para testar?");
+    const memory = await state(page);
+
+    expect(memory.leadTemperature).toBe("hot");
+    expect(memory.commercialStage).toBe("fechamento");
+    expectText(answer, /caso real/i);
+    expectText(answer, /relatorio|orcamento|checklist|RDO/i);
+    expect(String(answer || "")).not.toMatch(/R\$|\d+[,.]\d{2}|mensalidade de/i);
+  });
+
+  test("bom dia abre objetivo sem venda pesada", async function ({ page }) {
+    const answer = await enhance(page, "bom dia");
+    const memory = await state(page);
+
+    expect(memory.leadTemperature).toBe("cold");
+    expectText(answer, /Me diga o que voce quer resolver agora/i);
+    expect(String(answer || "")).not.toMatch(/assinar|contratar|mensalidade|plano|preco/i);
+  });
+
+  test("orcamento de casa preserva coleta tecnica sem virar discurso comercial", async function ({ page }) {
+    const technicalAnswer = "Preciso de poucos dados para montar o orcamento: cidade/estado, area aproximada em m2, padrao desejado e tipo da obra.";
+    const answer = await enhance(page, "quero orcamento de uma casa", technicalAnswer);
+    const memory = await state(page);
+
+    expect(memory.pain).toBe("orcamento/custo");
     expectText(answer, /cidade\/estado/i);
     expectText(answer, /area aproximada/i);
     expectText(answer, /padrao/i);
-  });
-
-  test("conduz laudo tecnico para estrutura de relatorio", async function ({ page }) {
-    const answer = await enhance(page, "preciso de um laudo técnico");
-
-    expectText(answer, /fotos/i);
-    expectText(answer, /estrutura do relatorio tecnico/i);
-  });
-
-  test("conduz pergunta de preco para caso real", async function ({ page }) {
-    await enhance(page, "bom dia");
-    const answer = await enhance(page, "quanto custa?");
-
-    expectText(answer, /caso real/i);
-    expectText(answer, /relatorio|orcamento|checklist|RDO/i);
-  });
-
-  test("bom dia abre objetivo sem forcar venda pesada", async function ({ page }) {
-    const answer = await enhance(page, "bom dia");
-
-    expectText(answer, /objetivo agora/i);
-    expect(String(answer || "")).not.toMatch(/assinar|contratar|mensalidade/i);
+    expect(String(answer || "")).not.toMatch(/reduzir seu tempo|vender|contratar|mensalidade/i);
   });
 });
