@@ -17861,6 +17861,25 @@
     }
   }
 
+  function enhanceEloFinalResponse(userMessage, assistantResponse, context) {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.EloConversationConductor &&
+        typeof window.EloConversationConductor.enhanceResponse === "function"
+      ) {
+        return window.EloConversationConductor.enhanceResponse({
+          userMessage: userMessage,
+          assistantResponse: assistantResponse,
+          context: context || {}
+        });
+      }
+    } catch (error) {
+      console.warn("[ELO] Conversation conductor fallback:", error);
+    }
+
+    return assistantResponse;
+  }
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -17882,13 +17901,17 @@
     if (attachedPdf) {
       const statusMessage = appendMessage("assistant", "Lendo PDF...");
       buildEloPdfLocalSummary_(cleanQuestion, attachedFiles).then(function (pdfAnswer) {
-        updateEloMessage_(statusMessage, pdfAnswer);
-        saveConversation(cleanQuestion, pdfAnswer);
+        const conductedPdfAnswer = enhanceEloFinalResponse(cleanQuestion, pdfAnswer, {
+          sessionTheme: "pdf_reading",
+          source: "pdf"
+        });
+        updateEloMessage_(statusMessage, conductedPdfAnswer);
+        saveConversation(cleanQuestion, conductedPdfAnswer);
         rememberSessionTurn(cleanQuestion, {
           sessionTheme: "pdf_reading",
           sessionIntent: "pdf_reading",
           nextAction: "Peca uma pergunta especifica sobre o PDF ou um resumo por topicos."
-        }, pdfAnswer);
+        }, conductedPdfAnswer);
       }).finally(function () {
         clearProductAttachmentPreview();
       });
@@ -18663,21 +18686,26 @@
       }
 
       const answer = formatEloImageAnalysis_(result);
-      updateEloMessage_(statusMessage, answer);
-      saveConversation(cleanQuestion, answer);
+      const conductedAnswer = enhanceEloFinalResponse(cleanQuestion, answer, context);
+      updateEloMessage_(statusMessage, conductedAnswer);
+      saveConversation(cleanQuestion, conductedAnswer);
       rememberSessionTurn(cleanQuestion, {
         sessionTheme: "analise-visual",
         nextAction: "Valide a analise visual com o responsavel tecnico."
-      }, answer);
+      }, conductedAnswer);
     } catch (error) {
       const fallbackAnswer = buildEloImageFallbackAnswer_(file, error);
-      updateEloMessage_(statusMessage, fallbackAnswer);
-      saveConversation(cleanQuestion, fallbackAnswer);
+      const conductedFallbackAnswer = enhanceEloFinalResponse(cleanQuestion, fallbackAnswer, {
+        sessionTheme: "analise-visual",
+        sessionIntent: "image_analysis_fallback"
+      });
+      updateEloMessage_(statusMessage, conductedFallbackAnswer);
+      saveConversation(cleanQuestion, conductedFallbackAnswer);
       rememberSessionTurn(cleanQuestion, {
         sessionTheme: "analise-visual",
         sessionIntent: "image_analysis_fallback",
         nextAction: "Se quiser, envie uma foto mais nitida ou descreva o ponto da obra."
-      }, fallbackAnswer);
+      }, conductedFallbackAnswer);
     } finally {
       ELO_UI.attachments = [];
       if (ELO_UI.attachmentInput) {
@@ -19242,7 +19270,8 @@
 
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
-    const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
+    const conductedAnswer = enhanceEloFinalResponse(question, answer, response || {});
+    const cleanAnswer = sanitizeEloAnswerForDisplay(conductedAnswer);
     const pendingSavePrompt = response && response.savePrompt !== undefined
       ? normalizeEloSavePrompt(response.savePrompt)
       : ELO_UI.pendingSavePrompt;
