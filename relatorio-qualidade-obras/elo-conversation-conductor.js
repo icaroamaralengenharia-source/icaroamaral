@@ -551,6 +551,23 @@
     }
 
     const baseResponse = addToneGuard(assistantResponse);
+    const withWorkSession = function (finalResponse) {
+      const root = typeof window !== "undefined" ? window : globalThis;
+      if (root.EloWorkSessionEngine && typeof root.EloWorkSessionEngine.enhanceWithSession === "function") {
+        return root.EloWorkSessionEngine.enhanceWithSession({
+          message: userMessage,
+          userMessage: userMessage,
+          assistantResponse: finalResponse,
+          intent: intent,
+          stage: stage,
+          persona: persona,
+          pain: pain,
+          hiddenObjective: hiddenObjective,
+          urgency: urgency
+        });
+      }
+      return finalResponse;
+    };
     const finalizeConsultative = function (response) {
       const enhanced = enhanceConsultativeResponse({ response: response, strategy: strategy, state: previousState });
       if (enhanced !== response) {
@@ -562,28 +579,28 @@
     };
 
     if (stage === STAGES.fechamento) {
-      if (normalize(baseResponse).indexOf("caso real") >= 0) return baseResponse;
-      return baseResponse.trim() + "\n\n**Proximo passo:** " + nextAction;
+      if (normalize(baseResponse).indexOf("caso real") >= 0) return withWorkSession(baseResponse);
+      return withWorkSession(baseResponse.trim() + "\n\n**Proximo passo:** " + nextAction);
     }
 
     if (responseAsksForTechnicalData(baseResponse)) {
       const line = buildLightCommercialLine({ persona: persona, pain: pain, intent: intent, stage: stage });
-      if (normalize(baseResponse).indexOf(normalize(line)) >= 0) return finalizeConsultative(baseResponse);
-      return finalizeConsultative(baseResponse.trim() + "\n\n" + line);
+      if (normalize(baseResponse).indexOf(normalize(line)) >= 0) return withWorkSession(finalizeConsultative(baseResponse));
+      return withWorkSession(finalizeConsultative(baseResponse.trim() + "\n\n" + line));
     }
 
     const consultativeResponse = finalizeConsultative(baseResponse);
-    if (consultativeResponse !== baseResponse) return consultativeResponse;
+    if (consultativeResponse !== baseResponse) return withWorkSession(consultativeResponse);
 
     if (!nextAction || !shouldAppendAction(baseResponse)) {
-      return baseResponse;
+      return withWorkSession(baseResponse);
     }
 
     const offer = buildEloOffer({ persona: persona, pain: pain, intent: intent, stage: stage });
     const shouldShowOffer = nextState.leadTemperature !== "cold" && intent !== "orcamento";
     const offerLine = shouldShowOffer ? offer + "\n\n" : "";
 
-    return baseResponse.trim() + "\n\n" + offerLine + "**Proximo passo:** " + nextAction;
+    return withWorkSession(baseResponse.trim() + "\n\n" + offerLine + "**Proximo passo:** " + nextAction);
   }
 
   function resetState() {

@@ -1,13 +1,16 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
 
+const workSessionPath = path.resolve("relatorio-qualidade-obras", "elo-work-session-engine.js");
 const conductorPath = path.resolve("relatorio-qualidade-obras", "elo-conversation-conductor.js");
 
 async function loadConductor(page) {
   await page.goto("about:blank");
+  await page.addScriptTag({ path: workSessionPath });
   await page.addScriptTag({ path: conductorPath });
   await page.evaluate(function () {
     window.EloConversationConductor.resetState();
+    window.EloWorkSessionEngine.resetSession();
   });
 }
 
@@ -88,7 +91,7 @@ test.describe("EloConversationConductor", function () {
 
     expect(memory.strategyMode).toBe("resposta_curta");
     expectText(answer, /Me diga o que voce quer resolver agora/i);
-    expect(String(answer || "")).not.toMatch(/Entrega possivel|assinar|contratar|mensalidade|plano|preco/i);
+    expect(String(answer || "")).not.toMatch(/Entrega possivel|Entrega alvo|Sessao de trabalho|assinar|contratar|mensalidade|plano|preco/i);
   });
 
   test("preco para testar vira lead hot e sugere caso real sem inventar preco", async function ({ page }) {
@@ -102,5 +105,40 @@ test.describe("EloConversationConductor", function () {
     expectText(answer, /caso real/i);
     expectText(answer, /relatorio|orcamento|checklist|RDO|comunicacao/i);
     expect(String(answer || "")).not.toMatch(/R\$|\d+[,.]\d{2}|mensalidade de/i);
+  });
+
+  test("sessao de trabalho para patologia com resposta ao cliente", async function ({ page }) {
+    const answer = await enhance(page, "tenho infiltracao na parede e preciso responder meu cliente");
+
+    expectText(answer, /Sessao de trabalho/i);
+    expectText(answer, /Diagnostico tecnico|Resposta profissional para cliente/i);
+    expectText(answer, /Entrega alvo/i);
+    expectText(answer, /Proxima acao/i);
+  });
+
+  test("sessao de trabalho para orcamento consultivo", async function ({ page }) {
+    const technicalAnswer = "Preciso de poucos dados para montar o orcamento: cidade/estado, area aproximada em m2, padrao desejado e tipo da obra.";
+    const answer = await enhance(page, "quero orcamento de uma casa", technicalAnswer);
+
+    expectText(answer, /Sessao de trabalho/i);
+    expectText(answer, /Orcamento consultivo/i);
+    expectText(answer, /Cidade\/estado|Area aproximada/i);
+    expectText(answer, /orcamento preliminar/i);
+  });
+
+  test("sessao de trabalho para laudo tecnico", async function ({ page }) {
+    const answer = await enhance(page, "preciso de um laudo tecnico");
+
+    expectText(answer, /Sessao de trabalho/i);
+    expectText(answer, /Relatorio ou laudo tecnico/i);
+    expectText(answer, /Destinatario|Uso do documento/i);
+  });
+
+  test("saudacao simples nao inicia sessao de trabalho", async function ({ page }) {
+    const answer = await enhance(page, "bom dia");
+
+    expect(String(answer || "")).not.toMatch(/Sessao de trabalho/i);
+    expect(String(answer || "")).not.toMatch(/Entrega alvo/i);
+    expect(String(answer || "")).not.toMatch(/assinar|contratar|mensalidade|plano|preco/i);
   });
 });
