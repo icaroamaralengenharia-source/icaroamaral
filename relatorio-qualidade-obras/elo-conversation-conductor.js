@@ -376,6 +376,11 @@
 
     const baseResponse = addToneGuard(assistantResponse);
 
+    if (stage === STAGES.fechamento) {
+      if (normalize(baseResponse).indexOf("caso real") >= 0) return baseResponse;
+      return baseResponse.trim() + "\n\n**Proximo passo:** " + nextAction;
+    }
+
     if (responseAsksForTechnicalData(baseResponse)) {
       const line = buildLightCommercialLine({ persona: persona, pain: pain, intent: intent, stage: stage });
       if (normalize(baseResponse).indexOf(normalize(line)) >= 0) return baseResponse;

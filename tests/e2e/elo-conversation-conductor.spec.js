@@ -67,7 +67,8 @@ test.describe("EloConversationConductor", function () {
   });
 
   test("pergunta de preco vira lead hot e propoe teste com caso real sem inventar preco", async function ({ page }) {
-    const answer = await enhance(page, "quanto custa para testar?");
+    const baseAnswer = "Para calcular o custo, preciso saber exatamente o que voce quer testar e a escala do caso.";
+    const answer = await enhance(page, "quanto custa para testar?", baseAnswer);
     const memory = await state(page);
 
     expect(memory.leadTemperature).toBe("hot");
