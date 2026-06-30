@@ -18058,6 +18058,16 @@
       return;
     }
 
+    const immediatePathologyResponse = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (immediatePathologyResponse) {
+      const immediatePathologyAnswer = formatResponse(immediatePathologyResponse);
+      appendAssistantMessage(cleanQuestion, immediatePathologyAnswer, immediatePathologyResponse.canSave !== false, immediatePathologyResponse);
+      saveConversation(cleanQuestion, immediatePathologyAnswer);
+      rememberSessionTurn(cleanQuestion, immediatePathologyResponse, immediatePathologyAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);
     if (immediateWallResponse) {
       const immediateWallAnswer = formatResponse(immediateWallResponse);
@@ -18067,7 +18077,6 @@
       clearProductAttachmentPreview();
       return;
     }
-
     const stockIaPlanConfirmationAnswer = tryConfirmPendingStockIaPlan(cleanQuestion);
     if (stockIaPlanConfirmationAnswer) {
       const confirmationResponse = {

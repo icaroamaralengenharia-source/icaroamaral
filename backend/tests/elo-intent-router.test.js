@@ -133,6 +133,15 @@ test("IntentRouter prioriza patologia antes de orcamento ou alvenaria", () => {
   });
   assertNoTechnicalCalls(calls);
 });
+test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const pathologyIndex = source.indexOf("const immediatePathologyResponse = buildEloConstructionPathologyAnswer_(cleanQuestion);");
+  const wallIndex = source.indexOf("const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);");
+
+  assert.notEqual(pathologyIndex, -1);
+  assert.notEqual(wallIndex, -1);
+  assert.ok(pathologyIndex < wallIndex);
+});
 test("IntentRouter encaminha proposta e PDF sem busca SINAPI", () => {
   const { assistant, calls } = loadAssistant();
   const proposal = assistant.buildResponseForTest("Gerar proposta tecnica para cliente.");
