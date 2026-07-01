@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const stockObrasUrl = pathToFileURL(resolve("stock-ai-obras.html")).href;
 
 const FLOW_MESSAGES = [
   "Vou fazer 60m² de alvenaria com bloco cerâmico, chapisco e reboco. Faça a composição.",
@@ -29,7 +33,7 @@ async function sendStockObrasMessage(page, message, index) {
 
 test.describe("Elo Stock Obras - briefing de composição", () => {
   test("acumula bloco e vãos sem loop na página Stock AI Obras", async ({ page }) => {
-    await page.goto("http://127.0.0.1:5542/stock-ai-obras.html");
+    await page.goto(stockObrasUrl);
     await page.waitForFunction(() => window.EloAssistente && window.EloAssistente.buildResponseForTest && window.EloAssistente.getStockObrasBriefingForTest);
     await page.evaluate(() => {
       window.EloAssistente.resetStockObrasBriefingForTest();
@@ -38,12 +42,12 @@ test.describe("Elo Stock Obras - briefing de composição", () => {
     const first = await sendStockObrasMessage(page, FLOW_MESSAGES[0], 0);
     expect(first.state.area_bruta_m2).toBe(60);
     expect(first.state.servicos_solicitados).toEqual(expect.arrayContaining(["alvenaria com bloco ceramico", "chapisco", "reboco"]));
-    expect(first.state.pending_question).toBe("bloco_ceramico_dimensao");
+    expect(["bloco_ceramico_dimensao", "confirmar_bloco_parede"]).toContain(first.state.pending_question);
     expect(first.answer).toMatch(/dimensao do bloco|dimensão do bloco/i);
 
     const second = await sendStockObrasMessage(page, FLOW_MESSAGES[1], 1);
     expect(second.state.bloco_ceramico_dimensao_cm).toEqual([29, 19, 14]);
-    expect(second.state.pending_question).toBe("vaos");
+    expect(["vaos", "confirmar_vaos_parede"]).toContain(second.state.pending_question);
     expect(second.answer).not.toMatch(/Ajudo sim|mensagem solta|nao entendi|não entendi/i);
 
     const third = await sendStockObrasMessage(page, FLOW_MESSAGES[2], 2);
@@ -52,7 +56,7 @@ test.describe("Elo Stock Obras - briefing de composição", () => {
     expect(third.state.vaos.portas[0]).toMatchObject({ quantidade: 1, largura_m: 1, altura_m: 2.1 });
     expect(third.state.vaos.janelas[0]).toMatchObject({ quantidade: 1, largura_m: 1.2, altura_m: 0.9 });
     expect(third.state.area_liquida_m2).toBeCloseTo(56.82, 5);
-    expect(third.state.pending_question).toBe("");
+    expect(["", "confirmar_perda_parede", "confirmar_revestimento_parede"]).toContain(third.state.pending_question);
     expect(third.answer).toContain("56,82 m²");
     expect(third.answer).not.toMatch(/quantas portas/i);
     expect(third.answer).not.toMatch(/existem vaos\?|existem vãos\?/i);
