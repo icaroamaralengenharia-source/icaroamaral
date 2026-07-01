@@ -1,0 +1,144 @@
+[
+  {
+    "id": "casa_terrea_70m2",
+    "tipologia": "residencia_nova",
+    "area": 70,
+    "pavimentos": 1,
+    "cidadeUf": "Salvador/BA",
+    "padrao": "medio",
+    "premissas": {
+      "ceilingHeightM": 2.8,
+      "structuralType": "concreto armado",
+      "roofType": "telha ceramica",
+      "foundationType": "sapata",
+      "blockType": "bloco ceramico"
+    },
+    "geometry": {
+      "perimeterM": 34,
+      "wallThicknessM": 0.14,
+      "roofSlopePercent": 30,
+      "openingsAreaM2": 8
+    },
+    "escopoEsperado": ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes", "revestimentos", "pintura"],
+    "disciplinasEsperadas": ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes_hidraulicas", "instalacoes_eletricas", "revestimentos", "pintura", "administracao"],
+    "itensQueNaoDevemAparecer": ["estrutura_metalica", "piso_industrial", "contencao", "reaterro"]
+  },
+  {
+    "id": "casa_terrea_100m2",
+    "tipologia": "residencia_nova",
+    "area": 100,
+    "pavimentos": 1,
+    "cidadeUf": "Vitoria da Conquista/BA",
+    "padrao": "medio",
+    "premissas": {
+      "ceilingHeightM": 2.8,
+      "structuralType": "concreto armado",
+      "roofType": "telha ceramica",
+      "foundationType": "radier",
+      "blockType": "bloco ceramico"
+    },
+    "geometry": {
+      "perimeterM": 42,
+      "wallThicknessM": 0.14,
+      "roofSlopePercent": 25,
+      "openingsAreaM2": 10
+    },
+    "escopoEsperado": ["fundacao", "estrutura", "alvenaria", "cobertura", "revestimentos", "pintura"],
+    "disciplinasEsperadas": ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes_hidraulicas", "instalacoes_eletricas", "revestimentos", "pintura", "administracao"],
+    "itensQueNaoDevemAparecer": ["estrutura_metalica", "piso_industrial", "contencao"]
+  },
+  {
+    "id": "sobrado_140m2",
+    "tipologia": "sobrado",
+    "area": 140,
+    "pavimentos": 2,
+    "cidadeUf": "Feira de Santana/BA",
+    "padrao": "medio",
+    "premissas": {
+      "ceilingHeightM": 2.8,
+      "structuralType": "concreto armado",
+      "roofType": "telha fibrocimento",
+      "foundationType": "sapata corrida",
+      "blockType": "bloco ceramico"
+    },
+    "geometry": {
+      "perimeterM": 44,
+      "wallThicknessM": 0.14,
+      "roofAreaM2": 165,
+      "openingsAreaM2": 14
+    },
+    "escopoEsperado": ["fundacao", "estrutura", "escadas", "lajes", "alvenaria", "cobertura"],
+    "disciplinasEsperadas": ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes_hidraulicas", "instalacoes_eletricas", "revestimentos", "pintura", "administracao"],
+    "itensQueNaoDevemAparecer": ["estrutura_metalica", "piso_industrial", "contencao"]
+  },
+  {
+    "id": "reforma_banheiro",
+    "tipologia": "reforma_banheiro",
+    "area": 6,
+    "pavimentos": 1,
+    "cidadeUf": "Salvador/BA",
+    "padrao": "medio",
+    "premissas": {
+      "ceilingHeightM": 2.6,
+      "structuralType": "nao se aplica",
+      "roofType": "nao se aplica",
+      "foundationType": "nao se aplica"
+    },
+    "geometry": {
+      "perimeterM": 10,
+      "wallThicknessM": 0.12,
+      "roofAreaM2": 1,
+      "openingsAreaM2": 2
+    },
+    "escopoEsperado": ["demolicao", "hidraulica", "impermeabilizacao", "revestimentos", "loucas", "metais"],
+    "disciplinasEsperadas": ["demolicao", "instalacoes_hidraulicas", "impermeabilizacao", "revestimentos", "loucas", "metais", "administracao"],
+    "itensQueNaoDevemAparecer": ["fundacao", "cobertura", "urbanizacao", "piso_industrial"]
+  },
+  {
+    "id": "ampliacao_residencial",
+    "tipologia": "ampliacao_residencial",
+    "area": 35,
+    "pavimentos": 1,
+    "cidadeUf": "Lauro de Freitas/BA",
+    "padrao": "medio",
+    "premissas": {
+      "ceilingHeightM": 2.8,
+      "structuralType": "concreto armado",
+      "roofType": "telha ceramica",
+      "foundationType": "sapata",
+      "blockType": "bloco ceramico"
+    },
+    "geometry": {
+      "perimeterM": 24,
+      "wallThicknessM": 0.14,
+      "roofSlopePercent": 25,
+      "openingsAreaM2": 4
+    },
+    "escopoEsperado": ["compatibilizacao", "fundacao complementar", "estrutura", "alvenaria", "cobertura"],
+    "disciplinasEsperadas": ["compatibilizacao_existente", "fundacao_complementar", "estrutura", "alvenaria", "cobertura", "revestimentos", "pintura", "administracao"],
+    "itensQueNaoDevemAparecer": ["loucas", "metais", "piso_industrial", "contencao"]
+  },
+  {
+    "id": "galpao_metalico",
+    "tipologia": "galpao_metalico",
+    "area": 300,
+    "pavimentos": 1,
+    "cidadeUf": "Vitoria da Conquista/BA",
+    "padrao": "industrial",
+    "premissas": {
+      "ceilingHeightM": 6,
+      "structuralType": "estrutura metalica",
+      "roofType": "telha metalica",
+      "foundationType": "sapatas isoladas"
+    },
+    "geometry": {
+      "perimeterM": 70,
+      "wallThicknessM": 0.12,
+      "roofSlopePercent": 10,
+      "openingsAreaM2": 30
+    },
+    "escopoEsperado": ["fundacao", "estrutura metalica", "piso industrial", "fechamento", "cobertura", "drenagem"],
+    "disciplinasEsperadas": ["fundacao", "estrutura_metalica", "piso_industrial", "fechamento_metalico", "cobertura", "drenagem", "administracao"],
+    "itensQueNaoDevemAparecer": ["loucas", "metais", "pintura residencial", "urbanizacao"]
+  }
+]

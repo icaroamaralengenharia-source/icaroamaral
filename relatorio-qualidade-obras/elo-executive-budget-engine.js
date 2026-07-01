@@ -1,4 +1,4 @@
-(function (root) {
+﻿(function (root) {
   "use strict";
 
   const VERSION = "20260701-elo-executive-budget-v3-5-typology-routing";
@@ -707,6 +707,138 @@
     return buildExecutiveBudgetStructure(input);
   }
 
+  function uniqueList(values) {
+    const list = [];
+    (Array.isArray(values) ? values : []).forEach(function (value) {
+      const id = normalizeKey(value && (value.id || value.nome || value.label || value.descricao) || value);
+      if (id && list.indexOf(id) < 0) list.push(id);
+    });
+    return list;
+  }
+
+  function collectCalibrationTerms(result) {
+    const terms = [];
+    (result.etapas || []).forEach(function (stage) {
+      terms.push(stage.id, stage.nome);
+      (stage.servicos || []).forEach(function (service) { terms.push(service); });
+      (stage.quantitativos || []).forEach(function (item) { terms.push(item.id, item.nome, item.unidade); });
+      (stage.composicoes || []).forEach(function (item) { terms.push(item.codigo, item.descricao, item.serviceType); });
+    });
+    (result.officialCompositions && result.officialCompositions.compositions || []).forEach(function (item) { terms.push(item.codigo, item.descricao, item.serviceType, item.quantityId); });
+    return uniqueList(terms);
+  }
+
+  function getCalibrationProjectInput(project) {
+    const source = project || {};
+    if (source.project || source.geometry || source.officialBaseRows || source.stages) return source;
+    return { project: source };
+  }
+
+  function calibrationStatus(score) {
+    if (score >= 85) return "pass";
+    if (score >= 70) return "warning";
+    return "fail";
+  }
+
+  function addCalibrationItem(list, id, message) {
+    if (!list.some(function (item) { return item.id === id; })) list.push({ id: id, message: message });
+  }
+
+  function calibrateAgainstRealCase(project, referenceCase) {
+    const reference = referenceCase || {};
+    const input = getCalibrationProjectInput(project);
+    const result = buildExecutiveBudgetStructure(input);
+    const matches = [];
+    const missing = [];
+    const unexpected = [];
+    const risks = [];
+    const recommendations = [];
+    let score = 100;
+
+    const expectedTypology = normalizeKey(reference.tipologia || reference.typology || reference.expectedTypology);
+    const actualTypology = normalizeKey(result.typologyRouting && result.typologyRouting.typology);
+    if (expectedTypology && actualTypology === expectedTypology) matches.push({ id: "typology", message: "Tipologia identificada conforme referencia: " + actualTypology + "." });
+    else if (expectedTypology) {
+      score -= 25;
+      addCalibrationItem(missing, "typology", "Tipologia esperada " + expectedTypology + ", motor retornou " + (actualTypology || "desconhecida") + ".");
+      addCalibrationItem(recommendations, "typology", "Ajustar classificacao de tipologia antes de conectar custos finais.");
+    }
+
+    const actualDisciplines = uniqueList((result.etapas || []).map(function (stage) { return stage.id; }));
+    const expectedDisciplines = uniqueList(reference.disciplinasEsperadas || reference.expectedDisciplines || []);
+    expectedDisciplines.forEach(function (id) {
+      if (actualDisciplines.indexOf(id) >= 0) matches.push({ id: "discipline_" + id, message: "Disciplina prevista encontrada: " + id + "." });
+      else {
+        score -= 5;
+        addCalibrationItem(missing, "discipline_" + id, "Disciplina esperada ausente: " + id + ".");
+        addCalibrationItem(recommendations, "discipline_" + id, "Revisar perfil de tipologia ou dependencias para incluir " + id + ".");
+      }
+    });
+
+    const terms = collectCalibrationTerms(result);
+    uniqueList(reference.itensQueNaoDevemAparecer || reference.forbiddenItems || []).forEach(function (id) {
+      if (terms.some(function (term) { return term.indexOf(id) >= 0 || id.indexOf(term) >= 0; })) {
+        score -= 8;
+        addCalibrationItem(unexpected, "unexpected_" + id, "Item indevido apareceu na estrutura: " + id + ".");
+        addCalibrationItem(recommendations, "unexpected_" + id, "Bloquear " + id + " para a tipologia " + (expectedTypology || actualTypology || "informada") + ".");
+      }
+    });
+
+    const expectedScope = uniqueList(reference.escopoEsperado || reference.expectedScope || []);
+    expectedScope.forEach(function (id) {
+      if (terms.some(function (term) { return term.indexOf(id) >= 0 || id.indexOf(term) >= 0; })) matches.push({ id: "scope_" + id, message: "Escopo esperado coberto: " + id + "." });
+      else {
+        score -= 3;
+        addCalibrationItem(missing, "scope_" + id, "Item de escopo esperado ausente: " + id + ".");
+      }
+    });
+
+    const quantityStages = result.quantitativosAutomaticos && result.quantitativosAutomaticos.stages || [];
+    expectedDisciplines.forEach(function (id) {
+      const stage = quantityStages.find(function (item) { return item.id === id; });
+      if (stage && stage.quantitativos && stage.quantitativos.length) matches.push({ id: "quantities_" + id, message: "Quantitativos gerados para " + id + "." });
+      else if (actualDisciplines.indexOf(id) >= 0) {
+        score -= 2;
+        addCalibrationItem(risks, "quantities_" + id, "Sem quantitativos automaticos completos para " + id + ".");
+      }
+    });
+
+    if (result.engineeringRules && result.engineeringRules.valid) matches.push({ id: "engineering_rules", message: "Regras de engenharia sem erro bloqueante." });
+    else {
+      score -= 15;
+      addCalibrationItem(risks, "engineering_rules", "Regras de engenharia indicam inconsistencias.");
+      addCalibrationItem(recommendations, "engineering_rules", "Corrigir inconsistencias tecnicas antes de liberar custos.");
+    }
+
+    const compositions = result.officialCompositions && result.officialCompositions.compositions || [];
+    if (reference.exigeComposicoesOficiais && !compositions.length) {
+      score -= 10;
+      addCalibrationItem(risks, "official_compositions", "Nenhuma composicao oficial resolvida para o caso de referencia.");
+      addCalibrationItem(recommendations, "official_compositions", "Validar base SINAPI/ORSE e mapeamentos antes de precificacao.");
+    } else if (compositions.length) matches.push({ id: "official_compositions", message: "Composicoes oficiais resolvidas sem calcular custos." });
+
+    (result.pendencias || []).slice(0, 8).forEach(function (item) {
+      addCalibrationItem(risks, "pendency_" + normalizeKey(item.id || item.message), item.message || String(item));
+    });
+
+    score = Math.max(0, Math.min(100, Math.round(score)));
+    return {
+      score: score,
+      status: calibrationStatus(score),
+      matches: matches,
+      missing: missing,
+      unexpected: unexpected,
+      risks: risks,
+      recommendations: recommendations,
+      engineSummary: {
+        typology: result.typologyRouting && result.typologyRouting.typology,
+        disciplines: actualDisciplines,
+        readyForCost: result.readyForCost,
+        prontoParaCalculo: result.prontoParaCalculo
+      }
+    };
+  }
+
   function evaluateExecutiveReadiness(projectRecord, budget) {
     const record = projectRecord || {};
     const project = record.project || {};
@@ -837,6 +969,7 @@
     buildExecutiveBudgetStructure,
     buildResidentialExecutiveBudget,
     evaluateResidentialExecutiveBudget,
+    calibrateAgainstRealCase,
     evaluateExecutiveReadiness,
     buildExecutiveBudgetPreview,
     buildExecutiveClosingChecklist,
