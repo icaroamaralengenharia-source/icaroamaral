@@ -11455,7 +11455,7 @@
 
   function extractEloWallDimensions_(message) {
     const source = sanitizeUserText(message || "");
-    const lengthMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s+de\s+comprimento\b/i);
+    const lengthMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s+d[aeo]\s+comprimento\b/i);
     const heightMatch = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s+de\s+altura\b/i);
     let length = lengthMatch ? parseEloOperationalNumber_(lengthMatch[1]) : null;
     let height = heightMatch ? parseEloOperationalNumber_(heightMatch[1]) : null;
@@ -15077,6 +15077,7 @@
       const text = normalizeText(message || "");
       if (!text) return false;
       if (/orcamento\s+oficial|orçamento\s+oficial|orcamento\s+executivo|orçamento\s+executivo/.test(text)) return false;
+      if (this.isResidentialPackageIntent_(text)) return true;
       if (this.isWallBudgetIntent_(text)) return true;
       if (this.isMaterialListIntent_(text)) return true;
       return /orcamento|orçamento|orcar|orçar|quanto\s+custa|quanto\s+gasto|quanto\s+fica|levantar\s+material|mao\s+de\s+obra|mão\s+de\s+obra/.test(text) && /casa|residencial|residencia|residência|obra|construir|construcao|construção|terrea|térrea|reforma|parede|muro|alvenaria/.test(text);
@@ -15124,6 +15125,18 @@
       return "budget-" + Date.now();
     }
 
+    isResidentialPackageIntent_(text) {
+      if (!/casa|residencial|residencia|residência|terrea|térrea|sobrado/.test(text)) return false;
+      if (!/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros\s+quadrados)/.test(text)) return false;
+      const groups = [
+        /bloco|alvenaria|parede|tijolo/.test(text),
+        /telha|telhado|cobertura/.test(text),
+        /piso|porcelanato|ceramica|cerâmico|revestimento/.test(text),
+        /fundacao|fundação|sapata|baldrame|radier/.test(text),
+        /estrutura|pilar|viga|laje/.test(text)
+      ];
+      return groups.filter(Boolean).length >= 2;
+    }
     isWallBudgetIntent_(text) {
       const hasExplicitWall = /parede|muro|bloco|bloco\s+baiano|tijolo/.test(text);
       const hasAlvenariaWithGeometry = /alvenaria/.test(text) && /\d|orca|orça|orcar|orcamento|orçamento/.test(text);
@@ -15135,7 +15148,8 @@
       const text = normalizeText(raw);
       const facts = { currentFields: [] };
       const previousType = previousState && previousState.type;
-      if (this.isWallBudgetIntent_(text) || previousType === "wall") facts.type = "wall";
+      if (this.isResidentialPackageIntent_(text)) facts.type = "residential";
+      else if (this.isWallBudgetIntent_(text) || previousType === "wall") facts.type = "wall";
       else if (/reforma|reformar|renovacao|renovação/.test(text)) facts.type = "renovation";
       else if (/casa|residencial|residencia|residência|terrea|térrea|sobrado|construir|construcao|construção/.test(text) || previousType === "residential") facts.type = "residential";
 
@@ -15450,6 +15464,16 @@
     return getEloBudgetOrchestratorV2_().handle(message, { eloContext: getEloContext() });
   }
   const ELO_BRAIN_CONTEXT = { technical: { facts: {}, services: {}, audit: {} } };
+  function attachEloTechnicalBrainMarker_(response, reason) {
+    if (!response || response.eloBrain) return response;
+    response.eloBrain = {
+      brain: "technical",
+      reason: reason || "fluxo tecnico do Elo",
+      confidence: 0.82,
+      context: ELO_BRAIN_CONTEXT && ELO_BRAIN_CONTEXT.technical ? ELO_BRAIN_CONTEXT.technical : null
+    };
+    return response;
+  }
 
   function buildEloTechnicalEngineAnswer_(message) {
     const router = (typeof window !== "undefined" && window.EloBrainRouter) ? window.EloBrainRouter : null;
@@ -15504,6 +15528,7 @@
 
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
+      attachEloTechnicalBrainMarker_(budgetOrchestratorV2Answer, "orcamentista v2");
       rememberEloBudgetSource_(cleanQuestion, budgetOrchestratorV2Answer, budgetOrchestratorV2Answer.fullAnswer || budgetOrchestratorV2Answer.shortAnswer || "");
       return budgetOrchestratorV2Answer;
     }
@@ -17939,6 +17964,7 @@
 
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
+      attachEloTechnicalBrainMarker_(budgetOrchestratorV2Answer, "orcamentista v2");
       const budgetV2Text = formatResponse(budgetOrchestratorV2Answer);
       appendAssistantMessage(cleanQuestion, budgetV2Text, budgetOrchestratorV2Answer.canSave !== false, budgetOrchestratorV2Answer);
       saveConversation(cleanQuestion, budgetV2Text);
