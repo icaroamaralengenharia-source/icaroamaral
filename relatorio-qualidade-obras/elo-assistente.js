@@ -1280,6 +1280,7 @@
 
   function getEloBudgetBrainSubtype_(theme, intent, question) {
     const value = normalizeText([theme || "", intent || "", question || ""].join(" "));
+    if (/reforma\s+de\s+(?:banheiro|cozinha)|trocar\s+piso/.test(normalizeText(question || ""))) return "generic";
     if (/residential_budget_package|orcamento_residencial|orcamento\s+residencial|residencial|casa/.test(value)) return "residential_preliminary";
     if (/wall_complete_package|elo_operacional_parede|orcamento_parede|parede|alvenaria|bloco|tijolo/.test(value)) return "wall";
     if (/stock_obras_composicao|orcamentista_assistido|briefing_composicao|composi..o|composicao|sinapi|orse/.test(value)) return "technical_composition";
@@ -2047,7 +2048,7 @@
       return {
         shortAnswer: "Qual orcamento voce quer continuar?",
         fullAnswer: [
-          "Posso continuar, mas preciso saber qual linha de trabalho voce quer retomar:",
+          "Você quer continuar o orçamento da casa, da parede ou da composição técnica?",
           "- orcamento residencial preliminar;",
           "- orcamento de parede/alvenaria;",
           "- orcamento por composicao tecnica SINAPI/ORSE."
@@ -15135,7 +15136,9 @@
         projectStandard: state.standard || "",
         floors: state.floors || null,
         bedrooms: state.rooms || null,
-        bathrooms: state.wetAreas || null
+        bathrooms: state.wetAreas || null,
+        garage: state.garage === null || state.garage === undefined ? null : state.garage,
+        desiredStage: state.desiredStage || ""
       };
     }
 
@@ -15147,11 +15150,11 @@
         ["estrutura", "Estrutura"],
         ["alvenaria", "Alvenaria"],
         ["cobertura", "Cobertura"],
-        ["instalacoes_eletricas", "Instalacoes eletricas"],
         ["instalacoes_hidrossanitarias", "Instalacoes hidrossanitarias"],
+        ["instalacoes_eletricas", "Instalacoes eletricas"],
         ["revestimentos", "Revestimentos"],
-        ["pintura", "Pintura"],
         ["esquadrias", "Esquadrias"],
+        ["pintura", "Pintura"],
         ["limpeza_final", "Limpeza final"]
       ].map(function (item, index) {
         return { id: item[0], label: item[1], quantity: state.areaM2, unit: "m2", order: index + 1, status: "pending_official_composition", composition: null, source: "adapter_fallback" };
@@ -15246,6 +15249,8 @@
         floors: null,
         rooms: null,
         wetAreas: null,
+        garage: null,
+        desiredStage: "",
         services: [],
         dimensions: {},
         openings: null,
@@ -15263,6 +15268,8 @@
       if (!text) return false;
       if (/orcamento\s+oficial|or�amento\s+oficial/.test(text)) return false;
       if (this.isResidentialPackageIntent_(text)) return true;
+      if (this.isResidentialStartIntent_(text)) return true;
+      if (/reforma\s+de\s+(?:banheiro|cozinha)|trocar\s+piso/.test(text)) return true;
       if (this.isWallBudgetIntent_(text)) return true;
       if (this.isMaterialListIntent_(text)) return true;
       if (/\b(casa|sobrado|terrea|t�rrea)\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m�|metros\s+quadrados)/.test(text)) return true;
@@ -15312,6 +15319,11 @@
       return "budget-" + Date.now();
     }
 
+    isResidentialStartIntent_(text) {
+      if (/reforma\s+de\s+(?:banheiro|cozinha)|trocar\s+piso|piso\s+do\s+banheiro|piso\s+da\s+cozinha/.test(text)) return false;
+      if (/parede|alvenaria|bloco|tijolo|reboco|contrapiso|pintura|telhado|concreto|forma|armacao|armação/.test(text) && !/casa|residencial|residencia|sobrado|construir/.test(text)) return false;
+      return /quero\s+orcamento\s+residencial|quero\s+orçamento\s+residencial|orcar\s+(?:uma\s+)?casa|orçar\s+(?:uma\s+)?casa|orcamento\s+de\s+(?:uma\s+)?casa|orçamento\s+de\s+(?:uma\s+)?casa|quanto\s+custa\s+construir\s+(?:uma\s+)?casa|quanto\s+custa\s+(?:uma\s+)?casa|casa\s+(?:de\s+)?\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros\s+quadrados)|\bcasa\s+terrea\b|\bcasa\s+térrea\b|\bsobrado\b|quero\s+construir\s+(?:minha\s+)?casa|construir\s+(?:minha\s+)?casa/.test(text);
+    }
     isResidentialPackageIntent_(text) {
       if (!/casa|residencial|residencia|residência|terrea|térrea|sobrado/.test(text)) return false;
       if (!/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros\s+quadrados)/.test(text)) return false;
@@ -15339,8 +15351,9 @@
       else if (/muro\s+de\s+arrimo|arrimo|conten��o|contencao/.test(text)) facts.type = "muro_arrimo";
       else if (/reforma|reformar|renovacao|renova��o/.test(text) && /banheiro/.test(text)) facts.type = "reforma_banheiro";
       else if (/ampliacao|amplia��o|acrescimo|acr�scimo|anexo/.test(text)) facts.type = "ampliacao_residencial";
-      else if (this.isResidentialPackageIntent_(text)) facts.type = "residential";
+      else if (this.isResidentialPackageIntent_(text) || this.isResidentialStartIntent_(text)) facts.type = "residential";
       else if (this.isWallBudgetIntent_(text) || previousType === "wall") facts.type = "wall";
+      else if (/reforma\s+de\s+cozinha|trocar\s+piso/.test(text)) facts.type = "renovation";
       else if (/reforma|reformar|renovacao|renova��o/.test(text)) facts.type = "renovation";
       else if (/casa|residencial|residencia|resid�ncia|terrea|t�rrea|sobrado|construir|construcao|constru��o|orcamento\s+residencial|or�amento\s+residencial/.test(text) || previousType === "residential") facts.type = "residential";
 
@@ -15365,6 +15378,12 @@
       if (match) { facts.rooms = parseInt(match[1], 10); facts.currentFields.push("rooms"); }
       match = raw.match(/(\d+)\s+(?:banheiros?|lavabos?)/i);
       if (match) { facts.wetAreas = parseInt(match[1], 10); facts.currentFields.push("wetAreas"); }
+      if (/sem\s+garagem|sem\s+vaga/.test(text)) { facts.garage = false; facts.currentFields.push("garage"); }
+      else if (/garagem|vaga/.test(text)) { facts.garage = true; facts.currentFields.push("garage"); }
+      match = raw.match(/(?:etapa|fase)\s+(?:desejada\s+)?(?:de\s+)?([A-Za-zÀ-ÿ\s]{3,80})/i);
+      if (match) { facts.desiredStage = sanitizeUserText(match[1]).slice(0, 80); facts.currentFields.push("desiredStage"); }
+      else if (/obra\s+completa|casa\s+completa|chave\s+na\s+mao|chave\s+na\s+mão/.test(text)) { facts.desiredStage = "obra completa"; facts.currentFields.push("desiredStage"); }
+      else if (/acabamento|fundacao|fundação|estrutura|alvenaria|cobertura|instalacoes|instalações|revestimento|pintura/.test(text) && facts.type === "residential") { facts.desiredStage = "etapa informada na mensagem"; facts.currentFields.push("desiredStage"); }
 
       if (facts.type === "wall" || previousType === "wall") {
         facts.dimensions = Object.assign({}, previousState.dimensions || {});
@@ -15387,7 +15406,7 @@
       delete cleanFacts.currentFields;
       const previous = Object.assign({}, previousState || {});
       const inheritedFields = [];
-      ["areaM2", "city", "state", "standard", "floors", "rooms", "wetAreas", "dimensions", "openings"].forEach(function (field) {
+      ["areaM2", "city", "state", "standard", "floors", "rooms", "wetAreas", "garage", "desiredStage", "dimensions", "openings"].forEach(function (field) {
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
       });
       const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
@@ -15484,6 +15503,17 @@
       return missing;
     }
 
+    getResidentialComplementFields_(state) {
+      if (!state || state.type !== "residential") return [];
+      const missing = [];
+      if (!this.fieldWasCurrent_(state, "floors") && !this.fieldWasInherited_(state, "floors")) missing.push("tipo de construcao: casa terrea, sobrado, reforma ou ampliacao");
+      if (!state.rooms) missing.push("quartos");
+      if (!state.wetAreas) missing.push("banheiros");
+      if (state.garage === null || state.garage === undefined) missing.push("garagem");
+      if (!state.desiredStage) missing.push("etapa desejada");
+      return missing;
+    }
+
     resolveStage_(state) {
       if (!state || state.missingFields && state.missingFields.length) return "briefing";
       if (state.type === "residential" && state.services && state.services.length) return "compositions";
@@ -15505,6 +15535,7 @@
       const confirmed = [];
       const inherited = [];
       const pending = state.missingFields || [];
+      const complementPending = this.getResidentialComplementFields_(state);
       const scopeItems = budgetPackage && Array.isArray(budgetPackage.scope) ? budgetPackage.scope : [];
       const addFact = function (target, label, value) { if (value) target.push(label + ": " + value); };
       const areaLabel = state.areaM2 > 0 ? formatEloOperationalQuantity_(state.areaM2) + " m2" : "";
@@ -15517,14 +15548,24 @@
       else if (this.fieldWasInherited_(state, "standard")) addFact(inherited, "padrao", state.standard);
       if (this.fieldWasCurrent_(state, "floors")) addFact(confirmed, "pavimentos", String(state.floors));
       else if (this.fieldWasInherited_(state, "floors")) addFact(inherited, "pavimentos", String(state.floors));
+      if (this.fieldWasCurrent_(state, "rooms")) addFact(confirmed, "quartos", String(state.rooms));
+      else if (this.fieldWasInherited_(state, "rooms")) addFact(inherited, "quartos", String(state.rooms));
+      if (this.fieldWasCurrent_(state, "wetAreas")) addFact(confirmed, "banheiros", String(state.wetAreas));
+      else if (this.fieldWasInherited_(state, "wetAreas")) addFact(inherited, "banheiros", String(state.wetAreas));
+      if (this.fieldWasCurrent_(state, "garage")) addFact(confirmed, "garagem", state.garage ? "sim" : "nao");
+      else if (this.fieldWasInherited_(state, "garage")) addFact(inherited, "garagem", state.garage ? "sim" : "nao");
+      if (this.fieldWasCurrent_(state, "desiredStage")) addFact(confirmed, "etapa desejada", state.desiredStage);
+      else if (this.fieldWasInherited_(state, "desiredStage")) addFact(inherited, "etapa desejada", state.desiredStage);
       const audit = budgetPackage && budgetPackage.executiveAudit || null;
       const typeLabels = { residential: "residencia", renovation: "reforma", galpao_metalico: "galpao metalico", muro_arrimo: "muro de arrimo", reforma_banheiro: "reforma de banheiro", ampliacao_residencial: "ampliacao residencial", unknown: "a confirmar" };
       const isResidential = state.type === "residential";
-      const lines = ["ELO ORCAMENTISTA V2 - ESTRUTURACAO TECNICA", "", isResidential ? "Vou montar um orçamento residencial preliminar." : "Posso estruturar o orçamento executivo, mas ainda não vou calcular preço enquanto faltarem premissas.", "", "Briefing minimo do orcamento residencial:", "- cidade/UF;", "- padrao construtivo;", "- area construida aproximada;", "- tipo de construcao;", "- quantidade de pavimentos;", "- etapa desejada.", "", "Resumo da obra:", "- Tipo: " + (typeLabels[state.type] || state.type || "a confirmar") + (state.floors ? " | pavimentos: " + state.floors : "")];      lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado tecnico suficiente confirmado na mensagem atual.");
+      const lines = ["ELO ORCAMENTISTA V2 - ESTRUTURACAO TECNICA", "", isResidential ? "Vou montar um orçamento residencial preliminar." : "Posso estruturar o orçamento executivo, mas ainda não vou calcular preço enquanto faltarem premissas.", "", "Briefing minimo do orcamento residencial:", "- cidade/UF;", "- padrao construtivo;", "- area construida aproximada;", "- tipo de construcao: casa terrea, sobrado, reforma ou ampliacao;", "- quantidade de pavimentos;", "- quartos;", "- banheiros;", "- garagem;", "- etapa desejada.", "", "Resumo da obra:", "- Tipo: " + (typeLabels[state.type] || state.type || "a confirmar") + (state.floors ? " | pavimentos: " + state.floors : "")];
+      lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado tecnico suficiente confirmado na mensagem atual.");
       lines.push("", "Dados herdados:", inherited.length ? inherited.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado herdado do orçamento anterior.");
       if (inherited.length) lines.push("- Posso reutilizar esses dados ou deseja alterá-los?");
       lines.push("", "Dados assumidos:", state.assumptions.length ? state.assumptions.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma premissa automatica relevante.");
       lines.push("", "Dados pendentes:", pending.length ? pending.map(function (item) { return "- " + item; }).join("\n") : "- Sem pendencias minimas para escopo preliminar.");
+      if (complementPending.length) lines.push("", "Dados complementares para fechar melhor a estimativa:", complementPending.map(function (item) { return "- " + item; }).join("\n"));
       if (audit && !audit.error) {
         lines.push("", "Auditoria tecnica V3:");
         lines.push("- Tipologia identificada: " + (audit.typology || "a confirmar"));
@@ -15535,10 +15576,10 @@
         if (audit.checklist && audit.checklist.length) lines.push("- Checklist tecnico: " + audit.checklist.slice(0, 6).map(function (item) { return (item.label || item.id) + " (" + item.status + ")"; }).join("; "));
       }
       if (scopeItems && scopeItems.length) {
-        lines.push("", "Escopo preliminar:");
-        scopeItems.forEach(function (item) { lines.push("- " + item.label + ": " + (/ready|technical|EloBudgetEngine|official_found/i.test(String(item.status || item.source || "")) ? "estruturado pelo motor tecnico" : "pendente de composicao SINAPI/ORSE oficial")); });
+        lines.push("", isResidential ? "Escopo preliminar / Macroetapas da estimativa preliminar:" : "Escopo preliminar:");
+        scopeItems.forEach(function (item) { lines.push("- " + item.label + ": " + (/ready|technical|EloBudgetEngine|official_found/i.test(String(item.status || item.source || "")) ? "estruturado pelo motor tecnico" : "pendente de composicao SINAPI/ORSE oficial; faixa preliminar dependente de BDI e precos vigentes")); });
       }
-      lines.push("", "Proximos passos:", pending.length ? "- Responder apenas os dados pendentes acima; eu continuo o mesmo orçamento." : "- Validar memorial, quantitativos, composicoes oficiais, BDI, encargos e precos vigentes.");
+      lines.push("", "Proximos passos:", pending.length ? "- Responder apenas os dados pendentes acima; eu continuo o mesmo orçamento." : (complementPending.length ? "- Completar " + complementPending.join(", ") + " para refinar a estimativa sem falsa precisao." : "- Validar memorial, quantitativos, composicoes oficiais, BDI, encargos e precos vigentes."));
       lines.push("", "Aviso tecnico: nao vou inventar preco nem tratar base demonstrativa como orcamento oficial. Sem composicao SINAPI/ORSE/importada confiavel, o item fica pendente.");
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
@@ -15550,7 +15591,7 @@
       return {
         shortAnswer: pending.length ? "Preciso de poucos dados para montar o orçamento." : "Montei o escopo preliminar do orçamento residencial.",
         fullAnswer: lines.join("\n"),
-        nextAction: pending.length ? "Informe " + pending.join(", ") + "." : "Importe ou selecione composicoes oficiais para quantificar e precificar.",
+        nextAction: pending.length ? "Informe " + pending.join(", ") + "." : (complementPending.length ? "Informe " + complementPending.join(", ") + "." : "Importe ou selecione composicoes oficiais para quantificar e precificar."),
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
@@ -15567,11 +15608,11 @@
         ["Estrutura", ["concreto", "aço", "escoras"]],
         ["Alvenaria", ["blocos", "argamassa", "vergas"]],
         ["Cobertura", ["madeira/metálica", "telhas", "cumeeiras"]],
-        ["Instalações elétricas", ["cabos", "eletrodutos", "quadro", "tomadas"]],
         ["Instalações hidrossanitárias", ["tubos", "conexões", "registros"]],
+        ["Instalações elétricas", ["cabos", "eletrodutos", "quadro", "tomadas"]],
         ["Revestimentos", ["pisos", "revestimentos", "argamassa colante", "rejunte"]],
-        ["Pintura", ["selador", "massa", "tinta"]],
         ["Esquadrias", ["portas", "janelas", "ferragens"]],
+        ["Pintura", ["selador", "massa", "tinta"]],
         ["Limpeza final", ["sacos", "caçamba", "produtos"]]
       ];
       const lines = ["LISTA PRELIMINAR QUALITATIVA DE MATERIAIS", ""];

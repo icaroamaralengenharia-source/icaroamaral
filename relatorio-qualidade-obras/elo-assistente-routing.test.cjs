@@ -1,4 +1,4 @@
-const test = require('node:test');
+﻿const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -132,4 +132,50 @@ test('ELO direciona servi?os t?cnicos e RDO/relat?rio sem cair em fluxo gen?rico
   const report = elo.buildResponseForTest('relat\u00f3rio t\u00e9cnico de fissura');
   assert.equal(report.brain, 'report');
   assert.match(report.fullAnswer + report.nextAction, /relato tecnico|relato t.cnico|vistoria|fissura|relatorio|relat.rio/i);
+});
+
+test('ELO amplia gatilhos de orçamento residencial sem duplicar fluxo', () => {
+  const elo = loadElo();
+  const casa70 = elo.buildResponseForTest('quero or\u00e7ar uma casa de 70m2');
+  assert.equal(casa70.brain, 'budget');
+  assert.equal(casa70.budgetBrainSubtype, 'residential_preliminary');
+  assert.equal(casa70.sessionTheme, 'residential_budget_package');
+  assert.match(casa70.fullAnswer, /Macroetapas|Dados complementares|cidade\/UF/i);
+
+  const terrea = elo.buildResponseForTest('quanto custa construir uma casa t\u00e9rrea?');
+  assert.equal(terrea.brain, 'budget');
+  assert.equal(terrea.budgetBrainSubtype, 'residential_preliminary');
+  assert.match(terrea.fullAnswer, /or\u00e7amento residencial preliminar|orcamento residencial preliminar/i);
+
+  const sobrado = elo.buildResponseForTest('sobrado de 120m2 padr\u00e3o m\u00e9dio');
+  assert.equal(sobrado.brain, 'budget');
+  assert.equal(sobrado.budgetBrainSubtype, 'residential_preliminary');
+  assert.match(sobrado.fullAnswer, /sobrado|2 pavimento|pavimentos/i);
+});
+
+test('ELO continua orçamento residencial reaproveitando contexto salvo', () => {
+  const elo = loadElo();
+  const first = elo.buildResponseForTest('quero or\u00e7ar uma casa de 70m2 em Salvador/BA padr\u00e3o m\u00e9dio com 2 quartos, 1 banheiro, garagem e obra completa');
+  assert.equal(first.brain, 'budget');
+  assert.equal(first.budgetBrainSubtype, 'residential_preliminary');
+
+  const next = elo.buildResponseForTest('continuar meu or\u00e7amento');
+  assert.equal(next.brain, 'budget');
+  assert.match(next.fullAnswer, /or.amento residencial preliminar|orcamento residencial preliminar/i);
+  assert.doesNotMatch(next.fullAnswer, /composicao tecnica SINAPI\/ORSE.*Tipo identificado/i);
+});
+
+test('ELO mantém parede e reforma parcial fora de casa completa', () => {
+  const elo = loadElo();
+  const wall = elo.buildResponseForTest('or\u00e7ar parede de bloco cer\u00e2mico');
+  assert.ok(wall.brain === 'technical' || wall.budgetBrainSubtype === 'wall');
+  assert.notEqual(wall.budgetBrainSubtype, 'residential_preliminary');
+  assert.notEqual(wall.sessionIntent, 'budget_v2_scope');
+  assert.doesNotMatch(wall.fullAnswer, /Macroetapas da estimativa preliminar/i);
+
+  const eloReforma = loadElo();
+  const reforma = eloReforma.buildResponseForTest('reforma de banheiro');
+  assert.notEqual(reforma.budgetBrainSubtype, 'residential_preliminary');
+  assert.doesNotMatch(reforma.fullAnswer, /Macroetapas da estimativa preliminar/i);
+  assert.match(reforma.fullAnswer + reforma.shortAnswer + reforma.nextAction, /reforma|banheiro|or\u00e7amento executivo|orcamento executivo/i);
 });
