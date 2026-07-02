@@ -133,3 +133,134 @@ test('ELO direciona servi?os t?cnicos e RDO/relat?rio sem cair em fluxo gen?rico
   assert.equal(report.brain, 'report');
   assert.match(report.fullAnswer + report.nextAction, /relato tecnico|relato t.cnico|vistoria|fissura|relatorio|relat.rio/i);
 });
+
+
+test('ELO qualidade: or?amento residencial padr?o fica curto e sem auditoria', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'budget');
+  assert.match(answer, /70 m2|70m2/i);
+  assert.match(answer, /cidade\/UF/i);
+  assert.match(answer, /padrao construtivo|padr.o construtivo/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
+  assert.doesNotMatch(answer, /Checklist tecnico/i);
+  const pendingSinapi = answer.match(/pendente de composicao SINAPI\/ORSE oficial/gi) || [];
+  assert.equal(pendingSinapi.length, 0);
+});
+
+test('ELO qualidade: briefing residencial reconhece Salvador BA sem pedir cidade novamente', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /cidade\/UF: Salvador\/BA/i);
+  assert.match(answer, /padrao: medio/i);
+  assert.match(answer, /quartos: 2/i);
+  assert.match(answer, /banheiros: 1/i);
+  assert.doesNotMatch(answer, /Dados que faltam:\n- cidade\/UF/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
+});
+
+test('ELO qualidade: parede n?o herda or?amento residencial', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const response = elo.buildResponseForTest('Parede de bloco cer?mico');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'technical');
+  assert.match(answer, /parede|bloco cer.mico|bloco/i);
+  assert.match(answer, /comprimento|medidas|area/i);
+  assert.match(answer, /cidade\/UF|SINAPI|ORSE/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+  assert.notEqual(response.sessionIntent, 'budget_v2_scope');
+});
+
+test('ELO qualidade: reforma de banheiro n?o mistura casa nem parede', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  elo.buildResponseForTest('Parede de bloco cer?mico');
+  const response = elo.buildResponseForTest('Reforma de banheiro');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /reforma parcial de banheiro|reforma do banheiro/i);
+  assert.match(answer, /area aproximada/i);
+  assert.match(answer, /piso\/revestimento/i);
+  assert.match(answer, /lou.as\/metais/i);
+  assert.match(answer, /pontos hidr.ulicos\/el.tricos/i);
+  assert.match(answer, /demoli/i);
+  assert.match(answer, /cidade\/UF/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+  assert.doesNotMatch(answer, /comprimento da parede|dimens.o real do bloco/i);
+});
+
+test('ELO qualidade: modo avancado mostra detalhes t?cnicos sob demanda', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const response = elo.buildResponseForTest('modo avancado');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Auditoria tecnica V3|Checklist tecnico|Premissas faltantes/i);
+});
+
+test('ELO qualidade: saudacao pura vence contexto tecnico ativo', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Parede de bloco ceramico');
+  const response = elo.buildResponseForTest('hi');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'conversational');
+  assert.doesNotMatch(answer, /comprimento|altura|parede de bloco|Sessao/i);
+  assert.notEqual(response.sessionIntent, 'confirmar_bloco_parede');
+});
+
+test('ELO premissas residenciais: casa terrea 80m2 aplica estrutura preliminar', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 80m2 padrao medio em Salvador/BA sem piscina');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'budget');
+  assert.match(answer, /Etapas obrigatorias do orcamento/i);
+  assert.match(answer, /Locacao da obra|gabarito/i);
+  assert.match(answer, /Sapatas isoladas/i);
+  assert.match(answer, /Vergas e contravergas/i);
+  assert.match(answer, /60 x 60 x 30 cm/i);
+  assert.match(answer, /0,108 m3/i);
+  assert.match(answer, /25 MPa/i);
+  assert.match(answer, /Pilares .*6,00 m3/i);
+  assert.match(answer, /Vigas baldrame.*14,00 m3/i);
+  assert.match(answer, /Formas de madeira.*200 m2/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
+});
+
+test('ELO premissas residenciais: casa terrea 120m2 calcula fatores estruturais', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 120m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Pilares .*9,00 m3/i);
+  assert.match(answer, /Vigas baldrame.*21,00 m3/i);
+  assert.match(answer, /Formas de madeira.*300 m2/i);
+  assert.match(answer, /concreto 25 MPa/i);
+});
+
+test('ELO premissas residenciais: casa 160m2 nao aplica regra absoluta', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 160m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Area acima de 140 m2|nao aplico esta regra como absoluta|parametrizacao\/projeto estrutural/i);
+  assert.doesNotMatch(answer, /Pilares .*12,00 m3/i);
+  assert.doesNotMatch(answer, /Vigas baldrame.*28,00 m3/i);
+});
+
+test('ELO premissas residenciais: piscina fica fora do escopo', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 100m2 padrao medio em Salvador/BA com piscina');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Piscina fora do escopo|orcada separadamente/i);
+  assert.doesNotMatch(answer, /Pilares .*7,50 m3/i);
+});
+
+test('ELO premissas residenciais: sobrado nao usa regra terrea como absoluta', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Sobrado 120m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Sobrado precisa de premissas proprias|nao aplico esta regra terrea como absoluta/i);
+  assert.doesNotMatch(answer, /Pilares .*9,00 m3/i);
+  assert.doesNotMatch(answer, /Vigas baldrame.*21,00 m3/i);
+});
