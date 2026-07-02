@@ -179,3 +179,45 @@ test('ELO mantém parede e reforma parcial fora de casa completa', () => {
   assert.doesNotMatch(reforma.fullAnswer, /Macroetapas da estimativa preliminar/i);
   assert.match(reforma.fullAnswer + reforma.shortAnswer + reforma.nextAction, /reforma|banheiro|or\u00e7amento executivo|orcamento executivo/i);
 });
+
+test('ELO reconhece cidade UF e completa briefing residencial em continuidade', () => {
+  const elo = loadElo();
+  const start = elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
+  assert.equal(start.brain, 'budget');
+  assert.equal(start.budgetBrainSubtype, 'residential_preliminary');
+  assert.match(start.fullAnswer, /cidade\/UF/i);
+
+  const next = elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  assert.equal(next.brain, 'budget');
+  assert.equal(next.budgetBrainSubtype, 'residential_preliminary');
+  assert.match(next.fullAnswer, /cidade\/UF: Salvador\/BA/i);
+  assert.match(next.fullAnswer, /padrao: medio|padrão: médio/i);
+  assert.match(next.fullAnswer, /quartos: 2/i);
+  assert.match(next.fullAnswer, /banheiros: 1/i);
+  assert.match(next.fullAnswer, /garagem: sim/i);
+  assert.doesNotMatch(next.fullAnswer, /Dados pendentes:[\s\S]*cidade\/UF/i);
+});
+
+test('ELO alterna de residencial para parede sem herdar casa completa', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
+  elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
+
+  const wall = elo.buildResponseForTest('Parede de bloco cer\u00e2mico');
+  assert.ok(wall.brain === 'technical' || wall.budgetBrainSubtype === 'wall');
+  assert.notEqual(wall.budgetBrainSubtype, 'residential_preliminary');
+  assert.doesNotMatch(wall.fullAnswer, /Resumo da obra:[\s\S]*residencia/i);
+  assert.match(wall.fullAnswer + wall.nextAction, /parede|bloco|SINAPI|ORSE|premissas/i);
+});
+
+test('ELO alterna de residencial para reforma de banheiro sem misturar parede ou casa', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
+  elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
+
+  const reforma = elo.buildResponseForTest('Reforma de banheiro');
+  assert.notEqual(reforma.budgetBrainSubtype, 'residential_preliminary');
+  assert.doesNotMatch(reforma.fullAnswer, /Resumo da obra:[\s\S]*residencia/i);
+  assert.doesNotMatch(reforma.fullAnswer, /briefing t\u00e9cnico da parede|briefing tecnico da parede/i);
+  assert.match(reforma.fullAnswer + reforma.shortAnswer + reforma.nextAction, /reforma|banheiro|or\u00e7amento executivo|orcamento executivo/i);
+});

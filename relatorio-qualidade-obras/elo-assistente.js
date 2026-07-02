@@ -15336,10 +15336,26 @@
       ];
       return groups.filter(Boolean).length >= 2;
     }
+    isWallSubjectIntent_(text) {
+      return /parede|muro|bloco|bloco\s+baiano|tijolo|alvenaria/.test(text) && !/casa|sobrado|residencial|banheiro|cozinha|reforma/.test(text);
+    }
+
     isWallBudgetIntent_(text) {
-      const hasExplicitWall = /parede|muro|bloco|bloco\s+baiano|tijolo/.test(text);
-      const hasAlvenariaWithGeometry = /alvenaria/.test(text) && /\d|orca|orça|orcar|orcamento|orçamento/.test(text);
-      return (hasExplicitWall || hasAlvenariaWithGeometry) && /orcamento|orçamento|orca|orça|orcar|quanto|material|mao\s+de\s+obra|mão\s+de\s+obra|\d/.test(text);
+      const hasExplicitWall = this.isWallSubjectIntent_(text);
+      const hasAlvenariaWithGeometry = /alvenaria/.test(text) && /\d|orca|or?a|orcar|orcamento|or?amento/.test(text);
+      return (hasExplicitWall || hasAlvenariaWithGeometry) && (/orcamento|or?amento|orca|or?a|orcar|quanto|material|mao\s+de\s+obra|m?o\s+de\s+obra|\d/.test(text) || hasExplicitWall);
+    }
+
+    extractCityUf_(raw) {
+      const value = sanitizeUserText(raw || '').replace(/\s+/g, ' ').trim();
+      const states = 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
+      const match = value.match(/(?:^|\b(?:em|para|na|no)\s+)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\b/i);
+      if (!match) return null;
+      const state = sanitizeUserText(match[2]).toUpperCase();
+      if (states.indexOf(state) < 0) return null;
+      const city = sanitizeUserText(match[1]).replace(/\s+/g, ' ').replace(/^(?:em|para|na|no)\s+/i, '').trim();
+      if (!city || /^(?:padrao|casa|sobrado|reforma|obra)$/.test(normalizeText(city))) return null;
+      return { city: city, state: state };
     }
 
     extractBudgetFacts(message, previousState = {}) {
@@ -15347,26 +15363,24 @@
       const text = normalizeText(raw);
       const facts = { currentFields: [] };
       const previousType = previousState && previousState.type;
-      if (/galpao|galp�o/.test(text)) facts.type = "galpao_metalico";
-      else if (/muro\s+de\s+arrimo|arrimo|conten��o|contencao/.test(text)) facts.type = "muro_arrimo";
-      else if (/reforma|reformar|renovacao|renova��o/.test(text) && /banheiro/.test(text)) facts.type = "reforma_banheiro";
-      else if (/ampliacao|amplia��o|acrescimo|acr�scimo|anexo/.test(text)) facts.type = "ampliacao_residencial";
+      if (/galpao/.test(text)) facts.type = "galpao_metalico";
+      else if (/muro\s+de\s+arrimo|arrimo|contencao/.test(text)) facts.type = "muro_arrimo";
+      else if (/reforma|reformar|renovacao/.test(text) && /banheiro/.test(text)) facts.type = "reforma_banheiro";
+      else if (/ampliacao|acrescimo|anexo/.test(text)) facts.type = "ampliacao_residencial";
       else if (this.isResidentialPackageIntent_(text) || this.isResidentialStartIntent_(text)) facts.type = "residential";
-      else if (this.isWallBudgetIntent_(text) || previousType === "wall") facts.type = "wall";
+      else if (this.isWallBudgetIntent_(text) || this.isWallSubjectIntent_(text) || previousType === "wall") facts.type = "wall";
       else if (/reforma\s+de\s+cozinha|trocar\s+piso/.test(text)) facts.type = "renovation";
-      else if (/reforma|reformar|renovacao|renova��o/.test(text)) facts.type = "renovation";
-      else if (/casa|residencial|residencia|resid�ncia|terrea|t�rrea|sobrado|construir|construcao|constru��o|orcamento\s+residencial|or�amento\s+residencial/.test(text) || previousType === "residential") facts.type = "residential";
+      else if (/reforma|reformar|renovacao/.test(text)) facts.type = "renovation";
+      else if (/casa|residencial|residencia|terrea|sobrado|construir|construcao|orcamento\s+residencial/.test(text)) facts.type = "residential";
+      else if (previousType === "residential" && !/parede|muro|bloco|tijolo|alvenaria|reforma|banheiro|cozinha|piso/.test(text)) facts.type = "residential";
 
       let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros\s+quadrados)/i);
       if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
-      match = raw.match(/\bem\s+([A-Za-zÀ-ÿ\s]+?)(?:\s*[-/]\s*|,\s*)([A-Za-z]{2})\b/i);
-      if (!match && previousType === "residential" && Array.isArray(previousState.missingFields) && previousState.missingFields.indexOf("cidade/UF") >= 0) {
-        match = raw.match(/^\s*([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\s*$/i);
-      }
-      if (match) {
-        facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ");
-        facts.state = sanitizeUserText(match[2]).toUpperCase();
+      const cityUf = this.extractCityUf_(raw);
+      if (cityUf) {
+        facts.city = cityUf.city;
+        facts.state = cityUf.state;
         facts.currentFields.push("city", "state");
       }
 
@@ -15404,7 +15418,7 @@
       const currentFields = Array.isArray(newFacts && newFacts.currentFields) ? newFacts.currentFields.slice(0) : [];
       const cleanFacts = Object.assign({}, newFacts || {});
       delete cleanFacts.currentFields;
-      const previous = Object.assign({}, previousState || {});
+      const previous = cleanFacts.type && previousState && previousState.type && cleanFacts.type !== previousState.type ? {} : Object.assign({}, previousState || {});
       const inheritedFields = [];
       ["areaM2", "city", "state", "standard", "floors", "rooms", "wetAreas", "garage", "desiredStage", "dimensions", "openings"].forEach(function (field) {
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
@@ -15570,14 +15584,16 @@
         lines.push("", "Auditoria tecnica V3:");
         lines.push("- Tipologia identificada: " + (audit.typology || "a confirmar"));
         lines.push("- Ready for cost: " + (audit.readyForCost ? "true" : "false"));
-        lines.push("- Disciplinas previstas: " + (audit.disciplines && audit.disciplines.length ? audit.disciplines.slice(0, 12).join(", ") : "a confirmar"));
-        lines.push("- Premissas faltantes: " + (audit.missingPremises && audit.missingPremises.length ? audit.missingPremises.slice(0, 8).join(", ") : "sem pendencias minimas do auditor"));
-        lines.push("- Pendencias principais: " + (audit.pendencias && audit.pendencias.length ? audit.pendencias.slice(0, 5).join("; ") : "validar memorial, quantitativos e bases oficiais"));
-        if (audit.checklist && audit.checklist.length) lines.push("- Checklist tecnico: " + audit.checklist.slice(0, 6).map(function (item) { return (item.label || item.id) + " (" + item.status + ")"; }).join("; "));
+        if (audit.disciplines && audit.disciplines.length) lines.push("- Disciplinas-chave: " + audit.disciplines.slice(0, 8).join(", "));
+        if (audit.missingPremises && audit.missingPremises.length) lines.push("- Premissas faltantes: " + audit.missingPremises.slice(0, 8).join(", "));
+        if (audit.pendencias && audit.pendencias.length) lines.push("- Pendencias principais: " + audit.pendencias.slice(0, 3).join("; "));
       }
-      if (scopeItems && scopeItems.length) {
+      if (scopeItems && scopeItems.length && !pending.length) {
         lines.push("", isResidential ? "Escopo preliminar / Macroetapas da estimativa preliminar:" : "Escopo preliminar:");
         scopeItems.forEach(function (item) { lines.push("- " + item.label + ": " + (/ready|technical|EloBudgetEngine|official_found/i.test(String(item.status || item.source || "")) ? "estruturado pelo motor tecnico" : "pendente de composicao SINAPI/ORSE oficial; faixa preliminar dependente de BDI e precos vigentes")); });
+      }
+      if (pending.length && isResidential) {
+        lines.push("", "Escopo preliminar:", "- Vou abrir as macroetapas depois dos dados minimos; por enquanto preciso fechar o briefing sem chutar preco.");
       }
       lines.push("", "Proximos passos:", pending.length ? "- Responder apenas os dados pendentes acima; eu continuo o mesmo orçamento." : (complementPending.length ? "- Completar " + complementPending.join(", ") + " para refinar a estimativa sem falsa precisao." : "- Validar memorial, quantitativos, composicoes oficiais, BDI, encargos e precos vigentes."));
       lines.push("", "Aviso tecnico: nao vou inventar preco nem tratar base demonstrativa como orcamento oficial. Sem composicao SINAPI/ORSE/importada confiavel, o item fica pendente.");
