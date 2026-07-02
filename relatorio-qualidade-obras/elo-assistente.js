@@ -1624,13 +1624,18 @@
     const riscos = formatBudgetV2PdfList_("Riscos tecnicos", doc.risks, "validar premissas tecnicas");
     const proximos = formatBudgetV2PdfList_("Proximos passos", doc.nextSteps, "validar projeto, memorial e composicoes oficiais");
     const cityUf = doc.facts && (doc.facts.cityUf || doc.facts["cidade/UF"] || [doc.facts.city, doc.facts.state].filter(Boolean).join("/")) || "";
-    const rawArea = doc.facts && (doc.facts["area construida"] || doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2);
+    const rawArea = doc.facts && (doc.facts["area construida"] || doc.facts.builtAreaM2 || doc.facts.areaConstruidaM2 || doc.facts.wallAreaM2 || doc.facts.bathroomAreaM2);
     const area = rawArea ? (/m2|m\^2/i.test(String(rawArea)) ? String(rawArea) : rawArea + " m2") : "";
     const professionalNumber = buildBudgetV2ProfessionalNumber_(doc);
-    const resumoExecutivo = formatBudgetV2PdfExecutiveSummary_(doc, professionalNumber, area, cityUf);
+    const documentType = doc.documentType || (doc.facts && doc.facts.projectType) || "residential_preliminary";
+    const documentTitle = doc.title || (documentType === "wall" ? "Orçamento preliminar — Parede de bloco cerâmico" : documentType === "bathroom_reform" ? "Orçamento preliminar — Reforma de banheiro" : "ELO Orçamentista V2");
+    const typeLabel = documentType === "wall" ? "Orçamento preliminar — Parede de bloco cerâmico" : documentType === "bathroom_reform" ? "Orçamento preliminar — Reforma de banheiro" : "Orçamento residencial preliminar";
+    const resumoExecutivo = documentType === "residential_preliminary"
+      ? formatBudgetV2PdfExecutiveSummary_(doc, professionalNumber, area, cityUf)
+      : sanitizeEloProfessionalPresentationText_("Documento preliminar gerado pelo ELO Orçamentista V2.\nNumero do documento: " + professionalNumber + "\nTipo: " + typeLabel + "\nLocalizacao: " + (cityUf || "Aguardando identificacao") + "\nPreco: pendente de composicao oficial, BDI e validacao profissional.");
     const conteudo = [
       "ELO ORCAMENTISTA V2",
-      "Tipo: Or\u00e7amento residencial preliminar",
+      "Tipo: " + typeLabel,
       "N\u00famero do documento: " + professionalNumber,
       "",
       "Dados confirmados",
@@ -1666,8 +1671,8 @@
     return {
       record: {
         numero: professionalNumber,
-        titulo: "ELO Or\u00e7amentista V2",
-        tipo: "Or\u00e7amento residencial preliminar",
+        titulo: documentTitle,
+        tipo: typeLabel,
         cliente: "Aguardando identifica\u00e7\u00e3o",
         obra: "Aguardando identifica\u00e7\u00e3o",
         cidade_uf: cityUf,
@@ -1684,7 +1689,7 @@
         conteudo_markdown: sanitizeEloProfessionalPresentationText_(conteudo)
       },
       context: {
-        nomeDocumento: "ELO Or\u00e7amentista V2",
+        nomeDocumento: documentTitle,
         numero: professionalNumber,
         resumoExecutivo: resumoExecutivo,
         escopo: escopo,
@@ -1737,6 +1742,8 @@
 
   function buildBudgetV2DocumentDataFromState_(state, budgetPackage) {
     const safeState = state || {};
+    if (safeState.type === "wall") return buildEloWallBudgetV2DocumentData_(safeState);
+    if (safeState.type === "reforma_banheiro") return buildEloBathroomBudgetV2DocumentData_(safeState);
     const pack = budgetPackage || {};
     const facts = collectBudgetV2StateFacts_(safeState, safeState.confirmedFields || []);
     if (safeState.type === "residential") facts.projectType = "residential";
@@ -1744,6 +1751,8 @@
     const scope = Array.isArray(pack.scope) ? pack.scope : [];
     return {
       budgetId: safeState.budgetId || pack.budgetId || "",
+      documentType: "residential_preliminary",
+      title: "ELO Orçamentista V2",
       facts: facts,
       inheritedFacts: inheritedFacts,
       assumptions: Array.isArray(safeState.assumptions) ? safeState.assumptions : [],
@@ -1762,7 +1771,11 @@
     const doc = budgetDocumentData || {};
     const facts = doc.facts || {};
     const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields : [];
-    return !!(doc.budgetId && !pending.length && (facts["area construida"] || facts.builtAreaM2 || facts.areaConstruidaM2) && (facts["cidade/UF"] || facts.cityUf || facts.city) && (facts.padrao || facts.projectStandard));
+    const city = facts["cidade/UF"] || facts.cityUf || facts.city;
+    if (!doc.budgetId || pending.length || !city) return false;
+    if (doc.documentType === "wall") return !!(facts.wallAreaM2 && facts.block);
+    if (doc.documentType === "bathroom_reform") return !!(facts.bathroomAreaM2 || facts["area construida"]);
+    return !!((facts["area construida"] || facts.builtAreaM2 || facts.areaConstruidaM2) && (facts.padrao || facts.projectStandard));
   }
 
 
@@ -15143,6 +15156,178 @@
     const number = Number(value || 0);
     return number.toFixed(decimals === undefined ? 2 : decimals).replace(".", ",");
   }
+
+  function buildEloResidentialOpeningPremises_(state, area) {
+    const rooms = Math.max(0, Number(state && state.rooms || 0));
+    const bathrooms = Math.max(1, Number(state && state.wetAreas || 0));
+    const hasGarage = !!(state && state.garage);
+    const calculatedDoors = rooms + bathrooms + (hasGarage ? 1 : 0) + 2;
+    const totalDoors = Math.max(6, calculatedDoors);
+    const door090 = 1;
+    const door080 = 2;
+    const door070 = Math.max(3, totalDoors - door090 - door080);
+    const regularWindows = Math.max(4, rooms + 2);
+    const smallWindows = 1;
+    const box = Math.max(1, area > 50 ? 2 : 1, bathrooms > 1 ? bathrooms : 0);
+    return {
+      totalDoors: door090 + door080 + door070,
+      doors: { door090: door090, door080: door080, door070: door070 },
+      windows: { small040: smallWindows, regular120x110: regularWindows },
+      box: box
+    };
+  }
+
+  function buildEloResidentialPreliminaryQuantities_(state, residentialPremises) {
+    if (!state || !residentialPremises || !residentialPremises.applies) return null;
+    const area = Number(state.areaM2 || 0);
+    if (!(area > 0)) return null;
+    const bathrooms = Math.max(1, Number(state.wetAreas || 0));
+    const rooms = Math.max(1, Number(state.rooms || 0));
+    const footingQty = Math.max(6, Math.ceil(area / 12), rooms + bathrooms + (state.garage ? 1 : 0) + 3);
+    const footingConcreteM3 = footingQty * residentialPremises.footing.volumeM3;
+    const masonryAreaM2 = Math.ceil(area * 2.4);
+    const ceramicBlocks = Math.ceil(masonryAreaM2 * 12.5 * 1.08);
+    const roofAreaM2 = Math.ceil(area * 1.15);
+    const floorAreaM2 = Math.ceil(area);
+    const wetCoatingM2 = Math.ceil((bathrooms * 18) + 16);
+    const paintingAreaM2 = Math.ceil(area * 3.2);
+    const electricalPoints = Math.max(18, (rooms * 4) + (bathrooms * 3) + (state.garage ? 3 : 0) + 8);
+    const hydraulicPoints = Math.max(6, (bathrooms * 4) + 4);
+    const openings = buildEloResidentialOpeningPremises_(state, area);
+    return {
+      footingQty: footingQty,
+      footingConcreteM3: footingConcreteM3,
+      columnVolumeM3: residentialPremises.columnVolumeM3,
+      beamVolumeM3: residentialPremises.beamVolumeM3,
+      formworkM2: residentialPremises.formworkM2,
+      masonryAreaM2: masonryAreaM2,
+      ceramicBlocks: ceramicBlocks,
+      roofAreaM2: roofAreaM2,
+      floorAreaM2: floorAreaM2,
+      wetCoatingM2: wetCoatingM2,
+      paintingAreaM2: paintingAreaM2,
+      electricalPoints: electricalPoints,
+      hydraulicPoints: hydraulicPoints,
+      openings: openings
+    };
+  }
+
+  function appendEloResidentialQuantitativeLines_(lines, state, residentialPremises) {
+    const quantities = buildEloResidentialPreliminaryQuantities_(state, residentialPremises);
+    if (!quantities) return;
+    lines.push("", "Servicos executaveis e quantitativos preliminares:");
+    lines.push("- Locacao da obra / gabarito: " + formatEloResidentialPremiseNumber_(state.areaM2, 0) + " m2 | preco pendente de base oficial.");
+    lines.push("- Escavacao de sapatas: " + quantities.footingQty + " un | sapata 0,60 x 0,60 x 0,30 m.");
+    lines.push("- Sapatas isoladas: " + formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2) + " m3 de concreto 25 MPa | volume unitario 0,108 m3.");
+    lines.push("- Pilares / arranques: " + formatEloResidentialPremiseNumber_(quantities.columnVolumeM3, 2) + " m3 de concreto 25 MPa.");
+    lines.push("- Vigas baldrame: " + formatEloResidentialPremiseNumber_(quantities.beamVolumeM3, 2) + " m3 de concreto 25 MPa.");
+    lines.push("- Formas de madeira: " + formatEloResidentialPremiseNumber_(quantities.formworkM2, 0) + " m2.");
+    lines.push("- Alvenaria de vedacao: " + formatEloResidentialPremiseNumber_(quantities.masonryAreaM2, 0) + " m2 | bloco ceramico aprox. " + quantities.ceramicBlocks + " un.");
+    lines.push("- Cobertura / telhamento: " + formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0) + " m2 de cobertura.");
+    lines.push("- Piso interno: " + formatEloResidentialPremiseNumber_(quantities.floorAreaM2, 0) + " m2 | revestimento de areas molhadas aprox. " + formatEloResidentialPremiseNumber_(quantities.wetCoatingM2, 0) + " m2.");
+    lines.push("- Pintura: " + formatEloResidentialPremiseNumber_(quantities.paintingAreaM2, 0) + " m2 aproximados.");
+    lines.push("- Instalacoes eletricas: " + quantities.electricalPoints + " pontos estimados | preco pendente.");
+    lines.push("- Instalacoes hidrossanitarias: " + quantities.hydraulicPoints + " pontos estimados | preco pendente.");
+    lines.push("", "Materiais principais:");
+    lines.push("- concreto 25 MPa, madeira para formas, bloco ceramico, argamassa, telha/cobertura, piso, revestimento, tinta, tubos, conexoes, cabos, portas, janelas e box.");
+    lines.push("", "Esquadrias e acessorios - premissas preliminares:");
+    lines.push("- Portas: minimo " + quantities.openings.totalDoors + " un no total; 1 porta 0,90 m; 2 portas 0,80 m; " + quantities.openings.doors.door070 + " portas 0,70 m.");
+    lines.push("- Janelas: " + quantities.openings.windows.small040 + " janela 0,40 x 0,40 m; " + quantities.openings.windows.regular120x110 + " janelas 1,20 x 1,10 m.");
+    lines.push("- Box: " + quantities.openings.box + " un, conforme area/banheiros informados.");
+    lines.push("- Precos oficiais: pendentes de composicao SINAPI/ORSE, BDI, mes-base e quantitativos revisados em projeto.");
+    appendEloProfessionalServiceBlock_(lines, "FUNDAÇÃO", "sapatas isoladas", "concreto 25 MPa, forma, aco pendente de projeto", quantities.footingQty + " un / " + formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2) + " m3", "pendente de composicao oficial");
+    appendEloProfessionalServiceBlock_(lines, "ALVENARIA", "alvenaria de vedacao", "bloco ceramico, argamassa", formatEloResidentialPremiseNumber_(quantities.masonryAreaM2, 0) + " m2 / " + quantities.ceramicBlocks + " blocos", "pendente de composicao oficial");
+    appendEloProfessionalServiceBlock_(lines, "COBERTURA", "cobertura / telhamento", "telha, estrutura de apoio e arremates", formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0) + " m2", "pendente de composicao oficial");
+  }
+
+  function appendEloProfessionalServiceBlock_(lines, title, service, materials, quantity, priceStatus) {
+    lines.push("", title);
+    lines.push("- Servico: " + service);
+    lines.push("- Materiais: " + materials);
+    lines.push("- Quantidade: " + quantity);
+    lines.push("- Preco: " + (priceStatus || "pendente de composicao oficial"));
+  }
+
+  function buildEloWallBudgetV2DocumentData_(state) {
+    const dimensions = state && state.dimensions || {};
+    const area = Number(dimensions.grossAreaM2 || 0);
+    const cityUf = [state && state.city, state && state.state].filter(Boolean).join("/");
+    const block = sanitizeUserText(dimensions.block || "");
+    const parts = String(block || "14x19x29").split("x").map(function (item) { return Number(item); }).filter(function (item) { return item > 0; });
+    const faceA = parts.length >= 3 ? Math.max(parts[0], parts[2]) / 100 : 0.29;
+    const faceB = parts.length >= 2 ? parts[1] / 100 : 0.19;
+    const blockQty = area > 0 ? Math.ceil(area / (faceA * faceB || 0.0551) * 1.08) : 0;
+    const title = "Orçamento preliminar — Parede de bloco cerâmico";
+    return {
+      budgetId: state && state.budgetId || "wall-" + Date.now(),
+      documentType: "wall",
+      title: title,
+      facts: {
+        projectType: "wall",
+        cityUf: cityUf,
+        "cidade/UF": cityUf,
+        wallAreaM2: area > 0 ? formatEloResidentialPremiseNumber_(area, 2) + " m2" : "",
+        wallMeasures: dimensions.lengthM && dimensions.heightM ? formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " m x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) + " m" : "",
+        block: block,
+        laborIncluded: "sim"
+      },
+      inheritedFacts: {},
+      assumptions: ["perda preliminar de 8%", "preco pendente de composicao oficial"],
+      pendingFields: area > 0 && cityUf && block ? [] : ["medidas, bloco e cidade/UF"],
+      scope: [{ label: "Execucao de parede de bloco ceramico" }],
+      materials: [{ title: "Parede de bloco ceramico", items: ["bloco ceramico " + (block || "a confirmar"), "argamassa de assentamento", "cimento", "areia", "mao de obra a compor"] }],
+      quantities: [
+        { label: "Area da parede", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "quantitativo preliminar" },
+        { label: "Blocos ceramicos aproximados", quantity: blockQty, unit: "un", status: "perda preliminar de 8%" },
+        { label: "Medidas", quantity: dimensions.lengthM && dimensions.heightM ? formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) : "a confirmar", unit: "m", status: "informado pelo usuario" },
+        { label: "Mao de obra", quantity: "sim", unit: "", status: "informado pelo usuario" }
+      ],
+      compositions: [],
+      budget: null,
+      risks: ["Validar vaos, perda, produtividade, acesso, andaime e base SINAPI/ORSE."],
+      nextSteps: ["Confirmar vaos, revestimento, perda e composicao oficial antes de precificar."]
+    };
+  }
+
+  function buildEloBathroomBudgetV2DocumentData_(state) {
+    const scope = state && state.bathroomScope || {};
+    const area = Number(state && state.areaM2 || 0);
+    const cityUf = [state && state.city, state && state.state].filter(Boolean).join("/");
+    const wallCoating = area > 0 ? Math.ceil(area * 2.5) : 0;
+    const demolitionArea = area > 0 ? Math.ceil(area + (scope.floorCoating ? wallCoating : 0)) : 0;
+    const title = "Orçamento preliminar — Reforma de banheiro";
+    return {
+      budgetId: state && state.budgetId || "bathroom-" + Date.now(),
+      documentType: "bathroom_reform",
+      title: title,
+      facts: {
+        projectType: "bathroom_reform",
+        cityUf: cityUf,
+        "cidade/UF": cityUf,
+        "area construida": area > 0 ? formatEloResidentialPremiseNumber_(area, 2) + " m2" : "",
+        bathroomAreaM2: area > 0 ? formatEloResidentialPremiseNumber_(area, 2) + " m2" : "",
+        hydraulicPoints: scope.hydraulicPoints || 0,
+        electricalPoints: scope.electricalPoints || 0
+      },
+      inheritedFacts: {},
+      assumptions: ["reforma parcial de banheiro", "preco pendente de composicao oficial"],
+      pendingFields: area > 0 && cityUf ? [] : ["area e cidade/UF"],
+      scope: [{ label: "Demolicao e recomposicao de banheiro" }, { label: "Piso e revestimento" }, { label: "Loucas, metais e pontos" }],
+      materials: [{ title: "Reforma de banheiro", items: ["piso", "revestimento", "argamassa colante", "rejunte", "impermeabilizante", "vaso", "lavatorio", "metais", "tubos e conexoes", "cabos e caixas eletricas"] }],
+      quantities: [
+        { label: "Area do banheiro", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "informado pelo usuario" },
+        { label: "Demolicao/retirada", quantity: demolitionArea, unit: "m2", status: "preliminar" },
+        { label: "Piso", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "preliminar" },
+        { label: "Revestimento de parede", quantity: wallCoating, unit: "m2", status: "preliminar" },
+        { label: "Pontos hidraulicos", quantity: scope.hydraulicPoints || 0, unit: "un", status: "informado pelo usuario" },
+        { label: "Pontos eletricos", quantity: scope.electricalPoints || 0, unit: "un", status: "informado pelo usuario" }
+      ],
+      compositions: [],
+      budget: null,
+      risks: ["Validar impermeabilizacao, caimentos, ralos, registros, demolicao, perdas e base SINAPI/ORSE."],
+      nextSteps: ["Confirmar composicoes oficiais, BDI, perdas e vistoria antes de precificar."]
+    };
+  }
   class BudgetEngineAdapter {
     constructor(options = {}) {
       this.options = options || {};
@@ -15280,6 +15465,7 @@
         dimensions: {},
         openings: null,
         hasPool: false,
+        bathroomScope: {},
         assumptions: [],
         missingFields: [],
         inheritedFields: [],
@@ -15363,6 +15549,7 @@
       const previousType = previousState && previousState.type;
       if (this.isWallBudgetIntent_(text)) facts.type = "wall";
       else if (/reforma\s+de\s+banheiro/.test(text)) facts.type = "reforma_banheiro";
+      else if (previousType === "reforma_banheiro") facts.type = "reforma_banheiro";
       else if (this.isResidentialPackageIntent_(text)) facts.type = "residential";
       else if (/reforma|reformar|renovacao|renova..o/.test(text)) facts.type = "renovation";
       else if (previousType === "wall") facts.type = "wall";
@@ -15394,14 +15581,27 @@
       if (/\bpiscina\b/.test(text) && !/sem\s+piscina/.test(text)) { facts.hasPool = true; facts.currentFields.push("hasPool"); }
       if (/sem\s+piscina/.test(text)) { facts.hasPool = false; facts.currentFields.push("hasPool"); }
 
+      if (facts.type === "reforma_banheiro") {
+        facts.bathroomScope = Object.assign({}, previousState.bathroomScope || {});
+        if (/troca|trocar|piso|revestimento/.test(text)) facts.bathroomScope.floorCoating = true;
+        if (/vaso|lavat[o?]rio|lou[c?]as?|metais/.test(text)) facts.bathroomScope.fixtures = true;
+        if (/demoli[c?][a?]o|demolir|quebrar|retirar/.test(text)) facts.bathroomScope.demolition = true;
+        let pointMatch = text.match(/(\d+)\s+pontos?\s+hidr[a?]ulicos?/);
+        if (pointMatch) facts.bathroomScope.hydraulicPoints = parseInt(pointMatch[1], 10);
+        pointMatch = text.match(/(\d+)\s+pontos?\s+el[e?]tricos?/);
+        if (pointMatch) facts.bathroomScope.electricalPoints = parseInt(pointMatch[1], 10);
+        facts.currentFields.push("bathroomScope");
+      }
+
       if (facts.type === "wall" || previousType === "wall") {
         facts.dimensions = Object.assign({}, previousState.dimensions || {});
-        const wall = parseEloWallServiceBriefing_(raw);
+        const wallSource = previousType === "wall" && !/parede|muro|alvenaria/.test(text) ? "parede de bloco ceramico " + raw : raw;
+        const wall = parseEloWallServiceBriefing_(wallSource);
         if (wall) {
-          facts.dimensions.lengthM = wall.comprimento_m;
-          facts.dimensions.heightM = wall.altura_m;
-          facts.dimensions.grossAreaM2 = wall.area_bruta_m2;
-          facts.dimensions.block = wall.bloco_ceramico_dimensao_cm ? wall.bloco_ceramico_dimensao_cm.join("x") : "";
+          facts.dimensions.lengthM = wall.comprimento_m || wall.length || null;
+          facts.dimensions.heightM = wall.altura_m || wall.height || null;
+          facts.dimensions.grossAreaM2 = wall.area_bruta_m2 || wall.area || null;
+          facts.dimensions.block = wall.bloco_ceramico_dimensao_cm ? wall.bloco_ceramico_dimensao_cm.join("x") : sanitizeUserText(wall.blockDimension || "").replace(/\s*cm$/i, "");
           facts.openings = wall.vaos || null;
           facts.currentFields.push("dimensions", "openings");
         }
@@ -15415,7 +15615,7 @@
       delete cleanFacts.currentFields;
       const previous = Object.assign({}, previousState || {});
       const inheritedFields = [];
-      ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings"].forEach(function (field) {
+      ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings", "bathroomScope"].forEach(function (field) {
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
       });
       const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
@@ -15655,6 +15855,7 @@
         scopeItems.slice(0, 11).forEach(function (item) { lines.push("- " + item.label); });
       }
       this.appendResidentialPremisesLines_(lines, residentialPremises, advancedMode);
+      appendEloResidentialQuantitativeLines_(lines, state, residentialPremises);
       if ((showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
         lines.push("", "Auditoria tecnica V3:");
         if (audit && !audit.error) {
@@ -15694,18 +15895,45 @@
     }
 
     buildBathroomRenovationResponse_(state, options = {}) {
+      const scope = state.bathroomScope || {};
       const missing = [];
       if (!(state.areaM2 > 0)) missing.push("area aproximada");
-      missing.push("troca de piso/revestimento", "lou?as/metais", "pontos hidr?ulicos/el?tricos", "demoli??o");
+      if (!scope.floorCoating) missing.push("troca de piso/revestimento");
+      if (!scope.fixtures) missing.push("loucas/metais");
+      if (!scope.hydraulicPoints && !scope.electricalPoints) missing.push("pontos hidraulicos/eletricos");
+      if (!scope.demolition) missing.push("demolicao");
       if (!state.city || !state.state) missing.push("cidade/UF");
       const confirmed = [];
-      if (state.areaM2 > 0) confirmed.push("area: " + formatEloOperationalQuantity_(state.areaM2) + " m2");
+      const area = Number(state.areaM2 || 0);
+      if (area > 0) confirmed.push("area: " + formatEloOperationalQuantity_(area) + " m2");
       if (state.city || state.state) confirmed.push("cidade/UF: " + [state.city, state.state].filter(Boolean).join("/"));
-      const lines = ["Consigo estruturar uma estimativa preliminar para a reforma do banheiro.", "", "Resposta principal:", "- Tipo: reforma parcial de banheiro.", "", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Ainda preciso dos dados principais da reforma.", "", "Dados que faltam:", missing.map(function (item) { return "- " + item; }).join("\n"), "", "Pr?ximo passo:", "- Informe ?rea aproximada, escopo de troca e cidade/UF."];
-      if (options.advancedMode) lines.push("", "Premissas t?cnicas:", "- Validar impermeabiliza??o, demoli??o, pontos hidr?ulicos/el?tricos, lou?as, metais e revestimentos.");
-      return { shortAnswer: "Vamos tratar como reforma parcial de banheiro.", fullAnswer: lines.join("\n"), nextAction: "Informe ?rea, piso/revestimento, lou?as/metais, pontos, demoli??o e cidade/UF.", canSave: false, sessionTheme: "partial_renovation_budget", sessionIntent: "budget_v2_bathroom_renovation", budgetOrchestratorV2: { state: state } };
+      if (scope.hydraulicPoints) confirmed.push("pontos hidraulicos: " + scope.hydraulicPoints);
+      if (scope.electricalPoints) confirmed.push("pontos eletricos: " + scope.electricalPoints);
+      const lines = ["Consigo estruturar uma estimativa preliminar para a reforma do banheiro.", "", "Resposta principal:", "- Tipo: reforma parcial de banheiro.", "", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Ainda preciso dos dados principais da reforma."];
+      if (area > 0) {
+        const wallCoating = Math.ceil(area * 2.5);
+        const demolitionArea = Math.ceil(area + (scope.floorCoating ? wallCoating : 0));
+        const hydraulicPoints = scope.hydraulicPoints || 0;
+        const electricalPoints = scope.electricalPoints || 0;
+        lines.push("", "Servicos executaveis e quantitativos preliminares:");
+        if (scope.demolition) lines.push("- Demolicao/retirada: " + demolitionArea + " m2 aproximados.");
+        lines.push("- Piso do banheiro: " + formatEloResidentialPremiseNumber_(area, 2) + " m2.");
+        if (scope.floorCoating) lines.push("- Revestimento de parede: " + wallCoating + " m2 aproximados.");
+        if (scope.fixtures) lines.push("- Loucas/metais: vaso sanitario 1 un; lavatorio 1 un; metais e acessorios a confirmar.");
+        if (hydraulicPoints) lines.push("- Pontos hidraulicos: " + hydraulicPoints + " un.");
+        if (electricalPoints) lines.push("- Pontos eletricos: " + electricalPoints + " un.");
+        appendEloProfessionalServiceBlock_(lines, "REFORMA DE BANHEIRO", "demolicao e recomposicao", "piso, revestimento, argamassa, rejunte, loucas/metais", formatEloResidentialPremiseNumber_(area, 2) + " m2 de piso, " + wallCoating + " m2 de revestimento, " + hydraulicPoints + " pontos hidraulicos, " + electricalPoints + " pontos eletricos", "pendente de composicao oficial");
+        lines.push("", "Materiais principais:", "- piso, revestimento, argamassa colante, rejunte, impermeabilizante, vaso, lavatorio, metais, tubos/conexoes, cabos e caixas eletricas.");
+        lines.push("", "Preco:", "- pendente de base confiavel SINAPI/ORSE, BDI, perdas e vistoria.");
+        lines.push("", "Observacao:", "- Nao herdei dados de casa nem de parede; este escopo e somente da reforma parcial do banheiro.");
+      }
+      lines.push("", "Dados que faltam:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado essencial pendente para a previa.", "", "Proximo passo:", missing.length ? "- Confirme " + missing.slice(0, 5).join(", ") + "." : "- Posso seguir para composicoes oficiais e BDI.");
+      if (options.advancedMode) lines.push("", "Premissas tecnicas:", "- Validar impermeabilizacao, caimentos, ralos, registros, pontos hidraulicos/eletricos, loucas, metais e revestimentos.");
+      const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
+      const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
+      if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
+      return { shortAnswer: "Vamos tratar como reforma parcial de banheiro.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Informe " + missing.join(", ") + "." : "Confirmar base oficial, BDI e perdas.", canSave: missing.length === 0, sessionTheme: "partial_renovation_budget", sessionIntent: "budget_v2_bathroom_renovation", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
     }
-
     buildMaterialListResponse_(state) {
       const groups = [
         ["Serviços preliminares", ["tapume", "locação", "EPIs", "limpeza"]],
@@ -15738,6 +15966,46 @@
         sessionIntent: "budget_v2_material_list",
         budgetOrchestratorV2: { state: state }
       };
+    }
+    buildWallQuantitativeResponse_(state) {
+      if (!state || state.type !== "wall") return null;
+      const dimensions = state.dimensions || {};
+      const area = Number(dimensions.grossAreaM2 || 0);
+      if (!(area > 0) || !dimensions.block) return null;
+      const parts = String(dimensions.block || "14x19x29").split("x").map(function (item) { return Number(item); }).filter(function (item) { return item > 0; });
+      const faceA = parts.length >= 3 ? Math.max(parts[0], parts[2]) / 100 : 0.29;
+      const faceB = parts.length >= 2 ? parts[1] / 100 : 0.19;
+      const unitArea = faceA * faceB || 0.0551;
+      const blockQty = Math.ceil(area / unitArea * 1.08);
+      const cityUf = [state.city, state.state].filter(Boolean).join("/") || "cidade/UF pendente";
+      const lines = [
+        "Orcamento tecnico preliminar - parede de bloco ceramico",
+        "",
+        "Resumo:",
+        "- Area da parede: " + formatEloResidentialPremiseNumber_(area, 2) + " m2" + (dimensions.lengthM && dimensions.heightM ? " (" + formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " m x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) + " m)." : "."),
+        "- Bloco informado: " + dimensions.block + " cm.",
+        "- Cidade/UF: " + cityUf + ".",
+        "",
+        "Servicos executaveis e quantitativos preliminares:",
+        "- Alvenaria em bloco ceramico: " + formatEloResidentialPremiseNumber_(area, 2) + " m2.",
+        "- Blocos ceramicos aproximados: " + blockQty + " un, com perda preliminar de 8%.",
+        "- Mao de obra: considerada no escopo, preco pendente de composicao oficial.",
+        "- Chapisco/reboco: a confirmar se entra no escopo final.",
+        "",
+        "Materiais principais:",
+        "- bloco ceramico, argamassa de assentamento, cimento, areia, agua e ferramentas de execucao.",
+        "",
+        "Preco:",
+        "- pendente de composicao SINAPI/ORSE, BDI, mes-base e produtividade validada.",
+        "",
+        "Observacao:",
+        "- Nao herdei dados de casa; este orcamento e somente da parede informada."
+      ];
+      appendEloProfessionalServiceBlock_(lines, "PAREDE DE BLOCO CERAMICO", "execucao de parede", "bloco ceramico " + dimensions.block + ", argamassa", formatEloResidentialPremiseNumber_(area, 2) + " m2 / " + blockQty + " blocos aproximados", "pendente de composicao oficial");
+      const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
+      const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
+      if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
+      return { shortAnswer: "Calculei o quantitativo preliminar da parede.", fullAnswer: lines.join("\n"), nextAction: "Confirme vaos, perda e se inclui chapisco/reboco para fechar o escopo.", canSave: true, sessionTheme: "wall_budget_package", sessionIntent: "budget_v2_wall_quantities", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
     }
     buildWallBriefingResponse_(state) {
       const missing = state.missingFields || [];
@@ -15784,7 +16052,7 @@
       if (hasInheritedFields && this.isReuseInheritedConfirmation_(text)) {
         const confirmedState = this.confirmInheritedState_(previous);
         ELO_SESSION_MEMORY.budgetOrchestratorV2 = confirmedState;
-        if (confirmedState.type === "wall") return this.buildWallBriefingResponse_(confirmedState);
+        if (confirmedState.type === "wall") return this.buildWallQuantitativeResponse_(confirmedState) || this.buildWallBriefingResponse_(confirmedState);
         const confirmedPackage = this.budgetEngineAdapter.adapt(confirmedState, context);
         confirmedState.services = confirmedPackage.scope || [];
         const confirmedCommercialMode = confirmedState.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text);
@@ -15801,8 +16069,8 @@
       if (this.isCommercialBudgetRequest_(text) || previous.presentationMode === "commercial") next.presentationMode = "commercial";
       if (facts.type && previous.type && facts.type !== previous.type) {
         next.inheritedFields = [];
-        ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings"].forEach(function (field) {
-          if ((facts.currentFields || []).indexOf(field) < 0) next[field] = field === "dimensions" ? {} : field === "garage" || field === "openings" ? null : field === "hasPool" ? false : "";
+        ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings", "bathroomScope"].forEach(function (field) {
+          if ((facts.currentFields || []).indexOf(field) < 0) next[field] = field === "dimensions" || field === "bathroomScope" ? {} : field === "garage" || field === "openings" ? null : field === "hasPool" ? false : "";
         });
         if (facts.type === "reforma_banheiro") next.areaM2 = facts.areaM2 || null;
       }
@@ -15811,7 +16079,7 @@
         next.inheritedFields = (next.inheritedFields || []).filter(function (field) { return next.confirmedFields.indexOf(field) < 0; });
       }
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
-      if (next.type === "wall") return buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
+      if (next.type === "wall") return this.buildWallQuantitativeResponse_(next) || buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
       const budgetPackage = this.budgetEngineAdapter.adapt(next, context);
       next.services = budgetPackage.scope || [];
       return this.buildBudgetResponse(next, budgetPackage, { advancedMode: advancedDetailsIntent, commercialMode: next.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text) });
@@ -15894,6 +16162,16 @@
       }
     }
 
+    const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
+    const shouldPrioritizeWallBudgetV2 = /parede|alvenaria|bloco|tijolo/.test(normalizedQuestion) || (activeBudgetV2State && activeBudgetV2State.type === "wall" && /\d/.test(normalizedQuestion));
+    if (shouldPrioritizeWallBudgetV2) {
+      const earlyWallBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (earlyWallBudgetOrchestratorV2Answer) {
+        attachEloTechnicalBrainMarker_(earlyWallBudgetOrchestratorV2Answer, "orcamentista v2 parede");
+        rememberEloBudgetSource_(cleanQuestion, earlyWallBudgetOrchestratorV2Answer, earlyWallBudgetOrchestratorV2Answer.fullAnswer || earlyWallBudgetOrchestratorV2Answer.shortAnswer || "");
+        return earlyWallBudgetOrchestratorV2Answer;
+      }
+    }
     const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
     if (legacyPriorityBeforeBudgetV2Answer) {
       return legacyPriorityBeforeBudgetV2Answer;
@@ -18329,6 +18607,22 @@
         clearProductAttachmentPreview();
       });
       return;
+    }
+    const normalizedCleanQuestionForBudget = normalizeText(cleanQuestion);
+    const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
+    const shouldPrioritizeWallBudgetV2 = /parede|alvenaria|bloco|tijolo/.test(normalizedCleanQuestionForBudget) || (activeBudgetV2State && activeBudgetV2State.type === "wall" && /\d/.test(normalizedCleanQuestionForBudget));
+    if (shouldPrioritizeWallBudgetV2) {
+      const earlyWallBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (earlyWallBudgetOrchestratorV2Answer) {
+        attachEloTechnicalBrainMarker_(earlyWallBudgetOrchestratorV2Answer, "orcamentista v2 parede");
+        rememberEloBudgetSource_(cleanQuestion, earlyWallBudgetOrchestratorV2Answer, earlyWallBudgetOrchestratorV2Answer.fullAnswer || earlyWallBudgetOrchestratorV2Answer.shortAnswer || "");
+        const earlyWallBudgetText = formatResponse(earlyWallBudgetOrchestratorV2Answer);
+        appendAssistantMessage(cleanQuestion, earlyWallBudgetText, earlyWallBudgetOrchestratorV2Answer.canSave !== false, earlyWallBudgetOrchestratorV2Answer);
+        saveConversation(cleanQuestion, earlyWallBudgetText);
+        rememberSessionTurn(cleanQuestion, earlyWallBudgetOrchestratorV2Answer, earlyWallBudgetText);
+        clearProductAttachmentPreview();
+        return;
+      }
     }
     const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
     if (legacyPriorityBeforeBudgetV2Answer) {
