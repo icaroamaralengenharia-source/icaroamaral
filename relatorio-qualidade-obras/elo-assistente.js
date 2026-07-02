@@ -1278,6 +1278,41 @@
     return /residential_budget_package|technical_proposal_package|wall_complete_package|foundation_package|structural_package|diagnostico_operacional_obra|documento_operacional_pdf|rdo_operacional|almoxarifado_operacional|relatorios_operacionais|stock_obras_composicao/.test(value);
   }
 
+  function getEloBudgetBrainSubtype_(theme, intent, question) {
+    const value = normalizeText([theme || "", intent || "", question || ""].join(" "));
+    if (/residential_budget_package|orcamento_residencial|orcamento\s+residencial|residencial|casa/.test(value)) return "residential_preliminary";
+    if (/wall_complete_package|elo_operacional_parede|orcamento_parede|parede|alvenaria|bloco|tijolo/.test(value)) return "wall";
+    if (/stock_obras_composicao|orcamentista_assistido|briefing_composicao|composi..o|composicao|sinapi|orse/.test(value)) return "technical_composition";
+    return "generic";
+  }
+
+  function detectEloBrainRoute_(question, response) {
+    const text = normalizeText(question || "");
+    const theme = normalizeText(response && response.sessionTheme || "");
+    const intent = normalizeText(response && response.sessionIntent || "");
+    const joined = [theme, intent, text].join(" ");
+    const explicitBudgetIntent = /orcamento|or.amento|custo|valor|preco|pre.o|bdi|composi..o|composicao|sinapi|orse/.test(text);
+    const responseBudgetIntent = /budget|orcamento|composicao|proposta/.test(joined);
+    const hasTechnicalSubject = /parede|bloco|ceramico|cer.mico|reboco|contrapiso|pintura|telhado|piso|concreto|forma|armacao|arma..o|alvenaria|chapisco|embo.o|servico\s+tecnico|servi.o\s+t.cnico/.test(text) || /base_tecnica|geometria_obras|premissas_quantitativo/.test(joined);
+    if (/\brdo\b|di.rio\s+de\s+obra|di.rio\s+de\s+obras|fazer\s+di.rio|gerar\s+rdo|rdo\s+de\s+hoje/.test(text) || /(^|_)rdo|rdo(_|$)/.test(joined)) return "rdo";
+    if (/infiltra|fissura|trinca|umidade|patologia|vistoria|inconformidade|relatorio\s+tecnico|relat.rio\s+t.cnico/.test(text) || /relatorio|patologia|vistoria|inconformidade/.test(joined)) return "report";
+    if (hasTechnicalSubject && !explicitBudgetIntent) return "technical";
+    if (explicitBudgetIntent || responseBudgetIntent) return "budget";
+    if (hasTechnicalSubject) return "technical";
+    return "conversational";
+  }
+
+  function applyEloBrainMarker_(question, response) {
+    if (!response || typeof response !== "object") return response;
+    const brain = detectEloBrainRoute_(question, response);
+    response.brain = brain;
+    response.brainMarker = brain;
+    if (brain === "budget") {
+      response.budgetBrainSubtype = getEloBudgetBrainSubtype_(response.sessionTheme, response.sessionIntent, question);
+    }
+    return response;
+  }
+
   function rememberEloBudgetSource_(question, response, answer) {
     if (!response || response.canSave === false) return;
     if (!isEloBudgetRecordTheme_(response.sessionTheme, response.sessionIntent)) return;
@@ -1288,6 +1323,7 @@
       answer: rawAnswer.slice(0, 30000),
       theme: response.sessionTheme || "",
       intent: response.sessionIntent || "",
+      budgetSubtype: getEloBudgetBrainSubtype_(response.sessionTheme, response.sessionIntent, question),
       nextAction: sanitizeUserText(response.nextAction || "").slice(0, 500),
       savedAt: new Date().toISOString()
     };
@@ -2003,7 +2039,55 @@
   function buildEloBudgetOpenAnswer_(message) { const text = normalizeText(message || ""); if (!/ver\s+orcamento|ver\s+orçamento|abrir\s+orcamento|abrir\s+orçamento/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento antes de abrir.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open_empty" }; return { shortAnswer: "Orcamento localizado: " + record.numero + ".", fullAnswer: [record.numero + " v" + (record.versao || 1), "Cliente: " + record.cliente, "Obra: " + record.obra, "Cidade/UF: " + record.cidade_uf, "Status: " + record.status, "", record.conteudo_markdown].join("\n"), nextAction: "Peca 'baixar PDF do orcamento " + record.numero + "' para gerar o documento.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open" }; }
   function buildEloBudgetPdfAnswer_(message) { const text = normalizeText(message || ""); if (!/baixar\s+pdf|gerar\s+pdf|exportar\s+pdf|pdf\s+do\s+orcamento|pdf\s+da\s+proposta|baixar\s+proposta/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return null; openEloBudgetRecordPdf_(record); const blocked = typeof window !== "undefined" && window.__eloLastBudgetPdfPopupBlocked; return { shortAnswer: "PDF profissional preparado.", fullAnswer: blocked ? "PDF profissional preparado.\nO navegador bloqueou a nova janela.\nUse o botao Abrir PDF novamente para tentar de novo." : "PDF profissional preparado.\nO documento foi aberto em nova janela.\nUse Imprimir > Salvar como PDF.\nSe o navegador bloquear, clique em Abrir PDF novamente.", nextAction: blocked ? "Clique em Abrir PDF novamente." : "Revise o documento antes de enviar ao cliente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_pdf", budgetRecordId: record.id, pdfAction: buildEloBudgetPdfAction_(record, true) }; }
   function buildEloBudgetVersionAnswer_(message) { const text = normalizeText(message || ""); if (!/gerar\s+nova\s+versao|gerar\s+nova\s+versão|nova\s+versao|nova\s+versão/.test(text)) return null; const base = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!base) return { shortAnswer: "Nenhum orcamento salvo para versionar.", fullAnswer: "Nenhum orcamento salvo para gerar nova versao.", nextAction: "Salve primeiro um orcamento ou proposta.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version_empty" }; const records = getEloBudgetRecords_(); const nextVersion = records.filter(function (record) { return record.numero === base.numero; }).reduce(function (max, record) { return Math.max(max, record.versao || 1); }, base.versao || 1) + 1; const now = new Date().toISOString(); const clone = Object.assign({}, base, { id: base.numero + "-v" + nextVersion, versao: nextVersion, data_atualizacao: now, status: "revisao", hash_simples: simpleEloChecksum_((base.conteudo_markdown || "") + nextVersion + now) }); clone.conteudo_html = buildEloBudgetRecordHtml_(clone, true); saveEloBudgetRecord_(clone); return { shortAnswer: "Nova versao criada.", fullAnswer: "Nova versao criada.\n\nNumero: " + clone.numero + " v" + clone.versao + "\nStatus: " + clone.status + "\nObra: " + clone.obra, nextAction: "Peca 'baixar PDF do orcamento " + clone.numero + "' para exportar a versao mais recente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version" }; }
-  function buildEloBudgetProductAnswer_(message) { return buildEloBudgetSaveAnswer_(message) || buildEloBudgetListAnswer_(message) || buildEloBudgetOpenAnswer_(message) || buildEloBudgetVersionAnswer_(message) || buildEloBudgetPdfAnswer_(message); }
+  function buildEloBudgetContinuationAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!/continuar\s+(?:meu\s+)?orcamento|continuar\s+(?:meu\s+)?or.amento|retomar\s+(?:meu\s+)?orcamento|retomar\s+(?:meu\s+)?or.amento/.test(text)) return null;
+    const source = ELO_SESSION_MEMORY.lastBudgetSource || ELO_SESSION_MEMORY.lastTechnicalPackage || null;
+    if (!source || !source.answer) {
+      return {
+        shortAnswer: "Qual orcamento voce quer continuar?",
+        fullAnswer: [
+          "Posso continuar, mas preciso saber qual linha de trabalho voce quer retomar:",
+          "- orcamento residencial preliminar;",
+          "- orcamento de parede/alvenaria;",
+          "- orcamento por composicao tecnica SINAPI/ORSE."
+        ].join("\n"),
+        nextAction: "Responda com residencial, parede ou composicao tecnica.",
+        canSave: false,
+        sessionTheme: "orcamento_continuacao",
+        sessionIntent: "pedir_tipo_orcamento"
+      };
+    }
+    const subtype = source.budgetSubtype || getEloBudgetBrainSubtype_(source.theme, source.intent, source.question || message);
+    const labels = {
+      residential_preliminary: "orcamento residencial preliminar",
+      wall: "orcamento de parede/alvenaria",
+      technical_composition: "orcamento por composicao tecnica SINAPI/ORSE",
+      generic: "orcamento anterior"
+    };
+    const nextBySubtype = {
+      residential_preliminary: "Confirme cidade/UF, padrao, area, tipo de construcao, pavimentos e etapa desejada.",
+      wall: "Continue com medidas da parede, dimensao do bloco, vaos, perdas, revestimento e base tecnica.",
+      technical_composition: "Informe ou escolha a composicao SINAPI/ORSE, UF/mes, unidade e quantitativo do servico.",
+      generic: "Diga se deseja seguir por residencial, parede ou composicao tecnica."
+    };
+    return {
+      shortAnswer: "Vou retomar o " + (labels[subtype] || labels.generic) + ".",
+      fullAnswer: [
+        "Retomada de orcamento",
+        "Tipo identificado: " + (labels[subtype] || labels.generic) + ".",
+        "Ultimo pedido: " + (source.question || "nao informado"),
+        "Proximo passo: " + (nextBySubtype[subtype] || nextBySubtype.generic),
+        "Nao vou misturar esse fluxo com outro tipo de orcamento sem voce confirmar."
+      ].join("\n"),
+      nextAction: nextBySubtype[subtype] || nextBySubtype.generic,
+      canSave: false,
+      sessionTheme: "orcamento_continuacao",
+      sessionIntent: "continuar_" + subtype
+    };
+  }
+
+  function buildEloBudgetProductAnswer_(message) { return buildEloBudgetContinuationAnswer_(message) || buildEloBudgetSaveAnswer_(message) || buildEloBudgetListAnswer_(message) || buildEloBudgetOpenAnswer_(message) || buildEloBudgetVersionAnswer_(message) || buildEloBudgetPdfAnswer_(message); }
 
   function isEloTechnicalProposalTrigger_(message) {
     const text = normalizeText(message || "");
@@ -12682,6 +12766,43 @@
     return { shortAnswer: "Orçamento residencial preliminar consolidado para revisão técnica.", fullAnswer: lines.join("\n"), nextAction: bucket.missing.length ? "Importe ou informe as composições oficiais faltantes para completar o orçamento preliminar." : "Revise premissas, preços e responsabilidades técnicas antes de apresentar ao cliente.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_package" };
   }
 
+  function isEloResidentialBudgetBriefingQuestion_(message) {
+    const text = normalizeText(message || "");
+    if (/parede|alvenaria|bloco|tijolo|reboco|contrapiso|pintura|telhado|piso|concreto|forma|armacao|arma..o|sinapi|orse|composi..o|composicao/.test(text)) return false;
+    return /orcamento\s+residencial|or.amento\s+residencial|orcamento\s+(?:preliminar\s+)?(?:de\s+)?casa|or.amento\s+(?:preliminar\s+)?(?:de\s+)?casa|quero\s+orcamento\s+residencial|quero\s+or.amento\s+residencial/.test(text);
+  }
+
+  function buildEloResidentialBudgetBriefingAnswer_(message) {
+    if (!isEloResidentialBudgetBriefingQuestion_(message)) return null;
+    const project = updateEloWorkMemoryFromMessage_(message);
+    const missing = [];
+    if (!project.cidade || project.cidade === "nao informada" || !project.uf || project.uf === "nao informada") missing.push("cidade/UF");
+    if (!project.padrao_construtivo) missing.push("padrao da obra");
+    if (!project.area_m2) missing.push("area aproximada");
+    if (!project.tipo_obra) missing.push("tipo de construcao");
+    if (!/pavimento|andar|terrea|t.rrea|sobrado|2\s+pav|dois\s+pav/.test(normalizeText(message || ""))) missing.push("quantidade de pavimentos");
+    if (!project.etapa_atual) missing.push("etapa desejada");
+    return {
+      shortAnswer: "Vamos montar o orcamento residencial preliminar com os dados basicos primeiro.",
+      fullAnswer: [
+        "Orcamento residencial preliminar",
+        "Antes de buscar SINAPI/ORSE ou compor valores, preciso fechar o briefing minimo:",
+        "- cidade/UF;",
+        "- padrao da obra;",
+        "- area aproximada;",
+        "- tipo de construcao;",
+        "- quantidade de pavimentos;",
+        "- etapa desejada.",
+        "",
+        "Dados ainda pendentes: " + (missing.length ? missing.join(", ") : "nenhum dado basico aparente; confirme se posso seguir para composicoes.")
+      ].join("\n"),
+      nextAction: "Responda com cidade/UF, padrao, area, tipo de construcao, pavimentos e etapa desejada.",
+      canSave: false,
+      sessionTheme: "residential_budget_package",
+      sessionIntent: "briefing_residential_budget"
+    };
+  }
+
   function buildEloResidentialBudgetPackageQuickAnswer_(message) {
     const residential = parseEloResidentialBudgetPackageRequest_(message);
     if (!residential) return null;
@@ -15326,7 +15447,7 @@
       else if (this.fieldWasInherited_(state, "standard")) addFact(inherited, "padrao", state.standard);
       if (this.fieldWasCurrent_(state, "floors")) addFact(confirmed, "pavimentos", String(state.floors));
       else if (this.fieldWasInherited_(state, "floors")) addFact(inherited, "pavimentos", String(state.floors));
-      const lines = ["ELO ORCAMENTISTA V2 - ORCAMENTO RESIDENCIAL PRELIMINAR", "", "Vou montar um orçamento residencial preliminar.", "", "Resumo da obra:", "- Tipo: residencia" + (state.floors ? " | pavimentos: " + state.floors : "")];
+      const lines = ["ELO ORCAMENTISTA V2 - ORCAMENTO RESIDENCIAL PRELIMINAR", "", "Vou montar um orçamento residencial preliminar.", "", "Briefing minimo do orcamento residencial:", "- cidade/UF;", "- padrao construtivo;", "- area construida aproximada;", "- tipo de construcao;", "- quantidade de pavimentos;", "- etapa desejada.", "", "Resumo da obra:", "- Tipo: residencia" + (state.floors ? " | pavimentos: " + state.floors : "")];
       lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado tecnico suficiente confirmado na mensagem atual.");
       lines.push("", "Dados herdados:", inherited.length ? inherited.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado herdado do orçamento anterior.");
       if (inherited.length) lines.push("- Posso reutilizar esses dados ou deseja alterá-los?");
@@ -15500,7 +15621,7 @@
     }
     return response;
   }
-  function buildResponse(question) {
+  function buildResponseCore_(question) {
     const cleanQuestion = sanitizeUserText(question);
     const normalizedQuestion = normalizeText(cleanQuestion);
     if (normalizedQuestion && isEloConstructionTechnicalQuestion_(cleanQuestion)) {
@@ -15526,6 +15647,11 @@
       return budgetV2ListIntentAnswer;
     }
 
+    const budgetContinuationAnswer = buildEloBudgetContinuationAnswer_(cleanQuestion);
+    if (budgetContinuationAnswer) {
+      return budgetContinuationAnswer;
+    }
+
     const budgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (budgetOrchestratorV2Answer) {
       attachEloTechnicalBrainMarker_(budgetOrchestratorV2Answer, "orcamentista v2");
@@ -15547,6 +15673,7 @@
 
     const residentialBudgetFlowAnswer = buildEloResidentialBudgetFlowAnswer_(cleanQuestion);
     if (residentialBudgetFlowAnswer) {
+      rememberEloBudgetSource_(cleanQuestion, residentialBudgetFlowAnswer, residentialBudgetFlowAnswer.fullAnswer || residentialBudgetFlowAnswer.shortAnswer || "");
       return residentialBudgetFlowAnswer;
     }
     if (isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
@@ -17905,6 +18032,10 @@
 
     return assistantResponse;
   }
+  function buildResponse(question) {
+    return applyEloBrainMarker_(question, buildResponseCore_(question));
+  }
+
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
