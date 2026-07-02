@@ -416,3 +416,99 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /FUNDAÃ‡ÃƒO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
+
+function assertNoEloInternalState(answer) {
+  assert.doesNotMatch(answer, /Sess[aã]o de trabalho/i);
+  assert.doesNotMatch(answer, /\bStatus:/i);
+  assert.doesNotMatch(answer, /Entrega alvo/i);
+  assert.doesNotMatch(answer, /Pr[eé]via da entrega/i);
+  assert.doesNotMatch(answer, /Pr[oó]ximo dado/i);
+  assert.doesNotMatch(answer, /Para conduzir certo/i);
+  assert.doesNotMatch(answer, /checklist de progresso/i);
+}
+
+function assertNoInventedPrice(answer) {
+  assert.doesNotMatch(answer, /R\$\s*(?:25,00|1\.200,00|750,00|3\.000,00)/i);
+  assert.doesNotMatch(answer, /pre[cç]os? m[eé]dios? locais/i);
+}
+
+test('ELO conversacional profissional: parede inicial calcula sem estado interno e libera PDF', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Area da parede: 30,00 m2/i);
+  assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
+  assertNoEloInternalState(answer);
+  assert.ok(response.pdfAction, 'parede com quantitativo deve liberar PDF mesmo antes da cidade');
+  assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
+});
+
+test('ELO conversacional profissional: pedido de PDF usa orçamento atual sem repetir orçamento', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('gere o orçamento em pdf');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orçamento atual');
+  assert.match(answer, /Use o botão abaixo para gerar o PDF do orçamento atual/i);
+  assert.doesNotMatch(answer, /conte[uú]do exato/i);
+  assert.doesNotMatch(answer, /Servicos executaveis e quantitativos preliminares/i);
+  assertNoEloInternalState(answer);
+});
+
+test('ELO conversacional profissional: pdf curto retorna acao do orçamento atual', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('pdf');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction);
+  assert.ok(answer.length < 180, 'resposta para pdf deve ser curta');
+  assert.match(answer, /botão abaixo/i);
+});
+
+test('ELO conversacional profissional: cidade atualiza parede sem perder medidas', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('Vitória da Conquista/BA');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Area da parede: 30,00 m2/i);
+  assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
+  assert.match(answer, /Cidade\/UF: Vit[oó]ria da Conquista\/BA/i);
+  assert.doesNotMatch(answer, /comprimento da parede|altura da parede|informe area|informe .*area/i);
+  assert.ok(response.pdfAction);
+});
+
+test('ELO conversacional profissional: faca com orçamento suficiente aciona PDF sem preco inventado', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('Vitória da Conquista/BA');
+  const response = elo.buildResponseForTest('faça');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction);
+  assert.match(answer, /Preço pendente de composição SINAPI\/ORSE, BDI e mês-base/i);
+  assertNoInventedPrice(answer);
+  assert.doesNotMatch(answer, /conte[uú]do exato/i);
+});
+
+test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa orçamento atual', () => {
+  let elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  let response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  assertNoEloInternalState(response.fullAnswer || '');
+  response = elo.buildResponseForTest('pdf');
+  assert.ok(response.pdfAction, 'casa deve reutilizar orçamento atual para PDF');
+  assert.match(response.fullAnswer || '', /botão abaixo/i);
+  assert.doesNotMatch(response.fullAnswer || '', /Servicos executaveis e quantitativos preliminares/i);
+
+  elo = loadElo();
+  elo.buildResponseForTest('Reforma de banheiro');
+  response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
+  assertNoEloInternalState(response.fullAnswer || '');
+  response = elo.buildResponseForTest('pdf');
+  assert.ok(response.pdfAction, 'banheiro deve reutilizar orçamento atual para PDF');
+  assert.match(response.fullAnswer || '', /botão abaixo/i);
+});
