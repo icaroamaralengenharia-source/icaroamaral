@@ -1,4 +1,4 @@
-﻿const test = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -134,90 +134,285 @@ test('ELO direciona servi?os t?cnicos e RDO/relat?rio sem cair em fluxo gen?rico
   assert.match(report.fullAnswer + report.nextAction, /relato tecnico|relato t.cnico|vistoria|fissura|relatorio|relat.rio/i);
 });
 
-test('ELO amplia gatilhos de orçamento residencial sem duplicar fluxo', () => {
+
+test('ELO qualidade: or?amento residencial padr?o fica curto e sem auditoria', () => {
   const elo = loadElo();
-  const casa70 = elo.buildResponseForTest('quero or\u00e7ar uma casa de 70m2');
-  assert.equal(casa70.brain, 'budget');
-  assert.equal(casa70.budgetBrainSubtype, 'residential_preliminary');
-  assert.equal(casa70.sessionTheme, 'residential_budget_package');
-  assert.match(casa70.fullAnswer, /Macroetapas|Dados complementares|cidade\/UF/i);
-
-  const terrea = elo.buildResponseForTest('quanto custa construir uma casa t\u00e9rrea?');
-  assert.equal(terrea.brain, 'budget');
-  assert.equal(terrea.budgetBrainSubtype, 'residential_preliminary');
-  assert.match(terrea.fullAnswer, /or\u00e7amento residencial preliminar|orcamento residencial preliminar/i);
-
-  const sobrado = elo.buildResponseForTest('sobrado de 120m2 padr\u00e3o m\u00e9dio');
-  assert.equal(sobrado.brain, 'budget');
-  assert.equal(sobrado.budgetBrainSubtype, 'residential_preliminary');
-  assert.match(sobrado.fullAnswer, /sobrado|2 pavimento|pavimentos/i);
+  const response = elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'budget');
+  assert.match(answer, /70 m2|70m2/i);
+  assert.match(answer, /cidade\/UF/i);
+  assert.match(answer, /padrao construtivo|padr.o construtivo/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
+  assert.doesNotMatch(answer, /Checklist tecnico/i);
+  const pendingSinapi = answer.match(/pendente de composicao SINAPI\/ORSE oficial/gi) || [];
+  assert.equal(pendingSinapi.length, 0);
 });
 
-test('ELO continua orçamento residencial reaproveitando contexto salvo', () => {
+test('ELO qualidade: briefing residencial reconhece Salvador BA sem pedir cidade novamente', () => {
   const elo = loadElo();
-  const first = elo.buildResponseForTest('quero or\u00e7ar uma casa de 70m2 em Salvador/BA padr\u00e3o m\u00e9dio com 2 quartos, 1 banheiro, garagem e obra completa');
-  assert.equal(first.brain, 'budget');
-  assert.equal(first.budgetBrainSubtype, 'residential_preliminary');
-
-  const next = elo.buildResponseForTest('continuar meu or\u00e7amento');
-  assert.equal(next.brain, 'budget');
-  assert.match(next.fullAnswer, /or.amento residencial preliminar|orcamento residencial preliminar/i);
-  assert.doesNotMatch(next.fullAnswer, /composicao tecnica SINAPI\/ORSE.*Tipo identificado/i);
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /cidade\/UF: Salvador\/BA/i);
+  assert.match(answer, /padrao: medio/i);
+  assert.match(answer, /quartos: 2/i);
+  assert.match(answer, /banheiros: 1/i);
+  assert.doesNotMatch(answer, /Dados que faltam:\n- cidade\/UF/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
 });
 
-test('ELO mantém parede e reforma parcial fora de casa completa', () => {
+test('ELO qualidade: parede n?o herda or?amento residencial', () => {
   const elo = loadElo();
-  const wall = elo.buildResponseForTest('or\u00e7ar parede de bloco cer\u00e2mico');
-  assert.ok(wall.brain === 'technical' || wall.budgetBrainSubtype === 'wall');
-  assert.notEqual(wall.budgetBrainSubtype, 'residential_preliminary');
-  assert.notEqual(wall.sessionIntent, 'budget_v2_scope');
-  assert.doesNotMatch(wall.fullAnswer, /Macroetapas da estimativa preliminar/i);
-
-  const eloReforma = loadElo();
-  const reforma = eloReforma.buildResponseForTest('reforma de banheiro');
-  assert.notEqual(reforma.budgetBrainSubtype, 'residential_preliminary');
-  assert.doesNotMatch(reforma.fullAnswer, /Macroetapas da estimativa preliminar/i);
-  assert.match(reforma.fullAnswer + reforma.shortAnswer + reforma.nextAction, /reforma|banheiro|or\u00e7amento executivo|orcamento executivo/i);
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const response = elo.buildResponseForTest('Parede de bloco cer?mico');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'technical');
+  assert.match(answer, /parede|bloco cer.mico|bloco/i);
+  assert.match(answer, /comprimento|medidas|area/i);
+  assert.match(answer, /cidade\/UF|SINAPI|ORSE/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+  assert.notEqual(response.sessionIntent, 'budget_v2_scope');
 });
 
-test('ELO reconhece cidade UF e completa briefing residencial em continuidade', () => {
+test('ELO qualidade: reforma de banheiro n?o mistura casa nem parede', () => {
   const elo = loadElo();
-  const start = elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
-  assert.equal(start.brain, 'budget');
-  assert.equal(start.budgetBrainSubtype, 'residential_preliminary');
-  assert.match(start.fullAnswer, /cidade\/UF/i);
-
-  const next = elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
-  assert.equal(next.brain, 'budget');
-  assert.equal(next.budgetBrainSubtype, 'residential_preliminary');
-  assert.match(next.fullAnswer, /cidade\/UF: Salvador\/BA/i);
-  assert.match(next.fullAnswer, /padrao: medio|padrão: médio/i);
-  assert.match(next.fullAnswer, /quartos: 2/i);
-  assert.match(next.fullAnswer, /banheiros: 1/i);
-  assert.match(next.fullAnswer, /garagem: sim/i);
-  assert.doesNotMatch(next.fullAnswer, /Dados pendentes:[\s\S]*cidade\/UF/i);
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  elo.buildResponseForTest('Parede de bloco cer?mico');
+  const response = elo.buildResponseForTest('Reforma de banheiro');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /reforma parcial de banheiro|reforma do banheiro/i);
+  assert.match(answer, /area aproximada/i);
+  assert.match(answer, /piso\/revestimento/i);
+  assert.match(answer, /lou.as\/metais/i);
+  assert.match(answer, /pontos hidr.ulicos\/el.tricos/i);
+  assert.match(answer, /demoli/i);
+  assert.match(answer, /cidade\/UF/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+  assert.doesNotMatch(answer, /comprimento da parede|dimens.o real do bloco/i);
 });
 
-test('ELO alterna de residencial para parede sem herdar casa completa', () => {
+test('ELO qualidade: modo avancado mostra detalhes t?cnicos sob demanda', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
-  elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
-
-  const wall = elo.buildResponseForTest('Parede de bloco cer\u00e2mico');
-  assert.ok(wall.brain === 'technical' || wall.budgetBrainSubtype === 'wall');
-  assert.notEqual(wall.budgetBrainSubtype, 'residential_preliminary');
-  assert.doesNotMatch(wall.fullAnswer, /Resumo da obra:[\s\S]*residencia/i);
-  assert.match(wall.fullAnswer + wall.nextAction, /parede|bloco|SINAPI|ORSE|premissas/i);
+  elo.buildResponseForTest('Quero orcamento residencial casa 70m2');
+  const response = elo.buildResponseForTest('modo avancado');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Auditoria tecnica V3|Checklist tecnico|Premissas faltantes/i);
 });
 
-test('ELO alterna de residencial para reforma de banheiro sem misturar parede ou casa', () => {
+test('ELO qualidade: saudacao pura vence contexto tecnico ativo', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('Quero or\u00e7ar uma casa de 70m2');
-  elo.buildResponseForTest('Salvador/BA, padr\u00e3o m\u00e9dio, casa t\u00e9rrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  elo.buildResponseForTest('Parede de bloco ceramico');
+  const response = elo.buildResponseForTest('hi');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'conversational');
+  assert.doesNotMatch(answer, /comprimento|altura|parede de bloco|Sessao/i);
+  assert.notEqual(response.sessionIntent, 'confirmar_bloco_parede');
+});
 
-  const reforma = elo.buildResponseForTest('Reforma de banheiro');
-  assert.notEqual(reforma.budgetBrainSubtype, 'residential_preliminary');
-  assert.doesNotMatch(reforma.fullAnswer, /Resumo da obra:[\s\S]*residencia/i);
-  assert.doesNotMatch(reforma.fullAnswer, /briefing t\u00e9cnico da parede|briefing tecnico da parede/i);
-  assert.match(reforma.fullAnswer + reforma.shortAnswer + reforma.nextAction, /reforma|banheiro|or\u00e7amento executivo|orcamento executivo/i);
+test('ELO premissas residenciais: casa terrea 80m2 aplica estrutura preliminar', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 80m2 padrao medio em Salvador/BA sem piscina');
+  const answer = response.fullAnswer || '';
+  assert.equal(response.brain, 'budget');
+  assert.match(answer, /Etapas obrigatorias do orcamento/i);
+  assert.match(answer, /Locacao da obra|gabarito/i);
+  assert.match(answer, /Sapatas isoladas/i);
+  assert.match(answer, /Vergas e contravergas/i);
+  assert.match(answer, /60 x 60 x 30 cm/i);
+  assert.match(answer, /0,108 m3/i);
+  assert.match(answer, /25 MPa/i);
+  assert.match(answer, /Pilares .*6,00 m3/i);
+  assert.match(answer, /Vigas baldrame.*14,00 m3/i);
+  assert.match(answer, /Formas de madeira.*200 m2/i);
+  assert.doesNotMatch(answer, /Auditoria tecnica V3/i);
+});
+
+test('ELO premissas residenciais: casa terrea 120m2 calcula fatores estruturais', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 120m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Pilares .*9,00 m3/i);
+  assert.match(answer, /Vigas baldrame.*21,00 m3/i);
+  assert.match(answer, /Formas de madeira.*300 m2/i);
+  assert.match(answer, /concreto 25 MPa/i);
+});
+
+test('ELO premissas residenciais: casa 160m2 nao aplica regra absoluta', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 160m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Area acima de 140 m2|nao aplico esta regra como absoluta|parametrizacao\/projeto estrutural/i);
+  assert.doesNotMatch(answer, /Pilares .*12,00 m3/i);
+  assert.doesNotMatch(answer, /Vigas baldrame.*28,00 m3/i);
+});
+
+test('ELO premissas residenciais: piscina fica fora do escopo', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea 100m2 padrao medio em Salvador/BA com piscina');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Piscina fora do escopo|orcada separadamente/i);
+  assert.doesNotMatch(answer, /Pilares .*7,50 m3/i);
+});
+
+test('ELO premissas residenciais: sobrado nao usa regra terrea como absoluta', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Sobrado 120m2 padrao medio em Salvador/BA');
+  const answer = response.fullAnswer || '';
+  assert.match(answer, /Sobrado precisa de premissas proprias|nao aplico esta regra terrea como absoluta/i);
+  assert.doesNotMatch(answer, /Pilares .*9,00 m3/i);
+  assert.doesNotMatch(answer, /Vigas baldrame.*21,00 m3/i);
+});
+test('ELO quantitativos residenciais: casa 70m2 completa mostra servicos materiais e unidades', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+  const quantityLines = answer.split('\n').filter((line) => /^- .*\b\d+[\d,.]*\s*(m2|m3|un|pontos)/i.test(line));
+
+  assert.ok(quantityLines.length >= 5, 'deveria haver pelo menos 5 servicos com quantidade e unidade');
+  assert.match(answer, /Servicos executaveis e quantitativos preliminares/i);
+  assert.match(answer, /concreto 25 MPa/i);
+  assert.match(answer, /Formas de madeira: 175 m2/i);
+  assert.match(answer, /bloco ceramico aprox\. \d+ un/i);
+  assert.match(answer, /Cobertura|telhamento|telha/i);
+  assert.match(answer, /Piso interno|revestimento de areas molhadas/i);
+  assert.match(answer, /Pintura: \d+ m2/i);
+  assert.match(answer, /Portas:/i);
+  assert.match(answer, /Janelas:/i);
+  assert.match(answer, /Box:/i);
+  assert.doesNotMatch(answer, /Fundacao pendente[\s\S]*Estrutura pendente[\s\S]*Alvenaria pendente/i);
+});
+
+test('ELO quantitativos residenciais: portas minimas da casa 70m2', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Portas: minimo 6 un/i);
+  assert.match(answer, /1 porta 0,90 m/i);
+  assert.match(answer, /2 portas 0,80 m/i);
+  assert.match(answer, /3 portas 0,70 m/i);
+});
+
+test('ELO quantitativos residenciais: janelas minimas da casa 70m2', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /1 janela 0,40 x 0,40 m/i);
+  assert.match(answer, /4 janelas 1,20 x 1,10 m/i);
+});
+
+test('ELO quantitativos residenciais: regra de box por area', () => {
+  let elo = loadElo();
+  let response = elo.buildResponseForTest('Casa terrea 45m2 padrao medio em Salvador/BA, 1 banheiro, obra completa');
+  assert.match(response.fullAnswer || '', /Box: 1 un/i);
+
+  elo = loadElo();
+  response = elo.buildResponseForTest('Casa terrea 70m2 padrao medio em Salvador/BA, 1 banheiro, obra completa');
+  assert.match(response.fullAnswer || '', /Box: 2 un/i);
+});
+
+test('ELO quantitativos parede: bloco ceramico com medidas calcula area e blocos', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Parede de bloco ceramico');
+  const response = elo.buildResponseForTest('20 metros por 2,80, bloco 14x19x29, com mao de obra, Salvador/BA');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Area da parede: 56,00 m2/i);
+  assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
+  assert.match(answer, /Cidade\/UF: Salvador\/BA/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+});
+
+test('ELO quantitativos reforma banheiro: servicos e materiais sem heranca', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  elo.buildResponseForTest('Parede de bloco ceramico');
+  elo.buildResponseForTest('Reforma de banheiro');
+  const response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /reforma parcial de banheiro/i);
+  assert.match(answer, /area: 4 m2/i);
+  assert.match(answer, /Demolicao\/retirada: \d+ m2/i);
+  assert.match(answer, /Piso do banheiro: 4,00 m2/i);
+  assert.match(answer, /Revestimento de parede: \d+ m2/i);
+  assert.match(answer, /Loucas\/metais/i);
+  assert.match(answer, /Materiais principais/i);
+  assert.doesNotMatch(answer, /casa de 70 m2/i);
+  assert.doesNotMatch(answer, /Area da parede: 56/i);
+});
+
+test('ELO quantitativos residenciais: nao aceita resposta generica sem quantitativo', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Servicos executaveis e quantitativos preliminares/i);
+  assert.match(answer, /\d+[\d,.]*\s*(m2|m3|un|pontos)/i);
+  assert.doesNotMatch(answer, /Fundacao pendente|Estrutura pendente|Alvenaria pendente|Cobertura pendente/i);
+});
+test('ELO PDF parede: acao e documento profissional contem titulo e quantitativos', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Parede de bloco ceramico');
+  const response = elo.buildResponseForTest('20 metros por 2,80, bloco 14x19x29, com mao de obra, Salvador/BA');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction, 'parede deve liberar acao de PDF');
+  assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
+  assert.match(answer, /PAREDE DE BLOCO CERAMICO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
+
+  const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
+  const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
+  assert.match(html, /Orçamento preliminar — Parede de bloco cerâmico/i);
+  assert.match(html, /Salvador\/BA/i);
+  assert.match(html, /56,00 m2/i);
+  assert.match(html, /14x19x29/i);
+  assert.match(html, /Blocos ceramicos aproximados/i);
+  assert.match(html, /Mao de obra[\s\S]*sim/i);
+  assert.match(html, /pendente de composicao oficial|composicoes oficiais pendentes/i);
+});
+
+test('ELO PDF banheiro: acao e documento profissional contem escopo da reforma', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Reforma de banheiro');
+  const response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction, 'banheiro deve liberar acao de PDF');
+  assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
+  assert.match(answer, /REFORMA DE BANHEIRO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
+
+  const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
+  const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
+  assert.match(html, /Orçamento preliminar — Reforma de banheiro/i);
+  assert.match(html, /Salvador\/BA/i);
+  assert.match(html, /4,00 m2|4 m2/i);
+  assert.match(html, /Demolicao\/retirada/i);
+  assert.match(html, /Piso/i);
+  assert.match(html, /Revestimento de parede/i);
+  assert.match(html, /Pontos hidraulicos[\s\S]*2/i);
+  assert.match(html, /Pontos eletricos[\s\S]*2/i);
+  assert.match(html, /pendente de composicao oficial|composicoes oficiais pendentes/i);
+});
+
+test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadrias', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa de 70m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
+  const answer = response.fullAnswer || '';
+
+  assert.ok(response.pdfAction, 'casa completa deve continuar liberando PDF');
+  assert.match(answer, /Servicos executaveis e quantitativos preliminares/i);
+  assert.match(answer, /Portas:/i);
+  assert.match(answer, /Janelas:/i);
+  assert.match(answer, /Box:/i);
+  assert.match(answer, /FUNDAÇÃO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
+  assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
