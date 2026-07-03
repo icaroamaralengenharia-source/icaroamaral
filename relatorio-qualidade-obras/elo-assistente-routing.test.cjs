@@ -418,23 +418,23 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
 });
 
 function assertNoEloInternalState(answer) {
-  assert.doesNotMatch(answer, /Sess[aã]o de trabalho/i);
+  assert.doesNotMatch(answer, /Sess[aï¿½]o de trabalho/i);
   assert.doesNotMatch(answer, /\bStatus:/i);
   assert.doesNotMatch(answer, /Entrega alvo/i);
-  assert.doesNotMatch(answer, /Pr[eé]via da entrega/i);
-  assert.doesNotMatch(answer, /Pr[oó]ximo dado/i);
+  assert.doesNotMatch(answer, /Pr[eï¿½]via da entrega/i);
+  assert.doesNotMatch(answer, /Pr[oï¿½]ximo dado/i);
   assert.doesNotMatch(answer, /Para conduzir certo/i);
   assert.doesNotMatch(answer, /checklist de progresso/i);
 }
 
 function assertNoInventedPrice(answer) {
   assert.doesNotMatch(answer, /R\$\s*(?:25,00|1\.200,00|750,00|3\.000,00)/i);
-  assert.doesNotMatch(answer, /pre[cç]os? m[eé]dios? locais/i);
+  assert.doesNotMatch(answer, /pre[cï¿½]os? m[eï¿½]dios? locais/i);
 }
 
 test('ELO conversacional profissional: parede inicial calcula sem estado interno e libera PDF', () => {
   const elo = loadElo();
-  const response = elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
@@ -444,64 +444,64 @@ test('ELO conversacional profissional: parede inicial calcula sem estado interno
   assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
 });
 
-test('ELO conversacional profissional: pedido de PDF usa orçamento atual sem repetir orçamento', () => {
+test('ELO conversacional profissional: pedido de PDF usa orï¿½amento atual sem repetir orï¿½amento', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('gere o orçamento em pdf');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('gere o orï¿½amento em pdf');
   const answer = response.fullAnswer || '';
 
-  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orçamento atual');
-  assert.match(answer, /Use o botão abaixo para gerar o PDF do orçamento atual/i);
-  assert.doesNotMatch(answer, /conte[uú]do exato/i);
+  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orï¿½amento atual');
+  assert.match(answer, /Use o botï¿½o abaixo para gerar o PDF do orï¿½amento atual/i);
+  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
   assert.doesNotMatch(answer, /Servicos executaveis e quantitativos preliminares/i);
   assertNoEloInternalState(answer);
 });
 
-test('ELO conversacional profissional: pdf curto retorna acao do orçamento atual', () => {
+test('ELO conversacional profissional: pdf curto retorna acao do orï¿½amento atual', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
   const response = elo.buildResponseForTest('pdf');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
   assert.ok(answer.length < 180, 'resposta para pdf deve ser curta');
-  assert.match(answer, /botão abaixo/i);
+  assert.match(answer, /botï¿½o abaixo/i);
 });
 
 test('ELO conversacional profissional: cidade atualiza parede sem perder medidas', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('Vitória da Conquista/BA');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
   assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
-  assert.match(answer, /Cidade\/UF: Vit[oó]ria da Conquista\/BA/i);
+  assert.match(answer, /Cidade\/UF: Vit[oï¿½]ria da Conquista\/BA/i);
   assert.doesNotMatch(answer, /comprimento da parede|altura da parede|informe area|informe .*area/i);
   assert.ok(response.pdfAction);
 });
 
-test('ELO conversacional profissional: faca com orçamento suficiente aciona PDF sem preco inventado', () => {
+test('ELO conversacional profissional: faca com orï¿½amento suficiente aciona PDF sem preco inventado', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('orçamento de parede bloco cerâmico baiano, dimensão 12 metros de comprimento e 2,5 m de altura');
-  elo.buildResponseForTest('Vitória da Conquista/BA');
-  const response = elo.buildResponseForTest('faça');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
+  const response = elo.buildResponseForTest('faï¿½a');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
-  assert.match(answer, /Preço pendente de composição SINAPI\/ORSE, BDI e mês-base/i);
+  assert.match(answer, /Preï¿½o pendente de composiï¿½ï¿½o SINAPI\/ORSE, BDI e mï¿½s-base/i);
   assertNoInventedPrice(answer);
-  assert.doesNotMatch(answer, /conte[uú]do exato/i);
+  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
 });
 
-test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa orçamento atual', () => {
+test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa orï¿½amento atual', () => {
   let elo = loadElo();
   elo.buildResponseForTest('Quero orcar uma casa de 70m2');
   let response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'casa deve reutilizar orçamento atual para PDF');
-  assert.match(response.fullAnswer || '', /botão abaixo/i);
+  assert.ok(response.pdfAction, 'casa deve reutilizar orï¿½amento atual para PDF');
+  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
   assert.doesNotMatch(response.fullAnswer || '', /Servicos executaveis e quantitativos preliminares/i);
 
   elo = loadElo();
@@ -509,6 +509,183 @@ test('ELO conversacional profissional: casa e banheiro ocultam estado interno e 
   response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'banheiro deve reutilizar orçamento atual para PDF');
-  assert.match(response.fullAnswer || '', /botão abaixo/i);
+  assert.ok(response.pdfAction, 'banheiro deve reutilizar orï¿½amento atual para PDF');
+  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
+});
+
+test('ELO EAP: casa 70m2 cria escopo cronologico sem preco inventado', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Quero or?amento de casa de 70m2');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Etapas obrigatorias do orcamento/i);
+  assert.match(answer, /Servicos preliminares|Locacao da obra/i);
+  assert.match(answer, /Vigas baldrame/i);
+  assert.match(answer, /Impermeabilizacao de baldrame/i);
+  assert.match(answer, /Alvenaria de bloco ceramico|Alvenaria de vedacao/i);
+  assert.match(answer, /Instalacoes eletricas/i);
+  assert.match(answer, /Instalacoes hidrossanitarias|hidrossanitarias/i);
+  assert.match(answer, /Pintura/i);
+  assert.match(answer, /Limpeza final/i);
+  assert.match(answer, /pendente de composi/i);
+  assertNoInventedPrice(answer);
+});
+
+test('ELO EAP: parede parcial calcula area e nao vira casa completa', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Parede de bloco ceramico 12m por 2,5m');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Area da parede: 30,00 m2/i);
+  assert.match(answer, /Alvenaria (?:em|de) bloco ceramico/i);
+  assert.match(answer, /Chapisco\/reboco|PAREDE DE BLOCO CERAMICO/i);
+  assert.doesNotMatch(answer, /Limpeza do terreno/i);
+  assert.doesNotMatch(answer, /casa de 70/i);
+  assertNoInventedPrice(answer);
+});
+
+test('ELO EAP: forro PVC em casa entra no escopo sem valores ficticios', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Forro de PVC para casa de 80m2');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Forro/i);
+  assert.match(answer, /80 m2/i);
+  assert.match(answer, /Forro, se aplicavel|Servicos executaveis/i);
+  assert.match(answer, /pendente de composi|preco pendente/i);
+  assertNoInventedPrice(answer);
+});
+
+test('ELO EAP: modo analitico mantem escopo e quantitativos sem valores ficticios', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Or?amento anal?tico casa 70m2 padr?o m?dio');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Resposta principal|Escopo preliminar/i);
+  assert.match(answer, /Etapas obrigatorias do orcamento/i);
+  assert.match(answer, /Servicos executaveis e quantitativos preliminares/i);
+  assert.match(answer, /Vigas baldrame|Alvenaria de vedacao/i);
+  assertNoInventedPrice(answer);
+});
+
+test('ELO EAP: previsao eletrica basica aparece como estimativa preliminar', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa 70m2 com 2 quartos, sala, cozinha, banheiro e area de servico');
+  const answer = response.fullAnswer || '';
+
+  assert.match(answer, /Instalacoes eletricas: \d+ pontos estimados|Pontos eletricos preliminares/i);
+  assert.match(answer, /Instalacoes hidrossanitarias|hidrossanitarias/i);
+  assertNoInventedPrice(answer);
+});
+
+const ELO_TECHNICAL_COMPOSITION_MESSAGE = 'Quero or?amento completo para 4 pilares de 15x25 cm e altura 2,80 m, mais 15 metros lineares de viga baldrame medindo 20 cm de largura e 25 cm de altura, e uma parede de bloco cer?mico de 8 metros por 2,80 metros. Quero o or?amento completo, do chapisco a areia.';
+
+function getCompoundBudgetTexts(elo, response) {
+  const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
+  return {
+    pdfData,
+    answer: response.fullAnswer || response.shortAnswer || '',
+    table: response.pdfAction.budgetDocumentData.budgetTableText || '',
+    materials: response.pdfAction.budgetDocumentData.materialsText || '',
+    financial: response.pdfAction.budgetDocumentData.financialSummaryText || '',
+    memorial: response.pdfAction.budgetDocumentData.memorialText || '',
+    pdfText: [pdfData.record.titulo, pdfData.record.tipo, pdfData.record.resumoExecutivo, pdfData.record.conteudo_markdown, pdfData.record.servicos, pdfData.record.quantitativos, pdfData.record.memoriaCalculo, pdfData.record.custos_encontrados, pdfData.context && pdfData.context.quantitativos].join('\n')
+  };
+}
+
+test('ELO composto: planilha principal prioriza servicos executaveis', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const texts = getCompoundBudgetTexts(elo, response);
+  assert.equal(response.brain, 'budget');
+  assert.match(response.sessionIntent || '', /technical_composition|composto/i);
+  assert.match(texts.answer, /Itens or?ados: 11|Itens or.ados: 11/i);
+  assert.match(texts.table, /Locacao\/gabarito/i);
+  assert.match(texts.table, /Escavacao para baldrame\/sapatas/i);
+  assert.match(texts.table, /Concreto para pilares/i);
+  assert.match(texts.table, /Formas para pilares/i);
+  assert.match(texts.table, /Aco para pilares/i);
+  assert.match(texts.table, /Concreto para viga baldrame/i);
+  assert.match(texts.table, /Formas para viga baldrame/i);
+  assert.match(texts.table, /Impermeabilizacao de baldrame/i);
+  assert.match(texts.table, /Alvenaria de bloco ceramico/i);
+  assert.match(texts.table, /Chapisco/i);
+  assert.match(texts.table, /Reboco\/Emboco/i);
+  assert.doesNotMatch(texts.table, /\|\s*Cimento\s*\|/i);
+  assert.doesNotMatch(texts.table, /\|\s*Areia\s*\|/i);
+  assert.match(texts.materials, /Cimento, areia e argamassa: aguardando/i);
+  assert.ok(response.pdfAction, 'orcamento composto deve liberar pdfAction');
+});
+
+test('ELO composto: quantidades e materiais principais ficam corretos', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const texts = getCompoundBudgetTexts(elo, response);
+  assert.match(texts.table, /Concreto para pilares\s*\|\s*m3\s*\|\s*0,42/i);
+  assert.match(texts.table, /Formas para pilares\s*\|\s*m2\s*\|\s*8,96/i);
+  assert.match(texts.table, /Concreto para viga baldrame\s*\|\s*m3\s*\|\s*0,75/i);
+  assert.match(texts.table, /Formas para viga baldrame\s*\|\s*m2\s*\|\s*7,50/i);
+  assert.match(texts.table, /Impermeabilizacao de baldrame\s*\|\s*m2\s*\|\s*3,00/i);
+  assert.match(texts.table, /Alvenaria de bloco ceramico\s*\|\s*m2\s*\|\s*22,40/i);
+  assert.match(texts.table, /Chapisco\s*\|\s*m2\s*\|\s*44,80/i);
+  assert.match(texts.table, /Reboco\/Emboco\s*\|\s*m2\s*\|\s*44,80/i);
+  assert.match(texts.materials, /Bloco 14x19x39: 327 un/i);
+});
+
+test('ELO composto: sem base oficial nao inventa preco e totaliza como aguardando', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const texts = getCompoundBudgetTexts(elo, response);
+  assert.match(texts.table, /Preco unitario/i);
+  assert.match(texts.table, /Total/i);
+  assert.match(texts.table, /Aguardando composi..o oficial/i);
+  assert.doesNotMatch(texts.table, /R\$\s*\d/i);
+  assert.match(texts.financial, /Subtotal: aguardando composi..es oficiais/i);
+  assert.match(texts.financial, /BDI: aguardando defini..o/i);
+  assert.match(texts.financial, /Total preliminar: aguardando composi..es oficiais/i);
+});
+
+test('ELO composto: BDI informado fica guardado sem inventar total', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const response = elo.buildResponseForTest('usar BDI de 25%');
+  const texts = getCompoundBudgetTexts(elo, response);
+  assert.match(texts.answer, /BDI de 25,00% guardado|BDI informado: 25,00%/i);
+  assert.match(texts.financial, /BDI informado: 25,00%/i);
+  assert.match(texts.financial, /Total preliminar: aguardando composi..es oficiais/i);
+  assert.doesNotMatch(texts.financial, /R\$\s*\d/i);
+});
+
+test('ELO composto: memorial de calculo reaproveita orcamento atual', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const response = elo.buildResponseForTest('memorial de calculo');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+  assert.match(response.sessionIntent || '', /technical_composition_memorial/i);
+  assert.match(answer, /Pilares: qtd x largura x espessura x altura/i);
+  assert.match(answer, /Formas dos pilares/i);
+  assert.match(answer, /Viga baldrame: comprimento x largura x altura/i);
+  assert.match(answer, /Parede: comprimento x altura/i);
+  assert.match(answer, /Chapisco\/reboco: area da parede x faces/i);
+  assert.doesNotMatch(answer, /PLANILHA ORCAMENTARIA PRELIMINAR/i);
+});
+
+test('ELO composto: pdf curto usa orcamento composto atual sem repetir tudo', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest(ELO_TECHNICAL_COMPOSITION_MESSAGE);
+  const response = elo.buildResponseForTest('pdf');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+  assert.ok(response.pdfAction, 'pdf deve retornar acao do orcamento composto');
+  assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
+  assert.match(answer, /Use o bot.o abaixo para gerar o PDF do or.amento atual/i);
+  assert.doesNotMatch(answer, /Concreto para pilares[\s\S]*Concreto para viga baldrame[\s\S]*Reboco\/Emboco/i);
+  const texts = getCompoundBudgetTexts(elo, response);
+  assert.match(texts.pdfText, /Or.amento t.cnico composto/i);
+  assert.match(texts.pdfText, /PLANILHA ORCAMENTARIA PRELIMINAR/i);
+  assert.match(texts.pdfText, /Preco unitario/i);
+  assert.match(texts.pdfText, /Aguardando composi..o oficial/i);
+  assert.match(texts.pdfText, /MATERIAIS PRINCIPAIS/i);
+  assert.match(texts.memorial, /MEMORIAL DE CALCULO/i);
+  assert.doesNotMatch(texts.memorial, /PLANILHA ORCAMENTARIA PRELIMINAR/i);
+  assert.doesNotMatch(texts.pdfText, /Or.amento residencial preliminar/i);
 });
