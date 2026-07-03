@@ -11,6 +11,15 @@
   const STORAGE_KEY = core.storageKey || "obraReportAlmoxarifadoData";
   const AUDIT_STORAGE_KEY = "stockFullFrontlineAuditLog";
   const ALERT_STORAGE_KEY = "stockFullFrontlineAlerts";
+  const GUIDED_SESSION_STORAGE_KEY = "stockFullGuidedInventorySession";
+  const GUIDED_CHECKLIST = [
+    { id: "product", label: "conferir produto" },
+    { id: "batch", label: "conferir lote" },
+    { id: "expiration", label: "conferir validade" },
+    { id: "quantity", label: "conferir quantidade" },
+    { id: "damage", label: "conferir avarias" },
+    { id: "confirm", label: "confirmar operacao" }
+  ];
   const NUMBER_WORDS = {
     zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, três: 3, quatro: 4, cinco: 5,
     seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13,
@@ -253,15 +262,265 @@
     return { parsed, operation, queued, audit, alerts };
   }
 
+
+  function normalizeGuidedSector(value) {
+    const text = normalizeText(value);
+    if (/prateleira\s*a/.test(text)) return "Prateleira A";
+    if (/deposito|dep[o?]sito/.test(text)) return "Deposito";
+    if (/camara\s+fria|c[a?]mara\s+fria/.test(text)) return "Camara fria";
+    if (/loja/.test(text)) return "Loja";
+    return "Estoque geral";
+  }
+
+  function normalizeGuidedMode(value) {
+    const text = normalizeText(value);
+    if (/conferencia|confer[e?]ncia|rapida|r[a?]pida/.test(text)) return "conferencia_rapida";
+    if (/auditoria|auditar/.test(text)) return "auditoria";
+    return "inventario_completo";
+  }
+
+  function createGuidedChecklist() {
+    return GUIDED_CHECKLIST.map(function (item) {
+      return { id: item.id, label: item.label, done: false, doneAt: "" };
+    });
+  }
+
+  function getGuidedSession() {
+    const session = readJson(GUIDED_SESSION_STORAGE_KEY, null);
+    return session && typeof session === "object" ? session : null;
+  }
+
+  function saveGuidedSession(session) {
+    writeJson(GUIDED_SESSION_STORAGE_KEY, session || null);
+    return session;
+  }
+
+  function appendGuidedAudit(action, session, payload) {
+    const log = readJson(AUDIT_STORAGE_KEY, []);
+    const record = {
+      id: createId("frontline_guided_audit"),
+      action: "frontline_guided_" + clean(action),
+      sessionId: clean(session && session.sessionId),
+      sector: clean(session && session.sector),
+      mode: clean(session && session.mode),
+      userId: clean(session && session.userId),
+      companyId: clean(session && session.companyId),
+      timestamp: new Date().toISOString(),
+      payload: payload || {}
+    };
+    log.push(record);
+    writeJson(AUDIT_STORAGE_KEY, log);
+    return record;
+  }
+
+  function startGuidedInventory(options) {
+    const now = new Date().toISOString();
+    const session = {
+      sessionId: clean(options && options.sessionId) || createId("guided_inventory"),
+      status: "active",
+      sector: normalizeGuidedSector(options && options.sector),
+      mode: normalizeGuidedMode(options && options.mode),
+      companyId: clean(options && options.companyId) || getCompanyId(),
+      userId: clean(options && options.userId) || getCurrentUserId(),
+      startedAt: now,
+      endedAt: "",
+      currentDraft: {},
+      checklist: createGuidedChecklist(),
+      checkedProducts: 0,
+      totalCounted: 0,
+      totalDamaged: 0,
+      operationIds: [],
+      alertIds: []
+    };
+    saveGuidedSession(session);
+    appendGuidedAudit("session_started", session, { sector: session.sector, mode: session.mode });
+    return session;
+  }
+
+  function markGuidedChecklist(session, stepId, payload) {
+    const safeSession = session || getGuidedSession();
+    if (!safeSession) return null;
+    const item = (safeSession.checklist || []).find(function (candidate) { return candidate.id === stepId; });
+    if (item && !item.done) {
+      item.done = true;
+      item.doneAt = new Date().toISOString();
+      appendGuidedAudit("checklist_" + stepId, safeSession, payload || {});
+    }
+    return saveGuidedSession(safeSession);
+  }
+
+  function resetGuidedChecklist(session) {
+    session.checklist = createGuidedChecklist();
+    return session;
+  }
+
+  function mergeGuidedCommand(session, command) {
+    const text = normalizeText(command);
+    const draft = Object.assign({}, session.currentDraft || {});
+    let changed = false;
+    let match = text.match(/\b(?:codigo|cod|item)\s+([a-z0-9-]+)/);
+    if (match) {
+      draft.productCode = clean(match[1]).toUpperCase();
+      draft.productName = null;
+      markGuidedChecklist(session, "product", { productCode: draft.productCode });
+      changed = true;
+    }
+    match = text.match(/\bproduto\s+([a-z0-9\s-]+)$/);
+    if (match) {
+      draft.productName = clean(match[1]);
+      markGuidedChecklist(session, "product", { productName: draft.productName });
+      changed = true;
+    }
+    match = text.match(/\blote\s+([a-z0-9-]+)/);
+    if (match) {
+      draft.batch = clean(match[1]).toUpperCase();
+      markGuidedChecklist(session, "batch", { batch: draft.batch });
+      changed = true;
+    }
+    match = text.match(/\bvalidade\s+([0-9]{1,2}[\/-][0-9]{1,2}(?:[\/-][0-9]{2,4})?|[0-9]{1,2}[\/-][0-9]{2,4})/);
+    if (match) {
+      draft.expiration = clean(match[1]);
+      markGuidedChecklist(session, "expiration", { expiration: draft.expiration });
+      changed = true;
+    }
+    const damaged = matchQuantityBefore(text, "avariad[ao]s?|perdid[ao]s?|danificad[ao]s?|quebrad[ao]s?");
+    if (damaged > 0) {
+      draft.damagedQuantity = damaged;
+      markGuidedChecklist(session, "damage", { damagedQuantity: damaged });
+      changed = true;
+    }
+    const quantity = matchQuantityBefore(text, "unidades?|un|caixas?|pecas?|pecas");
+    if (quantity > 0) {
+      draft.totalQuantity = quantity;
+      markGuidedChecklist(session, "quantity", { totalQuantity: quantity });
+      changed = true;
+    } else if (/^\d+(?:[,.]\d+)?$/.test(text)) {
+      draft.totalQuantity = parseNumber(text);
+      markGuidedChecklist(session, "quantity", { totalQuantity: draft.totalQuantity });
+      changed = true;
+    }
+    session.currentDraft = draft;
+    if (changed) appendGuidedAudit("command_received", session, { command: clean(command), draft: Object.assign({}, draft) });
+    return saveGuidedSession(session);
+  }
+
+  function guidedDraftIsReady(session) {
+    const draft = session && session.currentDraft || {};
+    return Boolean((draft.productCode || draft.productName || draft.productId) && parseNumber(draft.totalQuantity) > 0);
+  }
+
+  function submitGuidedDraft(session, options) {
+    if (!guidedDraftIsReady(session)) {
+      return { ok: false, reason: "missing_product_or_quantity", session };
+    }
+    const draft = session.currentDraft || {};
+    const damagedQuantity = parseNumber(draft.damagedQuantity);
+    const totalQuantity = parseNumber(draft.totalQuantity);
+    const parsed = {
+      productCode: clean(draft.productCode),
+      productName: clean(draft.productName) || null,
+      productId: clean(draft.productId),
+      batch: clean(draft.batch),
+      totalQuantity: roundQuantity(totalQuantity),
+      damagedQuantity: roundQuantity(damagedQuantity),
+      availableQuantity: roundQuantity(Math.max(0, totalQuantity - damagedQuantity)),
+      operationType: "inventory_adjustment",
+      lossType: damagedQuantity > 0 ? "damaged" : "",
+      source: "voice_or_text_inventory",
+      rawText: clean(draft.rawText) || "guided inventory"
+    };
+    const operation = createInventoryOperation(parsed, Object.assign({}, options || {}, {
+      companyId: session.companyId,
+      userId: session.userId,
+      idempotencyKey: buildIdempotencyKey(parsed, { companyId: session.companyId }) + "|" + session.sessionId
+    }));
+    operation.guidedSessionId = session.sessionId;
+    operation.guidedSector = session.sector;
+    operation.guidedMode = session.mode;
+    const queued = enqueueInventoryOperation(operation);
+    const audit = appendAudit(operation);
+    const state = options && options.state || readJson(STORAGE_KEY, { items: [], movements: [] });
+    const alerts = buildAlerts(operation, state, options || {});
+    markGuidedChecklist(session, "confirm", { operationId: operation.operationId });
+    session.checkedProducts += 1;
+    session.totalCounted = roundQuantity(session.totalCounted + operation.totalQuantity);
+    session.totalDamaged = roundQuantity(session.totalDamaged + operation.damagedQuantity);
+    session.operationIds.push(operation.operationId);
+    session.alertIds = session.alertIds.concat(alerts.map(function (alert) { return alert.type; }));
+    session.currentDraft = {};
+    resetGuidedChecklist(session);
+    saveGuidedSession(session);
+    appendGuidedAudit("product_confirmed", session, { operationId: operation.operationId, totalQuantity: operation.totalQuantity, damagedQuantity: operation.damagedQuantity });
+    return { ok: true, session, operation, queued, audit, alerts };
+  }
+
+  function buildGuidedSummary(session) {
+    const safeSession = session || getGuidedSession() || {};
+    const queue = sync.getQueue ? sync.getQueue() : [];
+    const pending = queue.filter(function (item) { return clean(item.status) !== "synced"; }).length;
+    const started = new Date(safeSession.startedAt || Date.now());
+    const ended = new Date(safeSession.endedAt || Date.now());
+    const elapsedMs = Math.max(0, ended.getTime() - started.getTime());
+    return {
+      sessionId: clean(safeSession.sessionId),
+      sector: clean(safeSession.sector),
+      mode: clean(safeSession.mode),
+      productsChecked: parseNumber(safeSession.checkedProducts),
+      totalCounted: roundQuantity(safeSession.totalCounted),
+      totalDamaged: roundQuantity(safeSession.totalDamaged),
+      alerts: (safeSession.alertIds || []).length,
+      belowMinimumItems: readJson(ALERT_STORAGE_KEY, []).filter(function (alert) { return alert.type === "below_minimum"; }).length,
+      elapsedSeconds: Math.round(elapsedMs / 1000),
+      pendingSyncOperations: pending
+    };
+  }
+
+  function finishGuidedInventory(options) {
+    const session = getGuidedSession() || startGuidedInventory(options || {});
+    if (guidedDraftIsReady(session)) submitGuidedDraft(session, options || {});
+    const finished = getGuidedSession() || session;
+    finished.status = "finished";
+    finished.endedAt = new Date().toISOString();
+    saveGuidedSession(finished);
+    const summary = buildGuidedSummary(finished);
+    appendGuidedAudit("session_finished", finished, summary);
+    return { session: finished, summary };
+  }
+
+  function handleGuidedCommand(command, options) {
+    let session = options && options.session || getGuidedSession();
+    if (!session || session.status !== "active") session = startGuidedInventory(options || {});
+    const text = normalizeText(command);
+    if (/^(finalizar|encerrar|terminar|concluir)$/.test(text)) return Object.assign({ action: "finished" }, finishGuidedInventory(options || {}));
+    if (/^(proximo|pr[o?]ximo|confirmar|ok|sim)$/.test(text)) return Object.assign({ action: "confirmed" }, submitGuidedDraft(session, options || {}));
+    const nextSession = mergeGuidedCommand(session, command);
+    return { action: "updated", session: nextSession, ready: guidedDraftIsReady(nextSession), checklist: nextSession.checklist };
+  }
+
+  function getEmployeeModeConfig() {
+    return {
+      mode: "employee_guided_inventory",
+      visibleControls: ["Pesquisar produto", "Comando", "Confirmar", "Proximo"],
+      hiddenControls: ["menus administrativos", "relatorios gerenciais", "configuracoes", "cadastro avancado"],
+      allowedActions: ["search_product", "guided_command", "confirm_current", "next_product"]
+    };
+  }
   window.StockFullFrontline = {
     parseInventoryCommand,
     createInventoryOperation,
     submitInventoryCommand,
     buildIdempotencyKey,
     buildAlerts,
+    startGuidedInventory,
+    getGuidedSession,
+    handleGuidedCommand,
+    finishGuidedInventory,
+    buildGuidedSummary,
+    getEmployeeModeConfig,
     storageKeys: {
       audit: AUDIT_STORAGE_KEY,
-      alerts: ALERT_STORAGE_KEY
+      alerts: ALERT_STORAGE_KEY,
+      guidedSession: GUIDED_SESSION_STORAGE_KEY
     }
   };
 })(window);

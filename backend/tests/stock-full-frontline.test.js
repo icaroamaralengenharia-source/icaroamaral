@@ -139,3 +139,99 @@ test("Stock Full Frontline gera alerta abaixo do minimo em saida", () => {
 
   assert.ok(result.alerts.some((alert) => alert.type === "below_minimum"));
 });
+
+test("Stock Full Guided Inventory inicia inventario completo com setor e checklist", () => {
+  const win = loadFrontline();
+  const session = win.StockFullFrontline.startGuidedInventory({ sector: "Prateleira A", mode: "inventario completo", companyId: "empresa_1", userId: "user_1", sessionId: "guided_1" });
+  const audit = JSON.parse(win.localStorage.getItem(win.StockFullFrontline.storageKeys.audit));
+
+  assert.equal(session.sessionId, "guided_1");
+  assert.equal(session.sector, "Prateleira A");
+  assert.equal(session.mode, "inventario_completo");
+  assert.equal(session.checklist.length, 6);
+  assert.ok(session.checklist.some((item) => item.label === "conferir quantidade"));
+  assert.ok(audit.some((item) => item.action === "frontline_guided_session_started"));
+});
+
+test("Stock Full Guided Inventory mantem contexto entre comandos continuos", () => {
+  const win = loadFrontline();
+  win.StockFullFrontline.startGuidedInventory({ sector: "Deposito", mode: "conferencia rapida", companyId: "empresa_1", userId: "user_1", sessionId: "guided_2" });
+
+  win.StockFullFrontline.handleGuidedCommand("Codigo 10");
+  win.StockFullFrontline.handleGuidedCommand("15 unidades");
+  win.StockFullFrontline.handleGuidedCommand("lote B");
+  const result = win.StockFullFrontline.handleGuidedCommand("1 avariada");
+
+  assert.equal(result.ready, true);
+  assert.equal(result.session.currentDraft.productCode, "10");
+  assert.equal(result.session.currentDraft.totalQuantity, 15);
+  assert.equal(result.session.currentDraft.batch, "B");
+  assert.equal(result.session.currentDraft.damagedQuantity, 1);
+  assert.ok(result.checklist.find((item) => item.id === "product").done);
+  assert.ok(result.checklist.find((item) => item.id === "quantity").done);
+});
+
+test("Stock Full Guided Inventory comando proximo confirma produto e troca contexto", () => {
+  const win = loadFrontline();
+  win.StockFullFrontline.startGuidedInventory({ sector: "Loja", mode: "auditoria", companyId: "empresa_1", userId: "user_1", sessionId: "guided_3" });
+  win.StockFullFrontline.handleGuidedCommand("Codigo 10");
+  win.StockFullFrontline.handleGuidedCommand("15 unidades");
+  win.StockFullFrontline.handleGuidedCommand("lote B");
+  win.StockFullFrontline.handleGuidedCommand("1 avariada");
+  const confirmed = win.StockFullFrontline.handleGuidedCommand("proximo");
+  win.StockFullFrontline.handleGuidedCommand("Codigo 11");
+  win.StockFullFrontline.handleGuidedCommand("20");
+  const session = win.StockFullFrontline.getGuidedSession();
+  const queue = win.StockFullSync.getQueue();
+
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.operation.totalQuantity, 15);
+  assert.equal(confirmed.operation.availableQuantity, 14);
+  assert.equal(session.checkedProducts, 1);
+  assert.equal(session.currentDraft.productCode, "11");
+  assert.equal(session.currentDraft.totalQuantity, 20);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].payload.source, "voice_or_text_inventory");
+});
+
+test("Stock Full Guided Inventory finaliza com resumo automatico", () => {
+  const win = loadFrontline();
+  win.StockFullFrontline.startGuidedInventory({ sector: "Estoque geral", mode: "inventario completo", companyId: "empresa_1", userId: "user_1", sessionId: "guided_4" });
+  win.StockFullFrontline.handleGuidedCommand("Codigo 10");
+  win.StockFullFrontline.handleGuidedCommand("15 unidades");
+  win.StockFullFrontline.handleGuidedCommand("1 avariada");
+  win.StockFullFrontline.handleGuidedCommand("proximo");
+  win.StockFullFrontline.handleGuidedCommand("Codigo 11");
+  win.StockFullFrontline.handleGuidedCommand("20");
+  const finished = win.StockFullFrontline.handleGuidedCommand("finalizar");
+
+  assert.equal(finished.action, "finished");
+  assert.equal(finished.summary.productsChecked, 2);
+  assert.equal(finished.summary.totalCounted, 35);
+  assert.equal(finished.summary.totalDamaged, 1);
+  assert.equal(finished.summary.pendingSyncOperations, 2);
+  assert.equal(finished.session.status, "finished");
+});
+
+test("Stock Full Guided Inventory nao duplica operacao ao repetir proximo", () => {
+  const win = loadFrontline();
+  win.StockFullFrontline.startGuidedInventory({ sector: "Deposito", mode: "auditoria", companyId: "empresa_1", userId: "user_1", sessionId: "guided_5" });
+  win.StockFullFrontline.handleGuidedCommand("Codigo 10");
+  win.StockFullFrontline.handleGuidedCommand("15 unidades");
+  const first = win.StockFullFrontline.handleGuidedCommand("proximo");
+  const second = win.StockFullFrontline.handleGuidedCommand("proximo");
+  const queue = win.StockFullSync.getQueue();
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, false);
+  assert.equal(queue.length, 1);
+});
+
+test("Stock Full Guided Inventory modo funcionario mostra somente controles essenciais", () => {
+  const win = loadFrontline();
+  const config = win.StockFullFrontline.getEmployeeModeConfig();
+
+  assert.deepEqual(Array.from(config.visibleControls), ["Pesquisar produto", "Comando", "Confirmar", "Proximo"]);
+  assert.ok(config.hiddenControls.includes("menus administrativos"));
+  assert.ok(config.allowedActions.includes("guided_command"));
+});
