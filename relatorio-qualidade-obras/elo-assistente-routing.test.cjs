@@ -417,6 +417,40 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
 
+
+test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () => {
+  const elo = loadElo();
+  elo.buildResponseForTest('Quero orcar uma casa terrea completa de 140m2');
+  const response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 3 quartos sendo 1 suite, 2 banheiros, garagem, obra completa, sem piscina, cobertura telha ceramica estrutura madeira, forro gesso, piso ceramico, revestimento cozinha e banheiros, pintura interna e externa, portas e janelas, loucas e metais, instalacoes eletricas e hidrossanitarias, limpeza final');
+
+  assert.ok(response.pdfAction, 'casa 140m2 deve liberar acao de PDF');
+  const doc = response.pdfAction.budgetDocumentData;
+  const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(doc);
+  const pdfText = [pdfData.record.quantitativos, pdfData.record.servicos, pdfData.record.custos_encontrados, pdfData.record.memoriaCalculo].join('\n');
+
+  assert.match(pdfText, /PLANILHA ORCAMENTARIA PRELIMINAR - RESIDENCIAL/i);
+  assert.match(pdfText, /Item \| Servi.o \| Unidade \| Quantidade \| Fonte\/Composi..o \| Pre.o unit.rio \| Total \| Observa..o/i);
+  assert.match(pdfText, /Loca..o da obra[\s\S]*140/i);
+  assert.match(pdfText, /Sapatas isoladas[\s\S]*12/i);
+  assert.match(pdfText, /Pilares[\s\S]*10,50/i);
+  assert.match(pdfText, /Vigas baldrame[\s\S]*24,50/i);
+  assert.match(pdfText, /Formas de madeira[\s\S]*350/i);
+  assert.match(pdfText, /Alvenaria de veda..o[\s\S]*336/i);
+  assert.match(pdfText, /Blocos cer.micos[\s\S]*4536/i);
+  assert.match(pdfText, /Cobertura[\s\S]*161/i);
+  assert.match(pdfText, /Piso interno[\s\S]*140/i);
+  assert.match(pdfText, /Revestimento de .reas molhadas[\s\S]*52/i);
+  assert.match(pdfText, /Pintura[\s\S]*448/i);
+  assert.match(pdfText, /Instala..es el.tricas[\s\S]*29/i);
+  assert.match(pdfText, /Instala..es hidrossanit.rias[\s\S]*12/i);
+  assert.match(pdfText, /Portas[\s\S]*8/i);
+  assert.match(pdfText, /Janelas[\s\S]*6/i);
+  assert.match(pdfText, /Box[\s\S]*2/i);
+  assert.match(pdfText, /Aguardando composi..o SINAPI\/ORSE/i);
+  assert.match(pdfText, /Subtotal: aguardando composi..es oficiais/i);
+  assert.doesNotMatch(pdfText, /quantitativos pendentes/i);
+});
+
 function assertNoEloInternalState(answer) {
   assert.doesNotMatch(answer, /Sess[a�]o de trabalho/i);
   assert.doesNotMatch(answer, /\bStatus:/i);

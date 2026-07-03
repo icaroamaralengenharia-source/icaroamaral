@@ -2104,21 +2104,27 @@
     if (safeState.type === "residential") facts.projectType = "residential";
     const inheritedFacts = collectBudgetV2StateFacts_(safeState, safeState.inheritedFields || []);
     const scope = Array.isArray(pack.scope) ? pack.scope : [];
+    const residentialEnhancement = safeState.type === "residential" ? buildEloResidentialBudgetDocumentEnhancement_(safeState) : null;
     return {
       budgetId: safeState.budgetId || pack.budgetId || "",
       documentType: "residential_preliminary",
-      title: "ELO Orçamentista V2",
+      title: "ELO Or?amentista V2",
       facts: facts,
       inheritedFacts: inheritedFacts,
       assumptions: Array.isArray(safeState.assumptions) ? safeState.assumptions : [],
       pendingFields: Array.isArray(safeState.missingFields) ? safeState.missingFields : [],
       scope: scope,
-      materials: Array.isArray(pack.materials) && pack.materials.length ? pack.materials : buildBudgetV2QualitativeMaterials_(scope),
-      quantities: Array.isArray(pack.quantities) ? pack.quantities : [],
-      compositions: Array.isArray(pack.compositions) ? pack.compositions : [],
-      budget: pack.budget || null,
+      materials: residentialEnhancement ? [] : (Array.isArray(pack.materials) && pack.materials.length ? pack.materials : buildBudgetV2QualitativeMaterials_(scope)),
+      quantities: residentialEnhancement ? residentialEnhancement.budgetRows : (Array.isArray(pack.quantities) ? pack.quantities : []),
+      compositions: residentialEnhancement ? residentialEnhancement.compositions : (Array.isArray(pack.compositions) ? pack.compositions : []),
+      budget: residentialEnhancement ? residentialEnhancement.budget : (pack.budget || null),
       risks: Array.isArray(pack.risks) ? pack.risks : [],
-      nextSteps: Array.isArray(pack.nextSteps) ? pack.nextSteps : []
+      nextSteps: Array.isArray(pack.nextSteps) ? pack.nextSteps : [],
+      budgetTableText: residentialEnhancement && residentialEnhancement.budgetTableText,
+      materialsText: residentialEnhancement && residentialEnhancement.materialsText,
+      financialSummaryText: residentialEnhancement && residentialEnhancement.financialSummaryText,
+      memorialText: residentialEnhancement && residentialEnhancement.memorialText,
+      budgetRows: residentialEnhancement && residentialEnhancement.budgetRows
     };
   }
 
@@ -15591,6 +15597,40 @@
     };
   }
 
+  function buildEloResidentialPremisesForState_(state) {
+    if (!state || state.type !== "residential" || !(state.areaM2 > 0)) return null;
+    const area = Number(state.areaM2 || 0);
+    const premises = DEFAULT_RESIDENTIAL_PREMISES;
+    const isGroundFloor = state.floors === 1 || /terrea|t.rrea/.test(normalizeText(state.constructionType || ""));
+    const hasPool = !!state.hasPool;
+    const result = {
+      applies: false,
+      reason: "",
+      stages: premises.mandatoryStages.slice(0),
+      scope: premises.scope,
+      footing: premises.footing,
+      concreteStrengthMPa: premises.concreteStrengthMPa,
+      columnVolumeM3: area * premises.columnConcreteFactor,
+      beamVolumeM3: area * premises.beamConcreteFactor,
+      formworkM2: area * premises.formworkFactor
+    };
+    if (hasPool) {
+      result.reason = "Piscina fora do escopo: deve ser orcada separadamente.";
+      return result;
+    }
+    if (!isGroundFloor) {
+      result.reason = state.floors && state.floors > 1 ? "Sobrado precisa de premissas proprias; nao aplico esta regra terrea como absoluta." : "Premissa estrutural automatica exige confirmar casa terrea.";
+      return result;
+    }
+    if (area > premises.maxAreaM2) {
+      result.reason = "Area acima de " + premises.maxAreaM2 + " m2 exige parametrizacao/projeto estrutural; nao aplico esta regra como absoluta.";
+      return result;
+    }
+    result.applies = true;
+    result.reason = "Premissas aplicadas para " + premises.scope + " ate " + premises.maxAreaM2 + " m2.";
+    return result;
+  }
+
   function buildEloResidentialPreliminaryQuantities_(state, residentialPremises) {
     if (!state || !residentialPremises || !residentialPremises.applies) return null;
     const area = Number(state.areaM2 || 0);
@@ -15652,6 +15692,70 @@
     appendEloProfessionalServiceBlock_(lines, "FUNDAÇÃO", "sapatas isoladas", "concreto 25 MPa, forma, aco pendente de projeto", quantities.footingQty + " un / " + formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2) + " m3", "pendente de composicao oficial");
     appendEloProfessionalServiceBlock_(lines, "ALVENARIA", "alvenaria de vedacao", "bloco ceramico, argamassa", formatEloResidentialPremiseNumber_(quantities.masonryAreaM2, 0) + " m2 / " + quantities.ceramicBlocks + " blocos", "pendente de composicao oficial");
     appendEloProfessionalServiceBlock_(lines, "COBERTURA", "cobertura / telhamento", "telha, estrutura de apoio e arremates", formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0) + " m2", "pendente de composicao oficial");
+  }
+
+  const ELO_RESIDENTIAL_PENDING_PRICE_TEXT = "Aguardando composi??o SINAPI/ORSE";
+
+  function buildEloResidentialBudgetRow_(item, service, unit, quantity, source, observation) {
+    return { item: item, service: service, unit: unit, quantity: quantity, source: source || "A localizar SINAPI/ORSE", unitPrice: ELO_RESIDENTIAL_PENDING_PRICE_TEXT, total: ELO_RESIDENTIAL_PENDING_PRICE_TEXT, observation: observation || "Quantitativo preliminar; validar projeto, BDI e m?s-base." };
+  }
+
+  function formatEloResidentialBudgetRowsTable_(rows) {
+    const lines = ["PLANILHA ORCAMENTARIA PRELIMINAR - RESIDENCIAL", "Item | Servi?o | Unidade | Quantidade | Fonte/Composi??o | Pre?o unit?rio | Total | Observa??o"];
+    (rows || []).forEach(function (row) { lines.push([row.item, row.service, row.unit, row.quantity, row.source, row.unitPrice, row.total, row.observation].join(" | ")); });
+    return lines.join("\n");
+  }
+
+  function buildEloResidentialBudgetRows_(state, residentialPremises) {
+    const quantities = buildEloResidentialPreliminaryQuantities_(state, residentialPremises);
+    if (!quantities) return [];
+    const area = Number(state && state.areaM2 || 0);
+    const openingCount = quantities.openings.windows.small040 + quantities.openings.windows.regular120x110;
+    return [
+      buildEloResidentialBudgetRow_(1, "Loca??o da obra / gabarito", "m2", formatEloResidentialPremiseNumber_(area, 0), "A localizar SINAPI/ORSE", "?rea constru?da informada."),
+      buildEloResidentialBudgetRow_(2, "Sapatas isoladas", "un", String(quantities.footingQty), "A localizar SINAPI/ORSE", "Sapata preliminar 0,60 x 0,60 x 0,30 m; quantidade a refinar com planta/croqui."),
+      buildEloResidentialBudgetRow_(3, "Concreto das sapatas", "m3", formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2), "A localizar SINAPI/ORSE", "Volume unit?rio 0,108 m3; concreto 25 MPa."),
+      buildEloResidentialBudgetRow_(4, "Pilares / arranques", "m3", formatEloResidentialPremiseNumber_(quantities.columnVolumeM3, 2), "A localizar SINAPI/ORSE", "?rea constru?da x 0,075; concreto 25 MPa."),
+      buildEloResidentialBudgetRow_(5, "Vigas baldrame", "m3", formatEloResidentialPremiseNumber_(quantities.beamVolumeM3, 2), "A localizar SINAPI/ORSE", "?rea constru?da x 0,175; concreto 25 MPa."),
+      buildEloResidentialBudgetRow_(6, "Formas de madeira", "m2", formatEloResidentialPremiseNumber_(quantities.formworkM2, 0), "A localizar SINAPI/ORSE", "?rea constru?da x 2,5."),
+      buildEloResidentialBudgetRow_(7, "Alvenaria de veda??o", "m2", formatEloResidentialPremiseNumber_(quantities.masonryAreaM2, 0), "A localizar SINAPI/ORSE", "?rea constru?da x 2,4; validar v?os e projeto."),
+      buildEloResidentialBudgetRow_(8, "Blocos cer?micos", "un", String(quantities.ceramicBlocks), "A localizar SINAPI/ORSE", "Estimativa com perda preliminar de 8%."),
+      buildEloResidentialBudgetRow_(9, "Cobertura / telhamento", "m2", formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0), "A localizar SINAPI/ORSE", "?rea constru?da x 1,15; validar tipo de telha e estrutura."),
+      buildEloResidentialBudgetRow_(10, "Piso interno", "m2", formatEloResidentialPremiseNumber_(quantities.floorAreaM2, 0), "A localizar SINAPI/ORSE", "?rea constru?da informada."),
+      buildEloResidentialBudgetRow_(11, "Revestimento de ?reas molhadas", "m2", formatEloResidentialPremiseNumber_(quantities.wetCoatingM2, 0), "A localizar SINAPI/ORSE", "Banheiros/cozinha/?rea de servi?o por premissa preliminar."),
+      buildEloResidentialBudgetRow_(12, "Pintura", "m2", formatEloResidentialPremiseNumber_(quantities.paintingAreaM2, 0), "A localizar SINAPI/ORSE", "?rea constru?da x 3,2."),
+      buildEloResidentialBudgetRow_(13, "Instala??es el?tricas", "pontos", String(quantities.electricalPoints), "A localizar SINAPI/ORSE", "Estimativa por quartos, banheiros, garagem e ambientes sociais."),
+      buildEloResidentialBudgetRow_(14, "Instala??es hidrossanit?rias", "pontos", String(quantities.hydraulicPoints), "A localizar SINAPI/ORSE", "Estimativa por banheiros, cozinha e ?rea de servi?o."),
+      buildEloResidentialBudgetRow_(15, "Portas", "un", String(quantities.openings.totalDoors), "A localizar SINAPI/ORSE", "1 porta 0,90 m; 2 portas 0,80 m; " + quantities.openings.doors.door070 + " portas 0,70 m."),
+      buildEloResidentialBudgetRow_(16, "Janelas", "un", String(openingCount), "A localizar SINAPI/ORSE", quantities.openings.windows.small040 + " janela 0,40 x 0,40 m; " + quantities.openings.windows.regular120x110 + " janelas 1,20 x 1,10 m."),
+      buildEloResidentialBudgetRow_(17, "Box", "un", String(quantities.openings.box), "A localizar SINAPI/ORSE", "Conforme ?rea e quantidade de banheiros informados.")
+    ];
+  }
+
+  function formatEloResidentialBudgetMaterials_(state, residentialPremises) {
+    const quantities = buildEloResidentialPreliminaryQuantities_(state, residentialPremises);
+    if (!quantities) return "MATERIAIS PRINCIPAIS\n- quantitativos pendentes";
+    const concreteTotal = quantities.footingConcreteM3 + quantities.columnVolumeM3 + quantities.beamVolumeM3;
+    const windowCount = quantities.openings.windows.small040 + quantities.openings.windows.regular120x110;
+    return ["MATERIAIS PRINCIPAIS", "- Concreto 25 MPa: " + formatEloResidentialPremiseNumber_(concreteTotal, 2) + " m3 (sapatas " + formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2) + " m3; pilares " + formatEloResidentialPremiseNumber_(quantities.columnVolumeM3, 2) + " m3; vigas/baldrame " + formatEloResidentialPremiseNumber_(quantities.beamVolumeM3, 2) + " m3).", "- Formas de madeira: " + formatEloResidentialPremiseNumber_(quantities.formworkM2, 0) + " m2.", "- Blocos cer?micos: " + quantities.ceramicBlocks + " un.", "- Cobertura/telhamento: " + formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0) + " m2.", "- Piso interno: " + formatEloResidentialPremiseNumber_(quantities.floorAreaM2, 0) + " m2.", "- Revestimento de ?reas molhadas: " + formatEloResidentialPremiseNumber_(quantities.wetCoatingM2, 0) + " m2.", "- Pintura: " + formatEloResidentialPremiseNumber_(quantities.paintingAreaM2, 0) + " m2.", "- Portas: " + quantities.openings.totalDoors + " un.", "- Janelas: " + windowCount + " un.", "- Box: " + quantities.openings.box + " un."].join("\n");
+  }
+
+  function formatEloResidentialBudgetFinancialSummary_() {
+    return ["RESUMO FINANCEIRO", "Subtotal: aguardando composi??es oficiais", "BDI: aguardando defini??o", "Total preliminar: aguardando composi??es oficiais"].join("\n");
+  }
+
+  function formatEloResidentialBudgetMemorial_(state, residentialPremises) {
+    const quantities = buildEloResidentialPreliminaryQuantities_(state, residentialPremises);
+    if (!quantities) return "MEMORIAL DE CALCULO\n- Quantitativos pendentes de premissas residenciais.";
+    const area = Number(state && state.areaM2 || 0);
+    return ["MEMORIAL DE CALCULO", "- ?rea constru?da: " + formatEloResidentialPremiseNumber_(area, 0) + " m2.", "- Sapata padr?o: 0,60 x 0,60 x 0,30 m = 0,108 m3 por unidade.", "- Sapatas: " + quantities.footingQty + " un x 0,108 m3 = " + formatEloResidentialPremiseNumber_(quantities.footingConcreteM3, 2) + " m3.", "- Pilares / arranques: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 0,075 = " + formatEloResidentialPremiseNumber_(quantities.columnVolumeM3, 2) + " m3.", "- Vigas baldrame: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 0,175 = " + formatEloResidentialPremiseNumber_(quantities.beamVolumeM3, 2) + " m3.", "- Formas: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 2,5 = " + formatEloResidentialPremiseNumber_(quantities.formworkM2, 0) + " m2.", "- Alvenaria: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 2,4 = " + formatEloResidentialPremiseNumber_(quantities.masonryAreaM2, 0) + " m2.", "- Blocos cer?micos: ?rea de alvenaria x consumo preliminar com perda = " + quantities.ceramicBlocks + " un.", "- Cobertura: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 1,15 = " + formatEloResidentialPremiseNumber_(quantities.roofAreaM2, 0) + " m2.", "- Pintura: " + formatEloResidentialPremiseNumber_(area, 0) + " m2 x 3,2 = " + formatEloResidentialPremiseNumber_(quantities.paintingAreaM2, 0) + " m2.", "- Instala??es: " + quantities.electricalPoints + " pontos el?tricos e " + quantities.hydraulicPoints + " pontos hidrossanit?rios estimados."].join("\n");
+  }
+
+  function buildEloResidentialBudgetDocumentEnhancement_(state) {
+    const residentialPremises = buildEloResidentialPremisesForState_(state);
+    const rows = buildEloResidentialBudgetRows_(state, residentialPremises);
+    if (!rows.length) return null;
+    return { budgetRows: rows, budgetTableText: formatEloResidentialBudgetRowsTable_(rows), materialsText: formatEloResidentialBudgetMaterials_(state, residentialPremises), financialSummaryText: formatEloResidentialBudgetFinancialSummary_(), memorialText: formatEloResidentialBudgetMemorial_(state, residentialPremises), compositions: ["SINAPI/ORSE a localizar por servi?o; valores n?o inventados sem composi??o oficial, BDI e m?s-base."], budget: { subtotalKnown: 0, allPendingOfficialComposition: true, status: "pending_official_compositions" } };
   }
 
   function appendEloProfessionalServiceBlock_(lines, title, service, materials, quantity, priceStatus) {
@@ -16180,37 +16284,7 @@
     }
 
     buildResidentialPremises_(state) {
-      if (!state || state.type !== "residential" || !(state.areaM2 > 0)) return null;
-      const area = Number(state.areaM2 || 0);
-      const premises = DEFAULT_RESIDENTIAL_PREMISES;
-      const isGroundFloor = state.floors === 1 || /terrea|t.rrea/.test(normalizeText(state.constructionType || ""));
-      const hasPool = !!state.hasPool;
-      const result = {
-        applies: false,
-        reason: "",
-        stages: premises.mandatoryStages.slice(0),
-        scope: premises.scope,
-        footing: premises.footing,
-        concreteStrengthMPa: premises.concreteStrengthMPa,
-        columnVolumeM3: area * premises.columnConcreteFactor,
-        beamVolumeM3: area * premises.beamConcreteFactor,
-        formworkM2: area * premises.formworkFactor
-      };
-      if (hasPool) {
-        result.reason = "Piscina fora do escopo: deve ser orcada separadamente.";
-        return result;
-      }
-      if (!isGroundFloor) {
-        result.reason = state.floors && state.floors > 1 ? "Sobrado precisa de premissas proprias; nao aplico esta regra terrea como absoluta." : "Premissa estrutural automatica exige confirmar casa terrea.";
-        return result;
-      }
-      if (area > premises.maxAreaM2) {
-        result.reason = "Area acima de " + premises.maxAreaM2 + " m2 exige parametrizacao/projeto estrutural; nao aplico esta regra como absoluta.";
-        return result;
-      }
-      result.applies = true;
-      result.reason = "Premissas aplicadas para " + premises.scope + " ate " + premises.maxAreaM2 + " m2.";
-      return result;
+      return buildEloResidentialPremisesForState_(state);
     }
 
     appendResidentialPremisesLines_(lines, residentialPremises, advancedMode) {
