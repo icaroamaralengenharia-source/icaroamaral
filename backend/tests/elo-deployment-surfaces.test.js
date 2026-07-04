@@ -36,13 +36,14 @@ const expectedOrder = [
   "elo-price-engine.js",
   "elo-dashboard-view.js",
   "elo-budget-engine.js",
+  "elo-real-budget-engine.js",
   "elo-brain-router.js",
   "elo-assistente.js"
 ];
 
 function scriptPositions(html) {
-  const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)).map((match) => match[1]);
-  return Object.fromEntries(expectedOrder.map((script) => [script, scripts.findIndex((src) => src.includes(script))]));
+  const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi)).map((match) => match[1].split("?")[0].split("/").pop());
+  return Object.fromEntries(expectedOrder.map((script) => [script, scripts.findIndex((src) => src === script)]));
 }
 
 test("superficies do Elo carregam motores novos na ordem correta", () => {
@@ -75,6 +76,8 @@ test("superficies do Elo carregam motores novos na ordem correta", () => {
     assert.ok(positions["elo-traceability-engine.js"] < positions["elo-price-engine.js"], `${surface.name}: Traceability antes de PriceEngine`);
     assert.ok(positions["elo-price-engine.js"] < positions["elo-dashboard-view.js"], `${surface.name}: PriceEngine antes de DashboardView`);
     assert.ok(positions["elo-dashboard-view.js"] < positions["elo-budget-engine.js"], `${surface.name}: DashboardView antes de EloBudgetEngine`);
+    assert.ok(positions["elo-dashboard-view.js"] < positions["elo-real-budget-engine.js"], `${surface.name}: DashboardView antes de EloRealBudgetEngine`);
+    assert.ok(positions["elo-real-budget-engine.js"] < positions["elo-budget-engine.js"], `${surface.name}: EloRealBudgetEngine antes de EloBudgetEngine`);
     assert.ok(positions["elo-budget-engine.js"] < positions["elo-brain-router.js"], `${surface.name}: EloBudgetEngine antes de EloBrainRouter`);
     assert.ok(positions["elo-brain-router.js"] < positions["elo-assistente.js"], `${surface.name}: EloBrainRouter antes de elo-assistente`);
   });

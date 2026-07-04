@@ -214,6 +214,11 @@
     if (!auditor || typeof auditor.auditTechnicalBudget !== "function") return null;
     return auditor.auditTechnicalBudget(input || {});
   }
+  function buildRealBudget(input) {
+    const engine = root.EloRealBudgetEngine || null;
+    if (!engine || typeof engine.buildCompleteBudget !== "function") return null;
+    return engine.buildCompleteBudget(input || {});
+  }
   function nextQuestion(budget) {
     const facts = budget.projectFacts || {};
     if (!facts.wallMaterial) return "Qual será o sistema principal de parede? Ex: bloco cerâmico baiano, bloco de concreto, drywall.";
@@ -263,6 +268,15 @@
       missing: missing,
       assumptions: constructionReadiness && constructionReadiness.assumidos || []
     });
+    const realBudget = buildRealBudget({
+      projectFacts: facts,
+      budgetEap: budgetEap,
+      compositionResolution: compositionResolution,
+      technicalAudit: technicalAudit,
+      quantities: quantityResult.quantities,
+      priceBase: technicalContext && (technicalContext.priceBase || technicalContext.priceSource) || {},
+      bdiPercent: technicalContext && technicalContext.bdiPercent
+    });
     const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
@@ -271,6 +285,7 @@
       budgetEap: budgetEap,
       compositionResolution: compositionResolution,
       technicalAudit: technicalAudit,
+      realBudget: realBudget,
       workPackages: workPackages,
       quantities: quantityResult.quantities,
       compositionMatches: compositionMatches,
