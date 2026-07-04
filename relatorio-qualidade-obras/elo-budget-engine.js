@@ -209,6 +209,11 @@
       maxCandidates: 5
     });
   }
+  function buildTechnicalAudit(input) {
+    const auditor = root.EloTechnicalAuditor || null;
+    if (!auditor || typeof auditor.auditTechnicalBudget !== "function") return null;
+    return auditor.auditTechnicalBudget(input || {});
+  }
   function nextQuestion(budget) {
     const facts = budget.projectFacts || {};
     if (!facts.wallMaterial) return "Qual será o sistema principal de parede? Ex: bloco cerâmico baiano, bloco de concreto, drywall.";
@@ -250,6 +255,14 @@
     const constructionReadiness = buildConstructionReadiness(facts, technicalContext || {});
     const budgetEap = buildBudgetEap(facts, technicalContext || {});
     const compositionResolution = buildCompositionResolution(budgetEap);
+    const technicalAudit = buildTechnicalAudit({
+      projectFacts: facts,
+      constructionReadiness: constructionReadiness,
+      budgetEap: budgetEap,
+      compositionResolution: compositionResolution,
+      missing: missing,
+      assumptions: constructionReadiness && constructionReadiness.assumidos || []
+    });
     const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
@@ -257,6 +270,7 @@
       constructionReadiness: constructionReadiness,
       budgetEap: budgetEap,
       compositionResolution: compositionResolution,
+      technicalAudit: technicalAudit,
       workPackages: workPackages,
       quantities: quantityResult.quantities,
       compositionMatches: compositionMatches,
@@ -387,6 +401,14 @@
       lines.push("- Resolvidos: " + ((b.compositionResolution.resolvedItems || []).length));
       lines.push("- Nao resolvidos: " + ((b.compositionResolution.unresolvedItems || []).length));
       lines.push("- Pode fechar orçamento completo: " + (b.compositionResolution.podeFecharOrcamentoCompleto ? "sim" : "nao"));
+    }
+    if (b.technicalAudit) {
+      lines.push("", "AUDITORIA TECNICA V1");
+      lines.push("- Status: " + (b.technicalAudit.status || "partial"));
+      lines.push("- Maturidade: " + (b.technicalAudit.maturity || "pre_executive_incomplete"));
+      lines.push("- Confianca: " + Math.round(Number(b.technicalAudit.confidence || 0) * 100) + "%");
+      lines.push("- Pode gerar executivo: " + (b.technicalAudit.executiveBudget ? "sim" : "nao"));
+      if (b.technicalAudit.missingItems && b.technicalAudit.missingItems.length) lines.push("- Itens faltantes: " + b.technicalAudit.missingItems.slice(0, 8).map(function (item) { return item.item; }).join(", "));
     }
     lines.push("", "SITUAÇÃO DO PRODUTO");
     lines.push("- Prontuário: " + (b.projectRecordSaved ? "salvo localmente" : "não salvo"));
