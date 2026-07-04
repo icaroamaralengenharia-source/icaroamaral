@@ -127,6 +127,49 @@
     return risks;
   }
 
+  function buildConstructionReadiness(facts, technicalContext) {
+    const sequenceEngine = root.EloConstructionSequenceEngine || null;
+    const roomEngine = root.EloRoomRequirementsEngine || null;
+    const gateEngine = root.EloStageGateEngine || null;
+    const sourceText = [facts && facts.originalMessage, technicalContext && technicalContext.lastMessage].map(clean).join(" ");
+    const construction = sequenceEngine && sequenceEngine.analyzeConstruction ? sequenceEngine.analyzeConstruction({
+      originalMessage: sourceText,
+      projectFacts: facts || {},
+      foundItems: technicalContext && technicalContext.foundItems || {}
+    }) : null;
+    const rooms = roomEngine && roomEngine.validateRooms ? roomEngine.validateRooms({
+      text: sourceText,
+      rooms: technicalContext && (technicalContext.rooms || technicalContext.ambientes) || []
+    }) : null;
+    const gate = gateEngine && gateEngine.evaluateBudgetGate ? gateEngine.evaluateBudgetGate({
+      construction: construction,
+      rooms: rooms
+    }) : {
+      status: "partial",
+      complete: false,
+      partial: true,
+      blocked: false,
+      pendentes: [],
+      bloqueadores: [],
+      podeFecharOrcamentoCompleto: false,
+      podeGerarEstimativaPreliminar: true,
+      motivo: "Motor deterministico de obra nao carregado."
+    };
+    return {
+      etapaAtual: construction && construction.etapaAtual || null,
+      encontrados: construction && construction.encontrados || [],
+      pendentes: construction && construction.pendentes || [],
+      assumidos: construction && construction.assumidos || [],
+      bloqueadores: gate.bloqueadores || [],
+      termosBuscaPorItem: construction && construction.termosBuscaPorItem || {},
+      proximaPergunta: construction && construction.proximaPergunta || nextQuestion({ projectFacts: facts || {} }),
+      podeFecharOrcamentoCompleto: gate.podeFecharOrcamentoCompleto === true,
+      podeGerarEstimativaPreliminar: gate.podeGerarEstimativaPreliminar !== false,
+      status: gate.status,
+      rooms: rooms,
+      gate: gate
+    };
+  }
   function nextQuestion(budget) {
     const facts = budget.projectFacts || {};
     if (!facts.wallMaterial) return "Qual será o sistema principal de parede? Ex: bloco cerâmico baiano, bloco de concreto, drywall.";
@@ -165,10 +208,12 @@
     });
     const missing = quantityResult.missing.concat(packageMissing);
     const confidence = Math.max(0.25, Math.min(0.9, 0.35 + (facts.builtAreaM2 ? 0.12 : 0) + (facts.wallMaterial ? 0.08 : 0) + (facts.roofMaterial ? 0.08 : 0) + (facts.floorMaterial ? 0.08 : 0) + (budgetTable.summary.readyRows * 0.03) - Math.min(0.25, missing.length * 0.01)));
+    const constructionReadiness = buildConstructionReadiness(facts, technicalContext || {});
     const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
       projectFacts: facts,
+      constructionReadiness: constructionReadiness,
       workPackages: workPackages,
       quantities: quantityResult.quantities,
       compositionMatches: compositionMatches,
@@ -276,6 +321,15 @@
       lines.push("- Consumos calculados: " + cardValue("consumptions"));
       lines.push("- Auditorias críticas: " + cardValue("critical-audits"));
     }
+    if (b.constructionReadiness) {
+      lines.push("", "MOTOR DE OBRA");
+      lines.push("- Etapa atual: " + (b.constructionReadiness.etapaAtual && b.constructionReadiness.etapaAtual.nome || "nao definida"));
+      lines.push("- Status: " + (b.constructionReadiness.status || "partial"));
+      lines.push("- Pode fechar orçamento completo: " + (b.constructionReadiness.podeFecharOrcamentoCompleto ? "sim" : "nao"));
+      if (b.constructionReadiness.bloqueadores && b.constructionReadiness.bloqueadores.length) lines.push("- Bloqueadores: " + b.constructionReadiness.bloqueadores.slice(0, 8).join(", "));
+      if (b.constructionReadiness.assumidos && b.constructionReadiness.assumidos.length) lines.push("- Premissas assumidas: " + b.constructionReadiness.assumidos.slice(0, 6).join(", "));
+      if (b.constructionReadiness.proximaPergunta) lines.push("- Proxima pergunta: " + b.constructionReadiness.proximaPergunta);
+    }
     lines.push("", "SITUAÇÃO DO PRODUTO");
     lines.push("- Prontuário: " + (b.projectRecordSaved ? "salvo localmente" : "não salvo"));
     if (b.baseStatus) lines.push("- Base técnica: " + (b.baseStatus.loaded ? ((b.baseStatus.source || "SINAPI") + " " + (b.baseStatus.state || "") + " " + (b.baseStatus.referenceMonth || "") + ", " + b.baseStatus.totalCompositions + " composições") : "não carregada"));
@@ -290,9 +344,4 @@
 
   root.EloBudgetEngine = { version: VERSION, buildPreliminaryBudget: buildPreliminaryBudget, buildBudgetReportText: buildBudgetReportText };
 })(typeof window !== "undefined" ? window : globalThis);
-
-
-
-
-
 
