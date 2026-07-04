@@ -170,6 +170,35 @@
       gate: gate
     };
   }
+  function buildBudgetEap(facts, technicalContext) {
+    const eapEngine = root.EloBudgetEapEngine || null;
+    if (!eapEngine || typeof eapEngine.buildEloBudgetEap !== "function") return null;
+    const sourceText = [facts && facts.originalMessage, technicalContext && technicalContext.lastMessage].map(clean).join(" ");
+    return eapEngine.buildEloBudgetEap({
+      tipo: facts && (facts.projectType || facts.tipoObra || facts.type),
+      originalMessage: sourceText,
+      areaConstruidaM2: facts && (facts.builtAreaM2 || facts.areaConstruidaM2),
+      builtAreaM2: facts && (facts.builtAreaM2 || facts.areaConstruidaM2),
+      ambientes: {
+        quartos: facts && facts.bedrooms,
+        banheiros: facts && facts.bathrooms,
+        suites: facts && facts.suites,
+        cozinha: facts && (facts.kitchen || facts.cozinha),
+        areaServico: facts && (facts.areaServico || facts.serviceArea)
+      },
+      cobertura: facts && facts.roofMaterial,
+      parede: facts && facts.wallMaterial,
+      piso: facts && facts.floorMaterial,
+      uf: facts && (facts.uf || facts.state || facts.cityUf),
+      padrao: facts && facts.projectStandard,
+      fundacao: facts && facts.foundationType,
+      comprimentoM: facts && (facts.wallLengthM || facts.comprimentoM),
+      alturaM: facts && (facts.wallHeightM || facts.alturaM),
+      larguraM: facts && (facts.widthM || facts.larguraM),
+      profundidadeM: facts && (facts.depthM || facts.profundidadeM)
+    });
+  }
+
   function nextQuestion(budget) {
     const facts = budget.projectFacts || {};
     if (!facts.wallMaterial) return "Qual será o sistema principal de parede? Ex: bloco cerâmico baiano, bloco de concreto, drywall.";
@@ -209,11 +238,13 @@
     const missing = quantityResult.missing.concat(packageMissing);
     const confidence = Math.max(0.25, Math.min(0.9, 0.35 + (facts.builtAreaM2 ? 0.12 : 0) + (facts.wallMaterial ? 0.08 : 0) + (facts.roofMaterial ? 0.08 : 0) + (facts.floorMaterial ? 0.08 : 0) + (budgetTable.summary.readyRows * 0.03) - Math.min(0.25, missing.length * 0.01)));
     const constructionReadiness = buildConstructionReadiness(facts, technicalContext || {});
+    const budgetEap = buildBudgetEap(facts, technicalContext || {});
     const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
       projectFacts: facts,
       constructionReadiness: constructionReadiness,
+      budgetEap: budgetEap,
       workPackages: workPackages,
       quantities: quantityResult.quantities,
       compositionMatches: compositionMatches,
@@ -330,6 +361,15 @@
       if (b.constructionReadiness.assumidos && b.constructionReadiness.assumidos.length) lines.push("- Premissas assumidas: " + b.constructionReadiness.assumidos.slice(0, 6).join(", "));
       if (b.constructionReadiness.proximaPergunta) lines.push("- Proxima pergunta: " + b.constructionReadiness.proximaPergunta);
     }
+    if (b.budgetEap) {
+      lines.push("", "EAP AUTOMATICA");
+      lines.push("- Tipo: " + (b.budgetEap.tipo || "nao definido"));
+      lines.push("- Etapas: " + ((b.budgetEap.etapas || []).length));
+      lines.push("- Itens: " + ((b.budgetEap.itens || []).length));
+      lines.push("- Pendencias: " + ((b.budgetEap.pendencias || []).length));
+      lines.push("- Bloqueadores: " + ((b.budgetEap.bloqueadores || []).length));
+      lines.push("- Pode fechar orçamento completo: " + (b.budgetEap.podeFecharOrcamentoCompleto ? "sim" : "nao"));
+    }
     lines.push("", "SITUAÇÃO DO PRODUTO");
     lines.push("- Prontuário: " + (b.projectRecordSaved ? "salvo localmente" : "não salvo"));
     if (b.baseStatus) lines.push("- Base técnica: " + (b.baseStatus.loaded ? ((b.baseStatus.source || "SINAPI") + " " + (b.baseStatus.state || "") + " " + (b.baseStatus.referenceMonth || "") + ", " + b.baseStatus.totalCompositions + " composições") : "não carregada"));
@@ -344,4 +384,3 @@
 
   root.EloBudgetEngine = { version: VERSION, buildPreliminaryBudget: buildPreliminaryBudget, buildBudgetReportText: buildBudgetReportText };
 })(typeof window !== "undefined" ? window : globalThis);
-
