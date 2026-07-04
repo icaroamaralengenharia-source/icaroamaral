@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amaral AI Platform | SaaS Brasil</title>
+  <meta name="description" content="Amaral AI Platform: uma plataforma, vários especialistas e um único cérebro para operação, estoque, engenharia e rotinas sensíveis.">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5b6876;
+      --line: #d8e0e8;
+      --paper: #ffffff;
+      --soft: #f4f7fb;
+      --navy: #123047;
+      --teal: #0f766e;
+      --green: #2f855a;
+      --amber: #b7791f;
+      --red: #b91c1c;
+      --blue: #2563eb;
+      --shadow: 0 18px 45px rgba(18, 48, 71, 0.12);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(216, 224, 232, 0.8);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .nav {
+      width: min(1120px, calc(100% - 32px));
+      min-height: 64px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--navy);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .hero {
+      position: relative;
+      min-height: 640px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(15, 118, 110, 0.14), transparent 32%),
+        linear-gradient(135deg, #f7fbff 0%, #edf5f4 48%, #fff8ec 100%);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(18, 48, 71, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(18, 48, 71, 0.06) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 86%);
+    }
+
+    .hero-inner {
+      position: relative;
+      width: min(1120px, calc(100% - 32px));
+      min-height: 640px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      align-items: center;
+      gap: 44px;
+      padding: 72px 0 92px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid rgba(15, 118, 110, 0.26);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 22px 0 12px;
+      font-size: clamp(42px, 7vw, 78px);
+      line-height: 0.95;
+      letter-spacing: 0;
+      color: var(--navy);
+    }
+
+    .hero-subtitle {
+      max-width: 680px;
+      margin: 0 0 18px;
+      font-size: clamp(21px, 3vw, 32px);
+      line-height: 1.15;
+      color: #263849;
+      font-weight: 700;
+    }
+
+    .hero-copy {
+      max-width: 600px;
+      margin: 0 0 30px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .value-line {
+      max-width: 620px;
+      margin: 0 0 14px;
+      color: var(--navy);
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.12;
+      font-weight: 900;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 46px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 800;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      background: var(--navy);
+      color: #fff;
+      box-shadow: 0 12px 28px rgba(18, 48, 71, 0.22);
+    }
+
+    .button.secondary {
+      border-color: rgba(18, 48, 71, 0.2);
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--navy);
+    }
+
+    .platform-map {
+      position: relative;
+      min-height: 430px;
+      padding: 28px;
+      border: 1px solid rgba(18, 48, 71, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.74);
+      box-shadow: var(--shadow);
+    }
+
+    .brain {
+      width: 174px;
+      min-height: 174px;
+      margin: 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      text-align: center;
+      box-shadow: 0 18px 44px rgba(18, 48, 71, 0.28);
+    }
+
+    .brain strong {
+      display: block;
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .brain span {
+      display: block;
+      width: 110px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #d8f3ef;
+    }
+
+    .nodes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .node {
+      min-height: 82px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    main {
+      background: #fff;
+    }
+
+    section {
+      padding: 72px 0;
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .section-head {
+      max-width: 740px;
+      margin-bottom: 30px;
+    }
+
+    .section-head h2 {
+      margin: 0 0 10px;
+      color: var(--navy);
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .segment-card {
+      display: flex;
+      min-height: 430px;
+      flex-direction: column;
+      padding: 22px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(18, 48, 71, 0.08);
+    }
+
+    .segment-card[data-segment="commerce"] {
+      border-top: 5px solid var(--green);
+    }
+
+    .segment-card[data-segment="engineering"] {
+      border-top: 5px solid var(--blue);
+    }
+
+    .segment-card[data-segment="healthcare"] {
+      border-top: 5px solid var(--red);
+    }
+
+    .segment-card[data-segment="ai-hub"] {
+      border-top: 5px solid var(--teal);
+    }
+
+    .segment-card h3 {
+      margin: 0 0 10px;
+      color: var(--navy);
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    .label {
+      margin: 14px 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .segment-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .segment-card .offer {
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .status {
+      display: inline-flex;
+      width: fit-content;
+      max-width: 100%;
+      margin-top: 14px;
+      padding: 6px 9px;
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--navy);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .recommended-badge {
+      display: inline-flex;
+      width: fit-content;
+      max-width: 100%;
+      margin-bottom: 14px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: rgba(47, 133, 90, 0.12);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .segment-card .button {
+      width: 100%;
+      margin-top: auto;
+    }
+
+    .band {
+      background: var(--soft);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+      gap: 34px;
+      align-items: start;
+    }
+
+    .plain-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plain-list li {
+      min-height: 54px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .plain-list strong {
+      color: var(--ink);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .step {
+      min-height: 180px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .step-number {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      background: var(--teal);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .step h3 {
+      margin: 0 0 8px;
+      color: var(--navy);
+      font-size: 20px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .dont-promise {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .trust-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .trust-item {
+      min-height: 150px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .trust-item strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--navy);
+      font-size: 17px;
+    }
+
+    .trust-item p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .warning-item {
+      min-height: 128px;
+      padding: 16px;
+      border: 1px solid #f1c6c6;
+      border-radius: 8px;
+      background: #fffafa;
+      color: #6b1d1d;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .contact {
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .contact .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .contact h2 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .contact p {
+      max-width: 720px;
+      margin: 0;
+      color: #dbe8ef;
+      font-size: 17px;
+    }
+
+    .contact .button {
+      background: #fff;
+      color: var(--navy);
+    }
+
+    .contact-panel {
+      display: grid;
+      gap: 10px;
+      min-width: 280px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .contact-panel span {
+      color: #dbe8ef;
+      font-size: 14px;
+    }
+
+    footer {
+      padding: 28px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      background: #0b2235;
+      color: #c7d6e1;
+      font-size: 14px;
+    }
+
+    @media (max-width: 1040px) {
+      .hero-inner,
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      .platform-map {
+        min-height: auto;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .dont-promise {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding: 12px 0;
+      }
+
+      .nav-links {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+
+      .hero,
+      .hero-inner {
+        min-height: auto;
+      }
+
+      .hero-inner {
+        padding: 46px 0 58px;
+      }
+
+      .hero-actions,
+      .contact .wrap {
+        align-items: stretch;
+        grid-template-columns: 1fr;
+      }
+
+      .button {
+        width: 100%;
+        white-space: normal;
+      }
+
+      .cards,
+      .steps,
+      .dont-promise,
+      .trust-grid,
+      .nodes {
+        grid-template-columns: 1fr;
+      }
+
+      .segment-card {
+        min-height: auto;
+      }
+
+      section {
+        padding: 54px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <nav class="nav" aria-label="Navegação principal">
+      <a class="brand" href="#inicio" aria-label="Amaral AI Platform">
+        <span class="brand-mark">AI</span>
+        <span>Amaral AI Platform</span>
+      </a>
+      <div class="nav-links">
+        <a href="#segmentos">Soluções</a>
+        <a href="#stock-full">Stock Full</a>
+        <a href="#piloto">Piloto</a>
+        <a href="#nao-promessas">Limites</a>
+        <a href="#contato">Contato</a>
+      </div>
+    </nav>
+  </header>
+
+  <section class="hero" id="inicio">
+    <div class="hero-inner">
+      <div>
+        <span class="eyebrow">SaaS Brasil V1</span>
+        <h1>Amaral AI Platform</h1>
+        <p class="value-line">Sua operação organizada por especialistas em IA.</p>
+        <p class="hero-subtitle">Estoque, engenharia, documentação técnica e rotinas sensíveis em uma única plataforma modular, com o ELO conectando tudo.</p>
+        <p class="hero-copy">Escolha sua área e descubra qual solução combina com sua operação.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#segmentos">Ver soluções</a>
+          <a class="button secondary" href="#contato">Solicitar piloto</a>
+          <a class="button secondary" href="#contato">Agendar demonstração</a>
+        </div>
+      </div>
+
+      <div class="platform-map" aria-label="Mapa visual da plataforma">
+        <div class="brain">
+          <div>
+            <strong>ELO</strong>
+            <span>cérebro transversal</span>
+          </div>
+        </div>
+        <div class="nodes">
+          <div class="node"><strong>Stock Full</strong>Comércio e estoque operacional.</div>
+          <div class="node"><strong>ObraReport</strong>Relatórios, RDOs e documentos.</div>
+          <div class="node"><strong>Stock Obras</strong>Materiais técnicos por obra.</div>
+          <div class="node"><strong>Stock Saúde</strong>Rotina sensível com rastreio.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section id="segmentos">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Escolha sua área</h2>
+          <p>A entrada comercial segue o Segment Router V1: cada segmento recebe uma oferta, um status de venda e uma promessa com limites claros.</p>
+        </div>
+
+        <div class="cards">
+          <article class="segment-card" data-segment="commerce">
+            <span class="recommended-badge">Produto recomendado para começar</span>
+            <h3>Comércio e Estoque</h3>
+            <div class="label">Oferta</div>
+            <p class="offer">Stock Full Essencial</p>
+            <div class="label">Promessa</div>
+            <p>Controle de estoque no celular, com inventário guiado, operação offline e auditoria.</p>
+            <div class="label">Indicado para</div>
+            <p>lojas, depósitos, pequenos distribuidores e almoxarifados simples.</p>
+            <span class="status">Piloto pago disponível.</span>
+            <a class="button primary" href="#contato">Quero testar Stock Full</a>
+          </article>
+
+          <article class="segment-card" data-segment="engineering">
+            <h3>Engenharia e Obras</h3>
+            <div class="label">Oferta</div>
+            <p class="offer">Pacote Engenharia Assistida</p>
+            <div class="label">Promessa</div>
+            <p>Relatórios, diário de obra, estoque técnico e apoio de IA para rotina de engenharia.</p>
+            <div class="label">Indicado para</div>
+            <p>engenheiros, construtoras pequenas, vistoriadores e prestadores técnicos.</p>
+            <span class="status">Piloto pago assistido.</span>
+            <a class="button primary" href="#contato">Quero piloto Engenharia</a>
+          </article>
+
+          <article class="segment-card" data-segment="healthcare">
+            <h3>Saúde e Rotina Sensível</h3>
+            <div class="label">Oferta</div>
+            <p class="offer">Stock Saúde Implantação Controlada</p>
+            <div class="label">Promessa</div>
+            <p>Controle rastreável de insumos de saúde, com responsabilidade e auditoria.</p>
+            <div class="label">Indicado para</div>
+            <p>projetos de saúde com lote, validade, aprovação e rastreabilidade.</p>
+            <span class="status">Implantação controlada, não self-service.</span>
+            <a class="button primary" href="#contato">Solicitar avaliação</a>
+          </article>
+
+          <article class="segment-card" data-segment="ai-hub">
+            <h3>Assistente ELO</h3>
+            <div class="label">Oferta</div>
+            <p class="offer">ELO como cérebro da plataforma</p>
+            <div class="label">Promessa</div>
+            <p>O ELO entende sua necessidade e direciona para o especialista certo.</p>
+            <div class="label">Indicado para</div>
+            <p>quem ainda não sabe qual solução usar e precisa começar pela conversa.</p>
+            <span class="status">Cérebro transversal.</span>
+            <a class="button primary" href="#contato">Falar com ELO</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="stock-full">
+      <div class="wrap split">
+        <div class="section-head">
+          <h2>Por que começar pelo Stock Full</h2>
+          <p>O Stock Full é o módulo mais pronto para piloto: funciona no celular, apoia inventário guiado, opera offline em cenários planejados e registra auditoria de movimentações. Não substitui ERP e não emite nota fiscal nesta fase.</p>
+        </div>
+        <ul class="plain-list">
+          <li><strong>Celular primeiro:</strong> pensado para operação real de loja, depósito e almoxarifado simples.</li>
+          <li><strong>Offline planejado:</strong> ajuda quando a rotina não pode parar por falta de internet.</li>
+          <li><strong>Funcionário e auditoria:</strong> registra ações e reduz controle informal por papel ou mensagem solta.</li>
+          <li><strong>Inventário guiado:</strong> transforma conferência de estoque em processo simples e repetível.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="piloto">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Como funciona o piloto</h2>
+          <p>A V1 comercial deve começar pequena, assistida e com critérios objetivos de sucesso.</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <h3>Diagnóstico rápido</h3>
+            <p>Entendemos se o cliente precisa de estoque comercial, engenharia, saúde controlada ou conversa inicial com o ELO.</p>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <h3>Escopo de piloto</h3>
+            <p>Definimos rotina real, usuários, necessidade offline, riscos e o que não será prometido nesta fase.</p>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <h3>Acompanhamento</h3>
+            <p>O piloto roda com suporte assistido, feedback e validação antes de qualquer escala ou automação maior.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="confianca">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Por que confiar</h2>
+          <p>A V1 usa fatos do produto e limites claros. Sem números inventados, sem depoimentos falsos e sem promessa acima da maturidade atual.</p>
+        </div>
+        <div class="trust-grid">
+          <div class="trust-item"><strong>Operação offline planejada</strong><p>Rotinas de campo podem continuar em cenários controlados, com sincronização posterior quando aplicável.</p></div>
+          <div class="trust-item"><strong>Inventário guiado</strong><p>O Stock Full conduz conferência de produtos, perdas e resumo operacional.</p></div>
+          <div class="trust-item"><strong>Auditoria de movimentações</strong><p>Entradas, saídas e ações relevantes ficam registradas para reduzir improviso.</p></div>
+          <div class="trust-item"><strong>Arquitetura modular</strong><p>Cada segmento usa o especialista certo, sem misturar estoque comercial, obra e saúde.</p></div>
+          <div class="trust-item"><strong>ELO como cérebro transversal</strong><p>A IA orienta o usuário e direciona para o módulo adequado.</p></div>
+          <div class="trust-item"><strong>Piloto assistido</strong><p>A validação comercial começa acompanhada, com escopo claro e sem promessa falsa.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="nao-promessas">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Limites honestos desta fase</h2>
+          <p>A V1 protege o cliente com transparência: entregamos piloto assistido e apoio operacional, sem transformar roadmap em promessa comercial.</p>
+        </div>
+        <div class="dont-promise">
+          <div class="warning-item">Não somos ERP completo nesta fase.</div>
+          <div class="warning-item">Não emitimos nota fiscal nesta fase.</div>
+          <div class="warning-item">IA apoia, mas não substitui validação humana.</div>
+          <div class="warning-item">Saúde exige implantação controlada.</div>
+          <div class="warning-item">CADISTA AI ainda não é projeto legal aprovado.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="contact" id="contato">
+      <div class="wrap">
+        <div>
+          <h2>Contato para piloto assistido</h2>
+          <p>Use esta entrada para conversar sobre um piloto pago, uma avaliação controlada ou a escolha do módulo correto para sua operação.</p>
+        </div>
+        <div class="contact-panel" aria-label="Contato comercial em definição">
+          <a class="button" href="#contato">Falar sobre minha operação</a>
+          <span>WhatsApp: em definição</span>
+          <span>E-mail: em definição</span>
+          <span>Contato comercial será definido antes da publicação pública.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      Amaral AI Platform - SaaS Brasil V1. Pilotos assistidos, sem pagamento conectado nesta página.
+    </div>
+  </footer>
+</body>
+</html>
