@@ -199,6 +199,16 @@
     });
   }
 
+  function buildCompositionResolution(budgetEap) {
+    const resolver = root.EloCompositionResolver || null;
+    const searchEngine = root.CompositionSearchEngine || null;
+    if (!budgetEap || !budgetEap.itens || !resolver || typeof resolver.resolveEloEapCompositions !== "function" || !searchEngine) return null;
+    return resolver.resolveEloEapCompositions({
+      eap: budgetEap,
+      compositionSearchEngine: searchEngine,
+      maxCandidates: 5
+    });
+  }
   function nextQuestion(budget) {
     const facts = budget.projectFacts || {};
     if (!facts.wallMaterial) return "Qual será o sistema principal de parede? Ex: bloco cerâmico baiano, bloco de concreto, drywall.";
@@ -239,12 +249,14 @@
     const confidence = Math.max(0.25, Math.min(0.9, 0.35 + (facts.builtAreaM2 ? 0.12 : 0) + (facts.wallMaterial ? 0.08 : 0) + (facts.roofMaterial ? 0.08 : 0) + (facts.floorMaterial ? 0.08 : 0) + (budgetTable.summary.readyRows * 0.03) - Math.min(0.25, missing.length * 0.01)));
     const constructionReadiness = buildConstructionReadiness(facts, technicalContext || {});
     const budgetEap = buildBudgetEap(facts, technicalContext || {});
+    const compositionResolution = buildCompositionResolution(budgetEap);
     const baseBudget = {
       mode: "preliminary_budget",
       confidence: Number(confidence.toFixed(2)),
       projectFacts: facts,
       constructionReadiness: constructionReadiness,
       budgetEap: budgetEap,
+      compositionResolution: compositionResolution,
       workPackages: workPackages,
       quantities: quantityResult.quantities,
       compositionMatches: compositionMatches,
@@ -369,6 +381,12 @@
       lines.push("- Pendencias: " + ((b.budgetEap.pendencias || []).length));
       lines.push("- Bloqueadores: " + ((b.budgetEap.bloqueadores || []).length));
       lines.push("- Pode fechar orçamento completo: " + (b.budgetEap.podeFecharOrcamentoCompleto ? "sim" : "nao"));
+    }
+    if (b.compositionResolution) {
+      lines.push("", "RESOLUCAO DE COMPOSICOES EAP");
+      lines.push("- Resolvidos: " + ((b.compositionResolution.resolvedItems || []).length));
+      lines.push("- Nao resolvidos: " + ((b.compositionResolution.unresolvedItems || []).length));
+      lines.push("- Pode fechar orçamento completo: " + (b.compositionResolution.podeFecharOrcamentoCompleto ? "sim" : "nao"));
     }
     lines.push("", "SITUAÇÃO DO PRODUTO");
     lines.push("- Prontuário: " + (b.projectRecordSaved ? "salvo localmente" : "não salvo"));
