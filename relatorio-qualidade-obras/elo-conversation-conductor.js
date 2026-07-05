@@ -24,6 +24,21 @@
     fechamento: "fechamento"
   };
 
+  const TECHNICAL_BLOCK_TITLES = [
+    "Memoria de calculo",
+    "Memória de cálculo",
+    "Base tecnica",
+    "Base técnica",
+    "Auditor",
+    "Auditoria tecnica",
+    "Auditoria técnica",
+    "Alertas do auditor",
+    "Resolucao de composicoes",
+    "Resolução de composições",
+    "EAP AUTOMATICA",
+    "EAP AUTOMÁTICA"
+  ];
+
   function normalize(text) {
     return String(text || "")
       .toLowerCase()
@@ -68,6 +83,26 @@
     return "generica";
   }
 
+  function detectResponseMode(message, intent) {
+    const text = normalize(message);
+    if (/^(valeu|obrigado|obrigada|show|perfeito|beleza|ok|certo)\b/.test(text)) {
+      return "CONVERSA";
+    }
+    if (/\b(nao aguento|não aguento|frustrado|frustrada|cansado|cansada|perdi tempo|perdendo tempo|irritado|irritada|travou|trava|que saco|zorra|raiva)\b/.test(text)) {
+      return "ACOLHIMENTO";
+    }
+    if (/\b(orcamento|orçamento|orcamento executivo|orçamento executivo|executivo|eap completa|auditoria tecnica|auditor|memoria de calculo|memória de cálculo|orcamento completo|orçamento completo)\b/.test(text)) {
+      return "ORCAMENTISTA";
+    }
+    if (intent === "duvida_tecnica" || /\b(calcula|calcule|quanto|quantos|como resolver|o que fazer|parede|viga|sapata|piso|porta|pilar|concreto|argamassa|bloco|cimento|areia|brita|aco|aço)\b/.test(text)) {
+      return "ENGENHEIRO";
+    }
+    return "CONVERSA";
+  }
+
+  function isExecutiveBudgetRequest(message, intent, mode) {
+    return mode === "ORCAMENTISTA";
+  }
   function detectStage(message, state) {
     const text = normalize(message);
     const previousStage = state && state.stage;
@@ -173,6 +208,21 @@
     return "";
   }
 
+  function buildModeNextAction(mode, intent) {
+    if (mode === "ACOLHIMENTO") {
+      return "Me diga o item ou problema e eu sigo direto com a solucao, assumindo premissas padrao quando faltar dado.";
+    }
+    if (mode === "ENGENHEIRO") {
+      return "Se faltar premissa, vou propor um padrao tecnico e voce ajusta se quiser.";
+    }
+    if (mode === "ORCAMENTISTA") {
+      return "Vou abrir EAP, premissas, memoria de calculo e auditoria tecnica somente neste modo.";
+    }
+    if (intent === "generica") {
+      return "Me diga o proximo passo em uma frase que eu organizo.";
+    }
+    return "";
+  }
   function shouldAppendAction(response) {
     const text = normalize(response);
     if (!text) return false;
@@ -207,31 +257,109 @@
     return cleaned;
   }
 
+  function stripTechnicalBlocks(response) {
+    const lines = String(response || "").split(/\r?\n/);
+    const kept = [];
+    let skipping = false;
+
+    lines.forEach(function (line) {
+      const plain = line.replace(/^\s*[-#*>\d.)]+\s*/g, "").replace(/[:：]\s*$/g, "");
+      const normalizedPlain = normalize(plain);
+      const isBlockedTitle = TECHNICAL_BLOCK_TITLES.some(function (title) {
+        return normalizedPlain === normalize(title) || normalizedPlain.indexOf(normalize(title)) === 0;
+      });
+      const isSectionTitle = /^\s*(\*\*)?([A-ZÁÉÍÓÚÃÕÇ][A-ZÁÉÍÓÚÃÕÇ0-9 /_-]{3,}|[0-9]+\.\s+.+)(\*\*)?\s*:?\s*$/.test(line);
+
+      if (isBlockedTitle) {
+        skipping = true;
+        return;
+      }
+      if (skipping && isSectionTitle) {
+        skipping = false;
+      }
+      if (!skipping) kept.push(line);
+    });
+
+    return kept.join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/^\s+|\s+$/g, "");
+  }
+
+  function softenDataBlocks(response, mode, canUseTechnicalBlocks) {
+    if (canUseTechnicalBlocks) return response;
+    let cleaned = stripTechnicalBlocks(response);
+    cleaned = cleaned
+      .replace(/^\s*[-*]\s*Nenhum coeficiente foi inventado;?\s*/gmi, "")
+      .replace(/^\s*[-*]\s*Sem composicao.*$/gmi, "")
+      .replace(/^\s*[-*]\s*Base tecnica utilizada.*$/gmi, "")
+      .replace(/^\s*[-*]\s*Base técnica utilizada.*$/gmi, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    if (!cleaned) {
+      if (mode === "ACOLHIMENTO") return "Entendi a frustracao. Vamos resolver pelo caminho pratico: me diga o item e eu assumo premissas padrao para destravar.";
+      if (mode === "ENGENHEIRO") return "Vamos direto: me passe o item e a medida principal. Se faltar algo, eu proponho uma premissa padrao e sigo.";
+      return "Entendi. Me diga o proximo passo e eu organizo sem burocracia.";
+    }
+    return cleaned;
+  }
+
+  function addProactiveMissingDataPolicy(response, mode, canUseTechnicalBlocks) {
+    if (canUseTechnicalBlocks || mode === "ORCAMENTISTA") return response;
+    const text = normalize(response);
+    const hasMissingDataTone = /faltam dados|preciso confirmar|informe|nao posso calcular|não posso calcular|nao e seguro|não é seguro|pendencia|pendência/.test(text);
+    const alreadyProactive = /vou assumir|vou considerar|quer seguir assim|prefere ajustar|premissa padrao|premissa padrão/.test(text);
+    if (!hasMissingDataTone || alreadyProactive) return response;
+    return response.trim() + "\n\nPara destravar, vou assumir uma premissa padrao quando faltar dado. Quer seguir assim ou prefere ajustar antes?";
+  }
+
+  function addModeOpening(response, mode) {
+    const text = String(response || "").trim();
+    if (!text) return text;
+    if (mode === "ACOLHIMENTO" && !/^(entendi|eu entendo|faz sentido|voce tem razao|você tem razão|calma)/i.test(text)) {
+      return "Entendi a frustracao. " + text;
+    }
+    return text;
+  }
   function enhanceResponse(payload) {
     const userMessage = payload && payload.userMessage;
     const assistantResponse = payload && payload.assistantResponse;
     const previousState = loadState();
 
     const intent = detectIntent(userMessage);
+    const mode = detectResponseMode(userMessage, intent);
     const stage = detectStage(userMessage, previousState);
     const nextState = extractLightMemory(userMessage, previousState);
 
     nextState.intent = intent;
+    nextState.responseMode = mode;
     nextState.stage = stage;
     nextState.updatedAt = new Date().toISOString();
 
-    const nextAction = buildNextAction(intent, stage, nextState);
+    const canUseTechnicalBlocks = isExecutiveBudgetRequest(userMessage, intent, mode);
+    const nextAction = buildModeNextAction(mode, intent) || buildNextAction(intent, stage, nextState);
     nextState.lastNextAction = nextAction;
 
     saveState(nextState);
 
-    const baseResponse = addToneGuard(assistantResponse);
+    const baseResponse = addModeOpening(
+      addProactiveMissingDataPolicy(
+        softenDataBlocks(addToneGuard(assistantResponse), mode, canUseTechnicalBlocks),
+        mode,
+        canUseTechnicalBlocks
+      ),
+      mode
+    );
 
-    if (!nextAction || !shouldAppendAction(baseResponse)) {
-      return baseResponse;
+    const policy = global.EloCommunicationPolicy;
+    const policyResponse = policy && typeof policy.applyPolicy === "function" ? policy.applyPolicy(baseResponse, mode) : baseResponse;
+
+    if (!nextAction || !shouldAppendAction(policyResponse)) {
+      return policyResponse;
     }
 
-    return baseResponse.trim() + "\n\n**Proximo passo:** " + nextAction;
+    const responseWithAction = policyResponse.trim() + "\n\n**Proximo passo:** " + nextAction;
+    return policy && typeof policy.applyPolicy === "function" ? policy.applyPolicy(responseWithAction, mode) : responseWithAction;
   }
 
   function resetState() {
@@ -243,6 +371,7 @@
   global.EloConversationConductor = {
     detectIntent: detectIntent,
     detectStage: detectStage,
+    detectResponseMode: detectResponseMode,
     enhanceResponse: enhanceResponse,
     loadState: loadState,
     saveState: saveState,

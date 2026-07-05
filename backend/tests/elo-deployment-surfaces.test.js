@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -21,6 +21,7 @@ const expectedOrder = [
   "elo-work-package-engine.js",
   "elo-quantity-engine.js",
   "elo-consumption-engine.js",
+  "elo-parametric-composition-engine.js",
   "elo-audit-engine.js",
   "elo-budget-table-engine.js",
   "elo-project-record-engine.js",
@@ -61,6 +62,8 @@ test("superficies do Elo carregam motores novos na ordem correta", () => {
     assert.ok(positions["elo-technical-engine.js"] < positions["elo-work-package-engine.js"], `${surface.name}: EloTechnicalEngine antes de WorkPackageEngine`);
     assert.ok(positions["elo-work-package-engine.js"] < positions["elo-quantity-engine.js"], `${surface.name}: WorkPackageEngine antes de QuantityEngine`);
     assert.ok(positions["elo-quantity-engine.js"] < positions["elo-consumption-engine.js"], `${surface.name}: QuantityEngine antes de ConsumptionEngine`);
+    assert.ok(positions["elo-consumption-engine.js"] < positions["elo-parametric-composition-engine.js"], `${surface.name}: ConsumptionEngine antes de ParametricCompositionEngine`);
+    assert.ok(positions["elo-parametric-composition-engine.js"] < positions["elo-audit-engine.js"], `${surface.name}: ParametricCompositionEngine antes de AuditEngine`);
     assert.ok(positions["elo-consumption-engine.js"] < positions["elo-audit-engine.js"], `${surface.name}: ConsumptionEngine antes de AuditEngine`);
     assert.ok(positions["elo-audit-engine.js"] < positions["elo-budget-table-engine.js"], `${surface.name}: AuditEngine antes de BudgetTableEngine`);
     assert.ok(positions["elo-budget-table-engine.js"] < positions["elo-project-record-engine.js"], `${surface.name}: BudgetTableEngine antes de ProjectRecordEngine`);
@@ -99,9 +102,3 @@ test("elo-assistente usa EloBrainRouter antes dos fluxos antigos", () => {
   assert.match(source, /routed\.brain !== "technical"/, "mensagens conversacionais devem continuar no fluxo atual");
   assert.match(source, /window\.EloTechnicalEngine/, "fallback tecnico ainda preserva EloTechnicalEngine quando router nao existir");
 });
-
-
-
-
-
-

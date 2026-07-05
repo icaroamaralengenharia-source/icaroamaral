@@ -19151,6 +19151,43 @@
       .trim();
   }
 
+  function detectEloCommunicationMode_(userMessage, context) {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.EloConversationConductor &&
+        typeof window.EloConversationConductor.detectResponseMode === "function"
+      ) {
+        const intent = window.EloConversationConductor.detectIntent && typeof window.EloConversationConductor.detectIntent === "function"
+          ? window.EloConversationConductor.detectIntent(userMessage)
+          : "generica";
+        return window.EloConversationConductor.detectResponseMode(userMessage, intent);
+      }
+    } catch (error) {}
+    const text = normalizeText(userMessage);
+    if (/\b(nao aguento|não aguento|frustrado|frustrada|cansado|cansada|obrigado|obrigada|valeu)\b/.test(text)) return "ACOLHIMENTO";
+    if (/\b(orcamento|orçamento|orcamento executivo|orçamento executivo|executivo|eap|auditoria|auditor)\b/.test(text)) return "ORCAMENTISTA";
+    if (/\b(parede|viga|sapata|piso|porta|pilar|concreto|argamassa|bloco|cimento|areia|brita|calcule|calcula|quanto|quantos)\b/.test(text)) return "ENGENHEIRO";
+    return context && context.responseMode || "CONVERSA";
+  }
+
+  function applyEloCommunicationPolicy_(userMessage, responseText, context) {
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.EloCommunicationPolicy &&
+        typeof window.EloCommunicationPolicy.applyPolicy === "function"
+      ) {
+        return window.EloCommunicationPolicy.applyPolicy(
+          responseText,
+          detectEloCommunicationMode_(userMessage, context || {})
+        );
+      }
+    } catch (error) {
+      console.warn("[ELO] Communication policy fallback:", error);
+    }
+    return responseText;
+  }
   function enhanceEloFinalResponse(userMessage, assistantResponse, context) {
     try {
       if (
@@ -19163,15 +19200,23 @@
           assistantResponse: assistantResponse,
           context: context || {}
         });
-        return shouldShowEloInternalProgress_(userMessage, context) ? enhanced : stripEloInternalProgressForDisplay_(enhanced);
+        const visibleEnhanced = shouldShowEloInternalProgress_(userMessage, context) ? enhanced : stripEloInternalProgressForDisplay_(enhanced);
+        return applyEloCommunicationPolicy_(userMessage, visibleEnhanced, context || {});
       }
     } catch (error) {
       console.warn("[ELO] Conversation conductor fallback:", error);
     }
 
-    return shouldShowEloInternalProgress_(userMessage, context) ? assistantResponse : stripEloInternalProgressForDisplay_(assistantResponse);
+    const visibleFallback = shouldShowEloInternalProgress_(userMessage, context) ? assistantResponse : stripEloInternalProgressForDisplay_(assistantResponse);
+    return applyEloCommunicationPolicy_(userMessage, visibleFallback, context || {});
   }
   function buildResponse(question) {
+    const router = (typeof window !== "undefined" && window.EloBrainRouter) ? window.EloBrainRouter : null;
+    const explicitService = router && typeof router.explicitServiceFromText === "function" ? router.explicitServiceFromText(question) : "";
+    if (explicitService) {
+      const routed = buildEloTechnicalEngineAnswer_(question);
+      if (routed && routed.fullAnswer) return applyEloBrainMarker_(question, routed);
+    }
     return applyEloBrainMarker_(question, buildResponseCore_(question));
   }
 
