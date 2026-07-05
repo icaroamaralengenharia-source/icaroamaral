@@ -150,6 +150,53 @@ test("Orcamentista V2 segue disponivel nas tres superficies compartilhadas", () 
     assert.match(response.fullAnswer, /ELO ORCAMENTISTA V2/i, pathname);
   });
 });
+test("Orcamentista V2 aplica blindagem comercial obrigatoria em orcamentos", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?");
+  const answer = response.fullAnswer;
+
+  assert.equal(response.sessionIntent, "budget_v2_briefing");
+  assert.match(answer, /^AVISO: Esta é uma estimativa preliminar/i);
+  assert.match(answer, /# Orçamento preliminar/i);
+  assert.match(answer, /## 2\. Premissas adotadas/i);
+  assert.match(answer, /Base de preços utilizada:/i);
+  assert.match(answer, /Data-base:/i);
+  assert.match(answer, /BDI considerado:/i);
+  assert.match(answer, /Mão de obra:/i);
+  assert.match(answer, /Materiais:/i);
+  assert.match(answer, /Transporte\/logística:/i);
+  assert.match(answer, /Exclusões relevantes:/i);
+  assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
+  assert.match(answer, /## 5\. Confirmação técnica/i);
+  assert.match(answer, /informe o valor unitário, BDI, cidade, data-base ou escopo correto/i);
+});
+
+test("Orcamentista V2 aplica template comercial em orcamento de parede", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("orça uma parede de bloco baiano 8 metros por 2,80");
+  const answer = response.fullAnswer;
+
+  assert.equal(response.sessionIntent, "budget_v2_wall_quantities");
+  assert.match(answer, /^AVISO: Esta é uma estimativa preliminar/i);
+  assert.match(answer, /# Orçamento preliminar.*parede/i);
+  assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
+  assert.match(answer, /Alvenaria em bloco cerâmico/i);
+  assert.match(answer, /## 5\. Confirmação técnica/i);
+});
+
+test("Blindagem comercial nao contamina patologia laudo nem geometria simples", () => {
+  const { assistant } = loadAssistant();
+  const pathology = assistant.buildResponseForTest("A parede está com trinca diagonal perto da janela. O que pode ser?").fullAnswer;
+  const report = assistant.buildResponseForTest("Faça um relato técnico curto sobre infiltração em parede interna.").fullAnswer;
+  const geometry = assistant.buildResponseForTest("Qual volume de pilar 20x30 com 3 m?").fullAnswer;
+
+  [pathology, report, geometry].forEach((answer) => {
+    assert.doesNotMatch(answer, /^AVISO: Esta é uma estimativa preliminar/i);
+    assert.doesNotMatch(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
+    assert.doesNotMatch(answer, /## 5\. Confirmação técnica/i);
+  });
+  assert.match(geometry, /0[,.]18\s*m/i);
+});
 test("Orcamentista V2 separa dados herdados sem apresentar como confirmados", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");

@@ -1590,6 +1590,83 @@
     return !!(reliableSource && total);
   }
 
+  const ELO_BUDGET_COMMERCIAL_NOTICE = "AVISO: Esta é uma estimativa preliminar baseada nas premissas informadas e/ou configuradas pelo usuário e em referências técnicas disponíveis na data-base indicada. Não constitui proposta comercial final nem substitui projeto executivo, vistoria, ART/RRT, cotação formal ou responsabilidade técnica assumida por profissional habilitado. Valores sujeitos a variação conforme projeto, local, produtividade, BDI, logística e mercado.";
+
+  function buildEloBudgetV2CommercialOptions_(state, budgetPackage, overrides) {
+    const safeState = state || {};
+    const custom = overrides || {};
+    const pack = budgetPackage || {};
+    const project = typeof getActiveEloWorkProject_ === "function" ? getActiveEloWorkProject_() : {};
+    const projectCityUf = project && [project.cidade, project.uf].filter(function (value) { return value && !/^n[ãa]o informad/.test(String(value)); }).join("/") || "";
+    const projectArea = project && project.area_m2 ? formatEloWallPremiseMeasure_(project.area_m2, "m²") : "";
+    const memorySummary = project && formatEloWorkMemorySavedSummary_(project) !== "obra atual" ? formatEloWorkMemorySavedSummary_(project) : "não informado";
+    const cityUf = [safeState.city, safeState.state].filter(Boolean).join("/") || custom.cityUf || projectCityUf || "não informado";
+    const area = safeState.areaM2 > 0 ? formatEloResidentialPremiseNumber_(safeState.areaM2, 2) : (projectArea || "pendente de confirmação");
+    const hasTechnicalBase = pack && pack.source === "EloBudgetEngine";
+    return Object.assign({
+      title: "Orçamento preliminar — " + (custom.scopeName || (safeState.type === "wall" ? "parede" : safeState.type === "reforma_banheiro" ? "reforma de banheiro" : "obra residencial")),
+      base: hasTechnicalBase ? "motor técnico interno; base oficial pendente de confirmação" : "pendente de confirmação",
+      dataBase: "pendente de confirmação",
+      bdi: safeState.bdiPercent ? formatEloResidentialPremiseNumber_(safeState.bdiPercent, 2) + "%" : "pendente de confirmação",
+      labor: "pendente de confirmação",
+      materials: "pendente de confirmação",
+      logistics: "pendente de confirmação",
+      scope: custom.scope || (safeState.type === "wall" ? "parede informada pelo usuário" : "escopo preliminar informado pelo usuário"),
+      exclusions: "projeto executivo, ART/RRT, cotações formais, taxas, frete, mobilização e itens não informados",
+      subtotal: "pendente de confirmação",
+      total: "pendente de confirmação",
+      pending: "validar projeto, quantitativos, composições, BDI, data-base, cidade/UF e cotação de mercado",
+      cityUf: cityUf,
+      quantity: area,
+      memory: custom.memory || memorySummary,
+      rows: custom.rows || []
+    }, custom);
+  }
+
+  function prependEloBudgetV2CommercialTemplate_(lines, options) {
+    const cfg = options || {};
+    const rows = Array.isArray(cfg.rows) && cfg.rows.length ? cfg.rows : [["1", cfg.scope || "Escopo preliminar", "serv", cfg.quantity || "pendente", "pendente", "pendente"]];
+    const tableRows = rows.map(function (row) {
+      const cells = Array.isArray(row) ? row : [row.item, row.service, row.unit, row.quantity, row.unitPrice, row.total];
+      return "| " + [cells[0] || "1", cells[1] || "Serviço", cells[2] || "serv", cells[3] || "pendente", cells[4] || "pendente", cells[5] || "pendente"].map(function (cell) { return String(cell).replace(/\|/g, "/"); }).join(" | ") + " |";
+    });
+    return [
+      ELO_BUDGET_COMMERCIAL_NOTICE,
+      "",
+      "# " + (cfg.title || "Orçamento preliminar — escopo informado"),
+      "",
+      "## 1. Aviso",
+      "- Ver aviso obrigatório no início desta resposta.",
+      "",
+      "## 2. Premissas adotadas",
+      "- Base de preços utilizada: " + (cfg.base || "pendente de confirmação"),
+      "- Data-base: " + (cfg.dataBase || "pendente de confirmação"),
+      "- BDI considerado: " + (cfg.bdi || "pendente de confirmação"),
+      "- Mão de obra: " + (cfg.labor || "pendente de confirmação"),
+      "- Materiais: " + (cfg.materials || "pendente de confirmação"),
+      "- Transporte/logística: " + (cfg.logistics || "pendente de confirmação"),
+      "- Escopo considerado: " + (cfg.scope || "pendente de confirmação"),
+      "- Exclusões relevantes: " + (cfg.exclusions || "pendente de confirmação"),
+      "- Memória da obra/contexto: " + (cfg.memory || "não informado"),
+      "",
+      "## 3. Memória de cálculo",
+      "| Item | Serviço | Unidade | Quantidade | Valor unitário | Total |",
+      "|---|---:|---:|---:|---:|---:|"
+    ].concat(tableRows, [
+      "",
+      "## 4. Resumo final",
+      "- Subtotal: " + (cfg.subtotal || "pendente de confirmação"),
+      "- BDI: " + (cfg.bdi || "pendente de confirmação"),
+      "- Total estimado: " + (cfg.total || "pendente de confirmação"),
+      "- Pendências: " + (cfg.pending || "pendente de confirmação"),
+      "",
+      "## 5. Confirmação técnica",
+      "As premissas acima condizem com o seu cenário? Caso não, informe o valor unitário, BDI, cidade, data-base ou escopo correto que farei o recálculo imediato.",
+      "",
+      "## Detalhamento técnico",
+      ""
+    ], Array.isArray(lines) ? lines : String(lines || "").split("\n")).join("\n");
+  }
   function formatBudgetV2PdfBudget_(budget) {
     if (!budgetV2HasReliableValues_(budget)) return "valores pendentes";
     return formatBudgetV2PdfValue_(budget);
@@ -13875,7 +13952,7 @@
       if (!hasEloConcreteFck_(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso confirmar o FCK do concreto.",
-          fullAnswer: "Antes de calcular, preciso confirmar o FCK do concreto. Qual ser� o FCK desejado? Ex.: 15, 20, 25 ou 30 MPa. Tamb�m confirme o uso: passeio, piso residencial, garagem ou �rea com carga pesada.",
+          fullAnswer: "Antes de calcular, preciso confirmar o FCK do concreto. Qual será o FCK desejado? Ex.: 15, 20, 25 ou 30 MPa. Também confirme o uso: passeio, piso residencial, garagem ou área com carga pesada. Para custo, ainda vou precisar de base técnica SINAPI/ORSE ou composição interna validada, data-base, BDI e cidade/UF.",
           nextAction: "Informe FCK e uso do concreto para eu continuar sem chutar premissas.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
@@ -16312,7 +16389,7 @@
     }
 
     isCommercialBudgetRequest_(text) {
-      return /orcamento|or?amento|orcar|or?ar|quanto\s+custa|quanto\s+fica|estimativa|preliminar/.test(text);
+      return /orcamento|or?amento|orcar|or?ar|\borca\b|\borce\b|quanto\s+custa|quanto\s+fica|estimativa|preliminar/.test(text);
     }
 
     getResidentialComplementFields_(state) {
@@ -16416,7 +16493,7 @@
         const budgetActions = buildBudgetV2TransactionalActions_(budgetDocumentData);
         return {
           shortAnswer: missingForUser.length ? "Preciso de poucos dados para avancar." : "Montei a previa resumida do orcamento.",
-          fullAnswer: shortLines.join("\n"),
+          fullAnswer: options && options.commercialMode ? prependEloBudgetV2CommercialTemplate_(shortLines, buildEloBudgetV2CommercialOptions_(state, budgetPackage || null, { scopeName: "obra residencial", scope: "orçamento residencial preliminar por macroetapas", rows: [["1", "Escopo residencial preliminar", "m2", areaLabel || "pendente", "pendente", "pendente"]] })) : shortLines.join("\n"),
           nextAction: missingForUser.length ? "Informe " + missingForUser.join(", ") + "." : "Peca detalhe, planilha ou memoria de calculo para abrir o modo completo.",
           canSave: !pending.length,
           sessionTheme: "residential_budget_package",
@@ -16464,7 +16541,7 @@
       const budgetActions = buildBudgetV2TransactionalActions_(budgetDocumentData);
       return {
         shortAnswer: missingForUser.length ? "Preciso de poucos dados para avan?ar." : "Montei uma pr?via resumida do or?amento.",
-        fullAnswer: lines.join("\n"),
+        fullAnswer: options && options.commercialMode ? prependEloBudgetV2CommercialTemplate_(lines, buildEloBudgetV2CommercialOptions_(state, budgetPackage || null, { scopeName: "obra residencial", scope: "orçamento residencial preliminar detalhado", rows: [["1", "Escopo residencial preliminar", "m2", areaLabel || "pendente", "pendente", "pendente"]] })) : lines.join("\n"),
         nextAction: missingForUser.length ? "Informe " + missingForUser.join(", ") + "." : "Pe?a modo avan?ado para ver auditoria, premissas e checklist t?cnico.",
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
@@ -16621,7 +16698,7 @@
       const blockQty = Math.ceil(area / unitArea * 1.08);
       const cityUf = [state.city, state.state].filter(Boolean).join("/") || "cidade/UF pendente";
       const lines = [
-        "Orcamento tecnico preliminar - parede de bloco ceramico",
+        state.presentationMode === "commercial" ? "Orcamento tecnico preliminar - parede de bloco ceramico" : "Quantitativo tecnico preliminar - parede de bloco ceramico",
         "",
         "Resumo:",
         "- Area da parede: " + formatEloResidentialPremiseNumber_(area, 2) + " m2" + (dimensions.lengthM && dimensions.heightM ? " (" + formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " m x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) + " m)." : "."),
@@ -16631,29 +16708,29 @@
         "Servicos executaveis e quantitativos preliminares:",
         "- Alvenaria em bloco ceramico: " + formatEloResidentialPremiseNumber_(area, 2) + " m2.",
         "- Blocos ceramicos aproximados: " + blockQty + " un, com perda preliminar de 8%.",
-        "- Mao de obra: considerada no escopo, preco pendente de composicao oficial.",
+        state.presentationMode === "commercial" ? "- Mao de obra: considerada no escopo, preco pendente de composicao oficial." : "- Mao de obra: depende de composicao oficial se o usuario pedir custo.",
         "- Chapisco/reboco: a confirmar se entra no escopo final.",
         "",
         "Materiais principais:",
         "- bloco ceramico, argamassa de assentamento, cimento, areia, agua e ferramentas de execucao.",
         "",
-        "Preco:",
-        "- pendente de composicao SINAPI/ORSE, BDI, mes-base e produtividade validada.",
+        state.presentationMode === "commercial" ? "Preco:" : "Base tecnica para custo:",
+        state.presentationMode === "commercial" ? "- pendente de composicao SINAPI/ORSE, BDI, mes-base e produtividade validada." : "- para custo, confirmar composicao SINAPI/ORSE, BDI, mes-base e produtividade validada.",
         "",
         "Observacao:",
         "- Nao herdei dados de casa; este orcamento e somente da parede informada."
       ];
-      appendEloProfessionalServiceBlock_(lines, "PAREDE DE BLOCO CERAMICO", "execucao de parede", "bloco ceramico " + dimensions.block + ", argamassa", formatEloResidentialPremiseNumber_(area, 2) + " m2 / " + blockQty + " blocos aproximados", "pendente de composicao oficial");
+      if (state.presentationMode === "commercial") appendEloProfessionalServiceBlock_(lines, "PAREDE DE BLOCO CERAMICO", "execucao de parede", "bloco ceramico " + dimensions.block + ", argamassa", formatEloResidentialPremiseNumber_(area, 2) + " m2 / " + blockQty + " blocos aproximados", "pendente de composicao oficial");
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
-      return { shortAnswer: "Calculei o quantitativo preliminar da parede.", fullAnswer: lines.join("\n"), nextAction: "Confirme vaos, perda e se inclui chapisco/reboco para fechar o escopo.", canSave: true, sessionTheme: "wall_budget_package", sessionIntent: "budget_v2_wall_quantities", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
+      return { shortAnswer: "Calculei o quantitativo preliminar da parede.", fullAnswer: state.presentationMode === "commercial" ? prependEloBudgetV2CommercialTemplate_(lines, buildEloBudgetV2CommercialOptions_(state, null, { scopeName: "parede", scope: "orçamento preliminar de parede", rows: [["1", "Alvenaria em bloco cerâmico", "m2", formatEloResidentialPremiseNumber_(area, 2), "pendente", "pendente"], ["2", "Blocos cerâmicos aproximados", "un", String(blockQty), "pendente", "pendente"]] })) : lines.join("\n"), nextAction: "Confirme vaos, perda e se inclui chapisco/reboco para fechar o escopo.", canSave: true, sessionTheme: "wall_budget_package", sessionIntent: "budget_v2_wall_quantities", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
     }
     buildWallBriefingResponse_(state) {
       const missing = state.missingFields || [];
       return {
         shortAnswer: "Vou conduzir o orçamento da parede sem perder contexto.",
-        fullAnswer: ["ELO ORCAMENTISTA V2 - PAREDE", "Dados pendentes:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma pendencia minima.", "", "Aviso tecnico: calculo consumo apenas com premissas suficientes e composicao oficial/importada quando houver. Nao invento preco."].join("\n"),
+        fullAnswer: state.presentationMode === "commercial" ? prependEloBudgetV2CommercialTemplate_(["ELO ORCAMENTISTA V2 - PAREDE", "Dados pendentes:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma pendencia minima.", "", "Aviso tecnico: calculo consumo apenas com premissas suficientes e composicao oficial/importada quando houver. Nao invento preco."], buildEloBudgetV2CommercialOptions_(state, null, { scopeName: "parede", scope: "briefing de orçamento preliminar de parede" })) : ["ELO ORCAMENTISTA V2 - PAREDE", "Dados pendentes:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma pendencia minima.", "", "Aviso tecnico: calculo consumo apenas com premissas suficientes e composicao oficial/importada quando houver. Nao invento preco."].join("\n"),
         nextAction: missing.length ? "Informe " + missing.join(", ") + "." : "Confirme perda, vaos e base SINAPI/ORSE para consolidar.",
         canSave: false,
         sessionTheme: "wall_budget_package",
@@ -16800,6 +16877,14 @@
       return currentBudgetPdfAnswer;
     }
 
+    if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedQuestion) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
+      return buildEloWorkMemorySavedAnswer_(cleanQuestion);
+    }
+    const earlyWorkMemoryQuestion = buildEloWorkMemoryQuestionAnswer_(cleanQuestion);
+    if (earlyWorkMemoryQuestion) {
+      return earlyWorkMemoryQuestion;
+    }
+
     const activeBudgetBeforeConversation = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
     if (activeBudgetBeforeConversation && activeBudgetBeforeConversation.type && isEloBudgetV2CompatibleUpdateMessage_(cleanQuestion)) {
       const updateBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
@@ -16893,7 +16978,7 @@
       rememberEloBudgetSource_(cleanQuestion, residentialBudgetFlowAnswer, residentialBudgetFlowAnswer.fullAnswer || residentialBudgetFlowAnswer.shortAnswer || "");
       return residentialBudgetFlowAnswer;
     }
-    if (isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
+    if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedQuestion) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
       return buildEloWorkMemorySavedAnswer_(cleanQuestion);
     }
     const workMemoryQuestion = buildEloWorkMemoryQuestionAnswer_(cleanQuestion);
@@ -19373,6 +19458,25 @@
       clearProductAttachmentPreview();
       return;
     }
+    if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedCleanQuestionForBudget) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
+      const workMemoryOnlyAnswer = buildEloWorkMemorySavedAnswer_(cleanQuestion);
+      const workMemoryOnlyText = formatResponse(workMemoryOnlyAnswer);
+      appendAssistantMessage(cleanQuestion, workMemoryOnlyText, false, workMemoryOnlyAnswer);
+      saveConversation(cleanQuestion, workMemoryOnlyText);
+      rememberSessionTurn(cleanQuestion, workMemoryOnlyAnswer, workMemoryOnlyText);
+      clearProductAttachmentPreview();
+      return;
+    }
+    const earlyWorkMemoryQuestion = buildEloWorkMemoryQuestionAnswer_(cleanQuestion);
+    if (earlyWorkMemoryQuestion) {
+      const earlyWorkMemoryText = formatResponse(earlyWorkMemoryQuestion);
+      appendAssistantMessage(cleanQuestion, earlyWorkMemoryText, false, earlyWorkMemoryQuestion);
+      saveConversation(cleanQuestion, earlyWorkMemoryText);
+      rememberSessionTurn(cleanQuestion, earlyWorkMemoryQuestion, earlyWorkMemoryText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
     if (activeBudgetV2State && activeBudgetV2State.type && isEloBudgetV2CompatibleUpdateMessage_(cleanQuestion)) {
       const updateBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
