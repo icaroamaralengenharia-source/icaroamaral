@@ -9185,11 +9185,11 @@
 
   function detectEloPriorityIntent_(message) {
     const rawText = String(message || "").toLowerCase();
-    if (/rach|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico|diagnóstico/.test(rawText)) return "diagnosis";
+    if (/\b(?:racha(?:dura)?|rachaduras?|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico|diagnóstico)\b/.test(rawText)) return "diagnosis";
     const text = normalizeText(message || "");
     if (!text) return "";
     if (isEloPriorityGreetingIntent_(message)) return "greeting";
-    if (/rach|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico/.test(text)) return "diagnosis";
+    if (/\b(?:racha(?:dura)?|rachaduras?|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico)\b/.test(text)) return "diagnosis";
     if (/\bminha\s+obra\b/.test(text) && (/\bfica\s+em\b|\btem\s+\d+(?:[,.]\d+)?\s*m(?:2|2|\b)|\bpadrao\b|\bpadrao\b|\bresidencial\b/.test(text))) return "project_memory";
     if (/salvar\s+(?:o\s+)?(?:orcamento|orcamento|proposta)|registrar\s+(?:orcamento|orcamento|proposta)|guardar\s+(?:esse\s+)?(?:orcamento|orcamento|proposta)/.test(text)) return "save_budget";
     if (/gerar\s+nova\s+versao|gerar\s+nova\s+versao|nova\s+versao\s+do\s+orcamento|nova\s+versao\s+do\s+orcamento|versionar\s+(?:orcamento|orcamento|proposta)/.test(text)) return "version_budget";
@@ -9199,7 +9199,7 @@
     if (/\brdo\b|diario\s+de\s+obra|diario\s+de\s+obra|produtividade\s+da\s+equipe|equipe\s+de\s+hoje|ocorrencia\s+do\s+dia|ocorrencia\s+do\s+dia/.test(text)) return "rdo";
     if (/\bstock\b|estoque|almoxarifado|saldo\s+de|materiais?\s+.*(?:faltar|risco|compra|comprar)|o\s+que\s+preciso\s+comprar/.test(text)) return "stock";
     if (/relatorio|relatorio|inconformidades|pontos\s+criticos|pontos\s+criticos|pendencias\s+tecnicas|pendencias\s+tecnicas|riscos\s+da\s+obra/.test(text)) return "reports";
-    if (/rach|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico|diagnostico/.test(text) && !/orcamento|orcamento|composicao|composicao|insumo|custo|preco|preco/.test(text)) return "diagnosis";
+    if (/\b(?:racha(?:dura)?|rachaduras?|trinca|fissura|infiltra|umidade|mofo|vazamento|desplac|destacando|patologia|diagnostico|diagnostico)\b/.test(text) && !/orcamento|orcamento|composicao|composicao|insumo|custo|preco|preco/.test(text)) return "diagnosis";
     if (/orcamento|orcamento|composicao|composicao|insumo|servico|servico|custo|preco|preco|consumo|quantos?|calcular|sinapi|orse|parede|alvenaria|bloco|tijolo|chapisco|reboco|concreto|laje|piso|telhado/.test(text)) return "budget";
     return "conversation";
   }
@@ -11750,8 +11750,9 @@
       return null;
     }
 
+    const wallGeometrySource = stripEloBlockDimensionTriples_(raw);
     const numbers = [];
-    raw.replace(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/gi, function (_, value) {
+    wallGeometrySource.replace(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/gi, function (_, value) {
       numbers.push(parseEloOperationalNumber_(value));
       return _;
     });
@@ -11763,7 +11764,7 @@
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
     const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
-    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
+    const simplePairMatch = wallGeometrySource.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
     if (heightMatch) {
       height = parseEloOperationalNumber_(heightMatch[1]);
     }
@@ -11779,7 +11780,7 @@
       }
     }
     const allWallNumbers = [];
-    raw.replace(/(\d+(?:[,.]\d+)?)/g, function (_, value) {
+    wallGeometrySource.replace(/(\d+(?:[,.]\d+)?)/g, function (_, value) {
       const parsed = parseEloOperationalNumber_(value);
       if (parsed > 0) {
         allWallNumbers.push(parsed);
@@ -15010,7 +15011,7 @@
 
   function isEloConstructionTechnicalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
+    return /sinapi|orse|composi..o|composicao|alvenaria|parede|fachada|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
   }
 
   function extractEloGeometryPair_(message) {
@@ -15044,6 +15045,36 @@
     const text = normalizeText(message || "");
     if (!isEloConstructionTechnicalQuestion_(message)) {
       return null;
+    }
+    const raw = sanitizeUserText(message || "");
+    let match = raw.match(/(?:volume|concreto)[^\n]{0,60}(?:(\d+)\s+)?pilar(?:es)?[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)(?:\s*cm)?[^\d]{0,30}(?:com|altura|h)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
+    if (match) {
+      const quantity = match[1] ? parseInt(match[1], 10) : 1;
+      const widthRaw = parseEloOperationalNumber_(match[2]);
+      const depthRaw = parseEloOperationalNumber_(match[3]);
+      const height = parseEloOperationalNumber_(match[4]);
+      const width = widthRaw > 5 ? widthRaw / 100 : widthRaw;
+      const depth = depthRaw > 5 ? depthRaw / 100 : depthRaw;
+      const volume = quantity * width * depth * height;
+      const lines = ["Resposta principal", "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".", "", "Memória de cálculo:", "- Quantidade: " + quantity + " pilar" + (quantity > 1 ? "es" : ""), "- Seção: " + formatEloWallPremiseMeasure_(width, "m") + " x " + formatEloWallPremiseMeasure_(depth, "m"), "- Altura: " + formatEloWallPremiseMeasure_(height, "m"), "- Cálculo: quantidade x largura x espessura x altura.", "", "Base técnica utilizada", "- Geometria informada pelo usuário; sem custo, consumo, produtividade ou armadura sem composição/projeto."];
+      return { shortAnswer: "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".", fullAnswer: lines.join("\n"), nextAction: "Para orçamento, informe FCK, composição SINAPI/ORSE e projeto estrutural.", canSave: false, sessionTheme: "geometria_obras", sessionIntent: "geometria_volume_pilar" };
+    }
+    match = raw.match(/reboco[^\n]{0,80}(?:duas\s+faces|dois\s+lados)[^\n]{0,80}parede[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i) || raw.match(/parede[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)[^\n]{0,80}reboco[^\n]{0,80}(?:duas\s+faces|dois\s+lados)/i);
+    if (match) {
+      const length = parseEloOperationalNumber_(match[1]);
+      const height = parseEloOperationalNumber_(match[2]);
+      const oneFace = length * height;
+      const area = oneFace * 2;
+      const lines = ["Resposta principal", "Área de reboco em duas faces: " + formatEloWallPremiseMeasure_(area, "m²") + ".", "", "Memória de cálculo:", "- Uma face: " + formatEloWallPremiseMeasure_(length, "m") + " x " + formatEloWallPremiseMeasure_(height, "m") + " = " + formatEloWallPremiseMeasure_(oneFace, "m²"), "- Duas faces: " + formatEloWallPremiseMeasure_(oneFace, "m²") + " x 2 = " + formatEloWallPremiseMeasure_(area, "m²"), "", "Base técnica utilizada", "- Geometria informada pelo usuário; para consumo/custo preciso de composição e espessura/premissas."];
+      return { shortAnswer: "Área de reboco: " + formatEloWallPremiseMeasure_(area, "m²") + ".", fullAnswer: lines.join("\n"), nextAction: "Informe composição SINAPI/ORSE e espessura/premissas se quiser consumo ou custo.", canSave: false, sessionTheme: "geometria_obras", sessionIntent: "geometria_reboco_duas_faces" };
+    }
+    match = raw.match(/(?:area|área)[^\n]{0,40}(?:total)?[^\n]{0,20}(\d+)\s+c[oô]modos?[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*m(?:2|²|\^2)?/i) || raw.match(/(\d+)\s+c[oô]modos?[^\d]{0,20}(\d+(?:[,.]\d+)?)\s*m(?:2|²|\^2)?/i);
+    if (match) {
+      const rooms = parseInt(match[1], 10);
+      const roomArea = parseEloOperationalNumber_(match[2]);
+      const area = rooms * roomArea;
+      const lines = ["Resposta principal", "Área total: " + formatEloWallPremiseMeasure_(area, "m²") + ".", "", "Memória de cálculo:", "- " + rooms + " cômodos x " + formatEloWallPremiseMeasure_(roomArea, "m²") + " = " + formatEloWallPremiseMeasure_(area, "m²") + ".", "", "Base técnica utilizada", "- Geometria simples informada pelo usuário."];
+      return { shortAnswer: "Área total: " + formatEloWallPremiseMeasure_(area, "m²") + ".", fullAnswer: lines.join("\n"), nextAction: "Informe perímetros/alturas se quiser pintura, rodapé ou revestimento.", canSave: false, sessionTheme: "geometria_obras", sessionIntent: "geometria_area_comodos" };
     }
     if (/parede|muro|alvenaria|bloco|tijolo/.test(text)) {
       return null;
@@ -15309,6 +15340,13 @@
     return /orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
   }
 
+
+  function isEloTechnicalIsolationBeforeResidential_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    if (/continuar\s+o\s+orcamento|continue\s+o\s+orcamento|orc[ae]\s+(?:a\s+)?(?:pintura|alvenaria|cobertura|telhado|piso)\s+dessa\s+obra/.test(text)) return false;
+    return /\b(?:sinapi|orse|composi..o|composicao|insumos?|coeficiente|produtividade|homens?-hora|m.?\s*2\s*\/\s*dia|equipe|servico\s+parecido|servi.o\s+parecido|engenheiro\s+orcamentista|preco\s+de\s+insumo|compra\s+de\s+insumo|servico\s+instalado|servi.o\s+instalado|norma|art|alvara|habite-se|recuo|codigo\s+de\s+obras|regularizar|responsabilidade\s+do\s+engenheiro)\b/.test(text);
+  }
 
   function getEloTechnicalSourcePreference_() {
     try {
@@ -16028,8 +16066,10 @@
 
     isBudgetV2ExplicitNonContinuation_(text) {
       return /^(obrigad[oa]?|valeu|ok\s+obrigad[oa]?|ola|oi|bom\s+dia|boa\s+tarde|boa\s+noite|quem\s+e\s+voce)\b/.test(text) ||
-        /relatorio\s+tecnico|abrir\s+cadista|\bcadista\b|stock\s+full/.test(text);
+        /relatorio\s+tecnico|abrir\s+cadista|\bcadista\b|stock\s+full/.test(text) ||
+        /\b(?:norma|art|alvara|habite-se|recuo|codigo\s+de\s+obras|regularizar|responsabilidade\s+do\s+engenheiro|sinapi|orse|composi..o|composicao|insumos?|coeficiente|produtividade|homens?-hora|servico\s+parecido|servi.o\s+parecido|preco\s+de\s+insumo|compra\s+de\s+insumo|servico\s+instalado|servi.o\s+instalado)\b/.test(text);
     }
+
 
     factsFillPendingFields_(previous, facts) {
       const missing = Array.isArray(previous && previous.missingFields) ? previous.missingFields : [];
@@ -16652,6 +16692,7 @@
       const currentFactFields = Array.isArray(facts.currentFields) ? facts.currentFields : [];
       const fillsPendingField = previous && previous.budgetStage && previous.budgetStage !== "report_ready" && this.factsFillPendingFields_(previous, facts);
       const updatesCurrentBudget = !!(previous && previous.type && currentFactFields.length && (!facts.type || facts.type === previous.type));
+      if (previous.type === "residential" && this.isBudgetV2ExplicitNonContinuation_(text)) return null;
       if (!isBudgetIntent && previous.type && this.isBudgetV2ExplicitNonContinuation_(text)) return null;
       if (!isBudgetIntent && previous.type && !this.isContinuationIntent_(text) && !fillsPendingField && !updatesCurrentBudget && !(hasInheritedFields && (this.isReuseInheritedConfirmation_(text) || this.isInheritedChangeRequest_(text)))) return null;
       if (hasInheritedFields && this.isReuseInheritedConfirmation_(text)) {
@@ -16772,6 +16813,22 @@
     const pureConversationalFastPathAnswer = buildEloPureConversationalFastPathResponse_(cleanQuestion);
     if (pureConversationalFastPathAnswer) {
       return pureConversationalFastPathAnswer;
+    }
+
+    const earlyGeometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
+    if (earlyGeometryLayerAnswer) {
+      return earlyGeometryLayerAnswer;
+    }
+    const earlyTechnicalReportDraftAnswer = buildEloTechnicalReportDraftAnswer_(cleanQuestion);
+    if (earlyTechnicalReportDraftAnswer) {
+      return earlyTechnicalReportDraftAnswer;
+    }
+    const earlyPathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
+    if (earlyPathologyAnswer) {
+      return earlyPathologyAnswer;
+    }
+    if (isEloTechnicalIsolationBeforeResidential_(cleanQuestion)) {
+      return buildEloConstructionTechnicalFallback_(cleanQuestion);
     }
 
     const shouldPrioritizeResidentialBudgetV2 = /\b(casa|residencial|residencia|terrea|t.rrea|sobrado)\b/.test(normalizedQuestion) && /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros\s+quadrados)/.test(normalizedQuestion) && !/parede|alvenaria|bloco|tijolo/.test(normalizedQuestion);
@@ -19252,6 +19309,13 @@
     return applyEloCommunicationPolicy_(userMessage, visibleFallback, context || {});
   }
   function buildResponse(question) {
+    const priorityGeometryAnswer = buildEloGeometryLayerAnswer_(question);
+    if (priorityGeometryAnswer) return applyEloBrainMarker_(question, priorityGeometryAnswer);
+    const priorityReportDraftAnswer = buildEloTechnicalReportDraftAnswer_(question);
+    if (priorityReportDraftAnswer) return applyEloBrainMarker_(question, priorityReportDraftAnswer);
+    const priorityPathologyAnswer = buildEloConstructionPathologyAnswer_(question);
+    if (priorityPathologyAnswer) return applyEloBrainMarker_(question, priorityPathologyAnswer);
+    if (isEloTechnicalIsolationBeforeResidential_(question)) return applyEloBrainMarker_(question, buildEloConstructionTechnicalFallback_(question));
     const router = (typeof window !== "undefined" && window.EloBrainRouter) ? window.EloBrainRouter : null;
     const explicitService = router && typeof router.explicitServiceFromText === "function" ? router.explicitServiceFromText(question) : "";
     if (explicitService) {
@@ -19260,6 +19324,7 @@
     }
     return applyEloBrainMarker_(question, buildResponseCore_(question));
   }
+
 
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
