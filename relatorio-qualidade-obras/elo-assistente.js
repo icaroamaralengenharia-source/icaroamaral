@@ -11990,6 +11990,91 @@
     const text = normalizeText(message);
     return /autorizo|pode\s+fazer|pode\s+seguir|faca|faça|quero|aceito/.test(text) && /estimativa\s+preliminar|nao\s+oficial|não\s+oficial/.test(text);
   }
+  function isEloBudgetCostIntent_(message) {
+    const text = normalizeText(message || "");
+    return /orcamento|orçamento|orcar|orçar|orce|estimativa|estimar|custo|custar|quanto\s+custa|preco|preço|valor/.test(text);
+  }
+
+  function inferEloPreliminaryBudgetService_(message) {
+    const text = normalizeText(message || "");
+    if (/pintura|tinta|pintar|selador|massa\s+corrida|massa\s+acrilica/.test(text)) return { key: "pintura", label: "Pintura", scope: "orçamento preliminar de pintura", unit: "m2" };
+    if (/piso|ceramica|cerâmico|porcelanato|revestimento|rodape|rodapé/.test(text)) return { key: "piso", label: "Piso/revestimento", scope: "orçamento preliminar de piso/revestimento", unit: "m2" };
+    if (/contrapiso/.test(text)) return { key: "contrapiso", label: "Contrapiso", scope: "orçamento preliminar de contrapiso", unit: "m2" };
+    if (/reboco|chapisco|embo[cç]o/.test(text)) return { key: "revestimento_argamassado", label: "Reboco/chapisco/emboço", scope: "orçamento preliminar de revestimento argamassado", unit: "m2" };
+    if (/telhado|cobertura|telha|madeiramento/.test(text)) return { key: "cobertura", label: "Telhado/cobertura", scope: "orçamento preliminar de telhado/cobertura", unit: "m2" };
+    if (/hidraulica|hidráulica|esgoto|ramal|tubo|caixa\s+sifonada|agua\s+fria|água\s+fria/.test(text)) return { key: "hidraulica", label: "Hidráulica/esgoto", scope: "orçamento preliminar de hidráulica/esgoto", unit: "ponto" };
+    if (/eletrica|elétrica|tomada|interruptor|quadro|cabo|eletroduto|ponto\s+de\s+luz/.test(text)) return { key: "eletrica", label: "Elétrica", scope: "orçamento preliminar de elétrica", unit: "ponto" };
+    if (/laje|radier|fundacao|fundação|sapata|baldrame/.test(text)) return { key: "estrutura_fundacao", label: "Laje/radier/fundação", scope: "orçamento preliminar de laje/radier/fundação", unit: /m3|m³|volume/.test(text) ? "m3" : "m2" };
+    if (/parede|muro|alvenaria|bloco|tijolo/.test(text)) return { key: "parede", label: "Parede/alvenaria", scope: "orçamento preliminar de parede/alvenaria", unit: "m2" };
+    if (/servico|serviço|execucao|execução|instalacao|instalação/.test(text)) return { key: "servico", label: "Serviço informado", scope: "orçamento preliminar do serviço informado", unit: "serv" };
+    return null;
+  }
+
+  function extractEloPreliminaryBudgetQuantity_(message, service) {
+    const raw = sanitizeUserText(message || "");
+    const text = normalizeText(raw);
+    let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m²|m\^2|metros?\s+quadrados?)/i);
+    if (match) return { quantity: formatEloWallPremiseMeasure_(parseEloOperationalNumber_(match[1]), "m2"), unit: "m2" };
+    match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m3|m³|m\^3|metros?\s+cubicos?)/i);
+    if (match) return { quantity: formatEloWallPremiseMeasure_(parseEloOperationalNumber_(match[1]), "m3"), unit: "m3" };
+    match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:pontos?|tomadas?|interruptores?|luminarias?|luminárias?)/i);
+    if (match) return { quantity: String(Math.round(parseEloOperationalNumber_(match[1]))), unit: "ponto" };
+    match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:un|unidades?|peças?|pecas?)/i);
+    if (match) return { quantity: String(Math.round(parseEloOperationalNumber_(match[1]))), unit: "un" };
+    match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i);
+    if (match) {
+      const a = parseEloOperationalNumber_(match[1]);
+      const b = parseEloOperationalNumber_(match[2]);
+      if (a > 0 && b > 0) {
+        const faces = /duas\s+faces|dois\s+lados|ambos\s+os\s+lados/.test(text) ? 2 : 1;
+        return { quantity: formatEloWallPremiseMeasure_(a * b * faces, "m2"), unit: "m2" };
+      }
+    }
+    if (service && service.key === "servico" && /\d/.test(text)) {
+      match = raw.match(/(\d+(?:[,.]\d+)?)/);
+      if (match) return { quantity: String(parseEloOperationalNumber_(match[1])), unit: service.unit || "serv" };
+    }
+    return null;
+  }
+
+  function buildEloGenericPreliminaryBudgetAnswer_(message, sourceLabel) {
+    if (!isEloBudgetCostIntent_(message)) return null;
+    const text = normalizeText(message || "");
+    if (/laudo|relato\s+t[eé]cnico|relatorio\s+t[eé]cnico|relatório\s+t[eé]cnico/.test(text) && !/orcamento|orçamento|custo|preco|preço|valor/.test(text)) return null;
+    if (isEloConstructionPathologyQuestion_(message) && !/orcamento|orçamento|custo|preco|preço|valor|reparo|recuperacao|recuperação/.test(text)) return null;
+    const service = inferEloPreliminaryBudgetService_(message);
+    if (!service) return null;
+    const qty = extractEloPreliminaryBudgetQuantity_(message, service);
+    if (!qty) return null;
+    const unit = qty.unit || service.unit || "serv";
+    const lines = [
+      "Resposta principal",
+      "Montei um orçamento preliminar profissional sem inventar preço.",
+      "Valores unitários, BDI, data-base e totais ficam pendentes até confirmação técnica/comercial.",
+      "",
+      "Observação técnica",
+      "- Como não há composição SINAPI/ORSE ou valor unitário validado, o quantitativo entra na memória de cálculo e os valores ficam pendentes."
+    ];
+    const options = buildEloBudgetV2CommercialOptions_({}, null, {
+      scopeName: service.label.toLowerCase(),
+      scope: service.scope,
+      base: "pendente de confirmação",
+      dataBase: "pendente de confirmação",
+      labor: "pendente de confirmação",
+      materials: "pendente de confirmação",
+      logistics: "pendente de confirmação",
+      pending: "confirmar composição SINAPI/ORSE ou valor unitário, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
+      rows: [["1", service.label, unit, qty.quantity, "pendente", "pendente"]]
+    });
+    return {
+      shortAnswer: "Orçamento preliminar profissional gerado com valores pendentes.",
+      fullAnswer: prependEloBudgetV2CommercialTemplate_(lines, options),
+      nextAction: "Confirme valor unitário, BDI, cidade/UF, data-base ou composição técnica para eu recalcular.",
+      canSave: true,
+      sessionTheme: "orcamento_preliminar_generico",
+      sessionIntent: "orcamento_preliminar_generico" + (sourceLabel ? "_" + sourceLabel : "")
+    };
+  }
 
   function buildEloMissingTechnicalCompositionResponse_(premiseMessage) {
     const premiseText = normalizeText(premiseMessage || "");
@@ -16900,6 +16985,13 @@
       return pureConversationalFastPathAnswer;
     }
 
+    const priorityServiceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "service_priority");
+    if (priorityServiceBudgetAnswer) {
+      attachEloTechnicalBrainMarker_(priorityServiceBudgetAnswer, "orcamentista preliminar generico");
+      rememberEloBudgetSource_(cleanQuestion, priorityServiceBudgetAnswer, priorityServiceBudgetAnswer.fullAnswer || priorityServiceBudgetAnswer.shortAnswer || "");
+      return priorityServiceBudgetAnswer;
+    }
+
     const earlyGeometryLayerAnswer = buildEloGeometryLayerAnswer_(cleanQuestion);
     if (earlyGeometryLayerAnswer) {
       return earlyGeometryLayerAnswer;
@@ -16911,6 +17003,12 @@
     const earlyPathologyAnswer = buildEloConstructionPathologyAnswer_(cleanQuestion);
     if (earlyPathologyAnswer) {
       return earlyPathologyAnswer;
+    }
+    const earlyGenericPreliminaryBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "early");
+    if (earlyGenericPreliminaryBudgetAnswer) {
+      attachEloTechnicalBrainMarker_(earlyGenericPreliminaryBudgetAnswer, "orcamentista preliminar generico");
+      rememberEloBudgetSource_(cleanQuestion, earlyGenericPreliminaryBudgetAnswer, earlyGenericPreliminaryBudgetAnswer.fullAnswer || earlyGenericPreliminaryBudgetAnswer.shortAnswer || "");
+      return earlyGenericPreliminaryBudgetAnswer;
     }
     if (isEloTechnicalIsolationBeforeResidential_(cleanQuestion)) {
       return buildEloConstructionTechnicalFallback_(cleanQuestion);
@@ -16939,6 +17037,13 @@
         return earlyWallBudgetOrchestratorV2Answer;
       }
     }
+    const genericPreliminaryBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "brain");
+    if (genericPreliminaryBudgetAnswer) {
+      attachEloTechnicalBrainMarker_(genericPreliminaryBudgetAnswer, "orcamentista preliminar generico");
+      rememberEloBudgetSource_(cleanQuestion, genericPreliminaryBudgetAnswer, genericPreliminaryBudgetAnswer.fullAnswer || genericPreliminaryBudgetAnswer.shortAnswer || "");
+      return genericPreliminaryBudgetAnswer;
+    }
+
     const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
     if (legacyPriorityBeforeBudgetV2Answer) {
       return legacyPriorityBeforeBudgetV2Answer;
@@ -19394,12 +19499,16 @@
     return applyEloCommunicationPolicy_(userMessage, visibleFallback, context || {});
   }
   function buildResponse(question) {
+    const serviceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(question, "service_priority");
+    if (serviceBudgetAnswer) return applyEloBrainMarker_(question, serviceBudgetAnswer);
     const priorityGeometryAnswer = buildEloGeometryLayerAnswer_(question);
     if (priorityGeometryAnswer) return applyEloBrainMarker_(question, priorityGeometryAnswer);
     const priorityReportDraftAnswer = buildEloTechnicalReportDraftAnswer_(question);
     if (priorityReportDraftAnswer) return applyEloBrainMarker_(question, priorityReportDraftAnswer);
     const priorityPathologyAnswer = buildEloConstructionPathologyAnswer_(question);
     if (priorityPathologyAnswer) return applyEloBrainMarker_(question, priorityPathologyAnswer);
+    const priorityGenericPreliminaryBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(question, "priority");
+    if (priorityGenericPreliminaryBudgetAnswer) return applyEloBrainMarker_(question, priorityGenericPreliminaryBudgetAnswer);
     if (isEloTechnicalIsolationBeforeResidential_(question)) return applyEloBrainMarker_(question, buildEloConstructionTechnicalFallback_(question));
     const router = (typeof window !== "undefined" && window.EloBrainRouter) ? window.EloBrainRouter : null;
     const explicitService = router && typeof router.explicitServiceFromText === "function" ? router.explicitServiceFromText(question) : "";
@@ -19508,6 +19617,18 @@
         return;
       }
     }
+    const genericPreliminaryBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "ui");
+    if (genericPreliminaryBudgetAnswer) {
+      attachEloTechnicalBrainMarker_(genericPreliminaryBudgetAnswer, "orcamentista preliminar generico");
+      rememberEloBudgetSource_(cleanQuestion, genericPreliminaryBudgetAnswer, genericPreliminaryBudgetAnswer.fullAnswer || genericPreliminaryBudgetAnswer.shortAnswer || "");
+      const genericPreliminaryBudgetText = formatResponse(genericPreliminaryBudgetAnswer);
+      appendAssistantMessage(cleanQuestion, genericPreliminaryBudgetText, genericPreliminaryBudgetAnswer.canSave !== false, genericPreliminaryBudgetAnswer);
+      saveConversation(cleanQuestion, genericPreliminaryBudgetText);
+      rememberSessionTurn(cleanQuestion, genericPreliminaryBudgetAnswer, genericPreliminaryBudgetText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
     const legacyPriorityBeforeBudgetV2Answer = buildEloLegacyPriorityBeforeBudgetV2Answer_(cleanQuestion);
     if (legacyPriorityBeforeBudgetV2Answer) {
       const legacyPriorityText = formatResponse(legacyPriorityBeforeBudgetV2Answer);
@@ -20558,7 +20679,7 @@
 
   function isEloProfessionalBudgetMarkdown_(text) {
     const value = String(text || "").trim();
-    return /^AVISO: Esta é uma estimativa preliminar/i.test(value) &&
+    return /AVISO: Esta é uma estimativa preliminar/i.test(value) &&
       /#\s+Orçamento preliminar/i.test(value) &&
       /##\s+2\.\s*Premissas adotadas/i.test(value) &&
       /##\s+3\.\s*Memória de cálculo/i.test(value) &&

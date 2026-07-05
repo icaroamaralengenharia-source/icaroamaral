@@ -209,6 +209,30 @@ test("Blindagem comercial nao contamina patologia laudo nem geometria simples", 
   });
   assert.match(geometry, /0[,.]18\s*m/i);
 });
+test("Orcamentista V2 aplica template profissional para servicos de obra com quantitativo minimo", () => {
+  const { assistant } = loadAssistant();
+  const budgetCases = [
+    ["pintura", "Faça orçamento de pintura de 120 m2 de parede interna."],
+    ["piso", "Quanto custa colocar piso cerâmico em 45 m2?"],
+    ["telhado", "Orçamento de telhado colonial com 80 m2 de cobertura."],
+    ["hidraulica", "Faça orçamento hidráulico/esgoto para 12 pontos."],
+    ["eletrica", "Orçamento elétrico para 25 pontos de tomada e iluminação."],
+    ["contrapiso", "Faça estimativa de contrapiso para 35 m2."],
+    ["reboco", "Orce reboco em duas faces em parede 20 por 2,8."],
+    ["fundacao", "Orçamento de radier de 60 m2."],
+    ["servico isolado", "Faça orçamento do serviço de instalação de 10 unidades."]
+  ];
+
+  for (const [label, prompt] of budgetCases) {
+    const answer = assistant.buildResponseForTest(prompt).fullAnswer;
+    assert.equal(assistant.isProfessionalBudgetMarkdownForTest(answer), true, label);
+    assert.match(answer, /AVISO: Esta é uma estimativa preliminar/i, label);
+    assert.match(answer, /## 2\. Premissas adotadas/i, label);
+    assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i, label);
+    assert.match(answer, /pendente/i, label);
+    assert.match(answer, /As premissas acima condizem com o seu cenário\?/i, label);
+  }
+});
 test("Copiar formato profissional detecta e copia somente Markdown de orcamento", async () => {
   const { assistant, clipboardWrites } = loadAssistant();
   const budget = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?").fullAnswer;
@@ -218,6 +242,7 @@ test("Copiar formato profissional detecta e copia somente Markdown de orcamento"
   const button = { textContent: "Copiar formato profissional" };
 
   assert.equal(assistant.isProfessionalBudgetMarkdownForTest(budget), true);
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest("Calculei o quantitativo preliminar.\n\n" + budget), true);
   assert.equal(assistant.isProfessionalBudgetMarkdownForTest(pathology), false);
   assert.equal(assistant.isProfessionalBudgetMarkdownForTest(report), false);
   assert.equal(assistant.isProfessionalBudgetMarkdownForTest(geometry), false);
