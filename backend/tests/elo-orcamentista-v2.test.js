@@ -25,11 +25,22 @@ function createStorage(initial = {}) {
 
 function loadAssistant(pathname = "/elo.html", options = {}) {
   const calls = { router: 0, technical: 0, composition: 0, budgetEngine: 0 };
+  const clipboardWrites = [];
   const sandbox = {
     console,
+    navigator: {
+      clipboard: {
+        writeText(text) {
+          clipboardWrites.push(text);
+          return Promise.resolve();
+        }
+      }
+    },
     document: { readyState: "complete", addEventListener() {}, body: { dataset: {}, getAttribute() { return ""; } } },
     window: {
       ELO_SKIP_AUTO_WIDGET: true,
+      isSecureContext: true,
+      navigator: null,
       location: { hostname: "localhost", protocol: "http:", origin: "http://localhost", pathname },
       localStorage: createStorage({
         obrareport_elo_perfil_usuario_v1: JSON.stringify({ userName: "Icaro" })
@@ -67,9 +78,10 @@ function loadAssistant(pathname = "/elo.html", options = {}) {
       }
     };
   }
+  sandbox.window.navigator = sandbox.navigator;
   sandbox.globalThis = sandbox.window;  vm.createContext(sandbox);
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
-  return { assistant: sandbox.window.EloAssistente, calls };
+  return { assistant: sandbox.window.EloAssistente, calls, clipboardWrites };
 }
 
 test("Orcamentista V2 inicia briefing residencial sem buscar SINAPI direto", () => {
@@ -196,6 +208,35 @@ test("Blindagem comercial nao contamina patologia laudo nem geometria simples", 
     assert.doesNotMatch(answer, /## 5\. Confirmação técnica/i);
   });
   assert.match(geometry, /0[,.]18\s*m/i);
+});
+test("Copiar formato profissional detecta e copia somente Markdown de orcamento", async () => {
+  const { assistant, clipboardWrites } = loadAssistant();
+  const budget = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?").fullAnswer;
+  const pathology = assistant.buildResponseForTest("A parede está com trinca diagonal perto da janela. O que pode ser?").fullAnswer;
+  const report = assistant.buildResponseForTest("Faça um relato técnico curto sobre infiltração em parede interna.").fullAnswer;
+  const geometry = assistant.buildResponseForTest("Qual volume de pilar 20x30 com 3 m?").fullAnswer;
+  const button = { textContent: "Copiar formato profissional" };
+
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(budget), true);
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(pathology), false);
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(report), false);
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(geometry), false);
+
+  await assistant.copyProfessionalBudgetMarkdownForTest(budget, button);
+  assert.equal(clipboardWrites.length, 1);
+  assert.equal(clipboardWrites[0], budget.trim());
+  assert.match(clipboardWrites[0], /^AVISO: Esta é uma estimativa preliminar/i);
+  assert.match(clipboardWrites[0], /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
+  assert.doesNotMatch(clipboardWrites[0], /<button|class=|data-elo-action/i);
+});
+
+test("Interface do Elo registra botao de copiar formato profissional", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+
+  assert.match(source, /Copiar formato profissional/);
+  assert.match(source, /data-elo-action", "copy-professional-budget-markdown"/);
+  assert.match(source, /isEloProfessionalBudgetMarkdown_\(cleanAnswer\)/);
+  assert.match(source, /copyProfessionalBudgetMarkdown_\(cleanAnswer, copyProfessionalButton\)/);
 });
 test("Orcamentista V2 separa dados herdados sem apresentar como confirmados", () => {
   const { assistant } = loadAssistant();

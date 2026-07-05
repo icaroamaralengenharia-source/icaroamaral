@@ -20556,6 +20556,31 @@
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }
 
+  function isEloProfessionalBudgetMarkdown_(text) {
+    const value = String(text || "").trim();
+    return /^AVISO: Esta é uma estimativa preliminar/i.test(value) &&
+      /#\s+Orçamento preliminar/i.test(value) &&
+      /##\s+2\.\s*Premissas adotadas/i.test(value) &&
+      /##\s+3\.\s*Memória de cálculo/i.test(value) &&
+      /\|\s*Item\s*\|\s*Serviço\s*\|\s*Unidade\s*\|\s*Quantidade\s*\|\s*Valor unitário\s*\|\s*Total\s*\|/i.test(value) &&
+      /##\s+4\.\s*Resumo final/i.test(value) &&
+      /##\s+5\.\s*Confirmação técnica/i.test(value);
+  }
+
+  function copyProfessionalBudgetMarkdown_(markdown, button) {
+    const originalLabel = button && button.textContent || "Copiar formato profissional";
+    copyTextToClipboard(String(markdown || "").trim()).then(function () {
+      if (button) button.textContent = "Formato copiado";
+    }).catch(function () {
+      if (button) button.textContent = "Copiar manualmente";
+      appendMessage("system", "Não consegui copiar automaticamente. Selecione e copie o Markdown abaixo.\n\n" + String(markdown || "").trim());
+    }).finally(function () {
+      if (!button) return;
+      window.setTimeout(function () {
+        button.textContent = originalLabel;
+      }, 2600);
+    });
+  }
   function copyDiagnosticToClipboard(diagnosticText, button) {
     const originalLabel = button.textContent;
     copyTextToClipboard(diagnosticText).then(function () {
@@ -20895,6 +20920,15 @@
       actions.appendChild(documentButton);
     }
 
+    if (isEloProfessionalBudgetMarkdown_(cleanAnswer)) {
+      const copyProfessionalButton = createElement("button", "elo-inline-button elo-copy-professional-budget-button", "Copiar formato profissional");
+      copyProfessionalButton.type = "button";
+      copyProfessionalButton.setAttribute("data-elo-action", "copy-professional-budget-markdown");
+      copyProfessionalButton.addEventListener("click", function () {
+        copyProfessionalBudgetMarkdown_(cleanAnswer, copyProfessionalButton);
+      });
+      actions.appendChild(copyProfessionalButton);
+    }
     if (response && response.pdfAction) {
       const pdfButton = createElement("button", "elo-inline-button elo-budget-pdf-action", response.pdfAction.label || "Gerar PDF do Orcamento");
       pdfButton.type = "button";
@@ -23130,6 +23164,9 @@
     buildBudgetV2ProfessionalPdfActionForTest: buildBudgetV2ProfessionalPdfAction_,
     buildBudgetV2TransactionalActionsForTest: buildBudgetV2TransactionalActions_,
     buildEloBudgetV2ListIntentAnswerForTest: buildEloBudgetV2ListIntentAnswer_,
+    isProfessionalBudgetMarkdownForTest: isEloProfessionalBudgetMarkdown_,
+    copyProfessionalBudgetMarkdownForTest: copyProfessionalBudgetMarkdown_,
+    appendAssistantMessageForTest: appendAssistantMessage,
     openBudgetV2ProfessionalPdfForTest: openBudgetV2ProfessionalPdf_,
     normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,
     openBudgetRecordPdfForTest: openEloBudgetRecordPdf_,
