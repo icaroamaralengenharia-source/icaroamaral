@@ -16055,10 +16055,15 @@
       return true;
     }
     isWallBudgetIntent_(text) {
+      if (this.isNonWallServiceIntent_(text)) return false;
       const hasExplicitWall = /parede|muro|bloco|bloco\s+baiano|tijolo/.test(text);
       const hasAlvenariaWithGeometry = /alvenaria/.test(text) && /\d|orca|or?a|orcar|orcamento|or?amento/.test(text);
       const pureWallService = /parede\s+de\s+bloco|bloco\s+ceramico|bloco\s+cer?mico|parede\s+ceramica|parede\s+cer?mica/.test(text);
       return pureWallService || ((hasExplicitWall || hasAlvenariaWithGeometry) && /orcamento|or?amento|orca|or?a|orcar|quanto|material|mao\s+de\s+obra|m?o\s+de\s+obra|\d/.test(text));
+    }
+    isNonWallServiceIntent_(text) {
+      return /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(text) &&
+        !/parede|muro|alvenaria|bloco|tijolo|chapisco|reboco|embo[c?]o/.test(text);
     }
     extractBudgetFacts(message, previousState = {}) {
       const raw = sanitizeUserText(message || "");
@@ -16080,7 +16085,7 @@
       else if (previousType === "reforma_banheiro") facts.type = "reforma_banheiro";
       else if (this.isResidentialPackageIntent_(text)) facts.type = "residential";
       else if (/reforma|reformar|renovacao|renova..o/.test(text)) facts.type = "renovation";
-      else if (previousType === "wall") facts.type = "wall";
+      else if (previousType === "wall" && !this.isNonWallServiceIntent_(text)) facts.type = "wall";
       else if (/casa|residencial|residencia|resid.ncia|terrea|t.rrea|sobrado|construir|construcao|constru..o/.test(text) || previousType === "residential") facts.type = "residential";
 
       let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|metros\s+quadrados)/i);
@@ -16122,11 +16127,12 @@
         facts.currentFields.push("bathroomScope");
       }
 
-      if (facts.type === "wall" || previousType === "wall") {
-        facts.dimensions = Object.assign({}, previousState.dimensions || {});
-        const wallSource = previousType === "wall" && !/parede|muro|alvenaria/.test(text) ? "parede de bloco ceramico " + raw : raw;
+      if (facts.type === "wall" || previousType === "wall" && !this.isNonWallServiceIntent_(text)) {
+        const inheritedWallDimensions = Object.assign({}, previousState.dimensions || {});
+        const wallSource = previousType === "wall" && this.isContinuationIntent_(text) && !/parede|muro|alvenaria/.test(text) ? "parede de bloco ceramico " + raw : raw;
         const wall = parseEloWallServiceBriefing_(wallSource);
         if (wall) {
+          facts.dimensions = Object.assign({}, inheritedWallDimensions);
           facts.dimensions.lengthM = wall.comprimento_m || wall.length || null;
           facts.dimensions.heightM = wall.altura_m || wall.height || null;
           facts.dimensions.grossAreaM2 = wall.area_bruta_m2 || wall.area || null;
@@ -16349,7 +16355,39 @@
       const intro = pending.length || missingForUser.length
         ? "Consigo montar uma estimativa preliminar para essa casa" + (areaLabel ? " de " + areaLabel : "") + "."
         : "Resumo da estimativa preliminar da casa" + (areaLabel ? " de " + areaLabel : "") + ".";
+      const inheritedMemoryLine = inherited.length ? "Memoria: vou continuar usando os dados anteriores: " + inherited.slice(0, 4).join("; ") + "." : "";
+      const wantsDetailedResidential = advancedMode || /detalhe|detalhar|composi[c?][a?]o|mem[o?]ria\s+de\s+c[a?]lculo|item\s+por\s+item|planilha|sinapi|orse|modo\s+avan[c?]ado/.test(normalizeText(options && options.originalMessage || ""));
+      if (!wantsDetailedResidential) {
+        const shortLines = [intro, "", "ELO ORCAMENTISTA V2"];
+        if (inheritedMemoryLine) shortLines.push(inheritedMemoryLine);
+        shortLines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Ainda preciso dos dados principais da obra.");
+        shortLines.push("", "Dados herdados:", inherited.length ? inherited.map(function (item) { return "- " + item; }).join("\n") : "- nenhum dado herdado");
+        if (inherited.length) shortLines.push("- Posso reutilizar esses dados ou deseja alter\u00e1-los?");
+        shortLines.push("", "Dados assumidos:", state.floors && !this.fieldWasCurrent_(state, "floors") && !this.fieldWasInherited_(state, "floors") ? "- " + state.floors + " pavimento" + (state.floors > 1 ? "s" : "") : "- nenhuma premissa assumida");
+        shortLines.push("", "Dados pendentes:", missingForUser.length ? missingForUser.map(function (item) { return "- " + item; }).join("\n") : "- sem pendencias minimas informadas");
+        shortLines.push("", "Escopo preliminar:", "- Servicos preliminares", "- Locacao, fundacao, estrutura, alvenaria, instalacoes, revestimentos e pintura", "- Limpeza final");
+        if (budgetPackage && budgetPackage.source === "EloBudgetEngine") shortLines.push("", "Base tecnica:", "- estruturado pelo motor tecnico.");
+        else shortLines.push("", "Base oficial:", "- pendente de composicao SINAPI/ORSE oficial.");
+        shortLines.push("", "Proximo passo:", missingForUser.length ? "- Informe " + missingForUser.slice(0, 6).join(", ") + "." : "- Peca detalhe, planilha ou memoria de calculo para abrir o modo completo.");
+        shortLines.push("", "Nota:", "- Estimativa preliminar; valores oficiais dependem de quantitativos, BDI e base vigente. nao vou inventar preco.");
+        const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
+        const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
+        if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
+        const budgetActions = buildBudgetV2TransactionalActions_(budgetDocumentData);
+        return {
+          shortAnswer: missingForUser.length ? "Preciso de poucos dados para avancar." : "Montei a previa resumida do orcamento.",
+          fullAnswer: shortLines.join("\n"),
+          nextAction: missingForUser.length ? "Informe " + missingForUser.join(", ") + "." : "Peca detalhe, planilha ou memoria de calculo para abrir o modo completo.",
+          canSave: !pending.length,
+          sessionTheme: "residential_budget_package",
+          sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
+          pdfAction: pdfAction,
+          budgetActions: budgetActions,
+          budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems, budgetDocumentData: budgetDocumentData }
+        };
+      }
       const lines = [intro, "", "Resposta principal:", "- Atendimento: ELO ORCAMENTISTA V2", "- Tipo: residencia" + (state.floors ? " | pavimentos: " + state.floors : "")];
+      if (inheritedMemoryLine) lines.push("", inheritedMemoryLine);
       lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Ainda preciso dos dados principais da obra.");
       if (inherited.length) lines.push("", "Dados herdados:", inherited.map(function (item) { return "- " + item; }).join("\n"), "- Posso reutilizar esses dados ou deseja alter\u00e1-los?");
       lines.push("", "Dados que faltam:", missingForUser.length ? missingForUser.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado essencial pendente para a pr?via.");
@@ -16603,7 +16641,7 @@
       const advancedDetailsIntent = this.isAdvancedDetailsIntent_(text);
       if (advancedDetailsIntent && previous.type && previous.type !== "wall") {
         const advancedPackage = this.budgetEngineAdapter.adapt(previous, context);
-        return this.buildBudgetResponse(previous, advancedPackage, { advancedMode: true, commercialMode: false });
+        return this.buildBudgetResponse(previous, advancedPackage, { advancedMode: true, commercialMode: false, originalMessage: message });
       }
       const isBudgetIntent = this.detectBudgetIntent(message);
       const hasInheritedFields = previous.inheritedFields && previous.inheritedFields.length;
@@ -16624,7 +16662,7 @@
         const confirmedPackage = this.budgetEngineAdapter.adapt(confirmedState, context);
         confirmedState.services = confirmedPackage.scope || [];
         const confirmedCommercialMode = confirmedState.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text);
-        return this.buildBudgetResponse(confirmedState, confirmedPackage, { advancedMode: this.isAdvancedDetailsIntent_(text), commercialMode: confirmedCommercialMode });
+        return this.buildBudgetResponse(confirmedState, confirmedPackage, { advancedMode: this.isAdvancedDetailsIntent_(text), commercialMode: confirmedCommercialMode, originalMessage: message });
       }
       if (hasInheritedFields && this.isInheritedChangeRequest_(text)) return this.buildInheritedChangeRequestResponse_(previous, text);
       if (this.isMaterialListIntent_(text) && (previous.type === "residential" || this.hasSavedProjectContext_())) {
@@ -16651,7 +16689,7 @@
       if (next.type === "wall") return this.buildWallQuantitativeResponse_(next) || buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
       const budgetPackage = this.budgetEngineAdapter.adapt(next, context);
       next.services = budgetPackage.scope || [];
-      return this.buildBudgetResponse(next, budgetPackage, { advancedMode: advancedDetailsIntent, commercialMode: next.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text) });
+      return this.buildBudgetResponse(next, budgetPackage, { advancedMode: advancedDetailsIntent, commercialMode: next.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text), originalMessage: message });
     }
   }
 
@@ -16747,7 +16785,10 @@
     }
 
     const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
-    const shouldPrioritizeWallBudgetV2 = /parede|alvenaria|bloco|tijolo/.test(normalizedQuestion) || (activeBudgetV2State && activeBudgetV2State.type === "wall" && /\d/.test(normalizedQuestion));
+    const hasNonWallServiceQuestion = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedQuestion) && !/parede|muro|alvenaria|bloco|tijolo|chapisco|reboco|embo[c?]o/.test(normalizedQuestion);
+    const hasExplicitWallQuestion = /parede|alvenaria|bloco|tijolo/.test(normalizedQuestion) && !hasNonWallServiceQuestion;
+    const continuesWallQuestion = activeBudgetV2State && activeBudgetV2State.type === "wall" && /continua|continuar|com\s+base\s+nisso|nisso|mesma\s+parede|parede\s+anterior|aquela\s+parede|aquele\s+orcamento|or[c?]amento\s+anterior/.test(normalizedQuestion);
+    const shouldPrioritizeWallBudgetV2 = hasExplicitWallQuestion || (continuesWallQuestion && /\d/.test(normalizedQuestion));
     if (shouldPrioritizeWallBudgetV2) {
       const earlyWallBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
       if (earlyWallBudgetOrchestratorV2Answer) {
@@ -19281,7 +19322,10 @@
         return;
       }
     }
-    const shouldPrioritizeWallBudgetV2 = /parede|alvenaria|bloco|tijolo/.test(normalizedCleanQuestionForBudget) || (activeBudgetV2State && activeBudgetV2State.type === "wall" && /\d/.test(normalizedCleanQuestionForBudget));
+    const hasNonWallServiceQuestionForBudget = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedCleanQuestionForBudget) && !/parede|muro|alvenaria|bloco|tijolo|chapisco|reboco|embo[c?]o/.test(normalizedCleanQuestionForBudget);
+    const hasExplicitWallQuestionForBudget = /parede|alvenaria|bloco|tijolo/.test(normalizedCleanQuestionForBudget) && !hasNonWallServiceQuestionForBudget;
+    const continuesWallQuestionForBudget = activeBudgetV2State && activeBudgetV2State.type === "wall" && /continua|continuar|com\s+base\s+nisso|nisso|mesma\s+parede|parede\s+anterior|aquela\s+parede|aquele\s+orcamento|or[c?]amento\s+anterior/.test(normalizedCleanQuestionForBudget);
+    const shouldPrioritizeWallBudgetV2 = hasExplicitWallQuestionForBudget || (continuesWallQuestionForBudget && /\d/.test(normalizedCleanQuestionForBudget));
     if (shouldPrioritizeWallBudgetV2) {
       const earlyWallBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
       if (earlyWallBudgetOrchestratorV2Answer) {
