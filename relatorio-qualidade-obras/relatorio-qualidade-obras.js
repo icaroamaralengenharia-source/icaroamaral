@@ -296,6 +296,7 @@
   let isApplyingCloudState = false;
   let imageProcessingQueue = Promise.resolve();
   let activeAiTarget = null;
+  let aiApplyStructuredButton = null;
   let dailyLogDraft = createEmptyDailyLogDraft_();
   let currentDailyLogMaterialRequests_ = [];
   let dailyLogSearchTerm = "";
@@ -19974,6 +19975,8 @@
       return;
     }
 
+    ensureAiApplyStructuredButton_();
+
     form.addEventListener("click", function (event) {
       const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
       const button = target && target.closest ? target.closest("[data-ai-action]") : null;
@@ -20080,6 +20083,18 @@
     };
 
     const result = await assistant.analyzeImage(record.payload, context);
+    const structured = normalizeVisualAnalysisForFields_(result && result.analysis);
+
+    if (structured) {
+      record.analysis = structured;
+      record.analysisSuggestion = result && result.suggestion;
+      record.analysisUpdatedAt = new Date().toISOString();
+      imageCache.set(imageInputName, record);
+      saveDraft_().catch(function (error) {
+        console.warn("Nao foi possivel salvar a analise visual da IA imediatamente.", error);
+      });
+    }
+
     showAiSuggestion_(result, original, target, record);
   }
 
@@ -20137,10 +20152,18 @@
     }
 
     const suggestion = result && result.suggestion ? result.suggestion : "";
+    const structured = normalizeVisualAnalysisForFields_(
+      (result && result.analysis) || (imageRecord && imageRecord.analysis)
+    );
+    const imageInputName = imageRecord ? findImageInputNameByRecord_(imageRecord) : "";
+
     activeAiTarget = {
       field: target || null,
       suggestion: suggestion,
-      imageRecord: imageRecord || null
+      imageRecord: imageRecord || null,
+      imageInputName: imageInputName,
+      analysis: structured,
+      canApplyStructured: Boolean(structured && imageInputName.indexOf("fotoInconformidade") === 0)
     };
 
     if (aiSuggestionTitle) {
@@ -20155,6 +20178,7 @@
       aiSuggestionNote.textContent = result && result.note ? result.note : "";
     }
 
+    updateAiApplyStructuredButton_();
     aiSuggestionPanel.classList.remove("is-hidden");
     aiSuggestionPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -20162,6 +20186,7 @@
   function closeAiSuggestion_() {
     activeAiTarget = null;
     renderAiImageReview_(null);
+    updateAiApplyStructuredButton_();
 
     if (aiSuggestionPanel) {
       aiSuggestionPanel.classList.add("is-hidden");
@@ -20189,6 +20214,237 @@
     });
     setDraftStatus_("Sugestão da IA aplicada. Revise o texto antes de gerar o PDF.", "success");
     closeAiSuggestion_();
+  }
+
+
+  function ensureAiApplyStructuredButton_() {
+    if (aiApplyStructuredButton || !aiSuggestionPanel) {
+      return aiApplyStructuredButton;
+    }
+
+    const actions = aiSuggestionPanel.querySelector(".step-actions");
+
+    if (!actions) {
+      return null;
+    }
+
+    aiApplyStructuredButton = document.createElement("button");
+    aiApplyStructuredButton.type = "button";
+    aiApplyStructuredButton.className = "secondary-action";
+    aiApplyStructuredButton.textContent = "Aplicar an?lise nos campos";
+    aiApplyStructuredButton.hidden = true;
+    aiApplyStructuredButton.dataset.aiApplyStructured = "true";
+    aiApplyStructuredButton.addEventListener("click", applyStructuredImageAnalysisToFields_);
+    actions.insertBefore(aiApplyStructuredButton, aiAcceptButton || actions.firstChild);
+    return aiApplyStructuredButton;
+  }
+
+  function updateAiApplyStructuredButton_() {
+    const button = ensureAiApplyStructuredButton_();
+
+    if (!button) {
+      return;
+    }
+
+    button.hidden = !(activeAiTarget && activeAiTarget.canApplyStructured);
+  }
+
+  function applyStructuredImageAnalysisToFields_() {
+    if (!activeAiTarget || !activeAiTarget.canApplyStructured || !activeAiTarget.analysis) {
+      return;
+    }
+
+    const number = activeAiTarget.imageInputName.replace("fotoInconformidade", "");
+    const analysis = activeAiTarget.analysis;
+    const descriptionField = form.elements["descricaoInconformidade" + number];
+    const solutionField = form.elements["solucaoInconformidade" + number];
+    const riskField = form.elements["grauRisco" + number];
+    const observationField = form.elements.observacoes;
+
+    applyTextDraftToField_(descriptionField, buildAnalysisDescriptionDraft_(analysis), "descricao da inconformidade");
+    applyTextDraftToField_(solutionField, buildAnalysisRecommendationDraft_(analysis), "solucao/recomendacao");
+    applyRiskDraftToField_(riskField, normalizeAnalysisRisk_(analysis.grauPreliminar));
+    applyTextDraftToField_(observationField, buildAnalysisObservationDraft_(analysis, number), "observacoes gerais");
+
+    updateReportMetrics_();
+    renderReviewSummary_();
+    saveDraft_().catch(function (error) {
+      console.warn("Nao foi possivel salvar a analise aplicada imediatamente.", error);
+    });
+    setDraftStatus_("An?lise aplicada como rascunho. Revise antes de emitir o relat?rio.", "success");
+  }
+
+  function normalizeVisualAnalysisForFields_(analysis) {
+    if (!analysis || typeof analysis !== "object") {
+      return null;
+    }
+
+    const normalized = {
+      textoRelatorio: clean(analysis.textoRelatorio || analysis.descricaoTecnica),
+      categoriaProvavel: clean(analysis.categoriaProvavel || analysis.possivelManifestacao),
+      elementoObservado: clean(analysis.elementoObservado),
+      evidenciasVisuais: normalizeAnalysisList_(analysis.evidenciasVisuais),
+      possiveisInconformidades: normalizeAnalysisList_(analysis.possiveisInconformidades || analysis.alertas),
+      grauPreliminar: clean(analysis.grauPreliminar),
+      recomendacaoAcao: clean(analysis.recomendacaoAcao || analysis.verificacoesRecomendadas)
+    };
+
+    if (!normalized.textoRelatorio && !normalized.categoriaProvavel && !normalized.elementoObservado && !normalized.evidenciasVisuais.length && !normalized.possiveisInconformidades.length && !normalized.grauPreliminar && !normalized.recomendacaoAcao) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  function normalizeAnalysisList_(value) {
+    if (Array.isArray(value)) {
+      return value.map(clean).filter(Boolean);
+    }
+
+    const text = clean(value);
+    return text ? [text] : [];
+  }
+
+  function buildAnalysisDescriptionDraft_(analysis) {
+    const lines = [];
+    const main = analysis.textoRelatorio || analysis.categoriaProvavel || analysis.elementoObservado;
+
+    if (main) {
+      lines.push(ensurePreliminaryLanguage_(main));
+    }
+
+    if (analysis.categoriaProvavel) {
+      lines.push("Categoria/manifestacao provavel: " + ensurePreliminaryLanguage_(analysis.categoriaProvavel));
+    }
+
+    if (analysis.elementoObservado) {
+      lines.push("Elemento observado: " + analysis.elementoObservado);
+    }
+
+    return cleanMultiline_(lines.join("\n"));
+  }
+
+  function buildAnalysisRecommendationDraft_(analysis) {
+    return ensurePreliminaryLanguage_(analysis.recomendacaoAcao || "Verificar em vistoria tecnica e registrar evidencias complementares antes da emissao final.");
+  }
+
+  function buildAnalysisObservationDraft_(analysis, number) {
+    const lines = [];
+
+    if (analysis.evidenciasVisuais.length) {
+      lines.push("Evidencias visuais da foto " + number + ": " + analysis.evidenciasVisuais.join("; "));
+    }
+
+    if (analysis.possiveisInconformidades.length) {
+      lines.push("Possiveis inconformidades: " + analysis.possiveisInconformidades.map(ensurePreliminaryLanguage_).join("; "));
+    }
+
+    if (analysis.grauPreliminar) {
+      lines.push("Grau preliminar sugerido: " + analysis.grauPreliminar + " (a confirmar em vistoria).");
+    }
+
+    return cleanMultiline_(lines.join("\n"));
+  }
+
+  function ensurePreliminaryLanguage_(text) {
+    const value = clean(text);
+
+    if (!value) {
+      return "";
+    }
+
+    if (/ind[i?]cio|poss[i?]vel|preliminar|confirmar|vistoria/i.test(value)) {
+      return value;
+    }
+
+    return "Analise preliminar: " + value + " (indicios visuais, a confirmar em vistoria).";
+  }
+
+  function normalizeAnalysisRisk_(value) {
+    const normalized = normalizeAiSuggestionKey_(value);
+
+    if (!normalized) {
+      return "";
+    }
+
+    if (normalized.indexOf("critico") >= 0 || normalized.indexOf("alto") >= 0) {
+      return "Alto - corrigir imediatamente";
+    }
+
+    if (normalized.indexOf("medio") >= 0 || normalized.indexOf("moderado") >= 0 || normalized.indexOf("atencao") >= 0) {
+      return "Medio - corrigir com prioridade";
+    }
+
+    if (normalized.indexOf("baixo") >= 0 || normalized.indexOf("leve") >= 0) {
+      return "Baixo - monitorar";
+    }
+
+    return "";
+  }
+
+  function applyTextDraftToField_(field, draft, label) {
+    const nextText = cleanMultiline_(draft);
+
+    if (!field || !nextText) {
+      return false;
+    }
+
+    const current = cleanMultiline_(field.value);
+
+    if (!current) {
+      field.value = nextText;
+    } else if (current.indexOf(nextText) >= 0) {
+      return false;
+    } else {
+      const shouldAppend = window.confirm("O campo " + label + " ja tem conteudo. Deseja anexar a analise preliminar abaixo do texto existente?");
+
+      if (!shouldAppend) {
+        return false;
+      }
+
+      field.value = current + "\n\n--- Analise preliminar da IA, a confirmar em vistoria ---\n" + nextText;
+    }
+
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
+  function applyRiskDraftToField_(field, risk) {
+    const value = clean(risk);
+
+    if (!field || !value) {
+      return false;
+    }
+
+    const current = clean(field.value);
+
+    if (current && current !== value) {
+      const shouldReplace = window.confirm("O grau de risco ja esta preenchido. Deseja substituir pela sugestao preliminar da IA?");
+
+      if (!shouldReplace) {
+        return false;
+      }
+    }
+
+    if (current === value) {
+      return false;
+    }
+
+    field.value = value;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function findImageInputNameByRecord_(record) {
+    let found = "";
+
+    imageCache.forEach(function (cachedRecord, name) {
+      if (!found && cachedRecord === record) {
+        found = name;
+      }
+    });
+
+    return found;
   }
 
   function applyVisualAiSuggestionToReport_(targetField, suggestionText) {
