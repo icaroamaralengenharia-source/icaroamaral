@@ -1592,6 +1592,133 @@
 
   const ELO_BUDGET_COMMERCIAL_NOTICE = "AVISO: Esta é uma estimativa preliminar baseada nas premissas informadas e/ou configuradas pelo usuário e em referências técnicas disponíveis na data-base indicada. Não constitui proposta comercial final nem substitui projeto executivo, vistoria, ART/RRT, cotação formal ou responsabilidade técnica assumida por profissional habilitado. Valores sujeitos a variação conforme projeto, local, produtividade, BDI, logística e mercado.";
 
+  const ELO_OWN_PRICE_TABLE_V1 = [
+    {
+      serviceName: "Pintura interna",
+      aliases: ["pintura", "pintura interna", "pintura de parede", "pintura parede interna"],
+      unit: "m2",
+      minPrice: 12,
+      averagePrice: 18,
+      maxPrice: 25,
+      city: "Vitória da Conquista",
+      state: "BA",
+      source: "SAMPLE/TEST - TABELA_PROPRIA_V1",
+      observation: "SAMPLE/TEST - não usar como preço real comercial.",
+      updatedAt: "2026-07-05"
+    },
+    {
+      serviceName: "Piso cerâmico",
+      aliases: ["piso", "piso ceramico", "piso cerâmico", "piso/revestimento", "revestimento ceramico", "revestimento cerâmico"],
+      unit: "m2",
+      minPrice: 45,
+      averagePrice: 65,
+      maxPrice: 90,
+      city: "Vitória da Conquista",
+      state: "BA",
+      source: "SAMPLE/TEST - TABELA_PROPRIA_V1",
+      observation: "SAMPLE/TEST - não usar como preço real comercial.",
+      updatedAt: "2026-07-05"
+    },
+    {
+      serviceName: "Alvenaria de bloco cerâmico",
+      aliases: ["alvenaria", "parede", "parede/alvenaria", "parede de bloco", "alvenaria de bloco ceramico", "alvenaria de bloco cerâmico"],
+      unit: "m2",
+      minPrice: 80,
+      averagePrice: 110,
+      maxPrice: 145,
+      city: "Vitória da Conquista",
+      state: "BA",
+      source: "SAMPLE/TEST - TABELA_PROPRIA_V1",
+      observation: "SAMPLE/TEST - não usar como preço real comercial.",
+      updatedAt: "2026-07-05"
+    }
+  ];
+
+  function normalizeEloOwnPriceUnit_(unit) {
+    const text = normalizeText(unit || "");
+    if (/m2|m²|metro quadrado/.test(text)) return "m2";
+    if (/m3|m³|metro cubico|metro cúbico/.test(text)) return "m3";
+    if (/ponto|pt/.test(text)) return "ponto";
+    if (/un|und|unidade/.test(text)) return "un";
+    return text || "serv";
+  }
+
+  function formatEloOwnPriceMoney_(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "pendente";
+    return "R$ " + String(number.toFixed(2)).replace(".", ",");
+  }
+
+  function isEloOwnPriceLocalMatch_(item, city, state) {
+    const wantedCity = normalizeText(city || "");
+    const wantedState = normalizeText(state || "");
+    if (wantedCity && normalizeText(item.city || "") !== wantedCity) return false;
+    if (wantedState && normalizeText(item.state || "") !== wantedState) return false;
+    return true;
+  }
+
+  function findOwnPriceRange(serviceName, unit, city, state) {
+    const wantedName = normalizeText(serviceName || "");
+    const wantedUnit = normalizeEloOwnPriceUnit_(unit || "");
+    const candidates = ELO_OWN_PRICE_TABLE_V1.filter(function (item) {
+      const names = [item.serviceName].concat(Array.isArray(item.aliases) ? item.aliases : []);
+      const sameName = names.some(function (name) { return normalizeText(name || "") === wantedName; });
+      return sameName && normalizeEloOwnPriceUnit_(item.unit) === wantedUnit;
+    });
+    if (!candidates.length) return { found: false };
+    const local = candidates.find(function (item) { return isEloOwnPriceLocalMatch_(item, city, state); });
+    const item = local || (!city && !state ? candidates[0] : null);
+    if (!item) return { found: false };
+    return Object.assign({ found: true }, item);
+  }
+
+  function extractEloOwnPriceLocation_(message) {
+    const raw = String(message || "");
+    const text = normalizeText(raw);
+    const stateMatch = raw.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i);
+    const city = /vitoria\s+da\s+conquista/.test(text) || /vit[oó]ria\s+da\s+conquista/i.test(raw) ? "Vitória da Conquista" : "";
+    return { city: city, state: stateMatch ? stateMatch[1].toUpperCase() : "" };
+  }
+
+  function buildEloOwnPriceBudgetEnrichment_(service, unit, quantityLabel, message) {
+    const location = extractEloOwnPriceLocation_(message);
+    const ownPrice = findOwnPriceRange(service && service.label, unit, location.city, location.state);
+    if (!ownPrice.found) {
+      return {
+        found: false,
+        unitPrice: "pendente de confirmação",
+        total: "pendente",
+        subtotal: "pendente de confirmação",
+        dataBase: "pendente de confirmação",
+        base: "pendente de confirmação",
+        pending: "confirmar composição SINAPI/ORSE, tabela própria, valor unitário, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
+        lines: []
+      };
+    }
+    const quantityNumber = parseEloOperationalNumber_(quantityLabel);
+    const hasQuantity = quantityNumber > 0;
+    const minTotal = hasQuantity ? ownPrice.minPrice * quantityNumber : null;
+    const averageTotal = hasQuantity ? ownPrice.averagePrice * quantityNumber : null;
+    const maxTotal = hasQuantity ? ownPrice.maxPrice * quantityNumber : null;
+    const rangeLine = "- Faixa pela sua tabela própria: " + formatEloOwnPriceMoney_(ownPrice.minPrice) + " a " + formatEloOwnPriceMoney_(ownPrice.maxPrice) + " (médio: " + formatEloOwnPriceMoney_(ownPrice.averagePrice) + "/" + ownPrice.unit + ").";
+    const totalRangeLine = hasQuantity ? "- Faixa total preliminar pela tabela própria: " + formatEloOwnPriceMoney_(minTotal) + " a " + formatEloOwnPriceMoney_(maxTotal) + " (médio: " + formatEloOwnPriceMoney_(averageTotal) + ")." : "- Total pela tabela própria: pendente de quantidade validada.";
+    return {
+      found: true,
+      unitPrice: formatEloOwnPriceMoney_(ownPrice.averagePrice),
+      total: hasQuantity ? formatEloOwnPriceMoney_(averageTotal) : "pendente",
+      subtotal: hasQuantity ? formatEloOwnPriceMoney_(averageTotal) : "pendente de confirmação",
+      dataBase: ownPrice.updatedAt || "pendente de confirmação",
+      base: "Tabela própria SAMPLE/TEST; SINAPI/ORSE pendente de confirmação",
+      pending: "validar preço próprio SAMPLE/TEST, composição SINAPI/ORSE, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
+      lines: [
+        rangeLine,
+        totalRangeLine,
+        "- Fonte própria: " + (ownPrice.source || "não informado") + "; local: " + [ownPrice.city, ownPrice.state].filter(Boolean).join("/") + "; data-base: " + (ownPrice.updatedAt || "não informado") + ".",
+        "- Observação: " + (ownPrice.observation || "não informado")
+      ]
+    };
+  }
+
   function buildEloBudgetV2CommercialOptions_(state, budgetPackage, overrides) {
     const safeState = state || {};
     const custom = overrides || {};
@@ -1626,6 +1753,7 @@
   function prependEloBudgetV2CommercialTemplate_(lines, options) {
     const cfg = options || {};
     const rows = Array.isArray(cfg.rows) && cfg.rows.length ? cfg.rows : [["1", cfg.scope || "Escopo preliminar", "serv", cfg.quantity || "pendente", "pendente", "pendente"]];
+    const ownPriceLines = Array.isArray(cfg.ownPriceLines) ? cfg.ownPriceLines.filter(Boolean) : [];
     const tableRows = rows.map(function (row) {
       const cells = Array.isArray(row) ? row : [row.item, row.service, row.unit, row.quantity, row.unitPrice, row.total];
       return "| " + [cells[0] || "1", cells[1] || "Serviço", cells[2] || "serv", cells[3] || "pendente", cells[4] || "pendente", cells[5] || "pendente"].map(function (cell) { return String(cell).replace(/\|/g, "/"); }).join(" | ") + " |";
@@ -1652,7 +1780,7 @@
       "## 3. Memória de cálculo",
       "| Item | Serviço | Unidade | Quantidade | Valor unitário | Total |",
       "|---|---:|---:|---:|---:|---:|"
-    ].concat(tableRows, [
+    ].concat(tableRows, ownPriceLines.length ? ["", "### Referência de preço próprio"].concat(ownPriceLines) : [], [
       "",
       "## 4. Resumo final",
       "- Subtotal: " + (cfg.subtotal || "pendente de confirmação"),
@@ -12047,24 +12175,28 @@
     const qty = extractEloPreliminaryBudgetQuantity_(message, service);
     if (!qty) return null;
     const unit = qty.unit || service.unit || "serv";
+    const ownPrice = buildEloOwnPriceBudgetEnrichment_(service, unit, qty.quantity, message);
     const lines = [
       "Resposta principal",
-      "Montei um orçamento preliminar profissional sem inventar preço.",
-      "Valores unitários, BDI, data-base e totais ficam pendentes até confirmação técnica/comercial.",
+      ownPrice.found ? "Montei um orçamento preliminar profissional usando uma faixa SAMPLE/TEST da tabela própria." : "Montei um orçamento preliminar profissional sem inventar preço.",
+      ownPrice.found ? "A faixa própria é referência interna preliminar e continua exigindo validação técnica/comercial." : "Valores unitários, BDI, data-base e totais ficam pendentes até confirmação técnica/comercial.",
       "",
       "Observação técnica",
-      "- Como não há composição SINAPI/ORSE ou valor unitário validado, o quantitativo entra na memória de cálculo e os valores ficam pendentes."
+      ownPrice.found ? "- A tabela própria enriquece a estimativa, mas não substitui SINAPI/ORSE, cotação formal, BDI validado ou revisão profissional." : "- Como não há composição SINAPI/ORSE ou valor unitário validado, o quantitativo entra na memória de cálculo e os valores ficam pendentes."
     ];
     const options = buildEloBudgetV2CommercialOptions_({}, null, {
       scopeName: service.label.toLowerCase(),
       scope: service.scope,
-      base: "pendente de confirmação",
-      dataBase: "pendente de confirmação",
+      base: ownPrice.base,
+      dataBase: ownPrice.dataBase,
       labor: "pendente de confirmação",
       materials: "pendente de confirmação",
       logistics: "pendente de confirmação",
-      pending: "confirmar composição SINAPI/ORSE ou valor unitário, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
-      rows: [["1", service.label, unit, qty.quantity, "pendente", "pendente"]]
+      subtotal: ownPrice.subtotal,
+      total: ownPrice.total,
+      pending: ownPrice.pending,
+      ownPriceLines: ownPrice.lines,
+      rows: [["1", service.label, unit, qty.quantity, ownPrice.unitPrice, ownPrice.total]]
     });
     return {
       shortAnswer: "Orçamento preliminar profissional gerado com valores pendentes.",
@@ -23286,6 +23418,7 @@
     buildBudgetV2TransactionalActionsForTest: buildBudgetV2TransactionalActions_,
     buildEloBudgetV2ListIntentAnswerForTest: buildEloBudgetV2ListIntentAnswer_,
     isProfessionalBudgetMarkdownForTest: isEloProfessionalBudgetMarkdown_,
+    findOwnPriceRangeForTest: findOwnPriceRange,
     copyProfessionalBudgetMarkdownForTest: copyProfessionalBudgetMarkdown_,
     appendAssistantMessageForTest: appendAssistantMessage,
     openBudgetV2ProfessionalPdfForTest: openBudgetV2ProfessionalPdf_,

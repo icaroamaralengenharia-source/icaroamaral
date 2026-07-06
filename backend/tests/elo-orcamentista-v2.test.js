@@ -233,6 +233,33 @@ test("Orcamentista V2 aplica template profissional para servicos de obra com qua
     assert.match(answer, /As premissas acima condizem com o seu cenário\?/i, label);
   }
 });
+test("Tabela propria V1 enriquece orcamentos sem inventar preco", () => {
+  const { assistant } = loadAssistant();
+
+  const ownPrice = assistant.findOwnPriceRangeForTest("Pintura", "m2", "Vitória da Conquista", "BA");
+  assert.equal(ownPrice.found, true);
+  assert.equal(ownPrice.averagePrice, 18);
+
+  const pintura = assistant.buildResponseForTest("Faça orçamento de pintura de 120 m2 em Vitória da Conquista BA.").fullAnswer;
+  assert.match(pintura, /Faixa pela sua tabela própria: R\$ 12,00 a R\$ 25,00/i);
+  assert.match(pintura, /R\$ 18,00/i);
+  assert.match(pintura, /R\$ 2\.160,00|R\$ 2160,00/i);
+  assert.match(pintura, /SAMPLE\/TEST/i);
+  assert.match(pintura, /SINAPI\/ORSE pendente de confirmação/i);
+  assert.match(pintura, /## 5\. Confirmação técnica/i);
+
+  const piso = assistant.buildResponseForTest("Quanto custa colocar piso cerâmico em 45 m2 em Vitória da Conquista BA?").fullAnswer;
+  assert.match(piso, /Faixa pela sua tabela própria: R\$ 45,00 a R\$ 90,00/i);
+  assert.match(piso, /R\$ 65,00/i);
+
+  const telhado = assistant.buildResponseForTest("Orçamento de telhado colonial com 80 m2 em Vitória da Conquista BA.").fullAnswer;
+  assert.doesNotMatch(telhado, /Faixa pela sua tabela própria/i);
+  assert.match(telhado, /Valor unitário \| Total/i);
+  assert.match(telhado, /pendente/i);
+
+  const wrongUnit = assistant.findOwnPriceRangeForTest("Pintura", "m3", "Vitória da Conquista", "BA");
+  assert.equal(wrongUnit.found, false);
+});
 test("Copiar formato profissional detecta e copia somente Markdown de orcamento", async () => {
   const { assistant, clipboardWrites } = loadAssistant();
   const budget = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?").fullAnswer;
