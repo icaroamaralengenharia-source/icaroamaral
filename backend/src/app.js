@@ -7,9 +7,6 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
-import { defaultEloProjectsStore } from "./elo-projects-store.js";
-import { defaultEloBudgetService } from "./services/elo-budget-service.js";
-import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -269,34 +266,6 @@ export function detectEloIntent(message, context = "geral", history = []) {
   return "general_conversation";
 }
 
-export function extractContextKeywords_(text) {
-  const normalized = normalizeEloSearchText_(text);
-  const keywords = [];
-  const add = (keyword) => {
-    if (keyword && !keywords.includes(keyword)) {
-      keywords.push(keyword);
-    }
-  };
-
-  if (/\bprojetos?\b/.test(normalized)) {
-    add("projetos");
-  }
-
-  Object.values(PROJECT_ALIASES).forEach((aliases) => {
-    aliases.forEach((alias) => {
-      const normalizedAlias = normalizeEloSearchText_(alias);
-      if (hasEloSearchPhrase_(normalized, normalizedAlias)) {
-        if (normalizedAlias.startsWith("stock ")) {
-          add("stock");
-        }
-        add(normalizedAlias);
-      }
-    });
-  });
-
-  return keywords;
-}
-
 export function buildProjectKnowledgeContext_(input = {}) {
   const sourceText = typeof input === "string"
     ? input
@@ -341,6 +310,34 @@ export function buildProjectKnowledgeContext_(input = {}) {
   ].join("\n");
 }
 
+export function extractContextKeywords_(text) {
+  const normalized = normalizeEloSearchText_(text);
+  const keywords = [];
+  const add = (keyword) => {
+    if (keyword && !keywords.includes(keyword)) {
+      keywords.push(keyword);
+    }
+  };
+
+  if (/\bprojetos?\b/.test(normalized)) {
+    add("projetos");
+  }
+
+  Object.values(PROJECT_ALIASES).forEach((aliases) => {
+    aliases.forEach((alias) => {
+      const normalizedAlias = normalizeEloSearchText_(alias);
+      if (hasEloSearchPhrase_(normalized, normalizedAlias)) {
+        if (normalizedAlias.startsWith("stock ")) {
+          add("stock");
+        }
+        add(normalizedAlias);
+      }
+    });
+  });
+
+  return keywords;
+}
+
 export function detectEloIntent_(message, context = {}, history = [], options = {}) {
   const text = normalizeEloDecisionText_(message);
   const eloContext = normalizeEloContext_(context && context.eloContext ? context.eloContext : context);
@@ -352,11 +349,13 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
   };
 
   if (!text || /\b(oi|ola|olá|bom dia|boa tarde|boa noite|quem e voce|quem é você)\b/.test(text)) add("conversa");
+  if (/\b(que saco|cansado|cansada|nao funciona|não funciona|frustrado|frustrada|ta dificil|tá difícil)\b/.test(text)) add("acolhimento");
+  if (/\b(orçamento|orcamento|orcar|orçar|orça|orca|quanto custa|quanto vai dar|preco|preço|valor|custo|mao de obra|mão de obra|materiais|tabela teste|tabela sample|sample)\b/.test(text)) add("orçamento");
   if (/\b(calcular|calcule|quantos|quanto|m2|m²|m3|m³|20x3|8x10|parede|laje|concreto|bloco|cabo)\b/.test(text)) add("cálculo");
   if (/\b(explique|explica|o que e|o que é|como funciona|conceito|tecnica|técnica)\b/.test(text)) add("pergunta técnica");
   if (/\b(lembre|lembrar|memoria|memória|prefiro|preferencia|preferência|gosto de)\b/.test(text)) add("memória");
   if (/\b(biblioteca|guardar na biblioteca|guarde na biblioteca|documentar para consultar)\b/.test(text)) add("biblioteca");
-  if (/\b(relatorio|relatório|rdo|diario de obra|diário de obra|exportar relatorio|exportar relatório)\b/.test(text)) add("relatório");
+  if (/\b(relatorio|relatório|laudo|vistoria|parecer|rdo|diario de obra|diário de obra|registrar ocorrencia|registrar ocorrência|ocorrencia de atraso|ocorrência de atraso|exportar relatorio|exportar relatório)\b/.test(text) || /analisar.*(trinca|fissura|infiltra|mofo|umidade)/.test(text)) add("relatório");
   if (/\b(pdf|exportar|gerar pdf)\b/.test(text)) {
     add("pdf");
     add("relatório");
@@ -364,7 +363,7 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
   if (/\b(estoque|almoxarifado|stock full|entrada|saida|saída|saldo|produto|produtos parados|auditoria)\b/.test(text)) add("estoque");
   if (/\b(obra|obras|parede|laje|concreto|bloco|alvenaria|piso|argamassa|canteiro|fissura|infiltracao|infiltração)\b/.test(text)) add("obras");
   if (/\b(saude|saúde|medicamento|medicamentos|lote|validade|hospital|farmacia|farmácia)\b/.test(text)) add("saúde");
-  if (/\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta baixa|terreno|recuo|recuos|ambiente|ambientes|porta|janela|cota|cotas|prancha|dxf|svg)\b/.test(text)) add("cadista");
+  if (/\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta|planta baixa|terreno|quarto|quartos|suite|suíte|garagem|recuo|recuos|ambiente|ambientes|porta|janela|cota|cotas|prancha|dxf|svg)\b/.test(text)) add("cadista");
   if (/\b(planejamento|estrategia|estratégia|roadmap|plano|prioridade|proximo passo|próximo passo)\b/.test(text)) add("planejamento");
   if (/\b(resumo|resuma|resumir|sintese|síntese)\b/.test(text)) add("resumo");
   if (/\b(documento|documentos|contrato|arquivo|texto anexado)\b/.test(text)) add("documento");
@@ -375,7 +374,7 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
   if (eloContext === "cadista") add("cadista");
   if (!categories.length) add("conversa");
 
-  const priority = ["anexo", "pdf", "memória", "biblioteca", "cálculo", "cadista", "estoque", "saúde", "obras", "relatório", "resumo", "planejamento", "pergunta técnica", "conversa"];
+  const priority = ["acolhimento", "anexo", "pdf", "memória", "biblioteca", "cadista", "orçamento", "relatório", "estoque", "saúde", "cálculo", "obras", "resumo", "planejamento", "pergunta técnica", "conversa"];
   const primary = priority.find((category) => categories.includes(category)) || categories[0];
   const productContext = inferEloProductContext_(categories, eloContext, text, history);
 
@@ -391,6 +390,7 @@ export function detectEloIntent_(message, context = {}, history = [], options = 
 
 function inferEloProductContext_(categories, eloContext, text, history = []) {
   if (categories.includes("cadista") || eloContext === "cadista") return "cadista";
+  if (categories.includes("orçamento")) return "obras";
   if (categories.includes("saúde") || eloContext === "saude") return "saúde";
   if (categories.includes("estoque") && /\b(stock full|almoxarifado|entrada|saida|saída|produtos parados)\b/.test(text)) return "estoque";
   if (categories.includes("obras") || eloContext === "obras") return "obras";
@@ -796,60 +796,10 @@ export function createApp(options = {}) {
       ok: true,
       module: "stock-full",
       database: supabaseClient ? "supabase_configured" : "not_configured",
-      realtime: Boolean(supabaseClient),
       ...(supabaseClient ? {} : { fallback: "localStorage" })
     });
   });
 
-  app.post("/api/stock-full/login", async (request, response) => {
-    const database = getStockFullDatabase(response);
-    if (!database) {
-      return;
-    }
-
-    const email = clean_(request.body && request.body.email).toLowerCase();
-    const password = String(request.body && request.body.password || "");
-    if (!email || !password) {
-      response.status(400).json({ ok: false, error: "email_password_required" });
-      return;
-    }
-    if (!database.auth || typeof database.auth.signInWithPassword !== "function") {
-      response.status(503).json({ ok: false, error: "stock_full_auth_not_configured" });
-      return;
-    }
-
-    try {
-      const { data, error } = await database.auth.signInWithPassword({ email, password });
-      if (error || !data || !data.user || !data.session || !data.session.access_token) {
-        response.status(401).json({ ok: false, error: "invalid_credentials" });
-        return;
-      }
-
-      const profile = await getStockFullProfileByAuthUser_(database, data.user.id);
-      if (!profile) {
-        response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
-        return;
-      }
-
-      response.json({
-        ok: true,
-        module: "stock-full",
-        mode: "remote",
-        user: {
-          id: data.user.id,
-          email: data.user.email || email
-        },
-        profile,
-        session: {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token || "",
-          expires_at: data.session.expires_at || null
-        }
-      });
-    } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_login_failed" });
-    }
-  });
   app.get("/api/stock-full/me", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -943,10 +893,6 @@ export function createApp(options = {}) {
       return;
     }
 
-    if (!requireStockFullPermission_(session.profile, "products:create", response)) {
-      return;
-    }
-
     const validation = validateStockFullItemPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
@@ -976,10 +922,6 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
-      return;
-    }
-
-    if (!requireStockFullPermission_(session.profile, "products:update", response)) {
       return;
     }
 
@@ -1024,10 +966,6 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
-      return;
-    }
-
-    if (!requireStockFullPermission_(session.profile, "products:delete", response)) {
       return;
     }
 
@@ -1100,10 +1038,6 @@ export function createApp(options = {}) {
       return;
     }
 
-    if (!requireStockFullPermission_(session.profile, "movements:in", response)) {
-      return;
-    }
-
     const validation = validateStockFullEntryPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
@@ -1111,19 +1045,6 @@ export function createApp(options = {}) {
     }
 
     try {
-      const existingEntry = await findStockFullMovementByOfflineUuid_(database, "stock_full_entries", validation.payload.offline_uuid, session.profile);
-      if (existingEntry) {
-        const existingItem = await getStockFullItemForProfile_(database, existingEntry.item_id, session.profile);
-        response.json({
-          ok: true,
-          mode: "remote",
-          duplicate: true,
-          entry: mapStockFullEntryFromDatabase_(existingEntry),
-          item: existingItem ? mapStockFullItemFromDatabase_(existingItem) : null
-        });
-        return;
-      }
-
       const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
@@ -1158,17 +1079,9 @@ export function createApp(options = {}) {
 
       await createStockFullAuditLog_(database, {
         institutionId: session.profile.institution_id,
-        action: "stock_full_entry_created",
-        entityType: "stock_full_entry",
+        action: "entry_created",
+        entityType: "stock_full_entries",
         entityId: entry.id,
-        productId: updatedItem.id,
-        beforeData: item,
-        afterData: { item: updatedItem, movement: entry },
-        deviceId: validation.payload.device_id,
-        offlineUuid: validation.payload.offline_uuid,
-        operationId: validation.payload.operation_id,
-        source: validation.payload.source,
-        ipAddress: clean_(request.headers["x-forwarded-for"]) || request.ip || "",
         description: "Entrada registrada para " + (updatedItem.name || "produto") + ".",
         createdBy: session.profile.id
       });
@@ -1225,10 +1138,6 @@ export function createApp(options = {}) {
       return;
     }
 
-    if (!requireStockFullPermission_(session.profile, "movements:out", response)) {
-      return;
-    }
-
     const validation = validateStockFullExitPayload_(request.body || {}, session.profile);
     if (!validation.ok) {
       response.status(400).json({ ok: false, error: validation.error });
@@ -1236,19 +1145,6 @@ export function createApp(options = {}) {
     }
 
     try {
-      const existingExit = await findStockFullMovementByOfflineUuid_(database, "stock_full_exits", validation.payload.offline_uuid, session.profile);
-      if (existingExit) {
-        const existingItem = await getStockFullItemForProfile_(database, existingExit.item_id, session.profile);
-        response.json({
-          ok: true,
-          mode: "remote",
-          duplicate: true,
-          exit: mapStockFullExitFromDatabase_(existingExit),
-          item: existingItem ? mapStockFullItemFromDatabase_(existingItem) : null
-        });
-        return;
-      }
-
       const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
@@ -1256,26 +1152,12 @@ export function createApp(options = {}) {
       }
 
       const currentQuantity = parsePositiveNumber_(item.current_quantity, 0);
-      const nextQuantity = currentQuantity - validation.payload.quantity;
-      if (nextQuantity < 0) {
-        await createStockFullAuditLog_(database, {
-          institutionId: session.profile.institution_id,
-          action: "stock_full_negative_stock_blocked",
-          entityType: "stock_full_exit",
-          productId: item.id,
-          beforeData: item,
-          afterData: { requestedQuantity: validation.payload.quantity, currentQuantity, nextQuantity },
-          deviceId: validation.payload.device_id,
-          offlineUuid: validation.payload.offline_uuid,
-          operationId: validation.payload.operation_id,
-          source: validation.payload.source,
-          ipAddress: clean_(request.headers["x-forwarded-for"]) || request.ip || "",
-          description: "Saida bloqueada por estoque insuficiente para " + (item.name || "produto") + ".",
-          createdBy: session.profile.id
-        });
+      if (validation.payload.quantity > currentQuantity) {
         response.status(409).json({ ok: false, error: "stock_full_insufficient_quantity" });
         return;
       }
+
+      const nextQuantity = currentQuantity - validation.payload.quantity;
       const { data: updatedItem, error: updateError } = await database
         .from("stock_full_items")
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
@@ -1306,15 +1188,7 @@ export function createApp(options = {}) {
         action: "stock_full_exit_created",
         entityType: "stock_full_exit",
         entityId: exit.id,
-        productId: updatedItem.id,
-        beforeData: item,
-        afterData: { item: updatedItem, movement: exit },
-        deviceId: validation.payload.device_id,
-        offlineUuid: validation.payload.offline_uuid,
-        operationId: validation.payload.operation_id,
-        source: validation.payload.source,
-        ipAddress: clean_(request.headers["x-forwarded-for"]) || request.ip || "",
-        description: "Saida registrada para " + (updatedItem.name || "produto") + ": " +
+        description: "Saída registrada para " + (updatedItem.name || "produto") + ": " +
           validation.payload.quantity + " " + (updatedItem.unit || "un") + ".",
         createdBy: session.profile.id
       });
@@ -1330,323 +1204,6 @@ export function createApp(options = {}) {
     }
   });
 
-
-  app.post("/api/stock-full/sync", async (request, response) => {
-    const database = getStockFullDatabase(response);
-    if (!database) {
-      return;
-    }
-
-    const session = await requireStockFullAuth_(request, response, database);
-    if (!session) {
-      return;
-    }
-
-    const body = request.body || {};
-    const movements = Array.isArray(body.movements) ? body.movements : (Array.isArray(body.items) ? body.items : (Array.isArray(body.queue) ? body.queue : []));
-    const results = [];
-    const ipAddress = clean_(request.headers["x-forwarded-for"] || request.socket && request.socket.remoteAddress || request.ip);
-
-    for (let index = 0; index < movements.length; index += 1) {
-      const item = movements[index] || {};
-      const movementType = clean_(item.type || item.operation || item.movementType).toLowerCase();
-      const isExit = movementType === "saida" || movementType === "exit" || movementType === "stock:exit";
-      const isEntry = movementType === "entrada" || movementType === "entry" || movementType === "stock:entry";
-      const offlineUuid = clean_(item.offlineUuid ?? item.offline_uuid ?? item.operationId ?? item.operation_id);
-      try {
-        if (!isEntry && !isExit) {
-          results.push({ offline_uuid: offlineUuid, status: "rejected", message: "movement_type_invalid", movement_id: "" });
-          await createStockFullAuditLog_(database, {
-            institutionId: session.profile.institution_id,
-            action: "stock_full_sync_rejected",
-            entityType: "stock_full_sync",
-            productId: clean_(item.itemId || item.item_id || item.productId || item.product_id) || null,
-            afterData: { error: "movement_type_invalid", item },
-            deviceId: clean_(item.deviceId || item.device_id),
-            offlineUuid,
-            operationId: clean_(item.operationId || item.operation_id) || offlineUuid,
-            source: "offline",
-            ipAddress,
-            createdBy: session.profile.id
-          });
-          continue;
-        }
-
-        const permission = isExit ? "movements:out" : "movements:in";
-        if (!canStockFullRole_(session.profile, permission)) {
-          results.push({ offline_uuid: offlineUuid, status: "rejected", message: "stock_full_forbidden", movement_id: "" });
-          continue;
-        }
-
-        const payloadBody = Object.assign({}, item, { source: "offline", syncStatus: "synced", syncedAt: new Date().toISOString() });
-        const validation = isExit ? validateStockFullExitPayload_(payloadBody, session.profile) : validateStockFullEntryPayload_(payloadBody, session.profile);
-        if (!validation.ok) {
-          results.push({ offline_uuid: offlineUuid, status: "rejected", message: validation.error, movement_id: "" });
-          await createStockFullAuditLog_(database, {
-            institutionId: session.profile.institution_id,
-            action: "stock_full_sync_rejected",
-            entityType: isExit ? "stock_full_exit" : "stock_full_entry",
-            productId: clean_(validation.payload && validation.payload.item_id || item.itemId || item.item_id || item.productId || item.product_id) || null,
-            afterData: { error: validation.error, item },
-            deviceId: clean_(item.deviceId || item.device_id),
-            offlineUuid,
-            operationId: clean_(item.operationId || item.operation_id) || offlineUuid,
-            source: "offline",
-            ipAddress,
-            createdBy: session.profile.id
-          });
-          continue;
-        }
-
-        const table = isExit ? "stock_full_exits" : "stock_full_entries";
-        const existing = await findStockFullMovementByOfflineUuid_(database, table, validation.payload.offline_uuid, session.profile);
-        if (existing) {
-          results.push({ offline_uuid: validation.payload.offline_uuid || offlineUuid, status: "duplicate", message: "offline_uuid_already_synced", movement_id: existing.id });
-          await createStockFullAuditLog_(database, {
-            institutionId: session.profile.institution_id,
-            action: "stock_full_offline_duplicate_ignored",
-            entityType: table,
-            entityId: existing.id,
-            productId: existing.item_id,
-            afterData: existing,
-            deviceId: validation.payload.device_id,
-            offlineUuid: validation.payload.offline_uuid,
-            operationId: validation.payload.operation_id,
-            source: "offline",
-            ipAddress,
-            createdBy: session.profile.id
-          });
-          continue;
-        }
-
-        const stockItem = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
-        if (!stockItem) {
-          results.push({ offline_uuid: validation.payload.offline_uuid || offlineUuid, status: "rejected", message: "stock_full_item_not_found", movement_id: "" });
-          await createStockFullAuditLog_(database, {
-            institutionId: session.profile.institution_id,
-            action: "stock_full_sync_rejected",
-            entityType: table,
-            productId: validation.payload.item_id,
-            afterData: { error: "stock_full_item_not_found", payload: validation.payload },
-            deviceId: validation.payload.device_id,
-            offlineUuid: validation.payload.offline_uuid,
-            operationId: validation.payload.operation_id,
-            source: "offline",
-            ipAddress,
-            createdBy: session.profile.id
-          });
-          continue;
-        }
-
-        const currentQuantity = parsePositiveNumber_(stockItem.current_quantity, 0);
-        const nextQuantity = isExit ? currentQuantity - validation.payload.quantity : currentQuantity + validation.payload.quantity;
-        if (nextQuantity < 0) {
-          results.push({ offline_uuid: validation.payload.offline_uuid || offlineUuid, status: "rejected", message: "stock_full_insufficient_quantity", movement_id: "" });
-          await createStockFullAuditLog_(database, {
-            institutionId: session.profile.institution_id,
-            action: "stock_full_negative_stock_blocked",
-            entityType: "stock_full_exit",
-            productId: stockItem.id,
-            beforeData: stockItem,
-            afterData: { requestedQuantity: validation.payload.quantity, currentQuantity, nextQuantity },
-            deviceId: validation.payload.device_id,
-            offlineUuid: validation.payload.offline_uuid,
-            operationId: validation.payload.operation_id,
-            source: "offline",
-            ipAddress,
-            createdBy: session.profile.id
-          });
-          continue;
-        }
-
-        const { data: updatedItem, error: updateError } = await database
-          .from("stock_full_items")
-          .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
-          .eq("id", stockItem.id)
-          .eq("institution_id", session.profile.institution_id)
-          .eq("is_active", true)
-          .select("*")
-          .maybeSingle();
-        if (updateError || !updatedItem) {
-          throw updateError || new Error("stock_full_item_not_found");
-        }
-
-        const { data: movement, error: movementError } = await database
-          .from(table)
-          .insert(validation.payload)
-          .select("*")
-          .single();
-        if (movementError) {
-          throw movementError;
-        }
-
-        await createStockFullAuditLog_(database, {
-          institutionId: session.profile.institution_id,
-          action: isExit ? "stock_full_exit_created" : "stock_full_entry_created",
-          entityType: isExit ? "stock_full_exit" : "stock_full_entry",
-          entityId: movement.id,
-          productId: updatedItem.id,
-          beforeData: stockItem,
-          afterData: { item: updatedItem, movement },
-          deviceId: validation.payload.device_id,
-          offlineUuid: validation.payload.offline_uuid,
-          operationId: validation.payload.operation_id,
-          source: "offline",
-          ipAddress,
-          description: (isExit ? "Saida" : "Entrada") + " offline sincronizada para " + (updatedItem.name || "produto") + ".",
-          createdBy: session.profile.id
-        });
-        await createStockFullAuditLog_(database, {
-          institutionId: session.profile.institution_id,
-          action: "stock_full_offline_sync_completed",
-          entityType: table,
-          entityId: movement.id,
-          productId: updatedItem.id,
-          afterData: { item: updatedItem, movement },
-          deviceId: validation.payload.device_id,
-          offlineUuid: validation.payload.offline_uuid,
-          operationId: validation.payload.operation_id,
-          source: "offline",
-          ipAddress,
-          createdBy: session.profile.id
-        });
-
-        results.push({ offline_uuid: validation.payload.offline_uuid || offlineUuid, status: "synced", message: "ok", movement_id: movement.id });
-      } catch (error) {
-        results.push({ offline_uuid: offlineUuid, status: "error", message: clean_(error && error.message) || "stock_full_sync_error", movement_id: "" });
-        await createStockFullAuditLog_(database, {
-          institutionId: session.profile.institution_id,
-          action: "stock_full_sync_error",
-          entityType: "stock_full_sync",
-          productId: clean_(item.itemId || item.item_id || item.productId || item.product_id) || null,
-          afterData: { error: clean_(error && error.message) || "stock_full_sync_error", item },
-          deviceId: clean_(item.deviceId || item.device_id),
-          offlineUuid,
-          operationId: clean_(item.operationId || item.operation_id) || offlineUuid,
-          source: "offline",
-          ipAddress,
-          createdBy: session.profile.id
-        });
-      }
-    }
-
-    response.json({ ok: true, results });
-  });
-
-  app.get("/api/stock-full/sync/status", async (request, response) => {
-    const database = getStockFullDatabase(response);
-    if (!database) {
-      return;
-    }
-
-    const session = await requireStockFullAuth_(request, response, database);
-    if (!session) {
-      return;
-    }
-
-    try {
-      const { data, error } = await database
-        .from("stock_full_audit_log")
-        .select("*")
-        .eq("institution_id", session.profile.institution_id)
-        .order("created_at", { ascending: false });
-      if (error) {
-        throw error;
-      }
-      const logs = (data || []).map(mapStockFullAuditLogFromDatabase_);
-      const lastSync = logs.find((entry) => entry.action === "stock_full_offline_sync_completed");
-      const recentFailures = logs.filter((entry) => /sync_error|sync_rejected|negative_stock_blocked/.test(entry.action)).slice(0, 10);
-      response.json({ ok: true, pendingSync: 0, lastSyncAt: lastSync ? lastSync.createdAt : "", recentFailures });
-    } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_sync_status_failed" });
-    }
-  });
-
-  app.get("/api/stock-full/live", async (request, response) => {
-    const database = getStockFullDatabase(response);
-    if (!database) {
-      return;
-    }
-
-    const session = await requireStockFullAuth_(request, response, database);
-    if (!session) {
-      return;
-    }
-
-    try {
-      const [{ data: exits, error: exitsError }, { data: entries, error: entriesError }, { data: items, error: itemsError }, { data: auditLogs, error: auditError }] = await Promise.all([
-        database
-          .from("stock_full_exits")
-          .select("*")
-          .eq("institution_id", session.profile.institution_id)
-          .order("created_at", { ascending: false }),
-        database
-          .from("stock_full_entries")
-          .select("*")
-          .eq("institution_id", session.profile.institution_id)
-          .order("created_at", { ascending: false }),
-        database
-          .from("stock_full_items")
-          .select("*")
-          .eq("institution_id", session.profile.institution_id),
-        database
-          .from("stock_full_audit_log")
-          .select("*")
-          .eq("institution_id", session.profile.institution_id)
-          .order("created_at", { ascending: false })
-      ]);
-      if (exitsError || entriesError || itemsError || auditError) {
-        throw exitsError || entriesError || itemsError || auditError;
-      }
-
-      const itemsById = new Map((items || []).map((item) => [String(item.id), item]));
-      const liveExits = (exits || []).slice(0, 20).map((exit) => {
-        const item = itemsById.get(String(exit.item_id)) || {};
-        return Object.assign(mapStockFullExitFromDatabase_(exit), {
-          itemName: item.name || "Produto",
-          unit: item.unit || "un",
-          currentQuantity: parsePositiveNumber_(item.current_quantity, 0),
-          employeeName: exit.responsible || exit.created_by || "Funcionario"
-        });
-      });
-      const liveEntries = (entries || []).slice(0, 20).map((entry) => {
-        const item = itemsById.get(String(entry.item_id)) || {};
-        return Object.assign(mapStockFullEntryFromDatabase_(entry), {
-          itemName: item.name || "Produto",
-          unit: item.unit || "un",
-          currentQuantity: parsePositiveNumber_(item.current_quantity, 0),
-          employeeName: entry.created_by || "Funcionario"
-        });
-      });
-      const lastMovements = liveExits.map((exit) => Object.assign({ type: "saida" }, exit))
-        .concat(liveEntries.map((entry) => Object.assign({ type: "entrada" }, entry)))
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-        .slice(0, 20);
-      const today = new Date().toISOString().slice(0, 10);
-      const todayMovements = lastMovements.filter((movement) => String(movement.createdAt || "").slice(0, 10) === today).length;
-      const criticalProducts = (items || []).filter((item) => parsePositiveNumber_(item.current_quantity, 0) <= parsePositiveNumber_(item.min_quantity, 0)).map(mapStockFullItemFromDatabase_);
-      const pendingSync = (auditLogs || []).filter((entry) => /sync_error|sync_rejected/.test(String(entry.action || ""))).length;
-      const totalStockValue = (items || []).reduce((sum, item) => sum + parsePositiveNumber_(item.current_quantity, 0) * parsePositiveNumber_(item.unit_cost || item.cost_price, 0), 0);
-
-      response.json({
-        ok: true,
-        mode: "remote",
-        institutionId: session.profile.institution_id,
-        generatedAt: new Date().toISOString(),
-        onlineUsers: [],
-        todayMovements,
-        criticalProducts,
-        pendingSync,
-        totalStockValue,
-        lastMovements,
-        entries: liveEntries,
-        exits: liveExits
-      });
-    } catch (error) {
-      response.status(500).json({ ok: false, error: "stock_full_live_query_failed" });
-    }
-  });
-
   app.get("/api/stock-full/audit-log", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -1655,10 +1212,6 @@ export function createApp(options = {}) {
 
     const session = await requireStockFullAuth_(request, response, database);
     if (!session) {
-      return;
-    }
-
-    if (!requireStockFullPermission_(session.profile, "reports:audit", response)) {
       return;
     }
 
@@ -2339,299 +1892,6 @@ export function createApp(options = {}) {
     response.json(result.payload);
   });
 
-
-  const eloProjectsStore = options.eloProjectsStore || defaultEloProjectsStore;
-  function handleEloProjectError_(error, response) {
-    const status = error && error.status || 500;
-    response.status(status).json({ ok: false, error: error && error.message || "elo_projects_error" });
-  }
-
-  app.post("/api/elo/projects", (request, response) => {
-    try {
-      const record = eloProjectsStore.createProject(request.body || {});
-      response.status(201).json({ ok: true, source: "backend", project: record });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/projects", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", projects: eloProjectsStore.listProjects(request.query || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/projects/:id", (request, response) => {
-    try {
-      const project = eloProjectsStore.getProject(request.params.id);
-      if (!project) return response.status(404).json({ ok: false, error: "project_not_found" });
-      response.json({ ok: true, source: "backend", project });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.put("/api/elo/projects/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", project: eloProjectsStore.updateProject(request.params.id, request.body || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/projects/:id/revisions", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.appendRevision(request.params.id, request.body || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/projects/:id/audits", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.appendAudit(request.params.id, request.body || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/projects/:id/compositions/select", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.selectComposition(request.params.id, request.body || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/projects/:id/executive/checklist", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", project: eloProjectsStore.saveExecutiveChecklist(request.params.id, request.body || {}) });
-    } catch (error) {
-      handleEloProjectError_(error, response);
-    }
-  });
-
-  const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
-  function getEloBudgetContext_(request) {
-    return {
-      institutionId: clean_(request.headers["x-institution-id"] || request.query.institution_id || request.query.institutionId || request.body && (request.body.institution_id || request.body.institutionId)),
-      userId: clean_(request.headers["x-user-id"] || request.query.user_id || request.query.userId || request.body && (request.body.user_id || request.body.userId)),
-      projectId: clean_(request.query.project_id || request.query.projectId || request.body && (request.body.project_id || request.body.projectId)),
-      authenticated: Boolean(request.headers.authorization)
-    };
-  }
-  function handleEloBudgetError_(error, response) {
-    const status = error && error.status || 500;
-    response.status(status).json({ ok: false, error: error && error.message || "elo_budget_error" });
-  }
-
-  app.post("/api/elo/budgets", (request, response) => {
-    try {
-      const body = request.body || {};
-      const documentData = body.documentData || body.document_data;
-      const budget = eloBudgetService.createBudget(documentData, getEloBudgetContext_(request));
-      response.status(201).json({ ok: true, source: "backend", budget });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/budgets", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", budgets: eloBudgetService.listBudgets(getEloBudgetContext_(request)) });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/budgets/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", budget: eloBudgetService.getBudget(request.params.id, getEloBudgetContext_(request)) });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.put("/api/elo/budgets/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", budget: eloBudgetService.updateBudget(request.params.id, request.body || {}, getEloBudgetContext_(request)) });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/budgets/:id/versions", (request, response) => {
-    try {
-      const body = request.body || {};
-      const version = eloBudgetService.createVersion(request.params.id, body.documentData || body.document_data, getEloBudgetContext_(request));
-      response.status(201).json({ ok: true, source: "backend", version });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.post("/api/elo/budgets/:id/generate-pdf", (request, response) => {
-    try {
-      const document = eloBudgetService.generateBudgetPdf(request.params.id, getEloBudgetContext_(request));
-      response.status(201).json({ ok: true, documentId: document.id, budgetId: document.budget_id, html: document.html_content, fileName: document.file_name, document });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/budgets/:id/events", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", events: eloBudgetService.listEvents(request.params.id, getEloBudgetContext_(request)) });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  app.get("/api/elo/budgets/:id/documents", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", documents: eloBudgetService.listDocuments(request.params.id, getEloBudgetContext_(request)) });
-    } catch (error) {
-      handleEloBudgetError_(error, response);
-    }
-  });
-
-  const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
-  function getObraReportContext_(request) {
-    return {
-      institutionId: clean_(request.headers["x-institution-id"] || request.query.institutionId || request.query.institution_id),
-      userId: clean_(request.headers["x-user-id"] || request.query.userId || request.query.user_id)
-    };
-  }
-  function handleObraReportError_(error, response) {
-    const status = Number(error && error.status) || 500;
-    response.status(status).json({ ok: false, error: error && error.message || "obrareport_transactional_error" });
-  }
-
-  app.post("/api/obrareport/reports", (request, response) => {
-    try {
-      const report = obraReportTransactionalService.createTechnicalReport(getObraReportContext_(request), request.body || {});
-      response.status(201).json({ ok: true, source: "backend", report });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/reports", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", reports: obraReportTransactionalService.listTechnicalReports(getObraReportContext_(request), request.query || {}) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/reports/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", report: obraReportTransactionalService.getTechnicalReport(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.put("/api/obrareport/reports/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", report: obraReportTransactionalService.updateTechnicalReport(getObraReportContext_(request), request.params.id, request.body || {}) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/reports/:id/versions", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", version: obraReportTransactionalService.createTechnicalReportVersion(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/reports/:id/generate-document", (request, response) => {
-    try {
-      const document = obraReportTransactionalService.generateTechnicalReportDocument(getObraReportContext_(request), request.params.id);
-      response.status(201).json({ ok: true, source: "backend", document });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/reports/:id/events", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", events: obraReportTransactionalService.listReportEvents(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/rdos", (request, response) => {
-    try {
-      const rdo = obraReportTransactionalService.createRdo(getObraReportContext_(request), request.body || {});
-      response.status(201).json({ ok: true, source: "backend", rdo });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/rdos", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", rdos: obraReportTransactionalService.listRdos(getObraReportContext_(request), request.query || {}) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/rdos/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", rdo: obraReportTransactionalService.getRdo(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.put("/api/obrareport/rdos/:id", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", rdo: obraReportTransactionalService.updateRdo(getObraReportContext_(request), request.params.id, request.body || {}) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/rdos/:id/versions", (request, response) => {
-    try {
-      response.status(201).json({ ok: true, source: "backend", version: obraReportTransactionalService.createRdoVersion(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/rdos/:id/generate-document", (request, response) => {
-    try {
-      const document = obraReportTransactionalService.generateRdoDocument(getObraReportContext_(request), request.params.id);
-      response.status(201).json({ ok: true, source: "backend", document });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.get("/api/obrareport/rdos/:id/events", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", events: obraReportTransactionalService.listRdoEvents(getObraReportContext_(request), request.params.id) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
-
-  app.post("/api/obrareport/documents/:id/prepare-email", (request, response) => {
-    try {
-      response.json({ ok: true, source: "backend", email: obraReportTransactionalService.prepareDocumentEmail(getObraReportContext_(request), request.params.id, request.body || {}) });
-    } catch (error) {
-      handleObraReportError_(error, response);
-    }
-  });
   app.post("/api/ai/improve-text", async (request, response) => {
     const validation = validateRequest_(request.body || {});
 
@@ -3097,39 +2357,6 @@ async function requireStockFullAuth_(request, response, supabase) {
   }
 }
 
-function normalizeStockFullRole_(role) {
-  const value = clean_(role).toLowerCase();
-  if (value === "owner" || value === "admin" || value === "gestor" || value === "patrao") {
-    return "admin";
-  }
-  if (value === "employee" || value === "operador" || value === "funcionario") {
-    return "funcionario";
-  }
-  return value || "funcionario";
-}
-
-function canStockFullRole_(profile, action) {
-  const role = normalizeStockFullRole_(profile && profile.role);
-  const permissions = {
-    admin: new Set(["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"]),
-    gestor: new Set(["dashboard:view", "products:view", "products:create", "products:update", "products:delete", "products:import", "movements:in", "movements:out", "history:view", "reports:view", "reports:audit", "backup:export", "settings:view", "users:manage"]),
-    funcionario: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
-    operador: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
-    estoquista: new Set(["products:view", "movements:in", "movements:out", "history:view", "reports:view"]),
-    vendedor: new Set(["products:view", "movements:out", "history:view", "reports:view"]),
-    leitura: new Set(["products:view", "history:view", "reports:view"])
-  };
-  return Boolean(permissions[role] && permissions[role].has(action));
-}
-
-function requireStockFullPermission_(profile, action, response) {
-  if (canStockFullRole_(profile, action)) {
-    return true;
-  }
-  response.status(403).json({ ok: false, error: "permission_denied" });
-  return false;
-}
-
 function validateStockFullItemPayload_(body, profile, options = {}) {
   const update = Boolean(options.update);
   const payload = {
@@ -3179,15 +2406,8 @@ function mapStockFullItemFromDatabase_(item) {
 }
 
 function validateStockFullEntryPayload_(body, profile) {
-  const offlineUuid = clean_(body.offlineUuid ?? body.offline_uuid ?? body.operationId ?? body.operation_id);
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
-    offline_uuid: offlineUuid || null,
-    operation_id: clean_(body.operationId ?? body.operation_id) || offlineUuid || null,
-    device_id: clean_(body.deviceId ?? body.device_id) || null,
-    sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
-    source: clean_(body.source) || (offlineUuid ? "offline" : "online"),
-    synced_at: body.syncedAt || body.synced_at || new Date().toISOString(),
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     unit_cost: body.unitCost === undefined && body.unit_cost === undefined
@@ -3215,15 +2435,8 @@ function validateStockFullEntryPayload_(body, profile) {
 }
 
 function validateStockFullExitPayload_(body, profile) {
-  const offlineUuid = clean_(body.offlineUuid ?? body.offline_uuid ?? body.operationId ?? body.operation_id);
   const payload = {
     institution_id: clean_(profile && profile.institution_id),
-    offline_uuid: offlineUuid || null,
-    operation_id: clean_(body.operationId ?? body.operation_id) || offlineUuid || null,
-    device_id: clean_(body.deviceId ?? body.device_id) || null,
-    sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
-    source: clean_(body.source) || (offlineUuid ? "offline" : "online"),
-    synced_at: body.syncedAt || body.synced_at || new Date().toISOString(),
     item_id: clean_(body.itemId ?? body.item_id),
     quantity: parsePositiveNumber_(body.quantity),
     destination: clean_(body.destination),
@@ -3242,23 +2455,6 @@ function validateStockFullExitPayload_(body, profile) {
     return { ok: false, error: "quantity_required" };
   }
   return { ok: true, payload };
-}
-
-async function findStockFullMovementByOfflineUuid_(database, table, offlineUuid, profile) {
-  const safeUuid = clean_(offlineUuid);
-  if (!safeUuid) {
-    return null;
-  }
-  const { data, error } = await database
-    .from(table)
-    .select("*")
-    .eq("institution_id", profile.institution_id)
-    .eq("offline_uuid", safeUuid)
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  return data || null;
 }
 
 async function getStockFullItemForProfile_(database, itemId, profile) {
@@ -3287,12 +2483,6 @@ function mapStockFullEntryFromDatabase_(entry) {
     invoiceNumber: source.invoice_number || "",
     notes: source.notes || "",
     createdBy: source.created_by || "",
-    offlineUuid: source.offline_uuid || "",
-    operationId: source.operation_id || source.offline_uuid || "",
-    deviceId: source.device_id || "",
-    syncStatus: source.sync_status || "synced",
-    source: source.source || "online",
-    syncedAt: source.synced_at || "",
     createdAt: source.created_at || ""
   };
 }
@@ -3308,12 +2498,6 @@ function mapStockFullExitFromDatabase_(exit) {
     responsible: source.responsible || "",
     notes: source.notes || "",
     createdBy: source.created_by || "",
-    offlineUuid: source.offline_uuid || "",
-    operationId: source.operation_id || source.offline_uuid || "",
-    deviceId: source.device_id || "",
-    syncStatus: source.sync_status || "synced",
-    source: source.source || "online",
-    syncedAt: source.synced_at || "",
     createdAt: source.created_at || ""
   };
 }
@@ -3324,16 +2508,8 @@ async function createStockFullAuditLog_(database, data) {
     action: clean_(data.action),
     entity_type: clean_(data.entityType),
     entity_id: clean_(data.entityId) || null,
-    product_id: clean_(data.productId) || null,
-    before_data: data.beforeData || null,
-    after_data: data.afterData || null,
-    device_id: clean_(data.deviceId) || null,
-    offline_uuid: clean_(data.offlineUuid) || null,
-    operation_id: clean_(data.operationId) || null,
-    source: clean_(data.source) || "online",
-    ip_address: clean_(data.ipAddress) || null,
     description: clean_(data.description),
-    created_by: clean_(data.createdBy || data.userId)
+    created_by: clean_(data.createdBy)
   };
 
   if (!payload.institution_id || !payload.action || !payload.entity_type) {
@@ -3360,14 +2536,6 @@ function mapStockFullAuditLogFromDatabase_(record) {
     entityType: source.entity_type || "",
     entityId: source.entity_id || "",
     description: source.description || "",
-    productId: source.product_id || "",
-    beforeData: source.before_data || null,
-    afterData: source.after_data || null,
-    deviceId: source.device_id || "",
-    offlineUuid: source.offline_uuid || "",
-    operationId: source.operation_id || "",
-    source: source.source || "online",
-    ipAddress: source.ip_address || "",
     createdBy: source.created_by || "",
     createdAt: source.created_at || ""
   };
@@ -3994,7 +3162,7 @@ function detectEloMemoryKind_(message) {
 
 function isCadistaDomain_(context, text) {
   return normalizeEloContext_(context && context.eloContext) === "cadista" ||
-    /\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta baixa|terreno|recuo|recuos|suite|suíte|garagem|prancha|dxf|svg)\b/.test(text);
+    /\b(cadista|cadista ai|cadista ia|elo projeto|elo-projeto|planta|planta baixa|terreno|quartos?|recuo|recuos|suite|suíte|garagem|prancha|dxf|svg)\b/.test(text);
 }
 
 export function routeEloRequest_(input = {}) {
