@@ -16447,8 +16447,11 @@
       if (!text) return false;
       if (/orcamento\s+oficial|orçamento\s+oficial|orcamento\s+executivo|orçamento\s+executivo/.test(text)) return false;
       if (this.isResidentialPackageIntent_(text)) return true;
+      const hasResidentialBriefingWithNumber = (text.indexOf("casa") >= 0 || text.indexOf("residencial") >= 0 || text.indexOf("residencia") >= 0 || text.indexOf("sobrado") >= 0 || text.indexOf("terrea") >= 0 || text.indexOf("t?rrea") >= 0 || text.indexOf("t.rrea") >= 0) && /\d/.test(text) && !/parede|alvenaria|bloco|tijolo/.test(text);
+      if (hasResidentialBriefingWithNumber) return true;
       if (this.isWallBudgetIntent_(text)) return true;
       if (/reforma\s+de\s+(?:banheiro|cozinha)|trocar\s+piso/.test(text)) return true;
+      if (/galpao\s+metalico|galp[a?]o\s+metalico/.test(text)) return true;
       if (this.isMaterialListIntent_(text)) return true;
       return /orcamento|orçamento|orcar|orçar|quanto\s+custa|quanto\s+gasto|quanto\s+fica|levantar\s+material|mao\s+de\s+obra|mão\s+de\s+obra/.test(text) && /casa|residencial|residencia|residência|obra|construir|construcao|construção|terrea|térrea|reforma|parede|muro|alvenaria/.test(text);
     }
@@ -16530,6 +16533,7 @@
         facts.technicalComposition = parseEloTechnicalCompositionBudget_(raw);
         facts.currentFields.push("technicalComposition");
       } else if (previousType === "technical_composition" && bdiPercent) facts.type = "technical_composition";
+      else if (/galpao\s+metalico|galp[a?]o\s+metalico/.test(text)) { facts.type = "residential"; facts.constructionType = "galpao metalico"; facts.currentFields.push("constructionType"); }
       else if (this.isWallBudgetIntent_(text)) facts.type = "wall";
       else if (/reforma\s+de\s+banheiro/.test(text)) facts.type = "reforma_banheiro";
       else if (previousType === "reforma_banheiro") facts.type = "reforma_banheiro";
@@ -16725,6 +16729,69 @@
       return /orcamento|or?amento|orcar|or?ar|\borca\b|\borce\b|quanto\s+custa|quanto\s+fica|estimativa|preliminar/.test(text);
     }
 
+    getExecutiveBudgetEngine_() {
+      if (typeof window === "undefined" || !window.EloExecutiveBudgetEngine) return null;
+      const engine = window.EloExecutiveBudgetEngine;
+      if (typeof engine.buildResidentialExecutiveBudget !== "function") return null;
+      return engine;
+    }
+
+    resolveExecutiveProjectType_(state, originalMessage) {
+      const text = normalizeText(originalMessage || "");
+      if (/galpao\s+metalico|galp[a?]o\s+metalico/.test(text)) return "galpao_metalico";
+      if (/reforma\s+de\s+banheiro/.test(text) || state && state.type === "reforma_banheiro") return "reforma_banheiro";
+      if (/muro\s+de\s+arrimo|arrimo/.test(text)) return "muro_arrimo";
+      if (/ampliacao|amplia..o|puxar\s+um\s+quarto|aumentar\s+(?:a\s+)?casa/.test(text)) return "ampliacao_residencial";
+      if (/sobrado/.test(text) || state && Number(state.floors) >= 2) return "sobrado";
+      if (state && (state.type === "residential" || state.type === "renovation")) return "residencia_nova";
+      return "desconhecida";
+    }
+
+    normalizeExecutiveAudit_(audit) {
+      if (!audit || audit.error) return audit || null;
+      const routing = audit.typologyRouting || {};
+      const premissas = Array.isArray(audit.premissas) ? audit.premissas : [];
+      const pendencias = Array.isArray(audit.pendencias) ? audit.pendencias : Array.isArray(routing.pendencias) ? routing.pendencias : [];
+      return Object.assign({}, audit, {
+        typology: routing.typology || audit.typology || routing.label || "a confirmar",
+        readyForCost: Boolean(audit.readyForCost || routing.readyForCost),
+        disciplines: Array.isArray(routing.applicableDisciplines) ? routing.applicableDisciplines : Array.isArray(audit.disciplines) ? audit.disciplines : [],
+        missingPremises: premissas.filter(function (item) { return item && item.ok === false; }).map(function (item) { return item.label || item.id; }).filter(Boolean),
+        pendencias: pendencias.map(function (item) { return item && (item.message || item.label || item.id) || String(item); }).filter(Boolean),
+        checklist: Array.isArray(audit.checklist) ? audit.checklist : []
+      });
+    }
+
+    buildExecutiveAudit_(state, context, originalMessage) {
+      const engine = this.getExecutiveBudgetEngine_();
+      if (!engine) return null;
+      const projectType = this.resolveExecutiveProjectType_(state, originalMessage);
+      try {
+        const audit = engine.buildResidentialExecutiveBudget({
+          message: originalMessage || "",
+          project: {
+            type: projectType,
+            areaM2: state && state.areaM2 || null,
+            city: state && state.city || "",
+            state: state && state.state || "",
+            standard: state && state.standard || "",
+            floors: state && state.floors || null,
+            constructionType: state && state.constructionType || ""
+          },
+          state: state || null,
+          context: context || null
+        });
+        return this.normalizeExecutiveAudit_(audit);
+      } catch (error) {
+        return { error: error && error.message || "executive_budget_v3_error" };
+      }
+    }
+
+    enrichBudgetPackageWithExecutiveAudit_(state, budgetPackage, context, originalMessage) {
+      const packageBase = Object.assign({}, budgetPackage || {});
+      packageBase.executiveAudit = this.buildExecutiveAudit_(state, context, originalMessage);
+      return packageBase;
+    }
     getResidentialComplementFields_(state) {
       if (!state || state.type !== "residential") return [];
       const missing = [];
@@ -16768,7 +16835,7 @@
 
     buildBudgetResponse(state, budgetPackage, options = {}) {
       if (!state || state.type === "wall") return null;
-      if (state.type === "reforma_banheiro") return this.buildBathroomRenovationResponse_(state, options);
+      if (state.type === "reforma_banheiro") return this.buildBathroomRenovationResponse_(state, Object.assign({}, options || {}, { budgetPackage: budgetPackage || null }));
       if (state.type !== "residential" && state.type !== "renovation") return null;
       const confirmed = [];
       const inherited = [];
@@ -16780,7 +16847,7 @@
       const audit = budgetPackage && budgetPackage.executiveAudit || null;
       const advancedMode = !!(options && options.advancedMode);
       const commercialMode = !!(options && options.commercialMode);
-      const showTechnicalDetails = advancedMode || (!commercialMode && audit);
+      const showTechnicalDetails = advancedMode || !!audit;
       const addFact = function (target, label, value) { if (value !== undefined && value !== null && value !== "") target.push(label + ": " + value); };
       const areaLabel = state.areaM2 > 0 ? formatEloOperationalQuantity_(state.areaM2) + " m2" : "";
       const localLabel = [state.city, state.state].filter(Boolean).join("/");
@@ -16806,7 +16873,7 @@
         ? "Consigo montar uma estimativa preliminar para essa casa" + (areaLabel ? " de " + areaLabel : "") + "."
         : "Resumo da estimativa preliminar da casa" + (areaLabel ? " de " + areaLabel : "") + ".";
       const inheritedMemoryLine = inherited.length ? "Memoria: vou continuar usando os dados anteriores: " + inherited.slice(0, 4).join("; ") + "." : "";
-      const wantsDetailedResidential = advancedMode || /detalhe|detalhar|composi[c?][a?]o|mem[o?]ria\s+de\s+c[a?]lculo|item\s+por\s+item|planilha|sinapi|orse|modo\s+avan[c?]ado/.test(normalizeText(options && options.originalMessage || ""));
+      const wantsDetailedResidential = advancedMode || !!audit || /detalhe|detalhar|composi[c?][a?]o|mem[o?]ria\s+de\s+c[a?]lculo|item\s+por\s+item|planilha|sinapi|orse|modo\s+avan[c?]ado/.test(normalizeText(options && options.originalMessage || ""));
       if (!wantsDetailedResidential) {
         const shortLines = [intro, "", "ELO ORCAMENTISTA V2"];
         if (inheritedMemoryLine) shortLines.push(inheritedMemoryLine);
@@ -16845,8 +16912,11 @@
         lines.push("", missingForUser.length ? "Escopo preliminar:" : "Escopo preliminar / Macroetapas resumidas:");
         scopeItems.slice(0, 11).forEach(function (item) { lines.push("- " + item.label); });
       }
-      this.appendResidentialPremisesLines_(lines, residentialPremises, advancedMode);
-      appendEloResidentialQuantitativeLines_(lines, state, residentialPremises);
+      const isExecutiveNonResidentialAudit = audit && /galpao_metalico|reforma_banheiro|muro_arrimo/.test(String(audit.typology || ""));
+      if (!isExecutiveNonResidentialAudit) {
+        this.appendResidentialPremisesLines_(lines, residentialPremises, advancedMode);
+        appendEloResidentialQuantitativeLines_(lines, state, residentialPremises);
+      }
       if ((showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
         lines.push("", "Auditoria tecnica V3:");
         if (audit && !audit.error) {
@@ -16920,6 +16990,16 @@
       }
       lines.push("", "Dados que faltam:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado essencial pendente para a previa.", "", "Proximo passo:", missing.length ? "- Confirme " + missing.slice(0, 5).join(", ") + "." : "- Posso seguir para composicoes oficiais e BDI.");
       if (options.advancedMode) lines.push("", "Premissas tecnicas:", "- Validar impermeabilizacao, caimentos, ralos, registros, pontos hidraulicos/eletricos, loucas, metais e revestimentos.");
+      const audit = options && options.budgetPackage && options.budgetPackage.executiveAudit || null;
+      if (audit && !audit.error) {
+        lines.push("", "Auditoria tecnica V3:");
+        lines.push("- Tipologia identificada: " + (audit.typology || "reforma_banheiro"));
+        lines.push("- Ready for cost: " + (audit.readyForCost ? "true" : "false"));
+        if (audit.disciplines && audit.disciplines.length) lines.push("- Disciplinas-chave: " + audit.disciplines.slice(0, 8).join(", "));
+        if (audit.missingPremises && audit.missingPremises.length) lines.push("- Premissas faltantes: " + audit.missingPremises.slice(0, 8).join(", "));
+        if (audit.pendencias && audit.pendencias.length) lines.push("- Pendencias principais: " + audit.pendencias.slice(0, 3).join("; "));
+        if (audit.checklist && audit.checklist.length) lines.push("- Checklist tecnico: " + audit.checklist.slice(0, 6).map(function (item) { return (item.label || item.id) + " (" + item.status + ")"; }).join("; "));
+      }
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
@@ -17090,7 +17170,7 @@
       if (previous.type === "technical_composition" && this.isTechnicalCompositionMemorialIntent_(text)) return this.buildTechnicalCompositionMemorialResponse_(previous);
       const advancedDetailsIntent = this.isAdvancedDetailsIntent_(text);
       if (advancedDetailsIntent && previous.type && previous.type !== "wall") {
-        const advancedPackage = this.budgetEngineAdapter.adapt(previous, context);
+        const advancedPackage = this.enrichBudgetPackageWithExecutiveAudit_(previous, this.budgetEngineAdapter.adapt(previous, context), context, message);
         return this.buildBudgetResponse(previous, advancedPackage, { advancedMode: true, commercialMode: false, originalMessage: message });
       }
       const isBudgetIntent = this.detectBudgetIntent(message);
@@ -17110,7 +17190,7 @@
         ELO_SESSION_MEMORY.budgetOrchestratorV2 = confirmedState;
         if (confirmedState.type === "technical_composition") return this.buildTechnicalCompositionResponse_(confirmedState);
         if (confirmedState.type === "wall") return this.buildWallQuantitativeResponse_(confirmedState) || this.buildWallBriefingResponse_(confirmedState);
-        const confirmedPackage = this.budgetEngineAdapter.adapt(confirmedState, context);
+        const confirmedPackage = this.enrichBudgetPackageWithExecutiveAudit_(confirmedState, this.budgetEngineAdapter.adapt(confirmedState, context), context, message);
         confirmedState.services = confirmedPackage.scope || [];
         const confirmedCommercialMode = confirmedState.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text);
         return this.buildBudgetResponse(confirmedState, confirmedPackage, { advancedMode: this.isAdvancedDetailsIntent_(text), commercialMode: confirmedCommercialMode, originalMessage: message });
@@ -17138,7 +17218,7 @@
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
       if (next.type === "technical_composition") return this.buildTechnicalCompositionResponse_(next);
       if (next.type === "wall") return this.buildWallQuantitativeResponse_(next) || buildEloWallPremiseCollectionResponse_(message) || buildEloWallCompletePackageQuickAnswer_(message) || buildEloWallServiceAnswer_(message) || this.buildWallBriefingResponse_(next);
-      const budgetPackage = this.budgetEngineAdapter.adapt(next, context);
+      const budgetPackage = this.enrichBudgetPackageWithExecutiveAudit_(next, this.budgetEngineAdapter.adapt(next, context), context, message);
       next.services = budgetPackage.scope || [];
       return this.buildBudgetResponse(next, budgetPackage, { advancedMode: advancedDetailsIntent, commercialMode: next.presentationMode === "commercial" || this.isCommercialBudgetRequest_(text), originalMessage: message });
     }
@@ -17157,6 +17237,14 @@
       }
     }
     return getEloBudgetOrchestratorV2_().handle(message, { eloContext: getEloContext() });
+  }
+  function isEloExecutiveBudgetV2PriorityQuestion_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    const hasResidentialSubject = text.indexOf("casa") >= 0 || text.indexOf("residencial") >= 0 || text.indexOf("residencia") >= 0 || text.indexOf("sobrado") >= 0 || text.indexOf("terrea") >= 0 || text.indexOf("t?rrea") >= 0 || text.indexOf("t.rrea") >= 0;
+    const hasResidentialArea = hasResidentialSubject && /\d/.test(text) && !/parede|alvenaria|bloco|tijolo/.test(text);
+    const hasExecutiveTypologyBudget = /orcamento|or?amento|orcar|or?ar|quanto\s+custa|quanto\s+fica|estimativa|preliminar/.test(text) && /galpao\s+metalico|galp[a?]o\s+metalico|reforma\s+de\s+banheiro/.test(text);
+    return hasResidentialArea || hasExecutiveTypologyBudget;
   }
   const ELO_BRAIN_CONTEXT = { technical: { facts: {}, services: {}, audit: {} } };
   function attachEloTechnicalBrainMarker_(response, reason) {
@@ -17216,6 +17304,14 @@
       return currentBudgetPdfAnswer;
     }
 
+    if (isEloExecutiveBudgetV2PriorityQuestion_(cleanQuestion)) {
+      const priorityExecutiveBudgetV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (priorityExecutiveBudgetV2Answer) {
+        attachEloTechnicalBrainMarker_(priorityExecutiveBudgetV2Answer, "orcamentista v2 auditoria executiva");
+        rememberEloBudgetSource_(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetV2Answer.fullAnswer || priorityExecutiveBudgetV2Answer.shortAnswer || "");
+        return priorityExecutiveBudgetV2Answer;
+      }
+    }
     if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedQuestion) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
       return buildEloWorkMemorySavedAnswer_(cleanQuestion);
     }
@@ -17244,6 +17340,14 @@
       return urgentPathologyRiskAnswer;
     }
 
+    if (isEloExecutiveBudgetV2PriorityQuestion_(cleanQuestion)) {
+      const priorityExecutiveBudgetV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (priorityExecutiveBudgetV2Answer) {
+        attachEloTechnicalBrainMarker_(priorityExecutiveBudgetV2Answer, "orcamentista v2 auditoria executiva");
+        rememberEloBudgetSource_(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetV2Answer.fullAnswer || priorityExecutiveBudgetV2Answer.shortAnswer || "");
+        return priorityExecutiveBudgetV2Answer;
+      }
+    }
     const priorityServiceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "service_priority");
     if (priorityServiceBudgetAnswer) {
       attachEloTechnicalBrainMarker_(priorityServiceBudgetAnswer, "orcamentista preliminar generico");
@@ -17342,6 +17446,14 @@
     if (residentialBudgetFlowAnswer) {
       rememberEloBudgetSource_(cleanQuestion, residentialBudgetFlowAnswer, residentialBudgetFlowAnswer.fullAnswer || residentialBudgetFlowAnswer.shortAnswer || "");
       return residentialBudgetFlowAnswer;
+    }
+    if (isEloExecutiveBudgetV2PriorityQuestion_(cleanQuestion)) {
+      const priorityExecutiveBudgetV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (priorityExecutiveBudgetV2Answer) {
+        attachEloTechnicalBrainMarker_(priorityExecutiveBudgetV2Answer, "orcamentista v2 auditoria executiva");
+        rememberEloBudgetSource_(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetV2Answer.fullAnswer || priorityExecutiveBudgetV2Answer.shortAnswer || "");
+        return priorityExecutiveBudgetV2Answer;
+      }
     }
     if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedQuestion) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
       return buildEloWorkMemorySavedAnswer_(cleanQuestion);
@@ -19761,6 +19873,8 @@
   function buildResponse(question) {
     const urgentPathologyRiskAnswer = buildEloUrgentPathologyRiskAnswer_(question);
     if (urgentPathologyRiskAnswer) return applyEloBrainMarker_(question, urgentPathologyRiskAnswer);
+    const priorityExecutiveBudgetV2Answer = isEloExecutiveBudgetV2PriorityQuestion_(question) ? buildEloBudgetOrchestratorV2Answer_(question) : null;
+    if (priorityExecutiveBudgetV2Answer) return applyEloBrainMarker_(question, priorityExecutiveBudgetV2Answer);
     const serviceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(question, "service_priority");
     if (serviceBudgetAnswer) return applyEloBrainMarker_(question, serviceBudgetAnswer);
     const priorityGeometryAnswer = buildEloGeometryLayerAnswer_(question);
@@ -19829,6 +19943,20 @@
       clearProductAttachmentPreview();
       return;
     }
+    if (isEloExecutiveBudgetV2PriorityQuestion_(cleanQuestion)) {
+      const priorityExecutiveBudgetV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (priorityExecutiveBudgetV2Answer) {
+        attachEloTechnicalBrainMarker_(priorityExecutiveBudgetV2Answer, "orcamentista v2 auditoria executiva");
+        rememberEloBudgetSource_(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetV2Answer.fullAnswer || priorityExecutiveBudgetV2Answer.shortAnswer || "");
+        const priorityExecutiveBudgetText = formatResponse(priorityExecutiveBudgetV2Answer);
+        appendAssistantMessage(cleanQuestion, priorityExecutiveBudgetText, priorityExecutiveBudgetV2Answer.canSave !== false, priorityExecutiveBudgetV2Answer);
+        saveConversation(cleanQuestion, priorityExecutiveBudgetText);
+        rememberSessionTurn(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetText);
+        clearProductAttachmentPreview();
+        return;
+      }
+    }
+
     if (/\b(minha\s+obra|obra\s+atual|salve|salvar|lembre|atualize\s+cidade|atualizar\s+cidade)\b/.test(normalizedCleanQuestionForBudget) && isEloWorkMemoryOnlyMessage_(cleanQuestion)) {
       const workMemoryOnlyAnswer = buildEloWorkMemorySavedAnswer_(cleanQuestion);
       const workMemoryOnlyText = formatResponse(workMemoryOnlyAnswer);
@@ -19859,6 +19987,19 @@
       return;
     }
 
+    if (isEloExecutiveBudgetV2PriorityQuestion_(cleanQuestion)) {
+      const priorityExecutiveBudgetV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (priorityExecutiveBudgetV2Answer) {
+        attachEloTechnicalBrainMarker_(priorityExecutiveBudgetV2Answer, "orcamentista v2 auditoria executiva");
+        rememberEloBudgetSource_(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetV2Answer.fullAnswer || priorityExecutiveBudgetV2Answer.shortAnswer || "");
+        const priorityExecutiveBudgetText = formatResponse(priorityExecutiveBudgetV2Answer);
+        appendAssistantMessage(cleanQuestion, priorityExecutiveBudgetText, priorityExecutiveBudgetV2Answer.canSave !== false, priorityExecutiveBudgetV2Answer);
+        saveConversation(cleanQuestion, priorityExecutiveBudgetText);
+        rememberSessionTurn(cleanQuestion, priorityExecutiveBudgetV2Answer, priorityExecutiveBudgetText);
+        clearProductAttachmentPreview();
+        return;
+      }
+    }
     const priorityGenericPreliminaryBudgetUiAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "ui_priority");
     if (priorityGenericPreliminaryBudgetUiAnswer) {
       attachEloTechnicalBrainMarker_(priorityGenericPreliminaryBudgetUiAnswer, "orcamentista preliminar generico");

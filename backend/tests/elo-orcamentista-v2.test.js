@@ -24,7 +24,7 @@ function createStorage(initial = {}) {
 }
 
 function loadAssistant(pathname = "/elo.html", options = {}) {
-  const calls = { router: 0, technical: 0, composition: 0, budgetEngine: 0 };
+  const calls = { router: 0, technical: 0, composition: 0, budgetEngine: 0, executiveBudgetEngine: 0 };
   const clipboardWrites = [];
   const sandbox = {
     console,
