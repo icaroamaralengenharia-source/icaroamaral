@@ -759,7 +759,7 @@ function mockExecutiveBudgetV3(input) {
   };
 }
 
-test("Orcamentista V2 conecta auditor V3 no orçamento residencial", () => {
+test("Orcamentista V2 conecta auditor V3 no orï¿½amento residencial", () => {
   const { assistant, calls } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
   const response = assistant.buildResponseForTest("Quero orcamento residencial preliminar");
 
@@ -772,7 +772,7 @@ test("Orcamentista V2 conecta auditor V3 no orçamento residencial", () => {
 
 test("Orcamentista V2 casa terrea 70m2 retorna estrutura tecnica V3", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
-  const response = assistant.buildResponseForTest("casa terrea 70m²");
+  const response = assistant.buildResponseForTest("casa terrea 70mï¿½");
 
   assert.match(response.fullAnswer, /Auditoria tecnica V3/i);
   assert.match(response.fullAnswer, /fundacao/i);
@@ -782,7 +782,7 @@ test("Orcamentista V2 casa terrea 70m2 retorna estrutura tecnica V3", () => {
 
 test("Orcamentista V2 sobrado 140m2 exige escada laje e estrutura no auditor V3", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
-  const response = assistant.buildResponseForTest("sobrado 140m²");
+  const response = assistant.buildResponseForTest("sobrado 140mï¿½");
 
   assert.match(response.fullAnswer, /Tipologia identificada: sobrado/i);
   assert.match(response.fullAnswer, /escada, laje e compatibilidade estrutural/i);
@@ -818,4 +818,23 @@ test("Orcamentista V2 mantem fallback antigo quando auditor V3 indisponivel", ()
   assert.equal(pack.executiveAudit, null);
   assert.match(response.fullAnswer, /Escopo preliminar/i);
   assert.doesNotMatch(response.fullAnswer, /Auditoria tecnica V3/i);
+});
+
+
+test("Memoria curta salva cadastro de obra sem abrir orcamento e reutiliza na produtividade", () => {
+  const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const cadastro = assistant.buildResponseForTest("Minha obra Residencial Alfa fica em Vitoria da Conquista-BA e tem 120 m2.");
+
+  assert.match(cadastro.fullAnswer, /Residencial Alfa/i);
+  assert.match(cadastro.fullAnswer, /Vit.ria da Conquista|Vitoria da Conquista/i);
+  assert.match(cadastro.fullAnswer, /120/i);
+  assert.doesNotMatch(cadastro.fullAnswer, /Or?amento preliminar|Orcamento preliminar/i);
+  assert.doesNotMatch(cadastro.fullAnswer, /Valor unit.rio|Mem.ria de c.lculo/i);
+
+  const produtividade = assistant.buildResponseForTest("Qual produtividade da equipe?");
+  assert.match(produtividade.fullAnswer, /Residencial Alfa/i);
+  assert.match(produtividade.fullAnswer, /Vit.ria da Conquista|Vitoria da Conquista/i);
+  assert.match(produtividade.fullAnswer, /composi??o validada|composicao validada|SINAPI|ORSE/i);
+  assert.match(produtividade.fullAnswer, /n?o vou tratar produtividade|nao vou tratar produtividade|n?o.*oficial|nao.*oficial/i);
+  assert.doesNotMatch(produtividade.fullAnswer, /gastando muito cimento/i);
 });

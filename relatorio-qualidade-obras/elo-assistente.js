@@ -934,6 +934,7 @@
           tipo_obra: "não informado",
           padrao_construtivo: "não informado",
           etapa_atual: "não informada",
+          ultimo_assunto_tecnico: "",
           materiais_citados: [],
           dimensoes_recorrentes: [],
           updatedAt: ""
@@ -958,6 +959,7 @@
         tipo_obra: sanitizeUserText(item.tipo_obra) || "não informado",
         padrao_construtivo: sanitizeUserText(item.padrao_construtivo) || "não informado",
         etapa_atual: sanitizeUserText(item.etapa_atual) || "não informada",
+        ultimo_assunto_tecnico: sanitizeUserText(item.ultimo_assunto_tecnico) || "",
         materiais_citados: Array.isArray(item.materiais_citados) ? item.materiais_citados.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
         dimensoes_recorrentes: Array.isArray(item.dimensoes_recorrentes) ? item.dimensoes_recorrentes.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
         updatedAt: sanitizeUserText(item.updatedAt) || ""
@@ -1013,7 +1015,7 @@
     if (switchMatch) {
       facts.switchProject = true;
     }
-    if (nameCandidate && !/\b(?:essa|dessa|nesta|nessa|daquela|para|sem|perder|contexto|atual)\b/i.test(nameCandidate) && !/fica|tem|com|padrao|area|terrea|térrea|\d|m2|m²/i.test(normalizeText(nameCandidate))) {
+    if (nameCandidate && !/\b(?:essa|dessa|nesta|nessa|daquela|para|sem|perder|contexto|atual|est[a?]|gastando|consumindo|cimento|bloco|tijolo|areia|brita|argamassa|concreto|telha|tinta)\b/i.test(nameCandidate) && !/fica|tem|com|padrao|area|terrea|térrea|\d|m2|m²/i.test(normalizeText(nameCandidate))) {
       facts.nome = sanitizeUserText(nameCandidate)
         .replace(/\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer)\b.*$/i, "")
         .replace(/\s+(?:fica|em|tem|com|esta|e)\b.*$/i, "");
@@ -1023,7 +1025,7 @@
       facts.cidade = sanitizeUserText(cityUfMatch[1]).replace(/\s+$/, "");
       facts.uf = sanitizeUserText(cityUfMatch[2]).toUpperCase();
     }
-    const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|metros?\s+quadrados?)/i);
+    const areaMatch = raw.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|m\?|metros?\s+quadrados?)/i);
     if (areaMatch) {
       const beforeArea = raw.slice(Math.max(0, areaMatch.index - 40), areaMatch.index).toLowerCase();
       if (!/portas?|janelas?|v[ãa]os?|aberturas?/.test(beforeArea)) {
@@ -1175,6 +1177,15 @@
     return null;
   }
 
+  function isEloWorkMemoryRegistrationMessage_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    if (/orcamento|or?amento|orcar|or?ar|quanto\s+custa|valor|preco|pre?o|estimativa|custo/.test(text)) return false;
+    const facts = extractEloWorkMemoryFacts_(message);
+    if (!hasEloWorkMemoryFacts_(facts)) return false;
+    return /\b(?:minha\s+obra|a\s+obra|essa\s+obra|esta\s+obra|obra:|o\s+projeto|projeto|residencia|resid?ncia|casa|salve|registre|anote)\b/.test(text) && (facts.nome || facts.cidade || facts.uf || facts.area_m2 || facts.tipo_obra || facts.padrao_construtivo || facts.etapa_atual);
+  }
+
   function isEloWorkMemoryOnlyMessage_(message) {
     const text = normalizeText(message || "");
     if (typeof parseEloResidentialBudgetPackageRequest_ === "function" && parseEloResidentialBudgetPackageRequest_(message)) {
@@ -1227,7 +1238,7 @@
     };
   }
   function updateEloWorkMemoryFromMessage_(message) {
-    if (!isEloConstructionTechnicalQuestion_(message)) {
+    if (!isEloConstructionTechnicalQuestion_(message) && !isEloWorkMemoryRegistrationMessage_(message)) {
       return getActiveEloWorkProject_();
     }
     const facts = extractEloWorkMemoryFacts_(message);
@@ -1251,6 +1262,9 @@
     (facts.dimensoes_recorrentes || []).forEach(function (item) {
       active.dimensoes_recorrentes = pushUniqueEloWorkMemoryItem_(active.dimensoes_recorrentes, item);
     });
+    if (!facts.nome && !facts.cidade && !facts.area_m2 && (facts.materiais_citados || []).length) {
+      active.ultimo_assunto_tecnico = "materiais: " + (facts.materiais_citados || []).slice(0, 4).join(", ");
+    }
     if (hasFacts) {
       active.updatedAt = new Date().toISOString();
       memory.projects[memory.activeProjectId] = active;
@@ -17241,6 +17255,7 @@
   function isEloExecutiveBudgetV2PriorityQuestion_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
+    if (isEloWorkMemoryRegistrationMessage_(message)) return false;
     const hasResidentialSubject = text.indexOf("casa") >= 0 || text.indexOf("residencial") >= 0 || text.indexOf("residencia") >= 0 || text.indexOf("sobrado") >= 0 || text.indexOf("terrea") >= 0 || text.indexOf("t?rrea") >= 0 || text.indexOf("t.rrea") >= 0;
     const hasResidentialArea = hasResidentialSubject && /\d/.test(text) && !/parede|alvenaria|bloco|tijolo/.test(text);
     const hasExecutiveTypologyBudget = /orcamento|or?amento|orcar|or?ar|quanto\s+custa|quanto\s+fica|estimativa|preliminar/.test(text) && /galpao\s+metalico|galp[a?]o\s+metalico|reforma\s+de\s+banheiro/.test(text);
