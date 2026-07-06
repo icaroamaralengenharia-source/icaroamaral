@@ -112,6 +112,45 @@ test("IntentRouter faz triagem de rachadura sem pedir tipo de bloco", () => {
   assertNoTechnicalCalls(calls);
 });
 
+test("IntentRouter prioriza patologia antes de orcamento ou alvenaria", () => {
+  const { assistant, calls } = loadAssistant();
+  const messages = [
+    "tenho infiltracao na parede",
+    "parede com umidade subindo",
+    "apareceu mofo no quarto",
+    "tem uma trinca perto da janela",
+    "fissura na parede da sala",
+    "quanto custa consertar rachadura?",
+    "vazamento no banheiro"
+  ];
+
+  messages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(response.fullAnswer, /Triagem|vistoria|causas|verificar|Possiveis causas|Possíveis causas/i, message);
+    assert.doesNotMatch(response.fullAnswer, /Servico controlado identificado|tipo de bloco|composicao SINAPI|orçamento assistido de alvenaria/i, message);
+  });
+  assertNoTechnicalCalls(calls);
+});
+test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const pathologyIndex = source.indexOf("const immediatePathologyResponse = buildEloConstructionPathologyAnswer_(cleanQuestion);");
+  const wallIndex = source.indexOf("const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);");
+
+  assert.notEqual(pathologyIndex, -1);
+  assert.notEqual(wallIndex, -1);
+  assert.ok(pathologyIndex < wallIndex);
+});
+test("IntentRouter captura patologia no chat minimo antes do submit comum", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const captureIndex = source.indexOf("form.dataset.eloPathologyCaptureBound");
+  const regularIndex = source.indexOf("form.dataset.eloEngineBound", captureIndex);
+
+  assert.notEqual(captureIndex, -1);
+  assert.notEqual(regularIndex, -1);
+  assert.ok(captureIndex < regularIndex);
+});
 test("IntentRouter encaminha proposta e PDF sem busca SINAPI", () => {
   const { assistant, calls } = loadAssistant();
   const proposal = assistant.buildResponseForTest("Gerar proposta tecnica para cliente.");

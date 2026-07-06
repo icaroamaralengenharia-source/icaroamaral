@@ -70,6 +70,18 @@ function loadAssistant(pathname = "/elo.html", options = {}) {
       }
     }
   };
+  if (options.executiveBudgetEngine) {
+    sandbox.window.EloExecutiveBudgetEngine = {
+      version: "test-v3",
+      buildResidentialExecutiveBudget(input) {
+        calls.executiveBudgetEngine += 1;
+        return options.executiveBudgetEngine(input);
+      },
+      classifyProjectTypology(input) {
+        return options.executiveBudgetEngine(input).typologyRouting.typology;
+      }
+    };
+  }
   if (options.budgetEngine) {
     sandbox.window.EloBudgetEngine = {
       buildPreliminaryBudget(projectFacts, technicalContext) {
@@ -715,4 +727,95 @@ test("BudgetEngineAdapter mantem fallback quando EloBudgetEngine nao esta dispon
   assert.equal(pack.engineCalled, false);
   assert.ok(pack.scope.length >= 5);
   assert.match(response.fullAnswer, /pendente de composicao SINAPI\/ORSE oficial/i);
+});
+
+function mockExecutiveBudgetV3(input) {
+  const type = input && input.project && input.project.type || "desconhecida";
+  const typology = type === "sobrado" ? "sobrado" : type === "galpao_metalico" ? "galpao_metalico" : type === "reforma_banheiro" ? "reforma_banheiro" : type === "muro_arrimo" ? "muro_arrimo" : type === "ampliacao_residencial" ? "ampliacao_residencial" : type === "desconhecida" || type === "unknown" ? "desconhecida" : "residencia_nova";
+  const disciplinesByType = {
+    residencia_nova: ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes_hidraulicas", "instalacoes_eletricas", "revestimentos", "pintura"],
+    sobrado: ["fundacao", "estrutura", "alvenaria", "cobertura", "instalacoes_hidraulicas", "instalacoes_eletricas", "revestimentos", "pintura"],
+    galpao_metalico: ["fundacao", "estrutura_metalica", "piso_industrial", "fechamento_metalico", "cobertura", "drenagem"],
+    reforma_banheiro: ["demolicao", "instalacoes_hidraulicas", "impermeabilizacao", "revestimentos", "loucas", "metais"],
+    desconhecida: []
+  };
+  const pendencias = typology === "sobrado" ? [{ id: "sobrado", message: "Confirmar escada, laje e compatibilidade estrutural do sobrado." }] : typology === "galpao_metalico" ? [{ id: "galpao", message: "Motor de galpao metalico ainda nao possui quantitativos completos." }] : typology === "reforma_banheiro" ? [{ id: "banheiro", message: "Detalhar demolicao, pontos hidraulicos, loucas e metais." }] : [];
+  return {
+    typologyRouting: {
+      typology,
+      label: typology,
+      applicableDisciplines: disciplinesByType[typology] || [],
+      pendencias,
+      readyForCost: false
+    },
+    premissas: [
+      { id: "city", label: "cidade", ok: Boolean(input && input.project && input.project.city) },
+      { id: "standard", label: "padrao construtivo", ok: Boolean(input && input.project && input.project.standard) },
+      { id: "foundationType", label: "tipo de fundacao", ok: false }
+    ],
+    pendencias,
+    checklist: (disciplinesByType[typology] || []).map((id) => ({ id, label: id, status: "parcial" })),
+    readyForCost: false
+  };
+}
+
+test("Orcamentista V2 conecta auditor V3 no orçamento residencial", () => {
+  const { assistant, calls } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const response = assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+
+  assert.equal(calls.executiveBudgetEngine, 1);
+  assert.match(response.fullAnswer, /Auditoria tecnica V3/i);
+  assert.match(response.fullAnswer, /Tipologia identificada: residencia_nova/i);
+  assert.match(response.fullAnswer, /Ready for cost: false/i);
+  assert.doesNotMatch(response.fullAnswer, /R\$\s*\d/i);
+});
+
+test("Orcamentista V2 casa terrea 70m2 retorna estrutura tecnica V3", () => {
+  const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const response = assistant.buildResponseForTest("casa terrea 70m²");
+
+  assert.match(response.fullAnswer, /Auditoria tecnica V3/i);
+  assert.match(response.fullAnswer, /fundacao/i);
+  assert.match(response.fullAnswer, /alvenaria/i);
+  assert.match(response.fullAnswer, /Premissas faltantes/i);
+});
+
+test("Orcamentista V2 sobrado 140m2 exige escada laje e estrutura no auditor V3", () => {
+  const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const response = assistant.buildResponseForTest("sobrado 140m²");
+
+  assert.match(response.fullAnswer, /Tipologia identificada: sobrado/i);
+  assert.match(response.fullAnswer, /escada, laje e compatibilidade estrutural/i);
+  assert.match(response.fullAnswer, /Ready for cost: false/i);
+});
+
+test("Orcamentista V2 galpao metalico nao vira residencia", () => {
+  const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const response = assistant.buildResponseForTest("orcamento completo de galpao metalico 300 m2");
+
+  assert.match(response.fullAnswer, /Tipologia identificada: galpao_metalico/i);
+  assert.match(response.fullAnswer, /estrutura_metalica/i);
+  assert.doesNotMatch(response.fullAnswer, /loucas|metais/i);
+});
+
+test("Orcamentista V2 reforma de banheiro nao vira obra nova", () => {
+  const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
+  const response = assistant.buildResponseForTest("orcamento completo para reforma de banheiro");
+
+  assert.match(response.fullAnswer, /Tipologia identificada: reforma_banheiro/i);
+  assert.match(response.fullAnswer, /demolicao/i);
+  assert.match(response.fullAnswer, /impermeabilizacao/i);
+  assert.doesNotMatch(response.fullAnswer, /fundacao complementar|estrutura_metalica/i);
+});
+
+test("Orcamentista V2 mantem fallback antigo quando auditor V3 indisponivel", () => {
+  const { assistant, calls } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar");
+  const response = assistant.buildResponseForTest("120 m2 em Vitoria da Conquista, BA, padrao medio");
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+
+  assert.equal(calls.executiveBudgetEngine, 0);
+  assert.equal(pack.executiveAudit, null);
+  assert.match(response.fullAnswer, /Escopo preliminar/i);
+  assert.doesNotMatch(response.fullAnswer, /Auditoria tecnica V3/i);
 });
