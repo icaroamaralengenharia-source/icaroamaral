@@ -12141,7 +12141,7 @@
   }
   function isEloBudgetCostIntent_(message) {
     const text = normalizeText(message || "");
-    return /orcamento|orçamento|orcar|orçar|orce|estimativa|estimar|custo|custar|quanto\s+custa|preco|preço|valor/.test(text);
+    return /orcamento|orÃ§amento|orcar|orÃ§ar|orce|estimativa|estimar|custo|custar|quanto\s+custa|quanto\s+(?:mais\s+ou\s+menos\s+)?(?:vai\s+)?ficar|vai\s+ficar|preco|preÃ§o|valor/.test(text);
   }
 
   function isEloResidentialExpansionBudgetQuestion_(message) {
@@ -17150,6 +17150,12 @@
   }
 
   function buildEloBudgetOrchestratorV2Answer_(message) {
+    if (isEloResidentialExpansionBudgetQuestion_(message)) {
+      const expansionProfessionalAnswer = buildEloGenericPreliminaryBudgetAnswer_(message, "budget_v2_expansion_guard");
+      if (expansionProfessionalAnswer) {
+        return expansionProfessionalAnswer;
+      }
+    }
     return getEloBudgetOrchestratorV2_().handle(message, { eloContext: getEloContext() });
   }
   const ELO_BRAIN_CONTEXT = { technical: { facts: {}, services: {}, audit: {} } };
@@ -17277,8 +17283,9 @@
       }
     }
 
+
     const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
-    const hasNonWallServiceQuestion = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedQuestion) && !/parede|muro|alvenaria|bloco|tijolo|chapisco|reboco|embo[c?]o/.test(normalizedQuestion);
+    const hasNonWallServiceQuestion = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedQuestion);
     const hasExplicitWallQuestion = /parede|alvenaria|bloco|tijolo/.test(normalizedQuestion) && !hasNonWallServiceQuestion;
     const continuesWallQuestion = activeBudgetV2State && activeBudgetV2State.type === "wall" && /continua|continuar|com\s+base\s+nisso|nisso|mesma\s+parede|parede\s+anterior|aquela\s+parede|aquele\s+orcamento|or[c?]amento\s+anterior/.test(normalizedQuestion);
     const shouldPrioritizeWallBudgetV2 = hasExplicitWallQuestion || (continuesWallQuestion && /\d/.test(normalizedQuestion));
@@ -19841,6 +19848,28 @@
       return;
     }
 
+    const urgentPathologyRiskUiAnswer = buildEloUrgentPathologyRiskAnswer_(cleanQuestion);
+    if (urgentPathologyRiskUiAnswer) {
+      attachEloTechnicalBrainMarker_(urgentPathologyRiskUiAnswer, "patologia risco ui");
+      const urgentPathologyRiskText = formatResponse(urgentPathologyRiskUiAnswer);
+      appendAssistantMessage(cleanQuestion, urgentPathologyRiskText, false, urgentPathologyRiskUiAnswer);
+      saveConversation(cleanQuestion, urgentPathologyRiskText);
+      rememberSessionTurn(cleanQuestion, urgentPathologyRiskUiAnswer, urgentPathologyRiskText);
+      clearProductAttachmentPreview();
+      return;
+    }
+
+    const priorityGenericPreliminaryBudgetUiAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "ui_priority");
+    if (priorityGenericPreliminaryBudgetUiAnswer) {
+      attachEloTechnicalBrainMarker_(priorityGenericPreliminaryBudgetUiAnswer, "orcamentista preliminar generico");
+      rememberEloBudgetSource_(cleanQuestion, priorityGenericPreliminaryBudgetUiAnswer, priorityGenericPreliminaryBudgetUiAnswer.fullAnswer || priorityGenericPreliminaryBudgetUiAnswer.shortAnswer || "");
+      const priorityGenericPreliminaryBudgetText = formatResponse(priorityGenericPreliminaryBudgetUiAnswer);
+      appendAssistantMessage(cleanQuestion, priorityGenericPreliminaryBudgetText, priorityGenericPreliminaryBudgetUiAnswer.canSave !== false, priorityGenericPreliminaryBudgetUiAnswer);
+      saveConversation(cleanQuestion, priorityGenericPreliminaryBudgetText);
+      rememberSessionTurn(cleanQuestion, priorityGenericPreliminaryBudgetUiAnswer, priorityGenericPreliminaryBudgetText);
+      clearProductAttachmentPreview();
+      return;
+    }
     const activeBudgetV2State = ELO_SESSION_MEMORY && ELO_SESSION_MEMORY.budgetOrchestratorV2 ? ELO_SESSION_MEMORY.budgetOrchestratorV2 : null;
     if (activeBudgetV2State && activeBudgetV2State.type && isEloBudgetV2CompatibleUpdateMessage_(cleanQuestion)) {
       const updateBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
@@ -19855,7 +19884,7 @@
         return;
       }
     }
-    const hasNonWallServiceQuestionForBudget = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedCleanQuestionForBudget) && !/parede|muro|alvenaria|bloco|tijolo|chapisco|reboco|embo[c?]o/.test(normalizedCleanQuestionForBudget);
+    const hasNonWallServiceQuestionForBudget = /pintura|tinta|pintar|piso|ceramica|ceramico|porcelanato|rodape|contrapiso|hidraulica|hidr[a?]ulica|esgoto|ramal|tubo|caixa\s+sifonada|telhado|cobertura|telha|madeiramento|eletrica|el[e?]trica|tomada|interruptor|quadro|cabo|laje|radier/.test(normalizedCleanQuestionForBudget);
     const hasExplicitWallQuestionForBudget = /parede|alvenaria|bloco|tijolo/.test(normalizedCleanQuestionForBudget) && !hasNonWallServiceQuestionForBudget;
     const continuesWallQuestionForBudget = activeBudgetV2State && activeBudgetV2State.type === "wall" && /continua|continuar|com\s+base\s+nisso|nisso|mesma\s+parede|parede\s+anterior|aquela\s+parede|aquele\s+orcamento|or[c?]amento\s+anterior/.test(normalizedCleanQuestionForBudget);
     const shouldPrioritizeWallBudgetV2 = hasExplicitWallQuestionForBudget || (continuesWallQuestionForBudget && /\d/.test(normalizedCleanQuestionForBudget));
@@ -20295,6 +20324,16 @@
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
       };
+    }
+
+    const urgentPathologyRiskFallbackAnswer = buildEloUrgentPathologyRiskAnswer_(question);
+    if (urgentPathologyRiskFallbackAnswer) {
+      return urgentPathologyRiskFallbackAnswer;
+    }
+
+    const genericBudgetFallbackAnswer = buildEloGenericPreliminaryBudgetAnswer_(question, "local_fallback");
+    if (genericBudgetFallbackAnswer) {
+      return genericBudgetFallbackAnswer;
     }
 
     const wallContinuationResponse = buildEloWallContinuationAnswer_(question);
@@ -23487,21 +23526,22 @@
     }
 
     function submitMinimalQuestion() {
-      const question = ELO_UI.input.value;
+      const question = input.value;
       const attachmentIntent = detectAttachmentIntent(question);
 
       if (attachmentIntent.type === "image") {
-        ELO_UI.input.value = "";
+        input.value = "";
         analyzeEloImageAttachment_(question, attachmentIntent.file);
         return;
       }
 
+      const publicAsk = window.EloAssistente && typeof window.EloAssistente.ask === "function" ? window.EloAssistente.ask : askElo;
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
-        askElo("Elo, leia este anexo.", ELO_UI.attachments);
+        publicAsk("Elo, leia este anexo.", ELO_UI.attachments);
       } else {
-        askElo(question, ELO_UI.attachments);
+        publicAsk(question, ELO_UI.attachments);
       }
-      ELO_UI.input.value = "";
+      input.value = "";
     }
 
     if (!form.dataset.eloEngineBound) {

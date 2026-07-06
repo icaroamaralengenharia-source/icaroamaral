@@ -740,9 +740,39 @@
     const isOpeningFollowUp = activeBriefing && hasAny_(text, ["porta", "janela", "vao", "vaos"]);
     return !!(elo && typeof elo.buildPremiseQuestionForTest === "function" && (isWallComposition || hasBlockOnlyAnswer || isOpeningFollowUp));
   }
+  function shouldLetEloHandleProfessionalBudgetOrRisk_(question) {
+    const text = normalize_(question);
+    const hasBudgetIntent = hasAny_(text, [
+      "orcamento",
+      "orcar",
+      "estimativa",
+      "preco",
+      "valor",
+      "custo",
+      "quanto custa",
+      "quanto fica",
+      "quanto vai ficar"
+    ]);
+    const hasUrgentRisk = hasAny_(text, [
+      "rachadura abrindo",
+      "abrindo rapido",
+      "risco de queda",
+      "medo de cair",
+      "muro cair",
+      "muro caindo",
+      "cair sobre",
+      "chuva da semana",
+      "chuva recente",
+      "urgente"
+    ]) && hasAny_(text, ["muro", "rachadura", "trinca", "fissura", "divisa"]);
+    return hasBudgetIntent || hasUrgentRisk;
+  }
   function answerStockAiObrasQuestion_(input, event) {
     const question = clean_(input && input.value);
     if (isInstitutionalEloProjectQuestion_(question)) {
+      return false;
+    }
+    if (shouldLetEloHandleProfessionalBudgetOrRisk_(question)) {
       return false;
     }
     if (shouldLetEloHandleStockObrasBriefing_(question)) {
