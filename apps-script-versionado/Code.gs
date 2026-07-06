@@ -540,15 +540,18 @@ function saveImageItems_(items, folder, prefix, requestId) {
   return items.map(function (item) {
     try {
       const photo = item.foto;
-      const bytes = Utilities.base64Decode(photo.base64);
+      const imageData = normalizeReportImage_(photo);
       const fileName =
         prefix +
         "-" +
         item.numero +
         "_" +
-        safeName_(photo.fileName || photo.originalName || "foto.jpg");
+        safeName_(ensureImageFileExtension_(
+          photo.fileName || photo.originalName || "foto.jpg",
+          imageData.mimeType
+        ));
 
-      const blob = Utilities.newBlob(bytes, photo.mimeType, fileName);
+      const blob = Utilities.newBlob(imageData.bytes, imageData.mimeType, fileName);
       const file = folder.createFile(blob);
 
       return {
@@ -573,6 +576,127 @@ function saveImageItems_(items, folder, prefix, requestId) {
   });
 }
 
+function normalizeReportImage_(photo) {
+  if (!photo || !photo.base64) {
+    throw new Error("Imagem sem base64.");
+  }
+
+  const parsed = parseBase64Image_(photo.base64);
+  const bytes = Utilities.base64Decode(parsed.base64);
+
+  if (!bytes || !bytes.length) {
+    throw new Error("Imagem vazia.");
+  }
+
+  const detectedMimeType = detectImageMimeType_(bytes);
+  const payloadMimeType = normalizeImageMimeType_(parsed.mimeType || photo.mimeType);
+
+  if (!detectedMimeType) {
+    throw new Error("Dados invalidos da imagem. O base64 nao contem PNG, JPEG ou WEBP valido.");
+  }
+
+  if (payloadMimeType && payloadMimeType !== detectedMimeType) {
+    photo.mimeType = detectedMimeType;
+  }
+
+  if (detectedMimeType === "image/webp") {
+    throw new Error("Imagem WEBP nao e renderizada pelo Google Docs. Converta para JPEG antes do envio.");
+  }
+
+  if (!isRenderableDocumentImageMimeType_(detectedMimeType)) {
+    throw new Error("Tipo de imagem nao suportado no PDF: " + detectedMimeType);
+  }
+
+  return {
+    bytes: bytes,
+    mimeType: detectedMimeType
+  };
+}
+
+function parseBase64Image_(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^data:([^;]+);base64,(.*)$/i);
+  const base64 = (match ? match[2] : raw).replace(/\s/g, "");
+
+  if (!base64) {
+    throw new Error("Base64 da imagem vazio.");
+  }
+
+  return {
+    mimeType: match ? normalizeImageMimeType_(match[1]) : "",
+    base64: base64
+  };
+}
+
+function normalizeImageMimeType_(mimeType) {
+  const value = String(mimeType || "").trim().toLowerCase();
+
+  if (value === "image/jpg") {
+    return "image/jpeg";
+  }
+
+  if (value === "image/jpeg" || value === "image/png" || value === "image/webp") {
+    return value;
+  }
+
+  return "";
+}
+
+function detectImageMimeType_(bytes) {
+  if (
+    bytes.length >= 3 &&
+    byteAt_(bytes, 0) === 0xff &&
+    byteAt_(bytes, 1) === 0xd8 &&
+    byteAt_(bytes, 2) === 0xff
+  ) {
+    return "image/jpeg";
+  }
+
+  if (
+    bytes.length >= 8 &&
+    byteAt_(bytes, 0) === 0x89 &&
+    byteAt_(bytes, 1) === 0x50 &&
+    byteAt_(bytes, 2) === 0x4e &&
+    byteAt_(bytes, 3) === 0x47
+  ) {
+    return "image/png";
+  }
+
+  if (
+    bytes.length >= 12 &&
+    byteAt_(bytes, 0) === 0x52 &&
+    byteAt_(bytes, 1) === 0x49 &&
+    byteAt_(bytes, 2) === 0x46 &&
+    byteAt_(bytes, 3) === 0x46 &&
+    byteAt_(bytes, 8) === 0x57 &&
+    byteAt_(bytes, 9) === 0x45 &&
+    byteAt_(bytes, 10) === 0x42 &&
+    byteAt_(bytes, 11) === 0x50
+  ) {
+    return "image/webp";
+  }
+
+  return "";
+}
+
+function byteAt_(bytes, index) {
+  const value = bytes[index];
+  return value < 0 ? value + 256 : value;
+}
+
+function isRenderableDocumentImageMimeType_(mimeType) {
+  return mimeType === "image/jpeg" || mimeType === "image/png";
+}
+
+function ensureImageFileExtension_(fileName, mimeType) {
+  const safeFileName = String(fileName || "foto").replace(/\.[^.]+$/, "");
+  const extensionByMimeType = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png"
+  };
+
+  return safeFileName + (extensionByMimeType[mimeType] || ".jpg");
+}
 function createDocument_(baseName, report, fotosUnidade, inconformidades, requestId) {
   const doc = DocumentApp.create(baseName + "_doc");
   const body = doc.getBody();
@@ -774,7 +898,7 @@ function appendCoverHeroPhoto_(body, photo, requestId) {
   try {
     const paragraph = cell.getChild(0).asParagraph();
     paragraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-    const image = paragraph.appendInlineImage(photo.blob);
+    const image = appendInlineImageWithFallback_(paragraph, photo.blob, requestId, "cover-hero-photo");
     scaleInlineImageToBox_(image, 430, 170);
   } catch (error) {
     logError_(requestId, error, { stage: "cover-hero-photo" });
@@ -972,7 +1096,7 @@ function appendPhotoGridCell_(cell, item, requestId, maxWidth) {
   try {
     const imageParagraph = cell.appendParagraph("");
     imageParagraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-    const image = imageParagraph.appendInlineImage(item.blob);
+    const image = appendInlineImageWithFallback_(imageParagraph, item.blob, requestId, "foto-unidade-" + item.numero);
     scaleInlineImageToBox_(image, maxWidth || 230, 150);
   } catch (error) {
     logError_(requestId, error, {
@@ -1029,7 +1153,7 @@ function appendPhotoBlock_(body, blob, description, maxWidth, requestId, label) 
     imageParagraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
     imageParagraph.setSpacingAfter(4);
 
-    const image = imageParagraph.appendInlineImage(blob);
+    const image = appendInlineImageWithFallback_(imageParagraph, blob, requestId, label);
     scaleInlineImage_(image, maxWidth);
   } catch (error) {
     logError_(requestId, error, {
@@ -1410,6 +1534,37 @@ function sendEmail_(report, pdfFile, pdfBlob, requestId) {
   });
 }
 
+function appendInlineImageWithFallback_(paragraph, blob, requestId, label) {
+  try {
+    return paragraph.appendInlineImage(blob);
+  } catch (error) {
+    const contentType = blob && blob.getContentType ? String(blob.getContentType() || "") : "";
+
+    if (contentType !== "image/png") {
+      throw error;
+    }
+
+    try {
+      logInfo_(requestId, "PNG recusado pelo DocumentApp; tentando inserir como JPEG.", {
+        stage: "appendInlineImageWithFallback_",
+        label: label
+      });
+
+      const jpegBlob = blob
+        .getAs(MimeType.JPEG)
+        .setName(String(blob.getName ? blob.getName() : "foto").replace(/\.[^.]+$/, "") + ".jpg");
+
+      return paragraph.appendInlineImage(jpegBlob);
+    } catch (fallbackError) {
+      logError_(requestId, fallbackError, {
+        stage: "appendInlineImageWithFallback_:jpeg-fallback",
+        label: label
+      });
+
+      throw error;
+    }
+  }
+}
 function scaleInlineImage_(image, maxWidth) {
   const width = image.getWidth();
   const height = image.getHeight();
@@ -1440,7 +1595,7 @@ function appendInlineImageCentered_(body, blob, maxWidth, maxHeight, requestId, 
     paragraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
     paragraph.setSpacingAfter(10);
 
-    const image = paragraph.appendInlineImage(blob);
+    const image = appendInlineImageWithFallback_(paragraph, blob, requestId, label);
     scaleInlineImageToBox_(image, maxWidth, maxHeight);
     return image;
   } catch (error) {
