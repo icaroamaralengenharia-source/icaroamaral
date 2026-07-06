@@ -233,7 +233,7 @@ test("Orcamentista V2 aplica template profissional para servicos de obra com qua
     assert.match(answer, /As premissas acima condizem com o seu cenário\?/i, label);
   }
 });
-test("Tabela propria V1 enriquece orcamentos sem inventar preco", () => {
+test("Tabela propria V1 SAMPLE/TEST nao vira preco real de cliente", () => {
   const { assistant } = loadAssistant();
 
   const ownPrice = assistant.findOwnPriceRangeForTest("Pintura", "m2", "Vitória da Conquista", "BA");
@@ -241,16 +241,15 @@ test("Tabela propria V1 enriquece orcamentos sem inventar preco", () => {
   assert.equal(ownPrice.averagePrice, 18);
 
   const pintura = assistant.buildResponseForTest("Faça orçamento de pintura de 120 m2 em Vitória da Conquista BA.").fullAnswer;
-  assert.match(pintura, /Faixa pela sua tabela própria: R\$ 12,00 a R\$ 25,00/i);
-  assert.match(pintura, /R\$ 18,00/i);
-  assert.match(pintura, /R\$ 2\.160,00|R\$ 2160,00/i);
-  assert.match(pintura, /SAMPLE\/TEST/i);
-  assert.match(pintura, /SINAPI\/ORSE pendente de confirmação/i);
+  assert.match(pintura, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
+  assert.doesNotMatch(pintura, /Faixa pela sua tabela própria: R\$ 12,00 a R\$ 25,00/i);
+  assert.doesNotMatch(pintura, /R\$ 2\.160,00|R\$ 2160,00/i);
+  assert.match(pintura, /\| 1 \| Pintura \| m2 \| 120,00 m2 \| pendente de confirmação \| pendente \|/i);
   assert.match(pintura, /## 5\. Confirmação técnica/i);
 
   const piso = assistant.buildResponseForTest("Quanto custa colocar piso cerâmico em 45 m2 em Vitória da Conquista BA?").fullAnswer;
-  assert.match(piso, /Faixa pela sua tabela própria: R\$ 45,00 a R\$ 90,00/i);
-  assert.match(piso, /R\$ 65,00/i);
+  assert.match(piso, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
+  assert.doesNotMatch(piso, /R\$ 65,00/i);
 
   const telhado = assistant.buildResponseForTest("Orçamento de telhado colonial com 80 m2 em Vitória da Conquista BA.").fullAnswer;
   assert.doesNotMatch(telhado, /Faixa pela sua tabela própria/i);
@@ -259,6 +258,38 @@ test("Tabela propria V1 enriquece orcamentos sem inventar preco", () => {
 
   const wrongUnit = assistant.findOwnPriceRangeForTest("Pintura", "m3", "Vitória da Conquista", "BA");
   assert.equal(wrongUnit.found, false);
+});
+
+test("Piloto assistido Gemini trata ampliacao pintura deteriorada e patologia urgente", () => {
+  const { assistant } = loadAssistant();
+
+  const ampliacao = assistant.buildResponseForTest("Oi, tudo bem? Queria dar uma aumentada na minha casa aqui no Candeias. Quero puxar um quarto com suíte no fundo, uns 15m², e cobrir um pedaço da área de serviço que molha muito quando chove. Queria saber quanto mais ou menos vai ficar essa brincadeira pra eu ver se meu orçamento dá conta.").fullAnswer;
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(ampliacao), true);
+  assert.match(ampliacao, /Reforma\/ampliação residencial/i);
+  assert.match(ampliacao, /Ampliação residencial \/ quarto/i);
+  assert.match(ampliacao, /Suíte - pontos hidráulicos\/esgoto/i);
+  assert.match(ampliacao, /Cobertura da área de serviço/i);
+  assert.match(ampliacao, /Estrutura e fundação/i);
+  assert.match(ampliacao, /padrão de acabamento|telhado\/cobertura|hidrossanitárias/i);
+  assert.match(ampliacao, /pendente/i);
+
+  const pintura = assistant.buildResponseForTest("Preciso pintar a frente do meu escritório, é um sobrado pequeno no centro. A parede está com a tinta descascando toda. Queria que vocês fizessem um orçamento pra mim. Tenho 40m² de parede pra pintar. Qual o preço?").fullAnswer;
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(pintura), true);
+  assert.match(pintura, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
+  assert.match(pintura, /raspagem\/lixamento/i);
+  assert.match(pintura, /Correção da base/i);
+  assert.match(pintura, /Fundo preparador\/selador/i);
+  assert.match(pintura, /andaime|acesso/i);
+  assert.doesNotMatch(pintura, /R\$ 720,00/i);
+
+  const patologia = assistant.buildResponseForTest("Bom dia. Estou preocupado com meu muro de divisa. Começaram a aparecer umas rachaduras inclinadas que estão abrindo rápido desde a chuva da semana passada. Tenho medo do muro cair sobre o carro do meu vizinho. O que vocês acham que é? Preciso arrumar urgente.");
+  assert.equal(patologia.sessionIntent, "triagem_patologia_risco_urgente");
+  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(patologia.fullAnswer), false);
+  assert.doesNotMatch(patologia.fullAnswer, /^AVISO: Esta é uma estimativa preliminar/i);
+  assert.match(patologia.fullAnswer, /risco de segurança/i);
+  assert.match(patologia.fullAnswer, /afaste pessoas, veículos/i);
+  assert.match(patologia.fullAnswer, /vistoria presencial urgente/i);
+  assert.match(patologia.fullAnswer, /recalque|saturação do solo|empuxo|fundação/i);
 });
 test("Copiar formato profissional detecta e copia somente Markdown de orcamento", async () => {
   const { assistant, clipboardWrites } = loadAssistant();

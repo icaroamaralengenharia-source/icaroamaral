@@ -1680,6 +1680,11 @@
     return { city: city, state: stateMatch ? stateMatch[1].toUpperCase() : "" };
   }
 
+  function isEloOwnPriceSample_(ownPrice) {
+    const text = normalizeText([ownPrice && ownPrice.source, ownPrice && ownPrice.observation].filter(Boolean).join(" "));
+    return /sample|test|teste|nao usar como preco real|não usar como preço real/.test(text);
+  }
+
   function buildEloOwnPriceBudgetEnrichment_(service, unit, quantityLabel, message) {
     const location = extractEloOwnPriceLocation_(message);
     const ownPrice = findOwnPriceRange(service && service.label, unit, location.city, location.state);
@@ -1695,6 +1700,22 @@
         lines: []
       };
     }
+    if (isEloOwnPriceSample_(ownPrice)) {
+      return {
+        found: false,
+        sampleOnly: true,
+        unitPrice: "pendente de confirmação",
+        total: "pendente",
+        subtotal: "pendente de confirmação",
+        dataBase: "pendente de confirmação",
+        base: "Tabela própria SAMPLE/TEST encontrada; preço pendente de confirmação",
+        pending: "substituir SAMPLE/TEST por preço próprio validado ou confirmar composição SINAPI/ORSE, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
+        lines: [
+          "- Tabela própria encontrada apenas em modo SAMPLE/TEST; preço pendente de confirmação.",
+          "- Fonte própria: " + (ownPrice.source || "não informado") + "; local: " + [ownPrice.city, ownPrice.state].filter(Boolean).join("/") + "; data-base: " + (ownPrice.updatedAt || "não informado") + "."
+        ]
+      };
+    }
     const quantityNumber = parseEloOperationalNumber_(quantityLabel);
     const hasQuantity = quantityNumber > 0;
     const minTotal = hasQuantity ? ownPrice.minPrice * quantityNumber : null;
@@ -1708,8 +1729,8 @@
       total: hasQuantity ? formatEloOwnPriceMoney_(averageTotal) : "pendente",
       subtotal: hasQuantity ? formatEloOwnPriceMoney_(averageTotal) : "pendente de confirmação",
       dataBase: ownPrice.updatedAt || "pendente de confirmação",
-      base: "Tabela própria SAMPLE/TEST; SINAPI/ORSE pendente de confirmação",
-      pending: "validar preço próprio SAMPLE/TEST, composição SINAPI/ORSE, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
+      base: "Tabela própria validada; SINAPI/ORSE pendente de confirmação",
+      pending: "validar preço próprio, composição SINAPI/ORSE, BDI, cidade/UF, data-base, produtividade, perdas e escopo executivo",
       lines: [
         rangeLine,
         totalRangeLine,
@@ -12123,8 +12144,84 @@
     return /orcamento|orçamento|orcar|orçar|orce|estimativa|estimar|custo|custar|quanto\s+custa|preco|preço|valor/.test(text);
   }
 
+  function isEloResidentialExpansionBudgetQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /aumentar|aumentada|ampliacao|ampliação|puxar|construir\s+um\s+quarto|quarto\s+com\s+suite|su[ií]te|cobrir\s+(?:um\s+)?peda[cç]o|cobrir\s+area|área\s+de\s+servi[cç]o/.test(text) && /casa|residencia|residencial|fundo|quarto|suite|su[ií]te|area\s+de\s+servico|área\s+de\s+servi[cç]o/.test(text) && isEloBudgetCostIntent_(message);
+  }
+
+  function isEloPaintingDeterioratedBase_(message) {
+    const text = normalizeText(message || "");
+    return /descascando|descascamento|bolhas?|mofo|umidade|soltando\s+tinta|tinta\s+soltando|parede\s+soltando\s+tinta/.test(text);
+  }
+
+  function buildEloPaintingTechnicalPendingLines_(message) {
+    const text = normalizeText(message || "");
+    if (!isEloPaintingDeterioratedBase_(message)) return [];
+    const lines = [
+      "- Preparo da base: prever raspagem/lixamento das partes soltas antes da pintura.",
+      "- Correção da base: confirmar massa, regularização, fissuras e aderência antes de fechar preço.",
+      "- Fundo preparador/selador: confirmar necessidade conforme absorção e estado do substrato."
+    ];
+    if (/umidade|mofo|bolhas?/.test(text)) {
+      lines.push("- Umidade/mofo: tratar a origem da umidade antes de aplicar acabamento.");
+    }
+    if (/fachada|frente|sobrado|andar|externa|externo/.test(text)) {
+      lines.push("- Acesso: confirmar necessidade de escada, andaime, linha de vida ou outro meio seguro para fachada/sobrado.");
+    }
+    return lines;
+  }
+
+  function buildEloExpansionBudgetRows_(qty) {
+    const area = qty && qty.quantity ? qty.quantity : "pendente";
+    return [
+      ["1", "Ampliação residencial / quarto", "m2", area, "pendente de confirmação", "pendente"],
+      ["2", "Suíte - pontos hidráulicos/esgoto", "serv", "pendente", "pendente de confirmação", "pendente"],
+      ["3", "Cobertura da área de serviço", "serv", "pendente", "pendente de confirmação", "pendente"],
+      ["4", "Estrutura e fundação da ampliação", "serv", "pendente", "pendente de confirmação", "pendente"],
+      ["5", "Acabamentos e compatibilizações", "serv", "pendente", "pendente de confirmação", "pendente"]
+    ];
+  }
+
+  function isEloUrgentPathologyRisk_(message) {
+    const text = normalizeText(message || "");
+    const hasDamage = /rachadura|rachaduras|trinca|fissura|muro|divisa/.test(text);
+    const hasUrgency = /abrindo\s+rapido|abrindo\s+r[aá]pido|rapido|rápido|muro\s+caindo|risco\s+de\s+queda|medo\s+de\s+cair|cair\s+sobre|chuva\s+da\s+semana|chuva\s+recente|carro|vizinho|pessoas|urgente/.test(text);
+    return hasDamage && hasUrgency;
+  }
+
+  function buildEloUrgentPathologyRiskAnswer_(message) {
+    if (!isEloUrgentPathologyRisk_(message) || hasEloBudgetOrCompositionIntent_(message)) return null;
+    const answer = [
+      "Triagem técnica de risco",
+      "Pelo relato, isso deve ser tratado como possível risco de segurança até vistoria presencial. Não dá para fechar diagnóstico por mensagem.",
+      "",
+      "Conduta imediata:",
+      "- afaste pessoas, veículos e objetos da área próxima ao muro;",
+      "- evite apoiar materiais, escorar improvisadamente ou gerar impacto/vibração no trecho;",
+      "- se houver abertura aumentando, desaprumo, estalos, solo encharcado ou deslocamento visível, isole o local e acione responsável técnico com urgência.",
+      "",
+      "Hipóteses a verificar em vistoria:",
+      "- recalque ou movimentação da fundação;",
+      "- saturação do solo após chuva;",
+      "- empuxo de terra/água ou drenagem insuficiente;",
+      "- falha de amarração, execução ou ausência de elementos estruturais adequados.",
+      "",
+      "Próxima ação:",
+      "- recomendo vistoria presencial urgente antes de definir reparo ou orçamento. Registre fotos, largura das fissuras, extensão, prumo do muro e condição do solo."
+    ].join("\n");
+    return {
+      shortAnswer: "Isso é possível risco de segurança e pede vistoria urgente.",
+      fullAnswer: answer,
+      nextAction: "Isole a área e acione vistoria presencial urgente.",
+      canSave: false,
+      sessionTheme: "patologia_risco",
+      sessionIntent: "triagem_patologia_risco_urgente"
+    };
+  }
+
   function inferEloPreliminaryBudgetService_(message) {
     const text = normalizeText(message || "");
+    if (isEloResidentialExpansionBudgetQuestion_(message)) return { key: "reforma_ampliacao", label: "Reforma/ampliação residencial", scope: "orçamento preliminar de reforma/ampliação residencial", unit: "m2" };
     if (/pintura|tinta|pintar|selador|massa\s+corrida|massa\s+acrilica/.test(text)) return { key: "pintura", label: "Pintura", scope: "orçamento preliminar de pintura", unit: "m2" };
     if (/piso|ceramica|cerâmico|porcelanato|revestimento|rodape|rodapé/.test(text)) return { key: "piso", label: "Piso/revestimento", scope: "orçamento preliminar de piso/revestimento", unit: "m2" };
     if (/contrapiso/.test(text)) return { key: "contrapiso", label: "Contrapiso", scope: "orçamento preliminar de contrapiso", unit: "m2" };
@@ -12176,14 +12273,32 @@
     if (!qty) return null;
     const unit = qty.unit || service.unit || "serv";
     const ownPrice = buildEloOwnPriceBudgetEnrichment_(service, unit, qty.quantity, message);
+    const paintingPendingLines = service.key === "pintura" ? buildEloPaintingTechnicalPendingLines_(message) : [];
+    const isExpansion = service.key === "reforma_ampliacao";
+    const rows = isExpansion
+      ? buildEloExpansionBudgetRows_(qty)
+      : [["1", service.label, unit, qty.quantity, ownPrice.unitPrice, ownPrice.total]];
+    const technicalLines = [
+      ownPrice.found ? "- A tabela própria enriquece a estimativa, mas não substitui SINAPI/ORSE, cotação formal, BDI validado ou revisão profissional." : "- Como não há composição SINAPI/ORSE ou valor unitário validado, o quantitativo entra na memória de cálculo e os valores ficam pendentes."
+    ];
+    if (isExpansion) {
+      technicalLines.push("- A ampliação foi separada em escopos mínimos: quarto/suíte, cobertura, estrutura/fundação, instalações e acabamento.");
+      technicalLines.push("- Pendências específicas: padrão de acabamento, solução de telhado, estrutura, fundação, impermeabilização, hidráulica/esgoto da suíte, elétrica, acesso ao fundo e compatibilização com a casa existente.");
+    }
+    if (paintingPendingLines.length) {
+      technicalLines.push.apply(technicalLines, paintingPendingLines);
+    }
     const lines = [
       "Resposta principal",
-      ownPrice.found ? "Montei um orçamento preliminar profissional usando uma faixa SAMPLE/TEST da tabela própria." : "Montei um orçamento preliminar profissional sem inventar preço.",
+      ownPrice.found ? "Montei um orçamento preliminar profissional usando faixa validada da tabela própria." : "Montei um orçamento preliminar profissional sem inventar preço.",
       ownPrice.found ? "A faixa própria é referência interna preliminar e continua exigindo validação técnica/comercial." : "Valores unitários, BDI, data-base e totais ficam pendentes até confirmação técnica/comercial.",
       "",
       "Observação técnica",
-      ownPrice.found ? "- A tabela própria enriquece a estimativa, mas não substitui SINAPI/ORSE, cotação formal, BDI validado ou revisão profissional." : "- Como não há composição SINAPI/ORSE ou valor unitário validado, o quantitativo entra na memória de cálculo e os valores ficam pendentes."
+      technicalLines.join("\n")
     ];
+    const pendingParts = [ownPrice.pending];
+    if (isExpansion) pendingParts.push("confirmar padrão de acabamento, telhado/cobertura, estrutura, fundação, impermeabilização, instalações hidrossanitárias/elétricas, acesso e compatibilização com a casa existente");
+    if (paintingPendingLines.length) pendingParts.push("confirmar preparo da base, raspagem/lixamento, correção, fundo preparador/selador, umidade e acesso/andaime quando aplicável");
     const options = buildEloBudgetV2CommercialOptions_({}, null, {
       scopeName: service.label.toLowerCase(),
       scope: service.scope,
@@ -12194,9 +12309,9 @@
       logistics: "pendente de confirmação",
       subtotal: ownPrice.subtotal,
       total: ownPrice.total,
-      pending: ownPrice.pending,
+      pending: pendingParts.filter(Boolean).join("; "),
       ownPriceLines: ownPrice.lines,
-      rows: [["1", service.label, unit, qty.quantity, ownPrice.unitPrice, ownPrice.total]]
+      rows: rows
     });
     return {
       shortAnswer: "Orçamento preliminar profissional gerado com valores pendentes.",
@@ -15238,6 +15353,7 @@
 
 
   function buildEloTechnicalReportDraftAnswer_(message) {
+    if (isEloUrgentPathologyRisk_(message)) return null;
     const text = normalizeText(message);
     const wantsReport = hasAnyTerm(text, ["relatorio", "laudo", "vistoria", "parecer", "descrever", "escrever"]) || /relat|laudo|vistoria|parecer|descrev|escrev/.test(text);
     const hasPathology = hasAnyTerm(text, ["infiltracao", "umidade", "mofo", "trinca", "fissura", "rachadura", "vazamento", "banheiro", "parede"]) || /infiltra|umidade|mofo|trinca|fissura|rachadura|vazamento|banheiro|parede/.test(text);
@@ -17115,6 +17231,11 @@
     const pureConversationalFastPathAnswer = buildEloPureConversationalFastPathResponse_(cleanQuestion);
     if (pureConversationalFastPathAnswer) {
       return pureConversationalFastPathAnswer;
+    }
+
+    const urgentPathologyRiskAnswer = buildEloUrgentPathologyRiskAnswer_(cleanQuestion);
+    if (urgentPathologyRiskAnswer) {
+      return urgentPathologyRiskAnswer;
     }
 
     const priorityServiceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(cleanQuestion, "service_priority");
@@ -19631,6 +19752,8 @@
     return applyEloCommunicationPolicy_(userMessage, visibleFallback, context || {});
   }
   function buildResponse(question) {
+    const urgentPathologyRiskAnswer = buildEloUrgentPathologyRiskAnswer_(question);
+    if (urgentPathologyRiskAnswer) return applyEloBrainMarker_(question, urgentPathologyRiskAnswer);
     const serviceBudgetAnswer = buildEloGenericPreliminaryBudgetAnswer_(question, "service_priority");
     if (serviceBudgetAnswer) return applyEloBrainMarker_(question, serviceBudgetAnswer);
     const priorityGeometryAnswer = buildEloGeometryLayerAnswer_(question);
