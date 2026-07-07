@@ -16660,10 +16660,54 @@
     return sanitizeUserText(config.appsScriptUrl || "");
   }
 
-  function buildEloReportPayload_(message, imagePayload) {
+  function normalizeEloReportImageAnalysis_(result, fallbackText) {
+    const analysis = result && typeof result === "object" ? (result.analysis || {}) : {};
+    const suggestion = result && typeof result === "object" ? sanitizeUserText(result.suggestion) : sanitizeUserText(result);
+    const reportText = sanitizeUserText(analysis.textoRelatorio || analysis.descricaoTecnica || suggestion || fallbackText);
+    const technicalDescription = sanitizeUserText(analysis.descricaoTecnica || reportText || fallbackText);
+    const recommendedAction = sanitizeUserText(analysis.recomendacaoAcao || "Recomenda-se vistoria tecnica detalhada, verificacao da origem do problema e definicao das medidas corretivas pelo responsavel tecnico.");
+    const riskLevel = sanitizeUserText(analysis.grauPreliminar || analysis.grauRisco || "A avaliar");
+
+    return {
+      reportText: reportText || "Imagem analisada pelo Elo. Recomenda-se validacao pelo responsavel tecnico.",
+      technicalDescription: technicalDescription || reportText || "Registro visual anexado ao relatorio.",
+      recommendedAction: recommendedAction,
+      riskLevel: riskLevel,
+      chatSummary: formatEloImageAnalysis_(result)
+    };
+  }
+
+  async function analyzeEloImageForReport_(imagePayload, message, imageFile) {
+    const context = {
+      source: "elo",
+      kind: "elo-report-pdf",
+      question: sanitizeUserText(message),
+      imageLabel: imageFile && imageFile.name ? imageFile.name : "imagem anexada"
+    };
+
+    if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
+      return window.ObraReportAI.analyzeImage(imagePayload, context);
+    }
+
+    const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
+      getEloBackendEndpoint_("/api/ai/analyze-image");
+    const response = await fetch(configuredEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imagePayload, context: context })
+    });
+    const result = await response.json();
+    if (!response.ok || !result) {
+      throw new Error(result && result.error ? result.error : "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+    }
+    return result;
+  }
+
+  function buildEloReportPayload_(message, imagePayload, imageAnalysis) {
     const now = new Date();
     const date = now.toISOString().slice(0, 10);
-    const description = sanitizeUserText(message) || "Relatorio gerado pelo Elo com imagem anexada.";
+    const promptContext = sanitizeUserText(message) || "Relatorio gerado pelo Elo com imagem anexada.";
+    const visualReport = imageAnalysis && imageAnalysis.reportText ? imageAnalysis.reportText : promptContext;
     const photo = Object.assign({}, imagePayload, {
       originalName: imagePayload.originalName || imagePayload.fileName || "imagem-elo.jpg",
       fileName: imagePayload.fileName || "imagem-elo.jpg",
@@ -16687,32 +16731,31 @@
         funcionariosCampo: "Nao informado",
         utilizacaoEpi: "Nao informado",
         controleConcreto: "Nao informado",
-        observacoes: description,
+        observacoes: visualReport,
         emailDestino: "icaroamaralengenharia@gmail.com"
       },
       fotosUnidade: [
         {
           numero: "01",
-          descricao: description,
+          descricao: visualReport,
           foto: photo
         }
       ],
       inconformidades: [
         {
           numero: "01",
-          descricaoTecnica: description,
-          solucaoRecomendada: "Revisar tecnicamente o registro antes da entrega ao cliente.",
-          grauRisco: "A avaliar",
+          descricaoTecnica: imageAnalysis && imageAnalysis.technicalDescription ? imageAnalysis.technicalDescription : visualReport,
+          solucaoRecomendada: imageAnalysis && imageAnalysis.recommendedAction ? imageAnalysis.recommendedAction : "Revisar tecnicamente o registro antes da entrega ao cliente.",
+          grauRisco: imageAnalysis && imageAnalysis.riskLevel ? imageAnalysis.riskLevel : "A avaliar",
           foto: photo
         }
       ]
     };
   }
-
   async function generateEloReportPdfFromChat_(message, attachments) {
     const appsScriptUrl = getEloReportAppsScriptUrl_();
     const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
-    const statusMessage = appendMessage("assistant", "Gerando PDF real pelo ObraReport...");
+    const statusMessage = appendMessage("assistant", "Analisando imagem e gerando PDF real pelo ObraReport...");
 
     try {
       if (!appsScriptUrl) {
@@ -16723,7 +16766,12 @@
       }
 
       const imagePayload = await compressEloImageAttachment_(imageFile);
-      const payload = buildEloReportPayload_(message, imagePayload);
+      const rawAnalysis = await analyzeEloImageForReport_(imagePayload, message, imageFile);
+      if (rawAnalysis && rawAnalysis.mode === "error") {
+        throw new Error(rawAnalysis.suggestion || rawAnalysis.note || "Nao foi possivel analisar a imagem antes de gerar o PDF.");
+      }
+      const imageAnalysis = normalizeEloReportImageAnalysis_(rawAnalysis, message);
+      const payload = buildEloReportPayload_(message, imagePayload, imageAnalysis);
       const response = await fetch(appsScriptUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -16743,7 +16791,9 @@
       }
 
       const answer = [
-        "PDF real gerado pelo ObraReport.",
+        "PDF real gerado pelo ObraReport com base na analise visual da imagem.",
+        "",
+        imageAnalysis.reportText,
         "",
         "Link do PDF: " + result.pdfUrl,
         result.requestId ? "Request ID: " + result.requestId : "",
