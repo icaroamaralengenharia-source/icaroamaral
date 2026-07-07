@@ -2353,31 +2353,31 @@
     if (facts.parede && facts.fundacao && facts.estrutura) {
       return null;
     }
-    const lines = ["BRIEFING DA OBRA â€” TEXTO LIVRE", "", "O que entendi:"];
-    lines.push("- Cliente: " + (facts.cliente || "nÃ£o informado"));
+    const lines = ["BRIEFING DA OBRA - TEXTO LIVRE", "", "O que entendi:"];
+    lines.push("- Cliente: " + (facts.cliente || "nao informado"));
     lines.push("- Obra: " + (facts.obra || "obra atual"));
-    lines.push("- Cidade/UF: " + ([facts.cidade, facts.uf].filter(Boolean).join("/") || "nÃ£o informado"));
-    lines.push("- Ãrea aproximada: " + (facts.area ? formatEloWallPremiseMeasure_(facts.area, "mÂ²") : "nÃ£o informada"));
+    lines.push("- Cidade/UF: " + ([facts.cidade, facts.uf].filter(Boolean).join("/") || "nao informado"));
+    lines.push("- Area aproximada: " + (facts.area ? formatEloWallPremiseMeasure_(facts.area, "m2") : "nao informada"));
     if (facts.parede) {
-      lines.push("- Parede: Ã¡rea bruta " + formatEloWallPremiseMeasure_(facts.parede.grossArea, "mÂ²") + "; vÃ£os " + formatEloWallPremiseMeasure_(facts.parede.openingsArea, "mÂ²") + "; Ã¡rea lÃ­quida " + formatEloWallPremiseMeasure_(facts.parede.netArea, "mÂ²") + ".");
+      lines.push("- Parede: area bruta " + formatEloWallPremiseMeasure_(facts.parede.grossArea, "m2") + "; vaos " + formatEloWallPremiseMeasure_(facts.parede.openingsArea, "m2") + "; area liquida " + formatEloWallPremiseMeasure_(facts.parede.netArea, "m2") + ".");
     } else {
-      lines.push("- Parede: nÃ£o informada.");
+      lines.push("- Parede: nao informada.");
     }
-    lines.push("- FundaÃ§Ã£o: " + (facts.fundacao && facts.fundacao.length ? facts.fundacao.length + " elemento(s) identificado(s)." : "nÃ£o informada."));
-    lines.push("- Estrutura: " + (facts.estrutura && facts.estrutura.length ? facts.estrutura.length + " elemento(s) identificado(s)." : "nÃ£o informada."));
+    lines.push("- Fundacao: " + (facts.fundacao && facts.fundacao.length ? facts.fundacao.length + " elemento(s) identificado(s)." : "nao informada."));
+    lines.push("- Estrutura: " + (facts.estrutura && facts.estrutura.length ? facts.estrutura.length + " elemento(s) identificado(s)." : "nao informada."));
     lines.push("", "O que falta:");
     if (!facts.cliente) lines.push("- cliente;" );
     if (!facts.obra) lines.push("- nome da obra;" );
     if (!facts.cidade || !facts.uf) lines.push("- cidade/UF;" );
-    if (!facts.area) lines.push("- Ã¡rea aproximada;" );
-    if (!facts.parede) lines.push("- paredes ou Ã¡rea de alvenaria;" );
-    if (!facts.fundacao || !facts.fundacao.length) lines.push("- fundaÃ§Ã£o, se entrar no escopo;" );
+    if (!facts.area) lines.push("- area aproximada;" );
+    if (!facts.parede) lines.push("- paredes ou area de alvenaria;" );
+    if (!facts.fundacao || !facts.fundacao.length) lines.push("- fundacao, se entrar no escopo;" );
     if (!facts.estrutura || !facts.estrutura.length) lines.push("- pilares/vigas, se entrar no escopo;" );
-    lines.push("", "PrÃ³ximo passo:", "Responda sÃ³ o primeiro dado faltante que vocÃª souber. Pode dizer 'nÃ£o sei' para qualquer item.");
+    lines.push("", "Proximo passo:", "Responda so o primeiro dado faltante que voce souber. Pode dizer 'nao sei' para qualquer item.");
     return {
       shortAnswer: "Entendi o briefing inicial da obra.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Complete cliente, obra, cidade/UF, Ã¡rea ou escopo que faltar.",
+      nextAction: "Complete cliente, obra, cidade/UF, area ou escopo que faltar.",
       canSave: true,
       sessionTheme: "briefing_livre_obra",
       sessionIntent: "parser_texto_livre"
