@@ -16730,6 +16730,7 @@
         "Revise o arquivo antes de enviar ao cliente."
       ].filter(Boolean).join("\n");
       updateEloMessage_(statusMessage, answer);
+      appendEloPdfDownloadAction_(statusMessage, result.pdfUrl);
       saveConversation(message, answer);
       rememberSessionTurn(message, {
         sessionTheme: "obrareport_pdf_real",
@@ -17433,6 +17434,22 @@
     }
   }
 
+  function appendEloPdfDownloadAction_(message, pdfUrl) {
+    if (!message || !pdfUrl) {
+      return;
+    }
+
+    const actions = createElement("div", "elo-library-actions");
+    const openButton = createElement("a", "elo-inline-button", "Abrir / baixar PDF");
+    openButton.href = pdfUrl;
+    openButton.target = "_blank";
+    openButton.rel = "noopener noreferrer";
+    actions.appendChild(openButton);
+    message.appendChild(actions);
+    if (ELO_UI.messages) {
+      ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+    }
+  }
   async function analyzeEloImageAttachment_(question, file) {
     const cleanQuestion = sanitizeUserText(question) || "Elo, analise esta imagem";
     appendMessage("system", "Imagem anexada: " + (file.name || "imagem.jpg"));
