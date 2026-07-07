@@ -16614,6 +16614,134 @@
     return applyEloBrainMarker_(question, buildResponseCore_(question));
   }
 
+  function isEloReportPdfGenerationRequest_(message) {
+    const text = normalizeText(message);
+    if (!text) {
+      return false;
+    }
+    return hasAnyTerm(text, [
+      "gerar relatorio",
+      "gere relatorio",
+      "criar relatorio",
+      "gerar laudo",
+      "gerar pdf real",
+      "gerar pdf com foto",
+      "relatorio com foto",
+      "relatorio com imagem",
+      "pdf com imagem",
+      "fazer relatorio com essa foto",
+      "fazer pdf com essa foto"
+    ]);
+  }
+
+  function getEloReportAppsScriptUrl_() {
+    const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+    return sanitizeUserText(config.appsScriptUrl || "");
+  }
+
+  function buildEloReportPayload_(message, imagePayload) {
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const description = sanitizeUserText(message) || "Relatorio gerado pelo Elo com imagem anexada.";
+    const photo = Object.assign({}, imagePayload, {
+      originalName: imagePayload.originalName || imagePayload.fileName || "imagem-elo.jpg",
+      fileName: imagePayload.fileName || "imagem-elo.jpg",
+      mimeType: imagePayload.mimeType || "image/jpeg"
+    });
+
+    return {
+      submittedAt: now.toISOString(),
+      source: "elo-assistente",
+      tipoRelatorio: "fiscalizacao",
+      report: {
+        obra: "Relatorio gerado pelo Elo",
+        dataVistoria: date,
+        responsavelTecnico: "Elo Assistente",
+        local: "Local informado na conversa",
+        dataInicioObra: date,
+        linkCameras: "",
+        tipoObra: "Obra",
+        avancoFisico: "Nao informado",
+        avancoFinanceiro: "Nao informado",
+        funcionariosCampo: "Nao informado",
+        utilizacaoEpi: "Nao informado",
+        controleConcreto: "Nao informado",
+        observacoes: description,
+        emailDestino: "icaroamaralengenharia@gmail.com"
+      },
+      fotosUnidade: [
+        {
+          numero: "01",
+          descricao: description,
+          foto: photo
+        }
+      ],
+      inconformidades: [
+        {
+          numero: "01",
+          descricaoTecnica: description,
+          solucaoRecomendada: "Revisar tecnicamente o registro antes da entrega ao cliente.",
+          grauRisco: "A avaliar",
+          foto: photo
+        }
+      ]
+    };
+  }
+
+  async function generateEloReportPdfFromChat_(message, attachments) {
+    const appsScriptUrl = getEloReportAppsScriptUrl_();
+    const imageFile = Array.prototype.slice.call(attachments || []).find(isEloImageAttachment_);
+    const statusMessage = appendMessage("assistant", "Gerando PDF real pelo ObraReport...");
+
+    try {
+      if (!appsScriptUrl) {
+        throw new Error("Apps Script do ObraReport nao esta configurado nesta pagina.");
+      }
+      if (!imageFile) {
+        throw new Error("Anexe uma imagem JPG ou PNG e peca novamente para gerar o relatorio.");
+      }
+
+      const imagePayload = await compressEloImageAttachment_(imageFile);
+      const payload = buildEloReportPayload_(message, imagePayload);
+      const response = await fetch(appsScriptUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const text = await response.text();
+      let result = null;
+
+      try {
+        result = JSON.parse(text);
+      } catch (error) {
+        throw new Error("O Apps Script respondeu em formato inesperado.");
+      }
+
+      if (!response.ok || !result || !result.ok || !result.pdfUrl) {
+        throw new Error((result && result.error) || "Nao foi possivel gerar o PDF agora.");
+      }
+
+      const answer = [
+        "PDF real gerado pelo ObraReport.",
+        "",
+        "Link do PDF: " + result.pdfUrl,
+        result.requestId ? "Request ID: " + result.requestId : "",
+        "",
+        "Revise o arquivo antes de enviar ao cliente."
+      ].filter(Boolean).join("\n");
+      updateEloMessage_(statusMessage, answer);
+      saveConversation(message, answer);
+      rememberSessionTurn(message, {
+        sessionTheme: "obrareport_pdf_real",
+        sessionIntent: "gerar_pdf_real",
+        nextAction: "Abra o link do PDF e confira foto, capa, galeria e ocorrencia."
+      }, answer);
+    } catch (error) {
+      updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui gerar o PDF agora.");
+    } finally {
+      clearProductAttachmentPreview();
+    }
+  }
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
@@ -16626,6 +16754,11 @@
     appendMessage("user", cleanQuestion);
     markEloInteraction_("elo:send");
     appendTypingIndicator();
+
+    if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
+      generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
+      return;
+    }
 
     const operationalChatEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
     if (operationalChatEcosystemAnswer) {
