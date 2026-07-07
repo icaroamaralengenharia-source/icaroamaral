@@ -16619,21 +16619,42 @@
     if (!text) {
       return false;
     }
-    return hasAnyTerm(text, [
+
+    const wantsDocument = hasAnyTerm(text, [
       "gerar relatorio",
+      "gerar um relatorio",
       "gere relatorio",
+      "gere um relatorio",
       "criar relatorio",
+      "criar um relatorio",
+      "relatorio tecnico",
+      "laudo tecnico",
       "gerar laudo",
-      "gerar pdf real",
+      "gerar pdf",
+      "gere pdf",
+      "pdf real",
+      "pdf tecnico"
+    ]);
+    const hasImageContext = hasAnyTerm(text, [
+      "imagem",
+      "foto",
+      "anexo",
+      "anexada",
+      "essa imagem",
+      "esta imagem",
+      "essa foto",
+      "esta foto"
+    ]);
+
+    return wantsDocument && (hasImageContext || hasAnyTerm(text, [
       "gerar pdf com foto",
       "relatorio com foto",
       "relatorio com imagem",
       "pdf com imagem",
       "fazer relatorio com essa foto",
       "fazer pdf com essa foto"
-    ]);
+    ]));
   }
-
   function getEloReportAppsScriptUrl_() {
     const config = window.RELATORIO_QUALIDADE_CONFIG || {};
     return sanitizeUserText(config.appsScriptUrl || "");
