@@ -19976,7 +19976,11 @@
 
       if (attachmentIntent.type === "image") {
         ELO_UI.input.value = "";
-        analyzeEloImageAttachment_(question, attachmentIntent.file);
+        if (isEloReportPdfGenerationRequest_(question)) {
+          askElo(question, ELO_UI.attachments);
+        } else {
+          analyzeEloImageAttachment_(question, attachmentIntent.file);
+        }
         return;
       }
 
