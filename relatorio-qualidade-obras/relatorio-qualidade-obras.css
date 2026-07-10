@@ -3087,7 +3087,7 @@ textarea:focus {
 }
 
 .app-topbar h2::after {
-  content: "Sistema de gestÃ£o de obras e relatÃ³rios tÃ©cnicos";
+  content: "Sistema de gestão de obras e relatórios técnicos";
   display: block;
   margin-top: 5px;
   color: var(--muted);
@@ -3750,7 +3750,7 @@ textarea:focus {
   }
 }
 
-/* Fase 4.2 - painel com aparÃªncia real de SaaS profissional */
+/* Fase 4.2 - painel com aparência real de SaaS profissional */
 :root {
   --color-primary: var(--navy);
   --color-accent: var(--gold);
@@ -4343,7 +4343,7 @@ body {
   }
 }
 
-/* Fase 4.3 - landing page pÃºblica ObraReport */
+/* Fase 4.3 - landing page pública ObraReport */
 .landing-page {
   display: grid;
   gap: 28px;
@@ -5761,7 +5761,7 @@ body {
   }
 }
 
-/* ConversÃ£o premium da primeira dobra da landing/home */
+/* Conversão premium da primeira dobra da landing/home */
 .page-shell {
   max-width: 1280px;
 }
@@ -6395,7 +6395,7 @@ body {
   }
 }
 
-/* Landing corporativa ObraReport - inspirada no padrÃ£o visual do relatÃ³rio premium */
+/* Landing corporativa ObraReport - inspirada no padrão visual do relatório premium */
 :root {
   --obra-navy: #071f3a;
   --obra-navy-2: #0d2f52;

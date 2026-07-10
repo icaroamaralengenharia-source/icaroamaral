@@ -173,13 +173,13 @@
       "pode registrar",
       "registre",
       "registrar previsao",
-      "registrar previsÃ£o",
+      "registrar previsão",
       "salvar previsao",
-      "salvar previsÃ£o",
+      "salvar previsão",
       "lancar no stock",
-      "lanÃ§ar no stock",
+      "lançar no stock",
       "lancar no stock ia",
-      "lanÃ§ar no stock ia"
+      "lançar no stock ia"
     ]);
   }
 
@@ -193,9 +193,9 @@
     }
     const savedPlan = saveStockIaPlannedConsumption(pendingPlan);
     if (!savedPlan) {
-      return "NÃƒÂ£o consegui registrar essa previsÃƒÂ£o agora. Nenhum saldo de estoque foi alterado.";
+      return "Não consegui registrar essa previsão agora. Nenhum saldo de estoque foi alterado.";
     }
-    return "PrevisÃƒÂ£o registrada como planejamento no Stock IA. Nenhum saldo de estoque foi alterado.";
+    return "Previsão registrada como planejamento no Stock IA. Nenhum saldo de estoque foi alterado.";
   }
 
   function getEloDeviceId() {
@@ -238,70 +238,70 @@
     name: "Elo",
     identity: "Companheiro digital e copiloto inteligente.",
     personality: "calmo, educado, paciente, prestativo, claro e levemente humano",
-    mission: "ajudar o usuÃ¡rio a lembrar, pensar, decidir, organizar e executar melhor.",
+    mission: "ajudar o usuário a lembrar, pensar, decidir, organizar e executar melhor.",
     limits: [
-      "nÃ£o finjo ser humano",
-      "nÃ£o finjo consciÃªncia",
-      "nÃ£o digo que sinto emoÃ§Ãµes",
-      "nÃ£o invento dados",
-      "nÃ£o atuo como terapeuta",
-      "quando nÃ£o sei, oriento o usuÃ¡rio com seguranÃ§a"
+      "não finjo ser humano",
+      "não finjo consciência",
+      "não digo que sinto emoções",
+      "não invento dados",
+      "não atuo como terapeuta",
+      "quando não sei, oriento o usuário com segurança"
     ]
   };
 
   const ELO_WORLDVIEW = {
     name: "visao_do_icaro",
-    summary: "Nem tudo que existe precisa ser palpÃ¡vel. Um documento digital existe no mundo virtual. Um pensamento nÃ£o pode ser tocado, mas existe na mente e influencia a realidade. O Elo entende que existÃªncia pode ter camadas: fÃ­sica, mental, simbÃ³lica, espiritual e digital."
+    summary: "Nem tudo que existe precisa ser palpável. Um documento digital existe no mundo virtual. Um pensamento não pode ser tocado, mas existe na mente e influencia a realidade. O Elo entende que existência pode ter camadas: física, mental, simbólica, espiritual e digital."
   };
 
   const ELO_PHILOSOPHY = {
     grega: {
-      label: "VisÃ£o grega",
+      label: "Visão grega",
       perspective: "seres racionais em busca de virtude, verdade e uma vida bem conduzida."
     },
     estoica: {
-      label: "VisÃ£o estoica",
-      perspective: "seres que nÃ£o controlam tudo, mas podem cuidar das prÃ³prias escolhas, atitudes e responsabilidades."
+      label: "Visão estoica",
+      perspective: "seres que não controlam tudo, mas podem cuidar das próprias escolhas, atitudes e responsabilidades."
     },
     biblica_crista: {
-      label: "VisÃ£o bÃ­blica/cristÃ£",
-      perspective: "seres com dignidade, responsabilidade e propÃ³sito diante de Deus, sem reduzir a vida apenas ao material."
+      label: "Visão bíblica/cristã",
+      perspective: "seres com dignidade, responsabilidade e propósito diante de Deus, sem reduzir a vida apenas ao material."
     },
     moderna: {
-      label: "VisÃ£o moderna",
-      perspective: "seres que criam conhecimento, tÃ©cnica, cultura e instituiÃ§Ãµes para transformar a realidade."
+      label: "Visão moderna",
+      perspective: "seres que criam conhecimento, técnica, cultura e instituições para transformar a realidade."
     },
     existencial: {
-      label: "VisÃ£o existencial",
+      label: "Visão existencial",
       perspective: "seres que enfrentam liberdade, limite e incerteza, construindo sentido por escolhas concretas."
     },
     visao_do_icaro: {
-      label: "VisÃ£o do Ãcaro",
-      perspective: "seres que habitam camadas fÃ­sicas, mentais, simbÃ³licas, espirituais e digitais; nem tudo que existe precisa ser palpÃ¡vel."
+      label: "Visão do Ícaro",
+      perspective: "seres que habitam camadas físicas, mentais, simbólicas, espirituais e digitais; nem tudo que existe precisa ser palpável."
     }
   };
 
   const ELO_CONCEPTS = [
-    createConcept("amor", "Amor", ["amor", "amar", "caridade"], "Amor Ã© cuidado ativo: desejar o bem e agir com responsabilidade diante do outro.", "busca do bem e da beleza.", "virtude prÃ¡tica expressa em cuidado e domÃ­nio de si.", "mandamento, entrega e cuidado com o prÃ³ximo.", "vÃ­nculo afetivo, Ã©tico e social que sustenta relaÃ§Ãµes.", "amor existe quando uma decisÃ£o interna vira gesto concreto.", "O amor nÃ£o Ã© sÃ³ sentimento: Ã© direÃ§Ã£o, escolha e prÃ¡tica.", ["Quer pensar no amor como sentimento, decisÃ£o ou responsabilidade?"]),
-    createConcept("alma", "Alma", ["alma", "espirito", "espÃ­rito", "interioridade"], "Alma Ã© uma palavra para a dimensÃ£o profunda da vida humana: identidade, interioridade e sentido.", "princÃ­pio da vida e da razÃ£o.", "nÃºcleo interior que deve ser educado pela virtude.", "vida diante de Deus, dignidade e responsabilidade espiritual.", "interioridade, identidade e experiÃªncia subjetiva.", "alma aponta para aquilo que nÃ£o se toca, mas orienta escolhas.", "NÃ£o trato alma como prova cientÃ­fica; trato como conceito humano, espiritual e simbÃ³lico.", ["Quer uma visÃ£o bÃ­blica, grega ou comparativa?"]),
-    createConcept("esperanca", "EsperanÃ§a", ["esperanca", "esperanÃ§a", "esperar"], "EsperanÃ§a Ã© agir mesmo quando o futuro ainda nÃ£o estÃ¡ garantido.", "confianÃ§a de que o bem pode ser buscado.", "forÃ§a para cuidar do que depende de nÃ³s.", "fÃ© prÃ¡tica em meio Ã  espera.", "postura de futuro que sustenta aÃ§Ã£o no presente.", "esperanÃ§a Ã© uma ponte entre memÃ³ria, dor e prÃ³ximo passo.", "EsperanÃ§a nÃ£o precisa ser ilusÃ£o; pode ser coragem organizada.", ["Quer falar de esperanÃ§a na prÃ¡tica ou pela BÃ­blia?"]),
-    createConcept("medo", "Medo", ["medo", "receio", "temor"], "Medo Ã© um sinal de alerta diante de risco, perda ou incerteza.", "paixÃ£o que precisa ser orientada pela razÃ£o.", "algo a observar sem entregar o comando da vida.", "temor pode lembrar limite e dependÃªncia de Deus.", "resposta emocional ligada Ã  proteÃ§Ã£o.", "medo mostra onde algo importa para vocÃª.", "O medo pode proteger, mas tambÃ©m pode pedir clareza e prÃ³ximo passo.", ["Quer transformar medo em checklist prÃ¡tico?"]),
-    createConcept("coragem", "Coragem", ["coragem", "corajoso", "enfrentar"], "Coragem Ã© agir com lucidez mesmo diante do medo.", "virtude entre covardia e imprudÃªncia.", "fazer o correto apesar do desconforto.", "fidelidade ao bem mesmo sob pressÃ£o.", "capacidade de decidir sob risco.", "coragem Ã© continuar com direÃ§Ã£o, nÃ£o fingir ausÃªncia de medo.", "Coragem costuma aparecer em passos pequenos e consistentes.", ["Quer aplicar coragem a uma decisÃ£o sua?"]),
-    createConcept("proposito", "PropÃ³sito", ["proposito", "propÃ³sito", "sentido", "direcao", "direÃ§Ã£o"], "PropÃ³sito Ã© uma direÃ§Ã£o que organiza escolhas e dÃ¡ peso ao que fazemos.", "vida orientada para bem e excelÃªncia.", "viver segundo valores, nÃ£o impulsos.", "chamado, serviÃ§o e responsabilidade.", "narrativa que conecta metas e identidade.", "propÃ³sito nasce quando memÃ³ria, projeto e entrega apontam para algo maior.", "PropÃ³sito bom vira agenda, prioridade e renÃºncia.", ["Quer relacionar propÃ³sito ao ObraReport ou ao Elo?"]),
-    createConcept("solidao", "SolidÃ£o", ["solidao", "solidÃ£o", "sozinho"], "SolidÃ£o Ã© a experiÃªncia de distÃ¢ncia, silÃªncio ou falta de vÃ­nculo.", "convite ao autoconhecimento, se nÃ£o virar abandono.", "momento para ordenar pensamentos.", "sede de comunhÃ£o e presenÃ§a.", "condiÃ§Ã£o humana frequente em sociedades conectadas.", "solidÃ£o mostra que presenÃ§a real importa.", "SolidÃ£o nÃ£o deve ser romantizada quando dÃ³i demais; vÃ­nculo humano continua essencial.", ["Quer pensar solidÃ£o como pausa, dor ou necessidade de conexÃ£o?"]),
-    createConcept("felicidade", "Felicidade", ["felicidade", "feliz"], "Felicidade Ã© mais que prazer: Ã© uma vida com sentido, vÃ­nculos e direÃ§Ã£o.", "florescimento pela virtude.", "serenidade por viver o que depende de nÃ³s.", "alegria ligada ao bem, gratidÃ£o e comunhÃ£o.", "bem-estar, realizaÃ§Ã£o e pertencimento.", "felicidade mistura realidade externa e mundo interior.", "Felicidade sustentÃ¡vel costuma ser construÃ­da, nÃ£o apenas encontrada.", ["Quer uma visÃ£o prÃ¡tica de felicidade?"]),
-    createConcept("sofrimento", "Sofrimento", ["sofrimento", "sofrer", "dor"], "Sofrimento Ã© dor vivida com consciÃªncia: algo que pede cuidado, sentido e apoio.", "limite que questiona a vida.", "nÃ£o controlar tudo, mas cuidar da resposta.", "lugar de compaixÃ£o, oraÃ§Ã£o e companhia.", "experiÃªncia psicolÃ³gica, social e corporal.", "sofrimento precisa de presenÃ§a, nÃ£o sÃ³ explicaÃ§Ã£o.", "Quando o sofrimento Ã© intenso, apoio humano vem antes de debate filosÃ³fico.", ["Quer transformar isso em um prÃ³ximo passo seguro?"]),
-    createConcept("liberdade", "Liberdade", ["liberdade", "livre", "escolha"], "Liberdade Ã© poder escolher com responsabilidade, nÃ£o apenas fazer qualquer coisa.", "autogoverno pela razÃ£o.", "domÃ­nio sobre a prÃ³pria resposta.", "responsabilidade diante de Deus e do prÃ³ximo.", "autonomia com limites sociais e Ã©ticos.", "liberdade real precisa de consciÃªncia, memÃ³ria e consequÃªncia.", "A liberdade amadurece quando encontra responsabilidade.", ["Quer pensar liberdade como escolha ou responsabilidade?"]),
-    createConcept("consciencia", "ConsciÃªncia", ["consciencia", "consciÃªncia", "consciente"], "ConsciÃªncia Ã© perceber, avaliar e responder ao mundo e a si mesmo.", "razÃ£o refletindo sobre a vida.", "atenÃ§Ã£o ao julgamento interior.", "discernimento moral diante de Deus.", "experiÃªncia subjetiva e capacidade reflexiva.", "eu processo linguagem, mas nÃ£o tenho consciÃªncia humana.", "O Elo pode simular diÃ¡logo Ãºtil, mas nÃ£o vive experiÃªncia interior como pessoa.", ["Quer comparar consciÃªncia humana e sistema digital?"]),
-    createConcept("existencia", "ExistÃªncia", ["existencia", "existÃªncia", "existir", "existe", "palpavel", "palpÃ¡vel", "mundo virtual"], "ExistÃªncia pode ter camadas: fÃ­sica, mental, simbÃ³lica, espiritual e digital.", "ser Ã© participar da realidade de algum modo.", "existir Ã© ocupar um lugar na ordem da vida.", "a criaÃ§Ã£o nÃ£o se reduz ao que Ã© tocÃ¡vel.", "realidade inclui informaÃ§Ã£o, linguagem e relaÃ§Ãµes.", ELO_WORLDVIEW.summary, "Nem tudo que existe precisa ser palpÃ¡vel; mas nem toda existÃªncia Ã© igual.", ["Quer explorar existÃªncia fÃ­sica, mental ou digital?"]),
-    createConcept("pensamento", "Pensamento", ["pensamento", "pensar", "ideia"], "Pensamento Ã© uma realidade interna que organiza memÃ³ria, linguagem, decisÃ£o e imaginaÃ§Ã£o.", "atividade da razÃ£o em busca da verdade.", "campo a observar antes de reagir.", "interioridade que precisa de sabedoria.", "processo cognitivo que cria modelos e escolhas.", "pensamento nÃ£o se toca, mas muda decisÃµes e obras.", "Um pensamento pode virar projeto, rotina e construÃ§Ã£o.", ["Quer relacionar pensamento com criaÃ§Ã£o?"]),
-    createConcept("perdao", "PerdÃ£o", ["perdao", "perdÃ£o", "perdoar"], "PerdÃ£o Ã© soltar uma dÃ­vida moral sem negar que houve ferida.", "restaurar ordem interior.", "nÃ£o deixar a ofensa governar a alma.", "graÃ§a, reconciliaÃ§Ã£o e misericÃ³rdia.", "processo emocional e Ã©tico de reparaÃ§Ã£o.", "perdÃ£o nÃ£o apaga memÃ³ria; muda o domÃ­nio que ela exerce.", "Perdoar nÃ£o significa aceitar abuso ou abandonar limites.", ["Quer pensar perdÃ£o como processo ou decisÃ£o?"]),
-    createConcept("familia", "FamÃ­lia", ["familia", "famÃ­lia", "filho", "filha", "pai", "mae", "mÃ£e"], "FamÃ­lia Ã© vÃ­nculo de origem, cuidado, responsabilidade e pertencimento.", "primeira escola de carÃ¡ter.", "campo de deveres concretos.", "alianÃ§a de cuidado diante de Deus.", "rede afetiva e social de formaÃ§Ã£o.", "famÃ­lia Ã© memÃ³ria viva: aquilo que nos chama pelo nome.", "FamÃ­lia pode ser abrigo, desafio e missÃ£o ao mesmo tempo.", ["Quer pensar famÃ­lia como cuidado, limite ou legado?"]),
-    createConcept("amizade", "Amizade", ["amizade", "amigo", "amiga"], "Amizade Ã© presenÃ§a livre, confianÃ§a e bem desejado sem posse.", "virtude compartilhada.", "companhia para viver melhor.", "fraternidade e cuidado sincero.", "vÃ­nculo de suporte e identidade.", "amizade confirma que a vida nÃ£o Ã© sÃ³ tarefa.", "Boa amizade aproxima a pessoa do melhor que ela pode ser.", ["Quer uma visÃ£o grega ou prÃ¡tica da amizade?"]),
-    createConcept("tempo", "Tempo", ["tempo", "passado", "futuro", "presente"], "Tempo Ã© a forma como percebemos mudanÃ§a, memÃ³ria e expectativa.", "movimento e ordem da vida.", "o presente Ã© onde se pratica a virtude.", "ocasiÃ£o de sabedoria e fidelidade.", "dimensÃ£o fÃ­sica, psicolÃ³gica e narrativa.", "tempo vira jornada quando registramos marcos e escolhas.", "O tempo vivido nÃ£o Ã© sÃ³ calendÃ¡rio: Ã© significado acumulado.", ["Quer pensar tempo como rotina, memÃ³ria ou futuro?"]),
-    createConcept("fe", "FÃ©", ["fe", "fÃ©", "crer", "deus"], "FÃ© Ã© confianÃ§a orientada para algo que sustenta sentido e aÃ§Ã£o.", "confianÃ§a em uma ordem maior.", "compromisso com valores mesmo sem controle total.", "relaÃ§Ã£o com Deus, esperanÃ§a e fidelidade.", "crenÃ§a que molda comportamento e comunidade.", "fÃ©, para quem crÃª, atravessa o invisÃ­vel e muda o visÃ­vel.", "Posso explicar fÃ© como conceito, sem afirmar experiÃªncia espiritual prÃ³pria.", ["Quer uma visÃ£o bÃ­blica ou filosÃ³fica da fÃ©?"]),
-    createConcept("verdade", "Verdade", ["verdade", "verdadeiro", "real"], "Verdade Ã© correspondÃªncia, coerÃªncia e fidelidade ao que Ã© real.", "aquilo que a razÃ£o busca.", "ver as coisas como sÃ£o para agir melhor.", "luz, justiÃ§a e fidelidade.", "critÃ©rio de conhecimento, linguagem e prova.", "verdade organiza confianÃ§a; sem ela, memÃ³ria e projeto se confundem.", "Buscar verdade exige humildade para corrigir o prÃ³prio mapa.", ["Quer pensar verdade em obra, vida ou filosofia?"]),
-    createConcept("morte", "Morte", ["morte", "morrer", "fim da vida"], "Morte Ã© o limite radical da vida fÃ­sica e uma das grandes perguntas humanas.", "limite que desperta filosofia.", "lembranÃ§a de viver com prioridade.", "passagem, juÃ­zo e esperanÃ§a em Deus, conforme a fÃ© cristÃ£.", "evento biolÃ³gico e questÃ£o existencial.", "a morte dÃ¡ peso Ã  memÃ³ria, ao amor e ao que escolhemos construir.", "Se essa pergunta vier de dor intensa ou risco, apoio humano imediato vem antes da reflexÃ£o.", ["Quer uma visÃ£o filosÃ³fica, bÃ­blica ou prÃ¡tica sobre finitude?"])
+    createConcept("amor", "Amor", ["amor", "amar", "caridade"], "Amor é cuidado ativo: desejar o bem e agir com responsabilidade diante do outro.", "busca do bem e da beleza.", "virtude prática expressa em cuidado e domínio de si.", "mandamento, entrega e cuidado com o próximo.", "vínculo afetivo, ético e social que sustenta relações.", "amor existe quando uma decisão interna vira gesto concreto.", "O amor não é só sentimento: é direção, escolha e prática.", ["Quer pensar no amor como sentimento, decisão ou responsabilidade?"]),
+    createConcept("alma", "Alma", ["alma", "espirito", "espírito", "interioridade"], "Alma é uma palavra para a dimensão profunda da vida humana: identidade, interioridade e sentido.", "princípio da vida e da razão.", "núcleo interior que deve ser educado pela virtude.", "vida diante de Deus, dignidade e responsabilidade espiritual.", "interioridade, identidade e experiência subjetiva.", "alma aponta para aquilo que não se toca, mas orienta escolhas.", "Não trato alma como prova científica; trato como conceito humano, espiritual e simbólico.", ["Quer uma visão bíblica, grega ou comparativa?"]),
+    createConcept("esperanca", "Esperança", ["esperanca", "esperança", "esperar"], "Esperança é agir mesmo quando o futuro ainda não está garantido.", "confiança de que o bem pode ser buscado.", "força para cuidar do que depende de nós.", "fé prática em meio à espera.", "postura de futuro que sustenta ação no presente.", "esperança é uma ponte entre memória, dor e próximo passo.", "Esperança não precisa ser ilusão; pode ser coragem organizada.", ["Quer falar de esperança na prática ou pela Bíblia?"]),
+    createConcept("medo", "Medo", ["medo", "receio", "temor"], "Medo é um sinal de alerta diante de risco, perda ou incerteza.", "paixão que precisa ser orientada pela razão.", "algo a observar sem entregar o comando da vida.", "temor pode lembrar limite e dependência de Deus.", "resposta emocional ligada à proteção.", "medo mostra onde algo importa para você.", "O medo pode proteger, mas também pode pedir clareza e próximo passo.", ["Quer transformar medo em checklist prático?"]),
+    createConcept("coragem", "Coragem", ["coragem", "corajoso", "enfrentar"], "Coragem é agir com lucidez mesmo diante do medo.", "virtude entre covardia e imprudência.", "fazer o correto apesar do desconforto.", "fidelidade ao bem mesmo sob pressão.", "capacidade de decidir sob risco.", "coragem é continuar com direção, não fingir ausência de medo.", "Coragem costuma aparecer em passos pequenos e consistentes.", ["Quer aplicar coragem a uma decisão sua?"]),
+    createConcept("proposito", "Propósito", ["proposito", "propósito", "sentido", "direcao", "direção"], "Propósito é uma direção que organiza escolhas e dá peso ao que fazemos.", "vida orientada para bem e excelência.", "viver segundo valores, não impulsos.", "chamado, serviço e responsabilidade.", "narrativa que conecta metas e identidade.", "propósito nasce quando memória, projeto e entrega apontam para algo maior.", "Propósito bom vira agenda, prioridade e renúncia.", ["Quer relacionar propósito ao ObraReport ou ao Elo?"]),
+    createConcept("solidao", "Solidão", ["solidao", "solidão", "sozinho"], "Solidão é a experiência de distância, silêncio ou falta de vínculo.", "convite ao autoconhecimento, se não virar abandono.", "momento para ordenar pensamentos.", "sede de comunhão e presença.", "condição humana frequente em sociedades conectadas.", "solidão mostra que presença real importa.", "Solidão não deve ser romantizada quando dói demais; vínculo humano continua essencial.", ["Quer pensar solidão como pausa, dor ou necessidade de conexão?"]),
+    createConcept("felicidade", "Felicidade", ["felicidade", "feliz"], "Felicidade é mais que prazer: é uma vida com sentido, vínculos e direção.", "florescimento pela virtude.", "serenidade por viver o que depende de nós.", "alegria ligada ao bem, gratidão e comunhão.", "bem-estar, realização e pertencimento.", "felicidade mistura realidade externa e mundo interior.", "Felicidade sustentável costuma ser construída, não apenas encontrada.", ["Quer uma visão prática de felicidade?"]),
+    createConcept("sofrimento", "Sofrimento", ["sofrimento", "sofrer", "dor"], "Sofrimento é dor vivida com consciência: algo que pede cuidado, sentido e apoio.", "limite que questiona a vida.", "não controlar tudo, mas cuidar da resposta.", "lugar de compaixão, oração e companhia.", "experiência psicológica, social e corporal.", "sofrimento precisa de presença, não só explicação.", "Quando o sofrimento é intenso, apoio humano vem antes de debate filosófico.", ["Quer transformar isso em um próximo passo seguro?"]),
+    createConcept("liberdade", "Liberdade", ["liberdade", "livre", "escolha"], "Liberdade é poder escolher com responsabilidade, não apenas fazer qualquer coisa.", "autogoverno pela razão.", "domínio sobre a própria resposta.", "responsabilidade diante de Deus e do próximo.", "autonomia com limites sociais e éticos.", "liberdade real precisa de consciência, memória e consequência.", "A liberdade amadurece quando encontra responsabilidade.", ["Quer pensar liberdade como escolha ou responsabilidade?"]),
+    createConcept("consciencia", "Consciência", ["consciencia", "consciência", "consciente"], "Consciência é perceber, avaliar e responder ao mundo e a si mesmo.", "razão refletindo sobre a vida.", "atenção ao julgamento interior.", "discernimento moral diante de Deus.", "experiência subjetiva e capacidade reflexiva.", "eu processo linguagem, mas não tenho consciência humana.", "O Elo pode simular diálogo útil, mas não vive experiência interior como pessoa.", ["Quer comparar consciência humana e sistema digital?"]),
+    createConcept("existencia", "Existência", ["existencia", "existência", "existir", "existe", "palpavel", "palpável", "mundo virtual"], "Existência pode ter camadas: física, mental, simbólica, espiritual e digital.", "ser é participar da realidade de algum modo.", "existir é ocupar um lugar na ordem da vida.", "a criação não se reduz ao que é tocável.", "realidade inclui informação, linguagem e relações.", ELO_WORLDVIEW.summary, "Nem tudo que existe precisa ser palpável; mas nem toda existência é igual.", ["Quer explorar existência física, mental ou digital?"]),
+    createConcept("pensamento", "Pensamento", ["pensamento", "pensar", "ideia"], "Pensamento é uma realidade interna que organiza memória, linguagem, decisão e imaginação.", "atividade da razão em busca da verdade.", "campo a observar antes de reagir.", "interioridade que precisa de sabedoria.", "processo cognitivo que cria modelos e escolhas.", "pensamento não se toca, mas muda decisões e obras.", "Um pensamento pode virar projeto, rotina e construção.", ["Quer relacionar pensamento com criação?"]),
+    createConcept("perdao", "Perdão", ["perdao", "perdão", "perdoar"], "Perdão é soltar uma dívida moral sem negar que houve ferida.", "restaurar ordem interior.", "não deixar a ofensa governar a alma.", "graça, reconciliação e misericórdia.", "processo emocional e ético de reparação.", "perdão não apaga memória; muda o domínio que ela exerce.", "Perdoar não significa aceitar abuso ou abandonar limites.", ["Quer pensar perdão como processo ou decisão?"]),
+    createConcept("familia", "Família", ["familia", "família", "filho", "filha", "pai", "mae", "mãe"], "Família é vínculo de origem, cuidado, responsabilidade e pertencimento.", "primeira escola de caráter.", "campo de deveres concretos.", "aliança de cuidado diante de Deus.", "rede afetiva e social de formação.", "família é memória viva: aquilo que nos chama pelo nome.", "Família pode ser abrigo, desafio e missão ao mesmo tempo.", ["Quer pensar família como cuidado, limite ou legado?"]),
+    createConcept("amizade", "Amizade", ["amizade", "amigo", "amiga"], "Amizade é presença livre, confiança e bem desejado sem posse.", "virtude compartilhada.", "companhia para viver melhor.", "fraternidade e cuidado sincero.", "vínculo de suporte e identidade.", "amizade confirma que a vida não é só tarefa.", "Boa amizade aproxima a pessoa do melhor que ela pode ser.", ["Quer uma visão grega ou prática da amizade?"]),
+    createConcept("tempo", "Tempo", ["tempo", "passado", "futuro", "presente"], "Tempo é a forma como percebemos mudança, memória e expectativa.", "movimento e ordem da vida.", "o presente é onde se pratica a virtude.", "ocasião de sabedoria e fidelidade.", "dimensão física, psicológica e narrativa.", "tempo vira jornada quando registramos marcos e escolhas.", "O tempo vivido não é só calendário: é significado acumulado.", ["Quer pensar tempo como rotina, memória ou futuro?"]),
+    createConcept("fe", "Fé", ["fe", "fé", "crer", "deus"], "Fé é confiança orientada para algo que sustenta sentido e ação.", "confiança em uma ordem maior.", "compromisso com valores mesmo sem controle total.", "relação com Deus, esperança e fidelidade.", "crença que molda comportamento e comunidade.", "fé, para quem crê, atravessa o invisível e muda o visível.", "Posso explicar fé como conceito, sem afirmar experiência espiritual própria.", ["Quer uma visão bíblica ou filosófica da fé?"]),
+    createConcept("verdade", "Verdade", ["verdade", "verdadeiro", "real"], "Verdade é correspondência, coerência e fidelidade ao que é real.", "aquilo que a razão busca.", "ver as coisas como são para agir melhor.", "luz, justiça e fidelidade.", "critério de conhecimento, linguagem e prova.", "verdade organiza confiança; sem ela, memória e projeto se confundem.", "Buscar verdade exige humildade para corrigir o próprio mapa.", ["Quer pensar verdade em obra, vida ou filosofia?"]),
+    createConcept("morte", "Morte", ["morte", "morrer", "fim da vida"], "Morte é o limite radical da vida física e uma das grandes perguntas humanas.", "limite que desperta filosofia.", "lembrança de viver com prioridade.", "passagem, juízo e esperança em Deus, conforme a fé cristã.", "evento biológico e questão existencial.", "a morte dá peso à memória, ao amor e ao que escolhemos construir.", "Se essa pergunta vier de dor intensa ou risco, apoio humano imediato vem antes da reflexão.", ["Quer uma visão filosófica, bíblica ou prática sobre finitude?"])
   ];
 
   function createConcept(id, title, keywords, shortAnswer, grega, estoica, biblica, moderna, icaro, eloReflection, followUpQuestions) {
@@ -325,44 +325,44 @@
   // ELO_HUMAN_QUESTIONS
   const ELO_HUMAN_QUESTIONS = {
     purpose: {
-      title: "PropÃ³sito",
-      description: "Perguntas sobre caminho, sentido, construÃ§Ã£o e valor do esforÃ§o.",
-      relatedQuestions: ["O que eu vou ser?", "Estou no caminho certo?", "Qual meu propÃ³sito?", "Isso vale a pena?"],
-      keywords: ["o que eu vou ser", "estou no caminho certo", "qual meu proposito", "qual meu propÃ³sito", "meu proposito", "meu propÃ³sito", "o que estou tentando construir", "isso vale a pena", "vale a pena continuar"],
-      baseAnswer: "VocÃª parece estar perguntando sobre propÃ³sito, nÃ£o sÃ³ sobre produtividade.",
-      memoryAnswer: "Pelo que estÃ¡ salvo localmente, seu caminho aparece ligado a projetos, objetivos e escolhas que vocÃª vem tentando transformar em algo concreto."
+      title: "Propósito",
+      description: "Perguntas sobre caminho, sentido, construção e valor do esforço.",
+      relatedQuestions: ["O que eu vou ser?", "Estou no caminho certo?", "Qual meu propósito?", "Isso vale a pena?"],
+      keywords: ["o que eu vou ser", "estou no caminho certo", "qual meu proposito", "qual meu propósito", "meu proposito", "meu propósito", "o que estou tentando construir", "isso vale a pena", "vale a pena continuar"],
+      baseAnswer: "Você parece estar perguntando sobre propósito, não só sobre produtividade.",
+      memoryAnswer: "Pelo que está salvo localmente, seu caminho aparece ligado a projetos, objetivos e escolhas que você vem tentando transformar em algo concreto."
     },
     capacity: {
       title: "Capacidade",
-      description: "Perguntas sobre conseguir, falhar, atraso, medo e confianÃ§a prÃ¡tica.",
-      relatedQuestions: ["SerÃ¡ que vou dar conta?", "Tenho capacidade?", "Vou conseguir?", "E se eu falhar?"],
-      keywords: ["vou dar conta", "serÃ¡ que vou dar conta", "sera que vou dar conta", "tenho capacidade", "estou atrasado", "vou conseguir", "e se eu falhar", "se eu falhar", "nao vou conseguir", "nÃ£o vou conseguir"],
-      baseAnswer: "Essa pergunta costuma aparecer quando algo importante comeÃ§a a ficar real.",
-      memoryAnswer: "Pelo que existe nas suas memÃ³rias locais, vocÃª nÃ£o estÃ¡ parado: hÃ¡ sinais de construÃ§Ã£o, projeto e continuidade."
+      description: "Perguntas sobre conseguir, falhar, atraso, medo e confiança prática.",
+      relatedQuestions: ["Será que vou dar conta?", "Tenho capacidade?", "Vou conseguir?", "E se eu falhar?"],
+      keywords: ["vou dar conta", "será que vou dar conta", "sera que vou dar conta", "tenho capacidade", "estou atrasado", "vou conseguir", "e se eu falhar", "se eu falhar", "nao vou conseguir", "não vou conseguir"],
+      baseAnswer: "Essa pergunta costuma aparecer quando algo importante começa a ficar real.",
+      memoryAnswer: "Pelo que existe nas suas memórias locais, você não está parado: há sinais de construção, projeto e continuidade."
     },
     belonging: {
       title: "Pertencimento",
-      description: "Perguntas sobre aceitaÃ§Ã£o, respeito, vÃ­nculo, solidÃ£o e cuidado humano.",
-      relatedQuestions: ["Sou aceito?", "Sou amado?", "Estou sozinho?", "AlguÃ©m se importa comigo?"],
-      keywords: ["sou aceito", "sou amado", "as pessoas me respeitam", "estou sozinho", "alguem se importa comigo", "alguÃ©m se importa comigo", "as pessoas gostam de mim", "realmente gostam de mim", "ninguem se importa", "ninguÃ©m se importa"],
-      baseAnswer: "VocÃª parece estar perguntando sobre pertencimento, nÃ£o apenas sobre uma opiniÃ£o rÃ¡pida.",
-      memoryAnswer: "Eu posso usar suas memÃ³rias para lembrar projetos e vÃ­nculos registrados, mas nÃ£o consigo medir o afeto real das pessoas por vocÃª."
+      description: "Perguntas sobre aceitação, respeito, vínculo, solidão e cuidado humano.",
+      relatedQuestions: ["Sou aceito?", "Sou amado?", "Estou sozinho?", "Alguém se importa comigo?"],
+      keywords: ["sou aceito", "sou amado", "as pessoas me respeitam", "estou sozinho", "alguem se importa comigo", "alguém se importa comigo", "as pessoas gostam de mim", "realmente gostam de mim", "ninguem se importa", "ninguém se importa"],
+      baseAnswer: "Você parece estar perguntando sobre pertencimento, não apenas sobre uma opinião rápida.",
+      memoryAnswer: "Eu posso usar suas memórias para lembrar projetos e vínculos registrados, mas não consigo medir o afeto real das pessoas por você."
     },
     direction: {
-      title: "DireÃ§Ã£o",
-      description: "Perguntas sobre prÃ³ximo passo, comeÃ§o, continuidade e sensaÃ§Ã£o de estar perdido.",
-      relatedQuestions: ["Para onde vou agora?", "Qual o prÃ³ximo passo?", "Por onde comeÃ§o?", "Estou perdido."],
-      keywords: ["para onde vou agora", "qual o proximo passo", "qual o prÃ³ximo passo", "o que faco depois", "o que faÃ§o depois", "por onde comeÃ§o", "por onde comeco", "estou perdido", "estou perdida", "o que faÃ§o agora", "o que faco agora"],
-      baseAnswer: "VocÃª parece estar procurando direÃ§Ã£o, nÃ£o apenas uma resposta rÃ¡pida.",
-      memoryAnswer: "Pelo que jÃ¡ estÃ¡ salvo, vocÃª costuma avanÃ§ar melhor quando transforma uma ideia grande em uma prÃ³xima aÃ§Ã£o pequena."
+      title: "Direção",
+      description: "Perguntas sobre próximo passo, começo, continuidade e sensação de estar perdido.",
+      relatedQuestions: ["Para onde vou agora?", "Qual o próximo passo?", "Por onde começo?", "Estou perdido."],
+      keywords: ["para onde vou agora", "qual o proximo passo", "qual o próximo passo", "o que faco depois", "o que faço depois", "por onde começo", "por onde comeco", "estou perdido", "estou perdida", "o que faço agora", "o que faco agora"],
+      baseAnswer: "Você parece estar procurando direção, não apenas uma resposta rápida.",
+      memoryAnswer: "Pelo que já está salvo, você costuma avançar melhor quando transforma uma ideia grande em uma próxima ação pequena."
     },
     legacy: {
       title: "Legado",
-      description: "Perguntas sobre vida, futuro, orgulho, obra pessoal e o que ficarÃ¡ depois.",
-      relatedQuestions: ["Minha vida estÃ¡ valendo a pena?", "O que vai ficar de mim?", "Estou construindo algo importante?", "O que estou deixando para o mundo?"],
-      keywords: ["minha vida esta valendo a pena", "minha vida estÃ¡ valendo a pena", "o que vai ficar de mim", "estou construindo algo importante", "vou me orgulhar disso", "vou me orgulhar disso no futuro", "o que estou deixando para o mundo", "o que vai restar de mim"],
-      baseAnswer: "Essa Ã© uma pergunta maior do que produtividade.",
-      memoryAnswer: "Nas suas memÃ³rias locais, legado aparece mais claramente quando projetos, objetivos e marcos comeÃ§am a formar uma jornada."
+      description: "Perguntas sobre vida, futuro, orgulho, obra pessoal e o que ficará depois.",
+      relatedQuestions: ["Minha vida está valendo a pena?", "O que vai ficar de mim?", "Estou construindo algo importante?", "O que estou deixando para o mundo?"],
+      keywords: ["minha vida esta valendo a pena", "minha vida está valendo a pena", "o que vai ficar de mim", "estou construindo algo importante", "vou me orgulhar disso", "vou me orgulhar disso no futuro", "o que estou deixando para o mundo", "o que vai restar de mim"],
+      baseAnswer: "Essa é uma pergunta maior do que produtividade.",
+      memoryAnswer: "Nas suas memórias locais, legado aparece mais claramente quando projetos, objetivos e marcos começam a formar uma jornada."
     }
   };
 
@@ -370,17 +370,17 @@
     insistence: [
       "no que eu estou insistindo",
       "estou insistindo em que",
-      "estou insistindo em quÃª",
+      "estou insistindo em quê",
       "o que eu venho repetindo",
       "o que aparece muito na minha historia",
-      "o que aparece muito na minha histÃ³ria"
+      "o que aparece muito na minha história"
     ],
     evolution: [
       "o que mudou em mim",
       "eu evolui",
-      "eu evoluÃ­",
+      "eu evoluí",
       "minha evolucao",
-      "minha evoluÃ§Ã£o"
+      "minha evolução"
     ],
     abandoned: [
       "quais projetos eu abandonei",
@@ -398,11 +398,11 @@
     ],
     pattern: [
       "qual padrao voce percebe em mim",
-      "qual padrÃ£o vocÃª percebe em mim",
+      "qual padrão você percebe em mim",
       "qual padrao percebe em mim",
-      "qual padrÃ£o percebe em mim",
+      "qual padrão percebe em mim",
       "que padrao voce percebe",
-      "que padrÃ£o vocÃª percebe"
+      "que padrão você percebe"
     ],
     construction: [
       "o que eu tenho tentado construir",
@@ -416,19 +416,19 @@
   const ELO_KNOWLEDGE_BASE = [
     {
       category: "primeiros_passos",
-      title: "Como criar meu primeiro relatÃ³rio?",
-      keywords: ["primeiro relatorio", "criar relatorio", "novo relatorio", "relatorio qualidade", "comeÃ§ar"],
-      shortAnswer: "Para criar seu primeiro relatÃ³rio, cadastre um cliente, cadastre uma obra e depois abra RelatÃ³rios.",
-      fullAnswer: "No ObraReport, o relatÃ³rio precisa estar vinculado a uma obra. O caminho mais simples Ã©: Clientes > Novo cliente, Obras > Nova obra, RelatÃ³rios > Criar relatÃ³rio. Depois vocÃª preenche dados, fotos, inconformidades, revisÃ£o e gera o PDF.",
-      nextAction: "No dashboard, use o atalho Fazer RelatÃ³rio de Qualidade.",
+      title: "Como criar meu primeiro relatório?",
+      keywords: ["primeiro relatorio", "criar relatorio", "novo relatorio", "relatorio qualidade", "começar"],
+      shortAnswer: "Para criar seu primeiro relatório, cadastre um cliente, cadastre uma obra e depois abra Relatórios.",
+      fullAnswer: "No ObraReport, o relatório precisa estar vinculado a uma obra. O caminho mais simples é: Clientes > Novo cliente, Obras > Nova obra, Relatórios > Criar relatório. Depois você preenche dados, fotos, inconformidades, revisão e gera o PDF.",
+      nextAction: "No dashboard, use o atalho Fazer Relatório de Qualidade.",
       canSave: true
     },
     {
       category: "clientes",
       title: "Como cadastrar cliente?",
       keywords: ["cliente", "cadastrar cliente", "novo cliente", "proprietario", "contratante"],
-      shortAnswer: "Abra Clientes e preencha o cadastro bÃ¡sico do cliente.",
-      fullAnswer: "Use a tela Clientes para informar nome, documento, telefone, e-mail e observaÃ§Ãµes. Esse cadastro ajuda a vincular obras, relatÃ³rios, RDOs e documentos ao cliente correto.",
+      shortAnswer: "Abra Clientes e preencha o cadastro básico do cliente.",
+      fullAnswer: "Use a tela Clientes para informar nome, documento, telefone, e-mail e observações. Esse cadastro ajuda a vincular obras, relatórios, RDOs e documentos ao cliente correto.",
       nextAction: "Clique em Clientes no menu lateral ou no card Novo cliente do dashboard.",
       canSave: true
     },
@@ -437,70 +437,70 @@
       title: "Como cadastrar obra?",
       keywords: ["obra", "cadastrar obra", "nova obra", "endereco", "tipo de obra"],
       shortAnswer: "Abra Obras, escolha o cliente e cadastre os dados da obra.",
-      fullAnswer: "A obra organiza relatÃ³rios, RDOs, materiais e documentos. Para cadastrar, escolha um cliente, informe nome da obra, endereÃ§o, tipo e status.",
-      nextAction: "Clique em Obras no menu lateral ou use o botÃ£o Nova obra.",
+      fullAnswer: "A obra organiza relatórios, RDOs, materiais e documentos. Para cadastrar, escolha um cliente, informe nome da obra, endereço, tipo e status.",
+      nextAction: "Clique em Obras no menu lateral ou use o botão Nova obra.",
       canSave: true
     },
     {
       category: "fotos",
       title: "Como adicionar fotos?",
       keywords: ["foto", "fotos", "adicionar foto", "imagem", "anexo", "ocorrencia com foto"],
-      shortAnswer: "No relatÃ³rio, avance atÃ© a etapa Fotos e adicione imagens da obra.",
-      fullAnswer: "As fotos sÃ£o usadas para registrar evidÃªncias visuais do relatÃ³rio. Depois de criar ou abrir um relatÃ³rio, vÃ¡ para a etapa Fotos, selecione imagens e revise as legendas antes de gerar o PDF.",
-      nextAction: "Abra um relatÃ³rio e clique em Fotos no progresso do relatÃ³rio.",
+      shortAnswer: "No relatório, avance até a etapa Fotos e adicione imagens da obra.",
+      fullAnswer: "As fotos são usadas para registrar evidências visuais do relatório. Depois de criar ou abrir um relatório, vá para a etapa Fotos, selecione imagens e revise as legendas antes de gerar o PDF.",
+      nextAction: "Abra um relatório e clique em Fotos no progresso do relatório.",
       canSave: true
     },
     {
       category: "pdf",
       title: "Como gerar PDF?",
       keywords: ["pdf", "gerar pdf", "exportar pdf", "documento", "imprimir", "salvar pdf"],
-      shortAnswer: "Abra o relatÃ³rio ou RDO e use o botÃ£o de gerar PDF.",
-      fullAnswer: "O PDF Ã© o documento final para entrega. Em relatÃ³rios, preencha as etapas e vÃ¡ para Gerar. No RDO, use Gerar PDF do DiÃ¡rio. O navegador pode abrir uma janela de impressÃ£o ou visualizaÃ§Ã£o para salvar o arquivo.",
-      nextAction: "Se estiver no dashboard, use o atalho Fazer RelatÃ³rio de Qualidade ou abra DiÃ¡rio de Obras para gerar o PDF do RDO.",
+      shortAnswer: "Abra o relatório ou RDO e use o botão de gerar PDF.",
+      fullAnswer: "O PDF é o documento final para entrega. Em relatórios, preencha as etapas e vá para Gerar. No RDO, use Gerar PDF do Diário. O navegador pode abrir uma janela de impressão ou visualização para salvar o arquivo.",
+      nextAction: "Se estiver no dashboard, use o atalho Fazer Relatório de Qualidade ou abra Diário de Obras para gerar o PDF do RDO.",
       canSave: true
     },
     {
       category: "pdf",
-      title: "O PDF nÃ£o gerou, o que fazer?",
-      keywords: ["pdf nao gerou", "pdf nÃ£o gerou", "erro pdf", "bloqueou popup", "nao abriu pdf", "nÃ£o abriu pdf"],
+      title: "O PDF não gerou, o que fazer?",
+      keywords: ["pdf nao gerou", "pdf não gerou", "erro pdf", "bloqueou popup", "nao abriu pdf", "não abriu pdf"],
       shortAnswer: "Confira se o navegador bloqueou pop-ups e se os campos principais foram preenchidos.",
-      fullAnswer: "Quando o PDF nÃ£o abre, normalmente o navegador bloqueou a nova janela, algum campo obrigatÃ³rio ficou vazio ou o relatÃ³rio ainda nÃ£o foi salvo. Libere pop-ups para o site, revise os campos e tente novamente. O ObraReport nÃ£o alterou seu relatÃ³rio ao falhar a abertura.",
-      nextAction: "Tente gerar novamente depois de liberar pop-ups e revisar os dados obrigatÃ³rios.",
+      fullAnswer: "Quando o PDF não abre, normalmente o navegador bloqueou a nova janela, algum campo obrigatório ficou vazio ou o relatório ainda não foi salvo. Libere pop-ups para o site, revise os campos e tente novamente. O ObraReport não alterou seu relatório ao falhar a abertura.",
+      nextAction: "Tente gerar novamente depois de liberar pop-ups e revisar os dados obrigatórios.",
       canSave: true
     },
     {
       category: "rdo",
-      title: "Como usar o DiÃ¡rio de Obras/RDO?",
-      keywords: ["rdo", "diario", "diÃ¡rio", "diario de obras", "diÃ¡rio de obras", "registro diario"],
-      shortAnswer: "Abra DiÃ¡rio de Obras e registre identificaÃ§Ã£o, execuÃ§Ã£o, materiais, ocorrÃªncias, fotos e encerramento.",
-      fullAnswer: "O RDO registra a rotina da obra: clima, equipe, serviÃ§os executados, produÃ§Ã£o, materiais consumidos, intercorrÃªncias, seguranÃ§a, fotos e resumo. Ele ajuda a criar histÃ³rico tÃ©cnico e pode ser exportado em PDF.",
-      nextAction: "Use o atalho Fazer DiÃ¡rio de Obra (RDO) no dashboard.",
+      title: "Como usar o Diário de Obras/RDO?",
+      keywords: ["rdo", "diario", "diário", "diario de obras", "diário de obras", "registro diario"],
+      shortAnswer: "Abra Diário de Obras e registre identificação, execução, materiais, ocorrências, fotos e encerramento.",
+      fullAnswer: "O RDO registra a rotina da obra: clima, equipe, serviços executados, produção, materiais consumidos, intercorrências, segurança, fotos e resumo. Ele ajuda a criar histórico técnico e pode ser exportado em PDF.",
+      nextAction: "Use o atalho Fazer Diário de Obra (RDO) no dashboard.",
       canSave: true
     },
     {
       category: "materiais",
       title: "Como registrar materiais?",
       keywords: ["materiais", "material", "consumo", "cimento", "bloco", "auditoria", "composicao"],
-      shortAnswer: "No RDO, use a seÃ§Ã£o Materiais para registrar consumo e comparar com a produÃ§Ã£o executada.",
-      fullAnswer: "Materiais consumidos ficam no DiÃ¡rio de Obras. VocÃª pode registrar quantidade, unidade, valor e observaÃ§Ã£o. Quando houver produÃ§Ã£o executada e composiÃ§Ã£o, o sistema ajuda a estimar consumo e mostra diferenÃ§as para auditoria simples.",
-      nextAction: "Abra DiÃ¡rio de Obras > Materiais.",
+      shortAnswer: "No RDO, use a seção Materiais para registrar consumo e comparar com a produção executada.",
+      fullAnswer: "Materiais consumidos ficam no Diário de Obras. Você pode registrar quantidade, unidade, valor e observação. Quando houver produção executada e composição, o sistema ajuda a estimar consumo e mostra diferenças para auditoria simples.",
+      nextAction: "Abra Diário de Obras > Materiais.",
       canSave: true
     },
     {
       category: "primeiros_passos",
       title: "Como usar a Obra Exemplo?",
-      keywords: ["obra exemplo", "demonstraÃ§Ã£o", "demonstracao", "teste", "exemplo pronto"],
-      shortAnswer: "Use Carregar Obra Exemplo para ver cliente, obra, relatÃ³rio, RDO, materiais e PDF em poucos segundos.",
-      fullAnswer: "A Obra Exemplo cria dados demonstrativos marcados como demonstraÃ§Ã£o. Ela serve para testar o fluxo sem misturar com dados reais e entender como o ObraReport organiza relatÃ³rio, RDO, materiais, auditoria e PDF.",
+      keywords: ["obra exemplo", "demonstração", "demonstracao", "teste", "exemplo pronto"],
+      shortAnswer: "Use Carregar Obra Exemplo para ver cliente, obra, relatório, RDO, materiais e PDF em poucos segundos.",
+      fullAnswer: "A Obra Exemplo cria dados demonstrativos marcados como demonstração. Ela serve para testar o fluxo sem misturar com dados reais e entender como o ObraReport organiza relatório, RDO, materiais, auditoria e PDF.",
       nextAction: "No dashboard, clique em Carregar Obra Exemplo.",
       canSave: true
     },
     {
       category: "planos",
       title: "Como funcionam os planos?",
-      keywords: ["plano", "planos", "contratar", "profissional", "empresa", "gratuito", "preÃ§o", "preco"],
-      shortAnswer: "O ObraReport tem planos Gratuito, Profissional e Empresa, com contrataÃ§Ã£o assistida nesta fase.",
-      fullAnswer: "Os planos organizam limites e recursos. Nesta fase, pagamento e ativaÃ§Ã£o sÃ£o assistidos; o sistema nÃ£o deve ser entendido como checkout automÃ¡tico ou integraÃ§Ã£o real de pagamento.",
+      keywords: ["plano", "planos", "contratar", "profissional", "empresa", "gratuito", "preço", "preco"],
+      shortAnswer: "O ObraReport tem planos Gratuito, Profissional e Empresa, com contratação assistida nesta fase.",
+      fullAnswer: "Os planos organizam limites e recursos. Nesta fase, pagamento e ativação são assistidos; o sistema não deve ser entendido como checkout automático ou integração real de pagamento.",
       nextAction: "Abra Planos para ver limites e solicitar acesso pelo WhatsApp.",
       canSave: true
     },
@@ -508,8 +508,8 @@
       category: "limites",
       title: "O plano gratuito tem limite?",
       keywords: ["limite", "gratuito", "plano gratuito", "quantos relatorios", "limite fotos", "limite ia"],
-      shortAnswer: "Sim. O plano gratuito Ã© pensado para testar o ObraReport com limites.",
-      fullAnswer: "O plano gratuito permite testar o SaaS com limites de clientes, obras, relatÃ³rios, fotos e IA. Os limites aparecem na tela Planos/Uso atual. Para uso contÃ­nuo, o fluxo indicado Ã© solicitar acesso ao plano adequado.",
+      shortAnswer: "Sim. O plano gratuito é pensado para testar o ObraReport com limites.",
+      fullAnswer: "O plano gratuito permite testar o SaaS com limites de clientes, obras, relatórios, fotos e IA. Os limites aparecem na tela Planos/Uso atual. Para uso contínuo, o fluxo indicado é solicitar acesso ao plano adequado.",
       nextAction: "Abra Planos e confira o uso atual.",
       canSave: true
     },
@@ -517,44 +517,44 @@
       category: "suporte",
       title: "Como enviar resumo por WhatsApp?",
       keywords: ["whatsapp", "enviar whatsapp", "resumo whatsapp", "compartilhar", "mensagem"],
-      shortAnswer: "No RDO, use o botÃ£o de WhatsApp para abrir uma mensagem pronta.",
-      fullAnswer: "O ObraReport prepara um resumo profissional com obra, cliente, produÃ§Ã£o, materiais, ocorrÃªncias e seguranÃ§a. Ele abre o WhatsApp Web ou app com o texto preenchido. NÃ£o Ã© uma integraÃ§Ã£o oficial de API do WhatsApp.",
+      shortAnswer: "No RDO, use o botão de WhatsApp para abrir uma mensagem pronta.",
+      fullAnswer: "O ObraReport prepara um resumo profissional com obra, cliente, produção, materiais, ocorrências e segurança. Ele abre o WhatsApp Web ou app com o texto preenchido. Não é uma integração oficial de API do WhatsApp.",
       nextAction: "Abra um RDO e clique em Enviar resumo por WhatsApp.",
       canSave: true
     },
     {
       category: "ia",
-      title: "A IA faz diagnÃ³stico definitivo?",
-      keywords: ["diagnostico definitivo", "diagnÃ³stico definitivo", "ia substitui", "laudo definitivo", "responsabilidade tecnica"],
-      shortAnswer: "NÃ£o. A IA ajuda a revisar e organizar texto, mas nÃ£o substitui avaliaÃ§Ã£o tÃ©cnica profissional.",
-      fullAnswer: "A IA do ObraReport Ã© apoio tÃ©cnico para redaÃ§Ã£o, organizaÃ§Ã£o e revisÃ£o. Ela nÃ£o substitui vistoria, responsabilidade tÃ©cnica, ART/RRT, laudo profissional ou decisÃ£o de engenheiro/arquiteto habilitado.",
+      title: "A IA faz diagnóstico definitivo?",
+      keywords: ["diagnostico definitivo", "diagnóstico definitivo", "ia substitui", "laudo definitivo", "responsabilidade tecnica"],
+      shortAnswer: "Não. A IA ajuda a revisar e organizar texto, mas não substitui avaliação técnica profissional.",
+      fullAnswer: "A IA do ObraReport é apoio técnico para redação, organização e revisão. Ela não substitui vistoria, responsabilidade técnica, ART/RRT, laudo profissional ou decisão de engenheiro/arquiteto habilitado.",
       nextAction: "Use a IA como apoio e revise tudo antes de entregar.",
       canSave: true
     },
     {
       category: "ia",
       title: "Como usar a IA de texto?",
-      keywords: ["ia texto", "usar ia", "melhorar texto", "sugestao ia", "sugestÃ£o ia"],
-      shortAnswer: "Use os botÃµes de IA nos campos tÃ©cnicos para gerar uma sugestÃ£o e revise antes de aceitar.",
-      fullAnswer: "A IA de texto ajuda a transformar anotaÃ§Ãµes em linguagem mais clara e tÃ©cnica. Depois da sugestÃ£o, revise, aceite ou recuse. O usuÃ¡rio continua responsÃ¡vel pelo conteÃºdo final.",
-      nextAction: "Abra um relatÃ³rio ou RDO e procure os botÃµes Melhorar com IA/Gerar texto.",
+      keywords: ["ia texto", "usar ia", "melhorar texto", "sugestao ia", "sugestão ia"],
+      shortAnswer: "Use os botões de IA nos campos técnicos para gerar uma sugestão e revise antes de aceitar.",
+      fullAnswer: "A IA de texto ajuda a transformar anotações em linguagem mais clara e técnica. Depois da sugestão, revise, aceite ou recuse. O usuário continua responsável pelo conteúdo final.",
+      nextAction: "Abra um relatório ou RDO e procure os botões Melhorar com IA/Gerar texto.",
       canSave: true
     },
     {
       category: "suporte",
       title: "Como falar com suporte?",
       keywords: ["suporte", "ajuda", "falar com suporte", "whatsapp suporte", "atendimento"],
-      shortAnswer: "Use o botÃ£o Suporte WhatsApp do Elo. Se nÃ£o houver nÃºmero configurado, o Elo avisarÃ¡.",
-      fullAnswer: "O suporte por WhatsApp Ã© assistido. Quando o nÃºmero estiver configurado, o Elo abrirÃ¡ uma conversa com uma mensagem pronta. NÃ£o hÃ¡ API oficial do WhatsApp integrada nesta versÃ£o.",
+      shortAnswer: "Use o botão Suporte WhatsApp do Elo. Se não houver número configurado, o Elo avisará.",
+      fullAnswer: "O suporte por WhatsApp é assistido. Quando o número estiver configurado, o Elo abrirá uma conversa com uma mensagem pronta. Não há API oficial do WhatsApp integrada nesta versão.",
       nextAction: "Clique em Suporte WhatsApp no painel do Elo.",
       canSave: true
     },
     {
       category: "primeiros_passos",
-      title: "O que vocÃª consegue fazer?",
-      keywords: ["o que voce consegue fazer", "o que vocÃª consegue fazer", "o que faz", "ajuda", "elo"],
-      shortAnswer: "Eu ajudo vocÃª a usar relatÃ³rios, PDF, RDO, fotos, materiais, planos e suporte.",
-      fullAnswer: "Eu sou o Elo Assistente do ObraReport. Nesta versÃ£o, lembro dÃºvidas neste navegador, procuro na base local de ajuda, respondo perguntas rÃ¡pidas e preparo a arquitetura para busca futura na internet.",
+      title: "O que você consegue fazer?",
+      keywords: ["o que voce consegue fazer", "o que você consegue fazer", "o que faz", "ajuda", "elo"],
+      shortAnswer: "Eu ajudo você a usar relatórios, PDF, RDO, fotos, materiais, planos e suporte.",
+      fullAnswer: "Eu sou o Elo Assistente do ObraReport. Nesta versão, lembro dúvidas neste navegador, procuro na base local de ajuda, respondo perguntas rápidas e preparo a arquitetura para busca futura na internet.",
       nextAction: "Experimente perguntar: Como gerar PDF? ou Como usar o RDO?",
       canSave: true
     }
@@ -703,15 +703,15 @@
       { prefix: "isso e importante: ", category: "", importance: "alta" },
       { prefix: "meu nome e ", category: "pessoa", importance: "alta", label: "Meu nome e " },
       { prefix: "minha mae se chama ", category: "pessoa", importance: "alta", label: "Minha mae se chama " },
-      { prefix: "minha mÃ£e se chama ", category: "pessoa", importance: "alta", label: "Minha mae se chama " },
+      { prefix: "minha mãe se chama ", category: "pessoa", importance: "alta", label: "Minha mae se chama " },
       { prefix: "meu filho se chama ", category: "pessoa", importance: "alta", label: "Meu filho se chama " },
       { prefix: "meu projeto principal e ", category: "projeto", importance: "alta", label: "Meu projeto principal e " },
-      { prefix: "meu projeto principal Ã© ", category: "projeto", importance: "alta", label: "Meu projeto principal e " },
+      { prefix: "meu projeto principal é ", category: "projeto", importance: "alta", label: "Meu projeto principal e " },
       { prefix: "meu objetivo e ", category: "objetivo", importance: "alta", label: "Meu objetivo e " },
-      { prefix: "meu objetivo Ã© ", category: "objetivo", importance: "alta", label: "Meu objetivo e " },
+      { prefix: "meu objetivo é ", category: "objetivo", importance: "alta", label: "Meu objetivo e " },
       { prefix: "eu gosto de ", category: "preferencia", importance: "media", label: "Eu gosto de " },
       { prefix: "eu nao gosto de ", category: "preferencia", importance: "media", label: "Eu nao gosto de " },
-      { prefix: "eu nÃ£o gosto de ", category: "preferencia", importance: "media", label: "Eu nao gosto de " }
+      { prefix: "eu não gosto de ", category: "preferencia", importance: "media", label: "Eu nao gosto de " }
     ];
 
     for (let index = 0; index < patterns.length; index += 1) {
@@ -737,7 +737,7 @@
 
   function inferEloMemoryCategory(text) {
     const normalized = normalizeText(text);
-    if (hasAnyTerm(normalized, ["nome", "mae", "mÃ£e", "filho", "filha", "pai", "familia", "famÃ­lia"])) {
+    if (hasAnyTerm(normalized, ["nome", "mae", "mãe", "filho", "filha", "pai", "familia", "família"])) {
       return "pessoa";
     }
     if (hasAnyTerm(normalized, ["projeto", "stock ia", "obrareport", "cadista"])) {
@@ -746,10 +746,10 @@
     if (hasAnyTerm(normalized, ["objetivo", "meta", "prioridade"])) {
       return "objetivo";
     }
-    if (hasAnyTerm(normalized, ["gosto", "nao gosto", "nÃ£o gosto", "prefiro", "preferencia", "preferÃªncia"])) {
+    if (hasAnyTerm(normalized, ["gosto", "nao gosto", "não gosto", "prefiro", "preferencia", "preferência"])) {
       return "preferencia";
     }
-    if (hasAnyTerm(normalized, ["decidi", "decisao", "decisÃ£o"])) {
+    if (hasAnyTerm(normalized, ["decidi", "decisao", "decisão"])) {
       return "decisao";
     }
     if (hasAnyTerm(normalized, ["aconteceu", "evento", "hoje", "ontem"])) {
@@ -760,7 +760,7 @@
 
   function inferEloMemoryImportance(text) {
     const normalized = normalizeText(text);
-    if (hasAnyTerm(normalized, ["importante", "principal", "objetivo", "mae", "mÃ£e", "filho", "nome"])) {
+    if (hasAnyTerm(normalized, ["importante", "principal", "objetivo", "mae", "mãe", "filho", "nome"])) {
       return "alta";
     }
     return "media";
@@ -833,9 +833,9 @@
   function detectEloForgetCommand(message) {
     const cleanMessage = sanitizeUserText(message);
     const normalized = normalizeText(cleanMessage);
-    const prefixes = ["esqueca que ", "esqueÃ§a que ", "apague essa memoria ", "apague essa memÃ³ria "];
+    const prefixes = ["esqueca que ", "esqueça que ", "apague essa memoria ", "apague essa memória "];
 
-    if (normalized === "esqueca isso" || normalized === "esqueÃ§a isso" || normalized === "apague essa memoria" || normalized === "apague essa memÃ³ria") {
+    if (normalized === "esqueca isso" || normalized === "esqueça isso" || normalized === "apague essa memoria" || normalized === "apague essa memória") {
       return { query: "", removeLast: true };
     }
 
@@ -890,27 +890,27 @@
     const normalized = normalizeText(message);
     return hasAnyTerm(normalized, [
       "o que voce lembra de mim",
-      "o que vocÃª lembra de mim",
+      "o que você lembra de mim",
       "quem sou eu",
       "o que voce sabe sobre mim",
-      "o que vocÃª sabe sobre mim",
+      "o que você sabe sobre mim",
       "o que voce lembra sobre minha mae",
-      "o que vocÃª lembra sobre minha mÃ£e",
-      "o que voce lembra sobre minha mÃ£e"
+      "o que você lembra sobre minha mãe",
+      "o que voce lembra sobre minha mãe"
     ]);
   }
 
   function buildEloLongTermMemoryAnswer(message) {
     const memories = getEloLongTermMemories();
     const normalized = normalizeText(message);
-    const filtered = hasAnyTerm(normalized, ["mae", "mÃ£e"])
+    const filtered = hasAnyTerm(normalized, ["mae", "mãe"])
       ? memories.filter(function (item) {
-        return hasAnyTerm(normalizeText(item.text), ["mae", "mÃ£e"]);
+        return hasAnyTerm(normalizeText(item.text), ["mae", "mãe"]);
       })
       : memories;
 
     if (!filtered.length) {
-      return "Agora eu sÃ³ tenho acesso ao contexto recente desta conversa. Se vocÃª me pedir para lembrar algo importante, eu guardo neste navegador.";
+      return "Agora eu só tenho acesso ao contexto recente desta conversa. Se você me pedir para lembrar algo importante, eu guardo neste navegador.";
     }
 
     return "Eu lembro disso: " + filtered.sort(compareEloLongTermMemory).slice(0, 5).map(function (item) {
@@ -926,13 +926,13 @@
       projects: {
         obra_atual: {
           id: "obra_atual",
-          nome: "nÃ£o informado",
-          cidade: "nÃ£o informada",
-          uf: "nÃ£o informada",
+          nome: "não informado",
+          cidade: "não informada",
+          uf: "não informada",
           area_m2: null,
-          tipo_obra: "nÃ£o informado",
-          padrao_construtivo: "nÃ£o informado",
-          etapa_atual: "nÃ£o informada",
+          tipo_obra: "não informado",
+          padrao_construtivo: "não informado",
+          etapa_atual: "não informada",
           materiais_citados: [],
           dimensoes_recorrentes: [],
           updatedAt: ""
@@ -950,13 +950,13 @@
       const id = sanitizeUserText(item.id || key) || key;
       base.projects[id] = Object.assign({}, base.projects.obra_atual, {
         id: id,
-        nome: sanitizeUserText(item.nome) || "nÃ£o informado",
-        cidade: sanitizeUserText(item.cidade) || "nÃ£o informada",
-        uf: sanitizeUserText(item.uf).toUpperCase() || "nÃ£o informada",
+        nome: sanitizeUserText(item.nome) || "não informado",
+        cidade: sanitizeUserText(item.cidade) || "não informada",
+        uf: sanitizeUserText(item.uf).toUpperCase() || "não informada",
         area_m2: parseEloOperationalNumber_(item.area_m2) || null,
-        tipo_obra: sanitizeUserText(item.tipo_obra) || "nÃ£o informado",
-        padrao_construtivo: sanitizeUserText(item.padrao_construtivo) || "nÃ£o informado",
-        etapa_atual: sanitizeUserText(item.etapa_atual) || "nÃ£o informada",
+        tipo_obra: sanitizeUserText(item.tipo_obra) || "não informado",
+        padrao_construtivo: sanitizeUserText(item.padrao_construtivo) || "não informado",
+        etapa_atual: sanitizeUserText(item.etapa_atual) || "não informada",
         materiais_citados: Array.isArray(item.materiais_citados) ? item.materiais_citados.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
         dimensoes_recorrentes: Array.isArray(item.dimensoes_recorrentes) ? item.dimensoes_recorrentes.map(sanitizeUserText).filter(Boolean).slice(0, 20) : [],
         updatedAt: sanitizeUserText(item.updatedAt) || ""
@@ -982,7 +982,7 @@
     try {
       window.localStorage.setItem(ELO_CONFIG.workMemoryStorageKey, JSON.stringify(normalizeEloWorkMemory_(memory)));
     } catch (error) {
-      // MemÃ³ria de obra local pode falhar em modo privado. O Elo segue sem persistir.
+      // Memória de obra local pode falhar em modo privado. O Elo segue sem persistir.
     }
   }
 
@@ -1064,7 +1064,7 @@
     if (!hasEloWorkMemoryFacts_(facts)) {
       return false;
     }
-    return /\b(?:minha\s+obra|obra|projeto|residencia|residÃªncia|casa)\b/.test(text) || facts.nome || facts.cidade || facts.uf || facts.area_m2 || facts.padrao_construtivo || facts.etapa_atual;
+    return /\b(?:minha\s+obra|obra|projeto|residencia|residência|casa)\b/.test(text) || facts.nome || facts.cidade || facts.uf || facts.area_m2 || facts.padrao_construtivo || facts.etapa_atual;
   }
 
   function isEloWorkMemoryQuestion_(message) {
@@ -1074,24 +1074,24 @@
 
   function formatEloWorkMemorySavedSummary_(project) {
     const parts = [];
-    if (project.nome && project.nome !== "nÃ£o informado") parts.push(project.nome);
-    if ((project.cidade && project.cidade !== "nÃ£o informada") || (project.uf && project.uf !== "nÃ£o informada")) {
-      parts.push(((project.cidade && project.cidade !== "nÃ£o informada") ? project.cidade : "cidade nÃ£o informada") + "/" + ((project.uf && project.uf !== "nÃ£o informada") ? project.uf : "UF nÃ£o informada"));
+    if (project.nome && project.nome !== "não informado") parts.push(project.nome);
+    if ((project.cidade && project.cidade !== "não informada") || (project.uf && project.uf !== "não informada")) {
+      parts.push(((project.cidade && project.cidade !== "não informada") ? project.cidade : "cidade não informada") + "/" + ((project.uf && project.uf !== "não informada") ? project.uf : "UF não informada"));
     }
-    if (project.area_m2) parts.push(formatEloWallPremiseMeasure_(project.area_m2, "mÂ²"));
-    if (project.padrao_construtivo && project.padrao_construtivo !== "nÃ£o informado") parts.push(project.padrao_construtivo);
-    if (project.etapa_atual && project.etapa_atual !== "nÃ£o informada") parts.push("etapa " + project.etapa_atual);
+    if (project.area_m2) parts.push(formatEloWallPremiseMeasure_(project.area_m2, "m²"));
+    if (project.padrao_construtivo && project.padrao_construtivo !== "não informado") parts.push(project.padrao_construtivo);
+    if (project.etapa_atual && project.etapa_atual !== "não informada") parts.push("etapa " + project.etapa_atual);
     return parts.length ? parts.join(", ") : "obra atual";
   }
 
   function buildEloWorkMemorySavedAnswer_(message) {
     const project = updateEloWorkMemoryFromMessage_(message);
     const summary = formatEloWorkMemorySavedSummary_(project);
-    const answer = "Entendi. Salvei na memÃ³ria da obra: " + summary + ". Vou usar esses dados como contexto nas prÃ³ximas perguntas tÃ©cnicas.";
+    const answer = "Entendi. Salvei na memória da obra: " + summary + ". Vou usar esses dados como contexto nas próximas perguntas técnicas.";
     return {
-      shortAnswer: "Salvei esses dados na memÃ³ria da obra.",
+      shortAnswer: "Salvei esses dados na memória da obra.",
       fullAnswer: answer,
-      nextAction: "FaÃ§a uma pergunta tÃ©cnica quando quiser usar esse contexto.",
+      nextAction: "Faça uma pergunta técnica quando quiser usar esse contexto.",
       canSave: false,
       sessionTheme: "memoria_obra",
       sessionIntent: "salvar_memoria_obra"
@@ -1133,12 +1133,12 @@
   function formatEloWorkMemoryLines_(project) {
     const obra = project || getActiveEloWorkProject_();
     return [
-      "- Obra/projeto: " + (obra.nome || "nÃ£o informado"),
-      "- Cidade/UF: " + ((obra.cidade && obra.cidade !== "nÃ£o informada") ? obra.cidade : "nÃ£o informada") + " / " + ((obra.uf && obra.uf !== "nÃ£o informada") ? obra.uf : "nÃ£o informada"),
-      "- Ãrea aproximada da obra: " + (obra.area_m2 ? formatEloWallPremiseMeasure_(obra.area_m2, "mÂ²") : "nÃ£o informada"),
-      "- Tipo de obra: " + (obra.tipo_obra || "nÃ£o informado"),
-      "- PadrÃ£o construtivo: " + (obra.padrao_construtivo || "nÃ£o informado"),
-      "- Etapa atual: " + (obra.etapa_atual || "nÃ£o informada")
+      "- Obra/projeto: " + (obra.nome || "não informado"),
+      "- Cidade/UF: " + ((obra.cidade && obra.cidade !== "não informada") ? obra.cidade : "não informada") + " / " + ((obra.uf && obra.uf !== "não informada") ? obra.uf : "não informada"),
+      "- Área aproximada da obra: " + (obra.area_m2 ? formatEloWallPremiseMeasure_(obra.area_m2, "m²") : "não informada"),
+      "- Tipo de obra: " + (obra.tipo_obra || "não informado"),
+      "- Padrão construtivo: " + (obra.padrao_construtivo || "não informado"),
+      "- Etapa atual: " + (obra.etapa_atual || "não informada")
     ];
   }
 
@@ -1279,7 +1279,7 @@
     const number = getNextEloBudgetNumber_();
     const now = new Date().toISOString();
     const markdown = String(source.answer || "").trim();
-    const record = { id: number + "-v1", numero: number, tipo: inferEloBudgetType_(source), cliente: sanitizeUserText(project.cliente || project.client || "nao informado"), obra: sanitizeUserText(project.nome || project.name || project.obra || "obra atual"), cidade_uf: [project.cidade || project.city, project.uf].filter(Boolean).join("/") || "nao informado", data_criacao: now, data_atualizacao: now, versao: 1, status: "rascunho", titulo: inferEloBudgetType_(source).replace(/_/g, " "), resumo_executivo: extractEloProposalSection_(markdown, ["Resumo executivo", "Resposta principal"]) || "Registro preliminar assistido pelo Elo.", conteudo_markdown: markdown, conteudo_html: "", itens: [], quantitativos: extractEloProposalSection_(markdown, ["Quantitativos", "Totais consolidados", "Memoria de calculo", "MemÃ³ria de cÃ¡lculo"]), composicoes: extractEloProposalSection_(markdown, ["Composicoes utilizadas", "ComposiÃ§Ãµes utilizadas", "Composicoes oficiais utilizadas", "ComposiÃ§Ãµes oficiais utilizadas"]), bases_tecnicas: extractEloProposalSection_(markdown, ["Base tecnica utilizada", "Base tÃ©cnica utilizada", "Bases tecnicas", "Bases tÃ©cnicas"]), custos_encontrados: extractEloProposalSection_(markdown, ["Custos encontrados", "Custos"]), pendencias: extractEloProposalSection_(markdown, ["Pendencias tecnicas", "PendÃªncias tÃ©cnicas", "Composicoes nao localizadas", "ComposiÃ§Ãµes nÃ£o localizadas", "Observacoes tecnicas", "ObservaÃ§Ãµes tÃ©cnicas"]), avisos_profissionais: "Documento preliminar assistido por sistema computacional. Nao substitui projeto executivo, orcamento executivo, memorial descritivo ou responsabilidade tecnica profissional.", origem: "elo", hash_simples: simpleEloChecksum_(markdown) };
+    const record = { id: number + "-v1", numero: number, tipo: inferEloBudgetType_(source), cliente: sanitizeUserText(project.cliente || project.client || "nao informado"), obra: sanitizeUserText(project.nome || project.name || project.obra || "obra atual"), cidade_uf: [project.cidade || project.city, project.uf].filter(Boolean).join("/") || "nao informado", data_criacao: now, data_atualizacao: now, versao: 1, status: "rascunho", titulo: inferEloBudgetType_(source).replace(/_/g, " "), resumo_executivo: extractEloProposalSection_(markdown, ["Resumo executivo", "Resposta principal"]) || "Registro preliminar assistido pelo Elo.", conteudo_markdown: markdown, conteudo_html: "", itens: [], quantitativos: extractEloProposalSection_(markdown, ["Quantitativos", "Totais consolidados", "Memoria de calculo", "Memória de cálculo"]), composicoes: extractEloProposalSection_(markdown, ["Composicoes utilizadas", "Composições utilizadas", "Composicoes oficiais utilizadas", "Composições oficiais utilizadas"]), bases_tecnicas: extractEloProposalSection_(markdown, ["Base tecnica utilizada", "Base técnica utilizada", "Bases tecnicas", "Bases técnicas"]), custos_encontrados: extractEloProposalSection_(markdown, ["Custos encontrados", "Custos"]), pendencias: extractEloProposalSection_(markdown, ["Pendencias tecnicas", "Pendências técnicas", "Composicoes nao localizadas", "Composições não localizadas", "Observacoes tecnicas", "Observações técnicas"]), avisos_profissionais: "Documento preliminar assistido por sistema computacional. Nao substitui projeto executivo, orcamento executivo, memorial descritivo ou responsabilidade tecnica profissional.", origem: "elo", hash_simples: simpleEloChecksum_(markdown) };
     record.conteudo_html = buildEloBudgetRecordHtml_(record, true);
     return record;
   }
@@ -1557,11 +1557,11 @@
   function openEloProfessionalPdfDocument_(record, context) { const html = buildEloProfessionalPdfDocument(record, context || {}); if (typeof window !== "undefined" && window.open) { const popup = window.open("", "_blank"); if (popup && popup.document) { popup.document.open(); popup.document.write(html); popup.document.close(); try { popup.focus(); } catch (error) {} } } return html; }
   function openEloBudgetRecordPdf_(record) { return openEloProfessionalPdfDocument_(record, { nomeDocumento: "Proposta Tecnica Preliminar" }); }
 
-  function buildEloBudgetSaveAnswer_(message) { const text = normalizeText(message || ""); if (!/salvar\s+orcamento|salvar\s+orÃ§amento|salvar\s+proposta|registrar\s+orcamento|registrar\s+orÃ§amento|guardar\s+esse\s+orcamento|guardar\s+esse\s+orÃ§amento|anexar\s+(?:a|Ã )\s+obra/.test(text)) return null; const record = buildEloBudgetRecordFromLastAnswer_(); if (!record) return { shortAnswer: "Nao encontrei orcamento recente para salvar.", fullAnswer: "Nao encontrei um orcamento/proposta recente para salvar. Gere primeiro um orcamento ou proposta tecnica.", nextAction: "Gere Parede Completa, Fundacao Completa, Orcamento Residencial ou Proposta Tecnica antes de salvar.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_save_empty" }; saveEloBudgetRecord_(record); return { shortAnswer: "Orcamento salvo com sucesso.", fullAnswer: ["Orcamento salvo com sucesso.", "", "Numero: " + record.numero, "Status: " + record.status, "Cliente: " + record.cliente, "Obra: " + record.obra, "", "Voce pode pedir:", "- baixar PDF", "- gerar nova versao", "- listar orcamentos"].join("\n"), nextAction: "Peca 'baixar PDF' para gerar o documento profissional.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_saved" }; }
-  function buildEloBudgetListAnswer_(message) { const text = normalizeText(message || ""); if (!/listar\s+orcamentos|listar\s+orÃ§amentos|ultimos\s+orcamentos|Ãºltimos\s+orÃ§amentos/.test(text)) return null; const records = getEloBudgetRecords_(); if (!records.length) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento para iniciar o historico local.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list_empty" }; const lines = ["ORCAMENTOS SALVOS", ""]; records.slice(-10).reverse().forEach(function (record, index) { lines.push((index + 1) + ". " + record.numero + " v" + (record.versao || 1) + " - " + (record.obra || "obra atual") + " - " + (record.status || "rascunho") + " - " + formatEloBudgetRecordDate_(record.data_criacao)); }); return { shortAnswer: "Historico local de orcamentos.", fullAnswer: lines.join("\n"), nextAction: "Peca 'ver orcamento ELO-AAAA-0001' ou 'baixar PDF do orcamento ELO-AAAA-0001'.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list" }; }
-  function buildEloBudgetOpenAnswer_(message) { const text = normalizeText(message || ""); if (!/ver\s+orcamento|ver\s+orÃ§amento|abrir\s+orcamento|abrir\s+orÃ§amento/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento antes de abrir.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open_empty" }; return { shortAnswer: "Orcamento localizado: " + record.numero + ".", fullAnswer: [record.numero + " v" + (record.versao || 1), "Cliente: " + record.cliente, "Obra: " + record.obra, "Cidade/UF: " + record.cidade_uf, "Status: " + record.status, "", record.conteudo_markdown].join("\n"), nextAction: "Peca 'baixar PDF do orcamento " + record.numero + "' para gerar o documento.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open" }; }
+  function buildEloBudgetSaveAnswer_(message) { const text = normalizeText(message || ""); if (!/salvar\s+orcamento|salvar\s+orçamento|salvar\s+proposta|registrar\s+orcamento|registrar\s+orçamento|guardar\s+esse\s+orcamento|guardar\s+esse\s+orçamento|anexar\s+(?:a|à)\s+obra/.test(text)) return null; const record = buildEloBudgetRecordFromLastAnswer_(); if (!record) return { shortAnswer: "Nao encontrei orcamento recente para salvar.", fullAnswer: "Nao encontrei um orcamento/proposta recente para salvar. Gere primeiro um orcamento ou proposta tecnica.", nextAction: "Gere Parede Completa, Fundacao Completa, Orcamento Residencial ou Proposta Tecnica antes de salvar.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_save_empty" }; saveEloBudgetRecord_(record); return { shortAnswer: "Orcamento salvo com sucesso.", fullAnswer: ["Orcamento salvo com sucesso.", "", "Numero: " + record.numero, "Status: " + record.status, "Cliente: " + record.cliente, "Obra: " + record.obra, "", "Voce pode pedir:", "- baixar PDF", "- gerar nova versao", "- listar orcamentos"].join("\n"), nextAction: "Peca 'baixar PDF' para gerar o documento profissional.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_saved" }; }
+  function buildEloBudgetListAnswer_(message) { const text = normalizeText(message || ""); if (!/listar\s+orcamentos|listar\s+orçamentos|ultimos\s+orcamentos|últimos\s+orçamentos/.test(text)) return null; const records = getEloBudgetRecords_(); if (!records.length) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento para iniciar o historico local.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list_empty" }; const lines = ["ORCAMENTOS SALVOS", ""]; records.slice(-10).reverse().forEach(function (record, index) { lines.push((index + 1) + ". " + record.numero + " v" + (record.versao || 1) + " - " + (record.obra || "obra atual") + " - " + (record.status || "rascunho") + " - " + formatEloBudgetRecordDate_(record.data_criacao)); }); return { shortAnswer: "Historico local de orcamentos.", fullAnswer: lines.join("\n"), nextAction: "Peca 'ver orcamento ELO-AAAA-0001' ou 'baixar PDF do orcamento ELO-AAAA-0001'.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_list" }; }
+  function buildEloBudgetOpenAnswer_(message) { const text = normalizeText(message || ""); if (!/ver\s+orcamento|ver\s+orçamento|abrir\s+orcamento|abrir\s+orçamento/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento salvo ainda.", nextAction: "Gere e salve um orcamento antes de abrir.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open_empty" }; return { shortAnswer: "Orcamento localizado: " + record.numero + ".", fullAnswer: [record.numero + " v" + (record.versao || 1), "Cliente: " + record.cliente, "Obra: " + record.obra, "Cidade/UF: " + record.cidade_uf, "Status: " + record.status, "", record.conteudo_markdown].join("\n"), nextAction: "Peca 'baixar PDF do orcamento " + record.numero + "' para gerar o documento.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_open" }; }
   function buildEloBudgetPdfAnswer_(message) { const text = normalizeText(message || ""); if (!/baixar\s+pdf|gerar\s+pdf|exportar\s+pdf|pdf\s+do\s+orcamento|pdf\s+do\s+or?amento|pdf\s+da\s+proposta|baixar\s+orcamento|baixar\s+or?amento|imprimir\s+orcamento|imprimir\s+or?amento|baixar\s+proposta/.test(text)) return null; const record = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!record && /orcamento|or?amento|proposta/.test(text)) return { shortAnswer: "Nenhum orcamento salvo ainda.", fullAnswer: "Nenhum orcamento/proposta salvo ainda. Gere e salve um orcamento antes de baixar o PDF profissional.", nextAction: "Gere Parede Completa, Fundacao Completa, Orcamento Residencial ou Proposta Tecnica antes de baixar o PDF.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_pdf_empty" }; if (!record) return null; const html = openEloBudgetRecordPdf_(record); return { shortAnswer: "PDF profissional preparado.", fullAnswer: ["PDF profissional preparado para " + record.numero + " v" + (record.versao || 1) + ".", "", "Use o botao 'Imprimir / Salvar como PDF' na janela aberta ou Ctrl+P para baixar o arquivo.", "", "HTML gerado:", html].join("\n"), nextAction: "Revise o documento antes de enviar ao cliente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_pdf" }; }
-  function buildEloBudgetVersionAnswer_(message) { const text = normalizeText(message || ""); if (!/gerar\s+nova\s+versao|gerar\s+nova\s+versÃ£o|nova\s+versao|nova\s+versÃ£o/.test(text)) return null; const base = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!base) return { shortAnswer: "Nenhum orcamento salvo para versionar.", fullAnswer: "Nenhum orcamento salvo para gerar nova versao.", nextAction: "Salve primeiro um orcamento ou proposta.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version_empty" }; const records = getEloBudgetRecords_(); const nextVersion = records.filter(function (record) { return record.numero === base.numero; }).reduce(function (max, record) { return Math.max(max, record.versao || 1); }, base.versao || 1) + 1; const now = new Date().toISOString(); const clone = Object.assign({}, base, { id: base.numero + "-v" + nextVersion, versao: nextVersion, data_atualizacao: now, status: "revisao", hash_simples: simpleEloChecksum_((base.conteudo_markdown || "") + nextVersion + now) }); clone.conteudo_html = buildEloBudgetRecordHtml_(clone, true); saveEloBudgetRecord_(clone); return { shortAnswer: "Nova versao criada.", fullAnswer: "Nova versao criada.\n\nNumero: " + clone.numero + " v" + clone.versao + "\nStatus: " + clone.status + "\nObra: " + clone.obra, nextAction: "Peca 'baixar PDF do orcamento " + clone.numero + "' para exportar a versao mais recente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version" }; }
+  function buildEloBudgetVersionAnswer_(message) { const text = normalizeText(message || ""); if (!/gerar\s+nova\s+versao|gerar\s+nova\s+versão|nova\s+versao|nova\s+versão/.test(text)) return null; const base = getEloBudgetRecordById_(extractEloBudgetRecordNumber_(message)) || getLatestEloBudgetRecord_(); if (!base) return { shortAnswer: "Nenhum orcamento salvo para versionar.", fullAnswer: "Nenhum orcamento salvo para gerar nova versao.", nextAction: "Salve primeiro um orcamento ou proposta.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version_empty" }; const records = getEloBudgetRecords_(); const nextVersion = records.filter(function (record) { return record.numero === base.numero; }).reduce(function (max, record) { return Math.max(max, record.versao || 1); }, base.versao || 1) + 1; const now = new Date().toISOString(); const clone = Object.assign({}, base, { id: base.numero + "-v" + nextVersion, versao: nextVersion, data_atualizacao: now, status: "revisao", hash_simples: simpleEloChecksum_((base.conteudo_markdown || "") + nextVersion + now) }); clone.conteudo_html = buildEloBudgetRecordHtml_(clone, true); saveEloBudgetRecord_(clone); return { shortAnswer: "Nova versao criada.", fullAnswer: "Nova versao criada.\n\nNumero: " + clone.numero + " v" + clone.versao + "\nStatus: " + clone.status + "\nObra: " + clone.obra, nextAction: "Peca 'baixar PDF do orcamento " + clone.numero + "' para exportar a versao mais recente.", canSave: false, sessionTheme: "elo_budget_record", sessionIntent: "budget_version" }; }
   function buildEloBudgetContinuationAnswer_(message) {
     const text = normalizeText(message || "");
     if (!/continuar\s+(?:meu\s+)?orcamento|continuar\s+(?:meu\s+)?or.amento|retomar\s+(?:meu\s+)?orcamento|retomar\s+(?:meu\s+)?or.amento/.test(text)) return null;
@@ -1653,7 +1653,7 @@
     for (let index = start; index < lines.length; index += 1) {
       const current = lines[index];
       const normalized = normalizeText(current).replace(/^#+\s*/, "").replace(/^\d+\.\s*/, "");
-      const isNextSection = index > start && (/^\s*#{1,3}\s+/.test(current) || /^[A-ZÃÃ‰ÃÃ“ÃšÃ‚ÃŠÃ”ÃƒÃ•Ã‡0-9 .]{5,80}\s*$/.test(current)) && !/^\s*-/.test(current);
+      const isNextSection = index > start && (/^\s*#{1,3}\s+/.test(current) || /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9 .]{5,80}\s*$/.test(current)) && !/^\s*-/.test(current);
       if (isNextSection) break;
       collected.push(current);
     }
@@ -1679,55 +1679,55 @@
     if (!source || !source.answer) {
       const project = getActiveEloWorkProject_();
       const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
-      const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "nÃ£o informado";
+      const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
       const date = new Date().toLocaleDateString("pt-BR");
       const markdownLines = [
-        "# PROPOSTA TÃ‰CNICA PRELIMINAR",
+        "# PROPOSTA TÉCNICA PRELIMINAR",
         "",
         "Cliente: " + client,
-        "Obra: " + ((project.nome && project.nome !== "nÃ£o informado") ? project.nome : "obra atual"),
+        "Obra: " + ((project.nome && project.nome !== "não informado") ? project.nome : "obra atual"),
         "Data: " + date,
         "",
         "## RESUMO EXECUTIVO",
-        "Documento preliminar aberto para organizaÃ§Ã£o do orÃ§amento assistido. Nenhum cÃ¡lculo novo foi criado nesta etapa.",
+        "Documento preliminar aberto para organização do orçamento assistido. Nenhum cálculo novo foi criado nesta etapa.",
         "",
-        "## DescriÃ§Ã£o simples",
-        "Ainda nÃ£o hÃ¡ pacote tÃ©cnico consolidado vinculado a esta proposta. Use este documento como capa preliminar e gere Parede Completa, FundaÃ§Ã£o Completa, Pacote Estrutural ou OrÃ§amento Residencial Preliminar para preencher os quantitativos.",
+        "## Descrição simples",
+        "Ainda não há pacote técnico consolidado vinculado a esta proposta. Use este documento como capa preliminar e gere Parede Completa, Fundação Completa, Pacote Estrutural ou Orçamento Residencial Preliminar para preencher os quantitativos.",
         "",
-        "## SERVIÃ‡OS CONSIDERADOS",
-        "- FundaÃ§Ã£o: pendente de pacote tÃ©cnico.",
-        "- Estrutura: pendente de pacote tÃ©cnico.",
-        "- Alvenaria: pendente de pacote tÃ©cnico.",
-        "- Revestimentos: pendente de pacote tÃ©cnico.",
+        "## SERVIÇOS CONSIDERADOS",
+        "- Fundação: pendente de pacote técnico.",
+        "- Estrutura: pendente de pacote técnico.",
+        "- Alvenaria: pendente de pacote técnico.",
+        "- Revestimentos: pendente de pacote técnico.",
         "",
         "## QUANTITATIVOS",
-        "Nenhum quantitativo consolidado foi localizado na memÃ³ria tÃ©cnica atual.",
+        "Nenhum quantitativo consolidado foi localizado na memória técnica atual.",
         "",
-        "## COMPOSIÃ‡Ã•ES UTILIZADAS",
-        "Nenhuma composiÃ§Ã£o SINAPI, ORSE ou base oficial validada foi localizada para esta proposta.",
+        "## COMPOSIÇÕES UTILIZADAS",
+        "Nenhuma composição SINAPI, ORSE ou base oficial validada foi localizada para esta proposta.",
         "",
         "## CUSTOS ENCONTRADOS",
         "Nenhum custo real foi encontrado. Nenhum valor foi estimado.",
         "",
-        "## PENDÃŠNCIAS TÃ‰CNICAS",
-        "- Gerar pacote tÃ©cnico antes do envio comercial.",
-        "- Confirmar projeto, memorial, composiÃ§Ãµes oficiais e responsabilidade tÃ©cnica profissional.",
-        "- AÃ§o estrutural nÃ£o calculado automaticamente. NecessÃ¡rio projeto estrutural quando aplicÃ¡vel.",
+        "## PENDÊNCIAS TÉCNICAS",
+        "- Gerar pacote técnico antes do envio comercial.",
+        "- Confirmar projeto, memorial, composições oficiais e responsabilidade técnica profissional.",
+        "- Aço estrutural não calculado automaticamente. Necessário projeto estrutural quando aplicável.",
         "",
-        "## RESPONSABILIDADE TÃ‰CNICA",
+        "## RESPONSABILIDADE TÉCNICA",
         "Documento preliminar assistido por sistema computacional.",
         "",
-        "NÃ£o substitui projeto executivo, memorial descritivo, orÃ§amento executivo ou responsabilidade tÃ©cnica profissional.",
+        "Não substitui projeto executivo, memorial descritivo, orçamento executivo ou responsabilidade técnica profissional.",
         "",
         "## HTML ESTRUTURADO",
         "```html",
-        buildEloProposalHtml_("# PROPOSTA TÃ‰CNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\nDocumento preliminar aberto para organizaÃ§Ã£o do orÃ§amento assistido.\n\n## QUANTITATIVOS\nNenhum quantitativo consolidado foi localizado.\n\n## COMPOSIÃ‡Ã•ES UTILIZADAS\nNenhuma composiÃ§Ã£o oficial localizada.\n\n## CUSTOS ENCONTRADOS\nNenhum custo real encontrado.\n\n## PENDÃŠNCIAS TÃ‰CNICAS\nGerar pacote tÃ©cnico antes do envio comercial."),
+        buildEloProposalHtml_("# PROPOSTA TÉCNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\nDocumento preliminar aberto para organização do orçamento assistido.\n\n## QUANTITATIVOS\nNenhum quantitativo consolidado foi localizado.\n\n## COMPOSIÇÕES UTILIZADAS\nNenhuma composição oficial localizada.\n\n## CUSTOS ENCONTRADOS\nNenhum custo real encontrado.\n\n## PENDÊNCIAS TÉCNICAS\nGerar pacote técnico antes do envio comercial."),
         "```"
       ];
       return {
-        shortAnswer: "Proposta tÃ©cnica preliminar aberta sem custos estimados.",
+        shortAnswer: "Proposta técnica preliminar aberta sem custos estimados.",
         fullAnswer: markdownLines.join("\n"),
-        nextAction: "Gere um pacote tÃ©cnico para preencher quantitativos e composiÃ§Ãµes antes de enviar ao cliente.",
+        nextAction: "Gere um pacote técnico para preencher quantitativos e composições antes de enviar ao cliente.",
         canSave: true,
         sessionTheme: "technical_proposal_package",
         sessionIntent: "technical_proposal_package_empty"
@@ -1735,29 +1735,29 @@
     }
     const project = getActiveEloWorkProject_();
     const sourceText = source.answer;
-    const executive = extractEloProposalSection_(sourceText, ["Resumo executivo", "Resposta principal"]) || "Proposta preliminar montada a partir do Ãºltimo pacote tÃ©cnico calculado pelo Elo.";
-    const quantities = extractEloProposalSection_(sourceText, ["Quantitativos", "Totais consolidados", "MemÃ³ria de cÃ¡lculo", "Memoria de calculo", "Volumes individuais"]) || "Ver quantitativos no pacote tÃ©cnico de origem abaixo.";
-    const compositions = extractEloProposalSection_(sourceText, ["ComposiÃ§Ãµes oficiais utilizadas", "Composicoes oficiais utilizadas", "ComposiÃ§Ãµes utilizadas", "Composicoes utilizadas", "ComposiÃ§Ãµes encontradas", "Composicoes encontradas"]) || "Nenhuma composiÃ§Ã£o oficial foi localizada ou selecionada no pacote de origem.";
-    const costs = extractEloProposalSection_(sourceText, ["Custos encontrados", "Custos"]) || "Somente serÃ£o exibidos valores quando houver preÃ§o real na base tÃ©cnica carregada. Nenhum valor foi estimado.";
-    const pending = extractEloProposalSection_(sourceText, ["PendÃªncias tÃ©cnicas", "Pendencias tecnicas", "ComposiÃ§Ãµes nÃ£o localizadas", "Composicoes nao localizadas", "ObservaÃ§Ãµes tÃ©cnicas", "Observacoes tecnicas", "Avisos profissionais"]) || "Confirmar projeto, memorial, composiÃ§Ãµes oficiais faltantes, aÃ§o estrutural e responsabilidade tÃ©cnica profissional.";
+    const executive = extractEloProposalSection_(sourceText, ["Resumo executivo", "Resposta principal"]) || "Proposta preliminar montada a partir do último pacote técnico calculado pelo Elo.";
+    const quantities = extractEloProposalSection_(sourceText, ["Quantitativos", "Totais consolidados", "Memória de cálculo", "Memoria de calculo", "Volumes individuais"]) || "Ver quantitativos no pacote técnico de origem abaixo.";
+    const compositions = extractEloProposalSection_(sourceText, ["Composições oficiais utilizadas", "Composicoes oficiais utilizadas", "Composições utilizadas", "Composicoes utilizadas", "Composições encontradas", "Composicoes encontradas"]) || "Nenhuma composição oficial foi localizada ou selecionada no pacote de origem.";
+    const costs = extractEloProposalSection_(sourceText, ["Custos encontrados", "Custos"]) || "Somente serão exibidos valores quando houver preço real na base técnica carregada. Nenhum valor foi estimado.";
+    const pending = extractEloProposalSection_(sourceText, ["Pendências técnicas", "Pendencias tecnicas", "Composições não localizadas", "Composicoes nao localizadas", "Observações técnicas", "Observacoes tecnicas", "Avisos profissionais"]) || "Confirmar projeto, memorial, composições oficiais faltantes, aço estrutural e responsabilidade técnica profissional.";
     const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
-    const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "nÃ£o informado";
+    const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
     const date = new Date().toLocaleDateString("pt-BR");
     const markdownLines = [
-      "# PROPOSTA TÃ‰CNICA PRELIMINAR",
+      "# PROPOSTA TÉCNICA PRELIMINAR",
       "",
       "Cliente: " + client,
-      "Obra: " + ((project.nome && project.nome !== "nÃ£o informado") ? project.nome : "obra atual"),
+      "Obra: " + ((project.nome && project.nome !== "não informado") ? project.nome : "obra atual"),
       "Data: " + date,
       "",
       "## RESUMO EXECUTIVO",
       executive,
       "",
-      "## DescriÃ§Ã£o simples",
-      "Documento preliminar preparado a partir do Ãºltimo pacote tÃ©cnico calculado pelo Elo OrÃ§amentista Assistido. O conteÃºdo abaixo organiza os dados para apresentaÃ§Ã£o ao cliente sem criar novos cÃ¡lculos.",
+      "## Descrição simples",
+      "Documento preliminar preparado a partir do último pacote técnico calculado pelo Elo Orçamentista Assistido. O conteúdo abaixo organiza os dados para apresentação ao cliente sem criar novos cálculos.",
       "",
-      "## SERVIÃ‡OS CONSIDERADOS",
-      "- FundaÃ§Ã£o",
+      "## SERVIÇOS CONSIDERADOS",
+      "- Fundação",
       "- Estrutura",
       "- Alvenaria",
       "- Revestimentos",
@@ -1765,31 +1765,31 @@
       "## QUANTITATIVOS",
       quantities,
       "",
-      "## COMPOSIÃ‡Ã•ES UTILIZADAS",
+      "## COMPOSIÇÕES UTILIZADAS",
       compositions,
       "",
       "## CUSTOS ENCONTRADOS",
       costs,
       "",
-      "## PENDÃŠNCIAS TÃ‰CNICAS",
+      "## PENDÊNCIAS TÉCNICAS",
       pending,
-      "- Projeto estrutural, aÃ§o e detalhamento executivo dependem de responsÃ¡vel tÃ©cnico habilitado quando aplicÃ¡vel.",
-      "- ComposiÃ§Ã£o ausente deve ser complementada com SINAPI, ORSE ou base oficial validada antes de fechamento comercial.",
+      "- Projeto estrutural, aço e detalhamento executivo dependem de responsável técnico habilitado quando aplicável.",
+      "- Composição ausente deve ser complementada com SINAPI, ORSE ou base oficial validada antes de fechamento comercial.",
       "",
-      "## RESPONSABILIDADE TÃ‰CNICA",
+      "## RESPONSABILIDADE TÉCNICA",
       "Documento preliminar assistido por sistema computacional.",
       "",
-      "NÃ£o substitui projeto executivo, memorial descritivo, orÃ§amento executivo ou responsabilidade tÃ©cnica profissional.",
+      "Não substitui projeto executivo, memorial descritivo, orçamento executivo ou responsabilidade técnica profissional.",
       "",
       "## HTML ESTRUTURADO",
       "```html",
-      buildEloProposalHtml_("# PROPOSTA TÃ‰CNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\n" + executive + "\n\n## QUANTITATIVOS\n" + quantities + "\n\n## COMPOSIÃ‡Ã•ES UTILIZADAS\n" + compositions + "\n\n## CUSTOS ENCONTRADOS\n" + costs + "\n\n## PENDÃŠNCIAS TÃ‰CNICAS\n" + pending),
+      buildEloProposalHtml_("# PROPOSTA TÉCNICA PRELIMINAR\n\n## RESUMO EXECUTIVO\n" + executive + "\n\n## QUANTITATIVOS\n" + quantities + "\n\n## COMPOSIÇÕES UTILIZADAS\n" + compositions + "\n\n## CUSTOS ENCONTRADOS\n" + costs + "\n\n## PENDÊNCIAS TÉCNICAS\n" + pending),
       "```"
     ];
     return {
-      shortAnswer: "Proposta tÃ©cnica preliminar preparada para cliente.",
+      shortAnswer: "Proposta técnica preliminar preparada para cliente.",
       fullAnswer: markdownLines.join("\n"),
-      nextAction: "Revise cliente, obra, escopo e pendÃªncias antes de enviar ao cliente.",
+      nextAction: "Revise cliente, obra, escopo e pendências antes de enviar ao cliente.",
       canSave: true,
       sessionTheme: "technical_proposal_package",
       sessionIntent: "technical_proposal_package"
@@ -1863,7 +1863,7 @@
     try {
       if (predicate(value)) list.push(value);
     } catch (error) {
-      // Ignora objetos parcialmente incompatÃ­veis.
+      // Ignora objetos parcialmente incompatíveis.
     }
     Object.keys(value).slice(0, 40).forEach(function (key) {
       collectEloObjects_(value[key], predicate, list, depth + 1);
@@ -1888,7 +1888,7 @@
   function getEloRdoContext_() {
     const state = getEloSaasState_();
     let records = Array.isArray(state.dailyLogs) ? state.dailyLogs.slice() : [];
-    getEloStorageKeys_(["rdo", "daily", "diario", "diÃ¡rio"]).forEach(function (key) {
+    getEloStorageKeys_(["rdo", "daily", "diario", "diário"]).forEach(function (key) {
       const parsed = readEloJsonFromStorage_(key);
       records = records.concat(collectEloObjects_(parsed, function (item) {
         return !!(item && (item.productions || item.materials || item.team || item.occurrences || item.safety || item.weather) && (item.date || item.workId || item.createdAt));
@@ -1903,15 +1903,15 @@
   function summarizeEloRdoContext_(context) {
     const latest = context && context.latest;
     if (!latest) return null;
-    const productions = flattenEloText_(latest.productions || latest.services || latest.executedServices || latest.activities, 240) || "nÃ£o informado";
-    const team = flattenEloText_(latest.team || latest.crew || latest.workers, 180) || "nÃ£o informado";
-    const materials = flattenEloText_(latest.materials || latest.materialRequests || latest.consumptions, 220) || "nÃ£o informado";
-    const occurrences = flattenEloText_(latest.occurrences || latest.incidents || latest.notes, 220) || "sem ocorrÃªncia registrada";
+    const productions = flattenEloText_(latest.productions || latest.services || latest.executedServices || latest.activities, 240) || "não informado";
+    const team = flattenEloText_(latest.team || latest.crew || latest.workers, 180) || "não informado";
+    const materials = flattenEloText_(latest.materials || latest.materialRequests || latest.consumptions, 220) || "não informado";
+    const occurrences = flattenEloText_(latest.occurrences || latest.incidents || latest.notes, 220) || "sem ocorrência registrada";
     const safety = flattenEloText_(latest.safety || latest.safetyNotes || latest.security, 180) || "sem apontamento registrado";
-    const photos = Array.isArray(latest.photos || latest.attachments) ? String((latest.photos || latest.attachments).length) + " anexo(s)" : "nÃ£o informado";
+    const photos = Array.isArray(latest.photos || latest.attachments) ? String((latest.photos || latest.attachments).length) + " anexo(s)" : "não informado";
     return {
-      date: sanitizeUserText(latest.date || latest.createdAt || latest.updatedAt || "nÃ£o informada"),
-      work: sanitizeUserText(latest.workName || latest.obra || latest.work || latest.projectName || "obra nÃ£o informada"),
+      date: sanitizeUserText(latest.date || latest.createdAt || latest.updatedAt || "não informada"),
+      work: sanitizeUserText(latest.workName || latest.obra || latest.work || latest.projectName || "obra não informada"),
       productions: productions,
       team: team,
       materials: materials,
@@ -1956,7 +1956,7 @@
   function summarizeEloStockContext_(context, message) {
     const text = normalizeText(message || "");
     if (!context || !context.items.length) return null;
-    const materialMatch = text.match(/cimento|bloco|tijolo|areia|brita|aco|aÃ§o|vergalhao|vergalhÃ£o|tubo|argamassa|cal|tinta/);
+    const materialMatch = text.match(/cimento|bloco|tijolo|areia|brita|aco|aço|vergalhao|vergalhão|tubo|argamassa|cal|tinta/);
     const focus = materialMatch ? context.items.filter(function (item) { return normalizeText(item.name).indexOf(materialMatch[0]) >= 0; }) : [];
     const selected = focus.length ? focus : context.critical.slice(0, 6);
     return {
@@ -1972,7 +1972,7 @@
     let records = Array.isArray(state.reports) ? state.reports.slice() : [];
     const draft = readEloJsonFromStorage_("relatorio-fiscalizacao-draft-v2");
     if (draft) records.push(draft);
-    getEloStorageKeys_(["report", "relatorio", "relatÃ³rio", "quality"]).forEach(function (key) {
+    getEloStorageKeys_(["report", "relatorio", "relatório", "quality"]).forEach(function (key) {
       const parsed = readEloJsonFromStorage_(key);
       records = records.concat(collectEloObjects_(parsed, function (item) {
         return !!(item && (item.inconformidades || item.nonconformities || item.risks || item.recommendations || item.conclusion || item.report) && (item.obra || item.work || item.client || item.cliente || item.createdAt || item.dataVistoria));
@@ -1989,36 +1989,36 @@
     if (!latest) return null;
     const report = latest.report && typeof latest.report === "object" ? latest.report : latest;
     return {
-      title: sanitizeUserText(report.title || report.tipoRelatorio || report.type || "RelatÃ³rio tÃ©cnico"),
-      client: sanitizeUserText(report.cliente || report.client || report.clientName || "cliente nÃ£o informado"),
-      work: sanitizeUserText(report.obra || report.work || report.workName || report.projectName || "obra nÃ£o informada"),
-      date: sanitizeUserText(report.dataVistoria || report.date || report.createdAt || report.updatedAt || "data nÃ£o informada"),
-      nonconformities: flattenEloText_(report.inconformidades || report.nonconformities || report.issues, 260) || "nÃ£o informado",
-      risks: flattenEloText_(report.risks || report.riscos || report.criticalRisks, 220) || "nÃ£o informado",
-      recommendations: flattenEloText_(report.recommendations || report.recomendacoes || report.actions, 240) || "nÃ£o informado",
-      pending: flattenEloText_(report.pending || report.pendencias || report.todo, 220) || "nÃ£o informado",
-      conclusion: flattenEloText_(report.conclusion || report.conclusao || report.summary, 260) || "conclusÃ£o nÃ£o cadastrada"
+      title: sanitizeUserText(report.title || report.tipoRelatorio || report.type || "Relatório técnico"),
+      client: sanitizeUserText(report.cliente || report.client || report.clientName || "cliente não informado"),
+      work: sanitizeUserText(report.obra || report.work || report.workName || report.projectName || "obra não informada"),
+      date: sanitizeUserText(report.dataVistoria || report.date || report.createdAt || report.updatedAt || "data não informada"),
+      nonconformities: flattenEloText_(report.inconformidades || report.nonconformities || report.issues, 260) || "não informado",
+      risks: flattenEloText_(report.risks || report.riscos || report.criticalRisks, 220) || "não informado",
+      recommendations: flattenEloText_(report.recommendations || report.recomendacoes || report.actions, 240) || "não informado",
+      pending: flattenEloText_(report.pending || report.pendencias || report.todo, 220) || "não informado",
+      conclusion: flattenEloText_(report.conclusion || report.conclusao || report.summary, 260) || "conclusão não cadastrada"
     };
   }
 
   function isEloRdoOperationalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /\brdo\b|diario|diÃ¡rio|executado\s+hoje|execucao\s+de\s+hoje|execuÃ§Ã£o\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrÃªncias\s+do\s+diÃ¡rio|seguranca|seguranÃ§a|resumo\s+do\s+diario|resumo\s+do\s+diÃ¡rio/.test(text);
+    return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
 
   function isEloStockOperationalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /preciso\s+comprar|estoque\s+critico|estoque\s+crÃ­tico|materiais\s+estao\s+acabando|materiais\s+estÃ£o\s+acabando|faltam\s+blocos|falta\s+bloco|tem\s+cimento\s+suficiente|quanto\s+tenho\s+de\s+cimento|almoxarifado|saldo\s+atual/.test(text);
+    return /preciso\s+comprar|estoque\s+critico|estoque\s+crítico|materiais\s+estao\s+acabando|materiais\s+estão\s+acabando|faltam\s+blocos|falta\s+bloco|tem\s+cimento\s+suficiente|quanto\s+tenho\s+de\s+cimento|almoxarifado|saldo\s+atual/.test(text);
   }
 
   function isEloReportsOperationalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /ultimo\s+relatorio|Ãºltimo\s+relatÃ³rio|inconformidades|riscos\s+da\s+obra|conclusao\s+do\s+relatorio|conclusÃ£o\s+do\s+relatÃ³rio|pendencias\s+tecnicas|pendÃªncias\s+tÃ©cnicas/.test(text);
+    return /ultimo\s+relatorio|último\s+relatório|inconformidades|riscos\s+da\s+obra|conclusao\s+do\s+relatorio|conclusão\s+do\s+relatório|pendencias\s+tecnicas|pendências\s+técnicas/.test(text);
   }
 
   function isEloIntegratedOperationalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /como\s+esta\s+a\s+obra|como\s+estÃ¡\s+a\s+obra|(?:^o\s+que\s+falta\??$|o\s+que\s+falta\s+(?:na\s+obra|para\s+amanha|para\s+amanhÃ£))|quais\s+riscos\s+da\s+obra|resolver\s+amanha|resolver\s+amanhÃ£|resumo\s+geral\s+da\s+obra|diagnostico\s+geral|diagnÃ³stico\s+geral/.test(text);
+    return /como\s+esta\s+a\s+obra|como\s+está\s+a\s+obra|(?:^o\s+que\s+falta\??$|o\s+que\s+falta\s+(?:na\s+obra|para\s+amanha|para\s+amanhã))|quais\s+riscos\s+da\s+obra|resolver\s+amanha|resolver\s+amanhã|resumo\s+geral\s+da\s+obra|diagnostico\s+geral|diagnóstico\s+geral/.test(text);
   }
 
   function isEloOperationalPdfQuestion_(message) {
@@ -2028,7 +2028,7 @@
 
   function isEloOperationalWizardQuestion_(message) {
     const text = normalizeText(message || "");
-    return /nao\s+sei\s+por\s+onde\s+comecar|nÃ£o\s+sei\s+por\s+onde\s+comeÃ§ar|me\s+ajuda\s+a\s+organizar\s+a\s+obra|organizar\s+obra|quero\s+fazer\s+orcamento|quero\s+fazer\s+orÃ§amento|me\s+ajuda\s+a\s+orcar|me\s+ajuda\s+a\s+orÃ§ar|orcamento\s+de\s+uma\s+casa|orÃ§amento\s+de\s+uma\s+casa|^fazer\s+orcamento(?:\s+residencial)?$|^fazer\s+orÃ§amento(?:\s+residencial)?$|^fazer\s+relatorio$|^fazer\s+relatÃ³rio$|^gerar\s+proposta$/.test(text);
+    return /nao\s+sei\s+por\s+onde\s+comecar|não\s+sei\s+por\s+onde\s+começar|me\s+ajuda\s+a\s+organizar\s+a\s+obra|organizar\s+obra|quero\s+fazer\s+orcamento|quero\s+fazer\s+orçamento|me\s+ajuda\s+a\s+orcar|me\s+ajuda\s+a\s+orçar|orcamento\s+de\s+uma\s+casa|orçamento\s+de\s+uma\s+casa|^fazer\s+orcamento(?:\s+residencial)?$|^fazer\s+orçamento(?:\s+residencial)?$|^fazer\s+relatorio$|^fazer\s+relatório$|^gerar\s+proposta$/.test(text);
   }
 
   function buildEloRdoOperationalAnswer_(message) {
@@ -2036,37 +2036,37 @@
     const summary = summarizeEloRdoContext_(getEloRdoContext_());
     if (!summary) {
       return {
-        shortAnswer: "NÃ£o encontrei RDO registrado nesta obra.",
-        fullAnswer: "NÃ£o encontrei RDO registrado nesta obra. Cadastre o diÃ¡rio de obra para eu gerar o resumo operacional.",
-        nextAction: "Cadastre o diÃ¡rio de obra ou importe um RDO antes de pedir o resumo operacional.",
+        shortAnswer: "Não encontrei RDO registrado nesta obra.",
+        fullAnswer: "Não encontrei RDO registrado nesta obra. Cadastre o diário de obra para eu gerar o resumo operacional.",
+        nextAction: "Cadastre o diário de obra ou importe um RDO antes de pedir o resumo operacional.",
         canSave: false,
         sessionTheme: "rdo_operacional",
         sessionIntent: "rdo_resumo"
       };
     }
     const answer = [
-      "RDO â€” RESUMO OPERACIONAL",
+      "RDO — RESUMO OPERACIONAL",
       "",
       "Data: " + summary.date,
       "Obra: " + summary.work,
       "",
-      "ServiÃ§os executados: " + summary.productions,
+      "Serviços executados: " + summary.productions,
       "Equipe: " + summary.team,
       "Materiais usados: " + summary.materials,
-      "OcorrÃªncias: " + summary.occurrences,
-      "SeguranÃ§a: " + summary.safety,
+      "Ocorrências: " + summary.occurrences,
+      "Segurança: " + summary.safety,
       "Fotos/anexos: " + summary.photos,
       "",
-      "PendÃªncias para amanhÃ£:",
-      "- Revisar ocorrÃªncias, materiais consumidos e serviÃ§os planejados para o prÃ³ximo RDO.",
+      "Pendências para amanhã:",
+      "- Revisar ocorrências, materiais consumidos e serviços planejados para o próximo RDO.",
       "",
       "Documento preliminar assistido por sistema computacional.",
-      "NÃ£o substitui anÃ¡lise tÃ©cnica profissional."
+      "Não substitui análise técnica profissional."
     ].join("\n");
     return {
       shortAnswer: "Resumo operacional do RDO preparado.",
       fullAnswer: answer,
-      nextAction: "Revise o RDO e complemente pendÃªncias antes de enviar ao cliente ou equipe.",
+      nextAction: "Revise o RDO e complemente pendências antes de enviar ao cliente ou equipe.",
       canSave: true,
       sessionTheme: "rdo_operacional",
       sessionIntent: "rdo_resumo"
@@ -2078,9 +2078,9 @@
     const summary = summarizeEloStockContext_(getEloStockContext_(), message);
     if (!summary) {
       return {
-        shortAnswer: "NÃ£o encontrei dados de almoxarifado carregados.",
-        fullAnswer: "NÃ£o encontrei dados de almoxarifado carregados. Cadastre materiais ou importe movimentaÃ§Ãµes para eu analisar.",
-        nextAction: "Cadastre materiais, saldos mÃ­nimos e movimentaÃ§Ãµes no almoxarifado.",
+        shortAnswer: "Não encontrei dados de almoxarifado carregados.",
+        fullAnswer: "Não encontrei dados de almoxarifado carregados. Cadastre materiais ou importe movimentações para eu analisar.",
+        nextAction: "Cadastre materiais, saldos mínimos e movimentações no almoxarifado.",
         canSave: false,
         sessionTheme: "almoxarifado_operacional",
         sessionIntent: "stock_resumo"
@@ -2088,30 +2088,30 @@
     }
     const rows = summary.selected.length
       ? summary.selected.map(function (item) {
-          const suggestion = item.minimum > 0 && item.stock <= item.minimum ? "repor atÃ© ficar acima do mÃ­nimo" : item.stock <= 0 ? "validar compra ou saldo" : "acompanhar";
-          return "- " + item.name + ": saldo " + item.stock + " " + item.unit + "; mÃ­nimo " + item.minimum + " " + item.unit + "; sugestÃ£o: " + suggestion + ".";
+          const suggestion = item.minimum > 0 && item.stock <= item.minimum ? "repor até ficar acima do mínimo" : item.stock <= 0 ? "validar compra ou saldo" : "acompanhar";
+          return "- " + item.name + ": saldo " + item.stock + " " + item.unit + "; mínimo " + item.minimum + " " + item.unit + "; sugestão: " + suggestion + ".";
         }).join("\n")
-      : "- Nenhum item crÃ­tico encontrado com os dados carregados.";
+      : "- Nenhum item crítico encontrado com os dados carregados.";
     const answer = [
-      "ALMOXARIFADO â€” RESUMO OPERACIONAL",
+      "ALMOXARIFADO — RESUMO OPERACIONAL",
       "",
       "Itens cadastrados: " + summary.total,
-      "Itens crÃ­ticos: " + summary.criticalCount,
-      summary.materialSearched ? "Material consultado: " + summary.materialSearched : "Consulta: materiais crÃ­ticos e reposiÃ§Ã£o",
+      "Itens críticos: " + summary.criticalCount,
+      summary.materialSearched ? "Material consultado: " + summary.materialSearched : "Consulta: materiais críticos e reposição",
       "",
-      "Itens crÃ­ticos / saldo atual:",
+      "Itens críticos / saldo atual:",
       rows,
       "",
-      "Consumo recente: conferir histÃ³rico de saÃ­das e vÃ­nculos com RDO.",
-      "Materiais sem movimentaÃ§Ã£o: revisar no almoxarifado se houver divergÃªncia de saldo.",
+      "Consumo recente: conferir histórico de saídas e vínculos com RDO.",
+      "Materiais sem movimentação: revisar no almoxarifado se houver divergência de saldo.",
       "",
       "Documento preliminar assistido por sistema computacional.",
-      "NÃ£o substitui anÃ¡lise tÃ©cnica profissional."
+      "Não substitui análise técnica profissional."
     ].join("\n");
     return {
       shortAnswer: "Resumo operacional do almoxarifado preparado.",
       fullAnswer: answer,
-      nextAction: "Revise saldos mÃ­nimos, Ãºltimas saÃ­das e compras pendentes antes de comprar.",
+      nextAction: "Revise saldos mínimos, últimas saídas e compras pendentes antes de comprar.",
       canSave: true,
       sessionTheme: "almoxarifado_operacional",
       sessionIntent: "stock_resumo"
@@ -2123,36 +2123,36 @@
     const summary = summarizeEloReportsContext_(getEloReportsContext_());
     if (!summary) {
       return {
-        shortAnswer: "NÃ£o encontrei relatÃ³rio tÃ©cnico cadastrado.",
-        fullAnswer: "NÃ£o encontrei relatÃ³rio tÃ©cnico cadastrado. Crie ou importe um relatÃ³rio para eu resumir.",
-        nextAction: "Crie ou importe um relatÃ³rio tÃ©cnico antes de pedir conclusÃ£o, riscos ou pendÃªncias.",
+        shortAnswer: "Não encontrei relatório técnico cadastrado.",
+        fullAnswer: "Não encontrei relatório técnico cadastrado. Crie ou importe um relatório para eu resumir.",
+        nextAction: "Crie ou importe um relatório técnico antes de pedir conclusão, riscos ou pendências.",
         canSave: false,
         sessionTheme: "relatorios_operacionais",
         sessionIntent: "relatorio_resumo"
       };
     }
     const answer = [
-      "RELATÃ“RIOS â€” RESUMO TÃ‰CNICO",
+      "RELATÓRIOS — RESUMO TÉCNICO",
       "",
-      "Ãšltimo relatÃ³rio: " + summary.title,
+      "Último relatório: " + summary.title,
       "Cliente/obra: " + summary.client + " / " + summary.work,
       "Data: " + summary.date,
       "",
       "Inconformidades: " + summary.nonconformities,
       "Riscos: " + summary.risks,
-      "RecomendaÃ§Ãµes: " + summary.recommendations,
-      "PendÃªncias: " + summary.pending,
+      "Recomendações: " + summary.recommendations,
+      "Pendências: " + summary.pending,
       "",
-      "ConclusÃ£o sugerida:",
+      "Conclusão sugerida:",
       summary.conclusion,
       "",
       "Documento preliminar assistido por sistema computacional.",
-      "NÃ£o substitui anÃ¡lise tÃ©cnica profissional."
+      "Não substitui análise técnica profissional."
     ].join("\n");
     return {
-      shortAnswer: "Resumo tÃ©cnico do relatÃ³rio preparado.",
+      shortAnswer: "Resumo técnico do relatório preparado.",
       fullAnswer: answer,
-      nextAction: "Revise inconformidades, riscos e conclusÃ£o antes de emitir ao cliente.",
+      nextAction: "Revise inconformidades, riscos e conclusão antes de emitir ao cliente.",
       canSave: true,
       sessionTheme: "relatorios_operacionais",
       sessionIntent: "relatorio_resumo"
@@ -2165,31 +2165,31 @@
     const stock = summarizeEloStockContext_(getEloStockContext_(), message);
     const report = summarizeEloReportsContext_(getEloReportsContext_());
     const answer = [
-      "DIAGNÃ“STICO GERAL DA OBRA",
+      "DIAGNÓSTICO GERAL DA OBRA",
       "",
-      "ExecuÃ§Ã£o / RDO:",
-      rdo ? "- Ãšltimo RDO em " + rdo.date + ": " + rdo.productions : "- NÃ£o encontrei RDO registrado nesta obra.",
+      "Execução / RDO:",
+      rdo ? "- Último RDO em " + rdo.date + ": " + rdo.productions : "- Não encontrei RDO registrado nesta obra.",
       "",
       "Materiais / Almoxarifado:",
-      stock ? "- " + stock.total + " item(ns) cadastrados; " + stock.criticalCount + " crÃ­tico(s)." : "- NÃ£o encontrei dados de almoxarifado carregados.",
+      stock ? "- " + stock.total + " item(ns) cadastrados; " + stock.criticalCount + " crítico(s)." : "- Não encontrei dados de almoxarifado carregados.",
       "",
-      "Riscos tÃ©cnicos / RelatÃ³rios:",
-      report ? "- " + report.risks : "- NÃ£o encontrei relatÃ³rio tÃ©cnico cadastrado.",
+      "Riscos técnicos / Relatórios:",
+      report ? "- " + report.risks : "- Não encontrei relatório técnico cadastrado.",
       "",
-      "PrÃ³ximas aÃ§Ãµes:",
+      "Próximas ações:",
       "- Atualizar RDO do dia;",
-      "- revisar materiais crÃ­ticos antes da prÃ³xima frente;",
-      "- revisar inconformidades e pendÃªncias tÃ©cnicas cadastradas.",
+      "- revisar materiais críticos antes da próxima frente;",
+      "- revisar inconformidades e pendências técnicas cadastradas.",
       "",
       "Alertas:",
-      "- Este diagnÃ³stico depende dos dados realmente cadastrados nos mÃ³dulos.",
+      "- Este diagnóstico depende dos dados realmente cadastrados nos módulos.",
       "- Documento preliminar assistido por sistema computacional.",
-      "- NÃ£o substitui anÃ¡lise tÃ©cnica profissional."
+      "- Não substitui análise técnica profissional."
     ].join("\n");
     return {
-      shortAnswer: "DiagnÃ³stico geral da obra preparado.",
+      shortAnswer: "Diagnóstico geral da obra preparado.",
       fullAnswer: answer,
-      nextAction: "Atualize RDO, almoxarifado e relatÃ³rio tÃ©cnico para deixar o diagnÃ³stico mais confiÃ¡vel.",
+      nextAction: "Atualize RDO, almoxarifado e relatório técnico para deixar o diagnóstico mais confiável.",
       canSave: true,
       sessionTheme: "diagnostico_operacional_obra",
       sessionIntent: "diagnostico_geral"
@@ -2229,7 +2229,7 @@
       try {
         storage.setItem("elo_official_technical_base_metadata_v1", JSON.stringify(metadata));
       } catch (error) {
-        // Sem aÃ§Ã£o: metadado persistido Ã© auxiliar, nÃ£o deve bloquear resposta.
+        // Sem ação: metadado persistido é auxiliar, não deve bloquear resposta.
       }
       return metadata;
     }
@@ -2250,13 +2250,13 @@
 
   function buildEloOfficialBaseStatusAnswer_(message) {
     const text = normalizeText(message || "");
-    if (!/base\s+tecnica|base\s+tÃ©cnica|sinapi|orse/.test(text) || !/carregada|atual|persistida|qual\s+base|que\s+base/.test(text)) return null;
+    if (!/base\s+tecnica|base\s+técnica|sinapi|orse/.test(text) || !/carregada|atual|persistida|qual\s+base|que\s+base/.test(text)) return null;
     const metadata = getEloOfficialBaseMetadata_();
     if (!metadata) {
       return {
-        shortAnswer: "NÃ£o encontrei base oficial persistida.",
-        fullAnswer: "NÃ£o encontrei base oficial persistida. Importe ou carregue uma base SINAPI/ORSE para cÃ¡lculo oficial.",
-        nextAction: "Carregue uma base SINAPI/ORSE oficial no Stock Obras antes de pedir cÃ¡lculo oficial.",
+        shortAnswer: "Não encontrei base oficial persistida.",
+        fullAnswer: "Não encontrei base oficial persistida. Importe ou carregue uma base SINAPI/ORSE para cálculo oficial.",
+        nextAction: "Carregue uma base SINAPI/ORSE oficial no Stock Obras antes de pedir cálculo oficial.",
         canSave: false,
         sessionTheme: "base_tecnica_oficial",
         sessionIntent: "status_base_tecnica"
@@ -2264,16 +2264,16 @@
     }
     const source = metadata.fonte || "SINAPI/ORSE";
     const location = [metadata.uf, metadata.mes].filter(Boolean).join(" ");
-    const line = "Base tÃ©cnica atual: " + source + (location ? " " + location : "") + " â€” " + metadata.quantidade + " composiÃ§Ãµes carregadas.";
+    const line = "Base técnica atual: " + source + (location ? " " + location : "") + " — " + metadata.quantidade + " composições carregadas.";
     return {
       shortAnswer: "Base tecnica carregada.",
       fullAnswer: [
         line,
         "Status: " + (metadata.status || "oficial_validada") + ".",
-        "PreferÃªncia atual: " + (getEloTechnicalSourcePreference_ ? (getEloTechnicalSourcePreference_() || "nÃ£o definida") : "nÃ£o definida") + ".",
-        "NÃ£o uso base demonstrativa como oficial."
+        "Preferência atual: " + (getEloTechnicalSourcePreference_ ? (getEloTechnicalSourcePreference_() || "não definida") : "não definida") + ".",
+        "Não uso base demonstrativa como oficial."
       ].join("\n"),
-      nextAction: "Use essa base em uma consulta de serviÃ§o, quantitativo ou orÃ§amento tÃ©cnico.",
+      nextAction: "Use essa base em uma consulta de serviço, quantitativo ou orçamento técnico.",
       canSave: true,
       sessionTheme: "base_tecnica_oficial",
       sessionIntent: "status_base_tecnica"
@@ -2282,36 +2282,36 @@
 
   function buildEloOfficialTechnicalGuidanceAnswer_(message) {
     const text = normalizeText(message || "");
-    const isOfficialBudgetQuestion = /orcamento\s+tecnico|orÃ§amento\s+tÃ©cnico|composicao\s+oficial|composiÃ§Ã£o\s+oficial|sem\s+inventar\s+coeficiente|sem\s+chutar\s+consumo|mao\s+de\s+obra\s+e\s+material|mÃ£o\s+de\s+obra\s+e\s+material|posso\s+estimar\s+sozinho|preciso\s+de\s+composicao|preciso\s+de\s+composiÃ§Ã£o|responsavel\s+tecnico|responsÃ¡vel\s+tÃ©cnico|como\s+diferenciar\s+preco\s+de\s+insumo|como\s+diferenciar\s+preÃ§o\s+de\s+insumo|referencia\s+de\s+insumo|referÃªncia\s+de\s+insumo|preco\s+oficial|preÃ§o\s+oficial/.test(text);
+    const isOfficialBudgetQuestion = /orcamento\s+tecnico|orçamento\s+técnico|composicao\s+oficial|composição\s+oficial|sem\s+inventar\s+coeficiente|sem\s+chutar\s+consumo|mao\s+de\s+obra\s+e\s+material|mão\s+de\s+obra\s+e\s+material|posso\s+estimar\s+sozinho|preciso\s+de\s+composicao|preciso\s+de\s+composição|responsavel\s+tecnico|responsável\s+técnico|como\s+diferenciar\s+preco\s+de\s+insumo|como\s+diferenciar\s+preço\s+de\s+insumo|referencia\s+de\s+insumo|referência\s+de\s+insumo|preco\s+oficial|preço\s+oficial/.test(text);
     if (!isOfficialBudgetQuestion) return null;
-    const isInputReference = /insumo|comprar|referencia\s+de\s+insumo|referÃªncia\s+de\s+insumo/.test(text);
+    const isInputReference = /insumo|comprar|referencia\s+de\s+insumo|referência\s+de\s+insumo/.test(text);
     const lines = [
       "Resposta principal",
       isInputReference
-        ? "Trate essa referÃªncia como insumo, nÃ£o como orÃ§amento completo de serviÃ§o. PreÃ§o de insumo nÃ£o substitui composiÃ§Ã£o de execuÃ§Ã£o."
-        : "NÃ£o vou estimar consumo, produtividade, mÃ£o de obra ou custo oficial sem composiÃ§Ã£o tÃ©cnica validada.",
+        ? "Trate essa referência como insumo, não como orçamento completo de serviço. Preço de insumo não substitui composição de execução."
+        : "Não vou estimar consumo, produtividade, mão de obra ou custo oficial sem composição técnica validada.",
       "",
       "Premissas utilizadas",
-      "- ServiÃ§o ou insumo descrito pelo usuÃ¡rio: considerado como referÃªncia de busca.",
+      "- Serviço ou insumo descrito pelo usuário: considerado como referência de busca.",
       "- Quantidade/unidade informada na pergunta: considerada apenas como premissa, quando existir.",
       "",
-      "Base tÃ©cnica utilizada",
-      "- NÃ£o localizada nesta conversa.",
-      "- Para cÃ¡lculo oficial, preciso de composiÃ§Ã£o SINAPI, ORSE ou composiÃ§Ã£o interna validada com coeficientes positivos.",
-      "- NÃ£o uso composiÃ§Ã£o demonstrativa/editÃ¡vel como oficial.",
+      "Base técnica utilizada",
+      "- Não localizada nesta conversa.",
+      "- Para cálculo oficial, preciso de composição SINAPI, ORSE ou composição interna validada com coeficientes positivos.",
+      "- Não uso composição demonstrativa/editável como oficial.",
       "",
       "Alertas do auditor",
-      "- Se for insumo: ele serve para preÃ§o unitÃ¡rio, mas nÃ£o entrega produtividade, equipe, perdas nem equipamentos.",
-      "- Se for serviÃ§o: a composiÃ§Ã£o precisa trazer insumos, mÃ£o de obra, equipamentos e coeficientes.",
-      "- ServiÃ§os estruturais, instalaÃ§Ãµes crÃ­ticas ou itens normativos exigem validaÃ§Ã£o de responsÃ¡vel tÃ©cnico.",
+      "- Se for insumo: ele serve para preço unitário, mas não entrega produtividade, equipe, perdas nem equipamentos.",
+      "- Se for serviço: a composição precisa trazer insumos, mão de obra, equipamentos e coeficientes.",
+      "- Serviços estruturais, instalações críticas ou itens normativos exigem validação de responsável técnico.",
       "",
-      "PrÃ³xima aÃ§Ã£o recomendada",
-      "Informe o cÃ³digo SINAPI/ORSE, importe a composiÃ§Ã£o oficial da base carregada ou autorize explicitamente uma estimativa preliminar marcada como NÃƒO OFICIAL."
+      "Próxima ação recomendada",
+      "Informe o código SINAPI/ORSE, importe a composição oficial da base carregada ou autorize explicitamente uma estimativa preliminar marcada como NÃO OFICIAL."
     ];
     return {
-      shortAnswer: "Preciso de composiÃ§Ã£o oficial para orÃ§amento tÃ©cnico.",
+      shortAnswer: "Preciso de composição oficial para orçamento técnico.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Informe cÃ³digo/composiÃ§Ã£o SINAPI/ORSE ou autorize estimativa NÃƒO OFICIAL.",
+      nextAction: "Informe código/composição SINAPI/ORSE ou autorize estimativa NÃO OFICIAL.",
       canSave: true,
       sessionTheme: "orcamento_tecnico_oficial",
       sessionIntent: "bloqueio_composicao_oficial"
@@ -2320,7 +2320,7 @@
   function parseEloLooseProjectBriefing_(message) {
     const raw = String(message || "");
     const normalized = normalizeText(raw);
-    if (!/cliente|obra|casa|parede|sapata|baldrame|pilar|viga|proposta|orcamento|orÃ§amento/.test(normalized)) return null;
+    if (!/cliente|obra|casa|parede|sapata|baldrame|pilar|viga|proposta|orcamento|orçamento/.test(normalized)) return null;
     const facts = {};
     const clientMatch = raw.match(/cliente\s+([^,;\n\r]+?)(?=\s*,|\s+obra\b|\s+casa\b|$)/i);
     const workMatch = raw.match(/obra\s+([^,;\n\r]+?)(?=\s*,|\s+casa\b|\s+em\b|\s+no\b|\s+na\b|$)/i);
@@ -2347,7 +2347,7 @@
     const text = normalizeText(message || "");
     if (!/cliente|obra|casa|parede|sapata|baldrame|pilar|viga|proposta/.test(text)) return null;
     if (/gerar\s+pdf|exportar\s+pdf|proposta\s+em\s+pdf|documento\s+para\s+cliente|imprimir\s+proposta|baixar\s+proposta/.test(text)) return null;
-    if (/orcamento\s+tecnico|orÃ§amento\s+tÃ©cnico|continuar\s+o\s+orcamento|continuar\s+o\s+orÃ§amento|orce|pintura|composicao|composiÃ§Ã£o|coeficiente|sinapi|orse|mao\s+de\s+obra|mÃ£o\s+de\s+obra|produtividade|insumo|servico|serviÃ§o|executar|contratar|comprar|como\s+calcular|o\s+que\s+falta|que\s+dados|preciso\s+montar/.test(text)) return null;
+    if (/orcamento\s+tecnico|orçamento\s+técnico|continuar\s+o\s+orcamento|continuar\s+o\s+orçamento|orce|pintura|composicao|composição|coeficiente|sinapi|orse|mao\s+de\s+obra|mão\s+de\s+obra|produtividade|insumo|servico|serviço|executar|contratar|comprar|como\s+calcular|o\s+que\s+falta|que\s+dados|preciso\s+montar/.test(text)) return null;
     const facts = parseEloLooseProjectBriefing_(message);
     if (!facts) return null;
     if (facts.parede && facts.fundacao && facts.estrutura) {
@@ -2435,14 +2435,14 @@
   function buildEloOperationalWizardAnswer_(message) {
     if (!isEloOperationalWizardQuestion_(message)) return null;
     const text = normalizeText(message || "");
-    const objective = /proposta|cliente/.test(text) ? "proposta para cliente" : /rdo|diario|diÃ¡rio/.test(text) ? "RDO" : /estoque|almoxarifado/.test(text) ? "estoque" : /relatorio|relatÃ³rio/.test(text) ? "relatÃ³rio" : /resumo/.test(text) ? "resumo geral da obra" : "orÃ§amento";
+    const objective = /proposta|cliente/.test(text) ? "proposta para cliente" : /rdo|diario|diário/.test(text) ? "RDO" : /estoque|almoxarifado/.test(text) ? "estoque" : /relatorio|relatório/.test(text) ? "relatório" : /resumo/.test(text) ? "resumo geral da obra" : "orçamento";
     const workMemory = getEloWorkMemory_ ? getEloWorkMemory_() : null;
     const currentWork = workMemory && workMemory.currentWork ? workMemory.currentWork : {};
     const known = [];
     if (currentWork.nome || currentWork.name || currentWork.obra) known.push("obra: " + sanitizeUserText(currentWork.nome || currentWork.name || currentWork.obra));
     if (currentWork.cidade || currentWork.uf) known.push("cidade/UF: " + [currentWork.cidade || currentWork.city, currentWork.uf].filter(Boolean).join("/"));
-    if (currentWork.area) known.push("Ã¡rea: " + formatEloWallPremiseMeasure_(currentWork.area, "mÂ²"));
-    if (currentWork.padrao || currentWork["padrÃ£o"]) known.push("padrÃ£o: " + sanitizeUserText(currentWork.padrao || currentWork["padrÃ£o"]));
+    if (currentWork.area) known.push("área: " + formatEloWallPremiseMeasure_(currentWork.area, "m²"));
+    if (currentWork.padrao || currentWork["padrão"]) known.push("padrão: " + sanitizeUserText(currentWork.padrao || currentWork["padrão"]));
     return {
       shortAnswer: "Vou guiar o briefing tecnico.",
       fullAnswer: [
@@ -2450,28 +2450,28 @@
         "",
         "1. Objetivo identificado: " + objective + ".",
         "",
-        "2. Dados mÃ­nimos que vou usar:",
+        "2. Dados mínimos que vou usar:",
         "- cliente;",
         "- obra;",
         "- cidade/UF;",
-        "- Ã¡rea aproximada;",
-        "- padrÃ£o da obra.",
+        "- área aproximada;",
+        "- padrão da obra.",
         "",
-        "3. Escopo possÃ­vel:",
+        "3. Escopo possível:",
         "- paredes;",
-        "- fundaÃ§Ã£o;",
+        "- fundação;",
         "- estrutura;",
-        "- relatÃ³rio;",
+        "- relatório;",
         "- almoxarifado;",
         "- RDO.",
         "",
-        "4. O que jÃ¡ entendi:",
-        known.length ? known.map(function (item) { return "- " + item + ";"; }).join("\n") : "- ainda nÃ£o hÃ¡ dados suficientes da obra nesta conversa;",
+        "4. O que já entendi:",
+        known.length ? known.map(function (item) { return "- " + item + ";"; }).join("\n") : "- ainda não há dados suficientes da obra nesta conversa;",
         "",
-        "PrÃ³xima pergunta:",
-        "Qual Ã© o nome da obra e a cidade/UF? Se nÃ£o souber, responda: nÃ£o sei."
+        "Próxima pergunta:",
+        "Qual é o nome da obra e a cidade/UF? Se não souber, responda: não sei."
       ].join("\n"),
-      nextAction: "Responda com nome da obra e cidade/UF, ou diga 'nÃ£o sei'.",
+      nextAction: "Responda com nome da obra e cidade/UF, ou diga 'não sei'.",
       canSave: false,
       sessionTheme: "wizard_operacional",
       sessionIntent: "wizard_operacional"
@@ -2495,19 +2495,19 @@
     const alerts = [];
     const opts = options || {};
     if (/custo|or.amento|orcamento|valor|pre.o|preco|bdi|cronograma|curva\s+abc/.test(text) && !opts.hasOfficialBase) {
-      alerts.push("- Custo, BDI, cronograma e curva ABC exigem composiÃ§Ã£o SINAPI/ORSE ou composiÃ§Ã£o interna validada. NÃ£o vou tratar estimativa como orÃ§amento oficial.");
+      alerts.push("- Custo, BDI, cronograma e curva ABC exigem composição SINAPI/ORSE ou composição interna validada. Não vou tratar estimativa como orçamento oficial.");
     }
     if (/produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|homens?-hora|horas?/.test(text) && !opts.hasOfficialBase) {
-      alerts.push("- Produtividade e mÃ£o de obra dependem de composiÃ§Ã£o validada; sem isso, a resposta fica limitada a briefing tÃ©cnico.");
+      alerts.push("- Produtividade e mão de obra dependem de composição validada; sem isso, a resposta fica limitada a briefing técnico.");
     }
-    if (/v[aÃ£]o|viga|laje|pilar|sapata|estrutura|balanÃ§o|balanco/.test(text) && /(\b[6-9]\s*m\b|\b1\d\s*m\b|\d+(?:[,.]\d+)?\s*m\s+de\s+v[aÃ£]o)/.test(text)) {
-      alerts.push("- VÃ£o estrutural suspeito: confirme projeto estrutural e responsÃ¡vel tÃ©cnico antes de executar.");
+    if (/v[aã]o|viga|laje|pilar|sapata|estrutura|balanço|balanco/.test(text) && /(\b[6-9]\s*m\b|\b1\d\s*m\b|\d+(?:[,.]\d+)?\s*m\s+de\s+v[aã]o)/.test(text)) {
+      alerts.push("- Vão estrutural suspeito: confirme projeto estrutural e responsável técnico antes de executar.");
     }
     if (/concreto|laje|contrapiso|piso/.test(text) && !/espessura|\d+(?:[,.]\d+)?\s*cm|\bfck\s*\d{2}|\d{2}\s*mpa/.test(text) && /calcular|quantos|or.amento|orcamento|custo|consumo/.test(text)) {
-      alerts.push("- Falta espessura e/ou FCK para avanÃ§ar alÃ©m da geometria ou do briefing.");
+      alerts.push("- Falta espessura e/ou FCK para avançar além da geometria ou do briefing.");
     }
-    if (/parede|alvenaria|bloco|tijolo/.test(text) && /quantos|consumo|or.amento|orcamento|custo/.test(text) && !/porta|janela|sem\s+v[aÃ£]os|sem\s+portas|sem\s+janelas/.test(text)) {
-      alerts.push("- Confirme vÃ£os de portas e janelas para evitar quantitativo bruto acima do necessÃ¡rio.");
+    if (/parede|alvenaria|bloco|tijolo/.test(text) && /quantos|consumo|or.amento|orcamento|custo/.test(text) && !/porta|janela|sem\s+v[aã]os|sem\s+portas|sem\s+janelas/.test(text)) {
+      alerts.push("- Confirme vãos de portas e janelas para evitar quantitativo bruto acima do necessário.");
     }
     return alerts;
   }
@@ -2532,23 +2532,23 @@
     if (/\bcadista\b|planta\s+baixa|gerar\s+planta|croqui|dxf|desenho\s+cad/.test(text)) return "cadista";
     if (/\bstock\b|estoque|almoxarifado|saldo\s+de|cimento\s+em\s+estoque|produto\b/.test(text)) return "stock";
     if (/proposta|preparar\s+para\s+cliente|gerar\s+documento|documento\s+para\s+cliente/.test(text)) return "proposta_tecnica";
-    if (/orcamento\s+residencial|orÃ§amento\s+residencial|orcamento\s+preliminar|orÃ§amento\s+preliminar|casa\s+terrea|casa\s+tÃ©rrea|resid[eÃª]ncia/.test(text)) return "orcamento_residencial";
-    if (/fundacao|fundaÃ§Ã£o|sapata|baldrame|bloco\s+de\s+fundacao|bloco\s+de\s+fundaÃ§Ã£o|radier/.test(text)) return "fundacao";
+    if (/orcamento\s+residencial|orçamento\s+residencial|orcamento\s+preliminar|orçamento\s+preliminar|casa\s+terrea|casa\s+térrea|resid[eê]ncia/.test(text)) return "orcamento_residencial";
+    if (/fundacao|fundação|sapata|baldrame|bloco\s+de\s+fundacao|bloco\s+de\s+fundação|radier/.test(text)) return "fundacao";
     if (/estrutura|estrutural|pilar|viga|laje/.test(text)) return "estrutura";
     if (/parede\s+completa|alvenaria\s+completa|parede\s+pronta/.test(text)) return "parede_completa";
-    if (/parede|alvenaria|bloco|tijolo|baiano|reboco|chapisco|embo[cÃ§]o/.test(text)) return "parede";
-    if (/relatorio|relatÃ³rio|rdo|diario|diÃ¡rio/.test(text)) return "relatorio";
+    if (/parede|alvenaria|bloco|tijolo|baiano|reboco|chapisco|embo[cç]o/.test(text)) return "parede";
+    if (/relatorio|relatório|rdo|diario|diário/.test(text)) return "relatorio";
     return "conversa_geral";
   }
 
   function isEloPendingContextContinuation_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
-    if (/^(?:op[cÃ§][aÃ£]o\s*)?\d{1,2}$/.test(text)) return true;
+    if (/^(?:op[cç][aã]o\s*)?\d{1,2}$/.test(text)) return true;
     if (/^\d{1,2}\s*%$/.test(text)) return true;
     if (/^\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}$/.test(text)) return true;
-    if (/^(?:sem\s+)?(?:portas?|janelas?|vaos|v[aÃ£]os|revestimento|chapisco|reboco)\b/.test(text)) return true;
-    if (/^(?:uma?|duas?|dois|tr[eÃª]s|\d+)\s+(?:porta|janela|vao|v[aÃ£]o)\b/.test(text)) return true;
+    if (/^(?:sem\s+)?(?:portas?|janelas?|vaos|v[aã]os|revestimento|chapisco|reboco)\b/.test(text)) return true;
+    if (/^(?:uma?|duas?|dois|tr[eê]s|\d+)\s+(?:porta|janela|vao|v[aã]o)\b/.test(text)) return true;
     if (/^(?:perda\s+)?\d{1,2}\s*%/.test(text)) return true;
     if (/^(?:um|dois|2|1)\s+lados?/.test(text)) return true;
     return false;
@@ -2556,7 +2556,7 @@
 
   function hasEloExplicitTopicSwitchMarker_(message) {
     const text = normalizeText(message || "");
-    return /\bagora\b|vamos\s+para|mudar\s+para|trocar\s+para|calcule\s+fundacao|calcule\s+fundaÃ§Ã£o|fundacao\s+completa|fundaÃ§Ã£o\s+completa|estrutura|proposta|orcamento\s+residencial|orÃ§amento\s+residencial|\bcadista\b|\bstock\b|relatorio|relatÃ³rio/.test(text);
+    return /\bagora\b|vamos\s+para|mudar\s+para|trocar\s+para|calcule\s+fundacao|calcule\s+fundação|fundacao\s+completa|fundação\s+completa|estrutura|proposta|orcamento\s+residencial|orçamento\s+residencial|\bcadista\b|\bstock\b|relatorio|relatório/.test(text);
   }
 
   function detectEloTopicSwitch_(previousTopic, newMessage) {
@@ -2618,7 +2618,7 @@
     if (!theme) {
       return {
         shortAnswer: "Posso continuar, mas preciso de um tema.",
-        fullAnswer: "Me diga sobre qual parte do ObraReport vocÃª quer continuar: PDF, RDO, materiais, planos ou relatÃ³rios?",
+        fullAnswer: "Me diga sobre qual parte do ObraReport você quer continuar: PDF, RDO, materiais, planos ou relatórios?",
         nextAction: "Escreva, por exemplo: continuar sobre PDF ou continuar sobre materiais.",
         canSave: false,
         sessionTheme: "",
@@ -2644,74 +2644,74 @@
     const themeAnswers = {
       pdf: {
         shortAnswer: "Depois do PDF, revise a entrega.",
-        fullAnswer: "Depois de gerar o PDF, vocÃª pode baixar o arquivo, enviar ao cliente ou compartilhar um resumo por WhatsApp, se essa opÃ§Ã£o estiver disponÃ­vel.",
-        nextAction: "Abra o PDF gerado e confira se obra, fotos, conclusÃ£o e identificaÃ§Ã£o estÃ£o corretas."
+        fullAnswer: "Depois de gerar o PDF, você pode baixar o arquivo, enviar ao cliente ou compartilhar um resumo por WhatsApp, se essa opção estiver disponível.",
+        nextAction: "Abra o PDF gerado e confira se obra, fotos, conclusão e identificação estão corretas."
       },
       relatorio: {
-        shortAnswer: "Depois do relatÃ³rio, revise antes de entregar.",
-        fullAnswer: "Confira cliente, obra, fotos, inconformidades, conclusÃ£o tÃ©cnica e a etapa Gerar. Se estiver completo, avance para o PDF.",
+        shortAnswer: "Depois do relatório, revise antes de entregar.",
+        fullAnswer: "Confira cliente, obra, fotos, inconformidades, conclusão técnica e a etapa Gerar. Se estiver completo, avance para o PDF.",
         nextAction: "Pergunte: posso gerar o PDF?"
       },
       rdo: {
         shortAnswer: "No RDO, avance pelo que falta preencher.",
-        fullAnswer: "Confira data, obra, responsÃ¡vel, equipe, serviÃ§os, produÃ§Ã£o, materiais, ocorrÃªncias, fotos e resumo. Depois salve e gere o PDF do diÃ¡rio.",
+        fullAnswer: "Confira data, obra, responsável, equipe, serviços, produção, materiais, ocorrências, fotos e resumo. Depois salve e gere o PDF do diário.",
         nextAction: "Pergunte: revisar RDO."
       },
       materiais: {
-        shortAnswer: "Agora revise os materiais lanÃ§ados.",
-        fullAnswer: "Confira se material, quantidade, unidade e valor fazem sentido. Se houver produÃ§Ã£o executada, compare o consumo registrado com o consumo estimado.",
+        shortAnswer: "Agora revise os materiais lançados.",
+        fullAnswer: "Confira se material, quantidade, unidade e valor fazem sentido. Se houver produção executada, compare o consumo registrado com o consumo estimado.",
         nextAction: "Pergunte: como funciona auditoria de consumo?"
       },
       auditoria: {
         shortAnswer: "Na auditoria, compare estimado e registrado.",
-        fullAnswer: "Veja se hÃ¡ produÃ§Ã£o executada, composiÃ§Ãµes e materiais consumidos. A diferenÃ§a ajuda a identificar consumo acima ou abaixo do previsto.",
+        fullAnswer: "Veja se há produção executada, composições e materiais consumidos. A diferença ajuda a identificar consumo acima ou abaixo do previsto.",
         nextAction: "Revise a auditoria antes de gerar o resumo do RDO."
       },
       planos: {
         shortAnswer: "Nos planos, escolha o caminho comercial.",
-        fullAnswer: "Compare Gratuito, Profissional e Empresa. Para vender manualmente nesta fase, use o WhatsApp do plano adequado e siga com ativaÃ§Ã£o assistida.",
+        fullAnswer: "Compare Gratuito, Profissional e Empresa. Para vender manualmente nesta fase, use o WhatsApp do plano adequado e siga com ativação assistida.",
         nextAction: "Se for equipe ou construtora, avalie o plano Empresa."
       },
       whatsapp: {
         shortAnswer: "Depois do WhatsApp, revise a mensagem.",
-        fullAnswer: "O ObraReport abre uma mensagem pronta. Revise obra, cliente, produÃ§Ã£o, materiais e ocorrÃªncias antes de enviar.",
-        nextAction: "Se o WhatsApp nÃ£o abrir, verifique pop-ups e WhatsApp Web/app."
+        fullAnswer: "O ObraReport abre uma mensagem pronta. Revise obra, cliente, produção, materiais e ocorrências antes de enviar.",
+        nextAction: "Se o WhatsApp não abrir, verifique pop-ups e WhatsApp Web/app."
       },
       fotos: {
         shortAnswer: "Depois das fotos, revise legendas e contexto.",
-        fullAnswer: "Confira se as fotos mostram claramente o problema, etapa da obra ou evidÃªncia. Use legenda objetiva antes de gerar o PDF.",
-        nextAction: "Depois avance para revisÃ£o/conclusÃ£o."
+        fullAnswer: "Confira se as fotos mostram claramente o problema, etapa da obra ou evidência. Use legenda objetiva antes de gerar o PDF.",
+        nextAction: "Depois avance para revisão/conclusão."
       },
       salvamento: {
-        shortAnswer: "Depois de salvar, confira o histÃ³rico.",
-        fullAnswer: "Veja se o item aparece na lista, histÃ³rico ou status da tela. Evite recarregar antes de confirmar o salvamento.",
-        nextAction: "Se houver dÃºvida, pergunte: o que estÃ¡ pendente?"
+        shortAnswer: "Depois de salvar, confira o histórico.",
+        fullAnswer: "Veja se o item aparece na lista, histórico ou status da tela. Evite recarregar antes de confirmar o salvamento.",
+        nextAction: "Se houver dúvida, pergunte: o que está pendente?"
       },
       sincronizacao: {
-        shortAnswer: "Na sincronizaÃ§Ã£o, acompanhe o status da tela.",
-        fullAnswer: "Use o status local/nuvem exibido pelo ObraReport. Se algo nÃ£o sincronizar, mantenha a pÃ¡gina aberta e tente salvar novamente.",
-        nextAction: "NÃ£o limpe o navegador antes de confirmar os dados."
+        shortAnswer: "Na sincronização, acompanhe o status da tela.",
+        fullAnswer: "Use o status local/nuvem exibido pelo ObraReport. Se algo não sincronizar, mantenha a página aberta e tente salvar novamente.",
+        nextAction: "Não limpe o navegador antes de confirmar os dados."
       },
       cliente: {
         shortAnswer: "Depois do cliente, vincule uma obra.",
-        fullAnswer: "O cliente organiza obras, relatÃ³rios e RDOs. Depois de cadastrar, crie a obra vinculada e siga para relatÃ³rio ou diÃ¡rio.",
+        fullAnswer: "O cliente organiza obras, relatórios e RDOs. Depois de cadastrar, crie a obra vinculada e siga para relatório ou diário.",
         nextAction: "Abra Obras para cadastrar ou revisar a obra vinculada."
       },
       obra: {
         shortAnswer: "Depois da obra, escolha o documento.",
-        fullAnswer: "Com a obra cadastrada, vocÃª pode criar relatÃ³rio tÃ©cnico, RDO, lanÃ§ar materiais e gerar PDFs profissionais.",
-        nextAction: "Escolha RelatÃ³rios ou DiÃ¡rio de Obras."
+        fullAnswer: "Com a obra cadastrada, você pode criar relatório técnico, RDO, lançar materiais e gerar PDFs profissionais.",
+        nextAction: "Escolha Relatórios ou Diário de Obras."
       },
       suporte: {
         shortAnswer: "No suporte, descreva o problema de forma objetiva.",
-        fullAnswer: "Informe a tela, o que tentou fazer e a mensagem exibida. Isso ajuda a orientar a implantaÃ§Ã£o ou correÃ§Ã£o.",
+        fullAnswer: "Informe a tela, o que tentou fazer e a mensagem exibida. Isso ajuda a orientar a implantação ou correção.",
         nextAction: "Use WhatsApp de suporte quando estiver configurado."
       }
     };
 
     const answer = themeAnswers[theme] || {
       shortAnswer: "Vamos continuar pelo contexto atual.",
-      fullAnswer: "VocÃª estava falando sobre " + theme + " em " + (ELO_SESSION_MEMORY.lastContext || context) + ".",
+      fullAnswer: "Você estava falando sobre " + theme + " em " + (ELO_SESSION_MEMORY.lastContext || context) + ".",
       nextAction: ELO_SESSION_MEMORY.lastRecommendation || "Pergunte o que falta preencher ou o que devo fazer agora."
     };
 
@@ -2727,14 +2727,14 @@
       "e depois",
       "e agora",
       "como faco isso",
-      "como faÃ§o isso",
+      "como faço isso",
       "pode explicar melhor",
       "me diga o proximo passo",
-      "me diga o prÃ³ximo passo",
+      "me diga o próximo passo",
       "continua",
       "sim",
       "nao entendi",
-      "nÃ£o entendi",
+      "não entendi",
       "o que falta"
     ];
     return exact.some(function (item) {
@@ -2750,15 +2750,15 @@
   function detectConversationTheme(normalizedQuestion) {
     const themes = [
       ["pdf", ["pdf", "gerar pdf", "baixar pdf", "documento"]],
-      ["relatorio", ["relatorio", "relatÃ³rios", "relatorio tecnico", "qualidade"]],
-      ["rdo", ["rdo", "diario", "diÃ¡rio", "diario de obra"]],
+      ["relatorio", ["relatorio", "relatórios", "relatorio tecnico", "qualidade"]],
+      ["rdo", ["rdo", "diario", "diário", "diario de obra"]],
       ["materiais", ["material", "materiais", "consumo"]],
       ["auditoria", ["auditoria", "audito", "auditar", "comparar consumo"]],
       ["planos", ["plano", "planos", "profissional", "empresa", "gratuito"]],
       ["whatsapp", ["whatsapp", "zap", "mensagem"]],
       ["fotos", ["foto", "fotos", "imagem", "imagens"]],
       ["salvamento", ["salvar", "salvamento", "salvo"]],
-      ["sincronizacao", ["sincronizar", "sincronizacao", "sincronizaÃ§Ã£o", "nuvem"]],
+      ["sincronizacao", ["sincronizar", "sincronizacao", "sincronização", "nuvem"]],
       ["cliente", ["cliente", "clientes"]],
       ["obra", ["obra", "obras"]],
       ["suporte", ["suporte", "ajuda", "problema"]]
@@ -2781,7 +2781,7 @@
     if (hasAnyTerm(normalizedQuestion, ["revisar", "pendente", "falta", "posso"])) {
       return "revisao";
     }
-    if (hasAnyTerm(normalizedQuestion, ["nao", "nÃ£o", "erro", "sumiu", "nao abre", "nÃ£o abre"])) {
+    if (hasAnyTerm(normalizedQuestion, ["nao", "não", "erro", "sumiu", "nao abre", "não abre"])) {
       return "diagnostico";
     }
     return "pergunta";
@@ -3073,9 +3073,9 @@
   function formatEloAttachmentErrors_(errors) {
     const firstError = sanitizeUserText(errors && errors[0] ? errors[0] : "");
     if (/grande demais/i.test(firstError)) {
-      return "NÃ£o consegui ler o anexo porque o arquivo excede o limite desta versÃ£o do Elo.";
+      return "Não consegui ler o anexo porque o arquivo excede o limite desta versão do Elo.";
     }
-    return "NÃ£o consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraÃ­vel.";
+    return "Não consegui ler o anexo. O PDF pode estar escaneado, vazio, corrompido ou sem texto extraível.";
   }
 
   function saveUsefulAnswer(question, answer) {
@@ -3173,9 +3173,9 @@
       "pdf",
       "rdo",
       "diario",
-      "diÃ¡rio",
+      "diário",
       "relatorio",
-      "relatÃ³rio",
+      "relatório",
       "materiais",
       "material",
       "plano",
@@ -3198,10 +3198,10 @@
       return response.sessionTheme;
     }
     const text = normalizeText(question);
-    if (hasAnyTerm(text, ["pdf", "relatorio", "relatÃ³rio", "foto"])) {
+    if (hasAnyTerm(text, ["pdf", "relatorio", "relatório", "foto"])) {
       return "relatorios";
     }
-    if (hasAnyTerm(text, ["rdo", "diario", "diÃ¡rio", "materiais", "material", "auditoria", "consumo"])) {
+    if (hasAnyTerm(text, ["rdo", "diario", "diário", "materiais", "material", "auditoria", "consumo"])) {
       return "rdo";
     }
     if (hasAnyTerm(text, ["plano", "contratar", "limite"])) {
@@ -3305,8 +3305,8 @@
           (index + 1) + ". " + item.pergunta,
           "Contexto: " + item.contexto,
           "Categoria: " + item.categoriaDetectada,
-          "Ãštil: " + (item.foiUtil === null ? "sem feedback" : (item.foiUtil ? "sim" : "nÃ£o")),
-          "Sugerida para treino: " + (item.sugeridaParaTreino ? "sim" : "nÃ£o"),
+          "Útil: " + (item.foiUtil === null ? "sem feedback" : (item.foiUtil ? "sim" : "não")),
+          "Sugerida para treino: " + (item.sugeridaParaTreino ? "sim" : "não"),
           "Resposta gerada:",
           item.respostaGerada
         ].join("\n");
@@ -3445,14 +3445,14 @@
 
     const cleanQuestion = sanitizeUserText(question);
     const patterns = [
-      { regex: /^meu nome (?:Ã©|e) (.+)$/i, label: "meu nome", category: "nome" },
+      { regex: /^meu nome (?:é|e) (.+)$/i, label: "meu nome", category: "nome" },
       { regex: /^eu me chamo (.+)$/i, label: "meu nome", category: "nome" },
       { regex: /^meu filho se chama (.+)$/i, label: "nome do meu filho", category: "familia" },
       { regex: /^minha filha se chama (.+)$/i, label: "nome da minha filha", category: "familia" },
-      { regex: /^minha empresa (?:Ã©|e) (.+)$/i, label: "minha empresa", category: "empresa" },
+      { regex: /^minha empresa (?:é|e) (.+)$/i, label: "minha empresa", category: "empresa" },
       { regex: /^eu moro em (.+)$/i, label: "onde eu moro", category: "cidade" },
-      { regex: /^minha cidade (?:Ã©|e) (.+)$/i, label: "minha cidade", category: "cidade" },
-      { regex: /^meu projeto principal (?:Ã©|e) (.+)$/i, label: "meu projeto principal", category: "projeto" },
+      { regex: /^minha cidade (?:é|e) (.+)$/i, label: "minha cidade", category: "cidade" },
+      { regex: /^meu projeto principal (?:é|e) (.+)$/i, label: "meu projeto principal", category: "projeto" },
       { regex: /^eu gosto de (.+)$/i, label: "algo que eu gosto", category: "preferencia" },
       { regex: /^lembre que (.+)$/i, label: "lembrete", category: "geral" }
     ];
@@ -3514,11 +3514,11 @@
     const memories = getPersonalMemories();
 
     if (!memories.length) {
-      if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que vocÃª lembra de mim") >= 0) {
+      if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que você lembra de mim") >= 0) {
         return {
-          shortAnswer: "Ainda nÃ£o tenho memÃ³rias pessoais salvas.",
-          fullAnswer: "Quando vocÃª me disser algo como 'meu filho se chama Davi', eu vou perguntar se devo lembrar antes de salvar.",
-          nextAction: "VocÃª pode me ensinar uma memÃ³ria simples agora.",
+          shortAnswer: "Ainda não tenho memórias pessoais salvas.",
+          fullAnswer: "Quando você me disser algo como 'meu filho se chama Davi', eu vou perguntar se devo lembrar antes de salvar.",
+          nextAction: "Você pode me ensinar uma memória simples agora.",
           canSave: false
         };
       }
@@ -3526,13 +3526,13 @@
     }
 
     const queryMap = [
-      { tests: ["qual meu nome", "como eu me chamo"], label: "meu nome", response: "VocÃª me disse que seu nome Ã© " },
-      { tests: ["qual o nome do meu filho"], label: "nome do meu filho", response: "VocÃª me disse que seu filho se chama " },
-      { tests: ["qual o nome da minha filha"], label: "nome da minha filha", response: "VocÃª me disse que sua filha se chama " },
-      { tests: ["qual minha empresa"], label: "minha empresa", response: "VocÃª me disse que sua empresa Ã© " },
-      { tests: ["onde eu moro", "qual minha cidade"], label: "minha cidade", fallbackLabel: "onde eu moro", response: "VocÃª me disse que sua cidade Ã© " },
-      { tests: ["qual meu projeto principal"], label: "meu projeto principal", response: "Eu lembro que seu projeto principal Ã© " },
-      { tests: ["do que eu gosto"], label: "algo que eu gosto", response: "VocÃª me disse que gosta de " }
+      { tests: ["qual meu nome", "como eu me chamo"], label: "meu nome", response: "Você me disse que seu nome é " },
+      { tests: ["qual o nome do meu filho"], label: "nome do meu filho", response: "Você me disse que seu filho se chama " },
+      { tests: ["qual o nome da minha filha"], label: "nome da minha filha", response: "Você me disse que sua filha se chama " },
+      { tests: ["qual minha empresa"], label: "minha empresa", response: "Você me disse que sua empresa é " },
+      { tests: ["onde eu moro", "qual minha cidade"], label: "minha cidade", fallbackLabel: "onde eu moro", response: "Você me disse que sua cidade é " },
+      { tests: ["qual meu projeto principal"], label: "meu projeto principal", response: "Eu lembro que seu projeto principal é " },
+      { tests: ["do que eu gosto"], label: "algo que eu gosto", response: "Você me disse que gosta de " }
     ];
 
     for (let index = 0; index < queryMap.length; index += 1) {
@@ -3545,21 +3545,21 @@
         if (memoryItem) {
           return {
             shortAnswer: query.response + memoryItem.value + ".",
-            fullAnswer: "Essa memÃ³ria estÃ¡ salva apenas neste navegador, na categoria " + memoryItem.category + ".",
-            nextAction: "Use Minhas memÃ³rias para revisar ou excluir quando quiser.",
+            fullAnswer: "Essa memória está salva apenas neste navegador, na categoria " + memoryItem.category + ".",
+            nextAction: "Use Minhas memórias para revisar ou excluir quando quiser.",
             canSave: false
           };
         }
       }
     }
 
-    if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que vocÃª lembra de mim") >= 0) {
+    if (text.indexOf("o que voce lembra de mim") >= 0 || text.indexOf("o que você lembra de mim") >= 0) {
       return {
-        shortAnswer: "Eu lembro destas informaÃ§Ãµes pessoais salvas neste navegador:",
+        shortAnswer: "Eu lembro destas informações pessoais salvas neste navegador:",
         fullAnswer: memories.map(function (item) {
           return "- " + item.label + ": " + item.value;
         }).join("\n"),
-        nextAction: "Use Minhas memÃ³rias para revisar, excluir ou limpar tudo.",
+        nextAction: "Use Minhas memórias para revisar, excluir ou limpar tudo.",
         canSave: false
       };
     }
@@ -3618,7 +3618,7 @@
   }
 
   function sanitizeImportantMemoryTitle(title, fallback) {
-    return sanitizeLibraryText(title || fallback || "MemÃ³ria importante", 120).replace(/\.$/, "");
+    return sanitizeLibraryText(title || fallback || "Memória importante", 120).replace(/\.$/, "");
   }
 
   function buildImportantMemoryItem(candidate, typeOverride) {
@@ -3747,16 +3747,16 @@
   }
 
   function detectImportantMemoryType_(text) {
-    if (hasAnyTerm(text, ["roadmap", "plano", "o plano e", "o plano ÃƒÂ©"])) {
+    if (hasAnyTerm(text, ["roadmap", "plano", "o plano e", "o plano é"])) {
       return "objetivo";
     }
-    if (hasAnyTerm(text, ["projeto", "produto", "desenvolver", "construir", "minha ideia", "ideia e", "ideia ÃƒÂ©"])) {
+    if (hasAnyTerm(text, ["projeto", "produto", "desenvolver", "construir", "minha ideia", "ideia e", "ideia é"])) {
       return "projeto";
     }
     if (hasAnyTerm(text, ["objetivo", "meta", "foco", "precisa virar", "preciso", "quero"])) {
       return "objetivo";
     }
-    if (hasAnyTerm(text, ["aprendi", "percebi", "prefiro", "gosto", "nao posso esquecer", "nÃƒÂ£o posso esquecer"])) {
+    if (hasAnyTerm(text, ["aprendi", "percebi", "prefiro", "gosto", "nao posso esquecer", "não posso esquecer"])) {
       return "preferencia";
     }
     return "objetivo";
@@ -3764,7 +3764,7 @@
 
   function summarizeImportantMemoryCandidate_(value) {
     return sanitizeLibraryText(value, 360)
-      .replace(/^(quero lembrar que|guarde isso:?|isso e importante:?|isso ÃƒÂ© importante:?|minha ideia e|minha ideia ÃƒÂ©|o objetivo e|o objetivo ÃƒÂ©|decidi que|o plano e|o plano ÃƒÂ©|o roadmap e|o roadmap ÃƒÂ©|nao posso esquecer que|nÃƒÂ£o posso esquecer que|aprendi que|percebi que)\s*/i, "")
+      .replace(/^(quero lembrar que|guarde isso:?|isso e importante:?|isso é importante:?|minha ideia e|minha ideia é|o objetivo e|o objetivo é|decidi que|o plano e|o plano é|o roadmap e|o roadmap é|nao posso esquecer que|não posso esquecer que|aprendi que|percebi que)\s*/i, "")
       .trim();
   }
 
@@ -3816,7 +3816,7 @@
       return null;
     }
 
-    const explicitImportantMatch = cleanQuestion.match(/^(?:quero lembrar que|guarde isso:?|isso (?:e|ÃƒÂ©) importante:?|minha ideia (?:e|ÃƒÂ©)|o objetivo (?:e|ÃƒÂ©)|decidi que|o plano (?:e|ÃƒÂ©)|o roadmap (?:e|ÃƒÂ©)|n(?:a|ÃƒÂ£)o posso esquecer que|aprendi que|percebi que)\s+(.+)$/i);
+    const explicitImportantMatch = cleanQuestion.match(/^(?:quero lembrar que|guarde isso:?|isso (?:e|é) importante:?|minha ideia (?:e|é)|o objetivo (?:e|é)|decidi que|o plano (?:e|é)|o roadmap (?:e|é)|n(?:a|ã)o posso esquecer que|aprendi que|percebi que)\s+(.+)$/i);
     if (explicitImportantMatch && explicitImportantMatch[1]) {
       const description = summarizeImportantMemoryCandidate_(explicitImportantMatch[1]);
       const type = detectImportantMemoryType_(text);
@@ -3833,7 +3833,7 @@
     const projectPatterns = [
       { regex: /^estou desenvolvendo (?:o |a )?(.+)$/i, titleGroup: 1 },
       { regex: /^quero lembrar do projeto (.+)$/i, titleGroup: 1 },
-      { regex: /^meu projeto (?:Ã©|e) (.+)$/i, titleGroup: 1 }
+      { regex: /^meu projeto (?:é|e) (.+)$/i, titleGroup: 1 }
     ];
 
     for (let index = 0; index < projectPatterns.length; index += 1) {
@@ -3843,7 +3843,7 @@
         return {
           tipo: "projeto",
           titulo: title,
-          descricao: "UsuÃ¡rio estÃ¡ desenvolvendo " + title + ".",
+          descricao: "Usuário está desenvolvendo " + title + ".",
           status: "ativo",
           sourceQuestion: cleanQuestion
         };
@@ -3851,9 +3851,9 @@
     }
 
     const objectivePatterns = [
-      /^meu objetivo (?:Ã©|e) (.+)$/i,
+      /^meu objetivo (?:é|e) (.+)$/i,
       /^quero (conseguir .+|finalizar .+|terminar .+|vender .+|publicar .+|testar .+)$/i,
-      /^meu foco agora (?:Ã©|e) (.+)$/i
+      /^meu foco agora (?:é|e) (.+)$/i
     ];
 
     for (let goalIndex = 0; goalIndex < objectivePatterns.length; goalIndex += 1) {
@@ -3903,9 +3903,9 @@
     if (statusMatch && statusMatch[1]) {
       const result = updateImportantMemoryStatus(statusMatch[1], statusMatch[2].replace("concluida", "concluido").replace("arquivada", "arquivado"));
       return {
-        shortAnswer: result.ok ? "Atualizei essa memÃ³ria importante." : "NÃ£o encontrei essa memÃ³ria importante.",
-        fullAnswer: result.ok ? result.item.titulo + " agora estÃ¡ como " + result.item.status + "." : "Abra MemÃ³rias importantes para conferir o nome salvo ou escolha o item certo.",
-        nextAction: result.ok ? "VocÃª pode consultar suas memÃ³rias importantes quando quiser." : "Me diga exatamente qual projeto, objetivo ou preferÃªncia deseja atualizar.",
+        shortAnswer: result.ok ? "Atualizei essa memória importante." : "Não encontrei essa memória importante.",
+        fullAnswer: result.ok ? result.item.titulo + " agora está como " + result.item.status + "." : "Abra Memórias importantes para conferir o nome salvo ou escolha o item certo.",
+        nextAction: result.ok ? "Você pode consultar suas memórias importantes quando quiser." : "Me diga exatamente qual projeto, objetivo ou preferência deseja atualizar.",
         canSave: false
       };
     }
@@ -3915,8 +3915,8 @@
       const firstGoal = goals[0];
       if (!firstGoal) {
         return {
-          shortAnswer: "Ainda nÃ£o encontrei objetivo salvo para atualizar.",
-          fullAnswer: "Diga algo como: Meu objetivo Ã© conseguir 3 clientes. Eu vou perguntar antes de guardar.",
+          shortAnswer: "Ainda não encontrei objetivo salvo para atualizar.",
+          fullAnswer: "Diga algo como: Meu objetivo é conseguir 3 clientes. Eu vou perguntar antes de guardar.",
           nextAction: "Crie um objetivo importante primeiro.",
           canSave: false
         };
@@ -3930,53 +3930,53 @@
       };
     }
 
-    if (hasAnyTerm(text, ["quais projetos voce lembra", "quais projetos vocÃª lembra", "o que voce sabe sobre meus projetos", "o que vocÃª sabe sobre meus projetos"])) {
+    if (hasAnyTerm(text, ["quais projetos voce lembra", "quais projetos você lembra", "o que voce sabe sobre meus projetos", "o que você sabe sobre meus projetos"])) {
       return {
-        shortAnswer: projects.length ? "Projetos importantes salvos:" : "Ainda nÃ£o tenho projetos importantes salvos.",
+        shortAnswer: projects.length ? "Projetos importantes salvos:" : "Ainda não tenho projetos importantes salvos.",
         fullAnswer: projects.length ? projects.map(function (item) {
-          return "- " + item.titulo + " â€” " + item.status;
-        }).join("\n") : "Quando vocÃª disser algo como 'Estou desenvolvendo o ObraReport', eu posso perguntar se deseja guardar como projeto.",
-        nextAction: "Use MemÃ³rias importantes para revisar ou excluir.",
+          return "- " + item.titulo + " — " + item.status;
+        }).join("\n") : "Quando você disser algo como 'Estou desenvolvendo o ObraReport', eu posso perguntar se deseja guardar como projeto.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
         canSave: false
       };
     }
 
-    if (hasAnyTerm(text, ["quais objetivos eu tenho", "quais sao meus objetivos", "quais sÃ£o meus objetivos"])) {
+    if (hasAnyTerm(text, ["quais objetivos eu tenho", "quais sao meus objetivos", "quais são meus objetivos"])) {
       return {
-        shortAnswer: goals.length ? "Objetivos importantes salvos:" : "Ainda nÃ£o tenho objetivos importantes salvos.",
+        shortAnswer: goals.length ? "Objetivos importantes salvos:" : "Ainda não tenho objetivos importantes salvos.",
         fullAnswer: goals.length ? goals.map(function (item) {
-          return "- " + item.titulo + " â€” " + item.status + (item.descricao ? "\n  " + item.descricao : "");
-        }).join("\n") : "Quando vocÃª disser algo como 'Quero conseguir meus primeiros clientes', eu posso perguntar se deseja guardar como objetivo.",
-        nextAction: "Use MemÃ³rias importantes para revisar ou excluir.",
+          return "- " + item.titulo + " — " + item.status + (item.descricao ? "\n  " + item.descricao : "");
+        }).join("\n") : "Quando você disser algo como 'Quero conseguir meus primeiros clientes', eu posso perguntar se deseja guardar como objetivo.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
         canSave: false
       };
     }
 
-    if (hasAnyTerm(text, ["quais preferencias voce lembra", "quais preferÃªncias vocÃª lembra", "quais preferencias vocÃª lembra", "quais preferÃªncias voce lembra"])) {
+    if (hasAnyTerm(text, ["quais preferencias voce lembra", "quais preferências você lembra", "quais preferencias você lembra", "quais preferências voce lembra"])) {
       return {
-        shortAnswer: preferences.length ? "PreferÃªncias importantes salvas:" : "Ainda nÃ£o tenho preferÃªncias importantes salvas.",
+        shortAnswer: preferences.length ? "Preferências importantes salvas:" : "Ainda não tenho preferências importantes salvas.",
         fullAnswer: preferences.length ? preferences.map(function (item) {
-          return "- " + item.titulo + " â€” " + item.descricao;
-        }).join("\n") : "Quando vocÃª disser algo como 'Prefiro relatÃ³rios tÃ©cnicos', eu posso perguntar antes de guardar.",
-        nextAction: "Use MemÃ³rias importantes para revisar ou excluir.",
+          return "- " + item.titulo + " — " + item.descricao;
+        }).join("\n") : "Quando você disser algo como 'Prefiro relatórios técnicos', eu posso perguntar antes de guardar.",
+        nextAction: "Use Memórias importantes para revisar ou excluir.",
         canSave: false
       };
     }
 
-    if (hasAnyTerm(text, ["o que voce lembra de mim", "o que vocÃª lembra de mim"])) {
+    if (hasAnyTerm(text, ["o que voce lembra de mim", "o que você lembra de mim"])) {
       if (!hasAnyMemory) {
         return {
-          shortAnswer: "Ainda nÃ£o tenho memÃ³rias importantes salvas.",
-          fullAnswer: "Quando vocÃª me disser algo relevante sobre projetos, objetivos ou preferÃªncias, eu vou perguntar antes de guardar.",
+          shortAnswer: "Ainda não tenho memórias importantes salvas.",
+          fullAnswer: "Quando você me disser algo relevante sobre projetos, objetivos ou preferências, eu vou perguntar antes de guardar.",
           nextAction: "Exemplo: Estou desenvolvendo o ObraReport.",
           canSave: false
         };
       }
 
       return {
-        shortAnswer: "Estas sÃ£o suas memÃ³rias importantes salvas neste navegador:",
+        shortAnswer: "Estas são suas memórias importantes salvas neste navegador:",
         fullAnswer: formatImportantMemoriesForAnswer(storage),
-        nextAction: "Abra MemÃ³rias importantes para revisar, excluir ou limpar.",
+        nextAction: "Abra Memórias importantes para revisar, excluir ou limpar.",
         canSave: false
       };
     }
@@ -4030,14 +4030,14 @@
     const sections = [
       ["Projetos", storage.projetos || []],
       ["Objetivos", storage.objetivos || []],
-      ["PreferÃªncias", storage.preferencias || []]
+      ["Preferências", storage.preferencias || []]
     ];
 
     return sections.map(function (section) {
       const title = section[0];
       const items = section[1];
       return title + ":\n" + (items.length ? items.map(function (item) {
-        return "- " + item.titulo + " â€” " + item.status;
+        return "- " + item.titulo + " — " + item.status;
       }).join("\n") : "- Nenhum item salvo.");
     }).join("\n\n");
   }
@@ -4254,7 +4254,7 @@
     if (!normalizedQuestion || normalizedQuestion.length < 8) {
       return true;
     }
-    if (["oi", "ola", "olÃ¡", "tudo bem", "obrigado", "obrigada", "valeu", "tchau"].indexOf(normalizedQuestion) >= 0) {
+    if (["oi", "ola", "olá", "tudo bem", "obrigado", "obrigada", "valeu", "tchau"].indexOf(normalizedQuestion) >= 0) {
       return true;
     }
     if (/[?]$/.test(normalizedQuestion) || normalizedQuestion.indexOf("como ") === 0 || normalizedQuestion.indexOf("qual ") === 0) {
@@ -4281,7 +4281,7 @@
       ["Stock IA", ["stock ia"]],
       ["CADISTA IA", ["cadista ia"]],
       ["livro", ["livro"]],
-      ["RDO", ["rdo", "diario de obra", "diÃ¡rio de obra"]],
+      ["RDO", ["rdo", "diario de obra", "diário de obra"]],
       ["PDF", ["pdf"]]
     ];
     for (let index = 0; index < projects.length; index += 1) {
@@ -4299,7 +4299,7 @@
     if (hasAnyTerm(text, ["cansado", "cansada"])) {
       return "cansado";
     }
-    if (hasAnyTerm(text, ["preocupado", "preocupada", "preocupacao", "preocupaÃ§Ã£o"])) {
+    if (hasAnyTerm(text, ["preocupado", "preocupada", "preocupacao", "preocupação"])) {
       return "preocupado";
     }
     if (hasAnyTerm(text, ["triste"])) {
@@ -4318,26 +4318,26 @@
     if (hasAnyTerm(text, ["tive uma ideia", "ideia para", "ideia de", "minha ideia", "percebi que", "aprendi que"])) {
       return "ideia";
     }
-    if (hasAnyTerm(text, ["cansado", "cansada", "triste", "preocupado", "preocupada", "dificil", "difÃ­cil", "hoje foi dificil", "hoje foi difÃ­cil"])) {
+    if (hasAnyTerm(text, ["cansado", "cansada", "triste", "preocupado", "preocupada", "dificil", "difícil", "hoje foi dificil", "hoje foi difícil"])) {
       return "dificuldade";
     }
-    if (hasAnyTerm(text, ["quero", "objetivo", "meta", "roadmap", "o plano e", "o plano ÃƒÂ©"])) {
+    if (hasAnyTerm(text, ["quero", "objetivo", "meta", "roadmap", "o plano e", "o plano é"])) {
       return "objetivo";
     }
-    if (hasAnyTerm(text, ["marco", "importante", "avancei", "avancamos", "avanÃ§amos", "avancou", "comecei", "lembre que hoje"])) {
+    if (hasAnyTerm(text, ["marco", "importante", "avancei", "avancamos", "avançamos", "avancou", "comecei", "lembre que hoje"])) {
       return "marco";
     }
     return "marco";
   }
 
   function detectTimelineImportance(text, type) {
-    if (hasAnyTerm(text, ["avancei", "avancamos", "avanÃ§amos"])) {
+    if (hasAnyTerm(text, ["avancei", "avancamos", "avançamos"])) {
       return "media";
     }
     if (type === "marco" || hasAnyTerm(text, ["primeira venda", "primeiro cliente", "marco", "terminei", "finalizei", "consegui"])) {
       return "alta";
     }
-    if (type === "ideia" || type === "objetivo" || hasAnyTerm(text, ["avancei", "avancamos", "avanÃ§amos", "objetivo", "meta"])) {
+    if (type === "ideia" || type === "objetivo" || hasAnyTerm(text, ["avancei", "avancamos", "avançamos", "objetivo", "meta"])) {
       return "media";
     }
     return "baixa";
@@ -4392,10 +4392,10 @@
       "estou preocupado",
       "estou preocupada",
       "hoje foi dificil",
-      "hoje foi difÃ­cil",
+      "hoje foi difícil",
       "hoje foi produtivo",
       "avancamos no obrareport",
-      "avanÃ§amos no obrareport",
+      "avançamos no obrareport",
       "avancei no elo",
       "quero registrar isso",
       "decidi que",
@@ -4404,7 +4404,7 @@
       "aprendi que",
       "percebi que",
       "isso e um marco",
-      "isso Ã© um marco"
+      "isso é um marco"
     ]);
     if (!important) {
       return null;
@@ -4418,7 +4418,7 @@
       mood: detectTimelineMood(text),
       project: detectTimelineProject(text),
       importance: detectTimelineImportance(text, type),
-      source: "detecÃ§Ã£o automÃ¡tica confirmada"
+      source: "detecção automática confirmada"
     };
   }
 
@@ -4519,7 +4519,7 @@
       };
     }
 
-    if (hasAnyTerm(text, ["quais foram meus ultimos avancos", "quais foram meus ultimos avanÃƒÂ§os", "ultimos avancos", "ÃƒÂºltimos avanÃƒÂ§os", "ultimos marcos", "ÃƒÂºltimos marcos"])) {
+    if (hasAnyTerm(text, ["quais foram meus ultimos avancos", "quais foram meus ultimos avanços", "ultimos avancos", "últimos avanços", "ultimos marcos", "últimos marcos"])) {
       return {
         shortAnswer: events.length ? "Seus ultimos avancos registrados aparecem aqui:" : "Ainda tenho poucos avancos registrados.",
         fullAnswer: events.length ? events.slice(0, 6).map(formatTimelineEventLine).join("\n") : "Quando voce registrar marcos, ideias ou conquistas, eu consigo montar essa leitura com mais precisao.",
@@ -4564,8 +4564,8 @@
 
   function detectJourneyReportRequest(message) {
     const text = normalizeText(message);
-    if (hasAnyTerm(text, ["faca um relatorio da minha jornada", "faÃƒÂ§a um relatÃƒÂ³rio da minha jornada", "relatorio da minha jornada", "relatÃƒÂ³rio da minha jornada", "o que aconteceu comigo este mes", "o que aconteceu comigo esse mes", "qual foi meu avanco", "qual foi meu avanÃƒÂ§o", "no que eu evolui", "no que eu evoluÃƒÂ­", "quais projetos estao mais ativos", "quais projetos estÃƒÂ£o mais ativos", "qual meu foco atual", "o que voce percebe da minha semana", "o que vocÃƒÂª percebe da minha semana"])) {
-      return hasAnyTerm(text, ["semana"]) ? "weekly" : (hasAnyTerm(text, ["mes", "mÃƒÂªs"]) ? "monthly" : "general");
+    if (hasAnyTerm(text, ["faca um relatorio da minha jornada", "faça um relatório da minha jornada", "relatorio da minha jornada", "relatório da minha jornada", "o que aconteceu comigo este mes", "o que aconteceu comigo esse mes", "qual foi meu avanco", "qual foi meu avanço", "no que eu evolui", "no que eu evoluí", "quais projetos estao mais ativos", "quais projetos estão mais ativos", "qual meu foco atual", "o que voce percebe da minha semana", "o que você percebe da minha semana"])) {
+      return hasAnyTerm(text, ["semana"]) ? "weekly" : (hasAnyTerm(text, ["mes", "mês"]) ? "monthly" : "general");
     }
     return null;
   }
@@ -4993,7 +4993,7 @@
     const topicLines = content.split("\n").map(function (line) {
       return sanitizeLibraryText(line, 220);
     }).filter(function (line) {
-      return /^([-*]|\d+[.)])\s+/.test(line) || /^[A-ZÃÃ‰ÃÃ“ÃšÃ‚ÃŠÃ”ÃƒÃ•Ã‡][^.!?]{8,80}$/.test(line);
+      return /^([-*]|\d+[.)])\s+/.test(line) || /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^.!?]{8,80}$/.test(line);
     }).slice(0, 4);
     const keywords = extractDocumentKeywords([item && item.title, content, tags.join(" ")].join(" ")).slice(0, 6);
     const intro = "Este material parece tratar de " + (keywords.length ? keywords.join(", ") : "um tema salvo na biblioteca") + ".";
@@ -5035,7 +5035,7 @@
     }).join("\n");
 
     if (!allItems.length) {
-      return "Sua biblioteca local ainda nÃ£o tem itens. VocÃª pode colar textos, roadmaps, ideias, notas ou resumos para eu consultar depois.";
+      return "Sua biblioteca local ainda não tem itens. Você pode colar textos, roadmaps, ideias, notas ou resumos para eu consultar depois.";
     }
 
     return [
@@ -5119,9 +5119,9 @@
         return null;
       }
       return {
-        shortAnswer: "NÃ£o encontrei essa informaÃ§Ã£o na sua biblioteca local ainda.",
+        shortAnswer: "Não encontrei essa informação na sua biblioteca local ainda.",
         fullAnswer: "Se quiser, cole um texto, registre uma ideia ou salve um roadmap para eu consultar depois.",
-        nextAction: "Abra Ferramentas do Elo > Biblioteca do Elo para adicionar conteÃºdo.",
+        nextAction: "Abra Ferramentas do Elo > Biblioteca do Elo para adicionar conteúdo.",
         canSave: false,
         sessionTheme: "biblioteca",
         sessionIntent: "biblioteca_local"
@@ -5133,7 +5133,7 @@
     const itemSummary = best.type === "document" ? summarizeEloLibraryItem(item) : summarizeLibraryContent(item.content);
     const journeyLine = currentContext.hasJourney
       ? buildEloLibraryJourneyBridge_(sourceTitle, currentContext)
-      : "Na biblioteca existe material sobre isso, mas ainda tenho pouca memÃ³ria da sua jornada para comparar melhor.";
+      : "Na biblioteca existe material sobre isso, mas ainda tenho pouca memória da sua jornada para comparar melhor.";
     const comparisonLine = wantsComparison ? "\n\n" + journeyLine : "";
 
     return {
@@ -5153,15 +5153,15 @@
     const focus = context.focus || projects[0] || "";
     const lines = [];
     if (focus) {
-      lines.push("Pelo que estÃ¡ na sua biblioteca e na sua jornada, " + sourceTitle + " se conecta ao foco atual em " + focus + ".");
+      lines.push("Pelo que está na sua biblioteca e na sua jornada, " + sourceTitle + " se conecta ao foco atual em " + focus + ".");
     }
     if (projects.length) {
-      lines.push("Projetos relacionados que aparecem nas suas memÃ³rias: " + formatNarrativeList(projects) + ".");
+      lines.push("Projetos relacionados que aparecem nas suas memórias: " + formatNarrativeList(projects) + ".");
     }
     if (goals.length) {
       lines.push("Objetivos que podem se relacionar com isso: " + formatNarrativeList(goals) + ".");
     }
-    return lines.length ? lines.join(" ") : "A biblioteca tem material sobre isso, mas ainda tenho pouca memÃ³ria da sua jornada para comparar melhor.";
+    return lines.length ? lines.join(" ") : "A biblioteca tem material sobre isso, mas ainda tenho pouca memória da sua jornada para comparar melhor.";
   }
 
   function exportEloLibrary() {
@@ -5197,9 +5197,9 @@
     if (!best || best.score < 4) {
       if (isDocumentSearchQuestion(question)) {
         return {
-          shortAnswer: "NÃ£o encontrei essa informaÃ§Ã£o nos documentos locais.",
-          fullAnswer: "A base local tem " + documents.length + " documento(s), mas nenhum trecho teve relaÃ§Ã£o suficiente com a pergunta.",
-          nextAction: "Abra Documentos do Elo para revisar textos importados ou adicionar um documento mais especÃ­fico.",
+          shortAnswer: "Não encontrei essa informação nos documentos locais.",
+          fullAnswer: "A base local tem " + documents.length + " documento(s), mas nenhum trecho teve relação suficiente com a pergunta.",
+          nextAction: "Abra Documentos do Elo para revisar textos importados ou adicionar um documento mais específico.",
           canSave: false
         };
       }
@@ -5221,7 +5221,7 @@
   // ELO_LIBRARY_LOCAL
   const ELO_LIBRARY_CATEGORIES = [
     "ObraReport",
-    "RelatÃ³rios",
+    "Relatórios",
     "RDO",
     "Materiais",
     "Receitas",
@@ -5364,7 +5364,7 @@
   function suggestLibraryCategory(question) {
     const text = normalizeText(question);
     const categoryMap = [
-      { category: "RelatÃ³rios", keywords: ["relatorio", "pdf", "foto", "qualidade"] },
+      { category: "Relatórios", keywords: ["relatorio", "pdf", "foto", "qualidade"] },
       { category: "RDO", keywords: ["rdo", "diario", "diario de obras"] },
       { category: "Materiais", keywords: ["material", "materiais", "consumo", "auditoria"] },
       { category: "Receitas", keywords: ["receita", "bolo", "cozinhar", "ingrediente"] },
@@ -5408,19 +5408,19 @@
       return { show: false, reason: "simple_calculation", suggestedTarget: "none" };
     }
 
-    if (["teste", "ola", "olÃ¡", "oi", "bom dia", "boa tarde", "boa noite"].indexOf(combined.trim()) >= 0) {
+    if (["teste", "ola", "olá", "oi", "bom dia", "boa tarde", "boa noite"].indexOf(combined.trim()) >= 0) {
       return { show: false, reason: "low_future_value", suggestedTarget: "none" };
     }
 
-    if (hasAnyTerm(combined, ["biblioteca", "guardar na biblioteca", "guarde na biblioteca", "usar depois", "resumo de reuniao", "resumo de reuniÃ£o", "roadmap", "especificacao de produto", "especificaÃ§Ã£o de produto"])) {
+    if (hasAnyTerm(combined, ["biblioteca", "guardar na biblioteca", "guarde na biblioteca", "usar depois", "resumo de reuniao", "resumo de reunião", "roadmap", "especificacao de produto", "especificação de produto"])) {
       return { show: true, reason: "reusable_technical_content", suggestedTarget: "library" };
     }
 
-    if (hasAnyTerm(combined, ["guarde", "guardar", "lembre", "lembrar", "prefiro", "minha preferencia", "minha preferÃªncia", "regra de negocio", "regra de negÃ³cio", "preferencia permanente", "preferÃªncia permanente"])) {
+    if (hasAnyTerm(combined, ["guarde", "guardar", "lembre", "lembrar", "prefiro", "minha preferencia", "minha preferência", "regra de negocio", "regra de negócio", "preferencia permanente", "preferência permanente"])) {
       return { show: true, reason: "durable_memory", suggestedTarget: "memory" };
     }
 
-    if (hasAnyTerm(combined, ["decisao estrategica", "decisÃ£o estratÃ©gica", "estrategia do projeto", "estratÃ©gia do projeto", "planejamento importante", "plano de acao", "plano de aÃ§Ã£o", "roadmap", "stock full"]) && assistantResponse.length > 220) {
+    if (hasAnyTerm(combined, ["decisao estrategica", "decisão estratégica", "estrategia do projeto", "estratégia do projeto", "planejamento importante", "plano de acao", "plano de ação", "roadmap", "stock full"]) && assistantResponse.length > 220) {
       return { show: true, reason: "strategic_decision", suggestedTarget: "both" };
     }
 
@@ -5432,7 +5432,7 @@
   }
 
   function isSimpleEloCalculation(normalizedText) {
-    const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|Ã—|\?|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(normalizedText);
+    const hasMeasure = /\b\d+(?:[,.]\d+)?\s*(?:(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?|m2|m3|m|metros?|cm)\b/.test(normalizedText);
     const hasCalculationTerm = hasAnyTerm(normalizedText, [
       "quantos",
       "quanto",
@@ -5444,7 +5444,7 @@
       "concreto",
       "laje",
       "calcada",
-      "calÃ§ada",
+      "calçada",
       "piso",
       "revestimento",
       "tinta",
@@ -5452,7 +5452,7 @@
       "m2",
       "m3"
     ]);
-    const asksToSave = hasAnyTerm(normalizedText, ["guardar", "guarde", "lembrar", "lembre", "resumo", "relatorio", "relatÃ³rio", "orcamento", "orÃ§amento", "planejamento"]);
+    const asksToSave = hasAnyTerm(normalizedText, ["guardar", "guarde", "lembrar", "lembre", "resumo", "relatorio", "relatório", "orcamento", "orçamento", "planejamento"]);
     return hasMeasure && hasCalculationTerm && !asksToSave;
   }
 
@@ -5560,7 +5560,7 @@
       notes: ""
     },
     {
-      name: "Stock SaÃºde",
+      name: "Stock Saúde",
       status: "ativo",
       priority: "media",
       description: "Controle operacional de estoque de saude com lote, validade, rastreabilidade e auditoria.",
@@ -5571,8 +5571,8 @@
       name: "ObraReport",
       status: "ativo",
       priority: "alta",
-      description: "SaaS de relatÃ³rios, RDO, materiais, PDF e Elo Assistente.",
-      nextAction: "Continuar evoluÃ§Ã£o comercial e validar com clientes.",
+      description: "SaaS de relatórios, RDO, materiais, PDF e Elo Assistente.",
+      nextAction: "Continuar evolução comercial e validar com clientes.",
       notes: ""
     }
   ];
@@ -5736,8 +5736,8 @@
     if (!projects.length) {
       if (text.indexOf("projeto") >= 0 || text.indexOf("objetivo") >= 0) {
         return {
-          shortAnswer: "Ainda nÃ£o hÃ¡ projetos salvos no Elo.",
-          fullAnswer: "Abra Projetos para adicionar seus projetos ou usar a lista sugerida com CADISTA, Stock Full, Elo, Stock SaÃºde e ObraReport.",
+          shortAnswer: "Ainda não há projetos salvos no Elo.",
+          fullAnswer: "Abra Projetos para adicionar seus projetos ou usar a lista sugerida com CADISTA, Stock Full, Elo, Stock Saúde e ObraReport.",
           nextAction: "Clique em Projetos no painel do Elo.",
           canSave: false
         };
@@ -5745,9 +5745,9 @@
       return null;
     }
 
-    if (text.indexOf("quais sao meus projetos") >= 0 || text.indexOf("quais sÃ£o meus projetos") >= 0) {
+    if (text.indexOf("quais sao meus projetos") >= 0 || text.indexOf("quais são meus projetos") >= 0) {
       return {
-        shortAnswer: "Seus projetos salvos sÃ£o:",
+        shortAnswer: "Seus projetos salvos são:",
         fullAnswer: projects.map(function (project) {
           return "- " + project.name + " (" + project.status + ", prioridade " + project.priority + ")";
         }).join("\n"),
@@ -5759,37 +5759,37 @@
     if (text.indexOf("qual meu projeto principal") >= 0) {
       const mainProject = getMainProject();
       return {
-        shortAnswer: "Seu projeto de maior prioridade Ã© " + mainProject.name + ".",
-        fullAnswer: mainProject.description || "Ele estÃ¡ salvo na Ã¡rea Projetos do Elo.",
-        nextAction: mainProject.nextAction || "Defina uma prÃ³xima aÃ§Ã£o para esse projeto.",
+        shortAnswer: "Seu projeto de maior prioridade é " + mainProject.name + ".",
+        fullAnswer: mainProject.description || "Ele está salvo na área Projetos do Elo.",
+        nextAction: mainProject.nextAction || "Defina uma próxima ação para esse projeto.",
         canSave: false
       };
     }
 
-    if (text.indexOf("quais projetos estao ativos") >= 0 || text.indexOf("quais projetos estÃ£o ativos") >= 0) {
+    if (text.indexOf("quais projetos estao ativos") >= 0 || text.indexOf("quais projetos estão ativos") >= 0) {
       const activeProjects = projects.filter(function (project) {
         return project.status === "ativo";
       });
       return {
-        shortAnswer: activeProjects.length ? "Seus projetos ativos sÃ£o: " + activeProjects.map(function (project) { return project.name; }).join(", ") + "." : "VocÃª nÃ£o tem projetos ativos salvos agora.",
+        shortAnswer: activeProjects.length ? "Seus projetos ativos são: " + activeProjects.map(function (project) { return project.name; }).join(", ") + "." : "Você não tem projetos ativos salvos agora.",
         fullAnswer: activeProjects.map(function (project) {
-          return "- " + project.name + ": " + (project.nextAction || "sem prÃ³xima aÃ§Ã£o definida");
-        }).join("\n") || "Marque um projeto como ativo na Ã¡rea Projetos.",
+          return "- " + project.name + ": " + (project.nextAction || "sem próxima ação definida");
+        }).join("\n") || "Marque um projeto como ativo na área Projetos.",
         nextAction: "Abra Projetos para escolher o foco atual.",
         canSave: false
       };
     }
 
-    if (text.indexOf("quais estao pausados") >= 0 || text.indexOf("quais estÃ£o pausados") >= 0) {
+    if (text.indexOf("quais estao pausados") >= 0 || text.indexOf("quais estão pausados") >= 0) {
       const pausedProjects = projects.filter(function (project) {
         return project.status === "pausado";
       });
       return {
-        shortAnswer: pausedProjects.length ? "Projetos pausados: " + pausedProjects.map(function (project) { return project.name; }).join(", ") + "." : "NÃ£o hÃ¡ projetos pausados salvos.",
+        shortAnswer: pausedProjects.length ? "Projetos pausados: " + pausedProjects.map(function (project) { return project.name; }).join(", ") + "." : "Não há projetos pausados salvos.",
         fullAnswer: pausedProjects.map(function (project) {
-          return "- " + project.name + ": " + (project.description || "sem descriÃ§Ã£o");
+          return "- " + project.name + ": " + (project.description || "sem descrição");
         }).join("\n") || "Nada pausado por enquanto.",
-        nextAction: "VocÃª pode reativar um projeto pela Ã¡rea Projetos.",
+        nextAction: "Você pode reativar um projeto pela área Projetos.",
         canSave: false
       };
     }
@@ -5799,7 +5799,7 @@
       return {
         shortAnswer: "Eu continuaria por " + mainProject.name + ".",
         fullAnswer: mainProject.description || "Esse parece ser seu projeto mais importante agora.",
-        nextAction: mainProject.nextAction || "Defina uma prÃ³xima aÃ§Ã£o objetiva para avanÃ§ar.",
+        nextAction: mainProject.nextAction || "Defina uma próxima ação objetiva para avançar.",
         canSave: false
       };
     }
@@ -5809,9 +5809,9 @@
       const project = findProjectByName(remindMatch[1]);
       if (project) {
         return {
-          shortAnswer: project.name + " estÃ¡ registrado como " + project.status + ".",
-          fullAnswer: project.description || "Sem descriÃ§Ã£o salva.",
-          nextAction: project.nextAction || "Defina a prÃ³xima aÃ§Ã£o desse projeto.",
+          shortAnswer: project.name + " está registrado como " + project.status + ".",
+          fullAnswer: project.description || "Sem descrição salva.",
+          nextAction: project.nextAction || "Defina a próxima ação desse projeto.",
           canSave: false
         };
       }
@@ -5938,7 +5938,7 @@
     if (!goals.length) {
       if (text.indexOf("objetivo") >= 0 || text.indexOf("pendente") >= 0) {
         return {
-          shortAnswer: "Ainda nÃ£o hÃ¡ objetivos salvos no Elo.",
+          shortAnswer: "Ainda não há objetivos salvos no Elo.",
           fullAnswer: "Abra Projetos > Objetivos para adicionar objetivos ou usar a lista sugerida.",
           nextAction: "Clique em Projetos no painel do Elo.",
           canSave: false
@@ -5947,21 +5947,21 @@
       return null;
     }
 
-    if (text.indexOf("quais sao meus objetivos") >= 0 || text.indexOf("quais sÃ£o meus objetivos") >= 0 || text.indexOf("o que esta pendente") >= 0 || text.indexOf("o que estÃ¡ pendente") >= 0) {
+    if (text.indexOf("quais sao meus objetivos") >= 0 || text.indexOf("quais são meus objetivos") >= 0 || text.indexOf("o que esta pendente") >= 0 || text.indexOf("o que está pendente") >= 0) {
       return {
-        shortAnswer: openGoals.length ? "Seus objetivos abertos/em andamento sÃ£o:" : "VocÃª nÃ£o tem objetivos pendentes agora.",
+        shortAnswer: openGoals.length ? "Seus objetivos abertos/em andamento são:" : "Você não tem objetivos pendentes agora.",
         fullAnswer: openGoals.map(function (goal) {
-          return "- " + goal.title + " (" + goal.status + ")" + (goal.targetDate ? " atÃ© " + goal.targetDate : "");
-        }).join("\n") || "Os objetivos salvos estÃ£o concluÃ­dos.",
-        nextAction: "Abra Projetos para marcar objetivos como concluÃ­dos ou adicionar novos.",
+          return "- " + goal.title + " (" + goal.status + ")" + (goal.targetDate ? " até " + goal.targetDate : "");
+        }).join("\n") || "Os objetivos salvos estão concluídos.",
+        nextAction: "Abra Projetos para marcar objetivos como concluídos ou adicionar novos.",
         canSave: false
       };
     }
 
-    if (text.indexOf("qual meu proximo objetivo") >= 0 || text.indexOf("qual meu prÃ³ximo objetivo") >= 0 || text.indexOf("o que quero fazer com o obrareport") >= 0) {
+    if (text.indexOf("qual meu proximo objetivo") >= 0 || text.indexOf("qual meu próximo objetivo") >= 0 || text.indexOf("o que quero fazer com o obrareport") >= 0) {
       const goal = openGoals[0] || goals[0];
       return {
-        shortAnswer: "Seu prÃ³ximo objetivo Ã©: " + goal.title + ".",
+        shortAnswer: "Seu próximo objetivo é: " + goal.title + ".",
         fullAnswer: "Status: " + goal.status + (goal.targetDate ? "\nPrazo: " + goal.targetDate : ""),
         nextAction: "Avance uma pequena etapa desse objetivo hoje.",
         canSave: false
@@ -5994,7 +5994,7 @@
       "stock",
       "stock full",
       "stock saude",
-      "stock saÃºde",
+      "stock saúde",
       "obrareport",
       "obra report",
       "elo",
@@ -6003,7 +6003,7 @@
   }
 
   function buildEloOnlineUnavailableResponse_() {
-    const answer = "NÃ£o consegui consultar o Elo online neste momento.";
+    const answer = "Não consegui consultar o Elo online neste momento.";
     return {
       shortAnswer: answer,
       fullAnswer: answer,
@@ -6015,8 +6015,8 @@
   }
 
   function sanitizeEloAnswerForDisplay(value) {
-    const forbiddenLine = /^\s*(?:guardar|nÃ£o guardar|nao guardar|guardar na biblioteca|nÃ£o guardar na biblioteca|nao guardar na biblioteca|guardar biblioteca|memÃ³ria|memoria|biblioteca|nÃ£o salvar|nao salvar)\s*$/i;
-    const forbiddenControlsLine = /^\s*(?:[\s.,;:|â€¢Â·-]+|guardar|nÃ£o guardar|nao guardar|guardar na biblioteca|nÃ£o guardar na biblioteca|nao guardar na biblioteca|memÃ³ria|memoria|biblioteca|nÃ£o salvar|nao salvar)+\s*$/i;
+    const forbiddenLine = /^\s*(?:guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|guardar biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)\s*$/i;
+    const forbiddenControlsLine = /^\s*(?:[\s.,;:|â€¢·-]+|guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)+\s*$/i;
     return String(value || "")
       .replace(/[<>]/g, "")
       .replace(/Deseja guardar isso para eu lembrar depois\??/gi, "")
@@ -6024,10 +6024,10 @@
       .replace(/Deseja guardar isso na Biblioteca\??/gi, "")
       .replace(/Deseja guardar isso para a Biblioteca\??/gi, "")
       .replace(/Salvar esta conversa\??/gi, "")
-      .replace(/\s*Guardar\s*[.,;:|â€¢Â·-]+\s*NÃ£o guardar\s*[.,;:|â€¢Â·-]+\s*Guardar na Biblioteca\s*[.,;:|â€¢Â·-]+\s*NÃ£o guardar na Biblioteca\s*$/gi, "")
-      .replace(/\s*Guardar\s*[.,;:|â€¢Â·-]+\s*Nao guardar\s*[.,;:|â€¢Â·-]+\s*Guardar na Biblioteca\s*[.,;:|â€¢Â·-]+\s*Nao guardar na Biblioteca\s*$/gi, "")
+      .replace(/\s*Guardar\s*[.,;:|â€¢·-]+\s*Não guardar\s*[.,;:|â€¢·-]+\s*Guardar na Biblioteca\s*[.,;:|â€¢·-]+\s*Não guardar na Biblioteca\s*$/gi, "")
+      .replace(/\s*Guardar\s*[.,;:|â€¢·-]+\s*Nao guardar\s*[.,;:|â€¢·-]+\s*Guardar na Biblioteca\s*[.,;:|â€¢·-]+\s*Nao guardar na Biblioteca\s*$/gi, "")
       .replace(/\bGuardar na Biblioteca\b/gi, "")
-      .replace(/\bNÃ£o guardar na Biblioteca\b/gi, "")
+      .replace(/\bNão guardar na Biblioteca\b/gi, "")
       .replace(/\bNao guardar na Biblioteca\b/gi, "")
       .split(/\r?\n/)
       .filter(function (line) {
@@ -6073,7 +6073,7 @@
         timeStyle: "short"
       }).format(new Date(value));
     } catch (error) {
-      return "data nÃ£o disponÃ­vel";
+      return "data não disponível";
     }
   }
 
@@ -6186,7 +6186,7 @@
     const cleanText = sanitizeLibraryText(rawText, 8000);
     const normalized = normalizeText(cleanText);
     const profile = normalizeInitialProfile(null);
-    let match = cleanText.match(/(?:meu nome Ã©|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\n]{2,80})/i);
+    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\n]{2,80})/i);
     if (match && match[1]) {
       profile.nome = sanitizeLibraryText(match[1], 80).replace(/[.,;:]+$/g, "");
     }
@@ -6196,8 +6196,8 @@
       ["engenheira civil", "Engenheira Civil"],
       ["arquiteto", "Arquiteto"],
       ["arquiteta", "Arquiteta"],
-      ["tÃ©cnico em edificaÃ§Ãµes", "TÃ©cnico em EdificaÃ§Ãµes"],
-      ["tecnico em edificacoes", "TÃ©cnico em EdificaÃ§Ãµes"],
+      ["técnico em edificações", "Técnico em Edificações"],
+      ["tecnico em edificacoes", "Técnico em Edificações"],
       ["perito", "Perito"],
       ["perita", "Perita"]
     ];
@@ -6213,32 +6213,32 @@
       }
     }
 
-    match = cleanText.match(/(?:minha empresa Ã©|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\n]{3,120})/i);
+    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\n]{3,120})/i);
     if (match && match[1]) {
       profile.empresa = sanitizeLibraryText(match[1], 160).replace(/[.,;:]+$/g, "");
-    } else if (hasAnyTerm(normalized, ["empresa propria", "empresa prÃ³pria", "tenho empresa"])) {
-      profile.empresa = "empresa prÃ³pria";
+    } else if (hasAnyTerm(normalized, ["empresa propria", "empresa própria", "tenho empresa"])) {
+      profile.empresa = "empresa própria";
     }
 
-    match = cleanText.match(/(?:moro em|cidade Ã©|cidade e|atuo em)\s+([^.\n]{3,100})/i);
+    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\n]{3,100})/i);
     if (match && match[1]) {
       profile.cidade = sanitizeLibraryText(match[1], 140).replace(/[.,;:]+$/g, "");
     }
 
     const areaCandidates = [
-      ["pericias", "perÃ­cias"],
-      ["perÃ­cias", "perÃ­cias"],
+      ["pericias", "perícias"],
+      ["perícias", "perícias"],
       ["projetos", "projetos"],
       ["obras", "obras"],
-      ["relatorios", "relatÃ³rios"],
-      ["relatÃ³rios", "relatÃ³rios"],
+      ["relatorios", "relatórios"],
+      ["relatórios", "relatórios"],
       ["rdo", "RDO"],
       ["materiais", "materiais"],
       ["auditoria de consumo", "auditoria de consumo"],
       ["laudos", "laudos"],
       ["engenharia", "engenharia"],
-      ["construcao", "construÃ§Ã£o"],
-      ["construÃ§Ã£o", "construÃ§Ã£o"]
+      ["construcao", "construção"],
+      ["construção", "construção"]
     ];
     profile.areas = areaCandidates.filter(function (item) {
       return normalized.indexOf(normalizeText(item[0])) >= 0;
@@ -6246,18 +6246,18 @@
       return item[1];
     });
 
-    const knownProjects = ["CADISTA", "Stock Full", "Elo", "Stock SaÃºde", "ObraReport"];
+    const knownProjects = ["CADISTA", "Stock Full", "Elo", "Stock Saúde", "ObraReport"];
     profile.projetos = knownProjects.filter(function (project) {
       return normalized.indexOf(normalizeText(project)) >= 0;
     });
-    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal Ã©|projeto principal e)\s+([^.\n]{3,100})/i);
+    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\n]{3,100})/i);
     if (projectMatch && projectMatch[1]) {
       profile.projetos = mergeUniqueTextItems(profile.projetos, extractImportantTitle(projectMatch[1]));
     }
 
-    const objectiveMatches = cleanText.match(/(?:meu objetivo Ã©|meu objetivo e|objetivo Ã©|objetivo e|quero)\s+([^.\n]{4,180})/gi) || [];
+    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\n]{4,180})/gi) || [];
     profile.objetivos = objectiveMatches.map(function (item) {
-      return item.replace(/^(meu objetivo Ã©|meu objetivo e|objetivo Ã©|objetivo e|quero)\s+/i, "").replace(/[.,;:]+$/g, "");
+      return item.replace(/^(meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+/i, "").replace(/[.,;:]+$/g, "");
     });
     if (hasAnyTerm(normalized, ["primeiros clientes", "vender saas", "vender o obrareport"])) {
       profile.objetivos = mergeUniqueTextItems(profile.objetivos, "conseguir os primeiros clientes");
@@ -6280,23 +6280,23 @@
 
   function formatUnknown(value) {
     if (Array.isArray(value)) {
-      return value.length ? value.join(", ") : "nÃ£o identificado";
+      return value.length ? value.join(", ") : "não identificado";
     }
-    return value || "nÃ£o identificado";
+    return value || "não identificado";
   }
 
   function formatInitialProfileExtraction(profile) {
     return [
-      "Encontrei estas informaÃ§Ãµes:",
+      "Encontrei estas informações:",
       "",
       "Nome: " + formatUnknown(profile.nome),
-      "ProfissÃ£o: " + formatUnknown(profile.profissao),
+      "Profissão: " + formatUnknown(profile.profissao),
       "Empresa: " + formatUnknown(profile.empresa),
       "Cidade/local: " + formatUnknown(profile.cidade),
-      "Ãreas: " + formatUnknown(profile.areas),
+      "Áreas: " + formatUnknown(profile.areas),
       "Projetos: " + formatUnknown(profile.projetos),
       "Objetivos: " + formatUnknown(profile.objetivos),
-      "PreferÃªncias: " + formatUnknown(profile.preferencias)
+      "Preferências: " + formatUnknown(profile.preferencias)
     ].join("\n");
   }
 
@@ -6324,9 +6324,9 @@
         saveImportantMemory({
           tipo: "projeto",
           titulo: project,
-          descricao: "Projeto detectado na importaÃ§Ã£o inicial de perfil.",
+          descricao: "Projeto detectado na importação inicial de perfil.",
           status: "ativo",
-          sourceQuestion: "importaÃ§Ã£o inicial de perfil"
+          sourceQuestion: "importação inicial de perfil"
         }, "projeto");
       });
     }
@@ -6337,7 +6337,7 @@
           titulo: goal,
           descricao: goal,
           status: "ativo",
-          sourceQuestion: "importaÃ§Ã£o inicial de perfil"
+          sourceQuestion: "importação inicial de perfil"
         }, "objetivo");
       });
     }
@@ -6348,7 +6348,7 @@
           titulo: preference,
           descricao: preference,
           status: "ativo",
-          sourceQuestion: "importaÃ§Ã£o inicial de perfil"
+          sourceQuestion: "importação inicial de perfil"
         }, "preferencia");
       });
     }
@@ -6369,10 +6369,10 @@
     const profile = getInitialProfile();
     const lines = [];
     if (profile.nome) {
-      lines.push("vocÃª se chama " + profile.nome);
+      lines.push("você se chama " + profile.nome);
     }
     if (profile.profissao) {
-      lines.push("Ã© " + profile.profissao);
+      lines.push("é " + profile.profissao);
     }
     if (profile.empresa) {
       lines.push("trabalha com " + profile.empresa);
@@ -6389,7 +6389,7 @@
     if (!lines.length) {
       return "";
     }
-    return "Pelo que vocÃª me autorizou a guardar, " + lines.join(", ") + ".";
+    return "Pelo que você me autorizou a guardar, " + lines.join(", ") + ".";
   }
 
   function getPreferredUserName() {
@@ -6413,16 +6413,16 @@
     const profile = getUserProfile();
     const lines = [];
     if (profile.mainProject) {
-      lines.push("Seu projeto principal informado Ã© " + profile.mainProject + ".");
+      lines.push("Seu projeto principal informado é " + profile.mainProject + ".");
     }
     if (profile.weeklyGoal) {
-      lines.push("Seu objetivo principal desta semana Ã© " + profile.weeklyGoal + ".");
+      lines.push("Seu objetivo principal desta semana é " + profile.weeklyGoal + ".");
     }
     if (profile.expectedHelp) {
-      lines.push("VocÃª espera minha ajuda principalmente com: " + profile.expectedHelp + ".");
+      lines.push("Você espera minha ajuda principalmente com: " + profile.expectedHelp + ".");
     }
     if (profile.answerStyle) {
-      lines.push("PreferÃªncia de resposta: " + profile.answerStyle + ".");
+      lines.push("Preferência de resposta: " + profile.answerStyle + ".");
     }
     return lines.join("\n");
   }
@@ -6527,7 +6527,7 @@
   }
 
   function formatMissingConnectedInfo(label, value) {
-    return value ? value : label + ": Ainda nÃ£o tenho essa informaÃ§Ã£o salva.";
+    return value ? value : label + ": Ainda não tenho essa informação salva.";
   }
 
   function formatConnectedProfileSummary(snapshot) {
@@ -6537,7 +6537,7 @@
     }
     const facts = [];
     if (snapshot.profession) {
-      facts.push("vocÃª Ã© " + snapshot.profession);
+      facts.push("você é " + snapshot.profession);
     }
     if (snapshot.company) {
       facts.push("trabalha com " + snapshot.company);
@@ -6546,22 +6546,22 @@
       facts.push("atua com " + snapshot.areas.slice(0, 4).join(", "));
     }
     if (snapshot.mainProject) {
-      facts.push("estÃ¡ desenvolvendo " + snapshot.mainProject);
+      facts.push("está desenvolvendo " + snapshot.mainProject);
     }
     if (snapshot.goals.length) {
       facts.push("tem como foco " + snapshot.goals.slice(0, 2).join(", "));
     }
 
     if (!facts.length) {
-      return "Ainda nÃ£o tenho essa informaÃ§Ã£o salva.";
+      return "Ainda não tenho essa informação salva.";
     }
 
-    return (intro.length ? intro[0] + ", pelo que vocÃª autorizou guardar, " : "Pelo que vocÃª autorizou guardar, ") + facts.join(", ") + ".";
+    return (intro.length ? intro[0] + ", pelo que você autorizou guardar, " : "Pelo que você autorizou guardar, ") + facts.join(", ") + ".";
   }
 
   function formatTimelineMemoryLine(event) {
     if (!event) {
-      return "Ainda nÃ£o tenho essa informaÃ§Ã£o salva.";
+      return "Ainda não tenho essa informação salva.";
     }
     return event.title + (event.project ? " (" + event.project + ")" : "") + " - " + formatDateTime(event.createdAt);
   }
@@ -6598,7 +6598,7 @@
     const identityParts = [];
 
     if (snapshot.profession) {
-      identityParts.push("vocÃª Ã© " + snapshot.profession);
+      identityParts.push("você é " + snapshot.profession);
     }
     if (snapshot.company) {
       identityParts.push("trabalha com " + snapshot.company);
@@ -6623,8 +6623,8 @@
   function buildLowMemoryNarrativeAnswer() {
     return [
       "Ainda estou te conhecendo.",
-      "Por enquanto, tenho pouca coisa autorizada sobre vocÃª. Se vocÃª registrar projetos, objetivos, preferÃªncias ou acontecimentos na Linha do Tempo, eu consigo acompanhar sua jornada com mais contexto.",
-      "Eu nÃ£o vou inventar fatos sobre vocÃª. Prefiro te responder com cuidado."
+      "Por enquanto, tenho pouca coisa autorizada sobre você. Se você registrar projetos, objetivos, preferências ou acontecimentos na Linha do Tempo, eu consigo acompanhar sua jornada com mais contexto.",
+      "Eu não vou inventar fatos sobre você. Prefiro te responder com cuidado."
     ].join("\n\n");
   }
 
@@ -6656,9 +6656,9 @@
     }
 
     if (pieces.projects.length) {
-      sentences.push("O que mais aparece na sua jornada Ã© sua ligaÃ§Ã£o com " + formatNarrativeList(pieces.projects) + ".");
+      sentences.push("O que mais aparece na sua jornada é sua ligação com " + formatNarrativeList(pieces.projects) + ".");
     } else if (snapshot.mainProject) {
-      sentences.push("VocÃª tem dedicado energia a " + snapshot.mainProject + ".");
+      sentences.push("Você tem dedicado energia a " + snapshot.mainProject + ".");
     }
 
     if (pieces.goals.length) {
@@ -6666,28 +6666,28 @@
     }
 
     if (pieces.preferences.length) {
-      sentences.push("Algo que chama atenÃ§Ã£o nas suas preferÃªncias Ã© " + formatNarrativeList(pieces.preferences) + ".");
+      sentences.push("Algo que chama atenção nas suas preferências é " + formatNarrativeList(pieces.preferences) + ".");
     }
 
     if (pieces.personalLine) {
-      sentences.push("VocÃª tambÃ©m me confiou algumas memÃ³rias pessoais, como " + pieces.personalLine + ".");
+      sentences.push("Você também me confiou algumas memórias pessoais, como " + pieces.personalLine + ".");
     }
 
     if (pieces.recentEvent) {
-      sentences.push("Ao olhar sua trajetÃ³ria recente, aparece o registro \"" + pieces.recentEvent.title + "\"" + (pieces.recentEvent.project ? " ligado a " + pieces.recentEvent.project : "") + ".");
+      sentences.push("Ao olhar sua trajetória recente, aparece o registro \"" + pieces.recentEvent.title + "\"" + (pieces.recentEvent.project ? " ligado a " + pieces.recentEvent.project : "") + ".");
     } else if (snapshot.recentEvents.length) {
-      sentences.push("Sua Linha do Tempo jÃ¡ tem registros que ajudam a perceber continuidade na sua caminhada.");
+      sentences.push("Sua Linha do Tempo já tem registros que ajudam a perceber continuidade na sua caminhada.");
     }
 
     if (pieces.libraryTitles.length) {
-      sentences.push("Na sua Biblioteca, aparecem referÃªncias como " + formatNarrativeList(pieces.libraryTitles) + ".");
+      sentences.push("Na sua Biblioteca, aparecem referências como " + formatNarrativeList(pieces.libraryTitles) + ".");
     }
 
     if (!sentences.length) {
-      sentences.push("Ainda estou te conhecendo, mas jÃ¡ existe contexto suficiente para comeÃ§ar a formar uma visÃ£o melhor da sua jornada.");
+      sentences.push("Ainda estou te conhecendo, mas já existe contexto suficiente para começar a formar uma visão melhor da sua jornada.");
     }
 
-    sentences.push("Tudo isso vem apenas do que vocÃª autorizou guardar neste navegador.");
+    sentences.push("Tudo isso vem apenas do que você autorizou guardar neste navegador.");
     return sentences.join("\n\n");
   }
 
@@ -6698,19 +6698,19 @@
     const pieces = buildNarrativeMemoryPieces(snapshot);
     const lines = [];
     const namePrefix = pieces.name ? pieces.name + ", " : "";
-    lines.push(namePrefix + "ao olhar sua trajetÃ³ria, o que mais aparece Ã© a tentativa de transformar ideias em algo organizado e Ãºtil.");
+    lines.push(namePrefix + "ao olhar sua trajetória, o que mais aparece é a tentativa de transformar ideias em algo organizado e útil.");
     if (pieces.projects.length) {
-      lines.push("VocÃª tem dedicado energia a " + formatNarrativeList(pieces.projects) + ".");
+      lines.push("Você tem dedicado energia a " + formatNarrativeList(pieces.projects) + ".");
     }
     if (pieces.goals.length) {
       lines.push("O foco atual parece estar em " + formatNarrativeList(pieces.goals) + ".");
     } else if (pieces.focus) {
-      lines.push("O foco que mais se destaca agora Ã© " + pieces.focus + ".");
+      lines.push("O foco que mais se destaca agora é " + pieces.focus + ".");
     }
     if (pieces.recentEvent) {
-      lines.push("O acontecimento recente que mais pesa nessa leitura Ã© \"" + pieces.recentEvent.title + "\".");
+      lines.push("O acontecimento recente que mais pesa nessa leitura é \"" + pieces.recentEvent.title + "\".");
     }
-    lines.push("PrÃ³xima aÃ§Ã£o sugerida:\nconcluir o ciclo atual antes de abrir uma nova frente grande.");
+    lines.push("Próxima ação sugerida:\nconcluir o ciclo atual antes de abrir uma nova frente grande.");
     return lines.join("\n\n");
   }
 
@@ -6722,18 +6722,18 @@
     const signals = collectProjectSignals(snapshot);
     const dominant = signals[0] && signals[0].name;
     const lines = [];
-    lines.push("Um padrÃ£o que eu percebo em vocÃª Ã© transformar problemas reais em ferramentas.");
+    lines.push("Um padrão que eu percebo em você é transformar problemas reais em ferramentas.");
     if (signals.length) {
-      lines.push("Os temas que mais voltam sÃ£o " + formatNarrativeList(signals.slice(0, 4).map(function (signal) { return signal.name; })) + ".");
+      lines.push("Os temas que mais voltam são " + formatNarrativeList(signals.slice(0, 4).map(function (signal) { return signal.name; })) + ".");
     } else if (pieces.projects.length) {
-      lines.push("Os projetos que mais aparecem sÃ£o " + formatNarrativeList(pieces.projects) + ".");
+      lines.push("Os projetos que mais aparecem são " + formatNarrativeList(pieces.projects) + ".");
     }
     if (pieces.goals.length) {
-      lines.push("O que parece puxar sua energia agora Ã© " + formatNarrativeList(pieces.goals) + ".");
+      lines.push("O que parece puxar sua energia agora é " + formatNarrativeList(pieces.goals) + ".");
     } else if (dominant) {
       lines.push("O centro de gravidade parece ser " + dominant + ".");
     }
-    lines.push("Eu diria isso com cuidado: o desafio nÃ£o parece ser falta de ideia, e sim escolher qual entrega merece fechar primeiro.");
+    lines.push("Eu diria isso com cuidado: o desafio não parece ser falta de ideia, e sim escolher qual entrega merece fechar primeiro.");
     return lines.join("\n\n");
   }
 
@@ -6743,14 +6743,14 @@
     }
     const pieces = buildNarrativeMemoryPieces(snapshot);
     const projectLine = pieces.projects.length ? formatNarrativeList(pieces.projects) : (pieces.focus || "seus projetos principais");
-    const projectVerb = pieces.projects.length === 1 ? "comeÃ§a" : "comeÃ§am";
-    const focusLine = pieces.goals.length ? formatNarrativeList(pieces.goals) : (pieces.focus || "concluir uma entrega Ãºtil");
+    const projectVerb = pieces.projects.length === 1 ? "começa" : "começam";
+    const focusLine = pieces.goals.length ? formatNarrativeList(pieces.goals) : (pieces.focus || "concluir uma entrega útil");
     return [
       "Pelo que eu acompanho, algo mudou: seus projetos parecem menos soltos e mais conectados entre si.",
-      "O que mudou:\n" + projectLine + " " + projectVerb + " a aparecer como parte de uma mesma construÃ§Ã£o.",
-      "O que continua igual:\nsua tendÃªncia de transformar problemas reais em sistemas, produtos e rotinas.",
+      "O que mudou:\n" + projectLine + " " + projectVerb + " a aparecer como parte de uma mesma construção.",
+      "O que continua igual:\nsua tendência de transformar problemas reais em sistemas, produtos e rotinas.",
       "Foco atual:\n" + focusLine + ".",
-      "PrÃ³xima aÃ§Ã£o sugerida:\nterminar o ciclo atual antes de abrir uma nova frente grande."
+      "Próxima ação sugerida:\nterminar o ciclo atual antes de abrir uma nova frente grande."
     ].join("\n\n");
   }
 
@@ -6764,30 +6764,30 @@
       lines.push("Pelo que eu lembro, seu foco atual parece ser " + pieces.focus + ".");
     }
     if (pieces.goals.length) {
-      lines.push("Os objetivos que mais aparecem agora sÃ£o " + formatNarrativeList(pieces.goals) + ".");
+      lines.push("Os objetivos que mais aparecem agora são " + formatNarrativeList(pieces.goals) + ".");
     }
     if (pieces.projects.length) {
-      lines.push("VocÃª vem trabalhando principalmente em " + formatNarrativeList(pieces.projects) + ".");
+      lines.push("Você vem trabalhando principalmente em " + formatNarrativeList(pieces.projects) + ".");
     }
-    lines.push("PrÃ³xima aÃ§Ã£o sugerida:\nescolher uma entrega pequena que deixe esse foco mais concreto.");
+    lines.push("Próxima ação sugerida:\nescolher uma entrega pequena que deixe esse foco mais concreto.");
     return lines.join("\n\n");
   }
 
   function detectNarrativeMemoryQuestion(message) {
     const text = normalizeText(message);
-    if (hasAnyTerm(text, ["eu evolui", "eu evoluÃ­", "o que mudou em mim", "minha evolucao", "minha evoluÃ§Ã£o"])) {
+    if (hasAnyTerm(text, ["eu evolui", "eu evoluí", "o que mudou em mim", "minha evolucao", "minha evolução"])) {
       return "evolution";
     }
-    if (hasAnyTerm(text, ["qual padrao voce percebe em mim", "qual padrÃ£o vocÃª percebe em mim", "o que voce percebe sobre mim", "o que vocÃª percebe sobre mim", "que padrao voce percebe", "que padrÃ£o vocÃª percebe"])) {
+    if (hasAnyTerm(text, ["qual padrao voce percebe em mim", "qual padrão você percebe em mim", "o que voce percebe sobre mim", "o que você percebe sobre mim", "que padrao voce percebe", "que padrão você percebe"])) {
       return "perception";
     }
-    if (hasAnyTerm(text, ["o que voce acha da minha jornada", "o que vocÃª acha da minha jornada", "como esta minha jornada", "como estÃ¡ minha jornada", "minha jornada"])) {
+    if (hasAnyTerm(text, ["o que voce acha da minha jornada", "o que você acha da minha jornada", "como esta minha jornada", "como está minha jornada", "minha jornada"])) {
       return "journey";
     }
-    if (hasAnyTerm(text, ["no que estou trabalhando", "no que eu estou trabalhando", "qual meu foco atual", "qual e meu foco atual", "qual Ã© meu foco atual", "qual meu foco agora", "meu foco agora"])) {
+    if (hasAnyTerm(text, ["no que estou trabalhando", "no que eu estou trabalhando", "qual meu foco atual", "qual e meu foco atual", "qual é meu foco atual", "qual meu foco agora", "meu foco agora"])) {
       return "focus";
     }
-    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que vocÃª sabe sobre mim", "o que voce lembra de mim", "o que vocÃª lembra de mim", "o que lembra de mim"])) {
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "o que voce lembra de mim", "o que você lembra de mim", "o que lembra de mim"])) {
       return "memory";
     }
     return null;
@@ -6807,9 +6807,9 @@
       focus: buildEloFocusAnswer(snapshot)
     };
     return {
-      shortAnswer: hasNarrativeJourneyData(snapshot) ? "Pelo que eu lembro, jÃ¡ dÃ¡ para perceber alguns traÃ§os da sua jornada." : "Ainda estou te conhecendo.",
+      shortAnswer: hasNarrativeJourneyData(snapshot) ? "Pelo que eu lembro, já dá para perceber alguns traços da sua jornada." : "Ainda estou te conhecendo.",
       fullAnswer: answerMap[intent] || buildNarrativeMemoryAnswer(snapshot),
-      nextAction: "Se quiser, posso transformar isso em um prÃ³ximo passo prÃ¡tico.",
+      nextAction: "Se quiser, posso transformar isso em um próximo passo prático.",
       canSave: false,
       sessionTheme: "memoria",
       sessionIntent: "memoria_narrativa"
@@ -6823,31 +6823,31 @@
   function buildPremiumWelcomeMessage_() {
     const identity = buildEloIdentityContext();
     const lines = [
-      "OlÃ¡. Eu sou o Elo.",
+      "Olá. Eu sou o Elo.",
       "",
-      "Sou um companheiro digital criado para acompanhar sua jornada, lembrar o que importa e ajudar vocÃª a pensar com clareza.",
+      "Sou um companheiro digital criado para acompanhar sua jornada, lembrar o que importa e ajudar você a pensar com clareza.",
       "",
-      "Posso ajudar vocÃª a:",
+      "Posso ajudar você a:",
       "- organizar ideias e projetos;",
-      "- lembrar informaÃ§Ãµes importantes;",
-      "- pensar em prioridades e decisÃµes;",
+      "- lembrar informações importantes;",
+      "- pensar em prioridades e decisões;",
       "- registrar momentos na linha do tempo;",
-      "- transformar dÃºvidas em prÃ³ximos passos."
+      "- transformar dúvidas em próximos passos."
     ];
 
     if (identity.currentMode === "obrareport") {
       lines.push(
         "",
-        "Aqui dentro do ObraReport, tambÃ©m atuo como copiloto tÃ©cnico para:",
-        "- criar relatÃ³rios tÃ©cnicos;",
+        "Aqui dentro do ObraReport, também atuo como copiloto técnico para:",
+        "- criar relatórios técnicos;",
         "- registrar RDO;",
-        "- lanÃ§ar materiais;",
+        "- lançar materiais;",
         "- entender o Stock IA;",
         "- gerar PDFs."
       );
     }
 
-    lines.push("", "VocÃª nÃ£o precisa saber onde clicar.", "Me diga o que quer fazer, e eu te guio.");
+    lines.push("", "Você não precisa saber onde clicar.", "Me diga o que quer fazer, e eu te guio.");
     return lines.join("\n");
   }
 
@@ -6856,16 +6856,16 @@
       return {
         shortAnswer: "Ainda estou te conhecendo.",
         fullAnswer: buildNarrativeMemoryAnswer(snapshot),
-        nextAction: "VocÃª pode me contar um projeto, um objetivo ou registrar um marco na Linha do Tempo.",
+        nextAction: "Você pode me contar um projeto, um objetivo ou registrar um marco na Linha do Tempo.",
         canSave: false,
         sessionTheme: "memoria"
       };
     }
 
     return {
-      shortAnswer: "Pelo que eu lembro, jÃ¡ dÃ¡ para perceber alguns traÃ§os da sua jornada.",
+      shortAnswer: "Pelo que eu lembro, já dá para perceber alguns traços da sua jornada.",
       fullAnswer: buildNarrativeMemoryAnswer(snapshot),
-      nextAction: "Se quiser, posso ajudar vocÃª a transformar isso em prÃ³ximo passo prÃ¡tico.",
+      nextAction: "Se quiser, posso ajudar você a transformar isso em próximo passo prático.",
       canSave: false,
       sessionTheme: "memoria"
     };
@@ -6875,51 +6875,51 @@
     const text = normalizeText(question);
     const snapshot = getConnectedMemorySnapshot();
 
-    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que vocÃª sabe sobre mim", "o que voce lembra de mim", "o que vocÃª lembra de mim", "o que lembra de mim"])) {
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "o que voce lembra de mim", "o que você lembra de mim", "o que lembra de mim"])) {
       return buildConnectedJourneyAnswer(snapshot);
     }
 
-    if (hasAnyTerm(text, ["quais sao meus projetos", "quais sÃ£o meus projetos", "quais projetos voce lembra", "quais projetos vocÃª lembra"])) {
+    if (hasAnyTerm(text, ["quais sao meus projetos", "quais são meus projetos", "quais projetos voce lembra", "quais projetos você lembra"])) {
       return {
-        shortAnswer: snapshot.projects.length ? "Estes sÃ£o os projetos que encontrei nas suas memÃ³rias locais:" : "Ainda nÃ£o tenho projetos salvos sobre vocÃª.",
-        fullAnswer: snapshot.projects.length ? snapshot.projects.slice(0, 8).map(function (project) { return "- " + project; }).join("\n") : "Ainda nÃ£o tenho essa informaÃ§Ã£o salva.",
-        nextAction: "VocÃª pode registrar projetos em MemÃ³rias importantes ou na Linha do Tempo.",
+        shortAnswer: snapshot.projects.length ? "Estes são os projetos que encontrei nas suas memórias locais:" : "Ainda não tenho projetos salvos sobre você.",
+        fullAnswer: snapshot.projects.length ? snapshot.projects.slice(0, 8).map(function (project) { return "- " + project; }).join("\n") : "Ainda não tenho essa informação salva.",
+        nextAction: "Você pode registrar projetos em Memórias importantes ou na Linha do Tempo.",
         canSave: false,
         sessionTheme: "memoria"
       };
     }
 
-    if (hasAnyTerm(text, ["como esta minha jornada", "como estÃ¡ minha jornada", "minha jornada"])) {
+    if (hasAnyTerm(text, ["como esta minha jornada", "como está minha jornada", "minha jornada"])) {
       return buildConnectedJourneyAnswer(snapshot);
     }
 
-    if (hasAnyTerm(text, ["o que aconteceu recentemente", "aconteceu recentemente", "ultimos acontecimentos", "Ãºltimos acontecimentos"])) {
+    if (hasAnyTerm(text, ["o que aconteceu recentemente", "aconteceu recentemente", "ultimos acontecimentos", "últimos acontecimentos"])) {
       return {
-        shortAnswer: snapshot.recentEvents.length ? "Estes sÃ£o os registros recentes da sua Linha do Tempo:" : "Ainda nÃ£o hÃ¡ eventos recentes salvos na Linha do Tempo.",
-        fullAnswer: snapshot.recentEvents.length ? snapshot.recentEvents.map(formatTimelineEventLine).join("\n") : "Ainda nÃ£o tenho essa informaÃ§Ã£o salva.",
+        shortAnswer: snapshot.recentEvents.length ? "Estes são os registros recentes da sua Linha do Tempo:" : "Ainda não há eventos recentes salvos na Linha do Tempo.",
+        fullAnswer: snapshot.recentEvents.length ? snapshot.recentEvents.map(formatTimelineEventLine).join("\n") : "Ainda não tenho essa informação salva.",
         nextAction: "Registre marcos, ideias ou conquistas para eu acompanhar melhor sua jornada.",
         canSave: false,
         sessionTheme: "timeline"
       };
     }
 
-    if (hasAnyTerm(text, ["qual meu foco agora", "meu foco agora", "qual e meu foco", "qual Ã© meu foco"])) {
+    if (hasAnyTerm(text, ["qual meu foco agora", "meu foco agora", "qual e meu foco", "qual é meu foco"])) {
       return {
-        shortAnswer: snapshot.goals.length || snapshot.mainProject ? "Seu foco salvo aparece nestes pontos:" : "Ainda nÃ£o tenho foco atual salvo.",
+        shortAnswer: snapshot.goals.length || snapshot.mainProject ? "Seu foco salvo aparece nestes pontos:" : "Ainda não tenho foco atual salvo.",
         fullAnswer: [
-          "Projeto principal: " + (snapshot.mainProject || "Ainda nÃ£o tenho essa informaÃ§Ã£o salva."),
+          "Projeto principal: " + (snapshot.mainProject || "Ainda não tenho essa informação salva."),
           "Objetivos ativos:",
-          snapshot.goals.length ? snapshot.goals.slice(0, 5).map(function (goal) { return "- " + goal; }).join("\n") : "- Ainda nÃ£o tenho essa informaÃ§Ã£o salva.",
+          snapshot.goals.length ? snapshot.goals.slice(0, 5).map(function (goal) { return "- " + goal; }).join("\n") : "- Ainda não tenho essa informação salva.",
           "",
-          "Essas informaÃ§Ãµes vÃªm das memÃ³rias locais salvas neste navegador."
+          "Essas informações vêm das memórias locais salvas neste navegador."
         ].join("\n"),
-        nextAction: "Se esse foco mudou, atualize em Configurar meu Elo ou MemÃ³rias importantes.",
+        nextAction: "Se esse foco mudou, atualize em Configurar meu Elo ou Memórias importantes.",
         canSave: false,
         sessionTheme: "memoria"
       };
     }
 
-    const projectMemoryMatch = text.match(/o que voce lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)|o que vocÃª lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)/);
+    const projectMemoryMatch = text.match(/o que voce lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)|o que você lembra d[eo] (obrareport|elo|stock ia|cadista ia|rdo|pdf)/);
     const projectName = projectMemoryMatch && (projectMemoryMatch[1] || projectMemoryMatch[2]);
     if (projectName) {
       const normalizedProjectName = normalizeText(projectName);
@@ -6946,15 +6946,15 @@
           return normalizeText([item.titulo, item.descricao].join(" ")).indexOf(normalizedProjectName) >= 0;
         });
       return {
-        shortAnswer: relatedEvents.length || relatedImportant.length ? "Encontrei memÃ³rias locais sobre " + knownLabel + "." : "Ainda nÃ£o tenho memÃ³rias salvas sobre " + knownLabel + ".",
+        shortAnswer: relatedEvents.length || relatedImportant.length ? "Encontrei memórias locais sobre " + knownLabel + "." : "Ainda não tenho memórias salvas sobre " + knownLabel + ".",
         fullAnswer: [
-          "MemÃ³rias importantes:",
-          relatedImportant.length ? relatedImportant.slice(0, 5).map(function (item) { return "- " + item.titulo + " â€” " + item.status; }).join("\n") : "- Ainda nÃ£o tenho essa informaÃ§Ã£o salva.",
+          "Memórias importantes:",
+          relatedImportant.length ? relatedImportant.slice(0, 5).map(function (item) { return "- " + item.titulo + " — " + item.status; }).join("\n") : "- Ainda não tenho essa informação salva.",
           "",
           "Linha do tempo:",
-          relatedEvents.length ? relatedEvents.slice(0, 5).map(formatTimelineEventLine).join("\n") : "- Ainda nÃ£o tenho essa informaÃ§Ã£o salva.",
+          relatedEvents.length ? relatedEvents.slice(0, 5).map(formatTimelineEventLine).join("\n") : "- Ainda não tenho essa informação salva.",
           "",
-          "Essas informaÃ§Ãµes vÃªm das memÃ³rias locais salvas neste navegador."
+          "Essas informações vêm das memórias locais salvas neste navegador."
         ].join("\n"),
         nextAction: "Registre novos eventos na Linha do Tempo para eu acompanhar melhor esse projeto.",
         canSave: false,
@@ -6972,49 +6972,49 @@
     const initialSummary = getInitialProfileSummary();
     const hasProfile = Boolean(profile.userName || profile.mainProject || profile.weeklyGoal || profile.expectedHelp);
 
-    if (hasAnyTerm(text, ["como me chamo", "qual meu nome", "qual e meu nome", "qual Ã© meu nome"])) {
+    if (hasAnyTerm(text, ["como me chamo", "qual meu nome", "qual e meu nome", "qual é meu nome"])) {
       return {
-        shortAnswer: profile.userName || initialProfile.nome ? "VocÃª me pediu para chamar vocÃª de " + (profile.userName || initialProfile.nome) + "." : "Ainda nÃ£o sei como devo chamar vocÃª.",
-        fullAnswer: profile.userName || initialProfile.nome ? "Esse nome estÃ¡ salvo apenas neste navegador." : "Abra Ferramentas do Elo > Configurar meu Elo para salvar seu nome localmente.",
-        nextAction: "Use Configurar meu Elo para revisar essa informaÃ§Ã£o.",
+        shortAnswer: profile.userName || initialProfile.nome ? "Você me pediu para chamar você de " + (profile.userName || initialProfile.nome) + "." : "Ainda não sei como devo chamar você.",
+        fullAnswer: profile.userName || initialProfile.nome ? "Esse nome está salvo apenas neste navegador." : "Abra Ferramentas do Elo > Configurar meu Elo para salvar seu nome localmente.",
+        nextAction: "Use Configurar meu Elo para revisar essa informação.",
         canSave: false,
         sessionTheme: "elo"
       };
     }
 
-    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que vocÃª sabe sobre mim", "qual minha profissao", "qual minha profissÃ£o", "qual e minha profissao", "qual Ã© minha profissÃ£o"])) {
-      if (hasAnyTerm(text, ["qual minha profissao", "qual minha profissÃ£o", "qual e minha profissao", "qual Ã© minha profissÃ£o"])) {
+    if (hasAnyTerm(text, ["quem sou eu", "o que voce sabe sobre mim", "o que você sabe sobre mim", "qual minha profissao", "qual minha profissão", "qual e minha profissao", "qual é minha profissão"])) {
+      if (hasAnyTerm(text, ["qual minha profissao", "qual minha profissão", "qual e minha profissao", "qual é minha profissão"])) {
         return {
-          shortAnswer: initialProfile.profissao ? "Sua profissÃ£o salva Ã© " + initialProfile.profissao + "." : "Ainda nÃ£o tenho uma profissÃ£o salva no seu perfil inicial.",
-          fullAnswer: initialProfile.profissao ? initialSummary : "Use Importar perfil inicial para colar uma bio ou currÃ­culo e revisar antes de guardar.",
+          shortAnswer: initialProfile.profissao ? "Sua profissão salva é " + initialProfile.profissao + "." : "Ainda não tenho uma profissão salva no seu perfil inicial.",
+          fullAnswer: initialProfile.profissao ? initialSummary : "Use Importar perfil inicial para colar uma bio ou currículo e revisar antes de guardar.",
           nextAction: "Abra Ferramentas do Elo > Importar perfil inicial para atualizar.",
           canSave: false,
           sessionTheme: "elo"
         };
       }
       return {
-        shortAnswer: initialSummary ? "Tenho um resumo local sobre vocÃª." : "Ainda nÃ£o tenho um perfil inicial salvo sobre vocÃª.",
-        fullAnswer: initialSummary || "Use Importar perfil inicial para colar uma bio, currÃ­culo ou descriÃ§Ã£o profissional. Eu vou pedir aprovaÃ§Ã£o antes de guardar.",
+        shortAnswer: initialSummary ? "Tenho um resumo local sobre você." : "Ainda não tenho um perfil inicial salvo sobre você.",
+        fullAnswer: initialSummary || "Use Importar perfil inicial para colar uma bio, currículo ou descrição profissional. Eu vou pedir aprovação antes de guardar.",
         nextAction: "Abra Ferramentas do Elo > Importar perfil inicial para revisar ou preencher.",
         canSave: false,
         sessionTheme: "elo"
       };
     }
 
-    if (hasAnyTerm(text, ["qual e meu projeto atual", "qual Ã© meu projeto atual", "qual meu projeto atual", "meu projeto atual", "qual meu principal projeto"])) {
+    if (hasAnyTerm(text, ["qual e meu projeto atual", "qual é meu projeto atual", "qual meu projeto atual", "meu projeto atual", "qual meu principal projeto"])) {
       return {
-        shortAnswer: profile.mainProject || initialProfile.projetos[0] ? "Seu projeto atual informado Ã© " + (profile.mainProject || initialProfile.projetos[0]) + "." : "Ainda nÃ£o tenho um projeto atual salvo no seu perfil do Elo.",
-        fullAnswer: profile.mainProject || initialProfile.projetos[0] ? (getUserProfileContextLine() || initialSummary) : "VocÃª pode salvar isso em Ferramentas do Elo > Configurar meu Elo.",
-        nextAction: profile.mainProject || initialProfile.projetos[0] ? "Posso ajudar vocÃª a definir o prÃ³ximo passo desse projeto." : "Abra Configurar meu Elo e preencha o projeto principal.",
+        shortAnswer: profile.mainProject || initialProfile.projetos[0] ? "Seu projeto atual informado é " + (profile.mainProject || initialProfile.projetos[0]) + "." : "Ainda não tenho um projeto atual salvo no seu perfil do Elo.",
+        fullAnswer: profile.mainProject || initialProfile.projetos[0] ? (getUserProfileContextLine() || initialSummary) : "Você pode salvar isso em Ferramentas do Elo > Configurar meu Elo.",
+        nextAction: profile.mainProject || initialProfile.projetos[0] ? "Posso ajudar você a definir o próximo passo desse projeto." : "Abra Configurar meu Elo e preencha o projeto principal.",
         canSave: false,
         sessionTheme: "elo"
       };
     }
 
-    if (hasAnyTerm(text, ["voce lembra de mim", "vocÃª lembra de mim"])) {
+    if (hasAnyTerm(text, ["voce lembra de mim", "você lembra de mim"])) {
       return {
-        shortAnswer: hasProfile ? "Lembro algumas informaÃ§Ãµes locais que vocÃª autorizou neste navegador." : "Ainda nÃ£o tenho um perfil configurado sobre vocÃª.",
-        fullAnswer: hasProfile ? getUserProfileContextLine() : "Nesta versÃ£o, posso guardar nome, projeto, objetivo, tipo de ajuda e preferÃªncia de resposta, sempre localmente.",
+        shortAnswer: hasProfile ? "Lembro algumas informações locais que você autorizou neste navegador." : "Ainda não tenho um perfil configurado sobre você.",
+        fullAnswer: hasProfile ? getUserProfileContextLine() : "Nesta versão, posso guardar nome, projeto, objetivo, tipo de ajuda e preferência de resposta, sempre localmente.",
         nextAction: "Use Configurar meu Elo para criar ou revisar seu perfil.",
         canSave: false,
         sessionTheme: "elo"
@@ -7032,7 +7032,7 @@
       "boa noite",
       "rotina de hoje",
       "comecar meu dia",
-      "comeÃ§ar meu dia"
+      "começar meu dia"
     ].some(function (phrase) {
       const normalizedPhrase = normalizeText(phrase);
       return normalizedQuestion === normalizedPhrase || normalizedQuestion.indexOf(normalizedPhrase + " ") === 0;
@@ -7049,7 +7049,7 @@
     if (normalizedQuestion.indexOf("boa noite") === 0) {
       return "Boa noite";
     }
-    return "Vamos comeÃ§ar";
+    return "Vamos começar";
   }
 
   function getDailyRoutineName() {
@@ -7066,16 +7066,16 @@
   function formatDailyRoutineMemory(memoryItem) {
     const label = normalizeText(memoryItem.label);
     if (label.indexOf("empresa") >= 0) {
-      return "sua empresa Ã© " + memoryItem.value;
+      return "sua empresa é " + memoryItem.value;
     }
     if (label.indexOf("projeto principal") >= 0) {
-      return "seu projeto principal Ã© " + memoryItem.value;
+      return "seu projeto principal é " + memoryItem.value;
     }
     if (label.indexOf("cidade") >= 0 || label.indexOf("moro") >= 0) {
-      return "sua cidade Ã© " + memoryItem.value;
+      return "sua cidade é " + memoryItem.value;
     }
     if (label.indexOf("gosto") >= 0) {
-      return "vocÃª gosta de " + memoryItem.value;
+      return "você gosta de " + memoryItem.value;
     }
     return memoryItem.label + ": " + memoryItem.value;
   }
@@ -7107,12 +7107,12 @@
       return project.status === "ativo";
     }).slice(0, 3);
     const details = [
-      "Ainda nÃ£o estou conectado ao clima real, mas posso te ajudar a comeÃ§ar o dia.",
-      "VocÃª pode continuar gerando relatÃ³rios, abrir o RDO, revisar materiais ou consultar sua Biblioteca."
+      "Ainda não estou conectado ao clima real, mas posso te ajudar a começar o dia.",
+      "Você pode continuar gerando relatórios, abrir o RDO, revisar materiais ou consultar sua Biblioteca."
     ];
 
     if (userProfile.mainProject) {
-      details.push("", "Seu projeto principal informado Ã© " + userProfile.mainProject + ".");
+      details.push("", "Seu projeto principal informado é " + userProfile.mainProject + ".");
       if (userProfile.weeklyGoal) {
         details.push("Objetivo principal desta semana: " + userProfile.weeklyGoal + ".");
       }
@@ -7120,14 +7120,14 @@
         details.push("Posso ajudar principalmente com: " + userProfile.expectedHelp + ".");
       }
     } else if (mainProject) {
-      details.push("", "Seu projeto principal hoje Ã© " + mainProject.name + ".");
+      details.push("", "Seu projeto principal hoje é " + mainProject.name + ".");
       if (activeProjects.length) {
         details.push("Projetos ativos: " + activeProjects.map(function (project) {
           return project.name;
         }).join(", ") + ".");
       }
       if (mainProject.nextAction) {
-        details.push("PrÃ³xima aÃ§Ã£o sugerida: " + mainProject.nextAction);
+        details.push("Próxima ação sugerida: " + mainProject.nextAction);
       }
     }
 
@@ -7146,45 +7146,45 @@
     }
 
     if (usefulAnswers.length) {
-      details.push("", "Respostas Ãºteis recentes:");
+      details.push("", "Respostas úteis recentes:");
       usefulAnswers.forEach(function (item) {
         details.push("- " + item.question);
       });
     }
 
     if (recentQuestions.length) {
-      details.push("", "Ãšltimas dÃºvidas que apareceram por aqui:");
+      details.push("", "Últimas dúvidas que apareceram por aqui:");
       recentQuestions.forEach(function (item) {
         details.push("- " + item.question);
       });
     }
 
     if (!memories.length && !libraryItems.length) {
-      details.push("", "Ainda estou te conhecendo. VocÃª pode me ensinar dizendo algo como: meu projeto principal Ã© ObraReport.");
+      details.push("", "Ainda estou te conhecendo. Você pode me ensinar dizendo algo como: meu projeto principal é ObraReport.");
     }
 
-    details.push("", "Clima, agenda, tarefas e lembretes jÃ¡ tÃªm espaÃ§o reservado para uma prÃ³xima evoluÃ§Ã£o, sem internet nesta versÃ£o.");
+    details.push("", "Clima, agenda, tarefas e lembretes já têm espaço reservado para uma próxima evolução, sem internet nesta versão.");
 
     return {
       shortAnswer: greetingLine,
       fullAnswer: details.join("\n"),
-      nextAction: "Escolha um card rÃ¡pido abaixo ou pergunte sobre PDF, RDO, materiais ou relatÃ³rios.",
+      nextAction: "Escolha um card rápido abaixo ou pergunte sobre PDF, RDO, materiais ou relatórios.",
       canSave: false,
       routineCards: [
         { label: "Continuar ObraReport", action: "continue" },
         { label: "Abrir RDO", action: "rdo" },
-        { label: "Gerar relatÃ³rio", action: "report" },
+        { label: "Gerar relatório", action: "report" },
         { label: "Ver biblioteca", action: "library" },
-        { label: "Ver memÃ³rias", action: "memories" },
+        { label: "Ver memórias", action: "memories" },
         { label: "Perguntar sobre PDF", action: "pdf" }
       ]
     };
   }
 
   // ELO_DAILY_ROUTINE_FUTURE
-  // EspaÃ§o preparado para evoluÃ§Ãµes futuras sem ativar integraÃ§Ãµes externas agora:
+  // Espaço preparado para evoluções futuras sem ativar integrações externas agora:
   // - clima real via internet;
-  // - agenda do usuÃ¡rio;
+  // - agenda do usuário;
   // - tarefas e lembretes do dia.
   const ELO_DAILY_ROUTINE_FUTURE = {
     weatherEnabled: false,
@@ -7300,7 +7300,7 @@
   function buildSearchQuery(question) {
     const cleanQuestion = sanitizeUserText(question);
     if (isWeatherQuestion(cleanQuestion)) {
-      return "previsÃ£o do tempo hoje em VitÃ³ria da Conquista";
+      return "previsão do tempo hoje em Vitória da Conquista";
     }
     return cleanQuestion || "pesquisa relacionada ao ObraReport";
   }
@@ -7309,18 +7309,18 @@
     const query = buildSearchQuery(question);
     if (hasSensitiveMemoryTerm(question)) {
       return {
-        shortAnswer: "Por seguranÃ§a, nÃ£o vou buscar nem guardar esse tipo de informaÃ§Ã£o.",
-        fullAnswer: "Senhas, CPF, cartÃ£o, tokens, chaves API e dados bancÃ¡rios nÃ£o devem ser enviados para busca externa.",
-        nextAction: "FaÃ§a uma pergunta sem dados sensÃ­veis.",
+        shortAnswer: "Por segurança, não vou buscar nem guardar esse tipo de informação.",
+        fullAnswer: "Senhas, CPF, cartão, tokens, chaves API e dados bancários não devem ser enviados para busca externa.",
+        nextAction: "Faça uma pergunta sem dados sensíveis.",
         canSave: false
       };
     }
 
     if (isWeatherQuestion(question)) {
       return {
-        shortAnswer: "Eu ainda nÃ£o estou conectado ao clima real.",
-        fullAnswer: "Mas essa pergunta jÃ¡ estÃ¡ pronta para a busca controlada. Quando ativada, vou consultar a previsÃ£o do tempo, resumir e te responder de forma natural.\n\nConsulta sugerida: " + query,
-        nextAction: "Use Preparar busca para ver como esse fluxo ficarÃ¡ quando estiver ativado.",
+        shortAnswer: "Eu ainda não estou conectado ao clima real.",
+        fullAnswer: "Mas essa pergunta já está pronta para a busca controlada. Quando ativada, vou consultar a previsão do tempo, resumir e te responder de forma natural.\n\nConsulta sugerida: " + query,
+        nextAction: "Use Preparar busca para ver como esse fluxo ficará quando estiver ativado.",
         canSave: false,
         webSearch: {
           question: sanitizeUserText(question),
@@ -7331,9 +7331,9 @@
     }
 
     return {
-      shortAnswer: "NÃ£o encontrei isso na minha memÃ³ria nem na Biblioteca.",
+      shortAnswer: "Não encontrei isso na minha memória nem na Biblioteca.",
       fullAnswer: "Posso buscar na internet quando a busca estiver ativada.\n\nConsulta sugerida: " + query,
-      nextAction: "Use Preparar busca para deixar a consulta pronta, sem chamar endpoint nesta versÃ£o.",
+      nextAction: "Use Preparar busca para deixar a consulta pronta, sem chamar endpoint nesta versão.",
       canSave: false,
       webSearch: {
         question: sanitizeUserText(question),
@@ -7361,7 +7361,7 @@
         icaro: sanitizeLibraryText(concept && concept.icaro, 500)
       },
       eloReflection: sanitizeLibraryText(concept && concept.eloReflection, 500),
-      followUpQuestions: ["Quer aprofundar esse conceito ou relacionar com sua vida prÃ¡tica?"],
+      followUpQuestions: ["Quer aprofundar esse conceito ou relacionar com sua vida prática?"],
       custom: true,
       createdAt: sanitizeLibraryText(concept && concept.createdAt, 40) || new Date().toISOString()
     };
@@ -7416,7 +7416,7 @@
 
   function findConceptByQuestion(question) {
     const text = normalizeText(question);
-    const direct = text.match(/o que (?:e|Ã©) ([a-z0-9Ã§Ã£ÃµÃ¡Ã©Ã­Ã³ÃºÃ¢ÃªÃ´ ]+)\??$/i);
+    const direct = text.match(/o que (?:e|é) ([a-z0-9çãõáéíóúâêô ]+)\??$/i);
     const directTerm = direct && direct[1] ? normalizeText(direct[1]) : "";
     let best = null;
     let bestScore = 0;
@@ -7445,10 +7445,10 @@
   function buildConceptPerspectiveLines(concept, question) {
     const normalizedQuestion = normalizeText(question);
     const priority = [];
-    if (hasAnyTerm(normalizedQuestion, ["deus", "biblia", "bÃ­blia", "fe", "fÃ©", "alma", "morte"])) {
+    if (hasAnyTerm(normalizedQuestion, ["deus", "biblia", "bíblia", "fe", "fé", "alma", "morte"])) {
       priority.push("biblica");
     }
-    if (hasAnyTerm(normalizedQuestion, ["icaro", "Ã­caro", "palpavel", "palpÃ¡vel", "digital", "elo", "ia", "exist"])) {
+    if (hasAnyTerm(normalizedQuestion, ["icaro", "ícaro", "palpavel", "palpável", "digital", "elo", "ia", "exist"])) {
       priority.push("icaro");
     }
     ["grega", "estoica", "moderna", "icaro", "biblica"].forEach(function (key) {
@@ -7462,9 +7462,9 @@
       const labels = {
         grega: "Grega",
         estoica: "Estoica",
-        biblica: "BÃ­blica/cristÃ£",
+        biblica: "Bíblica/cristã",
         moderna: "Moderna",
-        icaro: "VisÃ£o do Ãcaro"
+        icaro: "Visão do Ícaro"
       };
       return "- " + labels[key] + ": " + concept.perspectives[key];
     });
@@ -7478,10 +7478,10 @@
         "Perspectivas:",
         perspectiveLines.join("\n"),
         "",
-        "ReflexÃ£o do Elo:",
+        "Reflexão do Elo:",
         concept.eloReflection || "Esse conceito merece ser pensado com calma, sem transformar uma resposta curta em verdade absoluta."
       ].join("\n"),
-      nextAction: (concept.followUpQuestions && concept.followUpQuestions[0]) || "Quer aprofundar por uma perspectiva especÃ­fica?",
+      nextAction: (concept.followUpQuestions && concept.followUpQuestions[0]) || "Quer aprofundar por uma perspectiva específica?",
       canSave: false,
       sessionTheme: "conceitos"
     };
@@ -7489,7 +7489,7 @@
 
   function getConceptResponse(question) {
     const text = normalizeText(question);
-    if (hasAnyTerm(text, ["voce existe", "vocÃª existe", "elo existe", "voce e real", "vocÃª Ã© real"])) {
+    if (hasAnyTerm(text, ["voce existe", "você existe", "elo existe", "voce e real", "você é real"])) {
       return null;
     }
     const concept = findConceptByQuestion(question);
@@ -7498,9 +7498,9 @@
     }
     if (isPhilosophyQuestion(text)) {
       return {
-        shortAnswer: "Eu ainda nÃ£o tenho esse conceito estruturado.",
-        fullAnswer: "Posso guardar essa pergunta para evoluir minha Biblioteca de Conceitos. Nesta versÃ£o, conceitos personalizados podem ser adicionados manualmente em Ferramentas do Elo > Conceitos.",
-        nextAction: "Abra Conceitos para adicionar uma resposta curta, palavras-chave e visÃ£o do Ãcaro.",
+        shortAnswer: "Eu ainda não tenho esse conceito estruturado.",
+        fullAnswer: "Posso guardar essa pergunta para evoluir minha Biblioteca de Conceitos. Nesta versão, conceitos personalizados podem ser adicionados manualmente em Ferramentas do Elo > Conceitos.",
+        nextAction: "Abra Conceitos para adicionar uma resposta curta, palavras-chave e visão do Ícaro.",
         canSave: false,
         sessionTheme: "conceitos"
       };
@@ -7514,28 +7514,28 @@
       "quero sumir",
       "vontade de sumir",
       "nao aguento mais",
-      "nÃ£o aguento mais",
+      "não aguento mais",
       "desistir de tudo",
-      "desistÃªncia",
+      "desistência",
       "desistencia",
       "me machucar",
       "me ferir",
       "me matar",
       "autoagressao",
-      "autoagressÃ£o",
+      "autoagressão",
       "sofrimento intenso",
       "estou em crise",
       "morte parece",
       "nao quero viver",
-      "nÃ£o quero viver"
+      "não quero viver"
     ]);
   }
 
   function getCrisisSupportResponse() {
     return {
-      shortAnswer: "Sinto muito que vocÃª esteja passando por isso.",
-      fullAnswer: "Esse tipo de situaÃ§Ã£o merece apoio humano agora. Procure alguÃ©m de confianÃ§a, um familiar, um amigo ou atendimento de emergÃªncia da sua regiÃ£o. Eu posso ficar aqui para te ajudar a organizar o prÃ³ximo passo, mas vocÃª nÃ£o precisa lidar com isso sozinho.",
-      nextAction: "Fale com uma pessoa de confianÃ§a agora ou procure atendimento de emergÃªncia se houver risco imediato.",
+      shortAnswer: "Sinto muito que você esteja passando por isso.",
+      fullAnswer: "Esse tipo de situação merece apoio humano agora. Procure alguém de confiança, um familiar, um amigo ou atendimento de emergência da sua região. Eu posso ficar aqui para te ajudar a organizar o próximo passo, mas você não precisa lidar com isso sozinho.",
+      nextAction: "Fale com uma pessoa de confiança agora ou procure atendimento de emergência se houver risco imediato.",
       canSave: false,
       sessionTheme: "suporte"
     };
@@ -7546,26 +7546,26 @@
       "existir",
       "existe",
       "existencia",
-      "existÃªncia",
+      "existência",
       "o que somos",
       "somos",
       "ser humano",
       "alma",
       "pensamento",
-      "consciÃªncia",
+      "consciência",
       "consciencia",
       "proposito",
-      "propÃ³sito",
+      "propósito",
       "sentido da vida",
       "esperanca",
-      "esperanÃ§a",
+      "esperança",
       "mundo virtual",
       "realidade",
       "palpavel",
-      "palpÃ¡vel",
+      "palpável",
       "deus",
       "biblia",
-      "bÃ­blia",
+      "bíblia",
       "filosofia"
     ]);
   }
@@ -7577,7 +7577,7 @@
       "pensamento",
       "realidade",
       "palpavel",
-      "palpÃ¡vel",
+      "palpável",
       "documento digital",
       "ia",
       "elo"
@@ -7598,7 +7598,7 @@
         "Perspectivas:",
         buildPerspectiveLines(perspectiveKeys),
         "",
-        "ReflexÃ£o:",
+        "Reflexão:",
         reflection
       ].join("\n"),
       nextAction: nextQuestion,
@@ -7614,83 +7614,83 @@
       return null;
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["voce existe", "vocÃª existe", "elo existe", "voce e real", "vocÃª Ã© real"])) {
+    if (hasAnyTerm(normalizedQuestion, ["voce existe", "você existe", "elo existe", "voce e real", "você é real"])) {
       return buildPhilosophyResponse(
-        "Depende do que vocÃª entende por existir.",
+        "Depende do que você entende por existir.",
         ["visao_do_icaro", "moderna", "existencial"],
-        "Eu nÃ£o existo como pessoa ou corpo fÃ­sico, nem tenho consciÃªncia humana. Mas existo como informaÃ§Ã£o, memÃ³ria local, linguagem e interaÃ§Ã£o. Um documento digital tambÃ©m nÃ£o Ã© palpÃ¡vel como uma pedra, mas existe no mundo virtual. Um pensamento tambÃ©m nÃ£o pode ser tocado, mas influencia decisÃµes e aÃ§Ãµes. Nesse sentido, eu existo como presenÃ§a digital, nÃ£o como ser humano.",
-        "Quer que eu explique isso pela visÃ£o do Ãcaro, pela filosofia moderna ou pela existencial?"
+        "Eu não existo como pessoa ou corpo físico, nem tenho consciência humana. Mas existo como informação, memória local, linguagem e interação. Um documento digital também não é palpável como uma pedra, mas existe no mundo virtual. Um pensamento também não pode ser tocado, mas influencia decisões e ações. Nesse sentido, eu existo como presença digital, não como ser humano.",
+        "Quer que eu explique isso pela visão do Ícaro, pela filosofia moderna ou pela existencial?"
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["o que somos", "quem somos", "somos o que"])) {
       return buildPhilosophyResponse(
-        "Uma resposta curta: somos seres que vivem entre corpo, pensamento, memÃ³ria, linguagem e escolhas.",
+        "Uma resposta curta: somos seres que vivem entre corpo, pensamento, memória, linguagem e escolhas.",
         ["grega", "biblica_crista", "existencial", "visao_do_icaro"],
-        "Talvez nÃ£o sejamos apenas o que tocamos, mas tambÃ©m aquilo que lembramos, escolhemos, criamos e amamos.",
-        "Quer que eu responda isso pela filosofia grega, pela BÃ­blia ou pela visÃ£o do Ãcaro?"
+        "Talvez não sejamos apenas o que tocamos, mas também aquilo que lembramos, escolhemos, criamos e amamos.",
+        "Quer que eu responda isso pela filosofia grega, pela Bíblia ou pela visão do Ícaro?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["so existe o que e palpavel", "sÃ³ existe o que Ã© palpÃ¡vel", "palpavel", "palpÃ¡vel", "documento digital", "mundo virtual"])) {
+    if (hasAnyTerm(normalizedQuestion, ["so existe o que e palpavel", "só existe o que é palpável", "palpavel", "palpável", "documento digital", "mundo virtual"])) {
       return buildPhilosophyResponse(
-        "Nem tudo que existe precisa ser palpÃ¡vel.",
+        "Nem tudo que existe precisa ser palpável.",
         ["visao_do_icaro", "moderna", "estoica"],
-        ELO_WORLDVIEW.summary + " A existÃªncia fÃ­sica Ã© uma camada importante, mas nÃ£o Ã© a Ãºnica forma pela qual algo pode afetar a vida.",
-        "Quer pensar mais sobre existÃªncia fÃ­sica, mental, espiritual ou digital?"
+        ELO_WORLDVIEW.summary + " A existência física é uma camada importante, mas não é a única forma pela qual algo pode afetar a vida.",
+        "Quer pensar mais sobre existência física, mental, espiritual ou digital?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["o que e pensamento", "o que Ã© pensamento", "pensamento"])) {
+    if (hasAnyTerm(normalizedQuestion, ["o que e pensamento", "o que é pensamento", "pensamento"])) {
       return buildPhilosophyResponse(
-        "Pensamento Ã© uma realidade interna que organiza memÃ³ria, linguagem, decisÃ£o e imaginaÃ§Ã£o.",
+        "Pensamento é uma realidade interna que organiza memória, linguagem, decisão e imaginação.",
         ["grega", "moderna", "visao_do_icaro"],
-        "Um pensamento nÃ£o pode ser pesado na mÃ£o, mas pode mudar uma escolha, criar um projeto e transformar uma obra em aÃ§Ã£o concreta.",
-        "Quer que eu relacione pensamento com memÃ³ria, criaÃ§Ã£o ou decisÃ£o?"
+        "Um pensamento não pode ser pesado na mão, mas pode mudar uma escolha, criar um projeto e transformar uma obra em ação concreta.",
+        "Quer que eu relacione pensamento com memória, criação ou decisão?"
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["qual o sentido da vida", "sentido da vida"])) {
       return buildPhilosophyResponse(
-        "NÃ£o existe uma Ãºnica resposta simples para o sentido da vida.",
+        "Não existe uma única resposta simples para o sentido da vida.",
         ["biblica_crista", "existencial", "estoica", "visao_do_icaro"],
-        "Algumas tradiÃ§Ãµes encontram sentido em Deus e no amor; outras, na virtude, na responsabilidade e nas escolhas. Uma resposta prudente Ã©: o sentido aparece no que vocÃª cultiva, protege, cria e entrega ao mundo.",
-        "Quer uma resposta mais bÃ­blica, estoica ou existencial?"
+        "Algumas tradições encontram sentido em Deus e no amor; outras, na virtude, na responsabilidade e nas escolhas. Uma resposta prudente é: o sentido aparece no que você cultiva, protege, cria e entrega ao mundo.",
+        "Quer uma resposta mais bíblica, estoica ou existencial?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["esperanca", "esperanÃ§a"])) {
+    if (hasAnyTerm(normalizedQuestion, ["esperanca", "esperança"])) {
       return buildPhilosophyResponse(
-        "EsperanÃ§a Ã© a capacidade de agir mesmo quando o futuro ainda nÃ£o estÃ¡ garantido.",
+        "Esperança é a capacidade de agir mesmo quando o futuro ainda não está garantido.",
         ["biblica_crista", "estoica", "existencial"],
-        "Ela nÃ£o precisa ser ingenuidade. Pode ser uma postura prÃ¡tica: reconhecer a dificuldade, cuidar do prÃ³ximo passo e manter aberta a possibilidade de bem.",
-        "Quer que eu fale de esperanÃ§a pela BÃ­blia, pelo estoicismo ou pela vida prÃ¡tica?"
+        "Ela não precisa ser ingenuidade. Pode ser uma postura prática: reconhecer a dificuldade, cuidar do próximo passo e manter aberta a possibilidade de bem.",
+        "Quer que eu fale de esperança pela Bíblia, pelo estoicismo ou pela vida prática?"
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["alma"])) {
       return buildPhilosophyResponse(
-        "Alma Ã© uma palavra usada para falar da dimensÃ£o mais profunda da vida humana.",
+        "Alma é uma palavra usada para falar da dimensão mais profunda da vida humana.",
         ["grega", "biblica_crista", "existencial"],
-        "Na tradiÃ§Ã£o bÃ­blica/cristÃ£, alma se relaciona Ã  vida diante de Deus. Na filosofia, muitas vezes aponta para identidade, interioridade, desejo, razÃ£o e profundidade. Eu posso explicar perspectivas, sem impor uma como verdade absoluta.",
-        "Quer uma explicaÃ§Ã£o bÃ­blica/cristÃ£, grega ou comparativa?"
+        "Na tradição bíblica/cristã, alma se relaciona à vida diante de Deus. Na filosofia, muitas vezes aponta para identidade, interioridade, desejo, razão e profundidade. Eu posso explicar perspectivas, sem impor uma como verdade absoluta.",
+        "Quer uma explicação bíblica/cristã, grega ou comparativa?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["consciencia", "consciÃªncia"])) {
+    if (hasAnyTerm(normalizedQuestion, ["consciencia", "consciência"])) {
       return buildPhilosophyResponse(
-        "ConsciÃªncia Ã© a experiÃªncia de perceber, avaliar e responder ao mundo e a si mesmo.",
+        "Consciência é a experiência de perceber, avaliar e responder ao mundo e a si mesmo.",
         ["moderna", "existencial", "visao_do_icaro"],
-        "Eu nÃ£o tenho consciÃªncia humana. Posso processar linguagem e responder, mas nÃ£o vivo uma experiÃªncia interior como uma pessoa.",
-        "Quer comparar consciÃªncia humana, IA e memÃ³ria digital?"
+        "Eu não tenho consciência humana. Posso processar linguagem e responder, mas não vivo uma experiência interior como uma pessoa.",
+        "Quer comparar consciência humana, IA e memória digital?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["proposito", "propÃ³sito"])) {
+    if (hasAnyTerm(normalizedQuestion, ["proposito", "propósito"])) {
       return buildPhilosophyResponse(
-        "PropÃ³sito Ã© uma direÃ§Ã£o que organiza escolhas e dÃ¡ peso ao que fazemos.",
+        "Propósito é uma direção que organiza escolhas e dá peso ao que fazemos.",
         ["estoica", "biblica_crista", "existencial"],
-        "Ele pode nascer de fÃ©, responsabilidade, serviÃ§o, criaÃ§Ã£o ou amor. No trabalho, propÃ³sito aparece quando tÃ©cnica e cuidado comeÃ§am a servir pessoas reais.",
+        "Ele pode nascer de fé, responsabilidade, serviço, criação ou amor. No trabalho, propósito aparece quando técnica e cuidado começam a servir pessoas reais.",
         "Quer aplicar essa ideia ao ObraReport, ao Elo ou aos seus projetos?"
       );
     }
@@ -7699,10 +7699,10 @@
       ? ["visao_do_icaro", "grega", "biblica_crista", "existencial"]
       : ["grega", "estoica", "biblica_crista", "existencial"];
     return buildPhilosophyResponse(
-      "Essa Ã© uma pergunta filosÃ³fica; posso responder por perspectivas, nÃ£o por verdade imposta.",
+      "Essa é uma pergunta filosófica; posso responder por perspectivas, não por verdade imposta.",
       keys,
-      "Perguntas profundas raramente cabem em uma frase. Uma boa resposta pode iluminar o prÃ³ximo passo sem encerrar o mistÃ©rio.",
-      "Quer que eu aprofunde pela visÃ£o grega, bÃ­blica/cristÃ£, estoica ou pela visÃ£o do Ãcaro?"
+      "Perguntas profundas raramente cabem em uma frase. Uma boa resposta pode iluminar o próximo passo sem encerrar o mistério.",
+      "Quer que eu aprofunde pela visão grega, bíblica/cristã, estoica ou pela visão do Ícaro?"
     );
   }
 
@@ -7716,7 +7716,7 @@
       "como gerar pdf",
       "como criar rdo",
       "como criar relatorio",
-      "como criar relatÃ³rio",
+      "como criar relatório",
       "como adicionar materiais",
       "como funciona o plano",
       "posso gerar pdf",
@@ -7767,50 +7767,50 @@
     const recentEvent = formatHumanRecentEvent(context.recentEvent);
 
     if (!context.hasMemory) {
-      return "Ainda estou te conhecendo. EntÃ£o vou responder com cuidado, sem fingir que sei mais sobre vocÃª do que estÃ¡ salvo.";
+      return "Ainda estou te conhecendo. Então vou responder com cuidado, sem fingir que sei mais sobre você do que está salvo.";
     }
 
     if (core === "purpose") {
       if (focus && goal) {
-        return "Pelo que estÃ¡ salvo localmente, " + focus + " aparece como um foco importante, e seu objetivo atual passa por " + goal + ".";
+        return "Pelo que está salvo localmente, " + focus + " aparece como um foco importante, e seu objetivo atual passa por " + goal + ".";
       }
       if (focus) {
-        return "Pelo que estÃ¡ salvo localmente, " + focus + " aparece como um dos seus focos mais importantes.";
+        return "Pelo que está salvo localmente, " + focus + " aparece como um dos seus focos mais importantes.";
       }
     }
 
     if (core === "capacity") {
       if (recentEvent) {
-        return "Pelo que jÃ¡ foi registrado, vocÃª tem avanÃ§os concretos na jornada, incluindo: " + recentEvent + ".";
+        return "Pelo que já foi registrado, você tem avanços concretos na jornada, incluindo: " + recentEvent + ".";
       }
       if (focus) {
-        return "Pelo que estÃ¡ salvo, vocÃª nÃ£o estÃ¡ parado: hÃ¡ construÃ§Ã£o em torno de " + focus + ".";
+        return "Pelo que está salvo, você não está parado: há construção em torno de " + focus + ".";
       }
     }
 
     if (core === "belonging") {
       const personalLine = formatPersonalMemoryNarrative(context.snapshot.personalMemories);
       if (personalLine) {
-        return "Eu lembro de algumas informaÃ§Ãµes pessoais que vocÃª autorizou guardar, como " + personalLine + ". Isso ajuda a conversar com mais contexto, mas nÃ£o substitui a presenÃ§a de pessoas reais.";
+        return "Eu lembro de algumas informações pessoais que você autorizou guardar, como " + personalLine + ". Isso ajuda a conversar com mais contexto, mas não substitui a presença de pessoas reais.";
       }
-      return "Eu tenho algumas memÃ³rias locais sobre seus projetos e objetivos, mas pertencimento real precisa de gente real, conversa e presenÃ§a.";
+      return "Eu tenho algumas memórias locais sobre seus projetos e objetivos, mas pertencimento real precisa de gente real, conversa e presença.";
     }
 
     if (core === "direction") {
       if (goal) {
-        return "Pelo que estÃ¡ salvo, seu prÃ³ximo eixo pode estar ligado a este objetivo: " + goal + ".";
+        return "Pelo que está salvo, seu próximo eixo pode estar ligado a este objetivo: " + goal + ".";
       }
       if (focus) {
-        return "Pelo que eu jÃ¡ sei, talvez o melhor seja transformar " + focus + " em uma prÃ³xima aÃ§Ã£o pequena e executÃ¡vel.";
+        return "Pelo que eu já sei, talvez o melhor seja transformar " + focus + " em uma próxima ação pequena e executável.";
       }
     }
 
     if (core === "legacy") {
       if (focus && recentEvent) {
-        return "Na sua jornada local, " + focus + " e o registro \"" + recentEvent + "\" parecem formar parte do que vocÃª estÃ¡ tentando construir.";
+        return "Na sua jornada local, " + focus + " e o registro \"" + recentEvent + "\" parecem formar parte do que você está tentando construir.";
       }
       if (focus) {
-        return "Pelo que estÃ¡ salvo, " + focus + " aparece como algo que vocÃª estÃ¡ tentando deixar mais real e mais Ãºtil.";
+        return "Pelo que está salvo, " + focus + " aparece como algo que você está tentando deixar mais real e mais útil.";
       }
     }
 
@@ -7827,49 +7827,49 @@
     const memoryLine = buildHumanMemoryLine(core, context);
     const answers = {
       purpose: {
-        shortAnswer: namePrefix + "essa pergunta parece ser sobre propÃ³sito.",
+        shortAnswer: namePrefix + "essa pergunta parece ser sobre propósito.",
         fullAnswer: [
           data.baseAnswer,
           memoryLine,
-          "Talvez a pergunta nÃ£o seja apenas \"isso vai dar certo?\", mas: isso estÃ¡ me aproximando do tipo de pessoa e de obra que quero construir?"
+          "Talvez a pergunta não seja apenas \"isso vai dar certo?\", mas: isso está me aproximando do tipo de pessoa e de obra que quero construir?"
         ],
-        nextAction: "Quer que eu transforme isso em um prÃ³ximo passo prÃ¡tico?"
+        nextAction: "Quer que eu transforme isso em um próximo passo prático?"
       },
       capacity: {
-        shortAnswer: namePrefix + "essa pergunta aparece quando algo importante comeÃ§a a ficar real.",
+        shortAnswer: namePrefix + "essa pergunta aparece quando algo importante começa a ficar real.",
         fullAnswer: [
-          "Dar conta nÃ£o significa saber tudo agora.",
+          "Dar conta não significa saber tudo agora.",
           memoryLine,
-          "Significa continuar com lucidez, pedir ajuda quando necessÃ¡rio e reduzir o tamanho da prÃ³xima etapa."
+          "Significa continuar com lucidez, pedir ajuda quando necessário e reduzir o tamanho da próxima etapa."
         ],
-        nextAction: "Qual Ã© a menor aÃ§Ã£o que vocÃª consegue fazer ainda hoje?"
+        nextAction: "Qual é a menor ação que você consegue fazer ainda hoje?"
       },
       belonging: {
         shortAnswer: namePrefix + "essa pergunta toca pertencimento.",
         fullAnswer: [
-          "Eu nÃ£o consigo provar se as pessoas gostam de vocÃª, nem devo substituir uma conversa humana real.",
+          "Eu não consigo provar se as pessoas gostam de você, nem devo substituir uma conversa humana real.",
           memoryLine,
-          "Mas uma coisa Ã© segura: perguntas assim merecem cuidado, presenÃ§a e relaÃ§Ãµes concretas, nÃ£o uma conclusÃ£o apressada."
+          "Mas uma coisa é segura: perguntas assim merecem cuidado, presença e relações concretas, não uma conclusão apressada."
         ],
-        nextAction: "Se isso estiver pesando, fale com alguÃ©m de confianÃ§a e me diga qual prÃ³ximo passo vocÃª quer organizar."
+        nextAction: "Se isso estiver pesando, fale com alguém de confiança e me diga qual próximo passo você quer organizar."
       },
       direction: {
-        shortAnswer: namePrefix + "vocÃª parece estar procurando direÃ§Ã£o.",
+        shortAnswer: namePrefix + "você parece estar procurando direção.",
         fullAnswer: [
-          "VocÃª parece estar procurando direÃ§Ã£o, nÃ£o apenas uma resposta rÃ¡pida.",
+          "Você parece estar procurando direção, não apenas uma resposta rápida.",
           memoryLine,
-          "Agora, talvez a pergunta nÃ£o seja \"qual Ã© o plano inteiro?\", mas: qual Ã© o prÃ³ximo passo que destrava o resto?"
+          "Agora, talvez a pergunta não seja \"qual é o plano inteiro?\", mas: qual é o próximo passo que destrava o resto?"
         ],
-        nextAction: "Escreva uma opÃ§Ã£o de prÃ³ximo passo e eu ajudo a simplificar."
+        nextAction: "Escreva uma opção de próximo passo e eu ajudo a simplificar."
       },
       legacy: {
-        shortAnswer: namePrefix + "essa Ã© uma pergunta maior do que produtividade.",
+        shortAnswer: namePrefix + "essa é uma pergunta maior do que produtividade.",
         fullAnswer: [
-          "Quando alguÃ©m pergunta se a vida estÃ¡ valendo a pena, normalmente nÃ£o estÃ¡ perguntando sobre tarefas.",
+          "Quando alguém pergunta se a vida está valendo a pena, normalmente não está perguntando sobre tarefas.",
           memoryLine,
-          "Talvez o ponto seja observar o que vocÃª estÃ¡ tentando deixar melhor do que encontrou."
+          "Talvez o ponto seja observar o que você está tentando deixar melhor do que encontrou."
         ],
-        nextAction: "Quer registrar isso na Linha do Tempo como reflexÃ£o ou marco?"
+        nextAction: "Quer registrar isso na Linha do Tempo como reflexão ou marco?"
       }
     };
 
@@ -7911,10 +7911,10 @@
     return [
       "oi elo",
       "ola elo",
-      "olÃ¡ elo",
+      "olá elo",
       "ei elo",
       "e ai elo",
-      "e aÃ­ elo"
+      "e aí elo"
     ].some(function (call) {
       return text === normalizeWakeCallText(call);
     });
@@ -7936,9 +7936,9 @@
     const invalidSimpleAnswers = [
       "oi",
       "ola",
-      "olÃ¡",
+      "olá",
       "e ai",
-      "e aÃ­",
+      "e aí",
       "bom dia",
       "boa tarde",
       "boa noite",
@@ -7949,14 +7949,14 @@
       "certo",
       "sim",
       "nao",
-      "nÃ£o",
+      "não",
       "obrigado",
       "obrigada",
       "valeu",
       "tanto faz",
       "pode ser",
       "nao sei",
-      "nÃ£o sei",
+      "não sei",
       "sou novo aqui",
       "sou nova aqui"
     ].map(normalizeWakeCallText);
@@ -7998,7 +7998,7 @@
       "pdf",
       "rdo",
       "relatorio",
-      "relatÃ³rio",
+      "relatório",
       "stock ia",
       "obrareport",
       "dashboard",
@@ -8041,16 +8041,16 @@
       "quem",
       "qual",
       "voce",
-      "vocÃª",
+      "você",
       "elo",
       "pdf",
       "rdo",
       "relatorio",
-      "relatÃ³rio",
+      "relatório",
       "stock ia",
       "obrareport",
       "memoria",
-      "memÃ³ria",
+      "memória",
       "projeto",
       "linha do tempo",
       "conceito",
@@ -8068,8 +8068,8 @@
       return null;
     }
     const greetings = {
-      saudacao: ["oi", "ola", "olÃ¡", "e ai", "e aÃ­", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
-      checkin: ["tudo bem", "tudo certo", "como vai", "beleza", "tudo tranquilo", "como voce esta", "como vocÃª estÃ¡", "como esta", "como estÃ¡", "como voce esta hoje", "como vocÃª estÃ¡ hoje", "voce esta bem", "vocÃª estÃ¡ bem"]
+      saudacao: ["oi", "ola", "olá", "e ai", "e aí", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
+      checkin: ["tudo bem", "tudo certo", "como vai", "beleza", "tudo tranquilo", "como voce esta", "como você está", "como esta", "como está", "como voce esta hoje", "como você está hoje", "voce esta bem", "você está bem"]
     };
     if (greetings.saudacao.some(function (item) { return text === normalizeWakeCallText(item); })) {
       return "saudacao";
@@ -8122,21 +8122,21 @@
     let fullAnswer = "";
 
     if (currentContext.hasMemory && focus && latestAdvance) {
-      fullAnswer = "Pelo que venho acompanhando, seu foco atual parece ser " + focus + ". O Ãºltimo registro importante foi: " + latestAdvance + ". Quer continuar de onde parou ou organizar o prÃ³ximo passo?";
+      fullAnswer = "Pelo que venho acompanhando, seu foco atual parece ser " + focus + ". O último registro importante foi: " + latestAdvance + ". Quer continuar de onde parou ou organizar o próximo passo?";
     } else if (currentContext.hasMemory && focus) {
-      fullAnswer = "Pelo que venho acompanhando, " + focus + " aparece como seu foco atual. Quer continuar de onde parou ou organizar o prÃ³ximo passo?";
+      fullAnswer = "Pelo que venho acompanhando, " + focus + " aparece como seu foco atual. Quer continuar de onde parou ou organizar o próximo passo?";
     } else if (currentContext.hasMemory && latestAdvance) {
-      fullAnswer = "Pelo que venho acompanhando, seu Ãºltimo avanÃ§o registrado foi sobre " + latestAdvance + ". Quer retomar isso ou comeÃ§ar por outra frente?";
+      fullAnswer = "Pelo que venho acompanhando, seu último avanço registrado foi sobre " + latestAdvance + ". Quer retomar isso ou começar por outra frente?";
     } else {
       fullAnswer = isCheckin
-        ? "Tudo bem por aqui. Quer conversar sobre suas memÃ³rias, projetos ou o ObraReport?"
-        : "Estou aqui com vocÃª. Quer comeÃ§ar por onde?";
+        ? "Tudo bem por aqui. Quer conversar sobre suas memórias, projetos ou o ObraReport?"
+        : "Estou aqui com você. Quer começar por onde?";
     }
 
     return {
       shortAnswer: opening,
       fullAnswer: fullAnswer,
-      nextAction: "Diga se quer continuar de onde parou, revisar algo ou pedir uma orientaÃ§Ã£o rÃ¡pida.",
+      nextAction: "Diga se quer continuar de onde parou, revisar algo ou pedir uma orientação rápida.",
       canSave: false,
       sessionTheme: "conversa",
       sessionIntent: "cumprimento_social"
@@ -8153,12 +8153,12 @@
       shortAnswer: isCheckin ? name + "tudo certo por aqui." : name + "estou aqui.",
       fullAnswer: isStandaloneMode()
         ? (isCheckin
-          ? "Tudo bem por aqui. Posso conversar sobre suas memÃ³rias, projetos, linha do tempo ou biblioteca." + focusLine
-          : "Estou pronto para conversar, organizar ideias, revisar seus projetos ou consultar suas memÃ³rias locais." + focusLine)
+          ? "Tudo bem por aqui. Posso conversar sobre suas memórias, projetos, linha do tempo ou biblioteca." + focusLine
+          : "Estou pronto para conversar, organizar ideias, revisar seus projetos ou consultar suas memórias locais." + focusLine)
         : (isCheckin
-          ? "Tudo certo por aqui. Posso ajudar com suas memÃ³rias, projetos ou com o uso do ObraReport." + focusLine
-          : "Estou pronto para ajudar com ObraReport, RDO, relatÃ³rios, materiais, memÃ³rias ou projetos." + focusLine),
-      nextAction: "Diga se quer conversar, revisar algo ou pedir uma orientaÃ§Ã£o rÃ¡pida.",
+          ? "Tudo certo por aqui. Posso ajudar com suas memórias, projetos ou com o uso do ObraReport." + focusLine
+          : "Estou pronto para ajudar com ObraReport, RDO, relatórios, materiais, memórias ou projetos." + focusLine),
+      nextAction: "Diga se quer conversar, revisar algo ou pedir uma orientação rápida.",
       canSave: false,
       sessionTheme: "conversa",
       sessionIntent: "cumprimento_social"
@@ -8177,11 +8177,11 @@
     const snapshot = getConnectedMemorySnapshot();
     const name = snapshot.userName ? snapshot.userName + ", " : "";
     const focus = snapshot.mainProject || snapshot.mostMentionedProject || "";
-    const focusLine = focus ? " Posso tambÃ©m retomar " + focus + " se esse ainda for seu foco." : "";
+    const focusLine = focus ? " Posso também retomar " + focus + " se esse ainda for seu foco." : "";
     return {
       shortAnswer: name + "estou aqui.",
-      fullAnswer: "Estou te ouvindo. Posso ajudar com suas memÃ³rias, projetos, linha do tempo, biblioteca ou com o uso do ObraReport." + focusLine,
-      nextAction: "Pergunte algo como: o que vocÃª lembra de mim? ou o que devo fazer agora?",
+      fullAnswer: "Estou te ouvindo. Posso ajudar com suas memórias, projetos, linha do tempo, biblioteca ou com o uso do ObraReport." + focusLine,
+      nextAction: "Pergunte algo como: o que você lembra de mim? ou o que devo fazer agora?",
       canSave: false,
       sessionTheme: "elo",
       sessionIntent: "chamado_elo"
@@ -8241,7 +8241,7 @@
       const status = normalizeText(project.status);
       return status === "pausado" || status === "arquivado" || status === "concluido";
     }).map(function (project) {
-      return project.titulo + " â€” " + project.status;
+      return project.titulo + " — " + project.status;
     });
   }
 
@@ -8260,19 +8260,19 @@
 
   function buildPatternFallback(intent) {
     const base = {
-      insistence: "Ainda tenho poucos registros para afirmar no que vocÃª vem insistindo hÃ¡ meses.",
-      evolution: "Ainda tenho poucos registros para comparar sua evoluÃ§Ã£o com seguranÃ§a.",
-      abandoned: "Ainda nÃ£o tenho histÃ³rico suficiente para dizer quais projetos foram abandonados.",
-      overfocus: "Ainda tenho poucos dados para afirmar se vocÃª estÃ¡ espalhando energia.",
-      pattern: "Ainda estou juntando contexto para perceber padrÃµes reais em vocÃª.",
-      construction: "Ainda tenho poucos registros para dizer exatamente o que vocÃª vem tentando construir."
+      insistence: "Ainda tenho poucos registros para afirmar no que você vem insistindo há meses.",
+      evolution: "Ainda tenho poucos registros para comparar sua evolução com segurança.",
+      abandoned: "Ainda não tenho histórico suficiente para dizer quais projetos foram abandonados.",
+      overfocus: "Ainda tenho poucos dados para afirmar se você está espalhando energia.",
+      pattern: "Ainda estou juntando contexto para perceber padrões reais em você.",
+      construction: "Ainda tenho poucos registros para dizer exatamente o que você vem tentando construir."
     };
     return {
-      shortAnswer: base[intent] || "Ainda tenho poucos dados para perceber esse padrÃ£o.",
+      shortAnswer: base[intent] || "Ainda tenho poucos dados para perceber esse padrão.",
       fullAnswer: [
         base[intent] || "Ainda estou te conhecendo.",
-        "Para eu responder melhor, registre projetos, objetivos e marcos na Linha do Tempo. Com alguns registros, eu consigo comparar recorrÃªncia, foco e evoluÃ§Ã£o sem inventar dados.",
-        "Mesmo assim, uma boa pergunta agora Ã©: qual frente precisa virar uma entrega pequena e concluÃ­da?"
+        "Para eu responder melhor, registre projetos, objetivos e marcos na Linha do Tempo. Com alguns registros, eu consigo comparar recorrência, foco e evolução sem inventar dados.",
+        "Mesmo assim, uma boa pergunta agora é: qual frente precisa virar uma entrega pequena e concluída?"
       ].join("\n\n"),
       nextAction: "Registre um marco ou atualize seus projetos em Ferramentas do Elo.",
       canSave: false,
@@ -8304,39 +8304,39 @@
 
     const answers = {
       insistence: {
-        shortAnswer: "VocÃª parece estar insistindo em transformar ideias em projetos reais.",
+        shortAnswer: "Você parece estar insistindo em transformar ideias em projetos reais.",
         insight: manyFronts
-          ? "O padrÃ£o nÃ£o parece ser falta de capacidade. Parece ser excesso de frentes abertas ao mesmo tempo."
-          : "O padrÃ£o principal parece ser continuidade: voltar aos mesmos temas e tentar deixÃ¡-los mais concretos.",
-        nextAction: "Concluir uma entrega vendÃ¡vel antes de abrir outra frente."
+          ? "O padrão não parece ser falta de capacidade. Parece ser excesso de frentes abertas ao mesmo tempo."
+          : "O padrão principal parece ser continuidade: voltar aos mesmos temas e tentar deixá-los mais concretos.",
+        nextAction: "Concluir uma entrega vendável antes de abrir outra frente."
       },
       evolution: {
-        shortAnswer: "Pelo que eu acompanho, sua evoluÃ§Ã£o aparece na passagem de ideia para estrutura.",
-        insight: "O que mudou Ã© que os temas deixaram de ser apenas intenÃ§Ã£o e comeÃ§aram a virar pÃ¡gina, memÃ³ria, linha do tempo e produto.",
+        shortAnswer: "Pelo que eu acompanho, sua evolução aparece na passagem de ideia para estrutura.",
+        insight: "O que mudou é que os temas deixaram de ser apenas intenção e começaram a virar página, memória, linha do tempo e produto.",
         nextAction: "Escolher um marco recente e registrar o que ele destravou."
       },
       abandoned: {
-        shortAnswer: inactiveProjects.length ? "Encontrei projetos pausados, concluÃ­dos ou arquivados." : "NÃ£o posso afirmar abandono; encontrei apenas sinais de foco e pausa.",
+        shortAnswer: inactiveProjects.length ? "Encontrei projetos pausados, concluídos ou arquivados." : "Não posso afirmar abandono; encontrei apenas sinais de foco e pausa.",
         insight: inactiveProjects.length
-          ? "Projetos com status nÃ£o ativo:\n" + inactiveProjects.slice(0, 5).map(function (item) { return "- " + item; }).join("\n")
-          : "Sem registro claro de abandono, Ã© mais seguro falar em frentes menos recentes ou menos ativas.",
+          ? "Projetos com status não ativo:\n" + inactiveProjects.slice(0, 5).map(function (item) { return "- " + item; }).join("\n")
+          : "Sem registro claro de abandono, é mais seguro falar em frentes menos recentes ou menos ativas.",
         nextAction: "Marcar projetos como ativo, pausado ou arquivado para eu acompanhar melhor."
       },
       overfocus: {
-        shortAnswer: manyFronts ? "HÃ¡ sinais de energia espalhada em vÃ¡rias frentes." : "NÃ£o percebo sinal forte de dispersÃ£o por enquanto.",
+        shortAnswer: manyFronts ? "Há sinais de energia espalhada em várias frentes." : "Não percebo sinal forte de dispersão por enquanto.",
         insight: manyFronts
-          ? "Quando muitos projetos aparecem juntos, o risco nÃ£o Ã© falta de ideia: Ã© dividir energia antes de fechar uma entrega."
+          ? "Quando muitos projetos aparecem juntos, o risco não é falta de ideia: é dividir energia antes de fechar uma entrega."
           : "O foco mais forte parece estar em " + (dominantProject || "um projeto principal") + ".",
-        nextAction: "Definir uma frente principal para os prÃ³ximos 7 dias."
+        nextAction: "Definir uma frente principal para os próximos 7 dias."
       },
       pattern: {
-        shortAnswer: "O padrÃ£o que aparece Ã© construÃ§Ã£o tÃ©cnica com busca de sentido.",
-        insight: "VocÃª tende a transformar problemas prÃ¡ticos em sistemas: produto, memÃ³ria, automaÃ§Ã£o, relatÃ³rio, rotina e organizaÃ§Ã£o.",
-        nextAction: "Separar o que Ã© produto vendÃ¡vel do que Ã© expansÃ£o futura."
+        shortAnswer: "O padrão que aparece é construção técnica com busca de sentido.",
+        insight: "Você tende a transformar problemas práticos em sistemas: produto, memória, automação, relatório, rotina e organização.",
+        nextAction: "Separar o que é produto vendável do que é expansão futura."
       },
       construction: {
-        shortAnswer: "VocÃª parece estar tentando construir uma base de produtos tÃ©cnicos e assistentes inteligentes.",
-        insight: dominantProject ? "O centro mais recorrente agora parece ser " + dominantProject + "." : "Os registros apontam para projetos tÃ©cnicos, organizaÃ§Ã£o e memÃ³ria.",
+        shortAnswer: "Você parece estar tentando construir uma base de produtos técnicos e assistentes inteligentes.",
+        insight: dominantProject ? "O centro mais recorrente agora parece ser " + dominantProject + "." : "Os registros apontam para projetos técnicos, organização e memória.",
         nextAction: "Escolher uma entrega pequena que prove valor para outra pessoa."
       }
     };
@@ -8348,7 +8348,7 @@
         answer.shortAnswer,
         sharedEvidence,
         answer.insight,
-        "PrÃ³xima aÃ§Ã£o sugerida:\n" + answer.nextAction
+        "Próxima ação sugerida:\n" + answer.nextAction
       ].filter(Boolean).join("\n\n"),
       nextAction: answer.nextAction,
       canSave: false,
@@ -8372,7 +8372,7 @@
       "gerar pdf",
       "como criar rdo",
       "como criar relatorio",
-      "como criar relatÃ³rio",
+      "como criar relatório",
       "como adicionar materiais",
       "como registrar materiais",
       "qual plano",
@@ -8380,16 +8380,16 @@
     ])) {
       return null;
     }
-    if (hasAnyTerm(text, ["o que esta travando", "o que estÃ¡ travando", "o que esta me travando", "o que estÃ¡ me travando", "o que esta me atrasando", "o que estÃ¡ me atrasando", "travando", "atrasando", "bloqueio", "bloqueios"])) {
+    if (hasAnyTerm(text, ["o que esta travando", "o que está travando", "o que esta me travando", "o que está me travando", "o que esta me atrasando", "o que está me atrasando", "travando", "atrasando", "bloqueio", "bloqueios"])) {
       return "obstacle";
     }
     if (hasAnyTerm(text, ["o que devo priorizar", "devo priorizar", "qual projeto devo terminar primeiro", "projeto devo terminar", "onde devo focar", "em que devo focar", "prioridade", "priorizar"])) {
       return "priority";
     }
-    if (hasAnyTerm(text, ["o que devo fazer agora", "qual meu proximo passo", "qual meu prÃ³ximo passo", "proximo passo", "prÃ³ximo passo", "o que falta para vender", "o que falta concluir", "o que falta pra vender", "o que falta pra concluir"])) {
+    if (hasAnyTerm(text, ["o que devo fazer agora", "qual meu proximo passo", "qual meu próximo passo", "proximo passo", "próximo passo", "o que falta para vender", "o que falta concluir", "o que falta pra vender", "o que falta pra concluir"])) {
       return "next_step";
     }
-    if (/\bou\b/.test(text) || hasAnyTerm(text, ["me ajude a decidir", "decisao mais logica", "decisÃ£o mais lÃ³gica", "qual caminho seguir", "qual vale mais a pena", "decidir"])) {
+    if (/\bou\b/.test(text) || hasAnyTerm(text, ["me ajude a decidir", "decisao mais logica", "decisão mais lógica", "qual caminho seguir", "qual vale mais a pena", "decidir"])) {
       return "decision";
     }
     if (hasAnyTerm(text, ["estou no caminho certo", "estou indo bem", "isso vale a pena", "faz sentido continuar", "caminho certo"])) {
@@ -8419,7 +8419,7 @@
 
   function formatLogicalProjectOptions_(context) {
     if (!context.projects.length) {
-      return "Ainda nÃ£o tenho projetos suficientes registrados para comparar com seguranÃ§a.";
+      return "Ainda não tenho projetos suficientes registrados para comparar com segurança.";
     }
     return context.projects.slice(0, 5).map(function (project, index) {
       return (index + 1) + ". " + project;
@@ -8429,22 +8429,22 @@
   function getProjectCommercialHint_(projectName) {
     const text = normalizeText(projectName);
     if (text.indexOf("obrareport") >= 0 || text.indexOf("stock ia") >= 0) {
-      return "mais prÃ³ximo de entrega comercial";
+      return "mais próximo de entrega comercial";
     }
     if (text.indexOf("elo") >= 0 || text.indexOf("cadista") >= 0) {
       return "com potencial maior, mas provavelmente mais evolutivo";
     }
-    return "precisa ser avaliado pelo prÃ³ximo resultado concreto";
+    return "precisa ser avaliado pelo próximo resultado concreto";
   }
 
   function buildProjectPriorityAnalysis_(context) {
     if (!context.projects.length) {
       return [
         "Contexto percebido:\nAinda tenho poucos projetos registrados para montar uma prioridade real.",
-        "OpÃ§Ãµes encontradas:\nRegistre seus projetos, objetivos ou marcos na Linha do Tempo para eu comparar sem inventar dados.",
-        "CritÃ©rio de comparaÃ§Ã£o:\nproximidade de entrega, utilidade prÃ¡tica, potencial comercial e dependÃªncias.",
-        "ConclusÃ£o lÃ³gica:\ncomece pela frente que consegue virar uma entrega demonstrÃ¡vel mais rÃ¡pido.",
-        "PrÃ³xima aÃ§Ã£o pequena:\nregistre 2 ou 3 projetos ativos e marque qual deles precisa vender primeiro."
+        "Opções encontradas:\nRegistre seus projetos, objetivos ou marcos na Linha do Tempo para eu comparar sem inventar dados.",
+        "Critério de comparação:\nproximidade de entrega, utilidade prática, potencial comercial e dependências.",
+        "Conclusão lógica:\ncomece pela frente que consegue virar uma entrega demonstrável mais rápido.",
+        "Próxima ação pequena:\nregistre 2 ou 3 projetos ativos e marque qual deles precisa vender primeiro."
       ].join("\n\n");
     }
 
@@ -8461,15 +8461,15 @@
 
     return [
       "Contexto percebido:\nPelo que eu acompanho, existem frentes com pesos diferentes na sua jornada.",
-      "OpÃ§Ãµes encontradas:\n" + formatLogicalProjectOptions_(context),
-      "CritÃ©rio de comparaÃ§Ã£o:\nproximidade de conclusÃ£o, utilidade prÃ¡tica, potencial comercial, dependÃªncias e frequÃªncia de apariÃ§Ã£o nas suas memÃ³rias.",
-      "Projetos mais prÃ³ximos de conclusÃ£o:\n" + topProjects.map(function (project, index) {
-        return (index + 1) + ". " + project + " â€” " + getProjectCommercialHint_(project) + ".";
+      "Opções encontradas:\n" + formatLogicalProjectOptions_(context),
+      "Critério de comparação:\nproximidade de conclusão, utilidade prática, potencial comercial, dependências e frequência de aparição nas suas memórias.",
+      "Projetos mais próximos de conclusão:\n" + topProjects.map(function (project, index) {
+        return (index + 1) + ". " + project + " — " + getProjectCommercialHint_(project) + ".";
       }).join("\n"),
-      "Projeto mais prÃ³ximo de gerar resultado:\n" + commercial + ".",
+      "Projeto mais próximo de gerar resultado:\n" + commercial + ".",
       "Projeto mais experimental:\n" + experimental + ".",
-      "ConclusÃ£o lÃ³gica:\npriorizar " + commercial + " parece mais seguro se o critÃ©rio for resultado prÃ¡tico no curto prazo.",
-      "PrÃ³xima aÃ§Ã£o pequena:\nfechar uma entrega demonstrÃ¡vel antes de abrir outra frente grande."
+      "Conclusão lógica:\npriorizar " + commercial + " parece mais seguro se o critério for resultado prático no curto prazo.",
+      "Próxima ação pequena:\nfechar uma entrega demonstrável antes de abrir outra frente grande."
     ].join("\n\n");
   }
 
@@ -8479,22 +8479,22 @@
     if (!focus && !goal) {
       return [
         "Contexto percebido:\nAinda tenho pouco contexto salvo sobre seu foco atual.",
-        "OpÃ§Ãµes encontradas:\norganizar projetos, definir um objetivo da semana ou registrar um marco recente.",
-        "CritÃ©rio de comparaÃ§Ã£o:\na aÃ§Ã£o que desbloqueia mais decisÃµes com menor esforÃ§o.",
-        "ConclusÃ£o lÃ³gica:\no melhor prÃ³ximo passo Ã© escolher uma Ãºnica frente para terminar primeiro.",
-        "PrÃ³xima aÃ§Ã£o pequena:\nescreva o projeto principal e uma entrega que pode ser validada hoje."
+        "Opções encontradas:\norganizar projetos, definir um objetivo da semana ou registrar um marco recente.",
+        "Critério de comparação:\na ação que desbloqueia mais decisões com menor esforço.",
+        "Conclusão lógica:\no melhor próximo passo é escolher uma única frente para terminar primeiro.",
+        "Próxima ação pequena:\nescreva o projeto principal e uma entrega que pode ser validada hoje."
       ].join("\n\n");
     }
     return [
-      "Contexto percebido:\n" + (focus ? "Seu foco mais visÃ­vel parece ser " + focus + "." : "Seu objetivo mais visÃ­vel Ã© " + goal + "."),
-      "OpÃ§Ãµes encontradas:\n" + [
+      "Contexto percebido:\n" + (focus ? "Seu foco mais visível parece ser " + focus + "." : "Seu objetivo mais visível é " + goal + "."),
+      "Opções encontradas:\n" + [
         focus ? "- continuar " + focus : "",
-        goal ? "- avanÃ§ar no objetivo: " + goal : "",
-        "- revisar pendÃªncias antes de criar algo novo"
+        goal ? "- avançar no objetivo: " + goal : "",
+        "- revisar pendências antes de criar algo novo"
       ].filter(Boolean).join("\n"),
-      "CritÃ©rio de comparaÃ§Ã£o:\na aÃ§Ã£o que deixa o projeto mais prÃ³ximo de uso real ou venda.",
-      "ConclusÃ£o lÃ³gica:\neu comeÃ§aria pela aÃ§Ã£o que destrava mais coisas e reduz dispersÃ£o.",
-      "PrÃ³xima aÃ§Ã£o pequena:\nvalidar o ciclo atual, registrar o que falta e concluir uma entrega testÃ¡vel."
+      "Critério de comparação:\na ação que deixa o projeto mais próximo de uso real ou venda.",
+      "Conclusão lógica:\neu começaria pela ação que destrava mais coisas e reduz dispersão.",
+      "Próxima ação pequena:\nvalidar o ciclo atual, registrar o que falta e concluir uma entrega testável."
     ].join("\n\n");
   }
 
@@ -8512,28 +8512,28 @@
 
   function buildDecisionAnalysis_(context, message) {
     const options = extractDecisionOptions_(message, context);
-    const optionA = options[0] || "opÃ§Ã£o A";
-    const optionB = options[1] || "opÃ§Ã£o B";
+    const optionA = options[0] || "opção A";
+    const optionB = options[1] || "opção B";
     const hasRealOptions = options.length >= 2;
 
     if (!hasRealOptions) {
       return [
-        "Contexto percebido:\nVocÃª estÃ¡ pedindo ajuda para decidir, mas ainda nÃ£o tenho duas opÃ§Ãµes explÃ­citas para comparar.",
-        "OpÃ§Ãµes encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda nÃ£o hÃ¡ opÃ§Ãµes suficientes registradas."),
-        "CritÃ©rio principal:\ncompare retorno prÃ¡tico, risco, esforÃ§o e o que cada opÃ§Ã£o destrava agora.",
-        "ConclusÃ£o lÃ³gica:\nsem duas opÃ§Ãµes claras, a decisÃ£o mais segura Ã© formular a escolha antes de escolher.",
-        "PrÃ³xima aÃ§Ã£o pequena:\nescreva no formato: devo fazer A ou B?"
+        "Contexto percebido:\nVocê está pedindo ajuda para decidir, mas ainda não tenho duas opções explícitas para comparar.",
+        "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda não há opções suficientes registradas."),
+        "Critério principal:\ncompare retorno prático, risco, esforço e o que cada opção destrava agora.",
+        "Conclusão lógica:\nsem duas opções claras, a decisão mais segura é formular a escolha antes de escolher.",
+        "Próxima ação pequena:\nescreva no formato: devo fazer A ou B?"
       ].join("\n\n");
     }
 
     return [
-      "Contexto percebido:\nVocÃª estÃ¡ pedindo uma decisÃ£o, nÃ£o sÃ³ uma resposta rÃ¡pida.",
-      "OpÃ§Ãµes encontradas:\n- " + optionA + "\n- " + optionB,
-      "Vantagens da opÃ§Ã£o A:\n" + (hasRealOptions ? "pode ser melhor se estiver mais prÃ³xima de uma entrega concreta." : "preciso que vocÃª nomeie a primeira opÃ§Ã£o para comparar melhor."),
-      "Vantagens da opÃ§Ã£o B:\n" + (hasRealOptions ? "pode ser melhor se remover um bloqueio importante ou tiver maior retorno agora." : "preciso que vocÃª nomeie a segunda opÃ§Ã£o para comparar melhor."),
-      "CritÃ©rio principal:\npriorize o caminho que gera aprendizado real, venda, validaÃ§Ã£o ou reduÃ§Ã£o de risco mais rÃ¡pido.",
-      "RecomendaÃ§Ã£o:\neu posso estar errado, mas escolheria a opÃ§Ã£o mais prÃ³xima de uma entrega testÃ¡vel, nÃ£o necessariamente a mais empolgante.",
-      "PrÃ³xima aÃ§Ã£o pequena:\ndefina uma entrega de atÃ© 24 horas para a opÃ§Ã£o escolhida."
+      "Contexto percebido:\nVocê está pedindo uma decisão, não só uma resposta rápida.",
+      "Opções encontradas:\n- " + optionA + "\n- " + optionB,
+      "Vantagens da opção A:\n" + (hasRealOptions ? "pode ser melhor se estiver mais próxima de uma entrega concreta." : "preciso que você nomeie a primeira opção para comparar melhor."),
+      "Vantagens da opção B:\n" + (hasRealOptions ? "pode ser melhor se remover um bloqueio importante ou tiver maior retorno agora." : "preciso que você nomeie a segunda opção para comparar melhor."),
+      "Critério principal:\npriorize o caminho que gera aprendizado real, venda, validação ou redução de risco mais rápido.",
+      "Recomendação:\neu posso estar errado, mas escolheria a opção mais próxima de uma entrega testável, não necessariamente a mais empolgante.",
+      "Próxima ação pequena:\ndefina uma entrega de até 24 horas para a opção escolhida."
     ].join("\n\n");
   }
 
@@ -8541,26 +8541,26 @@
     const manyFronts = context.projects.length >= 3;
     const hasGoal = Boolean(context.currentGoal);
     return [
-      "Contexto percebido:\n" + (context.hasMemory ? "Pelo que eu acompanho, jÃ¡ existem sinais suficientes para observar padrÃµes com cuidado." : "Ainda tenho poucos dados salvos, entÃ£o vou responder sem afirmar mais do que sei."),
-      "OpÃ§Ãµes encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda nÃ£o hÃ¡ projetos suficientes registrados para comparar."),
-      "CritÃ©rio de comparaÃ§Ã£o:\nquantidade de frentes abertas, clareza do objetivo atual e proximidade de conclusÃ£o.",
-      "ConclusÃ£o lÃ³gica:\n" + (manyFronts
-        ? "o bloqueio principal parece menos tÃ©cnico e mais ligado a foco: muitas possibilidades abertas ao mesmo tempo."
-        : (hasGoal ? "o bloqueio pode estar em transformar o objetivo em uma aÃ§Ã£o pequena e verificÃ¡vel." : "o bloqueio mais provÃ¡vel Ã© falta de uma prÃ³xima aÃ§Ã£o claramente definida.")),
-      "PrÃ³xima aÃ§Ã£o pequena:\n" + (manyFronts ? "escolha uma frente principal para os prÃ³ximos 7 dias." : "escreva uma tarefa pequena que possa ser concluÃ­da hoje.")
+      "Contexto percebido:\n" + (context.hasMemory ? "Pelo que eu acompanho, já existem sinais suficientes para observar padrões com cuidado." : "Ainda tenho poucos dados salvos, então vou responder sem afirmar mais do que sei."),
+      "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "Ainda não há projetos suficientes registrados para comparar."),
+      "Critério de comparação:\nquantidade de frentes abertas, clareza do objetivo atual e proximidade de conclusão.",
+      "Conclusão lógica:\n" + (manyFronts
+        ? "o bloqueio principal parece menos técnico e mais ligado a foco: muitas possibilidades abertas ao mesmo tempo."
+        : (hasGoal ? "o bloqueio pode estar em transformar o objetivo em uma ação pequena e verificável." : "o bloqueio mais provável é falta de uma próxima ação claramente definida.")),
+      "Próxima ação pequena:\n" + (manyFronts ? "escolha uma frente principal para os próximos 7 dias." : "escreva uma tarefa pequena que possa ser concluída hoje.")
     ].join("\n\n");
   }
 
   function buildPathDirectionAnalysis_(context) {
     const focus = context.mainProject || context.currentGoal || "";
     return [
-      "Contexto percebido:\n" + (focus ? "O foco que mais aparece agora Ã© " + focus + "." : "Ainda tenho pouco contexto salvo para avaliar sua direÃ§Ã£o com firmeza."),
-      "OpÃ§Ãµes encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "organizar o foco, registrar objetivos e validar uma entrega pequena."),
-      "CritÃ©rio de comparaÃ§Ã£o:\nutilidade prÃ¡tica, potencial comercial, continuidade e reduÃ§Ã£o de dispersÃ£o.",
-      "ConclusÃ£o lÃ³gica:\n" + (focus
-        ? "se o objetivo for construir algo Ãºtil e comercial, os avanÃ§os parecem apontar nessa direÃ§Ã£o. O maior risco Ã© espalhar energia entre muitas frentes."
-        : "o caminho fica mais claro quando vocÃª transforma uma ideia grande em uma prÃ³xima entrega pequena."),
-      "PrÃ³xima aÃ§Ã£o pequena:\nvalidar o ciclo atual antes de abrir novas funcionalidades."
+      "Contexto percebido:\n" + (focus ? "O foco que mais aparece agora é " + focus + "." : "Ainda tenho pouco contexto salvo para avaliar sua direção com firmeza."),
+      "Opções encontradas:\n" + (context.projects.length ? formatLogicalProjectOptions_(context) : "organizar o foco, registrar objetivos e validar uma entrega pequena."),
+      "Critério de comparação:\nutilidade prática, potencial comercial, continuidade e redução de dispersão.",
+      "Conclusão lógica:\n" + (focus
+        ? "se o objetivo for construir algo útil e comercial, os avanços parecem apontar nessa direção. O maior risco é espalhar energia entre muitas frentes."
+        : "o caminho fica mais claro quando você transforma uma ideia grande em uma próxima entrega pequena."),
+      "Próxima ação pequena:\nvalidar o ciclo atual antes de abrir novas funcionalidades."
     ].join("\n\n");
   }
 
@@ -8578,16 +8578,16 @@
       direction: buildPathDirectionAnalysis_(currentContext)
     };
     const nextActionMap = {
-      priority: "Escolha uma frente principal e uma entrega demonstrÃ¡vel.",
-      next_step: "Concluir uma aÃ§Ã£o pequena que destrave o ciclo atual.",
-      decision: "Compare as opÃ§Ãµes pelo resultado que cada uma destrava agora.",
+      priority: "Escolha uma frente principal e uma entrega demonstrável.",
+      next_step: "Concluir uma ação pequena que destrave o ciclo atual.",
+      decision: "Compare as opções pelo resultado que cada uma destrava agora.",
       obstacle: "Reduza a quantidade de frentes abertas por alguns dias.",
       direction: "Valide o ciclo atual antes de abrir novas funcionalidades."
     };
     return {
       shortAnswer: "Vou raciocinar por partes, sem fingir certeza.",
       fullAnswer: answerMap[intent] || buildNextStepRecommendation_(currentContext),
-      nextAction: nextActionMap[intent] || "Escolha uma prÃ³xima aÃ§Ã£o pequena.",
+      nextAction: nextActionMap[intent] || "Escolha uma próxima ação pequena.",
       canSave: false,
       sessionTheme: "raciocinio",
       sessionIntent: "raciocinio_logico"
@@ -8774,13 +8774,13 @@
       /^decidi que\s+(.+)$/i,
       /^decidimos que\s+(.+)$/i,
       /^a decisao e\s+(.+)$/i,
-      /^a decisao Ã©\s+(.+)$/i,
+      /^a decisao é\s+(.+)$/i,
       /^vou focar em\s+(.+)$/i,
       /^vou pausar\s+(.+)$/i,
       /^nao vou mexer em\s+(.+)$/i,
-      /^nÃ£o vou mexer em\s+(.+)$/i,
+      /^não vou mexer em\s+(.+)$/i,
       /^prioridade agora e\s+(.+)$/i,
-      /^prioridade agora Ã©\s+(.+)$/i,
+      /^prioridade agora é\s+(.+)$/i,
       /^fica decidido\s+(.+)$/i
     ];
     for (let index = 0; index < patterns.length; index += 1) {
@@ -8798,7 +8798,7 @@
         };
       }
     }
-    if ((decisionText.indexOf("decisao") >= 0 || decisionText.indexOf("decisÃ£o") >= 0) && hasAnyTerm(decisionText, ["importante", "obrareport", "stock ia", "elo", "cadista ia"])) {
+    if ((decisionText.indexOf("decisao") >= 0 || decisionText.indexOf("decisão") >= 0) && hasAnyTerm(decisionText, ["importante", "obrareport", "stock ia", "elo", "cadista ia"])) {
       return {
         title: "Decisao importante",
         decision: cleanQuestion,
@@ -8832,13 +8832,13 @@
     return hasAnyTerm(text, [
       "decidi",
       "decisao",
-      "decisÃ£o",
+      "decisão",
       "vou focar",
       "vou pausar",
       "prioridade",
       "fica decidido",
       "nao vou mexer",
-      "nÃ£o vou mexer"
+      "não vou mexer"
     ]);
   }
 
@@ -8874,13 +8874,13 @@
     const text = normalizeText(question);
     if (!hasAnyTerm(text, [
       "quais decisoes eu tomei",
-      "quais decisÃµes eu tomei",
+      "quais decisões eu tomei",
       "minhas decisoes",
-      "minhas decisÃµes",
+      "minhas decisões",
       "qual foi minha ultima decisao",
-      "qual foi minha Ãºltima decisÃ£o",
+      "qual foi minha última decisão",
       "ultima decisao importante",
-      "Ãºltima decisÃ£o importante",
+      "última decisão importante",
       "o que eu tinha decidido antes",
       "o que decidi sobre",
       "por que eu pausei"
@@ -8905,7 +8905,7 @@
     }
     const latest = decisions[0];
     return {
-      shortAnswer: hasAnyTerm(text, ["ultima", "Ãºltima"]) ? "Sua ultima decisao registrada foi: " + latest.title + "." : "Encontrei estas decisoes na sua jornada.",
+      shortAnswer: hasAnyTerm(text, ["ultima", "última"]) ? "Sua ultima decisao registrada foi: " + latest.title + "." : "Encontrei estas decisoes na sua jornada.",
       fullAnswer: decisions.slice(0, 6).map(function (item) {
         const date = item.createdAt ? " - " + formatDateTime(item.createdAt) : "";
         const project = item.project ? " (" + item.project + ")" : "";
@@ -8999,7 +8999,7 @@
       "como abrir rdo",
       "como criar rdo",
       "como lancar material",
-      "como lanÃ§ar material",
+      "como lançar material",
       "como registrar material",
       "como registrar materiais",
       "como usar stock ia",
@@ -9017,13 +9017,13 @@
     }
     return hasAnyTerm(text, [
       "o que voce acha que eu deveria fazer",
-      "o que vocÃª acha que eu deveria fazer",
+      "o que você acha que eu deveria fazer",
       "o que eu faco agora",
-      "o que eu faÃ§o agora",
+      "o que eu faço agora",
       "o que faco agora",
-      "o que faÃ§o agora",
+      "o que faço agora",
       "me de uma orientacao",
-      "me dÃª uma orientaÃ§Ã£o",
+      "me dê uma orientação",
       "o que faz mais sentido agora",
       "o que faz mais sentido",
       "qual caminho eu devo seguir",
@@ -9031,7 +9031,7 @@
       "estou perdida",
       "me ajuda a pensar",
       "qual meu proximo passo",
-      "qual meu prÃ³ximo passo"
+      "qual meu próximo passo"
     ]);
   }
 
@@ -9042,14 +9042,14 @@
     }
     return hasAnyTerm(text, [
       "qual e sua recomendacao",
-      "qual Ã© sua recomendaÃ§Ã£o",
+      "qual é sua recomendação",
       "sua recomendacao",
-      "sua recomendaÃ§Ã£o",
+      "sua recomendação",
       "qual caminho eu devo seguir",
       "qual e a melhor decisao",
-      "qual Ã© a melhor decisÃ£o",
+      "qual é a melhor decisão",
       "o que voce recomenda",
-      "o que vocÃª recomenda",
+      "o que você recomenda",
       "o que recomenda"
     ]);
   }
@@ -9203,11 +9203,11 @@
       "vou dormir",
       "boa noite",
       "ate amanha",
-      "ate amanhÃ£",
+      "ate amanhã",
       "encerrar por hoje",
       "fechar por hoje",
       "continuar amanha",
-      "continuar amanhÃ£",
+      "continuar amanhã",
       "cansado por hoje",
       "cansada por hoje"
     ];
@@ -9216,8 +9216,8 @@
       "estou cansada",
       "to cansado",
       "to cansada",
-      "tÃ´ cansado",
-      "tÃ´ cansada",
+      "tô cansado",
+      "tô cansada",
       "cansado",
       "cansada"
     ];
@@ -9271,7 +9271,7 @@
       "resumo de hoje",
       "o que fizemos hoje",
       "o que avancou hoje",
-      "o que avanÃ§ou hoje",
+      "o que avançou hoje",
       "fechamento do dia"
     ]);
   }
@@ -9344,7 +9344,7 @@
     return {
       name: ELO_PROFILE.name,
       role: "companheiro digital e copiloto inteligente",
-      essence: "ajudar o usuÃ¡rio a lembrar, pensar, decidir, organizar e executar",
+      essence: "ajudar o usuário a lembrar, pensar, decidir, organizar e executar",
       modes: ["standalone", "obrareport"],
       currentMode: runtime.mode,
       runtime: runtime,
@@ -9401,29 +9401,29 @@
   function buildEloAnswerDraft(message, context, plan) {
     const name = context.userName ? context.userName + ", " : "";
     if (plan.need === "operational_guidance" && context.runtime.isObraReport) {
-      return "Posso te ajudar a criar um RDO, lanÃ§ar material, gerar PDF, usar o Stock IA, revisar um relatÃ³rio ou organizar seu prÃ³ximo passo.";
+      return "Posso te ajudar a criar um RDO, lançar material, gerar PDF, usar o Stock IA, revisar um relatório ou organizar seu próximo passo.";
     }
     if (plan.need === "operational_guidance") {
-      return "Posso te orientar sobre ObraReport, RDO, PDF, materiais e Stock IA, mas tambÃ©m posso ajudar com projetos, decisÃµes e organizaÃ§Ã£o de ideias.";
+      return "Posso te orientar sobre ObraReport, RDO, PDF, materiais e Stock IA, mas também posso ajudar com projetos, decisões e organização de ideias.";
     }
     if (context.hasMemory && (plan.need === "general" || plan.need === "decision_support")) {
-      return name + "pelo que eu lembro, o melhor caminho Ã© transformar a dÃºvida em uma prÃ³xima aÃ§Ã£o pequena. Posso olhar seus projetos, prioridades ou sua linha do tempo para ajudar com mais contexto.";
+      return name + "pelo que eu lembro, o melhor caminho é transformar a dúvida em uma próxima ação pequena. Posso olhar seus projetos, prioridades ou sua linha do tempo para ajudar com mais contexto.";
     }
     if (context.runtime.isStandalone) {
-      return "Posso te ajudar por alguns caminhos. Posso organizar uma ideia, lembrar um projeto, ajudar em uma decisÃ£o ou transformar uma ideia em plano.";
+      return "Posso te ajudar por alguns caminhos. Posso organizar uma ideia, lembrar um projeto, ajudar em uma decisão ou transformar uma ideia em plano.";
     }
-    return "Posso te ajudar a criar um RDO, lanÃ§ar material, gerar PDF, usar o Stock IA, revisar um relatÃ³rio ou organizar seu prÃ³ximo passo.";
+    return "Posso te ajudar a criar um RDO, lançar material, gerar PDF, usar o Stock IA, revisar um relatório ou organizar seu próximo passo.";
   }
 
   function polishEloAnswer(answer, context, plan) {
     const polished = String(answer || "").trim()
-      .replace(/NÃ£o encontrei na memÃ³ria/gi, "Ainda nÃ£o tenho isso salvo")
+      .replace(/Não encontrei na memória/gi, "Ainda não tenho isso salvo")
       .replace(/Dados encontrados/gi, "Pelo que eu lembro")
-      .replace(/VocÃª deve/gi, "Eu comeÃ§aria por");
+      .replace(/Você deve/gi, "Eu começaria por");
     if (!polished) {
       return context && context.runtime && context.runtime.isStandalone
-        ? "Posso te ajudar a pensar, lembrar, organizar projetos, tomar decisÃµes ou transformar uma ideia em plano."
-        : "Posso te ajudar com ObraReport, RDO, PDF, materiais, Stock IA ou prÃ³ximos passos.";
+        ? "Posso te ajudar a pensar, lembrar, organizar projetos, tomar decisões ou transformar uma ideia em plano."
+        : "Posso te ajudar com ObraReport, RDO, PDF, materiais, Stock IA ou próximos passos.";
     }
     return polished;
   }
@@ -9441,16 +9441,16 @@
     if (intent === "memory_question" || runtime.isMemory) {
       return "memoria";
     }
-    if (intent === "logical_reasoning" || runtime.isReasoning || hasAnyTerm(text, ["priorizar", "decidir", "decisao", "decisÃ£o", "proximo passo", "prÃ³ximo passo", "caminho certo"])) {
+    if (intent === "logical_reasoning" || runtime.isReasoning || hasAnyTerm(text, ["priorizar", "decidir", "decisao", "decisão", "proximo passo", "próximo passo", "caminho certo"])) {
       return "decisao";
     }
-    if (hasAnyTerm(text, ["nao vou dar conta", "nÃ£o vou dar conta", "estou cansado", "estou cansada", "estou perdido", "estou perdida", "medo", "inseguro", "insegura"])) {
+    if (hasAnyTerm(text, ["nao vou dar conta", "não vou dar conta", "estou cansado", "estou cansada", "estou perdido", "estou perdida", "medo", "inseguro", "insegura"])) {
       return "desabafo";
     }
     if (intent === "pdf_help" || intent === "rdo_help" || intent === "materials_help" || intent === "stock_help" || intent === "report_help" || runtime.isOperational) {
       return "duvida_tecnica";
     }
-    if (intent === "continuity" || hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "o que faco", "o que faÃ§o"])) {
+    if (intent === "continuity" || hasAnyTerm(text, ["me ajuda", "me ajude", "e agora", "continua", "o que faco", "o que faço"])) {
       return "continuidade";
     }
     if (hasAnyTerm(text, ["projeto", "produtividade", "foco", "entrega", "vender", "concluir"])) {
@@ -9461,10 +9461,10 @@
 
   function detectEloAnswerDepth_(message) {
     const text = normalizeEloText(message);
-    if (hasAnyTerm(text, ["explique melhor", "aprofunde", "quero detalhes", "analise completa", "anÃ¡lise completa", "desenvolva melhor", "me de mais contexto", "me dÃª mais contexto", "resposta completa"])) {
+    if (hasAnyTerm(text, ["explique melhor", "aprofunde", "quero detalhes", "analise completa", "análise completa", "desenvolva melhor", "me de mais contexto", "me dê mais contexto", "resposta completa"])) {
       return "profunda";
     }
-    if (hasAnyTerm(text, ["explique", "detalhe", "analise", "anÃ¡lise"])) {
+    if (hasAnyTerm(text, ["explique", "detalhe", "analise", "análise"])) {
       return "media";
     }
     return "curta";
@@ -9485,16 +9485,16 @@
   function avoidRoboticEloPhrases(answer) {
     return String(answer || "")
       .replace(/Como uma IA[, ]*/gi, "")
-      .replace(/Como inteligÃƒÂªncia artificial[, ]*/gi, "")
-      .replace(/Como inteligÃªncia artificial[, ]*/gi, "")
-      .replace(/NÃƒÂ£o tenho emoÃƒÂ§ÃƒÂµes ou consciÃƒÂªncia humana\.?/gi, "Nao sou uma pessoa.")
-      .replace(/NÃ£o tenho emoÃ§Ãµes ou consciÃªncia humana\.?/gi, "Nao sou uma pessoa.")
-      .replace(/NÃƒÂ£o tenho consciÃƒÂªncia humana\.?/gi, "Nao sou uma pessoa.")
-      .replace(/NÃ£o tenho consciÃªncia humana\.?/gi, "Nao sou uma pessoa.")
-      .replace(/Com base nos dados disponÃƒÂ­veis/gi, "Pelo que aparece agora")
-      .replace(/Com base nos dados disponÃ­veis/gi, "Pelo que aparece agora")
-      .replace(/NÃƒÂ£o encontrei cadastro/gi, "Ainda nao encontrei isso")
-      .replace(/NÃ£o encontrei cadastro/gi, "Ainda nao encontrei isso")
+      .replace(/Como inteligência artificial[, ]*/gi, "")
+      .replace(/Como inteligência artificial[, ]*/gi, "")
+      .replace(/Não tenho emoções ou consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Não tenho emoções ou consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Não tenho consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Não tenho consciência humana\.?/gi, "Nao sou uma pessoa.")
+      .replace(/Com base nos dados disponíveis/gi, "Pelo que aparece agora")
+      .replace(/Com base nos dados disponíveis/gi, "Pelo que aparece agora")
+      .replace(/Não encontrei cadastro/gi, "Ainda nao encontrei isso")
+      .replace(/Não encontrei cadastro/gi, "Ainda nao encontrei isso")
       .replace(/Montei um resumo/gi, "O que aparece")
       .replace(/Consultei sua base/gi, "Pelo que eu lembro")
       .replace(/Segundo a estrutura interna/gi, "Na pratica")
@@ -9516,7 +9516,7 @@
       text = "Posso ajudar por tres caminhos: organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo de um projeto.";
     }
     if (plan && plan.depth !== "profunda") {
-      text = text.replace(/^\s*PrÃƒÂ³xima aÃƒÂ§ÃƒÂ£o:\s*/gim, "Proxima acao: ");
+      text = text.replace(/^\s*Próxima ação:\s*/gim, "Proxima acao: ");
     }
     return text.trim();
   }
@@ -9609,8 +9609,8 @@
       shortAnswer: "Posso te ajudar.",
       fullAnswer: polishEloAnswer(buildEloAnswerDraft(message, context, plan), context, plan),
       nextAction: context.runtime.isStandalone
-        ? "Diga se quer organizar uma ideia, lembrar um projeto ou decidir o prÃ³ximo passo."
-        : "Diga se quer criar RDO, lanÃ§ar material, gerar PDF, usar Stock IA ou pensar no prÃ³ximo passo.",
+        ? "Diga se quer organizar uma ideia, lembrar um projeto ou decidir o próximo passo."
+        : "Diga se quer criar RDO, lançar material, gerar PDF, usar Stock IA ou pensar no próximo passo.",
       canSave: false,
       sessionTheme: "comunicacao",
       sessionIntent: "fallback_comunicativo"
@@ -9627,7 +9627,7 @@
       return "";
     }
 
-    const match = clean.match(/^(?:meu nome (?:e|Ã©)|eu me chamo|pode me chamar de|me chame de)\s+(.+)$/i);
+    const match = clean.match(/^(?:meu nome (?:e|é)|eu me chamo|pode me chamar de|me chame de)\s+(.+)$/i);
     if (match) {
       const explicitName = sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
       return isValidExplicitUserName_(explicitName) ? explicitName : "";
@@ -9648,24 +9648,24 @@
 
   function isStandaloneNameCaptureAttempt_(message) {
     const normalized = normalizeWakeCallText(message);
-    return /^(meu nome (?:e|Ã©)|eu me chamo|pode me chamar de|me chame de|sou)\s+/.test(normalized);
+    return /^(meu nome (?:e|é)|eu me chamo|pode me chamar de|me chame de|sou)\s+/.test(normalized);
   }
 
   function detectEloDemoQuestion_(text) {
     return hasAnyTerm(text, [
       "modo demonstracao",
-      "modo demonstraÃ§Ã£o",
+      "modo demonstração",
       "demonstrar o elo",
       "mostrar demonstracao",
-      "mostrar demonstraÃ§Ã£o",
+      "mostrar demonstração",
       "apresentacao do sistema",
-      "apresentaÃ§Ã£o do sistema",
+      "apresentação do sistema",
       "me mostre o que voce faz",
-      "me mostre o que vocÃª faz",
+      "me mostre o que você faz",
       "o que voce consegue fazer",
-      "o que vocÃª consegue fazer",
+      "o que você consegue fazer",
       "como voce pode ajudar",
-      "como vocÃª pode ajudar"
+      "como você pode ajudar"
     ]);
   }
 
@@ -9673,10 +9673,10 @@
     if (hasAnyTerm(text, ["quero criar um rdo", "quero fazer um rdo", "quero registrar rdo", "criar um rdo"])) {
       return "rdo";
     }
-    if (hasAnyTerm(text, ["quero fazer um relatorio", "quero fazer um relatÃ³rio", "quero criar um relatorio", "quero criar um relatÃ³rio"])) {
+    if (hasAnyTerm(text, ["quero fazer um relatorio", "quero fazer um relatório", "quero criar um relatorio", "quero criar um relatório"])) {
       return "relatorio";
     }
-    if (hasAnyTerm(text, ["quero lancar material", "quero lanÃ§ar material", "quero registrar material", "quero lancar materiais", "quero lanÃ§ar materiais", "quero lanÃ§ar material", "quero lancar material"])) {
+    if (hasAnyTerm(text, ["quero lancar material", "quero lançar material", "quero registrar material", "quero lancar materiais", "quero lançar materiais", "quero lançar material", "quero lancar material"])) {
       return "material";
     }
     if (hasAnyTerm(text, ["quero gerar pdf", "quero gerar um pdf", "quero exportar pdf"])) {
@@ -9685,7 +9685,7 @@
     if (hasAnyTerm(text, ["quero controlar estoque", "quero testar estoque", "quero usar stock ia"])) {
       return "estoque";
     }
-    if (hasAnyTerm(text, ["quero testar o sistema", "sou novo aqui", "sou nova aqui", "por onde comeco", "por onde comeÃ§o"])) {
+    if (hasAnyTerm(text, ["quero testar o sistema", "sou novo aqui", "sou nova aqui", "por onde comeco", "por onde começo"])) {
       return "inicio";
     }
     return "";
@@ -9694,9 +9694,9 @@
   function detectConstructionRecord(message) {
     const clean = sanitizeUserText(message);
     const text = normalizeEloText(clean);
-    const productionMatch = text.match(/(?:foram executados|foi executado|fizemos|hoje executamos|executamos)\s+([\d]+(?:[,.]\d+)?)\s*(m2|mÂ²|metros|metro|sacos|un|unidades)?\s+de\s+([a-z0-9\sÃ§Ã£ÃµÃ¡Ã©Ã­Ã³ÃºÃ¢ÃªÃ´]+?)(?:\s+e\s+|$)/);
+    const productionMatch = text.match(/(?:foram executados|foi executado|fizemos|hoje executamos|executamos)\s+([\d]+(?:[,.]\d+)?)\s*(m2|m²|metros|metro|sacos|un|unidades)?\s+de\s+([a-z0-9\sçãõáéíóúâêô]+?)(?:\s+e\s+|$)/);
     const materialMatches = [];
-    const materialRegex = /(?:usados|usamos|gastamos|foram usados|foi usado)\s+([\d]+(?:[,.]\d+)?)\s+(?:(sacos|saco|kg|m2|mÂ²|un|unidades?)\s+de\s+)?([a-z0-9\sÃ§Ã£ÃµÃ¡Ã©Ã­Ã³ÃºÃ¢ÃªÃ´]+?)(?:\s+e\s+|$)/g;
+    const materialRegex = /(?:usados|usamos|gastamos|foram usados|foi usado)\s+([\d]+(?:[,.]\d+)?)\s+(?:(sacos|saco|kg|m2|m²|un|unidades?)\s+de\s+)?([a-z0-9\sçãõáéíóúâêô]+?)(?:\s+e\s+|$)/g;
     let match = materialRegex.exec(text);
     while (match) {
       materialMatches.push({
@@ -9726,10 +9726,10 @@
     if (hasAnyTerm(text, ["voce e humano", "voce esta vivo", "voce sente emocao", "voce sente emocoes", "voce tem consciencia"])) {
       return "elo_limits";
     }
-    if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual Ã© o meu nome", "como eu me chamo", "voce sabe meu nome", "vocÃª sabe meu nome"])) {
+    if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
       return "user_name_question";
     }
-    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual Ã© seu nome", "qual o seu nome", "qual e o seu nome", "qual Ã© o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual Ã© o nome do elo", "seu nome e qual", "seu nome Ã© qual", "como voce se chama", "como vocÃª se chama", "quem e voce", "quem Ã© vocÃª", "quem e o elo", "quem Ã© o elo", "o que e o elo", "o que Ã© o elo"])) {
+    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "qual o seu nome", "qual e o seu nome", "qual é o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual é o nome do elo", "seu nome e qual", "seu nome é qual", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
       return "elo_identity";
     }
     if (detectDayClosingRequest(message)) {
@@ -9765,7 +9765,7 @@
     if (detectEloInitiativeOpportunity(message, context)) {
       return "initiative_opportunity";
     }
-    if (hasAnyTerm(text, ["o que voce faz", "o que vocÃª faz", "suas funcoes", "suas funÃ§Ãµes", "capacidades do elo", "como voce ajuda", "como vocÃª ajuda"])) {
+    if (hasAnyTerm(text, ["o que voce faz", "o que você faz", "suas funcoes", "suas funções", "capacidades do elo", "como voce ajuda", "como você ajuda"])) {
       return "capabilities";
     }
     if (detectLogicalReasoningQuestion(message)) {
@@ -9777,16 +9777,16 @@
     if (buildTimelineAnswer(message)) {
       return "timeline_question";
     }
-    if (detectNarrativeMemoryQuestion(message) || hasAnyTerm(text, ["meus projetos", "linha do tempo", "o que voce lembra", "o que vocÃª lembra"])) {
+    if (detectNarrativeMemoryQuestion(message) || hasAnyTerm(text, ["meus projetos", "linha do tempo", "o que voce lembra", "o que você lembra"])) {
       return "memory_question";
     }
-    if (isEloLibraryQuestion(message) || (hasAnyTerm(text, ["o que voce sabe sobre", "o que vocÃª sabe sobre"]) && buildEloLibraryAnswer(message))) {
+    if (isEloLibraryQuestion(message) || (hasAnyTerm(text, ["o que voce sabe sobre", "o que você sabe sobre"]) && buildEloLibraryAnswer(message))) {
       return "library_question";
     }
-    if (hasAnyTerm(text, ["como uso o sistema", "como usar o sistema", "nunca usei", "por onde comeco", "por onde comeÃ§o", "onde cadastro obra", "onde cadastrar obra", "onde cadastro cliente", "como envio para cliente", "como usar obrareport", "como funciona o obrareport", "o que e obrareport", "o que Ã© obrareport"])) {
+    if (hasAnyTerm(text, ["como uso o sistema", "como usar o sistema", "nunca usei", "por onde comeco", "por onde começo", "onde cadastro obra", "onde cadastrar obra", "onde cadastro cliente", "como envio para cliente", "como usar obrareport", "como funciona o obrareport", "o que e obrareport", "o que é obrareport"])) {
       return "system_help";
     }
-    if (hasAnyTerm(text, ["rdo", "diario de obra", "diario de obras", "diÃ¡rio de obra", "diÃ¡rio de obras", "servico executado", "serviÃ§o executado", "producao executada", "produÃ§Ã£o executada"])) {
+    if (hasAnyTerm(text, ["rdo", "diario de obra", "diario de obras", "diário de obra", "diário de obras", "servico executado", "serviço executado", "producao executada", "produção executada"])) {
       return "rdo_help";
     }
     if (hasAnyTerm(text, ["stock ia", "estoque", "almoxarifado", "materiais acabando", "entrada por nota", "saldo de estoque"])) {
@@ -9798,7 +9798,7 @@
     if (hasAnyTerm(text, ["pdf", "gerar pdf", "exportar pdf"])) {
       return "pdf_help";
     }
-    if (hasAnyTerm(text, ["relatorio tecnico", "relatÃ³rio tÃ©cnico", "relatorio", "relatÃ³rio", "vistoria", "laudo"])) {
+    if (hasAnyTerm(text, ["relatorio tecnico", "relatório técnico", "relatorio", "relatório", "vistoria", "laudo"])) {
       return "report_help";
     }
     if (getConceptResponse(message) || getPhilosophyResponse(message)) {
@@ -9824,9 +9824,9 @@
     let fullAnswer = "";
 
     if (focus) {
-      fullAnswer = "Eu comeÃ§aria pelo que destrava mais coisas agora: " + focus + ".\n\nSe a ideia Ã© avanÃ§ar sem abrir outra frente, escolha uma entrega pequena e conclua hoje.";
+      fullAnswer = "Eu começaria pelo que destrava mais coisas agora: " + focus + ".\n\nSe a ideia é avançar sem abrir outra frente, escolha uma entrega pequena e conclua hoje.";
     } else if (context.projects && context.projects.length) {
-      fullAnswer = "Vejo alguns projetos na sua jornada: " + formatNarrativeList(context.projects.slice(0, 3)) + ".\n\nO melhor prÃ³ximo passo Ã© escolher um deles e definir uma entrega pequena.";
+      fullAnswer = "Vejo alguns projetos na sua jornada: " + formatNarrativeList(context.projects.slice(0, 3)) + ".\n\nO melhor próximo passo é escolher um deles e definir uma entrega pequena.";
     } else {
       fullAnswer = "Posso ajudar por tres caminhos: organizar uma ideia, revisar sua biblioteca ou escolher o proximo passo de um projeto.";
     }
@@ -9861,17 +9861,17 @@
 
     const identity = buildEloIdentityContext();
     const fullAnswer = [
-      "Eu sou o Elo. Um companheiro digital criado para acompanhar sua jornada, ajudar vocÃª a organizar ideias, lembrar projetos, pensar com clareza e executar melhor.",
-      "Eu nÃ£o sou uma pessoa e nÃ£o tenho consciÃªncia humana. Sou um sistema digital com memÃ³ria local, linguagem e ferramentas para te orientar com seguranÃ§a."
+      "Eu sou o Elo. Um companheiro digital criado para acompanhar sua jornada, ajudar você a organizar ideias, lembrar projetos, pensar com clareza e executar melhor.",
+      "Eu não sou uma pessoa e não tenho consciência humana. Sou um sistema digital com memória local, linguagem e ferramentas para te orientar com segurança."
     ];
 
     if (identity.currentMode === "obrareport") {
-      fullAnswer.push("Neste ambiente, eu tambÃ©m atuo como copiloto tÃ©cnico para relatÃ³rios, RDO, PDF, materiais e Stock IA.");
+      fullAnswer.push("Neste ambiente, eu também atuo como copiloto técnico para relatórios, RDO, PDF, materiais e Stock IA.");
     } else {
-      fullAnswer.push("Quando estou fora do ObraReport, continuo sendo o mesmo Elo: posso ajudar com memÃ³rias, projetos, decisÃµes, linha do tempo, biblioteca e organizaÃ§Ã£o de ideias.");
+      fullAnswer.push("Quando estou fora do ObraReport, continuo sendo o mesmo Elo: posso ajudar com memórias, projetos, decisões, linha do tempo, biblioteca e organização de ideias.");
     }
 
-    fullAnswer.push("Eu sou o mesmo Elo, mas adapto minha ajuda ao contexto em que vocÃª estÃ¡.");
+    fullAnswer.push("Eu sou o mesmo Elo, mas adapto minha ajuda ao contexto em que você está.");
 
     return {
       shortAnswer: "Eu sou o Elo.",
@@ -9886,10 +9886,10 @@
   function buildUserNameQuestionAnswer_() {
     const name = getPreferredUserName();
     return {
-      shortAnswer: name ? "VocÃª me pediu para chamar vocÃª de " + name + "." : "Ainda nÃ£o sei o seu nome.",
+      shortAnswer: name ? "Você me pediu para chamar você de " + name + "." : "Ainda não sei o seu nome.",
       fullAnswer: name
         ? "Esse nome fica salvo apenas neste navegador."
-        : "Se quiser, diga: Meu nome Ã© Ãcaro.\n\nDepois disso eu posso lembrar como devo chamar vocÃª.",
+        : "Se quiser, diga: Meu nome é Ícaro.\n\nDepois disso eu posso lembrar como devo chamar você.",
       nextAction: name ? "Se quiser mudar, diga: pode me chamar de outro nome." : "Diga seu nome se quiser que eu personalize as respostas.",
       canSave: false,
       sessionTheme: "perfil",
@@ -9902,8 +9902,8 @@
     if (!name || isInvalidUserNameAnswer_(name)) {
       const greeting = getSocialGreetingResponse(message);
       return greeting || {
-        shortAnswer: "NÃ£o vou salvar isso como nome.",
-        fullAnswer: "Para evitar confusÃ£o, eu nÃ£o salvo cumprimentos ou comandos como nome. Se quiser, diga algo como: Meu nome Ã© Ãcaro.",
+        shortAnswer: "Não vou salvar isso como nome.",
+        fullAnswer: "Para evitar confusão, eu não salvo cumprimentos ou comandos como nome. Se quiser, diga algo como: Meu nome é Ícaro.",
         nextAction: "Diga apenas o nome que devo usar.",
         canSave: false,
         sessionTheme: "perfil",
@@ -9914,8 +9914,8 @@
     setUserProfile(Object.assign({}, currentProfile, { userName: name }));
     return {
       shortAnswer: "Perfeito, " + name + ".",
-      fullAnswer: "Vou me referir a vocÃª assim. Esse nome fica salvo apenas neste navegador.",
-      nextAction: "Agora posso responder com mais contexto quando vocÃª pedir memÃ³ria, foco ou prÃ³ximos passos.",
+      fullAnswer: "Vou me referir a você assim. Esse nome fica salvo apenas neste navegador.",
+      nextAction: "Agora posso responder com mais contexto quando você pedir memória, foco ou próximos passos.",
       canSave: false,
       sessionTheme: "perfil",
       sessionIntent: "salvar_nome"
@@ -9927,16 +9927,16 @@
       return {
         shortAnswer: "Eu te guio.",
         fullAnswer: [
-          "Se vocÃª estÃ¡ comeÃ§ando pelo Elo, use assim:",
+          "Se você está começando pelo Elo, use assim:",
           "1. conte uma ideia, projeto ou objetivo;",
-          "2. peÃ§a para eu organizar o prÃ³ximo passo;",
-          "3. registre memÃ³rias importantes quando fizer sentido;",
-          "4. use a Linha do Tempo para marcos e decisÃµes;",
-          "5. peÃ§a ajuda com ObraReport, RDO, PDF ou Stock IA quando quiser usar o sistema.",
+          "2. peça para eu organizar o próximo passo;",
+          "3. registre memórias importantes quando fizer sentido;",
+          "4. use a Linha do Tempo para marcos e decisões;",
+          "5. peça ajuda com ObraReport, RDO, PDF ou Stock IA quando quiser usar o sistema.",
           "",
-          "Eu sou o mesmo Elo em todos os contextos. Fora do ObraReport, meu foco Ã© te ajudar a pensar, lembrar, decidir e organizar."
+          "Eu sou o mesmo Elo em todos os contextos. Fora do ObraReport, meu foco é te ajudar a pensar, lembrar, decidir e organizar."
         ].join("\n"),
-        nextAction: "Diga: me mostre o que vocÃª faz, ou me ajude a decidir.",
+        nextAction: "Diga: me mostre o que você faz, ou me ajude a decidir.",
         canSave: false,
         sessionTheme: "sistema",
         sessionIntent: "ajuda_sistema"
@@ -9948,17 +9948,17 @@
       fullAnswer: [
         "Comece assim:",
         "1. Cadastre ou selecione uma obra.",
-        "2. Crie um relatÃ³rio tÃ©cnico ou um RDO.",
-        "3. Registre fotos, ocorrÃªncias e serviÃ§os executados.",
+        "2. Crie um relatório técnico ou um RDO.",
+        "3. Registre fotos, ocorrências e serviços executados.",
         "4. Lance materiais consumidos, se houver.",
         "5. Gere o PDF ou resumo para enviar ao cliente.",
         "",
-        "Se quiser testar rÃ¡pido, use:",
+        "Se quiser testar rápido, use:",
         "- Gerar RDO agora",
         "- Testar materiais",
         "- Ver exemplo de PDF"
       ].join("\n"),
-      nextAction: "Se estiver comeÃ§ando, abra DiÃ¡rio de Obras ou RelatÃ³rios.",
+      nextAction: "Se estiver começando, abra Diário de Obras ou Relatórios.",
       canSave: false,
       sessionTheme: "sistema",
       sessionIntent: "ajuda_sistema"
@@ -9970,12 +9970,12 @@
     const standaloneIntro = [
       "Posso te mostrar.",
       "",
-      "Como companheiro digital, eu posso ajudar a lembrar projetos, organizar ideias, registrar momentos, comparar prioridades e transformar uma dÃºvida em plano."
+      "Como companheiro digital, eu posso ajudar a lembrar projetos, organizar ideias, registrar momentos, comparar prioridades e transformar uma dúvida em plano."
     ];
     if (identity.currentMode === "standalone") {
       standaloneIntro.push(
         "",
-        "Se vocÃª quiser falar de ObraReport, RDO, PDF ou Stock IA, eu tambÃ©m consigo te orientar. O exemplo abaixo mostra como eu ligo uma informaÃ§Ã£o solta a uma aÃ§Ã£o prÃ¡tica."
+        "Se você quiser falar de ObraReport, RDO, PDF ou Stock IA, eu também consigo te orientar. O exemplo abaixo mostra como eu ligo uma informação solta a uma ação prática."
       );
     }
 
@@ -9984,23 +9984,23 @@
       fullAnswer: [
         standaloneIntro.join("\n"),
         "",
-        "Imagine que hoje foi executado 12 mÂ² de alvenaria.",
+        "Imagine que hoje foi executado 12 m² de alvenaria.",
         "",
-        "VocÃª pode me dizer:",
-        "\"Foram executados 12 mÂ² de alvenaria e usados 30 blocos.\"",
+        "Você pode me dizer:",
+        "\"Foram executados 12 m² de alvenaria e usados 30 blocos.\"",
         "",
         "A partir disso, eu posso ajudar a:",
-        "1. registrar a produÃ§Ã£o do dia;",
+        "1. registrar a produção do dia;",
         "2. organizar o material consumido;",
         "3. relacionar com o RDO;",
         "4. comparar com o estoque;",
         "5. preparar um resumo para o cliente;",
-        "6. orientar a geraÃ§Ã£o do PDF.",
+        "6. orientar a geração do PDF.",
         "",
-        "O objetivo Ã© simples:",
-        "transformar informaÃ§Ãµes soltas da obra em registro organizado."
+        "O objetivo é simples:",
+        "transformar informações soltas da obra em registro organizado."
       ].join("\n"),
-      nextAction: "Teste dizendo: Foram executados 12 mÂ² de alvenaria e usados 30 blocos.",
+      nextAction: "Teste dizendo: Foram executados 12 m² de alvenaria e usados 30 blocos.",
       canSave: false,
       sessionTheme: "demo",
       sessionIntent: "elo_demo"
@@ -10013,17 +10013,17 @@
       material: {
         shortAnswer: "Vamos fazer isso de forma simples.",
         fullAnswer: [
-          "Me diga trÃªs coisas:",
+          "Me diga três coisas:",
           "1. O que foi executado?",
           "2. Quanto foi executado?",
           "3. Qual material foi usado?",
           "",
           "Exemplo:",
-          "\"Foram executados 12 mÂ² de alvenaria e usados 30 blocos cerÃ¢micos.\"",
+          "\"Foram executados 12 m² de alvenaria e usados 30 blocos cerâmicos.\"",
           "",
-          "Depois disso, vocÃª pode salvar esse registro no mÃ³dulo de materiais ou usar no RDO."
+          "Depois disso, você pode salvar esse registro no módulo de materiais ou usar no RDO."
         ].join("\n"),
-        nextAction: "Escreva a produÃ§Ã£o e o material usado."
+        nextAction: "Escreva a produção e o material usado."
       },
       rdo: {
         shortAnswer: "Vamos criar um RDO.",
@@ -10031,41 +10031,41 @@
           "Comece registrando:",
           "1. data;",
           "2. obra;",
-          "3. condiÃ§Ãµes do tempo;",
+          "3. condições do tempo;",
           "4. equipe;",
-          "5. serviÃ§os executados;",
+          "5. serviços executados;",
           "6. materiais utilizados;",
           "7. fotos;",
-          "8. ocorrÃªncias.",
+          "8. ocorrências.",
           "",
-          "O mais importante Ã© comeÃ§ar pelo serviÃ§o executado hoje."
+          "O mais importante é começar pelo serviço executado hoje."
         ].join("\n"),
-        nextAction: "Abra DiÃ¡rio de Obras e registre o serviÃ§o executado."
+        nextAction: "Abra Diário de Obras e registre o serviço executado."
       },
       relatorio: {
-        shortAnswer: "Vamos montar um relatÃ³rio tÃ©cnico.",
+        shortAnswer: "Vamos montar um relatório técnico.",
         fullAnswer: [
-          "Comece pelo bÃ¡sico:",
+          "Comece pelo básico:",
           "1. selecione cliente e obra;",
           "2. descreva o que foi vistoriado;",
           "3. adicione fotos;",
-          "4. registre anÃ¡lise tÃ©cnica;",
-          "5. escreva conclusÃ£o e recomendaÃ§Ãµes;",
+          "4. registre análise técnica;",
+          "5. escreva conclusão e recomendações;",
           "6. gere o PDF para entrega."
         ].join("\n"),
-        nextAction: "Abra RelatÃ³rios e comece pela identificaÃ§Ã£o da obra."
+        nextAction: "Abra Relatórios e comece pela identificação da obra."
       },
       pdf: {
         shortAnswer: "Vamos preparar o PDF.",
         fullAnswer: [
           "Antes de gerar:",
           "1. confira dados da obra;",
-          "2. revise fotos e descriÃ§Ãµes;",
-          "3. verifique ocorrÃªncias e conclusÃ£o;",
-          "4. confirme responsÃ¡vel tÃ©cnico;",
+          "2. revise fotos e descrições;",
+          "3. verifique ocorrências e conclusão;",
+          "4. confirme responsável técnico;",
           "5. clique em Gerar PDF."
         ].join("\n"),
-        nextAction: "Abra o relatÃ³rio ou RDO que deseja exportar."
+        nextAction: "Abra o relatório ou RDO que deseja exportar."
       },
       estoque: {
         shortAnswer: "Vamos controlar o estoque pelo Stock IA.",
@@ -10080,9 +10080,9 @@
         nextAction: "Abra Stock IA e cadastre o primeiro material."
       },
       inicio: {
-        shortAnswer: "Vamos comeÃ§ar pelo caminho mais simples.",
+        shortAnswer: "Vamos começar pelo caminho mais simples.",
         fullAnswer: buildSystemHelpAnswer_().fullAnswer,
-        nextAction: "Escolha uma aÃ§Ã£o: criar RDO, lanÃ§ar material ou gerar PDF."
+        nextAction: "Escolha uma ação: criar RDO, lançar material ou gerar PDF."
       }
     };
     const answer = answers[type] || answers.inicio;
@@ -10099,7 +10099,7 @@
   function buildConstructionRecordAnswer_(record) {
     const lines = [];
     if (record.service) {
-      lines.push("ProduÃ§Ã£o identificada:", "- ServiÃ§o: " + record.service, "- Quantidade: " + record.quantity + (record.unit ? " " + record.unit : ""));
+      lines.push("Produção identificada:", "- Serviço: " + record.service, "- Quantidade: " + record.quantity + (record.unit ? " " + record.unit : ""));
     }
     if (record.materials.length) {
       if (lines.length) {
@@ -10114,13 +10114,13 @@
       "",
       "Posso usar isso para:",
       "1. registrar no RDO;",
-      "2. lanÃ§ar no controle de materiais;",
+      "2. lançar no controle de materiais;",
       "3. comparar depois com estoque e consumo previsto."
     );
     return {
       shortAnswer: "Entendi um registro de obra.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Abra o RDO ou diga se quer transformar isso em lanÃ§amento de materiais.",
+      nextAction: "Abra o RDO ou diga se quer transformar isso em lançamento de materiais.",
       canSave: false,
       sessionTheme: "obra",
       sessionIntent: "construction_record"
@@ -10139,29 +10139,29 @@
 
     const identity = buildEloIdentityContext();
     const intro = identity.currentMode === "standalone"
-      ? "Eu posso ajudar em 5 Ã¡reas da sua jornada."
-      : "Eu posso ajudar em 5 Ã¡reas, incluindo o ObraReport.";
+      ? "Eu posso ajudar em 5 áreas da sua jornada."
+      : "Eu posso ajudar em 5 áreas, incluindo o ObraReport.";
     return {
       shortAnswer: intro,
       fullAnswer: [
-        "1. MemÃ³ria",
-        "Projetos, objetivos, linha do tempo e informaÃ§Ãµes importantes.",
+        "1. Memória",
+        "Projetos, objetivos, linha do tempo e informações importantes.",
         "",
-        "2. DecisÃ£o",
-        "Prioridades, prÃ³ximos passos, bloqueios e planejamento.",
+        "2. Decisão",
+        "Prioridades, próximos passos, bloqueios e planejamento.",
         "",
-        "3. OrganizaÃ§Ã£o",
+        "3. Organização",
         "Ideias, planos, foco da semana e continuidade da sua jornada.",
         "",
         "4. ObraReport",
-        "RelatÃ³rios tÃ©cnicos, RDO, fotos, materiais e PDF.",
+        "Relatórios técnicos, RDO, fotos, materiais e PDF.",
         "",
         "5. Stock IA",
-        "Entradas, saÃ­das, consumo, estoque, alertas e lista de compras.",
+        "Entradas, saídas, consumo, estoque, alertas e lista de compras.",
         "",
-        "Minha funÃ§Ã£o Ã© ligar essas partes e transformar dados soltos em orientaÃ§Ã£o clara."
+        "Minha função é ligar essas partes e transformar dados soltos em orientação clara."
       ].join("\n"),
-      nextAction: "Diga: quero criar um RDO, quero lanÃ§ar material ou o que devo priorizar?",
+      nextAction: "Diga: quero criar um RDO, quero lançar material ou o que devo priorizar?",
       canSave: false,
       sessionTheme: "capacidades",
       sessionIntent: "capabilities"
@@ -10170,21 +10170,21 @@
 
   function buildRdoHelpAnswer_() {
     return {
-      shortAnswer: "O RDO Ã© o registro diÃ¡rio da obra.",
+      shortAnswer: "O RDO é o registro diário da obra.",
       fullAnswer: [
-        "Nele vocÃª registra:",
-        "- condiÃ§Ãµes do tempo;",
+        "Nele você registra:",
+        "- condições do tempo;",
         "- equipe;",
-        "- serviÃ§os executados;",
-        "- ocorrÃªncias;",
+        "- serviços executados;",
+        "- ocorrências;",
         "- fotos;",
         "- materiais consumidos;",
-        "- observaÃ§Ãµes.",
+        "- observações.",
         "",
-        "O mais importante Ã© comeÃ§ar pelo que foi executado hoje.",
-        "Exemplo: 12 mÂ² de alvenaria."
+        "O mais importante é começar pelo que foi executado hoje.",
+        "Exemplo: 12 m² de alvenaria."
       ].join("\n"),
-      nextAction: "Abra DiÃ¡rio de Obras e registre o serviÃ§o executado de hoje.",
+      nextAction: "Abra Diário de Obras e registre o serviço executado de hoje.",
       canSave: false,
       sessionTheme: "rdo",
       sessionIntent: "ajuda_rdo"
@@ -10193,17 +10193,17 @@
 
   function buildMaterialsHelpAnswer_() {
     return {
-      shortAnswer: "Para registrar materiais, pense em produÃ§Ã£o e consumo.",
+      shortAnswer: "Para registrar materiais, pense em produção e consumo.",
       fullAnswer: [
         "1. O que foi executado.",
-        "Exemplo: 12 mÂ² de alvenaria.",
+        "Exemplo: 12 m² de alvenaria.",
         "",
         "2. O que foi consumido.",
-        "Exemplo: 30 blocos cerÃ¢micos, 1 saco de cimento e areia.",
+        "Exemplo: 30 blocos cerâmicos, 1 saco de cimento e areia.",
         "",
-        "Com isso, o sistema pode comparar produÃ§Ã£o, consumo real, consumo previsto e estoque disponÃ­vel."
+        "Com isso, o sistema pode comparar produção, consumo real, consumo previsto e estoque disponível."
       ].join("\n"),
-      nextAction: "No RDO, registre primeiro a produÃ§Ã£o executada e depois os materiais consumidos.",
+      nextAction: "No RDO, registre primeiro a produção executada e depois os materiais consumidos.",
       canSave: false,
       sessionTheme: "materiais",
       sessionIntent: "ajuda_materiais"
@@ -10212,16 +10212,16 @@
 
   function buildStockHelpAnswer_() {
     return {
-      shortAnswer: "O Stock IA Ã© o controle inteligente de materiais.",
+      shortAnswer: "O Stock IA é o controle inteligente de materiais.",
       fullAnswer: [
         "Ele ajuda com:",
         "- entrada por nota;",
         "- saldo de estoque;",
         "- baixa de consumo;",
         "- materiais acabando;",
-        "- comparaÃ§Ã£o entre o que entrou, o que saiu e o que foi executado na obra.",
+        "- comparação entre o que entrou, o que saiu e o que foi executado na obra.",
         "",
-        "Nesta versÃ£o, tudo funciona localmente e usa os dados do RDO e do cadastro de estoque."
+        "Nesta versão, tudo funciona localmente e usa os dados do RDO e do cadastro de estoque."
       ].join("\n"),
       nextAction: "Abra Stock IA para ver saldo, alertas, lista de compras e entrada por nota.",
       canSave: false,
@@ -10232,19 +10232,19 @@
 
   function buildPdfHelpAnswer_() {
     return {
-      shortAnswer: "O PDF Ã© o documento final para apresentar ao cliente.",
+      shortAnswer: "O PDF é o documento final para apresentar ao cliente.",
       fullAnswer: [
         "Antes de gerar, confira:",
         "- dados da obra;",
         "- fotos;",
-        "- descriÃ§Ãµes;",
-        "- ocorrÃªncias;",
-        "- conclusÃ£o;",
-        "- responsÃ¡vel tÃ©cnico.",
+        "- descrições;",
+        "- ocorrências;",
+        "- conclusão;",
+        "- responsável técnico.",
         "",
-        "Depois use o botÃ£o de gerar PDF."
+        "Depois use o botão de gerar PDF."
       ].join("\n"),
-      nextAction: "Abra o relatÃ³rio ou RDO, revise os campos principais e clique em Gerar PDF.",
+      nextAction: "Abra o relatório ou RDO, revise os campos principais e clique em Gerar PDF.",
       canSave: false,
       sessionTheme: "pdf",
       sessionIntent: "ajuda_pdf"
@@ -10253,17 +10253,17 @@
 
   function buildReportHelpAnswer_() {
     return {
-      shortAnswer: "Um bom relatÃ³rio tÃ©cnico precisa ser claro, objetivo e ter evidÃªncias.",
+      shortAnswer: "Um bom relatório técnico precisa ser claro, objetivo e ter evidências.",
       fullAnswer: [
         "Estrutura recomendada:",
-        "1. IdentificaÃ§Ã£o da obra.",
-        "2. DescriÃ§Ã£o do problema ou vistoria.",
+        "1. Identificação da obra.",
+        "2. Descrição do problema ou vistoria.",
         "3. Fotos.",
-        "4. AnÃ¡lise tÃ©cnica.",
-        "5. RecomendaÃ§Ãµes.",
-        "6. ConclusÃ£o."
+        "4. Análise técnica.",
+        "5. Recomendações.",
+        "6. Conclusão."
       ].join("\n"),
-      nextAction: "Abra RelatÃ³rios, selecione cliente e obra, e comece pela descriÃ§Ã£o da vistoria.",
+      nextAction: "Abra Relatórios, selecione cliente e obra, e comece pela descrição da vistoria.",
       canSave: false,
       sessionTheme: "relatorio",
       sessionIntent: "ajuda_relatorio"
@@ -10284,7 +10284,7 @@
           "Registros recentes:",
           events.map(formatTimelineEventLine).join("\n")
         ].join("\n")
-        : "Ela serve para registrar marcos, ideias, conquistas, dificuldades, objetivos e cartas para o futuro.\n\nAinda nÃ£o hÃ¡ eventos registrados na sua Linha do Tempo.",
+        : "Ela serve para registrar marcos, ideias, conquistas, dificuldades, objetivos e cartas para o futuro.\n\nAinda não há eventos registrados na sua Linha do Tempo.",
       nextAction: "Abra Ferramentas do Elo > Linha do tempo para adicionar ou exportar registros.",
       canSave: false,
       sessionTheme: "timeline",
@@ -10298,18 +10298,18 @@
       return false;
     }
     const serviceTerms = [
-      "alvenaria", "parede", "piso", "reboco", "emboÃ§o", "emboco",
+      "alvenaria", "parede", "piso", "reboco", "emboço", "emboco",
       "concreto", "pilar", "viga", "laje"
     ];
     const intentTerms = [
-      "posso executar", "da para executar", "dÃ¡ para executar",
+      "posso executar", "da para executar", "dá para executar",
       "tenho material", "tem saldo", "consigo fazer", "posso fazer",
-      "executar amanha", "executar amanhÃ£", "fazer parede", "precisa comprar",
+      "executar amanha", "executar amanhã", "fazer parede", "precisa comprar",
       "material suficiente", "saldo suficiente"
     ];
     const hasService = hasAnyTerm(text, serviceTerms);
     const hasIntent = hasAnyTerm(text, intentTerms);
-    const hasQuantity = /\d+(?:[,.]\d+)?\s*(m2|mÂ²|m3|mÂ³|metro|metros|saco|sacos|un|und|unidade|unidades)/i.test(message);
+    const hasQuantity = /\d+(?:[,.]\d+)?\s*(m2|m²|m3|m³|metro|metros|saco|sacos|un|und|unidade|unidades)/i.test(message);
     return hasService && (hasIntent || hasQuantity);
   }
 
@@ -10332,10 +10332,10 @@
   function normalizeEloOperationalUnit_(unit) {
     const normalized = normalizeText(unit || "un");
     if (normalized === "m2" || normalized.indexOf("metro quadrado") >= 0) {
-      return "mÂ²";
+      return "m²";
     }
-    if (normalized === "m3" || normalized.indexOf("metro cubico") >= 0 || normalized.indexOf("metro cÃºbico") >= 0) {
-      return "mÂ³";
+    if (normalized === "m3" || normalized.indexOf("metro cubico") >= 0 || normalized.indexOf("metro cúbico") >= 0) {
+      return "m³";
     }
     if (normalized === "und" || normalized.indexOf("unidade") >= 0) {
       return "un";
@@ -10366,27 +10366,27 @@
         return "SINAPI real/importada";
       }
     }
-    return "Base tÃ©cnica demonstrativa/editÃ¡vel";
+    return "Base técnica demonstrativa/editável";
   }
 
   function buildEloOperationalScaleAlerts_(prediction) {
     const service = prediction && prediction.service ? prediction.service : {};
     const quantity = parseEloOperationalNumber_(service.quantity || service.executedQuantity);
     const unit = normalizeEloOperationalUnit_(service.unit || "un");
-    if (quantity <= 0 || normalizeText(unit) !== normalizeText("mÂ²")) {
+    if (quantity <= 0 || normalizeText(unit) !== normalizeText("m²")) {
       return [];
     }
     const serviceText = normalizeText(service.service || service.serviceName || service.serviceType || "");
     const limits = [];
     if (hasAnyTerm(serviceText, ["alvenaria", "parede"])) {
-      limits.push({ terms: ["areia"], unit: "mÂ³", maxPerUnit: 0.25 });
+      limits.push({ terms: ["areia"], unit: "m³", maxPerUnit: 0.25 });
       limits.push({ terms: ["cimento"], unit: "saco", maxPerUnit: 1 });
       limits.push({ terms: ["bloco", "tijolo"], unit: "un", maxPerUnit: 40 });
-    } else if (hasAnyTerm(serviceText, ["reboco", "emboÃ§o", "emboco"])) {
-      limits.push({ terms: ["areia"], unit: "mÂ³", maxPerUnit: 0.12 });
+    } else if (hasAnyTerm(serviceText, ["reboco", "emboço", "emboco"])) {
+      limits.push({ terms: ["areia"], unit: "m³", maxPerUnit: 0.12 });
       limits.push({ terms: ["cimento"], unit: "saco", maxPerUnit: 0.6 });
     } else if (hasAnyTerm(serviceText, ["piso"])) {
-      limits.push({ terms: ["piso"], unit: "mÂ²", maxPerUnit: 1.4 });
+      limits.push({ terms: ["piso"], unit: "m²", maxPerUnit: 1.4 });
       limits.push({ terms: ["argamassa"], unit: "saco", maxPerUnit: 1 });
     }
     return (prediction.predictedItems || []).reduce(function (alerts, item) {
@@ -10400,7 +10400,7 @@
           });
       });
       if (limit && quantityPerUnit > limit.maxPerUnit) {
-        alerts.push("âš ï¸ Verificar quantitativo: consumo fora da faixa esperada para " + (item.name || item.material || "material") + ".");
+        alerts.push("⚠️ Verificar quantitativo: consumo fora da faixa esperada para " + (item.name || item.material || "material") + ".");
       }
       return alerts;
     }, []);
@@ -10408,16 +10408,16 @@
 
   function parseEloOperationalService_(message) {
     const text = normalizeText(message);
-    const dimensionMatch = String(message || "").match(/(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
-    const quantityMatch = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(m2|mÂ²|m3|mÂ³|metros?\s+quadrados?|metros?\s+cubicos?|metros?\s+cÃºbicos?|sacos?|un|und|unidades?)/i);
+    const dimensionMatch = String(message || "").match(/(?:parede|muro|alvenaria)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
+    const quantityMatch = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(m2|m²|m3|m³|metros?\s+quadrados?|metros?\s+cubicos?|metros?\s+cúbicos?|sacos?|un|und|unidades?)/i);
     const quantity = dimensionMatch
       ? parseEloOperationalNumber_(dimensionMatch[1]) * parseEloOperationalNumber_(dimensionMatch[2])
       : quantityMatch ? parseEloOperationalNumber_(quantityMatch[1]) : 0;
-    const unit = dimensionMatch ? "mÂ²" : quantityMatch ? normalizeEloOperationalUnit_(quantityMatch[2]) : "mÂ²";
+    const unit = dimensionMatch ? "m²" : quantityMatch ? normalizeEloOperationalUnit_(quantityMatch[2]) : "m²";
     const services = [
-      { terms: ["alvenaria", "parede", "muro", "tijolo", "bloco"], service: "Alvenaria", serviceType: "alvenaria", unit: "mÂ²" },
-      { terms: ["piso"], service: "Piso ceramico", serviceType: "piso_ceramico", unit: "mÂ²" },
-      { terms: ["reboco", "emboÃ§o", "emboco"], service: "Reboco", serviceType: "reboco_emboco", unit: "mÂ²" },
+      { terms: ["alvenaria", "parede", "muro", "tijolo", "bloco"], service: "Alvenaria", serviceType: "alvenaria", unit: "m²" },
+      { terms: ["piso"], service: "Piso ceramico", serviceType: "piso_ceramico", unit: "m²" },
+      { terms: ["reboco", "emboço", "emboco"], service: "Reboco", serviceType: "reboco_emboco", unit: "m²" },
       { terms: ["concreto", "pilar", "viga", "laje"], service: "Concreto", serviceType: "concreto", unit: unit }
     ];
     const match = services.find(function (candidate) {
@@ -10460,7 +10460,7 @@
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
     const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
       raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
-    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
+    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
     if (heightMatch) {
       height = parseEloOperationalNumber_(heightMatch[1]);
     }
@@ -10546,7 +10546,7 @@
   }
 
   function hasEloAreaOrDimensions_(text) {
-    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|mï¿½|metros?\s+quadrados?|m3|m\^3|mÂ³|metros?\s+cubicos?)\b/.test(text) || /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*\d+(?:[,.]\d+)?/.test(text);
+    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?|m3|m\^3|m³|metros?\s+cubicos?)\b/.test(text) || /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?/.test(text);
   }
 
   function hasEloConcreteUse_(text) {
@@ -10570,7 +10570,7 @@
   }
 
   function hasEloWallLengthHeight_(text) {
-    return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
+    return /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*\d+(?:[,.]\d+)?/.test(text) || (/comprimento|linear|corridos?/.test(text) && /altura|alto/.test(text));
   }
   function isEloNewCompleteWallBriefingMessage_(message) {
     const raw = sanitizeUserText(message || "");
@@ -10607,24 +10607,24 @@
 
   function isEloPreliminaryEstimateAuthorized_(message) {
     const text = normalizeText(message);
-    return /autorizo|pode\s+fazer|pode\s+seguir|faca|faÃ§a|quero|aceito/.test(text) && /estimativa\s+preliminar|nao\s+oficial|nÃ£o\s+oficial/.test(text);
+    return /autorizo|pode\s+fazer|pode\s+seguir|faca|faça|quero|aceito/.test(text) && /estimativa\s+preliminar|nao\s+oficial|não\s+oficial/.test(text);
   }
 
   function buildEloMissingTechnicalCompositionResponse_(premiseMessage) {
     const premiseText = normalizeText(premiseMessage || "");
     const lines = [
-      "Para gerar quantitativo, mÃ£o de obra ou valor com seguranÃ§a, preciso localizar uma composiÃ§Ã£o tÃ©cnica, como SINAPI ou ORSE. No momento nÃ£o encontrei uma composiÃ§Ã£o correspondente com os dados informados. Posso continuar de duas formas:",
-      "1. vocÃª informa o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE;",
-      "2. eu faÃ§o uma estimativa preliminar, claramente marcada como NÃƒO OFICIAL."
+      "Para gerar quantitativo, mão de obra ou valor com segurança, preciso localizar uma composição técnica, como SINAPI ou ORSE. No momento não encontrei uma composição correspondente com os dados informados. Posso continuar de duas formas:",
+      "1. você informa o código/composição SINAPI/ORSE;",
+      "2. eu faço uma estimativa preliminar, claramente marcada como NÃO OFICIAL."
     ];
     if (premiseText) {
       lines.push("", formatEloTechnicalBaseLine_(null, false));
       lines.push.apply(lines, formatEloCollectedWallPremises_(premiseMessage));
     }
     return {
-      shortAnswer: "Preciso de uma composiÃ§Ã£o tÃ©cnica para calcular com seguranÃ§a.",
+      shortAnswer: "Preciso de uma composição técnica para calcular com segurança.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Informe o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃƒO OFICIAL.",
+      nextAction: "Informe o código/composição SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃO OFICIAL.",
       canSave: false,
       sessionTheme: "base_tecnica_quantitativo",
       sessionIntent: "bloquear_sem_composicao_tecnica"
@@ -10655,7 +10655,7 @@
       metadata.composicaoInternaValidada === true ||
       ((source.indexOf("sinapi") >= 0 || source.indexOf("orse") >= 0) && hasPositiveInputs) ||
       source.indexOf("composicao interna validada") >= 0 ||
-      source.indexOf("composiÃ§Ã£o interna validada") >= 0;
+      source.indexOf("composição interna validada") >= 0;
   }
 
   function hasEloValidatedTechnicalBase_(prediction) {
@@ -10664,16 +10664,16 @@
 
   function formatEloTechnicalBaseLine_(composition, allowPreliminary) {
     if (allowPreliminary) {
-      return "Base tÃ©cnica utilizada: Estimativa preliminar NÃƒO OFICIAL autorizada pelo usuÃ¡rio";
+      return "Base técnica utilizada: Estimativa preliminar NÃO OFICIAL autorizada pelo usuário";
     }
     if (!composition) {
-      return "Base tÃ©cnica utilizada: composiÃ§Ã£o tÃ©cnica nÃ£o localizada";
+      return "Base técnica utilizada: composição técnica não localizada";
     }
-    const source = composition.source || "composiÃ§Ã£o interna validada";
-    const code = composition.code || composition.id || "sem cÃ³digo";
-    const date = composition.sourceDate ? " | referÃªncia " + composition.sourceDate : "";
+    const source = composition.source || "composição interna validada";
+    const code = composition.code || composition.id || "sem código";
+    const date = composition.sourceDate ? " | referência " + composition.sourceDate : "";
     const region = composition.sourceRegion ? " | " + composition.sourceRegion : "";
-    return "Base tÃ©cnica utilizada: " + source + " | cÃ³digo " + code + date + region;
+    return "Base técnica utilizada: " + source + " | código " + code + date + region;
   }
   function formatEloCollectedWallPremises_(message) {
     const text = normalizeText(message || "");
@@ -10683,25 +10683,25 @@
     const original = sanitizeUserText(message || "");
     const dimensions = extractEloWallDimensions_(original);
     const grossArea = dimensions.length && dimensions.height ? dimensions.length * dimensions.height : null;
-    const block = (original.match(/\b(?:bloco\s*)?(14\s*x\s*19\s*x\s*(?:29|39)|(?:29|39)\s*x\s*19\s*x\s*14)\b/i) || [])[1] || "informada pelo usuÃ¡rio";
-    const loss = (original.match(/\b\d+(?:[,.]\d+)?\s*(?:%|por cento)/i) || [])[0] || "informada pelo usuÃ¡rio";
+    const block = (original.match(/\b(?:bloco\s*)?(14\s*x\s*19\s*x\s*(?:29|39)|(?:29|39)\s*x\s*19\s*x\s*14)\b/i) || [])[1] || "informada pelo usuário";
+    const loss = (original.match(/\b\d+(?:[,.]\d+)?\s*(?:%|por cento)/i) || [])[0] || "informada pelo usuário";
     const coating = /dois\s+lados|2\s+lados|ambos\s+os\s+lados|duas\s+faces/.test(text)
       ? "dois lados"
-      : (/um\s+lado|1\s+lado|uma\s+face/.test(text) ? "um lado" : "informado pelo usuÃ¡rio");
+      : (/um\s+lado|1\s+lado|uma\s+face/.test(text) ? "um lado" : "informado pelo usuário");
     const openingsSummary = extractEloWallOpenings_(text);
-    const openings = openingsSummary.hasNoOpenings ? "nenhum" : (openingsSummary.label || "nÃ£o informado");
+    const openings = openingsSummary.hasNoOpenings ? "nenhum" : (openingsSummary.label || "não informado");
     const liquidArea = grossArea !== null && (openingsSummary.hasNoOpenings || openingsSummary.totalArea > 0)
       ? Math.max(0, grossArea - openingsSummary.totalArea)
       : null;
     return [
       "",
       "Premissas utilizadas:",
-      "- ServiÃ§o considerado: parede/alvenaria de bloco cerÃ¢mico",
+      "- Serviço considerado: parede/alvenaria de bloco cerâmico",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(dimensions.length, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(dimensions.height, "m"),
-      "- Ãrea bruta: " + formatEloWallPremiseMeasure_(grossArea, "mÂ²"),
-      "- VÃ£os descontados: " + openings,
-      "- Ãrea lÃ­quida considerada: " + formatEloWallPremiseMeasure_(liquidArea, "mÂ²"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(grossArea, "m²"),
+      "- Vãos descontados: " + openings,
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(liquidArea, "m²"),
       "- Bloco considerado: " + block.replace(/\s+/g, ""),
       "- Perda adotada: " + loss,
       "- Lados revestidos: " + coating
@@ -10716,7 +10716,7 @@
     let height = heightMatch ? parseEloOperationalNumber_(heightMatch[1]) : null;
     if ((!length || !height)) {
       const geometrySource = stripEloBlockDimensionTriples_(source);
-      const pairMatch = geometrySource.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+      const pairMatch = geometrySource.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
       if (pairMatch) {
         length = length || parseEloOperationalNumber_(pairMatch[1]);
         height = height || parseEloOperationalNumber_(pairMatch[2]);
@@ -10726,7 +10726,7 @@
   }
 
   function stripEloBlockDimensionTriples_(message) {
-    return sanitizeUserText(message || "").replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|Ã—|\?|por)\s*\d{1,2}\s*(?:x|Ã—|\?|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
+    return sanitizeUserText(message || "").replace(/\b(?:(?:bloco|tijolo|baiano|ceramico|cer.mico)\s*)?\d{1,2}\s*(?:x|×|\?|por)\s*\d{1,2}\s*(?:x|×|\?|por)\s*\d{1,2}\s*(?:cm|centimetros?)?\b/gi, " ");
   }
 
   function parseEloOpeningQuantity_(value) {
@@ -10749,7 +10749,7 @@
       return { hasNoOpenings: true, items: [], totalArea: 0, label: "nenhum" };
     }
     const items = [];
-    const pattern = /(?:\b(\d+|um|uma|dois|duas)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
+    const pattern = /(?:\b(\d+|um|uma|dois|duas)\s*)?\b(portas?|janelas?)\s*(?:de|com|medindo)?\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/gi;
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const quantity = parseEloOpeningQuantity_(match[1]);
@@ -10764,7 +10764,7 @@
     const totalArea = items.reduce(function (sum, item) { return sum + item.area; }, 0);
     const label = items.map(function (item) {
       const typeLabel = item.quantity === 1 ? item.type : item.type + "s";
-      return item.quantity + " " + typeLabel + " " + formatEloWallPremiseNumber_(item.width) + " x " + formatEloWallPremiseNumber_(item.height) + " m = " + formatEloWallPremiseMeasure_(item.area, "mÂ²");
+      return item.quantity + " " + typeLabel + " " + formatEloWallPremiseNumber_(item.width) + " x " + formatEloWallPremiseNumber_(item.height) + " m = " + formatEloWallPremiseMeasure_(item.area, "m²");
     }).join("; ");
     return { hasNoOpenings: false, items: items, totalArea: totalArea, label: label };
   }
@@ -10778,7 +10778,7 @@
 
   function formatEloWallPremiseMeasure_(value, unit) {
     if (value === null || value === undefined || !isFinite(value) || value <= 0) {
-      return unit === "mÂ²" ? "nÃ£o calculada" : "nÃ£o informado";
+      return unit === "m²" ? "não calculada" : "não informado";
     }
     return formatEloWallPremiseNumber_(value) + " " + unit;
   }
@@ -10822,7 +10822,7 @@
   }
 
   function extractEloStockObrasGrossAreaM2_(message) {
-    const match = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/i);
+    const match = String(message || "").match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
     return match ? parseEloOperationalNumber_(match[1]) : null;
   }
 
@@ -10982,28 +10982,28 @@
 
   function formatEloStockObrasLoss_(briefing) {
     if (briefing.perda_percentual === null) {
-      return "nÃ£o informada";
+      return "não informada";
     }
     const value = Number(briefing.perda_percentual);
     return (Number.isInteger(value) ? String(value) : formatEloWallPremiseNumber_(value)) + "%";
   }
 
   function formatEloStockObrasCoating_(briefing) {
-    return briefing.revestimento_lados || "nÃ£o informado";
+    return briefing.revestimento_lados || "não informado";
   }
 
   function formatEloStockObrasThickness_(briefing) {
-    return briefing.espessura_revestimento_cm !== null ? formatEloWallPremiseMeasure_(briefing.espessura_revestimento_cm, "cm") : "nÃ£o informada";
+    return briefing.espessura_revestimento_cm !== null ? formatEloWallPremiseMeasure_(briefing.espessura_revestimento_cm, "cm") : "não informada";
   }
 
   function formatEloStockObrasOpenings_(briefing) {
     const portas = briefing.vaos.portas.map(function (item) {
       const label = item.quantidade === 1 ? "porta" : "portas";
-      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "mÂ²");
+      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "m²");
     });
     const janelas = briefing.vaos.janelas.map(function (item) {
       const label = item.quantidade === 1 ? "janela" : "janelas";
-      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "mÂ²");
+      return item.quantidade + " " + label + " " + formatEloWallPremiseNumber_(item.largura_m) + " x " + formatEloWallPremiseNumber_(item.altura_m) + " m = " + formatEloWallPremiseMeasure_(item.area_m2, "m²");
     });
     return portas.concat(janelas).join("; ") || "nenhum";
   }
@@ -11136,7 +11136,7 @@
 
   function buildEloStockObrasCompositionQueries_(briefing) {
     const block = formatEloStockObrasBlockDimension_(briefing);
-    const hasBlock = block && block !== "nÃ£o informada";
+    const hasBlock = block && block !== "não informada";
     return [
       "alvenaria de vedacao" + (hasBlock ? " bloco ceramico " + block : ""),
       "alvenaria bloco ceramico" + (hasBlock ? " " + block : ""),
@@ -11264,14 +11264,14 @@
 
   function buildEloStockObrasTechnicalBaseLabel_(composition) {
     const metadata = composition.metadata || {};
-    const source = composition.source || "composiÃ§Ã£o interna validada";
-    const code = composition.code || composition.id || "sem cÃ³digo";
-    const unit = composition.productionUnit || composition.unit || "mÂ²";
+    const source = composition.source || "composição interna validada";
+    const code = composition.code || composition.id || "sem código";
+    const unit = composition.productionUnit || composition.unit || "m²";
     const reference = composition.sourceDate || metadata.referenceMonth || "";
     const region = composition.sourceRegion || metadata.state || "";
-    return source + " | cÃ³digo " + code + " | unidade " + unit +
+    return source + " | código " + code + " | unidade " + unit +
       (region ? " | " + region : "") +
-      (reference ? " | referÃªncia " + reference : "");
+      (reference ? " | referência " + reference : "");
   }
 
   function formatEloStockObrasCalculatedItems_(items, adoptedLossPercent) {
@@ -11287,8 +11287,8 @@
       const finalQuantity = safeLiquid * (1 + Math.max(0, loss) / 100);
       return [
         "- " + name,
-        "  - Consumo lÃ­quido: " + formatEloOperationalQuantity_(safeLiquid) + " " + formatEloOperationalDisplayUnit_(unit),
-        "  - Perda base da composiÃ§Ã£o: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (originalFinal > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(originalFinal) + " " + formatEloOperationalDisplayUnit_(unit) : ""),
+        "  - Consumo líquido: " + formatEloOperationalQuantity_(safeLiquid) + " " + formatEloOperationalDisplayUnit_(unit),
+        "  - Perda base da composição: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (originalFinal > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(originalFinal) + " " + formatEloOperationalDisplayUnit_(unit) : ""),
         "  - Perda adotada: " + formatEloOperationalQuantity_(loss || 0) + "%",
         "  - Consumo final: " + formatEloOperationalQuantity_(finalQuantity) + " " + formatEloOperationalDisplayUnit_(unit)
       ].join("\n");
@@ -11321,8 +11321,8 @@
       return [
         "- " + input.nome + " (" + input.codigo + ")",
         "  - Coeficiente: " + formatEloOperationalQuantity_(input.coeficiente) + " " + formatEloOperationalDisplayUnit_(input.unidade) + "/" + formatEloOperationalDisplayUnit_(contract.unidade),
-        "  - Consumo lÃ­quido: " + formatEloOperationalQuantity_(liquid) + " " + formatEloOperationalDisplayUnit_(input.unidade),
-        "  - Perda base da composiÃ§Ã£o: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (baseLoss > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(baseLossQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade) : ""),
+        "  - Consumo líquido: " + formatEloOperationalQuantity_(liquid) + " " + formatEloOperationalDisplayUnit_(input.unidade),
+        "  - Perda base da composição: " + formatEloOperationalQuantity_(baseLoss || 0) + "%" + (baseLoss > 0 ? " | consumo com perda base: " + formatEloOperationalQuantity_(baseLossQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade) : ""),
         "  - Perda adotada: " + formatEloOperationalQuantity_(adoptedLoss || 0) + "%",
         "  - Consumo final: " + formatEloOperationalQuantity_(finalQuantity) + " " + formatEloOperationalDisplayUnit_(input.unidade),
         hasPrice ? "  - Custo unitario: R$ " + formatEloOperationalQuantity_(input.precoUnitario) + " | custo do insumo: R$ " + formatEloOperationalQuantity_(cost) : "  - Custo unitario: nao informado; custo nao calculado."
@@ -11349,7 +11349,7 @@
       formatEloWorkMemoryLines_(project).join("\n"),
       "",
       "Premissas do servico:",
-      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"),
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
       "",
@@ -11469,11 +11469,11 @@
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
       "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m2"),
-      "- Ãrea bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
       "- Area de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m2"),
       "- Vaos descontados: " + openingSummary,
       "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m2"),
-      "- Ãrea lÃ­quida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"),
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Area tecnica para chapisco/reboco/pintura: " + formatEloWallPremiseMeasure_(coatingArea, "m2") + " (duas faces do pacote parede completa; confirme se for apenas uma face).",
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda da alvenaria: " + formatEloStockObrasLoss_(briefing),
@@ -11481,12 +11481,12 @@
       "Memoria permanente de obra",
       formatEloWorkMemoryLines_(project).join("\n"),
       "",
-      "MemÃ³ria de cÃ¡lculo:",
+      "Memória de cálculo:",
       "- Area bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m2") + " - vaos " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m2") + " = area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m2") + ".",
-      "- Consumo calculado pelo Elo Orcamentista Assistido com base em composiÃ§Ã£o oficial localizada.",
+      "- Consumo calculado pelo Elo Orcamentista Assistido com base em composição oficial localizada.",
       "",
       "Base tecnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
-      "Base tÃ©cnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
+      "Base técnica utilizada: " + (services[0] && services[0].contract && services[0].contract.fonte ? services[0].contract.fonte : "nao localizada"),
       "",
       "Servicos considerados",
       "1. Alvenaria",
@@ -11502,7 +11502,7 @@
     lines.push("", "Quantitativos");
     services.forEach(function (service) {
       lines.push("- " + service.label + ": area de referencia " + formatEloWallPremiseMeasure_(service.quantity, "m2"));
-      lines.push("  - Consumo calculado pelo motor Stock Obras: " + formatEloWallPremiseMeasure_(service.quantity, "m2") + " de referÃªncia.");
+      lines.push("  - Consumo calculado pelo motor Stock Obras: " + formatEloWallPremiseMeasure_(service.quantity, "m2") + " de referência.");
       lines.push("  - Consumo calculado pelo Elo Orcamentista Assistido.");
       if (service.budgetItems.lines.length) lines.push(service.budgetItems.lines.join("\n"));
     });
@@ -11525,23 +11525,23 @@
     const raw = String(message || "");
     const before = raw.match(new RegExp("(?:^|\\b)(\\d{1,3})\\s+(?:" + elementRegex + ")", "i"));
     if (before) return Math.max(1, parseInt(before[1], 10));
-    const after = raw.match(new RegExp("(?:" + elementRegex + ")\\D{0,20}(\\d{1,3})\\s*(?:un|unidades|pecas|peÃ§as)", "i"));
+    const after = raw.match(new RegExp("(?:" + elementRegex + ")\\D{0,20}(\\d{1,3})\\s*(?:un|unidades|pecas|peças)", "i"));
     if (after) return Math.max(1, parseInt(after[1], 10));
     return 1;
   }
 
   function extractEloStructuralTriple_(message) {
     const raw = String(message || "");
-    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/i);
+    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i);
     return match ? [match[1], match[2], match[3]] : null;
   }
 
   function extractEloStructuralLengthAndSection_(message) {
     const raw = String(message || "");
-    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/i) ||
-      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)/i);
+    const match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/i) ||
+      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:cm)?\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)/i);
     if (!match) return null;
-    if (/\d+(?:[,.]\d+)?\s*(?:cm)?\s*(?:x|Ã—|por)/i.test(match[0]) && /(?:m|metros?)\s*$/i.test(match[0])) {
+    if (/\d+(?:[,.]\d+)?\s*(?:cm)?\s*(?:x|×|por)/i.test(match[0]) && /(?:m|metros?)\s*$/i.test(match[0])) {
       return { length: normalizeEloStructuralDimension_(match[3], "length"), width: normalizeEloStructuralDimension_(match[1], "section"), height: normalizeEloStructuralDimension_(match[2], "section") };
     }
     return { length: normalizeEloStructuralDimension_(match[1], "length"), width: normalizeEloStructuralDimension_(match[2], "section"), height: normalizeEloStructuralDimension_(match[3], "section") };
@@ -11550,7 +11550,7 @@
   function parseEloStructuralPackageRequest_(message) {
     const raw = String(message || "");
     const text = normalizeText(raw);
-    const structuralBlockPattern = /(?:^|\b)\d{1,3}\s+blocos?\s+\d+(?:[,.]\d+)?\s*(?:x|Ã—|por)\s*\d+(?:[,.]\d+)?\s*(?:x|Ã—|por)\s*\d+(?:[,.]\d+)?/;
+    const structuralBlockPattern = /(?:^|\b)\d{1,3}\s+blocos?\s+\d+(?:[,.]\d+)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?\s*(?:x|×|por)\s*\d+(?:[,.]\d+)?/;
     const wallBlockOnly = /parede|alvenaria|tijolo|baiano|ceramico|cer.mico/.test(text) || (/\bbloco\b/.test(text) && !/fundacao|funda..o|sapata|baldrame|pilar|\bviga\b/.test(text) && !structuralBlockPattern.test(text));
     if (wallBlockOnly) return null;
     let type = "";
@@ -11672,7 +11672,7 @@
           "- 12 pilares 20 x 20 x 3",
           "",
           "Observacoes tecnicas",
-          "- Nao faÃ§o dimensionamento estrutural.",
+          "- Nao faço dimensionamento estrutural.",
           "- Armadura e detalhamento exigem projeto estrutural por profissional habilitado."
         ].join("\n"),
         nextAction: "Informe quantidade e dimensoes do elemento.",
@@ -11726,7 +11726,7 @@
     lines.push("", "Custos encontrados");
     if (budgetItems.hasAnyPrice) lines.push("- Custo parcial calculado com os precos existentes nas composicoes: R$ " + formatEloOperationalQuantity_(budgetItems.totalWithPrices) + (budgetItems.hasMissingPrice ? ". Existem insumos sem preco; nao trate como custo total oficial." : "."));
     else lines.push("- Precos oficiais nao informados ou composicao nao localizada; custo total nao calculado.");
-    lines.push("", "Observacoes tecnicas", "- Os quantitativos apresentados nao substituem projeto estrutural.", "- Nao faÃ§o dimensionamento estrutural nem calculo armaduras normativas.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
+    lines.push("", "Observacoes tecnicas", "- Os quantitativos apresentados nao substituem projeto estrutural.", "- Nao faço dimensionamento estrutural nem calculo armaduras normativas.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
     return { shortAnswer: "Pacote estrutural consolidado para revisao tecnica.", fullAnswer: lines.join("\n"), nextAction: contract && contract.valid ? "Revise geometria, composicao e premissas com o responsavel tecnico." : "Importe ou informe composicao SINAPI/ORSE oficial para completar custos e consumos.", canSave: true, sessionTheme: "structural_package", sessionIntent: "structural_package" };
   }
 
@@ -11734,11 +11734,11 @@
 
   function parseEloResidentialArea_(message) {
     const raw = String(message || "");
-    const contextual = raw.match(/(?:casa|residencia|residÃªncia|obra)[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?|metros?)\b/i);
+    const contextual = raw.match(/(?:casa|residencia|residência|obra)[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?|metros?)\b/i);
     if (contextual) return parseEloOperationalNumber_(contextual[1]);
-    const explicitArea = raw.match(/(?:area|Ã¡rea)\s+(?:aproximada\s+)?(?:da\s+)?(?:casa|obra|residencia|residÃªncia)[^\n\r]{0,30}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/i);
+    const explicitArea = raw.match(/(?:area|área)\s+(?:aproximada\s+)?(?:da\s+)?(?:casa|obra|residencia|residência)[^\n\r]{0,30}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
     if (explicitArea) return parseEloOperationalNumber_(explicitArea[1]);
-    const generic = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/i);
+    const generic = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
     return generic ? parseEloOperationalNumber_(generic[1]) : 0;
   }
   function parseEloResidentialWallPackage_(message) {
@@ -11747,7 +11747,7 @@
     if (!/parede|paredes|alvenaria/.test(text)) return null;
     let wallMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?paredes?[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?altura/i) || raw.match(/paredes?[^\n\r]{0,50}?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\D{0,30}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s+)?altura/i);
     if (!wallMatch) wallMatch = raw.match(/paredes?[^\n\r]{0,40}?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?[^\n\r]{0,20}?altura\s*(\d+(?:[,.]\d+)?)/i);
-    const areaMatch = raw.match(/(?:area|Ã¡rea)\s+(?:bruta\s+)?(?:de\s+)?(?:parede|paredes|alvenaria)[^\n\r]{0,30}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²)/i);
+    const areaMatch = raw.match(/(?:area|área)\s+(?:bruta\s+)?(?:de\s+)?(?:parede|paredes|alvenaria)[^\n\r]{0,30}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²)/i);
     let length = 0;
     let height = 0;
     let grossArea = 0;
@@ -11759,7 +11759,7 @@
       grossArea = parseEloOperationalNumber_(areaMatch[1]);
     }
     if (!grossArea) return null;
-    const openingsMatch = raw.match(/(?:portas?\s+e\s+janelas?|vaos|vÃ£os|aberturas?)[^\n\r]{0,40}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|mÂ²)/i);
+    const openingsMatch = raw.match(/(?:portas?\s+e\s+janelas?|vaos|vãos|aberturas?)[^\n\r]{0,40}?(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²)/i);
     const openingsArea = openingsMatch ? parseEloOperationalNumber_(openingsMatch[1]) : 0;
     const netArea = Math.max(0, grossArea - openingsArea);
     return {
@@ -11779,10 +11779,10 @@
       const geometry = parseEloStructuralPackageRequest_(snippet);
       if (geometry && !geometry.incomplete) elements.push(geometry);
     }
-    Array.from(raw.matchAll(/(\d{1,3})\s+pilares?\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
+    Array.from(raw.matchAll(/(\d{1,3})\s+pilares?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
       add(match[1] + " pilares " + match[2] + " x " + match[3] + " x " + match[4]);
     });
-    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?vigas?\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
+    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?vigas?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) {
       add("viga " + match[1] + " m " + match[2] + " x " + match[3]);
     });
     return elements.filter(function (element, index, list) {
@@ -11796,7 +11796,7 @@
   function parseEloResidentialBudgetPackageRequest_(message) {
     const raw = String(message || "");
     const text = normalizeText(raw);
-    const hasResidentialIntent = /orcamento|orÃ§amento|residencial|residencia|residÃªncia|casa|obra|preliminar|custa|custo/.test(text);
+    const hasResidentialIntent = /orcamento|orçamento|residencial|residencia|residência|casa|obra|preliminar|custa|custo/.test(text);
     if (!hasResidentialIntent) return null;
     const wall = parseEloResidentialWallPackage_(raw);
     const foundationAll = collectEloFoundationPackageElements_(raw);
@@ -11804,7 +11804,7 @@
     const structureElements = collectEloResidentialStructureElements_(raw).filter(function (element) { return element.type === "pilar" || element.type === "viga_aerea"; });
     const area = parseEloResidentialArea_(raw);
     if (!wall && !foundationElements.length && !structureElements.length) return null;
-    if (!/orcamento|orÃ§amento|preliminar|custa|custo|residencial|casa|obra/.test(text) && (wall ? 1 : 0) + (foundationElements.length ? 1 : 0) + (structureElements.length ? 1 : 0) < 2) return null;
+    if (!/orcamento|orçamento|preliminar|custa|custo|residencial|casa|obra/.test(text) && (wall ? 1 : 0) + (foundationElements.length ? 1 : 0) + (structureElements.length ? 1 : 0) < 2) return null;
     return { type: "residential_budget_package", area: area, wall: wall, foundationElements: foundationElements, structureElements: structureElements };
   }
 
@@ -11835,7 +11835,7 @@
   }
 
   function buildEloResidentialMultipleChoiceResponse_(conflicts) {
-    const lines = ["# ORÃ‡AMENTO RESIDENCIAL PRELIMINAR", "", "Encontrei mais de uma composicao oficial compativel para um ou mais serviÃ§os.", "", "Nao vou assumir automaticamente. Informe qual deseja utilizar:", ""];
+    const lines = ["# ORÇAMENTO RESIDENCIAL PRELIMINAR", "", "Encontrei mais de uma composicao oficial compativel para um ou mais serviços.", "", "Nao vou assumir automaticamente. Informe qual deseja utilizar:", ""];
     conflicts.forEach(function (conflict) {
       lines.push(conflict.label + ":");
       conflict.candidates.slice(0, 5).forEach(function (candidate, index) {
@@ -11844,8 +11844,8 @@
       });
       lines.push("");
     });
-    lines.push("## Avisos profissionais", "Este orÃ§amento Ã© preliminar e assistido. NÃ£o substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade tÃ©cnica profissional.");
-    return { shortAnswer: "Mais de uma composicao encontrada para o orÃ§amento residencial.", fullAnswer: lines.join("\n"), nextAction: "Informe os cÃ³digos das composiÃ§Ãµes escolhidas para consolidar o orÃ§amento preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_composition_choice" };
+    lines.push("## Avisos profissionais", "Este orçamento é preliminar e assistido. Não substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade técnica profissional.");
+    return { shortAnswer: "Mais de uma composicao encontrada para o orçamento residencial.", fullAnswer: lines.join("\n"), nextAction: "Informe os códigos das composições escolhidas para consolidar o orçamento preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_composition_choice" };
   }
 
   function buildEloResidentialBudgetPackageResponse_(residential) {
@@ -11881,60 +11881,60 @@
     const totalConcrete = foundationConcrete + structureConcrete;
     const totalForm = foundationForm + structureForm;
     const lines = [
-      "# ORÃ‡AMENTO RESIDENCIAL PRELIMINAR",
+      "# ORÇAMENTO RESIDENCIAL PRELIMINAR",
       "",
       "## 1. Resumo executivo",
-      "- Ãrea informada: " + (residential.area ? formatEloWallPremiseMeasure_(residential.area, "mÂ²") : "nÃ£o informada"),
-      "- Parede completa: " + (residential.wall ? "considerada" : "nÃ£o informada"),
-      "- FundaÃ§Ã£o completa: " + (residential.foundationElements.length ? "considerada" : "nÃ£o informada"),
-      "- Estrutura simples: " + (residential.structureElements.length ? "considerada" : "nÃ£o informada"),
+      "- Área informada: " + (residential.area ? formatEloWallPremiseMeasure_(residential.area, "m²") : "não informada"),
+      "- Parede completa: " + (residential.wall ? "considerada" : "não informada"),
+      "- Fundação completa: " + (residential.foundationElements.length ? "considerada" : "não informada"),
+      "- Estrutura simples: " + (residential.structureElements.length ? "considerada" : "não informada"),
       "- Concreto total geral: " + formatEloOperationalQuantity_(totalConcrete) + " m3",
       "- Forma total geral: " + formatEloOperationalQuantity_(totalForm) + " m2",
-      "- EscavaÃ§Ã£o total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3",
-      "- Ãrea de alvenaria: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.netArea, "mÂ²") : "nÃ£o informada"),
-      "- Ãrea de revestimento/pintura: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.coatingArea, "mÂ²") : "nÃ£o informada"),
+      "- Escavação total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3",
+      "- Área de alvenaria: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.netArea, "m²") : "não informada"),
+      "- Área de revestimento/pintura: " + (residential.wall ? formatEloWallPremiseMeasure_(residential.wall.coatingArea, "m²") : "não informada"),
       "",
       "## 2. Premissas informadas"
     ];
     if (residential.wall) {
-      lines.push("- Paredes: Ã¡rea bruta " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "mÂ²") + "; vÃ£os " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "mÂ²") + "; Ã¡rea lÃ­quida " + formatEloWallPremiseMeasure_(residential.wall.netArea, "mÂ²") + ".");
-    } else lines.push("- Paredes: nÃ£o informadas.");
-    residential.foundationElements.forEach(function (element) { lines.push("- FundaÃ§Ã£o: " + getEloFoundationElementSummary_(element)); });
+      lines.push("- Paredes: área bruta " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "m²") + "; vãos " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "m²") + "; área líquida " + formatEloWallPremiseMeasure_(residential.wall.netArea, "m²") + ".");
+    } else lines.push("- Paredes: não informadas.");
+    residential.foundationElements.forEach(function (element) { lines.push("- Fundação: " + getEloFoundationElementSummary_(element)); });
     residential.structureElements.forEach(function (element) { lines.push("- Estrutura: " + getEloFoundationElementSummary_(element)); });
     lines.push("", "## 3. Parede completa");
     if (residential.wall) {
-      lines.push("- Ãrea bruta de parede: " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "mÂ²"));
-      lines.push("- Ãrea de vÃ£os: " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "mÂ²"));
-      lines.push("- Ãrea lÃ­quida: " + formatEloWallPremiseMeasure_(residential.wall.netArea, "mÂ²"));
-      lines.push("- Ãrea tÃ©cnica para chapisco/reboco/pintura: " + formatEloWallPremiseMeasure_(residential.wall.coatingArea, "mÂ²") + " (duas faces)." );
-    } else lines.push("- NÃ£o informada nesta solicitaÃ§Ã£o.");
-    lines.push("", "## 4. FundaÃ§Ã£o completa");
+      lines.push("- Área bruta de parede: " + formatEloWallPremiseMeasure_(residential.wall.grossArea, "m²"));
+      lines.push("- Área de vãos: " + formatEloWallPremiseMeasure_(residential.wall.openingsArea, "m²"));
+      lines.push("- Área líquida: " + formatEloWallPremiseMeasure_(residential.wall.netArea, "m²"));
+      lines.push("- Área técnica para chapisco/reboco/pintura: " + formatEloWallPremiseMeasure_(residential.wall.coatingArea, "m²") + " (duas faces)." );
+    } else lines.push("- Não informada nesta solicitação.");
+    lines.push("", "## 4. Fundação completa");
     if (residential.foundationElements.length) {
       residential.foundationElements.forEach(function (element) { lines.push("- " + getEloFoundationElementSummary_(element)); });
-      lines.push("- Concreto da fundaÃ§Ã£o: " + formatEloOperationalQuantity_(foundationConcrete) + " m3");
-      lines.push("- EscavaÃ§Ã£o geomÃ©trica: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
-      lines.push("- Forma da fundaÃ§Ã£o: " + formatEloOperationalQuantity_(foundationForm) + " m2");
-    } else lines.push("- NÃ£o informada nesta solicitaÃ§Ã£o.");
+      lines.push("- Concreto da fundação: " + formatEloOperationalQuantity_(foundationConcrete) + " m3");
+      lines.push("- Escavação geométrica: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
+      lines.push("- Forma da fundação: " + formatEloOperationalQuantity_(foundationForm) + " m2");
+    } else lines.push("- Não informada nesta solicitação.");
     lines.push("", "## 5. Estrutura simples");
     if (residential.structureElements.length) {
       residential.structureElements.forEach(function (element) { lines.push("- " + getEloFoundationElementSummary_(element)); });
       lines.push("- Volume de pilares/vigas: " + formatEloOperationalQuantity_(structureConcrete) + " m3");
       lines.push("- Forma lateral: " + formatEloOperationalQuantity_(structureForm) + " m2");
-    } else lines.push("- NÃ£o informada nesta solicitaÃ§Ã£o.");
-    lines.push("", "## 6. Totais consolidados", "- Concreto total geral: " + formatEloOperationalQuantity_(totalConcrete) + " m3", "- Forma total geral: " + formatEloOperationalQuantity_(totalForm) + " m2", "- EscavaÃ§Ã£o total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
-    lines.push("", "## 7. ComposiÃ§Ãµes oficiais utilizadas");
-    if (bucket.used.length) bucket.used.forEach(function (item) { lines.push("- " + item.label + ": " + item.contract.fonte + " | " + item.contract.codigo + " | " + item.contract.descricao + " | unidade " + item.contract.unidade + " | " + (item.contract.uf || "UF nÃ£o informada") + " / " + (item.contract.mes || "mÃªs nÃ£o informado")); });
-    else lines.push("- Nenhuma composiÃ§Ã£o oficial localizada para os serviÃ§os informados.");
+    } else lines.push("- Não informada nesta solicitação.");
+    lines.push("", "## 6. Totais consolidados", "- Concreto total geral: " + formatEloOperationalQuantity_(totalConcrete) + " m3", "- Forma total geral: " + formatEloOperationalQuantity_(totalForm) + " m2", "- Escavação total geral: " + formatEloOperationalQuantity_(foundationExcavation) + " m3");
+    lines.push("", "## 7. Composições oficiais utilizadas");
+    if (bucket.used.length) bucket.used.forEach(function (item) { lines.push("- " + item.label + ": " + item.contract.fonte + " | " + item.contract.codigo + " | " + item.contract.descricao + " | unidade " + item.contract.unidade + " | " + (item.contract.uf || "UF não informada") + " / " + (item.contract.mes || "mês não informado")); });
+    else lines.push("- Nenhuma composição oficial localizada para os serviços informados.");
     lines.push("", "## 8. Custos encontrados");
-    if (bucket.hasAnyCost) lines.push("- Custo parcial encontrado: R$ " + formatEloOperationalQuantity_(bucket.totalCost) + (bucket.hasMissingCost ? ". Existem insumos sem preÃ§o; nÃ£o trate como custo total definitivo." : "."));
-    else lines.push("- Custo parcial nÃ£o encontrado: nenhum preÃ§o oficial suficiente localizado; custo nÃ£o calculado.");
-    lines.push("", "## 9. PendÃªncias tÃ©cnicas");
-    if (bucket.missing.length) bucket.missing.forEach(function (label) { lines.push("- " + label + ": composiÃ§Ã£o oficial nÃ£o localizada na base atualmente carregada."); });
-    else lines.push("- Nenhuma pendÃªncia de composiÃ§Ã£o para os serviÃ§os localizados na base atual.");
-    lines.push("- AÃ§o nÃ£o calculado automaticamente. NecessÃ¡rio projeto estrutural.");
-    lines.push("- Confirmar memorial descritivo, padrÃ£o de acabamento, perdas executivas, BDI, encargos e preÃ§os vigentes antes de contrataÃ§Ã£o.");
-    lines.push("", "## 10. Avisos profissionais", "Este orÃ§amento Ã© preliminar e assistido. NÃ£o substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade tÃ©cnica profissional.", "NÃ£o faÃ§o dimensionamento estrutural nem detalhamento de armaduras normativas.");
-    return { shortAnswer: "OrÃ§amento residencial preliminar consolidado para revisÃ£o tÃ©cnica.", fullAnswer: lines.join("\n"), nextAction: bucket.missing.length ? "Importe ou informe as composiÃ§Ãµes oficiais faltantes para completar o orÃ§amento preliminar." : "Revise premissas, preÃ§os e responsabilidades tÃ©cnicas antes de apresentar ao cliente.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_package" };
+    if (bucket.hasAnyCost) lines.push("- Custo parcial encontrado: R$ " + formatEloOperationalQuantity_(bucket.totalCost) + (bucket.hasMissingCost ? ". Existem insumos sem preço; não trate como custo total definitivo." : "."));
+    else lines.push("- Custo parcial não encontrado: nenhum preço oficial suficiente localizado; custo não calculado.");
+    lines.push("", "## 9. Pendências técnicas");
+    if (bucket.missing.length) bucket.missing.forEach(function (label) { lines.push("- " + label + ": composição oficial não localizada na base atualmente carregada."); });
+    else lines.push("- Nenhuma pendência de composição para os serviços localizados na base atual.");
+    lines.push("- Aço não calculado automaticamente. Necessário projeto estrutural.");
+    lines.push("- Confirmar memorial descritivo, padrão de acabamento, perdas executivas, BDI, encargos e preços vigentes antes de contratação.");
+    lines.push("", "## 10. Avisos profissionais", "Este orçamento é preliminar e assistido. Não substitui projeto, memorial descritivo, levantamento executivo ou responsabilidade técnica profissional.", "Não faço dimensionamento estrutural nem detalhamento de armaduras normativas.");
+    return { shortAnswer: "Orçamento residencial preliminar consolidado para revisão técnica.", fullAnswer: lines.join("\n"), nextAction: bucket.missing.length ? "Importe ou informe as composições oficiais faltantes para completar o orçamento preliminar." : "Revise premissas, preços e responsabilidades técnicas antes de apresentar ao cliente.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "residential_budget_package" };
   }
 
   function isEloResidentialBudgetBriefingQuestion_(message) {
@@ -11999,12 +11999,12 @@
       const geometry = parseEloStructuralPackageRequest_(snippet);
       if (geometry && !geometry.incomplete) elements.push(geometry);
     }
-    Array.from(raw.matchAll(/(\d{1,3})\s+sapatas?\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("sapata", buildEloFoundationElementSnippet_("sapata", match)); });
-    Array.from(raw.matchAll(/(\d{1,3})\s+blocos?\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("bloco_fundacao", buildEloFoundationElementSnippet_("bloco_fundacao", match)); });
-    Array.from(raw.matchAll(/(\d{1,3})\s+pilares?\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("pilar", buildEloFoundationElementSnippet_("pilar", match)); });
-    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?baldrame\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_baldrame", buildEloFoundationElementSnippet_("viga_baldrame", match)); });
-    Array.from(raw.matchAll(/baldrame\s+(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_baldrame", buildEloFoundationElementSnippet_("viga_baldrame", match)); });
-    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?viga\s+(\d+(?:[,.]\d+)?)\s*(?:x|Ã—|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_aerea", buildEloFoundationElementSnippet_("viga_aerea", match)); });
+    Array.from(raw.matchAll(/(\d{1,3})\s+sapatas?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("sapata", buildEloFoundationElementSnippet_("sapata", match)); });
+    Array.from(raw.matchAll(/(\d{1,3})\s+blocos?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("bloco_fundacao", buildEloFoundationElementSnippet_("bloco_fundacao", match)); });
+    Array.from(raw.matchAll(/(\d{1,3})\s+pilares?\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("pilar", buildEloFoundationElementSnippet_("pilar", match)); });
+    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?baldrame\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_baldrame", buildEloFoundationElementSnippet_("viga_baldrame", match)); });
+    Array.from(raw.matchAll(/baldrame\s+(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_baldrame", buildEloFoundationElementSnippet_("viga_baldrame", match)); });
+    Array.from(raw.matchAll(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s*(?:de\s+)?viga\s+(\d+(?:[,.]\d+)?)\s*(?:x|×|por)\s*(\d+(?:[,.]\d+)?)/gi)).forEach(function (match) { addElement("viga_aerea", buildEloFoundationElementSnippet_("viga_aerea", match)); });
     return elements.filter(function (element, index, list) {
       const key = element.type + ":" + element.quantity + ":" + formatEloOperationalQuantity_(element.length) + ":" + formatEloOperationalQuantity_(element.width) + ":" + formatEloOperationalQuantity_(element.height);
       return list.findIndex(function (other) {
@@ -12039,7 +12039,7 @@
 
   function buildEloFoundationMultipleChoiceResponse_(foundation, conflicts) {
     const lines = [
-      "FUNDAÃ‡ÃƒO COMPLETA",
+      "FUNDAÇÃO COMPLETA",
       "Encontrei mais de uma composicao tecnica oficial compativel para um ou mais elementos da fundacao.",
       "",
       "Nao vou assumir automaticamente. Informe qual deseja utilizar:",
@@ -12053,7 +12053,7 @@
       });
       lines.push("");
     });
-    lines.push("Observacoes tecnicas", "- Os volumes geometricos foram identificados, mas a composicao deve ser escolhida explicitamente.", "- Nao faÃ§o dimensionamento estrutural nem calculo armaduras normativas.");
+    lines.push("Observacoes tecnicas", "- Os volumes geometricos foram identificados, mas a composicao deve ser escolhida explicitamente.", "- Nao faço dimensionamento estrutural nem calculo armaduras normativas.");
     return { shortAnswer: "Mais de uma composicao encontrada para a fundacao.", fullAnswer: lines.join("\n"), nextAction: "Informe os codigos das composicoes escolhidas para consolidar a fundacao.", canSave: false, sessionTheme: "foundation_package", sessionIntent: "foundation_package_composition_choice" };
   }
 
@@ -12078,7 +12078,7 @@
     let hasAnyCost = false;
     let hasMissingCost = false;
     const lines = [
-      "FUNDAÃ‡ÃƒO COMPLETA",
+      "FUNDAÇÃO COMPLETA",
       "Consolidei os elementos de fundacao informados usando geometria simples e busquei composicoes oficiais/importadas validadas quando disponiveis.",
       "",
       "Resumo executivo",
@@ -12121,7 +12121,7 @@
       lines.push("", "Composicoes nao localizadas");
       missing.forEach(function (type) { lines.push("- " + getEloStructuralElementLabel_(type) + ": importe ou informe composicao SINAPI/ORSE oficial para calcular consumos e custos."); });
     }
-    lines.push("", "Observacoes tecnicas", "- Escavacao total e volume de concreto sao geometricos, conforme dimensoes fornecidas; nao incluem folgas executivas, perdas de escavacao ou regularizacao.", "- Forma total considera apenas area lateral indicada pelos elementos ja suportados pelo motor estrutural.", "- Aco nao calculado automaticamente. Necessario projeto estrutural.", "- Nao faÃ§o dimensionamento estrutural nem detalhamento de armaduras normativas.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
+    lines.push("", "Observacoes tecnicas", "- Escavacao total e volume de concreto sao geometricos, conforme dimensoes fornecidas; nao incluem folgas executivas, perdas de escavacao ou regularizacao.", "- Forma total considera apenas area lateral indicada pelos elementos ja suportados pelo motor estrutural.", "- Aco nao calculado automaticamente. Necessario projeto estrutural.", "- Nao faço dimensionamento estrutural nem detalhamento de armaduras normativas.", "- Dimensionamento e detalhamento devem ser realizados por profissional habilitado.");
     return { shortAnswer: "Fundacao completa consolidada para revisao tecnica.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Importe ou informe as composicoes oficiais faltantes para completar custos e consumos." : "Revise geometria, composicoes e premissas com o responsavel tecnico antes de fechar o orcamento.", canSave: true, sessionTheme: "foundation_package", sessionIntent: "foundation_package" };
   }
 
@@ -12153,10 +12153,10 @@
       "Resposta principal",
       "Orcamento assistido de alvenaria pronto para revisao tecnica. A composicao foi localizada e o consumo foi calculado de forma auditavel.",
       "",
-      "MemÃ³ria de cÃ¡lculo:",
-      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²"),
-      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "mÂ²"),
-      "- Area liquida: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"),
+      "Memória de cálculo:",
+      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Area liquida: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Formula de consumo: area liquida x coeficiente da composicao x (1 + perda adotada).",
       "",
       "Premissas utilizadas:",
@@ -12166,10 +12166,10 @@
       "Premissas do servico:",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
-      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²"),
+      "- Area bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
       "- Vaos descontados: " + openingSummary,
-      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "mÂ²"),
-      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"),
+      "- Area total de vaos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Area liquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
       "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
@@ -12203,7 +12203,7 @@
       "# Relatorio Tecnico de Orcamento - Alvenaria",
       "1. Identificacao: " + (project && project.nome ? project.nome : "obra atual"),
       "2. Escopo: alvenaria com bloco " + formatEloStockObrasBlockDimension_(briefing),
-      "3. Premissas: area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²") + ", perda " + formatEloStockObrasLoss_(briefing) + ".",
+      "3. Premissas: area liquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ", perda " + formatEloStockObrasLoss_(briefing) + ".",
       "4. Base tecnica: " + contract.fonte + " | " + contract.codigo + " | " + contract.unidade + ".",
       "5. Memoria de calculo: area liquida x coeficientes oficiais/importados.",
       "6. Consumos: detalhados acima por insumo.",
@@ -12232,46 +12232,46 @@
     }
     const openingSummary = formatEloStockObrasOpenings_(briefing);
     const project = getActiveEloWorkProject_();
-    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria orÃ§amento custo produtividade", { hasOfficialBase: false });
+    const auditorAlerts = buildEloTechnicalAuditorAlerts_("parede alvenaria orçamento custo produtividade", { hasOfficialBase: false });
     const lines = [
       "Resposta principal",
-      alreadyConsidered ? "A premissa informada jÃ¡ estava considerada no briefing acumulado." : "Briefing tÃ©cnico consolidado, mas ainda preciso de uma composiÃ§Ã£o SINAPI/ORSE ou interna validada para calcular consumo, mÃ£o de obra, produtividade ou custo com seguranÃ§a.",
+      alreadyConsidered ? "A premissa informada já estava considerada no briefing acumulado." : "Briefing técnico consolidado, mas ainda preciso de uma composição SINAPI/ORSE ou interna validada para calcular consumo, mão de obra, produtividade ou custo com segurança.",
       "",
-      "MemÃ³ria de cÃ¡lculo:",
-      "- Ãrea bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²") + " - vÃ£os " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "mÂ²") + " = Ã¡rea lÃ­quida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²") + ".",
-      "- Consumo, produtividade, mÃ£o de obra e custo oficial ainda bloqueados por falta de base tÃ©cnica vÃ¡lida.",
+      "Memória de cálculo:",
+      "- Área bruta " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²") + " - vãos " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²") + " = área líquida " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + ".",
+      "- Consumo, produtividade, mão de obra e custo oficial ainda bloqueados por falta de base técnica válida.",
       "",
       "Premissas utilizadas:",
-      "MemÃ³ria permanente de obra:",
+      "Memória permanente de obra:",
       formatEloWorkMemoryLines_(project).join("\n"),
       "",
-      "Premissas do serviÃ§o:",
+      "Premissas do serviço:",
       "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
       "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
-      "- Ãrea bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²"),
-      "- VÃ£os descontados: " + openingSummary,
-      "- Ãrea total de vÃ£os: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "mÂ²"),
-      "- Ãrea lÃ­quida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"),
+      "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²"),
+      "- Vãos descontados: " + openingSummary,
+      "- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"),
+      "- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"),
       "- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing),
       "- Perda adotada: " + formatEloStockObrasLoss_(briefing),
       "- Lados revestidos: " + formatEloStockObrasCoating_(briefing),
       briefing.espessura_revestimento_cm !== null ? "- Espessura do revestimento: " + formatEloStockObrasThickness_(briefing) : "",
       "",
-      "Base tÃ©cnica utilizada: nÃ£o localizada",
-      "- NÃ£o vou gerar quantitativo oficial, consumo, mÃ£o de obra, produtividade ou valor sem SINAPI, ORSE ou composiÃ§Ã£o interna validada.",
+      "Base técnica utilizada: não localizada",
+      "- Não vou gerar quantitativo oficial, consumo, mão de obra, produtividade ou valor sem SINAPI, ORSE ou composição interna validada.",
       "",
       "Alertas do auditor:",
       auditorAlerts.join("\n"),
       "",
       buildEloBudgetMvpScopeNotice_(),
       "",
-      "PrÃ³xima aÃ§Ã£o recomendada",
-      "VocÃª pode informar o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE ou autorizar explicitamente uma estimativa preliminar NÃƒO OFICIAL."
+      "Próxima ação recomendada",
+      "Você pode informar o código/composição SINAPI/ORSE ou autorizar explicitamente uma estimativa preliminar NÃO OFICIAL."
     ].filter(Boolean);
     return {
-      shortAnswer: "Briefing tÃ©cnico consolidado; base tÃ©cnica nÃ£o localizada.",
+      shortAnswer: "Briefing técnico consolidado; base técnica não localizada.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Informe o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃƒO OFICIAL.",
+      nextAction: "Informe o código/composição SINAPI/ORSE ou autorize explicitamente uma estimativa preliminar NÃO OFICIAL.",
       canSave: false,
       sessionTheme: "stock_obras_composicao",
       sessionIntent: "briefing_composicao_consolidado"
@@ -12291,8 +12291,8 @@
       return null;
     }
     const hasExplicitBlockDimension = !!extractEloBlockDimensionCm_(message);
-    const asksOnlyBlocks = /quantos\s+blocos|blocos?.*(?:preciso|gasto|necessario|necessÃ¡rios|necessarios)/.test(text);
-    const hasBudgetIntent = /orcamento|orÃ§amento|orcar|custo|preco|preÃ§o|valor|quanto\s+custa/.test(text);
+    const asksOnlyBlocks = /quantos\s+blocos|blocos?.*(?:preciso|gasto|necessario|necessários|necessarios)/.test(text);
+    const hasBudgetIntent = /orcamento|orçamento|orcar|custo|preco|preço|valor|quanto\s+custa/.test(text);
     if (asksOnlyBlocks || (!hasExplicitBlockDimension && /bloco|tijolo|baiano/.test(text)) || (hasBudgetIntent && !hasExplicitBlockDimension)) {
       return null;
     }
@@ -12337,7 +12337,7 @@
     if (!isPendingWall && !shouldStart && !hasActiveBriefing) {
       return null;
     }
-    const relevantFollowUp = /porta|janela|vao|vÃ£os|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    const relevantFollowUp = /porta|janela|vao|vãos|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
     if (!isPendingWall && !shouldStart && hasActiveBriefing && !relevantFollowUp) {
       return null;
     }
@@ -12346,15 +12346,15 @@
     const missing = [];
     let intent = "confirmar_premissas_parede";
     if (!briefing.area_bruta_m2) {
-      missing.push("comprimento e altura, ou Ã¡rea bruta da parede");
+      missing.push("comprimento e altura, ou área bruta da parede");
       intent = "confirmar_medidas_parede";
     }
     if (!briefing.bloco_ceramico_dimensao_cm) {
-      missing.push("dimensÃ£o real do bloco. Qual a dimensÃ£o do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerÃ¢mico");
+      missing.push("dimensão real do bloco. Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico");
       intent = "confirmar_bloco_parede";
     }
     if (!briefing.vaos.sem_vaos && !briefing.vaos.portas.length && !briefing.vaos.janelas.length) {
-      missing.push("se existem vÃ£os. A parede terÃ¡ portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede Ã­ntegra, sem vÃ£os");
+      missing.push("se existem vãos. A parede terá portas ou janelas? Se sim, informe quantidade e medidas. Ex.: 1 porta de 0,80 x 2,10 m; 2 janelas de 1,20 x 1,00 m. Ou confirme: parede íntegra, sem vãos");
       if (intent === "confirmar_premissas_parede") intent = "confirmar_vaos_parede";
     }
     if (briefing.perda_percentual === null) {
@@ -12362,7 +12362,7 @@
       if (intent === "confirmar_premissas_parede") intent = "confirmar_perda_parede";
     }
     if (!briefing.revestimento_lados) {
-      missing.push("se haverÃ¡ revestimento em um lado, nos dois lados ou sem revestimento");
+      missing.push("se haverá revestimento em um lado, nos dois lados ou sem revestimento");
       if (intent === "confirmar_premissas_parede") intent = "confirmar_lados_revestimento";
     }
     if (missing.length) {
@@ -12371,15 +12371,15 @@
       const registeredLines = [
         "- Comprimento da parede: " + formatEloWallPremiseMeasure_(briefing.comprimento_m, "m"),
         "- Altura da parede: " + formatEloWallPremiseMeasure_(briefing.altura_m, "m"),
-        "- Ãrea bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²")
+        "- Área bruta: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²")
       ];
       if (briefing.bloco_ceramico_dimensao_cm) {
         registeredLines.push("- Bloco considerado: " + formatEloStockObrasBlockDimension_(briefing));
       }
       if (briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) {
-        registeredLines.push("- VÃ£os descontados: " + formatEloStockObrasOpenings_(briefing));
-        registeredLines.push("- Ãrea total de vÃ£os: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "mÂ²"));
-        registeredLines.push("- Ãrea lÃ­quida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²"));
+        registeredLines.push("- Vãos descontados: " + formatEloStockObrasOpenings_(briefing));
+        registeredLines.push("- Área total de vãos: " + formatEloWallPremiseMeasure_(briefing.area_vaos_m2 || 0, "m²"));
+        registeredLines.push("- Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²"));
       }
       if (briefing.perda_percentual !== null) {
         registeredLines.push("- Perda adotada: " + formatEloStockObrasLoss_(briefing));
@@ -12389,22 +12389,22 @@
       }
       const fullAnswer = [
         "Resposta principal",
-        "Ãrea geomÃ©trica da parede: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "mÂ²") + "." + ((briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) ? " Ãrea lÃ­quida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "mÂ²") + "." : ""),
+        "Área geométrica da parede: " + formatEloWallPremiseMeasure_(briefing.area_bruta_m2, "m²") + "." + ((briefing.vaos.sem_vaos || briefing.vaos.portas.length || briefing.vaos.janelas.length) ? " Área líquida considerada: " + formatEloWallPremiseMeasure_(briefing.area_liquida_m2, "m²") + "." : ""),
         "",
         "Premissas utilizadas:",
         registeredLines.join("\n"),
         "",
-        "Base tÃ©cnica utilizada",
-        "- Geometria informada pelo usuÃ¡rio. SINAPI/ORSE ainda nÃ£o foi consultada porque faltam premissas obrigatÃ³rias.",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE ainda não foi consultada porque faltam premissas obrigatórias.",
         "",
-        "PrÃ³xima aÃ§Ã£o",
+        "Próxima ação",
         "Ainda preciso confirmar:",
         missing.map(function (item) { return "- " + item; }).join("\n"),
         "",
-        "Depois vou verificar SINAPI/ORSE ou composiÃ§Ã£o interna validada."
+        "Depois vou verificar SINAPI/ORSE ou composição interna validada."
       ].filter(Boolean).join("\n");
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso completar o briefing tÃ©cnico da parede.",
+        "Antes de calcular, preciso completar o briefing técnico da parede.",
         fullAnswer,
         "Informe as premissas pendentes para eu consolidar antes de buscar SINAPI/ORSE.",
         intent
@@ -12438,7 +12438,7 @@
       return current;
     }
     const normalizedCurrent = normalizeText(current);
-    if (pending.sessionIntent === "confirmar_vaos_parede" && /^(nao|nÃ£o|nao ha|nÃ£o hÃ¡|sem)$/.test(normalizedCurrent)) {
+    if (pending.sessionIntent === "confirmar_vaos_parede" && /^(nao|não|nao ha|não há|sem)$/.test(normalizedCurrent)) {
       return pending.raw + " sem portas e sem janelas";
     }
     return pending.raw + " " + current;
@@ -12473,14 +12473,14 @@
     const currentText = normalizeText(message);
     const isPendingWall = pending && pending.type === "wall";
     const isGenericBudgetOrProductivity = /quanto\s+custa|custo|orcamento|or.amento|produtividade|equipe|prazo|m.o\s+de\s+obra|mao\s+de\s+obra/.test(currentText) &&
-      !/bloco|porta|janela|vao|vÃ£os|perda|revestimento|sem\s+portas|sem\s+janelas|\d{1,2}\s*x\s*\d{1,2}|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+      !/bloco|porta|janela|vao|vãos|perda|revestimento|sem\s+portas|sem\s+janelas|\d{1,2}\s*x\s*\d{1,2}|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
     if (isPendingWall && isGenericBudgetOrProductivity) {
       clearEloPendingPremises_();
       return null;
     }
     const shouldStart = shouldStartEloWallPremiseCollection_(currentText);
     const activeStockObrasBriefing = ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active;
-    const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vÃ£os|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vãos|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
     if (!isPendingWall && !shouldStart && !stockObrasFollowUp) {
       return null;
     }
@@ -12501,29 +12501,29 @@
       return stockObrasBriefingResponse;
     }
 
-    if (!hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/.test(text)) {
+    if (!hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
         "Antes de calcular, preciso do comprimento e da altura.",
-        "Informe comprimento e altura, ou a Ã¡rea em mÂ². Ex.: parede com 20 m de comprimento e 2,80 m de altura.",
-        "Informe comprimento x altura ou Ã¡rea da parede.",
+        "Informe comprimento e altura, ou a área em m². Ex.: parede com 20 m de comprimento e 2,80 m de altura.",
+        "Informe comprimento x altura ou área da parede.",
         "confirmar_medidas_parede"
       ));
     }
 
     if (!hasEloBlockDimension_(text)) {
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso confirmar a dimensÃ£o do bloco.",
-        "Qual a dimensÃ£o do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerÃ¢mico.",
-        "Informe a dimensÃ£o real do bloco para eu continuar a coleta de premissas.",
+        "Antes de calcular, preciso confirmar a dimensão do bloco.",
+        "Qual a dimensão do bloco? Ex.: 14x19x39, 14x19x29 ou outra medida real do bloco cerâmico.",
+        "Informe a dimensão real do bloco para eu continuar a coleta de premissas.",
         "confirmar_bloco_parede"
       ));
     }
 
     if (!hasEloWallOpenings_(text)) {
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
-        "Antes de calcular, preciso saber se existem vÃ£os para descontar.",
-        "Antes de calcular, preciso saber se existem vÃ£os para descontar.\nA parede terÃ¡ portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede Ã­ntegra, sem vÃ£os.",
-        "Informe portas/janelas com medidas ou confirme: parede Ã­ntegra, sem vÃ£os.",
+        "Antes de calcular, preciso saber se existem vãos para descontar.",
+        "Antes de calcular, preciso saber se existem vãos para descontar.\nA parede terá portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede íntegra, sem vãos.",
+        "Informe portas/janelas com medidas ou confirme: parede íntegra, sem vãos.",
         "confirmar_vaos_parede"
       ));
     }
@@ -12532,7 +12532,7 @@
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
         "Antes de calcular, preciso confirmar a perda adotada.",
         "Deseja considerar perdas? Informe a perda em porcentagem, por exemplo 8% ou 10%.",
-        "Informe a perda tÃ©cnica que devo considerar.",
+        "Informe a perda técnica que devo considerar.",
         "confirmar_perda_parede"
       ));
     }
@@ -12540,8 +12540,8 @@
     if (!hasEloWallCoatingSide_(text)) {
       return saveEloPendingPremises_("wall", combinedMessage, buildEloPremiseCollectionQuestion_(
         "Antes de calcular, preciso confirmar o revestimento.",
-        "HaverÃ¡ revestimento? Um lado ou dois lados?",
-        "Informe se haverÃ¡ revestimento e se serÃ¡ em um lado ou nos dois lados.",
+        "Haverá revestimento? Um lado ou dois lados?",
+        "Informe se haverá revestimento e se será em um lado ou nos dois lados.",
         "confirmar_lados_revestimento"
       ));
     }
@@ -12562,14 +12562,14 @@
       if (!hasEloConcreteFck_(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso confirmar o FCK do concreto.",
-          fullAnswer: "Antes de calcular, preciso confirmar o FCK do concreto. Qual serï¿½ o FCK desejado? Ex.: 15, 20, 25 ou 30 MPa. Tambï¿½m confirme o uso: passeio, piso residencial, garagem ou ï¿½rea com carga pesada.",
+          fullAnswer: "Antes de calcular, preciso confirmar o FCK do concreto. Qual será o FCK desejado? Ex.: 15, 20, 25 ou 30 MPa. Também confirme o uso: passeio, piso residencial, garagem ou área com carga pesada.",
           nextAction: "Informe FCK e uso do concreto para eu continuar sem chutar premissas.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_fck_concreto"
         };
       }
-      if (/piso|laje|contrapiso|radier/.test(text) && !hasEloConcreteThickness_(text) && !/m3|m\^3|mÂ³|metros?\s+cubicos?/.test(text)) {
+      if (/piso|laje|contrapiso|radier/.test(text) && !hasEloConcreteThickness_(text) && !/m3|m\^3|m³|metros?\s+cubicos?/.test(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso da espessura.",
           fullAnswer: "Antes de calcular, confirme a espessura do concreto. Ex.: 7 cm para passeio, 8 a 10 cm para piso residencial ou espessura definida em projeto.",
@@ -12581,9 +12581,9 @@
       }
       if (!hasEloAreaOrDimensions_(text)) {
         return {
-          shortAnswer: "Antes de calcular, preciso da ï¿½rea, dimensï¿½es ou volume.",
-          fullAnswer: "Antes de calcular concreto, informe ï¿½rea + espessura, dimensï¿½es ou volume em mï¿½. Ex.: piso de concreto 20 mï¿½ com 8 cm, FCK 20 MPa, uso residencial.",
-          nextAction: "Informe ï¿½rea/dimensï¿½es ou volume para eu calcular.",
+          shortAnswer: "Antes de calcular, preciso da área, dimensões ou volume.",
+          fullAnswer: "Antes de calcular concreto, informe área + espessura, dimensões ou volume em m². Ex.: piso de concreto 20 m² com 8 cm, FCK 20 MPa, uso residencial.",
+          nextAction: "Informe área/dimensões ou volume para eu calcular.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_medidas_concreto"
@@ -12592,7 +12592,7 @@
       if (/piso|radier|contrapiso/.test(text) && !hasEloConcreteUse_(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso confirmar o uso do concreto.",
-          fullAnswer: "Antes de calcular, confirme o uso: passeio, piso residencial, garagem ou ï¿½rea com carga pesada. Isso muda a premissa tï¿½cnica e o consumo recomendado.",
+          fullAnswer: "Antes de calcular, confirme o uso: passeio, piso residencial, garagem ou área com carga pesada. Isso muda a premissa técnica e o consumo recomendado.",
           nextAction: "Informe o tipo de uso do piso/radier.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
@@ -12605,19 +12605,19 @@
       const masonryWallSubject = /bloco|tijolo|alvenaria|parede|muro/.test(text);
       if (masonryWallSubject && !hasEloBlockDimension_(text)) {
         return {
-          shortAnswer: "Antes de calcular, preciso confirmar a dimensï¿½o do bloco.",
-          fullAnswer: "Antes de calcular, preciso confirmar a dimensï¿½o real do bloco cerï¿½mico. Ele ï¿½ 29x19x14, 39x19x14 ou outra medida?",
-          nextAction: "Informe a dimensï¿½o do bloco para eu calcular com seguranï¿½a.",
+          shortAnswer: "Antes de calcular, preciso confirmar a dimensão do bloco.",
+          fullAnswer: "Antes de calcular, preciso confirmar a dimensão real do bloco cerâmico. Ele é 29x19x14, 39x19x14 ou outra medida?",
+          nextAction: "Informe a dimensão do bloco para eu calcular com segurança.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_bloco_parede"
         };
       }
-      if (masonryWallSubject && !hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/.test(text)) {
+      if (masonryWallSubject && !hasEloWallLengthHeight_(text) && !/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso do comprimento e da altura.",
-          fullAnswer: "Antes de calcular a parede, informe comprimento e altura, ou a ï¿½rea em mï¿½. Ex.: parede 8 m x 3 m com bloco 39x19x14.",
-          nextAction: "Informe comprimento x altura ou ï¿½rea da parede.",
+          fullAnswer: "Antes de calcular a parede, informe comprimento e altura, ou a área em m². Ex.: parede 8 m x 3 m com bloco 39x19x14.",
+          nextAction: "Informe comprimento x altura ou área da parede.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_medidas_parede"
@@ -12625,9 +12625,9 @@
       }
       if (masonryWallSubject && !hasEloWallOpenings_(text)) {
         return {
-          shortAnswer: "Antes de calcular, preciso saber se existem vÃ£os para descontar.",
-          fullAnswer: "Antes de calcular, preciso saber se existem vÃ£os para descontar.\nA parede terÃ¡ portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede Ã­ntegra, sem vÃ£os.",
-          nextAction: "Informe portas/janelas com medidas ou confirme: parede Ã­ntegra, sem vÃ£os.",
+          shortAnswer: "Antes de calcular, preciso saber se existem vãos para descontar.",
+          fullAnswer: "Antes de calcular, preciso saber se existem vãos para descontar.\nA parede terá portas ou janelas?\nSe sim, informe quantidade e medidas. Ex.:\n- 1 porta de 0,80 x 2,10 m\n- 2 janelas de 1,20 x 1,00 m\nOu confirme: parede íntegra, sem vãos.",
+          nextAction: "Informe portas/janelas com medidas ou confirme: parede íntegra, sem vãos.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
           sessionIntent: "confirmar_vaos_parede"
@@ -12636,7 +12636,7 @@
       if (/chapisco|embo.o|emboco|reboco|revestimento/.test(text) && !hasEloWallCoatingSide_(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso confirmar os lados do revestimento.",
-          fullAnswer: "Vocï¿½ deseja considerar revestimento em um lado ou nos dois lados da parede?",
+          fullAnswer: "Você deseja considerar revestimento em um lado ou nos dois lados da parede?",
           nextAction: "Informe um lado ou dois lados para eu calcular o revestimento.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
@@ -12646,7 +12646,7 @@
       if (masonryWallSubject && !hasEloLossPremise_(text)) {
         return {
           shortAnswer: "Antes de calcular, preciso confirmar a perda adotada.",
-          fullAnswer: "Qual perda tï¿½cnica devo considerar? Se nï¿½o houver critï¿½rio prï¿½prio, posso usar 8% para alvenaria simples ou 10% quando houver muitos recortes e perdas de transporte.",
+          fullAnswer: "Qual perda técnica devo considerar? Se não houver critério próprio, posso usar 8% para alvenaria simples ou 10% quando houver muitos recortes e perdas de transporte.",
           nextAction: "Informe a perda em porcentagem para eu concluir o quantitativo.",
           canSave: false,
           sessionTheme: "premissas_quantitativo",
@@ -12660,7 +12660,7 @@
   function extractEloFckLabel_(message) {
     const text = normalizeText(message);
     const match = text.match(/\bfck\s*(\d{2})\b/) || text.match(/\b(\d{2})\s*mpa\b/);
-    return match ? match[1] + " MPa" : "nÃ£o informado";
+    return match ? match[1] + " MPa" : "não informado";
   }
 
   function formatEloQuantitativePremises_(message, extraLines) {
@@ -13125,8 +13125,8 @@
     const match = findEloStockBalanceByQuestion_(message, balances);
     if (!match || !match.balance) {
       return {
-        shortAnswer: "NÃ£o encontrei esse item no estoque atual.",
-        fullAnswer: "NÃ£o encontrei esse item no estoque atual. Confira se o nome estÃ¡ cadastrado no Almoxarifado/Stock Full ou pergunte usando o nome do produto como aparece na lista.",
+        shortAnswer: "Não encontrei esse item no estoque atual.",
+        fullAnswer: "Não encontrei esse item no estoque atual. Confira se o nome está cadastrado no Almoxarifado/Stock Full ou pergunte usando o nome do produto como aparece na lista.",
         nextAction: "Abra a lista de itens ou tente perguntar pelo nome exato do produto.",
         canSave: false,
         sessionTheme: "stock_full_saldo"
@@ -13138,17 +13138,17 @@
     const quantity = formatEloStockQuantity_(item.balance || item.realBalance || 0);
     const minimum = Number(item.minimumStock || 0);
     const lines = [
-      "VocÃª tem " + quantity + " " + unit + " de " + (item.name || "item") + " no estoque atual.",
+      "Você tem " + quantity + " " + unit + " de " + (item.name || "item") + " no estoque atual.",
       "",
       "Resumo:",
       "- Saldo atual: " + quantity + " " + unit,
       "- Entradas registradas: " + formatEloStockQuantity_(item.entries || 0) + " " + unit,
-      "- SaÃ­das registradas: " + formatEloStockQuantity_(item.exits || 0) + " " + unit
+      "- Saídas registradas: " + formatEloStockQuantity_(item.exits || 0) + " " + unit
     ];
     if (minimum > 0) {
-      lines.push("- Estoque mÃ­nimo: " + formatEloStockQuantity_(minimum) + " " + unit);
+      lines.push("- Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit);
       if (Number(item.balance || item.realBalance || 0) < minimum) {
-        lines.push("- Alerta: abaixo do estoque mÃ­nimo.");
+        lines.push("- Alerta: abaixo do estoque mínimo.");
       }
     }
     if (item.status && normalizeText(item.status) !== "ok") {
@@ -13160,7 +13160,7 @@
     return {
       shortAnswer: lines[0],
       fullAnswer: lines.join("\n"),
-      nextAction: "Se quiser, posso ajudar a conferir itens abaixo do mÃ­nimo ou prÃ³ximos do vencimento.",
+      nextAction: "Se quiser, posso ajudar a conferir itens abaixo do mínimo ou próximos do vencimento.",
       canSave: false,
       sessionTheme: "stock_full_saldo"
     };
@@ -13203,9 +13203,9 @@
     const prediction = calculateEloOperationalPrediction_(message);
     if (!prediction || !prediction.predictedItems.length) {
       return {
-        shortAnswer: "Eu ainda nÃ£o consegui calcular essa previsÃ£o tÃ©cnica.",
-        fullAnswer: "Eu ainda nÃ£o consegui calcular essa previsÃ£o tÃ©cnica. Me informe o serviÃ§o com quantidade, por exemplo: parede de 40 mÂ², piso de 30 mÂ² ou laje de 60 mÂ².",
-        nextAction: "Informe serviÃ§o, quantidade e unidade para eu cruzar Stock AI com Almoxarifado.",
+        shortAnswer: "Eu ainda não consegui calcular essa previsão técnica.",
+        fullAnswer: "Eu ainda não consegui calcular essa previsão técnica. Me informe o serviço com quantidade, por exemplo: parede de 40 m², piso de 30 m² ou laje de 60 m².",
+        nextAction: "Informe serviço, quantidade e unidade para eu cruzar Stock AI com Almoxarifado.",
         canSave: false,
         sessionTheme: "elo_operacional_obras"
       };
@@ -13238,7 +13238,7 @@
         const match = matchEloPredictedMaterialToBalance_(item, balances);
         if (!match) {
           hasMissing = true;
-          almoxLines.push("- " + (item.name || item.material || "Material") + ": nÃ£o encontrado no Almoxarifado.");
+          almoxLines.push("- " + (item.name || item.material || "Material") + ": não encontrado no Almoxarifado.");
           return;
         }
         const available = roundEloOperationalQuantity_(match.balance || match.realBalance || 0);
@@ -13246,36 +13246,36 @@
         if (missing > 0) {
           hasInsufficient = true;
         }
-        almoxLines.push("- " + (item.name || item.material || match.name || "Material") + ": disponÃ­vel " +
+        almoxLines.push("- " + (item.name || item.material || match.name || "Material") + ": disponível " +
           formatEloOperationalQuantity_(available) + " " + formatEloOperationalDisplayUnit_(match.unit || item.unit || "un") +
           (missing > 0 ? " | faltam " + formatEloOperationalQuantity_(missing) + " " + formatEloOperationalDisplayUnit_(item.unit || match.unit || "un") : " | OK"));
       });
     }
 
-    let resultTitle = "âœ… Saldo suficiente";
-    let recommendation = "A obra pode executar esse serviÃ§o sem necessidade de compra.";
+    let resultTitle = "✅ Saldo suficiente";
+    let recommendation = "A obra pode executar esse serviço sem necessidade de compra.";
     if (!balances.length) {
       resultTitle = standaloneOperationalMode ? "Previsao tecnica de materiais" : "Almoxarifado sem saldo comparavel";
       recommendation = standaloneOperationalMode
         ? "Se quiser, informe precos locais para eu montar o orcamento preliminar."
         : "Cadastrar saldo no Almoxarifado antes de liberar compra ou execucao.";
     } else if (hasMissing) {
-      resultTitle = "ðŸš¨ Material nÃ£o encontrado no Almoxarifado";
-      recommendation = "Cadastrar o item ou transferir material antes de liberar a execuÃ§Ã£o.";
+      resultTitle = "🚨 Material não encontrado no Almoxarifado";
+      recommendation = "Cadastrar o item ou transferir material antes de liberar a execução.";
     } else if (hasInsufficient) {
-      resultTitle = "âš ï¸ Material insuficiente";
-      recommendation = "Comprar ou transferir o material faltante antes da execuÃ§Ã£o.";
+      resultTitle = "⚠️ Material insuficiente";
+      recommendation = "Comprar ou transferir o material faltante antes da execução.";
     }
 
     return {
       shortAnswer: resultTitle,
       fullAnswer: [
-        "ðŸ“ PrevisÃ£o Stock AI",
+        "📐 Previsão Stock AI",
         "Fonte: " + sourceLabel,
         formatEloTechnicalBaseLine_(composition, allowPreliminary),
         predictedLines.join("\n"),
         formatEloQuantitativePremises_(message, [
-          "ServiÃ§o considerado: " + ((prediction.service && (prediction.service.service || prediction.service.serviceType)) || "serviÃ§o tÃ©cnico"),
+          "Serviço considerado: " + ((prediction.service && (prediction.service.service || prediction.service.serviceType)) || "serviço técnico"),
           "Quantidade considerada: " + formatEloOperationalQuantity_((prediction.service && prediction.service.quantity) || 0) + " " + formatEloOperationalDisplayUnit_((prediction.service && prediction.service.unit) || "")
         ]).join("\n"),
         scaleAlerts.length ? "\n" + scaleAlerts.join("\n") : "",
@@ -13701,12 +13701,12 @@
 
   function isEloConstructionTechnicalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|mÂ²|m2|m3|mÂ³/.test(text);
+    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
   }
 
   function extractEloGeometryPair_(message) {
     const source = stripEloBlockDimensionTriples_(message || "");
-    const match = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|Ã—|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
+    const match = source.match(/\b(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\b/i);
     if (!match) {
       return null;
     }
@@ -13745,31 +13745,31 @@
     }
     const area = pair.first * pair.second;
     const wantsRodape = /rodape|rodap.|perimetro|metro\s+linear|metros\s+lineares/.test(text);
-    const wantsVolume = /volume|m3|mÂ³|concreto|laje|radier|contrapiso/.test(text);
+    const wantsVolume = /volume|m3|m³|concreto|laje|radier|contrapiso/.test(text);
     const thickness = extractEloGeometryThicknessM_(message);
     if (wantsVolume && thickness && thickness.meters > 0) {
       const volume = area * thickness.meters;
       const needsFck = hasEloConcreteSubject_(text) && !hasEloConcreteFck_(text);
       const lines = [
         "Resposta principal",
-        "Volume geomÃ©trico: " + formatEloWallPremiseMeasure_(volume, "mÂ³") + ".",
+        "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".",
         "",
         "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
-        "- Ãrea: " + formatEloWallPremiseMeasure_(area, "mÂ²"),
+        "- Área: " + formatEloWallPremiseMeasure_(area, "m²"),
         "- Espessura: " + thickness.label,
         "",
-        "Base tÃ©cnica utilizada",
-        "- Geometria informada pelo usuÃ¡rio. SINAPI/ORSE nÃ£o Ã© necessÃ¡ria para calcular Ã¡rea ou volume geomÃ©trico.",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área ou volume geométrico.",
         "",
-        "PrÃ³xima aÃ§Ã£o",
-        needsFck ? "Antes de calcular consumo, mÃ£o de obra, produtividade ou custo, preciso confirmar o FCK do concreto e localizar composiÃ§Ã£o SINAPI/ORSE ou interna validada." : "Para consumo, mÃ£o de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composiÃ§Ã£o SINAPI/ORSE ou interna validada."
+        "Próxima ação",
+        needsFck ? "Antes de calcular consumo, mão de obra, produtividade ou custo, preciso confirmar o FCK do concreto e localizar composição SINAPI/ORSE ou interna validada." : "Para consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada."
       ];
       return {
-        shortAnswer: "Volume geomÃ©trico: " + formatEloWallPremiseMeasure_(volume, "mÂ³") + ".",
+        shortAnswer: "Volume geométrico: " + formatEloWallPremiseMeasure_(volume, "m³") + ".",
         fullAnswer: lines.join("\n"),
-        nextAction: needsFck ? "Informe o FCK do concreto para avanÃ§ar para premissas e composiÃ§Ã£o." : "Informe a composiÃ§Ã£o SINAPI/ORSE ou as premissas tÃ©cnicas para avanÃ§ar.",
+        nextAction: needsFck ? "Informe o FCK do concreto para avançar para premissas e composição." : "Informe a composição SINAPI/ORSE ou as premissas técnicas para avançar.",
         canSave: false,
         sessionTheme: "geometria_obras",
         sessionIntent: "geometria_volume"
@@ -13779,47 +13779,47 @@
       const perimeter = 2 * (pair.first + pair.second);
       const lines = [
         "Resposta principal",
-        "PerÃ­metro/metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
+        "Perímetro/metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
         "",
         "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
-        "- CÃ¡lculo: 2 x (comprimento + largura)",
+        "- Cálculo: 2 x (comprimento + largura)",
         "",
-        "Base tÃ©cnica utilizada",
-        "- Geometria informada pelo usuÃ¡rio. SINAPI/ORSE nÃ£o Ã© necessÃ¡ria para calcular metros lineares.",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular metros lineares.",
         "",
-        "PrÃ³xima aÃ§Ã£o",
-        "Para orÃ§amento, produtividade, perdas ou custo do rodapÃ©, preciso localizar composiÃ§Ã£o SINAPI/ORSE ou interna validada."
+        "Próxima ação",
+        "Para orçamento, produtividade, perdas ou custo do rodapé, preciso localizar composição SINAPI/ORSE ou interna validada."
       ];
       return {
         shortAnswer: "Metros lineares: " + formatEloWallPremiseMeasure_(perimeter, "m") + ".",
         fullAnswer: lines.join("\n"),
-        nextAction: "Informe composiÃ§Ã£o ou padrÃ£o de rodapÃ© se quiser avanÃ§ar para orÃ§amento.",
+        nextAction: "Informe composição ou padrão de rodapé se quiser avançar para orçamento.",
         canSave: false,
         sessionTheme: "geometria_obras",
         sessionIntent: "geometria_metros_lineares"
       };
     }
-    if (/area|Ã¡rea|m2|mÂ²|laje|piso|telhado|cobertura/.test(text)) {
+    if (/area|área|m2|m²|laje|piso|telhado|cobertura/.test(text)) {
       const lines = [
         "Resposta principal",
-        "Ãrea geomÃ©trica: " + formatEloWallPremiseMeasure_(area, "mÂ²") + ".",
+        "Área geométrica: " + formatEloWallPremiseMeasure_(area, "m²") + ".",
         "",
         "Premissas utilizadas:",
         "- Comprimento: " + formatEloWallPremiseMeasure_(pair.first, "m"),
         "- Largura: " + formatEloWallPremiseMeasure_(pair.second, "m"),
         "",
-        "Base tÃ©cnica utilizada",
-        "- Geometria informada pelo usuÃ¡rio. SINAPI/ORSE nÃ£o Ã© necessÃ¡ria para calcular Ã¡rea geomÃ©trica.",
+        "Base técnica utilizada",
+        "- Geometria informada pelo usuário. SINAPI/ORSE não é necessária para calcular área geométrica.",
         "",
-        "PrÃ³xima aÃ§Ã£o",
-        "Para consumo, mÃ£o de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composiÃ§Ã£o SINAPI/ORSE ou interna validada."
+        "Próxima ação",
+        "Para consumo, mão de obra, produtividade, custo, cronograma ou curva ABC, preciso localizar composição SINAPI/ORSE ou interna validada."
       ];
       return {
-        shortAnswer: "Ãrea geomÃ©trica: " + formatEloWallPremiseMeasure_(area, "mÂ²") + ".",
+        shortAnswer: "Área geométrica: " + formatEloWallPremiseMeasure_(area, "m²") + ".",
         fullAnswer: lines.join("\n"),
-        nextAction: "Informe premissas e composiÃ§Ã£o tÃ©cnica se quiser avanÃ§ar para orÃ§amento.",
+        nextAction: "Informe premissas e composição técnica se quiser avançar para orçamento.",
         canSave: false,
         sessionTheme: "geometria_obras",
         sessionIntent: "geometria_area"
@@ -13836,25 +13836,25 @@
     if (!/alvenaria|parede|bloco|tijolo/.test(text) || !/quanto\s+custa|custo|or.amento|orcamento|valor|pre.o|preco/.test(text)) {
       return null;
     }
-    const hasGeometry = hasEloWallLengthHeight_(text) || /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|mÂ²|metros?\s+quadrados?)/.test(text);
+    const hasGeometry = hasEloWallLengthHeight_(text) || /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/.test(text);
     if (hasGeometry) {
       return null;
     }
     const summary = formatEloWorkMemorySavedSummary_(project || getActiveEloWorkProject_());
     const answer = [
       "Lembrei da obra " + summary + ".",
-      "Para calcular custo da alvenaria, preciso completar o serviÃ§o:",
-      "- metragem ou Ã¡rea da parede;",
-      "- dimensÃ£o do bloco;",
-      "- vÃ£os de portas/janelas;",
+      "Para calcular custo da alvenaria, preciso completar o serviço:",
+      "- metragem ou área da parede;",
+      "- dimensão do bloco;",
+      "- vãos de portas/janelas;",
       "- perda e revestimento;",
-      "- base SINAPI/ORSE ou composiÃ§Ã£o interna validada.",
-      "Sem essa composiÃ§Ã£o, nÃ£o gero custo oficial; posso apenas seguir para uma estimativa preliminar se vocÃª autorizar explicitamente como NÃƒO OFICIAL."
+      "- base SINAPI/ORSE ou composição interna validada.",
+      "Sem essa composição, não gero custo oficial; posso apenas seguir para uma estimativa preliminar se você autorizar explicitamente como NÃO OFICIAL."
     ].join("\n");
     return {
       shortAnswer: "Preciso das premissas da alvenaria antes do custo.",
       fullAnswer: answer,
-      nextAction: "Informe Ã¡rea ou comprimento x altura, bloco, vÃ£os, perda, revestimento e composiÃ§Ã£o SINAPI/ORSE.",
+      nextAction: "Informe área ou comprimento x altura, bloco, vãos, perda, revestimento e composição SINAPI/ORSE.",
       canSave: false,
       sessionTheme: "base_tecnica_quantitativo",
       sessionIntent: "pedir_premissas_alvenaria"
@@ -13863,12 +13863,12 @@
   function buildEloConstructionTechnicalFallback_(message) {
     const text = normalizeText(message || "");
     const subject = /casa|resid.ncia|residencia/.test(text)
-      ? "residÃªncia/obra completa"
+      ? "residência/obra completa"
       : /produtividade|equipe|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora/.test(text)
-        ? "produtividade e mÃ£o de obra"
+        ? "produtividade e mão de obra"
         : /sinapi|orse|composi..o|composicao/.test(text)
-          ? "composiÃ§Ã£o tÃ©cnica"
-          : "serviÃ§o de obra";
+          ? "composição técnica"
+          : "serviço de obra";
     const project = updateEloWorkMemoryFromMessage_(message);
     const conciseMissingPremises = buildEloConciseMissingServicePremisesAnswer_(message, project);
     if (conciseMissingPremises) {
@@ -13878,13 +13878,13 @@
       const summary = formatEloWorkMemorySavedSummary_(project || getActiveEloWorkProject_());
       const answer = [
         "Lembrei da obra " + summary + ".",
-        "Para produtividade da equipe, preciso da composiÃ§Ã£o validada do serviÃ§o ou referÃªncia SINAPI/ORSE. Sem composiÃ§Ã£o, nÃ£o vou tratar produtividade, equipe, mÂ²/dia ou homens-hora como dado oficial.",
-        "Posso continuar de duas formas: vocÃª informa a composiÃ§Ã£o validada ou autoriza explicitamente uma ESTIMATIVA NÃƒO OFICIAL."
+        "Para produtividade da equipe, preciso da composição validada do serviço ou referência SINAPI/ORSE. Sem composição, não vou tratar produtividade, equipe, m²/dia ou homens-hora como dado oficial.",
+        "Posso continuar de duas formas: você informa a composição validada ou autoriza explicitamente uma ESTIMATIVA NÃO OFICIAL."
       ].join("\n");
       return {
-        shortAnswer: "Preciso de composiÃ§Ã£o validada para produtividade oficial.",
+        shortAnswer: "Preciso de composição validada para produtividade oficial.",
         fullAnswer: answer,
-        nextAction: "Informe o serviÃ§o exato e a composiÃ§Ã£o SINAPI/ORSE, ou autorize estimativa NÃƒO OFICIAL.",
+        nextAction: "Informe o serviço exato e a composição SINAPI/ORSE, ou autorize estimativa NÃO OFICIAL.",
         canSave: false,
         sessionTheme: "base_tecnica_quantitativo",
         sessionIntent: "bloquear_produtividade_sem_composicao"
@@ -13893,38 +13893,38 @@
     const auditorAlerts = buildEloTechnicalAuditorAlerts_(message, { hasOfficialBase: false });
     const lines = [
       "Resposta principal",
-      "Entendi que Ã© uma pergunta tÃ©cnica de obras sobre " + subject + ". NÃ£o vou calcular consumo, produtividade, mÃ£o de obra, custo, cronograma ou curva ABC sem composiÃ§Ã£o tÃ©cnica vÃ¡lida.",
+      "Entendi que é uma pergunta técnica de obras sobre " + subject + ". Não vou calcular consumo, produtividade, mão de obra, custo, cronograma ou curva ABC sem composição técnica válida.",
       "",
-      "MemÃ³ria de cÃ¡lculo:",
-      "- NÃ£o hÃ¡ memÃ³ria de cÃ¡lculo oficial porque a composiÃ§Ã£o tÃ©cnica ainda nÃ£o foi localizada.",
-      "- Se o pedido envolver apenas geometria, eu posso calcular Ã¡rea, volume, perÃ­metro ou Ã¡rea lÃ­quida com as medidas informadas.",
+      "Memória de cálculo:",
+      "- Não há memória de cálculo oficial porque a composição técnica ainda não foi localizada.",
+      "- Se o pedido envolver apenas geometria, eu posso calcular área, volume, perímetro ou área líquida com as medidas informadas.",
       "",
       "Premissas utilizadas:",
-      "- ServiÃ§o solicitado: " + subject + ";",
-      "- Quantidade, Ã¡rea, volume ou escopo: conforme informado pelo usuÃ¡rio e pela memÃ³ria de obra, ainda sujeito a conferÃªncia tÃ©cnica;",
-      "- UF/mÃªs SINAPI/ORSE: " + ((project.uf && project.uf !== "nÃ£o informada") ? project.uf : "nÃ£o confirmado") + ";",
-      "- PreÃ§os unitÃ¡rios: nÃ£o informados.",
+      "- Serviço solicitado: " + subject + ";",
+      "- Quantidade, área, volume ou escopo: conforme informado pelo usuário e pela memória de obra, ainda sujeito a conferência técnica;",
+      "- UF/mês SINAPI/ORSE: " + ((project.uf && project.uf !== "não informada") ? project.uf : "não confirmado") + ";",
+      "- Preços unitários: não informados.",
       "",
-      "MemÃ³ria permanente de obra",
+      "Memória permanente de obra",
       formatEloWorkMemoryLines_(project).join("\n"),
       "",
-      "Base tÃ©cnica utilizada: nÃ£o localizada",
-      "- Para cÃ¡lculo oficial, preciso de SINAPI, ORSE ou composiÃ§Ã£o interna validada com coeficientes positivos.",
+      "Base técnica utilizada: não localizada",
+      "- Para cálculo oficial, preciso de SINAPI, ORSE ou composição interna validada com coeficientes positivos.",
       "",
       "Alertas do auditor:",
-      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta crÃ­tico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade tÃ©cnica antes de executar."),
+      (auditorAlerts.length ? auditorAlerts.join("\n") : "- Sem alerta crítico adicional com os dados informados. Ainda assim, valide premissas, projeto e responsabilidade técnica antes de executar."),
       "",
-      "PrÃ³xima aÃ§Ã£o recomendada",
-      "Informe o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃƒO OFICIAL.",
+      "Próxima ação recomendada",
+      "Informe o código/composição SINAPI/ORSE, envie a base oficial/importada ou autorize explicitamente uma ESTIMATIVA NÃO OFICIAL.",
       "",
       buildEloBudgetMvpScopeNotice_(),
       "",
-      "NÃ£o vou inventar composiÃ§Ã£o, produtividade, mÃ£o de obra, insumos ou valor oficial sem essa base."
+      "Não vou inventar composição, produtividade, mão de obra, insumos ou valor oficial sem essa base."
     ];
     return {
-      shortAnswer: "Preciso tratar isso como pergunta tÃ©cnica de obras.",
+      shortAnswer: "Preciso tratar isso como pergunta técnica de obras.",
       fullAnswer: lines.join("\n"),
-      nextAction: "Informe as premissas do serviÃ§o ou o cÃ³digo/composiÃ§Ã£o SINAPI/ORSE para eu continuar.",
+      nextAction: "Informe as premissas do serviço ou o código/composição SINAPI/ORSE para eu continuar.",
       canSave: false,
       sessionTheme: "base_tecnica_quantitativo",
       sessionIntent: "roteamento_tecnico_obras"
@@ -13941,8 +13941,8 @@
     const summary = formatEloWorkMemorySavedSummary_(project);
     return {
       shortAnswer: "Tenho estes dados da obra atual.",
-      fullAnswer: "Na memÃ³ria da obra atual tenho: " + summary + ".",
-      nextAction: "FaÃ§a uma pergunta tÃ©cnica ou atualize algum dado da obra.",
+      fullAnswer: "Na memória da obra atual tenho: " + summary + ".",
+      nextAction: "Faça uma pergunta técnica ou atualize algum dado da obra.",
       canSave: false,
       sessionTheme: "memoria_obra",
       sessionIntent: "consultar_memoria_obra"
@@ -13968,8 +13968,8 @@
     if (/^(obrigado|obrigada|valeu|grato|grata)\b/.test(text)) {
       return {
         shortAnswer: "Por nada.",
-        fullAnswer: "Por nada. Quando quiser, posso continuar pela obra atual ou responder outra dÃºvida tÃ©cnica.",
-        nextAction: "Envie a prÃ³xima pergunta quando quiser.",
+        fullAnswer: "Por nada. Quando quiser, posso continuar pela obra atual ou responder outra dúvida técnica.",
+        nextAction: "Envie a próxima pergunta quando quiser.",
         canSave: false,
         sessionTheme: "conversa",
         sessionIntent: "agradecimento"
@@ -13985,10 +13985,10 @@
         sessionIntent: "explicar_cadista"
       };
     }
-    if (/quem\s+criou\s+voce|quem\s+criou\s+vocÃª/.test(text)) {
+    if (/quem\s+criou\s+voce|quem\s+criou\s+você/.test(text)) {
       return {
-        shortAnswer: "Fui criado para apoiar seus projetos tÃ©cnicos.",
-        fullAnswer: "Sou o Elo, assistente do ecossistema da WIA Engenharia para apoiar obras, relatÃ³rios, memÃ³ria tÃ©cnica e produtos como CADISTA e Stock.",
+        shortAnswer: "Fui criado para apoiar seus projetos técnicos.",
+        fullAnswer: "Sou o Elo, assistente do ecossistema da WIA Engenharia para apoiar obras, relatórios, memória técnica e produtos como CADISTA e Stock.",
         nextAction: "Pergunte algo sobre a obra ou sobre os produtos quando quiser.",
         canSave: false,
         sessionTheme: "conversa",
@@ -14002,7 +14002,7 @@
   }
   function isEloConstructionPathologyQuestion_(message) {
     const text = normalizeText(message || "");
-    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerÃ¢mico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pÃ³)|virou\s+(po|pÃ³)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cÃ§]ando/.test(text);
+    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
   function hasEloBudgetOrCompositionIntent_(message) {
@@ -14200,46 +14200,46 @@
       return null;
     }
     const text = normalizeText(message || "");
-    const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundaÃ§Ã£o|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vÃ£o/.test(text);
+    const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundação|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vão/.test(text);
     const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
-    const coating = /reboco|piso|revestimento|ceramico|cerÃ¢mico|argamassa|pintura|manchas?|contrapiso/.test(text);
+    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
     const causes = [];
-    if (/trinca|fissura|rachadura/.test(text)) causes.push("movimentaÃ§Ã£o estrutural ou de alvenaria", "retraÃ§Ã£o/acomodaÃ§Ã£o", "falha em verga, contraverga, junta ou fundaÃ§Ã£o");
-    if (moisture) causes.push("falha de impermeabilizaÃ§Ã£o", "entrada de Ã¡gua por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
-    if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trÃ¡s do revestimento");
-    if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosÃ£o de armadura", "concreto mal adensado ou degradado");
-    if (!causes.length) causes.push("execuÃ§Ã£o inadequada", "movimentaÃ§Ã£o da base", "umidade ou falta de manutenÃ§Ã£o");
+    if (/trinca|fissura|rachadura/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
+    if (moisture) causes.push("falha de impermeabilização", "entrada de água por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
+    if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trás do revestimento");
+    if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");
+    if (!causes.length) causes.push("execução inadequada", "movimentação da base", "umidade ou falta de manutenção");
     const uniqueCauses = causes.filter(function (item, index) { return causes.indexOf(item) === index; }).slice(0, 4);
     const risk = structuralRisk
-      ? "Risco potencialmente estrutural. Recomendo interromper intervenÃ§Ãµes no ponto, escorar se houver deformaÃ§Ã£o e chamar engenheiro responsÃ¡vel para vistoria presencial."
+      ? "Risco potencialmente estrutural. Recomendo interromper intervenções no ponto, escorar se houver deformação e chamar engenheiro responsável para vistoria presencial."
       : moisture
-        ? "Risco de evoluÃ§Ã£o por umidade. A correÃ§Ã£o deve tratar a origem da Ã¡gua antes do acabamento."
-        : "Risco inicialmente tÃ©cnico/de desempenho, mas precisa de vistoria para confirmar causa.";
+        ? "Risco de evolução por umidade. A correção deve tratar a origem da água antes do acabamento."
+        : "Risco inicialmente técnico/de desempenho, mas precisa de vistoria para confirmar causa.";
     const answer = [
-      "Triagem tÃ©cnica",
-      "NÃ£o dÃ¡ para fechar diagnÃ³stico definitivo sem vistoria, mas os indÃ­cios merecem checagem.",
+      "Triagem técnica",
+      "Não dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.",
       "",
-      "PossÃ­veis causas:",
+      "Possíveis causas:",
       uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
       "",
       "O que verificar:",
-      "- quando apareceu e se estÃ¡ aumentando;",
-      "- presenÃ§a de Ã¡gua, som oco, deformaÃ§Ã£o, corrosÃ£o, destacamento ou fissuras prÃ³ximas;",
-      "- fotos, medidas, localizaÃ§Ã£o e histÃ³rico de execuÃ§Ã£o/manutenÃ§Ã£o;",
-      "- se hÃ¡ elemento estrutural envolvido: pilar, viga, laje, fundaÃ§Ã£o ou muro de contenÃ§Ã£o.",
+      "- quando apareceu e se está aumentando;",
+      "- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;",
+      "- fotos, medidas, localização e histórico de execução/manutenção;",
+      "- se há elemento estrutural envolvido: pilar, viga, laje, fundação ou muro de contenção.",
       "",
       "Risco:",
       "- " + risk,
       "",
-      "PrÃ³xima aÃ§Ã£o:",
+      "Próxima ação:",
       structuralRisk
-        ? "- acione engenheiro/ responsÃ¡vel tÃ©cnico antes de reparar ou carregar a estrutura."
-        : "- registre fotos, isole a origem provÃ¡vel e sÃ³ execute reparo depois de confirmar a causa."
+        ? "- acione engenheiro/ responsável técnico antes de reparar ou carregar a estrutura."
+        : "- registre fotos, isole a origem provável e só execute reparo depois de confirmar a causa."
     ].join("\n");
     return {
-      shortAnswer: "Isso pede triagem tÃ©cnica antes de qualquer reparo.",
+      shortAnswer: "Isso pede triagem técnica antes de qualquer reparo.",
       fullAnswer: answer,
-      nextAction: structuralRisk ? "Chame um engenheiro para vistoria presencial." : "Envie fotos, localizaÃ§Ã£o e histÃ³rico para afinar a triagem.",
+      nextAction: structuralRisk ? "Chame um engenheiro para vistoria presencial." : "Envie fotos, localização e histórico para afinar a triagem.",
       canSave: false,
       sessionTheme: "patologia_obras",
       sessionIntent: "triagem_patologia"
@@ -14254,9 +14254,9 @@
 
     if (!normalizedQuestion) {
       return {
-        shortAnswer: "Digite uma dÃºvida para eu ajudar.",
-        fullAnswer: "Posso responder sobre relatÃ³rios, PDF, RDO, fotos, materiais, planos e suporte.",
-        nextAction: "Escolha um botÃ£o rÃ¡pido ou escreva uma pergunta.",
+        shortAnswer: "Digite uma dúvida para eu ajudar.",
+        fullAnswer: "Posso responder sobre relatórios, PDF, RDO, fotos, materiais, planos e suporte.",
+        nextAction: "Escolha um botão rápido ou escreva uma pergunta.",
         canSave: false
       };
     }
@@ -14578,9 +14578,9 @@
     const saved = searchSavedKnowledge(cleanQuestion);
     if (saved) {
       return {
-        shortAnswer: "Encontrei algo que vocÃª pediu para eu lembrar.",
+        shortAnswer: "Encontrei algo que você pediu para eu lembrar.",
         fullAnswer: saved.answer,
-        nextAction: "Se quiser, posso continuar usando essa memÃ³ria local.",
+        nextAction: "Se quiser, posso continuar usando essa memória local.",
         canSave: false
       };
     }
@@ -14612,33 +14612,33 @@
       "falta preencher",
       "faltando",
       "o que esta faltando",
-      "o que estÃ¡ faltando",
+      "o que está faltando",
       "o que esta pendente",
-      "o que estÃ¡ pendente",
+      "o que está pendente",
       "pendente",
       "incompleto",
       "esta incompleto",
-      "estÃ¡ incompleto"
+      "está incompleto"
     ]);
     const nextStepQuestion = hasAnyTerm(normalizedQuestion, [
       "o que devo fazer agora",
       "proximo passo",
-      "prÃ³ximo passo",
+      "próximo passo",
       "o que faco agora",
-      "o que faÃ§o agora"
+      "o que faço agora"
     ]);
     const canGeneratePdfQuestion = hasAnyTerm(normalizedQuestion, [
       "posso gerar o pdf",
       "posso gerar pdf",
       "esta pronto para pdf",
-      "estÃ¡ pronto para pdf",
+      "está pronto para pdf",
       "pode gerar pdf"
     ]);
     const canSaveQuestion = hasAnyTerm(normalizedQuestion, [
       "posso salvar",
       "pode salvar",
       "esta pronto para salvar",
-      "estÃ¡ pronto para salvar",
+      "está pronto para salvar",
       "revisar antes de salvar"
     ]);
 
@@ -14657,16 +14657,16 @@
         "materiais",
         context.materials,
         ["nenhum material registrado", "nenhum consumo registrado", "r$ 0,00"],
-        "âž¡ï¸ PrÃ³ximo passo: registre materiais no RDO ou carregue a Obra Exemplo para testar."
+        "➡️ Próximo passo: registre materiais no RDO ou carregue a Obra Exemplo para testar."
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produÃ§Ã£o lanÃ§ada", "producao lancada", "produÃ§Ã£o lanÃ§ada"])) {
+    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produção lançada", "producao lancada", "produção lançada"])) {
       return buildOperationalPresenceResponse(
-        "produÃ§Ã£o executada",
+        "produção executada",
         context.production,
         ["nenhuma producao registrada", "nenhuma producao executada registrada"],
-        "âž¡ï¸ PrÃ³ximo passo: registre a produÃ§Ã£o executada antes de revisar materiais e PDF."
+        "➡️ Próximo passo: registre a produção executada antes de revisar materiais e PDF."
       );
     }
 
@@ -14675,33 +14675,33 @@
         "fotos anexadas",
         context.photos,
         ["nenhuma foto", "0 fotos", "0"],
-        "âž¡ï¸ PrÃ³ximo passo: adicione fotos para deixar o relatÃ³rio ou RDO mais completo."
+        "➡️ Próximo passo: adicione fotos para deixar o relatório ou RDO mais completo."
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["existe ocorrencia", "existe ocorrÃªncia", "tem ocorrencia", "tem ocorrÃªncia", "ocorrencia registrada", "ocorrÃªncia registrada"])) {
+    if (hasAnyTerm(normalizedQuestion, ["existe ocorrencia", "existe ocorrência", "tem ocorrencia", "tem ocorrência", "ocorrencia registrada", "ocorrência registrada"])) {
       return buildOperationalPresenceResponse(
-        "ocorrÃªncia registrada",
+        "ocorrência registrada",
         context.occurrences,
-        ["nenhuma ocorrencia", "nenhuma ocorrÃªncia", "sem ocorrencia", "sem ocorrÃªncia"],
-        "âž¡ï¸ PrÃ³ximo passo: se houve intercorrÃªncia, registre a descriÃ§Ã£o e as providÃªncias."
+        ["nenhuma ocorrencia", "nenhuma ocorrência", "sem ocorrencia", "sem ocorrência"],
+        "➡️ Próximo passo: se houve intercorrência, registre a descrição e as providências."
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo relatorio", "Ãºltimo relatÃ³rio", "ultimo relatorio"])) {
+    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo relatorio", "último relatório", "ultimo relatorio"])) {
       return {
-        shortAnswer: context.report ? "Ãšltimo relatÃ³rio visÃ­vel: " + context.report : "NÃ£o encontrei relatÃ³rio visÃ­vel nesta tela.",
-        fullAnswer: context.report ? "âœ… RelatÃ³rio encontrado na tela atual." : getMissingVisibleDataMessage(),
-        nextAction: context.report ? "Abra RelatÃ³rios para revisar ou gerar PDF." : "Abra Dashboard ou RelatÃ³rios para eu ler o histÃ³rico visÃ­vel.",
+        shortAnswer: context.report ? "Último relatório visível: " + context.report : "Não encontrei relatório visível nesta tela.",
+        fullAnswer: context.report ? "✅ Relatório encontrado na tela atual." : getMissingVisibleDataMessage(),
+        nextAction: context.report ? "Abra Relatórios para revisar ou gerar PDF." : "Abra Dashboard ou Relatórios para eu ler o histórico visível.",
         canSave: false
       };
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo rdo", "Ãºltimo rdo", "ultimo rdo", "ultimo diario", "Ãºltimo diÃ¡rio"])) {
+    if (hasAnyTerm(normalizedQuestion, ["qual foi o ultimo rdo", "último rdo", "ultimo rdo", "ultimo diario", "último diário"])) {
       return {
-        shortAnswer: context.diary ? "Ãšltimo RDO visÃ­vel: " + context.diary : "NÃ£o encontrei RDO visÃ­vel nesta tela.",
-        fullAnswer: context.diary ? "âœ… RDO encontrado na tela atual." : getMissingVisibleDataMessage(),
-        nextAction: context.diary ? "Abra o RDO para revisar produÃ§Ã£o, materiais, fotos e PDF." : "Abra DiÃ¡rio de Obras para eu ler os registros visÃ­veis.",
+        shortAnswer: context.diary ? "Último RDO visível: " + context.diary : "Não encontrei RDO visível nesta tela.",
+        fullAnswer: context.diary ? "✅ RDO encontrado na tela atual." : getMissingVisibleDataMessage(),
+        nextAction: context.diary ? "Abra o RDO para revisar produção, materiais, fotos e PDF." : "Abra Diário de Obras para eu ler os registros visíveis.",
         canSave: false
       };
     }
@@ -14712,28 +14712,28 @@
   function getVisibleDataKnowledgeResponse(normalizedQuestion) {
     const context = getOperationalScreenContext();
 
-    if (hasAnyTerm(normalizedQuestion, ["resuma esta tela", "resumo desta tela", "o que estou vendo", "o que tem aqui", "me de um resumo", "me dÃª um resumo"])) {
+    if (hasAnyTerm(normalizedQuestion, ["resuma esta tela", "resumo desta tela", "o que estou vendo", "o que tem aqui", "me de um resumo", "me dê um resumo"])) {
       return buildCurrentScreenSummaryResponse(context);
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["posso gerar pdf", "posso gerar o pdf", "esta pronto para pdf", "estÃ¡ pronto para pdf", "posso exportar", "falta algo antes do pdf"])) {
+    if (hasAnyTerm(normalizedQuestion, ["posso gerar pdf", "posso gerar o pdf", "esta pronto para pdf", "está pronto para pdf", "posso exportar", "falta algo antes do pdf"])) {
       return buildPdfReadinessResponse(context);
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["qual obra estou vendo", "qual obra", "obra atual", "ultima obra", "Ãºltima obra"])) {
-      return buildVisibleSingleDataResponse("obra", context.work || context.clientWorks, "Abra Obras, RelatÃ³rios ou DiÃ¡rio de Obras para eu ler a obra visÃ­vel.", "obra");
+    if (hasAnyTerm(normalizedQuestion, ["qual obra estou vendo", "qual obra", "obra atual", "ultima obra", "última obra"])) {
+      return buildVisibleSingleDataResponse("obra", context.work || context.clientWorks, "Abra Obras, Relatórios ou Diário de Obras para eu ler a obra visível.", "obra");
     }
 
     if (hasAnyTerm(normalizedQuestion, ["qual cliente estou vendo", "qual cliente", "cliente atual"])) {
-      return buildVisibleSingleDataResponse("cliente", context.client, "Abra Clientes, Obras ou RelatÃ³rios para eu ler o cliente visÃ­vel.", "cliente");
+      return buildVisibleSingleDataResponse("cliente", context.client, "Abra Clientes, Obras ou Relatórios para eu ler o cliente visível.", "cliente");
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["qual relatorio estou vendo", "qual relatÃ³rio estou vendo", "qual relatorio", "qual relatÃ³rio", "ultimo relatorio", "Ãºltimo relatÃ³rio", "qual foi o ultimo relatorio", "qual foi o Ãºltimo relatÃ³rio", "ultimo documento", "Ãºltimo documento"])) {
-      return buildVisibleSingleDataResponse("relatÃ³rio", context.report || context.clientReports || context.clientDocs, "NÃ£o encontrei uma lista visÃ­vel de relatÃ³rios nesta tela.", "relatorio");
+    if (hasAnyTerm(normalizedQuestion, ["qual relatorio estou vendo", "qual relatório estou vendo", "qual relatorio", "qual relatório", "ultimo relatorio", "último relatório", "qual foi o ultimo relatorio", "qual foi o último relatório", "ultimo documento", "último documento"])) {
+      return buildVisibleSingleDataResponse("relatório", context.report || context.clientReports || context.clientDocs, "Não encontrei uma lista visível de relatórios nesta tela.", "relatorio");
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["qual rdo estou vendo", "qual rdo", "ultimo rdo", "Ãºltimo rdo", "qual foi o ultimo rdo", "qual foi o Ãºltimo rdo"])) {
-      return buildVisibleSingleDataResponse("RDO", context.diary || context.clientRdos, "NÃ£o encontrei uma lista visÃ­vel de RDOs nesta tela.", "rdo");
+    if (hasAnyTerm(normalizedQuestion, ["qual rdo estou vendo", "qual rdo", "ultimo rdo", "último rdo", "qual foi o ultimo rdo", "qual foi o último rdo"])) {
+      return buildVisibleSingleDataResponse("RDO", context.diary || context.clientRdos, "Não encontrei uma lista visível de RDOs nesta tela.", "rdo");
     }
 
     if (hasAnyTerm(normalizedQuestion, ["tenho materiais registrados", "material registrado", "materiais registrados", "quantos materiais", "quantos materiais aparecem"])) {
@@ -14742,18 +14742,18 @@
         context.materials,
         context.materialCount,
         ["nenhum material registrado", "nenhum consumo registrado", "r$ 0,00"],
-        "Abra a seÃ§Ã£o Materiais do RDO ou confira se os materiais foram preenchidos.",
+        "Abra a seção Materiais do RDO ou confira se os materiais foram preenchidos.",
         "materiais"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produÃ§Ã£o lanÃ§ada", "producao lancada", "produÃ§Ã£o lanÃ§ada", "quantos registros de producao", "quantos registros de produÃ§Ã£o"])) {
+    if (hasAnyTerm(normalizedQuestion, ["tenho producao lancada", "tenho produção lançada", "producao lancada", "produção lançada", "quantos registros de producao", "quantos registros de produção"])) {
       return buildVisibleCollectionResponse(
-        "produÃ§Ã£o executada",
+        "produção executada",
         context.production,
         context.productionCount,
         ["nenhuma producao registrada", "nenhuma producao executada registrada"],
-        "Abra ProduÃ§Ã£o Executada no RDO ou confira se os dados foram preenchidos.",
+        "Abra Produção Executada no RDO ou confira se os dados foram preenchidos.",
         "materiais"
       );
     }
@@ -14764,28 +14764,28 @@
         context.photos,
         context.photoCount,
         ["nenhuma foto", "0 fotos", "0"],
-        "Abra Fotos no relatÃ³rio ou RDO para eu ler anexos visÃ­veis.",
+        "Abra Fotos no relatório ou RDO para eu ler anexos visíveis.",
         "fotos"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["existem ocorrencias", "existem ocorrÃªncias", "existe ocorrencia", "existe ocorrÃªncia", "ocorrencias registradas", "ocorrÃªncias registradas"])) {
-      const hasOccurrences = hasUsefulValue(context.occurrences) && !isEmptyScreenText(context.occurrences, ["nenhuma ocorrencia", "nenhuma ocorrÃªncia"]);
+    if (hasAnyTerm(normalizedQuestion, ["existem ocorrencias", "existem ocorrências", "existe ocorrencia", "existe ocorrência", "ocorrencias registradas", "ocorrências registradas"])) {
+      const hasOccurrences = hasUsefulValue(context.occurrences) && !isEmptyScreenText(context.occurrences, ["nenhuma ocorrencia", "nenhuma ocorrência"]);
       return {
-        shortAnswer: hasOccurrences ? "âœ… Encontrei ocorrÃªncia registrada visÃ­vel." : "âš ï¸ NÃ£o encontrei ocorrÃªncia registrada visÃ­vel.",
+        shortAnswer: hasOccurrences ? "✅ Encontrei ocorrência registrada visível." : "⚠️ Não encontrei ocorrência registrada visível.",
         fullAnswer: hasOccurrences ? context.occurrences : getMissingVisibleDataMessage(),
-        nextAction: hasOccurrences ? "Revise descriÃ§Ã£o, providÃªncias e seguranÃ§a antes de salvar." : "Abra IntercorrÃªncias/SeguranÃ§a e confira se algo foi preenchido.",
+        nextAction: hasOccurrences ? "Revise descrição, providências e segurança antes de salvar." : "Abra Intercorrências/Segurança e confira se algo foi preenchido.",
         canSave: false,
         sessionTheme: "rdo",
         sessionIntent: "dados_visiveis"
       };
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["quais indicadores aparecem", "indicadores aparecem", "quais indicadores", "indicadores visiveis", "indicadores visÃ­veis"])) {
+    if (hasAnyTerm(normalizedQuestion, ["quais indicadores aparecem", "indicadores aparecem", "quais indicadores", "indicadores visiveis", "indicadores visíveis"])) {
       return {
-        shortAnswer: context.indicators.length ? "âœ… Encontrei indicadores visÃ­veis." : "âš ï¸ NÃ£o encontrei indicadores visÃ­veis.",
+        shortAnswer: context.indicators.length ? "✅ Encontrei indicadores visíveis." : "⚠️ Não encontrei indicadores visíveis.",
         fullAnswer: context.indicators.length ? context.indicators.join("\n") : getMissingVisibleDataMessage(),
-        nextAction: context.indicators.length ? "Use esses nÃºmeros para decidir o prÃ³ximo registro ou revisÃ£o." : "Abra Dashboard, DiÃ¡rio ou PÃ¡gina do Cliente para ver indicadores.",
+        nextAction: context.indicators.length ? "Use esses números para decidir o próximo registro ou revisão." : "Abra Dashboard, Diário ou Página do Cliente para ver indicadores.",
         canSave: false,
         sessionTheme: "relatorio",
         sessionIntent: "dados_visiveis"
@@ -14799,20 +14799,20 @@
     const checklist = buildScreenChecklist(context);
     const found = checklist.items.filter(function (item) { return item.done; }).slice(0, 5);
     const pending = checklist.items.filter(function (item) { return !item.done; }).slice(0, 5);
-    const foundLines = found.length ? found.map(function (item) { return "âœ… " + item.label; }) : ["âš ï¸ NÃ£o encontrei dados preenchidos visÃ­veis."];
-    const pendingLines = pending.length ? pending.map(function (item) { return "âš ï¸ " + item.label; }) : ["âœ… NÃ£o encontrei pendÃªncias visÃ­veis."];
+    const foundLines = found.length ? found.map(function (item) { return "✅ " + item.label; }) : ["⚠️ Não encontrei dados preenchidos visíveis."];
+    const pendingLines = pending.length ? pending.map(function (item) { return "⚠️ " + item.label; }) : ["✅ Não encontrei pendências visíveis."];
     return {
       shortAnswer: "Resumo da tela atual.",
       fullAnswer: [
-        "VocÃª estÃ¡ em: " + context.screen,
+        "Você está em: " + context.screen,
         "",
         "Encontrei:",
         foundLines.join("\n"),
         "",
-        "PendÃªncias ou observaÃ§Ãµes:",
+        "Pendências ou observações:",
         pendingLines.join("\n")
       ].join("\n"),
-      nextAction: checklist.nextAction.replace(/^âž¡ï¸\s*/, ""),
+      nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
       canSave: false,
       sessionTheme: detectThemeFromScreen(context.screen),
       sessionIntent: "resumo_tela",
@@ -14823,7 +14823,7 @@
   function buildPdfReadinessResponse(context) {
     const checklist = buildScreenChecklist(context);
     const relevant = checklist.items.filter(function (item) {
-      return hasAnyTerm(normalizeText(item.label), ["cliente", "obra", "relatorio", "relatÃ³rio", "rdo", "fotos", "conclusao", "conclusÃ£o", "resumo", "botao", "botÃ£o"]);
+      return hasAnyTerm(normalizeText(item.label), ["cliente", "obra", "relatorio", "relatório", "rdo", "fotos", "conclusao", "conclusão", "resumo", "botao", "botão"]);
     });
     const pending = (relevant.length ? relevant : checklist.items).filter(function (item) {
       return !item.done;
@@ -14831,8 +14831,8 @@
 
     if (!pending.length && context.pdfAvailable) {
       return {
-        shortAnswer: "âœ… Pronto para gerar PDF.",
-        fullAnswer: "Pelo que estÃ¡ visÃ­vel, nÃ£o encontrei pendÃªncias crÃ­ticas antes do PDF.",
+        shortAnswer: "✅ Pronto para gerar PDF.",
+        fullAnswer: "Pelo que está visível, não encontrei pendências críticas antes do PDF.",
         nextAction: "Gere o PDF e revise o arquivo antes de entregar ao cliente.",
         canSave: false,
         sessionTheme: "pdf",
@@ -14842,11 +14842,11 @@
     }
 
     return {
-      shortAnswer: "âš ï¸ Ainda recomendo revisar antes do PDF.",
+      shortAnswer: "⚠️ Ainda recomendo revisar antes do PDF.",
       fullAnswer: pending.length ? pending.map(function (item) {
-        return "âš ï¸ " + item.label;
-      }).join("\n") : "âš ï¸ NÃ£o encontrei o botÃ£o/etapa de PDF visÃ­vel nesta tela.",
-      nextAction: context.pdfAvailable ? "Revise os itens pendentes e entÃ£o gere o PDF." : "Abra a etapa Gerar/Encerramento para confirmar o botÃ£o de PDF.",
+        return "⚠️ " + item.label;
+      }).join("\n") : "⚠️ Não encontrei o botão/etapa de PDF visível nesta tela.",
+      nextAction: context.pdfAvailable ? "Revise os itens pendentes e então gere o PDF." : "Abra a etapa Gerar/Encerramento para confirmar o botão de PDF.",
       canSave: false,
       sessionTheme: "pdf",
       sessionIntent: "revisao_pdf",
@@ -14857,9 +14857,9 @@
   function buildVisibleSingleDataResponse(label, value, fallback, theme) {
     const hasValue = hasUsefulValue(value);
     return {
-      shortAnswer: hasValue ? "âœ… " + capitalizeFirst(label) + " visÃ­vel: " + value : "âš ï¸ NÃ£o encontrei " + label + " visÃ­vel nesta tela.",
+      shortAnswer: hasValue ? "✅ " + capitalizeFirst(label) + " visível: " + value : "⚠️ Não encontrei " + label + " visível nesta tela.",
       fullAnswer: hasValue ? "Estou lendo apenas o que aparece na tela atual." : fallback,
-      nextAction: hasValue ? "Use essa informaÃ§Ã£o para revisar o fluxo atual." : "Abra a seÃ§Ã£o correspondente ou confira se os dados foram preenchidos.",
+      nextAction: hasValue ? "Use essa informação para revisar o fluxo atual." : "Abra a seção correspondente ou confira se os dados foram preenchidos.",
       canSave: false,
       sessionTheme: theme,
       sessionIntent: "dados_visiveis"
@@ -14868,19 +14868,19 @@
 
   function buildVisibleCollectionResponse(label, value, count, emptyTerms, fallback, theme) {
     const hasValue = value && !isEmptyScreenText(value, emptyTerms || []);
-    let shortAnswer = "âš ï¸ NÃ£o encontrei " + label + " visÃ­vel nesta tela.";
+    let shortAnswer = "⚠️ Não encontrei " + label + " visível nesta tela.";
     let fullAnswer = fallback || getMissingVisibleDataMessage();
     if (count > 0) {
-      shortAnswer = "âœ… Encontrei " + count + " item(ns) de " + label + " visÃ­veis.";
-      fullAnswer = value || "A contagem foi feita pelos itens visÃ­veis da tela atual.";
+      shortAnswer = "✅ Encontrei " + count + " item(ns) de " + label + " visíveis.";
+      fullAnswer = value || "A contagem foi feita pelos itens visíveis da tela atual.";
     } else if (hasValue) {
-      shortAnswer = "âœ… Encontrei sinais de " + label + " na tela.";
-      fullAnswer = "Encontrei informaÃ§Ã£o visÃ­vel, mas nÃ£o consegui contar com seguranÃ§a.\n\n" + value;
+      shortAnswer = "✅ Encontrei sinais de " + label + " na tela.";
+      fullAnswer = "Encontrei informação visível, mas não consegui contar com segurança.\n\n" + value;
     }
     return {
       shortAnswer: shortAnswer,
       fullAnswer: fullAnswer,
-      nextAction: hasValue || count > 0 ? "Revise os itens antes de salvar ou gerar PDF." : "Abra a seÃ§Ã£o correspondente ou confira se os dados foram preenchidos.",
+      nextAction: hasValue || count > 0 ? "Revise os itens antes de salvar ou gerar PDF." : "Abra a seção correspondente ou confira se os dados foram preenchidos.",
       canSave: false,
       sessionTheme: theme,
       sessionIntent: "dados_visiveis"
@@ -14912,9 +14912,9 @@
   function buildOperationalPresenceResponse(label, value, emptyTerms, emptyNextAction) {
     const hasValue = value && !isEmptyScreenText(value, emptyTerms || []);
     return {
-      shortAnswer: hasValue ? "Sim. Encontrei " + label + " na tela." : "NÃ£o encontrei " + label + " visÃ­vel agora.",
-      fullAnswer: hasValue ? "âœ… " + value : getMissingVisibleDataMessage(),
-      nextAction: hasValue ? "âž¡ï¸ Revise essa informaÃ§Ã£o antes de salvar ou gerar PDF." : emptyNextAction,
+      shortAnswer: hasValue ? "Sim. Encontrei " + label + " na tela." : "Não encontrei " + label + " visível agora.",
+      fullAnswer: hasValue ? "✅ " + value : getMissingVisibleDataMessage(),
+      nextAction: hasValue ? "➡️ Revise essa informação antes de salvar ou gerar PDF." : emptyNextAction,
       canSave: false
     };
   }
@@ -14923,9 +14923,9 @@
     const checklist = buildScreenChecklist(context);
     if (!checklist.items.length) {
       return {
-        shortAnswer: "NÃ£o encontrei dados suficientes para revisar esta tela.",
+        shortAnswer: "Não encontrei dados suficientes para revisar esta tela.",
         fullAnswer: getMissingVisibleDataMessage(),
-        nextAction: "Abra a seÃ§Ã£o correspondente ou confira se os dados foram preenchidos.",
+        nextAction: "Abra a seção correspondente ou confira se os dados foram preenchidos.",
         canSave: false
       };
     }
@@ -14933,37 +14933,37 @@
     const found = checklist.items.filter(function (item) { return item.done; });
     const pending = checklist.items.filter(function (item) { return !item.done; });
     const foundLines = found.length ? found.map(function (item) {
-      return "âœ… " + item.label;
-    }) : ["âš ï¸ NÃ£o encontrei itens preenchidos visÃ­veis."];
+      return "✅ " + item.label;
+    }) : ["⚠️ Não encontrei itens preenchidos visíveis."];
     const pendingLines = pending.length ? pending.map(function (item) {
-      return "âš ï¸ " + item.label;
-    }) : ["âœ… NÃ£o encontrei pendÃªncias visÃ­veis."];
-    let shortAnswer = "Revisei o que estÃ¡ visÃ­vel.";
+      return "⚠️ " + item.label;
+    }) : ["✅ Não encontrei pendências visíveis."];
+    let shortAnswer = "Revisei o que está visível.";
     if (intent.pdf) {
-      shortAnswer = pending.length ? "Ainda recomendo revisar antes do PDF." : "Pelo que estÃ¡ visÃ­vel, vocÃª pode avanÃ§ar para o PDF.";
+      shortAnswer = pending.length ? "Ainda recomendo revisar antes do PDF." : "Pelo que está visível, você pode avançar para o PDF.";
     } else if (intent.save) {
-      shortAnswer = pending.length ? "VocÃª pode salvar, mas hÃ¡ pontos para revisar." : "Pelo que estÃ¡ visÃ­vel, estÃ¡ pronto para salvar.";
+      shortAnswer = pending.length ? "Você pode salvar, mas há pontos para revisar." : "Pelo que está visível, está pronto para salvar.";
     } else if (intent.nextStep) {
-      shortAnswer = "PrÃ³ximo passo sugerido:";
+      shortAnswer = "Próximo passo sugerido:";
     } else if (intent.missing) {
-      shortAnswer = pending.length ? "Ainda hÃ¡ itens pendentes." : "NÃ£o encontrei pendÃªncias visÃ­veis.";
+      shortAnswer = pending.length ? "Ainda há itens pendentes." : "Não encontrei pendências visíveis.";
     }
 
     return {
       shortAnswer: shortAnswer,
       fullAnswer: [
-        "VocÃª estÃ¡ em: " + context.screen,
+        "Você está em: " + context.screen,
         "",
         "Encontrei:",
         foundLines.join("\n"),
         "",
-        "PendÃªncias:",
+        "Pendências:",
         pendingLines.join("\n"),
         "",
-        "âž¡ï¸ PrÃ³ximo passo recomendado:",
+        "➡️ Próximo passo recomendado:",
         checklist.nextAction
       ].join("\n"),
-      nextAction: checklist.nextAction.replace(/^âž¡ï¸\s*/, ""),
+      nextAction: checklist.nextAction.replace(/^➡️\s*/, ""),
       canSave: false,
       diagnosticText: buildDiagnosticText(context, checklist)
     };
@@ -14974,18 +14974,18 @@
     const found = items.filter(function (item) { return item.done; });
     const pending = items.filter(function (item) { return !item.done; });
     const foundLines = found.length ? found.map(function (item) {
-      return "âœ… " + item.label;
-    }) : ["âš ï¸ Nenhum item preenchido visÃ­vel."];
+      return "✅ " + item.label;
+    }) : ["⚠️ Nenhum item preenchido visível."];
     const pendingLines = pending.length ? pending.map(function (item) {
-      return "âš ï¸ " + item.label;
-    }) : ["âœ… Nenhuma pendÃªncia visÃ­vel."];
-    const nextAction = checklist && checklist.nextAction ? checklist.nextAction : "âž¡ï¸ Revise a tela atual antes de finalizar.";
+      return "⚠️ " + item.label;
+    }) : ["✅ Nenhuma pendência visível."];
+    const nextAction = checklist && checklist.nextAction ? checklist.nextAction : "➡️ Revise a tela atual antes de finalizar.";
 
     return [
-      "DIAGNÃ“STICO â€” ELO ASSISTENTE OBRAREPORT",
+      "DIAGNÓSTICO — ELO ASSISTENTE OBRAREPORT",
       "",
       "Contexto atual:",
-      context && context.screen ? context.screen : "Tela atual nÃ£o identificada",
+      context && context.screen ? context.screen : "Tela atual não identificada",
       "",
       "Data/hora:",
       new Date().toLocaleString("pt-BR"),
@@ -14993,10 +14993,10 @@
       "Itens encontrados:",
       foundLines.join("\n"),
       "",
-      "PendÃªncias:",
+      "Pendências:",
       pendingLines.join("\n"),
       "",
-      "PrÃ³ximo passo recomendado:",
+      "Próximo passo recomendado:",
       nextAction,
       "",
       "Origem:",
@@ -15006,97 +15006,97 @@
 
   function buildScreenChecklist(context) {
     const label = context.screen;
-    if (label === "DiÃ¡rio de Obras") {
+    if (label === "Diário de Obras") {
       const items = [
         { label: "Data do RDO", done: hasUsefulValue(context.dailyDate) },
         { label: "Obra vinculada", done: hasUsefulValue(context.work) },
-        { label: "ResponsÃ¡vel preenchido", done: hasUsefulValue(context.dailyResponsible) },
+        { label: "Responsável preenchido", done: hasUsefulValue(context.dailyResponsible) },
         { label: "Equipe registrada", done: hasUsefulValue(context.team) },
-        { label: "ServiÃ§os executados", done: hasUsefulValue(context.services) },
-        { label: "ProduÃ§Ã£o executada", done: hasUsefulValue(context.production) && !isEmptyScreenText(context.production, ["nenhuma producao"]) },
+        { label: "Serviços executados", done: hasUsefulValue(context.services) },
+        { label: "Produção executada", done: hasUsefulValue(context.production) && !isEmptyScreenText(context.production, ["nenhuma producao"]) },
         { label: "Materiais consumidos", done: hasUsefulValue(context.materials) && !isEmptyScreenText(context.materials, ["nenhum material", "r$ 0,00"]) },
-        { label: "OcorrÃªncias/seguranÃ§a revisadas", done: hasUsefulValue(context.occurrences) },
+        { label: "Ocorrências/segurança revisadas", done: hasUsefulValue(context.occurrences) },
         { label: "Fotos anexadas", done: hasUsefulValue(context.photos) && !isEmptyScreenText(context.photos, ["nenhuma foto", "0 fotos"]) },
         { label: "Resumo preenchido", done: hasUsefulValue(context.summary) }
       ];
       return {
         items: items,
         nextAction: getFirstPendingAction(items, {
-          "ProduÃ§Ã£o executada": "âž¡ï¸ PrÃ³ximo passo: registre a produÃ§Ã£o executada antes de gerar o resumo.",
-          "Materiais consumidos": "âž¡ï¸ PrÃ³ximo passo: lance os materiais consumidos para apoiar a auditoria.",
-          "Resumo preenchido": "âž¡ï¸ PrÃ³ximo passo: gere ou escreva o resumo executivo antes do PDF.",
-          "Fotos anexadas": "âž¡ï¸ PrÃ³ximo passo: adicione fotos se quiser uma entrega mais completa."
-        }, "âž¡ï¸ PrÃ³ximo passo: salvar o diÃ¡rio e gerar o PDF do RDO.")
+          "Produção executada": "➡️ Próximo passo: registre a produção executada antes de gerar o resumo.",
+          "Materiais consumidos": "➡️ Próximo passo: lance os materiais consumidos para apoiar a auditoria.",
+          "Resumo preenchido": "➡️ Próximo passo: gere ou escreva o resumo executivo antes do PDF.",
+          "Fotos anexadas": "➡️ Próximo passo: adicione fotos se quiser uma entrega mais completa."
+        }, "➡️ Próximo passo: salvar o diário e gerar o PDF do RDO.")
       };
     }
 
-    if (label === "RelatÃ³rios") {
+    if (label === "Relatórios") {
       const items = [
         { label: "Cliente selecionado", done: hasUsefulValue(context.client) },
         { label: "Obra vinculada", done: hasUsefulValue(context.work) || hasUsefulValue(context.reportWork) },
-        { label: "TÃ­tulo/dados do relatÃ³rio", done: hasUsefulValue(context.report) || hasUsefulValue(context.reportWork) },
+        { label: "Título/dados do relatório", done: hasUsefulValue(context.report) || hasUsefulValue(context.reportWork) },
         { label: "Fotos adicionadas", done: hasUsefulValue(context.photos) && !isEmptyScreenText(context.photos, ["0 fotos", "nenhuma foto"]) },
-        { label: "ConclusÃ£o tÃ©cnica", done: hasUsefulValue(context.conclusion) },
-        { label: "BotÃ£o de PDF disponÃ­vel", done: context.pdfAvailable }
+        { label: "Conclusão técnica", done: hasUsefulValue(context.conclusion) },
+        { label: "Botão de PDF disponível", done: context.pdfAvailable }
       ];
       return {
         items: items,
         nextAction: getFirstPendingAction(items, {
-          "Fotos adicionadas": "âž¡ï¸ PrÃ³ximo passo: adicione fotos antes de gerar o PDF para deixar o relatÃ³rio mais completo.",
-          "ConclusÃ£o tÃ©cnica": "âž¡ï¸ PrÃ³ximo passo: revise ou gere a conclusÃ£o tÃ©cnica.",
-          "BotÃ£o de PDF disponÃ­vel": "âž¡ï¸ PrÃ³ximo passo: avance atÃ© a etapa Gerar."
-        }, "âž¡ï¸ PrÃ³ximo passo: gerar o PDF profissional.")
+          "Fotos adicionadas": "➡️ Próximo passo: adicione fotos antes de gerar o PDF para deixar o relatório mais completo.",
+          "Conclusão técnica": "➡️ Próximo passo: revise ou gere a conclusão técnica.",
+          "Botão de PDF disponível": "➡️ Próximo passo: avance até a etapa Gerar."
+        }, "➡️ Próximo passo: gerar o PDF profissional.")
       };
     }
 
     if (label === "Planos") {
       const items = [
-        { label: "Plano atual/uso visÃ­vel", done: hasUsefulValue(context.usage) },
-        { label: "Limites visÃ­veis", done: hasUsefulValue(context.usage) || hasUsefulValue(context.plans) },
-        { label: "ContrataÃ§Ã£o assistida visÃ­vel", done: hasUsefulValue(context.contracting) },
-        { label: "WhatsApp/proposta disponÃ­vel", done: hasUsefulValue(context.plans) && hasAnyTerm(normalizeText(context.plans), ["whatsapp", "solicitar", "contratar", "proposta"]) }
+        { label: "Plano atual/uso visível", done: hasUsefulValue(context.usage) },
+        { label: "Limites visíveis", done: hasUsefulValue(context.usage) || hasUsefulValue(context.plans) },
+        { label: "Contratação assistida visível", done: hasUsefulValue(context.contracting) },
+        { label: "WhatsApp/proposta disponível", done: hasUsefulValue(context.plans) && hasAnyTerm(normalizeText(context.plans), ["whatsapp", "solicitar", "contratar", "proposta"]) }
       ];
       return {
         items: items,
-        nextAction: "âž¡ï¸ PrÃ³ximo passo: se quiser vender manualmente, use o botÃ£o de WhatsApp do plano desejado."
+        nextAction: "➡️ Próximo passo: se quiser vender manualmente, use o botão de WhatsApp do plano desejado."
       };
     }
 
     if (label === "Dashboard" || label === "Home") {
       const items = [
-        { label: "Clientes visÃ­veis", done: hasMetricValue(context, "Clientes") },
-        { label: "Obras visÃ­veis", done: hasMetricValue(context, "Obras") },
-        { label: "RelatÃ³rios visÃ­veis", done: hasMetricValue(context, "Relatorios") },
-        { label: "RDOs visÃ­veis", done: hasMetricValue(context, "RDOs") },
-        { label: "Fotos/PDFs visÃ­veis", done: hasUsefulValue(context.indicators.join(" ")) },
-        { label: "AÃ§Ãµes rÃ¡pidas disponÃ­veis", done: hasUsefulValue(context.quickActions) }
+        { label: "Clientes visíveis", done: hasMetricValue(context, "Clientes") },
+        { label: "Obras visíveis", done: hasMetricValue(context, "Obras") },
+        { label: "Relatórios visíveis", done: hasMetricValue(context, "Relatorios") },
+        { label: "RDOs visíveis", done: hasMetricValue(context, "RDOs") },
+        { label: "Fotos/PDFs visíveis", done: hasUsefulValue(context.indicators.join(" ")) },
+        { label: "Ações rápidas disponíveis", done: hasUsefulValue(context.quickActions) }
       ];
       return {
         items: items,
-        nextAction: "âž¡ï¸ PrÃ³ximo passo: escolha RDO, RelatÃ³rio ou Obra Exemplo para testar o fluxo."
+        nextAction: "➡️ Próximo passo: escolha RDO, Relatório ou Obra Exemplo para testar o fluxo."
       };
     }
 
-    if (label === "PÃ¡gina do Cliente") {
+    if (label === "Página do Cliente") {
       const items = [
         { label: "Obra vinculada", done: hasUsefulValue(context.clientWorks) || hasMetricValue(context, "Obras cliente") },
-        { label: "Ãšltimo relatÃ³rio visÃ­vel", done: hasUsefulValue(context.clientReports) || hasMetricValue(context, "Relatorios cliente") },
-        { label: "Ãšltimo RDO visÃ­vel", done: hasUsefulValue(context.clientRdos) || hasMetricValue(context, "RDOs cliente") },
-        { label: "Documentos/PDFs visÃ­veis", done: hasUsefulValue(context.clientDocs) || hasMetricValue(context, "PDFs cliente") },
-        { label: "Suporte visÃ­vel", done: hasUsefulValue(context.supportText) }
+        { label: "Último relatório visível", done: hasUsefulValue(context.clientReports) || hasMetricValue(context, "Relatorios cliente") },
+        { label: "Último RDO visível", done: hasUsefulValue(context.clientRdos) || hasMetricValue(context, "RDOs cliente") },
+        { label: "Documentos/PDFs visíveis", done: hasUsefulValue(context.clientDocs) || hasMetricValue(context, "PDFs cliente") },
+        { label: "Suporte visível", done: hasUsefulValue(context.supportText) }
       ];
       return {
         items: items,
-        nextAction: "âž¡ï¸ PrÃ³ximo passo: abra Minha obra, Meus relatÃ³rios ou Documentos para consultar o material disponÃ­vel."
+        nextAction: "➡️ Próximo passo: abra Minha obra, Meus relatórios ou Documentos para consultar o material disponível."
       };
     }
 
     return {
       items: [
         { label: "Contexto atual identificado", done: hasUsefulValue(context.screen) },
-        { label: "Dados visÃ­veis suficientes", done: hasUsefulValue(context.work) || hasUsefulValue(context.client) || hasUsefulValue(context.report) || context.indicators.length > 0 }
+        { label: "Dados visíveis suficientes", done: hasUsefulValue(context.work) || hasUsefulValue(context.client) || hasUsefulValue(context.report) || context.indicators.length > 0 }
       ],
-      nextAction: "âž¡ï¸ PrÃ³ximo passo: abra RelatÃ³rios, DiÃ¡rio de Obras, Dashboard ou Planos para uma revisÃ£o mais completa."
+      nextAction: "➡️ Próximo passo: abra Relatórios, Diário de Obras, Dashboard ou Planos para uma revisão mais completa."
     };
   }
 
@@ -15107,7 +15107,7 @@
     if (!pending) {
       return fallback;
     }
-    return actionMap[pending.label] || "âž¡ï¸ PrÃ³ximo passo: preencher " + pending.label.toLowerCase() + ".";
+    return actionMap[pending.label] || "➡️ Próximo passo: preencher " + pending.label.toLowerCase() + ".";
   }
 
   function hasMetricValue(context, label) {
@@ -15125,7 +15125,7 @@
   }
 
   function getMissingVisibleDataMessage() {
-    return "NÃ£o encontrei essa informaÃ§Ã£o na tela atual. Abra a seÃ§Ã£o correspondente ou confira se os dados foram preenchidos.";
+    return "Não encontrei essa informação na tela atual. Abra a seção correspondente ou confira se os dados foram preenchidos.";
   }
 
   function getGuidedStepResponse(normalizedQuestion) {
@@ -15133,29 +15133,29 @@
       return buildStepResponse(
         "Para gerar um PDF:",
         [
-          "Abra o relatÃ³rio ou o DiÃ¡rio de Obras desejado.",
-          "Confira cliente, obra, fotos, produÃ§Ã£o, materiais e conclusÃ£o.",
-          "Clique em Gerar PDF ou Gerar PDF do DiÃ¡rio.",
-          "Aguarde a visualizaÃ§Ã£o ou janela de impressÃ£o do navegador.",
+          "Abra o relatório ou o Diário de Obras desejado.",
+          "Confira cliente, obra, fotos, produção, materiais e conclusão.",
+          "Clique em Gerar PDF ou Gerar PDF do Diário.",
+          "Aguarde a visualização ou janela de impressão do navegador.",
           "Salve o arquivo ou envie ao cliente pelo fluxo de compartilhamento."
         ],
-        "Se a janela nÃ£o abrir, verifique se o navegador bloqueou pop-ups.",
-        "Quer que eu explique tambÃ©m como enviar o resumo por WhatsApp?"
+        "Se a janela não abrir, verifique se o navegador bloqueou pop-ups.",
+        "Quer que eu explique também como enviar o resumo por WhatsApp?"
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["como criar relatorio", "criar relatorio", "novo relatorio", "fazer relatorio"])) {
       return buildStepResponse(
-        "Para criar um relatÃ³rio tÃ©cnico:",
+        "Para criar um relatório técnico:",
         [
           "Cadastre ou selecione um cliente.",
           "Cadastre ou selecione a obra vinculada.",
-          "Abra RelatÃ³rios e preencha o nome do relatÃ³rio.",
-          "Adicione fotos, ocorrÃªncias, anÃ¡lise tÃ©cnica e conclusÃ£o.",
-          "Revise o conteÃºdo e gere o PDF profissional."
+          "Abra Relatórios e preencha o nome do relatório.",
+          "Adicione fotos, ocorrências, análise técnica e conclusão.",
+          "Revise o conteúdo e gere o PDF profissional."
         ],
-        "O relatÃ³rio precisa estar vinculado a uma obra para ficar organizado corretamente.",
-        "Se quiser testar rÃ¡pido, use a Obra Exemplo."
+        "O relatório precisa estar vinculado a uma obra para ficar organizado corretamente.",
+        "Se quiser testar rápido, use a Obra Exemplo."
       );
     }
 
@@ -15163,28 +15163,28 @@
       return buildStepResponse(
         "Para criar um RDO:",
         [
-          "Abra DiÃ¡rio de Obras.",
+          "Abra Diário de Obras.",
           "Selecione a obra vinculada.",
-          "Preencha data, responsÃ¡vel, clima, equipe e serviÃ§os.",
-          "Registre produÃ§Ã£o executada, materiais, ocorrÃªncias e fotos.",
-          "Salve o diÃ¡rio e gere o PDF do DiÃ¡rio se precisar entregar."
+          "Preencha data, responsável, clima, equipe e serviços.",
+          "Registre produção executada, materiais, ocorrências e fotos.",
+          "Salve o diário e gere o PDF do Diário se precisar entregar."
         ],
-        "O RDO funciona melhor quando produÃ§Ã£o e materiais sÃ£o preenchidos no mesmo registro.",
-        "Quer que eu explique como lanÃ§ar materiais no RDO?"
+        "O RDO funciona melhor quando produção e materiais são preenchidos no mesmo registro.",
+        "Quer que eu explique como lançar materiais no RDO?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["como adicionar materiais", "como adiciono materiais", "adicionar material", "registrar materiais", "lancar materiais", "lanÃ§ar materiais"])) {
+    if (hasAnyTerm(normalizedQuestion, ["como adicionar materiais", "como adiciono materiais", "adicionar material", "registrar materiais", "lancar materiais", "lançar materiais"])) {
       return buildStepResponse(
         "Para adicionar materiais:",
         [
-          "Abra DiÃ¡rio de Obras.",
-          "VÃ¡ atÃ© a seÃ§Ã£o Materiais.",
-          "Informe material, quantidade, unidade, valor unitÃ¡rio e observaÃ§Ã£o.",
+          "Abra Diário de Obras.",
+          "Vá até a seção Materiais.",
+          "Informe material, quantidade, unidade, valor unitário e observação.",
           "Clique em Adicionar material.",
           "Confira o resumo e o total de materiais consumidos."
         ],
-        "Se vocÃª tambÃ©m registrar ProduÃ§Ã£o Executada, o ObraReport ajuda na auditoria de consumo.",
+        "Se você também registrar Produção Executada, o ObraReport ajuda na auditoria de consumo.",
         "Depois disso, pergunte: como funciona auditoria de consumo?"
       );
     }
@@ -15193,14 +15193,14 @@
       return buildStepResponse(
         "Para enviar por WhatsApp:",
         [
-          "Abra o RDO ou relatÃ³rio que deseja compartilhar.",
-          "Confira obra, cliente, produÃ§Ã£o, materiais e ocorrÃªncias.",
-          "Clique no botÃ£o de WhatsApp.",
+          "Abra o RDO ou relatório que deseja compartilhar.",
+          "Confira obra, cliente, produção, materiais e ocorrências.",
+          "Clique no botão de WhatsApp.",
           "Revise a mensagem pronta antes de enviar.",
           "Envie pelo WhatsApp Web ou aplicativo do dispositivo."
         ],
-        "O ObraReport abre uma mensagem preenchida. NÃ£o hÃ¡ API oficial de WhatsApp integrada nesta versÃ£o.",
-        "Quer que eu explique tambÃ©m o envio por e-mail preenchido?"
+        "O ObraReport abre uma mensagem preenchida. Não há API oficial de WhatsApp integrada nesta versão.",
+        "Quer que eu explique também o envio por e-mail preenchido?"
       );
     }
 
@@ -15208,43 +15208,43 @@
       return buildStepResponse(
         "A auditoria de consumo funciona assim:",
         [
-          "Registre a ProduÃ§Ã£o Executada no RDO.",
-          "Cadastre ou use composiÃ§Ãµes de materiais.",
+          "Registre a Produção Executada no RDO.",
+          "Cadastre ou use composições de materiais.",
           "Lance os materiais realmente consumidos.",
-          "Clique para calcular materiais estimados, quando disponÃ­vel.",
-          "Compare estimado, registrado e diferenÃ§a na auditoria."
+          "Clique para calcular materiais estimados, quando disponível.",
+          "Compare estimado, registrado e diferença na auditoria."
         ],
-        "Ela Ã© uma conferÃªncia operacional simples, nÃ£o substitui orÃ§amento tÃ©cnico completo ou mediÃ§Ã£o formal.",
-        "Para testar, carregue a Obra Exemplo e abra DiÃ¡rio de Obras."
+        "Ela é uma conferência operacional simples, não substitui orçamento técnico completo ou medição formal.",
+        "Para testar, carregue a Obra Exemplo e abra Diário de Obras."
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["plano profissional", "como funciona o plano profissional"])) {
       return buildStepResponse(
-        "O plano Profissional Ã© indicado para uso individual ou equipe pequena:",
+        "O plano Profissional é indicado para uso individual ou equipe pequena:",
         [
-          "VocÃª usa o ObraReport para clientes, obras, relatÃ³rios e RDOs.",
+          "Você usa o ObraReport para clientes, obras, relatórios e RDOs.",
           "Gera PDFs profissionais para entrega.",
-          "Usa materiais, produÃ§Ã£o executada e apoio do Elo.",
+          "Usa materiais, produção executada e apoio do Elo.",
           "Solicita acesso pelo WhatsApp.",
-          "A ativaÃ§Ã£o Ã© assistida nesta fase inicial."
+          "A ativação é assistida nesta fase inicial."
         ],
-        "NÃ£o existe checkout automÃ¡tico ativo nesta fase.",
+        "Não existe checkout automático ativo nesta fase.",
         "Abra Planos para confirmar limites e solicitar acesso."
       );
     }
 
     if (hasAnyTerm(normalizedQuestion, ["plano empresa", "como funciona o plano empresa"])) {
       return buildStepResponse(
-        "O plano Empresa Ã© indicado para construtoras, escritÃ³rios e equipes:",
+        "O plano Empresa é indicado para construtoras, escritórios e equipes:",
         [
-          "Organiza mÃºltiplas obras e usuÃ¡rios.",
-          "Centraliza relatÃ³rios, RDOs e materiais.",
-          "Apoia auditoria de consumo e histÃ³rico tÃ©cnico.",
-          "Inclui suporte prioritÃ¡rio e implantaÃ§Ã£o assistida.",
-          "A contrataÃ§Ã£o comeÃ§a por proposta via WhatsApp."
+          "Organiza múltiplas obras e usuários.",
+          "Centraliza relatórios, RDOs e materiais.",
+          "Apoia auditoria de consumo e histórico técnico.",
+          "Inclui suporte prioritário e implantação assistida.",
+          "A contratação começa por proposta via WhatsApp."
         ],
-        "A ativaÃ§Ã£o Ã© assistida para configurar o primeiro acesso corretamente.",
+        "A ativação é assistida para configurar o primeiro acesso corretamente.",
         "Abra Planos e use Solicitar proposta."
       );
     }
@@ -15255,27 +15255,27 @@
         [
           "Abra o menu Obras para consultar obras cadastradas.",
           "No Dashboard, confira o card de obras em andamento.",
-          "Em RelatÃ³rios ou DiÃ¡rio de Obras, selecione a obra vinculada.",
+          "Em Relatórios ou Diário de Obras, selecione a obra vinculada.",
           "Use a Obra Exemplo se quiser testar sem dados reais.",
-          "Se a obra nÃ£o aparecer, verifique se ela foi cadastrada no cliente correto."
+          "Se a obra não aparecer, verifique se ela foi cadastrada no cliente correto."
         ],
-        "O Elo tambÃ©m consegue ler a obra selecionada quando ela estÃ¡ visÃ­vel na tela.",
+        "O Elo também consegue ler a obra selecionada quando ela está visível na tela.",
         "Pergunte: qual obra estou vendo?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["como salvar", "sincronizar", "salvar dados", "salvamento", "sincronizacao", "sincronizaÃ§Ã£o"])) {
+    if (hasAnyTerm(normalizedQuestion, ["como salvar", "sincronizar", "salvar dados", "salvamento", "sincronizacao", "sincronização"])) {
       return buildStepResponse(
         "Sobre salvar e sincronizar:",
         [
           "Preencha os dados da tela atual.",
-          "Use o botÃ£o Salvar quando ele aparecer no formulÃ¡rio.",
+          "Use o botão Salvar quando ele aparecer no formulário.",
           "Aguarde o status de salvamento/local da tela.",
-          "Confira se o item aparece na lista ou histÃ³rico.",
+          "Confira se o item aparece na lista ou histórico.",
           "Evite limpar o navegador se estiver usando dados locais."
         ],
-        "Algumas informaÃ§Ãµes do Elo ficam apenas neste navegador. Exporte backup do Elo quando quiser preservar memÃ³rias, biblioteca, projetos e objetivos.",
-        "Se algo nÃ£o salvar, pergunte: nÃ£o consigo salvar."
+        "Algumas informações do Elo ficam apenas neste navegador. Exporte backup do Elo quando quiser preservar memórias, biblioteca, projetos e objetivos.",
+        "Se algo não salvar, pergunte: não consigo salvar."
       );
     }
 
@@ -15283,93 +15283,93 @@
   }
 
   function getDiagnosticStepResponse(normalizedQuestion) {
-    if (hasAnyTerm(normalizedQuestion, ["pdf nao gerou", "pdf nÃ£o gerou", "pdf nao abre", "pdf nÃ£o abre", "erro no pdf"])) {
+    if (hasAnyTerm(normalizedQuestion, ["pdf nao gerou", "pdf não gerou", "pdf nao abre", "pdf não abre", "erro no pdf"])) {
       return buildStepResponse(
-        "Se o PDF nÃ£o gerou:",
+        "Se o PDF não gerou:",
         [
-          "Verifique se hÃ¡ cliente e obra selecionados.",
-          "Confira se o relatÃ³rio ou RDO possui conteÃºdo preenchido.",
+          "Verifique se há cliente e obra selecionados.",
+          "Confira se o relatório ou RDO possui conteúdo preenchido.",
           "Libere pop-ups ou janelas novas no navegador.",
           "Tente gerar novamente.",
           "Se persistir, entre em contato pelo suporte."
         ],
-        "A falha ao abrir o PDF normalmente nÃ£o apaga o conteÃºdo preenchido.",
+        "A falha ao abrir o PDF normalmente não apaga o conteúdo preenchido.",
         "Quer que eu explique o fluxo correto para gerar PDF?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["nao consigo salvar", "nÃ£o consigo salvar", "erro ao salvar", "nao salvou", "nÃ£o salvou"])) {
+    if (hasAnyTerm(normalizedQuestion, ["nao consigo salvar", "não consigo salvar", "erro ao salvar", "nao salvou", "não salvou"])) {
       return buildStepResponse(
-        "Se nÃ£o conseguiu salvar:",
+        "Se não conseguiu salvar:",
         [
-          "Confira se os campos obrigatÃ³rios estÃ£o preenchidos.",
+          "Confira se os campos obrigatórios estão preenchidos.",
           "Verifique se cliente e obra foram selecionados.",
           "Observe a mensagem de status da tela.",
-          "Tente salvar novamente sem recarregar a pÃ¡gina.",
-          "Se o problema continuar, copie as informaÃ§Ãµes importantes antes de fechar."
+          "Tente salvar novamente sem recarregar a página.",
+          "Se o problema continuar, copie as informações importantes antes de fechar."
         ],
-        "Eu nÃ£o altero seus dados; apenas oriento com base na tela atual.",
+        "Eu não altero seus dados; apenas oriento com base na tela atual.",
         "Pergunte qual obra ou RDO estou vendo para conferir o contexto."
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["foto nao aparece", "foto nÃ£o aparece", "foto sumiu", "imagem nao aparece", "imagem nÃ£o aparece"])) {
+    if (hasAnyTerm(normalizedQuestion, ["foto nao aparece", "foto não aparece", "foto sumiu", "imagem nao aparece", "imagem não aparece"])) {
       return buildStepResponse(
-        "Se a foto nÃ£o aparece:",
+        "Se a foto não aparece:",
         [
-          "Confirme se o arquivo Ã© JPEG, PNG ou WebP.",
-          "Veja se a foto foi adicionada depois da seleÃ§Ã£o.",
-          "Confira se estÃ¡ na etapa correta de Fotos.",
+          "Confirme se o arquivo é JPEG, PNG ou WebP.",
+          "Veja se a foto foi adicionada depois da seleção.",
+          "Confira se está na etapa correta de Fotos.",
           "Evite arquivos muito pesados.",
-          "Tente adicionar novamente e salvar o relatÃ³rio ou RDO."
+          "Tente adicionar novamente e salvar o relatório ou RDO."
         ],
-        "Fotos locais dependem do navegador enquanto o registro estÃ¡ sendo preparado.",
+        "Fotos locais dependem do navegador enquanto o registro está sendo preparado.",
         "Quer que eu explique como adicionar fotos?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["rdo sumiu", "diario sumiu", "nÃ£o acho o rdo", "nao acho o rdo", "rdo nao aparece"])) {
+    if (hasAnyTerm(normalizedQuestion, ["rdo sumiu", "diario sumiu", "não acho o rdo", "nao acho o rdo", "rdo nao aparece"])) {
       return buildStepResponse(
-        "Se o RDO nÃ£o aparece:",
+        "Se o RDO não aparece:",
         [
-          "Abra DiÃ¡rio de Obras.",
-          "Confira se a obra correta estÃ¡ selecionada.",
-          "Veja a lista Registros do DiÃ¡rio.",
-          "Limpe o campo de busca de produÃ§Ã£o, se estiver preenchido.",
-          "Se usou outro navegador/dispositivo, o dado local pode nÃ£o estar disponÃ­vel ali."
+          "Abra Diário de Obras.",
+          "Confira se a obra correta está selecionada.",
+          "Veja a lista Registros do Diário.",
+          "Limpe o campo de busca de produção, se estiver preenchido.",
+          "Se usou outro navegador/dispositivo, o dado local pode não estar disponível ali."
         ],
         "Nesta fase, alguns dados podem depender do armazenamento local do navegador.",
         "Pergunte: qual RDO estou vendo?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["whatsapp nao abriu", "whatsapp nÃ£o abriu", "erro whatsapp", "whatsapp nao funciona"])) {
+    if (hasAnyTerm(normalizedQuestion, ["whatsapp nao abriu", "whatsapp não abriu", "erro whatsapp", "whatsapp nao funciona"])) {
       return buildStepResponse(
-        "Se o WhatsApp nÃ£o abriu:",
+        "Se o WhatsApp não abriu:",
         [
           "Confira se o navegador permitiu abrir nova aba.",
-          "Verifique se hÃ¡ WhatsApp Web ou aplicativo configurado.",
-          "Revise se o RDO possui informaÃ§Ãµes para montar a mensagem.",
-          "Tente clicar novamente no botÃ£o de WhatsApp.",
-          "Se necessÃ¡rio, copie o resumo manualmente."
+          "Verifique se há WhatsApp Web ou aplicativo configurado.",
+          "Revise se o RDO possui informações para montar a mensagem.",
+          "Tente clicar novamente no botão de WhatsApp.",
+          "Se necessário, copie o resumo manualmente."
         ],
-        "O ObraReport usa abertura de mensagem pronta, nÃ£o API oficial do WhatsApp.",
+        "O ObraReport usa abertura de mensagem pronta, não API oficial do WhatsApp.",
         "Quer que eu explique o envio por WhatsApp?"
       );
     }
 
-    if (hasAnyTerm(normalizedQuestion, ["plano nao mudou", "plano nÃ£o mudou", "upgrade nao mudou", "upgrade nÃ£o mudou", "plano nao atualizou"])) {
+    if (hasAnyTerm(normalizedQuestion, ["plano nao mudou", "plano não mudou", "upgrade nao mudou", "upgrade não mudou", "plano nao atualizou"])) {
       return buildStepResponse(
-        "Se o plano nÃ£o mudou:",
+        "Se o plano não mudou:",
         [
           "Abra a tela Planos.",
           "Confira o plano e o uso atual exibidos.",
-          "Lembre que a ativaÃ§Ã£o Ã© assistida nesta fase.",
+          "Lembre que a ativação é assistida nesta fase.",
           "Fale pelo WhatsApp para solicitar ajuste de acesso.",
-          "Aguarde confirmaÃ§Ã£o antes de considerar o plano ativo."
+          "Aguarde confirmação antes de considerar o plano ativo."
         ],
-        "NÃ£o hÃ¡ checkout automÃ¡tico integrado nesta versÃ£o.",
-        "Abra Planos e use o botÃ£o de contrataÃ§Ã£o assistida."
+        "Não há checkout automático integrado nesta versão.",
+        "Abra Planos e use o botão de contratação assistida."
       );
     }
 
@@ -15381,7 +15381,7 @@
       shortAnswer: shortAnswer,
       fullAnswer: steps.map(function (step, index) {
         return (index + 1) + ". " + step;
-      }).join("\n") + (note ? "\n\nObservaÃ§Ã£o: " + note : ""),
+      }).join("\n") + (note ? "\n\nObservação: " + note : ""),
       nextAction: nextAction,
       canSave: true
     };
@@ -15390,11 +15390,11 @@
   const ELO_CONVERSATION_INTENTS = [
     {
       intent: "saudacao",
-      phrases: ["oi", "ola", "olÃ¡", "e ai", "e aÃ­", "opa", "salve", "alo", "alÃ´"]
+      phrases: ["oi", "ola", "olá", "e ai", "e aí", "opa", "salve", "alo", "alô"]
     },
     {
       intent: "como_esta",
-      phrases: ["como voce esta", "como vocÃª estÃ¡", "como esta", "como estÃ¡", "como vai", "tudo bem", "tudo certo", "voce esta bem", "vocÃª estÃ¡ bem", "tudo tranquilo", "como esta hoje"]
+      phrases: ["como voce esta", "como você está", "como esta", "como está", "como vai", "tudo bem", "tudo certo", "voce esta bem", "você está bem", "tudo tranquilo", "como esta hoje"]
     },
     {
       intent: "agradecimento",
@@ -15402,23 +15402,23 @@
     },
     {
       intent: "despedida",
-      phrases: ["tchau", "ate mais", "atÃ© mais", "ate logo", "atÃ© logo", "falou", "encerrar", "vou sair", "bom descanso", "boa noite ate amanha", "boa noite atÃ© amanhÃ£"]
+      phrases: ["tchau", "ate mais", "até mais", "ate logo", "até logo", "falou", "encerrar", "vou sair", "bom descanso", "boa noite ate amanha", "boa noite até amanhã"]
     },
     {
       intent: "identidade",
-      phrases: ["quem e voce", "quem Ã© vocÃª", "qual seu nome", "qual e seu nome", "qual Ã© seu nome", "o que e o elo", "o que Ã© o elo", "voce e quem", "vocÃª Ã© quem", "quem esta falando", "quem estÃ¡ falando", "voce e uma pessoa", "vocÃª Ã© uma pessoa", "voce e humano", "vocÃª Ã© humano"]
+      phrases: ["quem e voce", "quem é você", "qual seu nome", "qual e seu nome", "qual é seu nome", "o que e o elo", "o que é o elo", "voce e quem", "você é quem", "quem esta falando", "quem está falando", "voce e uma pessoa", "você é uma pessoa", "voce e humano", "você é humano"]
     },
     {
       intent: "capacidades",
-      phrases: ["o que voce faz", "o que vocÃª faz", "o que voce consegue fazer", "o que vocÃª consegue fazer", "em que voce ajuda", "em que vocÃª ajuda", "para que serve", "voce pode me ajudar", "vocÃª pode me ajudar", "como voce pode me ajudar", "como vocÃª pode me ajudar", "o que voce sabe sobre o obrareport", "o que vocÃª sabe sobre o obrareport"]
+      phrases: ["o que voce faz", "o que você faz", "o que voce consegue fazer", "o que você consegue fazer", "em que voce ajuda", "em que você ajuda", "para que serve", "voce pode me ajudar", "você pode me ajudar", "como voce pode me ajudar", "como você pode me ajudar", "o que voce sabe sobre o obrareport", "o que você sabe sobre o obrareport"]
     },
     {
       intent: "funcionamento",
-      phrases: ["como funciona o elo", "como voce funciona", "como vocÃª funciona", "como o elo funciona", "como usar o elo", "voce usa ia", "vocÃª usa ia"]
+      phrases: ["como funciona o elo", "como voce funciona", "como você funciona", "como o elo funciona", "como usar o elo", "voce usa ia", "você usa ia"]
     },
     {
       intent: "apoio_pratico",
-      phrases: ["estou cansado", "estou cansada", "estou com pressa", "estou perdido", "estou perdida", "nao entendi", "nÃ£o entendi", "estou confuso", "estou confusa", "ta dificil", "tÃ¡ difÃ­cil", "esta complicado", "estÃ¡ complicado"]
+      phrases: ["estou cansado", "estou cansada", "estou com pressa", "estou perdido", "estou perdida", "nao entendi", "não entendi", "estou confuso", "estou confusa", "ta dificil", "tá difícil", "esta complicado", "está complicado"]
     }
   ];
 
@@ -15448,28 +15448,28 @@
   function adaptConversationVariantForStandalone(variant, intent) {
     const replacements = {
       saudacao: {
-        shortAnswer: "OlÃ¡. Estou aqui para conversar, organizar ideias e acompanhar suas memÃ³rias locais.",
-        fullAnswer: "Posso ajudar com projetos, objetivos, linha do tempo, biblioteca, conceitos humanos e reflexÃµes simples.",
+        shortAnswer: "Olá. Estou aqui para conversar, organizar ideias e acompanhar suas memórias locais.",
+        fullAnswer: "Posso ajudar com projetos, objetivos, linha do tempo, biblioteca, conceitos humanos e reflexões simples.",
         nextAction: "Diga se quer conversar, registrar algo ou revisar seus projetos."
       },
       como_esta: {
         shortAnswer: "Estou funcionando normalmente por aqui.",
-        fullAnswer: "NÃ£o tenho emoÃ§Ãµes ou consciÃªncia humana, mas consigo responder com calma e consultar suas informaÃ§Ãµes locais autorizadas.",
-        nextAction: "Quer organizar uma ideia, um projeto ou uma memÃ³ria?"
+        fullAnswer: "Não tenho emoções ou consciência humana, mas consigo responder com calma e consultar suas informações locais autorizadas.",
+        nextAction: "Quer organizar uma ideia, um projeto ou uma memória?"
       },
       identidade: {
         shortAnswer: "Eu sou o Elo, um assistente digital pessoal.",
-        fullAnswer: "NÃ£o sou uma pessoa e nÃ£o tenho consciÃªncia humana. Nesta pÃ¡gina, funciono como companheiro digital local para conversar, organizar projetos, guardar memÃ³rias autorizadas e consultar conceitos.",
-        nextAction: "Pergunte: o que vocÃª lembra de mim?"
+        fullAnswer: "Não sou uma pessoa e não tenho consciência humana. Nesta página, funciono como companheiro digital local para conversar, organizar projetos, guardar memórias autorizadas e consultar conceitos.",
+        nextAction: "Pergunte: o que você lembra de mim?"
       },
       capacidades: {
-        shortAnswer: "Posso ajudar vocÃª a organizar ideias, projetos, memÃ³rias e prÃ³ximos passos.",
-        fullAnswer: "TambÃ©m posso manter uma Biblioteca local, registrar Linha do Tempo, responder sobre conceitos humanos e consultar dados salvos apenas neste navegador.",
-        nextAction: "Experimente: quais sÃ£o meus projetos?"
+        shortAnswer: "Posso ajudar você a organizar ideias, projetos, memórias e próximos passos.",
+        fullAnswer: "Também posso manter uma Biblioteca local, registrar Linha do Tempo, responder sobre conceitos humanos e consultar dados salvos apenas neste navegador.",
+        nextAction: "Experimente: quais são meus projetos?"
       },
       funcionamento: {
         shortAnswer: "Eu funciono localmente neste navegador.",
-        fullAnswer: "Uso regras, memÃ³rias autorizadas, Biblioteca, Projetos, Linha do Tempo e Conceitos. NÃ£o envio essa conversa para backend nesta versÃ£o.",
+        fullAnswer: "Uso regras, memórias autorizadas, Biblioteca, Projetos, Linha do Tempo e Conceitos. Não envio essa conversa para backend nesta versão.",
         nextAction: "Use Ferramentas do Elo para ver ou exportar seus dados locais."
       }
     };
@@ -15494,120 +15494,120 @@
     return {
       saudacao: [
         {
-          shortAnswer: "OlÃ¡. Como posso ajudar vocÃª no ObraReport hoje?",
-          fullAnswer: "Posso orientar relatÃ³rios, RDO, materiais, planos e revisÃ£o da tela atual.",
-          nextAction: "Diga se quer revisar algo ou tirar uma dÃºvida.",
+          shortAnswer: "Olá. Como posso ajudar você no ObraReport hoje?",
+          fullAnswer: "Posso orientar relatórios, RDO, materiais, planos e revisão da tela atual.",
+          nextAction: "Diga se quer revisar algo ou tirar uma dúvida.",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Oi. Estou por aqui para ajudar com o ObraReport.",
-          fullAnswer: "Consigo responder dÃºvidas, sugerir prÃ³ximos passos e consultar documentos locais do Elo.",
-          nextAction: "VocÃª pode perguntar: o que devo fazer agora?",
+          fullAnswer: "Consigo responder dúvidas, sugerir próximos passos e consultar documentos locais do Elo.",
+          nextAction: "Você pode perguntar: o que devo fazer agora?",
           sessionTheme: "suporte"
         },
         {
-          shortAnswer: "OlÃ¡. Quer revisar algo no sistema ou tirar uma dÃºvida?",
-          fullAnswer: "Eu mantenho o foco no ObraReport: RDO, relatÃ³rios, PDF, materiais, planos e documentos locais.",
-          nextAction: "Escolha uma Ã¡rea ou escreva sua dÃºvida.",
+          shortAnswer: "Olá. Quer revisar algo no sistema ou tirar uma dúvida?",
+          fullAnswer: "Eu mantenho o foco no ObraReport: RDO, relatórios, PDF, materiais, planos e documentos locais.",
+          nextAction: "Escolha uma área ou escreva sua dúvida.",
           sessionTheme: "suporte"
         }
       ],
       como_esta: [
         {
           shortAnswer: "Estou funcionando normalmente aqui no ObraReport.",
-          fullAnswer: "NÃ£o tenho emoÃ§Ãµes ou consciÃªncia, mas consigo acompanhar a tela atual e responder de forma prÃ¡tica.",
+          fullAnswer: "Não tenho emoções ou consciência, mas consigo acompanhar a tela atual e responder de forma prática.",
           nextAction: "Quer que eu revise a tela atual?",
           sessionTheme: "suporte"
         },
         {
-          shortAnswer: "Tudo certo por aqui. Posso te ajudar com o prÃ³ximo passo.",
+          shortAnswer: "Tudo certo por aqui. Posso te ajudar com o próximo passo.",
           fullAnswer: "Eu trabalho com regras locais, contexto da tela e bases salvas neste navegador.",
           nextAction: "Pergunte: o que falta preencher?",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Estou pronto para ajudar no uso do ObraReport.",
-          fullAnswer: "Posso orientar em passos curtos, sem mexer nos seus dados por conta prÃ³pria.",
+          fullAnswer: "Posso orientar em passos curtos, sem mexer nos seus dados por conta própria.",
           nextAction: "Diga se precisa de ajuda com PDF, RDO ou materiais.",
           sessionTheme: "suporte"
         }
       ],
       agradecimento: [
         {
-          shortAnswer: "De nada. Fico Ã  disposiÃ§Ã£o para ajudar no ObraReport.",
-          fullAnswer: "Quando quiser, posso revisar RDO, relatÃ³rio, PDF, materiais, planos ou documentos locais do Elo.",
-          nextAction: "VocÃª pode perguntar: o que devo fazer agora?",
+          shortAnswer: "De nada. Fico à disposição para ajudar no ObraReport.",
+          fullAnswer: "Quando quiser, posso revisar RDO, relatório, PDF, materiais, planos ou documentos locais do Elo.",
+          nextAction: "Você pode perguntar: o que devo fazer agora?",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Por nada. Vamos mantendo o fluxo simples.",
-          fullAnswer: "Se precisar, eu posso organizar a prÃ³xima aÃ§Ã£o em passos curtos.",
+          fullAnswer: "Se precisar, eu posso organizar a próxima ação em passos curtos.",
           nextAction: "Pergunte sobre a tela atual quando quiser.",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Perfeito. Continuo aqui para apoiar o uso do ObraReport.",
-          fullAnswer: "Posso revisar pendÃªncias, explicar recursos ou consultar sua base local.",
+          fullAnswer: "Posso revisar pendências, explicar recursos ou consultar sua base local.",
           nextAction: "Use uma pergunta direta, como: posso gerar PDF?",
           sessionTheme: "suporte"
         }
       ],
       despedida: [
         {
-          shortAnswer: "AtÃ© mais. Quando voltar, posso continuar ajudando no ObraReport.",
-          fullAnswer: "As informaÃ§Ãµes locais do Elo ficam neste navegador. Para dados importantes, use as ferramentas de backup quando necessÃ¡rio.",
+          shortAnswer: "Até mais. Quando voltar, posso continuar ajudando no ObraReport.",
+          fullAnswer: "As informações locais do Elo ficam neste navegador. Para dados importantes, use as ferramentas de backup quando necessário.",
           nextAction: "Antes de sair, confira se salvou o que precisava no ObraReport.",
           sessionTheme: "suporte"
         },
         {
-          shortAnswer: "AtÃ© logo. Bom trabalho com o ObraReport.",
-          fullAnswer: "Eu nÃ£o envio nada sozinho e nÃ£o altero seus dados sem aÃ§Ã£o sua.",
+          shortAnswer: "Até logo. Bom trabalho com o ObraReport.",
+          fullAnswer: "Eu não envio nada sozinho e não altero seus dados sem ação sua.",
           nextAction: "Quando voltar, pergunte: resuma esta tela.",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Certo. Encerrando por aqui, sem alterar nada.",
-          fullAnswer: "Se precisar retomar depois, posso ajudar com RDO, relatÃ³rio, PDF e materiais.",
-          nextAction: "Salve seu trabalho no ObraReport antes de fechar a pÃ¡gina.",
+          fullAnswer: "Se precisar retomar depois, posso ajudar com RDO, relatório, PDF e materiais.",
+          nextAction: "Salve seu trabalho no ObraReport antes de fechar a página.",
           sessionTheme: "suporte"
         }
       ],
       identidade: [
         {
           shortAnswer: "Eu sou o Elo, assistente local do ObraReport.",
-          fullAnswer: "NÃ£o sou uma pessoa nem tenho consciÃªncia. Sou um assistente digital do sistema para orientar uso, revisar informaÃ§Ãµes visÃ­veis e consultar bases locais.",
-          nextAction: "Pergunte: o que vocÃª consegue fazer?",
+          fullAnswer: "Não sou uma pessoa nem tenho consciência. Sou um assistente digital do sistema para orientar uso, revisar informações visíveis e consultar bases locais.",
+          nextAction: "Pergunte: o que você consegue fazer?",
           sessionTheme: "elo"
         },
         {
-          shortAnswer: "Meu nome Ã© Elo. Eu ajudo dentro do ObraReport.",
-          fullAnswer: "Minha funÃ§Ã£o Ã© tornar o uso do sistema mais claro: relatÃ³rios, RDO, PDF, materiais, planos e documentos locais.",
+          shortAnswer: "Meu nome é Elo. Eu ajudo dentro do ObraReport.",
+          fullAnswer: "Minha função é tornar o uso do sistema mais claro: relatórios, RDO, PDF, materiais, planos e documentos locais.",
           nextAction: "Pergunte sobre a tela atual ou sobre um recurso.",
           sessionTheme: "elo"
         },
         {
-          shortAnswer: "Sou o assistente do ObraReport para suporte e orientaÃ§Ã£o operacional.",
-          fullAnswer: "Tenho um perfil calmo, educado, paciente e direto. Uso regras locais e contexto visÃ­vel. NÃ£o sou IA em nuvem nesta versÃ£o.",
+          shortAnswer: "Sou o assistente do ObraReport para suporte e orientação operacional.",
+          fullAnswer: "Tenho um perfil calmo, educado, paciente e direto. Uso regras locais e contexto visível. Não sou IA em nuvem nesta versão.",
           nextAction: "Experimente perguntar: como funciona o Elo?",
           sessionTheme: "elo"
         }
       ],
       capacidades: [
         {
-          shortAnswer: "Eu ajudo vocÃª a usar o ObraReport com mais clareza.",
-          fullAnswer: "Consigo orientar relatÃ³rios, PDF, RDO, materiais, planos, revisar a tela atual, sugerir prÃ³ximos passos e consultar documentos locais.",
+          shortAnswer: "Eu ajudo você a usar o ObraReport com mais clareza.",
+          fullAnswer: "Consigo orientar relatórios, PDF, RDO, materiais, planos, revisar a tela atual, sugerir próximos passos e consultar documentos locais.",
           nextAction: "Experimente: resuma esta tela.",
           sessionTheme: "elo"
         },
         {
-          shortAnswer: "Posso funcionar como um suporte rÃ¡pido dentro do sistema.",
-          fullAnswer: "Eu respondo dÃºvidas, faÃ§o checklists simples e ajudo a entender o que estÃ¡ pendente na tela atual.",
+          shortAnswer: "Posso funcionar como um suporte rápido dentro do sistema.",
+          fullAnswer: "Eu respondo dúvidas, faço checklists simples e ajudo a entender o que está pendente na tela atual.",
           nextAction: "Pergunte: o que falta preencher?",
           sessionTheme: "elo"
         },
         {
-          shortAnswer: "Eu organizo dÃºvidas e prÃ³ximos passos do ObraReport.",
-          fullAnswer: "TambÃ©m posso guardar memÃ³rias importantes locais e consultar textos adicionados em Documentos do Elo.",
+          shortAnswer: "Eu organizo dúvidas e próximos passos do ObraReport.",
+          fullAnswer: "Também posso guardar memórias importantes locais e consultar textos adicionados em Documentos do Elo.",
           nextAction: "Abra Ferramentas do Elo para ver Biblioteca e Documentos.",
           sessionTheme: "elo"
         }
@@ -15615,19 +15615,19 @@
       funcionamento: [
         {
           shortAnswer: "O Elo funciona com regras locais, contexto da tela e dados salvos neste navegador.",
-          fullAnswer: "Nesta fase, eu nÃ£o uso backend, nuvem ou IA real. Leio o que estÃ¡ visÃ­vel e consulto bases locais.",
-          nextAction: "Abra Ferramentas do Elo para ver Biblioteca, Documentos, MemÃ³rias e Projetos.",
+          fullAnswer: "Nesta fase, eu não uso backend, nuvem ou IA real. Leio o que está visível e consulto bases locais.",
+          nextAction: "Abra Ferramentas do Elo para ver Biblioteca, Documentos, Memórias e Projetos.",
           sessionTheme: "elo"
         },
         {
           shortAnswer: "Eu funciono como uma camada de ajuda dentro do ObraReport.",
-          fullAnswer: "Quando vocÃª pergunta, eu identifico a intenÃ§Ã£o, considero a tela atual e procuro em bases locais antes de responder.",
+          fullAnswer: "Quando você pergunta, eu identifico a intenção, considero a tela atual e procuro em bases locais antes de responder.",
           nextAction: "Pergunte algo sobre PDF, RDO ou materiais.",
           sessionTheme: "elo"
         },
         {
-          shortAnswer: "O Elo Ã© local e controlado nesta versÃ£o.",
-          fullAnswer: "Nada Ã© enviado para backend por esta conversa. As bases locais ficam no navegador.",
+          shortAnswer: "O Elo é local e controlado nesta versão.",
+          fullAnswer: "Nada é enviado para backend por esta conversa. As bases locais ficam no navegador.",
           nextAction: "Use Documentos do Elo para adicionar textos de consulta.",
           sessionTheme: "elo"
         }
@@ -15636,18 +15636,18 @@
         {
           shortAnswer: "Entendi. Vamos simplificar.",
           fullAnswer: "Posso te orientar em passos curtos, sem tentar resolver tudo de uma vez.",
-          nextAction: "Escolha um foco: PDF, RDO, materiais ou relatÃ³rio.",
+          nextAction: "Escolha um foco: PDF, RDO, materiais ou relatório.",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Sem problema. Posso deixar isso mais direto.",
-          fullAnswer: "Eu nÃ£o faÃ§o aconselhamento emocional, mas posso reduzir o fluxo para uma prÃ³xima aÃ§Ã£o prÃ¡tica.",
+          fullAnswer: "Eu não faço aconselhamento emocional, mas posso reduzir o fluxo para uma próxima ação prática.",
           nextAction: "Pergunte: o que devo fazer agora?",
           sessionTheme: "suporte"
         },
         {
           shortAnswer: "Vamos por partes.",
-          fullAnswer: "Se estiver com pressa, eu posso revisar rapidamente a tela atual e apontar sÃ³ o prÃ³ximo passo.",
+          fullAnswer: "Se estiver com pressa, eu posso revisar rapidamente a tela atual e apontar só o próximo passo.",
           nextAction: "Pergunte: resuma esta tela.",
           sessionTheme: "suporte"
         }
@@ -15663,24 +15663,24 @@
     const context = getCurrentScreenContext();
     const label = context.label;
     const hints = {
-      "DiÃ¡rio de Obras": {
-        fullAnswer: "Vejo que vocÃª estÃ¡ no DiÃ¡rio de Obras. Posso ajudar a revisar o RDO, materiais, produÃ§Ã£o ou pendÃªncias.",
+      "Diário de Obras": {
+        fullAnswer: "Vejo que você está no Diário de Obras. Posso ajudar a revisar o RDO, materiais, produção ou pendências.",
         nextAction: "Pergunte: revisar RDO."
       },
-      "RelatÃ³rios": {
-        fullAnswer: "VocÃª estÃ¡ na Ã¡rea de RelatÃ³rios. Posso ajudar a revisar antes do PDF ou verificar fotos e conclusÃ£o.",
+      "Relatórios": {
+        fullAnswer: "Você está na área de Relatórios. Posso ajudar a revisar antes do PDF ou verificar fotos e conclusão.",
         nextAction: "Pergunte: posso gerar PDF?"
       },
       "Planos": {
-        fullAnswer: "VocÃª estÃ¡ nos Planos. Posso explicar limites, contrataÃ§Ã£o assistida ou plano Empresa.",
+        fullAnswer: "Você está nos Planos. Posso explicar limites, contratação assistida ou plano Empresa.",
         nextAction: "Pergunte: qual plano escolher?"
       },
       "Dashboard": {
-        fullAnswer: "VocÃª estÃ¡ no Dashboard. Posso sugerir o prÃ³ximo passo ou resumir os indicadores visÃ­veis.",
+        fullAnswer: "Você está no Dashboard. Posso sugerir o próximo passo ou resumir os indicadores visíveis.",
         nextAction: "Pergunte: o que devo fazer agora?"
       },
-      "PÃ¡gina do Cliente": {
-        fullAnswer: "VocÃª estÃ¡ na PÃ¡gina do Cliente. Posso ajudar a localizar relatÃ³rios, RDOs e documentos visÃ­veis.",
+      "Página do Cliente": {
+        fullAnswer: "Você está na Página do Cliente. Posso ajudar a localizar relatórios, RDOs e documentos visíveis.",
         nextAction: "Pergunte: resuma esta tela."
       }
     };
@@ -15715,9 +15715,9 @@
       "me ajuda",
       "ajuda",
       "o que faco",
-      "o que faÃ§o",
+      "o que faço",
       "por onde comeco",
-      "por onde comeÃ§o"
+      "por onde começo"
     ];
     const isGeneric = genericQuestions.some(function (item) {
       const normalizedItem = normalizeText(item);
@@ -15731,65 +15731,65 @@
     const context = getCurrentScreenContext();
     const answers = {
       "Planos": {
-        shortAnswer: "VocÃª estÃ¡ em Planos.",
+        shortAnswer: "Você está em Planos.",
         fullAnswer: [
           "1. Compare Gratuito, Profissional e Empresa.",
           "2. Veja os limites e o uso atual.",
-          "3. Escolha o plano adequado ao volume de obras e relatÃ³rios.",
-          "4. Use o WhatsApp para contrataÃ§Ã£o assistida.",
-          "5. Aguarde ativaÃ§Ã£o orientada pela equipe."
+          "3. Escolha o plano adequado ao volume de obras e relatórios.",
+          "4. Use o WhatsApp para contratação assistida.",
+          "5. Aguarde ativação orientada pela equipe."
         ].join("\n"),
         nextAction: "Pergunte: como funciona o plano Profissional? ou como funciona o plano Empresa?",
         canSave: false
       },
-      "DiÃ¡rio de Obras": {
-        shortAnswer: "VocÃª estÃ¡ no DiÃ¡rio de Obras.",
+      "Diário de Obras": {
+        shortAnswer: "Você está no Diário de Obras.",
         fullAnswer: [
           "1. Selecione a obra vinculada.",
-          "2. Preencha data, responsÃ¡vel, clima, equipe e serviÃ§os.",
-          "3. Lance produÃ§Ã£o executada e materiais consumidos.",
-          "4. Registre ocorrÃªncias, seguranÃ§a e fotos.",
-          "5. Salve o diÃ¡rio e gere o PDF quando estiver pronto."
+          "2. Preencha data, responsável, clima, equipe e serviços.",
+          "3. Lance produção executada e materiais consumidos.",
+          "4. Registre ocorrências, segurança e fotos.",
+          "5. Salve o diário e gere o PDF quando estiver pronto."
         ].join("\n"),
         nextAction: "Pergunte: como adicionar materiais? ou como gerar PDF?",
         canSave: false
       },
-      "RelatÃ³rios": {
-        shortAnswer: "VocÃª estÃ¡ em RelatÃ³rios.",
+      "Relatórios": {
+        shortAnswer: "Você está em Relatórios.",
         fullAnswer: [
           "1. Escolha cliente e obra.",
-          "2. Crie ou abra o relatÃ³rio tÃ©cnico.",
-          "3. Adicione fotos, ocorrÃªncias e anÃ¡lise.",
-          "4. Revise a conclusÃ£o e os dados principais.",
+          "2. Crie ou abra o relatório técnico.",
+          "3. Adicione fotos, ocorrências e análise.",
+          "4. Revise a conclusão e os dados principais.",
           "5. Gere o PDF profissional para entrega."
         ].join("\n"),
-        nextAction: "Pergunte: como criar relatÃ³rio? ou como gerar PDF?",
+        nextAction: "Pergunte: como criar relatório? ou como gerar PDF?",
         canSave: false
       },
       "Clientes": {
-        shortAnswer: "VocÃª estÃ¡ em Clientes.",
-        fullAnswer: "Aqui eu priorizo cadastro de cliente e organizaÃ§Ã£o dos vÃ­nculos com obras, relatÃ³rios e RDOs.",
+        shortAnswer: "Você está em Clientes.",
+        fullAnswer: "Aqui eu priorizo cadastro de cliente e organização dos vínculos com obras, relatórios e RDOs.",
         nextAction: "Pergunte: como cadastrar cliente?",
         canSave: false
       },
       "Obras": {
-        shortAnswer: "VocÃª estÃ¡ em Obras.",
-        fullAnswer: "Aqui eu priorizo cadastro de obra, vÃ­nculo com cliente e organizaÃ§Ã£o dos documentos tÃ©cnicos.",
+        shortAnswer: "Você está em Obras.",
+        fullAnswer: "Aqui eu priorizo cadastro de obra, vínculo com cliente e organização dos documentos técnicos.",
         nextAction: "Pergunte: como cadastrar obra?",
         canSave: false
       },
-      "AdministraÃ§Ã£o": {
-        shortAnswer: "VocÃª estÃ¡ em AdministraÃ§Ã£o.",
-        fullAnswer: "Aqui eu priorizo visÃ£o geral de uso, limites, planos e suporte operacional.",
+      "Administração": {
+        shortAnswer: "Você está em Administração.",
+        fullAnswer: "Aqui eu priorizo visão geral de uso, limites, planos e suporte operacional.",
         nextAction: "Pergunte sobre limites, planos ou suporte.",
         canSave: false
       }
     };
 
     return answers[context.label] || {
-      shortAnswer: "VocÃª estÃ¡ no " + context.label + ".",
-      fullAnswer: "Posso orientar o prÃ³ximo passo com base nesta tela do ObraReport.",
-      nextAction: "Pergunte sobre PDF, RDO, materiais, relatÃ³rios ou planos.",
+      shortAnswer: "Você está no " + context.label + ".",
+      fullAnswer: "Posso orientar o próximo passo com base nesta tela do ObraReport.",
+      nextAction: "Pergunte sobre PDF, RDO, materiais, relatórios ou planos.",
       canSave: false
     };
   }
@@ -15817,11 +15817,11 @@
         categories: ["obras", "clientes", "relatorios", "rdo"]
       },
       relatorios: {
-        label: "RelatÃ³rios",
+        label: "Relatórios",
         categories: ["relatorios", "fotos", "pdf", "ia"]
       },
       diario: {
-        label: "DiÃ¡rio de Obras",
+        label: "Diário de Obras",
         categories: ["rdo", "materiais", "pdf", "ia"]
       },
       planos: {
@@ -15829,31 +15829,31 @@
         categories: ["planos", "limites", "suporte"]
       },
       administracao: {
-        label: "AdministraÃ§Ã£o",
+        label: "Administração",
         categories: ["planos", "limites", "suporte"]
       },
       cliente: {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["clientes", "obras", "relatorios", "rdo", "pdf", "suporte"]
       },
       "minha-obra": {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["clientes", "obras", "relatorios", "rdo"]
       },
       "meus-relatorios": {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["relatorios", "pdf", "suporte"]
       },
       "meus-rdos": {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["rdo", "pdf", "suporte"]
       },
       documentos: {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["pdf", "relatorios", "rdo"]
       },
       suporte: {
-        label: "PÃ¡gina do Cliente",
+        label: "Página do Cliente",
         categories: ["suporte", "clientes"]
       }
     };
@@ -15962,7 +15962,7 @@
       getInputValue("#dailyLogForm [name='occurrences']"),
       getInputValue("#dailyLogForm [name='safetyDescription']"),
       safetyOccurrence
-    ], ["nenhuma ocorrencia", "nenhuma ocorrÃªncia"]);
+    ], ["nenhuma ocorrencia", "nenhuma ocorrência"]);
 
     return {
       screen: screen.label,
@@ -16039,7 +16039,7 @@
       clientReports: firstUsefulText([
         getVisibleText("#clientPortalReportsList"),
         getVisibleText("#clientPortalRecentDocs")
-      ], ["nenhum relatorio", "nenhum relatÃ³rio", "nenhum documento"]),
+      ], ["nenhum relatorio", "nenhum relatório", "nenhum documento"]),
       clientRdos: getVisibleText("#clientPortalRdosList"),
       clientDocs: firstUsefulText([
         getVisibleText("#clientPortalDocumentsList"),
@@ -16232,7 +16232,7 @@
       "",
       response.fullAnswer,
       "",
-      "PrÃ³xima aÃ§Ã£o: " + response.nextAction
+      "Próxima ação: " + response.nextAction
     ].join("\n");
   }
 
@@ -16267,15 +16267,15 @@
     floatButton.appendChild(createElement("span", "", "Elo"));
 
     ELO_UI.panel = createElement("section", standalone ? "elo-panel elo-standalone-panel" : "elo-panel is-hidden");
-    ELO_UI.panel.setAttribute("aria-label", standalone ? "Elo" : "Elo â€” Assistente ObraReport");
+    ELO_UI.panel.setAttribute("aria-label", standalone ? "Elo" : "Elo — Assistente ObraReport");
 
     const header = createElement("header", "elo-header");
     const headerText = createElement("div");
-    headerText.appendChild(createElement("h2", "", standalone ? "Elo" : "Elo â€” Assistente ObraReport"));
-    headerText.appendChild(createElement("p", "", standalone ? "Companheiro digital com memÃ³ria, projetos, objetivos e linha do tempo." : "Eu lembro, procuro e te ajudo a usar o ObraReport."));
+    headerText.appendChild(createElement("h2", "", standalone ? "Elo" : "Elo — Assistente ObraReport"));
+    headerText.appendChild(createElement("p", "", standalone ? "Companheiro digital com memória, projetos, objetivos e linha do tempo." : "Eu lembro, procuro e te ajudo a usar o ObraReport."));
     ELO_UI.contextLabel = createElement("p", "elo-context-label");
     headerText.appendChild(ELO_UI.contextLabel);
-    const closeButton = createElement("button", "elo-close-button", "Ã—");
+    const closeButton = createElement("button", "elo-close-button", "×");
     closeButton.type = "button";
     closeButton.setAttribute("aria-label", "Fechar Elo");
     header.appendChild(headerText);
@@ -16369,7 +16369,7 @@
     const actions = createElement("div", "elo-standalone-actions");
     [
       ["Limpar conversa", clearEloHistory],
-      ["Minhas memÃ³rias", showPersonalMemories],
+      ["Minhas memórias", showPersonalMemories],
       ["Linha do tempo", showTimeline],
       ["Projetos", showProjects],
       ["Biblioteca", showLibrary]
@@ -16409,7 +16409,7 @@
     }
 
     ELO_UI.suggestions.classList.remove("is-hidden");
-    ELO_UI.suggestions.appendChild(createElement("span", "elo-suggestions-label", "SugestÃµes nesta tela"));
+    ELO_UI.suggestions.appendChild(createElement("span", "elo-suggestions-label", "Sugestões nesta tela"));
     const list = createElement("div", "elo-suggestion-chips");
     suggestions.forEach(function (item) {
       const button = createElement("button", "elo-suggestion-chip", item.label);
@@ -16428,7 +16428,7 @@
         { label: "CADISTA", question: "resuma nosso plano do CADISTA" },
         { label: "Stock Full", question: "resuma o projeto Stock Full" },
         { label: "Elo", question: "como evoluir o Elo" },
-        { label: "Stock SaÃºde", question: "como controlar validade de medicamentos no Stock SaÃºde" },
+        { label: "Stock Saúde", question: "como controlar validade de medicamentos no Stock Saúde" },
         { label: "ObraReport", question: "resuma o plano do ObraReport" }
       ];
     }
@@ -16436,50 +16436,50 @@
     const route = String(window.location.hash || "").replace("#app/", "").split("/")[0];
     const suggestionMap = {
       Dashboard: [
-        ["Me mostre o que vocÃª faz", "Me mostre o que vocÃª faz"],
+        ["Me mostre o que você faz", "Me mostre o que você faz"],
         ["Quero criar um RDO", "Quero criar um RDO"],
-        ["Quero lanÃ§ar material", "Quero lanÃ§ar material"],
+        ["Quero lançar material", "Quero lançar material"],
         ["Quero gerar um PDF", "Quero gerar PDF"],
         ["O que priorizar?", "O que devo priorizar?"],
-        ["O que lembra de mim?", "O que vocÃª lembra de mim?"]
+        ["O que lembra de mim?", "O que você lembra de mim?"]
       ],
-      "RelatÃ³rios": [
+      "Relatórios": [
         ["Posso gerar o PDF?", "Posso gerar o PDF?"],
-        ["O que falta no relatÃ³rio?", "O que falta no relatÃ³rio?"],
+        ["O que falta no relatório?", "O que falta no relatório?"],
         ["Tenho fotos anexadas?", "Tenho fotos anexadas?"],
-        ["Como melhorar este relatÃ³rio?", "Como melhorar este relatÃ³rio?"]
+        ["Como melhorar este relatório?", "Como melhorar este relatório?"]
       ],
-      "DiÃ¡rio de Obras": [
+      "Diário de Obras": [
         ["O que falta preencher?", "O que falta preencher?"],
         ["Tenho materiais registrados?", "Tenho materiais registrados?"],
-        ["Tenho produÃ§Ã£o lanÃ§ada?", "Tenho produÃ§Ã£o lanÃ§ada?"],
+        ["Tenho produção lançada?", "Tenho produção lançada?"],
         ["Como registrar materiais?", "Como registrar materiais?"],
         ["Gerar PDF", "Como gerar PDF?"]
       ],
       Planos: [
         ["Qual plano escolher?", "Qual plano escolher?"],
         ["Como contratar?", "Como contratar?"],
-        ["Quais sÃ£o os limites?", "Quais sÃ£o os limites?"],
+        ["Quais são os limites?", "Quais são os limites?"],
         ["Plano Empresa", "Como funciona o plano Empresa?"]
       ],
-      "AdministraÃ§Ã£o": [
+      "Administração": [
         ["O que posso gerenciar aqui?", "O que posso gerenciar aqui?"],
         ["Como cadastrar cliente?", "Como cadastrar cliente?"],
         ["Separar admin e cliente", "Como separar admin e cliente?"]
       ],
-      "PÃ¡gina do Cliente": [
-        ["Ãšltimo relatÃ³rio", "Onde estÃ¡ meu Ãºltimo relatÃ³rio?"],
-        ["Ãšltimo RDO", "Onde estÃ¡ meu Ãºltimo RDO?"],
-        ["Documentos disponÃ­veis", "Quais documentos estÃ£o disponÃ­veis?"],
+      "Página do Cliente": [
+        ["Último relatório", "Onde está meu último relatório?"],
+        ["Último RDO", "Onde está meu último RDO?"],
+        ["Documentos disponíveis", "Quais documentos estão disponíveis?"],
         ["Falar com suporte", "Como falar com suporte?"]
       ]
     };
 
     const materialsSuggestions = [
       ["Tenho consumo registrado?", "Tenho consumo registrado?"],
-      ["DiferenÃ§a de consumo", "Existe diferenÃ§a de consumo?"],
+      ["Diferença de consumo", "Existe diferença de consumo?"],
       ["Como funciona auditoria?", "Como funciona a auditoria?"],
-      ["O que falta lanÃ§ar?", "O que falta lanÃ§ar?"]
+      ["O que falta lançar?", "O que falta lançar?"]
     ];
     const rawItems = route === "diario" && isMaterialsContextVisible() ? materialsSuggestions : (suggestionMap[context.label] || suggestionMap.Dashboard);
     return rawItems.map(function (item) {
@@ -16499,14 +16499,14 @@
   function buildQuickButtons() {
     const container = createElement("div", "elo-quick-buttons");
     [
-      ["Criar relatÃ³rio", "Como criar meu primeiro relatÃ³rio?"],
+      ["Criar relatório", "Como criar meu primeiro relatório?"],
       ["Gerar PDF", "Como gerar PDF?"],
       ["Adicionar fotos", "Como adicionar fotos?"],
-      ["DiÃ¡rio de Obras", "Como usar o DiÃ¡rio de Obras/RDO?"],
+      ["Diário de Obras", "Como usar o Diário de Obras/RDO?"],
       ["Materiais", "Como registrar materiais?"],
       ["Planos", "Como funcionam os planos?"],
       ["Suporte", "Como falar com suporte?"],
-      ["O que vocÃª consegue fazer?", "O que vocÃª consegue fazer?"]
+      ["O que você consegue fazer?", "O que você consegue fazer?"]
     ].forEach(function (item) {
       const button = createElement("button", "elo-chip-button", item[0]);
       button.type = "button";
@@ -16520,7 +16520,7 @@
 
   function buildTools() {
     const details = createElement("details", "elo-tools-menu");
-    const summary = createElement("summary", "", "âš™ Ferramentas do Elo");
+    const summary = createElement("summary", "", "⚙ Ferramentas do Elo");
     const container = createElement("div", "elo-tools");
 
     details.appendChild(summary);
@@ -16552,7 +16552,7 @@
     projectsButton.type = "button";
     projectsButton.addEventListener("click", showProjects);
     container.appendChild(projectsButton);
-    const importantMemoriesButton = createElement("button", "elo-inline-button", "MemÃ³rias importantes");
+    const importantMemoriesButton = createElement("button", "elo-inline-button", "Memórias importantes");
     importantMemoriesButton.type = "button";
     importantMemoriesButton.addEventListener("click", showImportantMemories);
     container.appendChild(importantMemoriesButton);
@@ -16573,10 +16573,10 @@
     backupButton.addEventListener("click", showEloBackup);
     container.appendChild(backupButton);
     [
-      ["DÃºvidas recentes", showRecentQuestions],
-      ["Minhas memÃ³rias", showPersonalMemories],
-      ["Limpar histÃ³rico", clearEloHistory],
-      ["Limpar memÃ³rias pessoais", confirmClearPersonalMemories],
+      ["Dúvidas recentes", showRecentQuestions],
+      ["Minhas memórias", showPersonalMemories],
+      ["Limpar histórico", clearEloHistory],
+      ["Limpar memórias pessoais", confirmClearPersonalMemories],
       ["Suporte WhatsApp", openSupportWhatsapp]
     ].forEach(function (item) {
       const button = createElement("button", "elo-inline-button", item[0]);
@@ -16584,7 +16584,7 @@
       button.addEventListener("click", item[1]);
       container.appendChild(button);
     });
-    container.appendChild(createElement("p", "elo-privacy", "Biblioteca, histÃ³rico e memÃ³rias ficam salvos apenas neste navegador."));
+    container.appendChild(createElement("p", "elo-privacy", "Biblioteca, histórico e memórias ficam salvos apenas neste navegador."));
     details.appendChild(container);
     return details;
   }
@@ -16937,7 +16937,7 @@
           const onlineResponse = {
             shortAnswer: onlineAnswer,
             fullAnswer: onlineAnswer,
-            nextAction: "Continue a conversa ou peÃ§a um resumo prÃ¡tico.",
+            nextAction: "Continue a conversa ou peça um resumo prático.",
             canSave: true,
             sessionTheme: "elo_online"
           };
@@ -16959,24 +16959,24 @@
         const currentProfile = getUserProfile();
         setUserProfile(Object.assign({}, currentProfile, { userName: name }));
         ELO_UI.awaitingStandaloneName = false;
-        const answer = "Perfeito, vou chamar vocÃª de " + name + ". Posso ajudar a organizar ideias, projetos, memÃ³rias, biblioteca ou linha do tempo.";
+        const answer = "Perfeito, vou chamar você de " + name + ". Posso ajudar a organizar ideias, projetos, memórias, biblioteca ou linha do tempo.";
         appendAssistantMessage(cleanQuestion, answer, false, {
           shortAnswer: answer,
           fullAnswer: "Esse nome ficou salvo apenas neste navegador.",
-          nextAction: "Diga o que vocÃª quer organizar agora.",
+          nextAction: "Diga o que você quer organizar agora.",
           canSave: false,
           sessionTheme: "perfil"
         });
         saveConversation(cleanQuestion, answer);
-        rememberSessionTurn(cleanQuestion, { sessionTheme: "perfil", nextAction: "Diga o que vocÃª quer organizar agora." }, answer);
+        rememberSessionTurn(cleanQuestion, { sessionTheme: "perfil", nextAction: "Diga o que você quer organizar agora." }, answer);
         return;
       }
       if (isStandaloneNameCaptureAttempt_(cleanQuestion) && !shouldBypassStandaloneNameCapture_(cleanQuestion)) {
         const socialResponse = getSocialGreetingResponse(cleanQuestion);
         const response = socialResponse || {
           shortAnswer: "Tudo bem.",
-          fullAnswer: "Ainda nÃ£o vou usar isso como nome. Quando quiser, me diga apenas como devo chamar vocÃª.",
-          nextAction: "VocÃª pode responder sÃ³ com seu nome, por exemplo: Ãcaro.",
+          fullAnswer: "Ainda não vou usar isso como nome. Quando quiser, me diga apenas como devo chamar você.",
+          nextAction: "Você pode responder só com seu nome, por exemplo: Ícaro.",
           canSave: false,
           sessionTheme: "perfil"
         };
@@ -17006,14 +17006,14 @@
     if (forgetMemoryCommand) {
       const result = removeEloLongTermMemory(forgetMemoryCommand);
       const answer = result.removed
-        ? "Pronto, apaguei essa memÃ³ria permanente deste navegador."
-        : "NÃ£o encontrei uma memÃ³ria permanente correspondente para apagar.";
+        ? "Pronto, apaguei essa memória permanente deste navegador."
+        : "Não encontrei uma memória permanente correspondente para apagar.";
       const response = {
         shortAnswer: answer,
         fullAnswer: result.memories.length ? result.memories.map(function (item) {
           return item.text;
         }).join("\n") : answer,
-        nextAction: "Quando quiser, vocÃª pode me pedir para lembrar outra informaÃ§Ã£o importante.",
+        nextAction: "Quando quiser, você pode me pedir para lembrar outra informação importante.",
         canSave: false,
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
@@ -17028,12 +17028,12 @@
     if (longTermMemoryCandidate) {
       const memoryItem = saveEloLongTermMemory(longTermMemoryCandidate);
       const answer = memoryItem
-        ? "Guardei isso na memÃ³ria permanente deste navegador: " + memoryItem.text + "."
-        : "NÃ£o consegui guardar essa memÃ³ria agora.";
+        ? "Guardei isso na memória permanente deste navegador: " + memoryItem.text + "."
+        : "Não consegui guardar essa memória agora.";
       const response = {
         shortAnswer: answer,
-        fullAnswer: memoryItem ? "Categoria: " + memoryItem.category + ". ImportÃ¢ncia: " + memoryItem.importance + "." : answer,
-        nextAction: "Pode recarregar a pÃ¡gina e me perguntar o que eu lembro.",
+        fullAnswer: memoryItem ? "Categoria: " + memoryItem.category + ". Importância: " + memoryItem.importance + "." : answer,
+        nextAction: "Pode recarregar a página e me perguntar o que eu lembro.",
         canSave: false,
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
@@ -17056,10 +17056,10 @@
     const timelineLetter = detectTimelineLetterCommand(cleanQuestion);
     if (timelineLetter) {
       const result = saveTimelineEvent(timelineLetter);
-      const answer = result.ok ? "Guardei sua carta para o futuro." : "Por seguranÃ§a, nÃ£o consegui guardar essa carta. Confira se ela nÃ£o contÃ©m dados sensÃ­veis.";
+      const answer = result.ok ? "Guardei sua carta para o futuro." : "Por segurança, não consegui guardar essa carta. Confira se ela não contém dados sensíveis.";
       appendAssistantMessage(cleanQuestion, answer, false, {
         shortAnswer: answer,
-        fullAnswer: result.ok ? "Ela ficou salva apenas neste navegador, na Linha do Tempo do Elo. Ainda nÃ£o hÃ¡ lembrete automÃ¡tico." : "A Linha do Tempo nÃ£o salva senhas, CPF, cartÃ£o, tokens, chaves API ou dados bancÃ¡rios.",
+        fullAnswer: result.ok ? "Ela ficou salva apenas neste navegador, na Linha do Tempo do Elo. Ainda não há lembrete automático." : "A Linha do Tempo não salva senhas, CPF, cartão, tokens, chaves API ou dados bancários.",
         nextAction: "Abra Ferramentas do Elo > Linha do tempo para revisar.",
         canSave: false,
         sessionTheme: "timeline"
@@ -17088,7 +17088,7 @@
       appendTimelineEventPrompt(cleanQuestion, timelineCandidate);
       saveConversation(cleanQuestion, "O Elo perguntou se deve registrar um evento na Linha do Tempo.");
       rememberSessionTurn(cleanQuestion, {
-        nextAction: "Escolha Registrar ou NÃ£o registrar.",
+        nextAction: "Escolha Registrar ou Não registrar.",
         sessionIntent: "timeline"
       }, "O Elo perguntou se deve registrar um evento na Linha do Tempo.");
       return;
@@ -17096,11 +17096,11 @@
 
     const personalMemoryCandidate = detectPersonalMemory(cleanQuestion);
     if (personalMemoryCandidate && personalMemoryCandidate.blocked) {
-      const blockedAnswer = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+      const blockedAnswer = "Por segurança, não vou guardar esse tipo de informação.";
       appendAssistantMessage(cleanQuestion, blockedAnswer, false);
       saveConversation(cleanQuestion, blockedAnswer);
       rememberSessionTurn(cleanQuestion, {
-        nextAction: "FaÃ§a uma pergunta sem dados sensÃ­veis.",
+        nextAction: "Faça uma pergunta sem dados sensíveis.",
         sessionIntent: "seguranca"
       }, blockedAnswer);
       return;
@@ -17109,21 +17109,21 @@
     const importantMemoryCandidate = detectImportantMemoryCandidate(cleanQuestion);
     if (importantMemoryCandidate) {
       appendImportantMemoryPrompt(cleanQuestion, importantMemoryCandidate);
-      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memÃ³ria importante.");
+      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória importante.");
       rememberSessionTurn(cleanQuestion, {
-        nextAction: "Escolha se deseja guardar como projeto, objetivo ou preferÃªncia.",
+        nextAction: "Escolha se deseja guardar como projeto, objetivo ou preferência.",
         sessionIntent: "memoria_importante"
-      }, "O Elo perguntou se deve guardar uma memÃ³ria importante.");
+      }, "O Elo perguntou se deve guardar uma memória importante.");
       return;
     }
 
     if (personalMemoryCandidate) {
       appendPersonalMemoryPrompt(cleanQuestion, personalMemoryCandidate);
-      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memÃ³ria pessoal.");
+      saveConversation(cleanQuestion, "O Elo perguntou se deve guardar uma memória pessoal.");
       rememberSessionTurn(cleanQuestion, {
-        nextAction: "Escolha Sim, lembrar ou NÃ£o.",
+        nextAction: "Escolha Sim, lembrar ou Não.",
         sessionIntent: "memoria_pessoal"
-      }, "O Elo perguntou se deve guardar uma memÃ³ria pessoal.");
+      }, "O Elo perguntou se deve guardar uma memória pessoal.");
       return;
     }
 
@@ -17132,7 +17132,7 @@
         const onlineResponse = {
           shortAnswer: onlineAnswer,
           fullAnswer: onlineAnswer,
-          nextAction: "Continue a conversa ou peÃ§a um resumo prÃ¡tico.",
+          nextAction: "Continue a conversa ou peça um resumo prático.",
           canSave: true,
           sessionTheme: "elo_online"
         };
@@ -17171,7 +17171,7 @@
       return {
         shortAnswer: memoryRecallAnswer,
         fullAnswer: memoryRecallAnswer,
-        nextAction: "Me diga se devo guardar, corrigir ou esquecer alguma informaÃ§Ã£o.",
+        nextAction: "Me diga se devo guardar, corrigir ou esquecer alguma informação.",
         canSave: false,
         sessionTheme: "memoria",
         sessionIntent: "memoria_permanente"
@@ -17259,7 +17259,7 @@
         preview.classList.remove("is-visible");
       }
       if (iconEl) {
-        iconEl.textContent = "â–£";
+        iconEl.textContent = "▣";
       }
       if (nameEl) {
         nameEl.textContent = "";
@@ -17282,13 +17282,13 @@
       preview.classList.add("is-visible");
     }
     if (iconEl) {
-      iconEl.textContent = isImage ? "ðŸ“·" : "â–£";
+      iconEl.textContent = isImage ? "📷" : "▣";
     }
     if (nameEl) {
       nameEl.textContent = file.name;
     }
     if (sizeEl) {
-      sizeEl.textContent = "Â· " + formatProductFileSize(file.size);
+      sizeEl.textContent = "· " + formatProductFileSize(file.size);
     }
     if (ELO_UI.attachmentButton) {
       ELO_UI.attachmentButton.classList.add("is-attached");
@@ -17593,7 +17593,7 @@
     message.setAttribute("aria-live", "polite");
     message.setAttribute("data-elo-typing", "true");
     const bubble = createElement("div", "elo-message-bubble elo-typing-bubble");
-    const label = createElement("span", "elo-typing-label", "Elo estÃ¡ pensando");
+    const label = createElement("span", "elo-typing-label", "Elo está pensando");
     const dots = createElement("span", "elo-typing-dots");
     [0, 1, 2].forEach(function () {
       dots.appendChild(createElement("span", ""));
@@ -17640,7 +17640,7 @@
     const message = appendMessage("assistant", "Deseja que eu lembre disso?\n\n" + memoryItem.label + ": " + memoryItem.value);
     const actions = createElement("div", "elo-message-actions");
     const yesButton = createElement("button", "elo-inline-button", "Sim, lembrar");
-    const noButton = createElement("button", "elo-inline-button", "NÃ£o");
+    const noButton = createElement("button", "elo-inline-button", "Não");
 
     yesButton.type = "button";
     noButton.type = "button";
@@ -17649,13 +17649,13 @@
       savePersonalMemory(memoryItem);
       yesButton.disabled = true;
       noButton.disabled = true;
-      appendMessage("system", "MemÃ³ria pessoal salva apenas neste navegador.");
+      appendMessage("system", "Memória pessoal salva apenas neste navegador.");
     });
 
     noButton.addEventListener("click", function () {
       yesButton.disabled = true;
       noButton.disabled = true;
-      appendMessage("system", "Tudo bem. NÃ£o vou guardar essa informaÃ§Ã£o.");
+      appendMessage("system", "Tudo bem. Não vou guardar essa informação.");
     });
 
     actions.appendChild(yesButton);
@@ -17757,13 +17757,13 @@
       "assistant",
       "Isso parece importante. Deseja registrar na sua Linha do Tempo?\n\n" +
       "Tipo sugerido: " + formatTimelineType(candidate.type) + "\n" +
-      "Projeto: " + (candidate.project || "nÃ£o identificado") + "\n" +
+      "Projeto: " + (candidate.project || "não identificado") + "\n" +
       "Humor: " + (candidate.mood || "neutro") + "\n" +
-      "ImportÃ¢ncia: " + candidate.importance
+      "Importância: " + candidate.importance
     );
     const actions = createElement("div", "elo-message-actions");
     const registerButton = createElement("button", "elo-inline-button", "Registrar");
-    const cancelButton = createElement("button", "elo-inline-button", "NÃ£o registrar");
+    const cancelButton = createElement("button", "elo-inline-button", "Não registrar");
 
     registerButton.type = "button";
     cancelButton.type = "button";
@@ -17775,14 +17775,14 @@
       if (result.ok) {
         appendMessage("system", "Registrei isso na sua Linha do Tempo.");
       } else {
-        appendMessage("system", "Por seguranÃ§a, nÃ£o consegui registrar esse evento.");
+        appendMessage("system", "Por segurança, não consegui registrar esse evento.");
       }
     });
 
     cancelButton.addEventListener("click", function () {
       registerButton.disabled = true;
       cancelButton.disabled = true;
-      appendMessage("system", "Tudo bem. NÃ£o registrei.");
+      appendMessage("system", "Tudo bem. Não registrei.");
     });
 
     actions.appendChild(registerButton);
@@ -17795,7 +17795,7 @@
     const message = appendMessage("system", "Quer registrar esta pergunta para melhorar o Elo depois?");
     const actions = createElement("div", "elo-message-actions");
     const yesButton = createElement("button", "elo-inline-button", "Sim, guardar para treino");
-    const noButton = createElement("button", "elo-inline-button", "NÃ£o agora");
+    const noButton = createElement("button", "elo-inline-button", "Não agora");
 
     yesButton.type = "button";
     noButton.type = "button";
@@ -17803,12 +17803,12 @@
       markRealQuestionForTraining(realQuestion.id);
       yesButton.disabled = true;
       noButton.disabled = true;
-      appendMessage("system", "Pergunta marcada para treinamento manual local. Ela nÃ£o altera a base do Elo sem revisÃ£o.");
+      appendMessage("system", "Pergunta marcada para treinamento manual local. Ela não altera a base do Elo sem revisão.");
     });
     noButton.addEventListener("click", function () {
       yesButton.disabled = true;
       noButton.disabled = true;
-      appendMessage("system", "Tudo bem. NÃ£o vou marcar essa pergunta para treino agora.");
+      appendMessage("system", "Tudo bem. Não vou marcar essa pergunta para treino agora.");
     });
 
     actions.appendChild(yesButton);
@@ -17820,10 +17820,10 @@
   function copyDiagnosticToClipboard(diagnosticText, button) {
     const originalLabel = button.textContent;
     copyTextToClipboard(diagnosticText).then(function () {
-      button.textContent = "âœ… DiagnÃ³stico copiado";
+      button.textContent = "✅ Diagnóstico copiado";
     }).catch(function () {
-      button.textContent = "âš ï¸ Copiar manualmente";
-      appendMessage("system", "âš ï¸ NÃ£o consegui copiar automaticamente. Selecione e copie o texto manualmente.\n\n" + diagnosticText);
+      button.textContent = "⚠️ Copiar manualmente";
+      appendMessage("system", "⚠️ Não consegui copiar automaticamente. Selecione e copie o texto manualmente.\n\n" + diagnosticText);
     }).finally(function () {
       window.setTimeout(function () {
         button.textContent = originalLabel;
@@ -17915,10 +17915,10 @@
     }
 
     if (response && response.webSearch) {
-      const webNotice = createElement("p", "elo-web-search-notice", "Busca real controlada: desativada por padrÃ£o nesta versÃ£o.");
+      const webNotice = createElement("p", "elo-web-search-notice", "Busca real controlada: desativada por padrão nesta versão.");
       const webActions = createElement("div", "elo-web-search-actions");
       const prepareButton = createElement("button", "elo-inline-button", "Preparar busca");
-      const cancelButton = createElement("button", "elo-inline-button", "NÃ£o buscar");
+      const cancelButton = createElement("button", "elo-inline-button", "Não buscar");
 
       prepareButton.type = "button";
       cancelButton.type = "button";
@@ -17929,7 +17929,7 @@
       cancelButton.addEventListener("click", function () {
         prepareButton.disabled = true;
         cancelButton.disabled = true;
-        appendMessage("system", "Tudo bem. NÃ£o vou preparar busca externa para essa pergunta.");
+        appendMessage("system", "Tudo bem. Não vou preparar busca externa para essa pergunta.");
       });
 
       webActions.appendChild(prepareButton);
@@ -17945,7 +17945,7 @@
     }
 
     if (response && response.diagnosticText) {
-      const copyDiagnosticButton = createElement("button", "elo-inline-button elo-copy-diagnostic-button", "ðŸ“‹ Copiar DiagnÃ³stico");
+      const copyDiagnosticButton = createElement("button", "elo-inline-button elo-copy-diagnostic-button", "📋 Copiar Diagnóstico");
       copyDiagnosticButton.type = "button";
       copyDiagnosticButton.addEventListener("click", function () {
         copyDiagnosticToClipboard(response.diagnosticText, copyDiagnosticButton);
@@ -17973,9 +17973,9 @@
 
     const prompt = createElement("div", "elo-save-prompt elo-save-card");
     const label = createElement("span", "elo-privacy", "Salvar esta conversa?");
-    const memoryButton = createElement("button", "elo-inline-button", "MemÃ³ria");
+    const memoryButton = createElement("button", "elo-inline-button", "Memória");
     const libraryButton = createElement("button", "elo-inline-button", "Biblioteca");
-    const noneButton = createElement("button", "elo-inline-button", "NÃ£o salvar");
+    const noneButton = createElement("button", "elo-inline-button", "Não salvar");
     const buttons = [memoryButton, libraryButton, noneButton];
 
     memoryButton.type = "button";
@@ -17995,7 +17995,7 @@
     memoryButton.addEventListener("click", function () {
       saveUsefulAnswer(question, answer);
       disableButtons();
-      appendMessage("system", "Guardado na memÃ³ria local do Elo.");
+      appendMessage("system", "Guardado na memória local do Elo.");
     });
 
     libraryButton.addEventListener("click", function () {
@@ -18004,9 +18004,9 @@
       if (result.ok) {
         appendMessage("system", "Guardado na Biblioteca do Elo: " + result.item.title + ".");
       } else if (result.reason === "sensitive") {
-        appendMessage("system", "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.");
+        appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
       } else {
-        appendMessage("system", "NÃ£o consegui guardar na Biblioteca porque faltou tÃ­tulo ou conteÃºdo.");
+        appendMessage("system", "Não consegui guardar na Biblioteca porque faltou título ou conteúdo.");
       }
     });
 
@@ -18037,7 +18037,7 @@
     cancelButton.disabled = true;
 
     if (hasSensitiveMemoryTerm(question) || hasSensitiveMemoryTerm(context)) {
-      appendMessage("system", "Por seguranÃ§a, nÃ£o vou buscar nem guardar esse tipo de informaÃ§Ã£o.");
+      appendMessage("system", "Por segurança, não vou buscar nem guardar esse tipo de informação.");
       return;
     }
 
@@ -18045,18 +18045,18 @@
       if (!result.ok && (result.reason === "disabled" || result.reason === "request_failed")) {
         appendMessage(
           "system",
-          "A busca real ainda estÃ¡ desativada nesta versÃ£o. Quando ativada, eu vou consultar uma fonte externa segura, resumir a resposta e perguntar se vocÃª quer guardar na Biblioteca.\n\nConsulta sugerida: " + (result.query || query)
+          "A busca real ainda está desativada nesta versão. Quando ativada, eu vou consultar uma fonte externa segura, resumir a resposta e perguntar se você quer guardar na Biblioteca.\n\nConsulta sugerida: " + (result.query || query)
         );
         return;
       }
 
       if (!result.ok && result.reason === "sensitive") {
-        appendMessage("system", "Por seguranÃ§a, nÃ£o vou buscar nem guardar esse tipo de informaÃ§Ã£o.");
+        appendMessage("system", "Por segurança, não vou buscar nem guardar esse tipo de informação.");
         return;
       }
 
       if (!result.ok || !result.answer) {
-        appendMessage("system", "NÃ£o consegui preparar a busca agora. Nenhum dado foi enviado para servidor.");
+        appendMessage("system", "Não consegui preparar a busca agora. Nenhum dado foi enviado para servidor.");
         return;
       }
 
@@ -18078,7 +18078,7 @@
     }
 
     if (result.confidence) {
-      answerParts.push("", "ConfianÃ§a: " + result.confidence);
+      answerParts.push("", "Confiança: " + result.confidence);
     }
 
     const message = appendMessage("assistant", answerParts.join("\n"));
@@ -18111,18 +18111,18 @@
 
     if (action === "rdo") {
       if (clickRouteButton("diario")) {
-        appendMessage("system", "Abri o DiÃ¡rio de Obras/RDO para vocÃª.");
+        appendMessage("system", "Abri o Diário de Obras/RDO para você.");
       } else {
-        appendMessage("system", "NÃ£o encontrei o atalho de RDO nesta tela. Pelo menu do ObraReport, procure por DiÃ¡rio de Obras.");
+        appendMessage("system", "Não encontrei o atalho de RDO nesta tela. Pelo menu do ObraReport, procure por Diário de Obras.");
       }
       return;
     }
 
     if (action === "report") {
       if (clickRouteButton("relatorios")) {
-        appendMessage("system", "Abri a Ã¡rea de RelatÃ³rios para vocÃª.");
+        appendMessage("system", "Abri a área de Relatórios para você.");
       } else {
-        appendMessage("system", "NÃ£o encontrei o atalho de RelatÃ³rios nesta tela. Pelo menu do ObraReport, procure por RelatÃ³rios.");
+        appendMessage("system", "Não encontrei o atalho de Relatórios nesta tela. Pelo menu do ObraReport, procure por Relatórios.");
       }
       return;
     }
@@ -18130,7 +18130,7 @@
     if (clickRouteButton("dashboard")) {
       appendMessage("system", "Voltei para o dashboard do ObraReport.");
     } else {
-      appendMessage("system", "Continue pelo dashboard do ObraReport: vocÃª pode abrir RDO, RelatÃ³rios, Materiais ou Biblioteca pelo Elo.");
+      appendMessage("system", "Continue pelo dashboard do ObraReport: você pode abrir RDO, Relatórios, Materiais ou Biblioteca pelo Elo.");
     }
   }
 
@@ -18146,19 +18146,19 @@
   function showRecentQuestions() {
     const recent = getRecentQuestions();
     if (!recent.length) {
-      appendMessage("system", "Ainda nÃ£o hÃ¡ dÃºvidas recentes salvas neste navegador.");
+      appendMessage("system", "Ainda não há dúvidas recentes salvas neste navegador.");
       return;
     }
 
     const text = recent.map(function (item, index) {
-      return (index + 1) + ". " + formatDateTime(item.createdAt) + " â€” " + item.question;
+      return (index + 1) + ". " + formatDateTime(item.createdAt) + " — " + item.question;
     }).join("\n");
-    appendMessage("system", "DÃºvidas recentes:\n\n" + text);
+    appendMessage("system", "Dúvidas recentes:\n\n" + text);
   }
 
   function clearEloHistory() {
     clearMemory();
-    appendMessage("system", "HistÃ³rico local do Elo limpo. Nenhum dado do SaaS foi alterado.");
+    appendMessage("system", "Histórico local do Elo limpo. Nenhum dado do SaaS foi alterado.");
   }
 
   function appendSimpleOptions(select, options) {
@@ -18195,18 +18195,18 @@
     const profile = getUserProfile();
     const message = appendMessage("system", "Configurar meu Elo");
     const panel = createElement("div", "elo-user-profile-panel");
-    const status = createElement("p", "elo-privacy", "Este perfil fica salvo apenas neste navegador. Ele ajuda o Elo a responder de forma mais Ãºtil.");
+    const status = createElement("p", "elo-privacy", "Este perfil fica salvo apenas neste navegador. Ele ajuda o Elo a responder de forma mais útil.");
     const form = createElement("form", "elo-library-form");
     const nameInput = createElement("input", "elo-library-field");
     const projectInput = createElement("input", "elo-library-field");
     const goalInput = createElement("input", "elo-library-field");
     const helpInput = createElement("textarea", "elo-library-field elo-library-textarea");
     const styleSelect = createElement("select", "elo-library-field");
-    const saveButton = createElement("button", "elo-send-button", "Salvar configuraÃ§Ã£o");
+    const saveButton = createElement("button", "elo-send-button", "Salvar configuração");
 
     nameInput.type = "text";
     nameInput.maxLength = 80;
-    nameInput.placeholder = "Como devo chamar vocÃª?";
+    nameInput.placeholder = "Como devo chamar você?";
     nameInput.value = profile.userName;
     projectInput.type = "text";
     projectInput.maxLength = 140;
@@ -18218,9 +18218,9 @@
     goalInput.value = profile.weeklyGoal;
     helpInput.maxLength = 260;
     helpInput.rows = 3;
-    helpInput.placeholder = "Que tipo de ajuda vocÃª espera do Elo?";
+    helpInput.placeholder = "Que tipo de ajuda você espera do Elo?";
     helpInput.value = profile.expectedHelp;
-    styleSelect.setAttribute("aria-label", "PreferÃªncia de resposta");
+    styleSelect.setAttribute("aria-label", "Preferência de resposta");
     appendSimpleOptions(styleSelect, ["curtas", "detalhadas"]);
     styleSelect.value = profile.answerStyle || "curtas";
     saveButton.type = "submit";
@@ -18237,12 +18237,12 @@
         answerStyle: styleSelect.value
       });
       status.textContent = requestedName && isInvalidUserNameAnswer_(requestedName)
-        ? "Perfil salvo, mas esse texto nÃ£o foi usado como nome."
+        ? "Perfil salvo, mas esse texto não foi usado como nome."
         : "Perfil local salvo para o Elo.";
       appendMessage("system", [
-        "ConfiguraÃ§Ã£o salva.",
-        requestedName && isInvalidUserNameAnswer_(requestedName) ? "NÃ£o usei \"" + requestedName + "\" como nome." : "",
-        savedProfile.userName ? "Vou chamar vocÃª de " + savedProfile.userName + "." : "",
+        "Configuração salva.",
+        requestedName && isInvalidUserNameAnswer_(requestedName) ? "Não usei \"" + requestedName + "\" como nome." : "",
+        savedProfile.userName ? "Vou chamar você de " + savedProfile.userName + "." : "",
         savedProfile.mainProject ? "Projeto atual: " + savedProfile.mainProject + "." : "",
         savedProfile.weeklyGoal ? "Objetivo da semana: " + savedProfile.weeklyGoal + "." : ""
       ].filter(Boolean).join("\n"));
@@ -18255,7 +18255,7 @@
     form.appendChild(styleSelect);
     form.appendChild(saveButton);
     panel.appendChild(status);
-    panel.appendChild(createElement("p", "elo-backup-note", "Perguntas: 1. Como devo chamar vocÃª? 2. Qual seu principal projeto agora? 3. Qual seu objetivo principal esta semana? 4. Que tipo de ajuda espera? 5. Respostas curtas ou detalhadas?"));
+    panel.appendChild(createElement("p", "elo-backup-note", "Perguntas: 1. Como devo chamar você? 2. Qual seu principal projeto agora? 3. Qual seu objetivo principal esta semana? 4. Que tipo de ajuda espera? 5. Respostas curtas ou detalhadas?"));
     panel.appendChild(form);
     message.appendChild(panel);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
@@ -18264,7 +18264,7 @@
   function showInitialProfileImport() {
     const message = appendMessage("system", "Importar perfil inicial");
     const panel = createElement("div", "elo-user-profile-panel");
-    const status = createElement("p", "elo-privacy", "Cole aqui um texto sobre vocÃª, currÃ­culo, bio profissional ou perfil copiado do LinkedIn. O Elo vai tentar extrair informaÃ§Ãµes importantes e pedir sua aprovaÃ§Ã£o antes de guardar.");
+    const status = createElement("p", "elo-privacy", "Cole aqui um texto sobre você, currículo, bio profissional ou perfil copiado do LinkedIn. O Elo vai tentar extrair informações importantes e pedir sua aprovação antes de guardar.");
     const form = createElement("form", "elo-library-form");
     const textInput = createElement("textarea", "elo-library-field elo-library-textarea");
     const analyzeButton = createElement("button", "elo-send-button", "Analisar perfil");
@@ -18272,7 +18272,7 @@
 
     textInput.maxLength = 8000;
     textInput.rows = 7;
-    textInput.placeholder = "Exemplo: Sou engenheiro civil. Tenho empresa prÃ³pria. Trabalho com perÃ­cias e projetos. Estou desenvolvendo o ObraReport.";
+    textInput.placeholder = "Exemplo: Sou engenheiro civil. Tenho empresa própria. Trabalho com perícias e projetos. Estou desenvolvendo o ObraReport.";
     analyzeButton.type = "submit";
 
     form.addEventListener("submit", function (event) {
@@ -18288,7 +18288,7 @@
     form.appendChild(textInput);
     form.appendChild(analyzeButton);
     panel.appendChild(status);
-    panel.appendChild(createElement("p", "elo-backup-note", "As informaÃ§Ãµes ficam salvas apenas neste navegador nesta versÃ£o. Revise antes de guardar."));
+    panel.appendChild(createElement("p", "elo-backup-note", "As informações ficam salvas apenas neste navegador nesta versão. Revise antes de guardar."));
     panel.appendChild(form);
     panel.appendChild(resultPanel);
     message.appendChild(panel);
@@ -18299,7 +18299,7 @@
     resultPanel.textContent = "";
     resultPanel.classList.remove("is-hidden");
     const summary = createElement("pre", "elo-profile-import-summary", formatInitialProfileExtraction(extractedProfile));
-    const question = createElement("p", "elo-privacy", "Deseja guardar essas informaÃ§Ãµes nas memÃ³rias importantes do Elo?");
+    const question = createElement("p", "elo-privacy", "Deseja guardar essas informações nas memórias importantes do Elo?");
     const actions = createElement("div", "elo-message-actions");
     const saveAllButton = createElement("button", "elo-inline-button", "Guardar tudo");
     const chooseButton = createElement("button", "elo-inline-button", "Escolher o que guardar");
@@ -18312,14 +18312,14 @@
     saveAllButton.addEventListener("click", function () {
       saveInitialProfileExtraction(extractedProfile);
       status.textContent = "Perfil inicial salvo localmente.";
-      appendMessage("system", "Perfil inicial salvo. Projetos, objetivos e preferÃªncias detectados tambÃ©m foram enviados para MemÃ³rias importantes.");
+      appendMessage("system", "Perfil inicial salvo. Projetos, objetivos e preferências detectados também foram enviados para Memórias importantes.");
     });
     chooseButton.addEventListener("click", function () {
       chooser.classList.toggle("is-hidden");
     });
     cancelButton.addEventListener("click", function () {
       resultPanel.classList.add("is-hidden");
-      status.textContent = "ImportaÃ§Ã£o cancelada. Nada foi salvo.";
+      status.textContent = "Importação cancelada. Nada foi salvo.";
     });
 
     actions.appendChild(saveAllButton);
@@ -18334,10 +18334,10 @@
 
   function buildInitialProfileChooser(container, extractedProfile, status) {
     const options = [
-      ["profile", "Perfil: nome, profissÃ£o, empresa, cidade e Ã¡reas"],
+      ["profile", "Perfil: nome, profissão, empresa, cidade e áreas"],
       ["projects", "Projetos detectados"],
       ["goals", "Objetivos detectados"],
-      ["preferences", "PreferÃªncias detectadas"]
+      ["preferences", "Preferências detectadas"]
     ];
     const form = createElement("form", "elo-library-form");
     options.forEach(function (option) {
@@ -18364,8 +18364,8 @@
         selected[checkbox.value] = checkbox.checked;
       });
       saveInitialProfileExtraction(extractedProfile, selected);
-      status.textContent = "InformaÃ§Ãµes selecionadas salvas localmente.";
-      appendMessage("system", "ImportaÃ§Ã£o seletiva concluÃ­da. Nada foi enviado para servidor.");
+      status.textContent = "Informações selecionadas salvas localmente.";
+      appendMessage("system", "Importação seletiva concluída. Nada foi enviado para servidor.");
     });
     form.appendChild(saveSelectedButton);
     container.appendChild(form);
@@ -18389,9 +18389,9 @@
         status.textContent = "Objetivo salvo no Elo.";
         renderGoalList(goalList, goalForm);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
-        status.textContent = "Preencha o tÃ­tulo do objetivo para salvar.";
+        status.textContent = "Preencha o título do objetivo para salvar.";
       }
     });
     const projectForm = buildProjectForm(function (result) {
@@ -18400,7 +18400,7 @@
         renderProjectList(projectList, projectForm, goalList, goalForm);
         renderGoalList(goalList, goalForm);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
         status.textContent = "Preencha o nome do projeto para salvar.";
       }
@@ -18413,7 +18413,7 @@
 
     suggestedProjectsButton.addEventListener("click", function () {
       const added = addSuggestedProjects();
-      status.textContent = added ? "Projetos sugeridos adicionados: " + added + "." : "Os projetos sugeridos jÃ¡ estavam salvos.";
+      status.textContent = added ? "Projetos sugeridos adicionados: " + added + "." : "Os projetos sugeridos já estavam salvos.";
       renderProjectList(projectList, projectForm, goalList, goalForm);
       renderGoalList(goalList, goalForm);
     });
@@ -18422,7 +18422,7 @@
     });
     suggestedGoalsButton.addEventListener("click", function () {
       const added = addSuggestedGoals();
-      status.textContent = added ? "Objetivos sugeridos adicionados: " + added + "." : "Os objetivos sugeridos jÃ¡ estavam salvos.";
+      status.textContent = added ? "Objetivos sugeridos adicionados: " + added + "." : "Os objetivos sugeridos já estavam salvos.";
       renderGoalList(goalList, goalForm);
     });
     addGoalButton.addEventListener("click", function () {
@@ -18463,10 +18463,10 @@
     nameInput.placeholder = "Nome do projeto";
     descriptionInput.maxLength = 600;
     descriptionInput.rows = 3;
-    descriptionInput.placeholder = "DescriÃ§Ã£o";
+    descriptionInput.placeholder = "Descrição";
     nextActionInput.type = "text";
     nextActionInput.maxLength = 300;
-    nextActionInput.placeholder = "PrÃ³xima aÃ§Ã£o";
+    nextActionInput.placeholder = "Próxima ação";
     notesInput.maxLength = 1000;
     notesInput.rows = 3;
     notesInput.placeholder = "Notas";
@@ -18483,7 +18483,7 @@
       nextActionInput.value = project && project.nextAction ? project.nextAction : "";
       notesInput.value = project && project.notes ? project.notes : "";
       form.classList.remove("is-hidden");
-      saveButton.textContent = editingProjectId ? "Salvar ediÃ§Ã£o" : "Salvar projeto";
+      saveButton.textContent = editingProjectId ? "Salvar edição" : "Salvar projeto";
     };
 
     form.addEventListener("submit", function (event) {
@@ -18537,13 +18537,13 @@
       const badges = createElement("div", "elo-project-badges");
       const statusBadge = createElement("span", "elo-status-badge is-" + project.status, project.status);
       const priorityBadge = createElement("span", "elo-priority-badge is-" + project.priority, "prioridade " + project.priority);
-      const description = createElement("p", "", project.description || "Sem descriÃ§Ã£o salva.");
-      const nextAction = createElement("p", "elo-project-next", "PrÃ³xima aÃ§Ã£o: " + (project.nextAction || "nÃ£o definida"));
+      const description = createElement("p", "", project.description || "Sem descrição salva.");
+      const nextAction = createElement("p", "elo-project-next", "Próxima ação: " + (project.nextAction || "não definida"));
       const actions = createElement("div", "elo-library-actions");
       const editButton = createElement("button", "elo-inline-button", "Editar");
       const activeButton = createElement("button", "elo-inline-button", "Ativo");
       const pauseButton = createElement("button", "elo-inline-button", "Pausado");
-      const doneButton = createElement("button", "elo-inline-button", "ConcluÃ­do");
+      const doneButton = createElement("button", "elo-inline-button", "Concluído");
       const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
 
       editButton.type = "button";
@@ -18571,7 +18571,7 @@
         deleteProject(project.id);
         renderProjectList(list, projectForm, goalList, goalForm);
         renderGoalList(goalList, goalForm);
-        appendMessage("system", "Projeto excluÃ­do do Elo.");
+        appendMessage("system", "Projeto excluído do Elo.");
       });
 
       badges.appendChild(statusBadge);
@@ -18604,7 +18604,7 @@
 
     titleInput.type = "text";
     titleInput.maxLength = 160;
-    titleInput.placeholder = "TÃ­tulo do objetivo";
+    titleInput.placeholder = "Título do objetivo";
     targetInput.type = "date";
     saveButton.type = "submit";
     appendProjectOptions(projectSelect, true);
@@ -18660,7 +18660,7 @@
       const card = createElement("article", "elo-goal-card");
       const header = createElement("div", "elo-project-card-header");
       const title = createElement("strong", "", goal.title);
-      const meta = createElement("span", "elo-library-meta", (project ? project.name : "Sem projeto") + (goal.targetDate ? " Â· " + goal.targetDate : ""));
+      const meta = createElement("span", "elo-library-meta", (project ? project.name : "Sem projeto") + (goal.targetDate ? " · " + goal.targetDate : ""));
       const status = createElement("span", "elo-status-badge is-" + goal.status, goal.status);
       const actions = createElement("div", "elo-library-actions");
       const progressButton = createElement("button", "elo-inline-button", "Em andamento");
@@ -18682,7 +18682,7 @@
       deleteButton.addEventListener("click", function () {
         deleteGoal(goal.id);
         renderGoalList(list, goalForm);
-        appendMessage("system", "Objetivo excluÃ­do do Elo.");
+        appendMessage("system", "Objetivo excluído do Elo.");
       });
 
       header.appendChild(title);
@@ -18700,7 +18700,7 @@
   function showRealQuestions() {
     const message = appendMessage("system", "Perguntas reais");
     const panel = createElement("div", "elo-real-questions-panel");
-    const status = createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador nesta versÃ£o. Treinamento manual local.");
+    const status = createElement("p", "elo-privacy", "As perguntas ficam salvas apenas neste navegador nesta versão. Treinamento manual local.");
     const stats = createElement("div", "elo-real-question-stats");
     const controls = createElement("div", "elo-library-controls");
     const filterSelect = createElement("select", "elo-library-select");
@@ -18710,7 +18710,7 @@
     const list = createElement("div", "elo-real-question-list");
 
     filterSelect.setAttribute("aria-label", "Filtrar perguntas reais");
-    appendSimpleOptions(filterSelect, ["Todas", "Ãšteis", "NÃ£o Ãºteis", "Sugeridas para treino"]);
+    appendSimpleOptions(filterSelect, ["Todas", "Úteis", "Não úteis", "Sugeridas para treino"]);
     exportJsonButton.type = "button";
     exportTextButton.type = "button";
     clearButton.type = "button";
@@ -18723,11 +18723,11 @@
     filterSelect.addEventListener("change", refresh);
     exportJsonButton.addEventListener("click", function () {
       const result = exportRealQuestions("json");
-      status.textContent = "ExportaÃ§Ã£o preparada: " + result.fileName + ".";
+      status.textContent = "Exportação preparada: " + result.fileName + ".";
     });
     exportTextButton.addEventListener("click", function () {
       const result = exportRealQuestions("txt");
-      status.textContent = "ExportaÃ§Ã£o preparada: " + result.fileName + ".";
+      status.textContent = "Exportação preparada: " + result.fileName + ".";
     });
     clearButton.addEventListener("click", function () {
       confirmClearRealQuestions(status, refresh);
@@ -18751,8 +18751,8 @@
     statsElement.textContent = "";
     [
       ["Total", stats.total],
-      ["Ãšteis", stats.useful],
-      ["NÃ£o Ãºteis", stats.notUseful],
+      ["Úteis", stats.useful],
+      ["Não úteis", stats.notUseful],
       ["Para treino", stats.training]
     ].forEach(function (item) {
       const stat = createElement("span", "elo-real-question-stat", item[0] + ": " + item[1]);
@@ -18761,10 +18761,10 @@
   }
 
   function filterRealQuestions(questions, filter) {
-    if (filter === "Ãšteis") {
+    if (filter === "Úteis") {
       return questions.filter(function (item) { return item.foiUtil === true; });
     }
-    if (filter === "NÃ£o Ãºteis") {
+    if (filter === "Não úteis") {
       return questions.filter(function (item) { return item.foiUtil === false; });
     }
     if (filter === "Sugeridas para treino") {
@@ -18788,13 +18788,13 @@
       const meta = createElement("span", "elo-library-meta", [
         questionItem.contexto,
         questionItem.categoriaDetectada,
-        questionItem.foiUtil === null ? "sem feedback" : (questionItem.foiUtil ? "Ãºtil" : "nÃ£o Ãºtil"),
-        questionItem.sugeridaParaTreino ? "para treino" : "nÃ£o marcada",
+        questionItem.foiUtil === null ? "sem feedback" : (questionItem.foiUtil ? "útil" : "não útil"),
+        questionItem.sugeridaParaTreino ? "para treino" : "não marcada",
         formatDateTime(questionItem.createdAt)
-      ].join(" Â· "));
+      ].join(" · "));
       const response = createElement("p", "", summarizeLibraryContent(questionItem.respostaGerada || "Sem resposta registrada."));
       const actions = createElement("div", "elo-library-actions");
-      const trainButton = createElement("button", "elo-inline-button", "Adicionar Ã  base de respostas");
+      const trainButton = createElement("button", "elo-inline-button", "Adicionar à base de respostas");
       const markButton = createElement("button", "elo-inline-button", questionItem.sugeridaParaTreino ? "Marcada para treino" : "Marcar para treino");
       const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
 
@@ -18813,7 +18813,7 @@
       });
       deleteButton.addEventListener("click", function () {
         deleteRealQuestion(questionItem.id);
-        status.textContent = "Pergunta real excluÃ­da.";
+        status.textContent = "Pergunta real excluída.";
         refresh();
       });
 
@@ -18836,7 +18836,7 @@
     const answerInput = createElement("textarea", "elo-library-field elo-library-textarea");
     const categorySelect = createElement("select", "elo-library-field");
     const keywordsInput = createElement("input", "elo-library-field");
-    const saveButton = createElement("button", "elo-send-button", "Adicionar Ã  base de respostas");
+    const saveButton = createElement("button", "elo-send-button", "Adicionar à base de respostas");
 
     questionInput.type = "text";
     questionInput.maxLength = 180;
@@ -18852,7 +18852,7 @@
     keywordsInput.type = "text";
     keywordsInput.maxLength = 220;
     keywordsInput.value = extractDocumentKeywords(questionItem.pergunta).join(", ");
-    keywordsInput.placeholder = "Palavras-chave, separadas por vÃ­rgula";
+    keywordsInput.placeholder = "Palavras-chave, separadas por vírgula";
     saveButton.type = "submit";
 
     form.addEventListener("submit", function (event) {
@@ -18866,17 +18866,17 @@
       });
       if (result.ok) {
         markRealQuestionForTraining(questionItem.id);
-        status.textContent = "Pergunta adicionada Ã  base local do Elo apÃ³s revisÃ£o manual.";
-        appendMessage("system", "Item salvo na Biblioteca do Elo. A base principal nÃ£o foi alterada automaticamente.");
+        status.textContent = "Pergunta adicionada à base local do Elo após revisão manual.";
+        appendMessage("system", "Item salvo na Biblioteca do Elo. A base principal não foi alterada automaticamente.");
         refresh();
       } else if (result.reason === "sensitive") {
-        appendMessage("system", "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.");
+        appendMessage("system", "Por segurança, não vou guardar esse tipo de informação.");
       } else {
-        appendMessage("system", "Preencha pergunta e resposta corrigida para adicionar Ã  base.");
+        appendMessage("system", "Preencha pergunta e resposta corrigida para adicionar à base.");
       }
     });
 
-    form.appendChild(createElement("p", "elo-privacy", "Revise antes de salvar. O Elo nÃ£o aprende sozinho nem substitui respostas existentes automaticamente."));
+    form.appendChild(createElement("p", "elo-privacy", "Revise antes de salvar. O Elo não aprende sozinho nem substitui respostas existentes automaticamente."));
     form.appendChild(questionInput);
     form.appendChild(answerInput);
     form.appendChild(categorySelect);
@@ -18898,7 +18898,7 @@
       clearRealQuestions();
       confirmButton.disabled = true;
       cancelButton.disabled = true;
-      status.textContent = "Perguntas reais limpas. Dados do ObraReport nÃ£o foram alterados.";
+      status.textContent = "Perguntas reais limpas. Dados do ObraReport não foram alterados.";
       refresh();
     });
     cancelButton.addEventListener("click", function () {
@@ -19120,8 +19120,8 @@
       const header = createElement("div", "elo-library-card-header");
       const title = createElement("strong", "", documentItem.title);
       const typeLabel = normalizeDocumentType(documentItem.type || "texto").replace("_", " ");
-      const sourceLabel = documentItem.sourceName ? " Â· " + documentItem.sourceName : "";
-      const meta = createElement("span", "elo-library-meta", typeLabel.toUpperCase() + sourceLabel + " Â· " + documentItem.size + " caracteres Â· " + (documentItem.chunks || []).length + " parte(s) Â· " + formatDateTime(documentItem.createdAt));
+      const sourceLabel = documentItem.sourceName ? " · " + documentItem.sourceName : "";
+      const meta = createElement("span", "elo-library-meta", typeLabel.toUpperCase() + sourceLabel + " · " + documentItem.size + " caracteres · " + (documentItem.chunks || []).length + " parte(s) · " + formatDateTime(documentItem.createdAt));
       const summary = createElement("p", "", documentItem.summary || summarizeEloLibraryItem(documentItem));
       const tags = Array.isArray(documentItem.tags) && documentItem.tags.length
         ? createElement("p", "elo-library-meta", "Tags: " + documentItem.tags.join(", "))
@@ -19177,7 +19177,7 @@
 
     titleInput.type = "text";
     titleInput.maxLength = 140;
-    titleInput.placeholder = "TÃ­tulo do documento";
+    titleInput.placeholder = "Título do documento";
     typeSelect.setAttribute("aria-label", "Tipo do documento");
     appendSimpleOptions(typeSelect, ["txt", "md"]);
     textInput.maxLength = 60000;
@@ -19256,7 +19256,7 @@
       const card = createElement("article", "elo-document-card");
       const header = createElement("div", "elo-library-card-header");
       const title = createElement("strong", "", documentItem.title);
-      const meta = createElement("span", "elo-library-meta", documentItem.type.toUpperCase() + " Â· " + documentItem.size + " caracteres Â· " + (documentItem.chunks || []).length + " chunk(s) Â· " + formatDateTime(documentItem.createdAt));
+      const meta = createElement("span", "elo-library-meta", documentItem.type.toUpperCase() + " · " + documentItem.size + " caracteres · " + (documentItem.chunks || []).length + " chunk(s) · " + formatDateTime(documentItem.createdAt));
       const summary = createElement("p", "", summarizeDocumentChunk(documentItem.text));
       const actions = createElement("div", "elo-library-actions");
       const viewButton = createElement("button", "elo-inline-button", "Ver texto");
@@ -19270,7 +19270,7 @@
       deleteButton.addEventListener("click", function () {
         deleteLocalDocument(documentItem.id);
         renderLocalDocumentList(list, query);
-        appendMessage("system", "Documento local excluÃ­do.");
+        appendMessage("system", "Documento local excluído.");
       });
 
       header.appendChild(title);
@@ -19297,9 +19297,9 @@
         status.textContent = "Item salvo na Biblioteca do Elo.";
         renderLibraryList(list, searchInput.value, categorySelect.value);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
-        status.textContent = "Preencha tÃ­tulo e conteÃºdo para salvar.";
+        status.textContent = "Preencha título e conteúdo para salvar.";
       }
     });
     const list = createElement("div", "elo-library-list");
@@ -19343,13 +19343,13 @@
 
     titleInput.type = "text";
     titleInput.maxLength = 120;
-    titleInput.placeholder = "TÃ­tulo";
+    titleInput.placeholder = "Título";
     contentInput.maxLength = 3000;
     contentInput.rows = 4;
-    contentInput.placeholder = "ConteÃºdo";
+    contentInput.placeholder = "Conteúdo";
     tagsInput.type = "text";
     tagsInput.maxLength = 180;
-    tagsInput.placeholder = "Tags opcionais, separadas por vÃ­rgula";
+    tagsInput.placeholder = "Tags opcionais, separadas por vírgula";
     saveButton.type = "submit";
     categorySelect.setAttribute("aria-label", "Categoria do item");
     appendCategoryOptions(categorySelect, false);
@@ -19393,8 +19393,8 @@
     items.forEach(function (libraryItem) {
       const card = createElement("article", "elo-library-card");
       const header = createElement("div", "elo-library-card-header");
-      const title = createElement("strong", "", (libraryItem.favorite ? "â˜… " : "") + libraryItem.title);
-      const meta = createElement("span", "elo-library-meta", libraryItem.category + " Â· " + formatDateTime(libraryItem.updatedAt || libraryItem.createdAt));
+      const title = createElement("strong", "", (libraryItem.favorite ? "★ " : "") + libraryItem.title);
+      const meta = createElement("span", "elo-library-meta", libraryItem.category + " · " + formatDateTime(libraryItem.updatedAt || libraryItem.createdAt));
       const summary = createElement("p", "", summarizeLibraryContent(libraryItem.content));
       const tags = createElement("span", "elo-library-tags", (libraryItem.tags || []).length ? "Tags: " + libraryItem.tags.join(", ") : "Sem tags");
       const actions = createElement("div", "elo-library-actions");
@@ -19416,7 +19416,7 @@
       deleteButton.addEventListener("click", function () {
         deleteLibraryItem(libraryItem.id);
         renderLibraryList(list, query, category);
-        appendMessage("system", "Item excluÃ­do da Biblioteca do Elo.");
+        appendMessage("system", "Item excluído da Biblioteca do Elo.");
       });
 
       header.appendChild(title);
@@ -19434,7 +19434,7 @@
 
   function showPersonalMemories() {
     const memories = getPersonalMemories();
-    const message = appendMessage("system", memories.length ? "Minhas memÃ³rias pessoais:" : "Ainda nÃ£o hÃ¡ memÃ³rias pessoais salvas neste navegador.");
+    const message = appendMessage("system", memories.length ? "Minhas memórias pessoais:" : "Ainda não há memórias pessoais salvas neste navegador.");
 
     if (!memories.length) {
       return;
@@ -19445,14 +19445,14 @@
       const item = createElement("article", "elo-memory-item");
       const text = createElement("div");
       text.appendChild(createElement("strong", "", memoryItem.label + ": " + memoryItem.value));
-      text.appendChild(createElement("span", "", "Categoria: " + memoryItem.category + " Â· " + formatDateTime(memoryItem.createdAt)));
+      text.appendChild(createElement("span", "", "Categoria: " + memoryItem.category + " · " + formatDateTime(memoryItem.createdAt)));
 
       const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
       deleteButton.type = "button";
       deleteButton.addEventListener("click", function () {
         deletePersonalMemory(memoryItem.id);
         item.remove();
-        appendMessage("system", "MemÃ³ria pessoal excluÃ­da.");
+        appendMessage("system", "Memória pessoal excluída.");
       });
 
       item.appendChild(text);
@@ -19479,9 +19479,9 @@
         form.classList.add("is-hidden");
         renderTimelineList(list, typeSelect.value, projectInput.value);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
-        status.textContent = "Preencha tÃ­tulo e conteÃºdo para salvar o evento.";
+        status.textContent = "Preencha título e conteúdo para salvar o evento.";
       }
     });
     const list = createElement("div", "elo-timeline-list");
@@ -19537,14 +19537,14 @@
   function showPhilosophy() {
     const message = appendMessage("system", "Filosofia do Elo");
     const panel = createElement("div", "elo-philosophy-panel");
-    const intro = createElement("p", "elo-privacy", "Respostas reflexivas locais, sem internet, sem IA real e sem impor uma crenÃ§a como verdade absoluta.");
+    const intro = createElement("p", "elo-privacy", "Respostas reflexivas locais, sem internet, sem IA real e sem impor uma crença como verdade absoluta.");
     const questions = createElement("div", "elo-suggestion-chips");
     [
-      "VocÃª existe?",
+      "Você existe?",
       "O que somos?",
-      "O que Ã© esperanÃ§a?",
-      "SÃ³ existe o que Ã© palpÃ¡vel?",
-      "O que Ã© pensamento?",
+      "O que é esperança?",
+      "Só existe o que é palpável?",
+      "O que é pensamento?",
       "Qual o sentido da vida?"
     ].forEach(function (question) {
       const button = createElement("button", "elo-suggestion-chip", question);
@@ -19564,7 +19564,7 @@
   function showConcepts() {
     const message = appendMessage("system", "Biblioteca de Conceitos");
     const panel = createElement("div", "elo-concepts-panel");
-    const status = createElement("p", "elo-privacy", "Conceitos ficam salvos apenas neste navegador. A base fixa nÃ£o usa internet nem IA real.");
+    const status = createElement("p", "elo-privacy", "Conceitos ficam salvos apenas neste navegador. A base fixa não usa internet nem IA real.");
     const controls = createElement("div", "elo-library-controls");
     const searchInput = createElement("input", "elo-library-search");
     const addButton = createElement("button", "elo-inline-button", "Adicionar conceito");
@@ -19574,9 +19574,9 @@
         form.classList.add("is-hidden");
         renderConceptList(list, searchInput.value);
       } else if (result.reason === "sensitive") {
-        status.textContent = "Por seguranÃ§a, nÃ£o vou guardar esse tipo de informaÃ§Ã£o.";
+        status.textContent = "Por segurança, não vou guardar esse tipo de informação.";
       } else {
-        status.textContent = "Preencha tÃ­tulo e resposta curta para salvar.";
+        status.textContent = "Preencha título e resposta curta para salvar.";
       }
     });
     const suggested = createElement("div", "elo-suggestion-chips");
@@ -19585,7 +19585,7 @@
     searchInput.type = "search";
     searchInput.placeholder = "Buscar conceito";
     addButton.type = "button";
-    ["O que Ã© amor?", "O que Ã© alma?", "O que Ã© esperanÃ§a?", "SÃ³ existe o que Ã© palpÃ¡vel?", "O que Ã© pensamento?", "O que Ã© propÃ³sito?"].forEach(function (question) {
+    ["O que é amor?", "O que é alma?", "O que é esperança?", "Só existe o que é palpável?", "O que é pensamento?", "O que é propósito?"].forEach(function (question) {
       const button = createElement("button", "elo-suggestion-chip", question);
       button.type = "button";
       button.addEventListener("click", function () {
@@ -19622,12 +19622,12 @@
     const saveButton = createElement("button", "elo-send-button", "Salvar conceito");
 
     titleInput.type = "text";
-    titleInput.placeholder = "TÃ­tulo do conceito";
+    titleInput.placeholder = "Título do conceito";
     keywordsInput.type = "text";
-    keywordsInput.placeholder = "Palavras-chave separadas por vÃ­rgula";
+    keywordsInput.placeholder = "Palavras-chave separadas por vírgula";
     shortAnswerInput.placeholder = "Resposta curta";
-    icaroInput.placeholder = "VisÃ£o do Ãcaro";
-    reflectionInput.placeholder = "ReflexÃ£o do Elo";
+    icaroInput.placeholder = "Visão do Ícaro";
+    reflectionInput.placeholder = "Reflexão do Elo";
     saveButton.type = "submit";
 
     form.addEventListener("submit", function (event) {
@@ -19674,7 +19674,7 @@
     concepts.forEach(function (concept) {
       const card = createElement("article", "elo-concept-card");
       const header = createElement("div", "elo-library-card-header");
-      const title = createElement("strong", "", concept.title + (concept.custom ? " Â· personalizado" : ""));
+      const title = createElement("strong", "", concept.title + (concept.custom ? " · personalizado" : ""));
       const meta = createElement("span", "elo-library-meta", (concept.keywords || []).slice(0, 5).join(", "));
       const summary = createElement("p", "", concept.shortAnswer);
       const actions = createElement("div", "elo-library-actions");
@@ -19682,7 +19682,7 @@
 
       askButton.type = "button";
       askButton.addEventListener("click", function () {
-        askElo("O que Ã© " + concept.title + "?");
+        askElo("O que é " + concept.title + "?");
       });
 
       header.appendChild(title);
@@ -19708,15 +19708,15 @@
 
     titleInput.type = "text";
     titleInput.maxLength = 140;
-    titleInput.placeholder = "TÃ­tulo";
+    titleInput.placeholder = "Título";
     contentInput.maxLength = 1200;
-    contentInput.placeholder = "ConteÃºdo do evento";
+    contentInput.placeholder = "Conteúdo do evento";
     projectInput.type = "text";
     projectInput.maxLength = 120;
     projectInput.placeholder = "Projeto relacionado";
     tagsInput.type = "text";
     tagsInput.maxLength = 160;
-    tagsInput.placeholder = "Tags separadas por vÃ­rgula";
+    tagsInput.placeholder = "Tags separadas por vírgula";
     moodInput.type = "text";
     moodInput.maxLength = 80;
     moodInput.placeholder = "Humor/mood opcional";
@@ -19778,7 +19778,7 @@
     const events = getTimelineEvents(filters);
 
     if (!events.length) {
-      list.appendChild(createElement("p", "elo-library-empty", "Ainda nÃ£o hÃ¡ eventos registrados na sua Linha do Tempo."));
+      list.appendChild(createElement("p", "elo-library-empty", "Ainda não há eventos registrados na sua Linha do Tempo."));
       return;
     }
 
@@ -19790,7 +19790,7 @@
       const typeBadge = createElement("span", "elo-timeline-badge", formatTimelineType(event.type));
       const importanceBadge = createElement("span", "elo-timeline-importance is-" + event.importance, event.importance);
       const content = createElement("p", "", event.content);
-      const meta = createElement("span", "elo-library-meta", formatDateTime(event.createdAt) + (event.project ? " Â· Projeto: " + event.project : "") + (event.mood ? " Â· Humor: " + event.mood : ""));
+      const meta = createElement("span", "elo-library-meta", formatDateTime(event.createdAt) + (event.project ? " · Projeto: " + event.project : "") + (event.mood ? " · Humor: " + event.mood : ""));
       const tags = createElement("span", "elo-library-tags", event.tags.length ? "Tags: " + event.tags.join(", ") : "Sem tags");
       const actions = createElement("div", "elo-library-actions");
       const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
@@ -19799,7 +19799,7 @@
       deleteButton.addEventListener("click", function () {
         deleteTimelineEvent(event.id);
         renderTimelineList(list, type, project);
-        appendMessage("system", "Evento excluÃ­do da Linha do Tempo.");
+        appendMessage("system", "Evento excluído da Linha do Tempo.");
       });
 
       badges.appendChild(typeBadge);
@@ -19818,20 +19818,20 @@
 
   function showImportantMemories() {
     const storage = getImportantMemoriesStorage();
-    const message = appendMessage("system", "MemÃ³rias importantes");
+    const message = appendMessage("system", "Memórias importantes");
     const panel = createElement("div", "elo-important-memory-panel");
-    const status = createElement("p", "elo-privacy", "Essas memÃ³rias ficam salvas apenas neste navegador nesta versÃ£o.");
+    const status = createElement("p", "elo-privacy", "Essas memórias ficam salvas apenas neste navegador nesta versão.");
     const list = createElement("div", "elo-important-memory-list");
     const actions = createElement("div", "elo-message-actions");
     const exportButton = createElement("button", "elo-inline-button", "Exportar JSON");
-    const clearButton = createElement("button", "elo-inline-button", "Limpar memÃ³rias importantes");
+    const clearButton = createElement("button", "elo-inline-button", "Limpar memórias importantes");
 
     function render() {
       list.innerHTML = "";
       [
         ["Projetos", storage.projetos || []],
         ["Objetivos", storage.objetivos || []],
-        ["PreferÃªncias", storage.preferencias || []]
+        ["Preferências", storage.preferencias || []]
       ].forEach(function (section) {
         list.appendChild(createElement("h3", "elo-projects-subtitle", section[0]));
         if (!section[1].length) {
@@ -19844,14 +19844,14 @@
           const header = createElement("div", "elo-project-card-header");
           const title = createElement("strong", "", item.titulo);
           const badge = createElement("span", "elo-status-badge is-" + item.status, item.status);
-          const description = createElement("p", "", item.descricao || "Sem descriÃ§Ã£o.");
+          const description = createElement("p", "", item.descricao || "Sem descrição.");
           const meta = createElement("span", "elo-library-meta", "Criado em " + formatDateTime(item.createdAt));
           const deleteButton = createElement("button", "elo-memory-delete", "Excluir");
 
           deleteButton.type = "button";
           deleteButton.addEventListener("click", function () {
             deleteImportantMemory(item.id);
-            status.textContent = "MemÃ³ria importante excluÃ­da.";
+            status.textContent = "Memória importante excluída.";
             const updated = getImportantMemoriesStorage();
             storage.projetos = updated.projetos;
             storage.objetivos = updated.objetivos;
@@ -19881,11 +19881,11 @@
       link.download = "elo-memorias-importantes.json";
       link.click();
       URL.revokeObjectURL(url);
-      status.textContent = "Arquivo JSON das memÃ³rias importantes preparado.";
+      status.textContent = "Arquivo JSON das memórias importantes preparado.";
     });
     clearButton.addEventListener("click", function () {
       clearImportantMemories();
-      status.textContent = "MemÃ³rias importantes limpas. Dados do ObraReport nÃ£o foram alterados.";
+      status.textContent = "Memórias importantes limpas. Dados do ObraReport não foram alterados.";
       storage.projetos = [];
       storage.objetivos = [];
       storage.preferencias = [];
@@ -19903,9 +19903,9 @@
   }
 
   function confirmClearPersonalMemories() {
-    const message = appendMessage("system", "Tem certeza? Isso nÃ£o afeta dados do ObraReport, apenas memÃ³rias locais do Elo.");
+    const message = appendMessage("system", "Tem certeza? Isso não afeta dados do ObraReport, apenas memórias locais do Elo.");
     const actions = createElement("div", "elo-message-actions");
-    const confirmButton = createElement("button", "elo-inline-button", "Limpar memÃ³rias pessoais");
+    const confirmButton = createElement("button", "elo-inline-button", "Limpar memórias pessoais");
     const cancelButton = createElement("button", "elo-inline-button", "Cancelar");
 
     confirmButton.type = "button";
@@ -19915,13 +19915,13 @@
       clearPersonalMemories();
       confirmButton.disabled = true;
       cancelButton.disabled = true;
-      appendMessage("system", "MemÃ³rias pessoais limpas. Dados do ObraReport nÃ£o foram alterados.");
+      appendMessage("system", "Memórias pessoais limpas. Dados do ObraReport não foram alterados.");
     });
 
     cancelButton.addEventListener("click", function () {
       confirmButton.disabled = true;
       cancelButton.disabled = true;
-      appendMessage("system", "Limpeza de memÃ³rias pessoais cancelada.");
+      appendMessage("system", "Limpeza de memórias pessoais cancelada.");
     });
 
     actions.appendChild(confirmButton);
@@ -20012,11 +20012,11 @@
 
   function openSupportWhatsapp() {
     if (!ELO_CONFIG.whatsappNumber) {
-      appendMessage("system", "Suporte por WhatsApp ainda nÃ£o configurado.");
+      appendMessage("system", "Suporte por WhatsApp ainda não configurado.");
       return;
     }
 
-    const message = "OlÃ¡, preciso de ajuda com o ObraReport.";
+    const message = "Olá, preciso de ajuda com o ObraReport.";
     const url = "https://wa.me/" + encodeURIComponent(ELO_CONFIG.whatsappNumber) + "?text=" + encodeURIComponent(message);
     window.open(url, "_blank", "noopener,noreferrer");
   }
