@@ -6,7 +6,8 @@ const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Local JSON is a development fallback; production should provide a durable store path/service.
 const DEFAULT_DATA_PATH = join(BACKEND_DIR, "data", "elo-core.json");
 const MEMORY_CATEGORIES = new Set(["profile", "preference", "project", "decision", "routine", "technical_context", "company", "writing_style", "pending_task"]);
-const SENSITIVE_RE = /\b(senha|password|token|api key|chave api|cart[aã]o|cpf|cnpj|banco|pix|segredo)\b/i;
+const SENSITIVE_RE = /\b(senha|password|token|api key|chave api|cart[aã]o|cpf|cnpj|banco|pix|segredo|email|e-mail)\b/i;
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
 function clean(value, max = 4000) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -37,7 +38,7 @@ function normalizeAttachments(value) {
 function normalizeMemory(input = {}, identity) {
   const value = clean(input.memory_value || input.memoryValue || input.value, 2000);
   if (!value) throw Object.assign(new Error("memory_value_required"), { status: 400 });
-  if (SENSITIVE_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
+  if (SENSITIVE_RE.test(value) || EMAIL_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
   const category = clean(input.category, 80) || "preference";
   return {
     id: clean(input.id, 120) || newId("mem"),
@@ -148,6 +149,8 @@ export function createEloCoreStore(options = {}) {
     const includeInactive = input.includeInactive === true || input.includeInactive === "true";
     return Object.values(readDb().memories)
       .filter((item) => matchesIdentity(item, identity))
+      .filter((item) => !input.category || item.category === clean(input.category, 80))
+      .filter((item) => !input.memory_key && !input.memoryKey && !input.key || item.memory_key === clean(input.memory_key || input.memoryKey || input.key, 180))
       .filter((item) => includeInactive || item.is_active !== false)
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))
       .map(clone);
@@ -171,7 +174,7 @@ export function createEloCoreStore(options = {}) {
     if (patch.memory_value !== undefined || patch.memoryValue !== undefined || patch.value !== undefined) {
       const value = clean(patch.memory_value || patch.memoryValue || patch.value, 2000);
       if (!value) throw Object.assign(new Error("memory_value_required"), { status: 400 });
-      if (SENSITIVE_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
+      if (SENSITIVE_RE.test(value) || EMAIL_RE.test(value)) throw Object.assign(new Error("sensitive_memory_blocked"), { status: 400 });
       memory.memory_value = value;
     }
     if (patch.memory_key !== undefined || patch.memoryKey !== undefined || patch.key !== undefined) memory.memory_key = clean(patch.memory_key || patch.memoryKey || patch.key, 180) || memory.memory_key;

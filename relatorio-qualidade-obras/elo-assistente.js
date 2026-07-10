@@ -29,6 +29,8 @@
   const ELO_CORE_ANONYMOUS_ID_KEY = "elo_core_anonymous_id_v1";
   const ELO_CORE_CONVERSATION_ID_KEY = "elo_core_current_conversation_id_v1";
   const ELO_CORE_MEMORY_DISABLED_KEY = "elo_core_memory_disabled_v1";
+  const ELO_CORE_NAME_MEMORY_CATEGORY = "profile";
+  const ELO_CORE_NAME_MEMORY_KEY = "nome";
   const ELO_CORE_TOOL_REGISTRY = {
     relatorio: { id: "relatorio", publicName: "Editor de relatório", route: "/relatorio-qualidade-obras/", openingMessage: "Abrindo o Editor de relatório...", aliases: ["relatorio", "relatorio tecnico", "laudo", "vistoria", "editor de relatorio"] },
     cadista: { id: "cadista", publicName: "Editor técnico", route: "/cadista/", openingMessage: "Abrindo o Editor técnico...", aliases: ["cadista", "cadista ia", "planta", "planta baixa", "dxf", "desenho tecnico"] },
@@ -300,12 +302,12 @@
     const text = normalizeText(raw);
     if (!raw || /\b(senha|password|token|api key|chave api|cartao|cartão|cpf|banco|pix|segredo)\b/.test(text)) return null;
 
-    let match = raw.match(/(?:meu nome é|me chamo|pode me chamar de)\s+([^.,;\n]{2,80})/i);
-    if (match) {
+    const userNameIntent = detectEloCoreUserNameMemoryIntent_(raw);
+    if (userNameIntent && userNameIntent.type === "save" && userNameIntent.name) {
       return {
-        category: "profile",
-        memory_key: "nome",
-        memory_value: "Usuário se chama " + sanitizeUserText(match[1]) + ".",
+        category: ELO_CORE_NAME_MEMORY_CATEGORY,
+        memory_key: ELO_CORE_NAME_MEMORY_KEY,
+        memory_value: userNameIntent.name,
         confidence: 0.92
       };
     }
@@ -348,7 +350,7 @@
   function replayEloCoreMessages_(messages) { if (!ELO_UI.messages) return; ELO_UI.replayingCoreHistory = true; ELO_UI.messages.textContent = ""; (messages || []).forEach(function (item) { appendMessage(item.role === "user" ? "user" : "assistant", item.content || ""); }); ELO_UI.replayingCoreHistory = false; setEloCoreWelcomeVisible_(); window.setTimeout(function () { window.scrollTo(0, document.body.scrollHeight); }, 0); }
   function loadEloCoreConversation_(id) { const conversationId = sanitizeUserText(id); if (!conversationId) return Promise.resolve(false); return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { setEloCoreCurrentConversationId_(conversationId); replayEloCoreMessages_(data.messages || []); return true; }).catch(function () { setEloCoreCurrentConversationId_(""); return false; }); }
   function loadEloCoreMemories_() { return eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { ELO_UI.coreMemories = data.memories || []; return ELO_UI.coreMemories; }).catch(function () { ELO_UI.coreMemories = []; return []; }); }
-  function initEloCorePersistence_() { if (!isStandaloneMode()) return; ELO_UI.coreConversationId = getEloCoreCurrentConversationId_(); loadEloCoreMemories_(); if (ELO_UI.coreConversationId) loadEloCoreConversation_(ELO_UI.coreConversationId); }
+  function initEloCorePersistence_() { if (!isStandaloneMode()) return; ELO_UI.coreConversationId = getEloCoreCurrentConversationId_(); loadEloCoreMemories_().then(function () { migrateLocalUserNameToEloCore_(); }); if (ELO_UI.coreConversationId) loadEloCoreConversation_(ELO_UI.coreConversationId); }
   function startEloCoreNewConversation_() { setEloCoreCurrentConversationId_(""); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); ELO_UI.input.focus(); } setEloCoreWelcomeVisible_(); }
   function showEloCoreHistory_() { eloCoreFetch_("/api/elo/conversations?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { const message = appendMessage("assistant", data.conversations && data.conversations.length ? "Histórico de conversas" : "Ainda não há conversas salvas neste dispositivo."); const list = createElement("div", "elo-history-list"); (data.conversations || []).slice(0, 12).forEach(function (conversation) { const openButton = createElement("button", "elo-inline-button", conversation.title || "Conversa"); const archiveButton = createElement("button", "elo-inline-button", "Arquivar"); openButton.type = "button"; archiveButton.type = "button"; openButton.addEventListener("click", function () { loadEloCoreConversation_(conversation.id); }); archiveButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversation.id), { method: "PUT", body: JSON.stringify(Object.assign({ archive: true }, getEloCoreIdentity_())) }).then(function () { appendMessage("system", "Conversa arquivada."); }); }); list.appendChild(openButton); list.appendChild(archiveButton); }); message.appendChild(list); }).catch(function () { appendMessage("system", "Não consegui carregar o histórico agora."); }); }
   function showEloCoreMemoryPanel_() { loadEloCoreMemories_().then(function (memories) { const disabled = isEloCoreMemoryDisabled_(); const message = appendMessage("assistant", disabled ? "Memória do ELO desativada." : "Memória do ELO"); const panel = createElement("div", "elo-memory-list"); const toggleButton = createElement("button", "elo-inline-button", disabled ? "Ativar memória" : "Desativar memória"); const clearButton = createElement("button", "elo-inline-button", "Limpar tudo"); toggleButton.type = "button"; clearButton.type = "button"; toggleButton.addEventListener("click", function () { setEloCoreMemoryDisabled_(!disabled); appendMessage("system", disabled ? "Memória ativada." : "Memória desativada."); }); clearButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { ELO_UI.coreMemories = []; appendMessage("system", "Memórias apagadas."); }); }); panel.appendChild(toggleButton); panel.appendChild(clearButton); (memories || []).slice(0, 16).forEach(function (memory) { const item = createElement("button", "elo-inline-button", memory.category + ": " + memory.memory_value.slice(0, 90)); item.type = "button"; item.title = "Clique para apagar"; item.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories/" + encodeURIComponent(memory.id) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { appendMessage("system", "Memória apagada."); loadEloCoreMemories_(); }); }); panel.appendChild(item); }); message.appendChild(panel); }).catch(function () { appendMessage("system", "Não consegui carregar a memória agora."); }); }
@@ -6730,6 +6732,10 @@
   }
 
   function getPreferredUserName() {
+    const coreName = getEloCoreCanonicalNameFromMemory_();
+    if (coreName) {
+      return coreName;
+    }
     const profile = getUserProfile();
     if (profile.userName) {
       return profile.userName;
@@ -9958,21 +9964,189 @@
     return normalizeEloText(message).replace(/^elo\s+/, "").trim();
   }
 
+  function isSensitiveEloCoreUserNameCandidate_(name) {
+    const value = sanitizeUserText(name);
+    const text = normalizeText(value);
+    return !value || /@/.test(value) || /\b(senha|password|token|api key|chave api|cartao|cartão|cpf|cnpj|banco|pix|segredo|email|e-mail)\b/.test(text);
+  }
+
+  function cleanEloCoreUserNameCandidate_(value) {
+    let clean = sanitizeUserText(value || "")
+      .replace(/(?:\s*[.!?;:,]+\s*)?(?:guarde isso|lembre disso|pode guardar|por favor guarde|salve isso)\s*[.!?;:,]*\s*$/i, "")
+      .replace(/[.!?;:,]+$/g, "")
+      .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    clean = sanitizeLibraryText(clean, 80).trim();
+    const normalized = normalizeText(clean);
+    if (!clean || clean.length < 2 || clean.length > 80) return "";
+    if (isSensitiveEloCoreUserNameCandidate_(clean)) return "";
+    if (isInvalidUserNameAnswer_(clean) || looksLikeQuestionOrRequestForName_(clean)) return "";
+    if (/\b(guarde|lembre|salve|corrigir|corrija|chame|nome|sou|preciso|quero|fazer|abrir|gerar|orcamento|orçamento|relatorio|relatório|senha|token)\b/.test(normalized)) return "";
+    if (clean.split(/\s+/).length > 5) return "";
+    return clean;
+  }
+
+  function getEloCoreFirstName_(name) {
+    return sanitizeUserText(name).split(/\s+/).filter(Boolean)[0] || sanitizeUserText(name);
+  }
+
+  function detectEloCoreUserNameMemoryIntent_(message) {
+    const raw = sanitizeUserText(message || "");
+    const normalized = normalizeText(raw);
+    if (!raw) return null;
+
+    let match = raw.match(/meu\s+nome\s+n(?:a|ã)o\s+(?:e|é)\s+(.+?)[.!?;:,]+\s*meu\s+nome\s+(?:e|é)\s+([\s\S]+)$/i);
+    if (!match) match = raw.match(/n(?:a|ã)o\s+me\s+chame\s+de\s+(.+?)[.!?;:,]+\s*me\s+chame\s+de\s+([\s\S]+)$/i);
+    if (!match) match = raw.match(/pode\s+corrigir\s*[:,-]?\s*meu\s+nome\s+(?:e|é)\s+([\s\S]+)$/i);
+    if (match) {
+      const candidate = cleanEloCoreUserNameCandidate_(match[2] || match[1]);
+      return candidate ? { type: "save", name: candidate, correction: true } : { type: "invalid" };
+    }
+
+    if (hasAnyTerm(normalized, ["qual e o meu nome", "qual é o meu nome", "qual meu nome", "qual e meu nome", "qual é meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
+      return { type: "query", mode: "name" };
+    }
+    if (hasAnyTerm(normalized, ["voce lembra quem eu sou", "você lembra quem eu sou", "lembra quem eu sou", "voce sabe quem eu sou", "você sabe quem eu sou"])) {
+      return { type: "query", mode: "identity" };
+    }
+
+    match = raw.match(/^(?:meu\s+nome\s+(?:e|é)|eu\s+me\s+chamo|me\s+chamo|pode\s+me\s+chamar\s+de|me\s+chame\s+de)\s+([\s\S]+)$/i);
+    if (match) {
+      const candidate = cleanEloCoreUserNameCandidate_(match[1]);
+      return candidate ? { type: "save", name: candidate, correction: false } : { type: "invalid" };
+    }
+
+    return null;
+  }
+
+  function getEloCoreCanonicalNameFromMemory_() {
+    const memories = Array.isArray(ELO_UI.coreMemories) ? ELO_UI.coreMemories : [];
+    const memory = memories.find(function (item) {
+      return item && item.is_active !== false && item.category === ELO_CORE_NAME_MEMORY_CATEGORY && item.memory_key === ELO_CORE_NAME_MEMORY_KEY && sanitizeUserText(item.memory_value);
+    });
+    return memory ? cleanEloCoreUserNameCandidate_(memory.memory_value) : "";
+  }
+
+  function getCanonicalEloCoreUserName_() {
+    return getEloCoreCanonicalNameFromMemory_() || getPreferredUserName();
+  }
+
+  function cacheEloCoreCanonicalName_(name) {
+    const clean = cleanEloCoreUserNameCandidate_(name);
+    if (!clean) return "";
+    cacheEloCoreMemory_({
+      id: "elo_core_profile_nome_local",
+      category: ELO_CORE_NAME_MEMORY_CATEGORY,
+      memory_key: ELO_CORE_NAME_MEMORY_KEY,
+      memory_value: clean,
+      confidence: 0.95,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    });
+    return clean;
+  }
+
+  function syncEloCoreNameToLocalProfile_(name) {
+    const clean = cleanEloCoreUserNameCandidate_(name);
+    if (!clean) return "";
+    const currentProfile = getUserProfile();
+    setUserProfile(Object.assign({}, currentProfile, { userName: clean }));
+    return clean;
+  }
+
+  function persistEloCoreCanonicalName_(name) {
+    const clean = cleanEloCoreUserNameCandidate_(name);
+    if (!clean || typeof fetch !== "function") return Promise.resolve(false);
+    return eloCoreFetch_("/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({}, getEloCoreIdentity_(), {
+        category: ELO_CORE_NAME_MEMORY_CATEGORY,
+        memory_key: ELO_CORE_NAME_MEMORY_KEY,
+        memory_value: clean,
+        confidence: 0.95
+      }))
+    }).then(function (data) {
+      if (data && data.memory) cacheEloCoreMemory_(data.memory);
+      return true;
+    }).catch(function (error) {
+      try { console.warn("ELO Core name memory unavailable", error && error.message ? error.message : error); } catch (warnError) {}
+      return false;
+    });
+  }
+
+  function saveEloCoreCanonicalName_(name) {
+    const clean = cacheEloCoreCanonicalName_(name);
+    if (!clean) return "";
+    syncEloCoreNameToLocalProfile_(clean);
+    persistEloCoreCanonicalName_(clean);
+    return clean;
+  }
+
+  function migrateLocalUserNameToEloCore_() {
+    if (getEloCoreCanonicalNameFromMemory_()) return "";
+    const localName = getPreferredUserName();
+    if (!localName) return "";
+    cacheEloCoreCanonicalName_(localName);
+    persistEloCoreCanonicalName_(localName);
+    return localName;
+  }
+
+  function buildEloCoreUserNameMemoryAnswer_(message) {
+    const intent = detectEloCoreUserNameMemoryIntent_(message);
+    if (!intent || intent.type === "invalid") return null;
+    if (intent.type === "query") {
+      const name = getCanonicalEloCoreUserName_();
+      if (!name) {
+        return {
+          shortAnswer: "Ainda não sei o seu nome.",
+          fullAnswer: "Ainda não tenho um nome salvo para você.",
+          nextAction: "Se quiser, diga: Meu nome é Ícaro Amaral. Guarde isso.",
+          canSave: false,
+          sessionTheme: "perfil",
+          sessionIntent: "user_name_memory"
+        };
+      }
+      const answer = intent.mode === "identity" ? "Sim. Você é " + name + "." : "Seu nome é " + name + ".";
+      return {
+        shortAnswer: answer,
+        fullAnswer: answer,
+        nextAction: "",
+        canSave: false,
+        sessionTheme: "perfil",
+        sessionIntent: "user_name_memory"
+      };
+    }
+    if (intent.type === "save" && intent.name) {
+      const savedName = saveEloCoreCanonicalName_(intent.name);
+      if (!savedName) return null;
+      const answer = intent.correction
+        ? "Entendido. Vou lembrar que seu nome é " + savedName + "."
+        : "Certo, " + getEloCoreFirstName_(savedName) + ". Vou lembrar do seu nome nas próximas conversas.";
+      return {
+        shortAnswer: answer,
+        fullAnswer: answer,
+        nextAction: "",
+        canSave: false,
+        sessionTheme: "perfil",
+        sessionIntent: "user_name_memory"
+      };
+    }
+    return null;
+  }
   function detectUserNameSave_(message) {
+    const userNameIntent = detectEloCoreUserNameMemoryIntent_(message);
+    if (userNameIntent && userNameIntent.type === "save") {
+      return userNameIntent.name || "";
+    }
     const clean = sanitizeUserText(message).replace(/[.!?]+$/g, "").trim();
     if (looksLikeQuestionOrRequestForName_(message)) {
       return "";
     }
 
-    const match = clean.match(/^(?:meu nome (?:e|é)|eu me chamo|pode me chamar de|me chame de)\s+(.+)$/i);
-    if (match) {
-      const explicitName = sanitizeLibraryText(match[1], 60).replace(/[.,;:]+$/g, "").trim();
-      return isValidExplicitUserName_(explicitName) ? explicitName : "";
-    }
-
     const shortSouMatch = clean.match(/^sou\s+(.+)$/i);
     if (shortSouMatch) {
-      const shortName = sanitizeLibraryText(shortSouMatch[1], 60).replace(/[.,;:]+$/g, "").trim();
+      const shortName = cleanEloCoreUserNameCandidate_(shortSouMatch[1]);
       return isValidExplicitUserName_(shortName) ? shortName : "";
     }
 
@@ -10056,6 +10230,10 @@
 
   function classifyEloIntent(message, context) {
     const text = stripEloMentionForIntent_(message);
+    const userNameMemory = detectEloCoreUserNameMemoryIntent_(message);
+    if (userNameMemory && (userNameMemory.type === "save" || userNameMemory.type === "query")) {
+      return "user_name_memory";
+    }
     const saveName = detectUserNameSave_(message);
     if (saveName) {
       return "save_user_name";
@@ -10221,13 +10399,10 @@
   }
 
   function buildUserNameQuestionAnswer_() {
-    const name = getPreferredUserName();
-    return {
-      shortAnswer: name ? "Você me pediu para chamar você de " + name + "." : "Ainda não sei o seu nome.",
-      fullAnswer: name
-        ? "Esse nome fica salvo apenas neste navegador."
-        : "Se quiser, diga: Meu nome é Ícaro.\n\nDepois disso eu posso lembrar como devo chamar você.",
-      nextAction: name ? "Se quiser mudar, diga: pode me chamar de outro nome." : "Diga seu nome se quiser que eu personalize as respostas.",
+    return buildEloCoreUserNameMemoryAnswer_("Qual é o meu nome?") || {
+      shortAnswer: "Ainda não sei o seu nome.",
+      fullAnswer: "Ainda não tenho um nome salvo para você.",
+      nextAction: "Se quiser, diga: Meu nome é Ícaro Amaral. Guarde isso.",
       canSave: false,
       sessionTheme: "perfil",
       sessionIntent: "nome_usuario"
@@ -10247,11 +10422,9 @@
         sessionIntent: "nome_invalido"
       };
     }
-    const currentProfile = getUserProfile();
-    setUserProfile(Object.assign({}, currentProfile, { userName: name }));
-    return {
+    return buildEloCoreUserNameMemoryAnswer_("Meu nome é " + name + ".") || {
       shortAnswer: "Perfeito, " + name + ".",
-      fullAnswer: "Vou me referir a você assim. Esse nome fica salvo apenas neste navegador.",
+      fullAnswer: "Vou me referir a você assim.",
       nextAction: "Agora posso responder com mais contexto quando você pedir memória, foco ou próximos passos.",
       canSave: false,
       sessionTheme: "perfil",
@@ -13639,6 +13812,9 @@
     if (intent === "elo_identity") {
       return buildEloIdentityAnswer_();
     }
+    if (intent === "user_name_memory") {
+      return buildEloCoreUserNameMemoryAnswer_(message);
+    }
     if (intent === "user_name_question") {
       return buildUserNameQuestionAnswer_();
     }
@@ -16949,6 +17125,10 @@
   }
 
   function buildResponse(question) {
+    const userNameMemoryResponse = buildEloCoreUserNameMemoryAnswer_(question);
+    if (userNameMemoryResponse) {
+      return applyEloBrainMarker_(question, userNameMemoryResponse);
+    }
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
@@ -17349,6 +17529,15 @@
         rememberSessionTurn(cleanQuestion, response, answer);
         return;
       }
+    }
+
+    const directUserNameMemoryResponse = buildEloCoreUserNameMemoryAnswer_(cleanQuestion);
+    if (directUserNameMemoryResponse) {
+      const answer = formatResponse(directUserNameMemoryResponse);
+      appendAssistantMessage(cleanQuestion, answer, false, directUserNameMemoryResponse);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, directUserNameMemoryResponse, answer);
+      return;
     }
 
     const directNameIntent = detectUserNameSave_(cleanQuestion);

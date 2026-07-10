@@ -2017,7 +2017,7 @@ export function createApp(options = {}) {
     catch (error) { sendEloCoreError_(response, error); }
   });
   app.get("/api/elo/memories", (request, response) => {
-    try { response.json({ ok: true, memories: eloCoreStore.listMemories(Object.assign(getEloCoreIdentity_(request), { includeInactive: request.query.includeInactive })) }); }
+    try { response.json({ ok: true, memories: eloCoreStore.listMemories(Object.assign(getEloCoreIdentity_(request), { includeInactive: request.query.includeInactive, category: request.query.category, memory_key: request.query.memory_key || request.query.memoryKey || request.query.key })) }); }
     catch (error) { sendEloCoreError_(response, error); }
   });
   app.post("/api/elo/memories", (request, response) => {

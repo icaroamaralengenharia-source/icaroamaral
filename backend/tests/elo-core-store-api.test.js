@@ -153,3 +153,34 @@ test("ELO CORE API isola usuarios autenticados e anonymousIds", async () => {
     assert.equal(anonForbidden.response.status, 404);
   });
 });
+
+test("ELO CORE API usa memoria canonica de nome sem duplicar", async () => {
+  await withServer(async (base) => {
+    const identity = { anonymousId: "elo_anon_nome_001" };
+    const first = await json(base + "/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({ category: "profile", memory_key: "nome", memory_value: "Ícaro Amaral" }, identity))
+    });
+    assert.equal(first.response.status, 201);
+    assert.equal(first.data.memory.memory_value, "Ícaro Amaral");
+
+    const second = await json(base + "/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({ category: "profile", memory_key: "nome", memory_value: "Amaral" }, identity))
+    });
+    assert.equal(second.response.status, 201);
+    assert.equal(second.data.memory.id, first.data.memory.id);
+    assert.equal(second.data.memory.memory_value, "Amaral");
+
+    const listed = await json(base + "/api/elo/memories?anonymousId=" + identity.anonymousId + "&category=profile&memory_key=nome");
+    assert.equal(listed.data.memories.length, 1);
+    assert.equal(listed.data.memories[0].memory_value, "Amaral");
+
+    const sensitive = await json(base + "/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({ category: "profile", memory_key: "nome", memory_value: "icaro@example.com" }, identity))
+    });
+    assert.equal(sensitive.response.status, 400);
+    assert.equal(sensitive.data.error, "sensitive_memory_blocked");
+  });
+});

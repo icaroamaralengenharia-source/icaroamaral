@@ -4,13 +4,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function createStorage() {
-  const data = new Map();
+function createStorage(initial = {}) {
+  const data = new Map(Object.entries(initial));
   return {
     getItem(key) { return data.has(key) ? data.get(key) : null; },
     setItem(key, value) { data.set(String(key), String(value)); },
     removeItem(key) { data.delete(key); },
-    clear() { data.clear(); }
+    clear() { data.clear(); },
+    dump() { return Object.fromEntries(data); }
   };
 }
 
@@ -33,8 +34,8 @@ function createElement(tag) {
   };
 }
 
-function loadElo() {
-  const localStorage = createStorage();
+function loadEloContext(options = {}) {
+  const localStorage = createStorage(options.localStorage || {});
   const context = {
     console,
     setTimeout(fn) { if (typeof fn === 'function') fn(); return 0; },
@@ -53,7 +54,8 @@ function loadElo() {
       addEventListener() {},
       removeEventListener() {},
       crypto: { randomUUID: () => 'test-id' },
-      open: () => null
+      open: () => null,
+      fetch: options.fetch
     },
     document: {
       readyState: 'complete',
@@ -73,7 +75,11 @@ function loadElo() {
   vm.createContext(context);
   const source = fs.readFileSync(path.join(__dirname, 'elo-assistente.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'elo-assistente.js' });
-  return context.window.EloAssistente;
+  return { elo: context.window.EloAssistente, localStorage, context };
+}
+
+function loadElo() {
+  return loadEloContext().elo;
 }
 
 test('ELO padroniza marcadores de c?rebro nos roteamentos principais', () => {
@@ -848,4 +854,50 @@ test('ELO CORE POC: camada 1 retorna template comportamental', () => {
   assert.match(answer, /Inputs -> Sa.das esperadas/i);
   assert.match(answer, /Sa.das proibidas/i);
   assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o de obra/i);
+});
+
+test('ELO CORE nome: salva, consulta, recarrega e corrige sem cair no motor tecnico', () => {
+  const current = loadEloContext();
+  let response = current.elo.buildResponseForTest('Meu nome é Ícaro Amaral. Guarde isso.');
+  assert.equal(response.sessionIntent, 'user_name_memory');
+  assert.equal(response.shortAnswer, 'Certo, Ícaro. Vou lembrar do seu nome nas próximas conversas.');
+  assert.doesNotMatch(response.fullAnswer, /obra|SINAPI|ORSE|técnic|tecnic/i);
+
+  response = current.elo.buildResponseForTest('Qual é o meu nome?');
+  assert.equal(response.shortAnswer, 'Seu nome é Ícaro Amaral.');
+
+  const reloaded = loadEloContext({ localStorage: current.localStorage.dump() });
+  response = reloaded.elo.buildResponseForTest('Você lembra quem eu sou?');
+  assert.equal(response.shortAnswer, 'Sim. Você é Ícaro Amaral.');
+
+  response = reloaded.elo.buildResponseForTest('Meu nome não é Ícaro. Meu nome é Amaral.');
+  assert.equal(response.shortAnswer, 'Entendido. Vou lembrar que seu nome é Amaral.');
+
+  response = reloaded.elo.buildResponseForTest('Qual é o meu nome?');
+  assert.equal(response.shortAnswer, 'Seu nome é Amaral.');
+  assert.doesNotMatch(response.shortAnswer, /Ícaro Amaral/);
+});
+
+test('ELO CORE nome: usuario sem memoria nao recebe nome inventado', () => {
+  const { elo } = loadEloContext();
+  const response = elo.buildResponseForTest('Qual é o meu nome?');
+  assert.equal(response.sessionIntent, 'user_name_memory');
+  assert.match(response.shortAnswer, /Ainda não sei o seu nome/);
+  assert.doesNotMatch(response.shortAnswer + response.fullAnswer, /Ícaro|Amaral|João|Maria/);
+});
+
+test('ELO CORE nome: bloqueia dado sensivel e preserva perfil local', () => {
+  const { elo, localStorage } = loadEloContext();
+  const response = elo.buildResponseForTest('Meu nome é senha 123456. Guarde isso.');
+  assert.notEqual(response.sessionIntent, 'user_name_memory');
+  assert.equal(localStorage.getItem('obrareport_elo_perfil_usuario_v1'), null);
+});
+
+test('ELO CORE nome: perfil local migra como compatibilidade de nova conversa', () => {
+  const localStorage = {
+    obrareport_elo_perfil_usuario_v1: JSON.stringify({ userName: 'Ícaro Amaral' })
+  };
+  const { elo } = loadEloContext({ localStorage });
+  const response = elo.buildResponseForTest('Qual é o meu nome?');
+  assert.equal(response.shortAnswer, 'Seu nome é Ícaro Amaral.');
 });

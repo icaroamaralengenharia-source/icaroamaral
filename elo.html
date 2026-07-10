@@ -72,19 +72,78 @@ defer></script>
     window.addEventListener("pageshow", function () {
       window.scrollTo(0, 0);
     });
+    const ELO_CORE_NAME_MEMORY_CATEGORY = "profile";
+    const ELO_CORE_NAME_MEMORY_KEY = "nome";
+    const ELO_CORE_ANONYMOUS_ID_KEY = "elo_core_anonymous_id_v1";
+    function sanitizeEloWelcomeName(value) {
+      return String(value || "").replace(/\s+/g, " ").replace(/[.!?;:,]+$/g, "").trim().slice(0, 80);
+    }
     function getEloWelcomeName() {
       try {
         const profile = JSON.parse(window.localStorage.getItem("obrareport_elo_perfil_usuario_v1") || "{}");
-        return String(profile.userName || profile.nome || "").trim();
+        return sanitizeEloWelcomeName(profile.userName || profile.nome || "");
+      } catch (error) { return ""; }
+    }
+    function setEloWelcomeName(name) {
+      const cleanName = sanitizeEloWelcomeName(name);
+      if (!cleanName) { return ""; }
+      try {
+        const profile = JSON.parse(window.localStorage.getItem("obrareport_elo_perfil_usuario_v1") || "{}");
+        profile.userName = cleanName;
+        profile.updatedAt = new Date().toISOString();
+        window.localStorage.setItem("obrareport_elo_perfil_usuario_v1", JSON.stringify(profile));
+      } catch (error) {}
+      return cleanName;
+    }
+    function getEloCoreBackendEndpoint(path) {
+      const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
+      const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") || window.location.protocol === "file:";
+      const baseUrl = isLocalPage && !window.ELO_API_BASE_URL ? "http://localhost:3000" : (configuredBaseUrl || "http://localhost:3000");
+      return baseUrl + path;
+    }
+    function getEloCoreAnonymousIdForWelcome() {
+      try {
+        const existing = String(window.localStorage.getItem(ELO_CORE_ANONYMOUS_ID_KEY) || "").trim();
+        if (/^elo_anon_[a-zA-Z0-9_-]+$/.test(existing)) { return existing; }
+        const random = window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+        const id = "elo_anon_" + random;
+        window.localStorage.setItem(ELO_CORE_ANONYMOUS_ID_KEY, id);
+        return id;
       } catch (error) { return ""; }
     }
     function chooseEloWelcomePhrase() {
       const name = getEloWelcomeName();
-      const options = name ? [name + ', o que vamos <span class="elo-highlight">fazer</span>?', name + ', quer <span class="elo-highlight">continuar</span> de onde paramos?'] : ['O que vamos <span class="elo-highlight">fazer</span> hoje?', 'Olá. Do que <span class="elo-highlight">precisa</span>?', 'Quer que eu <span class="elo-highlight">analise</span> um documento?', 'Posso revisar um relatório, orçamento ou <span class="elo-highlight">projeto</span>.', 'Quer continuar de onde <span class="elo-highlight">paramos</span>?', 'Tenho o contexto das nossas <span class="elo-highlight">últimas conversas</span>.'];
-      const key = "elo_core_welcome_phrase_v1";
-      let index = Number(window.sessionStorage.getItem(key));
-      if (!Number.isInteger(index) || index < 0 || index >= options.length) { index = Math.floor(Math.random() * options.length); window.sessionStorage.setItem(key, String(index)); }
-      return options[index];
+      return name ? name + ', o que vamos <span class="elo-highlight">fazer</span> hoje?' : 'O que vamos <span class="elo-highlight">fazer</span> hoje?';
+    }
+    function updateEloWelcomePhrase(name) {
+      const textEl = document.querySelector("[data-elo-rotating-text]");
+      if (!textEl) { return; }
+      const cleanName = sanitizeEloWelcomeName(name);
+      textEl.innerHTML = cleanName ? cleanName + ', o que vamos <span class="elo-highlight">fazer</span> hoje?' : 'O que vamos <span class="elo-highlight">fazer</span> hoje?';
+    }
+    function loadEloCoreWelcomeName() {
+      if (typeof fetch !== "function") { return; }
+      const anonymousId = getEloCoreAnonymousIdForWelcome();
+      if (!anonymousId) { return; }
+      const params = new URLSearchParams({ anonymousId: anonymousId, category: ELO_CORE_NAME_MEMORY_CATEGORY, memory_key: ELO_CORE_NAME_MEMORY_KEY });
+      fetch(getEloCoreBackendEndpoint("/api/elo/memories?" + params.toString()))
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          const memory = data && Array.isArray(data.memories) ? data.memories.find(function (item) { return item && item.category === ELO_CORE_NAME_MEMORY_CATEGORY && item.memory_key === ELO_CORE_NAME_MEMORY_KEY && item.memory_value; }) : null;
+          if (memory) {
+            updateEloWelcomePhrase(setEloWelcomeName(memory.memory_value));
+            return;
+          }
+          const localName = getEloWelcomeName();
+          if (!localName) { updateEloWelcomePhrase(""); return; }
+          updateEloWelcomePhrase(localName);
+          fetch(getEloCoreBackendEndpoint("/api/elo/memories"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ anonymousId: anonymousId, category: ELO_CORE_NAME_MEMORY_CATEGORY, memory_key: ELO_CORE_NAME_MEMORY_KEY, memory_value: localName, confidence: 0.9 })
+          }).catch(function (error) { try { console.warn("ELO Core welcome migration unavailable", error && error.message ? error.message : error); } catch (warnError) {} });
+        })
+        .catch(function (error) { try { console.warn("ELO Core welcome memory unavailable", error && error.message ? error.message : error); } catch (warnError) {} });
     }
     const eloPromptPhrases = [chooseEloWelcomePhrase()];
 
@@ -244,6 +303,7 @@ defer></script>
     window.ELO_DISABLE_AUTOFOCUS = true;
 
     document.addEventListener("DOMContentLoaded", initEloRotatingPrompt);
+    document.addEventListener("DOMContentLoaded", loadEloCoreWelcomeName);
     document.addEventListener("DOMContentLoaded", initEloMinimalInput);
     document.addEventListener("DOMContentLoaded", initEloPromptShortcuts);
     document.addEventListener("DOMContentLoaded", function () {
