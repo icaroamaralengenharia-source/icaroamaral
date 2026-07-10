@@ -68,6 +68,60 @@
   function navigateEloCoreTool_(response) { if (!response || response.eloCoreMode !== "tool" || !response.eloCoreTool || !response.eloCoreTool.url) return false; window.setTimeout(function () { if (window.location && typeof window.location.assign === "function") window.location.assign(response.eloCoreTool.url); else window.location.href = response.eloCoreTool.url; }, 450); return true; }
 
 
+  function isEloCorePocProtocolRequest_(text) {
+    return /\b(protocolo de operacao de codigo|protocolo de operação de código|poc)\b/.test(text) ||
+      /\b(camada 1|camada 2|comportamento e interface|arquitetura e implementacao|arquitetura e implementação)\b/.test(text);
+  }
+
+  function isEloCorePocMixedImplementationRequest_(text) {
+    const hasBehavior = /\b(interface|comportamento|usuario interage|usuário interage|saida esperada|saída esperada|saida proibida|saída proibida|input do usuario|input do usuário)\b/.test(text);
+    const hasImplementation = /\b(implemente|implementar|crie|criar|codigo|código|backend|supabase|persistencia|persistência|seguranca|segurança|api|banco|schema|rota)\b/.test(text);
+    const responsibilityCount = [
+      /\b(memoria|memória|historico|histórico)\b/.test(text),
+      /\b(interface|layout|chat|tela|visual)\b/.test(text),
+      /\b(backend|api|supabase|banco|schema|persistencia|persistência)\b/.test(text),
+      /\b(roteamento|classificador|intencao|intenção|ferramenta)\b/.test(text),
+      /\b(seguranca|segurança|auth|login|usuario|usuário)\b/.test(text)
+    ].filter(Boolean).length;
+    return hasImplementation && (hasBehavior || responsibilityCount >= 2);
+  }
+
+  function isEloCorePocLayerOneRequest_(text) {
+    return /\b(camada 1|comportamento|saida esperada|saída esperada|saida proibida|saída proibida|input.*saida|input.*saída|criterio comportamental|critério comportamental)\b/.test(text);
+  }
+
+  function isEloCorePocLayerTwoRequest_(text) {
+    return /\b(camada 2|implementar|implemente|codigo|código|arquitetura|backend|frontend|supabase|persistencia|persistência|schema|migration)\b/.test(text);
+  }
+
+  function buildEloCorePocLayerOneTemplate_() {
+    return [
+      "Vamos fechar a Camada 1 antes de código.",
+      "",
+      "Objetivo do usuário:",
+      "- ...",
+      "",
+      "Inputs -> Saídas esperadas:",
+      "1. Input: ...",
+      "   Saída esperada: ...",
+      "",
+      "2. Input: ...",
+      "   Saída esperada: ...",
+      "",
+      "3. Input: ...",
+      "   Saída esperada: ...",
+      "",
+      "Saídas proibidas:",
+      "- Não responder com ...",
+      "- Não abrir ...",
+      "- Não salvar ...",
+      "",
+      "Critério de aceite comportamental:",
+      "- Quando eu testar X, deve acontecer Y.",
+      "- Quando eu testar Z, não pode acontecer W."
+    ].join("\n");
+  }
+
   function classifyEloCoreIntent_(message, context) {
     const raw = sanitizeUserText(message);
     const text = normalizeText(raw);
@@ -78,7 +132,26 @@
       if (!intents.some(function (item) { return item.type + "|" + (item.location || item.topic || item.toolId || "") === key; })) intents.push(intent);
     }
     if (!text) return intents;
+    if (isEloCorePocMixedImplementationRequest_(text)) {
+      add({ type: "poc_needs_split" });
+      return intents;
+    }
+    if (isEloCorePocLayerOneRequest_(text)) {
+      add({ type: "poc_layer_1_behavior" });
+      return intents;
+    }
+    if (isEloCorePocLayerTwoRequest_(text)) {
+      add({ type: "poc_layer_2_implementation" });
+      return intents;
+    }
+    if (isEloCorePocProtocolRequest_(text)) {
+      add({ type: "poc_protocol" });
+      return intents;
+    }
     const tool = detectEloCoreTool_(raw);
+    if (/\b(diagnostico|diagnóstico|historico de trabalho|histórico de trabalho|onde perdemos tempo|onde esta o ruido|onde está o ruído|parafuso principal|vai-e-vem|correcoes repetidas|correções repetidas|briefing inicial|forma de pedir|meus comandos|nossos pedidos)\b/.test(text)) {
+      add({ type: "meta_workflow" });
+    }
     if (tool && isEloCoreLinkRequest_(raw)) add({ type: "request_tool_link", toolId: tool.id, toolName: tool.publicName });
     if (tool && isEloCoreOpenRequest_(raw)) add({ type: "open_tool", toolId: tool.id, toolName: tool.publicName });
     if (/\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
@@ -132,7 +205,54 @@
   function routeEloCoreIntent_(intent, context) {
     const message = context && context.message ? context.message : "";
     if (!intent || !intent.type) return null;
+    if (intent.type === "poc_protocol") {
+      return {
+        text: [
+          "Entendi. Para tarefas do ELO, vou operar em duas camadas separadas.",
+          "Camada 1: primeiro definimos comportamento, interface, inputs, saídas esperadas e saídas proibidas.",
+          "Camada 2: só depois entro em arquitetura, arquivos, implementação e testes.",
+          "Se o pedido misturar comportamento, backend, memória, segurança ou roteamento no mesmo bloco, vou pedir separação antes de implementar."
+        ].join("\n\n"),
+        handled: true
+      };
+    }
+    if (intent.type === "poc_needs_split") {
+      return {
+        text: [
+          "Esse pedido mistura comportamento e implementação.",
+          "Antes de codar, preciso separar em Camada 1 e Camada 2.",
+          "Camada 1: quais inputs o usuário fará e quais saídas espera?",
+          "Saídas proibidas: quais respostas ou comportamentos não podem acontecer?",
+          "Depois disso eu sigo para Camada 2: arquivos afetados, fora de escopo e critério de aceite."
+        ].join("\n\n"),
+        handled: true
+      };
+    }
+    if (intent.type === "poc_layer_1_behavior") {
+      return { text: buildEloCorePocLayerOneTemplate_(), handled: true };
+    }
+    if (intent.type === "poc_layer_2_implementation") {
+      if (context && context.layerOneApproved) return { handled: false };
+      return {
+        text: [
+          "Ainda não vou implementar.",
+          "A Camada 1 precisa estar aprovada primeiro: inputs, saídas esperadas, saídas proibidas e critério de teste do comportamento."
+        ].join("\n\n"),
+        handled: true
+      };
+    }
     if (intent.type === "date_time") return { text: formatEloCoreDateTimeAnswer_(context && context.now), handled: true };
+    if (intent.type === "meta_workflow") {
+      return {
+        text: [
+          "O gargalo não está em obra ou orçamento aqui. É uma pergunta sobre nosso modo de trabalho.",
+          "Onde perdemos tempo: quando o pedido mistura produto, interface, backend, segurança e comportamento conversacional no mesmo bloco sem exemplos de aceite.",
+          "Onde aparece ruído: quando palavras como memória, histórico, relatório ou técnico podem significar tanto produto quanto conversa sobre o processo.",
+          "O parafuso principal: sempre inclua 3 exemplos de entrada e saída esperada, mais 1 exemplo de resposta proibida. Isso ancora o roteamento e corta o vai-e-vem."
+        ].join("\n\n"),
+        handled: true
+      };
+    }
     if (intent.type === "weather") {
       const location = intent.location || "a cidade informada";
       return { text: "Não tenho uma integração de clima ativa nesta sessão para consultar " + location + " em tempo real.", handled: true };
@@ -152,7 +272,7 @@
   function routeEloCoreIntents_(message, context) {
     const intents = classifyEloCoreIntent_(message, context);
     if (intents.length === 1 && intents[0].type === "conversation") return null;
-    const commonTypes = ["date_time", "weather", "research_or_opinion", "research", "math", "memory"];
+    const commonTypes = ["poc_protocol", "poc_needs_split", "poc_layer_1_behavior", "poc_layer_2_implementation", "meta_workflow", "date_time", "weather", "research_or_opinion", "research", "math", "memory"];
     const parts = [];
     intents.forEach(function (intent) {
       if (commonTypes.indexOf(intent.type) < 0) return;

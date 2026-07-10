@@ -802,3 +802,50 @@ test('ELO CORE intent: conversas comuns nao recebem Proxima acao robotica', () =
   assert.doesNotMatch((cup.fullAnswer || cup.shortAnswer || ''), /Pr.xima a..o:/i);
   assert.match((cup.fullAnswer || cup.shortAnswer || ''), /N.o d.|Não d.|nao da/i);
 });
+
+test('ELO CORE intent: diagnostico de trabalho nao cai no cerebro tecnico de obras', () => {
+  const elo = loadElo();
+  const question = 'Faca um diagnostico do nosso historico de trabalho recente e aponte onde perdemos tempo, onde esta o ruido e qual e o parafuso principal na forma de pedir.';
+  const intents = elo.classifyIntentForTest(question).map((item) => item.type).join(',');
+  const response = elo.buildResponseForTest(question);
+  const answer = response.fullAnswer || response.shortAnswer || '';
+
+  assert.match(intents, /meta_workflow/);
+  assert.match(answer, /modo de trabalho|Onde perdemos tempo|parafuso principal/i);
+  assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o de obra|Mem.ria de c.lculo|composi..o t.cnica/i);
+  assert.doesNotMatch(answer, /Pr.xima a..o:/i);
+});
+
+test('ELO CORE POC: pedido misto deve pedir separacao antes de implementar', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Crie uma memoria com Supabase e altere a interface do chat');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+
+  assert.match(elo.classifyIntentForTest('Crie uma memoria com Supabase e altere a interface do chat').map((item) => item.type).join(','), /poc_needs_split/);
+  assert.match(answer, /mistura comportamento e implementa/i);
+  assert.match(answer, /Camada 1/i);
+  assert.match(answer, /Camada 2/i);
+  assert.doesNotMatch(answer, /CREATE TABLE|fetch|supabase\.from|schema/i);
+});
+
+test('ELO CORE POC: camada 2 sem camada 1 aprovada nao implementa', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Implemente persistencia real no Supabase');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+
+  assert.match(elo.classifyIntentForTest('Implemente persistencia real no Supabase').map((item) => item.type).join(','), /poc_layer_2_implementation/);
+  assert.match(answer, /Ainda n.o vou implementar/i);
+  assert.match(answer, /Camada 1 precisa estar aprovada/i);
+  assert.doesNotMatch(answer, /CREATE TABLE|supabase\.from|migration|schema/i);
+});
+
+test('ELO CORE POC: camada 1 retorna template comportamental', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Vamos definir a Camada 1 com inputs, saidas esperadas e saidas proibidas');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+
+  assert.match(answer, /Objetivo do usu.rio/i);
+  assert.match(answer, /Inputs -> Sa.das esperadas/i);
+  assert.match(answer, /Sa.das proibidas/i);
+  assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o de obra/i);
+});
