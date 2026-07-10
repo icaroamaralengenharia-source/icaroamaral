@@ -2,6 +2,10 @@
 
 SaaS para relatórios técnicos de fiscalização de obras da Ícaro Amaral Engenharia.
 
+## Protocolo de Operação do ELO
+
+Toda evolução do ELO deve seguir: docs/POC-ELO-1.0.md
+
 ## Frontend
 
 ```bash
