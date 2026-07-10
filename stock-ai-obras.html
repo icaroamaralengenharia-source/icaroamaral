@@ -435,7 +435,7 @@ defer></script>
       </div>
       <span class="stock-obras-kicker">Powered by Elo Obras</span>
       <h1 id="stock-ai-obras-title" class="stock-obras-title">Stock AI <span>Obras</span></h1>
-      <p class="stock-obras-subtitle">Especialista em quantitativos e planejamento de obras</p>
+      <p class="stock-obras-subtitle" data-elo-surface-greeting>O que vamos fazer hoje?</p>
       <p class="stock-obras-copy">Converse com um especialista operacional para transformar serviços executados em composição, consumo previsto, auditoria previsto x real e planejamento de compra.</p>
       <ul class="stock-obras-capabilities" aria-label="Recursos do Stock AI Obras">
         <li>Composições editáveis</li>
@@ -518,14 +518,16 @@ defer></script>
     window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
 
     document.addEventListener("DOMContentLoaded", function () {
-      if (window.EloAssistente && typeof window.EloAssistente.mountMinimal === "function") {
-        window.EloAssistente.mountMinimal({
+      if (window.EloAssistente && typeof window.EloAssistente.initializeSurface === "function") {
+        window.EloAssistente.initializeSurface({
+          surface: "stock-obras",
           panel: ".elo-standalone-panel",
           messages: ".elo-messages",
           form: ".elo-input-row",
           input: ".elo-input",
           attachmentInput: ".elo-attachment-input",
-          attachmentButton: ".elo-attach-button"
+          attachmentButton: ".elo-attach-button",
+          greetingTarget: "[data-elo-surface-greeting]"
         });
       }
 

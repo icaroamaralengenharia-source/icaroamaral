@@ -17,6 +17,7 @@ defer></script>
   <title>ObraReport | Relatórios técnicos e diário de obras</title>
   <meta name="description" content="ObraReport é uma plataforma para organizar clientes, obras, fotos, RDOs, materiais e relatórios técnicos profissionais em poucos minutos.">
   <link rel="stylesheet" href="./relatorio-qualidade-obras.css?v=20260601-premium-landing">
+  <link rel="stylesheet" href="../elo.css">
 </head>
 <body>
   <main class="page-shell">
@@ -2221,6 +2222,22 @@ defer></script>
       </section>
     </section>
   </main>
+  <section class="elo-product-chat report-elo-chat" aria-label="Conversa com o Elo no ObraReport">
+    <div class="elo-product-heading report-elo-heading">
+      <p class="elo-surface-greeting" data-elo-surface-greeting>O que vamos fazer hoje?</p>
+    </div>
+    <section class="elo-standalone-panel" aria-label="Elo ObraReport">
+      <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
+      <p class="elo-input-hint">O ELO pode guardar informa&ccedil;&otilde;es &uacute;teis para continuar suas conversas. Voc&ecirc; pode revisar ou apagar essa mem&oacute;ria quando quiser.</p>
+      <form class="elo-input-row">
+        <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
+        <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
+        <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO CORE..."></textarea>
+        <button type="submit" class="elo-send-button">Enviar</button>
+      </form>
+    </section>
+  </section>
+
   <nav class="stock-full-mobile-nav" aria-label="Menu inferior do Stock Full">
             <button type="button" class="is-active" data-stock-full-dashboard-action="summary"><span>In?cio</span>Dashboard</button>
             <button type="button" data-stock-full-dashboard-action="item"><span>Est.</span>Estoque</button>
@@ -2229,6 +2246,11 @@ defer></script>
 
   <script>
     window.OBRAREPORT_API_BASE_URL = "https://obrareport-backend.onrender.com";
+    window.ELO_CONTEXT = "obras";
+    window.ObraReportEloContext = "obras";
+    window.ELO_PRODUCT_MODE = true;
+    window.ELO_SKIP_AUTO_WIDGET = true;
+    window.ELO_DISABLE_AUTOFOCUS = true;
   </script>
   <script src="./relatorio-config.js?v=20260525-comercial1b"></script>
   <script src="./plans.js?v=20260525-comercial1b"></script>
@@ -2270,8 +2292,23 @@ defer></script>
   <script src="./elo-brain-router.js?v=20260624-brain-router-v1"></script>
   <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
   <div id="elo-operational-dashboard"></div>
-  <link rel="stylesheet" href="elo-assistente.css?v=20260601-premium-landing">
   <script src="elo-conversation-conductor.js?v=20260629-conductor-v1" defer></script>
   <script src="elo-assistente.js?v=20260710-encoding-fix" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.EloAssistente && typeof window.EloAssistente.initializeSurface === "function") {
+        window.EloAssistente.initializeSurface({
+          surface: "report",
+          panel: ".report-elo-chat .elo-standalone-panel",
+          messages: ".report-elo-chat .elo-messages",
+          form: ".report-elo-chat .elo-input-row",
+          input: ".report-elo-chat .elo-input",
+          attachmentInput: ".report-elo-chat .elo-attachment-input",
+          attachmentButton: ".report-elo-chat .elo-attach-button",
+          greetingTarget: ".report-elo-chat [data-elo-surface-greeting]"
+        });
+      }
+    });
+  </script>
 </body>
 </html>

@@ -632,6 +632,10 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
 
 .elo-product-chat .elo-typing-label {
   white-space: nowrap;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .elo-product-chat .elo-typing-dots {
@@ -951,14 +955,22 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-ac
 
 body[data-elo-product="chat"] .elo-product-chat .elo-messages,
 body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
+  position: fixed;
+  top: 76px;
+  bottom: 116px;
+  left: 50%;
+  z-index: 10;
+  width: min(980px, calc(100vw - 32px));
   max-height: none;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 16px;
-  padding: 0 0 28px;
-  overflow: visible;
-  scrollbar-gutter: auto;
+  padding: 0 0 18px;
+  overflow-y: auto;
+  transform: translateX(-50%);
+  scrollbar-gutter: stable;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-messages:empty {
@@ -972,6 +984,9 @@ body[data-elo-product="chat"] .elo-product-chat .elo-input-hint {
   color: rgba(220, 234, 250, 0.48);
   font-size: 0.86rem;
   text-align: center;
+}
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-input-hint {
+  display: none;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
@@ -1015,7 +1030,10 @@ body[data-elo-product="chat"] .elo-product-chat .elo-message.user {
 body[data-elo-product="chat"] .elo-product-chat .elo-message-bubble {
   max-width: min(760px, 100%);
   border-radius: 18px;
-  font-size: 1rem;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.55;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-message.assistant .elo-message-bubble,
@@ -1064,6 +1082,14 @@ body[data-elo-product="chat"] .elo-history-list {
     max-width: 12ch;
     font-size: 2.28rem;
   }
+  body[data-elo-product="chat"] .elo-product-chat .elo-messages,
+  body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
+    top: 68px;
+    bottom: 92px;
+    width: calc(100vw - 24px);
+    gap: 12px;
+    padding-bottom: 12px;
+  }
   body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
     bottom: 10px;
     width: calc(100vw - 16px);
@@ -1076,5 +1102,43 @@ body[data-elo-product="chat"] .elo-history-list {
   }
   body[data-elo-product="chat"] .elo-product-chat .elo-attach-button {
     min-width: 44px;
+  }
+}
+
+
+.elo-surface-greeting {
+  margin: 0 0 18px;
+  color: var(--elo-product-text);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 800;
+  line-height: 1.08;
+}
+
+.report-elo-chat {
+  width: min(920px, calc(100% - 32px));
+  margin: 32px auto 44px;
+  min-height: 560px;
+}
+
+.report-elo-chat .report-elo-heading {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.report-elo-chat .elo-standalone-panel {
+  min-height: 520px;
+}
+
+.report-elo-chat .elo-input-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+@media (max-width: 640px) {
+  .report-elo-chat .elo-input-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .report-elo-chat .elo-attach-button {
+    grid-column: 1 / -1;
   }
 }

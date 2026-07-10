@@ -950,3 +950,29 @@ test('ELO CORE nome: perfil local migra como compatibilidade de nova conversa', 
   const response = elo.buildResponseForTest('Qual é o meu nome?');
   assert.equal(response.shortAnswer, 'Seu nome é Ícaro Amaral.');
 });
+
+
+test('ELO CORE sincroniza as tres superficies publicas no bootstrap minimalista', () => {
+  const root = path.resolve(__dirname, '..');
+  const surfaces = [
+    ['elo.html', path.join(root, 'elo.html')],
+    ['stock-ai-obras.html', path.join(root, 'stock-ai-obras.html')],
+    ['relatorio-qualidade-obras.html', path.join(root, 'relatorio-qualidade-obras', 'relatorio-qualidade-obras.html')]
+  ];
+
+  for (const [label, filePath] of surfaces) {
+    const html = fs.readFileSync(filePath, 'utf8');
+    assert.match(html, /elo-assistente\.js/);
+    assert.match(html, /ELO_SKIP_AUTO_WIDGET\s*=\s*true/);
+    assert.match(html, /initializeSurface\s*\(/, label + ' deve usar o bootstrap publico comum');
+    assert.match(html, /<textarea[^>]+class="elo-input"/i, label + ' deve manter composer textarea');
+    assert.doesNotMatch(html, /elo-assistente\.css/, label + ' nao deve carregar o CSS do widget antigo');
+  }
+
+  const eloHtml = fs.readFileSync(path.join(root, 'elo.html'), 'utf8');
+  assert.doesNotMatch(eloHtml, /ELO_CORE_NAME_MEMORY_CATEGORY\s*=\s*"profile"/, 'elo.html nao deve duplicar memoria canonica');
+
+  const reportHtml = fs.readFileSync(path.join(root, 'relatorio-qualidade-obras', 'relatorio-qualidade-obras.html'), 'utf8');
+  assert.match(reportHtml, /\.\.\/elo\.css/);
+  assert.match(reportHtml, /report-elo-chat/);
+});

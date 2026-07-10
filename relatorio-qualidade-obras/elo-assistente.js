@@ -7165,17 +7165,8 @@
   }
 
   function buildConnectedGreeting() {
-    const project = typeof getActiveEloCoreProjectMemory_ === "function" ? getActiveEloCoreProjectMemory_() : null;
     const name = typeof getCanonicalEloCoreUserName_ === "function" ? getEloCoreFirstName_(getCanonicalEloCoreUserName_()) : "";
-    if (project) {
-      return [
-        (name ? name + ", continuaremos o projeto " : "Continuaremos o projeto ") + project.project_name + ".",
-        "",
-        project.last_completed_task ? "Última tarefa concluída:\n" + formatEloCoreProjectTask_(project.last_completed_task) : "",
-        project.pending_task ? "Próxima tarefa:\n" + formatEloCoreProjectTask_(project.pending_task) : ""
-      ].filter(Boolean).join("\n");
-    }
-    return "O que vamos fazer hoje?";
+    return name ? name + ", o que vamos fazer hoje?" : "O que vamos fazer hoje?";
   }
 
   function buildPremiumWelcomeMessage_() {
@@ -20789,6 +20780,56 @@
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function renderEloCoreSurfaceGreeting_(target) {
+    const element = typeof target === "string" ? document.querySelector(target) : target;
+    if (!element) {
+      return;
+    }
+    const greeting = buildConnectedGreeting();
+    element.innerHTML = escapeEloHtml_(greeting).replace("fazer", '<span class="elo-highlight">fazer</span>');
+  }
+
+  function initializeEloCoreSurface(options) {
+    const config = options || {};
+    const panel = document.querySelector(config.panel || ".elo-standalone-panel");
+    if (!panel) {
+      return false;
+    }
+    if (panel.dataset.eloCoreSurfaceMounted === "true") {
+      renderEloCoreSurfaceGreeting_(config.greetingTarget || "[data-elo-surface-greeting]");
+      return true;
+    }
+    panel.dataset.eloCoreSurfaceMounted = "true";
+    panel.dataset.eloCoreSurface = sanitizeUserText(config.surface || "elo");
+
+    const mounted = mountMinimalEloChat({
+      panel: config.panel || ".elo-standalone-panel",
+      messages: config.messages || ".elo-messages",
+      form: config.form || ".elo-input-row",
+      input: config.input || ".elo-input",
+      attachmentInput: config.attachmentInput || ".elo-attachment-input",
+      attachmentButton: config.attachmentButton || ".elo-attach-button",
+      newChatButton: config.newChatButton || "[data-elo-new-chat]",
+      historyButton: config.historyButton || "[data-elo-history]",
+      memoryButton: config.memoryButton || "[data-elo-memory]"
+    });
+    if (!mounted) {
+      delete panel.dataset.eloCoreSurfaceMounted;
+      return false;
+    }
+
+    const greetingTarget = config.greetingTarget || "[data-elo-surface-greeting]";
+    renderEloCoreSurfaceGreeting_(greetingTarget);
+    window.setTimeout(function () { renderEloCoreSurfaceGreeting_(greetingTarget); }, 0);
+    window.setTimeout(function () { renderEloCoreSurfaceGreeting_(greetingTarget); }, 350);
+    loadEloCoreMemories_().then(function () {
+      renderEloCoreSurfaceGreeting_(greetingTarget);
+    }).catch(function () {
+      renderEloCoreSurfaceGreeting_(greetingTarget);
+    });
+    return true;
+  }
+
   function mountMinimalEloChat(options) {
     const config = options || {};
     const form = document.querySelector(config.form || ".elo-input-row");
@@ -20886,6 +20927,7 @@
   window.EloAssistente = Object.assign({}, window.EloAssistente || {}, {
     ask: askElo,
     mountMinimal: mountMinimalEloChat,
+    initializeSurface: initializeEloCoreSurface,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
