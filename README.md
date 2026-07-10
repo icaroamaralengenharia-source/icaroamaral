@@ -162,6 +162,33 @@ cd backend
 npm test
 ```
 
+## Portao unico de acesso
+
+Todas as paginas HTML publicaveis devem carregar a mesma protecao frontend:
+
+```html
+<script>
+document.documentElement.classList.add('site-access-locked');
+</script>
+
+<link rel="stylesheet"
+href="/assets/site-access-gate.css?v=20260710-access-v2">
+
+<script
+src="/assets/site-access-gate.js?v=20260710-access-v2"
+defer></script>
+```
+
+Arquivos compartilhados:
+
+```text
+assets/site-access-gate.css
+assets/site-access-gate.js
+```
+
+A sessao usa `sessionStorage` com a chave `icaro_site_access_v2`, vale para as paginas protegidas durante a navegacao da mesma aba e pode ser encerrada com `window.logoutSite()`. Ela nao persiste permanentemente no navegador e termina ao fechar completamente a aba.
+
+Ao adicionar qualquer novo arquivo `.html`, incluir o snippet acima no inicio do `<head>` e tambem `<meta name="robots" content="noindex, nofollow, noarchive">` para manter a pagina bloqueada e fora de indexacao temporariamente. Este bloqueio e apenas frontend, temporario e voltado a visitantes comuns; JavaScript frontend pode ser contornado, os arquivos continuam sendo entregues pela hospedagem e protecao real exige Cloudflare Access, autenticacao de servidor ou origem privada.
 ## Segurança
 
 - Não versionar `backend/.env`.
