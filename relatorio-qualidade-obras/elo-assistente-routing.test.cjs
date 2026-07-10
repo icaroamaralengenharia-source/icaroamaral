@@ -44,6 +44,7 @@ function loadEloContext(options = {}) {
     Math,
     Blob: function Blob() {},
     URL: { createObjectURL() { return 'blob:test'; }, revokeObjectURL() {} },
+    URLSearchParams,
     window: {
       ELO_SKIP_AUTO_WIDGET: true,
       ELO_DISABLE_AUTOFOCUS: true,
@@ -734,21 +735,32 @@ test('ELO composto: pdf curto usa orcamento composto atual sem repetir tudo', ()
 test('ELO CORE: abre ferramentas explicitas com nomes publicos e rotas auditadas', () => {
   const elo = loadElo();
   const cases = [
-    ['Abra o CADISTA.', 'tool', 'cadista', '/cadista/', 'Abrindo o Editor tecnico'],
-    ['Abra o Stock.', 'tool', 'stock', '/stockfull.html', 'Abrindo a Gestao de estoque'],
-    ['Abra o relatorio.', 'tool', 'relatorio', '/relatorio-qualidade-obras/', 'Abrindo o Editor de relatorio']
+    ['Abra o CADISTA.', 'cadista', '/cadista/', '/cadista/?source=elo-core', /Abrindo o Editor t[eé]cnico/i],
+    ['Abra o relatório.', 'relatorio', '/relatorio-qualidade-obras/', '/relatorio-qualidade-obras/?source=elo-core', /Abrindo o Editor de relat[oó]rio/i],
+    ['Abrir ObraReport.', 'relatorio', '/relatorio-qualidade-obras/', '/relatorio-qualidade-obras/?source=elo-core', /Abrindo o Editor de relat[oó]rio/i],
+    ['Quero abrir o relatório.', 'relatorio', '/relatorio-qualidade-obras/', '/relatorio-qualidade-obras/?source=elo-core', /Abrindo o Editor de relat[oó]rio/i],
+    ['Abra o RDO.', 'rdo', '/relatorio-qualidade-obras/#rdo-identificacao', '/relatorio-qualidade-obras/?source=elo-core&section=rdo', /Abrindo o Di[aá]rio de obra/i],
+    ['Abra o Diário de Obra.', 'rdo', '/relatorio-qualidade-obras/#rdo-identificacao', '/relatorio-qualidade-obras/?source=elo-core&section=rdo', /Abrindo o Di[aá]rio de obra/i],
+    ['Abra o Stock.', 'stock', '/stockfull.html', '/stockfull.html?source=elo-core', /Abrindo a Gest[aã]o de estoque/i],
+    ['Abra o Stock Full.', 'stock', '/stockfull.html', '/stockfull.html?source=elo-core', /Abrindo a Gest[aã]o de estoque/i],
+    ['Abra o estoque.', 'stock', '/stockfull.html', '/stockfull.html?source=elo-core', /Abrindo a Gest[aã]o de estoque/i],
+    ['Quero acessar o estoque.', 'stock', '/stockfull.html', '/stockfull.html?source=elo-core', /Abrindo a Gest[aã]o de estoque/i],
+    ['Abra o Stock Obras.', 'stockObras', '/stock-ai-obras.html', '/stock-ai-obras.html?source=elo-core', /Abrindo o Estoque de obra/i],
+    ['Abra o almoxarifado.', 'stockObras', '/stock-ai-obras.html', '/stock-ai-obras.html?source=elo-core', /Abrindo o Estoque de obra/i]
   ];
 
-  for (const [message, mode, id, route, answer] of cases) {
+  for (const [message, id, route, url, answer] of cases) {
     const response = elo.buildResponseForTest(message);
-    assert.equal(response.eloCoreMode, mode);
+    assert.equal(response.sessionIntent, 'explicit_tool_request');
+    assert.equal(response.eloCoreMode, 'tool');
     assert.equal(response.eloCoreTool.id, id);
     assert.equal(response.eloCoreTool.route, route);
-    assert.match(response.fullAnswer, new RegExp(answer.replace('tecnico', 't[eé]cnico').replace('Gestao', 'Gest[aã]o').replace('relatorio', 'relat[oó]rio'), 'i'));
-    assert.match(response.eloCoreTool.url, /eloContext=eloctx_/);
+    assert.equal(response.eloCoreTool.url, url);
+    assert.match(response.fullAnswer, answer);
+    assert.match(response.eloCoreTool.url, /[?&]source=elo-core(?:&|$)/);
+    assert.doesNotMatch(response.fullAnswer, /https?:\/\//i);
   }
 });
-
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Qual Ã© o link do CADISTA?');
@@ -759,7 +771,6 @@ test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   assert.match(response.fullAnswer, /link do Editor t[eé]cnico/i);
   assert.doesNotMatch(response.fullAnswer, /Abrindo/i);
 });
-
 test('ELO CORE: anÃ¡lise de foto resolve direto salvo quando abrir ferramenta Ã© explÃ­cito', () => {
   const elo = loadElo();
   let response = elo.buildResponseForTest('Analise esta foto e gere um relatorio.');
