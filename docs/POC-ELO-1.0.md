@@ -1,6 +1,8 @@
 # PROTOCOLO DE OPERAÇÃO DE CÓDIGO — POC 1.0
 ## Projeto ELO Core
 
+Qualquer implementação que não siga este protocolo será considerada incompleta.
+
 ## Camada 0 — Decisão
 
 Antes de qualquer implementação, avaliar:
