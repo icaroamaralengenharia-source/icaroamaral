@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
+import { createEloCoreStore } from "./elo-core-store.js";
 
 const MAX_TEXT_LENGTH = 6000;
 const MAX_CONTEXT_LENGTH = 16000;
@@ -29,6 +30,7 @@ const REPO_DIR = join(BACKEND_DIR, "..");
 const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
 const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
+const ELO_CORE_STORE_PATH = join(BACKEND_DIR, "data", "elo-core.json");
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
   {
@@ -743,6 +745,7 @@ export function createApp(options = {}) {
   const env = options.env || process.env;
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
   const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH, env });
+  const eloCoreStore = options.eloCoreStore || createEloCoreStore({ dataPath: env.ELO_CORE_STORE_PATH || ELO_CORE_STORE_PATH });
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
@@ -1965,6 +1968,79 @@ export function createApp(options = {}) {
         error: "A IA visual não respondeu agora. Tente novamente em instantes."
       });
     }
+  });
+
+
+
+  function getTrustedEloCoreUserId_(request) {
+    return clean_(
+      request.user && (request.user.id || request.user.userId) ||
+      request.auth && (request.auth.userId || request.auth.user_id || request.auth.sub) ||
+      request.headers["x-elo-auth-user-id"] ||
+      request.headers["x-authenticated-user-id"] ||
+      ""
+    );
+  }
+  function getEloCoreIdentity_(request) {
+    const trustedUserId = getTrustedEloCoreUserId_(request);
+    return {
+      userId: trustedUserId,
+      anonymousId: clean_(request.body && (request.body.anonymousId || request.body.anonymous_id) || request.query && (request.query.anonymousId || request.query.anonymous_id))
+    };
+  }
+  function sendEloCoreError_(response, error) {
+    response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
+  }
+
+  app.get("/api/elo/conversations", (request, response) => {
+    try { response.json({ ok: true, conversations: eloCoreStore.listConversations(Object.assign(getEloCoreIdentity_(request), { includeArchived: request.query.includeArchived })) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.post("/api/elo/conversations", (request, response) => {
+    try { response.status(201).json({ ok: true, conversation: eloCoreStore.createConversation(Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.get("/api/elo/conversations/:id", (request, response) => {
+    try { response.json(Object.assign({ ok: true }, eloCoreStore.getConversation(request.params.id, getEloCoreIdentity_(request)))); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.put("/api/elo/conversations/:id", (request, response) => {
+    try { response.json({ ok: true, conversation: eloCoreStore.updateConversation(request.params.id, request.body || {}, getEloCoreIdentity_(request)) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.post("/api/elo/conversations/:id/messages", (request, response) => {
+    try { response.status(201).json({ ok: true, message: eloCoreStore.addMessage(request.params.id, Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.post("/api/elo/identity/merge", (request, response) => {
+    try { response.json(eloCoreStore.mergeAnonymous(request.body && request.body.anonymousId, getTrustedEloCoreUserId_(request))); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.get("/api/elo/memories", (request, response) => {
+    try { response.json({ ok: true, memories: eloCoreStore.listMemories(Object.assign(getEloCoreIdentity_(request), { includeInactive: request.query.includeInactive })) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.post("/api/elo/memories", (request, response) => {
+    try {
+      if (request.body && (request.body.memoryDisabled === true || request.body.memory_disabled === true)) {
+        response.json({ ok: true, memory: null, skipped: "memory_disabled" });
+        return;
+      }
+      response.status(201).json({ ok: true, memory: eloCoreStore.upsertMemory(Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) });
+    }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.put("/api/elo/memories/:id", (request, response) => {
+    try { response.json({ ok: true, memory: eloCoreStore.updateMemory(request.params.id, request.body || {}, getEloCoreIdentity_(request)) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.delete("/api/elo/memories/:id", (request, response) => {
+    try { response.json({ ok: true, memory: eloCoreStore.deleteMemory(request.params.id, getEloCoreIdentity_(request)) }); }
+    catch (error) { sendEloCoreError_(response, error); }
+  });
+  app.delete("/api/elo/memories", (request, response) => {
+    try { response.json(eloCoreStore.clearMemories(getEloCoreIdentity_(request))); }
+    catch (error) { sendEloCoreError_(response, error); }
   });
 
   app.post("/api/elo/vector-memory", async (request, response) => {

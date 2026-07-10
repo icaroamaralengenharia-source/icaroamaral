@@ -24,6 +24,19 @@
     budgetRecordsStorageKey: "elo_budget_records_v1",
     budgetCounterStorageKey: "elo_budget_counter_v1"
   };
+  const ELO_CORE_CONTEXT_STORAGE_KEY = "elo_core_tool_contexts_v1";
+  const ELO_CORE_LAST_CONTEXT_KEY = "elo_core_last_context_id_v1";
+  const ELO_CORE_ANONYMOUS_ID_KEY = "elo_core_anonymous_id_v1";
+  const ELO_CORE_CONVERSATION_ID_KEY = "elo_core_current_conversation_id_v1";
+  const ELO_CORE_MEMORY_DISABLED_KEY = "elo_core_memory_disabled_v1";
+  const ELO_CORE_TOOL_REGISTRY = {
+    relatorio: { id: "relatorio", publicName: "Editor de relatório", route: "/relatorio-qualidade-obras/", openingMessage: "Abrindo o Editor de relatório...", aliases: ["relatorio", "relatorio tecnico", "laudo", "vistoria", "editor de relatorio"] },
+    cadista: { id: "cadista", publicName: "Editor técnico", route: "/cadista/", openingMessage: "Abrindo o Editor técnico...", aliases: ["cadista", "cadista ia", "planta", "planta baixa", "dxf", "desenho tecnico"] },
+    stock: { id: "stock", publicName: "Gestão de estoque", route: "/stockfull.html", openingMessage: "Abrindo a Gestão de estoque...", aliases: ["stock", "stock full", "gestao de estoque", "gestão de estoque", "estoque geral", "almoxarifado"] },
+    stockObras: { id: "stockObras", publicName: "Estoque de obra", route: "/stock-ai-obras.html", openingMessage: "Abrindo o Estoque de obra...", aliases: ["estoque de obra", "stock obras", "stock ai obras", "materiais da obra", "obra estoque"] },
+    orcamento: { id: "orcamento", publicName: "Orçamento", route: "/elo.html", openingMessage: "Abrindo o Orçamento...", aliases: ["orcamento", "orçamento", "orcamentista", "orçamentista"] },
+    rdo: { id: "rdo", publicName: "Diário de obra", route: "/relatorio-qualidade-obras/#rdo-identificacao", openingMessage: "Abrindo o Diário de obra...", aliases: ["rdo", "diario de obra", "diário de obra", "diario", "diário"] }
+  };
   const ELO_PDF_TEXT_CONTEXT_LIMIT = 15000;
   const ELO_PDFJS_LIBRARY_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
@@ -40,6 +53,210 @@
       : (configuredBaseUrl || "http://localhost:3000");
 
     return baseUrl + path;
+  }
+
+  function getEloCoreToolList_() { return Object.keys(ELO_CORE_TOOL_REGISTRY).map(function (key) { return ELO_CORE_TOOL_REGISTRY[key]; }); }
+  function isEloCoreOpenRequest_(message) { const text = normalizeText(message || ""); return /\b(?:abrir|abra|acessar|acesse|entrar|entre)\b/.test(text) || /\bme\s+leve\b/.test(text) || /\bquero\s+(?:abrir|usar|acessar|entrar)\b/.test(text); }
+  function isEloCoreLinkRequest_(message) { const text = normalizeText(message || ""); return /\b(?:qual|quais|cade|cadê|mostre|mostrar|manda|mande|enviar|envie)\b[\s\S]{0,40}\blink\b/.test(text) || /\blink\b[\s\S]{0,40}\b(?:cadista|relatorio|relatório|stock|estoque|rdo|orcamento|orçamento)\b/.test(text) || /\b(?:url|endereco|endereço)\b/.test(text); }
+  function detectEloCoreTool_(message) { const text = normalizeText(message || ""); if (!text) return null; const matches = getEloCoreToolList_().map(function (tool, index) { const score = (tool.aliases || []).reduce(function (best, alias) { const normalizedAlias = normalizeText(alias); return normalizedAlias && text.indexOf(normalizedAlias) >= 0 ? Math.max(best, normalizedAlias.length) : best; }, 0); return { tool: tool, score: score, index: index }; }).filter(function (entry) { return entry.score > 0; }).sort(function (first, second) { if (second.score !== first.score) return second.score - first.score; return first.index - second.index; }); return matches.length ? matches[0].tool : null; }
+  function createEloCoreContextId_() { return "eloctx_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
+  function readEloCoreContexts_() { try { const parsed = JSON.parse(window.sessionStorage.getItem(ELO_CORE_CONTEXT_STORAGE_KEY) || window.localStorage.getItem(ELO_CORE_CONTEXT_STORAGE_KEY) || "[]"); return Array.isArray(parsed) ? parsed : []; } catch (error) { return []; } }
+  function writeEloCoreContexts_(contexts) { const payload = JSON.stringify((Array.isArray(contexts) ? contexts : []).slice(0, 25)); try { window.sessionStorage.setItem(ELO_CORE_CONTEXT_STORAGE_KEY, payload); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_CONTEXT_STORAGE_KEY, payload); } catch (error) {} }
+  function saveEloCoreToolContext_(tool, question) { const contextId = createEloCoreContextId_(); const locationValue = window.location || {}; const returnUrl = String((locationValue.pathname || "/elo.html") + (locationValue.search || "") + (locationValue.hash || "")); const context = { id: contextId, toolId: tool.id, toolName: tool.publicName, createdAt: new Date().toISOString(), returnUrl: returnUrl, conversation: { lastQuestion: sanitizeUserText(question).slice(0, 900), lastAnswer: sanitizeUserText(ELO_SESSION_MEMORY.lastAnswer || "").slice(0, 1800), activeTopic: sanitizeUserText(ELO_SESSION_MEMORY.activeConversationTopic || "").slice(0, 80) } }; const contexts = readEloCoreContexts_().filter(function (item) { return item && item.id !== contextId; }); contexts.unshift(context); writeEloCoreContexts_(contexts); try { window.sessionStorage.setItem(ELO_CORE_LAST_CONTEXT_KEY, contextId); } catch (error) {} try { window.localStorage.setItem(ELO_CORE_LAST_CONTEXT_KEY, contextId); } catch (error) {} return contextId; }
+  function buildEloCoreToolUrl_(tool, contextId) { const rawRoute = tool && tool.route ? tool.route : "/elo.html"; const hashIndex = rawRoute.indexOf("#"); const base = hashIndex >= 0 ? rawRoute.slice(0, hashIndex) : rawRoute; const hash = hashIndex >= 0 ? rawRoute.slice(hashIndex) : ""; const separator = base.indexOf("?") >= 0 ? "&" : "?"; return base + separator + "eloContext=" + encodeURIComponent(contextId) + hash; }
+  function buildEloCoreToolIntentResponse_(message) { const tool = detectEloCoreTool_(message); if (!tool) return null; const wantsLink = isEloCoreLinkRequest_(message); const wantsOpen = isEloCoreOpenRequest_(message); if (!wantsLink && !wantsOpen) return null; const mode = wantsLink ? "link" : "tool"; const contextId = saveEloCoreToolContext_(tool, message); const url = buildEloCoreToolUrl_(tool, contextId); const answer = mode === "link" ? "Aqui está o link do " + tool.publicName + "." : tool.openingMessage; return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "elo_core", sessionIntent: "elo_core_" + mode + "_" + tool.id, eloCoreMode: mode, eloCoreTool: { id: tool.id, name: tool.publicName, route: tool.route, url: url, contextId: contextId, openingMessage: tool.openingMessage } }; }
+  function navigateEloCoreTool_(response) { if (!response || response.eloCoreMode !== "tool" || !response.eloCoreTool || !response.eloCoreTool.url) return false; window.setTimeout(function () { if (window.location && typeof window.location.assign === "function") window.location.assign(response.eloCoreTool.url); else window.location.href = response.eloCoreTool.url; }, 450); return true; }
+
+
+  function classifyEloCoreIntent_(message, context) {
+    const raw = sanitizeUserText(message);
+    const text = normalizeText(raw);
+    const intents = [];
+    function add(intent) {
+      if (!intent || !intent.type) return;
+      const key = intent.type + "|" + (intent.location || intent.topic || intent.toolId || "");
+      if (!intents.some(function (item) { return item.type + "|" + (item.location || item.topic || item.toolId || "") === key; })) intents.push(intent);
+    }
+    if (!text) return intents;
+    const tool = detectEloCoreTool_(raw);
+    if (tool && isEloCoreLinkRequest_(raw)) add({ type: "request_tool_link", toolId: tool.id, toolName: tool.publicName });
+    if (tool && isEloCoreOpenRequest_(raw)) add({ type: "open_tool", toolId: tool.id, toolName: tool.publicName });
+    if (/\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
+    if (/\b(quantos graus|temperatura|clima|previsao do tempo|previsão do tempo|tempo em)\b/.test(text)) {
+      const locationMatch = raw.match(/(?:em|para)\s+([^?.,;!]+)(?:[?.,;!]|$)/i);
+      add({ type: "weather", location: locationMatch ? sanitizeUserText(locationMatch[1]).replace(/\s+e\s+quem\s+vai\s+ganhar[\s\S]*$/i, "") : "" });
+    }
+    if (/\b(quem vai ganhar|favoritos?|previsao|previsão|palpite)\b/.test(text) && /\b(copa|campeonato|eleicao|eleição|jogo|partida)\b/.test(text)) {
+      const topicMatch = raw.match(/(Copa[^?.,;!]*)/i);
+      add({ type: "research_or_opinion", topic: topicMatch ? sanitizeUserText(topicMatch[1]) : "previsão" });
+    }
+    if (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text)) add({ type: "math" });
+    if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
+    if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
+    if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
+    if (/\b(cadista|cad|dxf|planta baixa|desenho tecnico|desenho técnico)\b/.test(text)) add({ type: "cad" });
+    if (/\b(stock|estoque|almoxarifado|materiais)\b/.test(text)) add({ type: "stock" });
+    if (/\b(rdo|diario de obra|diário de obra)\b/.test(text)) add({ type: "rdo" });
+    if (/\b(parede|viga|pilar|laje|reboco|concreto|alvenaria|fundacao|fundação|estrutura)\b/.test(text)) add({ type: "engineering" });
+    if (!intents.length) add({ type: "conversation" });
+    return intents;
+  }
+
+  function formatEloCoreDateTimeAnswer_(date) {
+    const current = date || new Date();
+    try {
+      const formattedDate = current.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+      const formattedTime = current.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      return "Hoje é " + formattedDate + ". Agora são " + formattedTime + ".";
+    } catch (error) {
+      return "Hoje é " + current.toISOString().slice(0, 10) + ".";
+    }
+  }
+
+  function calculateSimpleEloCoreMath_(message) {
+    const raw = sanitizeUserText(message).replace(/,/g, ".");
+    const match = raw.match(/(-?\d+(?:\.\d+)?)\s*([+*x×/÷-])\s*(-?\d+(?:\.\d+)?)/);
+    if (!match) return "Consigo calcular, mas preciso de uma conta objetiva, por exemplo: 25 * 4.";
+    const left = Number(match[1]);
+    const right = Number(match[3]);
+    const op = match[2];
+    let result = null;
+    if (op === "+") result = left + right;
+    if (op === "-") result = left - right;
+    if (op === "*" || op === "x" || op === "×") result = left * right;
+    if (op === "/" || op === "÷") result = right === 0 ? null : left / right;
+    if (result === null || !Number.isFinite(result)) return "Não consigo dividir por zero.";
+    return "O resultado é " + String(Number(result.toFixed(6))).replace(".", ",") + ".";
+  }
+
+  function routeEloCoreIntent_(intent, context) {
+    const message = context && context.message ? context.message : "";
+    if (!intent || !intent.type) return null;
+    if (intent.type === "date_time") return { text: formatEloCoreDateTimeAnswer_(context && context.now), handled: true };
+    if (intent.type === "weather") {
+      const location = intent.location || "a cidade informada";
+      return { text: "Não tenho uma integração de clima ativa nesta sessão para consultar " + location + " em tempo real.", handled: true };
+    }
+    if (intent.type === "research_or_opinion" || intent.type === "research") {
+      return { text: "Não dá para saber com certeza, mas posso analisar os favoritos se você quiser trabalhar com dados e contexto atualizados.", handled: true };
+    }
+    if (intent.type === "math") return { text: calculateSimpleEloCoreMath_(message), handled: true };
+    if (intent.type === "memory") {
+      const memoryResponse = buildEloCoreMemoryRecallResponse_(message);
+      if (memoryResponse) return { text: memoryResponse.fullAnswer || memoryResponse.shortAnswer, handled: true };
+      return { text: "Não encontrei uma memória real sobre isso ainda.", handled: true };
+    }
+    return null;
+  }
+
+  function routeEloCoreIntents_(message, context) {
+    const intents = classifyEloCoreIntent_(message, context);
+    if (intents.length === 1 && intents[0].type === "conversation") return null;
+    const commonTypes = ["date_time", "weather", "research_or_opinion", "research", "math", "memory"];
+    const parts = [];
+    intents.forEach(function (intent) {
+      if (commonTypes.indexOf(intent.type) < 0) return;
+      const routed = routeEloCoreIntent_(intent, Object.assign({}, context || {}, { message: message }));
+      if (routed && routed.handled && routed.text) parts.push(routed.text);
+    });
+    if (!parts.length) return null;
+    const answer = parts.join("\n\n");
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "elo_core_intent", sessionIntent: intents.map(function (intent) { return intent.type; }).join("+") };
+  }
+
+  function getEloCoreAnonymousId_() { try { const existing = sanitizeUserText(window.localStorage.getItem(ELO_CORE_ANONYMOUS_ID_KEY)); if (/^elo_anon_[a-zA-Z0-9_-]+$/.test(existing)) return existing; const random = window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10); const id = "elo_anon_" + random; window.localStorage.setItem(ELO_CORE_ANONYMOUS_ID_KEY, id); return id; } catch (error) { return "elo_anon_" + Date.now().toString(36); } }
+  function getEloCoreUserId_() { return sanitizeUserText(window.ELO_USER_ID || window.ELO_AUTH_USER_ID || "").slice(0, 140); }
+  function getEloCoreIdentity_() { const userId = getEloCoreUserId_(); return userId ? { userId: userId, anonymousId: getEloCoreAnonymousId_() } : { anonymousId: getEloCoreAnonymousId_() }; }
+  function getEloCoreCurrentConversationId_() { try { return sanitizeUserText(window.localStorage.getItem(ELO_CORE_CONVERSATION_ID_KEY)); } catch (error) { return ""; } }
+  function setEloCoreCurrentConversationId_(id) { ELO_UI.coreConversationId = sanitizeUserText(id); try { if (ELO_UI.coreConversationId) window.localStorage.setItem(ELO_CORE_CONVERSATION_ID_KEY, ELO_UI.coreConversationId); else window.localStorage.removeItem(ELO_CORE_CONVERSATION_ID_KEY); } catch (error) {} }
+  function isEloCoreMemoryDisabled_() { try { return window.localStorage.getItem(ELO_CORE_MEMORY_DISABLED_KEY) === "true"; } catch (error) { return false; } }
+  function setEloCoreMemoryDisabled_(disabled) { try { window.localStorage.setItem(ELO_CORE_MEMORY_DISABLED_KEY, disabled ? "true" : "false"); } catch (error) {} }
+  function eloCoreFetch_(path, options) { const config = options || {}; const headers = Object.assign({ "Content-Type": "application/json" }, config.headers || {}); return fetch(getEloBackendEndpoint_(path), Object.assign({}, config, { headers: headers })).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { if (!response.ok || data.ok === false) throw new Error(data.error || "elo_core_api_error"); return data; }); }); }
+  function buildEloCoreMessageAttachments_() { return (ELO_UI.attachments || []).map(function (file) { return { name: sanitizeUserText(file && file.name), type: sanitizeUserText(file && file.type), size: Number(file && file.size) || 0 }; }); }
+  function ensureEloCoreConversation_() { if (ELO_UI.coreConversationId) return Promise.resolve(ELO_UI.coreConversationId); const existing = getEloCoreCurrentConversationId_(); if (existing) { ELO_UI.coreConversationId = existing; return Promise.resolve(existing); } return eloCoreFetch_("/api/elo/conversations", { method: "POST", body: JSON.stringify(Object.assign({ title: "Nova conversa" }, getEloCoreIdentity_())) }).then(function (data) { setEloCoreCurrentConversationId_(data.conversation && data.conversation.id); return ELO_UI.coreConversationId; }); }
+  function detectEloCoreMemoryCandidate_(role, content) {
+    if (role !== "user" || isEloCoreMemoryDisabled_()) return null;
+    const raw = sanitizeUserText(content).slice(0, 1200);
+    const text = normalizeText(raw);
+    if (!raw || /\b(senha|password|token|api key|chave api|cartao|cartão|cpf|banco|pix|segredo)\b/.test(text)) return null;
+
+    let match = raw.match(/(?:meu nome é|me chamo|pode me chamar de)\s+([^.,;\n]{2,80})/i);
+    if (match) {
+      return {
+        category: "profile",
+        memory_key: "nome",
+        memory_value: "Usuário se chama " + sanitizeUserText(match[1]) + ".",
+        confidence: 0.92
+      };
+    }
+
+    match = raw.match(/(?:prefiro|gosto que você|responda sempre|quero respostas?)\s+([^\n]{6,180})/i);
+    if (match) {
+      return {
+        category: "preference",
+        memory_key: "estilo_resposta",
+        memory_value: "Preferência do usuário: " + sanitizeUserText(match[1]) + ".",
+        confidence: 0.82
+      };
+    }
+
+    match = raw.match(/(?:lembre que|guarde que|decidimos que)\s+([^\n]{8,220})/i);
+    if (match) {
+      return {
+        category: text.indexOf("decidimos") >= 0 ? "decision" : "technical_context",
+        memory_key: sanitizeUserText(match[1]).slice(0, 48).toLowerCase(),
+        memory_value: sanitizeUserText(match[1]),
+        confidence: 0.78
+      };
+    }
+
+    if (/\belo core\b/.test(text) && /\b(produto principal|ferramentas?|cadista|stock|relatorio|relatório)\b/.test(text)) {
+      return {
+        category: "project",
+        memory_key: "elo_core",
+        memory_value: raw,
+        confidence: 0.74
+      };
+    }
+
+    return null;
+  }
+  function cacheEloCoreMemory_(memory) { if (!memory) return; ELO_UI.coreMemories = (ELO_UI.coreMemories || []).filter(function (item) { return item.id !== memory.id && !(item.category === memory.category && item.memory_key === memory.memory_key); }); ELO_UI.coreMemories.unshift(memory); }
+  function persistEloCoreMessage_(role, content, attachments) { if (!isStandaloneMode() || !ELO_UI.messages || ELO_UI.replayingCoreHistory) return; if (role !== "user" && role !== "assistant") return; const cleanContent = sanitizeUserText(content); if (!cleanContent) return; ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "/messages", { method: "POST", body: JSON.stringify(Object.assign({ role: role, content: cleanContent, attachments: attachments || [] }, getEloCoreIdentity_())) }); }).then(function () { const candidate = detectEloCoreMemoryCandidate_(role, cleanContent); if (!candidate) return null; return ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/memories", { method: "POST", body: JSON.stringify(Object.assign({}, getEloCoreIdentity_(), candidate, { sourceConversationId: conversationId })) }); }); }).then(function (data) { if (data && data.memory) cacheEloCoreMemory_(data.memory); }).catch(function () {}); }
+  function refreshEloInputHeight_() { if (!ELO_UI.input || String(ELO_UI.input.tagName || "").toLowerCase() !== "textarea") return; ELO_UI.input.style.height = "auto"; ELO_UI.input.style.height = Math.min(ELO_UI.input.scrollHeight, 160) + "px"; }
+  function setEloCoreWelcomeVisible_() { if (ELO_UI.panel && ELO_UI.messages) ELO_UI.panel.classList.toggle("is-chat-active", ELO_UI.messages.children.length > 0); }
+  function replayEloCoreMessages_(messages) { if (!ELO_UI.messages) return; ELO_UI.replayingCoreHistory = true; ELO_UI.messages.textContent = ""; (messages || []).forEach(function (item) { appendMessage(item.role === "user" ? "user" : "assistant", item.content || ""); }); ELO_UI.replayingCoreHistory = false; setEloCoreWelcomeVisible_(); window.setTimeout(function () { window.scrollTo(0, document.body.scrollHeight); }, 0); }
+  function loadEloCoreConversation_(id) { const conversationId = sanitizeUserText(id); if (!conversationId) return Promise.resolve(false); return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { setEloCoreCurrentConversationId_(conversationId); replayEloCoreMessages_(data.messages || []); return true; }).catch(function () { setEloCoreCurrentConversationId_(""); return false; }); }
+  function loadEloCoreMemories_() { return eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { ELO_UI.coreMemories = data.memories || []; return ELO_UI.coreMemories; }).catch(function () { ELO_UI.coreMemories = []; return []; }); }
+  function initEloCorePersistence_() { if (!isStandaloneMode()) return; ELO_UI.coreConversationId = getEloCoreCurrentConversationId_(); loadEloCoreMemories_(); if (ELO_UI.coreConversationId) loadEloCoreConversation_(ELO_UI.coreConversationId); }
+  function startEloCoreNewConversation_() { setEloCoreCurrentConversationId_(""); if (ELO_UI.messages) ELO_UI.messages.textContent = ""; if (ELO_UI.input) { ELO_UI.input.value = ""; refreshEloInputHeight_(); ELO_UI.input.focus(); } setEloCoreWelcomeVisible_(); }
+  function showEloCoreHistory_() { eloCoreFetch_("/api/elo/conversations?" + new URLSearchParams(getEloCoreIdentity_()).toString()).then(function (data) { const message = appendMessage("assistant", data.conversations && data.conversations.length ? "Histórico de conversas" : "Ainda não há conversas salvas neste dispositivo."); const list = createElement("div", "elo-history-list"); (data.conversations || []).slice(0, 12).forEach(function (conversation) { const openButton = createElement("button", "elo-inline-button", conversation.title || "Conversa"); const archiveButton = createElement("button", "elo-inline-button", "Arquivar"); openButton.type = "button"; archiveButton.type = "button"; openButton.addEventListener("click", function () { loadEloCoreConversation_(conversation.id); }); archiveButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversation.id), { method: "PUT", body: JSON.stringify(Object.assign({ archive: true }, getEloCoreIdentity_())) }).then(function () { appendMessage("system", "Conversa arquivada."); }); }); list.appendChild(openButton); list.appendChild(archiveButton); }); message.appendChild(list); }).catch(function () { appendMessage("system", "Não consegui carregar o histórico agora."); }); }
+  function showEloCoreMemoryPanel_() { loadEloCoreMemories_().then(function (memories) { const disabled = isEloCoreMemoryDisabled_(); const message = appendMessage("assistant", disabled ? "Memória do ELO desativada." : "Memória do ELO"); const panel = createElement("div", "elo-memory-list"); const toggleButton = createElement("button", "elo-inline-button", disabled ? "Ativar memória" : "Desativar memória"); const clearButton = createElement("button", "elo-inline-button", "Limpar tudo"); toggleButton.type = "button"; clearButton.type = "button"; toggleButton.addEventListener("click", function () { setEloCoreMemoryDisabled_(!disabled); appendMessage("system", disabled ? "Memória ativada." : "Memória desativada."); }); clearButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { ELO_UI.coreMemories = []; appendMessage("system", "Memórias apagadas."); }); }); panel.appendChild(toggleButton); panel.appendChild(clearButton); (memories || []).slice(0, 16).forEach(function (memory) { const item = createElement("button", "elo-inline-button", memory.category + ": " + memory.memory_value.slice(0, 90)); item.type = "button"; item.title = "Clique para apagar"; item.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories/" + encodeURIComponent(memory.id) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { appendMessage("system", "Memória apagada."); loadEloCoreMemories_(); }); }); panel.appendChild(item); }); message.appendChild(panel); }).catch(function () { appendMessage("system", "Não consegui carregar a memória agora."); }); }
+  function buildEloCoreMemoryRecallResponse_(question) {
+    const text = normalizeText(question || "");
+    if (!/\b(continue|continuar|retomar|lembra|lembre|memoria|memória)\b/.test(text)) return null;
+
+    const terms = text.split(/\s+/).filter(function (term) { return term.length >= 4; });
+    const related = (ELO_UI.coreMemories || []).filter(function (memory) {
+      const haystack = normalizeText([memory.category, memory.memory_key, memory.memory_value].join(" "));
+      return terms.some(function (term) { return haystack.indexOf(term) >= 0; });
+    }).slice(0, 4);
+
+    if (!related.length) return null;
+
+    const answer = ["Lembro disso:"]
+      .concat(related.map(function (memory) { return "- " + memory.memory_value; }))
+      .concat(["", "Vamos continuar daí."])
+      .join("\n");
+
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "Diga o próximo passo que você quer executar.",
+      canSave: false,
+      sessionTheme: "elo_core_memory",
+      sessionIntent: "memory_recall"
+    };
   }
 
   function getEloContext() {
@@ -16227,13 +16444,14 @@
   }
 
   function formatResponse(response) {
-    return [
-      response.shortAnswer,
-      "",
-      response.fullAnswer,
-      "",
-      "Próxima ação: " + response.nextAction
-    ].join("\n");
+    const shortAnswer = sanitizeUserText(response && response.shortAnswer);
+    const fullAnswer = sanitizeUserText(response && response.fullAnswer);
+    const nextAction = sanitizeUserText(response && response.nextAction);
+    const parts = [];
+    if (shortAnswer) parts.push(shortAnswer);
+    if (fullAnswer && normalizeText(fullAnswer) !== normalizeText(shortAnswer)) parts.push(fullAnswer);
+    if (nextAction) parts.push("Próxima ação: " + nextAction);
+    return parts.join("\n\n");
   }
 
   // ELO_UI
@@ -16611,6 +16829,18 @@
   }
 
   function buildResponse(question) {
+    const coreToolResponse = buildEloCoreToolIntentResponse_(question);
+    if (coreToolResponse) {
+      return applyEloBrainMarker_(question, coreToolResponse);
+    }
+    const intentResponse = routeEloCoreIntents_(question, {});
+    if (intentResponse) {
+      return applyEloBrainMarker_(question, intentResponse);
+    }
+    const memoryRecallResponse = buildEloCoreMemoryRecallResponse_(question);
+    if (memoryRecallResponse) {
+      return applyEloBrainMarker_(question, memoryRecallResponse);
+    }
     return applyEloBrainMarker_(question, buildResponseCore_(question));
   }
 
@@ -16827,6 +17057,17 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    const eloCoreToolResponse = buildEloCoreToolIntentResponse_(cleanQuestion);
+    if (eloCoreToolResponse) {
+      const eloCoreToolAnswer = formatResponse(eloCoreToolResponse);
+      appendAssistantMessage(cleanQuestion, eloCoreToolAnswer, false, eloCoreToolResponse);
+      saveConversation(cleanQuestion, eloCoreToolAnswer);
+      rememberSessionTurn(cleanQuestion, eloCoreToolResponse, eloCoreToolAnswer);
+      clearProductAttachmentPreview();
+      navigateEloCoreTool_(eloCoreToolResponse);
+      return;
+    }
+
     if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
       generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
       return;
@@ -16959,6 +17200,8 @@
         const currentProfile = getUserProfile();
         setUserProfile(Object.assign({}, currentProfile, { userName: name }));
         ELO_UI.awaitingStandaloneName = false;
+    ELO_UI.coreMemories = ELO_UI.coreMemories || [];
+    ELO_UI.replayingCoreHistory = false;
         const answer = "Perfeito, vou chamar você de " + name + ". Posso ajudar a organizar ideias, projetos, memórias, biblioteca ou linha do tempo.";
         appendAssistantMessage(cleanQuestion, answer, false, {
           shortAnswer: answer,
@@ -17579,7 +17822,15 @@
     if (ELO_UI.panel) {
       ELO_UI.panel.classList.add("is-chat-active");
     }
-    ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+    if (kind === "user" || kind === "assistant") {
+      persistEloCoreMessage_(kind, text, kind === "user" ? buildEloCoreMessageAttachments_() : []);
+    }
+    if (ELO_UI.messages) {
+      ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+    }
+    window.setTimeout(function () {
+      if (isStandaloneMode()) window.scrollTo(0, document.body.scrollHeight);
+    }, 0);
     return message;
   }
 
@@ -17942,6 +18193,13 @@
 
     if (canSave) {
       appendEloSavePrompt(message, question, cleanAnswer, response);
+    }
+
+    if (response && response.eloCoreTool && response.eloCoreTool.url) {
+      const toolLink = createElement("a", "elo-inline-button elo-tool-link", response.eloCoreMode === "link" ? "Abrir " + response.eloCoreTool.name : response.eloCoreTool.name);
+      toolLink.href = response.eloCoreTool.url;
+      toolLink.setAttribute("data-elo-context-id", response.eloCoreTool.contextId || "");
+      actions.appendChild(toolLink);
     }
 
     if (response && response.diagnosticText) {
@@ -20088,6 +20346,12 @@
       });
     }
 
+    if (input && !input.dataset.eloCoreAutoGrowBound) {
+      input.dataset.eloCoreAutoGrowBound = "true";
+      input.addEventListener("input", refreshEloInputHeight_);
+      refreshEloInputHeight_();
+    }
+
     if (!input.dataset.eloEngineKeyBound) {
       input.dataset.eloEngineKeyBound = "true";
       input.addEventListener("keydown", function (event) {
@@ -20098,6 +20362,14 @@
       });
     }
 
+    const newChatButton = document.querySelector(config.newChatButton || "[data-elo-new-chat]");
+    const historyButton = document.querySelector(config.historyButton || "[data-elo-history]");
+    const memoryButton = document.querySelector(config.memoryButton || "[data-elo-memory]");
+    if (newChatButton && !newChatButton.dataset.eloCoreBound) { newChatButton.dataset.eloCoreBound = "true"; newChatButton.addEventListener("click", startEloCoreNewConversation_); }
+    if (historyButton && !historyButton.dataset.eloCoreBound) { historyButton.dataset.eloCoreBound = "true"; historyButton.addEventListener("click", showEloCoreHistory_); }
+    if (memoryButton && !memoryButton.dataset.eloCoreBound) { memoryButton.dataset.eloCoreBound = "true"; memoryButton.addEventListener("click", showEloCoreMemoryPanel_); }
+    initEloCorePersistence_();
+
     return true;
   }
 
@@ -20106,6 +20378,9 @@
     mountMinimal: mountMinimalEloChat,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
+    classifyIntentForTest: classifyEloCoreIntent_,
+    routeIntentForTest: routeEloCoreIntent_,
     buildPremiseQuestionForTest: buildEloPremiseQuestion_,
     buildProfessionalPdfDocumentForTest: buildEloProfessionalPdfDocument,
     normalizeProfessionalPdfDataForTest: normalizeEloProfessionalPdfData_,

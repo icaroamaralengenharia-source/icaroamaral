@@ -370,7 +370,7 @@ test('ELO PDF parede: acao e documento profissional contem titulo e quantitativo
 
   const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
   const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
-  assert.match(html, /Orçamento preliminar — Parede de bloco cerâmico/i);
+  assert.match(html, /OrÃ§amento preliminar â€” Parede de bloco cerÃ¢mico/i);
   assert.match(html, /Salvador\/BA/i);
   assert.match(html, /56,00 m2/i);
   assert.match(html, /14x19x29/i);
@@ -391,7 +391,7 @@ test('ELO PDF banheiro: acao e documento profissional contem escopo da reforma',
 
   const pdfData = elo.buildBudgetV2ProfessionalPdfDataForTest(response.pdfAction.budgetDocumentData);
   const html = elo.buildProfessionalPdfDocumentForTest(pdfData.record, pdfData.context);
-  assert.match(html, /Orçamento preliminar — Reforma de banheiro/i);
+  assert.match(html, /OrÃ§amento preliminar â€” Reforma de banheiro/i);
   assert.match(html, /Salvador\/BA/i);
   assert.match(html, /4,00 m2|4 m2/i);
   assert.match(html, /Demolicao\/retirada/i);
@@ -413,7 +413,7 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /Portas:/i);
   assert.match(answer, /Janelas:/i);
   assert.match(answer, /Box:/i);
-  assert.match(answer, /FUNDAÇÃO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
+  assert.match(answer, /FUNDAÃ‡ÃƒO[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
 
@@ -452,23 +452,23 @@ test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () 
 });
 
 function assertNoEloInternalState(answer) {
-  assert.doesNotMatch(answer, /Sess[a�]o de trabalho/i);
+  assert.doesNotMatch(answer, /Sess[aï¿½]o de trabalho/i);
   assert.doesNotMatch(answer, /\bStatus:/i);
   assert.doesNotMatch(answer, /Entrega alvo/i);
-  assert.doesNotMatch(answer, /Pr[e�]via da entrega/i);
-  assert.doesNotMatch(answer, /Pr[o�]ximo dado/i);
+  assert.doesNotMatch(answer, /Pr[eï¿½]via da entrega/i);
+  assert.doesNotMatch(answer, /Pr[oï¿½]ximo dado/i);
   assert.doesNotMatch(answer, /Para conduzir certo/i);
   assert.doesNotMatch(answer, /checklist de progresso/i);
 }
 
 function assertNoInventedPrice(answer) {
   assert.doesNotMatch(answer, /R\$\s*(?:25,00|1\.200,00|750,00|3\.000,00)/i);
-  assert.doesNotMatch(answer, /pre[c�]os? m[e�]dios? locais/i);
+  assert.doesNotMatch(answer, /pre[cï¿½]os? m[eï¿½]dios? locais/i);
 }
 
 test('ELO conversacional profissional: parede inicial calcula sem estado interno e libera PDF', () => {
   const elo = loadElo();
-  const response = elo.buildResponseForTest('or�amento de parede bloco cer�mico baiano, dimens�o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
@@ -478,64 +478,64 @@ test('ELO conversacional profissional: parede inicial calcula sem estado interno
   assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
 });
 
-test('ELO conversacional profissional: pedido de PDF usa or�amento atual sem repetir or�amento', () => {
+test('ELO conversacional profissional: pedido de PDF usa orï¿½amento atual sem repetir orï¿½amento', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('or�amento de parede bloco cer�mico baiano, dimens�o 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('gere o or�amento em pdf');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('gere o orï¿½amento em pdf');
   const answer = response.fullAnswer || '';
 
-  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do or�amento atual');
-  assert.match(answer, /Use o bot�o abaixo para gerar o PDF do or�amento atual/i);
-  assert.doesNotMatch(answer, /conte[u�]do exato/i);
+  assert.ok(response.pdfAction, 'pedido de PDF deve retornar pdfAction do orï¿½amento atual');
+  assert.match(answer, /Use o botï¿½o abaixo para gerar o PDF do orï¿½amento atual/i);
+  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
   assert.doesNotMatch(answer, /Servicos executaveis e quantitativos preliminares/i);
   assertNoEloInternalState(answer);
 });
 
-test('ELO conversacional profissional: pdf curto retorna acao do or�amento atual', () => {
+test('ELO conversacional profissional: pdf curto retorna acao do orï¿½amento atual', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('or�amento de parede bloco cer�mico baiano, dimens�o 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
   const response = elo.buildResponseForTest('pdf');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
   assert.ok(answer.length < 180, 'resposta para pdf deve ser curta');
-  assert.match(answer, /bot�o abaixo/i);
+  assert.match(answer, /botï¿½o abaixo/i);
 });
 
 test('ELO conversacional profissional: cidade atualiza parede sem perder medidas', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('or�amento de parede bloco cer�mico baiano, dimens�o 12 metros de comprimento e 2,5 m de altura');
-  const response = elo.buildResponseForTest('Vit�ria da Conquista/BA');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  const response = elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
   const answer = response.fullAnswer || '';
 
   assert.match(answer, /Area da parede: 30,00 m2/i);
   assert.match(answer, /Blocos ceramicos aproximados: \d+ un/i);
-  assert.match(answer, /Cidade\/UF: Vit[o�]ria da Conquista\/BA/i);
+  assert.match(answer, /Cidade\/UF: Vit[oï¿½]ria da Conquista\/BA/i);
   assert.doesNotMatch(answer, /comprimento da parede|altura da parede|informe area|informe .*area/i);
   assert.ok(response.pdfAction);
 });
 
-test('ELO conversacional profissional: faca com or�amento suficiente aciona PDF sem preco inventado', () => {
+test('ELO conversacional profissional: faca com orï¿½amento suficiente aciona PDF sem preco inventado', () => {
   const elo = loadElo();
-  elo.buildResponseForTest('or�amento de parede bloco cer�mico baiano, dimens�o 12 metros de comprimento e 2,5 m de altura');
-  elo.buildResponseForTest('Vit�ria da Conquista/BA');
-  const response = elo.buildResponseForTest('fa�a');
+  elo.buildResponseForTest('orï¿½amento de parede bloco cerï¿½mico baiano, dimensï¿½o 12 metros de comprimento e 2,5 m de altura');
+  elo.buildResponseForTest('Vitï¿½ria da Conquista/BA');
+  const response = elo.buildResponseForTest('faï¿½a');
   const answer = response.fullAnswer || '';
 
   assert.ok(response.pdfAction);
-  assert.match(answer, /Pre�o pendente de composi��o SINAPI\/ORSE, BDI e m�s-base/i);
+  assert.match(answer, /Preï¿½o pendente de composiï¿½ï¿½o SINAPI\/ORSE, BDI e mï¿½s-base/i);
   assertNoInventedPrice(answer);
-  assert.doesNotMatch(answer, /conte[u�]do exato/i);
+  assert.doesNotMatch(answer, /conte[uï¿½]do exato/i);
 });
 
-test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa or�amento atual', () => {
+test('ELO conversacional profissional: casa e banheiro ocultam estado interno e pdf usa orï¿½amento atual', () => {
   let elo = loadElo();
   elo.buildResponseForTest('Quero orcar uma casa de 70m2');
   let response = elo.buildResponseForTest('Salvador/BA, padrao medio, casa terrea, 2 quartos, 1 banheiro, garagem, obra completa');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'casa deve reutilizar or�amento atual para PDF');
-  assert.match(response.fullAnswer || '', /bot�o abaixo/i);
+  assert.ok(response.pdfAction, 'casa deve reutilizar orï¿½amento atual para PDF');
+  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
   assert.doesNotMatch(response.fullAnswer || '', /Servicos executaveis e quantitativos preliminares/i);
 
   elo = loadElo();
@@ -543,8 +543,8 @@ test('ELO conversacional profissional: casa e banheiro ocultam estado interno e 
   response = elo.buildResponseForTest('banheiro de 4m2, troca piso e revestimento, trocar vaso e lavatorio, 2 pontos hidraulicos, 2 pontos eletricos, com demolicao, Salvador/BA');
   assertNoEloInternalState(response.fullAnswer || '');
   response = elo.buildResponseForTest('pdf');
-  assert.ok(response.pdfAction, 'banheiro deve reutilizar or�amento atual para PDF');
-  assert.match(response.fullAnswer || '', /bot�o abaixo/i);
+  assert.ok(response.pdfAction, 'banheiro deve reutilizar orï¿½amento atual para PDF');
+  assert.match(response.fullAnswer || '', /botï¿½o abaixo/i);
 });
 
 test('ELO EAP: casa 70m2 cria escopo cronologico sem preco inventado', () => {
@@ -722,4 +722,83 @@ test('ELO composto: pdf curto usa orcamento composto atual sem repetir tudo', ()
   assert.match(texts.memorial, /MEMORIAL DE CALCULO/i);
   assert.doesNotMatch(texts.memorial, /PLANILHA ORCAMENTARIA PRELIMINAR/i);
   assert.doesNotMatch(texts.pdfText, /Or.amento residencial preliminar/i);
+});
+
+
+test('ELO CORE: abre ferramentas explicitas com nomes publicos e rotas auditadas', () => {
+  const elo = loadElo();
+  const cases = [
+    ['Abra o CADISTA.', 'tool', 'cadista', '/cadista/', 'Abrindo o Editor tecnico'],
+    ['Abra o Stock.', 'tool', 'stock', '/stockfull.html', 'Abrindo a Gestao de estoque'],
+    ['Abra o relatorio.', 'tool', 'relatorio', '/relatorio-qualidade-obras/', 'Abrindo o Editor de relatorio']
+  ];
+
+  for (const [message, mode, id, route, answer] of cases) {
+    const response = elo.buildResponseForTest(message);
+    assert.equal(response.eloCoreMode, mode);
+    assert.equal(response.eloCoreTool.id, id);
+    assert.equal(response.eloCoreTool.route, route);
+    assert.match(response.fullAnswer, new RegExp(answer.replace('tecnico', 't[eé]cnico').replace('Gestao', 'Gest[aã]o').replace('relatorio', 'relat[oó]rio'), 'i'));
+    assert.match(response.eloCoreTool.url, /eloContext=eloctx_/);
+  }
+});
+
+test('ELO CORE: pedido de link mostra botao sem navegar', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Qual Ã© o link do CADISTA?');
+
+  assert.equal(response.eloCoreMode, 'link');
+  assert.equal(response.eloCoreTool.id, 'cadista');
+  assert.equal(response.eloCoreTool.route, '/cadista/');
+  assert.match(response.fullAnswer, /link do Editor t[eé]cnico/i);
+  assert.doesNotMatch(response.fullAnswer, /Abrindo/i);
+});
+
+test('ELO CORE: anÃ¡lise de foto resolve direto salvo quando abrir ferramenta Ã© explÃ­cito', () => {
+  const elo = loadElo();
+  let response = elo.buildResponseForTest('Analise esta foto e gere um relatorio.');
+  assert.notEqual(response.eloCoreMode, 'tool');
+  assert.notEqual(response.eloCoreMode, 'link');
+
+  response = elo.buildResponseForTest('Analise esta foto e abra o relatorio para revisao.');
+  assert.equal(response.eloCoreMode, 'tool');
+  assert.equal(response.eloCoreTool.id, 'relatorio');
+  assert.match(response.fullAnswer, /Abrindo o Editor de relat[oó]rio/i);
+});
+
+test('ELO CORE intent: classifica data clima opiniao e multi-intent', () => {
+  const elo = loadElo();
+  assert.equal(elo.classifyIntentForTest('Qual dia e hoje?').map((item) => item.type).join(','), 'date_time');
+
+  const weather = elo.classifyIntentForTest('Quantos graus faz em Vitoria da Conquista?');
+  assert.equal(weather[0].type, 'weather');
+  assert.match(weather[0].location, /Vitoria da Conquista/i);
+
+  const cup = elo.classifyIntentForTest('Quem vai ganhar a Copa?');
+  assert.equal(cup[0].type, 'research_or_opinion');
+
+  const multi = elo.classifyIntentForTest('Qual dia e hoje? Quantos graus faz em Vitoria da Conquista e quem vai ganhar a Copa?');
+  assert.equal(multi.map((item) => item.type).join(','), 'date_time,weather,research_or_opinion');
+});
+
+test('ELO CORE intent: responde pergunta composta sem fallback generico', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Qual dia e hoje? Quantos graus faz em Vitoria da Conquista e quem vai ganhar a Copa?');
+  const answer = response.fullAnswer || response.shortAnswer || '';
+
+  assert.match(answer, /Hoje (e|é)/i);
+  assert.match(answer, /clima|temperatura|integra/i);
+  assert.match(answer, /N.o d.|Não d.|nao da/i);
+  assert.doesNotMatch(answer, /Posso organizar uma ideia/i);
+  assert.doesNotMatch(answer, /Projeto, mem.ria, biblioteca ou decis/i);
+  assert.doesNotMatch(answer, /Pr.xima a..o:/i);
+});
+
+test('ELO CORE intent: conversas comuns nao recebem Proxima acao robotica', () => {
+  const elo = loadElo();
+  const date = elo.buildResponseForTest('Qual dia e hoje?');
+  const cup = elo.buildResponseForTest('Quem vai ganhar a Copa?');
+  assert.doesNotMatch((date.fullAnswer || date.shortAnswer || ''), /Pr.xima a..o:/i);
+  assert.doesNotMatch((cup.fullAnswer || cup.shortAnswer || ''), /Pr.xima a..o:/i);
+  assert.match((cup.fullAnswer || cup.shortAnswer || ''), /N.o d.|Não d.|nao da/i);
 });

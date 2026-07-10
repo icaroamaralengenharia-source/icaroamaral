@@ -14,65 +14,33 @@ src="/assets/site-access-gate.js?v=20260710-access-v2"
 defer></script>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elo | Pergunte ao Elo</title>
-  <meta name="description" content="Converse com o Elo.">
+  <title>ELO CORE | Pergunte ao ELO</title>
+  <meta name="description" content="Converse com o ELO CORE.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="elo.css">
 </head>
 <body data-elo-mode="standalone" data-elo-product="chat">
-  <header class="elo-product-top">
-    <a class="elo-about-link" href="/sobreoelo.html">Sobre o Elo</a>
+  <header class="elo-product-top" aria-label="ELO CORE">
+    <a class="elo-product-brand elo-product-brand--compact" href="index.html" aria-label="Voltar ao início">
+      <span class="elo-mark" aria-hidden="true"></span>
+      <strong class="elo-brand-name">ELO CORE</strong>
+    </a>
+    <nav class="elo-core-actions" aria-label="Ações da conversa">
+      <button type="button" data-elo-new-chat>Nova conversa</button>
+      <button type="button" data-elo-history>Histórico</button>
+      <button type="button" data-elo-memory>Memória</button>
+    </nav>
   </header>
 
   <main class="elo-product-shell" aria-labelledby="elo-product-title">
     <section class="elo-product-center">
-      <a class="elo-product-brand" href="index.html" aria-label="Voltar ao inicio">
-        <span class="elo-mark" aria-hidden="true"></span>
-        <span>
-          <strong class="elo-brand-name">ELO</strong>
-          <small>Assistente com memória</small>
-        </span>
-      </a>
-      <div class="elo-product-heading">
+      <div class="elo-product-heading elo-core-welcome">
         <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
-          <span class="elo-rotating-text" data-elo-rotating-text>Como posso <span class="elo-highlight">te ajudar</span> hoje?</span>
+          <span class="elo-rotating-text" data-elo-rotating-text>O que vamos <span class="elo-highlight">fazer</span> hoje?</span>
         </h1>
-        <p>Memória, projetos, documentos e ferramentas continuam aqui.</p>
       </div>
-      <section class="elo-discovery-panel" aria-label="Atalhos do ecossistema Elo">
-        <p>Seu assistente para projetos, relatórios, documentos e CADISTA IA.</p>
-        <div class="elo-prompt-chips" aria-label="Sugestões rápidas">
-          <button type="button" data-elo-prompt="Abrir ou orientar o CADISTA IA">CADISTA IA</button>
-          <button type="button" data-elo-prompt="Me ajude com um relatório técnico">Relatórios</button>
-          <button type="button" data-elo-prompt="Resuma meus projetos">Projetos</button>
-          <button type="button" data-elo-prompt="Quais ferramentas de engenharia posso usar?">Ferramentas</button>
-          <button type="button" data-elo-prompt="Analisar um PDF ou imagem">Analisar PDF</button>
-        </div>
-      </section>
-      <section class="elo-capability-grid" aria-label="Capacidades do Elo">
-        <article>
-          <strong>CADISTA IA</strong>
-          <span>Criar, revisar e orientar projetos arquitetônicos e CAD.</span>
-          <button type="button" data-elo-prompt="Quero usar o CADISTA IA">Quero usar o CADISTA IA</button>
-        </article>
-        <article>
-          <strong>Relatórios técnicos</strong>
-          <span>Apoio para inspeções, laudos, RDOs e documentos.</span>
-          <button type="button" data-elo-prompt="Me ajude com um relatório técnico">Me ajude com um relatório técnico</button>
-        </article>
-        <article>
-          <strong>Projetos e memória</strong>
-          <span>Continuar ideias, decisões e próximos passos.</span>
-          <button type="button" data-elo-prompt="Resuma meus projetos">Resuma meus projetos</button>
-        </article>
-        <article>
-          <strong>Ferramentas</strong>
-          <span>Análise de arquivos, documentos, planilhas e engenharia.</span>
-          <button type="button" data-elo-prompt="Quais ferramentas posso usar?">Quais ferramentas posso usar?</button>
-        </article>
-      </section>
       <div class="elo-attachment-preview" data-elo-attachment-preview>
         <div class="elo-attachment-chip">
           <span class="elo-attachment-icon" aria-hidden="true">▣</span>
@@ -84,11 +52,11 @@ defer></script>
       <div class="elo-product-chat" aria-label="Conversa com o Elo">
         <section class="elo-standalone-panel" aria-label="Elo">
           <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
-          <p class="elo-input-hint">Pergunte, anexe um arquivo ou escolha um atalho.</p>
+          <p class="elo-input-hint">O ELO pode guardar informações úteis para continuar suas conversas. Você pode revisar ou apagar essa memória quando quiser.</p>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
-            <input class="elo-input" type="text" maxlength="900" placeholder="Pergunte ao Elo...">
+            <textarea class="elo-input" maxlength="2000" rows="1" placeholder="Pergunte ao ELO CORE..."></textarea>
             <button type="submit" class="elo-send-button">Enviar</button>
           </form>
         </section>
@@ -104,14 +72,21 @@ defer></script>
     window.addEventListener("pageshow", function () {
       window.scrollTo(0, 0);
     });
-
-    const eloPromptPhrases = [
-      'Como posso <span class="elo-highlight">te ajudar</span> hoje?',
-      'O que vamos <span class="elo-highlight">resolver</span> agora?',
-      'Quer <span class="elo-highlight">analisar</span> um arquivo?',
-      'Vamos <span class="elo-highlight">organizar</span> uma ideia?',
-      'Qual é o <span class="elo-highlight">próximo passo</span>?'
-    ];
+    function getEloWelcomeName() {
+      try {
+        const profile = JSON.parse(window.localStorage.getItem("obrareport_elo_perfil_usuario_v1") || "{}");
+        return String(profile.userName || profile.nome || "").trim();
+      } catch (error) { return ""; }
+    }
+    function chooseEloWelcomePhrase() {
+      const name = getEloWelcomeName();
+      const options = name ? [name + ', o que vamos <span class="elo-highlight">fazer</span>?', name + ', quer <span class="elo-highlight">continuar</span> de onde paramos?'] : ['O que vamos <span class="elo-highlight">fazer</span> hoje?', 'Olá. Do que <span class="elo-highlight">precisa</span>?', 'Quer que eu <span class="elo-highlight">analise</span> um documento?', 'Posso revisar um relatório, orçamento ou <span class="elo-highlight">projeto</span>.', 'Quer continuar de onde <span class="elo-highlight">paramos</span>?', 'Tenho o contexto das nossas <span class="elo-highlight">últimas conversas</span>.'];
+      const key = "elo_core_welcome_phrase_v1";
+      let index = Number(window.sessionStorage.getItem(key));
+      if (!Number.isInteger(index) || index < 0 || index >= options.length) { index = Math.floor(Math.random() * options.length); window.sessionStorage.setItem(key, String(index)); }
+      return options[index];
+    }
+    const eloPromptPhrases = [chooseEloWelcomePhrase()];
 
     let eloPromptIndex = 0;
 
@@ -139,10 +114,6 @@ defer></script>
       }
 
       textEl.innerHTML = eloPromptPhrases[0];
-
-      window.setInterval(function () {
-        setEloPromptPhrase((eloPromptIndex + 1) % eloPromptPhrases.length);
-      }, 4200);
     }
 
     function formatEloFileSize(bytes) {
@@ -283,7 +254,10 @@ defer></script>
           form: ".elo-input-row",
           input: ".elo-input",
           attachmentInput: ".elo-attachment-input",
-          attachmentButton: ".elo-attach-button"
+          attachmentButton: ".elo-attach-button",
+          newChatButton: "[data-elo-new-chat]",
+          historyButton: "[data-elo-history]",
+          memoryButton: "[data-elo-memory]"
         });
       }
     });
