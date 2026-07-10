@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -182,5 +182,38 @@ test("ELO CORE API usa memoria canonica de nome sem duplicar", async () => {
     });
     assert.equal(sensitive.response.status, 400);
     assert.equal(sensitive.data.error, "sensitive_memory_blocked");
+  });
+});
+
+test("ELO CORE API mantem apenas um projeto ativo por usuario", async () => {
+  await withServer(async (base) => {
+    const identity = { anonymousId: "elo_anon_project_001" };
+    const first = await json(base + "/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({
+        category: "project",
+        memory_key: "current",
+        memory_value: JSON.stringify({ project_name: "ELO Core", current_goal: "Desenvolver ELO Core", is_active: true })
+      }, identity))
+    });
+    assert.equal(first.response.status, 201);
+
+    const second = await json(base + "/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({
+        category: "project",
+        memory_key: "obrareport",
+        memory_value: JSON.stringify({ project_name: "ObraReport", current_goal: "Evoluir relatorios", is_active: true })
+      }, identity))
+    });
+    assert.equal(second.response.status, 201);
+
+    const active = await json(base + "/api/elo/memories?anonymousId=" + identity.anonymousId + "&category=project");
+    assert.equal(active.data.memories.length, 1);
+    assert.equal(active.data.memories[0].id, second.data.memory.id);
+
+    const all = await json(base + "/api/elo/memories?anonymousId=" + identity.anonymousId + "&category=project&includeInactive=true");
+    assert.equal(all.data.memories.length, 2);
+    assert.equal(all.data.memories.filter((item) => item.is_active !== false).length, 1);
   });
 });

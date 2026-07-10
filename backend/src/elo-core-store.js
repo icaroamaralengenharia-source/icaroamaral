@@ -1,4 +1,4 @@
-﻿import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -161,6 +161,16 @@ export function createEloCoreStore(options = {}) {
     const db = readDb();
     const existing = Object.values(db.memories).find((item) => matchesIdentity(item, identity) && item.category === next.category && item.memory_key === next.memory_key && item.is_active !== false);
     const id = clean(input.id, 120) || (existing && existing.id) || next.id;
+    if (next.category === "project" && next.is_active !== false) {
+      Object.keys(db.memories).forEach((memoryId) => {
+        const item = db.memories[memoryId];
+        if (memoryId !== id && item && matchesIdentity(item, identity) && item.category === "project" && item.is_active !== false) {
+          item.is_active = false;
+          item.updated_at = now();
+          db.memories[memoryId] = item;
+        }
+      });
+    }
     db.memories[id] = Object.assign({}, existing || {}, next, { id, created_at: existing ? existing.created_at : next.created_at, updated_at: now() });
     writeDb(db);
     return clone(db.memories[id]);

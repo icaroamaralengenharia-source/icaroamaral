@@ -31,6 +31,9 @@
   const ELO_CORE_MEMORY_DISABLED_KEY = "elo_core_memory_disabled_v1";
   const ELO_CORE_NAME_MEMORY_CATEGORY = "profile";
   const ELO_CORE_NAME_MEMORY_KEY = "nome";
+  const ELO_CORE_PROJECT_MEMORY_CATEGORY = "project";
+  const ELO_CORE_PROJECT_MEMORY_KEY = "current";
+  const ELO_CORE_PROJECT_MEMORY_STORAGE_KEY = "elo_core_project_memory_v1";
   const ELO_CORE_TOOL_REGISTRY = {
     relatorio: { id: "relatorio", publicName: "Editor de relatório", route: "/relatorio-qualidade-obras/", openingMessage: "Abrindo o Editor de relatório...", aliases: ["relatorio", "relatório", "relatorio tecnico", "laudo", "vistoria", "obrareport", "obra report", "editor de relatorio", "editor de relatório"] },
     cadista: { id: "cadista", publicName: "Editor técnico", route: "/cadista/", openingMessage: "Abrindo o Editor técnico...", aliases: ["cadista", "cadista ia", "editor tecnico", "editor técnico", "cad", "planta", "planta baixa", "dxf", "desenho tecnico"] },
@@ -7162,7 +7165,17 @@
   }
 
   function buildConnectedGreeting() {
-    return "Oi, tudo bem? Me diz no que eu posso te ajudar";
+    const project = typeof getActiveEloCoreProjectMemory_ === "function" ? getActiveEloCoreProjectMemory_() : null;
+    const name = typeof getCanonicalEloCoreUserName_ === "function" ? getEloCoreFirstName_(getCanonicalEloCoreUserName_()) : "";
+    if (project) {
+      return [
+        (name ? name + ", continuaremos o projeto " : "Continuaremos o projeto ") + project.project_name + ".",
+        "",
+        project.last_completed_task ? "Última tarefa concluída:\n" + formatEloCoreProjectTask_(project.last_completed_task) : "",
+        project.pending_task ? "Próxima tarefa:\n" + formatEloCoreProjectTask_(project.pending_task) : ""
+      ].filter(Boolean).join("\n");
+    }
+    return "O que vamos fazer hoje?";
   }
 
   function buildPremiumWelcomeMessage_() {
@@ -10094,6 +10107,179 @@
     return localName;
   }
 
+  function normalizeEloCoreProjectName_(name) {
+    let clean = sanitizeUserText(name || "").replace(/^[\s:,-]+|[.!?;:,]+$/g, "").trim();
+    clean = clean.replace(/^(?:o|a|um|uma)\s+/i, "");
+    if (!clean || /^(um|uma|o|a|novo projeto|outro projeto)$/i.test(clean)) return "";
+    if (/^elo core$/i.test(clean)) return "ELO Core";
+    return clean.slice(0, 120);
+  }
+
+  function readEloCoreProjectMemories_() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(ELO_CORE_PROJECT_MEMORY_STORAGE_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeEloCoreProjectMemories_(projects) {
+    const payload = JSON.stringify((Array.isArray(projects) ? projects : []).slice(0, 20));
+    try { window.localStorage.setItem(ELO_CORE_PROJECT_MEMORY_STORAGE_KEY, payload); } catch (error) {}
+  }
+
+  function getActiveEloCoreProjectMemory_() {
+    return readEloCoreProjectMemories_().find(function (project) { return project && project.is_active !== false && project.project_name; }) || null;
+  }
+
+  function formatEloCoreProjectMemoryValue_(project) {
+    return JSON.stringify({
+      project_name: project.project_name || "",
+      current_goal: project.current_goal || "",
+      last_completed_task: project.last_completed_task || "",
+      pending_task: project.pending_task || "",
+      decisions: Array.isArray(project.decisions) ? project.decisions : [],
+      updated_at: project.updated_at || new Date().toISOString(),
+      is_active: project.is_active !== false
+    });
+  }
+
+  function cacheEloCoreProjectMemory_(project) {
+    if (!project || !project.project_name) return null;
+    const nowValue = new Date().toISOString();
+    const next = Object.assign({
+      id: "elo_core_project_" + normalizeText(project.project_name).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "current",
+      category: ELO_CORE_PROJECT_MEMORY_CATEGORY,
+      memory_key: ELO_CORE_PROJECT_MEMORY_KEY,
+      current_goal: "",
+      last_completed_task: "",
+      pending_task: "",
+      decisions: [],
+      is_active: true,
+      created_at: nowValue
+    }, project || {}, { updated_at: nowValue, is_active: project.is_active !== false });
+    next.decisions = (Array.isArray(next.decisions) ? next.decisions : []).map(sanitizeUserText).filter(Boolean).filter(function (item, index, list) { return list.indexOf(item) === index; }).slice(0, 20);
+    next.memory_value = formatEloCoreProjectMemoryValue_(next);
+    const projects = readEloCoreProjectMemories_().map(function (item) {
+      if (!item || item.id === next.id || (item.project_name && normalizeText(item.project_name) === normalizeText(next.project_name))) return Object.assign({}, item || {}, next);
+      return Object.assign({}, item, { is_active: false });
+    });
+    if (!projects.some(function (item) { return item && item.id === next.id; })) projects.unshift(next);
+    writeEloCoreProjectMemories_(projects);
+    cacheEloCoreMemory_({ id: next.id, category: ELO_CORE_PROJECT_MEMORY_CATEGORY, memory_key: ELO_CORE_PROJECT_MEMORY_KEY, memory_value: next.memory_value, confidence: 0.94, is_active: next.is_active, updated_at: next.updated_at });
+    return next;
+  }
+
+  function persistEloCoreProjectMemory_(project) {
+    if (!project || !project.project_name || typeof fetch !== "function") return Promise.resolve(false);
+    return eloCoreFetch_("/api/elo/memories", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({}, getEloCoreIdentity_(), {
+        category: ELO_CORE_PROJECT_MEMORY_CATEGORY,
+        memory_key: ELO_CORE_PROJECT_MEMORY_KEY,
+        memory_value: formatEloCoreProjectMemoryValue_(project),
+        confidence: 0.94
+      }))
+    }).then(function (data) {
+      if (data && data.memory) cacheEloCoreMemory_(data.memory);
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  function saveEloCoreProjectMemory_(project) {
+    const saved = cacheEloCoreProjectMemory_(project);
+    if (saved) persistEloCoreProjectMemory_(saved);
+    return saved;
+  }
+
+  function deactivateActiveEloCoreProject_() {
+    const projects = readEloCoreProjectMemories_().map(function (item) { return Object.assign({}, item, { is_active: false, updated_at: new Date().toISOString() }); });
+    writeEloCoreProjectMemories_(projects);
+  }
+
+  function detectEloCoreProjectMemoryIntent_(message) {
+    const raw = sanitizeUserText(message || "");
+    const text = normalizeText(raw);
+    if (!raw) return null;
+    if (/^mudar\s+de\s+projeto[.!?]*$/i.test(raw)) return { type: "switch" };
+    if (/^(continuar|continue|onde\s+paramos)[.!?]*$/i.test(raw) || hasAnyTerm(text, ["onde paramos"])) return { type: "continue" };
+    let match = raw.match(/^(?:pr[oó]xima\s+tarefa\s+(?:e|é)|agora\s+vamos\s+fazer)\s+([\s\S]+)$/i);
+    if (match) return { type: "update", pending: sanitizeUserText(match[1]).replace(/[.!?]+$/g, "") };
+    if (hasAnyTerm(text, ["o que decidimos", "decisoes", "decisões", "decidimos ontem"])) return { type: "query", field: "decisions" };
+    if (hasAnyTerm(text, ["qual e a proxima tarefa", "qual é a próxima tarefa", "qual proxima tarefa", "o que falta", "proxima tarefa", "próxima tarefa"])) return { type: "query", field: "pending_task" };
+
+    match = raw.match(/^(?:estamos\s+desenvolvendo|este\s+projeto\s+(?:e|é)|nosso\s+projeto\s+(?:e|é)|quero\s+criar|o\s+projeto\s+chama)\s+([\s\S]+)$/i);
+    if (match) return { type: "save", project_name: normalizeEloCoreProjectName_(match[1]) };
+
+    match = raw.match(/^(?:conclu[ií]mos|terminamos|finalizamos)\s+([\s\S]+)$/i);
+    if (match) return { type: "update", completed: sanitizeUserText(match[1]).replace(/[.!?]+$/g, "") };
+
+    match = raw.match(/^(?:pr[oó]xima\s+tarefa\s+(?:e|é)|agora\s+vamos\s+fazer)\s+([\s\S]+)$/i);
+    if (match) return { type: "update", pending: sanitizeUserText(match[1]).replace(/[.!?]+$/g, "") };
+
+    match = raw.match(/^(?:decidimos\s+que|ficou\s+decidido\s+que|decis[aã]o\s*[:,-]?)\s+([\s\S]+)$/i);
+    if (match) return { type: "update", decision: sanitizeUserText(match[1]).replace(/[.!?]+$/g, "") };
+    return null;
+  }
+
+  function formatEloCoreProjectTask_(task) {
+    const clean = sanitizeUserText(task || "").replace(/[.!?]+$/g, "");
+    if (!clean) return "";
+    return clean.charAt(0).toUpperCase() + clean.slice(1) + ".";
+  }
+
+  function buildEloCoreProjectResume_(project) {
+    if (!project) return "Ainda não tenho um projeto ativo salvo.";
+    const lines = ["Lembro que estamos trabalhando no " + project.project_name + "."];
+    if (project.last_completed_task) lines.push("", "Última tarefa concluída:", formatEloCoreProjectTask_(project.last_completed_task));
+    if (project.pending_task) lines.push("", "Próxima tarefa:", formatEloCoreProjectTask_(project.pending_task));
+    if (Array.isArray(project.decisions) && project.decisions.length) lines.push("", "Decisões:", project.decisions.map(function (item) { return "- " + item; }).join("\n"));
+    return lines.join("\n");
+  }
+
+  function buildEloCoreProjectMemoryAnswer_(message) {
+    const intent = detectEloCoreProjectMemoryIntent_(message);
+    if (!intent) return null;
+    if (intent.type === "switch") {
+      deactivateActiveEloCoreProject_();
+      return { shortAnswer: "Qual projeto deseja iniciar?", fullAnswer: "Qual projeto deseja iniciar?", nextAction: "Diga: O projeto chama ...", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_update" };
+    }
+    let project = getActiveEloCoreProjectMemory_();
+    if (intent.type === "save" && intent.project_name) {
+      project = saveEloCoreProjectMemory_({ project_name: intent.project_name, current_goal: "Desenvolver " + intent.project_name + ".", last_completed_task: /elo\s+core/i.test(intent.project_name) ? "Abertura automática das ferramentas" : "", pending_task: /elo\s+core/i.test(intent.project_name) ? "Implementar memória de projeto" : "", decisions: [] });
+      const answer = "Certo. Vou lembrar que estamos trabalhando no " + project.project_name + ".";
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: "Diga Continuar quando quiser retomar.", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_save" };
+    }
+    if (!project) {
+      const answer = "Ainda não tenho um projeto ativo salvo.";
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: "Diga: Estamos desenvolvendo o ELO Core.", canSave: false, sessionTheme: "projeto", sessionIntent: intent.type === "continue" ? "project_memory_continue" : "project_memory_query" };
+    }
+    if (intent.type === "update") {
+      const decisions = Array.isArray(project.decisions) ? project.decisions.slice() : [];
+      if (intent.decision && decisions.indexOf(intent.decision) < 0) decisions.push(intent.decision);
+      project = saveEloCoreProjectMemory_(Object.assign({}, project, {
+        last_completed_task: intent.completed ? intent.completed : project.last_completed_task,
+        pending_task: intent.pending ? intent.pending : (intent.completed && normalizeText(project.pending_task) === normalizeText(intent.completed) ? "" : project.pending_task),
+        decisions: decisions
+      }));
+      const answer = intent.completed ? "Entendido. Atualizei a última tarefa concluída do projeto." : "Entendido. Atualizei a memória do projeto.";
+      return { shortAnswer: answer, fullAnswer: buildEloCoreProjectResume_(project), nextAction: "Diga Continuar para retomar daqui.", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_update" };
+    }
+    if (intent.type === "continue") {
+      const answer = buildEloCoreProjectResume_(project);
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: project.pending_task || "Defina a próxima tarefa.", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_continue" };
+    }
+    if (intent.type === "query" && intent.field === "decisions") {
+      const answer = project.decisions && project.decisions.length ? "Decidimos:\n" + project.decisions.map(function (item) { return "- " + item; }).join("\n") : "Não tenho decisões registradas para este projeto.";
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: "Quando houver uma decisão, diga: Decidimos que ...", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_query" };
+    }
+    if (intent.type === "query" && intent.field === "pending_task") {
+      const answer = project.pending_task ? "A próxima tarefa é: " + formatEloCoreProjectTask_(project.pending_task) : "Não há próxima tarefa registrada para este projeto.";
+      return { shortAnswer: answer, fullAnswer: answer, nextAction: "Você pode definir dizendo: Próxima tarefa é ...", canSave: false, sessionTheme: "projeto", sessionIntent: "project_memory_query" };
+    }
+    return null;
+  }
   function buildEloCoreUserNameMemoryAnswer_(message) {
     const intent = detectEloCoreUserNameMemoryIntent_(message);
     if (!intent || intent.type === "invalid") return null;
@@ -17135,6 +17321,10 @@
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
     }
+    const projectMemoryResponse = buildEloCoreProjectMemoryAnswer_(question);
+    if (projectMemoryResponse) {
+      return applyEloBrainMarker_(question, projectMemoryResponse);
+    }
     const intentResponse = routeEloCoreIntents_(question, {});
     if (intentResponse) {
       return applyEloBrainMarker_(question, intentResponse);
@@ -17367,6 +17557,15 @@
       rememberSessionTurn(cleanQuestion, eloCoreToolResponse, eloCoreToolAnswer);
       clearProductAttachmentPreview();
       navigateEloCoreTool_(eloCoreToolResponse);
+      return;
+    }
+
+    const directProjectMemoryResponse = buildEloCoreProjectMemoryAnswer_(cleanQuestion);
+    if (directProjectMemoryResponse) {
+      const answer = formatResponse(directProjectMemoryResponse);
+      appendAssistantMessage(cleanQuestion, answer, false, directProjectMemoryResponse);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, directProjectMemoryResponse, answer);
       return;
     }
 

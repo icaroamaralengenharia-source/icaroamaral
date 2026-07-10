@@ -867,6 +867,44 @@ test('ELO CORE POC: camada 1 retorna template comportamental', () => {
   assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o de obra/i);
 });
 
+test('ELO CORE projeto: salva continua decide atualiza e troca projeto ativo', () => {
+  const current = loadEloContext();
+  let response = current.elo.buildResponseForTest('Estamos desenvolvendo o ELO Core.');
+  assert.equal(response.sessionIntent, 'project_memory_save');
+  assert.match(response.shortAnswer, /ELO Core/);
+  assert.doesNotMatch(response.shortAnswer + response.fullAnswer, /Seu nome|perfil/i);
+
+  response = current.elo.buildResponseForTest('Continuar.');
+  assert.equal(response.sessionIntent, 'project_memory_continue');
+  assert.match(response.fullAnswer, /trabalhando no ELO Core/i);
+  assert.match(response.fullAnswer, /Abertura autom[aá]tica das ferramentas/i);
+  assert.match(response.fullAnswer, /Implementar mem[oó]ria de projeto/i);
+
+  response = current.elo.buildResponseForTest('Decidimos que a memória de projeto fica separada do perfil.');
+  assert.equal(response.sessionIntent, 'project_memory_update');
+  response = current.elo.buildResponseForTest('O que decidimos ontem?');
+  assert.equal(response.sessionIntent, 'project_memory_query');
+  assert.match(response.fullAnswer, /mem[oó]ria de projeto fica separada do perfil/i);
+
+  response = current.elo.buildResponseForTest('Próxima tarefa é testar usuário sem memória.');
+  assert.equal(response.sessionIntent, 'project_memory_update');
+  response = current.elo.buildResponseForTest('Qual é a próxima tarefa?');
+  assert.match(response.fullAnswer, /testar usu[aá]rio sem mem[oó]ria/i);
+
+  response = current.elo.buildResponseForTest('Concluímos a memória de projeto.');
+  assert.equal(response.sessionIntent, 'project_memory_update');
+  response = current.elo.buildResponseForTest('Continuar.');
+  assert.match(response.fullAnswer, /mem[oó]ria de projeto/i);
+  assert.doesNotMatch(response.fullAnswer, /Pr[oó]xima tarefa:\nMem[oó]ria de projeto/i);
+
+  response = current.elo.buildResponseForTest('Mudar de projeto.');
+  assert.equal(response.shortAnswer, 'Qual projeto deseja iniciar?');
+  response = current.elo.buildResponseForTest('O projeto chama ObraReport.');
+  assert.equal(response.sessionIntent, 'project_memory_save');
+  response = current.elo.buildResponseForTest('Continuar.');
+  assert.match(response.fullAnswer, /ObraReport/i);
+  assert.doesNotMatch(response.fullAnswer, /trabalhando no ELO Core/i);
+});
 test('ELO CORE nome: salva, consulta, recarrega e corrige sem cair no motor tecnico', () => {
   const current = loadEloContext();
   let response = current.elo.buildResponseForTest('Meu nome é Ícaro Amaral. Guarde isso.');
