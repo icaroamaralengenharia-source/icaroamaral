@@ -269,6 +269,15 @@ test("Elo com imagem gera payload ObraReport e mostra link PDF clicavel", async 
   const pdfUrl = "https://drive.google.com/file/d/pdf-e2e-elo/view";
   const consoleErrors = [];
   const pdfRequests = [
+    "Elo, analise essa imagem e faça um relatório de inconformidade",
+    "analise esta foto e faça um relatório",
+    "faça um relatório de inconformidade desta imagem",
+    "gere um laudo desta fissura",
+    "monte um relatório técnico com esta foto",
+    "crie um parecer técnico desta imagem",
+    "analise a patologia e produza o relatório",
+    "faça o relatório desta foto",
+    "analise e registre esta inconformidade em relatório",
     "fa\u00e7a o relat\u00f3rio em PDF desta imagem pelo ObraReport",
     "fa\u00e7a um relat\u00f3rio em PDF desta foto",
     "gere o PDF desta imagem",
@@ -339,6 +348,7 @@ test("Elo com imagem gera payload ObraReport e mostra link PDF clicavel", async 
 
     await expect(page.locator(".elo-message.assistant").last()).toContainText("PDF real gerado pelo ObraReport", { timeout: 30000 });
     await expect(page.locator(".elo-message.assistant").last()).toContainText(pdfUrl);
+    await expect(page.locator(".elo-message.assistant").last()).not.toContainText(/An.lise visual da foto/i);
     const pdfLink = page.locator(".elo-message.assistant a", { hasText: "Abrir / baixar PDF" }).last();
     await expect(pdfLink).toBeVisible();
     await expect(pdfLink).toHaveAttribute("href", pdfUrl);
@@ -363,6 +373,8 @@ test("Elo com imagem preserva analise visual e OCR fora do PDF", async ({ page }
     "descreva esta foto",
     "o que aparece nesta imagem?",
     "identifique a possivel manifestacao",
+    "qual e a possivel patologia?",
+    "avalie esta fissura",
     "avalie esta parede"
   ];
   const ocrRequests = [

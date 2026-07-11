@@ -17628,14 +17628,19 @@
       return false;
     }
 
-    const hasDocumentIntent = /\b(relatorio|laudo|parecer|documento)\b/.test(text);
+    if (isEloImageTextOnlyRequest_(message)) {
+      return false;
+    }
+
+    const hasDocumentIntent = /\b(relatorio|laudo|parecer|documento|inconformidade)\b/.test(text);
     const hasPdfIntent = /\bpdf\b/.test(text);
-    const hasGenerationVerb = /\b(faca|fazer|gere|gerar|crie|criar|monte|montar|produza|produzir|emita|emitir|quero)\b/.test(text);
-    const hasImageContext = /\b(imagem|foto|anexo|anexada|anexado)\b/.test(text);
+    const hasGenerationVerb = /\b(faca|fazer|gere|gerar|crie|criar|monte|montar|produza|produzir|emita|emitir|registre|registrar|quero)\b/.test(text);
+    const hasImageContext = /\b(imagem|foto|anexo|anexada|anexado|fissura|patologia|inconformidade|manifestacao)\b/.test(text);
     const hasObraReportContext = /\bobra\s*report\b|\bobrareport\b/.test(text);
 
     return (hasDocumentIntent && hasPdfIntent) ||
       (hasGenerationVerb && hasPdfIntent && hasImageContext) ||
+      (hasGenerationVerb && hasDocumentIntent && hasImageContext) ||
       (hasGenerationVerb && hasDocumentIntent && hasObraReportContext);
   }
   function getEloReportAppsScriptUrl_() {
