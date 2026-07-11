@@ -825,14 +825,15 @@ test('ELO CORE intent: conversas comuns nao recebem Proxima acao robotica', () =
 
 test('ELO CORE intent: diagnostico de trabalho nao cai no cerebro tecnico de obras', () => {
   const elo = loadElo();
-  const question = 'Faca um diagnostico do nosso historico de trabalho recente e aponte onde perdemos tempo, onde esta o ruido e qual e o parafuso principal na forma de pedir.';
+  const question = 'Faca um diagnostico do nosso historico de trabalho recente e aponte onde perdemos tempo, quais tipos de pedidos geraram mais vai-e-vem, onde esta o ruido, qual e o parafuso principal e qual mudanca na forma de pedir faria a primeira versao ser definitiva.';
   const intents = elo.classifyIntentForTest(question).map((item) => item.type).join(',');
   const response = elo.buildResponseForTest(question);
-  const answer = response.fullAnswer || response.shortAnswer || '';
+  const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join('\n');
 
   assert.match(intents, /meta_workflow/);
-  assert.match(answer, /modo de trabalho|Onde perdemos tempo|parafuso principal/i);
-  assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o de obra|Mem.ria de c.lculo|composi..o t.cnica/i);
+  assert.equal(response.sessionIntent, 'meta_workflow_diagnosis');
+  assert.match(answer, /modo de trabalho|objetivo|comportamento esperado|parafuso principal|retrabalho/i);
+  assert.doesNotMatch(answer, /SINAPI|ORSE|servi.o solicitado|Mem.ria de c.lculo|composi..o t.cnica|premissas t.cnicas|Quantidade/i);
   assert.doesNotMatch(answer, /Pr.xima a..o:/i);
 });
 

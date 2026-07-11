@@ -328,10 +328,10 @@
     if (intent.type === "meta_workflow") {
       return {
         text: [
-          "O gargalo não está em obra ou orçamento aqui. É uma pergunta sobre nosso modo de trabalho.",
-          "Onde perdemos tempo: quando o pedido mistura produto, interface, backend, segurança e comportamento conversacional no mesmo bloco sem exemplos de aceite.",
-          "Onde aparece ruído: quando palavras como memória, histórico, relatório ou técnico podem significar tanto produto quanto conversa sobre o processo.",
-          "O parafuso principal: sempre inclua 3 exemplos de entrada e saída esperada, mais 1 exemplo de resposta proibida. Isso ancora o roteamento e corta o vai-e-vem."
+          "É uma pergunta sobre nosso modo de trabalho.",
+          "Onde perdemos tempo: quando o pedido mistura objetivo, comportamento esperado e implementação no mesmo bloco.",
+          "Onde aparece ruído: quando palavras como memória, histórico, relatório ou técnico podem significar produto, conversa ou processo.",
+          "O parafuso principal: fechar o comportamento esperado antes de codar, com exemplos de entrada, saída esperada e resposta proibida. Isso corta o vai-e-vem."
         ].join("\n\n"),
         handled: true
       };
@@ -371,6 +371,67 @@
     if (!parts.length) return null;
     const answer = parts.join("\n\n");
     return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "elo_core_intent", sessionIntent: intents.map(function (intent) { return intent.type; }).join("+") };
+  }
+
+  function isEloCorePureConversationalRequest_(question) {
+    const text = normalizeText(question || "").replace(/[?!.,;:]+/g, "").trim();
+    if (!text || text.length > 90) return false;
+    const intent = detectConversationalIntent(text);
+    if (!intent) return false;
+    if (isEloCoreMetaWorkflowDiagnosis_(question)) return false;
+    if (detectEloCoreTool_(question)) return false;
+    if (/(orcamento|orcamentos|orcar|custo|preco|sinapi|orse|composicao|parede|bloco|reboco|concreto|rdo|relatorio|cadista|stock|estoque)/.test(text)) return false;
+    return true;
+  }
+
+  function buildEloCorePureConversationalAnswer_(question) {
+    if (!isEloCorePureConversationalRequest_(question)) return null;
+    return getConversationalResponse(normalizeText(question || ""));
+  }
+
+  function isEloCoreMetaWorkflowDiagnosis_(question) {
+    const text = normalizeText(question || "");
+    if (!text) return false;
+    const directSignals = [
+      "nosso historico de trabalho",
+      "historico de trabalho",
+      "onde perdemos tempo",
+      "onde esta o ruido",
+      "qual e o ruido",
+      "vai e vem",
+      "vai-e-vem",
+      "correcoes repetidas",
+      "parafuso principal",
+      "forma de pedir",
+      "briefing inicial",
+      "comandos ambiguos",
+      "estamos em circulos",
+      "voce se perde",
+      "onde voce se perde",
+      "por que erramos",
+      "por que estamos errando"
+    ];
+    if (directSignals.some(function (signal) { return text.indexOf(signal) >= 0; })) return true;
+    const talksAboutWorkProcess = /\b(nosso|nossa|meu|minha|meus|minhas|voce|elo)\b/.test(text) &&
+      /\b(historico|processo|trabalho|comandos|pedidos|briefing|retrabalho|ruido|correcao|correcoes)\b/.test(text);
+    const asksDiagnosis = /\b(diagnostico|diagnosticar|aponte|apontar|onde|qual|como melhorar|melhorar)\b/.test(text);
+    return talksAboutWorkProcess && asksDiagnosis;
+  }
+
+  function buildEloCoreMetaWorkflowDiagnosisAnswer_(question) {
+    if (!isEloCoreMetaWorkflowDiagnosis_(question)) return null;
+    return {
+      mode: "elo_core_meta_workflow",
+      sessionTheme: "elo_core_meta_workflow",
+      sessionIntent: "meta_workflow_diagnosis",
+      shortAnswer: "O principal ruído está na mistura entre objetivo, comportamento esperado e implementação no mesmo pedido.",
+      fullAnswer: [
+        "O principal ruído está na mistura entre objetivo, comportamento esperado e implementação no mesmo pedido. Quando isso acontece, eu tento resolver tudo de uma vez e posso puxar a conversa para o motor errado.",
+        "O ajuste é separar cada pedido em três blocos: objetivo, exemplos de entrada e saída esperada, e arquivos permitidos/proibidos.",
+        "O parafuso principal é fechar o comportamento esperado antes de codar. Assim a primeira versão sai mais precisa, com menos retrabalho e menos correções repetidas."
+      ].join("\n\n"),
+      nextAction: "Para a próxima tarefa, passe primeiro o objetivo e os exemplos de saída esperada; depois autorizamos a implementação."
+    };
   }
 
   function getEloCoreAnonymousId_() { try { const existing = sanitizeUserText(window.localStorage.getItem(ELO_CORE_ANONYMOUS_ID_KEY)); if (/^elo_anon_[a-zA-Z0-9_-]+$/.test(existing)) return existing; const random = window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10); const id = "elo_anon_" + random; window.localStorage.setItem(ELO_CORE_ANONYMOUS_ID_KEY, id); return id; } catch (error) { return "elo_anon_" + Date.now().toString(36); } }
@@ -16164,7 +16225,7 @@
   const ELO_CONVERSATION_INTENTS = [
     {
       intent: "saudacao",
-      phrases: ["oi", "ola", "olá", "e ai", "e aí", "opa", "salve", "alo", "alô"]
+      phrases: ["oi", "ola", "olá", "hi", "e ai", "e aí", "opa", "salve", "alo", "alô"]
     },
     {
       intent: "como_esta",
@@ -17399,6 +17460,14 @@
     const projectMemoryResponse = buildEloCoreProjectMemoryAnswer_(question);
     if (projectMemoryResponse) {
       return applyEloBrainMarker_(question, projectMemoryResponse);
+    }
+    const metaWorkflowResponse = buildEloCoreMetaWorkflowDiagnosisAnswer_(question);
+    if (metaWorkflowResponse) {
+      return applyEloBrainMarker_(question, metaWorkflowResponse);
+    }
+    const pureConversationalResponse = buildEloCorePureConversationalAnswer_(question);
+    if (pureConversationalResponse) {
+      return applyEloBrainMarker_(question, pureConversationalResponse);
     }
     const intentResponse = routeEloCoreIntents_(question, {});
     if (intentResponse) {
