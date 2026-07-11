@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 const ARTIFACT_DIR = resolve("artifacts");
 const PDF_PATH = join(ARTIFACT_DIR, "report-photo-to-pdf-test.pdf");
 const SCREENSHOT_PATH = join(ARTIFACT_DIR, "report-photo-to-pdf-applied.png");
+const SITE_ACCESS_STORAGE_KEY = "icaro_site_access_v2";
 
 const MOCK_ANALYSIS = {
   elementoObservado: "Parede interna",
@@ -45,11 +46,22 @@ function imagePayload(name) {
 }
 
 async function login(page) {
-  await page.goto("/relatorio-qualidade-obras.html");
-  await page.evaluate(() => {
+  await page.addInitScript((storageKey) => {
+    window.sessionStorage.setItem(storageKey, JSON.stringify({
+      authenticated: true,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000
+    }));
+  }, SITE_ACCESS_STORAGE_KEY);
+  await page.goto("/relatorio-qualidade-obras/relatorio-qualidade-obras.html");
+  await page.evaluate((storageKey) => {
     window.localStorage.clear();
-    window.sessionStorage.clear();
-  });
+    window.sessionStorage.setItem(storageKey, JSON.stringify({
+      authenticated: true,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000
+    }));
+  }, SITE_ACCESS_STORAGE_KEY);
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator('[data-home-action="relatorio"]').first().click();
   await expect(page.locator("#loginForm")).toBeVisible();
@@ -251,4 +263,167 @@ test("foto, IA estruturada, campos editaveis e PDF salvo para conferencia", asyn
   expect(submittedPayload.report.observacoes).toMatch(/Possiveis inconformidades|Grau preliminar/i);
 
   await writePdfFromPayload(browser, submittedPayload);
+});
+test("Elo com imagem gera payload ObraReport e mostra link PDF clicavel", async ({ page }) => {
+  const submittedPayloads = [];
+  const pdfUrl = "https://drive.google.com/file/d/pdf-e2e-elo/view";
+  const consoleErrors = [];
+  const pdfRequests = [
+    "fa\u00e7a o relat\u00f3rio em PDF desta imagem pelo ObraReport",
+    "fa\u00e7a um relat\u00f3rio em PDF desta foto",
+    "gere o PDF desta imagem",
+    "crie um relat\u00f3rio t\u00e9cnico em PDF com esta foto",
+    "quero o relat\u00f3rio PDF da imagem",
+    "fa\u00e7a o laudo em PDF desta foto",
+    "gere o relat\u00f3rio pelo ObraReport",
+    "fa\u00e7a um relat\u00f3rio desta imagem e gere o PDF"
+  ];
+
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  await page.addInitScript((storageKey) => {
+    window.sessionStorage.setItem(storageKey, JSON.stringify({
+      authenticated: true,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000
+    }));
+  }, SITE_ACCESS_STORAGE_KEY);
+
+  await page.route("**/api/elo/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, conversations: [], memories: [] }) });
+  });
+
+  await page.route("**/api/ai/analyze-image", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        mode: "mock-e2e",
+        suggestion: MOCK_SUGGESTION,
+        analysis: Object.assign({}, MOCK_ANALYSIS, {
+          descricaoTecnica: MOCK_ANALYSIS.textoRelatorio,
+          recomendacaoAcao: MOCK_ANALYSIS.recomendacaoAcao,
+          grauPreliminar: MOCK_ANALYSIS.grauPreliminar,
+          textoRelatorio: MOCK_ANALYSIS.textoRelatorio
+        })
+      })
+    });
+  });
+
+  await page.route("https://script.google.com/**", async (route) => {
+    const text = route.request().postData() || "{}";
+    const parsed = JSON.parse(text);
+    if (parsed && parsed.tipoRelatorio === "fiscalizacao") {
+      submittedPayloads.push(parsed);
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain;charset=utf-8",
+      body: JSON.stringify({ ok: true, requestId: "elo-e2e-request", pdfFileId: "pdf-e2e-elo", pdfUrl, imageFolderUrl: "https://drive.google.com/drive/folders/image-e2e-elo" })
+    });
+  });
+
+  await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".site-access-gate")).toBeHidden();
+  await expect(page.locator(".elo-input-row")).toBeVisible();
+
+  for (const [index, requestText] of pdfRequests.entries()) {
+    await page.locator(".elo-attachment-input").setInputFiles(imagePayload(`elo-umidade-parede-${index + 1}.png`));
+    await expect(page.locator("[data-elo-attachment-name]")).toContainText(`elo-umidade-parede-${index + 1}.png`);
+    await page.locator(".elo-input").fill(requestText);
+    await page.locator(".elo-send-button").click();
+
+    await expect(page.locator(".elo-message.assistant").last()).toContainText("PDF real gerado pelo ObraReport", { timeout: 30000 });
+    await expect(page.locator(".elo-message.assistant").last()).toContainText(pdfUrl);
+    const pdfLink = page.locator(".elo-message.assistant a", { hasText: "Abrir / baixar PDF" }).last();
+    await expect(pdfLink).toBeVisible();
+    await expect(pdfLink).toHaveAttribute("href", pdfUrl);
+    await expect.poll(() => submittedPayloads.length).toBe(index + 1);
+
+    const submittedPayload = submittedPayloads[index];
+    expect(submittedPayload.report.obra).toBe("Relatorio gerado pelo Elo");
+    expect(submittedPayload.fotosUnidade).toHaveLength(1);
+    expect(submittedPayload.inconformidades).toHaveLength(1);
+    expect(submittedPayload.fotosUnidade[0].foto.fileName).toMatch(/elo-umidade-parede/i);
+    expect(submittedPayload.inconformidades[0].descricaoTecnica).toMatch(/umidade|infiltracao|parede/i);
+  }
+
+  expect(page.locator(".elo-message.assistant").last()).not.toContainText(/Texto identificado/i);
+  expect(consoleErrors.filter((item) => !/favicon|Failed to load resource/i.test(item))).toEqual([]);
+});
+
+test("Elo com imagem preserva analise visual e OCR fora do PDF", async ({ page }) => {
+  let appsScriptCalls = 0;
+  const visualRequests = [
+    "analise esta imagem",
+    "descreva esta foto",
+    "o que aparece nesta imagem?",
+    "identifique a possivel manifestacao",
+    "avalie esta parede"
+  ];
+  const ocrRequests = [
+    "transcreva o texto desta imagem",
+    "leia o que esta escrito",
+    "quero somente o texto da foto"
+  ];
+
+  await page.addInitScript((storageKey) => {
+    window.sessionStorage.setItem(storageKey, JSON.stringify({
+      authenticated: true,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 12 * 60 * 60 * 1000
+    }));
+  }, SITE_ACCESS_STORAGE_KEY);
+
+  await page.route("**/api/elo/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, conversations: [], memories: [] }) });
+  });
+
+  await page.route("**/api/ai/analyze-image", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        mode: "mock-e2e",
+        suggestion: MOCK_SUGGESTION,
+        text: "Texto OCR mockado",
+        analysis: MOCK_ANALYSIS
+      })
+    });
+  });
+
+  await page.route("https://script.google.com/**", async (route) => {
+    appsScriptCalls += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/plain;charset=utf-8",
+      body: JSON.stringify({ ok: true, pdfUrl: "https://drive.google.com/file/d/unexpected/view" })
+    });
+  });
+
+  await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".site-access-gate")).toBeHidden();
+  await expect(page.locator(".elo-input-row")).toBeVisible();
+
+  for (const [index, requestText] of visualRequests.entries()) {
+    await page.locator(".elo-attachment-input").setInputFiles(imagePayload(`elo-visual-${index + 1}.png`));
+    await page.locator(".elo-input").fill(requestText);
+    await page.locator(".elo-send-button").click();
+    await expect(page.locator(".elo-message.assistant").last()).toContainText(/An.lise visual/i, { timeout: 30000 });
+    await expect(page.locator(".elo-message.assistant").last()).not.toContainText("PDF real gerado pelo ObraReport");
+  }
+
+  for (const [index, requestText] of ocrRequests.entries()) {
+    await page.locator(".elo-attachment-input").setInputFiles(imagePayload(`elo-ocr-${index + 1}.png`));
+    await page.locator(".elo-input").fill(requestText);
+    await page.locator(".elo-send-button").click();
+    await expect(page.locator(".elo-message.assistant").last()).toContainText("Texto identificado", { timeout: 30000 });
+    await expect(page.locator(".elo-message.assistant").last()).not.toContainText("PDF real gerado pelo ObraReport");
+  }
+
+  expect(appsScriptCalls).toBe(0);
 });
