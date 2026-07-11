@@ -1759,6 +1759,113 @@
     return match ? sanitizeUserText(match[0]).toUpperCase().replace(/\s+/g, " ") : "";
   }
 
+  function formatEloResidentialBudgetText_(value) {
+    return sanitizeUserText(value || "");
+  }
+
+  function formatEloResidentialBudgetNumber_(value, unit) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "";
+    return formatEloOperationalQuantity_(numeric) + (unit ? " " + unit : "");
+  }
+
+  function formatEloResidentialBudgetItem_(item) {
+    if (typeof item === "string") return formatEloResidentialBudgetText_(item);
+    if (!item || typeof item !== "object") return "";
+    const composition = item.composition && typeof item.composition === "object" ? item.composition : {};
+    const code = item.code || item.compositionCode || composition.code || composition.compositionCode || composition.codigo;
+    const source = item.source || item.compositionSource || composition.source || composition.fonte;
+    const unit = item.unit || item.compositionUnit || composition.unit || composition.compositionUnit || composition.unidade;
+    const quantity = formatEloResidentialBudgetNumber_(item.quantity, item.unit);
+    const description = item.description || item.name || item.service || item.serviceName || item.serviceId || composition.description || composition.compositionName || composition.descricao;
+    const status = item.status || item.reason || item.origin || item.quantitySource || item.priceSource;
+    return [description, code, source, unit, quantity, status].map(formatEloResidentialBudgetText_).filter(Boolean).join(" | ");
+  }
+
+  function formatEloResidentialBudgetList_(items, fallback) {
+    const list = Array.isArray(items) ? items : (items && typeof items === "object" ? Object.keys(items).map(function (key) { return Object.assign({ serviceId: key }, items[key] && typeof items[key] === "object" ? items[key] : { description: String(items[key] || "") }); }) : []);
+    const lines = list.map(formatEloResidentialBudgetItem_).filter(Boolean);
+    if (!lines.length) return fallback !== undefined ? fallback : "- Nao informado pelo motor.";
+    return lines.map(function (line) { return "- " + line; }).join("\n");
+  }
+
+  function formatEloResidentialWorkPackages_(workPackages, fallback) {
+    const packages = Array.isArray(workPackages) ? workPackages : (workPackages && Array.isArray(workPackages.packages) ? workPackages.packages : []);
+    if (!packages.length) return fallback || "- Estrutura/EAP nao retornada pelo motor.";
+    const lines = [];
+    packages.forEach(function (pack) {
+      const title = formatEloResidentialBudgetItem_({ description: pack.name || pack.title || pack.package || pack.id, code: pack.code || pack.packageId, source: pack.description });
+      if (title) lines.push("- " + title);
+      const items = Array.isArray(pack.items) ? pack.items : (Array.isArray(pack.services) ? pack.services : []);
+      items.map(formatEloResidentialBudgetItem_).filter(Boolean).forEach(function (item) { lines.push("  - " + item); });
+    });
+    return lines.length ? lines.join("\n") : (fallback || "- Estrutura/EAP nao retornada pelo motor.");
+  }
+
+  function formatEloResidentialCompositionMatches_(matches, fallback) {
+    const list = Array.isArray(matches) ? matches : [];
+    const lines = list.map(function (match) {
+      const composition = match && match.composition && typeof match.composition === "object" ? match.composition : {};
+      return formatEloResidentialBudgetItem_(Object.assign({}, match || {}, {
+        description: composition.description || composition.compositionName || composition.descricao || (match && (match.service || match.description || match.serviceId)),
+        code: match && (match.code || match.compositionCode) || composition.code || composition.compositionCode || composition.codigo,
+        source: match && (match.source || match.compositionSource) || composition.source || composition.fonte,
+        unit: match && (match.unit || match.compositionUnit) || composition.unit || composition.compositionUnit || composition.unidade,
+        reason: match && match.found === false ? (match.reason || "composicao nao localizada") : (match && match.reason),
+        name: composition.description || composition.compositionName || composition.descricao
+      }));
+    }).filter(Boolean);
+    if (!lines.length) return fallback || "- Composicoes nao resolvidas pelo motor.";
+    return lines.map(function (line) { return "- " + line; }).join("\n");
+  }
+
+  function formatEloResidentialBaseStatus_(baseStatus) {
+    if (!baseStatus || typeof baseStatus !== "object") return "Base de precos nao confirmada.";
+    const lines = [];
+    if (baseStatus.loaded === true) lines.push("- Base carregada: sim");
+    if (baseStatus.loaded === false) lines.push("- Base nao carregada");
+    if (baseStatus.source) lines.push("- Fonte: " + formatEloResidentialBudgetText_(baseStatus.source));
+    if (baseStatus.state) lines.push("- UF: " + formatEloResidentialBudgetText_(baseStatus.state));
+    if (baseStatus.referenceMonth) lines.push("- Referencia: " + formatEloResidentialBudgetText_(baseStatus.referenceMonth));
+    if (Number.isFinite(Number(baseStatus.totalCompositions))) lines.push("- Composicoes carregadas: " + formatEloOperationalQuantity_(baseStatus.totalCompositions));
+    if (Number.isFinite(Number(baseStatus.totalInputs))) lines.push("- Insumos carregados: " + formatEloOperationalQuantity_(baseStatus.totalInputs));
+    return lines.length ? lines.join("\n") : "Base de precos nao confirmada.";
+  }
+
+  function formatEloResidentialCosts_(priceStatus) {
+    if (!priceStatus || priceStatus.canTotal !== true || !priceStatus.totals) return "Valores pendentes. Fonte oficial de precos insuficiente; subtotal, BDI e total nao foram consolidados.";
+    const totals = priceStatus.totals || {};
+    const lines = [];
+    [["Subtotal", totals.subtotal], ["BDI", totals.bdiValue], ["Total", totals.total]].forEach(function (entry) {
+      if (Number.isFinite(Number(entry[1]))) lines.push("- " + entry[0] + ": " + formatEloOperationalQuantity_(entry[1]));
+    });
+    return lines.length ? lines.join("\n") : "Valores pendentes. Totais nao consolidados pelo motor.";
+  }
+
+  function buildEloResidentialBudgetRecordFromEngineResult_(budget, project, message) {
+    const safe = budget || {};
+    const number = getNextEloBudgetNumber_();
+    const now = new Date().toISOString();
+    const facts = safe.projectFacts || {};
+    const eapStages = safe.budgetEap && (safe.budgetEap.stages || safe.budgetEap.etapas);
+    const eapItems = safe.budgetEap && (safe.budgetEap.items || safe.budgetEap.itens);
+    const resolved = safe.compositionResolution && (safe.compositionResolution.resolved || safe.compositionResolution.matches);
+    const missingCompositions = safe.compositionResolution && safe.compositionResolution.missing;
+    const missingPrices = safe.priceStatus && Array.isArray(safe.priceStatus.missingPrices) ? safe.priceStatus.missingPrices : [];
+    const status = safe.realBudget && safe.realBudget.status === "blocked" ? "bloqueado_preliminar" : "rascunho";
+    const cityUf = [project && project.cidade || facts.city, project && project.uf || facts.uf].filter(Boolean).join("/") || "nao informado";
+    const quantitativos = formatEloResidentialBudgetList_(safe.quantities, "- Quantitativos nao retornados pelo motor.");
+    const composicoes = resolved ? formatEloResidentialCompositionMatches_(resolved, "- Composicoes nao resolvidas pelo motor.") : formatEloResidentialCompositionMatches_(safe.compositionMatches, "- Composicoes nao resolvidas pelo motor.");
+    const eap = (Array.isArray(eapStages) || Array.isArray(eapItems)) ? ["Etapas:", formatEloResidentialBudgetList_(eapStages, "- Etapas nao retornadas."), "Itens:", formatEloResidentialBudgetList_(eapItems, "- Itens nao retornados.")].join("\n") : formatEloResidentialWorkPackages_(safe.workPackages, "- Estrutura/EAP nao retornada pelo motor.");
+    const pendencias = [formatEloResidentialBudgetList_(safe.missing, ""), formatEloResidentialBudgetList_(missingCompositions, ""), formatEloResidentialBudgetList_(missingPrices, ""), safe.realBudget && safe.realBudget.status === "blocked" ? "- Orcamento bloqueado para fechamento financeiro." : ""].filter(Boolean).join("\n") || "- Sem pendencias retornadas pelo motor.";
+    const custos = formatEloResidentialCosts_(safe.priceStatus);
+    const bases = formatEloResidentialBaseStatus_(safe.baseStatus);
+    const avisos = formatEloResidentialBudgetList_(safe.risks, "- Documento preliminar assistido por sistema computacional. Nao substitui projeto executivo, orcamento executivo, memorial descritivo ou responsabilidade tecnica profissional.");
+    const markdown = ["# Orcamento residencial preliminar", "", "## Resumo executivo", safe.summary || "Orcamento residencial preliminar gerado pelos motores reais do Elo.", "", "## EAP real", eap, "", "## Quantitativos", quantitativos, "", "## Composicoes utilizadas", composicoes, "", "## Custos encontrados", custos, "", "## Base tecnica utilizada", bases, "", "## Pendencias tecnicas", pendencias, "", "## Alertas tecnicos", avisos].join("\n");
+    const record = { id: number + "-v1", numero: number, tipo: "orcamento_residencial", cliente: sanitizeUserText(project && (project.cliente || project.client) || "nao informado"), obra: sanitizeUserText(project && (project.nome || project.name || project.obra) || "obra atual"), cidade_uf: cityUf, data_criacao: now, data_atualizacao: now, versao: 1, status: status, titulo: "Orcamento residencial preliminar", resumo_executivo: safe.summary || "Orcamento residencial preliminar gerado pelos motores reais do Elo.", conteudo_markdown: markdown, conteudo_html: "", itens: eapItems || [], quantitativos: quantitativos, composicoes: composicoes, bases_tecnicas: bases, custos_encontrados: custos, pendencias: pendencias, avisos_profissionais: avisos, origem: "elo_budget_engine", pergunta_origem: sanitizeUserText(message || ""), hash_simples: simpleEloChecksum_(markdown) };
+    record.conteudo_html = buildEloBudgetRecordHtml_(record, true);
+    return record;
+  }
   function buildEloBudgetRecordFromLastAnswer_() {
     const source = ELO_SESSION_MEMORY.lastBudgetSource || ELO_SESSION_MEMORY.lastTechnicalPackage || (ELO_SESSION_MEMORY.lastAnswer ? { answer: ELO_SESSION_MEMORY.lastAnswer, theme: ELO_SESSION_MEMORY.lastTheme, intent: "", question: ELO_SESSION_MEMORY.lastQuestion, nextAction: ELO_SESSION_MEMORY.lastRecommendation } : null);
     if (!source || !source.answer || !isEloBudgetRecordTheme_(source.theme, source.intent)) return null;
@@ -2975,6 +3082,7 @@
       || buildEloStockOperationalAnswer_(message)
       || buildEloReportsOperationalAnswer_(message)
       || buildEloOperationalWizardAnswer_(message)
+      || buildEloResidentialBudgetBriefingAnswer_(message)
       || buildEloLooseProjectBriefingAnswer_(message);
   }
   function buildEloTechnicalAuditorAlerts_(message, options) {
@@ -12785,27 +12893,40 @@
     if (!project.tipo_obra) missing.push("tipo de construcao");
     if (!/pavimento|andar|terrea|t.rrea|sobrado|2\s+pav|dois\s+pav/.test(normalizeText(message || ""))) missing.push("quantidade de pavimentos");
     if (!project.etapa_atual) missing.push("etapa desejada");
+    if (missing.length) {
+      return {
+        shortAnswer: "Vamos montar o orcamento residencial preliminar com os dados basicos primeiro.",
+        fullAnswer: [
+          "Orcamento residencial preliminar",
+          "Antes de buscar SINAPI/ORSE ou compor valores, preciso fechar o briefing minimo:",
+          "- cidade/UF;",
+          "- padrao da obra;",
+          "- area aproximada;",
+          "- tipo de construcao;",
+          "- quantidade de pavimentos;",
+          "- etapa desejada.",
+          "",
+          "Dados ainda pendentes: " + missing.join(", ")
+        ].join("\n"),
+        nextAction: "Responda com cidade/UF, padrao, area, tipo de construcao, pavimentos e etapa desejada.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "budget_v2_briefing"
+      };
+    }
+    const engine = typeof window !== "undefined" ? window.EloBudgetEngine : null;
+    if (!engine || typeof engine.buildPreliminaryBudget !== "function") return buildEloResidentialBudgetPackageQuickAnswer_(message);
+    const budget = engine.buildPreliminaryBudget({ originalMessage: message, builtAreaM2: project.area_m2, city: project.cidade, uf: project.uf, constructionType: project.tipo_obra, standard: project.padrao_construtivo }, { project: project });
+    const record = saveEloBudgetRecord_(buildEloResidentialBudgetRecordFromEngineResult_(budget, project, message));
     return {
-      shortAnswer: "Vamos montar o orcamento residencial preliminar com os dados basicos primeiro.",
-      fullAnswer: [
-        "Orcamento residencial preliminar",
-        "Antes de buscar SINAPI/ORSE ou compor valores, preciso fechar o briefing minimo:",
-        "- cidade/UF;",
-        "- padrao da obra;",
-        "- area aproximada;",
-        "- tipo de construcao;",
-        "- quantidade de pavimentos;",
-        "- etapa desejada.",
-        "",
-        "Dados ainda pendentes: " + (missing.length ? missing.join(", ") : "nenhum dado basico aparente; confirme se posso seguir para composicoes.")
-      ].join("\n"),
-      nextAction: "Responda com cidade/UF, padrao, area, tipo de construcao, pavimentos e etapa desejada.",
+      shortAnswer: "Orcamento residencial preliminar criado e salvo.",
+      fullAnswer: ["Orcamento residencial preliminar criado e salvo como " + record.numero + ".", "", "Pendencias principais:", record.pendencias || "- Sem pendencias retornadas pelo motor.", "", record.custos_encontrados || "Valores pendentes.", "", "Diga 'gerar PDF' para abrir o documento."].join("\n"),
+      nextAction: "Diga 'gerar PDF' para abrir o documento profissional.",
       canSave: false,
       sessionTheme: "residential_budget_package",
-      sessionIntent: "briefing_residential_budget"
+      sessionIntent: "residential_budget_record_created"
     };
   }
-
   function buildEloResidentialBudgetPackageQuickAnswer_(message) {
     const residential = parseEloResidentialBudgetPackageRequest_(message);
     if (!residential) return null;
