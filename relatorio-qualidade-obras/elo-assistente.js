@@ -418,6 +418,15 @@
     return talksAboutWorkProcess && asksDiagnosis;
   }
 
+  function isEloImageTextOnlyRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text) return false;
+    if (/\b(ocr|transcreva|transcrever|copie o texto|copiar o texto|escreva o texto|ler texto|leia o texto|texto da imagem|qual o texto|descreva o texto)\b/.test(text)) return true;
+    if (/\b(somente|apenas|so)\b[\s\S]{0,30}\btexto\b/.test(text)) return true;
+    const hasTextTarget = /\b(texto|escrito|escrita|frase|palavra|conteudo|ocr|transcricao)\b/.test(text);
+    const hasReadVerb = /\b(descreva|descrever|leia|ler|transcreva|transcrever|extraia|extrair|copie|copiar|identifique|identificar|qual|quais|o que)\b/.test(text);
+    return hasTextTarget && hasReadVerb;
+  }
   function buildEloCoreMetaWorkflowDiagnosisAnswer_(question) {
     if (!isEloCoreMetaWorkflowDiagnosis_(question)) return null;
     return {
@@ -17615,40 +17624,19 @@
       return false;
     }
 
-    const wantsDocument = hasAnyTerm(text, [
-      "gerar relatorio",
-      "gerar um relatorio",
-      "gere relatorio",
-      "gere um relatorio",
-      "criar relatorio",
-      "criar um relatorio",
-      "relatorio tecnico",
-      "laudo tecnico",
-      "gerar laudo",
-      "gerar pdf",
-      "gere pdf",
-      "pdf real",
-      "pdf tecnico"
-    ]);
-    const hasImageContext = hasAnyTerm(text, [
-      "imagem",
-      "foto",
-      "anexo",
-      "anexada",
-      "essa imagem",
-      "esta imagem",
-      "essa foto",
-      "esta foto"
-    ]);
+    if (/\b(orcamento|rdo|diario de obra|diario)\b/.test(text)) {
+      return false;
+    }
 
-    return wantsDocument && (hasImageContext || hasAnyTerm(text, [
-      "gerar pdf com foto",
-      "relatorio com foto",
-      "relatorio com imagem",
-      "pdf com imagem",
-      "fazer relatorio com essa foto",
-      "fazer pdf com essa foto"
-    ]));
+    const hasDocumentIntent = /\b(relatorio|laudo|parecer|documento)\b/.test(text);
+    const hasPdfIntent = /\bpdf\b/.test(text);
+    const hasGenerationVerb = /\b(faca|fazer|gere|gerar|crie|criar|monte|montar|produza|produzir|emita|emitir|quero)\b/.test(text);
+    const hasImageContext = /\b(imagem|foto|anexo|anexada|anexado)\b/.test(text);
+    const hasObraReportContext = /\bobra\s*report\b|\bobrareport\b/.test(text);
+
+    return (hasDocumentIntent && hasPdfIntent) ||
+      (hasGenerationVerb && hasPdfIntent && hasImageContext) ||
+      (hasGenerationVerb && hasDocumentIntent && hasObraReportContext);
   }
   function getEloReportAppsScriptUrl_() {
     const config = window.RELATORIO_QUALIDADE_CONFIG || {};
