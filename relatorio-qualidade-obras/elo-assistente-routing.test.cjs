@@ -42,6 +42,7 @@ function loadEloContext(options = {}) {
     clearTimeout() {},
     Date,
     Math,
+    fetch: options.fetch,
     Blob: function Blob() {},
     URL: { createObjectURL() { return 'blob:test'; }, revokeObjectURL() {} },
     URLSearchParams,
@@ -56,7 +57,9 @@ function loadEloContext(options = {}) {
       removeEventListener() {},
       crypto: { randomUUID: () => 'test-id' },
       open: () => null,
-      fetch: options.fetch
+      fetch: options.fetch,
+      setTimeout(fn) { if (typeof fn === 'function') fn(); return 0; },
+      clearTimeout() {}
     },
     document: {
       readyState: 'complete',
@@ -975,4 +978,59 @@ test('ELO CORE sincroniza as tres superficies publicas no bootstrap minimalista'
   const reportHtml = fs.readFileSync(path.join(root, 'relatorio-qualidade-obras', 'relatorio-qualidade-obras.html'), 'utf8');
   assert.match(reportHtml, /\.\.\/elo\.css/);
   assert.match(reportHtml, /report-elo-chat/);
+});
+
+
+test('ELO CORE confiabilidade: registra eventos sanitizados e limita historico local', () => {
+  const { elo, localStorage } = loadEloContext();
+  for (let index = 0; index < 105; index += 1) {
+    elo.recordReliabilityEventForTest('intent_detected', {
+      message: 'evento ' + index,
+      anonymousId: 'elo_anon_secreto',
+      userId: 'usuario-secreto',
+      token: 'token-secreto',
+      senha: 'senha-secreta',
+      safe: 'ok'
+    });
+  }
+  const events = JSON.parse(localStorage.getItem('elo_core_reliability_events_v1'));
+  assert.equal(events.length, 100);
+  assert.equal(events[events.length - 1].type, 'intent_detected');
+  assert.equal(events[events.length - 1].metadata.safe, 'ok');
+  const serialized = JSON.stringify(events);
+  assert.doesNotMatch(serialized, /elo_anon_secreto|usuario-secreto|token-secreto|senha-secreta/i);
+});
+
+test('ELO CORE confiabilidade: falha de memoria nao inventa nome e marca safe state', async () => {
+  const { elo } = loadEloContext({ fetch: () => Promise.reject(new Error('backend offline')) });
+  await elo.loadCoreMemoriesForTest();
+  const response = elo.buildResponseForTest('Qual \u00e9 o meu nome?');
+  const snapshot = elo.getReliabilitySnapshotForTest();
+  assert.equal(snapshot.memoryAvailable, false);
+  assert.equal(snapshot.lastEvent.type, 'memory_failed');
+  assert.match(response.fullAnswer || response.shortAnswer, /ainda n\u00e3o tenho um nome salvo|ainda nao tenho um nome salvo|n\u00e3o sei seu nome ainda|nao sei seu nome ainda|n\u00e3o tenho seu nome salvo|nao tenho seu nome salvo/i);
+  assert.doesNotMatch(response.fullAnswer || response.shortAnswer, new RegExp("\\u00cdcaro Amaral|Icaro Amaral", "i"));
+});
+
+test('ELO CORE confiabilidade: falha do classificador cai em modo seguro', () => {
+  const { elo, context } = loadEloContext();
+  context.window.ELO_CORE_FORCE_CLASSIFIER_FAILURE = true;
+  const response = elo.buildResponseForTest('Que dia \u00e9 hoje?');
+  const snapshot = elo.getReliabilitySnapshotForTest();
+  assert.equal(response.sessionIntent, 'safe_mode');
+  assert.equal(response.shortAnswer, 'N\u00e3o consegui classificar isso com seguran\u00e7a. Pode reformular em uma frase mais direta?');
+  assert.equal(snapshot.safeModeActive, true);
+  assert.equal(snapshot.lastEvent.type, 'classifier_failed');
+});
+
+test('ELO CORE confiabilidade: falha ao abrir ferramenta registra evento seguro', () => {
+  const { elo, context } = loadEloContext();
+  context.window.location.assign = () => { throw new Error('navigation blocked'); };
+  const response = elo.detectCoreToolIntentForTest('Abra o CADISTA.');
+  const navigated = elo.navigateToolForTest(response);
+  const snapshot = elo.getReliabilitySnapshotForTest();
+  assert.equal(navigated, true);
+  assert.equal(snapshot.lastEvent.type, 'tool_open_failed');
+  assert.equal(snapshot.safeModeActive, true);
+  assert.doesNotMatch(JSON.stringify(snapshot.lastEvent), /anonymousId|userId|token|senha/i);
 });
