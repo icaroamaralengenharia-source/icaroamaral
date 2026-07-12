@@ -826,6 +826,8 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
 /* ELO CORE minimal chat surface */
 body[data-elo-product="chat"] {
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
   background:
     radial-gradient(circle at 50% 0%, rgba(42, 117, 171, 0.22), transparent 34%),
     linear-gradient(180deg, #07111f 0%, #091624 48%, #07111f 100%);
@@ -894,15 +896,22 @@ body[data-elo-product="chat"] .elo-brand-name {
 
 body[data-elo-product="chat"] .elo-product-shell {
   min-height: 100vh;
-  display: block;
-  padding: 86px 16px 138px;
-  overflow: visible;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 86px 16px calc(18px + env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 
 body[data-elo-product="chat"] .elo-product-center {
   width: min(980px, 100%);
+  min-height: 0;
+  flex: 1 1 auto;
   margin: 0 auto;
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 body[data-elo-product="chat"] .elo-product-center::before,
@@ -935,7 +944,11 @@ body[data-elo-product="chat"] .elo-attachment-preview {
 
 body[data-elo-product="chat"] .elo-product-chat {
   width: min(980px, 100%);
+  min-height: 0;
+  flex: 1 1 auto;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel,
@@ -943,34 +956,39 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-ac
   min-height: 0;
   height: auto;
   max-height: none;
-  display: block;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  overflow: visible;
+  overflow: hidden;
   backdrop-filter: none;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-messages,
 body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
-  position: fixed;
-  top: 76px;
-  bottom: 116px;
-  left: 50%;
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: auto;
   z-index: 10;
-  width: min(980px, calc(100vw - 32px));
+  width: min(980px, 100%);
   max-height: none;
   min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 16px;
   padding: 0 0 18px;
   overflow-y: auto;
-  transform: translateX(-50%);
+  overflow-x: hidden;
+  transform: none;
   scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-messages:empty {
@@ -990,13 +1008,15 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-ac
 }
 
 body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
+  position: relative;
+  left: auto;
+  bottom: auto;
   z-index: 20;
   width: min(980px, calc(100vw - 28px));
   min-height: 72px;
-  transform: translateX(-50%);
+  flex: 0 0 auto;
+  margin: 12px auto 0;
+  transform: none;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: end;
   padding: 10px;
@@ -1073,7 +1093,7 @@ body[data-elo-product="chat"] .elo-history-list {
     font-size: 0.82rem;
   }
   body[data-elo-product="chat"] .elo-product-shell {
-    padding: 78px 12px 132px;
+    padding: 68px 8px calc(10px + env(safe-area-inset-bottom));
   }
   body[data-elo-product="chat"] .elo-core-welcome {
     min-height: 46vh;
@@ -1084,14 +1104,14 @@ body[data-elo-product="chat"] .elo-history-list {
   }
   body[data-elo-product="chat"] .elo-product-chat .elo-messages,
   body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
-    top: 68px;
-    bottom: 92px;
-    width: calc(100vw - 24px);
+    top: auto;
+    bottom: auto;
+    width: 100%;
     gap: 12px;
     padding-bottom: 12px;
   }
   body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
-    bottom: 10px;
+    bottom: auto;
     width: calc(100vw - 16px);
     min-height: 66px;
     gap: 7px;
