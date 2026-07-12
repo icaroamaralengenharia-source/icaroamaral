@@ -2130,6 +2130,33 @@ export function createApp(options = {}) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
   }
 
+  app.post("/api/elo/web-search", async (request, response) => {
+    const query = clean_(request.body && request.body.query).slice(0, 500);
+    if (!query) {
+      response.status(400).json({ ok: false, error: "query_required" });
+      return;
+    }
+    if (!env.OPENAI_API_KEY) {
+      response.status(503).json({ ok: false, error: "web_search_provider_not_configured" });
+      return;
+    }
+
+    try {
+      const result = await callOpenAiWebSearch_(query, env, options.webSearchFetch || globalThis.fetch);
+      response.json({
+        ok: true,
+        mode: "remote",
+        provider: result.provider,
+        query,
+        answer: result.answer,
+        sources: result.sources
+      });
+    } catch (error) {
+      console.error("Falha na pesquisa web do Elo:", error);
+      response.status(502).json({ ok: false, error: "web_search_failed" });
+    }
+  });
+
   app.get("/api/elo/conversations", (request, response) => {
     try { response.json({ ok: true, conversations: eloCoreStore.listConversations(Object.assign(getEloCoreIdentity_(request), { includeArchived: request.query.includeArchived })) }); }
     catch (error) { sendEloCoreError_(response, error); }
@@ -4784,6 +4811,65 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
   } catch (error) {
     return "";
   }
+}
+
+async function callOpenAiWebSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("web_search_fetch_unavailable");
+  }
+  const model = env.OPENAI_WEB_SEARCH_MODEL || env.OPENAI_ELO_MODEL || env.OPENAI_MODEL || "gpt-4.1-mini";
+  const response = await fetchImpl("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + env.OPENAI_API_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      tools: [{ type: "web_search_preview" }],
+      input: [
+        {
+          role: "system",
+          content: [
+            "Voce e o modulo de pesquisa em tempo real do ELO Core.",
+            "Use pesquisa web para responder dados vivos. Nao use memoria antiga.",
+            "Se nao houver informacao confiavel, diga que nao foi possivel confirmar.",
+            "Responda em portugues do Brasil, curto e direto.",
+            "Quando fizer sentido, comece com Hoje e cite a fonte de forma textual, sem URL crua longa."
+          ].join(" ")
+        },
+        { role: "user", content: clean_(query).slice(0, 500) }
+      ],
+      max_output_tokens: 600
+    })
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) {
+    const message = data && data.error && data.error.message ? data.error.message : "web_search_provider_error";
+    throw new Error(message);
+  }
+  const answer = extractOutputText_(data);
+  if (!answer) throw new Error("web_search_empty_answer");
+  return {
+    provider: "openai",
+    answer: sanitizeEloAnswerText_(answer),
+    sources: extractOpenAiWebSearchSources_(data)
+  };
+}
+
+function extractOpenAiWebSearchSources_(data) {
+  const sources = [];
+  const output = Array.isArray(data && data.output) ? data.output : [];
+  output.forEach((item) => {
+    (item.content || []).forEach((content) => {
+      (content.annotations || []).forEach((annotation) => {
+        const title = clean_(annotation.title || annotation.url || annotation.type);
+        const url = clean_(annotation.url);
+        if (title || url) sources.push(url ? (title ? title + " - " + url : url) : title);
+      });
+    });
+  });
+  return sources.slice(0, 5);
 }
 
 async function callOpenAi_(payload, env) {
