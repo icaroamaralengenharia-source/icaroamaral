@@ -353,6 +353,17 @@
   }
 
   function routeEloCoreIntents_(message, context) {
+    const measuredRawText = String(message || "");
+    const measuredSinapiText = normalizeText(message || "");
+    const hasMeasuredSinapiRequest = /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i.test(measuredRawText) &&
+      /chapisco|embo.o|emboco|reboco|revestimento|ceramica|cer.mico|alvenaria|parede|piso|contrapiso|concreto/.test(measuredSinapiText) &&
+      (/sinapi|orse|composi..o|composicao/.test(measuredSinapiText) || /\b\d{5,6}\b/.test(measuredRawText));
+    const hasTechnicalObrasMeasuredRequest = /piso|revestimento|revestir|ceramica|cer.mico|parede|paredes|alvenaria|muro|fundacao|funda..o|sapata|sapatas|bloco|blocos|baldrame/.test(measuredSinapiText) &&
+      (/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?|m3|m\^3|m³|metros?\s+cubicos?|m\b|metros?\b|cm|centimetros?)/i.test(measuredRawText) || /\d+(?:[,.]\d+)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?(?:\s*(?:x|por)\s*\d+(?:[,.]\d+)?)?/i.test(measuredRawText)) &&
+      /calcule|calcular|calcula|orcamento|or.amento|quanto|custo|preco|pre.o|valor|quantidade|quantitativo|tenho/.test(measuredSinapiText);
+    if (hasMeasuredSinapiRequest || hasTechnicalObrasMeasuredRequest) {
+      return null;
+    }
     let intents;
     try {
       intents = classifyEloCoreIntent_(message, context);
@@ -1612,9 +1623,17 @@
     });
   }
 
+  function isEloResidentialWallPartialMessage_(message) {
+    const text = normalizeText(message || "");
+    return /parede|paredes|alvenaria/.test(text) && /altura|portas?|janelas?|v[ãa]os?|\d/.test(text);
+  }
+
   function isEloWorkMemoryOnlyMessage_(message) {
     const text = normalizeText(message || "");
     if (typeof parseEloResidentialBudgetPackageRequest_ === "function" && parseEloResidentialBudgetPackageRequest_(message)) {
+      return false;
+    }
+    if (isEloResidentialWallPartialMessage_(message)) {
       return false;
     }
     if (typeof collectEloFoundationPackageElements_ === "function" && collectEloFoundationPackageElements_(message).length) {
@@ -3018,6 +3037,8 @@
     if (!/cliente|obra|casa|parede|sapata|baldrame|pilar|viga|proposta/.test(text)) return null;
     if (/gerar\s+pdf|exportar\s+pdf|proposta\s+em\s+pdf|documento\s+para\s+cliente|imprimir\s+proposta|baixar\s+proposta/.test(text)) return null;
     if (/orcamento\s+tecnico|orçamento\s+técnico|continuar\s+o\s+orcamento|continuar\s+o\s+orçamento|orce|pintura|composicao|composição|coeficiente|sinapi|orse|mao\s+de\s+obra|mão\s+de\s+obra|produtividade|insumo|servico|serviço|executar|contratar|comprar|como\s+calcular|o\s+que\s+falta|que\s+dados|preciso\s+montar/.test(text)) return null;
+    if (/parede|paredes|alvenaria|revestimento|revestir|chapisco|embo.o|emboco|reboco|ceramica|cer.mico/.test(text) && (/\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?|m3|m\^3|m³|metros?\s+cubicos?|m\b|metros?\b)/i.test(String(message || "")) || /quantidade|quantitativo|calcule|calcular|calcula|quanto|orcamento|or.amento|custo|preco|pre.o|valor|revestir|executar/.test(text))) return null;
+    if (/fundacao|funda..o|sapata|sapatas|bloco|blocos|baldrame/.test(text) && (/\d/.test(String(message || "")) || /\d+(?:[,.]\d+)?\s*(?:x|por)\s*\d+(?:[,.]\d+)?(?:\s*(?:x|por)\s*\d+(?:[,.]\d+)?)?/i.test(String(message || "")))) return null;
     const facts = parseEloLooseProjectBriefing_(message);
     if (!facts) return null;
     if (facts.parede && facts.fundacao && facts.estrutura) {
@@ -13076,13 +13097,38 @@
     if (!engine || typeof engine.buildPreliminaryBudget !== "function") return buildEloResidentialBudgetPackageQuickAnswer_(message);
     const budget = engine.buildPreliminaryBudget({ originalMessage: message, builtAreaM2: project.area_m2, city: project.cidade, uf: project.uf, constructionType: project.tipo_obra, standard: project.padrao_construtivo }, { project: project });
     const record = saveEloBudgetRecord_(buildEloResidentialBudgetRecordFromEngineResult_(budget, project, message));
+    const pdfMessage = "gerar PDF do orcamento " + record.numero;
     return {
       shortAnswer: "Orcamento residencial preliminar criado e salvo.",
       fullAnswer: ["Orcamento residencial preliminar criado e salvo como " + record.numero + ".", "", "Pendencias principais:", record.pendencias || "- Sem pendencias retornadas pelo motor.", "", record.custos_encontrados || "Valores pendentes.", "", "Diga 'gerar PDF' para abrir o documento."].join("\n"),
       nextAction: "Diga 'gerar PDF' para abrir o documento profissional.",
       canSave: false,
       sessionTheme: "residential_budget_package",
-      sessionIntent: "residential_budget_record_created"
+      sessionIntent: "residential_budget_record_created",
+      pdfAction: {
+        type: "elo_budget_pdf",
+        label: "Gerar PDF",
+        budgetId: record.id,
+        budgetNumber: record.numero,
+        message: pdfMessage,
+        record: record
+      },
+      budgetActions: [
+        {
+          type: "elo_budget_pdf",
+          label: "Gerar PDF",
+          budgetId: record.id,
+          budgetNumber: record.numero,
+          message: pdfMessage
+        },
+        {
+          type: "elo_budget_open",
+          label: "Consultar orçamento salvo",
+          budgetId: record.id,
+          budgetNumber: record.numero,
+          message: "ver orcamento " + record.numero
+        }
+      ]
     };
   }
   function buildEloResidentialBudgetPackageQuickAnswer_(message) {
@@ -13592,6 +13638,9 @@
     const shouldStart = shouldStartEloWallPremiseCollection_(currentText);
     const activeStockObrasBriefing = ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active;
     const stockObrasFollowUp = activeStockObrasBriefing && /porta|janela|vao|vãos|bloco|tijolo|perda|revestimento|sem\s+revestimento|chapisco|reboco|\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}/.test(currentText);
+    if (!isPendingWall && shouldStart && !stockObrasFollowUp && !hasEloQuantitativeIntent_(currentText) && !/\d/.test(currentText)) {
+      return null;
+    }
     if (!isPendingWall && !shouldStart && !stockObrasFollowUp) {
       return null;
     }
@@ -15375,6 +15424,66 @@
       };
     }
 
+    const measuredSinapiQuantityMatch = cleanQuestion.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    const measuredSinapiCodeMatch = cleanQuestion.match(/\b(\d{5,6})\b/);
+    const measuredSinapiHasService = /chapisco|embo.o|emboco|reboco|revestimento|ceramica|cer.mico|alvenaria|parede|piso|contrapiso|concreto/.test(normalizedQuestion);
+    const measuredSinapiHasReference = /sinapi|orse|composi..o|composicao/.test(normalizedQuestion) || !!measuredSinapiCodeMatch;
+    if (measuredSinapiQuantityMatch && measuredSinapiHasService && measuredSinapiHasReference) {
+      const measuredEngine = getEloStockObrasEngine_();
+      const measuredQuantity = parseEloOperationalNumber_(measuredSinapiQuantityMatch[1]);
+      const measuredCode = measuredSinapiCodeMatch ? measuredSinapiCodeMatch[1] : "";
+      let measuredComposition = null;
+      if (measuredEngine && measuredCode && typeof measuredEngine.findCompositionByCode === "function") {
+        measuredComposition = measuredEngine.findCompositionByCode(measuredCode);
+      }
+      if (!measuredComposition && measuredEngine && typeof measuredEngine.searchImportedOfficialCompositions === "function") {
+        const measuredResults = measuredEngine.searchImportedOfficialCompositions(measuredCode || cleanQuestion, { limit: 8 }) || [];
+        measuredComposition = measuredCode
+          ? measuredResults.find(function (candidate) { return normalizeText(candidate && (candidate.code || candidate.codigo || candidate.id || "")) === normalizeText(measuredCode); }) || measuredResults[0]
+          : measuredResults[0];
+      }
+      if (measuredComposition && measuredQuantity > 0) {
+        const measuredContract = buildEloTechnicalCompositionContract_(measuredComposition);
+        if (measuredContract && measuredContract.valid) {
+          const measuredBudgetItems = buildEloAssistedBudgetItems_({ area_liquida_m2: measuredQuantity, perda_percentual: 0 }, measuredContract, measuredComposition);
+          const measuredInputs = getEloCompositionInputs_(measuredComposition);
+          let measuredOfficialUnitPrice = 0;
+          let measuredHasOfficialCost = false;
+          measuredInputs.forEach(function (input) {
+            getEloInputUnitPrice_(input);
+            const officialCost = parseEloOperationalNumber_(input && (input.custoTotal !== undefined ? input.custoTotal : input.totalCost));
+            if (officialCost > 0) {
+              measuredHasOfficialCost = true;
+              measuredOfficialUnitPrice += officialCost;
+            }
+          });
+          const measuredUnitPrice = measuredHasOfficialCost ? measuredOfficialUnitPrice : measuredBudgetItems.totalWithPrices / measuredQuantity;
+          const measuredSubtotal = measuredUnitPrice * measuredQuantity;
+          const measuredPriceStatus = measuredUnitPrice > 0 ? "official_total_cost_priced" : "price_unavailable";
+          const measuredLines = [
+            "Orcamento técnico SINAPI/ORSE",
+            "Composição encontrada: " + measuredContract.codigo + " - " + measuredContract.descricao,
+            "Quantidade: " + formatEloOperationalQuantity_(measuredQuantity) + " m²",
+            "Preço unitário oficial: R$ " + formatEloOperationalQuantity_(measuredUnitPrice) + "/m²",
+            "Subtotal: R$ " + formatEloOperationalQuantity_(measuredSubtotal),
+            "priceStatus: " + measuredPriceStatus
+          ];
+          return {
+            shortAnswer: "Orçamento técnico calculado pela composição " + measuredContract.codigo + ".",
+            fullAnswer: measuredLines.join("\n"),
+            nextAction: "Revise composição, mês-base e aderência técnica antes de fechar o orçamento.",
+            canSave: true,
+            sessionTheme: "technical_composition_budget",
+            sessionIntent: "measured_sinapi_budget",
+            compositionCode: measuredContract.codigo,
+            quantity: measuredQuantity,
+            unitPrice: measuredUnitPrice,
+            subtotal: measuredSubtotal,
+            priceStatus: measuredPriceStatus
+          };
+        }
+      }
+    }
     if (isCrisisQuestion(normalizedQuestion)) {
       return getCrisisSupportResponse();
     }
