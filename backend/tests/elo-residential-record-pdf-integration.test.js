@@ -44,11 +44,11 @@ function knownEngineBudget() {
     quantities: [{ serviceId: "area_construida", description: "Area construida", quantity: 70, unit: "m2", source: "informed" }, { serviceId: "cobertura_telha", description: "Cobertura em telha", quantity: 70, unit: "m2", source: "estimated" }],
     compositionResolution: { resolved: [{ serviceId: "alvenaria", code: "SINAPI-ALV-001", source: "SINAPI", description: "Alvenaria de vedacao com bloco ceramico", unit: "m2" }], missing: [{ serviceId: "fundacao", reason: "tipo de fundacao nao informado" }] },
     compositionMatches: [{ serviceId: "cobertura", code: "SINAPI-COB-001", source: "SINAPI", description: "Telhamento com telha ceramica", unit: "m2" }],
-    priceStatus: { canTotal: false, totals: null, missingPrices: [{ serviceId: "alvenaria", reason: "preco oficial nao carregado" }] },
-    realBudget: { status: "blocked", total: 0, subtotal: 0, bdiPercent: 0, bdiValue: 0 },
-    missing: ["tipo_fundacao", "material_piso"],
-    risks: ["Orcamento preliminar depende de projeto executivo."],
-    summary: "Orcamento residencial preliminar bloqueado por ausencia de precos oficiais.",
+    priceStatus: { canTotal: true, totals: { subtotal: 700, bdiPercent: 20, bdiValue: 140, total: 840 }, missingPrices: [] },
+    realBudget: { status: "complete", total: 840, subtotal: 700, bdiPercent: 20, bdiValue: 140, canClose: true },
+    missing: [],
+    risks: ["Fixture de teste com fonte de preco injetada; nao tratar como preco oficial real."],
+    summary: "Orcamento residencial preliminar completo com preco de fixture injetada.",
     baseStatus: { officialPriceBase: "missing" }
   };
 }
@@ -78,6 +78,30 @@ function realObservedShapeBudget() {
   };
 }
 
+function assertResidentialPdfAction(response, record, options = {}) {
+  assert.ok(response.pdfAction, "orcamento residencial deve liberar acao de PDF");
+  assert.equal(response.pdfAction.type, "elo_budget_pdf");
+  assert.equal(response.pdfAction.label, "Gerar PDF");
+  assert.equal(response.pdfAction.budgetId, record.id);
+  assert.equal(response.pdfAction.budgetNumber, record.numero);
+  assert.ok(response.pdfAction.record, "acao de PDF deve carregar o record atual");
+  assert.equal(response.pdfAction.record.id, record.id);
+  assert.equal(response.pdfAction.record.numero, record.numero);
+  assert.equal(response.pdfAction.record.conteudo_markdown, record.conteudo_markdown);
+  assert.equal(response.pdfAction.record.conteudo_html, record.conteudo_html);
+  assert.match(response.pdfAction.message, new RegExp(record.numero));
+  assert.ok(record.conteudo_html, "record deve carregar HTML profissional");
+  assert.match(record.conteudo_html, /elo-professional-pdf/);
+  assert.doesNotMatch(JSON.stringify(response.pdfAction), /budgetDocumentData/);
+  if (options.expectTotals) {
+    assert.match(record.custos_encontrados, /Subtotal/i);
+    assert.match(record.custos_encontrados, /BDI/i);
+    assert.match(record.custos_encontrados, /Total/i);
+    assert.doesNotMatch(record.custos_encontrados, /R\$\s*0[,\.]00/);
+  }
+  const pdfActions = (response.budgetActions || []).filter((action) => action.type === "elo_budget_pdf");
+  assert.equal(pdfActions.length, 1, "nao deve duplicar acao de PDF");
+}
 function loadAssistant(options = {}) {
   const localStorage = createStorage();
   let capturedHtml = "";
@@ -146,7 +170,6 @@ test("pedido residencial explicito com briefing suficiente usa o motor real, sal
   const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento");
 
   assert.equal(calls.buildPreliminaryBudget, 1);
-  assert.equal(response.pdfAction, undefined);
   assert.match(response.fullAnswer, /orcamento residencial preliminar criado/i);
   assert.match(response.fullAnswer, /gerar PDF/i);
 
@@ -157,11 +180,11 @@ test("pedido residencial explicito com briefing suficiente usa o motor real, sal
   assert.match(record.conteudo_markdown, /Servicos preliminares/i);
   assert.match(record.quantitativos, /Area construida/i);
   assert.match(record.composicoes, /SINAPI-ALV-001/i);
-  assert.match(record.pendencias, /tipo_fundacao/i);
-  assert.match(record.pendencias, /preco oficial nao carregado/i);
-  assert.match(record.custos_encontrados, /valores pendentes/i);
-  assert.doesNotMatch(record.custos_encontrados, /R\$\s*0[,\.]00/);
-  assert.doesNotMatch(JSON.stringify(response), /pdfAction/);
+  assert.match(record.custos_encontrados, /Subtotal/i);
+  assert.match(record.custos_encontrados, /BDI/i);
+  assert.match(record.custos_encontrados, /Total/i);
+  assert.match(record.avisos_profissionais, /fixture de teste/i);
+  assertResidentialPdfAction(response, record, { expectTotals: true });
 
   const pdfResponse = elo.buildResponseForTest("gerar PDF");
   assert.equal(pdfResponse.sessionIntent, "budget_pdf");
@@ -170,7 +193,10 @@ test("pedido residencial explicito com briefing suficiente usa o motor real, sal
   assert.match(html, /Orcamento residencial preliminar/i);
   assert.match(html, /Servicos preliminares/i);
   assert.match(html, /Area construida/i);
-  assert.match(html, /valores pendentes|preco oficial nao carregado/i);
+  assert.match(html, /Subtotal/i);
+  assert.match(html, /BDI/i);
+  assert.match(html, /Total/i);
+  assert.match(html, /fixture de teste/i);
   assert.doesNotMatch(html, /R\$\s*0[,\.]00/);
 });
 
@@ -196,8 +222,6 @@ test("saida real observada do motor fica legivel sem JSON bruto no record e no P
   elo.clearBudgetRecordsForTest();
 
   const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento");
-  assert.equal(response.pdfAction, undefined);
-
   const [record] = elo.getBudgetRecordsForTest();
   assert.ok(record);
   assert.match(record.conteudo_markdown, /Servicos preliminares/i);
@@ -211,6 +235,7 @@ test("saida real observada do motor fica legivel sem JSON bruto no record e no P
   assert.doesNotMatch(record.conteudo_markdown, /"[a-zA-Z0-9_]+":/);
   assert.doesNotMatch(record.conteudo_markdown, /\[object Object\]|undefined|\bNaN\b/);
   assert.doesNotMatch(record.conteudo_markdown, /R\$\s*0[,\.]00|total\s*:\s*0|subtotal\s*:\s*0|BDI\s*:\s*0/i);
+  assertResidentialPdfAction(response, record);
 
   const pdfResponse = elo.buildResponseForTest("gerar PDF");
   assert.equal(pdfResponse.sessionIntent, "budget_pdf");
@@ -231,4 +256,5 @@ test("briefing residencial incompleto pede dados antes de chamar o motor", () =>
   assert.match(response.fullAnswer, /cidade\/UF/i);
   assert.match(response.fullAnswer, /area aproximada/i);
   assert.equal(response.canSave, false);
+  assert.equal(response.pdfAction, undefined);
 });

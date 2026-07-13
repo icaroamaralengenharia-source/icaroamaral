@@ -75,6 +75,7 @@ function loadEloContext(options = {}) {
   context.window.window = context.window;
   context.window.document = context.document;
   context.window.navigator = context.navigator;
+  Object.assign(context.window, options.window || {});
   context.globalThis = context.window;
   vm.createContext(context);
   const source = fs.readFileSync(path.join(__dirname, 'elo-assistente.js'), 'utf8');
@@ -102,6 +103,38 @@ test('ELO padroniza marcadores de c?rebro nos roteamentos principais', () => {
   }
 });
 
+test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
+  const calls = [];
+  const makeStep = (name, result) => ({
+    build(input) { calls.push(name); return typeof result === 'function' ? result(input) : result; }
+  });
+  const { elo } = loadEloContext({
+    window: {
+      ELO_RESIDENTIAL_NEW_PIPELINE: true,
+      ResidentialBriefingCompleteEngine: makeStep('briefing', { schema: 'briefing', status: 'complete', briefing: { builtAreaM2: 70, city: 'Salvador', uf: 'BA' } }),
+      ResidentialGeometryModelEngine: makeStep('geometry', { schema: 'geometry', status: 'complete' }),
+      ResidentialQuantityTakeoffEngine: makeStep('takeoff', { schema: 'takeoff', status: 'complete', items: [{ code: 'FLOOR_AREA_TOTAL', status: 'quantified', quantity: 70, unit: 'm2' }] }),
+      ResidentialTakeoffCompositionAdapter: { resolve() { calls.push('takeoffComposition'); return { schema: 'composition', status: 'complete', resolution: { resolved: [{ serviceId: 'area', composition: { code: 'SINAPI-AREA', description: 'Area construida', source: 'SINAPI', unit: 'm2' } }] } }; } },
+      ResidentialCompositionConsumptionAdapter: { calculate() { calls.push('compositionConsumption'); return { schema: 'consumption', status: 'complete', consumption: { calculated: [{ composition: { code: 'SINAPI-AREA' }, inputs: [] }] } }; } },
+      ResidentialConsumptionPriceAdapter: { price() { calls.push('consumptionPrice'); return { schema: 'elo.residential_consumption_price', status: 'complete', priceBase: { source: 'SINAPI_TEST' }, request: { rows: [{ takeoffItemId: 'area', serviceId: 'area', quantity: 70, unit: 'm2' }] }, price: { pricedRows: [{ takeoffItemId: 'area', serviceId: 'area', service: 'Area construida', compositionCode: 'SINAPI-AREA', compositionDescription: 'Area construida', compositionSource: 'SINAPI', quantity: 70, unit: 'm2', unitPrice: 10, totalPrice: 700 }] }, audit: { priceFingerprint: 'fp_test' } }; } },
+      ResidentialRealBudgetAdapter: { build() { calls.push('realBudgetAdapter'); return { schema: 'elo.residential_real_budget_package', status: 'complete', realBudgetInput: { budgetEap: { etapas: [{ nome: 'Pipeline residencial' }], itens: [{ id: 'area', nome: 'Area construida', quantidadeBase: { valor: 70, unidade: 'm2' } }] }, quantities: [{ eapItemId: 'area', quantity: 70, unit: 'm2' }] }, realBudget: { status: 'complete', items: [{ item: 'Area construida', quantity: 70, unit: 'm2' }], subtotal: 700, bdiPercent: 20, bdiValue: 140, total: 840, missingPrices: [], canClose: true }, errors: [], warnings: [], blockingFields: [] }; } },
+      EloCompositionResolver: { resolveEloEapCompositions() {} },
+      EloConsumptionEngine: { calculateConsumption() {} },
+      EloPriceEngine: { attachPricesToBudgetRows() {} },
+      EloRealBudgetEngine: { buildCompleteBudget() {} },
+      EloBudgetEngine: { buildPreliminaryBudget() { calls.push('oldBudget'); return {}; } }
+    }
+  });
+  elo.clearBudgetRecordsForTest();
+  const response = elo.buildResponseForTest('Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento');
+  assert.equal(response.sessionIntent, 'residential_new_pipeline_record_created');
+  assert.equal(response.pipeline, 'residential_new_pipeline');
+  assert.equal(response.featureFlag, 'ELO_RESIDENTIAL_NEW_PIPELINE');
+  assert.deepEqual(calls, ['briefing', 'geometry', 'takeoff', 'takeoffComposition', 'compositionConsumption', 'consumptionPrice', 'realBudgetAdapter']);
+  const [record] = elo.getBudgetRecordsForTest();
+  assert.match(record.custos_encontrados, /Subtotal|Total/i);
+  assert.match(record.conteudo_markdown, /pipeline novo/i);
+});
 test('ELO pede briefing m?nimo antes de SINAPI no or?amento residencial preliminar', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Quero or\u00e7amento residencial');

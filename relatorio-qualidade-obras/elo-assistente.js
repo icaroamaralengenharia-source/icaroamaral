@@ -13041,6 +13041,102 @@
     return /orcamento\s+residencial|or.amento\s+residencial|orcamento\s+(?:preliminar\s+)?(?:de\s+)?casa|or.amento\s+(?:preliminar\s+)?(?:de\s+)?casa|quero\s+orcamento\s+residencial|quero\s+or.amento\s+residencial/.test(text);
   }
 
+  function isEloResidentialNewPipelineEnabled_() {
+    if (typeof window === "undefined") return false;
+    const flag = window.ELO_RESIDENTIAL_NEW_PIPELINE;
+    return flag === true || flag === "true" || flag === "1" || flag === 1;
+  }
+
+  function getEloResidentialNewPipelineMissingDeps_() {
+    if (typeof window === "undefined") return ["window"];
+    const required = [
+      ["ResidentialBriefingCompleteEngine", "build"],
+      ["ResidentialGeometryModelEngine", "build"],
+      ["ResidentialQuantityTakeoffEngine", "build"],
+      ["ResidentialTakeoffCompositionAdapter", "resolve"],
+      ["ResidentialCompositionConsumptionAdapter", "calculate"],
+      ["ResidentialConsumptionPriceAdapter", "price"],
+      ["ResidentialRealBudgetAdapter", "build"],
+      ["EloCompositionResolver", "resolveEloEapCompositions"],
+      ["EloConsumptionEngine", "calculateConsumption"],
+      ["EloPriceEngine", "attachPricesToBudgetRows"],
+      ["EloRealBudgetEngine", "buildCompleteBudget"]
+    ];
+    return required.filter(function (entry) {
+      const api = window[entry[0]];
+      return !api || typeof api[entry[1]] !== "function";
+    }).map(function (entry) { return entry[0] + "." + entry[1]; });
+  }
+
+  function buildEloResidentialNewPipelineInput_(message, project) {
+    const raw = String(message || "");
+    return {
+      project: {
+        name: project && (project.nome || project.name) || "Orcamento residencial",
+        city: project && (project.cidade || project.city) || null,
+        state: project && (project.uf || project.state) || null,
+        referenceMonth: project && (project.referenceMonth || project.mes_referencia) || null,
+        priceSource: project && (project.priceSource || project.fonte_precos) || null
+      },
+      site: {
+        builtAreaM2: project && (project.area_m2 || project.builtAreaM2) || parseEloResidentialArea_(raw),
+        floors: /sobrado|2\s+pav|dois\s+pav|2\s+andares/i.test(raw) ? 2 : 1
+      },
+      building: {
+        constructionType: project && (project.tipo_obra || project.constructionType) || (/sobrado/i.test(raw) ? "sobrado" : "casa terrea"),
+        constructionStandard: project && (project.padrao_construtivo || project.standard) || null,
+        ceilingHeightM: null,
+        structuralSystem: null,
+        foundationSystem: null,
+        roofSystem: null,
+        wallSystem: null
+      },
+      rooms: [],
+      openings: { doors: [], windows: [] },
+      finishes: {},
+      costing: { bdiPercent: null }
+    };
+  }
+
+  function buildEloResidentialBudgetFromNewPipeline_(pipeline) {
+    const realPackage = pipeline && pipeline.realBudgetPackage || {};
+    const realBudget = realPackage.realBudget || {};
+    const priced = pipeline && pipeline.priced || {};
+    return {
+      mode: "residential_new_pipeline",
+      projectFacts: pipeline && pipeline.briefing && pipeline.briefing.briefing || {},
+      budgetEap: realPackage.realBudgetInput && realPackage.realBudgetInput.budgetEap || null,
+      quantities: realPackage.realBudgetInput && realPackage.realBudgetInput.quantities || pipeline && pipeline.takeoff && pipeline.takeoff.items || [],
+      compositionResolution: pipeline && pipeline.compositionResolution && pipeline.compositionResolution.resolution || null,
+      consumption: pipeline && pipeline.consumption || null,
+      priceStatus: {
+        canTotal: realBudget.status === "complete" && Number.isFinite(Number(realBudget.total)),
+        totals: Number.isFinite(Number(realBudget.total)) ? { subtotal: realBudget.subtotal, bdiValue: realBudget.bdiValue, total: realBudget.total } : null,
+        missingPrices: realBudget.missingPrices || []
+      },
+      realBudget: realBudget,
+      missing: (realPackage.errors || []).concat(realPackage.warnings || [], realPackage.blockingFields || []),
+      risks: ["Validado pelo pipeline residencial novo atras da flag ELO_RESIDENTIAL_NEW_PIPELINE."],
+      summary: "Orcamento residencial gerado pelo pipeline novo com briefing, geometria, quantitativos, composicoes, consumos, precos e orcamento real.",
+      baseStatus: priced.priceBase || {},
+      residentialNewPipeline: pipeline
+    };
+  }
+
+  function buildEloResidentialNewPipelineBudget_(message, project) {
+    if (!isEloResidentialNewPipelineEnabled_()) return null;
+    const missingDeps = getEloResidentialNewPipelineMissingDeps_();
+    if (missingDeps.length) return { blocked: true, missingDeps: missingDeps };
+    const input = buildEloResidentialNewPipelineInput_(message, project);
+    const briefing = window.ResidentialBriefingCompleteEngine.build(input);
+    const geometry = window.ResidentialGeometryModelEngine.build(briefing);
+    const takeoff = window.ResidentialQuantityTakeoffEngine.build(geometry, { floorFinishDefined: true, wallFinishDefined: true });
+    const compositionResolution = window.ResidentialTakeoffCompositionAdapter.resolve(takeoff, { resolver: window.EloCompositionResolver, compositionSearchEngine: window.CompositionSearchEngine, minimumConfidence: 0.55 });
+    const consumption = window.ResidentialCompositionConsumptionAdapter.calculate(compositionResolution, { consumptionEngine: window.EloConsumptionEngine });
+    const priced = window.ResidentialConsumptionPriceAdapter.price(consumption, { priceEngine: window.EloPriceEngine, priceSource: window.ELO_RESIDENTIAL_PRICE_SOURCE || {} });
+    const realBudgetPackage = window.ResidentialRealBudgetAdapter.build(priced, { realBudgetEngine: window.EloRealBudgetEngine, technicalAudit: { canGenerate: { executiveBudget: true }, executiveBudget: true, blockers: [], assumptions: [] }, bdiPercent: input.costing.bdiPercent });
+    return buildEloResidentialBudgetFromNewPipeline_({ briefing: briefing, geometry: geometry, takeoff: takeoff, compositionResolution: compositionResolution, consumption: consumption, priced: priced, realBudgetPackage: realBudgetPackage });
+  }
   function buildEloResidentialBudgetBriefingAnswer_(message) {
     if (!isEloResidentialBudgetBriefingQuestion_(message)) return null;
     const project = updateEloWorkMemoryFromMessage_(message);
@@ -13072,17 +13168,56 @@
         sessionIntent: "budget_v2_briefing"
       };
     }
+    const newPipelineBudget = buildEloResidentialNewPipelineBudget_(message, project);
+    if (newPipelineBudget && !newPipelineBudget.blocked) {
+      const record = saveEloBudgetRecord_(buildEloResidentialBudgetRecordFromEngineResult_(newPipelineBudget, project, message));
+      return {
+        shortAnswer: "Orcamento residencial criado pelo pipeline novo e salvo.",
+        fullAnswer: ["Orcamento residencial criado pelo pipeline novo e salvo como " + record.numero + ".", "", "Pendencias principais:", record.pendencias || "- Sem pendencias retornadas pelo motor.", "", record.custos_encontrados || "Valores pendentes.", "", "Diga 'gerar PDF' para abrir o documento."].join("\n"),
+        nextAction: "Diga 'gerar PDF' para abrir o documento profissional.",
+        canSave: false,
+        sessionTheme: "residential_budget_package",
+        sessionIntent: "residential_new_pipeline_record_created",
+        featureFlag: "ELO_RESIDENTIAL_NEW_PIPELINE",
+        pipeline: "residential_new_pipeline"
+      };
+    }
     const engine = typeof window !== "undefined" ? window.EloBudgetEngine : null;
     if (!engine || typeof engine.buildPreliminaryBudget !== "function") return buildEloResidentialBudgetPackageQuickAnswer_(message);
     const budget = engine.buildPreliminaryBudget({ originalMessage: message, builtAreaM2: project.area_m2, city: project.cidade, uf: project.uf, constructionType: project.tipo_obra, standard: project.padrao_construtivo }, { project: project });
     const record = saveEloBudgetRecord_(buildEloResidentialBudgetRecordFromEngineResult_(budget, project, message));
+    const pdfMessage = "gerar PDF do orcamento " + record.numero;
     return {
       shortAnswer: "Orcamento residencial preliminar criado e salvo.",
       fullAnswer: ["Orcamento residencial preliminar criado e salvo como " + record.numero + ".", "", "Pendencias principais:", record.pendencias || "- Sem pendencias retornadas pelo motor.", "", record.custos_encontrados || "Valores pendentes.", "", "Diga 'gerar PDF' para abrir o documento."].join("\n"),
       nextAction: "Diga 'gerar PDF' para abrir o documento profissional.",
       canSave: false,
       sessionTheme: "residential_budget_package",
-      sessionIntent: "residential_budget_record_created"
+      sessionIntent: "residential_budget_record_created",
+      pdfAction: {
+        type: "elo_budget_pdf",
+        label: "Gerar PDF",
+        budgetId: record.id,
+        budgetNumber: record.numero,
+        message: pdfMessage,
+        record: record
+      },
+      budgetActions: [
+        {
+          type: "elo_budget_pdf",
+          label: "Gerar PDF",
+          budgetId: record.id,
+          budgetNumber: record.numero,
+          message: pdfMessage
+        },
+        {
+          type: "elo_budget_open",
+          label: "Consultar orcamento salvo",
+          budgetId: record.id,
+          budgetNumber: record.numero,
+          message: "abrir orcamento " + record.numero
+        }
+      ]
     };
   }
   function buildEloResidentialBudgetPackageQuickAnswer_(message) {
