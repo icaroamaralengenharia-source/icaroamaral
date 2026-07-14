@@ -45,53 +45,93 @@
     return { valid: errors.length === 0, status: errors.length ? "invalid" : "valid", errors: errors };
   }
 
-  function rowById(pricePackage) {
-    const byId = {};
-    arr(pricePackage && pricePackage.request && pricePackage.request.rows).forEach(function (row) {
-      if (row && row.takeoffItemId) byId[row.takeoffItemId] = row;
-      if (row && row.serviceId) byId[row.serviceId] = row;
-      if (row && row.rowId) byId[row.rowId] = row;
-    });
-    return byId;
+  function rowIdentity(row, index) {
+    const safe = row || {};
+    return clean(safe.requestId || safe.takeoffItemId || safe.compositionCode || safe.serviceId || safe.rowId || "item_" + index);
   }
+  function rowKeys(row) {
+    const safe = row || {};
+    return [safe.requestId, safe.takeoffItemId, safe.compositionCode, safe.serviceId, safe.rowId].map(clean).filter(Boolean);
+  }
+  function requestRows(pricePackage) { return arr(pricePackage && pricePackage.request && pricePackage.request.rows); }
   function pricedRows(pricePackage) { return arr(pricePackage && pricePackage.price && pricePackage.price.pricedRows); }
+  function pricedRowsByKey(pricePackage) {
+    const byKey = {};
+    pricedRows(pricePackage).forEach(function (row) {
+      rowKeys(row).forEach(function (key) { if (!byKey[key]) byKey[key] = row; });
+    });
+    return byKey;
+  }
+  function mergeRows(pricePackage) {
+    const sourceRows = requestRows(pricePackage).length ? requestRows(pricePackage) : pricedRows(pricePackage);
+    const pricesByKey = pricedRowsByKey(pricePackage);
+    const seen = {};
+    return sourceRows.map(function (row, index) {
+      const id = rowIdentity(row, index);
+      if (!id || seen[id]) return null;
+      seen[id] = true;
+      const priced = rowKeys(row).map(function (key) { return pricesByKey[key]; }).filter(Boolean)[0] || {};
+      return { id: id, source: row || {}, priced: priced };
+    }).filter(Boolean);
+  }
+  function buildPriceBase(pricePackage, options) {
+    const base = clone(pricePackage && pricePackage.priceBase || options && options.priceBase || {});
+    const prices = Object.assign({}, base.prices || {});
+    pricedRows(pricePackage).forEach(function (row) {
+      const code = clean(row && row.compositionCode);
+      const value = number(row && row.unitPrice);
+      if (code && value !== null && value > 0) prices[code] = value;
+    });
+    base.prices = prices;
+    return base;
+  }
+  function validQuantity(row) {
+    const qty = number(row && row.quantity);
+    return qty !== null && qty > 0;
+  }
 
   function buildRealBudgetInput(pricePackage, options) {
     const settings = options || {};
-    const rowsById = rowById(pricePackage);
-    const rows = pricedRows(pricePackage);
+    const rows = mergeRows(pricePackage).filter(function (entry) { return validQuantity(entry.source); });
     const etapas = [{ id: "residential_pipeline", nome: "Pipeline residencial" }];
-    const itens = rows.map(function (priced, index) {
-      const source = rowsById[priced.takeoffItemId] || rowsById[priced.serviceId] || rowsById[priced.rowId] || priced;
-      const id = clean(priced.takeoffItemId || priced.serviceId || source.takeoffItemId || source.serviceId || "item_" + index);
+    const itens = rows.map(function (entry) {
+      const source = entry.source;
+      const priced = entry.priced;
       return {
-        id: id,
+        id: entry.id,
         etapaId: "residential_pipeline",
-        nome: clean(priced.service || priced.compositionDescription || source.service || source.compositionDescription),
-        unidadeEsperada: clean(priced.unit || source.unit),
+        nome: clean(source.service || source.compositionDescription || priced.service || priced.compositionDescription),
+        descricao: clean(source.compositionDescription || priced.compositionDescription || source.service || priced.service),
+        disciplina: clean(source.discipline || source.takeoffCode || source.traceability && source.traceability.takeoffCode || "residential_pipeline"),
+        unidadeEsperada: clean(source.unit || priced.unit),
         obrigatorio: true,
-        quantidadeBase: { valor: number(priced.quantity != null ? priced.quantity : source.quantity), unidade: clean(priced.unit || source.unit), origem: "residential_pipeline" }
+        quantidadeBase: { valor: number(source.quantity), unidade: clean(source.unit || priced.unit), origem: "residential_pipeline" },
+        takeoffItemId: clean(source.takeoffItemId || priced.takeoffItemId || entry.id),
+        requestId: clean(source.requestId || priced.requestId || source.rowId || priced.rowId),
+        compositionCode: clean(source.compositionCode || priced.compositionCode),
+        source: { adapter: "ResidentialRealBudgetAdapter", rowId: clean(source.rowId), requestId: clean(source.requestId), takeoffItemId: clean(source.takeoffItemId) }
       };
     });
-    const resolvedItems = rows.map(function (priced, index) {
-      const source = rowsById[priced.takeoffItemId] || rowsById[priced.serviceId] || rowsById[priced.rowId] || priced;
+    const resolvedItems = rows.map(function (entry) {
+      const source = entry.source;
+      const priced = entry.priced;
       return {
-        eapItemId: clean(priced.takeoffItemId || priced.serviceId || source.takeoffItemId || source.serviceId || "item_" + index),
+        eapItemId: entry.id,
         confianca: number(source.confidence) != null ? number(source.confidence) : null,
         composicaoSelecionada: {
-          code: clean(priced.compositionCode || source.compositionCode),
-          description: clean(priced.compositionDescription || source.compositionDescription || priced.service),
-          source: clean(priced.compositionSource || source.compositionSource || priced.priceSource || source.priceSource),
-          unit: clean(priced.unit || source.unit)
+          code: clean(source.compositionCode || priced.compositionCode),
+          description: clean(source.compositionDescription || priced.compositionDescription || source.service || priced.service),
+          source: clean(source.compositionSource || priced.compositionSource || priced.priceSource || source.priceSource),
+          unit: clean(source.unit || priced.unit)
         }
       };
     });
-    const quantities = rows.map(function (priced, index) {
-      const source = rowsById[priced.takeoffItemId] || rowsById[priced.serviceId] || rowsById[priced.rowId] || priced;
+    const quantities = rows.map(function (entry) {
+      const source = entry.source;
       return {
-        eapItemId: clean(priced.takeoffItemId || priced.serviceId || source.takeoffItemId || source.serviceId || "item_" + index),
-        quantity: number(priced.quantity != null ? priced.quantity : source.quantity),
-        unit: clean(priced.unit || source.unit),
+        eapItemId: entry.id,
+        quantity: number(source.quantity),
+        unit: clean(source.unit),
         source: "residential_pipeline"
       };
     });
@@ -100,7 +140,7 @@
       budgetEap: { etapas: etapas, itens: itens, assumidos: arr(settings.assumptions).slice() },
       compositionResolution: { resolvedItems: resolvedItems, unresolvedItems: [] },
       quantities: quantities,
-      priceBase: clone(pricePackage && pricePackage.priceBase || settings.priceBase || {}),
+      priceBase: buildPriceBase(pricePackage, settings),
       technicalAudit: clone(settings.technicalAudit || { canGenerate: { executiveBudget: false }, blockers: [{ id: "technical_audit_required", message: "Auditoria tecnica executiva nao fornecida.", source: "technical_audit" }], assumptions: [] }),
       bdiPercent: settings.bdiPercent
     };
