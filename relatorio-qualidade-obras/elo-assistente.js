@@ -13403,7 +13403,32 @@
   }
 
   function getActiveEloResidentialBudgetState_() {
-    return ELO_SESSION_MEMORY.activeResidentialBudgetState ? cloneEloResidentialBudgetState_(ELO_SESSION_MEMORY.activeResidentialBudgetState) : null;
+    if (ELO_SESSION_MEMORY.activeResidentialBudgetState) return cloneEloResidentialBudgetState_(ELO_SESSION_MEMORY.activeResidentialBudgetState);
+    const orchestratorState = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (!orchestratorState || orchestratorState.type !== "residential") return null;
+    const fallback = createEloResidentialBudgetState_();
+    fallback.project = Object.assign({}, fallback.project, {
+      type: orchestratorState.constructionType || null,
+      areaM2: orchestratorState.areaM2 || null,
+      widthM: orchestratorState.widthM || null,
+      lengthM: orchestratorState.lengthM || null,
+      footprintAreaM2: orchestratorState.footprintAreaM2 || null,
+      floors: orchestratorState.floors || null,
+      city: orchestratorState.city || null,
+      uf: orchestratorState.uf || null,
+      standard: orchestratorState.standard || null,
+      stage: orchestratorState.currentStage || "obra completa"
+    });
+    fallback.systems = Object.assign({}, fallback.systems, {
+      structure: orchestratorState.structure || null,
+      roof: orchestratorState.roof || null
+    });
+    fallback.pricing = Object.assign({}, fallback.pricing, orchestratorState.pricing || {});
+    fallback.manualCompositionApprovals = Object.assign({}, orchestratorState.manualCompositionApprovals || {});
+    fallback.revisions = Array.isArray(orchestratorState.revisions) ? orchestratorState.revisions.slice() : [];
+    fallback.status = "budget";
+    setActiveEloResidentialBudgetState_(fallback);
+    return cloneEloResidentialBudgetState_(fallback);
   }
 
   function setActiveEloResidentialBudgetState_(state) {
@@ -14282,6 +14307,10 @@
         pipeline: "residential_new_pipeline"
       };
     }
+    const canonicalState = mergeEloResidentialBudgetState_(createEloResidentialBudgetState_(), message);
+    canonicalState.pendingFields = [];
+    canonicalState.status = "budget";
+    setActiveEloResidentialBudgetState_(canonicalState);
     const v2Answer = buildEloBudgetOrchestratorV2Answer_(message);
     if (!v2Answer || !v2Answer.pdfAction || !v2Answer.pdfAction.budgetDocumentData) {
       return {
@@ -14294,6 +14323,7 @@
         budgetOrchestratorV2: v2Answer && v2Answer.budgetOrchestratorV2 || null
       };
     }
+    v2Answer.residentialBudgetState = cloneEloResidentialBudgetState_(canonicalState);
     return v2Answer;
   }
   function buildEloResidentialBudgetPackageQuickAnswer_(message) {
@@ -19274,6 +19304,26 @@
     markEloInteraction_("elo:send");
     appendTypingIndicator();
 
+    if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
+      generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
+      return;
+    }
+
+    if (!attachedFiles.length) {
+      const response = buildResponse(cleanQuestion, {
+        surface: "relatorio-qualidade-obras",
+        useSession: true
+      });
+      const answer = formatResponse(response);
+      appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, response, answer);
+      clearProductAttachmentPreview();
+      removeTypingIndicator();
+      navigateEloCoreTool_(response);
+      return;
+    }
+
     const eloCoreToolResponse = buildEloCoreToolIntentResponse_(cleanQuestion);
     if (eloCoreToolResponse) {
       const eloCoreToolAnswer = formatResponse(eloCoreToolResponse);
@@ -19309,11 +19359,6 @@
       appendAssistantMessage(cleanQuestion, answer, false, directProjectMemoryResponse);
       saveConversation(cleanQuestion, answer);
       rememberSessionTurn(cleanQuestion, directProjectMemoryResponse, answer);
-      return;
-    }
-
-    if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
-      generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
       return;
     }
 
@@ -22727,6 +22772,7 @@
     ask: askElo,
     mountMinimal: mountMinimalEloChat,
     initializeSurface: initializeEloCoreSurface,
+    buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,

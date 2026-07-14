@@ -11,7 +11,22 @@
     return { getItem: (k) => mem[k] || null, setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } };
   }
   function all() { try { return JSON.parse(storage().getItem(KEY) || "{}"); } catch (_) { return {}; } }
-  function writeAll(data) { storage().setItem(KEY, JSON.stringify(data || {})); }
+  function writeAll(data) {
+    const payload = JSON.stringify(data || {});
+    try {
+      storage().setItem(KEY, payload);
+      root.__ELO_PROJECT_LAST_BACKEND_STATUS__ = { source: "local", ok: true, at: now() };
+    } catch (error) {
+      const mem = root.__ELO_PROJECT_STORE_MEMORY__ = root.__ELO_PROJECT_STORE_MEMORY__ || {};
+      mem[KEY] = payload;
+      root.__ELO_PROJECT_LAST_BACKEND_STATUS__ = {
+        source: "memory",
+        ok: true,
+        at: now(),
+        reason: error && error.message ? error.message : "local_storage_unavailable"
+      };
+    }
+  }
   function ensureRecord(record) {
     const r = clone(record);
     r.id = clean(r.id) || "elo_project_" + Date.now().toString(36);
