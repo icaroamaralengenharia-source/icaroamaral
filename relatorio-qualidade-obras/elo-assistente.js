@@ -1986,6 +1986,7 @@
     const premissas = getEloDocumentSection_(safe, ["Premissas utilizadas", "Premissas", "Dados utilizados"], ctx.premissas || "");
     const quantitativos = getEloDocumentSection_(safe, ["Quantitativos", "Totais consolidados", "Memoria de calculo", "Memoria de calculo", "Mem?ria de c?lculo"], ctx.quantitativos || "");
     const composicoes = getEloDocumentSection_(safe, ["Composicoes utilizadas", "Composicoes oficiais utilizadas", "Composi??es utilizadas", "Composi??es oficiais utilizadas"], ctx.composicoes || "");
+    const servicos = getEloDocumentSection_(safe, ["EAP real", "Escopo preliminar", "Servicos", "Servi\u00e7os"], ctx.servicos || safe.servicos || "");
     const basesTecnicas = getEloDocumentSection_(safe, ["Base tecnica utilizada", "Base t?cnica utilizada", "Bases tecnicas", "Bases t?cnicas"], ctx.origemBase || safe.bases_tecnicas || "");
     const custos = getEloDocumentSection_(safe, ["Custos encontrados", "Custos", "Orcamento", "Or?amento"], ctx.custos || safe.custos_encontrados || "");
     const pendencias = getEloDocumentSection_(safe, ["Pendencias tecnicas", "Pend?ncias t?cnicas", "Composicoes nao localizadas", "Composi??es n?o localizadas", "Observacoes tecnicas", "Observa??es t?cnicas"], ctx.pendencias || safe.pendencias || "");
@@ -2001,7 +2002,7 @@
       statusDocumento: cleanEloDocumentText_(safe.status || ctx.statusDocumento || "rascunho tecnico", "rascunho tecnico"),
       escopo: cleanEloDocumentText_(ctx.escopo || safe.escopo || safe.resumo_executivo || "Atendimento tecnico assistido pelo Elo conforme dados disponiveis.", "nao informado"),
       premissas: cleanEloDocumentText_(premissas, "nao informado"),
-      servicos: cleanEloDocumentText_(ctx.servicos || safe.servicos || "nao informado", "nao informado"),
+      servicos: cleanEloDocumentText_(servicos, "nao informado"),
       quantitativos: cleanEloDocumentText_(quantitativos, "nao informado"),
       memoriaCalculo: cleanEloDocumentText_(ctx.memoriaCalculo || quantitativos || markdown, "nao informado"),
       composicoes: cleanEloDocumentText_(composicoes, "nao localizada"),
@@ -2010,6 +2011,7 @@
       alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
       origemBase: cleanEloDocumentText_(basesTecnicas, "nao localizada"),
       conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
+      professionalBudget: safe.professionalBudget || ctx.professionalBudget || null,
       assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
     };
   }
@@ -2052,6 +2054,108 @@
     return title + "\n" + formatEloBudgetV2Block_(value, emptyText || "nao informado");
   }
 
+
+  function parseEloBudgetV2Money_(value) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const clean = String(value || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+    const number = Number(clean);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function formatEloBudgetV2Money_(value) {
+    const number = parseEloBudgetV2Money_(value);
+    return "R$ " + number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatEloBudgetV2Quantity_(value) {
+    const number = typeof value === "number" ? value : Number(String(value || "").replace(/\./g, "").replace(",", "."));
+    if (!Number.isFinite(number)) return cleanEloDocumentText_(value || "");
+    return number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function normalizeEloBudgetV2Unit_(unit) {
+    const clean = cleanEloDocumentText_(unit || "m2");
+    return clean === "m2" ? "m\u00b2" : clean;
+  }
+
+  function getEloBudgetV2ServiceScope_(description) {
+    const text = normalizeText(description || "");
+    if (/limpeza/.test(text)) return "Limpeza final da \u00e1rea constru\u00edda, com remo\u00e7\u00e3o de res\u00edduos leves e prepara\u00e7\u00e3o para entrega.";
+    if (/pintura/.test(text)) return "Prepara\u00e7\u00e3o de superf\u00edcie e execu\u00e7\u00e3o de pintura interna em paredes, conforme composi\u00e7\u00e3o adotada.";
+    if (/piso|ceram/.test(text)) return "Fornecimento e assentamento de revestimento cer\u00e2mico de piso, conforme composi\u00e7\u00e3o adotada.";
+    return cleanEloDocumentText_(description || "Servi\u00e7o conforme composi\u00e7\u00e3o selecionada.");
+  }
+
+  function normalizeEloBudgetV2Compositions_(value) {
+    const list = Array.isArray(value) ? value : [];
+    return list.map(function (entry) {
+      if (isEloBudgetV2PlainObject_(entry)) {
+        return {
+          code: cleanEloDocumentText_(entry.code || entry.codigo || entry.compositionCode || ""),
+          description: cleanEloDocumentText_(entry.description || entry.descricao || entry.compositionDescription || ""),
+          unit: normalizeEloBudgetV2Unit_(entry.unit || entry.unidade || entry.un),
+          source: cleanEloDocumentText_(entry.source || entry.fonte || "SINAPI")
+        };
+      }
+      const match = String(entry || "").match(/^([^:]+):\s*(.+)$/);
+      return {
+        code: cleanEloDocumentText_(match ? match[1] : ""),
+        description: cleanEloDocumentText_(match ? match[2] : entry),
+        unit: "m\u00b2",
+        source: "SINAPI"
+      };
+    }).filter(function (row) { return row.code || row.description; });
+  }
+
+  function normalizeEloBudgetV2Rows_(budget, compositions) {
+    const sourceRows = Array.isArray(budget && budget.rows) ? budget.rows : (Array.isArray(budget && budget.planilha) ? budget.planilha : []);
+    return sourceRows.map(function (row, index) {
+      if (isEloBudgetV2PlainObject_(row)) {
+        return {
+          item: index + 1,
+          code: cleanEloDocumentText_(row.code || row.codigo || row.compositionCode || row.composicao || (compositions[index] && compositions[index].code) || ""),
+          description: getEloBudgetV2ServiceScope_(row.description || row.descricao || row.service || row.servico || row.item),
+          unit: normalizeEloBudgetV2Unit_(row.unit || row.unidade || row.un),
+          quantity: formatEloBudgetV2Quantity_(row.quantity || row.quantidade),
+          unitPrice: formatEloBudgetV2Money_(row.unitPrice || row.precoUnitario || row.preco_unitario),
+          total: formatEloBudgetV2Money_(row.total || row.subtotal || row.valorTotal || row.valor_total),
+          source: cleanEloDocumentText_(row.source || row.fonte || budget.source || budget.fonte || budget.priceSource || "")
+        };
+      }
+      const parts = String(row || "").split("|").map(function (part) { return part.trim(); });
+      const composition = compositions[index] || {};
+      return {
+        item: index + 1,
+        code: cleanEloDocumentText_(composition.code || ""),
+        description: getEloBudgetV2ServiceScope_(parts[0]),
+        unit: normalizeEloBudgetV2Unit_(parts[1]),
+        quantity: formatEloBudgetV2Quantity_(parts[2]),
+        unitPrice: formatEloBudgetV2Money_(parts[3]),
+        total: formatEloBudgetV2Money_(parts[4]),
+        source: cleanEloDocumentText_(budget && (budget.source || budget.fonte || budget.priceSource) || "")
+      };
+    }).filter(function (row) { return row.description && row.unit && row.quantity; });
+  }
+
+  function buildEloBudgetV2ProfessionalBudget_(safe) {
+    const budget = safe && safe.budget || {};
+    const compositions = normalizeEloBudgetV2Compositions_(safe && safe.compositions);
+    const rows = normalizeEloBudgetV2Rows_(budget, compositions);
+    if (!rows.length) return null;
+    return {
+      rows: rows,
+      compositions: compositions,
+      subtotal: formatEloBudgetV2Money_(budget.subtotal),
+      bdiPercent: cleanEloDocumentText_(budget.bdiPercent || budget.bdi || ""),
+      bdiValue: formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi),
+      total: formatEloBudgetV2Money_(budget.total),
+      source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || ""),
+      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || ""),
+      area: cleanEloDocumentText_(safe && safe.facts && (safe.facts.area || safe.facts.areaConstruida || safe.facts.builtAreaM2) || ""),
+      observation: cleanEloDocumentText_(budget.observation || budget.observacao || "")
+    };
+  }
+
   function hasEloBudgetV2ReliablePriceSource_(budget) {
     if (!isEloBudgetV2PlainObject_(budget)) return false;
     if (budget.isPending || budget.pending || budget.status === "pending" || budget.status === "pendente") return false;
@@ -2075,6 +2179,7 @@
   function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
     const safe = budgetDocumentData || {};
     const budgetId = formatEloBudgetV2Scalar_(safe.budgetId) || "nao informado";
+    const professionalBudget = buildEloBudgetV2ProfessionalBudget_(safe);
     const confirmed = formatEloBudgetV2NamedSection_("Dados confirmados", safe.facts, "Nenhum dado confirmado informado.");
     const inherited = formatEloBudgetV2NamedSection_("Dados herdados", safe.inheritedFacts, "Nenhum dado herdado informado.");
     const assumed = formatEloBudgetV2NamedSection_("Dados assumidos", safe.assumptions, "Nenhuma premissa assumida informada.");
@@ -2140,11 +2245,108 @@
       "Pendencias tecnicas": pending,
       "Alertas tecnicos": [risks, "", nextSteps, "", technicalNotice].join("\n"),
       "Base tecnica utilizada": hasEloBudgetV2ReliablePriceSource_(safe.budget) ? formatEloBudgetV2Block_(safe.budget && (safe.budget.source || safe.budget.fonte || safe.budget.base || safe.budget.priceSource), "Fonte confiavel informada no orcamento.") : "Valores pendentes. Fonte oficial de precos nao informada.",
+      professionalBudget: professionalBudget,
       origem: "elo_orcamentista_v2"
     };
   }
+  function buildEloProfessionalBudgetTable_(rows) {
+    const body = (rows || []).map(function (row) {
+      return [
+        "<tr>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.item) + "</td>",
+        "<td>" + escapeEloHtml_(row.code || "-") + "</td>",
+        "<td class=\"is-description\">" + escapeEloHtml_(row.description) + "</td>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.unit) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.quantity) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.unitPrice) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.total) + "</td>",
+        "</tr>"
+      ].join("");
+    }).join("\n");
+    return [
+      "<table class=\"elo-budget-table\">",
+      "<thead><tr><th>Item</th><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o completa do servi\u00e7o</th><th>Un.</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Valor total</th></tr></thead>",
+      "<tbody>", body, "</tbody></table>"
+    ].join("\n");
+  }
+
+  function buildEloProfessionalCompositionTable_(rows) {
+    if (!rows || !rows.length) return "";
+    const body = rows.map(function (row) {
+      return "<tr><td>" + escapeEloHtml_(row.code || "-") + "</td><td>" + escapeEloHtml_(row.description || "-") + "</td><td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td><td>" + escapeEloHtml_(row.source || "-") + "</td></tr>";
+    }).join("\n");
+    return [
+      "<section class=\"elo-pdf-section\"><h2>Composi\u00e7\u00f5es adotadas</h2>",
+      "<table class=\"elo-budget-table is-compact\"><thead><tr><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o</th><th>Unidade</th><th>Fonte</th></tr></thead><tbody>",
+      body,
+      "</tbody></table></section>"
+    ].join("\n");
+  }
+
+  function buildEloProfessionalServiceSpecs_(budget) {
+    return (budget.rows || []).map(function (row) {
+      return [
+        "<section class=\"elo-service-spec\">",
+        "<h3>Item " + escapeEloHtml_(row.item) + " - " + escapeEloHtml_(row.description.split(",")[0]) + "</h3>",
+        "<ul>",
+        "<li><strong>Escopo:</strong> " + escapeEloHtml_(row.description) + "</li>",
+        "<li><strong>Unidade:</strong> " + escapeEloHtml_(row.unit) + "</li>",
+        "<li><strong>Quantidade:</strong> " + escapeEloHtml_(row.quantity) + "</li>",
+        "<li><strong>Composi\u00e7\u00e3o:</strong> " + escapeEloHtml_(row.code || "-") + "</li>",
+        "<li><strong>Fonte:</strong> " + escapeEloHtml_(row.source || budget.source || "-") + "</li>",
+        "<li><strong>Observa\u00e7\u00e3o:</strong> pre\u00e7o de teste, n\u00e3o v\u00e1lido para contrata\u00e7\u00e3o.</li>",
+        "</ul>",
+        "</section>"
+      ].join("\n");
+    }).join("\n");
+  }
+
+  function buildEloProfessionalResidentialBudgetSection_(data) {
+    const safe = data || {};
+    const budget = safe.professionalBudget || {};
+    function field(label, value) {
+      return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "-") + "</strong></div>";
+    }
+    return [
+      "<article class=\"elo-professional-pdf elo-budget-document\">",
+      "<section class=\"elo-budget-page\">",
+      "<header class=\"elo-budget-header\">",
+      "<div class=\"elo-pdf-brand\"><span>\u00cdcaro Amaral Engenharia</span><strong>ELO</strong></div>",
+      "<div class=\"elo-page-label\">P\u00e1gina 1 de 2</div>",
+      "<h1>OR\u00c7AMENTO RESIDENCIAL</h1>",
+      "<div class=\"elo-pdf-meta-grid\">",
+      field("N\u00famero", safe.numero + " v" + safe.versao),
+      field("Cliente", safe.cliente),
+      field("Obra", safe.obra),
+      field("Cidade/UF", safe.cidade),
+      field("\u00c1rea constru\u00edda", budget.area || "-"),
+      field("Data", safe.dataHora),
+      field("Status", safe.statusDocumento),
+      field("Fonte", budget.source || safe.origemBase),
+      field("M\u00eas-base", budget.referenceMonth || "-"),
+      "</div>",
+      "</header>",
+      "<section class=\"elo-pdf-section\"><h2>Objeto do or\u00e7amento</h2><p class=\"elo-budget-object\">Or\u00e7amento para execu\u00e7\u00e3o dos servi\u00e7os descritos na planilha abaixo, considerando quantitativos, composi\u00e7\u00f5es e pre\u00e7os indicados neste documento.</p></section>",
+      "<section class=\"elo-pdf-section\"><h2>Planilha or\u00e7ament\u00e1ria</h2>",
+      buildEloProfessionalBudgetTable_(budget.rows),
+      "</section>",
+      "<aside class=\"elo-financial-summary\"><div><span>Subtotal</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>BDI (" + escapeEloHtml_(budget.bdiPercent) + ")</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>Total do or\u00e7amento</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>",
+      "</section>",
+      "<section class=\"elo-budget-page elo-page-break\">",
+      "<div class=\"elo-page-label\">P\u00e1gina 2 de 2</div>",
+      "<section class=\"elo-pdf-section\"><h2>Especifica\u00e7\u00f5es dos servi\u00e7os</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
+      buildEloProfessionalCompositionTable_(budget.compositions),
+      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">Este or\u00e7amento usa as composi\u00e7\u00f5es e pre\u00e7os indicados na planilha. Os valores desta valida\u00e7\u00e3o s\u00e3o demonstrativos e devem ser substitu\u00eddos por base oficial vigente antes de contrata\u00e7\u00e3o.</div></section>",
+      "<section class=\"elo-pdf-signature\"><h2>Responsabilidade t\u00e9cnica e revis\u00e3o</h2><p>Este documento \u00e9 preliminar e deve ser revisado por profissional habilitado antes de contrata\u00e7\u00e3o, compra, execu\u00e7\u00e3o, emiss\u00e3o oficial ou envio ao cliente.</p><div class=\"elo-pdf-sign-line\"></div><strong>" + escapeEloHtml_(safe.assinatura) + "</strong></section>",
+      "</section>",
+      "<footer class=\"elo-pdf-footer\"><span>\u00cdcaro Amaral Engenharia / ObraReport / Elo</span><span>" + escapeEloHtml_(budget.source || safe.origemBase) + "</span></footer>",
+      "</article>"
+    ].join("\n");
+  }
+
   function buildEloProfessionalPdfSection_(data) {
     const safe = data || {};
+    if (safe.professionalBudget && safe.professionalBudget.rows && safe.professionalBudget.rows.length) return buildEloProfessionalResidentialBudgetSection_(safe);
     function field(label, value) {
       return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "nao informado") + "</strong></div>";
     }
@@ -2214,7 +2416,45 @@
       ".elo-pdf-sign-line{width:280px;border-top:1px solid #0f172a;margin:34px 0 8px}",
       ".elo-pdf-footer{position:fixed;left:14mm;right:14mm;bottom:7mm;display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:5px;color:#64748b;font-size:10px}",
       ".elo-page-number:after{content:counter(page)}",
-      "@media print{html,body{background:#fff}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}}",
+      ".elo-budget-document{font-size:11px;color:#0f172a}",
+      ".elo-budget-page{position:relative;min-height:auto;break-after:page;padding-bottom:2mm}",
+      ".elo-budget-page:last-of-type{break-after:auto}",
+      ".elo-page-label{float:right;color:#64748b;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
+      ".elo-budget-header h1{clear:both;margin:10px 0 8px;color:#0f172a;font-size:21px;letter-spacing:0;text-transform:uppercase}",
+      ".elo-budget-object{margin:0;border:1px solid #d8e2ef;border-left:4px solid #0f5ea8;padding:7px 9px;background:#f8fafc;font-size:10px;line-height:1.28}",
+      ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.2px;background:#fff}",
+      ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:4px 5px;border:1px solid #0d4f8d;font-size:8px;text-transform:uppercase;letter-spacing:.03em}",
+      ".elo-budget-table td{border:1px solid #d8e2ef;padding:4px 5px;vertical-align:top}",
+      ".elo-budget-table .is-description{width:35%;line-height:1.35}",
+      ".elo-budget-table .is-center{text-align:center}",
+      ".elo-budget-table .is-number{text-align:right;white-space:nowrap}",
+      ".elo-budget-table.is-compact th,.elo-budget-table.is-compact td{font-size:8.6px;padding:3px 4px}",
+      ".elo-financial-summary{width:285px;margin:8px 0 0 auto;border:1px solid #cbd5e1;background:#f8fafc}",
+      ".elo-financial-summary div{display:flex;justify-content:space-between;gap:10px;padding:5px 8px;border-bottom:1px solid #e2e8f0}",
+      ".elo-financial-summary div:last-child{border-bottom:0}",
+      ".elo-financial-summary span{font-size:10px;text-transform:uppercase;color:#475569;font-weight:800}",
+      ".elo-financial-summary strong{font-size:10.5px;color:#0f172a}",
+      ".elo-financial-summary .is-total{background:#0f5ea8;color:#fff}",
+      ".elo-financial-summary .is-total span,.elo-financial-summary .is-total strong{color:#fff;font-size:12px}",
+      ".elo-service-spec{break-inside:avoid;border:1px solid #d8e2ef;border-left:3px solid #0f5ea8;margin:5px 0;padding:5px 8px;background:#fff}",
+      ".elo-service-spec h3{margin:0 0 3px;color:#0f172a;font-size:9.6px;text-transform:uppercase}",
+      ".elo-service-spec ul{margin:0;padding-left:16px}",
+      ".elo-service-spec li{margin:1px 0;font-size:9px;line-height:1.22}",
+      ".elo-budget-document .elo-pdf-cover{padding-bottom:10px;margin-bottom:10px}",
+      ".elo-budget-document .elo-pdf-brand{margin-bottom:4px}",
+      ".elo-budget-document .elo-pdf-meta-grid{gap:7px;margin-top:7px}",
+      ".elo-budget-document .elo-pdf-field{padding:6px 7px}",
+      ".elo-budget-document .elo-pdf-field span{font-size:8px;margin-bottom:2px}",
+      ".elo-budget-document .elo-pdf-field strong{font-size:10px;line-height:1.2}",
+      ".elo-budget-document .elo-pdf-section{margin:8px 0}",
+      ".elo-budget-document .elo-pdf-section h2{font-size:12px;margin:0 0 5px;padding-bottom:3px}",
+      ".elo-budget-document .elo-pdf-box{padding:6px 8px;font-size:9px;line-height:1.28}",
+      ".elo-budget-document .elo-pdf-signature{margin-top:8px;padding-top:7px}",
+      ".elo-budget-document .elo-pdf-signature h2{font-size:12px;margin-bottom:4px}",
+      ".elo-budget-document .elo-pdf-signature p{font-size:9px;line-height:1.3;margin:0 0 8px}",
+      ".elo-budget-document .elo-pdf-sign-line{width:220px;margin:13px 0 5px}",
+      ".elo-budget-document .elo-pdf-footer{position:static;margin-top:6px;padding-top:4px;font-size:8.5px}",
+      "@media print{html,body{background:#fff}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}.elo-budget-table{page-break-inside:auto}.elo-budget-table thead{display:table-header-group}.elo-budget-table tr{break-inside:avoid}}",
       "@media(max-width:720px){body{padding:12px}.elo-professional-pdf{padding:22px 18px 48px}.elo-pdf-meta-grid{grid-template-columns:1fr}h1{font-size:25px}}"
     ].join("");
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.numero !== "nao informado" ? data.numero : data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-actions\"><button onclick=\"window.print()\">Imprimir / Salvar como PDF</button></div>" + section + "</body></html>";
