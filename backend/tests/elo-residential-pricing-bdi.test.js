@@ -77,9 +77,11 @@ test("4. composicao nao encontrada preserva quantitativo", () => {
   assert.ok(unresolved.quantity > 0);
 });
 
-test("5. unidade incompativel ou pendencia bloqueia linha", () => {
+test("5. pendencia financeira fica formalizada sem duplicar subtotal", () => {
   const pack = packageOf(makePricedCasa80());
-  assert.ok((pack.financialLines || []).some((item) => item.blockers.length > 0));
+  assert.ok((pack.financialLines || []).some((item) => item.composition.status === "manual_review"));
+  assert.equal(pack.financialLines.find((item) => item.serviceId === "alvenaria_liquida")?.composition.status, "non_priced_summary");
+  assert.equal(pack.priceStatus.canTotal, false);
 });
 
 test("6. competencia valida e registrada", () => {
@@ -153,17 +155,18 @@ test("16. BDI ausente bloqueia preco de venda", () => {
   assert.ok(pack.financialSummary.blockers.some((item) => item.reason === "bdi_missing"));
 });
 
-test("17. servicos criticos sem preco bloqueiam total final", () => {
+test("17. pendencias manuais mantem total final bloqueado", () => {
   const pack = packageOf(makePricedCasa80());
-  assert.equal(pack.financialSummary.status, "blocked");
+  assert.equal(pack.financialSummary.status, "financial_partial");
   assert.equal(pack.financialSummary.salePrice, null);
-  assert.ok(pack.financialSummary.blockers.length > 0);
+  assert.ok(pack.financialSummary.unresolvedItems.length > 0);
 });
 
 test("18. cobertura financeira parcial fica visivel", () => {
   const pack = packageOf(makePricedCasa80());
   assert.ok(pack.financialSummary.pricedItems >= 0);
-  assert.ok(pack.financialSummary.totalItems >= 38);
+  assert.ok(pack.financialSummary.totalItems >= 37);
+  assert.ok(pack.financialSummary.informationalItems >= 1);
   assert.ok(pack.financialSummary.pricedCoveragePercent >= 0 && pack.financialSummary.pricedCoveragePercent <= 100);
 });
 
@@ -173,7 +176,7 @@ test("19. revisao de escopo recalcula custos e preserva bloqueios", () => {
   const after = packageOf(response);
   assert.ok(response.revision);
   assert.notEqual(line(after, "cobertura")?.quantity, line(before, "cobertura")?.quantity);
-  assert.equal(after.financialSummary.status, "blocked");
+  assert.equal(after.financialSummary.status, "financial_partial");
 });
 
 test("20. porcelanato 90 x 90 nao cai na calculadora", () => {
@@ -210,7 +213,8 @@ test("23. documento e PDF recebem dados financeiros", () => {
 test("24. sobrado 160 m2 gera financeiro auditavel", () => {
   reset(); ask(CASE_160); ask("Use SINAPI da Bahia."); ask("Use a competencia 2024-12 e nao desonerado."); const response = ask("Use BDI de 25%.");
   const pack = packageOf(response);
-  assert.ok(pack.financialSummary.totalItems >= 40);
+  assert.ok(pack.financialSummary.totalItems >= 39);
+  assert.ok(pack.financialSummary.informationalItems >= 1);
   assert.equal(pack.compositionResolution.uf, "BA");
 });
 
