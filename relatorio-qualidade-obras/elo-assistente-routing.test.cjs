@@ -119,7 +119,7 @@ test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () =
       ResidentialConsumptionPriceAdapter: { price() { calls.push('consumptionPrice'); return { schema: 'elo.residential_consumption_price', status: 'complete', priceBase: { source: 'SINAPI_TEST' }, request: { rows: [{ takeoffItemId: 'area', serviceId: 'area', quantity: 70, unit: 'm2' }] }, price: { pricedRows: [{ takeoffItemId: 'area', serviceId: 'area', service: 'Area construida', compositionCode: 'SINAPI-AREA', compositionDescription: 'Area construida', compositionSource: 'SINAPI', quantity: 70, unit: 'm2', unitPrice: 10, totalPrice: 700 }] }, audit: { priceFingerprint: 'fp_test' } }; } },
       ResidentialRealBudgetAdapter: { build() { calls.push('realBudgetAdapter'); return { schema: 'elo.residential_real_budget_package', status: 'complete', realBudgetInput: { budgetEap: { etapas: [{ nome: 'Pipeline residencial' }], itens: [{ id: 'area', nome: 'Area construida', quantidadeBase: { valor: 70, unidade: 'm2' } }] }, quantities: [{ eapItemId: 'area', quantity: 70, unit: 'm2' }] }, realBudget: { status: 'complete', items: [{ item: 'Area construida', quantity: 70, unit: 'm2' }], subtotal: 700, bdiPercent: 20, bdiValue: 140, total: 840, missingPrices: [], canClose: true }, errors: [], warnings: [], blockingFields: [] }; } },
       EloCompositionResolver: { resolveEloEapCompositions() {} },
-      EloConsumptionEngine: { calculateConsumption() {} },
+      EloConsumptionEngine: { calculateConsumptionFromCompositions() {} },
       EloPriceEngine: { attachPricesToBudgetRows() {} },
       EloRealBudgetEngine: { buildCompleteBudget() {} },
       EloBudgetEngine: { buildPreliminaryBudget() { calls.push('oldBudget'); return {}; } }
@@ -130,10 +130,48 @@ test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () =
   assert.equal(response.sessionIntent, 'residential_new_pipeline_record_created');
   assert.equal(response.pipeline, 'residential_new_pipeline');
   assert.equal(response.featureFlag, 'ELO_RESIDENTIAL_NEW_PIPELINE');
+  assert.ok(response.pdfAction, 'pipeline novo deve expor acao de PDF');
+  assert.equal(response.pdfAction.label, 'Gerar PDF');
   assert.deepEqual(calls, ['briefing', 'geometry', 'takeoff', 'takeoffComposition', 'compositionConsumption', 'consumptionPrice', 'realBudgetAdapter']);
   const [record] = elo.getBudgetRecordsForTest();
   assert.match(record.custos_encontrados, /Subtotal|Total/i);
   assert.match(record.conteudo_markdown, /pipeline novo/i);
+});
+
+test('ELO residencial novo: dependencia ausente nao cai silenciosamente no motor antigo', () => {
+  const { elo } = loadEloContext({
+    window: {
+      ELO_RESIDENTIAL_NEW_PIPELINE: true,
+      ResidentialBriefingCompleteEngine: {},
+      EloBudgetEngine: { buildPreliminaryBudget() { throw new Error('fallback antigo nao deveria rodar'); } }
+    }
+  });
+  const response = elo.buildResponseForTest('Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento');
+  const answer = response.fullAnswer || '';
+
+  assert.equal(response.sessionIntent, 'residential_new_pipeline_missing_dependencies');
+  assert.equal(response.pipeline, 'residential_new_pipeline_blocked');
+  assert.match(answer, /dependencias faltantes/i);
+  assert.match(answer, /ResidentialBriefingCompleteEngine/);
+  assert.doesNotMatch(answer, /Orcamento residencial criado|Area da parede/i);
+});
+
+test('ELO capacidades: pergunta de orcamentos cita residencial completo e PDF', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Quais orcamentos voce consegue fazer?');
+  const answer = response.fullAnswer || '';
+
+  assert.equal(response.sessionIntent, 'capabilities');
+  assert.match(answer, /Orcamento residencial completo/i);
+  assert.match(answer, /briefing/i);
+  assert.match(answer, /quantitativos/i);
+  assert.match(answer, /composicoes/i);
+  assert.match(answer, /consumo/i);
+  assert.match(answer, /precos/i);
+  assert.match(answer, /BDI/i);
+  assert.match(answer, /total/i);
+  assert.match(answer, /PDF profissional/i);
+  assert.doesNotMatch(answer, /ResidentialBriefingCompleteEngine|feature flag|fixture|resolver/i);
 });
 test('ELO pede briefing m?nimo antes de SINAPI no or?amento residencial preliminar', () => {
   const elo = loadElo();
