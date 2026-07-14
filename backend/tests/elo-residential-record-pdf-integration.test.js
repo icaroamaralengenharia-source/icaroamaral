@@ -289,7 +289,7 @@ test("entrada real residencial com m2 sobrescrito gera documento V2 completo", (
   const { elo, calls } = loadAssistant({ budget: realObservedShapeBudget() });
   elo.clearBudgetRecordsForTest();
 
-  const response = elo.buildResponseForTest("Quero um or?amento preliminar para uma casa t?rrea de 80 m?, com dois quartos, um banheiro, sala, cozinha, ?rea de servi?o, estrutura convencional e cobertura em telha cer?mica, em Vit?ria da Conquista/BA.");
+  const response = elo.buildResponseForTest("Quero um or\u00e7amento preliminar para uma casa t\u00e9rrea de 80 m\u00b2, com dois quartos, um banheiro, sala, cozinha, \u00e1rea de servi\u00e7o, estrutura convencional e cobertura em telha cer\u00e2mica, em Vit\u00f3ria da Conquista/BA.");
 
   assert.equal(calls.buildPreliminaryBudget, 1);
   assert.equal(response.brain, "budget");

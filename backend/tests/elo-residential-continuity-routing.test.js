@@ -178,9 +178,11 @@ test("SINAPI BDI continua no orcamento ativo sem inventar fechamento", () => {
   const response = elo.buildResponseForTest("Use SINAPI da Bahia, encargos e BDI para fechar o valor final.");
 
   assert.equal(response.brain, "budget");
-  assert.equal(response.sessionIntent, "budget_v2_pricing_blocked");
-  assert.match(response.fullAnswer, /bloqueado|Nao vou fechar preco/i);
-  assert.equal(calls.buildPreliminaryBudget, 1);
+  assert.equal(response.sessionIntent, "budget_v2_residential_created");
+  assert.ok(response.pdfAction?.budgetDocumentData?.financialSummary);
+  assert.equal(response.pdfAction.budgetDocumentData.financialSummary.salePrice, null);
+  assert.match(response.pdfAction.budgetDocumentData.financialSummary.status, /blocked|unpriced/);
+  assert.equal(calls.buildPreliminaryBudget, 2);
 });
 
 test("mensagem generica fora de sessao nao e forcada para orcamento", () => {
