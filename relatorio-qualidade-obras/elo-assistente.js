@@ -2102,6 +2102,9 @@
     const scope = formatEloBudgetV2NamedSection_("Escopo preliminar", safe.scope, "Escopo preliminar nao informado.");
     const materials = formatEloBudgetV2NamedSection_("Lista de materiais qualitativa", safe.materials, "Lista qualitativa de materiais nao informada.");
     const quantities = formatEloBudgetV2NamedSection_("Quantitativos", safe.quantities, "Quantitativos pendentes.");
+    const geometry = formatEloBudgetV2NamedSection_("Geometria preliminar", safe.geometry, "Geometria preliminar nao calculada.");
+    const calculationMemory = formatEloBudgetV2NamedSection_("Memoria de calculo dos quantitativos", safe.calculationMemory, "Memoria de calculo nao informada.");
+    const coverage = formatEloBudgetV2NamedSection_("Cobertura dos quantitativos", safe.quantityCoverage, "Cobertura nao informada.");
     const compositions = formatEloBudgetV2NamedSection_("Composicoes", safe.compositions, "Composicoes pendentes ou nao localizadas.");
     const costs = formatEloBudgetV2NamedSection_("Orcamento/valores", formatEloBudgetV2Budget_(safe.budget), "Valores pendentes.");
     const risks = formatEloBudgetV2NamedSection_("Riscos tecnicos", safe.risks, "Sem riscos tecnicos adicionais informados.");
@@ -2126,6 +2129,12 @@
       "",
       quantities,
       "",
+      geometry,
+      "",
+      calculationMemory,
+      "",
+      coverage,
+      "",
       compositions,
       "",
       costs,
@@ -2146,7 +2155,7 @@
       premissas: [confirmed, "", inherited, "", assumed].join("\n"),
       servicos: materials,
       quantitativos: quantities,
-      memoriaCalculo: quantities,
+      memoriaCalculo: [geometry, "", calculationMemory, "", coverage].join("\n"),
       composicoes: compositions,
       custos_encontrados: costs,
       pendencias: pending,
@@ -2155,6 +2164,7 @@
       conteudo_markdown: consolidated,
       "Premissas utilizadas": [confirmed, "", inherited, "", assumed].join("\n"),
       "Quantitativos": quantities,
+      "Memoria de calculo": [geometry, "", calculationMemory, "", coverage].join("\n"),
       "Composicoes utilizadas": compositions,
       "Custos encontrados": costs,
       "Pendencias tecnicas": pending,
@@ -2196,7 +2206,10 @@
     const qty = item.quantity !== undefined ? item.quantity : item.quantidade !== undefined ? item.quantidade : item.valor;
     const unit = item.unit || item.unidade || "";
     const source = item.source || item.fonte || item.origin || item.origem || "";
-    return [desc, qty !== undefined && qty !== null && qty !== "" ? qty + (unit ? " " + unit : "") : "", source ? "fonte: " + source : ""].filter(Boolean).join(" - ");
+    const formula = item.formula || item.memoria || item.calculationText || "";
+    const confidence = item.confidence ? "confianca: " + item.confidence : "";
+    const range = item.range && item.range.min !== undefined ? "faixa: " + item.range.min + " a " + item.range.max + (item.range.unit ? " " + item.range.unit : "") : "";
+    return [desc, qty !== undefined && qty !== null && qty !== "" ? qty + (unit ? " " + unit : "") : "", formula ? "memoria: " + formula : "", range, confidence, source ? "fonte: " + source : ""].filter(Boolean).join(" - ");
   }
 
   function formatEloBudgetV2Composition_(item) {
@@ -2252,7 +2265,11 @@
       documentType: "residential",
       facts: facts,
       inheritedFacts: safeState.inheritedFacts || {},
-      assumptions: safeState.assumptions || ["Estrutura convencional preliminar.", "Cobertura em telha ceramica quando informada.", "Orcamento sujeito a projeto executivo, BDI, perdas e base oficial vigente."],
+      assumptions: (safeState.assumptions || ["Estrutura convencional preliminar.", "Cobertura em telha ceramica quando informada.", "Orcamento sujeito a projeto executivo, BDI, perdas e base oficial vigente."]).concat(pack.technicalAssumptions || []),
+      geometry: pack.geometry || safeState.geometry || null,
+      calculationMemory: pack.calculationMemory || [],
+      quantityCoverage: pack.quantityCoverage || null,
+      quantityWarnings: pack.quantityWarnings || [],
       pendingFields: pendingFields,
       scope: eapLines.length ? eapLines : ["EAP residencial preliminar", "Servicos obrigatorios por macroetapas pendentes de composicao oficial."],
       materials: toEloBudgetV2List_(pack.materials || pack.scope || eapLines, function (item) { return item && typeof item === "object" ? item.description || item.name || item.nome || item.serviceId || item.id : item; }),
@@ -13339,7 +13356,7 @@
   }
   function createEloResidentialBudgetState_() {
     return {
-      project: { type: null, areaM2: null, floors: null, city: null, uf: null, standard: null, stage: "obra completa" },
+      project: { type: null, areaM2: null, widthM: null, lengthM: null, footprintAreaM2: null, floors: null, city: null, uf: null, standard: null, stage: "obra completa" },
       systems: { structure: null, masonry: null, roof: null, slab: null, flooring: null },
       rooms: [],
       assumptions: [],
@@ -13405,8 +13422,15 @@
     const text = normalizeText(raw);
     const location = extractEloResidentialCityUf_(raw);
     const facts = { project: {}, systems: {}, rooms: [], assumptions: [] };
+    const dimensions = extractEloResidentialDimensions_(raw);
     const area = parseEloResidentialArea_(raw);
     if (area) facts.project.areaM2 = area;
+    if (dimensions) {
+      facts.project.widthM = dimensions.width;
+      facts.project.lengthM = dimensions.length;
+      facts.project.footprintAreaM2 = dimensions.areaM2;
+      facts.project.areaM2 = dimensions.areaM2;
+    }
     if (location.city) facts.project.city = location.city;
     if (location.uf) facts.project.uf = location.uf;
     if (/\bsobrado\b|2\s+pav|dois\s+pav|2\s+andares/.test(text)) { facts.project.type = "sobrado"; facts.project.floors = 2; facts.rooms.push("escada"); facts.systems.slab = "laje intermediaria"; }
@@ -13444,7 +13468,7 @@
   function mergeEloResidentialBudgetState_(state, message) {
     const current = cloneEloResidentialBudgetState_(state || createEloResidentialBudgetState_());
     const facts = extractEloResidentialBudgetFacts_(message);
-    ["type", "areaM2", "floors", "city", "uf", "standard", "stage"].forEach(function (key) {
+    ["type", "areaM2", "widthM", "lengthM", "footprintAreaM2", "floors", "city", "uf", "standard", "stage"].forEach(function (key) {
       if (facts.project[key] !== undefined && facts.project[key] !== null && facts.project[key] !== "") current.project[key] = facts.project[key];
     });
     ["structure", "masonry", "roof", "slab", "flooring"].forEach(function (key) {
@@ -13655,6 +13679,142 @@
     return buildEloResidentialBudgetFromNewPipeline_({ briefing: briefing, geometry: geometry, takeoff: takeoff, compositionResolution: compositionResolution, consumption: consumption, priced: priced, realBudgetPackage: realBudgetPackage });
   }
 
+
+  function parseEloResidentialCountWord_(value) {
+    const text = normalizeText(value || "");
+    if (/\b(um|uma|1)\b/.test(text)) return 1;
+    if (/\b(dois|duas|2)\b/.test(text)) return 2;
+    if (/\b(tres|3)\b/.test(text)) return 3;
+    if (/\b(quatro|4)\b/.test(text)) return 4;
+    if (/\b(cinco|5)\b/.test(text)) return 5;
+    const match = text.match(/\b(\d{1,2})\b/);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function getEloResidentialProgramFromState_(state) {
+    const safe = state || {};
+    const text = normalizeText([safe.originalMessage, safe.lastMessage, Array.isArray(safe.rooms) ? safe.rooms.join(" ") : safe.rooms].filter(Boolean).join(" "));
+    const rooms = Array.isArray(safe.rooms) ? safe.rooms : [];
+    const suiteMatch = text.match(/\b(uma|um|1|duas|dois|2|tres|3|quatro|4)?\s*suites?\b/);
+    const suites = Math.max(suiteMatch ? parseEloResidentialCountWord_(suiteMatch[1] || "1") : 0, rooms.some(function (room) { return normalizeText(room) === "suite"; }) ? 1 : 0);
+    const bedroomMatch = text.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+quartos?\b/);
+    let bedrooms = bedroomMatch ? parseEloResidentialCountWord_(bedroomMatch[1]) : Number(safe.rooms || 0) || 0;
+    if (!bedrooms && suites) bedrooms = suites;
+    const bathMatch = text.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+banheiros?\b/);
+    const explicitBathrooms = bathMatch ? parseEloResidentialCountWord_(bathMatch[1]) : Number(safe.bathrooms || 0) || 0;
+    const socialBathrooms = /banheiro\s+social/.test(text) ? 1 : 0;
+    const lavabos = /\blavabo\b/.test(text) ? 1 : 0;
+    const bathroomRooms = Math.max(explicitBathrooms, socialBathrooms + lavabos);
+    const bathrooms = Math.max(1, bathroomRooms + (suites && explicitBathrooms ? suites : 0), suites + socialBathrooms + lavabos, Number(safe.bathrooms || 0) || 0);
+    return { bedrooms: bedrooms || 2, suites: suites, bathrooms: bathrooms, lavabos: lavabos, kitchens: 1, livingRooms: 1, serviceAreas: /area\s+de\s+servico/.test(text) ? 1 : 0, garages: /\bgaragem\b/.test(text) ? 1 : 0, balconies: /\bvaranda\b/.test(text) ? 1 : 0, stairs: /\bescada\b|\bsobrado\b|2\s+pav/.test(text) ? 1 : 0 };
+  }
+
+  function roundEloResidentialQuantity_(value, decimals) {
+    const factor = Math.pow(10, decimals === undefined ? 2 : decimals);
+    return Math.round((Number(value) || 0) * factor) / factor;
+  }
+
+  function buildEloResidentialPreliminaryGeometry_(state) {
+    const safe = state || {};
+    const text = normalizeText(safe.originalMessage || "");
+    const area = Number(safe.areaM2 || safe.builtAreaM2 || 0) || 0;
+    const floors = Number(safe.floors || (/\bsobrado\b|2\s+pav/.test(text) ? 2 : 1)) || 1;
+    const dimensions = extractEloResidentialDimensions_(safe.originalMessage || "");
+    let width = Number(safe.widthM || dimensions && dimensions.width || 0) || 0;
+    let length = Number(safe.lengthM || dimensions && dimensions.length || 0) || 0;
+    const footprintArea = width && length ? width * length : area ? area / floors : 0;
+    if ((!width || !length) && footprintArea) { width = Math.sqrt(footprintArea / 1.35); length = footprintArea / width; }
+    const program = getEloResidentialProgramFromState_(safe);
+    const ceilingHeightM = 2.8;
+    const externalPerimeterM = width && length ? 2 * (width + length) : Math.sqrt(Math.max(footprintArea, 0)) * 4.6;
+    const externalWallGrossM2 = externalPerimeterM * ceilingHeightM * floors;
+    const internalWallLengthM = area * 0.62;
+    const internalWallFacesM2 = internalWallLengthM * ceilingHeightM * 2;
+    const externalOpeningsM2 = externalWallGrossM2 * 0.16;
+    const internalDoorAreaM2 = (program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68;
+    const roofSystem = safe.roof || (/laje\s+impermeabilizada/.test(text) ? "laje impermeabilizada" : /telha\s+ceramica/.test(text) ? "telha ceramica" : "cobertura preliminar");
+    const roofFactor = /laje\s+impermeabilizada/.test(normalizeText(roofSystem)) ? 1.05 : 1.22;
+    return { source: dimensions ? "informed_dimensions" : "inferred_from_built_area", builtAreaM2: roundEloResidentialQuantity_(area), floors: floors, footprintAreaM2: roundEloResidentialQuantity_(footprintArea), widthM: roundEloResidentialQuantity_(width), lengthM: roundEloResidentialQuantity_(length), externalPerimeterM: roundEloResidentialQuantity_(externalPerimeterM), ceilingHeightM: ceilingHeightM, externalWallGrossM2: roundEloResidentialQuantity_(externalWallGrossM2), internalWallLengthM: roundEloResidentialQuantity_(internalWallLengthM), internalWallFacesM2: roundEloResidentialQuantity_(internalWallFacesM2), openingsM2: roundEloResidentialQuantity_(externalOpeningsM2 + internalDoorAreaM2), masonryNetM2: roundEloResidentialQuantity_(Math.max(0, externalWallGrossM2 + internalWallFacesM2 - externalOpeningsM2 - internalDoorAreaM2)), wetWallAreaM2: roundEloResidentialQuantity_(program.bathrooms * 18 + program.kitchens * 12 + program.serviceAreas * 8), roofAreaM2: roundEloResidentialQuantity_(footprintArea * roofFactor), roofSystem: roofSystem, program: program, assumptions: ["Pe-direito preliminar de 2.80 m.", "Perimetro externo calculado por dimensoes informadas ou retangulo equivalente.", "Paredes internas estimadas por indice de 0.62 m de parede por m2 construida.", "Vaos externos estimados em 16% da area bruta externa."] };
+  }
+
+  function buildEloResidentialPreliminaryQuantityPackage_(state, engineBudget) {
+    const safe = state || {};
+    const geometry = buildEloResidentialPreliminaryGeometry_(safe);
+    const area = geometry.builtAreaM2;
+    const floors = geometry.floors;
+    const program = geometry.program;
+    const isSobrado = floors > 1 || /sobrado/.test(normalizeText(safe.constructionType || safe.originalMessage || ""));
+    const roofText = normalizeText(geometry.roofSystem || safe.roof || safe.originalMessage || "");
+    const revision = Array.isArray(safe.revisions) && safe.revisions.length ? safe.revisions.length + 1 : 1;
+    const quantities = [];
+    const memory = [];
+    const blockedServices = [];
+    const wetFloorAreaM2 = program.bathrooms * 4.5 + program.kitchens * 8 + program.serviceAreas * 4;
+    const externalWallNetM2 = Math.max(0, geometry.externalWallGrossM2 - geometry.externalWallGrossM2 * 0.16);
+    const internalWallNetM2 = Math.max(0, geometry.internalWallFacesM2 - (program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68);
+    const foundationConcrete = area * (isSobrado ? 0.07 : 0.055);
+    const structuralConcrete = area * (isSobrado ? 0.115 : 0.085);
+    const baldrameLengthM = geometry.externalPerimeterM + geometry.internalWallLengthM * 0.35;
+    const lintelLengthM = (program.bedrooms + program.bathrooms + program.kitchens + program.livingRooms + program.serviceAreas + program.garages) * 1.2;
+    const doorCount = program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + 1;
+    const windowCount = Math.max(4, program.bedrooms + program.bathrooms + program.kitchens + program.livingRooms + program.serviceAreas);
+
+    function item(serviceId, description, category, quantity, unit, formula, inputs, confidence, rangeFactor, warnings, dependencies) {
+      if (!(Number(quantity) > 0)) {
+        blockedServices.push({ serviceId: serviceId, description: description, reason: "quantidade insuficiente para estimativa preliminar" });
+        return;
+      }
+      const rounded = roundEloResidentialQuantity_(quantity, unit === "un" ? 0 : 2);
+      const deps = dependencies || ["projeto arquitetonico", "projeto estrutural", "memorial descritivo"];
+      const calculationText = description + " = " + formula + " = " + rounded + " " + unit;
+      quantities.push({ serviceId: serviceId, description: description, category: category, quantity: rounded, unit: unit, formula: formula, memory: calculationText, calculationText: calculationText, inputs: inputs || {}, assumptions: geometry.assumptions.slice(), range: { min: roundEloResidentialQuantity_(rounded * (1 - (rangeFactor || 0.12))), max: roundEloResidentialQuantity_(rounded * (1 + (rangeFactor || 0.12))), unit: unit }, confidence: confidence || "preliminar", source: geometry.source, dependencies: deps, warnings: warnings || [], revision: revision });
+      memory.push("- " + calculationText + ".");
+    }
+
+    item("servicos_preliminares_limpeza", "Limpeza e preparo inicial do terreno", "servicos_preliminares", geometry.footprintAreaM2, "m2", "area de implantacao " + geometry.footprintAreaM2, { footprintAreaM2: geometry.footprintAreaM2 }, "media", 0.1, [], ["levantamento do terreno"]);
+    item("locacao_obra", "Locacao da obra pelo perimetro externo", "servicos_preliminares", geometry.externalPerimeterM, "m", "2 x (largura " + geometry.widthM + " + comprimento " + geometry.lengthM + ")", { widthM: geometry.widthM, lengthM: geometry.lengthM }, "media", 0.08, [], ["implantacao", "projeto arquitetonico"]);
+    item("escavacao_fundacoes", "Escavacao preliminar de fundacoes", "fundacao", foundationConcrete * 1.25, "m3", "concreto de fundacao " + roundEloResidentialQuantity_(foundationConcrete) + " x 1.25", { foundationConcreteM3: foundationConcrete }, "baixa", 0.3, ["Volume depende de sondagem e solucao de fundacao."]);
+    item("fundacao_concreto", "Concreto preliminar de fundacoes", "fundacao", foundationConcrete, "m3", "area construida " + area + " x indice " + (isSobrado ? "0.070" : "0.055") + " m3/m2", { builtAreaM2: area }, "baixa", 0.25, ["Nao substitui sondagem nem projeto de fundacoes."]);
+    item("fundacao_formas", "Formas de fundacao", "fundacao", foundationConcrete * 8.5, "m2", "concreto de fundacao " + roundEloResidentialQuantity_(foundationConcrete) + " x 8.5", { foundationConcreteM3: foundationConcrete }, "baixa", 0.25);
+    item("fundacao_aco", "Aco preliminar de fundacao", "fundacao", foundationConcrete * 55, "kg", "concreto de fundacao " + roundEloResidentialQuantity_(foundationConcrete) + " x 55 kg/m3", { foundationConcreteM3: foundationConcrete }, "baixa", 0.3, ["Armadura depende de projeto estrutural."]);
+    item("baldrame_concreto", "Viga baldrame preliminar", "fundacao", baldrameLengthM * 0.12 * 0.25, "m3", "comprimento de baldrame " + roundEloResidentialQuantity_(baldrameLengthM) + " x 0.12 x 0.25", { baldrameLengthM: baldrameLengthM }, "baixa", 0.25);
+    item("baldrame_impermeabilizacao", "Impermeabilizacao de baldrame", "impermeabilizacao", baldrameLengthM * 0.35, "m2", "comprimento de baldrame " + roundEloResidentialQuantity_(baldrameLengthM) + " x faixa 0.35 m", { baldrameLengthM: baldrameLengthM }, "media", 0.18);
+    item("estrutura_concreto", "Concreto preliminar da estrutura", "estrutura", structuralConcrete, "m3", "area construida " + area + " x indice " + (isSobrado ? "0.115" : "0.085") + " m3/m2", { builtAreaM2: area }, "baixa", 0.25);
+    item("estrutura_formas", "Formas de pilares, vigas e lajes", "estrutura", structuralConcrete * 9.2, "m2", "concreto estrutural " + roundEloResidentialQuantity_(structuralConcrete) + " x 9.2", { structuralConcreteM3: structuralConcrete }, "baixa", 0.25);
+    item("estrutura_aco", "Aco preliminar da estrutura", "estrutura", structuralConcrete * 85, "kg", "concreto estrutural " + roundEloResidentialQuantity_(structuralConcrete) + " x 85 kg/m3", { structuralConcreteM3: structuralConcrete }, "baixa", 0.3);
+    if (isSobrado) item("laje_intermediaria", "Laje intermediaria do sobrado", "estrutura", geometry.footprintAreaM2, "m2", "area de implantacao por pavimento " + geometry.footprintAreaM2, { footprintAreaM2: geometry.footprintAreaM2 }, "media", 0.18);
+    if (isSobrado) item("escada_concreto", "Escada preliminar do sobrado", "estrutura", 1, "un", "1 escada para ligacao entre pavimentos", { stairs: 1 }, "baixa", 0.25);
+    item("alvenaria_externa", "Alvenaria externa bruta", "vedacoes", geometry.externalWallGrossM2, "m2", "perimetro externo " + geometry.externalPerimeterM + " x pe-direito 2.80 x pavimentos " + floors, geometry, "media", 0.16);
+    item("alvenaria_interna", "Faces de alvenaria interna", "vedacoes", geometry.internalWallFacesM2, "m2", "area construida " + area + " x 0.62 x 2.80 x 2 faces", { builtAreaM2: area }, "baixa", 0.22);
+    item("alvenaria_liquida", "Alvenaria liquida descontando vaos", "vedacoes", geometry.masonryNetM2, "m2", "alvenaria externa + interna - vaos " + geometry.openingsM2, geometry, "media", 0.18);
+    item("vergas", "Vergas preliminares sobre vaos", "vedacoes", lintelLengthM, "m", "vaos principais " + roundEloResidentialQuantity_(lintelLengthM / 1.2, 0) + " x 1.20 m", { openings: lintelLengthM / 1.2 }, "baixa", 0.22);
+    item("contravergas", "Contravergas preliminares sob janelas", "vedacoes", windowCount * 1.2, "m", "janelas " + windowCount + " x 1.20 m", { windows: windowCount }, "baixa", 0.22);
+    item("chapisco", "Chapisco em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
+    item("emboco", "Emboco preliminar em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
+    item("reboco", "Reboco preliminar em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
+    item("pintura_interna", "Pintura interna preliminar", "pintura", Math.max(0, internalWallNetM2 - geometry.wetWallAreaM2), "m2", "paredes internas liquidas " + roundEloResidentialQuantity_(internalWallNetM2) + " - areas molhadas " + geometry.wetWallAreaM2, geometry, "media", 0.2);
+    item("pintura_externa", "Pintura externa preliminar", "pintura", externalWallNetM2, "m2", "parede externa bruta " + geometry.externalWallGrossM2 + " - 16% de vaos", geometry, "media", 0.2);
+    item("revestimento_areas_molhadas", "Revestimento de paredes em areas molhadas", "revestimentos", geometry.wetWallAreaM2, "m2", "banheiros " + program.bathrooms + " x 18 + cozinhas " + program.kitchens + " x 12 + servico " + program.serviceAreas + " x 8", program, "media", 0.22);
+    item("contrapiso", "Contrapiso interno", "pisos", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.12);
+    item("piso_interno", "Piso interno", "pisos", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.12);
+    item("piso_area_molhada", "Piso de areas molhadas", "pisos", wetFloorAreaM2, "m2", "banheiros " + program.bathrooms + " x 4.5 + cozinha 8 + servico " + program.serviceAreas + " x 4", program, "media", 0.18);
+    item("rodape", "Rodape preliminar", "pisos", geometry.internalWallLengthM + geometry.externalPerimeterM * floors, "m", "paredes internas " + geometry.internalWallLengthM + " + perimetro externo x pavimentos", geometry, "baixa", 0.22);
+    item("impermeabilizacao_areas_molhadas", "Impermeabilizacao de areas molhadas", "impermeabilizacao", wetFloorAreaM2, "m2", "banheiros " + program.bathrooms + " x 4.5 + cozinha 8 + servico " + program.serviceAreas + " x 4", program, "media", 0.2);
+    item("cobertura", roofText.indexOf("laje") >= 0 ? "Laje impermeabilizada de cobertura" : "Cobertura em telha ceramica preliminar", "cobertura", geometry.roofAreaM2, "m2", "area de implantacao " + geometry.footprintAreaM2 + " x fator de cobertura", geometry, "media", 0.18);
+    item("esquadrias_portas", "Portas internas e externas", "esquadrias", doorCount, "un", "quartos + banheiros + cozinha + servico + garagem + porta externa", program, "media", 0.18);
+    item("esquadrias_janelas", "Janelas preliminares", "esquadrias", windowCount, "un", "ambientes principais com ventilacao natural", program, "media", 0.2);
+    item("pontos_eletricos", "Pontos eletricos preliminares", "instalacoes_eletricas", program.bedrooms * 6 + program.livingRooms * 8 + program.kitchens * 8 + program.bathrooms * 3 + program.serviceAreas * 4 + program.garages * 3 + program.balconies * 2, "un", "programa de ambientes x indices de pontos", program, "media", 0.2);
+    item("pontos_iluminacao", "Pontos de iluminacao preliminares", "instalacoes_eletricas", program.bedrooms + program.livingRooms * 2 + program.kitchens + program.bathrooms + program.serviceAreas + program.garages + program.balconies + (isSobrado ? 1 : 0), "un", "um ponto por ambiente principal, sala com 2 e escada quando sobrado", program, "media", 0.18);
+    item("pontos_hidraulicos", "Pontos hidraulicos preliminares", "instalacoes_hidrossanitarias", program.bathrooms * 3 + program.kitchens * 2 + program.serviceAreas * 2, "un", "banheiros x 3 + cozinhas x 2 + servico x 2", program, "media", 0.2);
+    item("pontos_sanitarios", "Pontos sanitarios preliminares", "instalacoes_hidrossanitarias", program.bathrooms * 3 + program.kitchens + program.serviceAreas, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.2);
+    item("chuveiros", "Chuveiros preliminares", "instalacoes_hidrossanitarias", program.bathrooms, "un", "banheiros " + program.bathrooms + " x 1 chuveiro", program, "media", 0.15);
+    item("loucas", "Loucas sanitarias preliminares", "loucas_metais", program.bathrooms * 2 + program.kitchens + program.serviceAreas, "un", "banheiros x 2 + cozinha + servico", program, "media", 0.18);
+    item("metais", "Metais sanitarios preliminares", "loucas_metais", program.bathrooms * 3 + program.kitchens + program.serviceAreas, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.18);
+    item("limpeza_final", "Limpeza final de obra", "servicos_finais", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.08, [], ["area construida"]);
+
+    const mainServices = quantities.length + blockedServices.length;
+    return { geometry: Object.assign({}, geometry, { wetFloorAreaM2: roundEloResidentialQuantity_(wetFloorAreaM2), externalWallNetM2: roundEloResidentialQuantity_(externalWallNetM2), internalWallNetM2: roundEloResidentialQuantity_(internalWallNetM2) }), quantities: quantities, calculationMemory: ["Memoria de calculo preliminar residencial", "Geometria-base: area construida " + area + " m2; pavimentos " + floors + "; implantacao " + geometry.footprintAreaM2 + " m2; perimetro " + geometry.externalPerimeterM + " m.", "Programa-base: " + program.bedrooms + " quarto(s), " + program.suites + " suite(s), " + program.bathrooms + " banheiro(s), garagem " + program.garages + ", varanda " + program.balconies + "."].concat(memory), technicalAssumptions: geometry.assumptions.concat(["Indices usados sao preliminares e servem para briefing quantitativo, sem precos.", "SINAPI, ORSE, encargos e BDI permanecem bloqueados para a Parte 3."]), quantityCoverage: { quantifiedServices: quantities.length, mainServices: mainServices, blockedServices: blockedServices.length, percent: mainServices ? roundEloResidentialQuantity_(quantities.length / mainServices * 100, 1) : 0 }, quantityWarnings: ["Quantitativos preliminares inferidos para auditoria de escopo.", "Nao ha dimensionamento estrutural, sondagem, perdas comerciais, precos, SINAPI, ORSE, encargos ou BDI."], blockedServices: blockedServices, engineQuantities: engineBudget && Array.isArray(engineBudget.quantities) ? engineBudget.quantities : [] };
+  }
   class BudgetEngineAdapter {
     constructor(options = {}) { this.options = options || {}; }
     getRoot_() { return typeof window !== "undefined" ? window : globalThis; }
@@ -13676,7 +13836,8 @@
       }
       const facts = this.buildFacts_(safeState);
       const budget = engine.buildPreliminaryBudget(facts, Object.assign({}, context || {}, { source: "BudgetEngineAdapter", budgetId: packageBase.budgetId, project: facts }));
-      return Object.assign(packageBase, budget || {}, { engineCalled: true, engineAvailable: true, source: "EloBudgetEngine", budget: budget || null, scope: extractEloBudgetV2StageItems_(budget || {}).length ? extractEloBudgetV2StageItems_(budget || {}) : packageBase.scope, quantities: budget && budget.quantities || packageBase.quantities, compositions: budget && budget.compositions || packageBase.compositions, compositionMatches: budget && budget.compositionMatches || packageBase.compositionMatches, compositionResolution: budget && budget.compositionResolution || null, priceStatus: budget && budget.priceStatus || null, realBudget: budget && budget.realBudget || null, risks: budget && budget.risks || packageBase.risks, nextSteps: budget && budget.nextSteps || packageBase.nextSteps, baseStatus: budget && budget.baseStatus || null, budgetEap: budget && budget.budgetEap || null, workPackages: budget && budget.workPackages || null, missing: budget && budget.missing || [] });
+      const preliminary = buildEloResidentialPreliminaryQuantityPackage_(safeState, budget || null);
+      return Object.assign(packageBase, budget || {}, { engineCalled: true, engineAvailable: true, source: "EloBudgetEngine", budget: budget || null, scope: extractEloBudgetV2StageItems_(budget || {}).length ? extractEloBudgetV2StageItems_(budget || {}) : packageBase.scope, quantities: preliminary.quantities.length ? preliminary.quantities : budget && budget.quantities || packageBase.quantities, geometry: preliminary.geometry, calculationMemory: preliminary.calculationMemory, technicalAssumptions: preliminary.technicalAssumptions, quantityCoverage: preliminary.quantityCoverage, quantityWarnings: preliminary.quantityWarnings, engineQuantities: preliminary.engineQuantities, compositions: budget && budget.compositions || packageBase.compositions, compositionMatches: budget && budget.compositionMatches || packageBase.compositionMatches, compositionResolution: budget && budget.compositionResolution || null, priceStatus: budget && budget.priceStatus || null, realBudget: budget && budget.realBudget || null, risks: (budget && budget.risks || packageBase.risks).concat(preliminary.quantityWarnings || []), nextSteps: budget && budget.nextSteps || packageBase.nextSteps, baseStatus: budget && budget.baseStatus || null, budgetEap: budget && budget.budgetEap || null, workPackages: budget && budget.workPackages || null, missing: budget && budget.missing || [] });
     }
   }
 
@@ -13687,7 +13848,10 @@
       const text = normalizeText(message || "");
       const parsedArea = parseEloResidentialArea_(message);
       const parsedLocation = extractEloResidentialCityUf_(message);
-      return { type: "residential", originalMessage: message || "", budgetId: "ELO-V2-" + simpleEloChecksum_(String(message || "")).slice(0, 8), areaM2: parsedArea || project.area_m2 || null, city: parsedLocation.city || project.cidade || "", uf: parsedLocation.uf || project.uf || "", standard: project.padrao_construtivo || "", constructionType: project.tipo_obra || (/sobrado/.test(text) ? "sobrado" : "casa terrea"), floors: /sobrado|2\s+pav|dois\s+pav|2\s+andares/.test(text) ? 2 : 1, rooms: project.quartos || (/(dois|2)\s+quartos?/.test(text) ? 2 : null), bathrooms: project.banheiros || (/(um|1)\s+banheiro/.test(text) ? 1 : null), structure: extractEloResidentialStructuralSystem_(message) || "estrutura a confirmar", roof: /telha\s+ceramica|telha\s+cer.mica/.test(text) ? "telha ceramica" : "cobertura a confirmar", currentStage: project.etapa_atual || "obra completa", missingFields: [] };
+      const dimensions = extractEloResidentialDimensions_(message);
+      const program = getEloResidentialProgramFromState_({ originalMessage: message });
+      const roof = /laje\s+impermeabilizada/.test(text) ? "laje impermeabilizada" : /telha\s+ceramica|telha\s+cer.mica/.test(text) ? "telha ceramica" : /cobertura\s+embutida/.test(text) ? "cobertura embutida" : "cobertura a confirmar";
+      return { type: "residential", originalMessage: message || "", budgetId: "ELO-V2-" + simpleEloChecksum_(String(message || "")).slice(0, 8), areaM2: parsedArea || project.area_m2 || null, widthM: dimensions && dimensions.width || null, lengthM: dimensions && dimensions.length || null, footprintAreaM2: dimensions && dimensions.areaM2 || null, city: parsedLocation.city || project.cidade || "", uf: parsedLocation.uf || project.uf || "", standard: project.padrao_construtivo || "", constructionType: project.tipo_obra || (/sobrado/.test(text) ? "sobrado" : "casa terrea"), floors: /sobrado|2\s+pav|dois\s+pav|2\s+andares/.test(text) ? 2 : 1, rooms: project.quartos || program.bedrooms || null, bathrooms: project.banheiros || program.bathrooms || null, suites: program.suites || 0, structure: extractEloResidentialStructuralSystem_(message) || "estrutura a confirmar", roof: roof, currentStage: project.etapa_atual || "obra completa", missingFields: [] };
     }
     handle(message, context) {
       const state = this.extractState(message);
