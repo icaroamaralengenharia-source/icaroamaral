@@ -16737,6 +16737,10 @@
     if (earlyTechnicalReportDraftAnswer) {
       return earlyTechnicalReportDraftAnswer;
     }
+    const liveSearchAnswer = buildEloWebSearchRouteResponse_(cleanQuestion);
+    if (liveSearchAnswer) {
+      return liveSearchAnswer;
+    }
     const residentialCompositePriorityAnswer = buildEloResidentialCompositePriorityAnswer_(cleanQuestion);
     if (residentialCompositePriorityAnswer) {
       return residentialCompositePriorityAnswer;
@@ -19063,6 +19067,10 @@
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
+    }
+    const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
+    if (liveSearchResponse) {
+      return applyEloBrainMarker_(question, liveSearchResponse);
     }
     const residentialCompositePriorityResponse = buildEloResidentialCompositePriorityAnswer_(question);
     if (residentialCompositePriorityResponse) {
