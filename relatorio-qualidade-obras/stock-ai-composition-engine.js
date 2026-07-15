@@ -1681,6 +1681,8 @@
       const inputName = clean(getField(row, ["inputName", "insumoName", "nomeInsumo", "nome_insumo", "materialName", "material", "nameInsumo"]));
       const inputUnit = normalizeCompositionUnit(getField(row, ["inputUnit", "insumoUnit", "unidadeInsumo", "unidade_insumo", "materialUnit"]));
       const coefficient = parseNumber(getField(row, ["coefficient", "coeficiente", "coefficientValue", "quantidade", "quantityPerUnit"]));
+      const unitPrice = parseNumber(getField(row, ["unitPrice", "precoUnitario", "preco_unitario", "preco unitario", "precoUnitarioOficial"]));
+      const totalCost = parseNumber(getField(row, ["totalCost", "custoTotal", "custo_total", "custo total", "custoTotalOficial"]));
       const serviceType = clean(getField(row, ["serviceType", "tipoServico", "tipo_servico"])) || normalizeServiceType(compositionName);
       return {
         index: index,
@@ -1694,6 +1696,10 @@
         inputName: inputName,
         inputUnit: inputUnit,
         coefficient: coefficient,
+        precoUnitario: unitPrice,
+        unitPrice: unitPrice,
+        custoTotal: totalCost,
+        totalCost: totalCost,
         serviceType: serviceType,
         raw: row
       };
@@ -1779,12 +1785,16 @@
         material: row.inputName,
         type: clean(row.raw && row.raw.inputType) || "material",
         unit: row.inputUnit,
-        coefficient: roundQuantity(row.coefficient),
-        quantityPerUnit: roundQuantity(row.coefficient),
+        coefficient: row.coefficient,
+        quantityPerUnit: row.coefficient,
+        precoUnitario: row.precoUnitario,
+        unitPrice: row.unitPrice,
+        custoTotal: row.custoTotal,
+        totalCost: row.totalCost,
         note: "Coeficiente oficial importado de arquivo local " + first.source + "."
       };
     });
-    return normalizeComposition({
+    const composition = normalizeComposition({
       source: first.source,
       sourceType: "official_imported_file",
       sourceRegion: first.state,
@@ -1809,6 +1819,25 @@
         state: first.state
       }
     });
+    composition.inputs = (composition.inputs || []).map(function (input, index) {
+      const original = inputs[index] || {};
+      return Object.assign({}, input, {
+        precoUnitario: original.precoUnitario,
+        unitPrice: original.unitPrice,
+        custoTotal: original.custoTotal,
+        totalCost: original.totalCost
+      });
+    });
+    composition.materials = (composition.materials || []).map(function (input, index) {
+      const original = inputs[index] || {};
+      return Object.assign({}, input, {
+        precoUnitario: original.precoUnitario,
+        unitPrice: original.unitPrice,
+        custoTotal: original.custoTotal,
+        totalCost: original.totalCost
+      });
+    });
+    return composition;
   }
 
   function validateOfficialBaseImport(data, options) {
@@ -2437,6 +2466,16 @@
         return indexes[field] === undefined;
       });
       if (!missing.length) {
+        const priceIndex = normalizedHeaders.indexOf("preco unitario");
+        if (priceIndex >= 0) {
+          indexes.unitPrice = priceIndex;
+        }
+        for (let index = normalizedHeaders.length - 1; index >= 0; index -= 1) {
+          if (normalizedHeaders[index] === "custo total" && (priceIndex < 0 || index > priceIndex)) {
+            indexes.totalCost = index;
+            break;
+          }
+        }
         return {
           found: true,
           headerIndex: rowIndex,
@@ -2563,6 +2602,8 @@
       const inputName = clean(line[indexes.inputName]);
       const inputUnit = clean(line[indexes.inputUnit]);
       const coefficient = line[indexes.coefficient];
+      const unitPrice = indexes.unitPrice === undefined ? "" : line[indexes.unitPrice];
+      const totalCost = indexes.totalCost === undefined ? "" : line[indexes.totalCost];
       const hasItemEvidence = !!inputCode || !!inputName || parseNumber(coefficient) > 0;
       if (!hasItemEvidence) {
         ignoredRows.push({
@@ -2588,6 +2629,10 @@
         inputName: inputName,
         inputUnit: inputUnit,
         coefficient: coefficient,
+        precoUnitario: unitPrice,
+        unitPrice: unitPrice,
+        custoTotal: totalCost,
+        totalCost: totalCost,
         sourceRow: detected.headerIndex + 2 + lineIndex
       });
     });
