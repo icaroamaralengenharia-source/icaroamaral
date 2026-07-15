@@ -448,7 +448,7 @@
 
   function buildEloWebSearchRouteResponse_(question) { if (!needsLiveSearch(question)) return null; const query = sanitizeUserText(question); return { route: "meta_web_search", shortAnswer: "Posso pesquisar isso em tempo real.", fullAnswer: "Clique em Pesquise para consultar informacoes atuais usando a pergunta original.", nextAction: "", canSave: false, sessionTheme: "meta_web_search", sessionIntent: "meta_web_search", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query } }; }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
-  function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); return eloCoreFetch_("/api/elo/web-search", { method: "POST", body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
+  function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
   function buildEloCoreMetaWorkflowDiagnosisAnswer_(question) {
     if (!isEloCoreMetaWorkflowDiagnosis_(question)) return null;
     return {
@@ -1869,8 +1869,9 @@
     if (typeof item === "string") return formatEloResidentialBudgetText_(item);
     if (!item || typeof item !== "object") return "";
     const composition = item.composition && typeof item.composition === "object" ? item.composition : {};
-    const code = item.code || item.compositionCode || composition.code || composition.compositionCode || composition.codigo;
-    const source = item.source || item.compositionSource || composition.source || composition.fonte;
+    const rawSource = item.source || item.compositionSource || composition.source || composition.fonte;
+    const source = typeof rawSource === "string" ? rawSource : "";
+    const code = item.compositionCode || composition.code || composition.compositionCode || composition.codigo || (source ? item.code : "");
     const unit = item.unit || item.compositionUnit || composition.unit || composition.compositionUnit || composition.unidade;
     const quantity = formatEloResidentialBudgetNumber_(item.quantity, item.unit);
     const description = item.description || item.name || item.service || item.serviceName || item.serviceId || composition.description || composition.compositionName || composition.descricao;
@@ -2006,6 +2007,7 @@
     const premissas = getEloDocumentSection_(safe, ["Premissas utilizadas", "Premissas", "Dados utilizados"], ctx.premissas || "");
     const quantitativos = getEloDocumentSection_(safe, ["Quantitativos", "Totais consolidados", "Memoria de calculo", "Memoria de calculo", "Mem?ria de c?lculo"], ctx.quantitativos || "");
     const composicoes = getEloDocumentSection_(safe, ["Composicoes utilizadas", "Composicoes oficiais utilizadas", "Composi??es utilizadas", "Composi??es oficiais utilizadas"], ctx.composicoes || "");
+    const servicos = getEloDocumentSection_(safe, ["EAP real", "Escopo preliminar", "Servicos", "Servi\u00e7os"], ctx.servicos || safe.servicos || "");
     const basesTecnicas = getEloDocumentSection_(safe, ["Base tecnica utilizada", "Base t?cnica utilizada", "Bases tecnicas", "Bases t?cnicas"], ctx.origemBase || safe.bases_tecnicas || "");
     const custos = getEloDocumentSection_(safe, ["Custos encontrados", "Custos", "Orcamento", "Or?amento"], ctx.custos || safe.custos_encontrados || "");
     const pendencias = getEloDocumentSection_(safe, ["Pendencias tecnicas", "Pend?ncias t?cnicas", "Composicoes nao localizadas", "Composi??es n?o localizadas", "Observacoes tecnicas", "Observa??es t?cnicas"], ctx.pendencias || safe.pendencias || "");
@@ -2021,7 +2023,7 @@
       statusDocumento: cleanEloDocumentText_(safe.status || ctx.statusDocumento || "rascunho tecnico", "rascunho tecnico"),
       escopo: cleanEloDocumentText_(ctx.escopo || safe.escopo || safe.resumo_executivo || "Atendimento tecnico assistido pelo Elo conforme dados disponiveis.", "nao informado"),
       premissas: cleanEloDocumentText_(premissas, "nao informado"),
-      servicos: cleanEloDocumentText_(ctx.servicos || safe.servicos || "nao informado", "nao informado"),
+      servicos: cleanEloDocumentText_(servicos, "nao informado"),
       quantitativos: cleanEloDocumentText_(quantitativos, "nao informado"),
       memoriaCalculo: cleanEloDocumentText_(ctx.memoriaCalculo || quantitativos || markdown, "nao informado"),
       composicoes: cleanEloDocumentText_(composicoes, "nao localizada"),
@@ -2030,6 +2032,7 @@
       alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
       origemBase: cleanEloDocumentText_(basesTecnicas, "nao localizada"),
       conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
+      professionalBudget: safe.professionalBudget || ctx.professionalBudget || null,
       assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
     };
   }
@@ -2072,6 +2075,108 @@
     return title + "\n" + formatEloBudgetV2Block_(value, emptyText || "nao informado");
   }
 
+
+  function parseEloBudgetV2Money_(value) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const clean = String(value || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+    const number = Number(clean);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function formatEloBudgetV2Money_(value) {
+    const number = parseEloBudgetV2Money_(value);
+    return "R$ " + number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatEloBudgetV2Quantity_(value) {
+    const number = typeof value === "number" ? value : Number(String(value || "").replace(/\./g, "").replace(",", "."));
+    if (!Number.isFinite(number)) return cleanEloDocumentText_(value || "");
+    return number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function normalizeEloBudgetV2Unit_(unit) {
+    const clean = cleanEloDocumentText_(unit || "m2");
+    return clean === "m2" ? "m\u00b2" : clean;
+  }
+
+  function getEloBudgetV2ServiceScope_(description) {
+    const text = normalizeText(description || "");
+    if (/limpeza/.test(text)) return "Limpeza final da \u00e1rea constru\u00edda, com remo\u00e7\u00e3o de res\u00edduos leves e prepara\u00e7\u00e3o para entrega.";
+    if (/pintura/.test(text)) return "Prepara\u00e7\u00e3o de superf\u00edcie e execu\u00e7\u00e3o de pintura interna em paredes, conforme composi\u00e7\u00e3o adotada.";
+    if (/piso|ceram/.test(text)) return "Fornecimento e assentamento de revestimento cer\u00e2mico de piso, conforme composi\u00e7\u00e3o adotada.";
+    return cleanEloDocumentText_(description || "Servi\u00e7o conforme composi\u00e7\u00e3o selecionada.");
+  }
+
+  function normalizeEloBudgetV2Compositions_(value) {
+    const list = Array.isArray(value) ? value : [];
+    return list.map(function (entry) {
+      if (isEloBudgetV2PlainObject_(entry)) {
+        return {
+          code: cleanEloDocumentText_(entry.code || entry.codigo || entry.compositionCode || ""),
+          description: cleanEloDocumentText_(entry.description || entry.descricao || entry.compositionDescription || ""),
+          unit: normalizeEloBudgetV2Unit_(entry.unit || entry.unidade || entry.un),
+          source: cleanEloDocumentText_(entry.source || entry.fonte || "SINAPI")
+        };
+      }
+      const match = String(entry || "").match(/^([^:]+):\s*(.+)$/);
+      return {
+        code: cleanEloDocumentText_(match ? match[1] : ""),
+        description: cleanEloDocumentText_(match ? match[2] : entry),
+        unit: "m\u00b2",
+        source: "SINAPI"
+      };
+    }).filter(function (row) { return row.code || row.description; });
+  }
+
+  function normalizeEloBudgetV2Rows_(budget, compositions) {
+    const sourceRows = Array.isArray(budget && budget.rows) ? budget.rows : (Array.isArray(budget && budget.planilha) ? budget.planilha : []);
+    return sourceRows.map(function (row, index) {
+      if (isEloBudgetV2PlainObject_(row)) {
+        return {
+          item: index + 1,
+          code: cleanEloDocumentText_(row.code || row.codigo || row.compositionCode || row.composicao || (compositions[index] && compositions[index].code) || ""),
+          description: getEloBudgetV2ServiceScope_(row.description || row.descricao || row.service || row.servico || row.item),
+          unit: normalizeEloBudgetV2Unit_(row.unit || row.unidade || row.un),
+          quantity: formatEloBudgetV2Quantity_(row.quantity || row.quantidade),
+          unitPrice: formatEloBudgetV2Money_(row.unitPrice || row.precoUnitario || row.preco_unitario),
+          total: formatEloBudgetV2Money_(row.total || row.subtotal || row.valorTotal || row.valor_total),
+          source: cleanEloDocumentText_(row.source || row.fonte || budget.source || budget.fonte || budget.priceSource || "")
+        };
+      }
+      const parts = String(row || "").split("|").map(function (part) { return part.trim(); });
+      const composition = compositions[index] || {};
+      return {
+        item: index + 1,
+        code: cleanEloDocumentText_(composition.code || ""),
+        description: getEloBudgetV2ServiceScope_(parts[0]),
+        unit: normalizeEloBudgetV2Unit_(parts[1]),
+        quantity: formatEloBudgetV2Quantity_(parts[2]),
+        unitPrice: formatEloBudgetV2Money_(parts[3]),
+        total: formatEloBudgetV2Money_(parts[4]),
+        source: cleanEloDocumentText_(budget && (budget.source || budget.fonte || budget.priceSource) || "")
+      };
+    }).filter(function (row) { return row.description && row.unit && row.quantity; });
+  }
+
+  function buildEloBudgetV2ProfessionalBudget_(safe) {
+    const budget = safe && safe.budget || {};
+    const compositions = normalizeEloBudgetV2Compositions_(safe && safe.compositions);
+    const rows = normalizeEloBudgetV2Rows_(budget, compositions);
+    if (!rows.length) return null;
+    return {
+      rows: rows,
+      compositions: compositions,
+      subtotal: formatEloBudgetV2Money_(budget.subtotal),
+      bdiPercent: cleanEloDocumentText_(budget.bdiPercent || budget.bdi || ""),
+      bdiValue: formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi),
+      total: formatEloBudgetV2Money_(budget.total),
+      source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || ""),
+      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || ""),
+      area: cleanEloDocumentText_(safe && safe.facts && (safe.facts.area || safe.facts.areaConstruida || safe.facts.builtAreaM2) || ""),
+      observation: cleanEloDocumentText_(budget.observation || budget.observacao || "")
+    };
+  }
+
   function hasEloBudgetV2ReliablePriceSource_(budget) {
     if (!isEloBudgetV2PlainObject_(budget)) return false;
     if (budget.isPending || budget.pending || budget.status === "pending" || budget.status === "pendente") return false;
@@ -2095,6 +2200,7 @@
   function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
     const safe = budgetDocumentData || {};
     const budgetId = formatEloBudgetV2Scalar_(safe.budgetId) || "nao informado";
+    const professionalBudget = buildEloBudgetV2ProfessionalBudget_(safe);
     const confirmed = formatEloBudgetV2NamedSection_("Dados confirmados", safe.facts, "Nenhum dado confirmado informado.");
     const inherited = formatEloBudgetV2NamedSection_("Dados herdados", safe.inheritedFacts, "Nenhum dado herdado informado.");
     const assumed = formatEloBudgetV2NamedSection_("Dados assumidos", safe.assumptions, "Nenhuma premissa assumida informada.");
@@ -2373,6 +2479,7 @@
 
   function buildEloProfessionalPdfSection_(data) {
     const safe = data || {};
+    if (safe.professionalBudget && safe.professionalBudget.rows && safe.professionalBudget.rows.length) return buildEloProfessionalResidentialBudgetSection_(safe);
     function field(label, value) {
       return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "nao informado") + "</strong></div>";
     }
@@ -2442,7 +2549,45 @@
       ".elo-pdf-sign-line{width:280px;border-top:1px solid #0f172a;margin:34px 0 8px}",
       ".elo-pdf-footer{position:fixed;left:14mm;right:14mm;bottom:7mm;display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:5px;color:#64748b;font-size:10px}",
       ".elo-page-number:after{content:counter(page)}",
-      "@media print{html,body{background:#fff}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}}",
+      ".elo-budget-document{font-size:11px;color:#0f172a}",
+      ".elo-budget-page{position:relative;min-height:auto;break-after:page;padding-bottom:2mm}",
+      ".elo-budget-page:last-of-type{break-after:auto}",
+      ".elo-page-label{float:right;color:#64748b;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
+      ".elo-budget-header h1{clear:both;margin:10px 0 8px;color:#0f172a;font-size:21px;letter-spacing:0;text-transform:uppercase}",
+      ".elo-budget-object{margin:0;border:1px solid #d8e2ef;border-left:4px solid #0f5ea8;padding:7px 9px;background:#f8fafc;font-size:10px;line-height:1.28}",
+      ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.2px;background:#fff}",
+      ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:4px 5px;border:1px solid #0d4f8d;font-size:8px;text-transform:uppercase;letter-spacing:.03em}",
+      ".elo-budget-table td{border:1px solid #d8e2ef;padding:4px 5px;vertical-align:top}",
+      ".elo-budget-table .is-description{width:35%;line-height:1.35}",
+      ".elo-budget-table .is-center{text-align:center}",
+      ".elo-budget-table .is-number{text-align:right;white-space:nowrap}",
+      ".elo-budget-table.is-compact th,.elo-budget-table.is-compact td{font-size:8.6px;padding:3px 4px}",
+      ".elo-financial-summary{width:285px;margin:8px 0 0 auto;border:1px solid #cbd5e1;background:#f8fafc}",
+      ".elo-financial-summary div{display:flex;justify-content:space-between;gap:10px;padding:5px 8px;border-bottom:1px solid #e2e8f0}",
+      ".elo-financial-summary div:last-child{border-bottom:0}",
+      ".elo-financial-summary span{font-size:10px;text-transform:uppercase;color:#475569;font-weight:800}",
+      ".elo-financial-summary strong{font-size:10.5px;color:#0f172a}",
+      ".elo-financial-summary .is-total{background:#0f5ea8;color:#fff}",
+      ".elo-financial-summary .is-total span,.elo-financial-summary .is-total strong{color:#fff;font-size:12px}",
+      ".elo-service-spec{break-inside:avoid;border:1px solid #d8e2ef;border-left:3px solid #0f5ea8;margin:5px 0;padding:5px 8px;background:#fff}",
+      ".elo-service-spec h3{margin:0 0 3px;color:#0f172a;font-size:9.6px;text-transform:uppercase}",
+      ".elo-service-spec ul{margin:0;padding-left:16px}",
+      ".elo-service-spec li{margin:1px 0;font-size:9px;line-height:1.22}",
+      ".elo-budget-document .elo-pdf-cover{padding-bottom:10px;margin-bottom:10px}",
+      ".elo-budget-document .elo-pdf-brand{margin-bottom:4px}",
+      ".elo-budget-document .elo-pdf-meta-grid{gap:7px;margin-top:7px}",
+      ".elo-budget-document .elo-pdf-field{padding:6px 7px}",
+      ".elo-budget-document .elo-pdf-field span{font-size:8px;margin-bottom:2px}",
+      ".elo-budget-document .elo-pdf-field strong{font-size:10px;line-height:1.2}",
+      ".elo-budget-document .elo-pdf-section{margin:8px 0}",
+      ".elo-budget-document .elo-pdf-section h2{font-size:12px;margin:0 0 5px;padding-bottom:3px}",
+      ".elo-budget-document .elo-pdf-box{padding:6px 8px;font-size:9px;line-height:1.28}",
+      ".elo-budget-document .elo-pdf-signature{margin-top:8px;padding-top:7px}",
+      ".elo-budget-document .elo-pdf-signature h2{font-size:12px;margin-bottom:4px}",
+      ".elo-budget-document .elo-pdf-signature p{font-size:9px;line-height:1.3;margin:0 0 8px}",
+      ".elo-budget-document .elo-pdf-sign-line{width:220px;margin:13px 0 5px}",
+      ".elo-budget-document .elo-pdf-footer{position:static;margin-top:6px;padding-top:4px;font-size:8.5px}",
+      "@media print{html,body{background:#fff}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}.elo-budget-table{page-break-inside:auto}.elo-budget-table thead{display:table-header-group}.elo-budget-table tr{break-inside:avoid}}",
       "@media(max-width:720px){body{padding:12px}.elo-professional-pdf{padding:22px 18px 48px}.elo-pdf-meta-grid{grid-template-columns:1fr}h1{font-size:25px}}"
     ].join("");
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.numero !== "nao informado" ? data.numero : data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-actions\"><button onclick=\"window.print()\">Imprimir / Salvar como PDF</button></div>" + section + "</body></html>";
@@ -11457,39 +11602,15 @@
 
   function buildCapabilitiesCardAnswer_() {
     return {
-      shortAnswer: "Eu ajudo a lembrar, organizar e decidir melhor.",
-      fullAnswer: "Posso ajudar a lembrar informacoes importantes, organizar projetos, consultar sua biblioteca, comparar ideias e responder com base na sua jornada.",
-      nextAction: "Diga se quer ajuda com projeto, memoria, biblioteca, ObraReport ou uma decisao.",
-      canSave: false,
-      sessionTheme: "capacidades",
-      sessionIntent: "capabilities"
-    };
-
-    const identity = buildEloIdentityContext();
-    const intro = identity.currentMode === "standalone"
-      ? "Eu posso ajudar em 5 áreas da sua jornada."
-      : "Eu posso ajudar em 5 áreas, incluindo o ObraReport.";
-    return {
-      shortAnswer: intro,
+      shortAnswer: "Consigo apoiar orcamentos e rotinas tecnicas de obra.",
       fullAnswer: [
-        "1. Memória",
-        "Projetos, objetivos, linha do tempo e informações importantes.",
+        "Orcamento residencial completo: briefing da obra, quantitativos, composicoes, consumo, precos quando houver fonte configurada, BDI, subtotal, total e PDF profissional.",
         "",
-        "2. Decisão",
-        "Prioridades, próximos passos, bloqueios e planejamento.",
+        "Servicos isolados reconhecidos: parede/alvenaria, piso, fundacao, estrutura simples e pacotes tecnicos que ja possuem fluxo no Elo.",
         "",
-        "3. Organização",
-        "Ideias, planos, foco da semana e continuidade da sua jornada.",
-        "",
-        "4. ObraReport",
-        "Relatórios técnicos, RDO, fotos, materiais e PDF.",
-        "",
-        "5. Stock IA",
-        "Entradas, saídas, consumo, estoque, alertas e lista de compras.",
-        "",
-        "Minha função é ligar essas partes e transformar dados soltos em orientação clara."
+        "Limites importantes: preco depende de fonte, UF e mes-base; projeto incompleto gera pendencias; valores devem ser revisados por responsavel tecnico antes de uso comercial."
       ].join("\n"),
-      nextAction: "Diga: quero criar um RDO, quero lançar material ou o que devo priorizar?",
+      nextAction: "Para comecar, informe cidade/UF, area construida, padrao, pavimentos, ambientes, sistema construtivo, acabamentos, fonte/mes-base e BDI.",
       canSave: false,
       sessionTheme: "capacidades",
       sessionIntent: "capabilities"
@@ -14260,6 +14381,102 @@
     return getEloBudgetOrchestratorV2_().handle(message, { eloContext: getEloContext() });
   }
 
+  function isEloResidentialNewPipelineEnabled_() {
+    if (typeof window === "undefined") return false;
+    const flag = window.ELO_RESIDENTIAL_NEW_PIPELINE;
+    return flag === true || flag === "true" || flag === "1" || flag === 1;
+  }
+
+  function getEloResidentialNewPipelineMissingDeps_() {
+    if (typeof window === "undefined") return ["window"];
+    const required = [
+      ["ResidentialBriefingCompleteEngine", "build"],
+      ["ResidentialGeometryModelEngine", "build"],
+      ["ResidentialQuantityTakeoffEngine", "build"],
+      ["ResidentialTakeoffCompositionAdapter", "resolve"],
+      ["ResidentialCompositionConsumptionAdapter", "calculate"],
+      ["ResidentialConsumptionPriceAdapter", "price"],
+      ["ResidentialRealBudgetAdapter", "build"],
+      ["EloCompositionResolver", "resolveEloEapCompositions"],
+      ["EloConsumptionEngine", "calculateConsumptionFromCompositions"],
+      ["EloPriceEngine", "attachPricesToBudgetRows"],
+      ["EloRealBudgetEngine", "buildCompleteBudget"]
+    ];
+    return required.filter(function (entry) {
+      const api = window[entry[0]];
+      return !api || typeof api[entry[1]] !== "function";
+    }).map(function (entry) { return entry[0] + "." + entry[1]; });
+  }
+
+  function buildEloResidentialNewPipelineInput_(message, project) {
+    const raw = String(message || "");
+    return {
+      project: {
+        name: project && (project.nome || project.name) || "Orcamento residencial",
+        city: project && (project.cidade || project.city) || null,
+        state: project && (project.uf || project.state) || null,
+        referenceMonth: project && (project.referenceMonth || project.mes_referencia) || null,
+        priceSource: project && (project.priceSource || project.fonte_precos) || null
+      },
+      site: {
+        builtAreaM2: project && (project.area_m2 || project.builtAreaM2) || parseEloResidentialArea_(raw),
+        floors: /sobrado|2\s+pav|dois\s+pav|2\s+andares/i.test(raw) ? 2 : 1
+      },
+      building: {
+        constructionType: project && (project.tipo_obra || project.constructionType) || (/sobrado/i.test(raw) ? "sobrado" : "casa terrea"),
+        constructionStandard: project && (project.padrao_construtivo || project.standard) || null,
+        ceilingHeightM: null,
+        structuralSystem: null,
+        foundationSystem: null,
+        roofSystem: null,
+        wallSystem: null
+      },
+      rooms: [],
+      openings: { doors: [], windows: [] },
+      finishes: {},
+      costing: { bdiPercent: null }
+    };
+  }
+
+  function buildEloResidentialBudgetFromNewPipeline_(pipeline) {
+    const realPackage = pipeline && pipeline.realBudgetPackage || {};
+    const realBudget = realPackage.realBudget || {};
+    const priced = pipeline && pipeline.priced || {};
+    return {
+      mode: "residential_new_pipeline",
+      projectFacts: pipeline && pipeline.briefing && pipeline.briefing.briefing || {},
+      budgetEap: realPackage.realBudgetInput && realPackage.realBudgetInput.budgetEap || null,
+      quantities: realPackage.realBudgetInput && realPackage.realBudgetInput.quantities && realPackage.realBudgetInput.quantities.length ? realPackage.realBudgetInput.quantities : pipeline && pipeline.takeoff && pipeline.takeoff.items || [],
+      compositionResolution: pipeline && pipeline.compositionResolution && pipeline.compositionResolution.resolution || null,
+      consumption: pipeline && pipeline.consumption || null,
+      priceStatus: {
+        canTotal: realBudget.status === "complete" && Number.isFinite(Number(realBudget.total)),
+        totals: Number.isFinite(Number(realBudget.total)) ? { subtotal: realBudget.subtotal, bdiValue: realBudget.bdiValue, total: realBudget.total } : null,
+        missingPrices: realBudget.missingPrices || []
+      },
+      realBudget: realBudget,
+      missing: (realPackage.errors || []).concat(realPackage.warnings || [], realPackage.blockingFields || []),
+      risks: ["Orcamento tecnico assistido por sistema computacional. Revisao profissional obrigatoria antes de uso comercial."],
+      summary: "Orcamento residencial gerado pelo pipeline novo com briefing, geometria, quantitativos, composicoes, consumos, precos e orcamento real.",
+      baseStatus: priced.priceBase || {},
+      residentialNewPipeline: pipeline
+    };
+  }
+
+  function buildEloResidentialNewPipelineBudget_(message, project) {
+    if (!isEloResidentialNewPipelineEnabled_()) return null;
+    const missingDeps = getEloResidentialNewPipelineMissingDeps_();
+    if (missingDeps.length) return { blocked: true, missingDeps: missingDeps };
+    const input = buildEloResidentialNewPipelineInput_(message, project);
+    const briefing = window.ResidentialBriefingCompleteEngine.build(input);
+    const geometry = window.ResidentialGeometryModelEngine.build(briefing);
+    const takeoff = window.ResidentialQuantityTakeoffEngine.build(geometry, { floorFinishDefined: true, wallFinishDefined: true });
+    const compositionResolution = window.ResidentialTakeoffCompositionAdapter.resolve(takeoff, { resolver: window.EloCompositionResolver, compositionSearchEngine: window.CompositionSearchEngine, minimumConfidence: 0.55 });
+    const consumption = window.ResidentialCompositionConsumptionAdapter.calculate(compositionResolution, { consumptionEngine: window.EloConsumptionEngine });
+    const priced = window.ResidentialConsumptionPriceAdapter.price(consumption, { priceEngine: window.EloPriceEngine, priceSource: window.ELO_RESIDENTIAL_PRICE_SOURCE || {} });
+    const realBudgetPackage = window.ResidentialRealBudgetAdapter.build(priced, { realBudgetEngine: window.EloRealBudgetEngine, technicalAudit: { canGenerate: { executiveBudget: true }, executiveBudget: true, blockers: [], assumptions: [] }, bdiPercent: input.costing.bdiPercent });
+    return buildEloResidentialBudgetFromNewPipeline_({ briefing: briefing, geometry: geometry, takeoff: takeoff, compositionResolution: compositionResolution, consumption: consumption, priced: priced, realBudgetPackage: realBudgetPackage });
+  }
   function buildEloResidentialBudgetBriefingAnswer_(message) {
     if (!isEloResidentialBudgetBriefingQuestion_(message)) return null;
     const project = updateEloWorkMemoryFromMessage_(message);
@@ -16333,7 +16550,7 @@
         sessionIntent: "agradecimento"
       };
     }
-    if (/cadista|\bplanta\b|planta\s+baixa|terreno|quartos?|su.te|suite|garagem|ambientes?|prancha|dxf/.test(text)) {
+    if (/cadista|\bplanta\b|planta\s+baixa|terreno|quartos?|su.te|suite|garagem|ambientes?|prancha|dxf/.test(text) && !isEloResidentialBudgetBriefingQuestion_(message)) {
       return {
         shortAnswer: "O CADISTA transforma dados de projeto em desenho tecnico.",
         fullAnswer: "Fluxo CADISTA/planta: vamos organizar terreno, ambientes, quartos, suite, garagem e premissas para projeto. Para gerar uma planta, preciso de terreno, programa de necessidades, pavimentos, recuos e saida desejada em PDF/DXF.",
@@ -16707,6 +16924,10 @@
     const technicalSourcePreferenceAnswer = buildEloTechnicalSourcePreferenceAnswer_(cleanQuestion);
     if (technicalSourcePreferenceAnswer) {
       return technicalSourcePreferenceAnswer;
+    }
+
+    if (isEloBudgetCapabilitiesQuestion_(cleanQuestion)) {
+      return buildCapabilitiesCardAnswer_();
     }
 
     const genericPriceQuestionAnswer = buildEloGenericPriceQuestionAnswer_(cleanQuestion);
@@ -19060,6 +19281,9 @@
   function buildResponse(question) {
     const startedAt = Date.now();
     try {
+    if (isEloBudgetCapabilitiesQuestion_(question)) {
+      return applyEloBrainMarker_(question, buildCapabilitiesCardAnswer_());
+    }
     const userNameMemoryResponse = buildEloCoreUserNameMemoryAnswer_(question);
     if (userNameMemoryResponse) {
       return applyEloBrainMarker_(question, userNameMemoryResponse);
@@ -20557,6 +20781,32 @@
       actions.appendChild(copyDiagnosticButton);
     }
 
+    const pdfAction = response && response.pdfAction;
+    if (pdfAction) {
+      const pdfButton = createElement("button", "elo-inline-button", pdfAction.label || "Gerar PDF");
+      pdfButton.type = "button";
+      pdfButton.setAttribute("data-elo-action-type", "budget_pdf");
+      pdfButton.addEventListener("click", function () {
+        if (pdfButton.dataset.loading === "true") return;
+        pdfButton.dataset.loading = "true";
+        pdfButton.disabled = true;
+        try {
+          if (pdfAction.type === "elo_budget_pdf") {
+            const record = pdfAction.record || getEloBudgetRecordById_(pdfAction.budgetId || pdfAction.budgetNumber) || getLatestEloBudgetRecord_();
+            if (!record) throw new Error("Orcamento nao encontrado para PDF.");
+            openEloBudgetRecordPdf_(record);
+          } else if (pdfAction.type === "budget_v2_professional_pdf" && pdfAction.budgetDocumentData) {
+            buildProfessionalPdfDocument(buildBudgetV2ProfessionalPdfData(pdfAction.budgetDocumentData));
+          }
+        } catch (error) {
+          appendMessage("system", error && error.message ? error.message : "Nao consegui gerar o PDF agora.");
+        } finally {
+          pdfButton.disabled = false;
+          pdfButton.dataset.loading = "false";
+        }
+      });
+      actions.appendChild(pdfButton);
+    }
     message.appendChild(actions);
     ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
   }

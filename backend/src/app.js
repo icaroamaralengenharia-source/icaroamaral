@@ -2156,6 +2156,7 @@ export function createApp(options = {}) {
       response.status(502).json({ ok: false, error: "web_search_failed" });
     }
   });
+
   app.get("/api/elo/conversations", (request, response) => {
     try { response.json({ ok: true, conversations: eloCoreStore.listConversations(Object.assign(getEloCoreIdentity_(request), { includeArchived: request.query.includeArchived })) }); }
     catch (error) { sendEloCoreError_(response, error); }
@@ -4870,6 +4871,7 @@ function extractOpenAiWebSearchSources_(data) {
   });
   return sources.slice(0, 5);
 }
+
 async function callOpenAi_(payload, env) {
   const model = env.OPENAI_MODEL || "gpt-4.1-mini";
   const response = await fetch("https://api.openai.com/v1/responses", {
