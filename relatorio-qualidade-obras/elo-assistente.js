@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   // ELO_CONFIG
@@ -2088,7 +2088,7 @@
     return "R$ " + number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  function formatEloBudgetV2Quantity_(value) {
+  function formatEloBudgetV2TableQuantity_(value) {
     const number = typeof value === "number" ? value : Number(String(value || "").replace(/\./g, "").replace(",", "."));
     if (!Number.isFinite(number)) return cleanEloDocumentText_(value || "");
     return number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2137,7 +2137,7 @@
           code: cleanEloDocumentText_(row.code || row.codigo || row.compositionCode || row.composicao || (compositions[index] && compositions[index].code) || ""),
           description: getEloBudgetV2ServiceScope_(row.description || row.descricao || row.service || row.servico || row.item),
           unit: normalizeEloBudgetV2Unit_(row.unit || row.unidade || row.un),
-          quantity: formatEloBudgetV2Quantity_(row.quantity || row.quantidade),
+          quantity: formatEloBudgetV2TableQuantity_(row.quantity !== undefined ? row.quantity : row.quantidade),
           unitPrice: formatEloBudgetV2Money_(row.unitPrice || row.precoUnitario || row.preco_unitario),
           total: formatEloBudgetV2Money_(row.total || row.subtotal || row.valorTotal || row.valor_total),
           source: cleanEloDocumentText_(row.source || row.fonte || budget.source || budget.fonte || budget.priceSource || "")
@@ -2150,7 +2150,7 @@
         code: cleanEloDocumentText_(composition.code || ""),
         description: getEloBudgetV2ServiceScope_(parts[0]),
         unit: normalizeEloBudgetV2Unit_(parts[1]),
-        quantity: formatEloBudgetV2Quantity_(parts[2]),
+        quantity: formatEloBudgetV2TableQuantity_(parts[2]),
         unitPrice: formatEloBudgetV2Money_(parts[3]),
         total: formatEloBudgetV2Money_(parts[4]),
         source: cleanEloDocumentText_(budget && (budget.source || budget.fonte || budget.priceSource) || "")
@@ -2286,6 +2286,7 @@
       pendencias: pending,
       avisos_profissionais: [risks, "", readiness, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
       bases_tecnicas: financialBase,
+      professionalBudget: professionalBudget,
       conteudo_markdown: consolidated,
       "Premissas utilizadas": [confirmed, "", inherited, "", assumed].join("\n"),
       "Quantitativos": quantities,
@@ -2476,6 +2477,102 @@
       budgetOrchestratorV2: { state: ELO_SESSION_MEMORY.budgetOrchestratorV2 || null, budgetDocumentData: documentData }
     };
   }
+
+  function buildEloProfessionalBudgetTable_(rows) {
+    const body = (rows || []).map(function (row) {
+      return [
+        "<tr>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.item) + "</td>",
+        "<td>" + escapeEloHtml_(row.code || "-") + "</td>",
+        "<td class=\"is-description\">" + escapeEloHtml_(row.description) + "</td>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.unit) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.quantity) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.unitPrice) + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.total) + "</td>",
+        "</tr>"
+      ].join("");
+    }).join("\n");
+    return [
+      "<table class=\"elo-budget-table\">",
+      "<thead><tr><th>Item</th><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o completa do servi\u00e7o</th><th>Un.</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Valor total</th></tr></thead>",
+      "<tbody>", body, "</tbody></table>"
+    ].join("\n");
+  }
+
+  function buildEloProfessionalCompositionTable_(rows) {
+    if (!rows || !rows.length) return "";
+    const body = rows.map(function (row) {
+      return "<tr><td>" + escapeEloHtml_(row.code || "-") + "</td><td>" + escapeEloHtml_(row.description || "-") + "</td><td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td><td>" + escapeEloHtml_(row.source || "-") + "</td></tr>";
+    }).join("\n");
+    return [
+      "<section class=\"elo-pdf-section\"><h2>Composi\u00e7\u00f5es adotadas</h2>",
+      "<table class=\"elo-budget-table is-compact\"><thead><tr><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o</th><th>Unidade</th><th>Fonte</th></tr></thead><tbody>",
+      body,
+      "</tbody></table></section>"
+    ].join("\n");
+  }
+
+  function buildEloProfessionalServiceSpecs_(budget) {
+    return (budget.rows || []).map(function (row) {
+      return [
+        "<section class=\"elo-service-spec\">",
+        "<h3>Item " + escapeEloHtml_(row.item) + " - " + escapeEloHtml_(row.description.split(",")[0]) + "</h3>",
+        "<ul>",
+        "<li><strong>Escopo:</strong> " + escapeEloHtml_(row.description) + "</li>",
+        "<li><strong>Unidade:</strong> " + escapeEloHtml_(row.unit) + "</li>",
+        "<li><strong>Quantidade:</strong> " + escapeEloHtml_(row.quantity) + "</li>",
+        "<li><strong>Composi\u00e7\u00e3o:</strong> " + escapeEloHtml_(row.code || "-") + "</li>",
+        "<li><strong>Fonte:</strong> " + escapeEloHtml_(row.source || budget.source || "-") + "</li>",
+        "<li><strong>Observa\u00e7\u00e3o:</strong> pre\u00e7o de teste, n\u00e3o v\u00e1lido para contrata\u00e7\u00e3o.</li>",
+        "</ul>",
+        "</section>"
+      ].join("\n");
+    }).join("\n");
+  }
+
+  function buildEloProfessionalResidentialBudgetSection_(data) {
+    const safe = data || {};
+    const budget = safe.professionalBudget || {};
+    function field(label, value) {
+      return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "-") + "</strong></div>";
+    }
+    return [
+      "<article class=\"elo-professional-pdf elo-budget-document\">",
+      "<section class=\"elo-budget-page\">",
+      "<header class=\"elo-budget-header\">",
+      "<div class=\"elo-pdf-brand\"><span>\u00cdcaro Amaral Engenharia</span><strong>ELO</strong></div>",
+      "<div class=\"elo-page-label\">P\u00e1gina 1 de 2</div>",
+      "<h1>OR\u00c7AMENTO RESIDENCIAL</h1>",
+      "<div class=\"elo-pdf-meta-grid\">",
+      field("N\u00famero", safe.numero + " v" + safe.versao),
+      field("Cliente", safe.cliente),
+      field("Obra", safe.obra),
+      field("Cidade/UF", safe.cidade),
+      field("\u00c1rea constru\u00edda", budget.area || "-"),
+      field("Data", safe.dataHora),
+      field("Status", safe.statusDocumento),
+      field("Fonte", budget.source || safe.origemBase),
+      field("M\u00eas-base", budget.referenceMonth || "-"),
+      "</div>",
+      "</header>",
+      "<section class=\"elo-pdf-section\"><h2>Objeto do or\u00e7amento</h2><p class=\"elo-budget-object\">Or\u00e7amento para execu\u00e7\u00e3o dos servi\u00e7os descritos na planilha abaixo, considerando quantitativos, composi\u00e7\u00f5es e pre\u00e7os indicados neste documento.</p></section>",
+      "<section class=\"elo-pdf-section\"><h2>Planilha or\u00e7ament\u00e1ria</h2>",
+      buildEloProfessionalBudgetTable_(budget.rows),
+      "</section>",
+      "<aside class=\"elo-financial-summary\"><div><span>Subtotal</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>BDI (" + escapeEloHtml_(budget.bdiPercent) + ")</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>Total do or\u00e7amento</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>",
+      "</section>",
+      "<section class=\"elo-budget-page elo-page-break\">",
+      "<div class=\"elo-page-label\">P\u00e1gina 2 de 2</div>",
+      "<section class=\"elo-pdf-section\"><h2>Especifica\u00e7\u00f5es dos servi\u00e7os</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
+      buildEloProfessionalCompositionTable_(budget.compositions),
+      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">Este or\u00e7amento usa as composi\u00e7\u00f5es e pre\u00e7os indicados na planilha. Os valores desta valida\u00e7\u00e3o s\u00e3o demonstrativos e devem ser substitu\u00eddos por base oficial vigente antes de contrata\u00e7\u00e3o.</div></section>",
+      "<section class=\"elo-pdf-signature\"><h2>Responsabilidade t\u00e9cnica e revis\u00e3o</h2><p>Este documento \u00e9 preliminar e deve ser revisado por profissional habilitado antes de contrata\u00e7\u00e3o, compra, execu\u00e7\u00e3o, emiss\u00e3o oficial ou envio ao cliente.</p><div class=\"elo-pdf-sign-line\"></div><strong>" + escapeEloHtml_(safe.assinatura) + "</strong></section>",
+      "</section>",
+      "<footer class=\"elo-pdf-footer\"><span>\u00cdcaro Amaral Engenharia / ObraReport / Elo</span><span>" + escapeEloHtml_(budget.source || safe.origemBase) + "</span></footer>",
+      "</article>"
+    ].join("\n");
+  }
+
 
   function buildEloProfessionalPdfSection_(data) {
     const safe = data || {};
@@ -14381,7 +14478,14 @@
     return getEloBudgetOrchestratorV2_().handle(message, { eloContext: getEloContext() });
   }
 
-  function isEloResidentialNewPipelineEnabled_() {
+  function isEloBudgetCapabilitiesQuestion_(message) {
+    const raw = String(message || "").toLowerCase();
+    const text = normalizeText(message || "");
+    const broadQuestion = /quais?.{0,30}or.?amentos?.{0,60}(?:consegue|conseguem|faz|fazem|gera|geram)/i.test(raw) || /quais?.{0,30}or.?amentos?.{0,60}(?:consegue|conseguem|faz|fazem|gera|geram)/.test(text);
+    if (broadQuestion) return true;
+    return /que\s+tipos?\s+de\s+or.?amento|voce\s+faz\s+or.?amento\s+de\s+obra|voce\s+faz\s+or.?amento\s+de\s+casa|voce\s+faz\s+or.?amento\s+residencial\s+completo|voce\s+consegue\s+(?:fazer\s+)?or.?amento\s+residencial\s+completo/.test(text);
+  }
+function isEloResidentialNewPipelineEnabled_() {
     if (typeof window === "undefined") return false;
     const flag = window.ELO_RESIDENTIAL_NEW_PIPELINE;
     return flag === true || flag === "true" || flag === "1" || flag === 1;
