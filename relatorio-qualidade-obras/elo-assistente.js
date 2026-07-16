@@ -16250,7 +16250,11 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!project.tipo_obra) missing.push("tipo de construcao");
     if (!/pavimento|andar|terrea|t.rrea|sobrado|2\s+pav|dois\s+pav/.test(normalizeText(message || ""))) missing.push("quantidade de pavimentos");
     if (!project.etapa_atual) missing.push("etapa desejada");
+    const canonicalState = mergeEloResidentialBudgetState_(getActiveEloResidentialBudgetState_() || createEloResidentialBudgetState_(), message);
     if (missing.length) {
+      canonicalState.pendingFields = missing.slice();
+      canonicalState.status = "briefing";
+      setActiveEloResidentialBudgetState_(canonicalState);
       return {
         shortAnswer: "Vamos montar o orcamento residencial preliminar com os dados basicos primeiro.",
         fullAnswer: [
@@ -16268,24 +16272,11 @@ function isEloResidentialNewPipelineEnabled_() {
         nextAction: "Responda com cidade/UF, padrao, area, tipo de construcao, pavimentos e etapa desejada.",
         canSave: false,
         sessionTheme: "residential_budget_package",
-        sessionIntent: "budget_v2_briefing"
+        sessionIntent: "budget_v2_briefing",
+        residentialBudgetState: cloneEloResidentialBudgetState_(canonicalState)
       };
     }
-    const newPipelineBudget = buildEloResidentialNewPipelineBudget_(message, project);
-    if (newPipelineBudget && !newPipelineBudget.blocked) {
-      const record = saveEloBudgetRecord_(buildEloResidentialBudgetRecordFromEngineResult_(newPipelineBudget, project, message));
-      return {
-        shortAnswer: "Orcamento residencial criado pelo pipeline novo e salvo.",
-        fullAnswer: ["Orcamento residencial criado pelo pipeline novo e salvo como " + record.numero + ".", "", "Pendencias principais:", record.pendencias || "- Sem pendencias retornadas pelo motor.", "", record.custos_encontrados || "Valores pendentes.", "", "Diga 'gerar PDF' para abrir o documento."].join("\n"),
-        nextAction: "Diga 'gerar PDF' para abrir o documento profissional.",
-        canSave: false,
-        sessionTheme: "residential_budget_package",
-        sessionIntent: "residential_new_pipeline_record_created",
-        featureFlag: "ELO_RESIDENTIAL_NEW_PIPELINE",
-        pipeline: "residential_new_pipeline"
-      };
-    }
-    const canonicalState = mergeEloResidentialBudgetState_(createEloResidentialBudgetState_(), message);
+
     canonicalState.pendingFields = [];
     canonicalState.status = "budget";
     setActiveEloResidentialBudgetState_(canonicalState);
@@ -18680,15 +18671,6 @@ function isEloResidentialNewPipelineEnabled_() {
       }
     }
 
-    const shouldPrioritizeResidentialBudgetV2 = /\b(orcamento|budget)\b/.test(normalizedQuestion) && /\b(casa|residencial|residencia|sobrado|obra\s+residencial|construcao\s+residencial)\b/.test(normalizedQuestion);
-    if (shouldPrioritizeResidentialBudgetV2) {
-      const earlyBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
-      if (earlyBudgetOrchestratorV2Answer) {
-        attachEloCoreBridgeMetadata_(earlyBudgetOrchestratorV2Answer);
-        rememberEloAssistantAnswer_(cleanQuestion, earlyBudgetOrchestratorV2Answer);
-        return earlyBudgetOrchestratorV2Answer;
-      }
-    }
 
     const measuredSinapiQuantityMatch = cleanQuestion.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
     const measuredSinapiCodeMatch = cleanQuestion.match(/\b(\d{5,6})\b/);
@@ -18805,6 +18787,23 @@ function isEloResidentialNewPipelineEnabled_() {
       return wallCompleteV2Answer;
     }
 
+    const residentialCompositePriorityAnswer = buildEloResidentialCompositePriorityAnswer_(cleanQuestion);
+    if (residentialCompositePriorityAnswer) {
+      return residentialCompositePriorityAnswer;
+    }
+    const cadistaPlanRoutingAnswer = buildEloCadistaPlanRoutingAnswer_(cleanQuestion);
+    if (cadistaPlanRoutingAnswer) {
+      return cadistaPlanRoutingAnswer;
+    }
+    const residentialBudgetConversationAnswer = buildEloResidentialBudgetConversationAnswer_(cleanQuestion);
+    if (residentialBudgetConversationAnswer) {
+      return residentialBudgetConversationAnswer;
+    }
+    const residentialBudgetBriefingAnswer = buildEloResidentialBudgetBriefingAnswer_(cleanQuestion);
+    if (residentialBudgetBriefingAnswer) {
+      return residentialBudgetBriefingAnswer;
+    }
+
     const generalBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
     if (generalBudgetOrchestratorV2Answer) {
       attachEloCoreBridgeMetadata_(generalBudgetOrchestratorV2Answer);
@@ -18829,22 +18828,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (liveSearchAnswer) {
       return liveSearchAnswer;
     }
-    const residentialCompositePriorityAnswer = buildEloResidentialCompositePriorityAnswer_(cleanQuestion);
-    if (residentialCompositePriorityAnswer) {
-      return residentialCompositePriorityAnswer;
-    }
-    const cadistaPlanRoutingAnswer = buildEloCadistaPlanRoutingAnswer_(cleanQuestion);
-    if (cadistaPlanRoutingAnswer) {
-      return cadistaPlanRoutingAnswer;
-    }
-    const residentialBudgetConversationAnswer = buildEloResidentialBudgetConversationAnswer_(cleanQuestion);
-    if (residentialBudgetConversationAnswer) {
-      return residentialBudgetConversationAnswer;
-    }
-    const residentialBudgetBriefingAnswer = buildEloResidentialBudgetBriefingAnswer_(cleanQuestion);
-    if (residentialBudgetBriefingAnswer) {
-      return residentialBudgetBriefingAnswer;
-    }
+
     const residentialBudgetPackageQuickAnswer = buildEloResidentialBudgetPackageQuickAnswer_(cleanQuestion);
     if (residentialBudgetPackageQuickAnswer) {
       rememberEloTechnicalProposalSource_(cleanQuestion, residentialBudgetPackageQuickAnswer, residentialBudgetPackageQuickAnswer.fullAnswer || residentialBudgetPackageQuickAnswer.shortAnswer || "");
@@ -21176,10 +21160,6 @@ function isEloResidentialNewPipelineEnabled_() {
     if (geometryPriorityResponse) {
       return applyEloBrainMarker_(question, geometryPriorityResponse);
     }
-    const budgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
-    if (budgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(budgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
-      return applyEloBrainMarker_(question, budgetOrchestratorV2PriorityResponse);
-    }
     const residentialCompositePriorityResponse = buildEloResidentialCompositePriorityAnswer_(question);
     if (residentialCompositePriorityResponse) {
       return applyEloBrainMarker_(question, residentialCompositePriorityResponse);
@@ -21191,6 +21171,14 @@ function isEloResidentialNewPipelineEnabled_() {
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);
+    }
+    const residentialBudgetBriefingPriorityResponse = buildEloResidentialBudgetBriefingAnswer_(question);
+    if (residentialBudgetBriefingPriorityResponse) {
+      return applyEloBrainMarker_(question, residentialBudgetBriefingPriorityResponse);
+    }
+    const budgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
+    if (budgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(budgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
+      return applyEloBrainMarker_(question, budgetOrchestratorV2PriorityResponse);
     }
     const projectMemoryResponse = buildEloCoreProjectMemoryAnswer_(question);
     if (projectMemoryResponse) {
@@ -21426,7 +21414,21 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
     if (!attachedFiles.length) {
-      const response = buildResponse(cleanQuestion, {
+      let technicalServiceResponse = null;
+
+      if (
+        window.EloTechnicalServiceRouter &&
+        typeof window.EloTechnicalServiceRouter.route === "function"
+      ) {
+        try {
+          technicalServiceResponse =
+            window.EloTechnicalServiceRouter.route(cleanQuestion);
+        } catch (error) {
+          technicalServiceResponse = null;
+        }
+      }
+
+      const response = technicalServiceResponse || buildResponse(cleanQuestion, {
         surface: "relatorio-qualidade-obras",
         useSession: true
       });
