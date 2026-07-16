@@ -14312,12 +14312,19 @@
     const choiceMatch = text.match(/(?:escolh[ao]|opcao|opção)\s*(\d+)/);
     const active = getActiveEloResidentialBudgetState_();
     const lastPack = ELO_SESSION_MEMORY.budgetOrchestratorV2 && ELO_SESSION_MEMORY.budgetOrchestratorV2.budgetPackage;
+    const lastDoc = ELO_SESSION_MEMORY.lastBudgetV2DocumentData || {};
     const manualLines = lastPack && Array.isArray(lastPack.financialLines) ? lastPack.financialLines.filter(function (line) { return line.composition && line.composition.status === "manual_review"; }) : [];
-    if (!active || !manualLines.length) return null;
     if (!choiceMatch && /composi/.test(text) && /revis/.test(text)) {
-      const options = manualLines.map(function (line, index) { return (index + 1) + ". " + line.serviceId + " - SINAPI " + (line.composition.code || "sem codigo") + " - " + (line.composition.description || "descricao pendente") + " - unidade " + (line.composition.unit || line.unit) + " - preco " + (line.composition.candidates && line.composition.candidates[0] && line.composition.candidates[0].unitPrice || "pendente"); });
-      return { shortAnswer: "Ha composicoes para revisao manual.", fullAnswer: ["Encontrei composicoes que exigem escolha profissional:", ""].concat(options, ["", "Responda: escolha 1, escolha 2 ou mantenha pendente."]).join("\n"), nextAction: "Escolha uma composicao ou mantenha o item pendente.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_manual_composition_review", manualCompositionOptions: manualLines };
+      const sourceLines = manualLines.length ? manualLines : (lastPack && Array.isArray(lastPack.financialLines) && lastPack.financialLines.length ? lastPack.financialLines : (lastPack && Array.isArray(lastPack.quantities) ? lastPack.quantities : []));
+      const options = sourceLines.map(function (line, index) {
+        const composition = line.composition || {};
+        return (index + 1) + ". " + (line.serviceId || line.id || "item") + " - " + (line.description || composition.description || "descricao pendente") + " - unidade " + (composition.unit || line.unit || "pendente") + " - status " + (composition.status || line.status || line.reason || "pendente");
+      });
+      if (options.length) return { shortAnswer: manualLines.length ? "Ha composicoes para revisao manual." : "Revisei as composicoes do orcamento residencial ativo.", fullAnswer: [manualLines.length ? "Encontrei composicoes que exigem escolha profissional:" : "Composicoes e servicos tecnicos do orcamento ativo:", ""].concat(options, manualLines.length ? ["", "Responda: escolha 1, escolha 2 ou mantenha pendente."] : []).join("\n"), nextAction: manualLines.length ? "Escolha uma composicao ou mantenha o item pendente." : "Valide as composicoes oficiais, BDI e responsabilidade tecnica antes de fechar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: manualLines.length ? "budget_v2_manual_composition_review" : "budget_v2_composition_review", manualCompositionOptions: manualLines };
+      if (Array.isArray(lastDoc.compositions) && lastDoc.compositions.length) return { shortAnswer: "Revisei as composicoes do orcamento residencial ativo.", fullAnswer: ["Composicoes e servicos tecnicos do orcamento ativo:", ""].concat(lastDoc.compositions.map(function (line) { return "- " + line; })).join("\n"), nextAction: "Valide as composicoes oficiais, BDI e responsabilidade tecnica antes de fechar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_composition_review" };
+      return null;
     }
+    if (!active || !manualLines.length) return null;
     if (!choiceMatch) return null;
     const selected = manualLines[Number(choiceMatch[1]) - 1];
     if (!selected || !selected.composition || !selected.composition.code) return { shortAnswer: "Escolha invalida.", fullAnswer: "Nao encontrei essa opcao entre as composicoes pendentes. Diga 'revisar composicoes' para listar novamente.", nextAction: "Revisar composicoes.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_manual_composition_invalid" };
@@ -15477,6 +15484,7 @@
       if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
       match = raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff\s.'-]+?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\b/i)
+        || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s+([A-Z]{2})(?=\b|[,.;])/)
         || raw.match(/(?:^|[,;]\s*)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})(?=\b|[,.;])/i)
         || raw.match(/^\s*([A-Za-zï¿½-ï¿½][A-Za-zï¿½-ï¿½\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
       if (match) {
@@ -15711,6 +15719,11 @@
       const pending = state.missingFields || [];
       const complementPending = this.getResidentialComplementFields_(state);
       const missingForUser = pending.concat(complementPending).filter(function (item, index, list) { return list.indexOf(item) === index; });
+      if (state.type === "residential" && (!budgetPackage || !Array.isArray(budgetPackage.financialLines) || !budgetPackage.financialLines.length)) {
+        const technicalPackage = buildEloResidentialPreliminaryQuantityPackage_(state, budgetPackage || null);
+        const financialPackage = buildEloResidentialFinancialPackage_(technicalPackage.quantities || [], state);
+        budgetPackage = Object.assign({}, budgetPackage || {}, technicalPackage, financialPackage, { scope: budgetPackage && budgetPackage.scope || technicalPackage.quantities || [] });
+      }
       const scopeItems = budgetPackage && Array.isArray(budgetPackage.scope) ? budgetPackage.scope : [];
       const residentialPremises = this.buildResidentialPremises_(state);
       const audit = budgetPackage && budgetPackage.executiveAudit || this.budgetEngineAdapter.buildExecutiveAudit_(state, options) || this.budgetEngineAdapter.buildExecutiveAuditClassifierFallback_(state);
@@ -15770,6 +15783,7 @@
       else if (budgetPackage && budgetPackage.source === "adapter_fallback" && !pending.length) lines.push("", "Base oficial:", "- pendente de composicao SINAPI/ORSE oficial.");
       lines.push("", "Pr?ximo passo:", missingForUser.length ? "- Informe " + missingForUser.slice(0, 6).join(", ") + "." : "- Posso seguir para a pr?via por macroetapas ou abrir o modo avan?ado.");
       lines.push("", "Nota:", "- Estimativa preliminar; valores oficiais dependem de quantitativos, BDI e base vigente. nao vou inventar preco.");
+      state.budgetPackage = budgetPackage || null;
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) {
