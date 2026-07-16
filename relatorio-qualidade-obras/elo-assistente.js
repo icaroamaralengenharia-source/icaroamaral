@@ -2901,20 +2901,20 @@
   }
 
   function buildBudgetV2TransactionalActions_(budgetDocumentData) {
-    if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return [];
     const savedBudgetId = getSavedBudgetV2IdForDocument_(budgetDocumentData);
     if (savedBudgetId) {
       return [
-        { type: "budget_v2_update", label: "Atualizar orÃ§amento", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
-        { type: "budget_v2_version", label: "Criar nova versÃ£o", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
+        { type: "budget_v2_update", label: "Atualizar orçamento", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
+        { type: "budget_v2_version", label: "Criar nova versão", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
         { type: "budget_v2_controlled_pdf", label: "Gerar PDF controlado", budgetId: savedBudgetId, budgetDocumentData: budgetDocumentData },
         { type: "budget_v2_events", label: "Ver eventos", budgetId: savedBudgetId },
-        { type: "budget_v2_list", label: "Meus OrÃ§amentos" }
+        { type: "budget_v2_list", label: "Meus Orçamentos" }
       ];
     }
+    if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return [];
     return [
-      { type: "budget_v2_save", label: "Salvar orÃ§amento", budgetDocumentData: budgetDocumentData },
-      { type: "budget_v2_list", label: "Meus OrÃ§amentos" }
+      { type: "budget_v2_save", label: "Salvar orçamento", budgetDocumentData: budgetDocumentData },
+      { type: "budget_v2_list", label: "Meus Orçamentos" }
     ];
   }
 
@@ -2922,13 +2922,13 @@
     const text = normalizeText(message || "");
     if (!/(^|\s)(meus\s+orcamentos|orcamentos\s+elo|listar\s+orcamentos\s+elo|orcamentos\s+salvos\s+elo)(\s|$)/.test(text)) return null;
     return {
-      shortAnswer: "Meus OrÃ§amentos ELO.",
-      fullAnswer: "Meus OrÃ§amentos ELO\n\nClique em Meus OrÃ§amentos para carregar os orÃ§amentos transacionais salvos.",
-      nextAction: "Carregar lista de orÃ§amentos salvos.",
+      shortAnswer: "Meus Orçamentos ELO.",
+      fullAnswer: "Meus Orçamentos ELO\n\nClique em Meus Orçamentos para carregar os orçamentos transacionais salvos.",
+      nextAction: "Carregar lista de orçamentos salvos.",
       canSave: false,
       sessionTheme: "residential_budget_package",
       sessionIntent: "budget_v2_list",
-      budgetActions: [{ type: "budget_v2_list", label: "Meus OrÃ§amentos" }]
+      budgetActions: [{ type: "budget_v2_list", label: "Meus Orçamentos" }]
     };
   }
 
@@ -15569,8 +15569,8 @@
       const state = Object.assign({}, this.defaultState, { budgetId: this.createBudgetId_(), missingFields: ["tipo de obra", "area construida", "cidade/UF", "padrao construtivo"], budgetStage: "briefing" });
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = state;
       return {
-        shortAnswer: "Zerei o orÃ§amento anterior.",
-        fullAnswer: "Claro. Zerei o orÃ§amento anterior. Para o novo orÃ§amento, informe tipo de obra, Ã¡rea, cidade/UF e padrÃ£o.",
+        shortAnswer: "Zerei o orçamento anterior.",
+        fullAnswer: "Claro. Zerei o orçamento anterior. Para o novo orçamento, informe tipo de obra, área, cidade/UF e padrão.",
         nextAction: "Informe tipo de obra, area, cidade/UF e padrao.",
         canSave: false,
         sessionTheme: "residential_budget_package",
@@ -15857,17 +15857,17 @@
     }
     buildMaterialListResponse_(state) {
       const groups = [
-        ["ServiÃ§os preliminares", ["tapume", "locaÃ§Ã£o", "EPIs", "limpeza"]],
-        ["FundaÃ§Ã£o", ["concreto", "aÃ§o", "brita", "formas"]],
-        ["Estrutura", ["concreto", "aÃ§o", "escoras"]],
+        ["Serviços preliminares", ["tapume", "locação", "EPIs", "limpeza"]],
+        ["Fundação", ["concreto", "aço", "brita", "formas"]],
+        ["Estrutura", ["concreto", "aço", "escoras"]],
         ["Alvenaria", ["blocos", "argamassa", "vergas"]],
-        ["Cobertura", ["madeira/metÃ¡lica", "telhas", "cumeeiras"]],
-        ["InstalaÃ§Ãµes elÃ©tricas", ["cabos", "eletrodutos", "quadro", "tomadas"]],
-        ["InstalaÃ§Ãµes hidrossanitÃ¡rias", ["tubos", "conexÃµes", "registros"]],
+        ["Cobertura", ["madeira/metálica", "telhas", "cumeeiras"]],
+        ["Instalações elétricas", ["cabos", "eletrodutos", "quadro", "tomadas"]],
+        ["Instalações hidrossanitárias", ["tubos", "conexões", "registros"]],
         ["Revestimentos", ["pisos", "revestimentos", "argamassa colante", "rejunte"]],
         ["Pintura", ["selador", "massa", "tinta"]],
         ["Esquadrias", ["portas", "janelas", "ferragens"]],
-        ["Limpeza final", ["sacos", "caÃ§amba", "produtos"]]
+        ["Limpeza final", ["sacos", "caçamba", "produtos"]]
       ];
       const lines = ["LISTA PRELIMINAR QUALITATIVA DE MATERIAIS", ""];
       groups.forEach(function (group) {
@@ -15875,13 +15875,13 @@
         group[1].forEach(function (item) { lines.push("- " + item); });
         lines.push("");
       });
-      lines.push("Esta Ã© uma lista preliminar qualitativa.");
-      lines.push("A quantificaÃ§Ã£o dependerÃ¡ do projeto, memorial e composiÃ§Ãµes oficiais.");
-      lines.push("NÃ£o estou inventando quantidade nem preÃ§o.");
+      lines.push("Esta é uma lista preliminar qualitativa.");
+      lines.push("A quantificação dependerá do projeto, memorial e composições oficiais.");
+      lines.push("Não estou inventando quantidade nem preço.");
       return {
         shortAnswer: "Montei uma lista preliminar qualitativa de materiais.",
         fullAnswer: lines.join("\n").trim(),
-        nextAction: "Para quantificar, informe projeto/memorial ou selecione composiÃ§Ãµes oficiais SINAPI/ORSE.",
+        nextAction: "Para quantificar, informe projeto/memorial ou selecione composições oficiais SINAPI/ORSE.",
         canSave: false,
         sessionTheme: "residential_budget_package",
         sessionIntent: "budget_v2_material_list",
