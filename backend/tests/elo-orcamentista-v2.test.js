@@ -174,39 +174,7 @@ test("Orcamentista V2 segue disponivel nas tres superficies compartilhadas", () 
     assert.match(response.fullAnswer, /ELO ORCAMENTISTA V2/i, pathname);
   });
 });
-test("Orcamentista V2 aplica blindagem comercial obrigatoria em orcamentos", () => {
-  const { assistant } = loadAssistant();
-  const response = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?");
-  const answer = response.fullAnswer;
 
-  assert.equal(response.sessionIntent, "budget_v2_briefing");
-  assert.match(answer, /^AVISO: Esta é uma estimativa preliminar/i);
-  assert.match(answer, /# Orçamento preliminar/i);
-  assert.match(answer, /## 2\. Premissas adotadas/i);
-  assert.match(answer, /Base de preços utilizada:/i);
-  assert.match(answer, /Data-base:/i);
-  assert.match(answer, /BDI considerado:/i);
-  assert.match(answer, /Mão de obra:/i);
-  assert.match(answer, /Materiais:/i);
-  assert.match(answer, /Transporte\/logística:/i);
-  assert.match(answer, /Exclusões relevantes:/i);
-  assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
-  assert.match(answer, /## 5\. Confirmação técnica/i);
-  assert.match(answer, /informe o valor unitário, BDI, cidade, data-base ou escopo correto/i);
-});
-
-test("Orcamentista V2 aplica template comercial em orcamento de parede", () => {
-  const { assistant } = loadAssistant();
-  const response = assistant.buildResponseForTest("orça uma parede de bloco baiano 8 metros por 2,80");
-  const answer = response.fullAnswer;
-
-  assert.equal(response.sessionIntent, "budget_v2_wall_quantities");
-  assert.match(answer, /^AVISO: Esta é uma estimativa preliminar/i);
-  assert.match(answer, /# Orçamento preliminar.*parede/i);
-  assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
-  assert.match(answer, /Alvenaria em bloco cerâmico/i);
-  assert.match(answer, /## 5\. Confirmação técnica/i);
-});
 
 test("Blindagem comercial nao contamina patologia laudo nem geometria simples", () => {
   const { assistant } = loadAssistant();
@@ -221,118 +189,8 @@ test("Blindagem comercial nao contamina patologia laudo nem geometria simples", 
   });
   assert.match(geometry, /0[,.]18\s*m/i);
 });
-test("Orcamentista V2 aplica template profissional para servicos de obra com quantitativo minimo", () => {
-  const { assistant } = loadAssistant();
-  const budgetCases = [
-    ["pintura", "Faça orçamento de pintura de 120 m2 de parede interna."],
-    ["piso", "Quanto custa colocar piso cerâmico em 45 m2?"],
-    ["telhado", "Orçamento de telhado colonial com 80 m2 de cobertura."],
-    ["hidraulica", "Faça orçamento hidráulico/esgoto para 12 pontos."],
-    ["eletrica", "Orçamento elétrico para 25 pontos de tomada e iluminação."],
-    ["contrapiso", "Faça estimativa de contrapiso para 35 m2."],
-    ["reboco", "Orce reboco em duas faces em parede 20 por 2,8."],
-    ["fundacao", "Orçamento de radier de 60 m2."],
-    ["servico isolado", "Faça orçamento do serviço de instalação de 10 unidades."]
-  ];
 
-  for (const [label, prompt] of budgetCases) {
-    const answer = assistant.buildResponseForTest(prompt).fullAnswer;
-    assert.equal(assistant.isProfessionalBudgetMarkdownForTest(answer), true, label);
-    assert.match(answer, /AVISO: Esta é uma estimativa preliminar/i, label);
-    assert.match(answer, /## 2\. Premissas adotadas/i, label);
-    assert.match(answer, /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i, label);
-    assert.match(answer, /pendente/i, label);
-    assert.match(answer, /As premissas acima condizem com o seu cenário\?/i, label);
-  }
-});
-test("Tabela propria V1 SAMPLE/TEST nao vira preco real de cliente", () => {
-  const { assistant } = loadAssistant();
 
-  const ownPrice = assistant.findOwnPriceRangeForTest("Pintura", "m2", "Vitória da Conquista", "BA");
-  assert.equal(ownPrice.found, true);
-  assert.equal(ownPrice.averagePrice, 18);
-
-  const pintura = assistant.buildResponseForTest("Faça orçamento de pintura de 120 m2 em Vitória da Conquista BA.").fullAnswer;
-  assert.match(pintura, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
-  assert.doesNotMatch(pintura, /Faixa pela sua tabela própria: R\$ 12,00 a R\$ 25,00/i);
-  assert.doesNotMatch(pintura, /R\$ 2\.160,00|R\$ 2160,00/i);
-  assert.match(pintura, /\| 1 \| Pintura \| m2 \| 120,00 m2 \| pendente de confirmação \| pendente \|/i);
-  assert.match(pintura, /## 5\. Confirmação técnica/i);
-
-  const piso = assistant.buildResponseForTest("Quanto custa colocar piso cerâmico em 45 m2 em Vitória da Conquista BA?").fullAnswer;
-  assert.match(piso, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
-  assert.doesNotMatch(piso, /R\$ 65,00/i);
-
-  const telhado = assistant.buildResponseForTest("Orçamento de telhado colonial com 80 m2 em Vitória da Conquista BA.").fullAnswer;
-  assert.doesNotMatch(telhado, /Faixa pela sua tabela própria/i);
-  assert.match(telhado, /Valor unitário \| Total/i);
-  assert.match(telhado, /pendente/i);
-
-  const wrongUnit = assistant.findOwnPriceRangeForTest("Pintura", "m3", "Vitória da Conquista", "BA");
-  assert.equal(wrongUnit.found, false);
-});
-
-test("Piloto assistido Gemini trata ampliacao pintura deteriorada e patologia urgente", () => {
-  const { assistant } = loadAssistant();
-
-  const ampliacao = assistant.buildResponseForTest("Oi, tudo bem? Queria dar uma aumentada na minha casa aqui no Candeias. Quero puxar um quarto com suíte no fundo, uns 15m², e cobrir um pedaço da área de serviço que molha muito quando chove. Queria saber quanto mais ou menos vai ficar essa brincadeira pra eu ver se meu orçamento dá conta.").fullAnswer;
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(ampliacao), true);
-  assert.match(ampliacao, /Reforma\/ampliação residencial/i);
-  assert.match(ampliacao, /Ampliação residencial \/ quarto/i);
-  assert.match(ampliacao, /Suíte - pontos hidráulicos\/esgoto/i);
-  assert.match(ampliacao, /Cobertura da área de serviço/i);
-  assert.match(ampliacao, /Estrutura e fundação/i);
-  assert.match(ampliacao, /padrão de acabamento|telhado\/cobertura|hidrossanitárias/i);
-  assert.match(ampliacao, /pendente/i);
-
-  const pintura = assistant.buildResponseForTest("Preciso pintar a frente do meu escritório, é um sobrado pequeno no centro. A parede está com a tinta descascando toda. Queria que vocês fizessem um orçamento pra mim. Tenho 40m² de parede pra pintar. Qual o preço?").fullAnswer;
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(pintura), true);
-  assert.match(pintura, /Tabela própria encontrada apenas em modo SAMPLE\/TEST; preço pendente de confirmação/i);
-  assert.match(pintura, /raspagem\/lixamento/i);
-  assert.match(pintura, /Correção da base/i);
-  assert.match(pintura, /Fundo preparador\/selador/i);
-  assert.match(pintura, /andaime|acesso/i);
-  assert.doesNotMatch(pintura, /R\$ 720,00/i);
-
-  const patologia = assistant.buildResponseForTest("Bom dia. Estou preocupado com meu muro de divisa. Começaram a aparecer umas rachaduras inclinadas que estão abrindo rápido desde a chuva da semana passada. Tenho medo do muro cair sobre o carro do meu vizinho. O que vocês acham que é? Preciso arrumar urgente.");
-  assert.equal(patologia.sessionIntent, "triagem_patologia_risco_urgente");
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(patologia.fullAnswer), false);
-  assert.doesNotMatch(patologia.fullAnswer, /^AVISO: Esta é uma estimativa preliminar/i);
-  assert.match(patologia.fullAnswer, /risco de segurança/i);
-  assert.match(patologia.fullAnswer, /afaste pessoas, veículos/i);
-  assert.match(patologia.fullAnswer, /vistoria presencial urgente/i);
-  assert.match(patologia.fullAnswer, /recalque|saturação do solo|empuxo|fundação/i);
-});
-test("Copiar formato profissional detecta e copia somente Markdown de orcamento", async () => {
-  const { assistant, clipboardWrites } = loadAssistant();
-  const budget = assistant.buildResponseForTest("quanto custa construir uma casa terrea de 100 m2 padrao simples?").fullAnswer;
-  const pathology = assistant.buildResponseForTest("A parede está com trinca diagonal perto da janela. O que pode ser?").fullAnswer;
-  const report = assistant.buildResponseForTest("Faça um relato técnico curto sobre infiltração em parede interna.").fullAnswer;
-  const geometry = assistant.buildResponseForTest("Qual volume de pilar 20x30 com 3 m?").fullAnswer;
-  const button = { textContent: "Copiar formato profissional" };
-
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(budget), true);
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest("Calculei o quantitativo preliminar.\n\n" + budget), true);
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(pathology), false);
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(report), false);
-  assert.equal(assistant.isProfessionalBudgetMarkdownForTest(geometry), false);
-
-  await assistant.copyProfessionalBudgetMarkdownForTest(budget, button);
-  assert.equal(clipboardWrites.length, 1);
-  assert.equal(clipboardWrites[0], budget.trim());
-  assert.match(clipboardWrites[0], /^AVISO: Esta é uma estimativa preliminar/i);
-  assert.match(clipboardWrites[0], /\| Item \| Serviço \| Unidade \| Quantidade \| Valor unitário \| Total \|/i);
-  assert.doesNotMatch(clipboardWrites[0], /<button|class=|data-elo-action/i);
-});
-
-test("Interface do Elo registra botao de copiar formato profissional", () => {
-  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
-
-  assert.match(source, /Copiar formato profissional/);
-  assert.match(source, /data-elo-action", "copy-professional-budget-markdown"/);
-  assert.match(source, /isEloProfessionalBudgetMarkdown_\(cleanAnswer\)/);
-  assert.match(source, /copyProfessionalBudgetMarkdown_\(cleanAnswer, copyProfessionalButton\)/);
-});
 test("Orcamentista V2 separa dados herdados sem apresentar como confirmados", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");

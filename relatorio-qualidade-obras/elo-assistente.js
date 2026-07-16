@@ -2240,9 +2240,22 @@
   function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
     const safe = budgetDocumentData || {};
     const budgetId = formatEloBudgetV2Scalar_(safe.budgetId) || "nao informado";
+    const facts = safe.facts || {};
+    const documentUf = formatEloBudgetV2Scalar_(facts.state || facts.uf || facts.estado || "BA").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || "BA";
+    const documentNumber = /^ELO-[A-Z]{2}-\d{4}-\d{6}$/.test(budgetId) ? budgetId : "ELO-" + documentUf + "-" + new Date().getFullYear() + "-000001";
+    const displayFacts = Object.assign({}, facts);
+    const builtArea = facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"] || facts.area;
+    if (builtArea) displayFacts["area construida"] = /m2|m²/i.test(String(builtArea)) ? builtArea : builtArea + " m2";
+    const cityUf = facts.cityUf || facts.cidadeUf || [facts.city || facts.cidade, facts.state || facts.uf].filter(Boolean).join("/");
+    if (cityUf) displayFacts["cidade/UF"] = cityUf;
+    const standard = facts.projectStandard || facts.standard || facts.padrao || facts["padrao construtivo"];
+    if (standard) displayFacts.padrao = standard;
     const professionalBudget = buildEloBudgetV2ProfessionalBudget_(safe);
-    const confirmed = formatEloBudgetV2NamedSection_("Dados confirmados", safe.facts, "Nenhum dado confirmado informado.");
-    const inherited = formatEloBudgetV2NamedSection_("Dados herdados", safe.inheritedFacts, "Nenhum dado herdado informado.");
+    const confirmed = formatEloBudgetV2NamedSection_("Dados confirmados", displayFacts, "Nenhum dado confirmado informado.");
+    const displayInheritedFacts = Object.assign({}, safe.inheritedFacts || {});
+    const inheritedStandard = displayInheritedFacts.projectStandard || displayInheritedFacts.standard || displayInheritedFacts.padrao;
+    if (inheritedStandard) displayInheritedFacts.padrao = inheritedStandard;
+    const inherited = formatEloBudgetV2NamedSection_("Dados herdados", displayInheritedFacts, "Nenhum dado herdado informado.");
     const assumed = formatEloBudgetV2NamedSection_("Dados assumidos", safe.assumptions, "Nenhuma premissa assumida informada.");
     const pending = formatEloBudgetV2NamedSection_("Dados pendentes", safe.pendingFields, "Nenhuma pendencia informada.");
     const scope = formatEloBudgetV2NamedSection_("Escopo preliminar", safe.scope, "Escopo preliminar nao informado.");
@@ -2261,7 +2274,7 @@
     const readiness = formatEloBudgetV2NamedSection_("Readiness", safe.readiness, "Readiness nao calculado.");
     const versions = formatEloBudgetV2NamedSection_("Historico de revisao", safe.versions, "Sem revisoes registradas.");
     const financialBase = [
-      "Base financeira",
+      "Base de custos",
       financialBaseStatus.loaded === false ? "- Base nao carregada" : financialBaseStatus.loaded === true ? "- Base carregada: sim" : "",
       "- Fonte: " + formatEloBudgetV2Scalar_(financialResolution.source || financialBaseStatus.source || safe.budget && safe.budget.source || "nao informada"),
       "- UF: " + formatEloBudgetV2Scalar_(financialResolution.uf || financialBaseStatus.state || "nao informada"),
@@ -2275,6 +2288,7 @@
     const technicalNotice = "Aviso tecnico\n" + ELO_BUDGET_V2_TECHNICAL_NOTICE;
     const consolidated = [
       "ELO Orçamentista V2",
+      "Numero do documento: " + documentNumber,
       "Tipo: orçamento residencial preliminar",
       "ID interno do orçamento: " + budgetId,
       "",
@@ -2310,15 +2324,15 @@
       "",
       technicalNotice
     ].join("\n");
-    return {
-      numero: budgetId,
+    const record = {
+      numero: documentNumber,
       versao: "2",
       titulo: "ELO Orçamentista V2",
       status: "orçamento residencial preliminar",
       resumo_executivo: "Orçamento residencial preliminar gerado a partir do estado técnico padronizado do ELO Orçamentista V2.",
-      escopo: ["Tipo: orçamento residencial preliminar", "ID interno do orçamento: " + budgetId, "", scope].join("\n"),
+      escopo: ["Tipo: orçamento residencial preliminar", "", scope].join("\n"),
       premissas: [confirmed, "", inherited, "", assumed].join("\n"),
-      servicos: materials,
+      servicos: [scope, "", materials].join("\n"),
       quantitativos: quantities,
       memoriaCalculo: [geometry, "", calculationMemory, "", coverage].join("\n"),
       composicoes: compositions,
@@ -2327,7 +2341,7 @@
       avisos_profissionais: [risks, "", readiness, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
       bases_tecnicas: financialBase,
       professionalBudget: professionalBudget,
-      conteudo_markdown: consolidated,
+      conteudo_markdown: consolidated.replace(/ID interno do orçamento: .*\n\n/, "").replace(/pending_official_composition/g, "pendente de composicao oficial"),
       "Premissas utilizadas": [confirmed, "", inherited, "", assumed].join("\n"),
       "Quantitativos": quantities,
       "Memoria de calculo": [geometry, "", calculationMemory, "", coverage].join("\n"),
@@ -2338,6 +2352,23 @@
       "Base tecnica utilizada": financialBase,
       origem: "elo_orcamentista_v2"
     };
+    const context = {
+      nomeDocumento: "ELO Orçamentista V2",
+      numero: record.numero,
+      versao: record.versao,
+      escopo: record.escopo,
+      premissas: record.premissas,
+      servicos: record.servicos,
+      quantitativos: record.quantitativos,
+      memoriaCalculo: record.memoriaCalculo,
+      composicoes: record.composicoes,
+      custos: record.custos_encontrados,
+      pendencias: record.pendencias,
+      alertas: record.avisos_profissionais,
+      origemBase: record.bases_tecnicas,
+      conteudo_markdown: record.conteudo_markdown
+    };
+    return { record: record, context: context };
   }
 
 
@@ -2849,7 +2880,7 @@
     const hasCriticalPending = pending.some(function (item) {
       return item === "cidade/uf" || item === "padrao construtivo" || item === "area construida";
     });
-    return !!(doc.documentType && (facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"]) && doc.scope && doc.quantities && !hasCriticalPending);
+    return !!((doc.documentType || doc.budgetId || doc.facts) && (facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"]) && doc.scope && doc.quantities && !hasCriticalPending);
   }
 
   function buildBudgetV2ProfessionalPdfAction_(budgetDocumentData) {
@@ -2860,7 +2891,7 @@
   function openBudgetV2ProfessionalPdf_(budgetDocumentData) {
     if (!isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData)) return { ok: false, message: "Complete os dados mínimos do orçamento antes de gerar o PDF." };
     const data = buildBudgetV2ProfessionalPdfData(budgetDocumentData);
-    const html = buildEloProfessionalPdfDocument(data, { nomeDocumento: "ELO Orçamentista V2" });
+    const html = buildEloProfessionalPdfDocument(data.record, data.context);
     let opened = false;
     if (typeof window !== "undefined" && window.open) {
       const popup = window.open("", "_blank");
@@ -2874,7 +2905,7 @@
       window.__eloLastBudgetV2PdfPopupBlocked = !opened;
       window.__eloLastBudgetV2PdfBudgetId = budgetDocumentData.budgetId || "";
     }
-    return { ok: true, html: html, opened: opened, data: { record: data, context: { nomeDocumento: "ELO Orçamentista V2" } } };
+    return { ok: true, html: html, opened: opened, data: data };
   }
 
   function getCurrentBudgetV2DocumentData_() {
@@ -22632,7 +22663,7 @@ function isEloResidentialNewPipelineEnabled_() {
             if (!record) throw new Error("Orcamento nao encontrado para PDF.");
             openEloBudgetRecordPdf_(record);
           } else if (pdfAction.type === "budget_v2_professional_pdf" && pdfAction.budgetDocumentData) {
-            buildProfessionalPdfDocument(buildBudgetV2ProfessionalPdfData(pdfAction.budgetDocumentData));
+            const data = buildBudgetV2ProfessionalPdfData(pdfAction.budgetDocumentData); buildProfessionalPdfDocument(data.record, data.context);
           }
         } catch (error) {
           appendMessage("system", error && error.message ? error.message : "Nao consegui gerar o PDF agora.");
