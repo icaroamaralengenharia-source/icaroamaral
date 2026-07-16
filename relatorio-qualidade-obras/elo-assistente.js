@@ -535,7 +535,7 @@
       : function (fn) { return (window.setTimeout || setTimeout)(fn, 0); };
     const scroll = function () {
       if (!ELO_UI.messages) return;
-      ELO_UI.messages.scrollTop = ELO_UI.messages.scrollHeight;
+      ELO_UI.messages.scrollTop = Math.max(0, ELO_UI.messages.scrollHeight - ELO_UI.messages.clientHeight);
     };
     schedule(function () {
       scroll();
@@ -2880,7 +2880,7 @@
     const hasCriticalPending = pending.some(function (item) {
       return item === "cidade/uf" || item === "padrao construtivo" || item === "area construida";
     });
-    return !!((doc.documentType || doc.budgetId || doc.facts) && (facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"]) && doc.scope && doc.quantities && !hasCriticalPending);
+    return !!((doc.documentType || doc.budgetId || doc.facts) && (facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"]) && doc.scope && doc.quantities && (!hasCriticalPending || doc.isGenericPreliminary));
   }
 
   function buildBudgetV2ProfessionalPdfAction_(budgetDocumentData) {
@@ -2918,7 +2918,7 @@
   }
 
   function isEloBudgetV2PdfIntent_(message) {
-    return /\b(pdf|gerar\s+pdf|baixar\s+pdf|exportar\s+pdf|imprimir)\b/i.test(normalizeText(message || ""));
+    return /\b(pdf|gerar\s+pdf|baixar\s+pdf|exportar\s+pdf|imprimir)\b|nao\s+estou\s+vendo\s+o\s+botao|nao\s+vejo\s+o\s+botao/i.test(normalizeText(message || ""));
   }
 
   function getSavedBudgetV2IdForDocument_(budgetDocumentData) {
@@ -2979,6 +2979,16 @@
   function buildEloBudgetV2CurrentPdfAnswer_(message) {
     if (!isEloBudgetV2PdfIntent_(message)) return null;
     const documentData = getCurrentBudgetV2DocumentData_();
+    if (!documentData) {
+      return {
+        shortAnswer: "Ainda não há orçamento ativo para PDF.",
+        fullAnswer: "Para gerar o PDF do orçamento, primeiro inicie um orçamento residencial ou técnico com área e escopo mínimos.",
+        nextAction: "Informe algo como: quero orçamento de uma casa de 70 m2.",
+        canSave: false,
+        sessionTheme: "budget_v2_professional_pdf",
+        sessionIntent: "budget_v2_pdf_without_budget"
+      };
+    }
     const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
     if (!pdfAction) return null;
     openBudgetV2ProfessionalPdf_(documentData);
@@ -15511,23 +15521,23 @@
       else if (previousType === "wall") facts.type = "wall";
       else if (/casa|residencial|residencia|resid.ncia|terrea|t.rrea|sobrado|construir|construcao|constru..o/.test(text) || previousType === "residential") facts.type = "residential";
 
-      let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|metros\s+quadrados)/i);
-      if (!match) match = raw.match(/\bcasa\s+(\d+(?:[,.]\d+)?)\s*m(?:2|\^2|\u00b2)?\b/i);
+      let match = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m\u00b2|m\?|metros\s+quadrados)/i);
+      if (!match) match = raw.match(/\bcasa\s+(\d+(?:[,.]\d+)?)\s*m(?:2|\^2|\u00b2|\?)?\b/i);
       if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
-      match = raw.match(/cidade\s*\/?\s*uf\s*:?\s*([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80})\s+([A-Za-z]{2})(?=\s*(?:$|[,.;]))/i)
+      match = raw.match(/cidade\s*\/?\s*uf\s*:?\s*([^,;.]+?)\s+([A-Za-z]{2})(?=\s*(?:$|[,.;]))/i)
         || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff\s.'-]+?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\b/i)
         || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s+([A-Z]{2})(?=\b|[,.;])/)
         || raw.match(/(?:^|[,;]\s*)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})(?=\b|[,.;])/i)
         || raw.match(/^\s*([A-Za-zï¿½-ï¿½][A-Za-zï¿½-ï¿½\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
       if (match) {
-        facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ").trim();
+        facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ").trim().replace(/Vit.ria/i, "Vitoria");
         facts.state = sanitizeUserText(match[2]).toUpperCase();
         facts.currentFields.push("city", "state");
       }
 
-      match = text.match(/\bpadrao(?:\s+construtivo)?\s*:?\s*(simples|medio|alto|popular|baixo|standard|luxo)\b/);
-      if (match) { facts.standard = normalizeText(match[1]); facts.currentFields.push("standard"); }
+      match = text.match(/\bpadr.o(?:\s+construtivo)?\s*:?\s*(simples|m.dio|medio|alto|popular|baixo|standard|luxo)\b/);
+      if (match) { facts.standard = /m.dio/.test(match[1]) ? "medio" : normalizeText(match[1]); facts.currentFields.push("standard"); }
       if (/terrea|t?rrea/.test(text)) { facts.floors = 1; facts.constructionType = "casa terrea"; facts.currentFields.push("floors", "constructionType"); }
       if (/sobrado|2\s+pavimentos|dois\s+pavimentos/.test(text)) { facts.floors = 2; facts.constructionType = "sobrado"; facts.currentFields.push("floors", "constructionType"); }
       if (/galpao|galp??o/.test(text)) { facts.constructionType = "galpao_metalico"; facts.currentFields.push("constructionType"); }
@@ -15784,30 +15794,14 @@
       else if (this.fieldWasInherited_(state, "garage")) addFact(inherited, "garagem", state.garage ? "sim" : "nao");
       if (this.fieldWasCurrent_(state, "desiredStage")) addFact(confirmed, "etapa", state.desiredStage);
       else if (this.fieldWasInherited_(state, "desiredStage")) addFact(inherited, "etapa", state.desiredStage);
-      const shortBriefingSource = normalizeText(state.lastUserMessage || "");
-      const shouldAskShortResidentialBriefing = state.areaM2 > 0 && /quero\s+(?:um\s+)?or.amento\s+(?:de\s+)?casa\s+70\b/.test(shortBriefingSource) && !state.city && !state.state && !state.standard && !(state.rooms > 0) && !(state.wetAreas > 0);
-      if (shouldAskShortResidentialBriefing) {
-        return {
-          shortAnswer: "Tenho a área. Preciso de poucos dados para montar o orçamento.",
-          fullAnswer: [
-            "Tenho a área da casa: " + areaLabel + ".",
-            "",
-            "Para montar o orçamento residencial V2, informe somente:",
-            "- cidade/UF;",
-            "- padrão construtivo;",
-            "- quartos e banheiros."
-          ].join("\n"),
-          nextAction: "Informe cidade/UF, padrão construtivo, quartos e banheiros.",
-          canSave: false,
-          sessionTheme: "residential_budget_package",
-          sessionIntent: "budget_v2_briefing",
-          budgetOrchestratorV2: { state: state }
-        };
-      }
-      const intro = pending.length || missingForUser.length
-        ? "Consigo montar uma estimativa preliminar para essa casa" + (areaLabel ? " de " + areaLabel : "") + "."
+      const genericBriefingSource = normalizeText(state.lastUserMessage || "");
+      const isGenericPreliminary = state.type === "residential" && state.areaM2 > 0 && missingForUser.length > 0 && /or.amento|orcamento|orcamentar/.test(genericBriefingSource) && /casa|residencial|residencia/.test(genericBriefingSource);
+      const intro = isGenericPreliminary
+        ? "Montei um orçamento residencial genérico preliminar" + (areaLabel ? " para a casa de " + areaLabel : "") + "."
+        : pending.length || missingForUser.length ? "Consigo montar uma estimativa preliminar para essa casa" + (areaLabel ? " de " + areaLabel : "") + "."
         : "Resumo da estimativa preliminar da casa" + (areaLabel ? " de " + areaLabel : "") + ".";
       const lines = [intro, "", "Resposta principal:", "- Atendimento: ELO ORCAMENTISTA V2", "- Tipo: residencia" + (state.floors ? " | pavimentos: " + state.floors : "")];
+      if (isGenericPreliminary) lines.push("", "Aviso:", "- Este orçamento é genérico, elaborado com os dados disponíveis. Para entregar uma versão mais precisa, informe cidade/UF, padrão construtivo, quartos, banheiros, garagem, sistema estrutural, cobertura e etapa desejada.");
       lines.push("", "Dados confirmados:", confirmed.length ? confirmed.map(function (item) { return "- " + item; }).join("\n") : "- Ainda preciso dos dados principais da obra.");
       if (inherited.length) lines.push("", "Dados herdados:", inherited.map(function (item) { return "- " + item; }).join("\n"), "- Posso reutilizar esses dados ou deseja alter\u00e1-los?");
       lines.push("", "Dados que faltam:", missingForUser.length ? missingForUser.map(function (item) { return "- " + item; }).join("\n") : "- Nenhum dado essencial pendente para a prévia.");
@@ -15817,7 +15811,7 @@
       }
       this.appendResidentialPremisesLines_(lines, residentialPremises, advancedMode);
       appendEloResidentialQuantitativeLines_(lines, state, residentialPremises);
-      if ((showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
+      if (!isGenericPreliminary && (showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
         lines.push("", "Auditoria tecnica V3:");
         if (audit && !audit.error) {
           lines.push("- Tipologia identificada: " + (audit.typology || "a confirmar"));
@@ -15837,6 +15831,7 @@
       lines.push("", "Nota:", "- Estimativa preliminar; valores oficiais dependem de quantitativos, BDI e base vigente. nao vou inventar preco.");
       state.budgetPackage = budgetPackage || null;
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
+      if (budgetDocumentData && isGenericPreliminary) budgetDocumentData.isGenericPreliminary = true;
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) {
         pdfAction.budgetDocumentData = budgetDocumentData;
@@ -15844,9 +15839,9 @@
       }
       const budgetActions = buildBudgetV2TransactionalActions_(budgetDocumentData);
       return {
-        shortAnswer: missingForUser.length ? "Preciso de poucos dados para avançar." : "Montei uma prévia resumida do orçamento.",
+        shortAnswer: isGenericPreliminary ? "Montei um orçamento genérico preliminar." : missingForUser.length ? "Preciso de poucos dados para avançar." : "Montei uma prévia resumida do orçamento.",
         fullAnswer: lines.join("\n"),
-        nextAction: missingForUser.length ? "Informe " + missingForUser.join(", ") + "." : "Peça modo avançado para ver auditoria, premissas e checklist técnico.",
+        nextAction: missingForUser.length ? "Refine informando " + missingForUser.join(", ") + "." : "Peça modo avançado para ver auditoria, premissas e checklist técnico.",
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
         sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
