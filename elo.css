@@ -460,7 +460,7 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   max-height: none;
   min-height: 0;
   padding: 12px 14px 6px;
-  overflow-y: auto;
+  overflow-y: scroll;
   scrollbar-gutter: stable;
 }
 
@@ -985,7 +985,7 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-ac
   justify-content: flex-start;
   gap: 16px;
   padding: 0 0 18px;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
   transform: none;
   scrollbar-gutter: stable;
@@ -1195,6 +1195,14 @@ body[data-elo-product="chat"] .elo-history-actions {
 
 .report-elo-chat .elo-standalone-panel {
   min-height: 520px;
+}
+
+.report-elo-chat .elo-messages,
+.report-elo-chat .elo-messages:empty {
+  display: flex;
+  max-height: none;
+  padding: 12px 14px 6px;
+  overflow-y: scroll;
 }
 
 .report-elo-chat .elo-input-row {
