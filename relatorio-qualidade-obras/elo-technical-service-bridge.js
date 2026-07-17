@@ -5,7 +5,7 @@
 
   function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
   function normalize(value) {
-    return clean(value).replace(/m[²2]/gi, "m2").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return clean(value).replace(/m[?3]/gi, "m3").replace(/m[?2]/gi, "m2").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   }
   function number(value) {
     const parsed = Number(String(value || "").replace(",", "."));
@@ -177,11 +177,140 @@
     return { unitCost: round(unitCost), totalCost: round(unitCost * quantity), pricingStatus: "priced" };
   }
 
+
+  function slopeFactorFromText(text) {
+    const raw = clean(text);
+    const normalized = normalize(raw);
+    const explicitFactor = normalized.match(/fator\s+(?:de\s+)?(?:inclinacao\s+)?(\d+(?:[,.]\d+)?)/);
+    if (explicitFactor) return { factor: number(explicitFactor[1]), label: "fator informado " + String(number(explicitFactor[1])).replace(".", ",") };
+    const percent = normalized.match(/inclinacao\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*%/);
+    if (percent) {
+      const slope = number(percent[1]) / 100;
+      const factor = Math.sqrt(1 + slope * slope);
+      return { factor: round(factor), label: "inclinacao " + String(number(percent[1])).replace(".", ",") + "%" };
+    }
+    const degrees = normalized.match(/inclinacao\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*graus?/);
+    if (degrees) {
+      const radians = number(degrees[1]) * Math.PI / 180;
+      const factor = 1 / Math.cos(radians);
+      return { factor: round(factor), label: "inclinacao " + String(number(degrees[1])).replace(".", ",") + " graus" };
+    }
+    return { factor: 1, label: "sem inclinacao informada" };
+  }
+
+  function extractRoofDimensionsFromText(text) {
+    const raw = clean(text);
+    const normalized = normalize(raw);
+    const dimensions = {};
+    const memory = [];
+    let projectedArea = 0;
+    const directArea = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
+    if (directArea) {
+      projectedArea = round(directArea[1]);
+      dimensions.projectedArea = projectedArea;
+      memory.push("?rea projetada informada: " + String(projectedArea).replace(".", ",") + " m2");
+    } else {
+      const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
+      if (multiplication) {
+        const length = number(multiplication[1]);
+        const width = number(multiplication[2]);
+        projectedArea = round(length * width);
+        dimensions.length = length;
+        dimensions.width = width;
+        dimensions.projectedArea = projectedArea;
+        memory.push("?rea projetada = " + dimensionLabel(length) + " x " + dimensionLabel(width) + " = " + String(projectedArea).replace(".", ",") + " m2");
+      }
+    }
+    if (!(projectedArea > 0)) return { quantity: 0, unit: "", dimensions: dimensions, calculationMemory: memory };
+    const slope = slopeFactorFromText(raw);
+    dimensions.slopeFactor = slope.factor;
+    let inclinedArea = round(projectedArea * slope.factor);
+    if (slope.factor !== 1) memory.push("?rea inclinada = " + String(projectedArea).replace(".", ",") + " m2 x " + String(slope.factor).replace(".", ",") + " (" + slope.label + ") = " + String(inclinedArea).replace(".", ",") + " m2");
+    else memory.push("?rea inclinada = ?rea projetada sem fator informado = " + String(inclinedArea).replace(".", ",") + " m2");
+    const loss = raw.match(/perdas?\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*%/i);
+    if (loss) {
+      const lossPercent = number(loss[1]);
+      const withLoss = round(inclinedArea * (1 + lossPercent / 100));
+      dimensions.lossPercent = lossPercent;
+      memory.push("?rea com perdas = " + String(inclinedArea).replace(".", ",") + " m2 x " + String(1 + lossPercent / 100).replace(".", ",") + " = " + String(withLoss).replace(".", ",") + " m2");
+      inclinedArea = withLoss;
+    }
+    return { quantity: inclinedArea, unit: "m2", dimensions: dimensions, calculationMemory: memory };
+  }
+
+  function compactComposition(candidate, composition) {
+    return {
+      code: candidate.code || composition.code || composition.compositionCode || "",
+      description: candidate.description || composition.description || composition.compositionName || composition.service || "",
+      unit: candidate.unit || composition.unit || composition.compositionUnit || "",
+      source: candidate.source || composition.source || "",
+      score: candidate.score,
+      reasons: candidate.reasons || []
+    };
+  }
+
+  function consumeComposition(candidate, quantity, requestedUnit, consumptionEngine) {
+    const composition = candidate.composition || candidate;
+    const consumption = consumptionEngine.calculateConsumptionFromCompositions([
+      { packageId: "technical_service", serviceId: "technical_service", quantity: quantity, unit: requestedUnit }
+    ], [
+      { packageId: "technical_service", serviceId: "technical_service", found: true, composition: composition }
+    ]);
+    const calculated = consumption.consumptions && consumption.consumptions[0];
+    if (!calculated) return { blocked: (consumption.blocked || []).map(function (item) { return item.reason; }) };
+    const groups = splitInputs(calculated.inputs);
+    const price = priceComposition(composition, quantity);
+    return { composition: compactComposition(candidate, composition), groups: groups, price: price };
+  }
+
+  function appendGroups(target, groups) {
+    target.materials = consolidate(target.materials.concat(groups.materials));
+    target.labor = consolidate(target.labor.concat(groups.labor));
+    target.equipment = consolidate(target.equipment.concat(groups.equipment));
+  }
+
+  function buildRoofResult(base, searchEngine, consumptionEngine, settings) {
+    const quantity = base.quantity;
+    const requestedUnit = base.unit;
+    const pending = [];
+    const relatedCompositions = [];
+    const output = { materials: [], labor: [], equipment: [] };
+    const warnings = base.warnings.slice();
+    let foundCost = 0;
+    let hasPrice = false;
+    let hasUnpriced = false;
+    [{ key: "telhamento", query: "telhamento com telha ceramica" }, { key: "estrutura_madeira", query: "trama de madeira cobertura telha ceramica" }].forEach(function (item) {
+      const search = searchEngine.searchOfficialCompositions(item.query, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
+      const candidate = search.candidates && search.candidates[0];
+      if (!candidate) { pending.push(item.key + "_composition_not_found"); return; }
+      const consumed = consumeComposition(candidate, quantity, requestedUnit, consumptionEngine);
+      if (consumed.blocked) { pending.push(item.key + "_consumption_failed"); warnings.push.apply(warnings, consumed.blocked); return; }
+      relatedCompositions.push(Object.assign({ role: item.key }, consumed.composition));
+      if (consumed.price && consumed.price.pricingStatus === "priced") { hasPrice = true; foundCost += consumed.price.totalCost; }
+      else hasUnpriced = true;
+      appendGroups(output, consumed.groups);
+    });
+    const ridge = normalize(base.text).match(/cumeeira\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*(?:m|metros?)/);
+    if (ridge) {
+      const ridgeLength = round(ridge[1]);
+      const ridgeSearch = searchEngine.searchOfficialCompositions("cumeeira telha ceramica", { unit: "m", limit: settings.limit || 5 }) || {};
+      const candidate = ridgeSearch.candidates && ridgeSearch.candidates[0];
+      if (candidate) {
+        const consumed = consumeComposition(candidate, ridgeLength, "m", consumptionEngine);
+        if (consumed.blocked) pending.push("cumeeira_consumption_failed");
+        else { relatedCompositions.push(Object.assign({ role: "cumeeira" }, consumed.composition)); if (consumed.price && consumed.price.pricingStatus === "priced") { hasPrice = true; foundCost += consumed.price.totalCost; } else hasUnpriced = true; appendGroups(output, consumed.groups); }
+      } else pending.push("cumeeira_composition_not_found");
+    } else pending.push("cumeeira_length_missing");
+    if (!base.dimensions.lossPercent) pending.push("loss_percent_not_informed");
+    if (!relatedCompositions.length) return Object.assign(base, { pricingStatus: "blocked_composition_not_found", pending: pending, warnings: warnings.concat(["composition_not_found"]) });
+    return Object.assign(base, { composition: relatedCompositions[0], relatedCompositions: relatedCompositions, materials: output.materials, labor: output.labor, equipment: output.equipment, pending: pending, warnings: warnings, pricingStatus: hasPrice && !hasUnpriced ? "priced" : hasPrice ? "partial_price" : "unpriced", unitCost: hasPrice && !hasUnpriced ? round(foundCost / quantity) : hasPrice ? round(foundCost / quantity) : null, totalCost: hasPrice && !hasUnpriced ? round(foundCost) : null });
+  }
   function build(input, options) {
     const settings = options || {};
     const text = clean(input && input.text);
-    const extracted = extractDimensionsFromText(text);
     const service = clean(input && input.service) || inferServiceFromText(text);
+    const isRoofService = /cobertura|telhado|telha/.test(normalize(service)) || /cobertura|telhado|telha/.test(normalize(text));
+    const extracted = isRoofService ? extractRoofDimensionsFromText(text) : extractDimensionsFromText(text);
     const quantity = round(input && input.quantity || extracted.quantity);
     const requestedUnit = unit(input && input.unit || extracted.unit || "m2");
     const dimensions = Object.assign({}, extracted.dimensions, input && input.dimensions || {});
@@ -215,6 +344,13 @@
     const searchEngine = settings.compositionSearchEngine || root.CompositionSearchEngine;
     if (!searchEngine || typeof searchEngine.searchOfficialCompositions !== "function") {
       return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_search_unavailable", assumptions: assumptions, warnings: ["composition_search_unavailable"], calculationMemory: calculationMemory };
+    }
+    if (isRoofService) {
+      const consumptionEngine = settings.consumptionEngine || root.EloConsumptionEngine;
+      if (!consumptionEngine || typeof consumptionEngine.calculateConsumptionFromCompositions !== "function") {
+        return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory, pending: [] };
+      }
+      return buildRoofResult({ service: service, text: text, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "", assumptions: assumptions, warnings: warnings, calculationMemory: calculationMemory }, searchEngine, consumptionEngine, settings);
     }
     const technicalService = /escavacao|concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service));
     const query = technicalService ? service : [service, text].filter(Boolean).join(" ");

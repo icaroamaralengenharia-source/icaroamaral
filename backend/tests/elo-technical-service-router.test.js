@@ -181,6 +181,18 @@ test("roteador calcula viga baldrame por volume e informa aco fora do escopo", (
   assert.equal(calls.originalBuild, 0);
 });
 
+test("roteador calcula telhado ceramico e mantem pendencias claras", () => {
+  const { elo, calls } = loadAssistant({ publicBase: true });
+  const response = elo.buildResponseForTest("Telhado duas aguas de 10 x 8 m");
+
+  assert.equal(response.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(response.technicalServiceBridge.quantity, 80);
+  assert.equal(response.technicalServiceBridge.unit, "m2");
+  assert.match(response.fullAnswer, /Composi..es complementares/i);
+  assert.match(response.fullAnswer, /Pend.ncias/i);
+  assert.equal(calls.originalBuild, 0);
+});
+
 test("pedido residencial passa intacto ao ELO original", () => {
   const { elo, calls } = loadAssistant();
   const response = elo.buildResponseForTest("Quero fazer o orçamento de uma casa");

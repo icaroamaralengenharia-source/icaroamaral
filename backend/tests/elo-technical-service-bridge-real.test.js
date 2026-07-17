@@ -127,3 +127,25 @@ test("ponte usa base publica real para escavacao de vala por volume", () => {
     }
   }
 });
+
+
+test("ponte usa base publica real para telhamento ceramico", () => {
+  const win = loadRealBridge({ publicBase: true });
+  const result = win.EloTechnicalServiceBridge.build({
+    text: "Cobertura ceramica para uma casa de 8 x 12 m, inclinacao de 30%"
+  });
+
+  assert.equal(result.quantity, 100.224);
+  assert.equal(result.unit, "m2");
+  assert.equal(result.composition.source, "SINAPI");
+  assert.ok(result.relatedCompositions.some((item) => item.role === "telhamento" && /TELHAMENTO/i.test(item.description)));
+  assert.ok(result.relatedCompositions.some((item) => item.role === "estrutura_madeira" && /TRAMA DE MADEIRA/i.test(item.description)));
+  assert.ok(result.materials.length > 0 || result.labor.length > 0 || result.equipment.length > 0);
+
+  for (const group of [result.materials, result.labor, result.equipment]) {
+    for (const item of group) {
+      assert.ok(item.quantity > 0);
+      assert.ok(item.coefficient > 0);
+    }
+  }
+});

@@ -129,6 +129,110 @@ function volumeComposition(code, description, coefficient = 1.5) {
   };
 }
 
+function roofSearch(options = {}) {
+  const telha = {
+    code: "SINAPI-TELHA-001",
+    description: "Telhamento com telha ceramica",
+    unit: "m2",
+    source: "SINAPI",
+    inputs: [{
+      code: "SINAPI-TELHA-001-MAT",
+      name: "Telhamento com telha ceramica - material",
+      type: "material",
+      unit: "un",
+      coefficient: 10,
+      unitPrice: 0
+    }, {
+      code: "SINAPI-TELHA-001-MO",
+      name: "Telhamento com telha ceramica - oficial",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.1,
+      unitPrice: 0
+    }]
+  };
+  const madeira = {
+    code: "SINAPI-MAD-001",
+    description: "Trama de madeira para telha ceramica",
+    unit: "m2",
+    source: "SINAPI",
+    inputs: [{
+      code: "SINAPI-MAD-001-MAT",
+      name: "Trama de madeira para telha ceramica - material",
+      type: "material",
+      unit: "un",
+      coefficient: 2,
+      unitPrice: 0
+    }, {
+      code: "SINAPI-MAD-001-MO",
+      name: "Trama de madeira para telha ceramica - oficial",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.1,
+      unitPrice: 0
+    }]
+  };
+  const telhaPriced = {
+    code: "SINAPI-TELHA-001",
+    description: "Telhamento com telha ceramica",
+    unit: "m2",
+    source: "SINAPI",
+    inputs: [{
+      code: "SINAPI-TELHA-001-MAT",
+      name: "Telhamento com telha ceramica - material",
+      type: "material",
+      unit: "un",
+      coefficient: 10,
+      unitPrice: 2
+    }, {
+      code: "SINAPI-TELHA-001-MO",
+      name: "Telhamento com telha ceramica - oficial",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.1,
+      unitPrice: 10
+    }]
+  };
+  const madeiraPriced = {
+    code: "SINAPI-MAD-001",
+    description: "Trama de madeira para telha ceramica",
+    unit: "m2",
+    source: "SINAPI",
+    inputs: [{
+      code: "SINAPI-MAD-001-MAT",
+      name: "Trama de madeira para telha ceramica - material",
+      type: "material",
+      unit: "un",
+      coefficient: 2,
+      unitPrice: 5
+    }, {
+      code: "SINAPI-MAD-001-MO",
+      name: "Trama de madeira para telha ceramica - oficial",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.1,
+      unitPrice: 10
+    }]
+  };
+  return {
+    calls: [],
+    searchOfficialCompositions(query, searchOptions) {
+      this.calls.push({ query, options: searchOptions });
+      if (/trama de madeira/.test(query)) {
+        if (options.withoutWood) return { found: false, candidates: [] };
+        const composition = options.priced ? madeiraPriced : madeira;
+        return { found: true, candidates: [{ code: composition.code, description: composition.description, unit: composition.unit, source: composition.source, score: 0.9, composition }] };
+      }
+      if (/cumeeira/.test(query)) return { found: false, candidates: [] };
+      if (/telhamento/.test(query)) {
+        const composition = options.priced ? telhaPriced : telha;
+        return { found: true, candidates: [{ code: composition.code, description: composition.description, unit: composition.unit, source: composition.source, score: 0.95, composition }] };
+      }
+      return { found: false, candidates: [] };
+    }
+  };
+}
+
 test("parede 30 x 2,80 m resulta em 84 m2 e usa coeficientes da composicao", () => {
   const search = searchFor(composition());
   const bridge = loadBridge(search);
@@ -299,6 +403,74 @@ test("cinta de amarracao calcula volume e informa que aco nao esta incluido", ()
   assert.equal(result.service, "concreto para cinta de amarracao");
   assert.equal(result.quantity, 0.9);
   assert.match(result.assumptions.join(" "), /A.o estrutural n.o inclu.do neste quantitativo/);
+});
+
+test("cobertura por comprimento largura e inclinacao percentual", () => {
+  const bridge = loadBridge(roofSearch());
+  const result = bridge.build({ text: "Cobertura ceramica para uma casa de 8 x 12 m, inclinacao de 30%." });
+
+  assert.equal(result.service, "cobertura");
+  assert.equal(result.dimensions.projectedArea, 96);
+  assert.equal(result.quantity, 100.224);
+  assert.equal(result.unit, "m2");
+  assert.equal(result.materials.find((item) => item.name.includes("Telhamento")).quantity, 1002.24);
+  assert.equal(result.materials.find((item) => item.name.includes("Trama")).quantity, 200.448);
+  assert.match(result.calculationMemory.join(" "), /96 m2/);
+  assert.equal(JSON.stringify(result.relatedCompositions.map((item) => item.role)), JSON.stringify(["telhamento", "estrutura_madeira"]));
+});
+
+test("cobertura com area direta sem inclinacao", () => {
+  const bridge = loadBridge(roofSearch());
+  const result = bridge.build({ text: "Quanto material para 120 m2 de telhado ceramico?" });
+
+  assert.equal(result.quantity, 120);
+  assert.equal(result.dimensions.projectedArea, 120);
+  assert.equal(result.dimensions.slopeFactor, 1);
+});
+
+test("cobertura com inclinacao em graus", () => {
+  const bridge = loadBridge(roofSearch());
+  const result = bridge.build({ text: "Telhado ceramico de 10 x 8 m com inclinacao de 30 graus" });
+
+  assert.equal(result.dimensions.projectedArea, 80);
+  assert.equal(result.dimensions.slopeFactor, 1.155);
+  assert.equal(result.quantity, 92.4);
+});
+
+test("cobertura com fator de inclinacao informado", () => {
+  const bridge = loadBridge(roofSearch());
+  const result = bridge.build({ text: "Telhado ceramico de 10 x 8 m com fator de inclinacao 1,08" });
+
+  assert.equal(result.quantity, 86.4);
+  assert.equal(result.dimensions.slopeFactor, 1.08);
+});
+
+test("estrutura de madeira ausente vira pendencia sem bloquear telhamento", () => {
+  const bridge = loadBridge(roofSearch({ withoutWood: true }));
+  const result = bridge.build({ text: "Telhado duas aguas de 10 x 8 m" });
+
+  assert.equal(result.quantity, 80);
+  assert.equal(JSON.stringify(result.relatedCompositions.map((item) => item.role)), JSON.stringify(["telhamento"]));
+  assert.ok(result.pending.includes("estrutura_madeira_composition_not_found"));
+  assert.equal(result.materials[0].quantity, 800);
+});
+
+test("cobertura sem preco entrega quantitativo sem inventar custo", () => {
+  const bridge = loadBridge(roofSearch());
+  const result = bridge.build({ text: "Telhado ceramico de 10 x 8 m" });
+
+  assert.equal(result.pricingStatus, "unpriced");
+  assert.equal(result.unitCost, null);
+  assert.equal(result.totalCost, null);
+});
+
+test("cobertura com preco valido soma somente precos das composicoes", () => {
+  const bridge = loadBridge(roofSearch({ priced: true }));
+  const result = bridge.build({ text: "Telhado ceramico de 10 x 8 m" });
+
+  assert.equal(result.pricingStatus, "priced");
+  assert.equal(result.unitCost, 32);
+  assert.equal(result.totalCost, 2560);
 });
 
 test("dimensao ausente gera bloqueio claro", () => {

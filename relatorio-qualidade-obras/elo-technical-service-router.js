@@ -24,15 +24,16 @@
     const text = normalize(message);
     if (!text) return false;
     if (/casa|residencia|residencial|sobrado|orcamento residencial|cadista|dxf|planta baixa|ocr|imagem|foto|anexo|pdf|busca web|pesquise|internet|online|noticia|atual/.test(text)) return false;
-    const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
-    const hasStructuralService = /escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
+    const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|cobertura|telhado|telha|escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
+    const hasStructuralService = /escav|sapata|vala|concreto|viga|baldrame|pilar|cinta|cobertura|telhado|telha/.test(text);
     const hasIntent = /quantitativo|quantidade|material|materiais|consumo|orcamento|orcament|custo|preco|valor|quanto|qual material/.test(text);
     return hasService && (hasIntent || hasStructuralService && hasDimension(message));
   }
   function missingDimensionResponse(message) {
     const text = normalize(message);
     let service = "servico";
-    if (/escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text)) service = "servi?o estrutural";
+    if (/cobertura|telhado|telha/.test(text)) service = "cobertura";
+    else if (/escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text)) service = "servi?o estrutural";
     else if (/parede|alvenaria|bloco/.test(text)) service = "parede/alvenaria";
     else if (/contrapiso/.test(text)) service = "contrapiso";
     else if (/piso|revestimento|ceramico|porcelanato/.test(text)) service = "piso/revestimento";
@@ -70,6 +71,14 @@
     if (result.calculationMemory && result.calculationMemory.length) {
       lines.push("", "Mem?ria de c?lculo:");
       result.calculationMemory.forEach(function (item) { lines.push("- " + item); });
+    }
+    if (result.relatedCompositions && result.relatedCompositions.length > 1) {
+      lines.push("", "Composi??es complementares:");
+      result.relatedCompositions.slice(1).forEach(function (item) { lines.push("- " + [item.code, item.description].filter(Boolean).join(" - ")); });
+    }
+    if (result.pending && result.pending.length) {
+      lines.push("", "Pend?ncias:");
+      result.pending.forEach(function (item) { lines.push("- " + item); });
     }
     lines.push.apply(lines, lineItems("Materiais", result.materials));
     lines.push.apply(lines, lineItems("Mão de obra", result.labor));
