@@ -21,7 +21,7 @@
     const text = normalize(message);
     if (!text) return false;
     if (/casa|residencia|residencial|sobrado|orcamento residencial|cadista|dxf|planta baixa|ocr|imagem|foto|anexo|pdf|busca web|pesquise|internet|online|noticia|atual/.test(text)) return false;
-    const hasService = /parede|alvenaria|bloco|piso|revestimento|reboco|emboco|chapisco|contrapiso|cobertura|telhado|telha/.test(text);
+    const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|cobertura|telhado|telha/.test(text);
     const hasIntent = /quantitativo|quantidade|material|materiais|consumo|orcamento|orcament|custo|preco|valor|quanto|qual material/.test(text);
     return hasService && hasIntent;
   }
@@ -29,8 +29,11 @@
     const text = normalize(message);
     let service = "servico";
     if (/parede|alvenaria|bloco/.test(text)) service = "parede/alvenaria";
-    else if (/piso/.test(text)) service = "piso";
-    else if (/reboco|emboco/.test(text)) service = "reboco";
+    else if (/contrapiso/.test(text)) service = "contrapiso";
+    else if (/piso|revestimento|ceramico|porcelanato/.test(text)) service = "piso/revestimento";
+    else if (/pintura|pintar|tinta/.test(text)) service = "pintura";
+    else if (/chapisco/.test(text)) service = "chapisco";
+    else if (/reboco|rebocar|emboco/.test(text)) service = "reboco";
     return {
       shortAnswer: "Preciso da dimensão do " + service + ".",
       fullAnswer: "Para calcular o quantitativo, informe a área em m2 ou as dimensões. Ex.: parede 30 m x 2,80 m, piso 40 m2 ou reboco 100 m2.",

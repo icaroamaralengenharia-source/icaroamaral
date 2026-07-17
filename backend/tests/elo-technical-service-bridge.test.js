@@ -81,6 +81,30 @@ function composition(priceMode = "none") {
   };
 }
 
+function areaComposition(code, description, coefficient = 2) {
+  return {
+    code,
+    description,
+    unit: "m2",
+    source: "SINAPI",
+    inputs: [{
+      code: code + "-MAT",
+      name: description + " - material principal",
+      type: "material",
+      unit: "kg",
+      coefficient,
+      unitPrice: 0
+    }, {
+      code: code + "-MO",
+      name: description + " - aplicador",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.1,
+      unitPrice: 0
+    }]
+  };
+}
+
 test("parede 30 x 2,80 m resulta em 84 m2 e usa coeficientes da composicao", () => {
   const search = searchFor(composition());
   const bridge = loadBridge(search);
@@ -104,6 +128,83 @@ test("servico informado diretamente em m2", () => {
   assert.equal(result.quantity, 42);
   assert.equal(result.dimensions.area, 42);
   assert.equal(result.materials[0].quantity, 567);
+});
+
+test("piso com area direta usa composicao por m2", () => {
+  const search = searchFor(areaComposition("SINAPI-PISO-001", "Revestimento ceramico para piso", 2.5));
+  const bridge = loadBridge(search);
+  const result = bridge.build({ text: "Qual material para 40 m2 de piso ceramico?" });
+
+  assert.equal(result.service, "revestimento ceramico para piso");
+  assert.equal(result.quantity, 40);
+  assert.equal(result.materials[0].quantity, 100);
+  assert.match(search.calls[0].query, /revestimento ceramico para piso/i);
+});
+
+test("piso com comprimento e largura calcula area", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-PISO-002", "Revestimento ceramico para piso", 1.8)));
+  const result = bridge.build({ text: "Piso ceramico em ambiente com 5 metros de comprimento e 4 metros de largura" });
+
+  assert.equal(result.quantity, 20);
+  assert.equal(result.dimensions.length, 5);
+  assert.equal(result.dimensions.width, 4);
+  assert.equal(result.materials[0].quantity, 36);
+});
+
+test("reboco com comprimento e altura calcula area", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-REB-001", "Reboco emboco massa unica em parede", 3)));
+  const result = bridge.build({ text: "Vou rebocar uma parede de 12 x 2,80" });
+
+  assert.equal(result.service, "reboco emboco massa unica em parede");
+  assert.equal(result.quantity, 33.6);
+  assert.equal(result.materials[0].quantity, 100.8);
+});
+
+test("pintura com area direta calcula consumo", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-PINT-001", "Pintura latex acrilica em paredes", 0.22)));
+  const result = bridge.build({ text: "Quanto material para pintar 180 m2?" });
+
+  assert.equal(result.service, "pintura latex acrilica em paredes");
+  assert.equal(result.quantity, 180);
+  assert.equal(result.materials[0].quantity, 39.6);
+});
+
+test("contrapiso com dimensao calcula area", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-CONTRA-001", "Contrapiso piso cimentado regularizacao", 4)));
+  const result = bridge.build({ text: "Contrapiso em um ambiente de 5 x 4" });
+
+  assert.equal(result.service, "contrapiso piso cimentado regularizacao");
+  assert.equal(result.quantity, 20);
+  assert.equal(result.materials[0].quantity, 80);
+});
+
+test("chapisco com area direta calcula consumo", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-CHAP-001", "Chapisco aplicado em alvenaria", 1.1)));
+  const result = bridge.build({ text: "Material para chapisco em 25 m2" });
+
+  assert.equal(result.service, "chapisco aplicado em alvenaria");
+  assert.equal(result.quantity, 25);
+  assert.equal(result.materials[0].quantity, 27.5);
+});
+
+test("emboco com area direta usa cadeia de reboco massa unica", () => {
+  const bridge = loadBridge(searchFor(areaComposition("SINAPI-EMB-001", "Emboco massa unica em parede", 2.2)));
+  const result = bridge.build({ text: "Quanto material para emboco em 30 m2?" });
+
+  assert.equal(result.service, "reboco emboco massa unica em parede");
+  assert.equal(result.quantity, 30);
+  assert.equal(result.materials[0].quantity, 66);
+});
+
+test("revestimento ceramico de parede usa termo tecnico especifico", () => {
+  const search = searchFor(areaComposition("SINAPI-REV-001", "Revestimento ceramico parede interna", 1.4));
+  const bridge = loadBridge(search);
+  const result = bridge.build({ text: "Revestimento ceramico em parede interna com 15 m2" });
+
+  assert.equal(result.service, "revestimento ceramico parede interna");
+  assert.equal(result.quantity, 15);
+  assert.equal(result.materials[0].quantity, 21);
+  assert.match(search.calls[0].query, /revestimento ceramico parede interna/i);
 });
 
 test("dimensao ausente gera bloqueio claro", () => {

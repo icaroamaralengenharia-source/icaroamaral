@@ -27,6 +27,12 @@
     const directArea = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
     if (directArea) return { quantity: round(directArea[1]), unit: "m2", dimensions: { area: round(directArea[1]) } };
     const length = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+comprimento/);
+    const width = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+largura/);
+    if (length && width) {
+      const l = number(length[1]);
+      const w = number(width[1]);
+      return { quantity: round(l * w), unit: "m2", dimensions: { length: l, width: w } };
+    }
     const height = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+altura/);
     if (length && height) {
       const l = number(length[1]);
@@ -44,10 +50,13 @@
 
   function inferServiceFromText(text) {
     const normalized = normalize(text);
+    if (/contrapiso/.test(normalized)) return "contrapiso piso cimentado regularizacao";
+    if (/chapisco/.test(normalized)) return "chapisco aplicado em alvenaria";
+    if (/pintura|pintar|tinta/.test(normalized)) return "pintura latex acrilica em paredes";
+    if (/revestimento ceramico|azulejo/.test(normalized) && /parede|intern/.test(normalized)) return "revestimento ceramico parede interna";
+    if (/piso ceramico|piso|porcelanato|revestimento ceramico/.test(normalized)) return "revestimento ceramico para piso";
+    if (/reboco|rebocar|emboco|massa unica/.test(normalized)) return "reboco emboco massa unica em parede";
     if (/parede|alvenaria|bloco/.test(normalized)) return "alvenaria de bloco ceramico";
-    if (/piso|revestimento ceramico|porcelanato/.test(normalized)) return "revestimento de piso";
-    if (/reboco|emboco|massa unica/.test(normalized)) return "reboco em parede";
-    if (/chapisco/.test(normalized)) return "chapisco em alvenaria";
     if (/cobertura|telhado|telha/.test(normalized)) return "cobertura";
     return clean(text);
   }

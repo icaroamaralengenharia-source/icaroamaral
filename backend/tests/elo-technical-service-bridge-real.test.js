@@ -23,15 +23,17 @@ function loadRealBridge(options = {}) {
   const sandbox = { console, window: {} };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
-  for (const file of [
+  const files = [
     "stock-ai-composition-engine.js",
+    ...(options.publicBase ? ["bases-reais/sinapi-ba-202412-index.js"] : []),
     "composition-search-engine.js",
     "elo-consumption-engine.js",
     "elo-technical-service-bridge.js"
-  ]) {
+  ];
+  for (const file of files) {
     vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", file), "utf8"), sandbox, { filename: file });
   }
-  if (options.importBase !== false) {
+  if (options.importBase !== false && !options.publicBase) {
     const imported = sandbox.window.StockAiCompositionEngine.importOfficialBase({ rows: stockAiOfficialRowsFixture() });
     assert.equal(imported.ok, true);
   }
@@ -86,4 +88,22 @@ test("ponte bloqueia claramente quando nenhuma base real esta carregada", () => 
   assert.equal(JSON.stringify(result.warnings), JSON.stringify(["composition_not_found"]));
   assert.equal(result.composition, null);
   assert.equal(result.materials.length, 0);
+});
+
+
+test("ponte usa base publica real para piso ceramico por area", () => {
+  const win = loadRealBridge({ publicBase: true });
+  const result = win.EloTechnicalServiceBridge.build({
+    text: "Qual material para 40 m2 de piso ceramico?"
+  });
+
+  assert.equal(result.quantity, 40);
+  assert.equal(result.unit, "m2");
+  assert.equal(result.composition.source, "SINAPI");
+  assert.match(result.composition.description, /REVESTIMENTO CER.MICO PARA PISO/i);
+  assert.ok(result.materials.length > 0);
+
+  for (const item of result.materials) {
+    assert.equal(item.quantity, Math.round(item.coefficient * result.quantity * 1000) / 1000);
+  }
 });
