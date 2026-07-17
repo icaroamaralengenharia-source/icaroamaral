@@ -3,6 +3,7 @@
 
   const VERSION = "20260716-elo-technical-service-router-v1";
   let pendingTechnicalPdfIdentification = null;
+  let knowledgeRegistryInstance = null;
 
   function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
   function normalize(value) {
@@ -154,7 +155,29 @@
       technicalServiceBridge: result
     };
   }
+  function getKnowledgeRegistry() {
+    if (knowledgeRegistryInstance) return knowledgeRegistryInstance;
+    const registry = root.EloKnowledgeRegistry;
+    if (!registry || typeof registry.createSync !== "function") return null;
+    try {
+      knowledgeRegistryInstance = registry.createSync({ surface: "relatorio-qualidade-obras" });
+    } catch (error) {
+      knowledgeRegistryInstance = null;
+    }
+    return knowledgeRegistryInstance;
+  }
+  function routeKnowledge(message) {
+    const registry = getKnowledgeRegistry();
+    if (!registry || typeof registry.handleCommandSync !== "function") return null;
+    try {
+      return registry.handleCommandSync(message);
+    } catch (error) {
+      return null;
+    }
+  }
   function route(message) {
+    const knowledgeResponse = routeKnowledge(message);
+    if (knowledgeResponse) return knowledgeResponse;
     const pdfIdentificationResponse = routePdfIdentification(message);
     if (pdfIdentificationResponse) return pdfIdentificationResponse;
     if (!shouldRoute(message)) return null;

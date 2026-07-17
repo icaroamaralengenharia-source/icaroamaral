@@ -139,6 +139,37 @@
     return Object.keys(grouped).map(function (key) { return grouped[key]; });
   }
 
+  let knowledgeRegistryForSearch = null;
+  function getKnowledgeRegistryForSearch() {
+    if (knowledgeRegistryForSearch) return knowledgeRegistryForSearch;
+    const registryFactory = root.EloKnowledgeRegistry;
+    if (!registryFactory || typeof registryFactory.createSync !== "function") return null;
+    try {
+      knowledgeRegistryForSearch = registryFactory.createSync({ surface: "relatorio-qualidade-obras" });
+    } catch (_) {
+      knowledgeRegistryForSearch = null;
+    }
+    return knowledgeRegistryForSearch;
+  }
+
+  function expandSearchTextWithLearnedSynonyms(text) {
+    const original = clean(text);
+    const registry = getKnowledgeRegistryForSearch();
+    if (!registry || typeof registry.listLearnings !== "function") return original;
+    try {
+      const normalized = normalize(original);
+      const expansions = [];
+      (registry.listLearnings() || []).forEach(function (item) {
+        if (item && item.type === "synonym" && item.confirmed === true && item.enabled !== false && normalized.indexOf(normalize(item.key)) >= 0) {
+          expansions.push(item.value);
+        }
+      });
+      return clean([original].concat(expansions).join(" "));
+    } catch (_) {
+      return original;
+    }
+  }
+
   function splitInputs(inputs) {
     const materials = [];
     const labor = [];
@@ -363,7 +394,8 @@
     }
     const technicalService = /escavacao|concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service));
     const query = technicalService ? service : [service, text].filter(Boolean).join(" ");
-    const search = searchEngine.searchOfficialCompositions(query, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
+    const expandedQuery = expandSearchTextWithLearnedSynonyms(query);
+    const search = searchEngine.searchOfficialCompositions(expandedQuery, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
     const candidate = search.candidates && search.candidates[0];
     if (!candidate) {
       return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_composition_not_found", assumptions: assumptions, warnings: ["composition_not_found"], calculationMemory: calculationMemory };
