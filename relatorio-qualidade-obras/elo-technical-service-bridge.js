@@ -131,7 +131,10 @@
     (items || []).forEach(function (item) {
       const key = normalize([item.code, item.name, item.unit].join("|"));
       if (!grouped[key]) grouped[key] = Object.assign({}, item);
-      else grouped[key].quantity = round(grouped[key].quantity + item.quantity);
+      else {
+        grouped[key].quantity = round(grouped[key].quantity + item.quantity);
+        if (item.itemSubtotal != null || grouped[key].itemSubtotal != null) grouped[key].itemSubtotal = round(Number(grouped[key].itemSubtotal || 0) + Number(item.itemSubtotal || 0));
+      }
     });
     return Object.keys(grouped).map(function (key) { return grouped[key]; });
   }
@@ -141,14 +144,20 @@
     const labor = [];
     const equipment = [];
     (inputs || []).forEach(function (input) {
+      const unitPrice = number(input.unitPrice !== undefined ? input.unitPrice : input.precoUnitario);
       const item = {
         code: inputCode(input),
         name: inputName(input),
         unit: input.unit,
         quantity: round(input.total),
         coefficient: number(input.coefficient),
-        coefficientUnit: input.coefficientUnit || input.unit
+        coefficientUnit: input.coefficientUnit || input.unit,
+        unitPrice: unitPrice > 0 ? unitPrice : null,
+        precoUnitario: input.precoUnitario,
+        compositionUnitTotalCost: input.totalCost !== undefined ? input.totalCost : input.custoTotal,
+        custoTotal: input.custoTotal
       };
+      if (item.unitPrice) item.itemSubtotal = round(item.quantity * item.unitPrice);
       if (input.conversion && input.conversion.available) item.conversion = input.conversion;
       if (input.type === "labor") labor.push(item);
       else if (input.type === "equipment") equipment.push(item);
@@ -208,7 +217,7 @@
     if (directArea) {
       projectedArea = round(directArea[1]);
       dimensions.projectedArea = projectedArea;
-      memory.push("?rea projetada informada: " + String(projectedArea).replace(".", ",") + " m2");
+      memory.push("Area projetada informada: " + String(projectedArea).replace(".", ",") + " m2");
     } else {
       const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
       if (multiplication) {
@@ -218,21 +227,21 @@
         dimensions.length = length;
         dimensions.width = width;
         dimensions.projectedArea = projectedArea;
-        memory.push("?rea projetada = " + dimensionLabel(length) + " x " + dimensionLabel(width) + " = " + String(projectedArea).replace(".", ",") + " m2");
+        memory.push("Area projetada = " + dimensionLabel(length) + " x " + dimensionLabel(width) + " = " + String(projectedArea).replace(".", ",") + " m2");
       }
     }
     if (!(projectedArea > 0)) return { quantity: 0, unit: "", dimensions: dimensions, calculationMemory: memory };
     const slope = slopeFactorFromText(raw);
     dimensions.slopeFactor = slope.factor;
     let inclinedArea = round(projectedArea * slope.factor);
-    if (slope.factor !== 1) memory.push("?rea inclinada = " + String(projectedArea).replace(".", ",") + " m2 x " + String(slope.factor).replace(".", ",") + " (" + slope.label + ") = " + String(inclinedArea).replace(".", ",") + " m2");
-    else memory.push("?rea inclinada = ?rea projetada sem fator informado = " + String(inclinedArea).replace(".", ",") + " m2");
+    if (slope.factor !== 1) memory.push("Area inclinada = " + String(projectedArea).replace(".", ",") + " m2 x " + String(slope.factor).replace(".", ",") + " (" + slope.label + ") = " + String(inclinedArea).replace(".", ",") + " m2");
+    else memory.push("Area inclinada = area projetada sem fator informado = " + String(inclinedArea).replace(".", ",") + " m2");
     const loss = raw.match(/perdas?\s+(?:de\s+)?(\d+(?:[,.]\d+)?)\s*%/i);
     if (loss) {
       const lossPercent = number(loss[1]);
       const withLoss = round(inclinedArea * (1 + lossPercent / 100));
       dimensions.lossPercent = lossPercent;
-      memory.push("?rea com perdas = " + String(inclinedArea).replace(".", ",") + " m2 x " + String(1 + lossPercent / 100).replace(".", ",") + " = " + String(withLoss).replace(".", ",") + " m2");
+      memory.push("Area com perdas = " + String(inclinedArea).replace(".", ",") + " m2 x " + String(1 + lossPercent / 100).replace(".", ",") + " = " + String(withLoss).replace(".", ",") + " m2");
       inclinedArea = withLoss;
     }
     return { quantity: inclinedArea, unit: "m2", dimensions: dimensions, calculationMemory: memory };
@@ -318,7 +327,7 @@
     const warnings = [];
     const assumptions = [];
     if (/concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service))) {
-      assumptions.push("A?o estrutural n?o inclu?do neste quantitativo.");
+      assumptions.push("Aco estrutural nao incluido neste quantitativo.");
     }
     if (!service) warnings.push("service_missing");
     if (!(quantity > 0) || !requestedUnit) warnings.push("quantity_missing");

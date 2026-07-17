@@ -149,3 +149,32 @@ test("ponte usa base publica real para telhamento ceramico", () => {
     }
   }
 });
+
+
+test("ponte transporta preco analitico da base publica real ate os itens", () => {
+  const win = loadRealBridge({ publicBase: true });
+  const wall = win.EloTechnicalServiceBridge.build({
+    text: "Quero fazer uma parede com bloco ceramico baiano, 30 metros de comprimento e 2,80 metros de altura. Qual material necessario?"
+  });
+
+  const block = wall.materials.find((item) => item.code === "37592");
+  assert.ok(block, "bloco ceramico 37592 deve existir");
+  assert.equal(block.unitPrice, 1.92);
+  assert.equal(block.quantity, 1142.4);
+  assert.equal(block.itemSubtotal, Math.round(block.quantity * block.unitPrice * 1000) / 1000);
+  assert.equal(block.itemSubtotal, 2193.408);
+  assert.equal(wall.totalCost, 4907.28);
+
+  const mason = wall.labor.find((item) => item.code === "88309");
+  assert.ok(mason, "pedreiro deve estar em mao de obra");
+  assert.equal(mason.unitPrice, 29);
+  assert.equal(mason.itemSubtotal, Math.round(mason.quantity * mason.unitPrice * 1000) / 1000);
+
+  const roof = win.EloTechnicalServiceBridge.build({
+    text: "Cobertura ceramica para uma casa de 8 x 12 m, inclinacao de 30%"
+  });
+  const hoist = roof.equipment.find((item) => item.code === "93281");
+  assert.ok(hoist, "guincho deve estar em equipamentos");
+  assert.equal(hoist.unitPrice, 33.45);
+  assert.equal(hoist.itemSubtotal, Math.round(hoist.quantity * hoist.unitPrice * 1000) / 1000);
+});

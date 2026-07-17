@@ -23,9 +23,12 @@
   function inputsOf(composition) { return composition && (composition.inputs || composition.materials || composition.insumos || []) || []; }
   function coefficientOf(input) { return number(input.coefficient !== undefined ? input.coefficient : input.quantityPerUnit); }
   function typeOf(input) {
-    const text = normalize(input.type || input.tipo || input.inputType || "material");
-    if (/mao|obra|labor|h$|hora/.test(text)) return "labor";
-    if (/equip/.test(text)) return "equipment";
+    const declared = normalize(input.type || input.tipo || input.inputType || "");
+    const inputUnit = unit(input.unit || input.inputUnit || input.coefficientUnit || "");
+    const name = normalize([input.name, input.description, input.material, input.inputName].join(" "));
+    const text = [declared, inputUnit, name].join(" ");
+    if (/equip|vibrador|guincho|compactador|escavadeira|retroescavadeira|martelete/.test(text) || /^(chp|chi)$/.test(inputUnit)) return "equipment";
+    if (/mao|obra|labor|pedreiro|servente|telhadista|carpinteiro|ajudante|encargos complementares/.test(text) || inputUnit === "h") return "labor";
     return "material";
   }
 
@@ -89,6 +92,10 @@
           coefficientUnit: inputUnit,
           total: total,
           unit: inputUnit,
+          unitPrice: input.unitPrice,
+          precoUnitario: input.precoUnitario,
+          totalCost: input.totalCost,
+          custoTotal: input.custoTotal,
           conversion: conversionFor(input, total, inputUnit)
         });
       });
