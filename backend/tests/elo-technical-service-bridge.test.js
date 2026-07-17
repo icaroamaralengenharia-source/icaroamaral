@@ -105,6 +105,30 @@ function areaComposition(code, description, coefficient = 2) {
   };
 }
 
+function volumeComposition(code, description, coefficient = 1.5) {
+  return {
+    code,
+    description,
+    unit: "m3",
+    source: "SINAPI",
+    inputs: [{
+      code: code + "-MAT",
+      name: description + " - material principal",
+      type: "material",
+      unit: "m3",
+      coefficient,
+      unitPrice: 0
+    }, {
+      code: code + "-MO",
+      name: description + " - oficial",
+      type: "labor",
+      unit: "h",
+      coefficient: 0.4,
+      unitPrice: 0
+    }]
+  };
+}
+
 test("parede 30 x 2,80 m resulta em 84 m2 e usa coeficientes da composicao", () => {
   const search = searchFor(composition());
   const bridge = loadBridge(search);
@@ -207,6 +231,76 @@ test("revestimento ceramico de parede usa termo tecnico especifico", () => {
   assert.match(search.calls[0].query, /revestimento ceramico parede interna/i);
 });
 
+test("escavacao de sapata unica converte cm para m e calcula volume", () => {
+  const search = searchFor(volumeComposition("SINAPI-ESC-SAP", "Escavacao manual para sapata", 2));
+  const bridge = loadBridge(search);
+  const result = bridge.build({ text: "Escavar 1 sapata de 80 x 80 x 60 cm" });
+
+  assert.equal(result.service, "escavacao manual para sapata");
+  assert.equal(result.quantity, 0.384);
+  assert.equal(result.unit, "m3");
+  assert.equal(result.dimensions.length, 0.8);
+  assert.equal(result.materials[0].quantity, 0.768);
+  assert.match(result.calculationMemory[0], /1 x 0,8 m x 0,8 m x 0,6 m = 0,384 m3/);
+  assert.match(search.calls[0].query, /escavacao manual para sapata/i);
+});
+
+test("escavacao de varias sapatas calcula volume total", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-ESC-SAP", "Escavacao manual para sapata", 2)));
+  const result = bridge.build({ text: "Escavar 8 sapatas de 80 x 80 x 60 cm" });
+
+  assert.equal(result.quantity, 3.072);
+  assert.equal(result.dimensions.count, 8);
+  assert.equal(result.materials[0].quantity, 6.144);
+});
+
+test("escavacao de vala usa comprimento largura profundidade", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-ESC-VALA", "Escavacao manual de vala", 1.2)));
+  const result = bridge.build({ text: "Escavacao de vala de 12 x 0,40 x 0,60 m" });
+
+  assert.equal(result.service, "escavacao manual de vala");
+  assert.equal(result.quantity, 2.88);
+  assert.equal(result.materials[0].quantity, 3.456);
+});
+
+test("concreto de viga baldrame por metro linear e secao", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-CONC-BAL", "Concreto para viga baldrame", 1.1)));
+  const result = bridge.build({ text: "Viga baldrame com 45 m, secao 20 x 30 cm" });
+
+  assert.equal(result.service, "concreto para viga baldrame");
+  assert.equal(result.quantity, 2.7);
+  assert.equal(result.materials[0].quantity, 2.97);
+  assert.match(result.assumptions.join(" "), /A.o estrutural n.o inclu.do neste quantitativo/);
+});
+
+test("concreto de pilares por quantidade e altura", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-CONC-PIL", "Concreto para pilar", 1.3)));
+  const result = bridge.build({ text: "Concreto para 10 pilares de secao 15 x 30 cm e 3 m de altura" });
+
+  assert.equal(result.service, "concreto para pilar");
+  assert.equal(result.quantity, 1.35);
+  assert.equal(result.dimensions.count, 10);
+  assert.equal(result.materials[0].quantity, 1.755);
+});
+
+test("volume direto em m3 usa quantidade informada", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-CONC", "Concreto para fundacao sapata", 1.4)));
+  const result = bridge.build({ text: "Concreto para sapata com 2,5 m3" });
+
+  assert.equal(result.quantity, 2.5);
+  assert.equal(result.unit, "m3");
+  assert.equal(result.materials[0].quantity, 3.5);
+});
+
+test("cinta de amarracao calcula volume e informa que aco nao esta incluido", () => {
+  const bridge = loadBridge(searchFor(volumeComposition("SINAPI-CINTA", "Concreto para cinta de amarracao", 1)));
+  const result = bridge.build({ text: "Cinta de amarracao com 30 m, secao 15 x 20 cm" });
+
+  assert.equal(result.service, "concreto para cinta de amarracao");
+  assert.equal(result.quantity, 0.9);
+  assert.match(result.assumptions.join(" "), /A.o estrutural n.o inclu.do neste quantitativo/);
+});
+
 test("dimensao ausente gera bloqueio claro", () => {
   const search = notFoundSearch();
   const bridge = loadBridge(search);
@@ -256,5 +350,5 @@ test("materiais mao de obra e equipamentos permanecem separados", () => {
 test("ponte nao contem coeficiente especifico fixo de parede", () => {
   const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-technical-service-bridge.js"), "utf8");
 
-  assert.doesNotMatch(source, /13\.5|12\.5|bloco ceramico baiano 14x19x39/i);
+  assert.doesNotMatch(source, /13\.5|12\.5|bloco ceramico baiano 14x19x39|saco de cimento|areia media|brita 1/i);
 });

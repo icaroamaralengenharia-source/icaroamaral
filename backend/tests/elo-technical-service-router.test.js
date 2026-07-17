@@ -168,6 +168,19 @@ test("roteador aceita base publica real sem fixar codigo ou quantidades da fixtu
   }
 });
 
+test("roteador calcula viga baldrame por volume e informa aco fora do escopo", () => {
+  const { elo, calls } = loadAssistant({ publicBase: true });
+  const response = elo.buildResponseForTest("Viga baldrame com 45 m, secao 20 x 30 cm");
+  const bridge = response.technicalServiceBridge;
+
+  assert.equal(response.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(bridge.quantity, 2.7);
+  assert.equal(bridge.unit, "m3");
+  assert.match(response.fullAnswer, /Mem.ria de c.lculo/i);
+  assert.match(response.fullAnswer, /A.o estrutural n.o inclu.do neste quantitativo/i);
+  assert.equal(calls.originalBuild, 0);
+});
+
 test("pedido residencial passa intacto ao ELO original", () => {
   const { elo, calls } = loadAssistant();
   const response = elo.buildResponseForTest("Quero fazer o orçamento de uma casa");

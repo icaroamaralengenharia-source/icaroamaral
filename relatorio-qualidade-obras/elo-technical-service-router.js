@@ -13,22 +13,27 @@
     return String(Math.round(number * 1000) / 1000).replace(".", ",");
   }
   function hasDimension(text) {
-    return /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|mÂ²|metros?\s+quadrados?)/i.test(text) ||
-      /\d+(?:[,.]\d+)?\s*(?:m|metros?)\s+de\s+comprimento/i.test(text) && /\d+(?:[,.]\d+)?\s*(?:m|metros?)\s+de\s+altura/i.test(text) ||
-      /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*[xX×Ã—]\s*\d+(?:[,.]\d+)?\s*(?:m|metros?)?/i.test(text);
+    return /d+(?:[,.]d+)?s*(?:m3|m^3|m?|m??|metros?s+c[u?]bicos?)/i.test(text) ||
+      /d+(?:[,.]d+)?s*(?:m2|m^2|m?|m??|metros?s+quadrados?)/i.test(text) ||
+      /d+(?:[,.]d+)?s*(?:m|metros?)s+des+comprimento/i.test(text) && /d+(?:[,.]d+)?s*(?:m|metros?)s+des+altura/i.test(text) ||
+      /se[c?][a?]os+d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?/i.test(text) ||
+      /d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:cm|m|metros?)?/i.test(text) ||
+      /d+(?:[,.]d+)?s*(?:m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:m|metros?)?/i.test(text);
   }
   function shouldRoute(message) {
     const text = normalize(message);
     if (!text) return false;
     if (/casa|residencia|residencial|sobrado|orcamento residencial|cadista|dxf|planta baixa|ocr|imagem|foto|anexo|pdf|busca web|pesquise|internet|online|noticia|atual/.test(text)) return false;
-    const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|cobertura|telhado|telha/.test(text);
+    const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
+    const hasStructuralService = /escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
     const hasIntent = /quantitativo|quantidade|material|materiais|consumo|orcamento|orcament|custo|preco|valor|quanto|qual material/.test(text);
-    return hasService && hasIntent;
+    return hasService && (hasIntent || hasStructuralService && hasDimension(message));
   }
   function missingDimensionResponse(message) {
     const text = normalize(message);
     let service = "servico";
-    if (/parede|alvenaria|bloco/.test(text)) service = "parede/alvenaria";
+    if (/escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text)) service = "servi?o estrutural";
+    else if (/parede|alvenaria|bloco/.test(text)) service = "parede/alvenaria";
     else if (/contrapiso/.test(text)) service = "contrapiso";
     else if (/piso|revestimento|ceramico|porcelanato/.test(text)) service = "piso/revestimento";
     else if (/pintura|pintar|tinta/.test(text)) service = "pintura";
@@ -62,10 +67,17 @@
       "Composição utilizada: " + [composition.code, composition.description].filter(Boolean).join(" - "),
       "Fonte: " + (composition.source || "não informada")
     ];
+    if (result.calculationMemory && result.calculationMemory.length) {
+      lines.push("", "Mem?ria de c?lculo:");
+      result.calculationMemory.forEach(function (item) { lines.push("- " + item); });
+    }
     lines.push.apply(lines, lineItems("Materiais", result.materials));
     lines.push.apply(lines, lineItems("Mão de obra", result.labor));
     lines.push.apply(lines, lineItems("Equipamentos", result.equipment));
     lines.push("");
+    if ((result.assumptions || []).indexOf("A?o estrutural n?o inclu?do neste quantitativo.") >= 0) {
+      lines.push("", "A?o estrutural n?o inclu?do neste quantitativo.");
+    }
     if (result.pricingStatus === "priced") {
       lines.push("Preço:");
       lines.push("- Custo unitário: R$ " + formatNumber(result.unitCost) + "/" + result.unit);

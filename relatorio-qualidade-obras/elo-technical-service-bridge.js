@@ -12,6 +12,11 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
   function round(value) { return Math.round(number(value) * 1000) / 1000; }
+  function toMeters(value, unitText) {
+    const parsed = number(value);
+    return /cm|centimetro/.test(normalize(unitText)) ? parsed / 100 : parsed;
+  }
+  function dimensionLabel(value) { return String(round(value)).replace(".", ",") + " m"; }
   function unit(value) {
     const text = normalize(value);
     if (/^(m2|metro quadrado|metros quadrados)$/.test(text)) return "m2";
@@ -24,7 +29,44 @@
   function extractDimensionsFromText(text) {
     const raw = clean(text);
     const normalized = normalize(raw);
-    const directArea = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    const directVolume = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m3|m\^3|metros?\s+cubicos?)/i);
+    if (directVolume) {
+      const volume = round(directVolume[1]);
+      return { quantity: volume, unit: "m3", dimensions: { volume: volume }, calculationMemory: ["Volume informado diretamente: " + String(volume).replace(".", ",") + " m3"] };
+    }
+    const elementCount = normalized.match(/(\d+)\s*(?:sapatas?|pilares?|elementos?)/);
+    const count = elementCount ? number(elementCount[1]) : 1;
+    const section = normalized.match(/secao\s+(\d+(?:[,.]\d+)?)\s*(cm|m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(cm|m|metros?)?/i);
+    if (section && /viga|baldrame|cinta/.test(normalized)) {
+      const lengthMatch = raw.match(/(?:com\s+)?(\d+(?:[,.]\d+)?)\s*(m|metros?)\b/i);
+      if (lengthMatch) {
+        const length = toMeters(lengthMatch[1], lengthMatch[2]);
+        const width = toMeters(section[1], section[2] || section[4] || "m");
+        const height = toMeters(section[3], section[4] || section[2] || "m");
+        const volume = round(length * width * height);
+        return { quantity: volume, unit: "m3", dimensions: { length: length, width: width, height: height }, calculationMemory: ["Volume = " + dimensionLabel(length) + " x " + dimensionLabel(width) + " x " + dimensionLabel(height) + " = " + String(volume).replace(".", ",") + " m3"] };
+      }
+    }
+    if (section && /pilar/.test(normalized)) {
+      const heightMatch = raw.match(/(?:altura|alto|com)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)\s*(m|metros?|cm|centimetros?)\b|(\d+(?:[,.]\d+)?)\s*(m|metros?|cm|centimetros?)\s+de\s+altura/i);
+      if (heightMatch) {
+        const width = toMeters(section[1], section[2] || section[4] || "m");
+        const depth = toMeters(section[3], section[4] || section[2] || "m");
+        const height = toMeters(heightMatch[1] || heightMatch[3], heightMatch[2] || heightMatch[4]);
+        const volume = round(count * width * depth * height);
+        return { quantity: volume, unit: "m3", dimensions: { count: count, width: width, depth: depth, height: height }, calculationMemory: ["Volume = " + count + " x " + dimensionLabel(width) + " x " + dimensionLabel(depth) + " x " + dimensionLabel(height) + " = " + String(volume).replace(".", ",") + " m3"] };
+      }
+    }
+    const triple = raw.match(/(\d+(?:[,.]\d+)?)\s*(cm|m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(cm|m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(cm|m|metros?)?/i);
+    if (triple) {
+      const fallbackUnit = triple[6] || triple[4] || triple[2] || "m";
+      const l = toMeters(triple[1], triple[2] || fallbackUnit);
+      const w = toMeters(triple[3], triple[4] || fallbackUnit);
+      const h = toMeters(triple[5], triple[6] || fallbackUnit);
+      const volume = round(count * l * w * h);
+      return { quantity: volume, unit: "m3", dimensions: { count: count, length: l, width: w, height: h }, calculationMemory: ["Volume = " + count + " x " + dimensionLabel(l) + " x " + dimensionLabel(w) + " x " + dimensionLabel(h) + " = " + String(volume).replace(".", ",") + " m3"] };
+    }
+    const directArea = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
     if (directArea) return { quantity: round(directArea[1]), unit: "m2", dimensions: { area: round(directArea[1]) } };
     const length = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+comprimento/);
     const width = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+largura/);
@@ -39,17 +81,25 @@
       const h = number(height[1]);
       return { quantity: round(l * h), unit: "m2", dimensions: { length: l, height: h } };
     }
-    const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX×]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
+    const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
     if (multiplication) {
       const a = number(multiplication[1]);
       const b = number(multiplication[2]);
       return { quantity: round(a * b), unit: "m2", dimensions: { length: a, height: b } };
     }
-    return { quantity: 0, unit: "", dimensions: {} };
+    return { quantity: 0, unit: "", dimensions: {}, calculationMemory: [] };
   }
 
   function inferServiceFromText(text) {
     const normalized = normalize(text);
+    if (/escav/.test(normalized) && /sapata/.test(normalized)) return "escavacao manual para sapata";
+    if (/escav/.test(normalized) && /vala/.test(normalized)) return "escavacao manual de vala";
+    if (/concreto/.test(normalized) && /sapata/.test(normalized)) return "concreto para fundacao sapata";
+    if (/concreto/.test(normalized) && /baldrame/.test(normalized)) return "concreto para viga baldrame";
+    if (/concreto/.test(normalized) && /pilar/.test(normalized)) return "concreto para pilar";
+    if (/concreto/.test(normalized) && /viga/.test(normalized)) return "concreto para viga";
+    if (/cinta/.test(normalized)) return "concreto para cinta de amarracao";
+    if (/viga baldrame|baldrame/.test(normalized)) return "concreto para viga baldrame";
     if (/contrapiso/.test(normalized)) return "contrapiso piso cimentado regularizacao";
     if (/chapisco/.test(normalized)) return "chapisco aplicado em alvenaria";
     if (/pintura|pintar|tinta/.test(normalized)) return "pintura latex acrilica em paredes";
@@ -135,8 +185,12 @@
     const quantity = round(input && input.quantity || extracted.quantity);
     const requestedUnit = unit(input && input.unit || extracted.unit || "m2");
     const dimensions = Object.assign({}, extracted.dimensions, input && input.dimensions || {});
+    const calculationMemory = (extracted.calculationMemory || []).slice();
     const warnings = [];
     const assumptions = [];
+    if (/concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service))) {
+      assumptions.push("A?o estrutural n?o inclu?do neste quantitativo.");
+    }
     if (!service) warnings.push("service_missing");
     if (!(quantity > 0) || !requestedUnit) warnings.push("quantity_missing");
     if (warnings.length) {
@@ -153,25 +207,27 @@
         totalCost: null,
         pricingStatus: "blocked_missing_quantity",
         assumptions: assumptions,
-        warnings: warnings
+        warnings: warnings,
+        calculationMemory: calculationMemory
       };
     }
 
     const searchEngine = settings.compositionSearchEngine || root.CompositionSearchEngine;
     if (!searchEngine || typeof searchEngine.searchOfficialCompositions !== "function") {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_search_unavailable", assumptions: assumptions, warnings: ["composition_search_unavailable"] };
+      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_search_unavailable", assumptions: assumptions, warnings: ["composition_search_unavailable"], calculationMemory: calculationMemory };
     }
-    const query = [service, text].filter(Boolean).join(" ");
+    const technicalService = /escavacao|concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service));
+    const query = technicalService ? service : [service, text].filter(Boolean).join(" ");
     const search = searchEngine.searchOfficialCompositions(query, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
     const candidate = search.candidates && search.candidates[0];
     if (!candidate) {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_composition_not_found", assumptions: assumptions, warnings: ["composition_not_found"] };
+      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_composition_not_found", assumptions: assumptions, warnings: ["composition_not_found"], calculationMemory: calculationMemory };
     }
 
     const composition = candidate.composition || candidate;
     const consumptionEngine = settings.consumptionEngine || root.EloConsumptionEngine;
     if (!consumptionEngine || typeof consumptionEngine.calculateConsumptionFromCompositions !== "function") {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"] };
+      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory };
     }
     const consumption = consumptionEngine.calculateConsumptionFromCompositions([
       { packageId: "technical_service", serviceId: "technical_service", quantity: quantity, unit: requestedUnit }
@@ -180,7 +236,7 @@
     ]);
     const calculated = consumption.consumptions && consumption.consumptions[0];
     if (!calculated) {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_failed", assumptions: assumptions, warnings: (consumption.blocked || []).map(function (item) { return item.reason; }) };
+      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_failed", assumptions: assumptions, warnings: (consumption.blocked || []).map(function (item) { return item.reason; }), calculationMemory: calculationMemory };
     }
     const groups = splitInputs(calculated.inputs);
     const price = priceComposition(composition, quantity);
@@ -204,7 +260,8 @@
       totalCost: price.totalCost,
       pricingStatus: price.pricingStatus,
       assumptions: assumptions,
-      warnings: warnings
+      warnings: warnings,
+      calculationMemory: calculationMemory
     };
   }
 

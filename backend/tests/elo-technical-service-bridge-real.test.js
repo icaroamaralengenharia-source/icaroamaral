@@ -107,3 +107,23 @@ test("ponte usa base publica real para piso ceramico por area", () => {
     assert.equal(item.quantity, Math.round(item.coefficient * result.quantity * 1000) / 1000);
   }
 });
+
+
+test("ponte usa base publica real para escavacao de vala por volume", () => {
+  const win = loadRealBridge({ publicBase: true });
+  const result = win.EloTechnicalServiceBridge.build({
+    text: "Escavacao manual de vala de 12 x 0,40 x 0,60 m"
+  });
+
+  assert.equal(result.quantity, 2.88);
+  assert.equal(result.unit, "m3");
+  assert.equal(result.composition.source, "SINAPI");
+  assert.match(result.composition.description, /ESCAVA..O.*VALA/i);
+  assert.ok(result.materials.length > 0 || result.labor.length > 0 || result.equipment.length > 0);
+
+  for (const group of [result.materials, result.labor, result.equipment]) {
+    for (const item of group) {
+      assert.equal(item.quantity, Math.round(item.coefficient * result.quantity * 1000) / 1000);
+    }
+  }
+});
