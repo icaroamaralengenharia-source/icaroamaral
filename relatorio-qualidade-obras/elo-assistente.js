@@ -2237,6 +2237,48 @@
     return formatEloBudgetV2Block_(budget, "Valores pendentes.");
   }
 
+  function buildEloBudgetV2RoomRequirementsMemory_(calculationMemory, roomRequirements) {
+    const sourceText = Array.isArray(calculationMemory) ? calculationMemory.join("\n") : String(calculationMemory || "");
+    if (/instalacoes eletricas|instala..es el.tricas/i.test(normalizeText(sourceText))) return [];
+    const totals = roomRequirements && roomRequirements.totals || null;
+    const rooms = roomRequirements && Array.isArray(roomRequirements.rooms) ? roomRequirements.rooms : [];
+    if (!totals && !rooms.length) return [];
+    const electrical = totals && totals.electrical || {};
+    const hydraulic = totals && totals.hydraulic || {};
+    const fixtures = hydraulic.fixtures || {};
+    const lines = [
+      "Requisitos de instalacoes por ambiente",
+      "",
+      "Instalacoes eletricas",
+      "- Iluminacao: " + formatEloBudgetV2Scalar_(electrical.lightingPoints || 0) + " ponto(s).",
+      "- Interruptores: " + formatEloBudgetV2Scalar_(electrical.switchPoints || 0) + " ponto(s).",
+      "- TUG: " + formatEloBudgetV2Scalar_(electrical.generalOutletPoints || 0) + " ponto(s).",
+      "- TUE: " + formatEloBudgetV2Scalar_(electrical.dedicatedOutletPoints || 0) + " ponto(s).",
+      "- Pontos especiais: " + formatEloBudgetV2Scalar_(electrical.specialPoints || 0) + " ponto(s).",
+      "",
+      "Instalacoes hidraulicas e sanitarias",
+      "- Agua fria: " + formatEloBudgetV2Scalar_(hydraulic.coldWaterPoints || 0) + " ponto(s).",
+      "- Agua quente: " + formatEloBudgetV2Scalar_(hydraulic.hotWaterPoints || 0) + " ponto(s).",
+      "- Esgoto: " + formatEloBudgetV2Scalar_(hydraulic.sewagePoints || 0) + " ponto(s).",
+      "- Ralos: " + formatEloBudgetV2Scalar_(hydraulic.floorDrains || 0) + " un.",
+      "- Aparelhos: vaso " + formatEloBudgetV2Scalar_(fixtures.toilet || 0) + "; lavatorio " + formatEloBudgetV2Scalar_(fixtures.washbasin || 0) + "; chuveiro " + formatEloBudgetV2Scalar_(fixtures.shower || 0) + "; pia " + formatEloBudgetV2Scalar_(fixtures.sink || 0) + "; tanque " + formatEloBudgetV2Scalar_(fixtures.tank || 0) + "."
+    ];
+    if (rooms.length) {
+      lines.push("", "Memoria resumida por ambiente:");
+      rooms.slice(0, 20).forEach(function (room, index) {
+        const type = room && (room.nome || room.name || room.type || room.id) || "Ambiente " + (index + 1);
+        const req = room && (room.requirements || room);
+        const roomElectrical = req && req.electrical || {};
+        const roomHydraulic = req && req.hydraulic || {};
+        const roomFixtures = roomHydraulic.fixtures || {};
+        const electricalTotal = Number(roomElectrical.lightingPoints || 0) + Number(roomElectrical.switchPoints || 0) + Number(roomElectrical.generalOutletPoints || 0) + Number(roomElectrical.dedicatedOutletPoints || 0) + Number(roomElectrical.specialPoints || 0);
+        const fixtureTotal = Object.keys(roomFixtures).reduce(function (sum, key) { return sum + Number(roomFixtures[key] || 0); }, 0);
+        lines.push("- " + formatEloBudgetV2Scalar_(type) + ": iluminacao " + formatEloBudgetV2Scalar_(roomElectrical.lightingPoints || 0) + "; tomadas " + formatEloBudgetV2Scalar_(Number(roomElectrical.generalOutletPoints || 0) + Number(roomElectrical.dedicatedOutletPoints || 0)) + "; eletrica total " + formatEloBudgetV2Scalar_(electricalTotal) + "; agua fria " + formatEloBudgetV2Scalar_(roomHydraulic.coldWaterPoints || 0) + "; esgoto " + formatEloBudgetV2Scalar_(roomHydraulic.sewagePoints || 0) + "; ralos " + formatEloBudgetV2Scalar_(roomHydraulic.floorDrains || 0) + "; aparelhos " + formatEloBudgetV2Scalar_(fixtureTotal) + ".");
+      });
+    }
+    return lines;
+  }
+
   function buildBudgetV2ProfessionalPdfData(budgetDocumentData) {
     const safe = budgetDocumentData || {};
     const budgetId = formatEloBudgetV2Scalar_(safe.budgetId) || "nao informado";
@@ -2262,7 +2304,9 @@
     const materials = formatEloBudgetV2NamedSection_("Lista de materiais qualitativa", safe.materials, "Lista qualitativa de materiais nao informada.");
     const quantities = formatEloBudgetV2NamedSection_("Quantitativos", safe.quantities, "Quantitativos pendentes.");
     const geometry = formatEloBudgetV2NamedSection_("Geometria preliminar", safe.geometry, "Geometria preliminar nao calculada.");
-    const calculationMemory = formatEloBudgetV2NamedSection_("Memoria de calculo dos quantitativos", safe.calculationMemory, "Memoria de calculo nao informada.");
+    const roomRequirementsMemory = buildEloBudgetV2RoomRequirementsMemory_(safe.calculationMemory, safe.budgetPackage && safe.budgetPackage.roomRequirements);
+    const calculationMemorySource = roomRequirementsMemory.length ? toEloBudgetV2List_(safe.calculationMemory).concat(roomRequirementsMemory) : safe.calculationMemory;
+    const calculationMemory = formatEloBudgetV2NamedSection_("Memoria de calculo dos quantitativos", calculationMemorySource, "Memoria de calculo nao informada.");
     const coverage = formatEloBudgetV2NamedSection_("Cobertura dos quantitativos", safe.quantityCoverage, "Cobertura nao informada.");
     const compositions = formatEloBudgetV2NamedSection_("Composicoes", safe.compositions, "Composicoes pendentes ou nao localizadas.");
     const displayBdi = safe.bdi ? Object.assign({}, safe.bdi) : null;
