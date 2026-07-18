@@ -67,6 +67,149 @@
     return value ? { valor: value, unidade: unit, origem: source || "inferida" } : null;
   }
 
+  const PRMA_COMPOSITION_POLICY_STATUS = {
+    AUTO_RESOLVE: "AUTO_RESOLVE",
+    DECOMPOSE_REQUIRED: "DECOMPOSE_REQUIRED",
+    KEEP_PENDING: "KEEP_PENDING"
+  };
+
+  const PRMA_COMPOSITION_POLICIES = {
+    prma_reservatorio_1000l: { status: PRMA_COMPOSITION_POLICY_STATUS.AUTO_RESOLVE, compositionStatus: "auto_resolve", searchable: true, terms: ["caixa d agua 1000 litros fornecimento instalacao"] },
+    prma_padrao_entrada: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_quadro_distribuicao: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_dps: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_aterramento: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_ligacao_agua: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_saida_esgoto: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_caixas_passagem_piso: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_caixas_passagem_laje: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_refletores_externos: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_chuveiro_eletrico: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_maquina_lavar: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_geladeira: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_microondas: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_forno_eletrico: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_cooktop: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_equip_coifa_depurador: { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" },
+    prma_dr: { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" },
+    prma_infra_telecom: { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" },
+    prma_infra_cameras: { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" },
+    prma_equip_ar_condicionado_espera: { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" },
+    prma_cond_spda_completo: { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" }
+  };
+
+  function getEloPrmaCompositionPolicy_(entry) {
+    const serviceId = clean(entry && entry.serviceId);
+    const direct = PRMA_COMPOSITION_POLICIES[serviceId];
+    if (direct) return direct;
+    if (/^prma_room_/.test(serviceId)) return { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" };
+    return { status: PRMA_COMPOSITION_POLICY_STATUS.DECOMPOSE_REQUIRED, compositionStatus: "decompose_required" };
+  }
+
+  function getEloPrmaQuantityItems_(input) {
+    const safe = input || {};
+    const pack = safe.budgetPackage || {};
+    const quantities = Array.isArray(pack.quantities) ? pack.quantities : [];
+    return quantities.filter(function (entry) { return entry && entry.source === "prma" && entry.serviceId && Number(entry.quantity) > 0; });
+  }
+
+  function mapEloPrmaCategoryToStage_(entry) {
+    const text = normalize([entry.serviceId, entry.description, entry.category, entry.classification].join(" "));
+    if (/banheiro|chuveiro|loucas|metais/.test(text)) return "loucas_metais";
+    return "instalacoes";
+  }
+
+  function prmaAutoResolvePolicy_(terms) {
+    return { status: PRMA_COMPOSITION_POLICY_STATUS.AUTO_RESOLVE, compositionStatus: "auto_resolve", searchable: true, terms: terms || [] };
+  }
+
+  function prmaPendingPolicy_() {
+    return { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending" };
+  }
+
+  function prmaPendingValidationPolicy_() {
+    return { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: "pending_validation" };
+  }
+
+  const PRMA_ATERRAMENTO_DUPLICITY_WARNING = "Confirmar se o padr\u00e3o de entrada e o aterramento geral compartilham o mesmo conjunto antes da precifica\u00e7\u00e3o.";
+
+  function buildEloPrmaEapItem_(entry, overrides) {
+    const safe = overrides || {};
+    const serviceId = clean(safe.serviceId || entry.serviceId);
+    const stageId = safe.stageId || mapEloPrmaCategoryToStage_(entry);
+    const unit = clean(safe.unit || entry.unit || "un");
+    const policy = safe.policy || getEloPrmaCompositionPolicy_(entry);
+    const searchable = policy.searchable === true;
+    const amount = safe.quantity === null ? null : (safe.quantity !== undefined ? safe.quantity : entry.quantity);
+    const terms = searchable ? unique(policy.terms || [safe.description, serviceId, entry.category, entry.classification]) : unique([serviceId, policy.compositionStatus]);
+    const mapped = item(stageId, clean(safe.description || entry.description || serviceId), safe.category || entry.category || entry.classification || "prma", unit, terms, quantity(amount, unit, "prma"), { id: "prma_" + slug(serviceId), obrigatorio: searchable });
+    mapped.origem = "prma";
+    mapped.source = "prma";
+    mapped.serviceId = serviceId;
+    mapped.parentServiceId = safe.parentServiceId || null;
+    mapped.classification = safe.classification || entry.classification || "prma";
+    mapped.compositionPolicy = policy.status;
+    mapped.compositionStatus = policy.compositionStatus;
+    mapped.compositionSearchable = searchable;
+    if (safe.technicalWarnings && safe.technicalWarnings.length) mapped.technicalWarnings = safe.technicalWarnings.slice();
+    mapped.prma = { serviceId: serviceId, parentServiceId: mapped.parentServiceId, classification: mapped.classification || null, source: "prma", compositionPolicy: policy.status };
+    return mapped;
+  }
+
+  function getEloPrmaFixedElectricalDecomposition_(entry) {
+    const parentServiceId = clean(entry && entry.serviceId);
+    const specs = {
+      prma_padrao_entrada: [
+        ["caixa_medicao", "Caixa de medicao do padrao de entrada", 1, prmaPendingValidationPolicy_()],
+        ["disjuntor_entrada", "Disjuntor de entrada do padrao", 1, prmaPendingValidationPolicy_()],
+        ["eletroduto_entrada", "Eletroduto de entrada do padrao", null, prmaPendingPolicy_()],
+        ["condutores_ramal", "Condutores do ramal de entrada", null, prmaPendingPolicy_()],
+        ["aterramento_padrao", "Aterramento do padrao de entrada", null, prmaPendingPolicy_()],
+        ["haste_aterramento", "Haste de aterramento do padrao", 1, prmaPendingValidationPolicy_(), [PRMA_ATERRAMENTO_DUPLICITY_WARNING]],
+        ["caixa_inspecao", "Caixa de inspecao de aterramento do padrao", 1, prmaPendingValidationPolicy_(), [PRMA_ATERRAMENTO_DUPLICITY_WARNING]],
+        ["estrutura_civil_suporte", "Estrutura civil de suporte do padrao", null, prmaPendingPolicy_()]
+      ],
+      prma_quadro_distribuicao: [
+        ["quadro_distribuicao", "Quadro de distribuicao eletrica", 1, prmaPendingValidationPolicy_()],
+        ["barramento_neutro", "Barramento de neutro do quadro", 1, prmaPendingValidationPolicy_()],
+        ["barramento_terra", "Barramento de terra do quadro", 1, prmaPendingValidationPolicy_()],
+        ["trilho_din", "Trilho DIN do quadro", 1, prmaPendingValidationPolicy_()],
+        ["identificacao_circuitos", "Identificacao de circuitos do quadro", 1, prmaPendingPolicy_()],
+        ["reserva_tecnica", "Reserva tecnica do quadro", null, prmaPendingPolicy_()]
+      ],
+      prma_dps: [
+        ["dps", "Dispositivo de protecao contra surtos DPS", 1, prmaPendingValidationPolicy_()]
+      ],
+      prma_aterramento: [
+        ["haste_aterramento", "Haste de aterramento", 1, prmaPendingValidationPolicy_(), [PRMA_ATERRAMENTO_DUPLICITY_WARNING]],
+        ["condutor_protecao", "Condutor de protecao do aterramento", null, prmaPendingPolicy_()],
+        ["caixa_inspecao", "Caixa de inspecao de aterramento", 1, prmaPendingValidationPolicy_(), [PRMA_ATERRAMENTO_DUPLICITY_WARNING]],
+        ["conector_aterramento", "Conector de aterramento", 1, prmaPendingValidationPolicy_()]
+      ],
+      prma_caixas_passagem_piso: [
+        ["caixa_passagem_piso", "Caixa de passagem de piso", entry.quantity, prmaPendingValidationPolicy_()]
+      ],
+      prma_caixas_passagem_laje: [
+        ["caixa_passagem_laje_forro", "Caixa de passagem de laje ou forro", entry.quantity, prmaPendingValidationPolicy_()]
+      ],
+      prma_refletores_externos: [
+        ["refletor_led_60w", "Refletor LED 60 W", entry.quantity, prmaPendingValidationPolicy_()],
+        ["ponto_eletrico_refletor", "Ponto eletrico para refletor", entry.quantity, prmaPendingValidationPolicy_()]
+      ]
+    };
+    return (specs[parentServiceId] || []).map(function (spec) {
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2], unit: "un", classification: "atomic_fixed_electrical", category: "prma_subitem_eletrica_fixa", parentServiceId: parentServiceId, policy: spec[3], technicalWarnings: spec[4] || [] });
+    });
+  }
+
+  function buildEloPrmaEapItems_(input) {
+    const items = [];
+    getEloPrmaQuantityItems_(input).forEach(function (entry) {
+      items.push(buildEloPrmaEapItem_(entry));
+      getEloPrmaFixedElectricalDecomposition_(entry).forEach(function (subitem) { items.push(subitem); });
+    });
+    return items;
+  }
   function getEloDetailedRoomRequirements_(input) {
     const safe = input || {};
     const packageRoomRequirements = safe.budgetPackage && safe.budgetPackage.roomRequirements || null;
@@ -317,11 +460,12 @@
   function buildEloBudgetEap(input) {
     const ctx = normalizeInput(input || {});
     const detailedRoomRequirements = getEloDetailedRoomRequirements_(input || {});
+    const prmaItems = buildEloPrmaEapItems_(input || {});
     if (ctx.tipo === "muro") return buildWallEap(ctx);
     if (ctx.tipo === "banheiro") return buildBathroomEap(ctx);
     const eap = buildHouseEap(ctx);
-    if (!detailedRoomRequirements.available) return eap;
-    const detailedItems = buildEloDetailedRoomRequirementItems_(detailedRoomRequirements).map(function (entry) {
+    if (!detailedRoomRequirements.available && !prmaItems.length) return eap;
+    const detailedItems = prmaItems.length ? [] : buildEloDetailedRoomRequirementItems_(detailedRoomRequirements).map(function (entry) {
       if (entry.disciplina === "loucas_metais" || /maquina de lavar/.test(normalize(entry.nome))) {
         entry.etapaId = "loucas_metais";
       }
@@ -338,7 +482,7 @@
       "tanque da area de servico quando houver": true,
       "ralos": true
     };
-    eap.itens = eap.itens.filter(function (entry) { return !genericNames[entry.nome]; }).concat(detailedItems);
+    eap.itens = eap.itens.filter(function (entry) { return !genericNames[entry.nome]; }).concat(detailedItems, prmaItems);
     eap.resumo.totalItens = eap.itens.length;
     return eap;
   }

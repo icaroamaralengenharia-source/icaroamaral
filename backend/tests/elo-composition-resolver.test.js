@@ -46,6 +46,48 @@ function fakeEngine(handler) {
   };
 }
 
+test("compositionSearchable false bloqueia busca e preserva item no resultado", () => {
+  const resolver = loadResolver();
+  const eap = {
+    bloqueadores: [],
+    itens: [
+      { id: "prma-quarto", etapaId: "instalacoes", nome: "Pacote PRMA - quarto", disciplina: "prma", unidadeEsperada: "un", obrigatorio: false, termosBusca: ["prma_room_quarto_comum", "decompose_required"], compositionStatus: "decompose_required", compositionSearchable: false },
+      { id: "prma-dr", etapaId: "instalacoes", nome: "DR", disciplina: "prma", unidadeEsperada: "un", obrigatorio: false, termosBusca: ["prma_dr", "pending"], compositionStatus: "pending", compositionSearchable: false },
+      { id: "prma-reservatorio", etapaId: "instalacoes", nome: "Reservatorio 1000 L", disciplina: "prma", unidadeEsperada: "un", obrigatorio: true, termosBusca: ["caixa d agua 1000 litros fornecimento instalacao"], compositionStatus: "auto_resolve", compositionSearchable: true },
+      { id: "legacy-piso", etapaId: "pisos", nome: "piso ceramico", disciplina: "piso", unidadeEsperada: "m2", obrigatorio: true, termosBusca: ["piso ceramico"] }
+    ]
+  };
+  const engine = fakeEngine((query, options) => {
+    if (/caixa d agua/.test(query)) return { found: true, candidates: [candidate("102607", "caixa d agua 1000 litros fornecimento instalacao", options.unit)] };
+    if (/piso ceramico/.test(query)) return { found: true, candidates: [candidate("87248", "piso ceramico assentado", options.unit)] };
+    throw new Error("busca inesperada: " + query);
+  });
+  const result = resolver.resolveEloEapCompositions({ eap, compositionSearchEngine: engine });
+
+  assert.equal(engine.calls.length, 2);
+  assert.deepEqual(engine.calls.map((call) => call.query), ["caixa d agua 1000 litros fornecimento instalacao", "piso ceramico"]);
+  assert.equal(result.resolvedItems.length, 2);
+  assert.equal(result.unresolvedItems.length, 2);
+
+  const skippedQuarto = result.unresolvedItems.find((item) => item.eapItemId === "prma-quarto");
+  const skippedDr = result.unresolvedItems.find((item) => item.eapItemId === "prma-dr");
+  assert.ok(skippedQuarto);
+  assert.ok(skippedDr);
+  [skippedQuarto, skippedDr].forEach((item) => {
+    assert.equal(item.searchSkippedReason, "composition_search_disabled");
+    assert.equal(item.motivoEscolha, "composition_search_disabled");
+    assert.equal(item.candidatos.length, 0);
+    assert.equal(item.composicaoSelecionada, null);
+    assert.equal(item.confianca, 0);
+    assert.equal(item.compositionSearchable, false);
+    assert.equal(item.obrigatorio, false);
+  });
+  assert.equal(skippedQuarto.compositionStatus, "decompose_required");
+  assert.equal(skippedDr.compositionStatus, "pending");
+  assert.equal(result.resolvedItems.find((item) => item.eapItemId === "prma-reservatorio").compositionStatus, "auto_resolve");
+  assert.equal(result.resolvedItems.find((item) => item.eapItemId === "legacy-piso").compositionStatus, undefined);
+});
+
 test("casa 80m2 resolve composicoes por item da EAP sem buscar obra inteira", () => {
   const win = loadWindow(["elo-budget-eap-engine.js", "elo-composition-resolver.js"]);
   const eap = win.EloBudgetEapEngine.buildEloBudgetEap({

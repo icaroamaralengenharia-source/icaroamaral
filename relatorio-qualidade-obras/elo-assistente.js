@@ -14569,6 +14569,100 @@
     return match ? Number(match[1]) : 0;
   }
 
+  function getEloResidentialPrmaEngine_() {
+    const root = typeof window !== "undefined" ? window : globalThis;
+    const engine = root && root.EloResidentialPrmaEngine;
+    return engine && typeof engine.build === "function" ? engine : null;
+  }
+
+  function getEloResidentialPrmaArea_(state) {
+    const safe = state || {};
+    return Number(safe.areaM2 || safe.builtAreaM2 || safe.areaConstruidaM2 || 0) || 0;
+  }
+
+  function getEloResidentialPrmaText_(state) {
+    const safe = state || {};
+    const rooms = Array.isArray(safe.rooms) ? safe.rooms.join(" ") : safe.rooms;
+    return normalizeText([safe.originalMessage, safe.lastMessage, safe.lastUserMessage, rooms].filter(Boolean).join(" "));
+  }
+
+  function buildEloResidentialPrmaSources_(state, text) {
+    const safe = state || {};
+    const sources = {};
+    const rooms = Array.isArray(safe.rooms) ? safe.rooms : [];
+    if (text.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+quartos?\b/) || Number(safe.rooms || 0) > 0) sources.bedrooms = "explicit";
+    if (text.match(/\b(uma|um|1|duas|dois|2|tres|3|quatro|4)?\s*suites?\b/) || rooms.some(function (room) { return normalizeText(room) === "suite"; })) sources.suites = "explicit";
+    if (text.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+banheiros?\b/) || /banheiro\s+social/.test(text) || Number(safe.bathrooms || 0) > 0 || Number(safe.wetAreas || 0) > 0) sources.bathrooms = "explicit";
+    if (/\blavabo\b/.test(text)) sources.lavabos = "explicit";
+    if (/\bcozinha\b/.test(text)) sources.kitchens = "explicit";
+    if (/\bsala\b/.test(text)) sources.livingRooms = "explicit";
+    if (/area\s+de\s+servico/.test(text)) sources.serviceAreas = "explicit";
+    if (/\bgaragem\b/.test(text) || safe.garage) sources.garages = "explicit";
+    if (/\bvaranda\b/.test(text)) sources.balconies = "explicit";
+    if (/\bescada\b|\bsobrado\b|2\s+pav/.test(text)) sources.stairs = "explicit";
+    return sources;
+  }
+
+  function shouldApplyEloResidentialPrma_(state, sources) {
+    const area = getEloResidentialPrmaArea_(state);
+    if (!area || !sources) return false;
+    return ["bedrooms", "bathrooms", "kitchens", "livingRooms", "serviceAreas"].some(function (key) { return sources[key] !== "explicit"; });
+  }
+
+  function buildEloResidentialPrmaExplicitProgram_(legacyProgram, sources, text) {
+    const explicitProgram = {};
+    Object.keys(sources || {}).forEach(function (key) {
+      if (sources[key] === "explicit" && legacyProgram && legacyProgram[key] !== undefined) explicitProgram[key] = legacyProgram[key];
+    });
+    const safeText = text || "";
+    const bedroomMatch = safeText.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+quartos?\b/);
+    const suiteMatch = safeText.match(/\b(uma|um|1|duas|dois|2|tres|3|quatro|4)?\s*suites?\b/);
+    const bathMatch = safeText.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+banheiros?\b/);
+    const socialBathrooms = /banheiro\s+social/.test(safeText) ? 1 : 0;
+    const lavabos = /\blavabo\b/.test(safeText) ? 1 : 0;
+    if (sources && sources.bedrooms === "explicit" && bedroomMatch) explicitProgram.bedrooms = parseEloResidentialCountWord_(bedroomMatch[1]);
+    if (sources && sources.suites === "explicit" && suiteMatch) explicitProgram.suites = parseEloResidentialCountWord_(suiteMatch[1] || "1");
+    if (sources && sources.bathrooms === "explicit") {
+      if (bathMatch) explicitProgram.bathrooms = parseEloResidentialCountWord_(bathMatch[1]);
+      if (socialBathrooms || lavabos) explicitProgram.bathrooms = Math.max(Number(explicitProgram.bathrooms || 0), Number(explicitProgram.suites || 0) + socialBathrooms + lavabos);
+    }
+    if (sources && sources.lavabos === "explicit") explicitProgram.lavabos = lavabos;
+    if (sources && sources.kitchens === "explicit") explicitProgram.kitchens = Math.max(1, Number(explicitProgram.kitchens || 0));
+    if (sources && sources.livingRooms === "explicit") explicitProgram.livingRooms = Math.max(1, Number(explicitProgram.livingRooms || 0));
+    if (sources && sources.serviceAreas === "explicit") explicitProgram.serviceAreas = Math.max(1, Number(explicitProgram.serviceAreas || 0));
+    if (sources && sources.garages === "explicit") explicitProgram.garages = Math.max(1, Number(explicitProgram.garages || 0));
+    if (sources && sources.balconies === "explicit") explicitProgram.balconies = Math.max(1, Number(explicitProgram.balconies || 0));
+    if (sources && sources.stairs === "explicit") explicitProgram.stairs = Math.max(1, Number(explicitProgram.stairs || 0));
+    return explicitProgram;
+  }
+
+  function buildEloResidentialPrmaProgramSources_(assumedProgram, explicitSources) {
+    const sources = {};
+    Object.keys(assumedProgram || {}).forEach(function (key) { sources[key] = explicitSources && explicitSources[key] === "explicit" ? "explicit" : "prma_assumed"; });
+    return sources;
+  }
+
+  function applyEloResidentialPrmaToState_(state) {
+    if (!state || state.type !== "residential") return null;
+    const area = getEloResidentialPrmaArea_(state);
+    const text = getEloResidentialPrmaText_(state);
+    const explicitSources = buildEloResidentialPrmaSources_(state, text);
+    if (!shouldApplyEloResidentialPrma_(state, explicitSources)) return null;
+    const engine = getEloResidentialPrmaEngine_();
+    if (!engine) {
+      state.prma = { applied: false, areaM2: area, programSources: explicitSources, warnings: ["Motor PRMA indisponivel; programa automatico nao aplicado."] };
+      return state.prma;
+    }
+    const legacyProgram = getEloResidentialProgramFromState_(state);
+    const prma = engine.build({
+      areaM2: area,
+      program: buildEloResidentialPrmaExplicitProgram_(legacyProgram, explicitSources, text),
+      activationReason: "Area residencial com programa ausente ou incompleto."
+    });
+    if (prma && prma.applied) prma.programSources = buildEloResidentialPrmaProgramSources_(prma.assumedProgram, explicitSources);
+    state.prma = prma;
+    return prma;
+  }
   function getEloResidentialProgramFromState_(state) {
     const safe = state || {};
     const text = normalizeText([safe.originalMessage, safe.lastMessage, Array.isArray(safe.rooms) ? safe.rooms.join(" ") : safe.rooms].filter(Boolean).join(" "));
@@ -14905,6 +14999,12 @@
     return rooms;
   }
 
+  function buildEloResidentialEffectiveProgram_(state, program) {
+    const prma = state && state.prma;
+    if (!prma || !prma.applied || !prma.assumedProgram) return program || {};
+    return Object.assign({}, program || {}, prma.assumedProgram);
+  }
+
   function buildEloResidentialRoomRequirementsPackage_(program) {
     const root = typeof window !== "undefined" ? window : globalThis;
     const engine = root && root.EloRoomRequirementsEngine;
@@ -14914,12 +15014,129 @@
     }
     return Object.assign({ available: true }, engine.validateRooms({ rooms: rooms }));
   }
+
+  function addEloResidentialPrmaQuantity_(quantities, memory, item) {
+    if (!item || !item.serviceId || !(Number(item.quantity) > 0)) return;
+    if (quantities.some(function (existing) { return existing && existing.serviceId === item.serviceId; })) return;
+    const rounded = roundEloResidentialQuantity_(item.quantity, item.unit === "un" ? 0 : 2);
+    const formula = item.formula || item.description + " PRMA";
+    const calculationText = item.description + " = " + formula + " = " + rounded + " " + item.unit;
+    quantities.push({
+      serviceId: item.serviceId,
+      description: item.description,
+      category: item.category || item.classification,
+      classification: item.classification,
+      quantity: rounded,
+      unit: item.unit || "un",
+      formula: formula,
+      memory: calculationText,
+      calculationText: calculationText,
+      inputs: item.inputs || {},
+      assumptions: item.assumptions || [],
+      range: { min: rounded, max: rounded, unit: item.unit || "un" },
+      confidence: "preliminar",
+      source: "prma",
+      dependencies: item.dependencies || ["validacao do programa residencial"],
+      warnings: item.warnings || [],
+      revision: item.revision || 1
+    });
+    memory.push("- " + calculationText + ".");
+  }
+
+  function addEloResidentialPrmaBlocked_(blockedServices, item) {
+    if (!item || !item.serviceId) return;
+    if (blockedServices.some(function (existing) { return existing && existing.serviceId === item.serviceId; })) return;
+    blockedServices.push({ serviceId: item.serviceId, description: item.description, reason: item.reason || item.rule || "Item condicional PRMA sem quantidade segura.", source: "prma", classification: "CONDITIONAL", rule: item.rule || "Confirmar aplicabilidade antes de quantificar." });
+  }
+
+  function removeEloResidentialPrmaLegacySummaryQuantities_(quantities, prma) {
+    if (!prma || !prma.applied || !Array.isArray(quantities)) return;
+    const summaryIds = ["pontos_eletricos", "pontos_iluminacao", "pontos_hidraulicos", "pontos_sanitarios", "chuveiros", "loucas", "metais"];
+    for (let index = quantities.length - 1; index >= 0; index -= 1) {
+      const item = quantities[index];
+      if (item && item.source !== "prma" && summaryIds.indexOf(item.serviceId) >= 0) quantities.splice(index, 1);
+    }
+  }
+
+  function addEloResidentialPrmaItems_(quantities, blockedServices, memory, prma, program, revision) {
+    if (!prma || !prma.applied) return;
+    const fixed = Array.isArray(prma.fixedResidentialPackage) ? prma.fixedResidentialPackage : [];
+    const rooms = prma.roomPackages || {};
+    const equipment = prma.equipmentPackages || {};
+    const conditional = Array.isArray(prma.conditionalItems) ? prma.conditionalItems : [];
+    const safeProgram = program || {};
+    const hasFixed = function (id) { return fixed.some(function (item) { return item && item.id === id; }); };
+    const addFixed = function (serviceId, description, quantity, sourceId, inputs) {
+      if (!hasFixed(sourceId)) return;
+      addEloResidentialPrmaQuantity_(quantities, memory, { serviceId: serviceId, description: description, classification: "FIXED_PER_HOUSE", category: "prma_pacote_fixo", quantity: quantity || 1, unit: "un", formula: "PRMA " + sourceId, inputs: Object.assign({ prmaPackageId: sourceId }, inputs || {}), revision: revision });
+    };
+    addFixed("prma_padrao_entrada", "Padrao de entrada de energia PRMA", 1, "entrada_energia");
+    addFixed("prma_quadro_distribuicao", "Quadro de distribuicao PRMA", 1, "quadro_distribuicao");
+    addFixed("prma_dps", "DPS no quadro de distribuicao PRMA", 1, "quadro_distribuicao");
+    addFixed("prma_dr", "DR no quadro de distribuicao PRMA", 1, "quadro_distribuicao");
+    addFixed("prma_aterramento", "Aterramento PRMA", 1, "entrada_energia");
+    addFixed("prma_reservatorio_1000l", "Reservatorio preliminar de 1000 litros PRMA", 1, "hidraulica_geral");
+    addFixed("prma_ligacao_agua", "Ligacao de agua PRMA", 1, "hidraulica_geral");
+    addFixed("prma_saida_esgoto", "Saida de esgoto PRMA", 1, "esgoto_geral");
+    addFixed("prma_caixas_passagem_piso", "Caixas de passagem de piso PRMA", 8, "caixas_passagem_fixas");
+    addFixed("prma_caixas_passagem_laje", "Caixas de passagem de laje ou forro PRMA", 8, "caixas_passagem_fixas");
+    addFixed("prma_refletores_externos", "Refletores externos PRMA", 3, "iluminacao_externa");
+    addFixed("prma_infra_telecom", "Infraestrutura de telecom PRMA", 1, "dados_comunicacao");
+    addFixed("prma_infra_cameras", "Infraestrutura para cameras PRMA", 1, "dados_comunicacao");
+
+    const roomCount = {
+      sala_estar: Number(safeProgram.livingRooms || 0),
+      sala_jantar: Number(safeProgram.diningAreas || 0),
+      quarto_comum: Math.max(0, Number(safeProgram.bedrooms || 0) - Number(safeProgram.suites || 0)),
+      dormitorio_suite: Number(safeProgram.suites || 0),
+      cozinha: Number(safeProgram.kitchens || 0),
+      banheiro_completo: Number(safeProgram.bathrooms || 0),
+      area_servico: Number(safeProgram.serviceAreas || 0),
+      varanda: Number(safeProgram.balconies || 0)
+    };
+    Object.keys(roomCount).forEach(function (roomId) {
+      const pack = rooms[roomId];
+      const count = roomCount[roomId];
+      if (!pack || !(count > 0)) return;
+      const roomItems = roomId === "banheiro_completo" ? (pack.items || []).filter(function (name) { return normalizeText(name) !== "chuveiro"; }) : pack.items || [];
+      const roomInputs = { prmaPackageId: roomId, counts: pack.counts || {}, items: roomItems };
+      if (roomId === "banheiro_completo") roomInputs.responsibility = "ambiente_e_acessorios_sem_chuveiro_dedicado";
+      addEloResidentialPrmaQuantity_(quantities, memory, { serviceId: "prma_room_" + roomId, description: "Pacote PRMA por ambiente - " + roomId, classification: "PER_ROOM", category: "prma_pacote_ambiente", quantity: count, unit: "un", formula: count + " ambiente(s) x pacote " + roomId, inputs: roomInputs, revision: revision });
+    });
+
+    const equipmentCount = {
+      chuveiro_eletrico: Number(safeProgram.bathrooms || 0),
+      maquina_lavar: Number(safeProgram.serviceAreas || 0),
+      geladeira: Number(safeProgram.kitchens || 0),
+      microondas: Number(safeProgram.kitchens || 0),
+      forno_eletrico: Number(safeProgram.kitchens || 0),
+      cooktop: Number(safeProgram.kitchens || 0),
+      coifa_depurador: Number(safeProgram.kitchens || 0)
+    };
+    Object.keys(equipmentCount).forEach(function (equipmentId) {
+      const pack = equipment[equipmentId];
+      const count = equipmentCount[equipmentId];
+      if (!pack || !(count > 0)) return;
+      const equipmentInputs = { prmaPackageId: equipmentId, counts: pack.counts || {} };
+      if (equipmentId === "chuveiro_eletrico") equipmentInputs.responsibility = "equipamento_e_circuito_dedicado_do_chuveiro";
+      addEloResidentialPrmaQuantity_(quantities, memory, { serviceId: "prma_equip_" + equipmentId, description: "Previsao PRMA por equipamento - " + equipmentId, classification: "PER_EQUIPMENT", category: "prma_pacote_equipamento", quantity: count, unit: "un", formula: count + " equipamento(s) previsto(s) x pacote " + equipmentId, inputs: equipmentInputs, revision: revision });
+    });
+    if (Number(safeProgram.kitchens || 0) > 0) addEloResidentialPrmaQuantity_(quantities, memory, { serviceId: "prma_equip_lava_loucas_reserva", description: "Reserva para lava-loucas PRMA", classification: "PER_EQUIPMENT_RESERVE", category: "prma_pacote_equipamento", quantity: Number(safeProgram.kitchens || 0), unit: "un", formula: "cozinhas " + Number(safeProgram.kitchens || 0) + " x reserva de ponto", inputs: { providedEquipment: false, reserveOnly: true }, revision: revision });
+    const acProvision = Number(safeProgram.bedrooms || 0) + Number(safeProgram.livingRooms || 0);
+    if (acProvision > 0) addEloResidentialPrmaQuantity_(quantities, memory, { serviceId: "prma_equip_ar_condicionado_espera", description: "Espera para ar-condicionado PRMA", classification: "PER_EQUIPMENT_RESERVE", category: "prma_pacote_equipamento", quantity: acProvision, unit: "un", formula: "quartos + sala = " + acProvision + " espera(s)", inputs: { providedEquipment: false, reserveOnly: true }, revision: revision });
+
+    conditional.forEach(function (item) {
+      addEloResidentialPrmaBlocked_(blockedServices, { serviceId: "prma_cond_" + item.id, description: "Condicional PRMA - " + item.id, rule: item.rule });
+    });
+  }
   function buildEloResidentialPreliminaryQuantityPackage_(state, engineBudget) {
     const safe = state || {};
     const geometry = buildEloResidentialPreliminaryGeometry_(safe);
     const area = geometry.builtAreaM2;
     const floors = geometry.floors;
-    const program = geometry.program;
+    const legacyResidentialProgram = geometry.program;
+    const effectiveResidentialProgram = buildEloResidentialEffectiveProgram_(safe, legacyResidentialProgram);
+    const program = effectiveResidentialProgram;
     const isSobrado = floors > 1 || /sobrado/.test(normalizeText(safe.constructionType || safe.originalMessage || ""));
     const roofText = normalizeText(geometry.roofSystem || safe.roof || safe.originalMessage || "");
     const revision = Array.isArray(safe.revisions) && safe.revisions.length ? safe.revisions.length + 1 : 1;
@@ -14927,8 +15144,12 @@
     const memory = [];
     const blockedServices = [];
     const wetFloorAreaM2 = program.bathrooms * 4.5 + program.kitchens * 8 + program.serviceAreas * 4;
+    const wetWallAreaM2 = program.bathrooms * 18 + program.kitchens * 12 + program.serviceAreas * 8;
     const externalWallNetM2 = Math.max(0, geometry.externalWallGrossM2 - geometry.externalWallGrossM2 * 0.16);
-    const internalWallNetM2 = Math.max(0, geometry.internalWallFacesM2 - (program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68);
+    const effectiveInternalDoorAreaM2 = (program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68;
+    const effectiveOpeningsM2 = geometry.externalWallGrossM2 * 0.16 + effectiveInternalDoorAreaM2;
+    const effectiveMasonryNetM2 = Math.max(0, geometry.externalWallGrossM2 + geometry.internalWallFacesM2 - effectiveOpeningsM2);
+    const internalWallNetM2 = Math.max(0, geometry.internalWallFacesM2 - effectiveInternalDoorAreaM2);
     const foundationConcrete = area * (isSobrado ? 0.07 : 0.055);
     const structuralConcrete = area * (isSobrado ? 0.115 : 0.085);
     const baldrameLengthM = geometry.externalPerimeterM + geometry.internalWallLengthM * 0.35;
@@ -14952,6 +15173,8 @@
     const pontosSanitarios = roomTotals ? Number(hydraulicTotals.sewagePoints || 0) + Number(hydraulicTotals.floorDrains || 0) : legacyPontosSanitarios;
     const chuveiros = roomTotals ? Number(fixtures.shower || 0) : legacyChuveiros;
     const loucas = roomTotals ? Number(fixtures.toilet || 0) + Number(fixtures.washbasin || 0) : legacyLoucas;
+    const metais = program.bathrooms * 3 + program.kitchens + program.serviceAreas;
+    const installationSummary = safe.prma && safe.prma.applied ? { electricalPoints: pontosEletricos, lightingPoints: pontosIluminacao, hydraulicPoints: pontosHidraulicos, sanitaryPoints: pontosSanitarios, showers: chuveiros, sanitaryFixtures: loucas, metals: metais } : null;
 
     function item(serviceId, description, category, quantity, unit, formula, inputs, confidence, rangeFactor, warnings, dependencies) {
       if (!(Number(quantity) > 0)) {
@@ -14980,15 +15203,15 @@
     if (isSobrado) item("escada_concreto", "Escada preliminar do sobrado", "estrutura", 1, "un", "1 escada para ligacao entre pavimentos", { stairs: 1 }, "baixa", 0.25);
     item("alvenaria_externa", "Alvenaria externa bruta", "vedacoes", geometry.externalWallGrossM2, "m2", "perimetro externo " + geometry.externalPerimeterM + " x pe-direito 2.80 x pavimentos " + floors, geometry, "media", 0.16);
     item("alvenaria_interna", "Faces de alvenaria interna", "vedacoes", geometry.internalWallFacesM2, "m2", "area construida " + area + " x 0.62 x 2.80 x 2 faces", { builtAreaM2: area }, "baixa", 0.22);
-    item("alvenaria_liquida", "Alvenaria liquida descontando vaos", "vedacoes", geometry.masonryNetM2, "m2", "alvenaria externa + interna - vaos " + geometry.openingsM2, geometry, "media", 0.18);
+    item("alvenaria_liquida", "Alvenaria liquida descontando vaos", "vedacoes", roundEloResidentialQuantity_(effectiveMasonryNetM2), "m2", "alvenaria externa + interna - vaos " + roundEloResidentialQuantity_(effectiveOpeningsM2), Object.assign({}, geometry, { openingsM2: roundEloResidentialQuantity_(effectiveOpeningsM2), masonryNetM2: roundEloResidentialQuantity_(effectiveMasonryNetM2) }), "media", 0.18);
     item("vergas", "Vergas preliminares sobre vaos", "vedacoes", lintelLengthM, "m", "vaos principais " + roundEloResidentialQuantity_(lintelLengthM / 1.2, 0) + " x 1.20 m", { openings: lintelLengthM / 1.2 }, "baixa", 0.22);
     item("contravergas", "Contravergas preliminares sob janelas", "vedacoes", windowCount * 1.2, "m", "janelas " + windowCount + " x 1.20 m", { windows: windowCount }, "baixa", 0.22);
-    item("chapisco", "Chapisco em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
-    item("emboco", "Emboco preliminar em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
-    item("reboco", "Reboco preliminar em paredes", "revestimentos", geometry.masonryNetM2, "m2", "area liquida de alvenaria " + geometry.masonryNetM2, { masonryNetM2: geometry.masonryNetM2 }, "media", 0.18);
-    item("pintura_interna", "Pintura interna preliminar", "pintura", Math.max(0, internalWallNetM2 - geometry.wetWallAreaM2), "m2", "paredes internas liquidas " + roundEloResidentialQuantity_(internalWallNetM2) + " - areas molhadas " + geometry.wetWallAreaM2, geometry, "media", 0.2);
+    item("chapisco", "Chapisco em paredes", "revestimentos", roundEloResidentialQuantity_(effectiveMasonryNetM2), "m2", "area liquida de alvenaria " + roundEloResidentialQuantity_(effectiveMasonryNetM2), { masonryNetM2: roundEloResidentialQuantity_(effectiveMasonryNetM2) }, "media", 0.18);
+    item("emboco", "Emboco preliminar em paredes", "revestimentos", roundEloResidentialQuantity_(effectiveMasonryNetM2), "m2", "area liquida de alvenaria " + roundEloResidentialQuantity_(effectiveMasonryNetM2), { masonryNetM2: roundEloResidentialQuantity_(effectiveMasonryNetM2) }, "media", 0.18);
+    item("reboco", "Reboco preliminar em paredes", "revestimentos", roundEloResidentialQuantity_(effectiveMasonryNetM2), "m2", "area liquida de alvenaria " + roundEloResidentialQuantity_(effectiveMasonryNetM2), { masonryNetM2: roundEloResidentialQuantity_(effectiveMasonryNetM2) }, "media", 0.18);
+    item("pintura_interna", "Pintura interna preliminar", "pintura", Math.max(0, internalWallNetM2 - roundEloResidentialQuantity_(wetWallAreaM2)), "m2", "paredes internas liquidas " + roundEloResidentialQuantity_(internalWallNetM2) + " - areas molhadas " + roundEloResidentialQuantity_(wetWallAreaM2), Object.assign({}, geometry, { wetWallAreaM2: roundEloResidentialQuantity_(wetWallAreaM2) }), "media", 0.2);
     item("pintura_externa", "Pintura externa preliminar", "pintura", externalWallNetM2, "m2", "parede externa bruta " + geometry.externalWallGrossM2 + " - 16% de vaos", geometry, "media", 0.2);
-    item("revestimento_areas_molhadas", "Revestimento de paredes em areas molhadas", "revestimentos", geometry.wetWallAreaM2, "m2", "banheiros " + program.bathrooms + " x 18 + cozinhas " + program.kitchens + " x 12 + servico " + program.serviceAreas + " x 8", program, "media", 0.22);
+    item("revestimento_areas_molhadas", "Revestimento de paredes em areas molhadas", "revestimentos", roundEloResidentialQuantity_(wetWallAreaM2), "m2", "banheiros " + program.bathrooms + " x 18 + cozinhas " + program.kitchens + " x 12 + servico " + program.serviceAreas + " x 8", program, "media", 0.22);
     item("contrapiso", "Contrapiso interno", "pisos", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.12);
     item("piso_interno", "Piso interno", "pisos", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.12);
     item("piso_area_molhada", "Piso de areas molhadas", "pisos", wetFloorAreaM2, "m2", "banheiros " + program.bathrooms + " x 4.5 + cozinha 8 + servico " + program.serviceAreas + " x 4", program, "media", 0.18);
@@ -15003,11 +15226,13 @@
     item("pontos_sanitarios", "Pontos sanitarios preliminares", "instalacoes_hidrossanitarias", pontosSanitarios, "un", roomTotals ? "sewagePoints + floorDrains" : "banheiros x 3 + cozinha + servico", roomTotals || program, "media", 0.2);
     item("chuveiros", "Chuveiros preliminares", "instalacoes_hidrossanitarias", chuveiros, "un", roomTotals ? "fixtures.shower" : "banheiros " + program.bathrooms + " x 1 chuveiro", roomTotals ? fixtures : program, "media", 0.15);
     item("loucas", "Loucas sanitarias preliminares", "loucas_metais", loucas, "un", roomTotals ? "fixtures.toilet + fixtures.washbasin" : "banheiros x 2 + cozinha + servico", roomTotals ? fixtures : program, "media", 0.18);
-    item("metais", "Metais sanitarios preliminares", "loucas_metais", program.bathrooms * 3 + program.kitchens + program.serviceAreas, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.18);
+    item("metais", "Metais sanitarios preliminares", "loucas_metais", metais, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.18);
     item("limpeza_final", "Limpeza final de obra", "servicos_finais", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.08, [], ["area construida"]);
+    addEloResidentialPrmaItems_(quantities, blockedServices, memory, safe.prma, program, revision);
+    removeEloResidentialPrmaLegacySummaryQuantities_(quantities, safe.prma);
 
     const mainServices = quantities.length + blockedServices.length;
-    return { geometry: Object.assign({}, geometry, { wetFloorAreaM2: roundEloResidentialQuantity_(wetFloorAreaM2), externalWallNetM2: roundEloResidentialQuantity_(externalWallNetM2), internalWallNetM2: roundEloResidentialQuantity_(internalWallNetM2) }), roomRequirements: roomRequirements, quantities: quantities, calculationMemory: ["Memoria de calculo preliminar residencial", "Geometria-base: area construida " + area + " m2; pavimentos " + floors + "; implantacao " + geometry.footprintAreaM2 + " m2; perimetro " + geometry.externalPerimeterM + " m.", "Programa-base: " + program.bedrooms + " quarto(s), " + program.suites + " suite(s), " + program.bathrooms + " banheiro(s), garagem " + program.garages + ", varanda " + program.balconies + "."].concat(memory), technicalAssumptions: geometry.assumptions.concat(["Indices usados sao preliminares e servem para briefing quantitativo, sem precos.", "Precos, encargos e BDI sao calculados apenas quando fonte, UF, competencia e regime estiverem explicitos."]), quantityCoverage: { quantifiedServices: quantities.length, mainServices: mainServices, blockedServices: blockedServices.length, percent: mainServices ? roundEloResidentialQuantity_(quantities.length / mainServices * 100, 1) : 0 }, quantityWarnings: ["Quantitativos preliminares inferidos para auditoria de escopo.", "Nao ha dimensionamento estrutural, sondagem, perdas comerciais, precos, SINAPI, ORSE, encargos ou BDI."], blockedServices: blockedServices, engineQuantities: engineBudget && Array.isArray(engineBudget.quantities) ? engineBudget.quantities : [] };
+    return { prma: safe.prma || null, geometry: Object.assign({}, geometry, { program: program, legacyProgram: legacyResidentialProgram, wetFloorAreaM2: roundEloResidentialQuantity_(wetFloorAreaM2), wetWallAreaM2: roundEloResidentialQuantity_(wetWallAreaM2), openingsM2: roundEloResidentialQuantity_(effectiveOpeningsM2), masonryNetM2: roundEloResidentialQuantity_(effectiveMasonryNetM2), externalWallNetM2: roundEloResidentialQuantity_(externalWallNetM2), internalWallNetM2: roundEloResidentialQuantity_(internalWallNetM2) }), roomRequirements: roomRequirements, installationSummary: installationSummary, quantities: quantities, calculationMemory: ["Memoria de calculo preliminar residencial", "Geometria-base: area construida " + area + " m2; pavimentos " + floors + "; implantacao " + geometry.footprintAreaM2 + " m2; perimetro " + geometry.externalPerimeterM + " m.", "Programa-base: " + program.bedrooms + " quarto(s), " + program.suites + " suite(s), " + program.bathrooms + " banheiro(s), garagem " + program.garages + ", varanda " + program.balconies + "."].concat(memory), technicalAssumptions: geometry.assumptions.concat(["Indices usados sao preliminares e servem para briefing quantitativo, sem precos.", "Precos, encargos e BDI sao calculados apenas quando fonte, UF, competencia e regime estiverem explicitos."]), quantityCoverage: { quantifiedServices: quantities.length, mainServices: mainServices, blockedServices: blockedServices.length, percent: mainServices ? roundEloResidentialQuantity_(quantities.length / mainServices * 100, 1) : 0 }, quantityWarnings: ["Quantitativos preliminares inferidos para auditoria de escopo.", "Nao ha dimensionamento estrutural, sondagem, perdas comerciais, precos, SINAPI, ORSE, encargos ou BDI."], blockedServices: blockedServices, engineQuantities: engineBudget && Array.isArray(engineBudget.quantities) ? engineBudget.quantities : [] };
   }
   const DEFAULT_RESIDENTIAL_PREMISES = {
     maxAreaM2: 140,
@@ -15848,6 +16073,7 @@
       if (!state || state.type === "wall") return null;
       if (state.type === "reforma_banheiro") return this.buildBathroomRenovationResponse_(state, options);
       if (state.type !== "residential" && state.type !== "renovation") return null;
+      if (state.type === "residential") applyEloResidentialPrmaToState_(state);
       const confirmed = [];
       const inherited = [];
       const pending = state.missingFields || [];

@@ -149,10 +149,11 @@
       searchedTerms: result.searchedTerms || []
     };
   }
-  function unresolvedFrom(item, candidatos, reason) {
+  function unresolvedFrom(item, candidatos, reason, extra) {
+    const safeExtra = extra || {};
     const pendencias = (item.pendencias || []).slice();
     if (pendencias.indexOf("composicao_sinapi_nao_resolvida") < 0) pendencias.push("composicao_sinapi_nao_resolvida");
-    return {
+    return Object.assign({
       eapItemId: item.id,
       etapaId: item.etapaId,
       nome: item.nome,
@@ -166,8 +167,10 @@
       pendencias: pendencias,
       bloqueadores: (item.bloqueadores || []).slice(),
       obrigatorio: item.obrigatorio !== false,
+      compositionStatus: item.compositionStatus,
+      compositionSearchable: item.compositionSearchable,
       auxiliaresDetectadas: []
-    };
+    }, safeExtra);
   }
   function resolvedFrom(item, ranked) {
     return {
@@ -184,6 +187,8 @@
       pendencias: (item.pendencias || []).slice(),
       bloqueadores: (item.bloqueadores || []).slice(),
       obrigatorio: item.obrigatorio !== false,
+      compositionStatus: item.compositionStatus,
+      compositionSearchable: item.compositionSearchable,
       auxiliaresDetectadas: []
     };
   }
@@ -197,6 +202,10 @@
     const eapBlockers = (eap.bloqueadores || []).slice();
 
     (eap.itens || []).forEach(function (entry) {
+      if (entry && entry.compositionSearchable === false) {
+        unresolvedItems.push(unresolvedFrom(entry, [], "composition_search_disabled", { searchSkippedReason: "composition_search_disabled" }));
+        return;
+      }
       const search = searchItem(entry, engine, maxCandidates);
       const ranked = search.candidatos.map(function (candidate) {
         return rankCandidate(entry, candidate);
