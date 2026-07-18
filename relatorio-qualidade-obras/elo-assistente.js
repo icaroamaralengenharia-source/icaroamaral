@@ -14840,6 +14840,36 @@
     const score = Math.max(0, Math.min(100, Math.round(100 - blockers.length * 12 - warnings.length * 4 - Math.max(0, 100 - pricedCoverage) * 0.25)));
     return { score: score, status: status, blockers: blockers, warnings: warnings, checks: checks, metrics: { totalServices: quantities.length, quantifiedServices: quantities.filter(function (q) { return Number(q.quantity) > 0; }).length, quantitiesWithMemory: quantities.filter(function (q) { return q.formula && (q.memory || q.calculationText); }).length, financialLines: financialServiceLines.length, pricedLines: financialServiceLines.filter(function (line) { return line.directCost !== null; }).length, resolvedCriticalLines: financialServiceLines.filter(function (line) { return line.critical && line.directCost !== null; }).length, totalCriticalLines: financialServiceLines.filter(function (line) { return line.critical; }).length, pricedCoveragePercent: pricedCoverage } };
   }
+
+  function pushEloResidentialRequirementRooms_(rooms, type, count) {
+    const total = Math.max(0, Math.round(Number(count || 0)));
+    for (let index = 0; index < total; index += 1) rooms.push({ type: type });
+  }
+
+  function buildEloResidentialRequirementRooms_(program) {
+    const safe = program || {};
+    const rooms = [];
+    pushEloResidentialRequirementRooms_(rooms, "quarto", safe.bedrooms);
+    pushEloResidentialRequirementRooms_(rooms, "sala", safe.livingRooms);
+    pushEloResidentialRequirementRooms_(rooms, "cozinha", safe.kitchens);
+    pushEloResidentialRequirementRooms_(rooms, "banheiro", safe.bathrooms);
+    pushEloResidentialRequirementRooms_(rooms, "lavabo", safe.lavabos);
+    pushEloResidentialRequirementRooms_(rooms, "area_servico", safe.serviceAreas);
+    pushEloResidentialRequirementRooms_(rooms, "garagem", safe.garages);
+    pushEloResidentialRequirementRooms_(rooms, "varanda", safe.balconies);
+    pushEloResidentialRequirementRooms_(rooms, "escada", safe.stairs);
+    return rooms;
+  }
+
+  function buildEloResidentialRoomRequirementsPackage_(program) {
+    const root = typeof window !== "undefined" ? window : globalThis;
+    const engine = root && root.EloRoomRequirementsEngine;
+    const rooms = buildEloResidentialRequirementRooms_(program);
+    if (!engine || typeof engine.validateRooms !== "function") {
+      return { available: false, rooms: rooms, totals: null, assumptions: [], warnings: ["Motor de requisitos por ambiente indisponivel; calculos legados de instalacoes devem ser preservados temporariamente."] };
+    }
+    return Object.assign({ available: true }, engine.validateRooms({ rooms: rooms }));
+  }
   function buildEloResidentialPreliminaryQuantityPackage_(state, engineBudget) {
     const safe = state || {};
     const geometry = buildEloResidentialPreliminaryGeometry_(safe);
@@ -14861,6 +14891,23 @@
     const lintelLengthM = (program.bedrooms + program.bathrooms + program.kitchens + program.livingRooms + program.serviceAreas + program.garages) * 1.2;
     const doorCount = program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + 1;
     const windowCount = Math.max(4, program.bedrooms + program.bathrooms + program.kitchens + program.livingRooms + program.serviceAreas);
+    const roomRequirements = buildEloResidentialRoomRequirementsPackage_(program);
+    const roomTotals = roomRequirements.available && roomRequirements.totals ? roomRequirements.totals : null;
+    const electricalTotals = roomTotals && roomTotals.electrical || {};
+    const hydraulicTotals = roomTotals && roomTotals.hydraulic || {};
+    const fixtures = hydraulicTotals.fixtures || {};
+    const legacyPontosIluminacao = program.bedrooms + program.livingRooms * 2 + program.kitchens + program.bathrooms + program.serviceAreas + program.garages + program.balconies + (isSobrado ? 1 : 0);
+    const legacyPontosEletricos = program.bedrooms * 6 + program.livingRooms * 8 + program.kitchens * 8 + program.bathrooms * 3 + program.serviceAreas * 4 + program.garages * 3 + program.balconies * 2;
+    const legacyPontosHidraulicos = program.bathrooms * 3 + program.kitchens * 2 + program.serviceAreas * 2;
+    const legacyPontosSanitarios = program.bathrooms * 3 + program.kitchens + program.serviceAreas;
+    const legacyChuveiros = program.bathrooms;
+    const legacyLoucas = program.bathrooms * 2 + program.kitchens + program.serviceAreas;
+    const pontosIluminacao = roomTotals ? Number(electricalTotals.lightingPoints || 0) : legacyPontosIluminacao;
+    const pontosEletricos = roomTotals ? Number(electricalTotals.lightingPoints || 0) + Number(electricalTotals.switchPoints || 0) + Number(electricalTotals.generalOutletPoints || 0) + Number(electricalTotals.dedicatedOutletPoints || 0) + Number(electricalTotals.specialPoints || 0) : legacyPontosEletricos;
+    const pontosHidraulicos = roomTotals ? Number(hydraulicTotals.coldWaterPoints || 0) + Number(hydraulicTotals.hotWaterPoints || 0) : legacyPontosHidraulicos;
+    const pontosSanitarios = roomTotals ? Number(hydraulicTotals.sewagePoints || 0) + Number(hydraulicTotals.floorDrains || 0) : legacyPontosSanitarios;
+    const chuveiros = roomTotals ? Number(fixtures.shower || 0) : legacyChuveiros;
+    const loucas = roomTotals ? Number(fixtures.toilet || 0) + Number(fixtures.washbasin || 0) : legacyLoucas;
 
     function item(serviceId, description, category, quantity, unit, formula, inputs, confidence, rangeFactor, warnings, dependencies) {
       if (!(Number(quantity) > 0)) {
@@ -14906,17 +14953,17 @@
     item("cobertura", roofText.indexOf("laje") >= 0 ? "Laje impermeabilizada de cobertura" : "Cobertura em telha ceramica preliminar", "cobertura", geometry.roofAreaM2, "m2", "area de implantacao " + geometry.footprintAreaM2 + " x fator de cobertura", geometry, "media", 0.18);
     item("esquadrias_portas", "Portas internas e externas", "esquadrias", doorCount, "un", "quartos + banheiros + cozinha + servico + garagem + porta externa", program, "media", 0.18);
     item("esquadrias_janelas", "Janelas preliminares", "esquadrias", windowCount, "un", "ambientes principais com ventilacao natural", program, "media", 0.2);
-    item("pontos_eletricos", "Pontos eletricos preliminares", "instalacoes_eletricas", program.bedrooms * 6 + program.livingRooms * 8 + program.kitchens * 8 + program.bathrooms * 3 + program.serviceAreas * 4 + program.garages * 3 + program.balconies * 2, "un", "programa de ambientes x indices de pontos", program, "media", 0.2);
-    item("pontos_iluminacao", "Pontos de iluminacao preliminares", "instalacoes_eletricas", program.bedrooms + program.livingRooms * 2 + program.kitchens + program.bathrooms + program.serviceAreas + program.garages + program.balconies + (isSobrado ? 1 : 0), "un", "um ponto por ambiente principal, sala com 2 e escada quando sobrado", program, "media", 0.18);
-    item("pontos_hidraulicos", "Pontos hidraulicos preliminares", "instalacoes_hidrossanitarias", program.bathrooms * 3 + program.kitchens * 2 + program.serviceAreas * 2, "un", "banheiros x 3 + cozinhas x 2 + servico x 2", program, "media", 0.2);
-    item("pontos_sanitarios", "Pontos sanitarios preliminares", "instalacoes_hidrossanitarias", program.bathrooms * 3 + program.kitchens + program.serviceAreas, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.2);
-    item("chuveiros", "Chuveiros preliminares", "instalacoes_hidrossanitarias", program.bathrooms, "un", "banheiros " + program.bathrooms + " x 1 chuveiro", program, "media", 0.15);
-    item("loucas", "Loucas sanitarias preliminares", "loucas_metais", program.bathrooms * 2 + program.kitchens + program.serviceAreas, "un", "banheiros x 2 + cozinha + servico", program, "media", 0.18);
+    item("pontos_eletricos", "Pontos eletricos preliminares", "instalacoes_eletricas", pontosEletricos, "un", roomTotals ? "lightingPoints + switchPoints + generalOutletPoints + dedicatedOutletPoints + specialPoints" : "programa de ambientes x indices de pontos", roomTotals || program, "media", 0.2);
+    item("pontos_iluminacao", "Pontos de iluminacao preliminares", "instalacoes_eletricas", pontosIluminacao, "un", roomTotals ? "totals.electrical.lightingPoints" : "um ponto por ambiente principal, sala com 2 e escada quando sobrado", roomTotals || program, "media", 0.18);
+    item("pontos_hidraulicos", "Pontos hidraulicos preliminares", "instalacoes_hidrossanitarias", pontosHidraulicos, "un", roomTotals ? "coldWaterPoints + hotWaterPoints" : "banheiros x 3 + cozinhas x 2 + servico x 2", roomTotals || program, "media", 0.2);
+    item("pontos_sanitarios", "Pontos sanitarios preliminares", "instalacoes_hidrossanitarias", pontosSanitarios, "un", roomTotals ? "sewagePoints + floorDrains" : "banheiros x 3 + cozinha + servico", roomTotals || program, "media", 0.2);
+    item("chuveiros", "Chuveiros preliminares", "instalacoes_hidrossanitarias", chuveiros, "un", roomTotals ? "fixtures.shower" : "banheiros " + program.bathrooms + " x 1 chuveiro", roomTotals ? fixtures : program, "media", 0.15);
+    item("loucas", "Loucas sanitarias preliminares", "loucas_metais", loucas, "un", roomTotals ? "fixtures.toilet + fixtures.washbasin" : "banheiros x 2 + cozinha + servico", roomTotals ? fixtures : program, "media", 0.18);
     item("metais", "Metais sanitarios preliminares", "loucas_metais", program.bathrooms * 3 + program.kitchens + program.serviceAreas, "un", "banheiros x 3 + cozinha + servico", program, "media", 0.18);
     item("limpeza_final", "Limpeza final de obra", "servicos_finais", area, "m2", "area construida " + area, { builtAreaM2: area }, "media", 0.08, [], ["area construida"]);
 
     const mainServices = quantities.length + blockedServices.length;
-    return { geometry: Object.assign({}, geometry, { wetFloorAreaM2: roundEloResidentialQuantity_(wetFloorAreaM2), externalWallNetM2: roundEloResidentialQuantity_(externalWallNetM2), internalWallNetM2: roundEloResidentialQuantity_(internalWallNetM2) }), quantities: quantities, calculationMemory: ["Memoria de calculo preliminar residencial", "Geometria-base: area construida " + area + " m2; pavimentos " + floors + "; implantacao " + geometry.footprintAreaM2 + " m2; perimetro " + geometry.externalPerimeterM + " m.", "Programa-base: " + program.bedrooms + " quarto(s), " + program.suites + " suite(s), " + program.bathrooms + " banheiro(s), garagem " + program.garages + ", varanda " + program.balconies + "."].concat(memory), technicalAssumptions: geometry.assumptions.concat(["Indices usados sao preliminares e servem para briefing quantitativo, sem precos.", "Precos, encargos e BDI sao calculados apenas quando fonte, UF, competencia e regime estiverem explicitos."]), quantityCoverage: { quantifiedServices: quantities.length, mainServices: mainServices, blockedServices: blockedServices.length, percent: mainServices ? roundEloResidentialQuantity_(quantities.length / mainServices * 100, 1) : 0 }, quantityWarnings: ["Quantitativos preliminares inferidos para auditoria de escopo.", "Nao ha dimensionamento estrutural, sondagem, perdas comerciais, precos, SINAPI, ORSE, encargos ou BDI."], blockedServices: blockedServices, engineQuantities: engineBudget && Array.isArray(engineBudget.quantities) ? engineBudget.quantities : [] };
+    return { geometry: Object.assign({}, geometry, { wetFloorAreaM2: roundEloResidentialQuantity_(wetFloorAreaM2), externalWallNetM2: roundEloResidentialQuantity_(externalWallNetM2), internalWallNetM2: roundEloResidentialQuantity_(internalWallNetM2) }), roomRequirements: roomRequirements, quantities: quantities, calculationMemory: ["Memoria de calculo preliminar residencial", "Geometria-base: area construida " + area + " m2; pavimentos " + floors + "; implantacao " + geometry.footprintAreaM2 + " m2; perimetro " + geometry.externalPerimeterM + " m.", "Programa-base: " + program.bedrooms + " quarto(s), " + program.suites + " suite(s), " + program.bathrooms + " banheiro(s), garagem " + program.garages + ", varanda " + program.balconies + "."].concat(memory), technicalAssumptions: geometry.assumptions.concat(["Indices usados sao preliminares e servem para briefing quantitativo, sem precos.", "Precos, encargos e BDI sao calculados apenas quando fonte, UF, competencia e regime estiverem explicitos."]), quantityCoverage: { quantifiedServices: quantities.length, mainServices: mainServices, blockedServices: blockedServices.length, percent: mainServices ? roundEloResidentialQuantity_(quantities.length / mainServices * 100, 1) : 0 }, quantityWarnings: ["Quantitativos preliminares inferidos para auditoria de escopo.", "Nao ha dimensionamento estrutural, sondagem, perdas comerciais, precos, SINAPI, ORSE, encargos ou BDI."], blockedServices: blockedServices, engineQuantities: engineBudget && Array.isArray(engineBudget.quantities) ? engineBudget.quantities : [] };
   }
   const DEFAULT_RESIDENTIAL_PREMISES = {
     maxAreaM2: 140,

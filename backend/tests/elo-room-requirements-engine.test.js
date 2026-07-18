@@ -85,3 +85,171 @@ test("area de servico nao fecha sem tanque ponto maquina ralo torneira e esgoto"
   assert.ok(result.pendentes.includes("ponto_esgoto"));
 });
 
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function assertZeroHydraulic(hydraulic) {
+  assert.equal(hydraulic.coldWaterPoints, 0);
+  assert.equal(hydraulic.hotWaterPoints, 0);
+  assert.equal(hydraulic.sewagePoints, 0);
+  assert.equal(hydraulic.floorDrains, 0);
+  assert.deepEqual(plain(hydraulic.fixtures), {});
+}
+
+test("quarto calcula eletrica e nao gera hidraulica", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "quarto" });
+  assert.deepEqual(plain(result.electrical), {
+    lightingPoints: 1,
+    switchPoints: 1,
+    generalOutletPoints: 4,
+    dedicatedOutletPoints: 0,
+    specialPoints: 0
+  });
+  assertZeroHydraulic(result.hydraulic);
+});
+
+test("cozinha calcula pontos eletricos e hidraulicos", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "cozinha" });
+  assert.deepEqual(plain(result.electrical), {
+    lightingPoints: 1,
+    switchPoints: 1,
+    generalOutletPoints: 6,
+    dedicatedOutletPoints: 2,
+    specialPoints: 0
+  });
+  assert.deepEqual(plain(result.hydraulic), {
+    coldWaterPoints: 1,
+    hotWaterPoints: 0,
+    sewagePoints: 1,
+    floorDrains: 0,
+    fixtures: { sink: 1 }
+  });
+});
+
+test("banheiro calcula iluminacao tomada agua esgoto ralo e fixtures", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "banheiro" });
+  assert.deepEqual(plain(result.electrical), {
+    lightingPoints: 1,
+    switchPoints: 1,
+    generalOutletPoints: 1,
+    dedicatedOutletPoints: 0,
+    specialPoints: 0
+  });
+  assert.deepEqual(plain(result.hydraulic), {
+    coldWaterPoints: 3,
+    hotWaterPoints: 0,
+    sewagePoints: 3,
+    floorDrains: 1,
+    fixtures: { toilet: 1, washbasin: 1, shower: 1 }
+  });
+});
+
+test("lavabo nao inclui chuveiro", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "lavabo" });
+  assert.deepEqual(plain(result.hydraulic), {
+    coldWaterPoints: 2,
+    hotWaterPoints: 0,
+    sewagePoints: 2,
+    floorDrains: 0,
+    fixtures: { toilet: 1, washbasin: 1 }
+  });
+  assert.equal(result.hydraulic.fixtures.shower, undefined);
+});
+
+test("area de servico calcula tanque maquina ralo e TUE", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "area de servico" });
+  assert.deepEqual(plain(result.electrical), {
+    lightingPoints: 1,
+    switchPoints: 1,
+    generalOutletPoints: 2,
+    dedicatedOutletPoints: 1,
+    specialPoints: 0
+  });
+  assert.deepEqual(plain(result.hydraulic), {
+    coldWaterPoints: 2,
+    hotWaterPoints: 0,
+    sewagePoints: 2,
+    floorDrains: 1,
+    fixtures: { tank: 1, washingMachine: 1 }
+  });
+});
+
+test("garagem calcula eletrica basica e nao gera hidraulica", () => {
+  const engine = loadEngine();
+  const result = engine.validateRoom({ type: "garagem" });
+  assert.deepEqual(plain(result.electrical), {
+    lightingPoints: 1,
+    switchPoints: 1,
+    generalOutletPoints: 1,
+    dedicatedOutletPoints: 0,
+    specialPoints: 0
+  });
+  assertZeroHydraulic(result.hydraulic);
+});
+
+test("agua quente permanece zero por padrao em todos os ambientes com regra", () => {
+  const engine = loadEngine();
+  ["quarto", "sala", "cozinha", "banheiro", "lavabo", "area_servico", "garagem", "varanda", "circulacao", "escritorio", "escada"].forEach((type) => {
+    assert.equal(engine.validateRoom({ type }).hydraulic.hotWaterPoints, 0, type);
+  });
+});
+
+test("validateRooms consolida a soma dos ambientes", () => {
+  const engine = loadEngine();
+  const result = engine.validateRooms({
+    rooms: [
+      { type: "quarto" },
+      { type: "cozinha" },
+      { type: "banheiro" },
+      { type: "lavabo" },
+      { type: "area_servico" },
+      { type: "garagem" }
+    ]
+  });
+  assert.equal(result.rooms.length, 6);
+  assert.deepEqual(plain(result.totals.electrical), {
+    lightingPoints: 6,
+    switchPoints: 6,
+    generalOutletPoints: 15,
+    dedicatedOutletPoints: 3,
+    specialPoints: 0
+  });
+  assert.deepEqual(plain(result.totals.hydraulic), {
+    coldWaterPoints: 8,
+    hotWaterPoints: 0,
+    sewagePoints: 8,
+    floorDrains: 2,
+    fixtures: {
+      sink: 1,
+      toilet: 2,
+      washbasin: 2,
+      shower: 1,
+      tank: 1,
+      washingMachine: 1
+    }
+  });
+  assert.ok(result.assumptions.includes("Agua quente considerada zero por padrao."));
+});
+
+test("ambiente desconhecido nao quebra o motor e gera aviso", () => {
+  const engine = loadEngine();
+  const result = engine.validateRooms({ rooms: [{ type: "atelier" }] });
+  assert.equal(result.rooms[0].status, "sem_regra");
+  assert.deepEqual(plain(result.totals.electrical), {
+    lightingPoints: 0,
+    switchPoints: 0,
+    generalOutletPoints: 0,
+    dedicatedOutletPoints: 0,
+    specialPoints: 0
+  });
+  assertZeroHydraulic(result.totals.hydraulic);
+  assert.equal(result.warnings.length, 1);
+});
+

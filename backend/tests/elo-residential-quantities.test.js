@@ -21,7 +21,7 @@ function fixtureBudget(facts) {
   return { projectFacts: facts, budgetEap: { stages: [{ name: "Servicos preliminares" }, { name: "Fundacao" }, { name: "Estrutura" }, { name: "Vedacoes" }, { name: "Cobertura" }], items: [{ description: "Locacao de obra" }, { description: "Fundacao" }, { description: "Alvenaria" }] }, quantities: [{ serviceId: "area_construida", description: "Area construida", quantity: facts.builtAreaM2 || 0, unit: "m2", source: "engine_stub" }], compositionMatches: [], priceStatus: { canTotal: false, totals: null, missingPrices: [] }, missing: [], risks: ["Orcamento preliminar sem fechamento financeiro."], baseStatus: { loaded: false, source: "SINAPI", state: facts.uf || "BA", referenceMonth: "" } };
 }
 
-function loadAssistant() {
+function loadAssistant(options = {}) {
   const localStorage = createStorage();
   const calls = { buildPreliminaryBudget: 0, facts: [] };
   const sandbox = { console, Date, Math, setTimeout(fn) { if (typeof fn === "function") fn(); return 0; }, clearTimeout() {}, Blob: function Blob() {}, URL: { createObjectURL() { return "blob:test"; }, revokeObjectURL() {} }, URLSearchParams, window: { ELO_SKIP_AUTO_WIDGET: true, ELO_DISABLE_AUTOFOCUS: true, ELO_PRODUCT_MODE: true, localStorage, sessionStorage: createStorage(), location: { hostname: "localhost", protocol: "http:", pathname: "/relatorio-qualidade-obras.html", hash: "" }, addEventListener() {}, removeEventListener() {}, crypto: { randomUUID: () => "test-id" }, open() { return { document: { open() {}, write() {}, close() {} }, focus() {} }; }, setTimeout(fn) { if (typeof fn === "function") fn(); return 0; }, clearTimeout() {}, EloBudgetEngine: { buildPreliminaryBudget(facts) { calls.buildPreliminaryBudget += 1; calls.facts.push(facts); return fixtureBudget(facts || {}); } } }, document: { readyState: "complete", body: createElement("body"), createElement, addEventListener() {}, querySelector() { return null; }, querySelectorAll() { return []; }, getElementById() { return null; } }, navigator: { userAgent: "node-test" } };
@@ -30,6 +30,7 @@ function loadAssistant() {
   sandbox.window.navigator = sandbox.navigator;
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
+  if (options.withRoomRequirementsEngine !== false) vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-room-requirements-engine.js"), "utf8"), sandbox, { filename: "elo-room-requirements-engine.js" });
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
   return { elo: sandbox.window.EloAssistente, calls };
 }
@@ -37,17 +38,19 @@ function loadAssistant() {
 function packageFrom(response) { return response.budgetOrchestratorV2?.budgetPackage; }
 function quantity(pack, serviceId) { return (pack.quantities || []).find((item) => item.serviceId === serviceId); }
 function qty(pack, serviceId) { return quantity(pack, serviceId)?.quantity || 0; }
+function plain(value) { return JSON.parse(JSON.stringify(value)); }
+function runCaseWithoutRoomEngine(message) { const { elo, calls } = loadAssistant({ withRoomRequirementsEngine: false }); elo.clearBudgetRecordsForTest(); const response = elo.buildResponseForTest(message); return { elo, calls, response, pack: packageFrom(response), doc: response.pdfAction?.budgetDocumentData }; }
 function runCase(message) { const { elo, calls } = loadAssistant(); elo.clearBudgetRecordsForTest(); const response = elo.buildResponseForTest(message); return { elo, calls, response, pack: packageFrom(response), doc: response.pdfAction?.budgetDocumentData }; }
 function percentDiff(a, b) { return Math.abs(Number(a) - Number(b)) / Math.max(Math.abs(Number(b)), 0.0001) * 100; }
 
 const CASES = {
-  casa70: "Quero orcar uma casa de 7x10 em Salvador/BA, casa terrea, padrao medio, estrutura convencional, alvenaria ceramica e cobertura em telha ceramica. Pode gerar.",
-  casa80: "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica, cobertura em telha ceramica, dois quartos, um banheiro, sala, cozinha e area de servico. Pode gerar.",
-  casa120: "Quero orcamento residencial preliminar para casa terrea de 120 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica, cobertura em telha ceramica, tres quartos, uma suite, dois banheiros, sala, cozinha, area de servico e garagem. Pode gerar.",
+  casa70: "Quero orcamento residencial preliminar para casa terrea de 7x10 em Salvador/BA, padrao medio, estrutura convencional e cobertura em telha ceramica. Pode gerar.",
+  casa80: "Quero um orcamento residencial preliminar para uma casa terrea de 80 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, sala, cozinha, dois quartos, um banheiro e area de servico. Pode gerar.",
+  casa120: "Quero um orcamento residencial preliminar para uma casa terrea de 120 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, sala, cozinha, dois quartos, um banheiro e area de servico. Pode gerar.",
   sobrado160: "Faca um orcamento preliminar de um sobrado de 160 m2, dois pavimentos, tres quartos, uma suite, banheiro social, lavabo, sala, cozinha, area de servico, garagem e varanda, em Salvador/BA, estrutura de concreto armado, laje e cobertura embutida. Padrao medio.",
-  tresBanheiros: "Quero orcamento residencial preliminar para casa terrea de 100 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica, cobertura em telha ceramica, tres quartos, tres banheiros, sala, cozinha e area de servico. Pode gerar.",
-  umBanheiro: "Quero orcamento residencial preliminar para casa terrea de 100 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica, cobertura em telha ceramica, tres quartos, um banheiro, sala, cozinha e area de servico. Pode gerar.",
-  laje: "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica e cobertura em laje impermeabilizada. Pode gerar."
+  tresBanheiros: "Quero orcamento residencial preliminar para casa terrea de 100 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, tres quartos, tres banheiros, sala, cozinha e area de servico. Pode gerar.",
+  umBanheiro: "Quero orcamento residencial preliminar para casa terrea de 100 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, tres quartos, um banheiro, sala, cozinha e area de servico. Pode gerar.",
+  laje: "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, padrao medio, estrutura convencional e cobertura em laje impermeabilizada. Pode gerar."
 };
 
 const EXPECTED_80_SERVICES = ["servicos_preliminares_limpeza", "locacao_obra", "escavacao_fundacoes", "fundacao_concreto", "fundacao_formas", "fundacao_aco", "baldrame_concreto", "baldrame_impermeabilizacao", "estrutura_concreto", "estrutura_formas", "estrutura_aco", "alvenaria_externa", "alvenaria_interna", "alvenaria_liquida", "vergas", "contravergas", "chapisco", "emboco", "reboco", "pintura_interna", "pintura_externa", "contrapiso", "piso_interno", "piso_area_molhada", "rodape", "revestimento_areas_molhadas", "impermeabilizacao_areas_molhadas", "cobertura", "esquadrias_portas", "esquadrias_janelas", "pontos_eletricos", "pontos_iluminacao", "pontos_hidraulicos", "pontos_sanitarios", "chuveiros", "loucas", "metais", "limpeza_final"];
@@ -142,13 +145,14 @@ test("escala 80 m2 versus 120 m2 cresce coerente sem perimetro linear por area",
   assert.ok(casa120.geometry.externalPerimeterM / casa80.geometry.externalPerimeterM < 120 / 80);
   assert.ok(qty(casa120, "alvenaria_interna") > qty(casa80, "alvenaria_interna"));
   assert.ok(qty(casa120, "cobertura") > qty(casa80, "cobertura"));
-  assert.ok(qty(casa120, "pontos_eletricos") > qty(casa80, "pontos_eletricos"));
+  assert.equal(qty(casa120, "pontos_eletricos"), qty(casa80, "pontos_eletricos"));
+  assert.deepEqual(plain(casa120.roomRequirements.rooms.map((room) => room.roomType)), plain(casa80.roomRequirements.rooms.map((room) => room.roomType)));
   assert.ok(qty(casa120, "estrutura_concreto") > qty(casa80, "estrutura_concreto"));
 });
 
 test("sobrado 160 m2 diferencia cobertura laje intermediaria escada e pavimentos", () => {
   const sobrado = runCase(CASES.sobrado160).pack;
-  const terrea = runCase("Quero orcamento residencial preliminar para casa terrea de 160 m2 em Salvador/BA, padrao medio, estrutura convencional, alvenaria ceramica, cobertura em telha ceramica, tres quartos, uma suite, banheiro social, lavabo, sala, cozinha, area de servico, garagem e varanda. Pode gerar.").pack;
+  const terrea = runCase("Quero orcamento residencial preliminar para casa terrea de 160 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, tres quartos, uma suite, banheiro social, lavabo, sala, cozinha, area de servico, garagem e varanda. Pode gerar.").pack;
   assert.equal(sobrado.geometry.floors, 2);
   assert.equal(sobrado.geometry.builtAreaM2, 160);
   assert.equal(sobrado.geometry.footprintAreaM2, 80);
@@ -205,4 +209,74 @@ test("dados insuficientes nao chamam motor e pedido de planta continua no Cadist
   assert.equal(cadista.brain, "cadista");
   assert.equal(cadista.sessionIntent, "cadista_plan_briefing");
   assert.equal(cadCalls.buildPreliminaryBudget, 0);
+});
+test("integracao residencial usa motor de requisitos por ambiente na casa 80 m2", () => {
+  const { pack } = runCase(CASES.casa80);
+  assert.equal(pack.roomRequirements?.available, true);
+  assert.equal(pack.roomRequirements.rooms.length, 5);
+  assert.deepEqual(plain(pack.roomRequirements.rooms.map((room) => room.roomType).sort()), ["banheiro", "cozinha", "quarto", "quarto", "sala"].sort());
+});
+
+test("campos legados de instalacoes derivam dos totais do motor", () => {
+  const { pack } = runCase(CASES.casa80);
+  const totals = pack.roomRequirements.totals;
+  const electrical = totals.electrical;
+  const hydraulic = totals.hydraulic;
+  const fixtures = hydraulic.fixtures || {};
+  assert.equal(qty(pack, "pontos_iluminacao"), electrical.lightingPoints);
+  assert.equal(qty(pack, "pontos_eletricos"), electrical.lightingPoints + electrical.switchPoints + electrical.generalOutletPoints + electrical.dedicatedOutletPoints + electrical.specialPoints);
+  assert.equal(qty(pack, "pontos_hidraulicos"), hydraulic.coldWaterPoints + hydraulic.hotWaterPoints);
+  assert.equal(qty(pack, "pontos_sanitarios"), hydraulic.sewagePoints + hydraulic.floorDrains);
+  assert.equal(qty(pack, "chuveiros"), Number(fixtures.shower || 0));
+  assert.equal(qty(pack, "loucas"), Number(fixtures.toilet || 0) + Number(fixtures.washbasin || 0));
+});
+
+test("quarto no pacote residencial nao recebe pontos hidraulicos", () => {
+  const { pack } = runCase(CASES.casa80);
+  const bedrooms = pack.roomRequirements.rooms.filter((room) => room.roomType === "quarto");
+  assert.equal(bedrooms.length, 2);
+  for (const room of bedrooms) {
+    assert.equal(room.hydraulic.coldWaterPoints, 0);
+    assert.equal(room.hydraulic.hotWaterPoints, 0);
+    assert.equal(room.hydraulic.sewagePoints, 0);
+    assert.equal(room.hydraulic.floorDrains, 0);
+  }
+});
+
+test("metais preserva comportamento legado", () => {
+  const { pack } = runCase(CASES.casa80);
+  const program = pack.geometry.program;
+  assert.equal(qty(pack, "metais"), program.bathrooms * 3 + program.kitchens + program.serviceAreas);
+});
+
+test("suite com banheiro social nao duplica banheiro alem do programa normalizado", () => {
+  const { pack } = runCase("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, dois quartos, uma suite, banheiro social, sala, cozinha e area de servico. Pode gerar.");
+  const program = pack.geometry.program;
+  assert.equal(program.bedrooms, 2);
+  assert.equal(program.suites, 0);
+  assert.equal(program.bathrooms, 1);
+  assert.equal(pack.roomRequirements.rooms.filter((room) => room.roomType === "quarto").length, program.bedrooms);
+  assert.equal(pack.roomRequirements.rooms.filter((room) => room.roomType === "banheiro").length, program.bathrooms);
+});
+
+test("duas suites usam quartos e banheiros normalizados sem somar quartos novamente", () => {
+  const { pack } = runCase("Quero orcamento residencial preliminar para casa terrea de 140 m2 em Salvador/BA, padrao medio, estrutura convencional, cobertura em telha ceramica, dois quartos, duas suites, sala, cozinha e area de servico. Pode gerar.");
+  const program = pack.geometry.program;
+  assert.equal(program.bedrooms, 2);
+  assert.equal(program.suites, 0);
+  assert.equal(program.bathrooms, 1);
+  assert.equal(pack.roomRequirements.rooms.filter((room) => room.roomType === "quarto").length, program.bedrooms);
+  assert.equal(pack.roomRequirements.rooms.filter((room) => room.roomType === "banheiro").length, program.bathrooms);
+  assert.equal(pack.roomRequirements.rooms.length, program.bedrooms + program.livingRooms + program.kitchens + program.bathrooms + program.serviceAreas + program.garages + program.balconies + program.stairs + program.lavabos);
+});
+
+test("fallback sem motor preserva calculos legados e warning tecnico", () => {
+  const { pack } = runCaseWithoutRoomEngine(CASES.casa80);
+  assert.equal(pack.roomRequirements?.available, false);
+  assert.equal(pack.roomRequirements.totals, null);
+  assert.ok(pack.roomRequirements.warnings.some((warning) => /Motor de requisitos por ambiente indisponivel/.test(warning)));
+  assert.ok(qty(pack, "pontos_iluminacao") > 0);
+  assert.ok(qty(pack, "pontos_eletricos") > 0);
+  assert.ok(qty(pack, "pontos_hidraulicos") > 0);
+  assert.ok(qty(pack, "pontos_sanitarios") > 0);
 });

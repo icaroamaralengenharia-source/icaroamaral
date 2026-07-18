@@ -67,6 +67,46 @@
     return value ? { valor: value, unidade: unit, origem: source || "inferida" } : null;
   }
 
+  function getEloDetailedRoomRequirements_(input) {
+    const safe = input || {};
+    const packageRoomRequirements = safe.budgetPackage && safe.budgetPackage.roomRequirements || null;
+    const directRoomRequirements = safe.roomRequirements || null;
+    const roomRequirements = packageRoomRequirements || directRoomRequirements;
+    if (roomRequirements && roomRequirements.totals) {
+      return { available: true, totals: roomRequirements.totals };
+    }
+    return { available: false, totals: null };
+  }
+
+  function buildEloDetailedRoomRequirementItems_(roomRequirements) {
+    const totals = roomRequirements && roomRequirements.totals || {};
+    const electrical = totals.electrical || {};
+    const hydraulic = totals.hydraulic || {};
+    const fixtures = hydraulic.fixtures || {};
+    const items = [];
+    function add(nome, disciplina, unidade, termosBusca, value, source) {
+      const amount = number(value);
+      if (amount <= 0) return;
+      items.push(item("instalacoes", nome, disciplina, unidade || "un", termosBusca, quantity(amount, unidade || "un", source)));
+    }
+    add("pontos de iluminacao", "eletrica", "un", ["ponto iluminacao", "iluminacao"], electrical.lightingPoints, "roomRequirements");
+    add("interruptores", "eletrica", "un", ["interruptor"], electrical.switchPoints, "roomRequirements");
+    add("tomadas de uso geral", "eletrica", "un", ["tomada uso geral", "tug"], electrical.generalOutletPoints, "roomRequirements");
+    add("tomadas de uso especifico", "eletrica", "un", ["tomada uso especifico", "tue"], electrical.dedicatedOutletPoints, "roomRequirements");
+    add("pontos especiais", "eletrica", "un", ["ponto especial eletrico"], electrical.specialPoints, "roomRequirements");
+    add("pontos de agua fria", "hidraulica", "un", ["ponto agua fria"], hydraulic.coldWaterPoints, "roomRequirements");
+    add("pontos de agua quente", "hidraulica", "un", ["ponto agua quente"], hydraulic.hotWaterPoints, "roomRequirements");
+    add("pontos de esgoto", "esgoto", "un", ["ponto esgoto"], hydraulic.sewagePoints, "roomRequirements");
+    add("ralos", "esgoto", "un", ["ralo"], hydraulic.floorDrains, "roomRequirements");
+    add("vasos sanitarios", "loucas_metais", "un", ["vaso sanitario"], fixtures.toilet, "roomRequirements");
+    add("lavatorios", "loucas_metais", "un", ["lavatorio"], fixtures.washbasin, "roomRequirements");
+    add("chuveiros", "loucas_metais", "un", ["chuveiro"], fixtures.shower, "roomRequirements");
+    add("pias", "loucas_metais", "un", ["pia cozinha"], fixtures.sink, "roomRequirements");
+    add("tanques", "loucas_metais", "un", ["tanque area de servico"], fixtures.tank, "roomRequirements");
+    add("pontos de maquina de lavar", "hidraulica", "un", ["maquina de lavar"], fixtures.washingMachine, "roomRequirements");
+    return items;
+  }
+
   function inferType(input, text) {
     const type = normalize(input.tipo || input.type || input.projectType || input.tipoObra);
     if (/muro/.test(type) || /\bmuro\b/.test(text)) return "muro";
@@ -276,9 +316,31 @@
 
   function buildEloBudgetEap(input) {
     const ctx = normalizeInput(input || {});
+    const detailedRoomRequirements = getEloDetailedRoomRequirements_(input || {});
     if (ctx.tipo === "muro") return buildWallEap(ctx);
     if (ctx.tipo === "banheiro") return buildBathroomEap(ctx);
-    return buildHouseEap(ctx);
+    const eap = buildHouseEap(ctx);
+    if (!detailedRoomRequirements.available) return eap;
+    const detailedItems = buildEloDetailedRoomRequirementItems_(detailedRoomRequirements).map(function (entry) {
+      if (entry.disciplina === "loucas_metais" || /maquina de lavar/.test(normalize(entry.nome))) {
+        entry.etapaId = "loucas_metais";
+      }
+      return entry;
+    });
+    const genericNames = {
+      "eletrica embutida": true,
+      "hidraulica": true,
+      "esgoto sanitario": true,
+      "vaso sanitario por banheiro": true,
+      "lavatorio por banheiro": true,
+      "chuveiro por banheiro": true,
+      "pia/cuba da cozinha": true,
+      "tanque da area de servico quando houver": true,
+      "ralos": true
+    };
+    eap.itens = eap.itens.filter(function (entry) { return !genericNames[entry.nome]; }).concat(detailedItems);
+    eap.resumo.totalItens = eap.itens.length;
+    return eap;
   }
 
   root.EloBudgetEapEngine = {
