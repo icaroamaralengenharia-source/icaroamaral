@@ -14364,12 +14364,67 @@
     return { shortAnswer: "Retirei a eletrica do orcamento.", fullAnswer: "Entendi: retirei todas as instalacoes eletricas do orcamento atual e criei uma nova revisao. A versao anterior foi preservada.", nextAction: "Revise a nova versao antes de salvar ou gerar PDF final.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_electrical_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
   }
 
+  function getEloResidentialBudgetItemText_(item, includeDescription) {
+    const fields = [item && item.category, item && item.discipline, item && item.disciplina, item && item.serviceId, item && item.id, item && item.scopeId, item && item.parentServiceId, item && item.etapaId, item && item.system, item && item.subsystem, item && item.source, item && item.classification];
+    if (includeDescription) fields.push(item && item.id, item && item.description, item && item.label);
+    return fields.map(function (value) { return normalizeText(value || ""); }).join(" ");
+  }
+
+  function isEloResidentialHydraulicPreservedItem_(item) {
+    const text = getEloResidentialBudgetItemText_(item, true);
+    return /\b(loucas?_metais|loucas?|metais|chuveiros?|vaso|lavatorio|cuba|pia|tanque|torneiras?|acessorios?|kits?)\b/.test(text);
+  }
+
+  function isEloResidentialHydraulicBudgetItem_(item) {
+    if (!item || isEloResidentialHydraulicPreservedItem_(item)) return false;
+    const structured = getEloResidentialBudgetItemText_(item, false);
+    const full = getEloResidentialBudgetItemText_(item, true);
+    if (/\b(pontos_hidraulicos|pontos_sanitarios)\b/.test(structured)) return true;
+    if (/\b(instalacoes_hidrossanitarias|instalacoes_hidraulicas|hidraulica|hidrossanitario|sanitario)\b/.test(structured) && /\b(agua|esgoto|hidraulico|sanitario|hidrossanitarias|tubul|conex|registro|ralos?|caixas?\s+(?:sifonadas?|inspecao)|ventilacao)\b/.test(full)) return true;
+    return /\b(agua\s+(?:fria|quente)|esgoto|pontos?\s+(?:de\s+)?agua|pontos?\s+sanitarios?|tubulacoes?|conexoes?|ralos?|caixas?\s+(?:sifonadas?|inspecao)|ventilacao\s+sanitaria)\b/.test(full);
+  }
+
+  function removeEloResidentialHydraulicScopeFromPackage_(budgetPackage) {
+    const previousBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const resultingBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const removedIds = {};
+    function filterArray(name) {
+      const list = Array.isArray(resultingBudgetPackage[name]) ? resultingBudgetPackage[name] : [];
+      resultingBudgetPackage[name] = list.filter(function (item) {
+        const parentRemoved = item && item.parentServiceId && removedIds[item.parentServiceId] && !isEloResidentialHydraulicPreservedItem_(item);
+        const remove = parentRemoved || isEloResidentialHydraulicBudgetItem_(item);
+        if (remove && (item.serviceId || item.id)) removedIds[item.serviceId || item.id] = true;
+        return !remove;
+      });
+    }
+    filterArray("scope");
+    filterArray("quantities");
+    ["materials", "compositions", "financialLines"].forEach(function (name) {
+      if (Array.isArray(resultingBudgetPackage[name])) resultingBudgetPackage[name] = resultingBudgetPackage[name].filter(function (item) { return !(item && (removedIds[item.serviceId] || removedIds[item.id] || removedIds[item.parentServiceId])); });
+    });
+    const removedItems = (previousBudgetPackage.quantities || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
+    const removedScopeItems = (previousBudgetPackage.scope || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
+    if (removedItems.length || removedScopeItems.length) resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).concat((resultingBudgetPackage.scopeExclusions || []).some(function (item) { return item && item.target === "hydraulic"; }) ? [] : [{ target: "hydraulic", reason: "removed_by_user_instruction", revisionNumber: null }]);
+    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, removedItems: removedItems, removedScopeItems: removedScopeItems };
+  }
+
   function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
     if (!isEloResidentialRemoveHydraulicScopeRequest_(message)) return null;
     const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
-    const documentData = getCurrentBudgetV2DocumentData_();
-    if (!(state && state.type === "residential" && state.budgetPackage && (Array.isArray(state.budgetPackage.scope) || Array.isArray(state.budgetPackage.quantities)))) return { shortAnswer: "Primeiro gere um orcamento residencial.", fullAnswer: "Reconheci o pedido para retirar toda a hidraulica, mas primeiro e necessario gerar um orcamento residencial ativo. Nao criei orcamento nem revisao.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_without_budget" };
-    return { shortAnswer: "Pedido de retirada da hidraulica reconhecido.", fullAnswer: "Reconheci o pedido para retirar toda a hidraulica. Nesta etapa a revisao ainda nao foi aplicada, e o orcamento atual foi preservado integralmente.", nextAction: "Aguarde a etapa de aplicacao da revisao hidraulica.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_detected", pdfAction: documentData ? buildBudgetV2ProfessionalPdfAction_(documentData) : null, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
+    if (!(state && state.type === "residential" && state.budgetPackage && (Array.isArray(state.budgetPackage.scope) || Array.isArray(state.budgetPackage.quantities)))) return { shortAnswer: "Primeiro gere um orcamento residencial.", fullAnswer: "Para retirar a hidraulica, primeiro preciso de um orcamento residencial ativo. Nao criei orcamento nem revisao.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_without_budget" };
+    const scoped = removeEloResidentialHydraulicScopeFromPackage_(state.budgetPackage);
+    if (!scoped.removedItems.length && !scoped.removedScopeItems.length) return { shortAnswer: "A hidraulica ja foi retirada.", fullAnswer: "A hidraulica tecnica ja foi retirada do orcamento atual. Nao criei revisao vazia nem dupliquei exclusoes.", nextAction: "Revise o orcamento atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_already_removed", budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+    const nextState = JSON.parse(JSON.stringify(state));
+    const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
+    scoped.resultingBudgetPackage.revisionNumber = revisionNumber;
+    (scoped.resultingBudgetPackage.scopeExclusions || []).forEach(function (item) { if (item && item.target === "hydraulic" && item.revisionNumber === null) item.revisionNumber = revisionNumber; });
+    nextState.budgetPackage = scoped.resultingBudgetPackage;
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, createdAt: new Date().toISOString(), userInstruction: sanitizeUserText(message), action: "remove_scope", target: "hydraulic", previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, removedItems: scoped.removedItems, removedScopeItems: scoped.removedScopeItems, scopeExclusions: scoped.resultingBudgetPackage.scopeExclusions, warnings: ["Remocao limitada a redes, pontos e componentes tecnicos hidraulicos; loucas, metais, chuveiros, revestimentos e impermeabilizacao foram preservados."] }]);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    const documentData = buildBudgetV2DocumentDataFromState_(nextState, scoped.resultingBudgetPackage);
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    return { shortAnswer: "Retirei a hidraulica do orcamento.", fullAnswer: "Retirei a hidraulica do orcamento. Itens removidos: " + scoped.removedItems.length + ". O orcamento anterior foi preservado e uma nova revisao foi criada." + (pdfAction ? " PDF atualizado disponivel." : ""), nextAction: "Revise a nova versao antes de salvar ou gerar PDF final.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
   }
   function isEloResidentialPricingContinuation_(message) {
     const text = normalizeText(message || "");

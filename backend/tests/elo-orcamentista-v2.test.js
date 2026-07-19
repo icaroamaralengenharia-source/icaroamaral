@@ -562,23 +562,53 @@ test("Orcamentista V2 nao trata frases ambiguas como recolocar eletrica", () => 
 });
 
 
-test("Orcamentista V2 detecta remover toda a hidraulica sem mutacao", () => {
+test("Orcamentista V2 aplica remocao real da hidraulica preservando loucas metais e revisao", () => {
   const { assistant } = loadAssistant();
   const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
-  const beforeState = assistant.getBudgetOrchestratorV2StateForTest(), beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeRevisions = JSON.stringify(beforeState.revisions || []), beforePdfAction = JSON.stringify(original.pdfAction), beforeDocumentData = JSON.stringify(original.budgetOrchestratorV2.budgetDocumentData);
-  const response = assistant.buildResponseForTest("Retire toda a hidraulica."), afterState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforePackage = JSON.parse(JSON.stringify(beforeState.budgetPackage));
+  const expectedRemoved = beforePackage.quantities.filter((item) => ["pontos_hidraulicos", "pontos_sanitarios"].includes(item.serviceId));
+  const expectedRemovedScope = beforePackage.scope.filter((item) => expectedRemoved.some((removed) => removed.serviceId === (item.serviceId || item.id)) || (item.serviceId || item.id) === "instalacoes_hidrossanitarias");
+  const preservedIds = ["chuveiros", "loucas", "metais", "pontos_eletricos", "pontos_iluminacao", "impermeabilizacao_areas_molhadas"];
+  const beforePriceMap = new Map((beforePackage.financialLines || []).map((item) => [item.serviceId, JSON.stringify({ unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })]));
+  const beforeCompositionKeys = new Set((beforePackage.compositions || []).map((item) => item.serviceId || item.id || item.code || item.description));
+
+  const response = assistant.buildResponseForTest("Retire toda a hidraulica.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest(), afterPackage = response.budgetOrchestratorV2.budgetPackage;
+  const removedIds = new Set(response.revision.removedItems.map((item) => item.serviceId || item.id));
+
   assert.equal(original.sessionIntent, "budget_v2_scope");
-  assert.equal(response.sessionIntent, "budget_v2_scope_remove_hydraulic_detected");
-  assert.match(response.fullAnswer, /reconheci o pedido para retirar toda a hidraulica/i);
-  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetPackage), beforePackage);
-  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
-  assert.equal(JSON.stringify(afterState.budgetPackage.quantities), beforeQuantities);
-  assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
-  assert.equal(JSON.stringify(response.pdfAction), beforePdfAction);
-  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetDocumentData), beforeDocumentData);
+  assert.ok(expectedRemoved.length > 0);
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_hydraulic_applied");
+  assert.match(response.shortAnswer, /Retirei a hidraulica do orcamento/i);
+  assert.equal(afterState.revisions.length, 1);
+  assert.equal(response.revision.action, "remove_scope");
+  assert.equal(response.revision.target, "hydraulic");
+  assert.equal(JSON.stringify(response.revision.previousBudgetPackage), JSON.stringify(beforePackage));
+  assert.equal(JSON.stringify(response.revision.removedItems.map((item) => item.serviceId).sort()), JSON.stringify(expectedRemoved.map((item) => item.serviceId).sort()));
+  assert.equal(JSON.stringify(response.revision.removedScopeItems.map((item) => item.serviceId || item.id).sort()), JSON.stringify(expectedRemovedScope.map((item) => item.serviceId || item.id).sort()));
+  assert.equal(afterPackage.quantities.some((item) => removedIds.has(item.serviceId || item.id)), false);
+  assert.equal(afterPackage.scope.some((item) => removedIds.has(item.serviceId || item.id)), false);
+  preservedIds.forEach((serviceId) => assert.ok(afterPackage.quantities.some((item) => item.serviceId === serviceId), serviceId));
+  assert.ok(afterPackage.quantities.some((item) => item.category === "estrutura"));
+  assert.ok(afterPackage.quantities.some((item) => item.serviceId === "alvenaria_externa"));
+  assert.ok(afterPackage.quantities.some((item) => item.category === "cobertura"));
+  assert.equal(afterPackage.quantities.some((item) => item.parentServiceId && removedIds.has(item.parentServiceId)), false);
+  assert.equal(JSON.stringify(afterPackage.scopeExclusions), JSON.stringify([{ target: "hydraulic", reason: "removed_by_user_instruction", revisionNumber: 2 }]));
+  assert.ok(response.pdfAction && response.budgetOrchestratorV2.budgetDocumentData);
+  assert.equal((afterPackage.financialLines || []).every((item) => !beforePriceMap.has(item.serviceId) || beforePriceMap.get(item.serviceId) === JSON.stringify({ unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })), true);
+  assert.equal((afterPackage.compositions || []).every((item) => beforeCompositionKeys.has(item.serviceId || item.id || item.code || item.description)), true);
+  assert.equal(JSON.stringify(response.revision.resultingBudgetPackage), JSON.stringify(afterPackage));
+
+  const second = assistant.buildResponseForTest("Retire toda a hidraulica.");
+  const secondState = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(second.sessionIntent, "budget_v2_scope_remove_hydraulic_already_removed");
+  assert.equal(secondState.revisions.length, 1);
+  assert.equal(secondState.budgetPackage.scopeExclusions.filter((item) => item.target === "hydraulic").length, 1);
+  preservedIds.forEach((serviceId) => assert.ok(secondState.budgetPackage.quantities.some((item) => item.serviceId === serviceId), serviceId));
 });
 
-test("Orcamentista V2 detecta hidraulica sem orcamento e ignora ambiguas", () => {
+test("Orcamentista V2 mantem hidraulica sem orcamento e frases ambiguas fora da rota", () => {
   const empty = loadAssistant().assistant, withoutBudget = empty.buildResponseForTest("Retire toda a hidraulica.");
   assert.equal(withoutBudget.sessionIntent, "budget_v2_scope_remove_hydraulic_without_budget");
   assert.equal(empty.getBudgetOrchestratorV2StateForTest().budgetPackage, undefined);
@@ -586,7 +616,8 @@ test("Orcamentista V2 detecta hidraulica sem orcamento e ignora ambiguas", () =>
     const { assistant } = loadAssistant();
     assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
     const before = assistant.getBudgetOrchestratorV2StateForTest(), response = assistant.buildResponseForTest(message);
-    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_hydraulic_detected", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_hydraulic_applied", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_hydraulic_without_budget", message);
     assert.deepEqual(assistant.getBudgetOrchestratorV2StateForTest().revisions || [], before.revisions || [], message);
   });
 });
