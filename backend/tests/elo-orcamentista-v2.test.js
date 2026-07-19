@@ -562,6 +562,34 @@ test("Orcamentista V2 nao trata frases ambiguas como recolocar eletrica", () => 
 });
 
 
+test("Orcamentista V2 detecta remover toda a hidraulica sem mutacao", () => {
+  const { assistant } = loadAssistant();
+  const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest(), beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeRevisions = JSON.stringify(beforeState.revisions || []), beforePdfAction = JSON.stringify(original.pdfAction), beforeDocumentData = JSON.stringify(original.budgetOrchestratorV2.budgetDocumentData);
+  const response = assistant.buildResponseForTest("Retire toda a hidraulica."), afterState = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(original.sessionIntent, "budget_v2_scope");
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_hydraulic_detected");
+  assert.match(response.fullAnswer, /reconheci o pedido para retirar toda a hidraulica/i);
+  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.budgetPackage.quantities), beforeQuantities);
+  assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
+  assert.equal(JSON.stringify(response.pdfAction), beforePdfAction);
+  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetDocumentData), beforeDocumentData);
+});
+
+test("Orcamentista V2 detecta hidraulica sem orcamento e ignora ambiguas", () => {
+  const empty = loadAssistant().assistant, withoutBudget = empty.buildResponseForTest("Retire toda a hidraulica.");
+  assert.equal(withoutBudget.sessionIntent, "budget_v2_scope_remove_hydraulic_without_budget");
+  assert.equal(empty.getBudgetOrchestratorV2StateForTest().budgetPackage, undefined);
+  ["diminua a hidraulica", "retire uma torneira", "retire um ponto de agua", "economize na hidraulica", "hidraulica esta cara", "retire apenas o esgoto", "retire apenas a agua fria"].forEach((message) => {
+    const { assistant } = loadAssistant();
+    assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+    const before = assistant.getBudgetOrchestratorV2StateForTest(), response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_hydraulic_detected", message);
+    assert.deepEqual(assistant.getBudgetOrchestratorV2StateForTest().revisions || [], before.revisions || [], message);
+  });
+});
 test("Orcamentista V2 mostra acoes transacionais para orcamento valido", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");

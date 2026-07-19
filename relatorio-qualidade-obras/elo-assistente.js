@@ -14234,6 +14234,9 @@
       /^exclua as instalacoes eletricas do orcamento[.!?]?$/i.test(text);
   }
 
+  function isEloResidentialRemoveHydraulicScopeRequest_(message) {
+    return /^(?:(?:retire|remova) toda a hidraulica|tire toda a parte hidraulica|exclua as instalacoes hidraulicas do orcamento)[.!?]?$/i.test(normalizeText(message || ""));
+  }
   function isEloResidentialElectricalBudgetItem_(item) {
     const joined = [item && item.category, item && item.disciplina, item && item.etapaId, item && item.serviceId, item && item.parentServiceId, item && item.id, item && item.description, item && item.label].map(function (value) { return normalizeText(value || ""); }).join(" ");
     if (/\b(instalacoes\s+eletricas|eletrica|eletrico|pontos\s+eletricos|pontos\s+iluminacao|iluminacao|interruptor(?:es)?|tomadas?|tug|tue|quadro|dps|dr|aterramento|refletores?|telecom|cameras?)\b/.test(joined)) return true;
@@ -14361,6 +14364,13 @@
     return { shortAnswer: "Retirei a eletrica do orcamento.", fullAnswer: "Entendi: retirei todas as instalacoes eletricas do orcamento atual e criei uma nova revisao. A versao anterior foi preservada.", nextAction: "Revise a nova versao antes de salvar ou gerar PDF final.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_electrical_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
   }
 
+  function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
+    if (!isEloResidentialRemoveHydraulicScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const documentData = getCurrentBudgetV2DocumentData_();
+    if (!(state && state.type === "residential" && state.budgetPackage && (Array.isArray(state.budgetPackage.scope) || Array.isArray(state.budgetPackage.quantities)))) return { shortAnswer: "Primeiro gere um orcamento residencial.", fullAnswer: "Reconheci o pedido para retirar toda a hidraulica, mas primeiro e necessario gerar um orcamento residencial ativo. Nao criei orcamento nem revisao.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_without_budget" };
+    return { shortAnswer: "Pedido de retirada da hidraulica reconhecido.", fullAnswer: "Reconheci o pedido para retirar toda a hidraulica. Nesta etapa a revisao ainda nao foi aplicada, e o orcamento atual foi preservado integralmente.", nextAction: "Aguarde a etapa de aplicacao da revisao hidraulica.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_hydraulic_detected", pdfAction: documentData ? buildBudgetV2ProfessionalPdfAction_(documentData) : null, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
+  }
   function isEloResidentialPricingContinuation_(message) {
     const text = normalizeText(message || "");
     return hasActiveEloResidentialBudgetSession_() && /\b(?:sinapi|orse|bdi|preco|precos|valor\s+final|fechamento|bahia|competencia|encargos)\b/.test(text);
@@ -21628,6 +21638,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (removeElectricalDetectedAnswer) {
       return applyEloBrainMarker_(question, removeElectricalDetectedAnswer);
     }
+    const removeHydraulicDetectedAnswer = buildEloResidentialRemoveHydraulicDetectedAnswer_(question);
+    if (removeHydraulicDetectedAnswer) return applyEloBrainMarker_(question, removeHydraulicDetectedAnswer);
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);
