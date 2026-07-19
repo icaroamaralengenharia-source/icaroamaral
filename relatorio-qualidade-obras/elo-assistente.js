@@ -14242,6 +14242,10 @@
     return /^(?:(?:retire|remova) o banheiro|(?:tire|exclua) o banheiro do orcamento|(?:retire|remova) todos os banheiros)[.!?]?$/i.test(normalizeText(message || ""));
   }
 
+  function isEloResidentialReduceBathroomScopeRequest_(message) {
+    return /^(?:reduza o escopo do banheiro|diminua o escopo do banheiro|simplifique o banheiro|reduza os itens do banheiro|faca um banheiro mais simples|deixe o banheiro mais economico)[.!?]?$/i.test(normalizeText(message || ""));
+  }
+
   function isEloResidentialRestoreHydraulicScopeRequest_(message) {
     return /^(?:recoloque a hidraulica|restaure a hidraulica|devolva a hidraulica ao orcamento|inclua novamente as instalacoes hidraulicas)[.!?]?$/i.test(normalizeText(message || ""));
   }
@@ -14495,6 +14499,15 @@
     if (!validBathrooms) return { shortAnswer: "Nao consegui confirmar a quantidade de banheiros.", fullAnswer: "Nao consegui confirmar quantos banheiros existem no orcamento. Revise o programa residencial antes de remover esse ambiente.", nextAction: "Revise o programa residencial antes de remover o banheiro.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_bathroom_missing_count", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
     if (bathrooms === 1) return { shortAnswer: "Nao posso remover o unico banheiro da residencia.", fullAnswer: "Encontrei apenas 1 banheiro no orcamento. Remover o unico banheiro torna a casa tecnicamente invalida. Posso ajudar a reduzir o escopo do banheiro ou revisar um projeto com mais de um banheiro.", nextAction: "Informe se deseja reduzir o escopo do banheiro ou revisar um projeto com mais de um banheiro.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_bathroom_blocked_last_bathroom", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
     return { shortAnswer: "Preciso saber qual banheiro sera removido.", fullAnswer: "O orcamento possui mais de um banheiro, mas os itens estao agregados e nao identificam cada ambiente separadamente. Informe qual banheiro deseja remover ou revise o programa de ambientes.", nextAction: "Informe qual banheiro deseja remover ou revise o programa de ambientes.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_bathroom_needs_identification", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
+  }
+
+  function buildEloResidentialReduceBathroomNeedsOptionsAnswer_(message) {
+    if (!isEloResidentialReduceBathroomScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (!(state && state.type === "residential" && state.budgetPackage)) return { shortAnswer: "Primeiro gere um orcamento residencial para revisar o escopo do banheiro.", fullAnswer: "Primeiro gere um orcamento residencial para revisar o escopo do banheiro.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_without_budget" };
+    const documentData = getCurrentBudgetV2DocumentData_();
+    const pdfAction = documentData ? buildBudgetV2ProfessionalPdfAction_(documentData) : null;
+    return { shortAnswer: "Quais itens do banheiro voce deseja reduzir?", fullAnswer: "Posso reduzir o escopo do banheiro sem excluir o ambiente. Escolha uma ou mais opcoes: revestimento de paredes, piso e impermeabilizacao, metais e acessorios, loucas, chuveiro, pontos eletricos ou padrao de acabamento.", nextAction: "Informe os itens que deseja reduzir e o nivel desejado: economico, intermediario ou manter o padrao atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_needs_options", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
   }
 
   function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
@@ -21788,6 +21801,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (removeHydraulicDetectedAnswer) return applyEloBrainMarker_(question, removeHydraulicDetectedAnswer);
     const removeBathroomDetectedAnswer = buildEloResidentialRemoveBathroomDetectedAnswer_(question);
     if (removeBathroomDetectedAnswer) return applyEloBrainMarker_(question, removeBathroomDetectedAnswer);
+    const reduceBathroomDetectedAnswer = buildEloResidentialReduceBathroomNeedsOptionsAnswer_(question);
+    if (reduceBathroomDetectedAnswer) return applyEloBrainMarker_(question, reduceBathroomDetectedAnswer);
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);

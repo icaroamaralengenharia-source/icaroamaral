@@ -760,6 +760,55 @@ test("Orcamentista V2 banheiro sem orcamento e frases ambiguas nao entram na rot
   });
 });
 
+test("Orcamentista V2 pede opcoes para reduzir escopo do banheiro sem mutacao", () => {
+  const { assistant } = loadAssistant();
+  const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeScope = JSON.stringify(beforeState.budgetPackage.scope), beforeMaterials = JSON.stringify(beforeState.budgetPackage.materials || []), beforeCompositions = JSON.stringify(beforeState.budgetPackage.compositions || []), beforeFinancialLines = JSON.stringify(beforeState.budgetPackage.financialLines || []), beforeRevisions = JSON.stringify(beforeState.revisions || []), beforeExclusions = JSON.stringify(beforeState.budgetPackage.scopeExclusions || []), beforeDocumentData = JSON.stringify(original.budgetOrchestratorV2.budgetDocumentData), beforePdfAction = JSON.stringify(original.pdfAction);
+  const beforePrices = JSON.stringify((beforeState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })));
+
+  const response = assistant.buildResponseForTest("Reduza o escopo do banheiro.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_reduce_bathroom_needs_options");
+  ["revestimento de paredes", "piso e impermeabilizacao", "metais e acessorios", "loucas", "chuveiro", "pontos eletricos", "padrao de acabamento"].forEach((category) => assert.match(response.fullAnswer, new RegExp(category, "i"), category));
+  assert.doesNotMatch(response.fullAnswer, /hidraulica|esgoto|porta|ventilacao|remover o ambiente|remover o ultimo banheiro/i);
+  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.budgetPackage.quantities), beforeQuantities);
+  assert.equal(JSON.stringify(afterState.budgetPackage.scope), beforeScope);
+  assert.equal(JSON.stringify(afterState.budgetPackage.materials || []), beforeMaterials);
+  assert.equal(JSON.stringify(afterState.budgetPackage.compositions || []), beforeCompositions);
+  assert.equal(JSON.stringify(afterState.budgetPackage.financialLines || []), beforeFinancialLines);
+  assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
+  assert.equal(JSON.stringify(afterState.budgetPackage.scopeExclusions || []), beforeExclusions);
+  assert.equal(JSON.stringify((afterState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total }))), beforePrices);
+  assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetDocumentData), beforeDocumentData);
+  assert.equal(JSON.stringify(response.pdfAction), beforePdfAction);
+});
+
+test("Orcamentista V2 nao reduz banheiro sem orcamento", () => {
+  const assistant = loadAssistant().assistant;
+  const response = assistant.buildResponseForTest("Reduza o escopo do banheiro.");
+  assert.equal(response.sessionIntent, "budget_v2_scope_reduce_bathroom_without_budget");
+  assert.equal(assistant.getBudgetOrchestratorV2StateForTest().budgetPackage, undefined);
+  assert.equal(assistant.getBudgetOrchestratorV2StateForTest().revisions, undefined);
+  assert.equal(response.pdfAction, undefined);
+  assert.equal(response.budgetOrchestratorV2, undefined);
+});
+
+test("Orcamentista V2 nao trata frases ambiguas como reduzir banheiro", () => {
+  ["retire o banheiro", "retire o vaso", "retire o chuveiro", "diminua o banheiro", "reduza a area do banheiro", "retire a hidraulica do banheiro", "economize na casa", "reduza o orcamento", "banheiro esta caro"].forEach((message) => {
+    const { assistant } = loadAssistant();
+    assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+    const before = assistant.getBudgetOrchestratorV2StateForTest();
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_reduce_bathroom_needs_options", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_reduce_bathroom_without_budget", message);
+    assert.equal((assistant.getBudgetOrchestratorV2StateForTest().revisions || []).filter((revision) => revision && revision.target === "bathroom" && revision.action === "reduce_scope").length, (before.revisions || []).filter((revision) => revision && revision.target === "bathroom" && revision.action === "reduce_scope").length, message);
+  });
+});
+
 test("Orcamentista V2 mostra acoes transacionais para orcamento valido", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");
