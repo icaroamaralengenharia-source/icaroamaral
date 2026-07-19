@@ -14238,6 +14238,10 @@
     return /^(?:(?:retire|remova) toda a hidraulica|tire toda a parte hidraulica|exclua as instalacoes hidraulicas do orcamento)[.!?]?$/i.test(normalizeText(message || ""));
   }
 
+  function isEloResidentialRemoveBathroomScopeRequest_(message) {
+    return /^(?:(?:retire|remova) o banheiro|(?:tire|exclua) o banheiro do orcamento|(?:retire|remova) todos os banheiros)[.!?]?$/i.test(normalizeText(message || ""));
+  }
+
   function isEloResidentialRestoreHydraulicScopeRequest_(message) {
     return /^(?:recoloque a hidraulica|restaure a hidraulica|devolva a hidraulica ao orcamento|inclua novamente as instalacoes hidraulicas)[.!?]?$/i.test(normalizeText(message || ""));
   }
@@ -14477,6 +14481,15 @@
     const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
     if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
     return { shortAnswer: "Instalacoes hidraulicas restauradas nesta revisao.", fullAnswer: "Instalacoes hidraulicas restauradas nesta revisao. Itens restaurados: " + scoped.restoredItems.length + ". O orcamento anterior foi preservado e uma nova revisao foi criada." + (pdfAction ? " PDF atualizado disponivel." : ""), nextAction: "Revise a nova versao antes de salvar.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_hydraulic_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
+  }
+
+  function buildEloResidentialRemoveBathroomDetectedAnswer_(message) {
+    if (!isEloResidentialRemoveBathroomScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (!(state && state.type === "residential" && state.budgetPackage)) return { shortAnswer: "Primeiro gere um orcamento residencial.", fullAnswer: "Primeiro gere um orcamento residencial. Nao criei orcamento, revisao, documento ou PDF.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_bathroom_without_budget" };
+    const documentData = getCurrentBudgetV2DocumentData_();
+    const pdfAction = documentData ? buildBudgetV2ProfessionalPdfAction_(documentData) : null;
+    return { shortAnswer: "Pedido de retirada do banheiro reconhecido.", fullAnswer: "Pedido de retirada do banheiro reconhecido. A revisao ainda nao foi aplicada, o orcamento atual foi preservado e nenhum item foi removido nesta etapa.", nextAction: "Aguarde o mapeamento seguro do ambiente antes de aplicar revisao.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_bathroom_detected", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
   }
 
   function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
@@ -21768,6 +21781,8 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const removeHydraulicDetectedAnswer = buildEloResidentialRemoveHydraulicDetectedAnswer_(question);
     if (removeHydraulicDetectedAnswer) return applyEloBrainMarker_(question, removeHydraulicDetectedAnswer);
+    const removeBathroomDetectedAnswer = buildEloResidentialRemoveBathroomDetectedAnswer_(question);
+    if (removeBathroomDetectedAnswer) return applyEloBrainMarker_(question, removeBathroomDetectedAnswer);
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);
