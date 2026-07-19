@@ -460,3 +460,341 @@ test("BudgetEngine inclui budgetEap em modo leitura sem quebrar orcamento prelim
   assert.ok(budget.budgetEap.itens.length > 20);
   assert.equal(budget.budgetEap.podeFecharOrcamentoCompleto, false);
 });
+
+const BATHROOM_ATOMIC_EXPECTATIONS = [
+  ["vaso_sanitario", 1, "loucas_metais", "loucas_metais"], ["caixa_descarga", 1, "loucas_metais", "loucas_metais"], ["assento_sanitario", 1, "loucas_metais", "loucas_metais"],
+  ["lavatorio_cuba", 1, "loucas_metais", "loucas_metais"], ["torneira_lavatorio", 1, "loucas_metais", "loucas_metais"], ["valvula_lavatorio", 1, "loucas_metais", "loucas_metais"],
+  ["sifao", 1, "loucas_metais", "loucas_metais"], ["engate_flexivel", 1, "loucas_metais", "loucas_metais"], ["registro_pressao", 1, "loucas_metais", "loucas_metais"], ["acabamento_registro", 1, "loucas_metais", "loucas_metais"],
+  ["porta_papel", 1, "loucas_metais", "loucas_metais"], ["saboneteira", 1, "loucas_metais", "loucas_metais"], ["porta_toalha_rosto", 1, "loucas_metais", "loucas_metais"],
+  ["porta_toalha_banho", 1, "loucas_metais", "loucas_metais"], ["cabide", 1, "loucas_metais", "loucas_metais"], ["espelho", 1, "loucas_metais", "loucas_metais"], ["box_preliminar", 1, "loucas_metais", "loucas_metais"],
+  ["agua_fria_vaso", 1, "hidraulica", "instalacoes"], ["agua_fria_lavatorio", 1, "hidraulica", "instalacoes"], ["agua_fria_chuveiro", 1, "hidraulica", "instalacoes"],
+  ["esgoto_vaso", 1, "esgoto", "instalacoes"], ["esgoto_lavatorio", 1, "esgoto", "instalacoes"], ["esgoto_area_banho", 1, "esgoto", "instalacoes"],
+  ["ralo", 1, "esgoto", "instalacoes"], ["caixa_sifonada", 1, "esgoto", "instalacoes"],
+  ["iluminacao_central", 1, "eletrica", "instalacoes"], ["iluminacao_espelho", 1, "eletrica", "instalacoes"], ["interruptor", 1, "eletrica", "instalacoes"],
+  ["tomada_600va", 2, "eletrica", "instalacoes"], ["caixa_espelho_tomada", 2, "eletrica", "instalacoes"]
+];
+
+function bathroomPrmaBudgetPackage(bathrooms) {
+  return {
+    installationSummary: { electricalPoints: 999, lightingPoints: 999, hydraulicPoints: 999, sanitaryPoints: 999, showers: 999, sanitaryFixtures: 999, metals: 999 },
+    quantities: [
+      prmaQuantity("prma_room_banheiro_completo", "Pacote PRMA por ambiente - banheiro_completo", bathrooms, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_equip_chuveiro_eletrico", "Previsao PRMA por equipamento - chuveiro_eletrico", bathrooms, "PER_EQUIPMENT", "prma_pacote_equipamento")
+    ]
+  };
+}
+
+function assertBathroomPrmaDecomposition(eap, bathrooms) {
+  const parentServiceId = "prma_room_banheiro_completo";
+  const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
+  assert.equal(parentItems.length, 1);
+  assert.equal(parentItems[0].compositionSearchable, false);
+  assert.equal(parentItems[0].compositionStatus, "decompose_required");
+  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  assert.equal(subitems.length, 30);
+  subitems.forEach((entry) => {
+    assert.equal(entry.source, "prma", entry.serviceId);
+    assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
+    assert.equal(entry.compositionSearchable, false, entry.serviceId);
+    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
+    assert.equal(entry.candidatos, undefined, entry.serviceId);
+    assert.equal(entry.price, undefined, entry.serviceId);
+    assert.equal(entry.preco, undefined, entry.serviceId);
+    assert.equal(entry.valorTotal, undefined, entry.serviceId);
+  });
+  BATHROOM_ATOMIC_EXPECTATIONS.forEach(([suffix, perBathroom, discipline, stageId]) => {
+    const serviceId = parentServiceId + "_" + suffix;
+    const entry = itemByServiceId(eap, serviceId);
+    assert.ok(entry, serviceId);
+    assert.equal(entry.quantidadeBase.valor, perBathroom * bathrooms, serviceId);
+    assert.equal(entry.disciplina, discipline, serviceId);
+    assert.equal(entry.etapaId, stageId, serviceId);
+  });
+  assert.equal(subitems.filter((item) => item.disciplina === "hidraulica").reduce((sum, item) => sum + item.quantidadeBase.valor, 0), 3 * bathrooms);
+  assert.equal(subitems.filter((item) => /^prma_room_banheiro_completo_esgoto_/.test(item.serviceId)).reduce((sum, item) => sum + item.quantidadeBase.valor, 0), 3 * bathrooms);
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_ralo").quantidadeBase.valor, bathrooms);
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_caixa_sifonada").quantidadeBase.valor, bathrooms);
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_tomada_600va").quantidadeBase.valor, 2 * bathrooms);
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_caixa_espelho_tomada").quantidadeBase.valor, 2 * bathrooms);
+  assert.equal(eap.itens.filter((item) => item.serviceId === "prma_equip_chuveiro_eletrico").length, 1);
+  assert.equal(subitems.some((item) => /chuveiro_eletrico|circuito|disjuntor|cabo|eletroduto/.test(item.serviceId + " " + item.nome)), false);
+  const serviceIds = eap.itens.map((item) => item.serviceId).filter(Boolean);
+  assert.equal(new Set(serviceIds).size, serviceIds.length);
+  ["pontos_eletricos", "pontos_iluminacao", "pontos_hidraulicos", "pontos_sanitarios", "chuveiros"].forEach((serviceId) => assert.equal(itemByServiceId(eap, serviceId), undefined, serviceId));
+}
+
+test("PRMA banheiro completo decompoe 1 banheiro em 30 subitens atomicos", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: bathroomPrmaBudgetPackage(1) });
+  assertBathroomPrmaDecomposition(eap, 1);
+});
+
+test("PRMA banheiro completo multiplica subitens atomicos para 2 banheiros", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: bathroomPrmaBudgetPackage(2) });
+  assertBathroomPrmaDecomposition(eap, 2);
+});
+
+test("EAP sem PRMA continua sem subitens atomicos de banheiro", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, ambientes: { banheiros: 1 }, uf: "BA" });
+  assert.equal(eap.itens.some((item) => item.parentServiceId === "prma_room_banheiro_completo"), false);
+  assert.ok(itemByName(eap, "vaso sanitario por banheiro"));
+  assert.ok(itemByName(eap, "hidraulica"));
+  assert.ok(itemByName(eap, "esgoto sanitario"));
+});
+
+const KITCHEN_ATOMIC_EXPECTATIONS = [
+  ["tomada_600va", 4, "eletrica", "instalacoes"], ["ponto_geladeira", 1, "eletrica", "instalacoes"], ["ponto_microondas", 1, "eletrica", "instalacoes"],
+  ["ponto_forno_eletrico", 1, "eletrica", "instalacoes"], ["ponto_cooktop", 1, "eletrica", "instalacoes"], ["ponto_coifa_depurador", 1, "eletrica", "instalacoes"],
+  ["ponto_lava_loucas", 1, "eletrica", "instalacoes"], ["iluminacao_central", 1, "eletrica", "instalacoes"], ["iluminacao_bancada", 1, "eletrica", "instalacoes"],
+  ["iluminacao_pia_armarios", 1, "eletrica", "instalacoes"], ["interruptor_conjunto", 2, "eletrica", "instalacoes"], ["agua_fria_pia", 1, "hidraulica", "instalacoes"],
+  ["esgoto_pia", 1, "esgoto", "instalacoes"], ["registro_setor", 1, "hidraulica", "instalacoes"], ["valvula_pia", 1, "loucas_metais", "loucas_metais"],
+  ["sifao", 1, "loucas_metais", "loucas_metais"], ["engate", 2, "loucas_metais", "loucas_metais"], ["ponto_filtro_reserva", 1, "hidraulica", "instalacoes"],
+  ["ponto_hidraulico_lava_loucas_reserva", 1, "hidraulica", "instalacoes"], ["ponto_esgoto_lava_loucas_reserva", 1, "esgoto", "instalacoes"],
+  ["cuba_pia", 1, "loucas_metais", "loucas_metais"], ["torneira", 1, "loucas_metais", "loucas_metais"]
+];
+
+function kitchenPrmaBudgetPackage(kitchens) {
+  return {
+    installationSummary: { electricalPoints: 999, lightingPoints: 999, hydraulicPoints: 999, sanitaryPoints: 999 },
+    quantities: [
+      prmaQuantity("prma_room_cozinha", "Pacote PRMA por ambiente - cozinha", kitchens, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_equip_geladeira", "Previsao PRMA por equipamento - geladeira", 1, "PER_EQUIPMENT", "prma_pacote_equipamento"),
+      prmaQuantity("prma_equip_microondas", "Previsao PRMA por equipamento - microondas", 1, "PER_EQUIPMENT", "prma_pacote_equipamento"),
+      prmaQuantity("prma_equip_forno_eletrico", "Previsao PRMA por equipamento - forno_eletrico", 1, "PER_EQUIPMENT", "prma_pacote_equipamento"),
+      prmaQuantity("prma_equip_cooktop", "Previsao PRMA por equipamento - cooktop", 1, "PER_EQUIPMENT", "prma_pacote_equipamento"),
+      prmaQuantity("prma_equip_coifa_depurador", "Previsao PRMA por equipamento - coifa_depurador", 1, "PER_EQUIPMENT", "prma_pacote_equipamento")
+    ]
+  };
+}
+
+function assertKitchenPrmaDecomposition(eap, kitchens) {
+  const parentServiceId = "prma_room_cozinha";
+  const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
+  assert.equal(parentItems.length, 1);
+  assert.equal(parentItems[0].compositionSearchable, false);
+  assert.equal(parentItems[0].compositionStatus, "decompose_required");
+  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  assert.equal(subitems.length, 22);
+  subitems.forEach((entry) => {
+    assert.equal(entry.source, "prma", entry.serviceId);
+    assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
+    assert.equal(entry.compositionSearchable, false, entry.serviceId);
+    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
+    assert.equal(entry.candidatos, undefined, entry.serviceId);
+    assert.equal(entry.price, undefined, entry.serviceId);
+    assert.equal(entry.preco, undefined, entry.serviceId);
+    assert.equal(entry.valorTotal, undefined, entry.serviceId);
+  });
+  KITCHEN_ATOMIC_EXPECTATIONS.forEach(([suffix, perKitchen, discipline, stageId]) => {
+    const serviceId = parentServiceId + "_" + suffix;
+    const entry = itemByServiceId(eap, serviceId);
+    assert.ok(entry, serviceId);
+    assert.equal(entry.quantidadeBase.valor, perKitchen * kitchens, serviceId);
+    assert.equal(entry.disciplina, discipline, serviceId);
+    assert.equal(entry.etapaId, stageId, serviceId);
+  });
+  assert.equal(["ponto_geladeira", "ponto_microondas", "ponto_forno_eletrico", "ponto_cooktop", "ponto_coifa_depurador", "ponto_lava_loucas"].filter((suffix) => itemByServiceId(eap, parentServiceId + "_" + suffix).quantidadeBase.valor === kitchens).length, 6);
+  assert.equal(["iluminacao_central", "iluminacao_bancada", "iluminacao_pia_armarios"].filter((suffix) => itemByServiceId(eap, parentServiceId + "_" + suffix).quantidadeBase.valor === kitchens).length, 3);
+  ["prma_equip_geladeira", "prma_equip_microondas", "prma_equip_forno_eletrico", "prma_equip_cooktop", "prma_equip_coifa_depurador"].forEach((serviceId) => {
+    assert.equal(eap.itens.filter((item) => item.serviceId === serviceId).length, 1, serviceId);
+  });
+  assert.equal(subitems.some((item) => /equip_geladeira|equip_microondas|equip_forno|equip_cooktop|equip_coifa|aparelho|fornecido/.test(item.serviceId + " " + item.nome)), false);
+  const serviceIds = eap.itens.map((item) => item.serviceId).filter(Boolean);
+  assert.equal(new Set(serviceIds).size, serviceIds.length);
+}
+
+test("PRMA cozinha decompoe 1 cozinha em 22 subitens atomicos", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: kitchenPrmaBudgetPackage(1) });
+  assertKitchenPrmaDecomposition(eap, 1);
+});
+
+test("PRMA cozinha multiplica subitens atomicos para 2 cozinhas", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: kitchenPrmaBudgetPackage(2) });
+  assertKitchenPrmaDecomposition(eap, 2);
+});
+
+test("EAP sem PRMA continua sem subitens atomicos de cozinha", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, ambientes: { cozinha: 1 }, uf: "BA" });
+  assert.equal(eap.itens.some((item) => item.parentServiceId === "prma_room_cozinha"), false);
+  assert.ok(itemByName(eap, "pia/cuba da cozinha"));
+  assert.ok(itemByName(eap, "torneira cozinha"));
+});
+
+const SERVICE_AREA_ATOMIC_EXPECTATIONS = [
+  ["agua_fria_tanque", 1, "hidraulica", "instalacoes"], ["esgoto_tanque", 1, "esgoto", "instalacoes"],
+  ["agua_fria_maquina_lavar", 1, "hidraulica", "instalacoes"], ["esgoto_maquina_lavar", 1, "esgoto", "instalacoes"],
+  ["ralo", 1, "esgoto", "instalacoes"], ["caixa_sifonada", 1, "esgoto", "instalacoes"], ["registro_setor", 1, "hidraulica", "instalacoes"],
+  ["valvula_tanque", 1, "loucas_metais", "loucas_metais"], ["sifao_tanque", 1, "loucas_metais", "loucas_metais"], ["engate_flexivel", 1, "loucas_metais", "loucas_metais"],
+  ["tanque", 1, "loucas_metais", "loucas_metais"], ["torneira_tanque", 1, "loucas_metais", "loucas_metais"],
+  ["tomada_servico_tanque", 1, "eletrica", "instalacoes"], ["tomada_maquina_lavar", 1, "eletrica", "instalacoes"], ["tomada_auxiliar", 1, "eletrica", "instalacoes"],
+  ["iluminacao_central", 1, "eletrica", "instalacoes"], ["interruptor", 1, "eletrica", "instalacoes"], ["caixa_espelho", 3, "eletrica", "instalacoes"],
+  ["infraestrutura_varal", 1, "instalacoes", "instalacoes"]
+];
+
+function serviceAreaPrmaBudgetPackage(serviceAreas) {
+  return {
+    installationSummary: { electricalPoints: 999, lightingPoints: 999, hydraulicPoints: 999, sanitaryPoints: 999, washingMachines: 999 },
+    quantities: [
+      prmaQuantity("prma_room_area_servico", "Pacote PRMA por ambiente - area_servico", serviceAreas, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_equip_maquina_lavar", "Previsao PRMA por equipamento - maquina_lavar", 1, "PER_EQUIPMENT", "prma_pacote_equipamento")
+    ]
+  };
+}
+
+function assertServiceAreaPrmaDecomposition(eap, serviceAreas) {
+  const parentServiceId = "prma_room_area_servico";
+  const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
+  assert.equal(parentItems.length, 1);
+  assert.equal(parentItems[0].compositionSearchable, false);
+  assert.equal(parentItems[0].compositionStatus, "decompose_required");
+  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  assert.equal(subitems.length, 19);
+  subitems.forEach((entry) => {
+    assert.equal(entry.source, "prma", entry.serviceId);
+    assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
+    assert.equal(entry.compositionSearchable, false, entry.serviceId);
+    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
+    assert.equal(entry.candidatos, undefined, entry.serviceId);
+    assert.equal(entry.price, undefined, entry.serviceId);
+    assert.equal(entry.preco, undefined, entry.serviceId);
+    assert.equal(entry.valorTotal, undefined, entry.serviceId);
+  });
+  SERVICE_AREA_ATOMIC_EXPECTATIONS.forEach(([suffix, perServiceArea, discipline, stageId]) => {
+    const serviceId = parentServiceId + "_" + suffix;
+    const entry = itemByServiceId(eap, serviceId);
+    assert.ok(entry, serviceId);
+    assert.equal(entry.quantidadeBase.valor, perServiceArea * serviceAreas, serviceId);
+    assert.equal(entry.disciplina, discipline, serviceId);
+    assert.equal(entry.etapaId, stageId, serviceId);
+  });
+  assert.equal(["tomada_servico_tanque", "tomada_maquina_lavar", "tomada_auxiliar"].reduce((sum, suffix) => sum + itemByServiceId(eap, parentServiceId + "_" + suffix).quantidadeBase.valor, 0), 3 * serviceAreas);
+  assert.equal(eap.itens.filter((item) => item.serviceId === "prma_equip_maquina_lavar").length, 1);
+  assert.equal(subitems.some((item) => /equip_maquina_lavar|maquina_lavar_fornecida|aparelho|fornecida|eletroduto/.test(item.serviceId + " " + item.nome)), false);
+  const serviceIds = eap.itens.map((item) => item.serviceId).filter(Boolean);
+  assert.equal(new Set(serviceIds).size, serviceIds.length);
+}
+
+test("PRMA area de servico decompoe 1 area em 19 subitens atomicos", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: serviceAreaPrmaBudgetPackage(1) });
+  assertServiceAreaPrmaDecomposition(eap, 1);
+});
+
+test("PRMA area de servico multiplica subitens atomicos para 2 areas", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: serviceAreaPrmaBudgetPackage(2) });
+  assertServiceAreaPrmaDecomposition(eap, 2);
+});
+
+test("EAP sem PRMA continua sem subitens atomicos de area de servico", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, ambientes: { areaServico: 1 }, uf: "BA" });
+  assert.equal(eap.itens.some((item) => item.parentServiceId === "prma_room_area_servico"), false);
+  assert.ok(itemByName(eap, "tanque da area de servico quando houver"));
+  assert.ok(itemByName(eap, "hidraulica"));
+  assert.ok(itemByName(eap, "esgoto sanitario"));
+});
+
+const GENERAL_HYDRAULIC_EXPECTATIONS = {
+  prma_ligacao_agua: {
+    discipline: "hidraulica",
+    subitems: [["ligacao_predial_agua", 1], ["registro_geral", 1], ["cavalete", 1], ["hidrometro", 1], ["entrada_rede_reservatorio", null], ["conexoes_entrada", null], ["teste_ligacao", 1]]
+  },
+  prma_reservatorio_1000l: {
+    discipline: "hidraulica",
+    subitems: [["reservatorio_1000l", 1], ["tampa", 1], ["torneira_boia", 1], ["registro_saida", 1], ["extravasor", 1], ["limpeza_inicial", 1], ["barrilete", null], ["suportes_conexoes", null]]
+  },
+  prma_saida_esgoto: {
+    discipline: "esgoto",
+    subitems: [["ligacao_predial_esgoto", 1], ["caixa_inspecao_principal", 1], ["caixa_gordura", 1], ["coletor_predial", null], ["ventilacao_sanitaria_geral", null], ["escavacao_reaterro", null], ["teste_rede", 1]]
+  }
+};
+
+function generalHydraulicPrmaBudgetPackage() {
+  return {
+    quantities: [
+      prmaQuantity("prma_ligacao_agua", "Ligacao de agua PRMA"),
+      prmaQuantity("prma_reservatorio_1000l", "Reservatorio preliminar de 1000 litros PRMA"),
+      prmaQuantity("prma_saida_esgoto", "Saida de esgoto PRMA")
+    ]
+  };
+}
+
+function assertGeneralHydraulicSubitems(eap, parentServiceId) {
+  const expectation = GENERAL_HYDRAULIC_EXPECTATIONS[parentServiceId];
+  const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
+  assert.equal(parentItems.length, 1, parentServiceId);
+  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  assert.equal(subitems.length, expectation.subitems.length, parentServiceId);
+  subitems.forEach((entry) => {
+    assert.equal(entry.source, "prma", entry.serviceId);
+    assert.equal(entry.classification, "FIXED_PER_HOUSE", entry.serviceId);
+    assert.equal(entry.parentServiceId, parentServiceId, entry.serviceId);
+    assert.equal(entry.disciplina, expectation.discipline, entry.serviceId);
+    assert.equal(entry.etapaId, "instalacoes", entry.serviceId);
+    assert.equal(entry.compositionSearchable, false, entry.serviceId);
+    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
+    assert.equal(entry.candidatos, undefined, entry.serviceId);
+    assert.equal(entry.price, undefined, entry.serviceId);
+    assert.equal(entry.preco, undefined, entry.serviceId);
+    assert.equal(entry.valorTotal, undefined, entry.serviceId);
+    if (entry.quantidadeBase) assert.ok(!["m", "m2", "m3"].includes(entry.quantidadeBase.unidade), entry.serviceId);
+  });
+  expectation.subitems.forEach(([suffix, quantity]) => {
+    const entry = itemByServiceId(eap, parentServiceId + "_" + suffix);
+    assert.ok(entry, parentServiceId + "_" + suffix);
+    if (quantity === null) assert.equal(entry.quantidadeBase, null, entry.serviceId);
+    else assert.equal(entry.quantidadeBase.valor, quantity, entry.serviceId);
+  });
+}
+
+test("PRMA hidraulica geral decompoe ligacao de agua", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: generalHydraulicPrmaBudgetPackage() });
+  assertGeneralHydraulicSubitems(eap, "prma_ligacao_agua");
+  assert.equal(itemByServiceId(eap, "prma_ligacao_agua_entrada_rede_reservatorio").quantidadeBase, null);
+  assert.equal(itemByServiceId(eap, "prma_ligacao_agua_conexoes_entrada").quantidadeBase, null);
+});
+
+test("PRMA hidraulica geral decompoe reservatorio 1000 L sem dupla precificacao", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: generalHydraulicPrmaBudgetPackage() });
+  assertGeneralHydraulicSubitems(eap, "prma_reservatorio_1000l");
+  const parent = itemByServiceId(eap, "prma_reservatorio_1000l");
+  const reservoirSubitem = itemByServiceId(eap, "prma_reservatorio_1000l_reservatorio_1000l");
+  assert.equal(parent.compositionSearchable, true);
+  assert.equal(reservoirSubitem.compositionSearchable, false);
+  assert.equal(eap.itens.filter((item) => item.source === "prma" && item.compositionSearchable).map((item) => item.serviceId).join("|"), "prma_reservatorio_1000l");
+  assert.equal(itemByServiceId(eap, "prma_reservatorio_1000l_barrilete").quantidadeBase, null);
+  assert.equal(itemByServiceId(eap, "prma_reservatorio_1000l_suportes_conexoes").quantidadeBase, null);
+});
+
+test("PRMA hidraulica geral decompoe saida de esgoto", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: generalHydraulicPrmaBudgetPackage() });
+  assertGeneralHydraulicSubitems(eap, "prma_saida_esgoto");
+  assert.equal(itemByServiceId(eap, "prma_saida_esgoto_coletor_predial").quantidadeBase, null);
+  assert.equal(itemByServiceId(eap, "prma_saida_esgoto_ventilacao_sanitaria_geral").quantidadeBase, null);
+  assert.equal(itemByServiceId(eap, "prma_saida_esgoto_escavacao_reaterro").quantidadeBase, null);
+  const generalSubitems = eap.itens.filter((item) => ["prma_ligacao_agua", "prma_reservatorio_1000l", "prma_saida_esgoto"].includes(item.parentServiceId));
+  assert.equal(generalSubitems.length, 22);
+  const serviceIds = eap.itens.map((item) => item.serviceId).filter(Boolean);
+  assert.equal(new Set(serviceIds).size, serviceIds.length);
+});
+
+test("EAP sem PRMA continua sem subitens atomicos de hidraulica geral", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA" });
+  assert.equal(eap.itens.some((item) => ["prma_ligacao_agua", "prma_reservatorio_1000l", "prma_saida_esgoto"].includes(item.parentServiceId)), false);
+  assert.ok(itemByName(eap, "hidraulica"));
+  assert.ok(itemByName(eap, "esgoto sanitario"));
+});

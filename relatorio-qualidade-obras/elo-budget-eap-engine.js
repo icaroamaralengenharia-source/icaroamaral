@@ -202,11 +202,136 @@
     });
   }
 
+  function getEloPrmaGeneralHydraulicAtomicSubitems_(entry) {
+    const parentServiceId = clean(entry && entry.serviceId);
+    const policy = prmaPendingValidationPolicy_();
+    const specs = {
+      prma_ligacao_agua: [
+        ["ligacao_predial_agua", "Ligacao predial de agua", 1, "servico"], ["registro_geral", "Registro geral da ligacao de agua", 1, "un"],
+        ["cavalete", "Cavalete da ligacao de agua", 1, "un"], ["hidrometro", "Hidrometro condicionado ao escopo", 1, "un"],
+        ["entrada_rede_reservatorio", "Entrada da rede ate o reservatorio", null, "un"], ["conexoes_entrada", "Conexoes da entrada de agua", null, "un"],
+        ["teste_ligacao", "Teste da ligacao de agua", 1, "servico"]
+      ],
+      prma_reservatorio_1000l: [
+        ["reservatorio_1000l", "Reservatorio 1000 L", 1, "un"], ["tampa", "Tampa do reservatorio", 1, "un"], ["torneira_boia", "Torneira boia do reservatorio", 1, "un"],
+        ["registro_saida", "Registro de saida do reservatorio", 1, "un"], ["extravasor", "Extravasor do reservatorio", 1, "un"], ["limpeza_inicial", "Limpeza inicial do reservatorio", 1, "servico"],
+        ["barrilete", "Barrilete do reservatorio", null, "un"], ["suportes_conexoes", "Suportes e conexoes do reservatorio", null, "un"]
+      ],
+      prma_saida_esgoto: [
+        ["ligacao_predial_esgoto", "Ligacao predial de esgoto", 1, "servico"], ["caixa_inspecao_principal", "Caixa de inspecao principal", 1, "un"],
+        ["caixa_gordura", "Caixa de gordura", 1, "un"], ["coletor_predial", "Coletor predial", null, "un"], ["ventilacao_sanitaria_geral", "Ventilacao sanitaria geral", null, "un"],
+        ["escavacao_reaterro", "Escavacao e reaterro da ligacao de esgoto", null, "un"], ["teste_rede", "Teste da rede de esgoto", 1, "servico"]
+      ]
+    };
+    return (specs[parentServiceId] || []).map(function (spec) {
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2], unit: spec[3], classification: "FIXED_PER_HOUSE", category: "prma_subitem_hidraulica_geral", parentServiceId: parentServiceId, policy: policy });
+    });
+  }
+
+  function getEloPrmaBathroomAtomicSubitems_(entry) {
+    if (clean(entry && entry.serviceId) !== "prma_room_banheiro_completo") return [];
+    const bathrooms = number(entry.quantity);
+    if (bathrooms <= 0) return [];
+    const parentServiceId = "prma_room_banheiro_completo";
+    const policy = prmaPendingValidationPolicy_();
+    const specs = [
+      ["vaso_sanitario", "Vaso sanitario do banheiro", 1, "loucas_metais"],
+      ["caixa_descarga", "Caixa acoplada ou descarga do banheiro", 1, "loucas_metais"],
+      ["assento_sanitario", "Assento sanitario do banheiro", 1, "loucas_metais"],
+      ["lavatorio_cuba", "Lavatorio ou cuba do banheiro", 1, "loucas_metais"],
+      ["torneira_lavatorio", "Torneira de lavatorio do banheiro", 1, "loucas_metais"],
+      ["valvula_lavatorio", "Valvula de lavatorio do banheiro", 1, "loucas_metais"],
+      ["sifao", "Sifao do banheiro", 1, "loucas_metais"],
+      ["engate_flexivel", "Engate flexivel do banheiro", 1, "loucas_metais"],
+      ["registro_pressao", "Registro de pressao do banheiro", 1, "loucas_metais"],
+      ["acabamento_registro", "Acabamento de registro do banheiro", 1, "loucas_metais"],
+      ["porta_papel", "Porta-papel do banheiro", 1, "loucas_metais"], ["saboneteira", "Saboneteira do banheiro", 1, "loucas_metais"],
+      ["porta_toalha_rosto", "Porta-toalha de rosto do banheiro", 1, "loucas_metais"], ["porta_toalha_banho", "Porta-toalha de banho do banheiro", 1, "loucas_metais"],
+      ["cabide", "Cabide do banheiro", 1, "loucas_metais"], ["espelho", "Espelho do banheiro", 1, "loucas_metais"], ["box_preliminar", "Box preliminar do banheiro", 1, "loucas_metais"],
+      ["agua_fria_vaso", "Ponto de agua fria para vaso", 1, "hidraulica"], ["agua_fria_lavatorio", "Ponto de agua fria para lavatorio", 1, "hidraulica"], ["agua_fria_chuveiro", "Ponto de agua fria para chuveiro", 1, "hidraulica"],
+      ["esgoto_vaso", "Ponto de esgoto para vaso", 1, "esgoto"], ["esgoto_lavatorio", "Ponto de esgoto para lavatorio", 1, "esgoto"], ["esgoto_area_banho", "Ponto de esgoto da area de banho", 1, "esgoto"],
+      ["ralo", "Ralo do banheiro", 1, "esgoto"], ["caixa_sifonada", "Caixa sifonada do banheiro", 1, "esgoto"],
+      ["iluminacao_central", "Ponto de iluminacao central do banheiro", 1, "eletrica"], ["iluminacao_espelho", "Ponto de iluminacao do espelho do banheiro", 1, "eletrica"],
+      ["interruptor", "Interruptor do banheiro", 1, "eletrica"], ["tomada_600va", "Tomada de 600 VA do banheiro", 2, "eletrica"], ["caixa_espelho_tomada", "Caixa e espelho de tomada do banheiro", 2, "eletrica"]
+    ];
+    return specs.map(function (spec) {
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2] * bathrooms, unit: "un", classification: "PER_ROOM", category: "prma_subitem_banheiro_" + spec[3], parentServiceId: parentServiceId, policy: policy });
+    });
+  }
+
+  function getEloPrmaKitchenAtomicSubitems_(entry) {
+    if (clean(entry && entry.serviceId) !== "prma_room_cozinha") return [];
+    const kitchens = number(entry.quantity);
+    if (kitchens <= 0) return [];
+    const parentServiceId = "prma_room_cozinha";
+    const policy = prmaPendingValidationPolicy_();
+    const specs = [
+      ["tomada_600va", "Tomada geral de 600 VA da cozinha", 4, "eletrica"], ["ponto_geladeira", "Ponto dedicado para geladeira", 1, "eletrica"],
+      ["ponto_microondas", "Ponto dedicado para micro-ondas", 1, "eletrica"], ["ponto_forno_eletrico", "Ponto dedicado para forno eletrico", 1, "eletrica"],
+      ["ponto_cooktop", "Ponto dedicado para cooktop", 1, "eletrica"], ["ponto_coifa_depurador", "Ponto dedicado para coifa ou depurador", 1, "eletrica"],
+      ["ponto_lava_loucas", "Ponto reservado para lava-loucas", 1, "eletrica"], ["iluminacao_central", "Ponto de iluminacao central da cozinha", 1, "eletrica"],
+      ["iluminacao_bancada", "Ponto de iluminacao de bancada da cozinha", 1, "eletrica"], ["iluminacao_pia_armarios", "Ponto de iluminacao sobre pia ou armarios", 1, "eletrica"],
+      ["interruptor_conjunto", "Interruptor ou conjunto da cozinha", 2, "eletrica"], ["agua_fria_pia", "Ponto de agua fria da pia", 1, "hidraulica"],
+      ["esgoto_pia", "Ponto de esgoto da pia", 1, "esgoto"], ["registro_setor", "Registro de setor da cozinha", 1, "hidraulica"],
+      ["valvula_pia", "Valvula da pia da cozinha", 1, "loucas_metais"], ["sifao", "Sifao da pia da cozinha", 1, "loucas_metais"], ["engate", "Engate da cozinha", 2, "loucas_metais"],
+      ["ponto_filtro_reserva", "Ponto de filtro da cozinha como reserva", 1, "hidraulica"], ["ponto_hidraulico_lava_loucas_reserva", "Ponto hidraulico para lava-loucas como reserva", 1, "hidraulica"],
+      ["ponto_esgoto_lava_loucas_reserva", "Ponto de esgoto para lava-loucas como reserva", 1, "esgoto"], ["cuba_pia", "Cuba ou pia da cozinha", 1, "loucas_metais"], ["torneira", "Torneira da cozinha", 1, "loucas_metais"]
+    ];
+    return specs.map(function (spec) {
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2] * kitchens, unit: "un", classification: "PER_ROOM", category: "prma_subitem_cozinha_" + spec[3], parentServiceId: parentServiceId, policy: policy });
+    });
+  }
+
+  function getEloPrmaServiceAreaAtomicSubitems_(entry) {
+    if (clean(entry && entry.serviceId) !== "prma_room_area_servico") return [];
+    const serviceAreas = number(entry.quantity);
+    if (serviceAreas <= 0) return [];
+    const parentServiceId = "prma_room_area_servico";
+    const policy = prmaPendingValidationPolicy_();
+    const specs = [
+      ["agua_fria_tanque", "Ponto de agua fria do tanque", 1, "hidraulica"], ["esgoto_tanque", "Ponto de esgoto do tanque", 1, "esgoto"],
+      ["agua_fria_maquina_lavar", "Ponto de agua fria da maquina de lavar", 1, "hidraulica"], ["esgoto_maquina_lavar", "Ponto de esgoto da maquina de lavar", 1, "esgoto"],
+      ["ralo", "Ralo da area de servico", 1, "esgoto"], ["caixa_sifonada", "Caixa sifonada da area de servico", 1, "esgoto"],
+      ["registro_setor", "Registro de setor da area de servico", 1, "hidraulica"], ["valvula_tanque", "Valvula do tanque", 1, "loucas_metais"],
+      ["sifao_tanque", "Sifao do tanque", 1, "loucas_metais"], ["engate_flexivel", "Engate flexivel da area de servico", 1, "loucas_metais"],
+      ["tanque", "Tanque da area de servico", 1, "loucas_metais"], ["torneira_tanque", "Torneira do tanque", 1, "loucas_metais"],
+      ["tomada_servico_tanque", "Tomada de servico proxima ao tanque", 1, "eletrica"], ["tomada_maquina_lavar", "Tomada dedicada da maquina de lavar", 1, "eletrica"],
+      ["tomada_auxiliar", "Tomada auxiliar da area de servico", 1, "eletrica"], ["iluminacao_central", "Ponto de iluminacao central da area de servico", 1, "eletrica"],
+      ["interruptor", "Interruptor da area de servico", 1, "eletrica"], ["caixa_espelho", "Caixa e espelho da area de servico", 3, "eletrica"],
+      ["infraestrutura_varal", "Infraestrutura de varal pendente", 1, "reserva"]
+    ];
+    return specs.map(function (spec) {
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2] * serviceAreas, unit: "un", classification: "PER_ROOM", category: "prma_subitem_area_servico_" + spec[3], parentServiceId: parentServiceId, policy: policy });
+    });
+  }
+
   function buildEloPrmaEapItems_(input) {
     const items = [];
     getEloPrmaQuantityItems_(input).forEach(function (entry) {
       items.push(buildEloPrmaEapItem_(entry));
       getEloPrmaFixedElectricalDecomposition_(entry).forEach(function (subitem) { items.push(subitem); });
+      getEloPrmaGeneralHydraulicAtomicSubitems_(entry).forEach(function (subitem) {
+        subitem.disciplina = clean(entry.serviceId) === "prma_saida_esgoto" ? "esgoto" : "hidraulica";
+        subitem.etapaId = "instalacoes";
+        if (!items.some(function (item) { return item.serviceId === subitem.serviceId; })) items.push(subitem);
+      });
+      getEloPrmaBathroomAtomicSubitems_(entry).forEach(function (subitem) {
+        const serviceId = clean(subitem.serviceId);
+        subitem.disciplina = /_(agua_fria)_/.test(serviceId) ? "hidraulica" : (/_(esgoto)_|_ralo$|_caixa_sifonada$/.test(serviceId) ? "esgoto" : (/_(iluminacao)_|_interruptor$|_tomada_600va$|_caixa_espelho_tomada$/.test(serviceId) ? "eletrica" : "loucas_metais"));
+        subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
+        items.push(subitem);
+      });
+      getEloPrmaKitchenAtomicSubitems_(entry).forEach(function (subitem) {
+        subitem.disciplina = clean(subitem.disciplina).replace("prma_subitem_cozinha_", "");
+        subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
+        if (!items.some(function (item) { return item.serviceId === subitem.serviceId; })) items.push(subitem);
+      });
+      getEloPrmaServiceAreaAtomicSubitems_(entry).forEach(function (subitem) {
+        subitem.disciplina = clean(subitem.disciplina).replace("prma_subitem_area_servico_", "");
+        if (subitem.disciplina === "reserva") subitem.disciplina = "instalacoes";
+        subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
+        if (!items.some(function (item) { return item.serviceId === subitem.serviceId; })) items.push(subitem);
+      });
     });
     return items;
   }
