@@ -195,6 +195,8 @@
   function resolveEloEapCompositions(input) {
     const settings = input || {};
     const eap = settings.eap || {};
+    const scopePreferences = settings.scopePreferences || eap.scopePreferences || {};
+    const resolutionScopePreferences = JSON.parse(JSON.stringify(scopePreferences || {}));
     const engine = settings.compositionSearchEngine || root.CompositionSearchEngine || null;
     const maxCandidates = Math.max(1, Number(settings.maxCandidates || DEFAULT_MAX_CANDIDATES) || DEFAULT_MAX_CANDIDATES);
     const resolvedItems = [];
@@ -240,6 +242,7 @@
       resolvedItems: resolvedItems,
       unresolvedItems: unresolvedItems,
       summary: summary,
+      resolutionContext: { scopePreferences: resolutionScopePreferences },
       podeFecharOrcamentoCompleto: requiredUnresolved.length === 0 && lowConfidenceResolved.length === 0 && eapBlockers.length === 0
     };
   }

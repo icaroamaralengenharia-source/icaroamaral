@@ -285,7 +285,7 @@
         return { result: { resolved: request.items.map(function (item) { return settings.resolver.resolveItem(clone(item)); }) } };
       }
       if (settings.resolver && typeof settings.resolver.resolveEloEapCompositions === "function") {
-        return { result: settings.resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: request.items.map(clone) }, compositionSearchEngine: settings.compositionSearchEngine || null, maxCandidates: settings.maxCandidates }) };
+        return { result: settings.resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: request.items.map(clone) }, compositionSearchEngine: settings.compositionSearchEngine || null, maxCandidates: settings.maxCandidates, scopePreferences: settings.scopePreferences || {} }) };
       }
     } catch (error) {
       return { error: { code: "resolver_exception", message: error && error.message || "Erro controlado ao chamar resolvedor." } };
@@ -316,6 +316,7 @@
       } else {
         try {
           model.resolution = normalizeResolverResult(called.result, request, settings);
+          model.resolutionContext = clone(called.result && called.result.resolutionContext || { scopePreferences: settings.scopePreferences || {} });
         } catch (error) {
           model.status = "invalid";
           model.errors.push({ code: "resolver_result_exception", message: error && error.message || "Erro ao normalizar resposta do resolvedor." });

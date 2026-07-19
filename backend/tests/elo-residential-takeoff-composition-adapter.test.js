@@ -125,6 +125,22 @@ test("7. input is not mutated", () => { const model = takeoff(); const before = 
 test("8. options are not mutated", () => { const options = { resolver: resolverFor((r) => validComposition(r)), minimumConfidence: 0.55 }; const before = JSON.stringify(Object.keys(options)); Adapter.resolve(takeoff(), options); assert.equal(JSON.stringify(Object.keys(options)), before); });
 test("9. resolver is not mutated", () => { const resolver = resolverFor((r) => validComposition(r)); const keys = Object.keys(resolver).join(","); Adapter.resolve(takeoff(), { resolver }); assert.equal(Object.keys(resolver).join(","), keys); });
 test("10. resolver response is not mutated", () => { const response = { resolvedItems: [validComposition({ requestId: "rtc-floor-area-total-floor-area-total-total", takeoffCode: "FLOOR_AREA_TOTAL", unit: "m2" })], unresolvedItems: [] }; const before = JSON.stringify(response); const resolver = { resolveEloEapCompositions: () => response }; Adapter.resolve(takeoff(), { resolver }); assert.equal(JSON.stringify(response), before); });
+test("scopePreferences are passed through resolution context without changing output", () => {
+  const preference = { bathroomFinishStandard: "economic" };
+  const calls = [];
+  const resolver = { resolveEloEapCompositions(input) {
+    calls.push(input);
+    return { resolvedItems: input.eap.itens.map((request) => validComposition(request)), unresolvedItems: [], resolutionContext: { scopePreferences: JSON.parse(JSON.stringify(input.scopePreferences || {})) } };
+  } };
+  const baseline = Adapter.resolve(takeoff(), { resolver });
+  const preferred = Adapter.resolve(takeoff(), { resolver, scopePreferences: preference });
+  assert.equal(JSON.stringify(calls[0].scopePreferences), "{}");
+  assert.equal(JSON.stringify(calls[1].scopePreferences), JSON.stringify(preference));
+  assert.deepEqual(baseline.resolution, preferred.resolution);
+  assert.equal(preferred.resolutionContext.scopePreferences.bathroomFinishStandard, "economic");
+  preferred.resolutionContext.scopePreferences.bathroomFinishStandard = "standard";
+  assert.equal(preference.bathroomFinishStandard, "economic");
+});
 test("11. executions do not share state", () => { const a = resolveOk(); const b = resolveOk(); a.resolution.resolved.push({ x: 1 }); assert.notEqual(a.resolution.resolved.length, b.resolution.resolved.length); });
 test("12. buildRequest works without resolver", () => assert.equal(Adapter.buildRequest(takeoff()).eligibleCount, 1));
 test("13. resolve blocks without resolver", () => assert.equal(Adapter.resolve(takeoff()).status, "blocked"));
