@@ -820,6 +820,166 @@ test("EAP sem PRMA continua sem subitens atomicos de area de servico", () => {
   assert.ok(itemByName(eap, "esgoto sanitario"));
 });
 
+const OFFICIAL_KIT_SELECTIONS = {
+  vaso: "prma_room_banheiro_completo_kit_vaso_sanitario_caixa_acoplada",
+  lavatorio: "prma_room_banheiro_completo_kit_lavatorio",
+  cuba: "prma_room_cozinha_kit_cuba_pia",
+  tanque: "prma_room_area_servico_kit_tanque"
+};
+
+function officialKitPrmaBudgetPackage(bathrooms = 1, kitchens = 1, serviceAreas = 1) {
+  return {
+    quantities: [
+      prmaQuantity("prma_room_banheiro_completo", "Pacote PRMA por ambiente - banheiro_completo", bathrooms, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_room_cozinha", "Pacote PRMA por ambiente - cozinha", kitchens, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_room_area_servico", "Pacote PRMA por ambiente - area_servico", serviceAreas, "PER_ROOM", "prma_pacote_ambiente"),
+      prmaQuantity("prma_equip_chuveiro_eletrico", "Previsao PRMA por equipamento - chuveiro_eletrico", bathrooms, "PER_EQUIPMENT", "prma_pacote_equipamento"),
+      prmaQuantity("prma_equip_maquina_lavar", "Previsao PRMA por equipamento - maquina_lavar", 1, "PER_EQUIPMENT", "prma_pacote_equipamento")
+    ]
+  };
+}
+
+function buildOfficialKitSelectionEap(officialKitSelections = {}, bathrooms = 1, kitchens = 1, serviceAreas = 1) {
+  const engine = loadEap();
+  return engine.buildEloBudgetEap({
+    tipo: "casa",
+    areaConstruidaM2: 80,
+    uf: "BA",
+    budgetPackage: officialKitPrmaBudgetPackage(bathrooms, kitchens, serviceAreas),
+    officialKitSelections
+  });
+}
+
+function assertNoServiceIdDuplicates(eap) {
+  const serviceIds = eap.itens.map((item) => item.serviceId).filter(Boolean);
+  assert.equal(new Set(serviceIds).size, serviceIds.length);
+}
+
+function assertKitPendingSelection(kit) {
+  assert.equal(kit.compositionStatus, "pending_selection", kit.serviceId);
+  assert.equal(kit.compositionSearchable, false, kit.serviceId);
+  assert.equal(kit.selectedOfficialCode, undefined, kit.serviceId);
+  assert.equal(kit.selectedOfficialDescription, undefined, kit.serviceId);
+  assert.equal(kit.selectedOfficialUnit, undefined, kit.serviceId);
+  assert.equal(kit.composicaoSelecionada, undefined, kit.serviceId);
+  assert.equal(kit.price, undefined, kit.serviceId);
+}
+
+function assertKitSelected(kit, expectedCode, expectedUnit = "un") {
+  assert.equal(kit.compositionStatus, "selected_pending_resolution", kit.serviceId);
+  assert.equal(kit.compositionSearchable, false, kit.serviceId);
+  assert.equal(kit.selectedOfficialCode, expectedCode, kit.serviceId);
+  assert.equal(kit.selectedOfficialUnit, expectedUnit, kit.serviceId);
+  assert.ok(kit.selectedOfficialDescription, kit.serviceId);
+  assert.equal(kit.officialKit.selectedOfficialCode, expectedCode, kit.serviceId);
+  assert.equal(kit.officialKit.selectedOfficialUnit, expectedUnit, kit.serviceId);
+  assert.equal(kit.composicaoSelecionada, undefined, kit.serviceId);
+  assert.equal(kit.price, undefined, kit.serviceId);
+  assert.equal(kit.preco, undefined, kit.serviceId);
+  assert.equal(kit.valorTotal, undefined, kit.serviceId);
+}
+
+function assertAbsorbedItemsRemainVisibleWithoutPrice(eap, kit) {
+  Array.from(kit.absorbedServiceIds).forEach((serviceId) => {
+    const entry = itemByServiceId(eap, serviceId);
+    assert.ok(entry, serviceId);
+    assert.equal(entry.compositionStatus, "absorbed_by_official_kit", serviceId);
+    assert.equal(entry.compositionSearchable, false, serviceId);
+    assert.equal(entry.absorbedByOfficialKitServiceId, kit.serviceId, serviceId);
+    assert.equal(entry.composicaoSelecionada, undefined, serviceId);
+    assert.equal(entry.price, undefined, serviceId);
+    assert.equal(entry.preco, undefined, serviceId);
+    assert.equal(entry.valorTotal, undefined, serviceId);
+  });
+}
+
+function assertResolverDoesNotSearch(items) {
+  let resolverCalls = 0;
+  const resolver = loadWindow(["elo-composition-resolver.js"]).EloCompositionResolver;
+  resolver.resolveEloEapCompositions({
+    eap: { bloqueadores: [], itens: items },
+    compositionSearchEngine: { searchOfficialCompositions() { resolverCalls += 1; return []; } }
+  });
+  assert.equal(resolverCalls, 0);
+}
+
+test("PRMA kits oficiais permanecem pending_selection sem selecao explicita", () => {
+  const eap = buildOfficialKitSelectionEap();
+  Object.values(OFFICIAL_KIT_SELECTIONS).forEach((serviceId) => assertKitPendingSelection(itemByServiceId(eap, serviceId)));
+  assertNoServiceIdDuplicates(eap);
+  assertResolverDoesNotSearch(eap.itens.filter((item) => Object.values(OFFICIAL_KIT_SELECTIONS).includes(item.serviceId)));
+});
+
+test("PRMA kits oficiais aceitam somente selecoes SINAPI candidatas", () => {
+  const eap = buildOfficialKitSelectionEap({
+    [OFFICIAL_KIT_SELECTIONS.vaso]: "86931",
+    [OFFICIAL_KIT_SELECTIONS.lavatorio]: "86939",
+    [OFFICIAL_KIT_SELECTIONS.cuba]: "86935",
+    [OFFICIAL_KIT_SELECTIONS.tanque]: "86919"
+  }, 2, 2, 2);
+  const vaso = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.vaso);
+  const lavatorio = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.lavatorio);
+  const cuba = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.cuba);
+  const tanque = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.tanque);
+  assert.equal(vaso.quantidadeBase.valor, 2);
+  assert.equal(lavatorio.quantidadeBase.valor, 2);
+  assert.equal(cuba.quantidadeBase.valor, 2);
+  assert.equal(tanque.quantidadeBase.valor, 2);
+  assertKitSelected(vaso, "86931");
+  assertKitSelected(lavatorio, "86939");
+  assertKitSelected(cuba, "86935");
+  assertKitSelected(tanque, "86919");
+  assert.deepEqual(Array.from(vaso.officialCandidates).map((candidate) => candidate.code), ["86931", "86932"]);
+  assert.deepEqual(Array.from(lavatorio.officialCandidates).map((candidate) => candidate.code), ["86939", "86941", "86942", "86943"]);
+  assert.deepEqual(Array.from(cuba.officialCandidates).map((candidate) => candidate.code), ["86935", "86936"]);
+  assert.deepEqual(Array.from(tanque.officialCandidates).map((candidate) => candidate.code), ["86919", "86920", "86921"]);
+  [vaso, lavatorio, cuba, tanque].forEach((kit) => assertAbsorbedItemsRemainVisibleWithoutPrice(eap, kit));
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_assento_sanitario").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_cozinha_torneira").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_area_servico_engate_flexivel").compositionStatus, "pending_validation");
+  assertNoServiceIdDuplicates(eap);
+  assertResolverDoesNotSearch(eap.itens.filter((item) => item.parentServiceId));
+});
+
+test("PRMA selecao de kit oficial rejeita codigo fora das candidatas", () => {
+  const eap = buildOfficialKitSelectionEap({
+    [OFFICIAL_KIT_SELECTIONS.vaso]: "86935",
+    [OFFICIAL_KIT_SELECTIONS.lavatorio]: "00000"
+  });
+  const vaso = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.vaso);
+  const lavatorio = itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.lavatorio);
+  assertKitPendingSelection(vaso);
+  assertKitPendingSelection(lavatorio);
+  assert.ok(vaso.technicalWarnings.includes("Código oficial não pertence às opções permitidas para este kit."));
+  assert.ok(lavatorio.technicalWarnings.includes("Código oficial não pertence às opções permitidas para este kit."));
+  assertKitPendingSelection(itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.cuba));
+  assertKitPendingSelection(itemByServiceId(eap, OFFICIAL_KIT_SELECTIONS.tanque));
+  assert.deepEqual(Array.from(vaso.officialCandidates).map((candidate) => candidate.code), ["86931", "86932"]);
+  assertNoServiceIdDuplicates(eap);
+  assertResolverDoesNotSearch(eap.itens.filter((item) => item.parentServiceId));
+});
+
+test("PRMA selecao de um kit oficial nao altera os demais nem a EAP sem PRMA", () => {
+  const selectedEap = buildOfficialKitSelectionEap({ [OFFICIAL_KIT_SELECTIONS.vaso]: "86931" });
+  assertKitSelected(itemByServiceId(selectedEap, OFFICIAL_KIT_SELECTIONS.vaso), "86931");
+  [OFFICIAL_KIT_SELECTIONS.lavatorio, OFFICIAL_KIT_SELECTIONS.cuba, OFFICIAL_KIT_SELECTIONS.tanque].forEach((serviceId) => {
+    assertKitPendingSelection(itemByServiceId(selectedEap, serviceId));
+  });
+  assertNoServiceIdDuplicates(selectedEap);
+
+  const engine = loadEap();
+  const oldEap = engine.buildEloBudgetEap({
+    tipo: "casa",
+    areaConstruidaM2: 80,
+    ambientes: { banheiros: 1, cozinha: 1, areaServico: 1 },
+    uf: "BA",
+    officialKitSelections: { [OFFICIAL_KIT_SELECTIONS.vaso]: "86931" }
+  });
+  assert.equal(oldEap.itens.some((item) => Object.values(OFFICIAL_KIT_SELECTIONS).includes(item.serviceId)), false);
+  assert.ok(itemByName(oldEap, "vaso sanitario por banheiro"));
+  assert.ok(itemByName(oldEap, "pia/cuba da cozinha"));
+  assert.ok(itemByName(oldEap, "tanque da area de servico quando houver"));
+});
 const GENERAL_HYDRAULIC_EXPECTATIONS = {
   prma_ligacao_agua: {
     discipline: "hidraulica",

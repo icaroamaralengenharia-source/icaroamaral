@@ -233,8 +233,12 @@
     mapped.prma = { serviceId: serviceId, parentServiceId: mapped.parentServiceId, classification: mapped.classification || null, source: "prma", compositionPolicy: policy.status };
     return mapped;
   }
-  function buildEloPrmaOfficialKitItem_(entry, kitPolicy) {
-    const policy = { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: kitPolicy.compositionStatus };
+  function buildEloPrmaOfficialKitItem_(entry, kitPolicy, officialKitSelections) {
+    const selectedCode = clean((officialKitSelections || {})[kitPolicy.kitServiceId]);
+    const selectedCandidate = selectedCode ? kitPolicy.officialCandidates.find(function (candidate) { return candidate.code === selectedCode; }) : null;
+    const selectionWarning = selectedCode && !selectedCandidate ? "Código oficial não pertence às opções permitidas para este kit." : null;
+    const compositionStatus = selectedCandidate ? "selected_pending_resolution" : kitPolicy.compositionStatus;
+    const policy = { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: compositionStatus };
     const mapped = buildEloPrmaEapItem_(entry, {
       serviceId: kitPolicy.kitServiceId,
       description: kitPolicy.description,
@@ -243,22 +247,33 @@
       classification: entry.classification || "PER_ROOM",
       category: "prma_kit_oficial_loucas_metais",
       parentServiceId: entry.serviceId,
-      policy: policy
+      policy: policy,
+      technicalWarnings: selectionWarning ? [selectionWarning] : []
     });
     mapped.officialKit = {
       source: "SINAPI",
-      status: kitPolicy.compositionStatus,
+      status: compositionStatus,
       selectionRequired: true,
       candidates: kitPolicy.officialCandidates.slice(),
       absorbedServiceIds: kitPolicy.absorbedServiceIds.slice(),
       technicalAliases: (kitPolicy.technicalAliases || []).slice(),
       excludedAbsorptionServiceIds: (kitPolicy.excludedAbsorptionServiceIds || []).slice()
     };
+    if (selectedCandidate) {
+      mapped.selectedOfficialCode = selectedCandidate.code;
+      mapped.selectedOfficialDescription = selectedCandidate.description;
+      mapped.selectedOfficialUnit = selectedCandidate.unit;
+      mapped.officialKit.selectedOfficialCode = selectedCandidate.code;
+      mapped.officialKit.selectedOfficialDescription = selectedCandidate.description;
+      mapped.officialKit.selectedOfficialUnit = selectedCandidate.unit;
+    }
     mapped.officialCandidates = kitPolicy.officialCandidates.slice();
     mapped.absorbedServiceIds = kitPolicy.absorbedServiceIds.slice();
     mapped.technicalAliases = (kitPolicy.technicalAliases || []).slice();
     mapped.excludedAbsorptionServiceIds = (kitPolicy.excludedAbsorptionServiceIds || []).slice();
-    if (kitPolicy.technicalWarnings && kitPolicy.technicalWarnings.length) mapped.technicalWarnings = kitPolicy.technicalWarnings.slice();
+    if (kitPolicy.technicalWarnings && kitPolicy.technicalWarnings.length) {
+      mapped.technicalWarnings = (mapped.technicalWarnings || []).concat(kitPolicy.technicalWarnings);
+    }
     return mapped;
   }
 
@@ -425,6 +440,7 @@
 
   function buildEloPrmaEapItems_(input) {
     const items = [];
+    const officialKitSelections = (input && input.officialKitSelections) || {};
     getEloPrmaQuantityItems_(input).forEach(function (entry) {
       items.push(buildEloPrmaEapItem_(entry));
       getEloPrmaFixedElectricalDecomposition_(entry).forEach(function (subitem) { items.push(subitem); });
@@ -444,7 +460,7 @@
           PRMA_OFFICIAL_KIT_POLICIES.prma_room_banheiro_completo_vaso_sanitario,
           PRMA_OFFICIAL_KIT_POLICIES.prma_room_banheiro_completo_kit_lavatorio
         ].forEach(function (kitPolicy) {
-          const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+          const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy, officialKitSelections);
           applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
           if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
         });
@@ -456,7 +472,7 @@
       });
       if (clean(entry.serviceId) === "prma_room_cozinha") {
         const kitPolicy = PRMA_OFFICIAL_KIT_POLICIES.prma_room_cozinha_kit_cuba_pia;
-        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy, officialKitSelections);
         applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
         if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
       }
@@ -468,7 +484,7 @@
       });
       if (clean(entry.serviceId) === "prma_room_area_servico") {
         const kitPolicy = PRMA_OFFICIAL_KIT_POLICIES.prma_room_area_servico_kit_tanque;
-        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy, officialKitSelections);
         applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
         if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
       }
