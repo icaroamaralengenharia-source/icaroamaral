@@ -689,38 +689,61 @@ test("Orcamentista V2 nao recoloca hidraulica sem remocao nem em frases ambiguas
   });
 });
 
-test("Orcamentista V2 detecta banheiro com orcamento ativo sem mutacao", () => {
+test("Orcamentista V2 bloqueia retirada do unico banheiro sem mutacao", () => {
   const { assistant } = loadAssistant();
   const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
   const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
-  const beforePackage = JSON.stringify(beforeState.budgetPackage);
-  const beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities);
-  const beforeScope = JSON.stringify(beforeState.budgetPackage.scope);
-  const beforeRevisions = JSON.stringify(beforeState.revisions || []);
-  const beforeExclusions = JSON.stringify(beforeState.budgetPackage.scopeExclusions || []);
-  const beforePrices = JSON.stringify((beforeState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })));
-  const beforeCompositions = JSON.stringify(beforeState.budgetPackage.compositions || []);
-  const beforeDocumentData = JSON.stringify(original.budgetOrchestratorV2.budgetDocumentData);
-  const beforePdfAction = JSON.stringify(original.pdfAction);
+  assert.equal(beforeState.budgetPackage.geometry.program.bathrooms, 1);
+  const beforePackage = JSON.stringify(beforeState.budgetPackage), beforeRevisions = JSON.stringify(beforeState.revisions || []), beforeDocumentData = JSON.stringify(original.budgetOrchestratorV2.budgetDocumentData), beforePdfAction = JSON.stringify(original.pdfAction);
 
   const response = assistant.buildResponseForTest("Retire o banheiro.");
   const afterState = assistant.getBudgetOrchestratorV2StateForTest();
 
-  assert.equal(response.sessionIntent, "budget_v2_scope_remove_bathroom_detected");
-  assert.match(response.fullAnswer, /revisao ainda nao foi aplicada/i);
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_bathroom_blocked_last_bathroom");
+  assert.match(response.fullAnswer, /1 banheiro/i);
+  assert.match(response.fullAnswer, /tecnicamente invalida/i);
   assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetPackage), beforePackage);
   assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
-  assert.equal(JSON.stringify(afterState.budgetPackage.quantities), beforeQuantities);
-  assert.equal(JSON.stringify(afterState.budgetPackage.scope), beforeScope);
   assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
-  assert.equal(JSON.stringify(afterState.budgetPackage.scopeExclusions || []), beforeExclusions);
-  assert.equal(JSON.stringify((afterState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total }))), beforePrices);
-  assert.equal(JSON.stringify(afterState.budgetPackage.compositions || []), beforeCompositions);
   assert.equal(JSON.stringify(response.budgetOrchestratorV2.budgetDocumentData), beforeDocumentData);
   assert.equal(JSON.stringify(response.pdfAction), beforePdfAction);
 });
 
-test("Orcamentista V2 detecta banheiro sem orcamento e ignora ambiguas", () => {
+test("Orcamentista V2 pede identificacao quando ha mais de um banheiro", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+  state.budgetPackage.geometry.program.bathrooms = 2;
+  const beforePackage = JSON.stringify(state.budgetPackage), beforeRevisions = JSON.stringify(state.revisions || []);
+
+  const response = assistant.buildResponseForTest("Retire o banheiro.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_bathroom_needs_identification");
+  assert.match(response.fullAnswer, /qual banheiro/i);
+  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
+});
+
+test("Orcamentista V2 bloqueia banheiro quando contagem esta ausente", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+  delete state.budgetPackage.geometry.program.bathrooms;
+  if (state.budgetPackage.program) delete state.budgetPackage.program.bathrooms;
+  if (state.program) delete state.program.bathrooms;
+  const beforePackage = JSON.stringify(state.budgetPackage), beforeRevisions = JSON.stringify(state.revisions || []);
+
+  const response = assistant.buildResponseForTest("Retire o banheiro.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_bathroom_missing_count");
+  assert.match(response.fullAnswer, /quantos banheiros/i);
+  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.revisions || []), beforeRevisions);
+});
+
+test("Orcamentista V2 banheiro sem orcamento e frases ambiguas nao entram na rota", () => {
   const empty = loadAssistant().assistant, withoutBudget = empty.buildResponseForTest("Retire o banheiro.");
   assert.equal(withoutBudget.sessionIntent, "budget_v2_scope_remove_bathroom_without_budget");
   assert.equal(empty.getBudgetOrchestratorV2StateForTest().budgetPackage, undefined);
@@ -729,7 +752,9 @@ test("Orcamentista V2 detecta banheiro sem orcamento e ignora ambiguas", () => {
     const { assistant } = loadAssistant();
     assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
     const before = assistant.getBudgetOrchestratorV2StateForTest(), response = assistant.buildResponseForTest(message);
-    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_bathroom_detected", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_bathroom_blocked_last_bathroom", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_bathroom_needs_identification", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_bathroom_missing_count", message);
     assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_bathroom_without_budget", message);
     assert.equal((assistant.getBudgetOrchestratorV2StateForTest().revisions || []).filter((revision) => revision && revision.target === "bathroom").length, (before.revisions || []).filter((revision) => revision && revision.target === "bathroom").length, message);
   });
