@@ -14246,6 +14246,10 @@
     return /^(?:reduza o escopo do banheiro|diminua o escopo do banheiro|simplifique o banheiro|reduza os itens do banheiro|faca um banheiro mais simples|deixe o banheiro mais economico)[.!?]?$/i.test(normalizeText(message || ""));
   }
 
+  function isEloResidentialBathroomEconomicFinishRequest_(message) {
+    return /^(?:padrao economico no banheiro|deixe o banheiro com padrao economico|reduza o padrao de acabamento do banheiro(?: para economico)?|use acabamento economico no banheiro|banheiro com acabamento economico)[.!?]?$/i.test(normalizeText(message || ""));
+  }
+
   function isEloResidentialRestoreHydraulicScopeRequest_(message) {
     return /^(?:recoloque a hidraulica|restaure a hidraulica|devolva a hidraulica ao orcamento|inclua novamente as instalacoes hidraulicas)[.!?]?$/i.test(normalizeText(message || ""));
   }
@@ -14508,6 +14512,27 @@
     const documentData = getCurrentBudgetV2DocumentData_();
     const pdfAction = documentData ? buildBudgetV2ProfessionalPdfAction_(documentData) : null;
     return { shortAnswer: "Quais itens do banheiro voce deseja reduzir?", fullAnswer: "Posso reduzir o escopo do banheiro sem excluir o ambiente. Escolha uma ou mais opcoes: revestimento de paredes, piso e impermeabilizacao, metais e acessorios, loucas, chuveiro, pontos eletricos ou padrao de acabamento.", nextAction: "Informe os itens que deseja reduzir e o nivel desejado: economico, intermediario ou manter o padrao atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_needs_options", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: documentData } };
+  }
+
+  function buildEloResidentialBathroomEconomicFinishAnswer_(message) {
+    if (!isEloResidentialBathroomEconomicFinishRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (!(state && state.type === "residential" && state.budgetPackage)) return { shortAnswer: "Primeiro gere um orcamento residencial para revisar o escopo do banheiro.", fullAnswer: "Primeiro gere um orcamento residencial para revisar o escopo do banheiro. Nao criei pacote, revisao, documento ou PDF.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_finish_without_budget" };
+    const current = state.budgetPackage.scopePreferences && state.budgetPackage.scopePreferences.bathroomFinishStandard;
+    if (current === "economic") return { shortAnswer: "O banheiro ja esta configurado no padrao economico.", fullAnswer: "O banheiro ja esta configurado no padrao de acabamento economico. Nao criei revisao vazia nem alterei o historico.", nextAction: "Revise o orcamento atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_finish_already_economic", budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+    const previousBudgetPackage = JSON.parse(JSON.stringify(state.budgetPackage || {}));
+    const resultingBudgetPackage = JSON.parse(JSON.stringify(state.budgetPackage || {}));
+    const nextState = JSON.parse(JSON.stringify(state));
+    const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
+    resultingBudgetPackage.scopePreferences = Object.assign({}, resultingBudgetPackage.scopePreferences || {}, { bathroomFinishStandard: "economic" });
+    resultingBudgetPackage.revisionNumber = revisionNumber;
+    nextState.budgetPackage = resultingBudgetPackage;
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, createdAt: new Date().toISOString(), userInstruction: sanitizeUserText(message), action: "change_finish_standard", target: "bathroom", previousFinishStandard: current || null, resultingFinishStandard: "economic", previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, changedItems: [], warnings: ["Quantities, precos e composicoes nao foram alterados; materiais economicos dependem de opcoes tecnicas compativeis."] }]);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    const documentData = buildBudgetV2DocumentDataFromState_(nextState, resultingBudgetPackage);
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    return { shortAnswer: "Padrao economico aplicado ao acabamento do banheiro.", fullAnswer: "Registrei o banheiro com padrao de acabamento economico nesta revisao. O ambiente, as instalacoes obrigatorias e as quantidades tecnicas foram preservados. A selecao de materiais e composicoes economicas sera feita somente quando houver opcoes tecnicas compativeis.", nextAction: "Revise a nova versao antes de salvar.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_reduce_bathroom_finish_economic_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: resultingBudgetPackage, budgetDocumentData: documentData } };
   }
 
   function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
@@ -21803,6 +21828,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (removeBathroomDetectedAnswer) return applyEloBrainMarker_(question, removeBathroomDetectedAnswer);
     const reduceBathroomDetectedAnswer = buildEloResidentialReduceBathroomNeedsOptionsAnswer_(question);
     if (reduceBathroomDetectedAnswer) return applyEloBrainMarker_(question, reduceBathroomDetectedAnswer);
+    const bathroomEconomicFinishAnswer = buildEloResidentialBathroomEconomicFinishAnswer_(question);
+    if (bathroomEconomicFinishAnswer) return applyEloBrainMarker_(question, bathroomEconomicFinishAnswer);
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);

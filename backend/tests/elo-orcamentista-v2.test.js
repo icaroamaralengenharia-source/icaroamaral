@@ -809,6 +809,64 @@ test("Orcamentista V2 nao trata frases ambiguas como reduzir banheiro", () => {
   });
 });
 
+test("Orcamentista V2 aplica padrao economico no acabamento do banheiro sem alterar itens", () => {
+  const { assistant } = loadAssistant();
+  const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const options = assistant.buildResponseForTest("Reduza o escopo do banheiro.");
+  assert.equal(options.sessionIntent, "budget_v2_scope_reduce_bathroom_needs_options");
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeScope = JSON.stringify(beforeState.budgetPackage.scope), beforeMaterials = JSON.stringify(beforeState.budgetPackage.materials || []), beforeCompositions = JSON.stringify(beforeState.budgetPackage.compositions || []), beforeFinancialLines = JSON.stringify(beforeState.budgetPackage.financialLines || []), beforePrices = JSON.stringify((beforeState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })));
+
+  const applied = assistant.buildResponseForTest("Reduza o padrao de acabamento do banheiro para economico.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+  const revision = applied.revision;
+
+  assert.equal(applied.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_economic_applied");
+  assert.equal(revision.action, "change_finish_standard");
+  assert.equal(revision.target, "bathroom");
+  assert.equal(revision.resultingFinishStandard, "economic");
+  assert.equal(afterState.budgetPackage.scopePreferences.bathroomFinishStandard, "economic");
+  assert.equal(JSON.stringify(revision.previousBudgetPackage), beforePackage);
+  assert.equal(JSON.stringify(afterState.budgetPackage.quantities), beforeQuantities);
+  assert.equal(JSON.stringify(afterState.budgetPackage.scope), beforeScope);
+  assert.equal(JSON.stringify(afterState.budgetPackage.materials || []), beforeMaterials);
+  assert.equal(JSON.stringify(afterState.budgetPackage.compositions || []), beforeCompositions);
+  assert.equal(JSON.stringify(afterState.budgetPackage.financialLines || []), beforeFinancialLines);
+  assert.equal(JSON.stringify((afterState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total }))), beforePrices);
+  ["louca", "metal", "chuveiro", "hidraul", "eletric", "impermeabil"].forEach((term) => assert.equal(new RegExp(term, "i").test(JSON.stringify(afterState.budgetPackage)), new RegExp(term, "i").test(beforePackage), term));
+  assert.ok(applied.budgetOrchestratorV2.budgetDocumentData);
+  assert.ok(applied.pdfAction);
+  assert.notEqual(applied.budgetOrchestratorV2.budgetDocumentData, original.budgetOrchestratorV2.budgetDocumentData);
+
+  const history = JSON.stringify(afterState.revisions || []), packageAfterFirst = JSON.stringify(afterState.budgetPackage);
+  const second = assistant.buildResponseForTest("Reduza o padrao de acabamento do banheiro para economico.");
+  const secondState = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(second.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_already_economic");
+  assert.equal(JSON.stringify(secondState.revisions || []), history);
+  assert.equal(JSON.stringify(secondState.budgetPackage), packageAfterFirst);
+});
+
+test("Orcamentista V2 nao aplica padrao economico no banheiro sem orcamento", () => {
+  const assistant = loadAssistant().assistant;
+  const response = assistant.buildResponseForTest("Reduza o padrao de acabamento do banheiro para economico.");
+  assert.equal(response.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_without_budget");
+  assert.equal(assistant.getBudgetOrchestratorV2StateForTest().budgetPackage, undefined);
+  assert.equal(assistant.getBudgetOrchestratorV2StateForTest().revisions, undefined);
+  assert.equal(response.pdfAction, undefined);
+});
+
+test("Orcamentista V2 nao trata frases ambiguas como acabamento economico do banheiro", () => {
+  ["reduza o banheiro", "retire revestimento", "retire impermeabilizacao", "retire o piso", "banheiro barato", "economize na casa", "padrao economico na casa inteira", "padrao intermediario", "padrao alto"].forEach((message) => {
+    const { assistant } = loadAssistant();
+    assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+    const before = assistant.getBudgetOrchestratorV2StateForTest();
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_economic_applied", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_without_budget", message);
+    assert.equal((assistant.getBudgetOrchestratorV2StateForTest().revisions || []).filter((revision) => revision && revision.action === "change_finish_standard" && revision.target === "bathroom").length, (before.revisions || []).filter((revision) => revision && revision.action === "change_finish_standard" && revision.target === "bathroom").length, message);
+  });
+});
+
 test("Orcamentista V2 mostra acoes transacionais para orcamento valido", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");
