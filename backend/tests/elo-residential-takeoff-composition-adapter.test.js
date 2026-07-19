@@ -141,6 +141,27 @@ test("scopePreferences are passed through resolution context without changing ou
   preferred.resolutionContext.scopePreferences.bathroomFinishStandard = "standard";
   assert.equal(preference.bathroomFinishStandard, "economic");
 });
+test("scopeContext reaches resolver as an independent copy without changing resolution", () => {
+  const original = item("FLOOR_AREA_TOTAL", 1, "m2", { id: "vaso_sanitario", serviceId: "vaso_sanitario", parentServiceId: "prma_room_banheiro_completo", compositionStatus: "pending_validation", compositionSearchable: false, officialKit: { status: "pending_selection" }, selectedOfficialCode: null, scopeContext: { environmentType: "bathroom", category: "fixture" } });
+  const kitchen = item("CEILING_AREA_TOTAL", 1, "m2", { id: "cozinha", serviceId: "cozinha" });
+  const hydraulic = item("WALL_NET_AREA_TOTAL", 1, "m2", { id: "agua_fria_chuveiro", serviceId: "agua_fria_chuveiro", parentServiceId: "prma_room_banheiro_completo" });
+  const calls = [];
+  const resolver = resolverFor((request, input) => { calls.push(input.eap.itens.map(clone)); return validComposition(request); });
+  const baseline = Adapter.resolve(takeoff([item("FLOOR_AREA_TOTAL", 1)]), { resolver });
+  const scoped = Adapter.resolve(takeoff([original, kitchen, hydraulic]), { resolver });
+  const received = calls[1][0];
+  assert.equal(JSON.stringify(received.scopeContext), JSON.stringify({ environmentType: "bathroom", category: "fixture" }));
+  received.scopeContext.category = "metal";
+  assert.equal(original.scopeContext.category, "fixture");
+  assert.equal(calls[1][1].scopeContext, undefined);
+  assert.equal(calls[1][2].scopeContext, undefined);
+  assert.equal(calls[1][2].scopeContext && calls[1][2].scopeContext.category, undefined);
+  assert.equal(JSON.stringify({ id: original.id, serviceId: original.serviceId, parentServiceId: original.parentServiceId, quantity: original.quantity, unit: original.unit, compositionStatus: original.compositionStatus, compositionSearchable: original.compositionSearchable, officialKit: original.officialKit, selectedOfficialCode: original.selectedOfficialCode }), JSON.stringify({ id: "vaso_sanitario", serviceId: "vaso_sanitario", parentServiceId: "prma_room_banheiro_completo", quantity: 1, unit: "m2", compositionStatus: "pending_validation", compositionSearchable: false, officialKit: { status: "pending_selection" }, selectedOfficialCode: null }));
+  assert.equal(scoped.resolution.resolved[0].composition.code, baseline.resolution.resolved[0].composition.code);
+  assert.equal(scoped.resolution.resolved[0].composition.confidence, baseline.resolution.resolved[0].composition.confidence);
+  assert.equal(JSON.stringify(scoped.resolution.resolved[0].warnings), JSON.stringify(baseline.resolution.resolved[0].warnings));
+  assert.equal(/selectedOfficialCode|selected_pending_resolution/.test(JSON.stringify(scoped.resolution)), false);
+});
 test("11. executions do not share state", () => { const a = resolveOk(); const b = resolveOk(); a.resolution.resolved.push({ x: 1 }); assert.notEqual(a.resolution.resolved.length, b.resolution.resolved.length); });
 test("12. buildRequest works without resolver", () => assert.equal(Adapter.buildRequest(takeoff()).eligibleCount, 1));
 test("13. resolve blocks without resolver", () => assert.equal(Adapter.resolve(takeoff()).status, "blocked"));

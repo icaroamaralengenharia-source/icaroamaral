@@ -136,6 +136,7 @@
       bloqueadores: [],
       quantity: item.quantity,
       unit: item.unit,
+      ...(item.scopeContext ? { scopeContext: clone(item.scopeContext) } : {}),
       query: {
         serviceName: mapping.serviceName,
         description: mapping.serviceName + " - " + item.name,
