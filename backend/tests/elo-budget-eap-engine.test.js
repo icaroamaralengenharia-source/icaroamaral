@@ -486,23 +486,77 @@ function bathroomPrmaBudgetPackage(bathrooms) {
 
 function assertBathroomPrmaDecomposition(eap, bathrooms) {
   const parentServiceId = "prma_room_banheiro_completo";
+  const kitServiceId = "prma_room_banheiro_completo_kit_vaso_sanitario_caixa_acoplada";
+  const lavatoryKitServiceId = "prma_room_banheiro_completo_kit_lavatorio";
+  const absorbedIds = [
+    "prma_room_banheiro_completo_vaso_sanitario",
+    "prma_room_banheiro_completo_caixa_descarga",
+    "prma_room_banheiro_completo_engate_flexivel"
+  ];
   const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
   assert.equal(parentItems.length, 1);
   assert.equal(parentItems[0].compositionSearchable, false);
   assert.equal(parentItems[0].compositionStatus, "decompose_required");
-  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const children = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const kit = itemByServiceId(eap, kitServiceId);
+  const lavatoryKit = itemByServiceId(eap, lavatoryKitServiceId);
+  assert.ok(kit);
+  assert.ok(lavatoryKit);
+  assert.equal(kit.quantidadeBase.valor, bathrooms);
+  assert.equal(kit.quantidadeBase.unidade, "un");
+  assert.equal(kit.source, "prma");
+  assert.equal(kit.compositionSearchable, false);
+  assert.equal(kit.compositionStatus, "pending_selection");
+  assert.deepEqual(Array.from(kit.officialCandidates).map((candidate) => candidate.code), ["86931", "86932"]);
+  assert.deepEqual(Array.from(kit.absorbedServiceIds), [
+    "prma_room_banheiro_completo_vaso_sanitario",
+    "prma_room_banheiro_completo_caixa_descarga",
+    "prma_room_banheiro_completo_engate_flexivel"
+  ]);
+  assert.deepEqual(Array.from(kit.technicalAliases), ["prma_room_banheiro_completo_caixa_acoplada_descarga"]);
+  assert.equal(lavatoryKit.quantidadeBase.valor, bathrooms);
+  assert.equal(lavatoryKit.quantidadeBase.unidade, "un");
+  assert.equal(lavatoryKit.compositionSearchable, false);
+  assert.equal(lavatoryKit.compositionStatus, "pending_selection");
+  assert.deepEqual(Array.from(lavatoryKit.officialCandidates).map((candidate) => candidate.code), ["86939", "86941", "86942", "86943"]);
+  assert.deepEqual(Array.from(lavatoryKit.absorbedServiceIds), [
+    "prma_room_banheiro_completo_lavatorio_cuba",
+    "prma_room_banheiro_completo_torneira_lavatorio",
+    "prma_room_banheiro_completo_valvula_lavatorio",
+    "prma_room_banheiro_completo_sifao"
+  ]);
+  assert.deepEqual(Array.from(lavatoryKit.excludedAbsorptionServiceIds), ["prma_room_banheiro_completo_engate_flexivel"]);
+  assert.match(lavatoryKit.technicalWarnings.join(" "), /engate flexivel generico/);
+  const subitems = children.filter((item) => item.serviceId !== kitServiceId && item.serviceId !== lavatoryKitServiceId);
   assert.equal(subitems.length, 30);
+  assert.equal(children.length, 32);
   subitems.forEach((entry) => {
     assert.equal(entry.source, "prma", entry.serviceId);
     assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
     assert.equal(entry.compositionSearchable, false, entry.serviceId);
-    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.compositionStatus, absorbedIds.includes(entry.serviceId) || lavatoryKit.absorbedServiceIds.includes(entry.serviceId) ? "absorbed_by_official_kit" : "pending_validation", entry.serviceId);
     assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
     assert.equal(entry.candidatos, undefined, entry.serviceId);
     assert.equal(entry.price, undefined, entry.serviceId);
     assert.equal(entry.preco, undefined, entry.serviceId);
     assert.equal(entry.valorTotal, undefined, entry.serviceId);
   });
+  Array.from(lavatoryKit.absorbedServiceIds).forEach((serviceId) => {
+    const entry = itemByServiceId(eap, serviceId);
+    assert.equal(entry.absorbedByOfficialKitServiceId, lavatoryKitServiceId, serviceId);
+    assert.deepEqual(Array.from(entry.absorbedByOfficialKitCandidates), ["86939", "86941", "86942", "86943"], serviceId);
+    assert.equal(entry.price, undefined, serviceId);
+    assert.equal(entry.preco, undefined, serviceId);
+    assert.equal(entry.valorTotal, undefined, serviceId);
+  });
+  absorbedIds.forEach((serviceId) => {
+    const entry = itemByServiceId(eap, serviceId);
+    assert.equal(entry.absorbedByOfficialKitServiceId, kitServiceId, serviceId);
+    assert.deepEqual(Array.from(entry.absorbedByOfficialKitCandidates), ["86931", "86932"], serviceId);
+  });
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_assento_sanitario").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_engate_flexivel").absorbedByOfficialKitServiceId, kitServiceId);
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_engate_flexivel").absorbedByOfficialKitServiceId === lavatoryKitServiceId, false);
   BATHROOM_ATOMIC_EXPECTATIONS.forEach(([suffix, perBathroom, discipline, stageId]) => {
     const serviceId = parentServiceId + "_" + suffix;
     const entry = itemByServiceId(eap, serviceId);
@@ -523,7 +577,6 @@ function assertBathroomPrmaDecomposition(eap, bathrooms) {
   assert.equal(new Set(serviceIds).size, serviceIds.length);
   ["pontos_eletricos", "pontos_iluminacao", "pontos_hidraulicos", "pontos_sanitarios", "chuveiros"].forEach((serviceId) => assert.equal(itemByServiceId(eap, serviceId), undefined, serviceId));
 }
-
 test("PRMA banheiro completo decompoe 1 banheiro em 30 subitens atomicos", () => {
   const engine = loadEap();
   const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: bathroomPrmaBudgetPackage(1) });
@@ -572,23 +625,51 @@ function kitchenPrmaBudgetPackage(kitchens) {
 
 function assertKitchenPrmaDecomposition(eap, kitchens) {
   const parentServiceId = "prma_room_cozinha";
+  const kitServiceId = "prma_room_cozinha_kit_cuba_pia";
+  const absorbedIds = ["prma_room_cozinha_cuba_pia", "prma_room_cozinha_valvula_pia", "prma_room_cozinha_sifao"];
   const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
   assert.equal(parentItems.length, 1);
   assert.equal(parentItems[0].compositionSearchable, false);
   assert.equal(parentItems[0].compositionStatus, "decompose_required");
-  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const children = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const kit = itemByServiceId(eap, kitServiceId);
+  assert.ok(kit);
+  assert.equal(kit.quantidadeBase.valor, kitchens);
+  assert.equal(kit.quantidadeBase.unidade, "un");
+  assert.equal(kit.source, "prma");
+  assert.equal(kit.compositionSearchable, false);
+  assert.equal(kit.compositionStatus, "pending_selection");
+  assert.deepEqual(Array.from(kit.officialCandidates).map((candidate) => candidate.code), ["86935", "86936"]);
+  assert.deepEqual(Array.from(kit.absorbedServiceIds), absorbedIds);
+  assert.deepEqual(Array.from(kit.excludedAbsorptionServiceIds), ["prma_room_cozinha_torneira", "prma_room_cozinha_engate"]);
+  assert.match(kit.technicalWarnings.join(" "), /Confirmar engates/);
+  const subitems = children.filter((item) => item.serviceId !== kitServiceId);
   assert.equal(subitems.length, 22);
+  assert.equal(children.length, 23);
   subitems.forEach((entry) => {
     assert.equal(entry.source, "prma", entry.serviceId);
     assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
     assert.equal(entry.compositionSearchable, false, entry.serviceId);
-    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.compositionStatus, absorbedIds.includes(entry.serviceId) ? "absorbed_by_official_kit" : "pending_validation", entry.serviceId);
     assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
     assert.equal(entry.candidatos, undefined, entry.serviceId);
     assert.equal(entry.price, undefined, entry.serviceId);
     assert.equal(entry.preco, undefined, entry.serviceId);
     assert.equal(entry.valorTotal, undefined, entry.serviceId);
   });
+  absorbedIds.forEach((serviceId) => {
+    const entry = itemByServiceId(eap, serviceId);
+    assert.equal(entry.absorbedByOfficialKitServiceId, kitServiceId, serviceId);
+    assert.deepEqual(Array.from(entry.absorbedByOfficialKitCandidates), ["86935", "86936"], serviceId);
+  });
+  assert.equal(itemByServiceId(eap, "prma_room_cozinha_torneira").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_cozinha_torneira").absorbedByOfficialKitServiceId, undefined);
+  assert.equal(itemByServiceId(eap, "prma_room_cozinha_engate").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_cozinha_engate").absorbedByOfficialKitServiceId, undefined);
+  let resolverCalls = 0;
+  const resolver = loadWindow(["elo-composition-resolver.js"]).EloCompositionResolver;
+  resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: children }, compositionSearchEngine: { searchOfficialCompositions() { resolverCalls += 1; return []; } } });
+  assert.equal(resolverCalls, 0);
   KITCHEN_ATOMIC_EXPECTATIONS.forEach(([suffix, perKitchen, discipline, stageId]) => {
     const serviceId = parentServiceId + "_" + suffix;
     const entry = itemByServiceId(eap, serviceId);
@@ -650,23 +731,59 @@ function serviceAreaPrmaBudgetPackage(serviceAreas) {
 
 function assertServiceAreaPrmaDecomposition(eap, serviceAreas) {
   const parentServiceId = "prma_room_area_servico";
+  const kitServiceId = "prma_room_area_servico_kit_tanque";
+  const absorbedIds = [
+    "prma_room_area_servico_tanque",
+    "prma_room_area_servico_torneira_tanque",
+    "prma_room_area_servico_valvula_tanque",
+    "prma_room_area_servico_sifao_tanque"
+  ];
   const parentItems = eap.itens.filter((item) => item.serviceId === parentServiceId);
   assert.equal(parentItems.length, 1);
   assert.equal(parentItems[0].compositionSearchable, false);
   assert.equal(parentItems[0].compositionStatus, "decompose_required");
-  const subitems = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const children = eap.itens.filter((item) => item.parentServiceId === parentServiceId);
+  const kit = itemByServiceId(eap, kitServiceId);
+  assert.ok(kit);
+  assert.equal(kit.quantidadeBase.valor, serviceAreas);
+  assert.equal(kit.quantidadeBase.unidade, "un");
+  assert.equal(kit.source, "prma");
+  assert.equal(kit.compositionSearchable, false);
+  assert.equal(kit.compositionStatus, "pending_selection");
+  assert.deepEqual(Array.from(kit.officialCandidates).map((candidate) => candidate.code), ["86919", "86920", "86921"]);
+  assert.deepEqual(Array.from(kit.absorbedServiceIds), absorbedIds);
+  assert.deepEqual(Array.from(kit.excludedAbsorptionServiceIds), ["prma_room_area_servico_engate_flexivel"]);
+  assert.match(kit.technicalWarnings.join(" "), /Confirmar ligacao flexivel/);
+  const subitems = children.filter((item) => item.serviceId !== kitServiceId);
   assert.equal(subitems.length, 19);
+  assert.equal(children.length, 20);
   subitems.forEach((entry) => {
     assert.equal(entry.source, "prma", entry.serviceId);
     assert.equal(entry.classification, "PER_ROOM", entry.serviceId);
     assert.equal(entry.compositionSearchable, false, entry.serviceId);
-    assert.equal(entry.compositionStatus, "pending_validation", entry.serviceId);
+    assert.equal(entry.compositionStatus, absorbedIds.includes(entry.serviceId) ? "absorbed_by_official_kit" : "pending_validation", entry.serviceId);
     assert.equal(entry.composicaoSelecionada, undefined, entry.serviceId);
     assert.equal(entry.candidatos, undefined, entry.serviceId);
     assert.equal(entry.price, undefined, entry.serviceId);
     assert.equal(entry.preco, undefined, entry.serviceId);
     assert.equal(entry.valorTotal, undefined, entry.serviceId);
   });
+  absorbedIds.forEach((serviceId) => {
+    const entry = itemByServiceId(eap, serviceId);
+    assert.equal(entry.absorbedByOfficialKitServiceId, kitServiceId, serviceId);
+    assert.deepEqual(Array.from(entry.absorbedByOfficialKitCandidates), ["86919", "86920", "86921"], serviceId);
+  });
+  assert.equal(itemByServiceId(eap, "prma_room_area_servico_engate_flexivel").compositionStatus, "pending_validation");
+  assert.equal(itemByServiceId(eap, "prma_room_area_servico_engate_flexivel").absorbedByOfficialKitServiceId, undefined);
+  ["agua_fria_tanque", "esgoto_tanque", "agua_fria_maquina_lavar", "esgoto_maquina_lavar", "ralo", "caixa_sifonada"].forEach((suffix) => {
+    const entry = itemByServiceId(eap, parentServiceId + "_" + suffix);
+    assert.equal(entry.compositionStatus, "pending_validation", suffix);
+    assert.equal(entry.absorbedByOfficialKitServiceId, undefined, suffix);
+  });
+  let resolverCalls = 0;
+  const resolver = loadWindow(["elo-composition-resolver.js"]).EloCompositionResolver;
+  resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: children }, compositionSearchEngine: { searchOfficialCompositions() { resolverCalls += 1; return []; } } });
+  assert.equal(resolverCalls, 0);
   SERVICE_AREA_ATOMIC_EXPECTATIONS.forEach(([suffix, perServiceArea, discipline, stageId]) => {
     const serviceId = parentServiceId + "_" + suffix;
     const entry = itemByServiceId(eap, serviceId);

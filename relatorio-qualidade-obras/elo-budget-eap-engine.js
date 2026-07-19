@@ -132,6 +132,84 @@
   }
 
   const PRMA_ATERRAMENTO_DUPLICITY_WARNING = "Confirmar se o padr\u00e3o de entrada e o aterramento geral compartilham o mesmo conjunto antes da precifica\u00e7\u00e3o.";
+  const PRMA_OFFICIAL_KIT_POLICIES = {
+    prma_room_banheiro_completo_vaso_sanitario: {
+      kitServiceId: "prma_room_banheiro_completo_kit_vaso_sanitario_caixa_acoplada",
+      description: "Kit oficial de vaso sanitario com caixa acoplada",
+      compositionStatus: "pending_selection",
+      officialCandidates: [
+        { code: "86931", description: "VASO SANITARIO SIFONADO COM CAIXA ACOPLADA LOUCA BRANCA, INCLUSO ENGATE FLEXIVEL EM PLASTICO BRANCO, 1/2 X 40CM - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86932", description: "VASO SANITARIO SIFONADO COM CAIXA ACOPLADA LOUCA BRANCA - PADRAO MEDIO, INCLUSO ENGATE FLEXIVEL EM METAL CROMADO, 1/2 X 40CM - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" }
+      ],
+      absorbedServiceIds: [
+        "prma_room_banheiro_completo_vaso_sanitario",
+        "prma_room_banheiro_completo_caixa_descarga",
+        "prma_room_banheiro_completo_engate_flexivel"
+      ],
+      technicalAliases: ["prma_room_banheiro_completo_caixa_acoplada_descarga"],
+      actualAbsorbedServiceIds: [
+        "prma_room_banheiro_completo_vaso_sanitario",
+        "prma_room_banheiro_completo_caixa_descarga",
+        "prma_room_banheiro_completo_engate_flexivel"
+      ]
+    },
+    prma_room_banheiro_completo_kit_lavatorio: {
+      kitServiceId: "prma_room_banheiro_completo_kit_lavatorio",
+      description: "Kit oficial de lavatorio do banheiro",
+      compositionStatus: "pending_selection",
+      officialCandidates: [
+        { code: "86939", description: "LAVATORIO LOUCA BRANCA COM COLUNA, PADRAO POPULAR, INCLUSO SIFAO FLEXIVEL EM PVC, VALVULA, ENGATE FLEXIVEL E TORNEIRA CROMADA - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86941", description: "LAVATORIO LOUCA BRANCA COM COLUNA, PADRAO MEDIO, INCLUSO SIFAO TIPO GARRAFA, VALVULA, ENGATE FLEXIVEL E TORNEIRA CROMADA - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86942", description: "LAVATORIO LOUCA BRANCA SUSPENSO, PADRAO POPULAR, INCLUSO SIFAO TIPO GARRAFA EM PVC, VALVULA, ENGATE FLEXIVEL E TORNEIRA CROMADA - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86943", description: "LAVATORIO LOUCA BRANCA SUSPENSO, PADRAO POPULAR, INCLUSO SIFAO FLEXIVEL EM PVC, VALVULA, ENGATE FLEXIVEL E TORNEIRA CROMADA - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" }
+      ],
+      absorbedServiceIds: [
+        "prma_room_banheiro_completo_lavatorio_cuba",
+        "prma_room_banheiro_completo_torneira_lavatorio",
+        "prma_room_banheiro_completo_valvula_lavatorio",
+        "prma_room_banheiro_completo_sifao"
+      ],
+      excludedAbsorptionServiceIds: ["prma_room_banheiro_completo_engate_flexivel"],
+      technicalWarnings: ["Existe apenas um engate flexivel generico no banheiro; ele permanece absorvido pelo kit de vaso. O lavatorio pode exigir engate proprio em refinamento futuro."]
+    },
+    prma_room_cozinha_kit_cuba_pia: {
+      kitServiceId: "prma_room_cozinha_kit_cuba_pia",
+      description: "Kit oficial de cuba ou pia da cozinha",
+      compositionStatus: "pending_selection",
+      officialCandidates: [
+        { code: "86935", description: "CUBA DE EMBUTIR DE ACO INOXIDAVEL MEDIA, INCLUSO VALVULA TIPO AMERICANA EM METAL CROMADO E SIFAO FLEXIVEL EM PVC - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86936", description: "CUBA DE EMBUTIR DE ACO INOXIDAVEL MEDIA, INCLUSO VALVULA TIPO AMERICANA E SIFAO TIPO GARRAFA EM METAL CROMADO - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" }
+      ],
+      absorbedServiceIds: [
+        "prma_room_cozinha_cuba_pia",
+        "prma_room_cozinha_valvula_pia",
+        "prma_room_cozinha_sifao"
+      ],
+      excludedAbsorptionServiceIds: [
+        "prma_room_cozinha_torneira",
+        "prma_room_cozinha_engate"
+      ],
+      technicalWarnings: ["Confirmar engates e ligacoes flexiveis conforme o modelo de cuba, torneira e instalacao selecionados."]
+    },
+    prma_room_area_servico_kit_tanque: {
+      kitServiceId: "prma_room_area_servico_kit_tanque",
+      description: "Kit oficial de tanque da area de servico",
+      compositionStatus: "pending_selection",
+      officialCandidates: [
+        { code: "86919", description: "TANQUE DE LOUCA BRANCA COM COLUNA, INCLUSO SIFAO FLEXIVEL EM PVC, VALVULA METALICA E TORNEIRA DE METAL CROMADO PADRAO MEDIO - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86920", description: "TANQUE DE LOUCA BRANCA COM COLUNA, INCLUSO SIFAO FLEXIVEL EM PVC, VALVULA PLASTICA E TORNEIRA DE METAL CROMADO PADRAO POPULAR - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" },
+        { code: "86921", description: "TANQUE DE LOUCA BRANCA COM COLUNA, INCLUSO SIFAO FLEXIVEL EM PVC, VALVULA PLASTICA E TORNEIRA DE PLASTICO - FORNECIMENTO E INSTALACAO. AF_01/2020", unit: "un" }
+      ],
+      absorbedServiceIds: [
+        "prma_room_area_servico_tanque",
+        "prma_room_area_servico_torneira_tanque",
+        "prma_room_area_servico_valvula_tanque",
+        "prma_room_area_servico_sifao_tanque"
+      ],
+      excludedAbsorptionServiceIds: ["prma_room_area_servico_engate_flexivel"],
+      technicalWarnings: ["Confirmar ligacao flexivel e conexoes conforme o modelo de tanque, torneira e instalacao selecionados."]
+    }
+  };
 
   function buildEloPrmaEapItem_(entry, overrides) {
     const safe = overrides || {};
@@ -154,6 +232,46 @@
     if (safe.technicalWarnings && safe.technicalWarnings.length) mapped.technicalWarnings = safe.technicalWarnings.slice();
     mapped.prma = { serviceId: serviceId, parentServiceId: mapped.parentServiceId, classification: mapped.classification || null, source: "prma", compositionPolicy: policy.status };
     return mapped;
+  }
+  function buildEloPrmaOfficialKitItem_(entry, kitPolicy) {
+    const policy = { status: PRMA_COMPOSITION_POLICY_STATUS.KEEP_PENDING, compositionStatus: kitPolicy.compositionStatus };
+    const mapped = buildEloPrmaEapItem_(entry, {
+      serviceId: kitPolicy.kitServiceId,
+      description: kitPolicy.description,
+      quantity: entry.quantity,
+      unit: "un",
+      classification: entry.classification || "PER_ROOM",
+      category: "prma_kit_oficial_loucas_metais",
+      parentServiceId: entry.serviceId,
+      policy: policy
+    });
+    mapped.officialKit = {
+      source: "SINAPI",
+      status: kitPolicy.compositionStatus,
+      selectionRequired: true,
+      candidates: kitPolicy.officialCandidates.slice(),
+      absorbedServiceIds: kitPolicy.absorbedServiceIds.slice(),
+      technicalAliases: (kitPolicy.technicalAliases || []).slice(),
+      excludedAbsorptionServiceIds: (kitPolicy.excludedAbsorptionServiceIds || []).slice()
+    };
+    mapped.officialCandidates = kitPolicy.officialCandidates.slice();
+    mapped.absorbedServiceIds = kitPolicy.absorbedServiceIds.slice();
+    mapped.technicalAliases = (kitPolicy.technicalAliases || []).slice();
+    mapped.excludedAbsorptionServiceIds = (kitPolicy.excludedAbsorptionServiceIds || []).slice();
+    if (kitPolicy.technicalWarnings && kitPolicy.technicalWarnings.length) mapped.technicalWarnings = kitPolicy.technicalWarnings.slice();
+    return mapped;
+  }
+
+  function applyEloPrmaOfficialKitAbsorption_(subitems, kitItem, kitPolicy) {
+    const absorbed = kitPolicy.actualAbsorbedServiceIds || kitPolicy.absorbedServiceIds || [];
+    subitems.forEach(function (subitem) {
+      if (absorbed.indexOf(subitem.serviceId) === -1) return;
+      if (subitem.absorbedByOfficialKitServiceId && subitem.absorbedByOfficialKitServiceId !== kitItem.serviceId) return;
+      subitem.compositionStatus = "absorbed_by_official_kit";
+      subitem.compositionSearchable = false;
+      subitem.absorbedByOfficialKitServiceId = kitItem.serviceId;
+      subitem.absorbedByOfficialKitCandidates = kitPolicy.officialCandidates.map(function (candidate) { return candidate.code; });
+    });
   }
 
   function getEloPrmaFixedElectricalDecomposition_(entry) {
@@ -321,17 +439,39 @@
         subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
         items.push(subitem);
       });
+      if (clean(entry.serviceId) === "prma_room_banheiro_completo") {
+        [
+          PRMA_OFFICIAL_KIT_POLICIES.prma_room_banheiro_completo_vaso_sanitario,
+          PRMA_OFFICIAL_KIT_POLICIES.prma_room_banheiro_completo_kit_lavatorio
+        ].forEach(function (kitPolicy) {
+          const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+          applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
+          if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
+        });
+      }
       getEloPrmaKitchenAtomicSubitems_(entry).forEach(function (subitem) {
         subitem.disciplina = clean(subitem.disciplina).replace("prma_subitem_cozinha_", "");
         subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
         if (!items.some(function (item) { return item.serviceId === subitem.serviceId; })) items.push(subitem);
       });
+      if (clean(entry.serviceId) === "prma_room_cozinha") {
+        const kitPolicy = PRMA_OFFICIAL_KIT_POLICIES.prma_room_cozinha_kit_cuba_pia;
+        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+        applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
+        if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
+      }
       getEloPrmaServiceAreaAtomicSubitems_(entry).forEach(function (subitem) {
         subitem.disciplina = clean(subitem.disciplina).replace("prma_subitem_area_servico_", "");
         if (subitem.disciplina === "reserva") subitem.disciplina = "instalacoes";
         subitem.etapaId = subitem.disciplina === "loucas_metais" ? "loucas_metais" : "instalacoes";
         if (!items.some(function (item) { return item.serviceId === subitem.serviceId; })) items.push(subitem);
       });
+      if (clean(entry.serviceId) === "prma_room_area_servico") {
+        const kitPolicy = PRMA_OFFICIAL_KIT_POLICIES.prma_room_area_servico_kit_tanque;
+        const kitItem = buildEloPrmaOfficialKitItem_(entry, kitPolicy);
+        applyEloPrmaOfficialKitAbsorption_(items, kitItem, kitPolicy);
+        if (!items.some(function (item) { return item.serviceId === kitItem.serviceId; })) items.push(kitItem);
+      }
     });
     return items;
   }
