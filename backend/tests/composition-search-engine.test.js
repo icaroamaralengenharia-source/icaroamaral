@@ -147,6 +147,29 @@ test("CompositionSearchEngine busca bloco ceramico baiano como alvenaria", () =>
   assert.equal(result.candidates[0].code, "SINAPI-ALV-001");
 });
 
+test("controlled finishStandard registry starts empty and keeps ranking", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "composition-search-engine.js"), "utf8");
+  assert.match(source, /const FINISH_STANDARD_BY_COMPOSITION_CODE = Object\.freeze\(\{\}\);/);
+  assert.equal((source.match(/FINISH_STANDARD_BY_COMPOSITION_CODE/g) || []).length, 2);
+  assert.equal(/PRMA_OFFICIAL_KIT_POLICIES|officialCandidates|pending_selection/.test(source), false);
+  const search = loadSearchEngine();
+  const composition = (code, description, extra = {}) => Object.assign({ code, description, unit: "un", source: "SINAPI", isOfficial: true, inputs: [{ code: "MAT-" + code, name: "insumo", unit: "un", coefficient: 1 }] }, extra);
+  const find = (items) => search.searchOfficialCompositions("vaso sanitario", { unit: "un", compositions: items });
+  assert.equal(find([composition("910", "vaso sanitario")]).candidates[0].finishStandard, undefined);
+  assert.equal(find([composition("911", "vaso sanitario", { finishStandard: "PREMIUM" })]).candidates[0].finishStandard, "premium");
+  assert.equal(find([composition("86931", "vaso sanitario")]).candidates[0].finishStandard, undefined);
+  assert.equal(find([composition("86931-X", "vaso sanitario")]).candidates[0].finishStandard, undefined);
+  assert.equal(find([composition("912", "vaso sanitario economico barato")]).candidates[0].finishStandard, undefined);
+  assert.equal(find([composition("913", "vaso sanitario", { price: 1, unitPrice: 1 })]).candidates[0].finishStandard, undefined);
+  const plain = find([composition("101", "vaso sanitario alfa", { price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
+  const tagged = find([composition("101", "vaso sanitario alfa", { finishStandard: "economic", price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
+  const summary = (result) => result.candidates.map(({ code, score, price }) => ({ code, score, price }));
+  assert.deepEqual(summary(tagged), summary(plain));
+  const prma = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-budget-eap-engine.js"), "utf8");
+  assert.match(prma, /compositionStatus: "pending_selection"/);
+  assert.match(prma, /selectedOfficialCode/);
+});
+
 test("CompositionSearchEngine retorna not found estruturado", () => {
   const search = loadSearchEngine();
   const result = search.searchOfficialCompositions("xyzqwerty", { unit: "m2" });

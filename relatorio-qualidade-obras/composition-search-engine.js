@@ -3,6 +3,7 @@
 
   const VERSION = "20260624-composition-search-v2-real-index";
   const DEFAULT_LIMIT = 8;
+  const FINISH_STANDARD_BY_COMPOSITION_CODE = Object.freeze({});
   const SYNONYMS = [
     ["telhado", ["cobertura"]],
     ["telha portuguesa", ["telha ceramica portuguesa"]],
@@ -120,6 +121,17 @@
   function descriptionOf(composition) { return clean(field(composition, ["description", "name", "service", "compositionName", "nome"])); }
   function sourceOf(composition) { return clean(field(composition, ["source", "sourceName", "base", "provider"])) || "base oficial"; }
   function unitOf(composition) { return normalizeUnit(field(composition, ["unit", "productionUnit", "compositionUnit", "unidade"])); }
+  function normalizeFinishStandard_(value) {
+    const text = clean(value).toLowerCase();
+    return text === "economic" || text === "standard" || text === "premium" ? text : null;
+  }
+  function getControlledFinishStandardByCode_(code) {
+    return normalizeFinishStandard_(FINISH_STANDARD_BY_COMPOSITION_CODE[clean(code)]);
+  }
+  function explicitFinishStandardOf_(composition) {
+    return normalizeFinishStandard_(composition && composition.finishStandard) ||
+      normalizeFinishStandard_(composition && composition.metadata && composition.metadata.finishStandard);
+  }
 
   function isOfficialComposition(engine, composition) {
     if (!composition) return false;
@@ -283,7 +295,7 @@
 
   function candidate(indexed, scored) {
     const composition = indexed.entry.composition;
-    return {
+    const output = {
       code: codeOf(composition),
       description: descriptionOf(composition),
       unit: unitOf(composition),
@@ -294,6 +306,9 @@
       composition: composition,
       indexedFrom: indexed.entry.location
     };
+    const finishStandard = explicitFinishStandardOf_(composition) || getControlledFinishStandardByCode_(output.code);
+    if (finishStandard) output.finishStandard = finishStandard;
+    return output;
   }
 
   function collectCandidateItems(index, expanded) {
