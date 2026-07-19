@@ -589,6 +589,30 @@ test("PRMA banheiro completo multiplica subitens atomicos para 2 banheiros", () 
   assertBathroomPrmaDecomposition(eap, 2);
 });
 
+test("PRMA banheiro completo marca scopeContext estrutural sem alterar itens nao elegiveis", () => {
+  const engine = loadEap();
+  const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, uf: "BA", budgetPackage: prmaBudgetPackage() });
+  const expected = {
+    fixture: ["vaso_sanitario", "caixa_descarga", "assento_sanitario", "lavatorio_cuba"],
+    metal: ["torneira_lavatorio", "valvula_lavatorio", "sifao", "engate_flexivel", "registro_pressao", "acabamento_registro"],
+    accessory: ["porta_papel", "saboneteira", "porta_toalha_rosto", "porta_toalha_banho", "cabide", "espelho", "box_preliminar"]
+  };
+  Object.entries(expected).forEach(([category, suffixes]) => suffixes.forEach((suffix) => {
+    const entry = itemByServiceId(eap, "prma_room_banheiro_completo_" + suffix);
+    assert.equal(JSON.stringify(entry.scopeContext), JSON.stringify({ environmentType: "bathroom", category }), entry.serviceId);
+    assert.equal(entry.parentServiceId, "prma_room_banheiro_completo", entry.serviceId);
+    assert.equal(entry.quantity, undefined, entry.serviceId);
+    assert.equal(entry.compositionSearchable, false, entry.serviceId);
+  }));
+  ["agua_fria_vaso", "agua_fria_lavatorio", "agua_fria_chuveiro", "esgoto_vaso", "esgoto_lavatorio", "esgoto_area_banho", "ralo", "caixa_sifonada", "iluminacao_central", "interruptor", "tomada_600va"].forEach((suffix) => assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_" + suffix).scopeContext, undefined, suffix));
+  ["prma_room_banheiro_completo", "prma_room_banheiro_completo_kit_vaso_sanitario_caixa_acoplada", "prma_room_banheiro_completo_kit_lavatorio", "prma_room_cozinha_torneira", "prma_room_area_servico_tanque"].forEach((serviceId) => assert.equal(itemByServiceId(eap, serviceId).scopeContext, undefined, serviceId));
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_kit_vaso_sanitario_caixa_acoplada").compositionStatus, "pending_selection");
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_vaso_sanitario").compositionStatus, "absorbed_by_official_kit");
+  assert.equal(itemByServiceId(eap, "prma_room_banheiro_completo_assento_sanitario").quantidadeBase.valor, 2);
+  const legacy = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, ambientes: { banheiros: 1 }, uf: "BA" });
+  assert.equal(itemByName(legacy, "vaso sanitario por banheiro").scopeContext, undefined);
+});
+
 test("EAP sem PRMA continua sem subitens atomicos de banheiro", () => {
   const engine = loadEap();
   const eap = engine.buildEloBudgetEap({ tipo: "casa", areaConstruidaM2: 80, ambientes: { banheiros: 1 }, uf: "BA" });

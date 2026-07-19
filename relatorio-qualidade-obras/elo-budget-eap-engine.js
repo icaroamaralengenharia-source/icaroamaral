@@ -230,6 +230,7 @@
     mapped.compositionStatus = policy.compositionStatus;
     mapped.compositionSearchable = searchable;
     if (safe.technicalWarnings && safe.technicalWarnings.length) mapped.technicalWarnings = safe.technicalWarnings.slice();
+    if (safe.scopeContext) mapped.scopeContext = { environmentType: safe.scopeContext.environmentType, category: safe.scopeContext.category };
     mapped.prma = { serviceId: serviceId, parentServiceId: mapped.parentServiceId, classification: mapped.classification || null, source: "prma", compositionPolicy: policy.status };
     return mapped;
   }
@@ -367,6 +368,7 @@
     if (bathrooms <= 0) return [];
     const parentServiceId = "prma_room_banheiro_completo";
     const policy = prmaPendingValidationPolicy_();
+    const scopeCategories = { vaso_sanitario: "fixture", caixa_descarga: "fixture", assento_sanitario: "fixture", lavatorio_cuba: "fixture", torneira_lavatorio: "metal", valvula_lavatorio: "metal", sifao: "metal", engate_flexivel: "metal", registro_pressao: "metal", acabamento_registro: "metal", porta_papel: "accessory", saboneteira: "accessory", porta_toalha_rosto: "accessory", porta_toalha_banho: "accessory", cabide: "accessory", espelho: "accessory", box_preliminar: "accessory" };
     const specs = [
       ["vaso_sanitario", "Vaso sanitario do banheiro", 1, "loucas_metais"],
       ["caixa_descarga", "Caixa acoplada ou descarga do banheiro", 1, "loucas_metais"],
@@ -388,7 +390,8 @@
       ["interruptor", "Interruptor do banheiro", 1, "eletrica"], ["tomada_600va", "Tomada de 600 VA do banheiro", 2, "eletrica"], ["caixa_espelho_tomada", "Caixa e espelho de tomada do banheiro", 2, "eletrica"]
     ];
     return specs.map(function (spec) {
-      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2] * bathrooms, unit: "un", classification: "PER_ROOM", category: "prma_subitem_banheiro_" + spec[3], parentServiceId: parentServiceId, policy: policy });
+      const scopeCategory = spec[3] === "loucas_metais" ? scopeCategories[spec[0]] : null;
+      return buildEloPrmaEapItem_(entry, { serviceId: parentServiceId + "_" + spec[0], description: spec[1], quantity: spec[2] * bathrooms, unit: "un", classification: "PER_ROOM", category: "prma_subitem_banheiro_" + spec[3], parentServiceId: parentServiceId, policy: policy, scopeContext: scopeCategory ? { environmentType: "bathroom", category: scopeCategory } : null });
     });
   }
 
