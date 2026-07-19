@@ -14227,6 +14227,64 @@
     return hasActiveEloResidentialBudgetSession_() && /\b(?:troque|trocar|substitua|substituir|mude|mudar|altere|alterar|acrescente|adicionar|adicione|incluir|inclua|remova|retire)\b/.test(text);
   }
 
+  function isEloResidentialRemoveElectricalScopeRequest_(message) {
+    const text = normalizeText(message || "");
+    return /^(?:retire|remova) toda a eletrica[.!?]?$/i.test(text) ||
+      /^tire toda a parte eletrica[.!?]?$/i.test(text) ||
+      /^exclua as instalacoes eletricas do orcamento[.!?]?$/i.test(text);
+  }
+
+  function isEloResidentialElectricalBudgetItem_(item) {
+    const joined = [item && item.category, item && item.disciplina, item && item.etapaId, item && item.serviceId, item && item.parentServiceId, item && item.id, item && item.description, item && item.label].map(function (value) { return normalizeText(value || ""); }).join(" ");
+    if (/\b(instalacoes\s+eletricas|eletrica|eletrico|pontos\s+eletricos|pontos\s+iluminacao|iluminacao|interruptor(?:es)?|tomadas?|tug|tue|quadro|dps|dr|aterramento|refletores?|telecom|cameras?)\b/.test(joined)) return true;
+    if (/\bpadrao\s+de\s+entrada\b|\bcaixas?\s+eletricas?\b|\bpontos?\s+(?:dedicados?|especiais?)\b/.test(joined)) return true;
+    return false;
+  }
+
+  function removeEloResidentialElectricalScopeFromPackage_(budgetPackage) {
+    const previousBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const resultingBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const removedIds = {};
+    function filterArray(name) {
+      const list = Array.isArray(resultingBudgetPackage[name]) ? resultingBudgetPackage[name] : [];
+      resultingBudgetPackage[name] = list.filter(function (item) {
+        const parentRemoved = item && item.parentServiceId && removedIds[item.parentServiceId];
+        const remove = parentRemoved || isEloResidentialElectricalBudgetItem_(item);
+        if (remove && (item.serviceId || item.id)) removedIds[item.serviceId || item.id] = true;
+        return !remove;
+      });
+    }
+    filterArray("scope");
+    filterArray("quantities");
+    ["materials", "compositions", "financialLines"].forEach(function (name) {
+      if (!Array.isArray(resultingBudgetPackage[name])) return;
+      resultingBudgetPackage[name] = resultingBudgetPackage[name].filter(function (item) { return !(item && (removedIds[item.serviceId] || removedIds[item.id] || removedIds[item.parentServiceId])); });
+    });
+    const removedItems = (previousBudgetPackage.quantities || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
+    resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).concat([{ target: "electrical", reason: "removed_by_user_instruction" }]);
+    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, removedItems: removedItems };
+  }
+
+  function buildEloResidentialRemoveElectricalDetectedAnswer_(message) {
+    if (!isEloResidentialRemoveElectricalScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const hasResidentialBudget = !!(state && state.type === "residential" && state.budgetPackage && (Array.isArray(state.budgetPackage.scope) || Array.isArray(state.budgetPackage.quantities)));
+    if (!hasResidentialBudget) {
+      return { shortAnswer: "Primeiro gere um orcamento residencial.", fullAnswer: "Para retirar a eletrica, primeiro preciso de um orcamento residencial ativo. Gere o orcamento residencial e depois envie novamente esse pedido.", nextAction: "Gere um orcamento residencial preliminar.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_electrical_without_budget" };
+    }
+    const scoped = removeEloResidentialElectricalScopeFromPackage_(state.budgetPackage);
+    const nextState = JSON.parse(JSON.stringify(state));
+    const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
+    scoped.resultingBudgetPackage.revisionNumber = revisionNumber;
+    nextState.budgetPackage = scoped.resultingBudgetPackage;
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, userInstruction: sanitizeUserText(message), action: "remove_scope", target: "electrical", removedItems: scoped.removedItems, previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, scopeExclusions: scoped.resultingBudgetPackage.scopeExclusions }]);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    const documentData = buildBudgetV2DocumentDataFromState_(nextState, scoped.resultingBudgetPackage);
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    return { shortAnswer: "Retirei a eletrica do orcamento.", fullAnswer: "Entendi: retirei todas as instalacoes eletricas do orcamento atual e criei uma nova revisao. A versao anterior foi preservada.", nextAction: "Revise a nova versao antes de salvar ou gerar PDF final.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_remove_electrical_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
+  }
+
   function isEloResidentialPricingContinuation_(message) {
     const text = normalizeText(message || "");
     return hasActiveEloResidentialBudgetSession_() && /\b(?:sinapi|orse|bdi|preco|precos|valor\s+final|fechamento|bahia|competencia|encargos)\b/.test(text);
@@ -18973,6 +19031,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return currentBudgetPdfAnswer;
     }
 
+
     const budgetV2ListIntentAnswer = buildEloBudgetV2ListIntentAnswer_(cleanQuestion);
     if (budgetV2ListIntentAnswer) {
       return budgetV2ListIntentAnswer;
@@ -21484,6 +21543,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const cadistaPlanRoutingResponse = buildEloCadistaPlanRoutingAnswer_(question);
     if (cadistaPlanRoutingResponse) {
       return applyEloBrainMarker_(question, cadistaPlanRoutingResponse);
+    }
+    const removeElectricalDetectedAnswer = buildEloResidentialRemoveElectricalDetectedAnswer_(question);
+    if (removeElectricalDetectedAnswer) {
+      return applyEloBrainMarker_(question, removeElectricalDetectedAnswer);
     }
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {

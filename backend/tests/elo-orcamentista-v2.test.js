@@ -415,6 +415,72 @@ test("Orcamentista V2 mostra acao de PDF quando orcamento esta valido", () => {
 });
 
 
+test("Orcamentista V2 aplica retirada total da eletrica preservando revisao anterior", () => {
+  const { assistant } = loadAssistant();
+  const original = assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+  assert.equal(original.sessionIntent, "budget_v2_scope");
+  assert.ok(original.budgetOrchestratorV2.budgetPackage);
+  assert.ok(original.pdfAction);
+
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforePackage = JSON.parse(JSON.stringify(beforeState.budgetPackage));
+  const beforeElectrical = beforePackage.quantities.filter((item) => item.category === "instalacoes_eletricas");
+  assert.ok(beforeElectrical.length > 0);
+
+  const response = assistant.buildResponseForTest("Retire toda a el\u00e9trica.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+  const afterPackage = response.budgetOrchestratorV2.budgetPackage;
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_electrical_applied");
+  assert.match(response.fullAnswer, /retirei todas as instalacoes eletricas/i);
+  assert.equal(JSON.stringify(beforeState.budgetPackage), JSON.stringify(beforePackage));
+  assert.equal(afterPackage.quantities.some((item) => item.category === "instalacoes_eletricas"), false);
+  assert.equal(afterPackage.scope.some((item) => item.id === "instalacoes_eletricas"), false);
+  assert.ok(afterPackage.quantities.some((item) => item.serviceId === "pontos_hidraulicos"));
+  assert.ok(afterPackage.quantities.some((item) => item.category === "estrutura"));
+  assert.ok(afterPackage.quantities.some((item) => item.serviceId === "alvenaria_externa"));
+  assert.ok(afterPackage.quantities.some((item) => item.category === "cobertura"));
+  assert.equal(afterPackage.quantities.some((item) => item.parentServiceId && beforeElectrical.some((removed) => removed.serviceId === item.parentServiceId)), false);
+  assert.equal(JSON.stringify(afterPackage.scopeExclusions), JSON.stringify([{ target: "electrical", reason: "removed_by_user_instruction" }]));
+  assert.ok(response.pdfAction);
+  assert.doesNotMatch(JSON.stringify(response.pdfAction.budgetDocumentData.budgetPackage.scope), /instalacoes_eletricas/i);
+  assert.equal(afterState.revisions.length, 1);
+  assert.equal(response.revision.action, "remove_scope");
+  assert.equal(response.revision.target, "electrical");
+  assert.equal(response.revision.removedItems.length, beforeElectrical.length);
+  assert.equal(JSON.stringify(response.revision.previousBudgetPackage), JSON.stringify(beforePackage));
+  assert.equal(JSON.stringify(response.revision.resultingBudgetPackage), JSON.stringify(afterPackage));
+});
+
+test("Orcamentista V2 nao cria revisao eletrica sem orcamento ativo", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("Retire toda a el\u00e9trica.");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_remove_electrical_without_budget");
+  assert.match(response.fullAnswer, /primeiro preciso de um orcamento residencial ativo/i);
+  assert.equal(state.type, undefined);
+  assert.equal(state.budgetPackage, undefined);
+  assert.equal(state.revisions, undefined);
+});
+
+test("Orcamentista V2 nao trata frases ambiguas como retirada total da eletrica", () => {
+  ["diminua a el\u00e9trica", "corte algumas tomadas", "economize na el\u00e9trica", "el\u00e9trica est\u00e1 cara", "retire uma tomada"].forEach((message) => {
+    const { assistant } = loadAssistant();
+    const original = assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+    assert.equal(original.sessionIntent, "budget_v2_scope");
+    const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+
+    const response = assistant.buildResponseForTest(message);
+    const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_electrical_applied", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_electrical_without_budget", message);
+    assert.deepEqual(afterState.revisions || [], beforeState.revisions || [], message);
+  });
+});
+
+
 test("Orcamentista V2 mostra acoes transacionais para orcamento valido", () => {
   const { assistant } = loadAssistant();
   assistant.buildResponseForTest("Quero orcamento residencial preliminar");
