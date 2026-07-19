@@ -23,8 +23,8 @@ function loadResolver() {
   return loadWindow(["elo-composition-resolver.js"]).EloCompositionResolver;
 }
 
-function candidate(code, description, unit, score = 0.72) {
-  return {
+function candidate(code, description, unit, score = 0.72, extra = {}) {
+  return Object.assign({
     code,
     description,
     unit,
@@ -32,7 +32,7 @@ function candidate(code, description, unit, score = 0.72) {
     score,
     reasons: ["mock"],
     composition: { code, description, unit, source: "SINAPI" }
-  };
+  }, extra);
 }
 
 function fakeEngine(handler) {
@@ -156,6 +156,28 @@ test("item obrigatorio sem composicao mantem podeFecharOrcamentoCompleto false",
   assert.equal(result.resolvedItems.length, 1);
   assert.equal(result.unresolvedItems.length, 1);
   assert.equal(result.podeFecharOrcamentoCompleto, false);
+});
+
+test("finishStandard preserves explicit metadata without changing ranking", () => {
+  const resolver = loadResolver();
+  const item = { id: "bath-fixture", etapaId: "loucas_metais", nome: "vaso sanitario", disciplina: "loucas_metais", unidadeEsperada: "un", obrigatorio: false, termosBusca: ["vaso sanitario"] };
+  const resolve = (candidates, extraItem = {}) => resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: [Object.assign({}, item, extraItem)] }, compositionSearchEngine: fakeEngine(() => ({ found: true, candidates })) });
+  assert.equal(resolve([candidate("910", "vaso sanitario", "un", 0.8, { finishStandard: "economic" })]).resolvedItems[0].candidatos[0].finishStandard, "economic");
+  assert.equal(resolve([candidate("911", "vaso sanitario", "un", 0.8, { finishStandard: "PREMIUM" })]).resolvedItems[0].candidatos[0].finishStandard, "premium");
+  assert.equal(resolve([candidate("912", "vaso sanitario", "un", 0.8)]).resolvedItems[0].candidatos[0].finishStandard, undefined);
+  ["barato", "economico", "luxo", "", null].forEach((value, index) => assert.equal(resolve([candidate("92" + index, "vaso sanitario", "un", 0.8, { finishStandard: value })]).resolvedItems[0].candidatos[0].finishStandard, undefined));
+  assert.equal(resolve([candidate("913", "vaso sanitario", "un", 0.8, { metadata: { finishStandard: "standard" } })]).resolvedItems[0].candidatos[0].finishStandard, "standard");
+  assert.equal(resolve([candidate("914", "vaso sanitario economico barato", "un", 0.8, { price: 1 })]).resolvedItems[0].candidatos[0].finishStandard, undefined);
+  const plain = resolve([candidate("101", "vaso sanitario alfa", "un", 0.82, { price: 20, warnings: ["w"] }), candidate("102", "vaso sanitario beta", "un", 0.81, { price: 10 })]);
+  const tagged = resolve([candidate("101", "vaso sanitario alfa", "un", 0.82, { finishStandard: "economic", price: 20, warnings: ["w"] }), candidate("102", "vaso sanitario beta", "un", 0.81, { price: 10 })]);
+  const summary = (result) => result.resolvedItems[0].candidatos.map(({ code, confianca, price, warnings }) => ({ code, confianca, price, warnings }));
+  assert.deepEqual(summary(tagged), summary(plain));
+  assert.equal(tagged.resolvedItems[0].composicaoSelecionada.code, plain.resolvedItems[0].composicaoSelecionada.code);
+  const kitEngine = fakeEngine(() => { throw new Error("kit pending_selection nao deve buscar"); });
+  const kit = resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], itens: [{ id: "kit", etapaId: "loucas_metais", nome: "kit banheiro", disciplina: "loucas_metais", unidadeEsperada: "un", obrigatorio: false, compositionStatus: "pending_selection", compositionSearchable: false, officialKit: { status: "pending_selection", candidates: [{ code: "86931", finishStandard: "economic" }] } }] }, compositionSearchEngine: kitEngine });
+  assert.equal(kit.unresolvedItems[0].compositionStatus, "pending_selection");
+  assert.equal(kit.unresolvedItems[0].composicaoSelecionada, null);
+  assert.equal(kit.unresolvedItems[0].candidatos.length, 0);
 });
 
 test("respeita maxCandidates", () => {

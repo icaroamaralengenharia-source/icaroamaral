@@ -93,6 +93,15 @@
     }
     return { compatible: false, reason: "unidade_incompativel", delta: -0.35 };
   }
+  function normalizeFinishStandard_(value) {
+    if (value === undefined || value === null) return null;
+    const text = clean(value).toLowerCase();
+    return /^(economic|standard|premium)$/.test(text) ? text : null;
+  }
+  function finishStandardOf_(candidate) {
+    return normalizeFinishStandard_(candidate && candidate.finishStandard) ||
+      normalizeFinishStandard_(candidate && candidate.metadata && candidate.metadata.finishStandard);
+  }
   function rankCandidate(item, candidate) {
     const reasons = [];
     const expectedUnit = normalizeUnit(item.unidadeEsperada);
@@ -130,11 +139,15 @@
     }
 
     confidence = Math.max(0, Math.min(0.99, confidence));
-    return Object.assign({}, candidate, {
+    const ranked = Object.assign({}, candidate, {
       confianca: Number(confidence.toFixed(2)),
       unidadeCompativel: unit.compatible,
       motivoEscolha: reasons.join("; ")
     });
+    const finishStandard = finishStandardOf_(candidate);
+    if (finishStandard) ranked.finishStandard = finishStandard;
+    else delete ranked.finishStandard;
+    return ranked;
   }
   function searchItem(item, engine, maxCandidates) {
     const query = clean((item.termosBusca && item.termosBusca.length ? item.termosBusca : [item.nome]).join(" "));
