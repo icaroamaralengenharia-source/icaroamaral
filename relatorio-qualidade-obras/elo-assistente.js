@@ -14237,6 +14237,10 @@
   function isEloResidentialRemoveHydraulicScopeRequest_(message) {
     return /^(?:(?:retire|remova) toda a hidraulica|tire toda a parte hidraulica|exclua as instalacoes hidraulicas do orcamento)[.!?]?$/i.test(normalizeText(message || ""));
   }
+
+  function isEloResidentialRestoreHydraulicScopeRequest_(message) {
+    return /^(?:recoloque a hidraulica|restaure a hidraulica|devolva a hidraulica ao orcamento|inclua novamente as instalacoes hidraulicas)[.!?]?$/i.test(normalizeText(message || ""));
+  }
   function isEloResidentialElectricalBudgetItem_(item) {
     const joined = [item && item.category, item && item.disciplina, item && item.etapaId, item && item.serviceId, item && item.parentServiceId, item && item.id, item && item.description, item && item.label].map(function (value) { return normalizeText(value || ""); }).join(" ");
     if (/\b(instalacoes\s+eletricas|eletrica|eletrico|pontos\s+eletricos|pontos\s+iluminacao|iluminacao|interruptor(?:es)?|tomadas?|tug|tue|quadro|dps|dr|aterramento|refletores?|telecom|cameras?)\b/.test(joined)) return true;
@@ -14406,6 +14410,73 @@
     const removedScopeItems = (previousBudgetPackage.scope || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
     if (removedItems.length || removedScopeItems.length) resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).concat((resultingBudgetPackage.scopeExclusions || []).some(function (item) { return item && item.target === "hydraulic"; }) ? [] : [{ target: "hydraulic", reason: "removed_by_user_instruction", revisionNumber: null }]);
     return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, removedItems: removedItems, removedScopeItems: removedScopeItems };
+  }
+
+  function findLastEloResidentialHydraulicRemovalRevision_(state) {
+    const revisions = state && Array.isArray(state.revisions) ? state.revisions : [];
+    const restoredRemovalNumbers = {};
+    revisions.forEach(function (revision) { if (revision && revision.action === "restore_scope" && revision.target === "hydraulic" && revision.sourceRevisionNumber) restoredRemovalNumbers[revision.sourceRevisionNumber] = true; });
+    for (let i = revisions.length - 1; i >= 0; i -= 1) {
+      const revision = revisions[i] || {};
+      if (revision.action === "remove_scope" && revision.target === "hydraulic" && revision.previousBudgetPackage && revision.resultingBudgetPackage && Array.isArray(revision.removedItems) && Array.isArray(revision.removedScopeItems) && !restoredRemovalNumbers[revision.revisionNumber]) return revision;
+    }
+    return null;
+  }
+
+  function restoreEloResidentialHydraulicScopeFromRevision_(budgetPackage, revision) {
+    const previousBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const resultingBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const sourcePackage = JSON.parse(JSON.stringify(revision.previousBudgetPackage || {}));
+    const removedIds = {}, removedScopeIds = {}, restoredIds = {}, restoredScopeIds = {};
+    (revision.removedItems || []).forEach(function (item) { if (item && (item.serviceId || item.id)) removedIds[item.serviceId || item.id] = true; });
+    (revision.removedScopeItems || []).forEach(function (item) { if (item && (item.serviceId || item.id)) removedScopeIds[item.serviceId || item.id] = true; });
+    function markCurrent(keys, item) { if (item && (item.serviceId || item.id)) keys[item.serviceId || item.id] = true; if (item && item.parentServiceId && item.id) keys[item.parentServiceId + "::" + item.id] = true; }
+    function hasCurrent(keys, item, id) { return !!(keys[id] || item && item.parentServiceId && item.id && keys[item.parentServiceId + "::" + item.id]); }
+    function restoreArray(name, predicate, targetIds) {
+      const current = Array.isArray(resultingBudgetPackage[name]) ? resultingBudgetPackage[name] : [], currentIds = {};
+      current.forEach(function (item) { markCurrent(currentIds, item); });
+      (sourcePackage[name] || []).forEach(function (item) {
+        const id = item && (item.serviceId || item.id);
+        if (id && !hasCurrent(currentIds, item, id) && predicate(item, id)) { current.push(JSON.parse(JSON.stringify(item))); markCurrent(currentIds, item); targetIds[id] = true; }
+      });
+      resultingBudgetPackage[name] = current;
+    }
+    restoreArray("quantities", function (_item, id) { return !!removedIds[id]; }, restoredIds);
+    restoreArray("scope", function (_item, id) { return !!removedScopeIds[id]; }, restoredScopeIds);
+    ["materials", "compositions", "financialLines"].forEach(function (name) { restoreArray(name, function (item, id) { return !!(removedIds[id] || item && item.parentServiceId && removedIds[item.parentServiceId]); }, restoredIds); });
+    let removedHydraulicExclusion = false;
+    resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).filter(function (item) {
+      if (!(item && item.target === "hydraulic")) return true;
+      if (item.revisionNumber && item.revisionNumber !== revision.revisionNumber) return true;
+      if (!item.revisionNumber && removedHydraulicExclusion) return true;
+      removedHydraulicExclusion = true;
+      return false;
+    });
+    const restoredItems = (resultingBudgetPackage.quantities || []).filter(function (item) { return item && restoredIds[item.serviceId || item.id]; });
+    const restoredScopeItems = (resultingBudgetPackage.scope || []).filter(function (item) { return item && restoredScopeIds[item.serviceId || item.id]; });
+    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, restoredItems: restoredItems, restoredScopeItems: restoredScopeItems };
+  }
+
+  function buildEloResidentialRestoreHydraulicDetectedAnswer_(message) {
+    if (!isEloResidentialRestoreHydraulicScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const revision = findLastEloResidentialHydraulicRemovalRevision_(state);
+    if (!(state && state.type === "residential" && state.budgetPackage) || !revision) {
+      const alreadyRestored = !!(state && Array.isArray(state.revisions) && state.revisions.some(function (item) { return item && item.action === "restore_scope" && item.target === "hydraulic"; }));
+      return { shortAnswer: alreadyRestored ? "A hidraulica ja esta presente." : "Nao encontrei revisao hidraulica pendente.", fullAnswer: alreadyRestored ? "As instalacoes hidraulicas ja estao presentes no orcamento atual. Nao criei itens duplicados." : "Nao encontrei uma revisao pendente em que a hidraulica tenha sido removida.", nextAction: "Revise o orcamento atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: alreadyRestored ? "budget_v2_scope_restore_hydraulic_already_present" : "budget_v2_scope_restore_hydraulic_without_removal", budgetOrchestratorV2: state ? { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: getCurrentBudgetV2DocumentData_() } : undefined };
+    }
+    const scoped = restoreEloResidentialHydraulicScopeFromRevision_(state.budgetPackage, revision);
+    if (!scoped.restoredItems.length && !scoped.restoredScopeItems.length) return { shortAnswer: "A hidraulica ja esta presente.", fullAnswer: "As instalacoes hidraulicas ja estao presentes no orcamento atual. Nao criei itens duplicados.", nextAction: "Revise o orcamento atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_hydraulic_already_present", budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+    const nextState = JSON.parse(JSON.stringify(state));
+    const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
+    scoped.resultingBudgetPackage.revisionNumber = revisionNumber;
+    nextState.budgetPackage = scoped.resultingBudgetPackage;
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, createdAt: new Date().toISOString(), userInstruction: sanitizeUserText(message), action: "restore_scope", target: "hydraulic", sourceRevisionNumber: revision.revisionNumber || null, previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, restoredItems: scoped.restoredItems, restoredScopeItems: scoped.restoredScopeItems, removedItems: [], removedScopeItems: [], warnings: ["Restauracao feita exclusivamente a partir da revisao anterior de remocao da hidraulica."] }]);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    const documentData = buildBudgetV2DocumentDataFromState_(nextState, scoped.resultingBudgetPackage);
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    return { shortAnswer: "Instalacoes hidraulicas restauradas nesta revisao.", fullAnswer: "Instalacoes hidraulicas restauradas nesta revisao. Itens restaurados: " + scoped.restoredItems.length + ". O orcamento anterior foi preservado e uma nova revisao foi criada." + (pdfAction ? " PDF atualizado disponivel." : ""), nextAction: "Revise a nova versao antes de salvar.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_hydraulic_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
   }
 
   function buildEloResidentialRemoveHydraulicDetectedAnswer_(message) {
@@ -21689,6 +21760,8 @@ function isEloResidentialNewPipelineEnabled_() {
     if (restoreElectricalDetectedAnswer) {
       return applyEloBrainMarker_(question, restoreElectricalDetectedAnswer);
     }
+    const restoreHydraulicDetectedAnswer = buildEloResidentialRestoreHydraulicDetectedAnswer_(question);
+    if (restoreHydraulicDetectedAnswer) return applyEloBrainMarker_(question, restoreHydraulicDetectedAnswer);
     const removeElectricalDetectedAnswer = buildEloResidentialRemoveElectricalDetectedAnswer_(question);
     if (removeElectricalDetectedAnswer) {
       return applyEloBrainMarker_(question, removeElectricalDetectedAnswer);
