@@ -441,7 +441,7 @@ test("Orcamentista V2 aplica retirada total da eletrica preservando revisao ante
   assert.ok(afterPackage.quantities.some((item) => item.serviceId === "alvenaria_externa"));
   assert.ok(afterPackage.quantities.some((item) => item.category === "cobertura"));
   assert.equal(afterPackage.quantities.some((item) => item.parentServiceId && beforeElectrical.some((removed) => removed.serviceId === item.parentServiceId)), false);
-  assert.equal(JSON.stringify(afterPackage.scopeExclusions), JSON.stringify([{ target: "electrical", reason: "removed_by_user_instruction" }]));
+  assert.equal(JSON.stringify(afterPackage.scopeExclusions), JSON.stringify([{ target: "electrical", reason: "removed_by_user_instruction", revisionNumber: 2 }]));
   assert.ok(response.pdfAction);
   assert.doesNotMatch(JSON.stringify(response.pdfAction.budgetDocumentData.budgetPackage.scope), /instalacoes_eletricas/i);
   assert.equal(afterState.revisions.length, 1);
@@ -450,6 +450,55 @@ test("Orcamentista V2 aplica retirada total da eletrica preservando revisao ante
   assert.equal(response.revision.removedItems.length, beforeElectrical.length);
   assert.equal(JSON.stringify(response.revision.previousBudgetPackage), JSON.stringify(beforePackage));
   assert.equal(JSON.stringify(response.revision.resultingBudgetPackage), JSON.stringify(afterPackage));
+});
+
+test("Orcamentista V2 recoloca eletrica removida usando revisao anterior", () => {
+  const { assistant } = loadAssistant();
+  assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+  const originalPackage = JSON.parse(JSON.stringify(assistant.getBudgetOrchestratorV2StateForTest().budgetPackage));
+  const originalElectrical = originalPackage.quantities.filter((item) => item.category === "instalacoes_eletricas");
+  const originalHydraulic = JSON.stringify(originalPackage.quantities.filter((item) => item.category === "instalacoes_hidrossanitarias"));
+  const originalPriceMap = new Map((originalPackage.financialLines || []).map((item) => [item.serviceId, JSON.stringify({ unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })]));
+
+  const removed = assistant.buildResponseForTest("Retire toda a el\u00e9trica.");
+  assert.equal(JSON.stringify(removed.revision.previousBudgetPackage), JSON.stringify(originalPackage));
+  const stateAfterRemoval = assistant.getBudgetOrchestratorV2StateForTest();
+  stateAfterRemoval.revisions[0].previousBudgetPackage.scope.push({ id: "eletrica_fantasma", label: "Eletrica ausente fora da revisao", category: "instalacoes_eletricas" });
+  stateAfterRemoval.budgetPackage.scopeExclusions.push({ target: "electrical", reason: "outra_remocao", revisionNumber: 99 });
+  stateAfterRemoval.budgetPackage.scopeExclusions.push({ target: "hydraulic", reason: "teste_preservacao", revisionNumber: 77 });
+  const removalRevision = JSON.parse(JSON.stringify(stateAfterRemoval.revisions[0]));
+  assert.equal(removed.budgetOrchestratorV2.budgetPackage.quantities.some((item) => item.category === "instalacoes_eletricas"), false);
+  assert.equal(originalPackage.scope.some((item) => item.id === "eletrica_fantasma"), false);
+
+  const restored = assistant.buildResponseForTest("Recoloque a el\u00e9trica.");
+  const restoredPackage = restored.budgetOrchestratorV2.budgetPackage;
+  const restoredElectrical = restoredPackage.quantities.filter((item) => item.category === "instalacoes_eletricas");
+
+  assert.equal(restored.sessionIntent, "budget_v2_scope_restore_electrical_applied");
+  assert.equal(restored.revision.action, "restore_scope");
+  assert.equal(restored.revision.target, "electrical");
+  assert.equal(restored.revision.sourceRevisionNumber, removalRevision.revisionNumber);
+  assert.equal(JSON.stringify(restoredElectrical.map((item) => item.serviceId).sort()), JSON.stringify(originalElectrical.map((item) => item.serviceId).sort()));
+  assert.equal(JSON.stringify(restoredElectrical.sort((a, b) => a.serviceId.localeCompare(b.serviceId))), JSON.stringify(originalElectrical.sort((a, b) => a.serviceId.localeCompare(b.serviceId))));
+  assert.equal(JSON.stringify(restored.revision.restoredItems.map((item) => item.serviceId).sort()), JSON.stringify(originalElectrical.map((item) => item.serviceId).sort()));
+  assert.equal(restoredPackage.scope.some((item) => item.id === "instalacoes_eletricas"), true);
+  assert.equal(restoredPackage.scope.some((item) => item.id === "eletrica_fantasma"), false);
+  assert.equal(new Set(restoredPackage.quantities.map((item) => item.serviceId)).size, restoredPackage.quantities.length);
+  assert.equal(JSON.stringify(restoredPackage.quantities.filter((item) => item.category === "instalacoes_hidrossanitarias")), originalHydraulic);
+  assert.equal(restoredPackage.scopeExclusions.some((item) => item.target === "electrical" && item.revisionNumber === removalRevision.revisionNumber), false);
+  assert.equal(restoredPackage.scopeExclusions.some((item) => item.target === "electrical" && item.revisionNumber === 99), true);
+  assert.equal(restoredPackage.scopeExclusions.some((item) => item.target === "hydraulic" && item.revisionNumber === 77), true);
+  assert.equal(JSON.stringify(assistant.getBudgetOrchestratorV2StateForTest().revisions[0]), JSON.stringify(removalRevision));
+  assert.ok(restored.pdfAction);
+  assert.ok(restored.budgetOrchestratorV2.budgetDocumentData);
+  assert.equal((restoredPackage.financialLines || []).every((item) => !originalPriceMap.has(item.serviceId) || originalPriceMap.get(item.serviceId) === JSON.stringify({ unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })), true);
+
+  const second = assistant.buildResponseForTest("Recoloque a el\u00e9trica.");
+  const secondState = assistant.getBudgetOrchestratorV2StateForTest();
+  const secondPackage = secondState.budgetPackage;
+  assert.equal(second.sessionIntent, "budget_v2_scope_restore_electrical_without_removal");
+  assert.equal(new Set(secondPackage.quantities.map((item) => item.serviceId)).size, secondPackage.quantities.length);
+  assert.equal(secondState.revisions.length, 2);
 });
 
 test("Orcamentista V2 nao cria revisao eletrica sem orcamento ativo", () => {
@@ -462,6 +511,22 @@ test("Orcamentista V2 nao cria revisao eletrica sem orcamento ativo", () => {
   assert.equal(state.type, undefined);
   assert.equal(state.budgetPackage, undefined);
   assert.equal(state.revisions, undefined);
+});
+
+test("Orcamentista V2 nao recoloca eletrica sem remocao anterior", () => {
+  const { assistant } = loadAssistant();
+  const original = assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+  const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+  const beforePackageJson = JSON.stringify(beforeState.budgetPackage);
+
+  const response = assistant.buildResponseForTest("Recoloque a el\u00e9trica.");
+  const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+  assert.equal(original.sessionIntent, "budget_v2_scope");
+  assert.equal(response.sessionIntent, "budget_v2_scope_restore_electrical_without_removal");
+  assert.match(response.fullAnswer, /nao encontrei uma revisao anterior/i);
+  assert.equal(JSON.stringify(afterState.budgetPackage), beforePackageJson);
+  assert.deepEqual(afterState.revisions || [], beforeState.revisions || []);
 });
 
 test("Orcamentista V2 nao trata frases ambiguas como retirada total da eletrica", () => {
@@ -477,6 +542,22 @@ test("Orcamentista V2 nao trata frases ambiguas como retirada total da eletrica"
     assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_electrical_applied", message);
     assert.notEqual(response.sessionIntent, "budget_v2_scope_remove_electrical_without_budget", message);
     assert.deepEqual(afterState.revisions || [], beforeState.revisions || [], message);
+  });
+});
+
+test("Orcamentista V2 nao trata frases ambiguas como recolocar eletrica", () => {
+  ["adicione algumas tomadas", "melhore a el\u00e9trica", "aumente a el\u00e9trica", "coloque ilumina\u00e7\u00e3o externa", "inclua um ponto el\u00e9trico"].forEach((message) => {
+    const { assistant } = loadAssistant();
+    assistant.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+    assistant.buildResponseForTest("Retire toda a el\u00e9trica.");
+    const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
+
+    const response = assistant.buildResponseForTest(message);
+    const afterState = assistant.getBudgetOrchestratorV2StateForTest();
+
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_restore_electrical_applied", message);
+    assert.notEqual(response.sessionIntent, "budget_v2_scope_restore_electrical_without_removal", message);
+    assert.equal((afterState.revisions || []).filter((revision) => revision.action === "restore_scope").length, 0, message);
   });
 });
 

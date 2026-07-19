@@ -14261,8 +14261,83 @@
       resultingBudgetPackage[name] = resultingBudgetPackage[name].filter(function (item) { return !(item && (removedIds[item.serviceId] || removedIds[item.id] || removedIds[item.parentServiceId])); });
     });
     const removedItems = (previousBudgetPackage.quantities || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
-    resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).concat([{ target: "electrical", reason: "removed_by_user_instruction" }]);
-    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, removedItems: removedItems };
+    const removedScopeItems = (previousBudgetPackage.scope || []).filter(function (item) { return item && (removedIds[item.serviceId] || removedIds[item.id]); });
+    resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).concat([{ target: "electrical", reason: "removed_by_user_instruction", revisionNumber: null }]);
+    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, removedItems: removedItems, removedScopeItems: removedScopeItems };
+  }
+
+  function isEloResidentialRestoreElectricalScopeRequest_(message) {
+    const text = normalizeText(message || "");
+    return /^recoloque a eletrica[.!?]?$/i.test(text) ||
+      /^restaure a eletrica[.!?]?$/i.test(text) ||
+      /^devolva a eletrica ao orcamento[.!?]?$/i.test(text) ||
+      /^inclua novamente as instalacoes eletricas[.!?]?$/i.test(text);
+  }
+
+  function findLastEloResidentialElectricalRemovalRevision_(state) {
+    const revisions = state && Array.isArray(state.revisions) ? state.revisions : [];
+    const restoredRemovalNumbers = {};
+    revisions.forEach(function (revision) {
+      if (revision && revision.action === "restore_scope" && revision.target === "electrical" && revision.sourceRevisionNumber) restoredRemovalNumbers[revision.sourceRevisionNumber] = true;
+    });
+    for (let i = revisions.length - 1; i >= 0; i -= 1) {
+      const revision = revisions[i] || {};
+      if (revision.action === "remove_scope" && revision.target === "electrical" && revision.previousBudgetPackage && revision.resultingBudgetPackage && !restoredRemovalNumbers[revision.revisionNumber]) return revision;
+    }
+    return null;
+  }
+
+  function restoreEloResidentialElectricalScopeFromRevision_(budgetPackage, revision) {
+    const previousBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const resultingBudgetPackage = JSON.parse(JSON.stringify(budgetPackage || {}));
+    const sourcePackage = JSON.parse(JSON.stringify(revision.previousBudgetPackage || {}));
+    const removedIds = {};
+    const removedScopeIds = {};
+    (revision.removedItems || []).forEach(function (item) { if (item && (item.serviceId || item.id)) removedIds[item.serviceId || item.id] = true; });
+    (revision.removedScopeItems || []).forEach(function (item) { if (item && (item.serviceId || item.id)) removedScopeIds[item.serviceId || item.id] = true; });
+    const restoredIds = {};
+    function restoreArray(name, predicate) {
+      const current = Array.isArray(resultingBudgetPackage[name]) ? resultingBudgetPackage[name] : [];
+      const currentIds = {};
+      current.forEach(function (item) { if (item && (item.serviceId || item.id)) currentIds[item.serviceId || item.id] = true; });
+      (sourcePackage[name] || []).forEach(function (item) {
+        const id = item && (item.serviceId || item.id);
+        if (id && !currentIds[id] && predicate(item, id)) { current.push(JSON.parse(JSON.stringify(item))); currentIds[id] = true; restoredIds[id] = true; }
+      });
+      resultingBudgetPackage[name] = current;
+    }
+    restoreArray("quantities", function (_item, id) { return !!removedIds[id]; });
+    restoreArray("scope", function (item, id) { return !!(removedScopeIds[id] || item && item.parentServiceId && removedIds[item.parentServiceId]); });
+    ["materials", "compositions", "financialLines"].forEach(function (name) { restoreArray(name, function (item, id) { return !!(restoredIds[id] || removedIds[id] || item && item.parentServiceId && restoredIds[item.parentServiceId]); }); });
+    let removedElectricalExclusion = false;
+    resultingBudgetPackage.scopeExclusions = (resultingBudgetPackage.scopeExclusions || []).filter(function (item) {
+      if (!(item && item.target === "electrical")) return true;
+      if (item.revisionNumber && item.revisionNumber !== revision.revisionNumber) return true;
+      if (!item.revisionNumber && removedElectricalExclusion) return true;
+      removedElectricalExclusion = true;
+      return false;
+    });
+    const restoredItems = (resultingBudgetPackage.quantities || []).filter(function (item) { return item && restoredIds[item.serviceId || item.id]; });
+    return { previousBudgetPackage: previousBudgetPackage, resultingBudgetPackage: resultingBudgetPackage, restoredItems: restoredItems };
+  }
+
+  function buildEloResidentialRestoreElectricalDetectedAnswer_(message) {
+    if (!isEloResidentialRestoreElectricalScopeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const revision = findLastEloResidentialElectricalRemovalRevision_(state);
+    if (!(state && state.type === "residential" && state.budgetPackage) || !revision) return { shortAnswer: "Nao encontrei revisao anterior.", fullAnswer: "Nao encontrei uma revisao anterior em que a eletrica tenha sido removida.", nextAction: "Retire a eletrica de um orcamento ativo antes de pedir a restauracao.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_electrical_without_removal" };
+    const scoped = restoreEloResidentialElectricalScopeFromRevision_(state.budgetPackage, revision);
+    if (!scoped.restoredItems.length) return { shortAnswer: "A eletrica ja esta presente.", fullAnswer: "As instalacoes eletricas ja estao presentes no orcamento atual. Nao criei itens duplicados.", nextAction: "Revise o orcamento atual.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_electrical_already_present", budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+    const nextState = JSON.parse(JSON.stringify(state));
+    const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
+    scoped.resultingBudgetPackage.revisionNumber = revisionNumber;
+    nextState.budgetPackage = scoped.resultingBudgetPackage;
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, createdAt: new Date().toISOString(), userInstruction: sanitizeUserText(message), action: "restore_scope", target: "electrical", sourceRevisionNumber: revision.revisionNumber || null, previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, restoredItems: scoped.restoredItems, removedItems: [], warnings: ["Restauracao feita exclusivamente a partir da revisao anterior de remocao da eletrica."] }]);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    const documentData = buildBudgetV2DocumentDataFromState_(nextState, scoped.resultingBudgetPackage);
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    return { shortAnswer: "Instalacoes eletricas restauradas nesta revisao.", fullAnswer: "Instalacoes eletricas restauradas nesta revisao. Itens restaurados: " + scoped.restoredItems.length + ". O orcamento anterior foi preservado e uma nova revisao foi criada." + (pdfAction ? " PDF atualizado disponivel." : ""), nextAction: "Revise a nova versao antes de salvar.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_scope_restore_electrical_applied", revision: nextState.revisions[nextState.revisions.length - 1], pdfAction: pdfAction, budgetOrchestratorV2: { state: nextState, budgetPackage: scoped.resultingBudgetPackage, budgetDocumentData: documentData } };
   }
 
   function buildEloResidentialRemoveElectricalDetectedAnswer_(message) {
@@ -14276,8 +14351,9 @@
     const nextState = JSON.parse(JSON.stringify(state));
     const revisionNumber = (Array.isArray(nextState.revisions) ? nextState.revisions.length : 0) + 2;
     scoped.resultingBudgetPackage.revisionNumber = revisionNumber;
+    (scoped.resultingBudgetPackage.scopeExclusions || []).forEach(function (item) { if (item && item.target === "electrical" && item.revisionNumber === null) item.revisionNumber = revisionNumber; });
     nextState.budgetPackage = scoped.resultingBudgetPackage;
-    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, userInstruction: sanitizeUserText(message), action: "remove_scope", target: "electrical", removedItems: scoped.removedItems, previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, scopeExclusions: scoped.resultingBudgetPackage.scopeExclusions }]);
+    nextState.revisions = (nextState.revisions || []).concat([{ revisionNumber: revisionNumber, userInstruction: sanitizeUserText(message), action: "remove_scope", target: "electrical", removedItems: scoped.removedItems, removedScopeItems: scoped.removedScopeItems, previousBudgetPackage: scoped.previousBudgetPackage, resultingBudgetPackage: scoped.resultingBudgetPackage, scopeExclusions: scoped.resultingBudgetPackage.scopeExclusions }]);
     ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
     const documentData = buildBudgetV2DocumentDataFromState_(nextState, scoped.resultingBudgetPackage);
     const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
@@ -21543,6 +21619,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const cadistaPlanRoutingResponse = buildEloCadistaPlanRoutingAnswer_(question);
     if (cadistaPlanRoutingResponse) {
       return applyEloBrainMarker_(question, cadistaPlanRoutingResponse);
+    }
+    const restoreElectricalDetectedAnswer = buildEloResidentialRestoreElectricalDetectedAnswer_(question);
+    if (restoreElectricalDetectedAnswer) {
+      return applyEloBrainMarker_(question, restoreElectricalDetectedAnswer);
     }
     const removeElectricalDetectedAnswer = buildEloResidentialRemoveElectricalDetectedAnswer_(question);
     if (removeElectricalDetectedAnswer) {
