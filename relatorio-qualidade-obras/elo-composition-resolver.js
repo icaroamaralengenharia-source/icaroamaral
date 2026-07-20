@@ -102,6 +102,15 @@
     return normalizeFinishStandard_(candidate && candidate.finishStandard) ||
       normalizeFinishStandard_(candidate && candidate.metadata && candidate.metadata.finishStandard);
   }
+  function isBathroomEconomicFinishPreferenceActive_(item, scopePreferences) {
+    const scopeContext = item && item.scopeContext || {};
+    const categories = { fixture: 1, metal: 1, accessory: 1, shower: 1, finish: 1 };
+    return scopePreferences && scopePreferences.bathroomFinishStandard === "economic" &&
+      scopeContext.environmentType === "bathroom" && !!categories[scopeContext.category];
+  }
+  function economicPreferenceOf_(candidate, active) {
+    return active === true && candidate && candidate.finishStandard === "economic" ? 1 : 0;
+  }
   function rankCandidate(item, candidate) {
     const reasons = [];
     const expectedUnit = normalizeUnit(item.unidadeEsperada);
@@ -222,10 +231,19 @@
         return;
       }
       const search = searchItem(entry, engine, maxCandidates);
-      const ranked = search.candidatos.map(function (candidate) {
+      const economicPreferenceActive = isBathroomEconomicFinishPreferenceActive_(entry, scopePreferences);
+      const sorted = search.candidatos.map(function (candidate) {
         return rankCandidate(entry, candidate);
       }).sort(function (a, b) {
-        return b.confianca - a.confianca || codeOf(a).localeCompare(codeOf(b));
+        return b.confianca - a.confianca ||
+          economicPreferenceOf_(b, economicPreferenceActive) - economicPreferenceOf_(a, economicPreferenceActive) ||
+          codeOf(a).localeCompare(codeOf(b));
+      });
+      const ranked = sorted.map(function (candidate, index, list) {
+        const preferred = economicPreferenceOf_(candidate, economicPreferenceActive) === 1 && list.some(function (other) {
+          return other !== candidate && other.confianca === candidate.confianca && economicPreferenceOf_(other, economicPreferenceActive) === 0;
+        });
+        return preferred ? Object.assign({}, candidate, { preferredByFinishStandard: true, finishStandardPreference: "economic" }) : candidate;
       }).slice(0, maxCandidates);
       const best = ranked[0] || null;
       const required = entry.obrigatorio !== false;

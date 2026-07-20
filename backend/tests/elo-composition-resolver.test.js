@@ -180,6 +180,40 @@ test("finishStandard preserves explicit metadata without changing ranking", () =
   assert.equal(kit.unresolvedItems[0].candidatos.length, 0);
 });
 
+test("economic finishStandard preference only breaks bathroom technical ties", () => {
+  const resolver = loadResolver();
+  const baseItem = { id: "bath-fixture", etapaId: "loucas_metais", nome: "vaso sanitario", disciplina: "loucas_metais", unidadeEsperada: "un", obrigatorio: false, termosBusca: ["vaso sanitario"] };
+  const resolve = (candidates, itemExtra = {}, prefs = {}) => resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], scopePreferences: prefs, itens: [Object.assign({}, baseItem, itemExtra)] }, compositionSearchEngine: fakeEngine(() => ({ found: true, candidates })) });
+  const ranked = (result) => result.resolvedItems[0].candidatos;
+  const pair = [candidate("100", "vaso sanitario padrao alfa", "un", 0.8, { finishStandard: "standard", price: 20, warnings: ["w"] }), candidate("200", "vaso sanitario padrao beta", "un", 0.8, { finishStandard: "economic", price: 10, warnings: ["w2"] })];
+  const plain = resolve(pair);
+  assert.deepEqual(ranked(plain).map(({ code, confianca, price, warnings }) => ({ code, confianca, price, warnings })), [{ code: "100", confianca: ranked(plain)[0].confianca, price: 20, warnings: ["w"] }, { code: "200", confianca: ranked(plain)[1].confianca, price: 10, warnings: ["w2"] }]);
+  assert.equal(plain.resolvedItems[0].composicaoSelecionada.code, "100");
+
+  const preferred = resolve(pair, { scopeContext: { environmentType: "bathroom", category: "fixture" } }, { bathroomFinishStandard: "economic" });
+  assert.deepEqual(ranked(preferred).map(({ code, price }) => ({ code, price })), [{ code: "200", price: 10 }, { code: "100", price: 20 }]);
+  assert.equal(ranked(preferred)[0].confianca, ranked(preferred)[1].confianca);
+  assert.equal(ranked(preferred)[0].preferredByFinishStandard, true);
+  assert.equal(ranked(preferred)[0].finishStandardPreference, "economic");
+  assert.equal(ranked(preferred)[1].preferredByFinishStandard, undefined);
+
+  const lowerEconomic = resolve([candidate("300", "vaso sanitario padrao alfa", "un", 0.62, { finishStandard: "standard" }), candidate("400", "vaso sanitario padrao beta", "un", 0.5, { finishStandard: "economic" })], { scopeContext: { environmentType: "bathroom", category: "fixture" } }, { bathroomFinishStandard: "economic" });
+  assert.equal(ranked(lowerEconomic)[0].code, "300");
+  assert.equal(resolve(pair, { scopeContext: { environmentType: "kitchen", category: "fixture" } }, { bathroomFinishStandard: "economic" }).resolvedItems[0].composicaoSelecionada.code, "100");
+  assert.equal(resolve(pair, { scopeContext: { environmentType: "bathroom", category: "hydraulic" } }, { bathroomFinishStandard: "economic" }).resolvedItems[0].composicaoSelecionada.code, "100");
+  assert.equal(resolve(pair, {}, { bathroomFinishStandard: "economic" }).resolvedItems[0].composicaoSelecionada.code, "100");
+
+  const untagged = resolve([candidate("100", "vaso sanitario padrao alfa", "un", 0.8), candidate("200", "vaso sanitario padrao beta", "un", 0.8, { finishStandard: "standard" })], { scopeContext: { environmentType: "bathroom", category: "fixture" } }, { bathroomFinishStandard: "economic" });
+  assert.deepEqual(ranked(untagged).map(({ code, preferredByFinishStandard }) => ({ code, preferredByFinishStandard })), [{ code: "100", preferredByFinishStandard: undefined }, { code: "200", preferredByFinishStandard: undefined }]);
+  const noEconomic = resolve([candidate("100", "vaso sanitario padrao alfa", "un", 0.8, { finishStandard: "standard" }), candidate("200", "vaso sanitario padrao beta", "un", 0.8, { finishStandard: "premium" })], { scopeContext: { environmentType: "bathroom", category: "fixture" } }, { bathroomFinishStandard: "economic" });
+  assert.deepEqual(ranked(noEconomic).map(({ code }) => code), ["100", "200"]);
+
+  const kitEngine = fakeEngine(() => { throw new Error("kit pending_selection nao deve buscar"); });
+  const kit = resolver.resolveEloEapCompositions({ eap: { bloqueadores: [], scopePreferences: { bathroomFinishStandard: "economic" }, itens: [{ id: "kit", etapaId: "loucas_metais", nome: "kit banheiro", disciplina: "loucas_metais", unidadeEsperada: "un", obrigatorio: false, compositionStatus: "pending_selection", compositionSearchable: false, officialKit: true, scopeContext: { environmentType: "bathroom", category: "fixture" } }] }, compositionSearchEngine: kitEngine });
+  assert.equal(kit.unresolvedItems[0].compositionStatus, "pending_selection");
+  assert.equal(kit.unresolvedItems[0].composicaoSelecionada, null);
+});
+
 test("respeita maxCandidates", () => {
   const resolver = loadResolver();
   const eap = {
