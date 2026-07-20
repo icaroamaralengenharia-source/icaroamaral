@@ -103,6 +103,27 @@ test('ELO padroniza marcadores de c?rebro nos roteamentos principais', () => {
   }
 });
 
+test('ELO conversa natural roteia sem fallback generico', () => {
+  const elo = loadElo();
+
+  const hello = elo.buildResponseForTest('hello');
+  assert.equal(hello.brain, 'conversational');
+  assert.notEqual(hello.sessionIntent, 'fallback_comunicativo');
+  assert.match([hello.shortAnswer, hello.fullAnswer].filter(Boolean).join(' '), /Oi|Ola|Ol.|pergunta comum|ideia|tarefa/i);
+
+  const joke = elo.buildResponseForTest('me conte uma piada');
+  assert.equal(joke.brain, 'conversational');
+  assert.notEqual(joke.sessionIntent, 'fallback_comunicativo');
+  assert.match([joke.shortAnswer, joke.fullAnswer].filter(Boolean).join(' '), /or.amento|composi/i);
+
+  const rdo = elo.buildResponseForTest('gerar RDO de hoje');
+  assert.equal(rdo.brain, 'rdo');
+  assert.match(rdo.fullAnswer + rdo.nextAction, /RDO|Di.rio|di.rio/i);
+
+  const technical = elo.buildResponseForTest('parede de bloco baiano 8x3');
+  assert.equal(technical.brain, 'technical');
+  assert.notEqual(technical.brain, 'budget');
+});
 test('ELO FASE 5 residencial: feature flag liga pipeline novo por injecao', () => {
   const calls = [];
   const makeStep = (name, result) => ({

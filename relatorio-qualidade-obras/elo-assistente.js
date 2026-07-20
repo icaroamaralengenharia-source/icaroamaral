@@ -237,7 +237,9 @@
     }
     if (tool && isEloCoreLinkRequest_(raw)) add({ type: "request_tool_link", toolId: tool.id, toolName: tool.publicName });
     if (tool && isEloCoreOpenRequest_(raw)) add({ type: "open_tool", toolId: tool.id, toolName: tool.publicName });
-    if (/\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
+    const hasRdoRequest = /\b(rdo|diario de obra|diário de obra)\b/.test(text);
+    if (hasRdoRequest) add({ type: "rdo" });
+    if (!hasRdoRequest && /\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
     if (/\b(quantos graus|temperatura|clima|previsao do tempo|previsão do tempo|tempo em)\b/.test(text)) {
       const locationMatch = raw.match(/(?:em|para)\s+([^?.,;!]+)(?:[?.,;!]|$)/i);
       add({ type: "weather", location: locationMatch ? sanitizeUserText(locationMatch[1]).replace(/\s+e\s+quem\s+vai\s+ganhar[\s\S]*$/i, "") : "" });
@@ -1784,14 +1786,17 @@
     const theme = normalizeText(response && response.sessionTheme || "");
     const intent = normalizeText(response && response.sessionIntent || "");
     const joined = [theme, intent, text].join(" ");
+    const hasExplicitBudgetRequest = /orcamento|or.amento|orcar|or.ar|\borca\b|custo|valor|preco|pre.o|quanto\s+custa|quanto\s+vai\s+dar|bdi|composi..o|composicao|sinapi|orse/.test(text);
+    const hasTechnicalWallRequest = /parede|bloco|ceramico|cer.mico|baiano|reboco|contrapiso|pintura|telhado|\bpiso\b|concreto|\bforma\b|armacao|arma..o|alvenaria|chapisco|embo.o|servico\s+tecnico|servi.o\s+t.cnico/.test(text);
     if (/residential_budget_package|budget_v2_residential|budget_v2_briefing/.test(joined)) return "budget";
     if (/que\s+saco|cansad[oa]|nao\s+funciona|n.o\s+funciona|frustrad[oa]|ta\s+dificil|t.\s+dif.cil|estou\s+perdido|estou\s+perdida/.test(text) || /acolhimento|apoio_pratico/.test(joined)) return "support";
     if (/cadista|\bplanta\b|planta\s+baixa|terreno|quartos?|su.te|suite|garagem|ambientes?|prancha|dxf/.test(text) || /cadista/.test(joined)) return "cadista";
     if (/estoque\s+da\s+obra|dar\s+baixa|baixa\s+no\s+estoque|stock\s+obras|stock\s+ai\s+obras/.test(text) || /stock_obras|estoque_obra/.test(joined)) return "stock_obras";
     if (/\brdo\b|di.rio\s+de\s+obra|di.rio\s+de\s+obras|fazer\s+di.rio|gerar\s+rdo|rdo\s+de\s+hoje|registrar\s+ocorr.ncia|ocorr.ncia\s+de\s+atraso|chuva\s+e\s+concretagem|equipe/.test(text) || /(^|_)rdo|rdo(_|$)/.test(joined)) return "rdo";
     if (/infiltra|fissura|trinca|umidade|patologia|vistoria|inconformidade|relatorio\s+tecnico|relat.rio\s+t.cnico/.test(text) || /relatorio|patologia|vistoria|inconformidade/.test(joined)) return "report";
-    if (/orcamento|or.amento|orcar|or.ar|\borca\b|custo|valor|preco|pre.o|quanto\s+custa|quanto\s+vai\s+dar|tabela\s+(?:sample|teste)|\bsample\b|parede.*bloco.*\d+\s*x\s*\d+\s*x\s*\d+|bdi|composi..o|composicao|sinapi|orse/.test(text) || /budget|orcamento|composicao|proposta/.test(joined)) return "budget";
-    if (/parede|bloco|ceramico|cer.mico|reboco|contrapiso|pintura|telhado|\bpiso\b|concreto|\bforma\b|armacao|arma..o|alvenaria|chapisco|embo.o|servico\s+tecnico|servi.o\s+t.cnico/.test(text) || /base_tecnica|geometria_obras|premissas_quantitativo/.test(joined)) return "technical";
+    if (hasTechnicalWallRequest && !hasExplicitBudgetRequest) return "technical";
+    if (hasExplicitBudgetRequest || /budget|orcamento|composicao|proposta/.test(joined) || /tabela\s+(?:sample|teste)|\bsample\b/.test(text)) return "budget";
+    if (hasTechnicalWallRequest || /base_tecnica|geometria_obras|premissas_quantitativo/.test(joined)) return "technical";
     return "conversational";
   }
 
@@ -20845,7 +20850,7 @@ function isEloResidentialNewPipelineEnabled_() {
   const ELO_CONVERSATION_INTENTS = [
     {
       intent: "saudacao",
-      phrases: ["oi", "ola", "olá", "hi", "e ai", "e aí", "opa", "salve", "alo", "alô"]
+      phrases: ["oi", "ola", "olá", "hi", "hello", "e ai", "e aí", "opa", "salve", "alo", "alô"]
     },
     {
       intent: "como_esta",
@@ -20874,6 +20879,10 @@ function isEloResidentialNewPipelineEnabled_() {
     {
       intent: "apoio_pratico",
       phrases: ["estou cansado", "estou cansada", "estou com pressa", "estou perdido", "estou perdida", "nao entendi", "não entendi", "estou confuso", "estou confusa", "ta dificil", "tá difícil", "esta complicado", "está complicado"]
+    },
+    {
+      intent: "humor",
+      phrases: ["me conte uma piada", "conte uma piada", "conta uma piada", "piada"]
     }
   ];
 
@@ -20926,6 +20935,11 @@ function isEloResidentialNewPipelineEnabled_() {
         shortAnswer: "Eu funciono localmente neste navegador.",
         fullAnswer: "Uso regras, memórias autorizadas, Biblioteca, Projetos, Linha do Tempo e Conceitos. Não envio essa conversa para backend nesta versão.",
         nextAction: "Use Ferramentas do Elo para ver ou exportar seus dados locais."
+      },
+      humor: {
+        shortAnswer: "Claro.",
+        fullAnswer: "Por que o orçamento foi ao médico? Porque estava cheio de composição pendente.",
+        nextAction: ""
       }
     };
 
@@ -21085,6 +21099,14 @@ function isEloResidentialNewPipelineEnabled_() {
           fullAnswer: "Nada é enviado para backend por esta conversa. As bases locais ficam no navegador.",
           nextAction: "Use Documentos do Elo para adicionar textos de consulta.",
           sessionTheme: "elo"
+        }
+      ],
+      humor: [
+        {
+          shortAnswer: "Claro.",
+          fullAnswer: "Por que o orçamento foi ao médico? Porque estava cheio de composição pendente.",
+          nextAction: "",
+          sessionTheme: "conversa"
         }
       ],
       apoio_pratico: [
