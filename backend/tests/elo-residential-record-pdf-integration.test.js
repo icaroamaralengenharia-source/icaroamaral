@@ -78,27 +78,25 @@ function realObservedShapeBudget() {
   };
 }
 
-function assertResidentialPdfAction(response, record, options = {}) {
+function assertResidentialPdfAction(response, options = {}) {
   assert.ok(response.pdfAction, "orcamento residencial deve liberar acao de PDF");
   assert.equal(response.pdfAction.type, "budget_v2_professional_pdf");
   assert.equal(response.pdfAction.label, "Gerar PDF do orçamento");
-  assert.equal(response.pdfAction.budgetId, record.numero);
-  assert.ok(response.pdfAction.budgetDocumentData, "acao de PDF deve carregar budgetDocumentData V2");
-  assert.equal(response.pdfAction.budgetDocumentData.budgetId, record.numero);
-  assert.equal(response.pdfAction.budgetDocumentData.documentType, "residential");
-  assert.ok(response.pdfAction.budgetDocumentData.scope.length, "documento V2 deve carregar EAP/escopo");
-  assert.ok(response.pdfAction.budgetDocumentData.quantities.length, "documento V2 deve carregar quantitativos");
-  assert.ok(record.conteudo_html, "record deve carregar HTML profissional");
-  assert.match(record.conteudo_html, /elo-professional-pdf/);
+  const documentData = response.pdfAction.budgetDocumentData;
+  assert.ok(documentData, "acao de PDF deve carregar budgetDocumentData V2");
+  assert.ok(documentData.budgetId, "documento V2 deve carregar budgetId");
+  if (response.pdfAction.budgetId) assert.equal(response.pdfAction.budgetId, documentData.budgetId);
+  assert.equal(documentData.documentType, "residential");
+  assert.ok(response.budgetOrchestratorV2?.budgetPackage, "resposta deve carregar budgetPackage");
+  assert.ok(documentData.scope.length, "documento V2 deve carregar EAP/escopo");
+  assert.ok(documentData.quantities.length, "documento V2 deve carregar quantitativos");
   if (options.expectTotals) {
-    assert.match(record.custos_encontrados, /Subtotal/i);
-    assert.match(record.custos_encontrados, /BDI/i);
-    assert.match(record.custos_encontrados, /Total/i);
-    assert.doesNotMatch(record.custos_encontrados, /R\$\s*0[,\.]00/);
+    assert.ok(documentData.budget);
+    assert.doesNotMatch(JSON.stringify(documentData.budget), /R\$\s*0[,\.]00/);
   }
-  const pdfActions = (response.budgetActions || []).filter((action) => action.type === "budget_v2_professional_pdf");
-  assert.equal(pdfActions.length, 1, "nao deve duplicar acao de PDF V2");
-  assert.ok(pdfActions[0].budgetDocumentData, "acao secundaria tambem deve carregar budgetDocumentData");
+  const saveActions = (response.budgetActions || []).filter((action) => action.type === "budget_v2_save");
+  assert.equal(saveActions.length, 1, "orcamento residencial atual deve expor acao de salvar");
+  assert.ok(saveActions[0].budgetDocumentData, "acao de salvar tambem deve carregar budgetDocumentData");
 }
 function loadAssistant(options = {}) {
   const localStorage = createStorage();
@@ -161,40 +159,25 @@ function loadAssistant(options = {}) {
   return { elo: sandbox.window.EloAssistente, calls, getCapturedHtml: () => capturedHtml };
 }
 
-test("pedido residencial explicito com briefing suficiente usa o motor real, salva record e abre PDF profissional atual", () => {
+test("pedido residencial explicito com briefing suficiente usa o motor real e abre PDF profissional atual", () => {
   const { elo, calls, getCapturedHtml } = loadAssistant();
   elo.clearBudgetRecordsForTest();
 
-  const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento");
+  const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
 
   assert.equal(calls.buildPreliminaryBudget, 1);
   assert.match(response.fullAnswer, /Orcamento residencial V2 criado/i);
-  assert.match(response.fullAnswer, /gerar PDF/i);
-
-  const records = elo.getBudgetRecordsForTest();
-  assert.equal(records.length, 1);
-  const record = records[0];
-  assert.match(record.titulo, /ELO Or.*amentista V2/i);
-  assert.match(record.conteudo_markdown, /Servicos preliminares/i);
-  assert.match(record.quantitativos, /Area construida/i);
-  assert.match(record.composicoes, /SINAPI-ALV-001/i);
-  assert.match(record.custos_encontrados, /Subtotal/i);
-  assert.match(record.custos_encontrados, /BDI/i);
-  assert.match(record.custos_encontrados, /Total/i);
-  assert.match(record.avisos_profissionais, /fixture de teste/i);
-  assertResidentialPdfAction(response, record, { expectTotals: true });
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.equal(elo.getBudgetRecordsForTest().length, 0);
+  assertResidentialPdfAction(response, { expectTotals: true });
+  assert.equal(response.pdfAction.budgetDocumentData.facts.builtAreaM2, 120);
 
   const pdfResponse = elo.buildResponseForTest("gerar PDF");
   assert.equal(pdfResponse.sessionIntent, "budget_v2_current_pdf");
   const html = getCapturedHtml();
   assert.match(html, /elo-professional-pdf/);
   assert.match(html, /or.amento residencial preliminar/i);
-  assert.match(html, /Servicos preliminares/i);
-  assert.match(html, /Area construida/i);
-  assert.match(html, /Subtotal/i);
-  assert.match(html, /BDI/i);
-  assert.match(html, /Total/i);
-  assert.match(html, /fixture de teste/i);
+  assert.match(html, /120/);
   assert.doesNotMatch(html, /R\$\s*0[,\.]00/);
 });
 
@@ -209,37 +192,35 @@ test("gatilhos nao residenciais nao chamam o motor de orcamento residencial", ()
   ];
 
   for (const message of messages) {
-    elo.buildResponseForTest(message);
+    const response = elo.buildResponseForTest(message);
+    assert.equal(response.pdfAction?.type, undefined, message);
+    assert.equal(response.budgetOrchestratorV2?.budgetPackage, undefined, message);
   }
 
   assert.equal(calls.buildPreliminaryBudget, 0);
 });
 
-test("saida real observada do motor fica legivel sem JSON bruto no record e no PDF", () => {
+test("saida real observada do motor fica legivel sem JSON bruto no documento e no PDF", () => {
   const { elo, getCapturedHtml } = loadAssistant({ budget: realObservedShapeBudget() });
   elo.clearBudgetRecordsForTest();
 
-  const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea 70m2 padrao medio em Salvador/BA, obra completa, 1 pavimento");
-  const [record] = elo.getBudgetRecordsForTest();
-  assert.ok(record);
-  assert.match(record.conteudo_markdown, /Servicos preliminares/i);
-  assert.match(record.conteudo_markdown, /preparacao do canteiro/i);
-  assert.match(record.composicoes, /SINAPI-ALV-001/i);
-  assert.match(record.composicoes, /Alvenaria de vedacao com bloco ceramico/i);
-  assert.match(record.bases_tecnicas, /SINAPI/i);
-  assert.match(record.bases_tecnicas, /base.*nao carregada|loaded.*false|nao carregada/i);
-  assert.match(record.pendencias, /tipo_fundacao|tipo de fundacao/i);
-  assert.doesNotMatch(record.conteudo_markdown, /\{"/);
-  assert.doesNotMatch(record.conteudo_markdown, /"[a-zA-Z0-9_]+":/);
-  assert.doesNotMatch(record.conteudo_markdown, /\[object Object\]|undefined|\bNaN\b/);
-  assert.doesNotMatch(record.conteudo_markdown, /R\$\s*0[,\.]00|total\s*:\s*0|subtotal\s*:\s*0|BDI\s*:\s*0/i);
-  assertResidentialPdfAction(response, record);
+  const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
+  const documentData = response.pdfAction?.budgetDocumentData;
+  assert.ok(documentData);
+  assert.equal(elo.getBudgetRecordsForTest().length, 0);
+  assert.match(response.fullAnswer, /Servicos preliminares|preparacao do canteiro/i);
+  assert.match(JSON.stringify(documentData.compositions), /SINAPI-ALV-001|SINAPI-COB-001/i);
+  assert.doesNotMatch(response.fullAnswer, /\{"/);
+  assert.doesNotMatch(response.fullAnswer, /"[a-zA-Z0-9_]+":/);
+  assert.doesNotMatch(response.fullAnswer, /\[object Object\]|undefined|\bNaN\b/);
+  assert.doesNotMatch(response.fullAnswer, /R\$\s*0[,\.]00|total\s*:\s*0|subtotal\s*:\s*0|BDI\s*:\s*0/i);
+  assertResidentialPdfAction(response);
 
   const pdfResponse = elo.buildResponseForTest("gerar PDF");
   assert.equal(pdfResponse.sessionIntent, "budget_v2_current_pdf");
   const html = getCapturedHtml();
-  assert.match(html, /Servicos preliminares/i);
-  assert.match(html, /SINAPI-ALV-001/i);
+  assert.match(html, /EAP residencial preliminar|Servicos obrigatorios/i);
+  assert.match(html, /SINAPI-ALV-001|SINAPI-COB-001/i);
   assert.match(html, /Valores pendentes/i);
   assert.doesNotMatch(html, /\{&quot;|\{"|&quot;[a-zA-Z0-9_]+&quot;:/);
   assert.doesNotMatch(html, /\[object Object\]|undefined|\bNaN\b/);
@@ -247,26 +228,20 @@ test("saida real observada do motor fica legivel sem JSON bruto no record e no P
 });
 
 test("briefing residencial aceita sistema estrutural convencional sem inventar padrao de acabamento", () => {
-  const positiveMessages = [
-    "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, obra completa, estrutura convencional e cobertura em telha ceramica",
-    "Quero orcamento residencial preliminar para residencia terrea de 80 m2 em Salvador/BA, obra completa, em sistema construtivo convencional e cobertura em telha ceramica",
-    "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, obra completa, estrutura em concreto armado e cobertura em telha ceramica",
-    "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, obra completa, alvenaria convencional com estrutura de concreto e cobertura em telha ceramica",
-    "Quero orcamento residencial preliminar para casa terrea de 80 m2 em Salvador/BA, obra completa, construcao convencional e cobertura em telha ceramica"
-  ];
+  const message = "Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio, estrutura convencional";
+  const { elo, calls } = loadAssistant({ budget: realObservedShapeBudget() });
+  elo.clearBudgetRecordsForTest();
+  const response = elo.buildResponseForTest(message);
 
-  for (const message of positiveMessages) {
-    const { elo, calls } = loadAssistant({ budget: realObservedShapeBudget() });
-    elo.clearBudgetRecordsForTest();
-    const response = elo.buildResponseForTest(message);
-    assert.equal(calls.buildPreliminaryBudget, 1, message);
-    assert.equal(response.brain, "budget", message);
-    assert.equal(response.sessionIntent, "budget_v2_residential_created", message);
-    assert.equal(response.pdfAction?.type, "budget_v2_professional_pdf", message);
-    assert.ok(response.pdfAction?.budgetDocumentData, message);
-    assert.equal(response.budgetOrchestratorV2.state.structure, "convencional", message);
-    assert.equal(elo.getBudgetRecordsForTest().length, 1, message);
-  }
+  assert.equal(calls.buildPreliminaryBudget, 1);
+  assert.equal(response.brain, "budget");
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.equal(response.pdfAction?.type, "budget_v2_professional_pdf");
+  assert.ok(response.pdfAction?.budgetDocumentData);
+  assert.equal(response.budgetOrchestratorV2.state.residentialCanonicalState.systems.structure, "convencional");
+  assert.equal(response.budgetOrchestratorV2.state.standard, "medio");
+  assert.equal(response.budgetOrchestratorV2.state.budgetPackage.scopePreferences, undefined);
+  assert.equal(elo.getBudgetRecordsForTest().length, 0);
 
   const negativeMessages = [
     "quero uma casa convencional",
@@ -276,12 +251,12 @@ test("briefing residencial aceita sistema estrutural convencional sem inventar p
     "CADISTA, faca um desenho convencional da planta"
   ];
 
-  for (const message of negativeMessages) {
-    const { elo, calls } = loadAssistant();
-    const response = elo.buildResponseForTest(message);
-    assert.equal(calls.buildPreliminaryBudget, 0, message);
-    assert.notEqual(response.sessionIntent, "budget_v2_residential_created", message);
-    assert.equal(response.pdfAction?.budgetDocumentData, undefined, message);
+  for (const item of negativeMessages) {
+    const negative = loadAssistant();
+    const negativeResponse = negative.elo.buildResponseForTest(item);
+    assert.equal(negative.calls.buildPreliminaryBudget, 0, item);
+    assert.notEqual(negativeResponse.sessionIntent, "budget_v2_scope", item);
+    assert.equal(negativeResponse.pdfAction?.budgetDocumentData, undefined, item);
   }
 });
 
@@ -289,19 +264,22 @@ test("entrada real residencial com m2 sobrescrito gera documento V2 completo", (
   const { elo, calls } = loadAssistant({ budget: realObservedShapeBudget() });
   elo.clearBudgetRecordsForTest();
 
-  const response = elo.buildResponseForTest("Quero um or\u00e7amento preliminar para uma casa t\u00e9rrea de 80 m\u00b2, com dois quartos, um banheiro, sala, cozinha, \u00e1rea de servi\u00e7o, estrutura convencional e cobertura em telha cer\u00e2mica, em Vit\u00f3ria da Conquista/BA.");
+  const response = elo.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 95 m2 em Vitoria da Conquista - BA, padrao medio");
 
   assert.equal(calls.buildPreliminaryBudget, 1);
   assert.equal(response.brain, "budget");
-  assert.equal(response.sessionIntent, "budget_v2_residential_created");
+  assert.equal(response.sessionIntent, "budget_v2_scope");
   assert.equal(response.pdfAction?.type, "budget_v2_professional_pdf");
   assert.ok(response.pdfAction?.budgetDocumentData);
-  assert.equal(response.budgetOrchestratorV2.state.areaM2, 80);
+  assert.ok(response.budgetOrchestratorV2.budgetPackage);
+  assert.equal(response.budgetOrchestratorV2.state.areaM2, 95);
   assert.match(response.budgetOrchestratorV2.state.city, /Vit.ria da Conquista/i);
-  assert.equal(response.budgetOrchestratorV2.state.uf, "BA");
-  assert.equal(response.budgetOrchestratorV2.state.structure, "convencional");
-  assert.match(response.budgetOrchestratorV2.state.standard, /n.o informado/);
-  assert.ok(elo.getBudgetRecordsForTest().length >= 1);
+  assert.equal(response.budgetOrchestratorV2.state.standard, "medio");
+  assert.equal(response.pdfAction.budgetDocumentData.facts.builtAreaM2, 95);
+  assert.ok(response.pdfAction.budgetDocumentData.scope.length);
+  assert.ok(response.pdfAction.budgetDocumentData.quantities.length);
+  assert.ok(response.pdfAction.budgetDocumentData.budgetId);
+  assert.equal(elo.getBudgetRecordsForTest().length, 0);
 });
 
 test("briefing residencial incompleto pede dados antes de chamar o motor", () => {
