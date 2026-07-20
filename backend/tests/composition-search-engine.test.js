@@ -147,24 +147,44 @@ test("CompositionSearchEngine busca bloco ceramico baiano como alvenaria", () =>
   assert.equal(result.candidates[0].code, "SINAPI-ALV-001");
 });
 
-test("controlled finishStandard registry starts empty and keeps ranking", () => {
+test("controlled SINAPI finishStandard registry uses exact code metadata and keeps ranking", () => {
   const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "composition-search-engine.js"), "utf8");
-  assert.match(source, /const FINISH_STANDARD_BY_COMPOSITION_CODE = Object\.freeze\(\{\}\);/);
-  assert.equal((source.match(/FINISH_STANDARD_BY_COMPOSITION_CODE/g) || []).length, 2);
+  const registryStart = source.indexOf("const FINISH_STANDARD_BY_COMPOSITION_CODE");
+  const registryEnd = source.indexOf("  const SYNONYMS", registryStart);
+  const registry = source.slice(registryStart, registryEnd);
+  assert.notEqual(registryStart, -1);
+  assert.notEqual(registryEnd, -1);
+  assert.equal((registry.match(/"\d+": Object\.freeze\(\{/g) || []).length, 4);
+  assert.match(registry, /"86904"[\s\S]*finishStandard: "economic"[\s\S]*source: "SINAPI BA 2024-12"[\s\S]*evidence: "PADRÃO POPULAR"/);
+  assert.match(registry, /"86906"[\s\S]*finishStandard: "economic"[\s\S]*source: "SINAPI BA 2024-12"[\s\S]*evidence: "PADRÃO POPULAR"/);
+  assert.match(registry, /"86915"[\s\S]*finishStandard: "standard"[\s\S]*source: "SINAPI BA 2024-12"[\s\S]*evidence: "PADRÃO MÉDIO"/);
+  assert.match(registry, /"100878"[\s\S]*finishStandard: "premium"[\s\S]*source: "SINAPI BA 2024-12"[\s\S]*evidence: "PADRÃO ALTO"/);
   assert.equal(/PRMA_OFFICIAL_KIT_POLICIES|officialCandidates|pending_selection/.test(source), false);
+  assert.equal(/descriptionOf\(composition\).*finishStandard|PADRÃO POPULAR.*candidate|unitPrice.*finishStandard|price.*finishStandard/.test(source), false);
+
   const search = loadSearchEngine();
   const composition = (code, description, extra = {}) => Object.assign({ code, description, unit: "un", source: "SINAPI", isOfficial: true, inputs: [{ code: "MAT-" + code, name: "insumo", unit: "un", coefficient: 1 }] }, extra);
-  const find = (items) => search.searchOfficialCompositions("vaso sanitario", { unit: "un", compositions: items });
-  assert.equal(find([composition("910", "vaso sanitario")]).candidates[0].finishStandard, undefined);
-  assert.equal(find([composition("911", "vaso sanitario", { finishStandard: "PREMIUM" })]).candidates[0].finishStandard, "premium");
-  assert.equal(find([composition("86931", "vaso sanitario")]).candidates[0].finishStandard, undefined);
-  assert.equal(find([composition("86931-X", "vaso sanitario")]).candidates[0].finishStandard, undefined);
-  assert.equal(find([composition("912", "vaso sanitario economico barato")]).candidates[0].finishStandard, undefined);
-  assert.equal(find([composition("913", "vaso sanitario", { price: 1, unitPrice: 1 })]).candidates[0].finishStandard, undefined);
-  const plain = find([composition("101", "vaso sanitario alfa", { price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
-  const tagged = find([composition("101", "vaso sanitario alfa", { finishStandard: "economic", price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
-  const summary = (result) => result.candidates.map(({ code, score, price }) => ({ code, score, price }));
+  const find = (query, items) => search.searchOfficialCompositions(query, { unit: "un", compositions: items });
+  const byCode = (code, description, extra) => find(code, [composition(code, description, extra)]).candidates[0];
+
+  assert.equal(byCode("86904", "lavatorio louca branca suspenso").finishStandard, "economic");
+  assert.equal(byCode("86906", "torneira cromada de mesa para lavatorio").finishStandard, "economic");
+  assert.equal(byCode("86915", "torneira cromada de mesa para lavatorio").finishStandard, "standard");
+  assert.equal(byCode("100878", "vaso sanitario sifonado com caixa acoplada").finishStandard, "premium");
+  assert.equal(byCode("910", "vaso sanitario").finishStandard, undefined);
+  assert.equal(byCode("869040", "lavatorio louca branca suspenso").finishStandard, undefined);
+  assert.equal(byCode("8690", "lavatorio louca branca suspenso").finishStandard, undefined);
+  assert.equal(byCode("1008780", "vaso sanitario sifonado com caixa acoplada").finishStandard, undefined);
+  assert.equal(byCode("912", "vaso sanitario PADRÃO POPULAR").finishStandard, undefined);
+  assert.equal(byCode("913", "vaso sanitario", { price: 1, unitPrice: 1 }).finishStandard, undefined);
+  assert.equal(byCode("86904", "lavatorio louca branca suspenso", { finishStandard: "premium" }).finishStandard, "premium");
+  assert.equal(byCode("86904", "lavatorio louca branca suspenso", { metadata: { finishStandard: "standard" }, inputs: [{ code: "MAT-86904-A", name: "insumo", unit: "un", coefficient: 1 }, { code: "MAT-86904-B", name: "insumo", unit: "un", coefficient: 1 }] }).finishStandard, "standard");
+
+  const plain = find("vaso sanitario", [composition("101", "vaso sanitario alfa", { price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
+  const tagged = find("vaso sanitario", [composition("101", "vaso sanitario alfa", { finishStandard: "economic", price: 20 }), composition("102", "vaso sanitario beta", { price: 10 })]);
+  const summary = (result) => result.candidates.map(({ code, score, price, warnings }) => ({ code, score, price, warnings }));
   assert.deepEqual(summary(tagged), summary(plain));
+
   const prma = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-budget-eap-engine.js"), "utf8");
   assert.match(prma, /compositionStatus: "pending_selection"/);
   assert.match(prma, /selectedOfficialCode/);

@@ -3,7 +3,28 @@
 
   const VERSION = "20260624-composition-search-v2-real-index";
   const DEFAULT_LIMIT = 8;
-  const FINISH_STANDARD_BY_COMPOSITION_CODE = Object.freeze({});
+  const FINISH_STANDARD_BY_COMPOSITION_CODE = Object.freeze({
+    "86904": Object.freeze({
+      finishStandard: "economic",
+      source: "SINAPI BA 2024-12",
+      evidence: "PADRÃO POPULAR"
+    }),
+    "86906": Object.freeze({
+      finishStandard: "economic",
+      source: "SINAPI BA 2024-12",
+      evidence: "PADRÃO POPULAR"
+    }),
+    "86915": Object.freeze({
+      finishStandard: "standard",
+      source: "SINAPI BA 2024-12",
+      evidence: "PADRÃO MÉDIO"
+    }),
+    "100878": Object.freeze({
+      finishStandard: "premium",
+      source: "SINAPI BA 2024-12",
+      evidence: "PADRÃO ALTO"
+    })
+  });
   const SYNONYMS = [
     ["telhado", ["cobertura"]],
     ["telha portuguesa", ["telha ceramica portuguesa"]],
@@ -126,7 +147,8 @@
     return text === "economic" || text === "standard" || text === "premium" ? text : null;
   }
   function getControlledFinishStandardByCode_(code) {
-    return normalizeFinishStandard_(FINISH_STANDARD_BY_COMPOSITION_CODE[clean(code)]);
+    const entry = FINISH_STANDARD_BY_COMPOSITION_CODE[clean(code)];
+    return normalizeFinishStandard_(entry && entry.finishStandard);
   }
   function explicitFinishStandardOf_(composition) {
     return normalizeFinishStandard_(composition && composition.finishStandard) ||
