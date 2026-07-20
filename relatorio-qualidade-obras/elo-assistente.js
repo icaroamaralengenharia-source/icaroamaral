@@ -2876,6 +2876,10 @@
     const missingCompositions = toEloBudgetV2List_(pack.compositionResolution && pack.compositionResolution.missing || pack.missing, function (item) {
       return item && typeof item === "object" ? (item.serviceId || item.description || "item") + " - " + (item.reason || "pendente") : item;
     });
+    const assumptions = (safeState.assumptions || ["Estrutura convencional preliminar.", "Cobertura em telha ceramica quando informada.", "Orcamento sujeito a projeto executivo, BDI, perdas e base oficial vigente."]).concat(pack.technicalAssumptions || []);
+    const bathroomFinishStandard = budgetPackage && budgetPackage.scopePreferences && budgetPackage.scopePreferences.bathroomFinishStandard;
+    const bathroomEconomicNote = "Banheiro: padr?o de acabamento econ?mico.";
+    if (bathroomFinishStandard === "economic" && assumptions.indexOf(bathroomEconomicNote) === -1) assumptions.push(bathroomEconomicNote);
     const priceStatus = pack.priceStatus || {};
     const realBudget = pack.realBudget || {};
     const budget = priceStatus.totals || realBudget.total ? {
@@ -2892,7 +2896,7 @@
       documentType: "residential",
       facts: facts,
       inheritedFacts: safeState.inheritedFacts || {},
-      assumptions: (safeState.assumptions || ["Estrutura convencional preliminar.", "Cobertura em telha ceramica quando informada.", "Orcamento sujeito a projeto executivo, BDI, perdas e base oficial vigente."]).concat(pack.technicalAssumptions || []),
+      assumptions: assumptions,
       geometry: pack.geometry || safeState.geometry || null,
       calculationMemory: pack.calculationMemory || [],
       quantityCoverage: pack.quantityCoverage || null,

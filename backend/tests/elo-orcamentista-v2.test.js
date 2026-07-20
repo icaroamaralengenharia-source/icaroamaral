@@ -816,6 +816,9 @@ test("Orcamentista V2 aplica padrao economico no acabamento do banheiro sem alte
   assert.equal(options.sessionIntent, "budget_v2_scope_reduce_bathroom_needs_options");
   const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
   const beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeScope = JSON.stringify(beforeState.budgetPackage.scope), beforeMaterials = JSON.stringify(beforeState.budgetPackage.materials || []), beforeCompositions = JSON.stringify(beforeState.budgetPackage.compositions || []), beforeFinancialLines = JSON.stringify(beforeState.budgetPackage.financialLines || []), beforePrices = JSON.stringify((beforeState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })));
+  const bathroomEconomicNote = "Banheiro: padr?o de acabamento econ?mico.";
+  const countBathroomEconomicNote = (list) => (list || []).filter((item) => item === bathroomEconomicNote).length;
+  assert.equal(countBathroomEconomicNote(original.budgetOrchestratorV2.budgetDocumentData.assumptions), 0);
 
   const applied = assistant.buildResponseForTest("Reduza o padrao de acabamento do banheiro para economico.");
   const afterState = assistant.getBudgetOrchestratorV2StateForTest();
@@ -837,6 +840,14 @@ test("Orcamentista V2 aplica padrao economico no acabamento do banheiro sem alte
   assert.ok(applied.budgetOrchestratorV2.budgetDocumentData);
   assert.ok(applied.pdfAction);
   assert.notEqual(applied.budgetOrchestratorV2.budgetDocumentData, original.budgetOrchestratorV2.budgetDocumentData);
+  const documentData = applied.budgetOrchestratorV2.budgetDocumentData;
+  const pdfDocumentData = applied.pdfAction.budgetDocumentData;
+  assert.equal(countBathroomEconomicNote(documentData.assumptions), 1);
+  assert.equal(countBathroomEconomicNote(pdfDocumentData.assumptions), 1);
+  assert.deepEqual(pdfDocumentData.assumptions, documentData.assumptions);
+  const pdfData = assistant.buildBudgetV2ProfessionalPdfDataForTest(documentData);
+  const documentText = JSON.stringify([documentData, pdfDocumentData, pdfData.record]);
+  assert.doesNotMatch(documentText, /redu[c?][a?]o de pre[c?]o|economia monet[a?]ria|troca efetiva de material/i);
 
   const history = JSON.stringify(afterState.revisions || []), packageAfterFirst = JSON.stringify(afterState.budgetPackage);
   const second = assistant.buildResponseForTest("Reduza o padrao de acabamento do banheiro para economico.");
@@ -844,6 +855,7 @@ test("Orcamentista V2 aplica padrao economico no acabamento do banheiro sem alte
   assert.equal(second.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_already_economic");
   assert.equal(JSON.stringify(secondState.revisions || []), history);
   assert.equal(JSON.stringify(secondState.budgetPackage), packageAfterFirst);
+  assert.equal(countBathroomEconomicNote(second.budgetOrchestratorV2.budgetDocumentData.assumptions), 1);
 });
 
 test("Orcamentista V2 nao aplica padrao economico no banheiro sem orcamento", () => {
