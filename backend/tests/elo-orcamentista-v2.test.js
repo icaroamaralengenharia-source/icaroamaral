@@ -45,6 +45,7 @@ function loadAssistant(pathname = "/elo.html", options = {}) {
       localStorage: createStorage({
         obrareport_elo_perfil_usuario_v1: JSON.stringify({ userName: "Icaro" })
       }),
+      sessionStorage: createStorage(),
       performance: { mark() {}, now() { return 0; } },
       setTimeout() {},
       fetch() {
@@ -92,6 +93,15 @@ function loadAssistant(pathname = "/elo.html", options = {}) {
   }
   sandbox.window.navigator = sandbox.navigator;
   sandbox.globalThis = sandbox.window;  vm.createContext(sandbox);
+  if (options.realSinapiBase) {
+    ["stock-ai-composition-engine.js", "bases-reais/sinapi-ba-202412-index.js", "composition-search-engine.js"].forEach((file) => {
+      vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", file), "utf8"), sandbox, { filename: file });
+    });
+  }
+  if (options.officialBaseOriginPath && sandbox.window.StockAiCompositionEngine) {
+    sandbox.window.EloPublicSinapiIndex = Object.assign({}, sandbox.window.EloPublicSinapiIndex || {}, { source: "SINAPI", state: "BA", referenceMonth: "2024-12", originPath: options.officialBaseOriginPath, loaded: true });
+    sandbox.window.StockAiCompositionEngine.getImportedOfficialBaseCatalog = () => [{ source: "SINAPI", sourceRegion: "BA", sourceDate: "2024-12", metadata: { importedFrom: options.officialBaseOriginPath, referenceMonth: "2024-12", state: "BA" } }];
+  }
   vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8"), sandbox, { filename: "elo-assistente.js" });
   return { assistant: sandbox.window.EloAssistente, calls, clipboardWrites };
 }
@@ -101,9 +111,9 @@ test("Orcamentista V2 inicia briefing residencial sem buscar SINAPI direto", () 
   const response = assistant.buildResponseForTest("Quero orcamento residencial preliminar");
 
   assert.equal(response.sessionIntent, "budget_v2_briefing");
-  assert.match(response.fullAnswer, /area construida/i);
+  assert.match(response.fullAnswer, /area construida|area aproximada/i);
   assert.match(response.fullAnswer, /cidade\/UF/i);
-  assert.match(response.fullAnswer, /padrao construtivo/i);
+  assert.match(response.fullAnswer, /padrao construtivo|padrao/i);
   assert.equal(calls.router, 0);
   assert.equal(calls.technical, 0);
   assert.equal(calls.composition, 0);
@@ -689,6 +699,231 @@ test("Orcamentista V2 nao recoloca hidraulica sem remocao nem em frases ambiguas
   });
 });
 
+test("Orcamentista V2 interpreta programa residencial completo de 70 m2", () => {
+  const { assistant } = loadAssistant();
+  const response = assistant.buildResponseForTest("Quero orçamento residencial preliminar para casa térrea de 70 m², com 2 quartos, 2 banheiros, sala, cozinha e área de serviço, em Vitória da Conquista - BA, padrão médio.");
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+  const program = pack.geometry.program;
+  const documentData = response.pdfAction.budgetDocumentData;
+
+  assert.equal(response.sessionIntent, "budget_v2_scope");
+  assert.equal(program.bedrooms, 2);
+  assert.equal(program.suites, 0);
+  assert.equal(program.bathrooms, 2);
+  assert.equal(program.livingRooms, 1);
+  assert.equal(program.kitchens, 1);
+  assert.equal(program.serviceAreas, 1);
+  assert.equal(state.areaM2, 70);
+  assert.equal(state.wetAreas, 2);
+  assert.equal(state.serviceAreas, 1);
+  assert.match(state.city, /Vitoria da Conquista/i);
+  assert.equal(state.state, "BA");
+  assert.equal(state.standard, "medio");
+  assert.equal(documentData.facts.builtAreaM2, 70);
+  assert.equal(documentData.facts.bathrooms, 2);
+  assert.equal(documentData.facts.uf, "BA");
+  assert.match(documentData.facts.city, /Vitoria da Conquista/i);
+  assert.equal(documentData.facts.standard, "medio");
+  assert.equal(pack.quantities.length, 38);
+  assert.equal(pack.compositions.length, 0);
+  assert.equal(pack.priceStatus.canTotal, false);
+  assert.equal(pack.priceStatus.totals, null);
+});
+
+test("Orcamentista V2 propaga fonte de preço SINAPI sem inventar fechamento financeiro", () => {
+  const countReasons = (pack, reason) => (pack.financialLines || []).filter((line) => line.composition && line.composition.reason === reason).length;
+  const request = "Quero orçamento residencial preliminar para casa térrea de 70 m², com 2 quartos, 2 banheiros, sala, cozinha e área de serviço, em Vitória da Conquista - BA, padrão médio.";
+
+  const withoutSource = loadAssistant().assistant.buildResponseForTest(request).budgetOrchestratorV2.budgetPackage;
+  assert.equal(withoutSource.compositionResolution.source, null);
+  assert.ok(countReasons(withoutSource, "price_source_not_selected") > 0);
+
+  const { assistant } = loadAssistant("/elo.html", { realSinapiBase: true });
+  const preference = assistant.buildResponseForTest("Use SINAPI.");
+  const response = assistant.buildResponseForTest(request);
+  const state = assistant.getBudgetOrchestratorV2StateForTest();
+  const pack = response.budgetOrchestratorV2.budgetPackage;
+  const program = pack.geometry.program;
+
+  assert.equal(preference.sessionIntent, "preferencia_fonte_tecnica");
+  assert.equal(pack.compositionResolution.source, "SINAPI");
+  assert.equal(pack.compositionResolution.uf, "BA");
+  assert.equal(pack.compositionResolution.competence, "2024-12");
+  assert.equal(pack.compositionResolution.regime, "desonerado");
+  assert.equal(countReasons(pack, "price_source_not_selected"), 0);
+  assert.equal(countReasons(pack, "competence_required"), 0);
+  assert.equal(countReasons(pack, "regime_required"), 0);
+  assert.equal(program.bedrooms, 2);
+  assert.equal(program.bathrooms, 2);
+  assert.equal(program.livingRooms, 1);
+  assert.equal(program.kitchens, 1);
+  assert.equal(program.serviceAreas, 1);
+  assert.equal(pack.quantities.length, 38);
+  assert.equal(state.areaM2, 70);
+  assert.equal(pack.priceStatus.canTotal, false);
+  assert.equal(pack.priceStatus.totals, null);
+  assert.equal(pack.financialSummary.salePrice, null);
+  assert.equal(pack.financialSummary.status, "partial_pending_items");
+  assert.equal(pack.financialSummary.partialSubtotal, 167630.39);
+  assert.equal(pack.priceStatus.partialSubtotal, 167630.39);
+  assert.equal(pack.priceStatus.excludedPendingItems.length, 4);
+  assert.equal(pack.priceStatus.pricingCoverage, pack.financialSummary.pricingCoverage);
+  assert.equal(pack.priceStatus.total, null);
+  assert.equal(pack.bdi.bdiPercent, null);
+
+  const financialIdentityBeforeMaterialsCheck = JSON.stringify((pack.financialLines || []).map((line) => ({ serviceId: line.serviceId, quantity: line.quantity, unit: line.unit, code: line.composition && line.composition.code, status: line.composition && line.composition.status, reason: line.composition && line.composition.reason, unitPrice: line.unitPrice, directCost: line.directCost })));
+  const resolvedLines = (pack.financialLines || []).filter((line) => line.directCost !== null);
+  const pricedLines = (pack.financialLines || []).filter((line) => line.unitPrice !== null);
+  const pendingSelectionCount = (pack.financialLines || []).filter((line) => line.composition && line.composition.status === "manual_review").length;
+  const missingCount = pack.financialSummary.unresolvedItems.length;
+  assert.equal(pack.financialSummary.excludedPendingItems.length, 4);
+  assert.equal(resolvedLines.length, 33);
+  assert.equal(pricedLines.length, 33);
+  assert.equal(pendingSelectionCount, 4);
+  assert.equal(missingCount, 4);
+  assert.ok(pack.materialsByService.length > 0);
+  assert.ok(pack.materials.length > 0);
+  assert.equal(JSON.stringify(pack.quantities), JSON.stringify(state.budgetPackage.quantities));
+  assert.equal(JSON.stringify((pack.financialLines || []).map((line) => ({ serviceId: line.serviceId, quantity: line.quantity, unit: line.unit, code: line.composition && line.composition.code, status: line.composition && line.composition.status, reason: line.composition && line.composition.reason, unitPrice: line.unitPrice, directCost: line.directCost }))), financialIdentityBeforeMaterialsCheck);
+
+  const serviceMaterials = pack.materialsByService.flatMap((service) => service.inputs || []);
+  serviceMaterials.concat(pack.materials).forEach((material) => {
+    assert.equal(Number.isNaN(material.requiredQuantity), false);
+    assert.ok(Number.isFinite(material.requiredQuantity));
+    assert.ok(material.requiredQuantity >= 0);
+    if (material.unitPrice !== null) assert.ok(Number.isFinite(material.unitPrice) && material.unitPrice >= 0);
+    if (material.totalCost !== null) assert.ok(Number.isFinite(material.totalCost) && material.totalCost >= 0);
+  });
+
+  const alvenariaService = pack.materialsByService.find((service) => /alvenaria/i.test([service.serviceId, service.serviceDescription, service.compositionDescription].join(" ")));
+  assert.ok(alvenariaService);
+  assert.ok(alvenariaService.inputs.length > 0);
+  const alvenariaMaterial = alvenariaService.inputs.find((material) => material.inputCode && material.description && material.unit && material.parentServiceId && material.parentCompositionCode);
+  assert.ok(alvenariaMaterial);
+  assert.equal(alvenariaMaterial.parentServiceId, alvenariaService.serviceId);
+  assert.equal(alvenariaMaterial.parentCompositionCode, alvenariaService.compositionCode);
+  assert.ok(Number.isFinite(alvenariaMaterial.coefficient));
+  assert.ok(Number.isFinite(alvenariaMaterial.serviceQuantity));
+  assert.ok(Math.abs(alvenariaMaterial.requiredQuantity - alvenariaMaterial.coefficient * alvenariaMaterial.serviceQuantity) < 1e-9);
+
+  const groupedInputs = serviceMaterials.reduce((acc, material) => {
+    const key = [material.inputCode, material.unit, material.source, material.competence, material.regime].join("|");
+    if (!material.inputCode || material.isAuxiliaryComposition) return acc;
+    acc[key] = acc[key] || [];
+    acc[key].push(material);
+    return acc;
+  }, {});
+  const repeatedGroup = Object.values(groupedInputs).find((items) => items.length > 1);
+  if (repeatedGroup) {
+    const repeated = repeatedGroup[0];
+    const consolidated = pack.materials.find((material) => material.inputCode === repeated.inputCode && material.unit === repeated.unit && material.source === repeated.source && material.competence === repeated.competence && material.regime === repeated.regime);
+    const expectedQuantity = repeatedGroup.reduce((sum, material) => sum + material.requiredQuantity, 0);
+    assert.ok(consolidated);
+    assert.ok(Math.abs(consolidated.requiredQuantity - expectedQuantity) < 1e-9);
+  }
+
+  const incompatible = loadAssistant("/elo.html", { realSinapiBase: true }).assistant;
+  incompatible.buildResponseForTest("Use SINAPI.");
+  const incompatiblePack = incompatible.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 70 m2 em Recife/PE, padrao medio.").budgetOrchestratorV2.budgetPackage;
+  assert.equal(incompatiblePack.compositionResolution.source, "SINAPI");
+  assert.equal(incompatiblePack.compositionResolution.uf, "PE");
+  assert.equal(incompatiblePack.compositionResolution.competence, null);
+  assert.equal(incompatiblePack.compositionResolution.regime, null);
+
+  const explicit = loadAssistant("/elo.html", { realSinapiBase: true }).assistant;
+  explicit.buildResponseForTest("Use SINAPI.");
+  explicit.buildResponseForTest(request);
+  const explicitPack = explicit.buildResponseForTest("Use a competencia 2024-12 e nao desonerado.").budgetOrchestratorV2.budgetPackage;
+  assert.equal(explicitPack.compositionResolution.competence, "2024-12");
+  assert.equal(explicitPack.compositionResolution.regime, "non_exempt");
+
+  const nonExempt = loadAssistant("/elo.html", { realSinapiBase: true, officialBaseOriginPath: "SINAPI_Custo_Ref_Composicoes_Analitico_BA_202412_Nao_Desonerado.xlsx" }).assistant;
+  nonExempt.buildResponseForTest("Use SINAPI.");
+  const nonExemptPack = nonExempt.buildResponseForTest(request).budgetOrchestratorV2.budgetPackage;
+  assert.equal(nonExemptPack.compositionResolution.regime, "nao_desonerado");
+
+  const ambiguous = loadAssistant("/elo.html", { realSinapiBase: true, officialBaseOriginPath: "SINAPI_Custo_Ref_Composicoes_Analitico_BA_202412.xlsx" }).assistant;
+  ambiguous.buildResponseForTest("Use SINAPI.");
+  const ambiguousPack = ambiguous.buildResponseForTest(request).budgetOrchestratorV2.budgetPackage;
+  assert.equal(ambiguousPack.compositionResolution.regime, null);
+  assert.equal((ambiguousPack.financialLines || []).filter((line) => line.composition && line.composition.reason === "regime_required").length > 0, true);
+
+  const partialBdi = loadAssistant("/elo.html", { realSinapiBase: true }).assistant;
+  partialBdi.buildResponseForTest("Use SINAPI.");
+  partialBdi.buildResponseForTest(request);
+  const bdiPack = partialBdi.buildResponseForTest("Aplique BDI de 25%.").budgetOrchestratorV2.budgetPackage;
+  assert.equal(bdiPack.financialSummary.status, "partial_pending_items");
+  assert.equal(bdiPack.financialSummary.partialSubtotal, 167630.39);
+  assert.equal(bdiPack.priceStatus.partialSubtotal, 167630.39);
+  assert.equal(bdiPack.financialSummary.excludedPendingItems.length, 4);
+  assert.equal(bdiPack.priceStatus.excludedPendingItems.length, 4);
+  assert.equal(bdiPack.bdi.bdiPercent, 25);
+  assert.equal(bdiPack.financialSummary.partialBdiValue, 41907.6);
+  assert.equal(bdiPack.priceStatus.partialBdiValue, 41907.6);
+  assert.equal(bdiPack.financialSummary.partialTotal, 209537.99);
+  assert.equal(bdiPack.priceStatus.partialTotal, 209537.99);
+  assert.equal(bdiPack.priceStatus.canTotal, false);
+  assert.equal(bdiPack.priceStatus.totals, null);
+  assert.equal(bdiPack.priceStatus.total, null);
+  assert.equal(bdiPack.financialSummary.salePrice, null);
+  assert.equal((bdiPack.financialLines || []).filter((line) => line.composition && line.composition.status === "manual_review" && line.unitPrice === 0).length, 0);
+});
+
+test("Orcamentista V2 registra escolhas tecnicas dos itens manual_review sem promover composicoes", () => {
+  const request = "Quero orcamento residencial preliminar para casa terrea de 70 m2, com 2 quartos, 2 banheiros, sala, cozinha e area de servico, em Vitoria da Conquista - BA, padrao medio.";
+  const { assistant } = loadAssistant("/elo.html", { realSinapiBase: true });
+  assistant.buildResponseForTest("Use SINAPI.");
+  const initial = assistant.buildResponseForTest(request);
+  const initialPack = initial.budgetOrchestratorV2 && initial.budgetOrchestratorV2.budgetPackage || assistant.getBudgetOrchestratorV2StateForTest().budgetPackage;
+  const initialQuantities = JSON.stringify(initialPack.quantities);
+  const initialResolved = JSON.stringify((initialPack.financialLines || []).filter((line) => line.directCost !== null).map((line) => [line.serviceId, line.composition && line.composition.code, line.unitPrice]));
+  const initialMaterialsByServiceCount = initialPack.materialsByService.length;
+  const initialMaterialsCount = initialPack.materials.length;
+  const manualReviewCount = (pack) => (pack.financialLines || []).filter((line) => line.composition && line.composition.status === "manual_review").length;
+  const resolvedCount = (pack) => (pack.financialLines || []).filter((line) => line.directCost !== null).length;
+
+  assert.equal(initialPack.quantities.length, 38);
+  assert.equal(resolvedCount(initialPack), 33);
+  assert.equal(manualReviewCount(initialPack), 4);
+  assert.match(initial.fullAnswer, /Para concluir as composicoes do orcamento/i);
+  assert.match(initial.fullAnswer, /Reboco/i);
+  assert.match(initial.fullAnswer, /Janelas/i);
+  assert.match(initial.fullAnswer, /Iluminacao/i);
+  assert.match(initial.fullAnswer, /Limpeza final/i);
+
+  const wall = assistant.buildResponseForTest("Use massa unica.");
+  let state = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(wall.sessionIntent, "budget_v2_pending_technical_choices_recorded");
+  assert.equal(state.budgetPackage.scopePreferences.wallFinishSystem, "single_coat");
+  assert.equal(state.revisions[state.revisions.length - 1].serviceId, "reboco");
+
+  assistant.buildResponseForTest("Janelas de aluminio.");
+  state = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(state.budgetPackage.scopePreferences.windowMaterial, "aluminum");
+  assert.equal(state.revisions[state.revisions.length - 1].serviceId, "esquadrias_janelas");
+
+  assistant.buildResponseForTest("Somente infraestrutura eletrica.");
+  state = assistant.getBudgetOrchestratorV2StateForTest();
+  assert.equal(state.budgetPackage.scopePreferences.lightingPointScope, "infrastructure_only");
+  assert.equal(state.revisions[state.revisions.length - 1].serviceId, "pontos_iluminacao");
+
+  assistant.buildResponseForTest("Limpeza final simples.");
+  state = assistant.getBudgetOrchestratorV2StateForTest();
+  const finalPack = state.budgetPackage;
+  assert.equal(finalPack.scopePreferences.finalCleaningScope, "simple");
+  assert.equal(state.revisions[state.revisions.length - 1].serviceId, "limpeza_final");
+  assert.equal(state.revisions.filter((revision) => revision.action === "set_pending_technical_choice").length, 4);
+  assert.equal(JSON.stringify(finalPack.quantities), initialQuantities);
+  assert.equal(JSON.stringify((finalPack.financialLines || []).filter((line) => line.directCost !== null).map((line) => [line.serviceId, line.composition && line.composition.code, line.unitPrice])), initialResolved);
+  assert.equal(resolvedCount(finalPack), 33);
+  assert.equal(manualReviewCount(finalPack), 4);
+  assert.equal(finalPack.materialsByService.length, initialMaterialsByServiceCount);
+  assert.equal(finalPack.materials.length, initialMaterialsCount);
+  assert.equal(finalPack.bdi.bdiPercent, null);
+  assert.equal(finalPack.financialSummary.salePrice, null);
+});
+
 test("Orcamentista V2 bloqueia retirada do unico banheiro sem mutacao", () => {
   const { assistant } = loadAssistant();
   const original = assistant.buildResponseForTest("Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio");
@@ -816,7 +1051,7 @@ test("Orcamentista V2 aplica padrao economico no acabamento do banheiro sem alte
   assert.equal(options.sessionIntent, "budget_v2_scope_reduce_bathroom_needs_options");
   const beforeState = assistant.getBudgetOrchestratorV2StateForTest();
   const beforePackage = JSON.stringify(beforeState.budgetPackage), beforeQuantities = JSON.stringify(beforeState.budgetPackage.quantities), beforeScope = JSON.stringify(beforeState.budgetPackage.scope), beforeMaterials = JSON.stringify(beforeState.budgetPackage.materials || []), beforeCompositions = JSON.stringify(beforeState.budgetPackage.compositions || []), beforeFinancialLines = JSON.stringify(beforeState.budgetPackage.financialLines || []), beforePrices = JSON.stringify((beforeState.budgetPackage.financialLines || []).map((item) => ({ serviceId: item.serviceId, unitPrice: item.unitPrice, price: item.price, totalPrice: item.totalPrice, total: item.total })));
-  const bathroomEconomicNote = "Banheiro: padr?o de acabamento econ?mico.";
+  const bathroomEconomicNote = "Banheiro: padrão de acabamento econômico.";
   const countBathroomEconomicNote = (list) => (list || []).filter((item) => item === bathroomEconomicNote).length;
   assert.equal(countBathroomEconomicNote(original.budgetOrchestratorV2.budgetDocumentData.assumptions), 0);
 

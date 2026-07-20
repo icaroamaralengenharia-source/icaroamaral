@@ -178,7 +178,59 @@ test("pedido residencial explicito com briefing suficiente usa o motor real e ab
   assert.match(html, /elo-professional-pdf/);
   assert.match(html, /or.amento residencial preliminar/i);
   assert.match(html, /120/);
+  assert.match(html, /<table/i);
+  assert.match(html, /Servi\u00e7o/);
+  assert.match(html, /Unidade/);
+  assert.match(html, /Quantidade/);
+  assert.match(html, /Pre\u00e7o unit\u00e1rio/);
+  assert.match(html, /Total/);
+  assert.match(html, /Situa\u00e7\u00e3o/);
+  assert.match(html, /Vit\u00f3ria da Conquista\/BA/);
   assert.doesNotMatch(html, /R\$\s*0[,\.]00/);
+  assert.doesNotMatch(html, /Pagina 0|P\u00e1gina 0|P\u00e1gina 1 de 2|P\u00e1gina 2 de 2/i);
+  assert.doesNotMatch(html, /projectType|builtAreaM2|price_source_not_selected|CONTE\u00daDO T\u00c9CNICO CONSOLIDADO/i);
+});
+
+test("PDF residencial V2 exibe premissa economica do banheiro sem alterar dados tecnicos", () => {
+  const { elo, getCapturedHtml } = loadAssistant();
+  elo.clearBudgetRecordsForTest();
+
+  elo.buildResponseForTest("Quero or\u00e7amento residencial preliminar para casa t\u00e9rrea de 120 m\u00b2 em Vit\u00f3ria da Conquista - BA, padr\u00e3o m\u00e9dio");
+  const scoped = elo.buildResponseForTest("Reduza o escopo do banheiro.");
+  const quantitiesBefore = JSON.stringify(scoped.pdfAction.budgetDocumentData.quantities);
+  const financialLinesBefore = JSON.stringify(scoped.pdfAction.budgetDocumentData.financialLines);
+  const compositionsBefore = JSON.stringify(scoped.pdfAction.budgetDocumentData.compositions);
+
+  const response = elo.buildResponseForTest("Reduza o padr\u00e3o de acabamento do banheiro para econ\u00f4mico.");
+
+  assert.equal(response.sessionIntent, "budget_v2_scope_reduce_bathroom_finish_economic_applied");
+  assert.equal(response.revision?.action, "change_finish_standard");
+  assert.equal(response.budgetOrchestratorV2?.budgetPackage?.scopePreferences?.bathroomFinishStandard, "economic");
+  assert.equal(response.pdfAction?.type, "budget_v2_professional_pdf");
+  const documentData = response.pdfAction.budgetDocumentData;
+  assert.equal(JSON.stringify(documentData.quantities), quantitiesBefore);
+  assert.equal(JSON.stringify(documentData.financialLines), financialLinesBefore);
+  assert.equal(JSON.stringify(documentData.compositions), compositionsBefore);
+  assert.equal((documentData.assumptions || []).filter((item) => item === "Banheiro: padr\u00e3o de acabamento econ\u00f4mico.").length, 1);
+  assert.equal((response.pdfAction.budgetDocumentData.assumptions || []).filter((item) => item === "Banheiro: padr\u00e3o de acabamento econ\u00f4mico.").length, 1);
+
+  const pdf = elo.openBudgetV2ProfessionalPdfForTest(documentData);
+  const html = pdf.html || getCapturedHtml();
+  assert.match(html, /<table/i);
+  assert.match(html, /Servi\u00e7o/);
+  assert.match(html, /Unidade/);
+  assert.match(html, /Quantidade/);
+  assert.match(html, /Pre\u00e7o unit\u00e1rio/);
+  assert.match(html, /Total/);
+  assert.match(html, /Situa\u00e7\u00e3o/);
+  assert.match(html, /Vit\u00f3ria da Conquista\/BA/);
+  assert.equal((html.match(/Banheiro: padr\u00e3o de acabamento econ\u00f4mico\./g) || []).length, 1);
+  assert.doesNotMatch(html, /Pagina 0|P\u00e1gina 0|P\u00e1gina 1 de 2|P\u00e1gina 2 de 2/i);
+  assert.match(html, /@media print\{html,body\{background:#fff;padding:0\}/);
+  assert.doesNotMatch(html, /\.elo-budget-page\{[^}]*break-after:page/i);
+  assert.doesNotMatch(html, /<section class="elo-budget-page">\s*<\/section>\s*<\/article>/i);
+  assert.doesNotMatch(html, /projectType|builtAreaM2|price_source_not_selected|CONTE\u00daDO T\u00c9CNICO CONSOLIDADO/i);
+  assert.doesNotMatch(html, /redu\u00e7\u00e3o de pre\u00e7o|economia monet\u00e1ria|troca efetiva de material|material econ\u00f4mico selecionado|composi\u00e7\u00e3o econ\u00f4mica selecionada/i);
 });
 
 test("gatilhos nao residenciais nao chamam o motor de orcamento residencial", () => {
@@ -219,12 +271,18 @@ test("saida real observada do motor fica legivel sem JSON bruto no documento e n
   const pdfResponse = elo.buildResponseForTest("gerar PDF");
   assert.equal(pdfResponse.sessionIntent, "budget_v2_current_pdf");
   const html = getCapturedHtml();
-  assert.match(html, /EAP residencial preliminar|Servicos obrigatorios/i);
-  assert.match(html, /SINAPI-ALV-001|SINAPI-COB-001/i);
-  assert.match(html, /Valores pendentes/i);
+  assert.match(html, /<table/i);
+  assert.match(html, /Servi\u00e7o/);
+  assert.match(html, /Unidade/);
+  assert.match(html, /Quantidade/);
+  assert.match(html, /Pre\u00e7o unit\u00e1rio/);
+  assert.match(html, /Total/);
+  assert.match(html, /Situa\u00e7\u00e3o/);
+  assert.match(html, /Or\u00e7amento ainda n\u00e3o precificado|Pendente/i);
   assert.doesNotMatch(html, /\{&quot;|\{"|&quot;[a-zA-Z0-9_]+&quot;:/);
   assert.doesNotMatch(html, /\[object Object\]|undefined|\bNaN\b/);
   assert.doesNotMatch(html, /R\$\s*0[,\.]00|total\s*:\s*0|subtotal\s*:\s*0|BDI\s*:\s*0/i);
+  assert.doesNotMatch(html, /projectType|builtAreaM2|price_source_not_selected|CONTE\u00daDO T\u00c9CNICO CONSOLIDADO/i);
 });
 
 test("briefing residencial aceita sistema estrutural convencional sem inventar padrao de acabamento", () => {

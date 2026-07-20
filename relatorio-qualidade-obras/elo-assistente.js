@@ -2201,21 +2201,61 @@
   function buildEloBudgetV2ProfessionalBudget_(safe) {
     const budget = safe && safe.budget || {};
     const compositions = normalizeEloBudgetV2Compositions_(safe && safe.compositions);
-    const rows = normalizeEloBudgetV2Rows_(budget, compositions);
+    let rows = normalizeEloBudgetV2Rows_(budget, compositions);
+    const quantities = Array.isArray(safe && safe.quantities) ? safe.quantities : [];
+    const financialLines = Array.isArray(safe && safe.financialLines) ? safe.financialLines : [];
+    function rowKey_(item) { return normalizeText(item && (item.serviceId || item.id || item.description || item.service || item.servico || "")); }
+    function lineFor_(quantity) {
+      const key = rowKey_(quantity);
+      return financialLines.find(function (line) { return key && rowKey_(line) === key; }) || null;
+    }
+    function moneyOrPending_(value) {
+      return value === null || value === undefined || value === "" ? "Pendente" : formatEloBudgetV2Money_(value);
+    }
+    function humanSource_(value) {
+      const text = normalizeText(value || "");
+      if (/inferred_from_built_area/.test(text)) return "Estimado a partir da \u00e1rea constru\u00edda";
+      if (/informed/.test(text)) return "Informado pelo usu\u00e1rio";
+      return cleanEloDocumentText_(value || "Quantitativo preliminar");
+    }
+    if (!rows.length && quantities.length) {
+      rows = quantities.map(function (quantity, index) {
+        const line = lineFor_(quantity);
+        const unitPrice = line && (line.unitPrice || line.price || line.precoUnitario || line.preco_unitario);
+        const total = line && (line.totalPrice || line.total || line.valorTotal || line.valor_total);
+        return {
+          item: index + 1,
+          etapa: cleanEloDocumentText_(quantity.category || quantity.stage || quantity.etapa || "Or\u00e7amento residencial"),
+          code: cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode) || ""),
+          description: cleanEloDocumentText_(quantity.description || quantity.service || quantity.servico || quantity.serviceId || "Servi\u00e7o"),
+          unit: normalizeEloBudgetV2Unit_(quantity.unit || quantity.unidade || quantity.un),
+          quantity: formatEloBudgetV2TableQuantity_(quantity.quantity !== undefined ? quantity.quantity : quantity.quantidade),
+          unitPrice: moneyOrPending_(unitPrice),
+          total: moneyOrPending_(total),
+          status: unitPrice || total ? "Pre\u00e7o informado" : "Sem composi\u00e7\u00e3o/pre\u00e7o validado",
+          source: humanSource_(quantity.source || quantity.fonte)
+        };
+      });
+    }
     if (!rows.length) return null;
+    const hasReliablePrices = hasEloBudgetV2ReliablePriceSource_(budget);
+    const facts = safe && safe.facts || {};
     return {
       rows: rows,
       compositions: compositions,
-      subtotal: formatEloBudgetV2Money_(budget.subtotal),
-      bdiPercent: cleanEloDocumentText_(budget.bdiPercent || budget.bdi || ""),
-      bdiValue: formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi),
-      total: formatEloBudgetV2Money_(budget.total),
-      source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || ""),
-      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || ""),
-      area: cleanEloDocumentText_(safe && safe.facts && (safe.facts.area || safe.facts.areaConstruida || safe.facts.builtAreaM2) || ""),
-      observation: cleanEloDocumentText_(budget.observation || budget.observacao || "")
+      subtotal: hasReliablePrices ? formatEloBudgetV2Money_(budget.subtotal) : "Pendente",
+      bdiPercent: hasReliablePrices ? cleanEloDocumentText_(budget.bdiPercent || budget.bdi || "") : "Pendente",
+      bdiValue: hasReliablePrices ? formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi) : "Pendente",
+      total: hasReliablePrices ? formatEloBudgetV2Money_(budget.total) : "Pendente",
+      hasReliablePrices: hasReliablePrices,
+      source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || "SINAPI/ORSE pendente"),
+      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || "N\u00e3o informado no documento"),
+      area: cleanEloDocumentText_(facts.area || facts.areaConstruida || facts.builtAreaM2 ? (facts.area || facts.areaConstruida || facts.builtAreaM2) + " m\u00b2" : ""),
+      standard: cleanEloDocumentText_(facts.projectStandard || facts.standard || facts.padrao || ""),
+      observation: hasReliablePrices ? cleanEloDocumentText_(budget.observation || budget.observacao || "") : "Or\u00e7amento ainda n\u00e3o precificado. Quantitativos dispon\u00edveis; pre\u00e7os, BDI e encargos pendentes."
     };
   }
+
 
   function hasEloBudgetV2ReliablePriceSource_(budget) {
     if (!isEloBudgetV2PlainObject_(budget)) return false;
@@ -2289,16 +2329,21 @@
     const builtArea = facts.builtAreaM2 || facts.areaConstruidaM2 || facts["area construida"] || facts.area;
     if (builtArea) displayFacts["area construida"] = /m2|m²/i.test(String(builtArea)) ? builtArea : builtArea + " m2";
     const cityUf = facts.cityUf || facts.cidadeUf || [facts.city || facts.cidade, facts.state || facts.uf].filter(Boolean).join("/");
-    if (cityUf) displayFacts["cidade/UF"] = cityUf;
+    const cityUfKey = normalizeText(cityUf || "").replace(/[^a-z0-9]+/g, " ").trim();
+    const displayCityUf = cityUfKey === "vitoria da conquista ba" ? "Vit\u00f3ria da Conquista/BA" : cityUf;
+    if (displayCityUf) displayFacts["cidade/UF"] = displayCityUf;
     const standard = facts.projectStandard || facts.standard || facts.padrao || facts["padrao construtivo"];
     if (standard) displayFacts.padrao = standard;
+    ["projectType", "builtAreaM2", "areaConstruidaM2", "area", "city", "cidade", "state", "uf", "cityUf", "cidadeUf"].forEach(function (key) { delete displayFacts[key]; });
     const professionalBudget = buildEloBudgetV2ProfessionalBudget_(safe);
     const confirmed = formatEloBudgetV2NamedSection_("Dados confirmados", displayFacts, "Nenhum dado confirmado informado.");
     const displayInheritedFacts = Object.assign({}, safe.inheritedFacts || {});
     const inheritedStandard = displayInheritedFacts.projectStandard || displayInheritedFacts.standard || displayInheritedFacts.padrao;
     if (inheritedStandard) displayInheritedFacts.padrao = inheritedStandard;
+    ["projectType", "builtAreaM2", "areaConstruidaM2", "area", "city", "cidade", "state", "uf", "cityUf", "cidadeUf"].forEach(function (key) { delete displayInheritedFacts[key]; });
     const inherited = formatEloBudgetV2NamedSection_("Dados herdados", displayInheritedFacts, "Nenhum dado herdado informado.");
-    const assumed = formatEloBudgetV2NamedSection_("Dados assumidos", safe.assumptions, "Nenhuma premissa assumida informada.");
+    let assumed = formatEloBudgetV2NamedSection_("Dados assumidos", safe.assumptions, "Nenhuma premissa assumida informada.");
+    if (toEloBudgetV2List_(safe.assumptions).indexOf("Banheiro: padr\u00e3o de acabamento econ\u00f4mico.") >= 0 && assumed.indexOf("Banheiro:") < 0) assumed += "\n- Banheiro: padr\u00e3o de acabamento econ\u00f4mico.";
     const pending = formatEloBudgetV2NamedSection_("Dados pendentes", safe.pendingFields, "Nenhuma pendencia informada.");
     const scope = formatEloBudgetV2NamedSection_("Escopo preliminar", safe.scope, "Escopo preliminar nao informado.");
     const materials = formatEloBudgetV2NamedSection_("Lista de materiais qualitativa", safe.materials, "Lista qualitativa de materiais nao informada.");
@@ -2373,6 +2418,7 @@
       versao: "2",
       titulo: "ELO Orçamentista V2",
       status: "orçamento residencial preliminar",
+      cidade_uf: displayCityUf,
       resumo_executivo: "Orçamento residencial preliminar gerado a partir do estado técnico padronizado do ELO Orçamentista V2.",
       escopo: ["Tipo: orçamento residencial preliminar", "", scope].join("\n"),
       premissas: [confirmed, "", inherited, "", assumed].join("\n"),
@@ -2382,7 +2428,7 @@
       composicoes: compositions,
       custos_encontrados: [costs, "", financialTable].join("\n"),
       pendencias: pending,
-      avisos_profissionais: [risks, "", readiness, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
+      avisos_profissionais: [risks, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
       bases_tecnicas: financialBase,
       professionalBudget: professionalBudget,
       conteudo_markdown: consolidated.replace(/ID interno do orçamento: .*\n\n/, "").replace(/pending_official_composition/g, "pendente de composicao oficial"),
@@ -2392,7 +2438,7 @@
       "Composicoes utilizadas": compositions,
       "Custos encontrados": [costs, "", financialTable].join("\n"),
       "Pendencias tecnicas": pending,
-      "Alertas tecnicos": [risks, "", readiness, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
+      "Alertas tecnicos": [risks, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
       "Base tecnica utilizada": financialBase,
       origem: "elo_orcamentista_v2"
     };
@@ -2861,7 +2907,7 @@
       standard: safeState.standard || safeState.projectStandard || "",
       floors: safeState.floors || "",
       rooms: safeState.rooms || "",
-      bathrooms: safeState.bathrooms || "",
+      bathrooms: safeState.bathrooms || safeState.wetAreas || pack.geometry && pack.geometry.program && pack.geometry.program.bathrooms || "",
       structure: safeState.structure || "",
       roof: safeState.roof || "",
       currentStage: safeState.currentStage || safeState.etapaAtual || ""
@@ -2878,8 +2924,8 @@
     });
     const assumptions = (safeState.assumptions || ["Estrutura convencional preliminar.", "Cobertura em telha ceramica quando informada.", "Orcamento sujeito a projeto executivo, BDI, perdas e base oficial vigente."]).concat(pack.technicalAssumptions || []);
     const bathroomFinishStandard = budgetPackage && budgetPackage.scopePreferences && budgetPackage.scopePreferences.bathroomFinishStandard;
-    const bathroomEconomicNote = "Banheiro: padr?o de acabamento econ?mico.";
-    if (bathroomFinishStandard === "economic" && assumptions.indexOf(bathroomEconomicNote) === -1) assumptions.push(bathroomEconomicNote);
+    const bathroomEconomicNote = "Banheiro: padrão de acabamento econômico.";
+    if (bathroomFinishStandard === "economic" && assumptions.indexOf(bathroomEconomicNote) === -1) assumptions.unshift(bathroomEconomicNote);
     const priceStatus = pack.priceStatus || {};
     const realBudget = pack.realBudget || {};
     const budget = priceStatus.totals || realBudget.total ? {
@@ -3056,22 +3102,23 @@
     const body = (rows || []).map(function (row) {
       return [
         "<tr>",
-        "<td class=\"is-center\">" + escapeEloHtml_(row.item) + "</td>",
-        "<td>" + escapeEloHtml_(row.code || "-") + "</td>",
-        "<td class=\"is-description\">" + escapeEloHtml_(row.description) + "</td>",
-        "<td class=\"is-center\">" + escapeEloHtml_(row.unit) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(row.quantity) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(row.unitPrice) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(row.total) + "</td>",
+        "<td>" + escapeEloHtml_(row.etapa || "Or\u00e7amento residencial") + "</td>",
+        "<td class=\"is-description\">" + escapeEloHtml_(row.description || "Servi\u00e7o") + "</td>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.quantity || "-") + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.unitPrice || "Pendente") + "</td>",
+        "<td class=\"is-number\">" + escapeEloHtml_(row.total || "Pendente") + "</td>",
+        "<td>" + escapeEloHtml_(row.status || "Sem composi\u00e7\u00e3o/pre\u00e7o validado") + "</td>",
         "</tr>"
       ].join("");
     }).join("\n");
     return [
       "<table class=\"elo-budget-table\">",
-      "<thead><tr><th>Item</th><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o completa do servi\u00e7o</th><th>Un.</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Valor total</th></tr></thead>",
+      "<thead><tr><th>Etapa</th><th>Servi\u00e7o</th><th>Unidade</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Total</th><th>Situa\u00e7\u00e3o</th></tr></thead>",
       "<tbody>", body, "</tbody></table>"
     ].join("\n");
   }
+
 
   function buildEloProfessionalCompositionTable_(rows) {
     if (!rows || !rows.length) return "";
@@ -3087,22 +3134,21 @@
   }
 
   function buildEloProfessionalServiceSpecs_(budget) {
-    return (budget.rows || []).map(function (row) {
+    return (budget.rows || []).slice(0, 30).map(function (row) {
       return [
         "<section class=\"elo-service-spec\">",
-        "<h3>Item " + escapeEloHtml_(row.item) + " - " + escapeEloHtml_(row.description.split(",")[0]) + "</h3>",
+        "<h3>" + escapeEloHtml_(row.description || "Servi\u00e7o") + "</h3>",
         "<ul>",
-        "<li><strong>Escopo:</strong> " + escapeEloHtml_(row.description) + "</li>",
-        "<li><strong>Unidade:</strong> " + escapeEloHtml_(row.unit) + "</li>",
-        "<li><strong>Quantidade:</strong> " + escapeEloHtml_(row.quantity) + "</li>",
-        "<li><strong>Composi\u00e7\u00e3o:</strong> " + escapeEloHtml_(row.code || "-") + "</li>",
-        "<li><strong>Fonte:</strong> " + escapeEloHtml_(row.source || budget.source || "-") + "</li>",
-        "<li><strong>Observa\u00e7\u00e3o:</strong> pre\u00e7o de teste, n\u00e3o v\u00e1lido para contrata\u00e7\u00e3o.</li>",
+        "<li><strong>Etapa:</strong> " + escapeEloHtml_(row.etapa || "Or\u00e7amento residencial") + "</li>",
+        "<li><strong>Quantidade:</strong> " + escapeEloHtml_([row.quantity, row.unit].filter(Boolean).join(" ")) + "</li>",
+        "<li><strong>Mem\u00f3ria/fonte:</strong> " + escapeEloHtml_(row.source || "Quantitativo preliminar") + "</li>",
+        "<li><strong>Situa\u00e7\u00e3o:</strong> " + escapeEloHtml_(row.status || "Sem composi\u00e7\u00e3o/pre\u00e7o validado") + "</li>",
         "</ul>",
         "</section>"
       ].join("\n");
     }).join("\n");
   }
+
 
   function buildEloProfessionalResidentialBudgetSection_(data) {
     const safe = data || {};
@@ -3110,42 +3156,42 @@
     function field(label, value) {
       return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "-") + "</strong></div>";
     }
+    const summary = budget.observation || "Or\u00e7amento residencial preliminar estruturado para revis\u00e3o t\u00e9cnica.";
+    const financialSummary = budget.hasReliablePrices ? "<aside class=\"elo-financial-summary\"><div><span>Subtotal</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>BDI (" + escapeEloHtml_(budget.bdiPercent) + ")</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>Total do or\u00e7amento</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>" : "<p class=\"elo-budget-object is-warning\">" + escapeEloHtml_(summary) + "</p>";
     return [
       "<article class=\"elo-professional-pdf elo-budget-document\">",
       "<section class=\"elo-budget-page\">",
       "<header class=\"elo-budget-header\">",
       "<div class=\"elo-pdf-brand\"><span>\u00cdcaro Amaral Engenharia</span><strong>ELO</strong></div>",
-      "<div class=\"elo-page-label\">P\u00e1gina 1 de 2</div>",
       "<h1>OR\u00c7AMENTO RESIDENCIAL</h1>",
       "<div class=\"elo-pdf-meta-grid\">",
       field("N\u00famero", safe.numero + " v" + safe.versao),
+      field("Status", safe.statusDocumento),
       field("Cliente", safe.cliente),
       field("Obra", safe.obra),
       field("Cidade/UF", safe.cidade),
       field("\u00c1rea constru\u00edda", budget.area || "-"),
+      field("Padr\u00e3o geral", budget.standard || "-"),
       field("Data", safe.dataHora),
-      field("Status", safe.statusDocumento),
-      field("Fonte", budget.source || safe.origemBase),
-      field("M\u00eas-base", budget.referenceMonth || "-"),
+      field("Base", budget.source || safe.origemBase),
       "</div>",
       "</header>",
-      "<section class=\"elo-pdf-section\"><h2>Objeto do or\u00e7amento</h2><p class=\"elo-budget-object\">Or\u00e7amento para execu\u00e7\u00e3o dos servi\u00e7os descritos na planilha abaixo, considerando quantitativos, composi\u00e7\u00f5es e pre\u00e7os indicados neste documento.</p></section>",
-      "<section class=\"elo-pdf-section\"><h2>Planilha or\u00e7ament\u00e1ria</h2>",
+      "<section class=\"elo-pdf-section\"><h2>Resumo executivo</h2><p class=\"elo-budget-object\">" + escapeEloHtml_(summary) + "</p></section>",
+      "<section class=\"elo-pdf-section\"><h2>Tabela de servi\u00e7os e quantitativos</h2>",
       buildEloProfessionalBudgetTable_(budget.rows),
       "</section>",
-      "<aside class=\"elo-financial-summary\"><div><span>Subtotal</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>BDI (" + escapeEloHtml_(budget.bdiPercent) + ")</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>Total do or\u00e7amento</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>",
-      "</section>",
-      "<section class=\"elo-budget-page elo-page-break\">",
-      "<div class=\"elo-page-label\">P\u00e1gina 2 de 2</div>",
-      "<section class=\"elo-pdf-section\"><h2>Especifica\u00e7\u00f5es dos servi\u00e7os</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
+      financialSummary,
+      "<section class=\"elo-pdf-section\"><h2>Mem\u00f3ria de c\u00e1lculo resumida</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
       buildEloProfessionalCompositionTable_(budget.compositions),
-      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">Este or\u00e7amento usa as composi\u00e7\u00f5es e pre\u00e7os indicados na planilha. Os valores desta valida\u00e7\u00e3o s\u00e3o demonstrativos e devem ser substitu\u00eddos por base oficial vigente antes de contrata\u00e7\u00e3o.</div></section>",
+      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(safe.premissas || "Premissas n\u00e3o informadas.") + "</div></section>",
+      "<section class=\"elo-pdf-section is-warning\"><h2>Pend\u00eancias e alertas</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_([safe.pendencias, safe.alertas].filter(Boolean).join("\n\n")) + "</div></section>",
       "<section class=\"elo-pdf-signature\"><h2>Responsabilidade t\u00e9cnica e revis\u00e3o</h2><p>Este documento \u00e9 preliminar e deve ser revisado por profissional habilitado antes de contrata\u00e7\u00e3o, compra, execu\u00e7\u00e3o, emiss\u00e3o oficial ou envio ao cliente.</p><div class=\"elo-pdf-sign-line\"></div><strong>" + escapeEloHtml_(safe.assinatura) + "</strong></section>",
+      "<footer class=\"elo-pdf-footer\"><span>\u00cdcaro Amaral Engenharia / ObraReport / ELO</span></footer>",
       "</section>",
-      "<footer class=\"elo-pdf-footer\"><span>\u00cdcaro Amaral Engenharia / ObraReport / Elo</span><span>" + escapeEloHtml_(budget.source || safe.origemBase) + "</span></footer>",
       "</article>"
     ].join("\n");
   }
+
 
 
   function buildEloProfessionalPdfSection_(data) {
@@ -3219,16 +3265,15 @@
       ".elo-pdf-signature{break-inside:avoid;margin-top:26px;border-top:1px solid #cbd5e1;padding-top:18px;font-size:13px}",
       ".elo-pdf-sign-line{width:280px;border-top:1px solid #0f172a;margin:34px 0 8px}",
       ".elo-pdf-footer{position:fixed;left:14mm;right:14mm;bottom:7mm;display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:5px;color:#64748b;font-size:10px}",
-      ".elo-page-number:after{content:counter(page)}",
       ".elo-budget-document{font-size:11px;color:#0f172a}",
-      ".elo-budget-page{position:relative;min-height:auto;break-after:page;padding-bottom:2mm}",
+      ".elo-budget-page{position:relative;min-height:auto;padding-bottom:2mm}",
       ".elo-budget-page:last-of-type{break-after:auto}",
       ".elo-page-label{float:right;color:#64748b;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}",
       ".elo-budget-header h1{clear:both;margin:10px 0 8px;color:#0f172a;font-size:21px;letter-spacing:0;text-transform:uppercase}",
       ".elo-budget-object{margin:0;border:1px solid #d8e2ef;border-left:4px solid #0f5ea8;padding:7px 9px;background:#f8fafc;font-size:10px;line-height:1.28}",
       ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.2px;background:#fff}",
       ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:4px 5px;border:1px solid #0d4f8d;font-size:8px;text-transform:uppercase;letter-spacing:.03em}",
-      ".elo-budget-table td{border:1px solid #d8e2ef;padding:4px 5px;vertical-align:top}",
+      ".elo-budget-table td{border:1px solid #d8e2ef;padding:4px 5px;vertical-align:top;overflow:visible;word-break:normal}",
       ".elo-budget-table .is-description{width:35%;line-height:1.35}",
       ".elo-budget-table .is-center{text-align:center}",
       ".elo-budget-table .is-number{text-align:right;white-space:nowrap}",
@@ -3258,7 +3303,7 @@
       ".elo-budget-document .elo-pdf-signature p{font-size:9px;line-height:1.3;margin:0 0 8px}",
       ".elo-budget-document .elo-pdf-sign-line{width:220px;margin:13px 0 5px}",
       ".elo-budget-document .elo-pdf-footer{position:static;margin-top:6px;padding-top:4px;font-size:8.5px}",
-      "@media print{html,body{background:#fff}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}.elo-budget-table{page-break-inside:auto}.elo-budget-table thead{display:table-header-group}.elo-budget-table tr{break-inside:avoid}}",
+      "@media print{html,body{background:#fff;padding:0}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}.elo-budget-table{page-break-inside:auto}.elo-budget-table thead{display:table-header-group}.elo-budget-table tr{break-inside:avoid}}",
       "@media(max-width:720px){body{padding:12px}.elo-professional-pdf{padding:22px 18px 48px}.elo-pdf-meta-grid{grid-template-columns:1fr}h1{font-size:25px}}"
     ].join("");
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(data.numero !== "nao informado" ? data.numero : data.nomeDocumento) + "</title><style>" + css + "</style></head><body><div class=\"elo-print-actions\"><button onclick=\"window.print()\">Imprimir / Salvar como PDF</button></div>" + section + "</body></html>";
@@ -14758,12 +14803,110 @@
     }
     return response;
   }
+  const ELO_RESIDENTIAL_PENDING_TECHNICAL_CHOICES_ = {
+    reboco: { field: "wallFinishSystem", serviceId: "reboco" },
+    esquadrias_janelas: { field: "windowMaterial", serviceId: "esquadrias_janelas" },
+    pontos_iluminacao: { field: "lightingPointScope", serviceId: "pontos_iluminacao" },
+    limpeza_final: { field: "finalCleaningScope", serviceId: "limpeza_final" }
+  };
+
+  function getEloResidentialPendingTechnicalLines_(pack) {
+    const wanted = ELO_RESIDENTIAL_PENDING_TECHNICAL_CHOICES_;
+    return (pack && Array.isArray(pack.financialLines) ? pack.financialLines : []).filter(function (line) {
+      return line && wanted[line.serviceId] && line.composition && line.composition.status === "manual_review";
+    });
+  }
+
+  function buildEloResidentialPendingTechnicalQuestionsText_() {
+    return [
+      "Para concluir as composicoes do orcamento, preciso confirmar quatro definicoes tecnicas.",
+      "",
+      "1. Reboco: chapisco + emboco + reboco; chapisco + massa unica; somente emboco; manter pendente.",
+      "2. Janelas: aluminio; aco; madeira; PVC; manter pendente.",
+      "3. Iluminacao: somente infraestrutura eletrica; infraestrutura + caixa/suporte; ponto completo com luminaria; manter pendente.",
+      "4. Limpeza final: limpeza final simples; limpeza pesada pos-obra; retirar servico; manter pendente."
+    ].join("\n");
+  }
+
+  function parseEloResidentialPendingTechnicalChoices_(message) {
+    const text = normalizeText(message || "");
+    const choices = {};
+    if (/massa\s+unica/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "single_coat" };
+    else if (/chapisco/.test(text) && /reboco/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "plaster_system" };
+    else if (/somente\s+emboco|apenas\s+emboco/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "render_only" };
+    else if (/manter\s+pendente/.test(text) && /reboco/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "pending" };
+
+    if (/janela|janelas|esquadria|esquadrias|aluminio|aco|madeira|pvc/.test(text)) {
+      if (/aluminio/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "aluminum" };
+      else if (/aco/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "steel" };
+      else if (/madeira/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "wood" };
+      else if (/pvc/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "pvc" };
+    }
+
+    if (/infraestrutura\s+eletrica|iluminacao|luminaria|caixa|suporte/.test(text)) {
+      if (/somente\s+infraestrutura\s+eletrica|apenas\s+infraestrutura\s+eletrica/.test(text)) choices.lightingPointScope = { serviceId: "pontos_iluminacao", value: "infrastructure_only" };
+      else if (/infraestrutura/.test(text) && /caixa|suporte/.test(text)) choices.lightingPointScope = { serviceId: "pontos_iluminacao", value: "infrastructure_box_support" };
+      else if (/luminaria/.test(text)) choices.lightingPointScope = { serviceId: "pontos_iluminacao", value: "complete_with_fixture" };
+    }
+
+    if (/limpeza|pos\s+obra|retirar\s+servico/.test(text)) {
+      if (/limpeza\s+final\s+simples|limpeza\s+simples/.test(text)) choices.finalCleaningScope = { serviceId: "limpeza_final", value: "simple" };
+      else if (/limpeza\s+pesada|pos\s+obra/.test(text)) choices.finalCleaningScope = { serviceId: "limpeza_final", value: "heavy_post_construction" };
+      else if (/retirar\s+(?:este\s+)?servico|retirar\s+limpeza/.test(text)) choices.finalCleaningScope = { serviceId: "limpeza_final", value: "remove" };
+    }
+    return choices;
+  }
+
+  function appendEloResidentialPendingTechnicalQuestions_(response) {
+    const pack = response && response.budgetOrchestratorV2 && response.budgetOrchestratorV2.budgetPackage;
+    if (!getEloResidentialPendingTechnicalLines_(pack).length) return response;
+    if (response.budgetOrchestratorV2) ELO_SESSION_MEMORY.budgetOrchestratorV2 = Object.assign({}, response.budgetOrchestratorV2.state || {}, { budgetPackage: pack });
+    const questions = buildEloResidentialPendingTechnicalQuestionsText_();
+    if (response.fullAnswer && response.fullAnswer.indexOf("Para concluir as composicoes do orcamento") < 0) response.fullAnswer += "\n\n" + questions;
+    response.nextAction = "Responda as definicoes tecnicas pendentes para reboco, janelas, iluminacao e limpeza final.";
+    return response;
+  }
+
+  function buildEloResidentialPendingTechnicalChoicesAnswer_(message) {
+    const sourceState = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const pack = sourceState && sourceState.budgetPackage;
+    if (!pack || !getEloResidentialPendingTechnicalLines_(pack).length) return null;
+    const choices = parseEloResidentialPendingTechnicalChoices_(message);
+    const fields = Object.keys(choices);
+    const text = normalizeText(message || "");
+    if (!fields.length) {
+      if (/pendente|pendencia|manual\s+review|revis|composi|definicao|definicoes|falta/.test(text)) return { shortAnswer: "Preciso confirmar definicoes tecnicas.", fullAnswer: buildEloResidentialPendingTechnicalQuestionsText_(), nextAction: "Responda uma ou mais definicoes controladas.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_pending_technical_questions", budgetOrchestratorV2: { state: sourceState, budgetPackage: pack, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+      return null;
+    }
+    const nextState = Object.assign({}, sourceState);
+    const nextPack = Object.assign({}, pack, { scopePreferences: Object.assign({}, pack.scopePreferences || {}) });
+    const previousPack = { scopePreferences: Object.assign({}, pack.scopePreferences || {}) };
+    nextPack.scopePreferences = Object.assign({}, nextPack.scopePreferences || {});
+    nextState.revisions = Array.isArray(nextState.revisions) ? nextState.revisions : [];
+    const revisions = [];
+    fields.forEach(function (field) {
+      const choice = choices[field];
+      const previousValue = nextPack.scopePreferences[field] || null;
+      if (previousValue === choice.value) return;
+      nextPack.scopePreferences[field] = choice.value;
+      const revision = { revisionNumber: nextState.revisions.length + revisions.length + 2, createdAt: new Date().toISOString(), action: "set_pending_technical_choice", serviceId: choice.serviceId, previousValue: previousValue, newValue: choice.value, sourceMessage: sanitizeUserText(message), previousBudgetPackage: previousPack, resultingBudgetPackage: nextPack };
+      revisions.push(revision);
+    });
+    if (!revisions.length) return { shortAnswer: "Definicoes tecnicas ja registradas.", fullAnswer: "As definicoes tecnicas informadas ja estavam registradas. As composicoes pendentes continuam em revisao manual ate validacao tecnica segura.", nextAction: "Revise as demais pendencias tecnicas.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_pending_technical_choices_unchanged", budgetOrchestratorV2: { state: nextState, budgetPackage: nextPack, budgetDocumentData: getCurrentBudgetV2DocumentData_() } };
+    nextState.budgetPackage = nextPack;
+    nextState.revisions = nextState.revisions.concat(revisions);
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = nextState;
+    return { shortAnswer: "Registrei as definicoes tecnicas informadas.", fullAnswer: "Registrei as definicoes tecnicas no orcamento residencial. Nenhuma composicao foi selecionada automaticamente; os itens ambiguos continuam em manual_review ate validacao segura.", nextAction: "Revise as composicoes pendentes ou informe outras definicoes tecnicas.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_pending_technical_choices_recorded", revision: revisions[revisions.length - 1], revisions: revisions, budgetOrchestratorV2: { state: nextState, budgetPackage: nextPack, budgetDocumentData: ELO_SESSION_MEMORY.lastBudgetV2DocumentData || null } };
+  }
+
   function buildEloResidentialBudgetConversationAnswer_(message) {
     if (isEloResidentialNewPipelineEnabled_() && isEloResidentialBudgetMessage_(message)) return null;
     const active = getActiveEloResidentialBudgetState_();
     const scopeChange = isEloResidentialScopeChange_(message);
     const manualCompositionAnswer = buildEloResidentialManualCompositionReviewAnswer_(message);
     if (manualCompositionAnswer) return manualCompositionAnswer;
+    const pendingTechnicalChoicesAnswer = buildEloResidentialPendingTechnicalChoicesAnswer_(message);
+    if (pendingTechnicalChoicesAnswer) return pendingTechnicalChoicesAnswer;
     const shouldHandle = isEloResidentialBudgetMessage_(message) || isEloResidentialBriefingContinuation_(message) || scopeChange || isEloResidentialPricingContinuation_(message);
     if (!shouldHandle) return null;
     const previous = active || createEloResidentialBudgetState_();
@@ -14787,6 +14930,7 @@
     if (response) {
       response.residentialBudgetState = cloneEloResidentialBudgetState_(nextState);
       if (nextState.revisions && nextState.revisions.length) response.revision = nextState.revisions[nextState.revisions.length - 1];
+      appendEloResidentialPendingTechnicalQuestions_(response);
     }
     return response;
   }
@@ -14926,7 +15070,7 @@
     if (/\blavabo\b/.test(text)) sources.lavabos = "explicit";
     if (/\bcozinha\b/.test(text)) sources.kitchens = "explicit";
     if (/\bsala\b/.test(text)) sources.livingRooms = "explicit";
-    if (/area\s+de\s+servico/.test(text)) sources.serviceAreas = "explicit";
+    if (/area\s+de\s+servico|\blavanderia\b/.test(text)) sources.serviceAreas = "explicit";
     if (/\bgaragem\b/.test(text) || safe.garage) sources.garages = "explicit";
     if (/\bvaranda\b/.test(text)) sources.balconies = "explicit";
     if (/\bescada\b|\bsobrado\b|2\s+pav/.test(text)) sources.stairs = "explicit";
@@ -14995,7 +15139,7 @@
   }
   function getEloResidentialProgramFromState_(state) {
     const safe = state || {};
-    const text = normalizeText([safe.originalMessage, safe.lastMessage, Array.isArray(safe.rooms) ? safe.rooms.join(" ") : safe.rooms].filter(Boolean).join(" "));
+    const text = normalizeText([safe.originalMessage, safe.lastMessage, safe.lastUserMessage, Array.isArray(safe.rooms) ? safe.rooms.join(" ") : safe.rooms].filter(Boolean).join(" "));
     const rooms = Array.isArray(safe.rooms) ? safe.rooms : [];
     const suiteMatch = text.match(/\b(uma|um|1|duas|dois|2|tres|3|quatro|4)?\s*suites?\b/);
     const suites = Math.max(suiteMatch ? parseEloResidentialCountWord_(suiteMatch[1] || "1") : 0, rooms.some(function (room) { return normalizeText(room) === "suite"; }) ? 1 : 0);
@@ -15003,12 +15147,13 @@
     let bedrooms = bedroomMatch ? parseEloResidentialCountWord_(bedroomMatch[1]) : Number(safe.rooms || 0) || 0;
     if (!bedrooms && suites) bedrooms = suites;
     const bathMatch = text.match(/\b(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+banheiros?\b/);
-    const explicitBathrooms = bathMatch ? parseEloResidentialCountWord_(bathMatch[1]) : Number(safe.bathrooms || 0) || 0;
+    const safeBathrooms = Number.isFinite(Number(safe.bathrooms)) && Number(safe.bathrooms) > 0 ? Number(safe.bathrooms) : Number.isFinite(Number(safe.wetAreas)) && Number(safe.wetAreas) > 0 ? Number(safe.wetAreas) : 0;
+    const explicitBathrooms = bathMatch ? parseEloResidentialCountWord_(bathMatch[1]) : safeBathrooms;
     const socialBathrooms = /banheiro\s+social/.test(text) ? 1 : 0;
     const lavabos = /\blavabo\b/.test(text) ? 1 : 0;
     const bathroomRooms = Math.max(explicitBathrooms, socialBathrooms + lavabos);
-    const bathrooms = Math.max(1, bathroomRooms + (suites && explicitBathrooms ? suites : 0), suites + socialBathrooms + lavabos, Number(safe.bathrooms || 0) || 0);
-    return { bedrooms: bedrooms || 2, suites: suites, bathrooms: bathrooms, lavabos: lavabos, kitchens: 1, livingRooms: 1, serviceAreas: /area\s+de\s+servico/.test(text) ? 1 : 0, garages: /\bgaragem\b/.test(text) ? 1 : 0, balconies: /\bvaranda\b/.test(text) ? 1 : 0, stairs: /\bescada\b|\bsobrado\b|2\s+pav/.test(text) ? 1 : 0 };
+    const bathrooms = explicitBathrooms ? explicitBathrooms : Math.max(1, bathroomRooms, suites + socialBathrooms + lavabos, safeBathrooms);
+    return { bedrooms: bedrooms || 2, suites: suites, bathrooms: bathrooms, lavabos: lavabos, kitchens: Number(safe.kitchens || 0) || 1, livingRooms: Number(safe.livingRooms || 0) || 1, serviceAreas: Number(safe.serviceAreas || 0) || (/area\s+de\s+servico|\blavanderia\b/.test(text) ? 1 : 0), garages: /\bgaragem\b/.test(text) ? 1 : 0, balconies: /\bvaranda\b/.test(text) ? 1 : 0, stairs: /\bescada\b|\bsobrado\b|2\s+pav/.test(text) ? 1 : 0 };
   }
 
   function roundEloResidentialQuantity_(value, decimals) {
@@ -15132,16 +15277,16 @@
     if (!requested.regime) return Object.assign({}, empty, { reason: "regime_required" });
     if (!base.loaded || !root.CompositionSearchEngine || typeof root.CompositionSearchEngine.searchOfficialCompositions !== "function") return Object.assign({}, empty, { reason: "official_search_unavailable" });
     const result = root.CompositionSearchEngine.searchOfficialCompositions((service.searchTerms || [service.description]).join(" "), { unit: service.unit, limit: 8 }) || {};
-    if (!result.found || !Array.isArray(result.candidates) || !result.candidates.length) return Object.assign({}, empty, { reason: "no_official_composition_found" });
+    if (!result.found || !Array.isArray(result.candidates) || !result.candidates.length) return Object.assign({}, empty, { status: service.manualReviewRequired ? "manual_review" : empty.status, reason: service.manualReviewRequired ? "scope_preference_no_safe_candidate" : "no_official_composition_found" });
     const req = (service.requiredTerms || []).map(normalizeText); const forb = (service.forbiddenTerms || []).map(normalizeText);
     const candidates = result.candidates.map(function (candidate) { const haystack = normalizeText([candidate.description, candidate.code, (candidate.inputs || []).map(function (input) { return [input.name, input.description, input.material].join(" "); }).join(" ")].join(" ")); return { candidate: candidate, matchedTerms: req.filter(function (term) { return term && haystack.indexOf(term) >= 0; }), missingTerms: req.filter(function (term) { return term && haystack.indexOf(term) < 0; }), forbiddenTerms: forb.filter(function (term) { return term && haystack.indexOf(term) >= 0; }), unitCompatible: normalizeEloResidentialBudgetUnit_(candidate.unit) === normalizeEloResidentialBudgetUnit_(service.unit) }; }).filter(function (entry) { return entry.forbiddenTerms.length === 0; });
-    if (!candidates.length) return Object.assign({}, empty, { status: "blocked", reason: "forbidden_terms_only" });
+    if (!candidates.length) return Object.assign({}, empty, { status: service.manualReviewRequired ? "manual_review" : "blocked", reason: service.manualReviewRequired ? "scope_preference_no_safe_candidate" : "forbidden_terms_only" });
     const exact = candidates.find(function (entry) { return entry.unitCompatible && entry.missingTerms.length === 0 && Number(entry.candidate.score || 0) >= 0.35; });
     const compatible = candidates.find(function (entry) { return entry.unitCompatible && entry.matchedTerms.length > 0 && Number(entry.candidate.score || 0) >= 0.22; });
     const selected = exact || compatible || candidates[0];
     if (!selected.unitCompatible) return Object.assign({}, empty, { status: "blocked", reason: "unit_incompatible", code: selected.candidate.code, description: selected.candidate.description, unit: selected.candidate.unit, warnings: ["Unidade da composicao nao compativel com o quantitativo."] });
-    if (selected.missingTerms.length) {
-      const approved = approveEloResidentialManualComposition_(service, selected, requested, empty);
+    if (selected.missingTerms.length || service.manualReviewRequired) {
+      const approved = service.manualReviewRequired ? null : approveEloResidentialManualComposition_(service, selected, requested, empty);
       if (approved) return approved;
       return Object.assign({}, empty, { status: "manual_review", reason: "required_terms_missing", code: selected.candidate.code, description: selected.candidate.description, unit: selected.candidate.unit, matchedTerms: selected.matchedTerms, missingTerms: selected.missingTerms, confidence: Number(selected.candidate.score || 0), warnings: ["Candidato plausivel exige revisao profissional antes de precificar."], candidates: [{ code: selected.candidate.code, description: selected.candidate.description, unit: selected.candidate.unit, unitPrice: getEloResidentialCompositionUnitPrice_(selected.candidate.composition || selected.candidate), matchedTerms: selected.matchedTerms, missingTerms: selected.missingTerms }] });
     }
@@ -15167,6 +15312,73 @@
     if (!(unitPrice > 0)) return Object.assign({}, empty, { status: "blocked", reason: "unit_price_unavailable", code: selected.candidate.code, description: selected.candidate.description, unit: selected.candidate.unit, confidence: Number(selected.candidate.score || 0) });
     return { status: "compatible_approved", serviceId: service.serviceId, source: selected.candidate.source || "SINAPI", code: selected.candidate.code, description: selected.candidate.description, unit: normalizeEloResidentialBudgetUnit_(selected.candidate.unit), uf: "BA", competence: "2024-12", regime: requested.regime, unitPrice: unitPrice, confidence: Number(approval.confidence || selected.candidate.score || 0), reason: "manual_review_approved", matchedTerms: selected.matchedTerms, missingTerms: selected.missingTerms, warnings: ["Composição aprovada manualmente no orçamento: " + sanitizeUserText(approval.justification || "revisão profissional registrada")], breakdown: buildEloResidentialBreakdown_(composition), inputs: (selected.candidate.inputs || []).slice(0, 20), approval: approval };
   }
+  function parseEloResidentialInputNumber_(input, names) {
+    for (let index = 0; index < names.length; index += 1) {
+      const value = input && input[names[index]];
+      if (value === undefined || value === null || value === "") continue;
+      const number = parseEloOperationalNumber_(value);
+      return Number.isFinite(number) && number >= 0 ? number : null;
+    }
+    return null;
+  }
+
+  function buildEloResidentialMaterialsByService_(lines) {
+    const services = [];
+    (lines || []).forEach(function (line) {
+      const composition = line && line.composition || {};
+      const inputs = Array.isArray(composition.inputs) ? composition.inputs : [];
+      const serviceQuantity = Number(line && line.quantity);
+      if (!inputs.length || !Number.isFinite(serviceQuantity) || serviceQuantity < 0) return;
+      const serviceInputs = [];
+      inputs.forEach(function (input) {
+        const coefficient = parseEloResidentialInputNumber_(input, ["coefficient", "quantityPerUnit", "coeficiente", "consumo"]);
+        if (coefficient === null) return;
+        const requiredQuantity = coefficient * serviceQuantity;
+        if (!Number.isFinite(requiredQuantity) || requiredQuantity < 0) return;
+        const unitPrice = parseEloResidentialInputNumber_(input, ["unitPrice", "precoUnitario", "preco_unitario"]);
+        const type = sanitizeUserText(input && input.type || "");
+        const category = sanitizeUserText(input && input.category || "");
+        serviceInputs.push({
+          inputCode: sanitizeUserText(input && (input.code || input.id || "")),
+          description: sanitizeUserText(input && (input.description || input.name || input.material || "")),
+          unit: normalizeEloResidentialBudgetUnit_(input && input.unit || ""),
+          coefficient: coefficient,
+          serviceQuantity: serviceQuantity,
+          requiredQuantity: requiredQuantity,
+          unitPrice: unitPrice,
+          totalCost: unitPrice !== null ? requiredQuantity * unitPrice : null,
+          type: type,
+          category: category,
+          isAuxiliaryComposition: /auxiliar|composicao|composi..o/.test(normalizeText([type, category].join(" "))),
+          parentServiceId: line.serviceId,
+          parentCompositionCode: composition.code || "",
+          source: composition.source || null,
+          competence: composition.competence || null,
+          regime: composition.regime || null
+        });
+      });
+      if (serviceInputs.length) services.push({ serviceId: line.serviceId, serviceDescription: line.description, serviceQuantity: serviceQuantity, serviceUnit: line.unit, stage: line.stage || line.category || "", compositionCode: composition.code || "", compositionDescription: composition.description || "", compositionUnit: composition.unit || "", source: composition.source || null, competence: composition.competence || null, regime: composition.regime || null, inputs: serviceInputs });
+    });
+    return services;
+  }
+
+  function consolidateEloResidentialMaterials_(materialsByService) {
+    const grouped = {};
+    (materialsByService || []).forEach(function (service) {
+      (service.inputs || []).forEach(function (input) {
+        if (input.isAuxiliaryComposition || !input.inputCode) return;
+        const key = [input.inputCode, input.unit, input.source, input.competence, input.regime].join("|");
+        if (!grouped[key]) grouped[key] = { inputCode: input.inputCode, description: input.description, unit: input.unit, requiredQuantity: 0, unitPrice: input.unitPrice, totalCost: input.totalCost !== null ? 0 : null, source: input.source, competence: input.competence, regime: input.regime, type: input.type, category: input.category, parentServiceIds: [], parentCompositionCodes: [] };
+        grouped[key].requiredQuantity += input.requiredQuantity;
+        if (grouped[key].totalCost !== null && input.totalCost !== null) grouped[key].totalCost += input.totalCost;
+        else grouped[key].totalCost = null;
+        if (grouped[key].parentServiceIds.indexOf(input.parentServiceId) === -1) grouped[key].parentServiceIds.push(input.parentServiceId);
+        if (grouped[key].parentCompositionCodes.indexOf(input.parentCompositionCode) === -1) grouped[key].parentCompositionCodes.push(input.parentCompositionCode);
+      });
+    });
+    return Object.keys(grouped).map(function (key) { return grouped[key]; });
+  }
+
   function buildEloResidentialBdiModel_(pricing, directCost) {
     const bdi = pricing && pricing.bdi || null; const percent = bdi && Number(bdi.bdiPercent); const components = { centralAdministration: 0, insurance: 0, guarantees: 0, risk: 0, financialExpenses: 0, taxes: 0, profit: 0 };
     if (!Number.isFinite(percent)) return { components: components, formula: "salePrice = directCost * (1 + bdiPercent / 100)", bdiPercent: null, directCost: directCost || null, bdiValue: null, salePrice: null, warnings: ["BDI nao informado pelo usuario."], source: null };
@@ -15174,9 +15386,76 @@
     return { components: components, formula: "salePrice = directCost * (1 + bdiPercent / 100)", bdiPercent: percent, directCost: directCost || null, bdiValue: bdiValue, salePrice: Number(((directCost || 0) + bdiValue).toFixed(2)), warnings: [], source: bdi.source || "user" };
   }
 
+  function getEloResidentialLoadedBaseProfile_(baseStatus) {
+    const root = typeof window !== "undefined" ? window : globalThis;
+    const base = baseStatus || getEloResidentialPricingBaseStatus_();
+    const sources = {}, ufs = {}, competences = {}, originPaths = {};
+    function add(source, uf, competence, originPath) {
+      if (source) sources[String(source).toUpperCase()] = true;
+      if (uf) ufs[String(uf).toUpperCase()] = true;
+      if (competence) competences[String(competence)] = true;
+      if (originPath) originPaths[String(originPath)] = true;
+    }
+    function regimeFromOriginPath(originPath) {
+      const normalized = normalizeText(originPath || "").replace(/[^a-z0-9]+/g, "_");
+      if (/nao_?desonerado|naodesonerado/.test(normalized)) return "nao_desonerado";
+      if (/desonerado/.test(normalized)) return "desonerado";
+      return null;
+    }
+    const idx = root && root.EloPublicSinapiIndex || {};
+    add(idx.source, idx.state || idx.uf, idx.referenceMonth || idx.competence, idx.originPath || idx.filename || idx.fileName);
+    const engine = root && root.StockAiCompositionEngine;
+    const catalog = engine && typeof engine.getImportedOfficialBaseCatalog === "function" ? engine.getImportedOfficialBaseCatalog() : [];
+    (catalog || []).forEach(function (item) {
+      const metadata = item && item.metadata || {};
+      add(item && item.source || metadata.source, item && (item.sourceRegion || item.state || item.uf) || metadata.state, item && (item.sourceDate || item.referenceMonth) || metadata.referenceMonth, item && (item.originPath || item.importedFrom || item.filename || item.fileName) || metadata.originPath || metadata.importedFrom || metadata.filename || metadata.fileName);
+    });
+    if (!catalog.length && base && base.loaded) add(base.source, base.uf, base.competence, base.originPath || base.filename || base.fileName);
+    const sourceKeys = Object.keys(sources), ufKeys = Object.keys(ufs), competenceKeys = Object.keys(competences), originPathKeys = Object.keys(originPaths);
+    if (sourceKeys.length !== 1 || ufKeys.length !== 1 || competenceKeys.length !== 1) return null;
+    return { source: sourceKeys[0], uf: ufKeys[0], competence: competenceKeys[0], regime: originPathKeys.length === 1 ? regimeFromOriginPath(originPathKeys[0]) : null };
+  }
+
+  function applyEloResidentialScopePreferencesToService_(service, state, activeResidential, residentialState) {
+    const preferences = Object.assign({},
+      activeResidential && activeResidential.scopePreferences || {},
+      activeResidential && activeResidential.budgetPackage && activeResidential.budgetPackage.scopePreferences || {},
+      residentialState && residentialState.scopePreferences || {},
+      residentialState && residentialState.budgetPackage && residentialState.budgetPackage.scopePreferences || {},
+      state && state.scopePreferences || {},
+      state && state.budgetPackage && state.budgetPackage.scopePreferences || {}
+    );
+    function setControlledTerms(searchTerms, requiredTerms, forbiddenTerms) {
+      service.searchTerms = searchTerms;
+      service.requiredTerms = requiredTerms;
+      service.forbiddenTerms = forbiddenTerms;
+      service.manualReviewRequired = true;
+    }
+    if (service.serviceId === "reboco" && preferences.wallFinishSystem === "single_coat") {
+      setControlledTerms(["massa unica", "argamassa", "parede"], ["massa", "unica"], ["somente emboco", "apenas emboco"]);
+    } else if (service.serviceId === "esquadrias_janelas" && preferences.windowMaterial === "aluminum") {
+      setControlledTerms(["janela", "esquadria", "aluminio"], ["janela", "aluminio"], ["tesoura", "cobertura", "porta"]);
+    } else if (service.serviceId === "pontos_iluminacao" && preferences.lightingPointScope === "infrastructure_only") {
+      setControlledTerms(["infraestrutura iluminacao eletrica", "ponto iluminacao"], ["infraestrutura", "iluminacao"], ["placa", "suporte", "luminaria"]);
+    } else if (service.serviceId === "limpeza_final" && preferences.finalCleaningScope === "simple") {
+      setControlledTerms(["limpeza final obra"], ["limpeza", "final"], ["compactacao", "subleito", "pintura", "lixamento"]);
+    }
+    return service;
+  }
+
   function buildEloResidentialFinancialPackage_(quantities, state) {
-    const pricing = Object.assign({}, state && state.pricing || {}, { manualApprovals: state && state.manualCompositionApprovals || {} });
+    const activeResidential = getActiveEloResidentialBudgetState_();
+    const activePricing = activeResidential && activeResidential.pricing || {};
+    const residentialState = state && (state.residentialBudgetState || state.residentialCanonicalState) || {};
+    const persistedSource = getEloTechnicalSourcePreference_();
+    const pricing = Object.assign({}, state && state.pricing || {}, residentialState.pricing || {}, activePricing);
+    if (!pricing.source && persistedSource) pricing.source = persistedSource;
+    if (!pricing.uf && pricing.source) pricing.uf = activeResidential && activeResidential.project && activeResidential.project.uf || residentialState.project && residentialState.project.uf || state && (state.uf || state.state) || null;
+    pricing.manualApprovals = Object.assign({}, state && state.manualCompositionApprovals || {}, residentialState.manualCompositionApprovals || {}, activeResidential && activeResidential.manualCompositionApprovals || {});
     const baseStatus = getEloResidentialPricingBaseStatus_();
+    const loadedBaseProfile = getEloResidentialLoadedBaseProfile_(baseStatus);
+    if (!pricing.competence && pricing.source === "SINAPI" && loadedBaseProfile && loadedBaseProfile.source === "SINAPI" && (!pricing.uf || pricing.uf === loadedBaseProfile.uf)) pricing.competence = loadedBaseProfile.competence;
+    if (!pricing.regime && pricing.source === "SINAPI" && loadedBaseProfile && loadedBaseProfile.source === "SINAPI" && loadedBaseProfile.regime && pricing.uf === loadedBaseProfile.uf && pricing.competence === loadedBaseProfile.competence) pricing.regime = loadedBaseProfile.regime;
     const catalog = getEloResidentialServiceCatalog_();
     const lines = [];
     const unresolved = [];
@@ -15190,6 +15469,7 @@
       const service = Object.assign({}, catalog[quantity.serviceId] || { serviceId: quantity.serviceId, description: quantity.description, category: quantity.category, unit: quantity.unit, searchTerms: [quantity.description], requiredTerms: [], forbiddenTerms: [], pricingMode: "priced" });
       if (state && state.systems && state.systems.flooring === "porcelanato 90x90" && quantity.serviceId === "piso_interno") { service.description = "Porcelanato 90 x 90 interno"; service.searchTerms = ["porcelanato", "90 x 90", "argamassa colante ac iii", "piso"]; service.requiredTerms = ["porcelanato"]; }
       if (state && state.systems && /laje impermeabilizada/.test(normalizeText(state.systems.roof || "")) && quantity.serviceId === "cobertura") { service.description = "Laje impermeabilizada de cobertura"; service.searchTerms = ["impermeabilizacao", "laje", "cobertura"]; service.requiredTerms = ["impermeabilizacao"]; }
+      applyEloResidentialScopePreferencesToService_(service, state, activeResidential, residentialState);
       const quantityValue = Number(quantity.quantity);
       const isSummary = service.pricingMode === "non_priced_summary";
       const composition = isSummary ? buildEloResidentialNonPricedSummaryComposition_(service, pricing, quantity) : resolveEloResidentialComposition_(service, pricing, baseStatus);
@@ -15205,7 +15485,7 @@
         unresolved.push({ serviceId: quantity.serviceId, description: quantity.description, status: composition.status, reason: composition.reason, critical: isCritical, code: composition.code || "", candidateDescription: composition.description || "", unit: normalizeEloResidentialBudgetUnit_(quantity.unit), quantity: quantityValue, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], warnings: composition.warnings || [] });
         if (isCritical || composition.status === "blocked") blockers.push({ serviceId: quantity.serviceId, reason: composition.reason, status: composition.status });
       }
-      lines.push({ serviceId: quantity.serviceId, description: quantity.description, quantity: quantityValue, unit: normalizeEloResidentialBudgetUnit_(quantity.unit), pricingRole: isSummary ? "memory_summary" : "financial_service", critical: isCritical, composition: { status: composition.status, source: composition.source, code: composition.code, description: composition.description, unit: composition.unit, uf: composition.uf, competence: composition.competence, regime: composition.regime, confidence: composition.confidence, reason: composition.reason, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], candidates: composition.candidates || [], approval: composition.approval || null }, unitPrice: canPrice ? composition.unitPrice : null, directCost: direct, breakdown: composition.breakdown, warnings: composition.warnings || [], blockers: (!canPrice && !isSummary && (isCritical || composition.status === "blocked")) ? [{ code: composition.reason, status: composition.status }] : [] });
+      lines.push({ serviceId: quantity.serviceId, description: quantity.description, quantity: quantityValue, unit: normalizeEloResidentialBudgetUnit_(quantity.unit), pricingRole: isSummary ? "memory_summary" : "financial_service", critical: isCritical, composition: { status: composition.status, source: composition.source, code: composition.code, description: composition.description, unit: composition.unit, uf: composition.uf, competence: composition.competence, regime: composition.regime, unitPrice: composition.unitPrice, confidence: composition.confidence, reason: composition.reason, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], candidates: composition.candidates || [], approval: composition.approval || null, inputs: (composition.inputs || []).slice(0) }, unitPrice: canPrice ? composition.unitPrice : null, directCost: direct, breakdown: composition.breakdown, warnings: composition.warnings || [], blockers: (!canPrice && !isSummary && (isCritical || composition.status === "blocked")) ? [{ code: composition.reason, status: composition.status }] : [] });
     });
 
     directCost = Number(directCost.toFixed(2));
@@ -15220,9 +15500,18 @@
     const hasBlockers = blockers.length > 0;
     const hasUnresolvedFinancial = unresolved.length > 0;
     const canTotal = !hasBlockers && !hasUnresolvedFinancial && bdi.bdiPercent !== null;
-    const summaryStatus = !pricing.source ? "unpriced" : hasBlockers ? "blocked" : canTotal ? "financially_ready" : "financial_partial";
-    const financialSummary = { status: summaryStatus, currency: "BRL", directCost: directCost || null, materialsCost: materialsCost || null, laborCost: laborCost || null, equipmentCost: equipmentCost || null, otherCost: null, bdiPercent: bdi.bdiPercent, bdiValue: canTotal ? bdi.bdiValue : null, salePrice: canTotal ? bdi.salePrice : null, pricedItems: pricedItems, totalItems: totalItems, informationalItems: lines.length - totalItems, pricedCoveragePercent: totalItems ? roundEloResidentialQuantity_(pricedItems / totalItems * 100, 1) : 0, unresolvedItems: unresolved, blockers: blockers, warnings: ["Base disponivel: SINAPI BA, competencia 2024-12. Nao chamar de preco atual.", "Encargos seguem o regime da composicao oficial; nao foram reaplicados."] };
-    const result = { serviceCatalog: catalog, compositionResolution: { source: pricing.source || null, uf: pricing.uf || null, competence: pricing.competence || null, regime: pricing.regime || null, baseStatus: baseStatus, lines: lines, unresolvedItems: unresolved }, financialLines: lines, financialSummary: financialSummary, socialCharges: { regime: pricing.regime || null, source: pricing.source || null, competence: pricing.competence || null, includedInComposition: true, socialChargesPercent: null, warnings: ["Nao aplicados encargos adicionais para evitar duplicidade."] }, bdi: bdi, priceStatus: { canTotal: canTotal, totals: canTotal ? { subtotal: directCost, bdiPercent: bdi.bdiPercent, bdiValue: bdi.bdiValue, total: financialSummary.salePrice } : null, missingPrices: unresolved }, baseStatus: baseStatus };
+    const pricingCoverage = totalItems ? roundEloResidentialQuantity_(pricedItems / totalItems * 100, 1) : 0;
+    const excludedPendingItems = unresolved.map(function (item) {
+      return { serviceId: item.serviceId, description: item.description, quantity: item.quantity, unit: item.unit, reason: item.reason, status: item.status, code: item.code || "", candidateDescription: item.candidateDescription || "", matchedTerms: item.matchedTerms || [], missingTerms: item.missingTerms || [], humanText: "Falta confirmar composicao tecnica segura para este servico antes de incluir no fechamento financeiro." };
+    });
+    const partialBdiValue = bdi.bdiPercent !== null ? Number((directCost * bdi.bdiPercent / 100).toFixed(2)) : null;
+    const partialTotal = partialBdiValue !== null ? Number((directCost + partialBdiValue).toFixed(2)) : null;
+    const summaryStatus = !pricing.source ? "unpriced" : hasUnresolvedFinancial ? "partial_pending_items" : hasBlockers ? "blocked" : canTotal ? "financially_ready" : "financial_partial";
+    const financialSummary = { status: summaryStatus, currency: "BRL", directCost: directCost || null, partialSubtotal: directCost || null, materialsCost: materialsCost || null, laborCost: laborCost || null, equipmentCost: equipmentCost || null, otherCost: null, bdiPercent: bdi.bdiPercent, bdiValue: canTotal ? bdi.bdiValue : null, partialBdiValue: partialBdiValue, salePrice: canTotal ? bdi.salePrice : null, partialTotal: partialTotal, pricedItems: pricedItems, totalItems: totalItems, informationalItems: lines.length - totalItems, pricedCoveragePercent: pricingCoverage, pricingCoverage: pricingCoverage, unresolvedItems: unresolved, excludedPendingItems: excludedPendingItems, blockers: blockers, warnings: ["Base disponivel: SINAPI BA, competencia 2024-12. Nao chamar de preco atual.", "Encargos seguem o regime da composicao oficial; nao foram reaplicados.", "Total final permanece pendente enquanto houver itens em revisao manual."] };
+    const materialsByService = buildEloResidentialMaterialsByService_(lines.filter(function (line) { return line.directCost !== null; }));
+    const materials = consolidateEloResidentialMaterials_(materialsByService);
+    const result = { serviceCatalog: catalog, compositionResolution: { source: pricing.source || null, uf: pricing.uf || null, competence: pricing.competence || null, regime: pricing.regime || null, baseStatus: baseStatus, lines: lines, unresolvedItems: unresolved }, financialLines: lines, financialSummary: financialSummary, socialCharges: { regime: pricing.regime || null, source: pricing.source || null, competence: pricing.competence || null, includedInComposition: true, socialChargesPercent: null, warnings: ["Nao aplicados encargos adicionais para evitar duplicidade."] }, bdi: bdi, priceStatus: { status: summaryStatus, canTotal: canTotal, partialSubtotal: directCost || null, excludedPendingItems: excludedPendingItems, pricingCoverage: pricingCoverage, partialBdiValue: partialBdiValue, partialTotal: partialTotal, totals: canTotal ? { subtotal: directCost, bdiPercent: bdi.bdiPercent, bdiValue: bdi.bdiValue, total: financialSummary.salePrice } : null, total: null, missingPrices: unresolved }, baseStatus: baseStatus };
+    if (materialsByService.length) { result.materialsByService = materialsByService; result.materials = materials; }
     result.readiness = buildEloResidentialAuditReadiness_(Object.assign({ quantities: quantities || [] }, result), state || {});
     return result;
   }
@@ -16059,6 +16348,7 @@
         constructionType: "",
         rooms: null,
         wetAreas: null,
+        serviceAreas: null,
         garage: null,
         desiredStage: "",
         services: [],
@@ -16190,10 +16480,11 @@
       if (facts.type === "reforma_banheiro") { facts.constructionType = "reforma_banheiro"; facts.currentFields.push("constructionType"); }
       if (/reforma/.test(text) && facts.type !== "reforma_banheiro") { facts.constructionType = "reforma"; facts.currentFields.push("constructionType"); }
       if (/ampliacao|amplia..o/.test(text)) { facts.constructionType = "ampliacao"; facts.currentFields.push("constructionType"); }
-      match = raw.match(/(?:quartos?\s*:?\s*(\d+)|(\d+)\s+quartos?)/i);
-      if (match) { facts.rooms = parseInt(match[1] || match[2], 10); facts.currentFields.push("rooms"); }
-      match = raw.match(/(?:(?:banheiros?|lavabos?)\s*:?\s*(\d+)|(\d+)\s+(?:banheiros?|lavabos?))/i);
-      if (match) { facts.wetAreas = parseInt(match[1] || match[2], 10); facts.currentFields.push("wetAreas"); }
+      match = text.match(/(?:quartos?\s*:?\s*(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)|(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+quartos?)/);
+      if (match) { facts.rooms = parseEloResidentialCountWord_(match[1] || match[2]); facts.currentFields.push("rooms"); }
+      match = text.match(/(?:(?:banheiros?|lavabos?)\s*:?\s*(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)|(um|uma|1|dois|duas|2|tres|3|quatro|4|cinco|5)\s+(?:banheiros?|lavabos?))/);
+      if (match) { facts.wetAreas = parseEloResidentialCountWord_(match[1] || match[2]); facts.currentFields.push("wetAreas"); }
+      if (/area\s+de\s+servico|\blavanderia\b/.test(text)) { facts.serviceAreas = 1; facts.currentFields.push("serviceAreas"); }
       if (/\bgaragem\b|vaga/.test(text)) { facts.garage = true; facts.currentFields.push("garage"); }
       if (/obra\s+completa|completa|chave\s+na\s+mao|chave\s+na\s+m?o/.test(text)) { facts.desiredStage = "obra completa"; facts.currentFields.push("desiredStage"); }
       if (/\bpiscina\b/.test(text) && !/sem\s+piscina/.test(text)) { facts.hasPool = true; facts.currentFields.push("hasPool"); }
@@ -16233,7 +16524,7 @@
       delete cleanFacts.currentFields;
       const previous = Object.assign({}, previousState || {});
       const inheritedFields = [];
-      ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings", "bathroomScope", "technicalComposition", "bdiPercent"].forEach(function (field) {
+      ["areaM2", "city", "state", "standard", "floors", "constructionType", "rooms", "wetAreas", "serviceAreas", "garage", "desiredStage", "hasPool", "dimensions", "openings", "bathroomScope", "technicalComposition", "bdiPercent"].forEach(function (field) {
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
       });
       const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
@@ -19045,7 +19336,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function detectEloTechnicalSourcePreferenceRequest_(message) {
-    const text = normalizeText(message || "").trim();
+    const text = normalizeText(message || "").trim().replace(/[.!?]+$/, "");
     if (/^(quero|prefiro|usar|use|priorize|priorizar|trabalhar\s+com)\s+orse$/.test(text) || /^orse$/.test(text)) {
       return "ORSE";
     }
@@ -19091,9 +19382,19 @@ function isEloResidentialNewPipelineEnabled_() {
     return getEloBudgetMvpScopeNoticeLines_().join("\n");
   }
 
+  function buildEloResidentialActiveMaterialListAnswer_(message) {
+    const text = normalizeText(message || "").trim();
+    const engine = getEloBudgetOrchestratorV2_();
+    if (!engine || typeof engine.isMaterialListIntent_ !== "function" || !engine.isMaterialListIntent_(text)) return null;
+    const sourceState = ELO_SESSION_MEMORY.activeResidentialBudgetState || ELO_SESSION_MEMORY.budgetOrchestratorV2 && ELO_SESSION_MEMORY.budgetOrchestratorV2.state || null;
+    if (!sourceState || sourceState.type && sourceState.type !== "residential") return null;
+    return engine.buildMaterialListResponse_(Object.assign({}, engine.defaultState || {}, sourceState, { type: "residential" }));
+  }
+
   function buildEloGenericPriceQuestionAnswer_(message) {
     const text = normalizeText(message || "").trim();
     if (/so\s+os\s+materiais|só\s+os\s+materiais|materiais$|tabela\s+(?:propria\s+)?(?:sample|teste)|\bsample\b/.test(text)) {
+      if (/materiais/.test(text) && ELO_SESSION_MEMORY.budgetOrchestratorV2) return null;
       return {
         shortAnswer: /materiais/.test(text) ? "Posso separar uma lista de materiais sem valor." : "Tabela SAMPLE/TESTE nao pode virar preco real.",
         fullAnswer: /materiais/.test(text) ? "Para dizer só os materiais, uso quantitativo e premissa técnica sem valor financeiro. Informe o serviço e as dimensões; se houver base oficial/importada, eu separo insumos e coeficientes sem tratar como preço real." : "Posso usar tabela SAMPLE/TESTE apenas como base demonstrativa ou teste de integracao. Para orcamento real, preciso de base oficial/importada, composicao validada ou precos assumidos explicitamente como nao oficiais.",
@@ -21781,6 +22082,10 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildResponse(question) {
     const startedAt = Date.now();
     try {
+    const pendingTechnicalEarlyResponse = buildEloResidentialPendingTechnicalChoicesAnswer_(question);
+    if (pendingTechnicalEarlyResponse) return pendingTechnicalEarlyResponse;
+    const residentialMaterialListEarlyResponse = buildEloResidentialActiveMaterialListAnswer_(question);
+    if (residentialMaterialListEarlyResponse) return applyEloBrainMarker_(question, residentialMaterialListEarlyResponse);
     if (isEloBudgetCapabilitiesQuestion_(question)) {
       return applyEloBrainMarker_(question, buildCapabilitiesCardAnswer_());
     }
