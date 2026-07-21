@@ -1072,6 +1072,37 @@ test('ELO CORE confiabilidade: registra eventos sanitizados e limita historico l
   assert.doesNotMatch(serialized, /elo_anon_secreto|usuario-secreto|token-secreto|senha-secreta/i);
 });
 
+test('ELO CORE memoria: deduplica historico e preserva continuidade isolada', () => {
+  const { elo, localStorage } = loadEloContext();
+
+  elo.saveConversationForTest('Continuar projeto ELO', 'Vamos por partes.');
+  elo.saveConversationForTest('Continuar projeto ELO', 'Vamos por partes.');
+  let history = elo.getRecentQuestionsForTest();
+  assert.equal(history.length, 1);
+  assert.equal(history[0].question, 'Continuar projeto ELO');
+
+  localStorage.setItem('obrareport_elo_assistente_v1', JSON.stringify({
+    conversations: [
+      { question: 'Continuar projeto ELO', answer: 'Vamos por partes.', createdAt: '2026-07-20T10:00:00.000Z' },
+      { question: 'Continuar projeto ELO', answer: 'Vamos por partes.', createdAt: '2026-07-20T09:00:00.000Z' },
+      { question: 'Qual e o proximo passo?', answer: 'Escolha uma entrega pequena.', createdAt: '2026-07-20T08:00:00.000Z' }
+    ]
+  }));
+  history = elo.getRecentQuestionsForTest();
+  assert.equal(history.length, 2);
+
+  assert.doesNotThrow(() => {
+    elo.rememberSessionTurnForTest('continuar ' + 'detalhe '.repeat(80), null, 'Resposta longa preservada.');
+  });
+
+  let response = elo.buildResponseForTest('Estamos desenvolvendo o ELO Core.');
+  assert.equal(response.sessionIntent, 'project_memory_save');
+  response = elo.buildResponseForTest('Continuar.');
+  const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join(' ');
+  assert.equal(response.sessionIntent, 'project_memory_continue');
+  assert.match(answer, /ELO Core/i);
+  assert.doesNotMatch(answer, /CADISTA|Stock Sa[uú]de|Stock Saude/i);
+});
 test('ELO CORE confiabilidade: falha de memoria nao inventa nome e marca safe state', async () => {
   const { elo } = loadEloContext({ fetch: () => Promise.reject(new Error('backend offline')) });
   await elo.loadCoreMemoriesForTest();

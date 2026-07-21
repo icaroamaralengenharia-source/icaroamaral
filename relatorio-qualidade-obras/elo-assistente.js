@@ -1173,7 +1173,7 @@
 
   function normalizeMemory(memory) {
     return {
-      conversations: Array.isArray(memory && memory.conversations) ? memory.conversations.slice(0, ELO_CONFIG.maxHistory) : [],
+      conversations: dedupeEloConversations_(memory && memory.conversations),
       usefulAnswers: Array.isArray(memory && memory.usefulAnswers) ? memory.usefulAnswers.slice(0, ELO_CONFIG.maxHistory) : [],
       personalMemories: Array.isArray(memory && memory.personalMemories) ? memory.personalMemories.slice(0, ELO_CONFIG.maxHistory) : [],
       libraryItems: Array.isArray(memory && memory.libraryItems) ? memory.libraryItems : [],
@@ -1182,6 +1182,37 @@
       feedback: Array.isArray(memory && memory.feedback) ? memory.feedback.slice(0, ELO_CONFIG.maxHistory) : [],
       isOpen: Boolean(memory && memory.isOpen)
     };
+  }
+
+  function normalizeEloConversationEntry_(entry) {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+
+    const question = sanitizeUserText(entry.question || "");
+    const answer = sanitizeUserText(entry.answer || "");
+    if (!question && !answer) {
+      return null;
+    }
+
+    return {
+      question: question,
+      answer: answer,
+      createdAt: sanitizeUserText(entry.createdAt || "") || new Date().toISOString()
+    };
+  }
+
+  function dedupeEloConversations_(conversations) {
+    const seen = {};
+    const list = Array.isArray(conversations) ? conversations : [];
+    return list.map(normalizeEloConversationEntry_).filter(Boolean).filter(function (entry) {
+      const key = normalizeText(entry.question) + "|" + normalizeText(entry.answer);
+      if (seen[key]) {
+        return false;
+      }
+      seen[key] = true;
+      return true;
+    }).slice(0, ELO_CONFIG.maxHistory);
   }
 
   function getEloLongTermMemories() {
@@ -4440,16 +4471,17 @@
   }
 
   function rememberSessionTurn(question, response, answer) {
+    const safeResponse = response && typeof response === "object" ? response : {};
     const normalizedQuestion = normalizeText(question);
-    const detectedTheme = response.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
-    const detectedIntent = response.sessionIntent || detectConversationIntent(normalizedQuestion);
+    const detectedTheme = safeResponse.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
+    const detectedIntent = safeResponse.sessionIntent || detectConversationIntent(normalizedQuestion);
     ELO_SESSION_MEMORY.lastQuestion = sanitizeUserText(question).slice(0, 220);
     ELO_SESSION_MEMORY.lastAnswer = sanitizeUserText(answer || "").slice(0, 900);
     ELO_SESSION_MEMORY.lastTheme = detectedTheme || "";
     ELO_SESSION_MEMORY.lastContext = getCurrentScreenContext().label;
-    ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(response.nextAction || "").slice(0, 260);
-    if (response && isEloTechnicalProposalSourceResponse_(response)) {
-      rememberEloTechnicalProposalSource_(question, response, answer || response.fullAnswer || response.shortAnswer || "");
+    ELO_SESSION_MEMORY.lastRecommendation = sanitizeUserText(safeResponse.nextAction || "").slice(0, 260);
+    if (isEloTechnicalProposalSourceResponse_(safeResponse)) {
+      rememberEloTechnicalProposalSource_(question, safeResponse, answer || safeResponse.fullAnswer || safeResponse.shortAnswer || "");
     }
     if (detectedIntent) {
       ELO_SESSION_MEMORY.recentIntents = [detectedIntent].concat(ELO_SESSION_MEMORY.recentIntents.filter(function (item) {
@@ -4638,12 +4670,15 @@
 
   function saveConversation(question, answer) {
     const memory = getMemory();
-    memory.conversations.unshift({
+    const entry = normalizeEloConversationEntry_({
       question: sanitizeUserText(question),
       answer: sanitizeUserText(answer),
       createdAt: new Date().toISOString()
     });
-    memory.conversations = memory.conversations.slice(0, ELO_CONFIG.maxHistory);
+    if (!entry) {
+      return;
+    }
+    memory.conversations = dedupeEloConversations_([entry].concat(memory.conversations || []));
     setMemory(memory);
   }
 
@@ -25934,6 +25969,9 @@ function isEloResidentialNewPipelineEnabled_() {
     recordReliabilityEventForTest: recordEloCoreReliabilityEvent_,
     buildSafeModeAnswerForTest: buildEloCoreSafeModeAnswer_,
     loadCoreMemoriesForTest: loadEloCoreMemories_,
+    saveConversationForTest: saveConversation,
+    getRecentQuestionsForTest: getRecentQuestions,
+    rememberSessionTurnForTest: rememberSessionTurn,
     navigateToolForTest: navigateEloCoreTool_
   });
 
