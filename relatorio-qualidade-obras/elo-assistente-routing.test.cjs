@@ -488,7 +488,29 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
 
+test('ELO orcamento direto 70m2 usa dados informados e gera pacote com PDF', () => {
+  const elo = loadElo();
+  const response = elo.buildResponseForTest('Casa terrea de 70 m2, 2 quartos, 2 banheiros, sala, cozinha e area de servico, Vitoria da Conquista/BA, padrao medio, SINAPI BA 2024-12, BDI 25%.');
 
+  assert.equal(response.brain, 'budget');
+  assert.notEqual(response.sessionIntent, 'budget_v2_briefing');
+  assert.ok(response.budgetOrchestratorV2 && response.budgetOrchestratorV2.budgetPackage, 'deve gerar budgetPackage direto');
+  assert.ok(response.pdfAction, 'deve gerar pdfAction do cenario atual');
+  assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf');
+
+  const state = response.budgetOrchestratorV2.state;
+  assert.equal(state.type, 'residential');
+  assert.equal(state.areaM2, 70);
+  assert.equal(state.city, 'Vitoria da Conquista');
+  assert.equal(state.state, 'BA');
+  assert.equal(state.standard, 'medio');
+  assert.equal(state.floors, 1);
+  assert.equal(state.rooms, 2);
+  assert.equal(state.wetAreas, 2);
+  assert.equal(state.serviceAreas, 1);
+  assert.equal(state.bdiPercent, 25);
+  assert.equal(response.budgetOrchestratorV2.budgetPackage.quantities.length, 38);
+});
 test('ELO PDF residencial: casa 140m2 usa quantitativos ricos no documento', () => {
   const elo = loadElo();
   elo.buildResponseForTest('Quero orcar uma casa terrea completa de 140m2');

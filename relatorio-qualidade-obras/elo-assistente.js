@@ -16521,15 +16521,22 @@
       if (!match) match = raw.match(/\bcasa\s+(\d+(?:[,.]\d+)?)\s*m(?:2|\^2|\u00b2|\?)?\b/i);
       if (match) { facts.areaM2 = parseEloOperationalNumber_(match[1]); facts.currentFields.push("areaM2"); }
 
-      match = raw.match(/cidade\s*\/?\s*uf\s*:?\s*([^,;.]+?)\s+([A-Za-z]{2})(?=\s*(?:$|[,.;]))/i)
-        || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff\s.'-]+?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\b/i)
-        || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s+([A-Z]{2})(?=\b|[,.;])/)
-        || raw.match(/(?:^|[,;]\s*)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})(?=\b|[,.;])/i)
-        || raw.match(/^\s*([A-Za-zï¿½-ï¿½][A-Za-zï¿½-ï¿½\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
-      if (match) {
-        facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ").trim().replace(/Vit.ria/i, "Vitoria");
-        facts.state = sanitizeUserText(match[2]).toUpperCase();
+      const directCityUf = extractEloResidentialCityUf_(raw);
+      if (directCityUf.city && directCityUf.uf) {
+        facts.city = directCityUf.city;
+        facts.state = directCityUf.uf;
         facts.currentFields.push("city", "state");
+      } else {
+        match = raw.match(/cidade\s*\/?\s*uf\s*:?\s*([^,;.]+?)\s+([A-Za-z]{2})(?=\s*(?:$|[,.;]))/i)
+          || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff\s.'-]+?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\b/i)
+          || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s+([A-Z]{2})(?=\b|[,.;])/)
+          || raw.match(/(?:^|[,;]\s*)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})(?=\b|[,.;])/i)
+          || raw.match(/^\s*([A-Za-zï¿½-ï¿½][A-Za-zï¿½-ï¿½\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
+        if (match) {
+          facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ").trim().replace(/Vit.ria/i, "Vitoria");
+          facts.state = sanitizeUserText(match[2]).toUpperCase();
+          facts.currentFields.push("city", "state");
+        }
       }
 
       match = text.match(/\bpadr.o(?:\s+construtivo)?\s*:?\s*(simples|m.dio|medio|alto|popular|baixo|standard|luxo)\b/);
@@ -16547,6 +16554,16 @@
       if (/area\s+de\s+servico|\blavanderia\b/.test(text)) { facts.serviceAreas = 1; facts.currentFields.push("serviceAreas"); }
       if (/\bgaragem\b|vaga/.test(text)) { facts.garage = true; facts.currentFields.push("garage"); }
       if (/obra\s+completa|completa|chave\s+na\s+mao|chave\s+na\s+m?o/.test(text)) { facts.desiredStage = "obra completa"; facts.currentFields.push("desiredStage"); }
+      if (facts.type === "residential" && facts.areaM2 && facts.rooms && facts.wetAreas && facts.serviceAreas && /sala|cozinha/.test(text)) {
+        if (typeof facts.garage === "undefined") {
+          facts.garage = false;
+          facts.currentFields.push("garage");
+        }
+        if (!facts.desiredStage && /\bsinapi\b|\bbdi\b|orcamento|or.amento/.test(text)) {
+          facts.desiredStage = "obra completa";
+          facts.currentFields.push("desiredStage");
+        }
+      }
       if (/\bpiscina\b/.test(text) && !/sem\s+piscina/.test(text)) { facts.hasPool = true; facts.currentFields.push("hasPool"); }
       if (/sem\s+piscina/.test(text)) { facts.hasPool = false; facts.currentFields.push("hasPool"); }
 
@@ -23291,13 +23308,28 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
+  function createEloMascotAvatar_() {
+    const avatar = createElement("img", "elo-mascot-avatar");
+    avatar.src = window.ELO_MASCOT_IMAGE || "/assets/elo-mascot.png";
+    avatar.alt = "";
+    avatar.setAttribute("aria-hidden", "true");
+    avatar.loading = "lazy";
+    return avatar;
+  }
+
   function appendMessage(kind, text) {
     const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
     }
     const message = createElement("article", "elo-message " + kind);
+    if (kind === "assistant" && /^\s*analisando\b/i.test(sanitizeUserText(text || ""))) {
+      message.classList.add("is-analyzing");
+    }
     const bubble = createElement("div", "elo-message-bubble", text);
+    if (kind === "assistant" || kind === "system") {
+      message.appendChild(createEloMascotAvatar_());
+    }
     message.appendChild(bubble);
     ELO_UI.messages.appendChild(message);
     if (ELO_UI.panel) {
@@ -23328,6 +23360,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
     bubble.appendChild(label);
     bubble.appendChild(dots);
+    message.appendChild(createEloMascotAvatar_());
     message.appendChild(bubble);
     ELO_UI.messages.appendChild(message);
     if (ELO_UI.panel) {
