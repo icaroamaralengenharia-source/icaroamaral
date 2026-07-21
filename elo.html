@@ -44,7 +44,7 @@ defer></script>
           <button type="button" class="elo-mascot-play" data-elo-mascot-play>Jogar</button>
         </div>
         <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
-          <span class="elo-rotating-text" data-elo-rotating-text>O que vamos <span class="elo-highlight">fazer</span> hoje?</span>
+          <span class="elo-rotating-text" data-elo-rotating-text>Oi, o que vamos fazer hoje?</span>
         </h1>
         <p class="elo-empty-state">Estou pronto para analisar, organizar e continuar seu trabalho.</p>
       </div>
@@ -97,9 +97,14 @@ defer></script>
     window.addEventListener("pageshow", function () {
       window.scrollTo(0, 0);
     });
-    const eloPromptPhrases = ['O que vamos <span class="elo-highlight">fazer</span> hoje?'];
+    const eloPromptPhrases = [
+      'Oi, o que vamos fazer hoje?',
+      'Me diga o que eu posso fazer pra te ajudar!',
+      'Hoje é um bom dia, por onde quer começar?'
+    ];
 
     let eloPromptIndex = 0;
+    let eloPromptTimer = null;
 
     function setEloPromptPhrase(nextIndex) {
       const textEl = document.querySelector("[data-elo-rotating-text]");
@@ -117,6 +122,10 @@ defer></script>
       }, 220);
     }
 
+    function prefersReducedEloPromptMotion() {
+      return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
     function initEloRotatingPrompt() {
       const textEl = document.querySelector("[data-elo-rotating-text]");
 
@@ -125,6 +134,14 @@ defer></script>
       }
 
       textEl.innerHTML = eloPromptPhrases[0];
+
+      if (prefersReducedEloPromptMotion() || eloPromptTimer) {
+        return;
+      }
+
+      eloPromptTimer = window.setInterval(function () {
+        setEloPromptPhrase((eloPromptIndex + 1) % eloPromptPhrases.length);
+      }, 4000);
     }
 
     function formatEloFileSize(bytes) {
@@ -269,9 +286,9 @@ defer></script>
           attachmentButton: ".elo-attach-button",
           newChatButton: "[data-elo-new-chat]",
           historyButton: "[data-elo-history]",
-          memoryButton: "[data-elo-memory]",
-          greetingTarget: "[data-elo-rotating-text]"
+          memoryButton: "[data-elo-memory]"
         });
+        initEloRotatingPrompt();
       }
     });
   </script>
