@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
+import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
@@ -749,9 +750,13 @@ export function createApp(options = {}) {
   const eloCoreStore = options.eloCoreStore || createEloCoreStore({ dataPath: env.ELO_CORE_STORE_PATH || ELO_CORE_STORE_PATH });
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
+  const authContextSupabaseClient = options.authContextSupabaseClient || null;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
+  const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
+
+  app.locals.resolveAuthContext = (request) => resolveAuthContext(request, { supabase: getAuthContextDatabase() });
 
   app.use(cors({
     origin(origin, callback) {
