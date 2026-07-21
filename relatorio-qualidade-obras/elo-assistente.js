@@ -1630,7 +1630,7 @@
     const facts = {};
     const switchMatch = raw.match(/\b(?:troque|mude|altere|volte)\s+(?:para|pra)\s+(?:a\s+)?(?:obra|projeto)\s+([^,.]{1,50}?)(?:\s+(?:em|fica|tem|com)\b|[,.]|$)/i);
     const scopedWorkMatch = raw.match(/\b(?:na|no|nesta|nesse)\s+(?:obra|projeto)\s+([^,.]{1,50}?)(?:\s+(?:vou|vamos|estou|estamos|trabalhar|executar|fazer|fica|em|tem|com)\b|[,.]|$)/i);
-    const nameMatch = raw.match(/(?:minha\s+)?(?:obra|projeto|residencia|casa)\s+(?:chamada|nomeada|e|se chama)?\s*([^,.]{2,50}?)(?:\s+(?:fica|em|tem|com|esta|e)\b|[,.]|$)/i);
+    const nameMatch = raw.match(/(?:minha\s+)?(?:obra|projeto|residencia|casa)\s+(?:ativa\s+)?(?:chamada|nomeada|e|é|se chama)?\s*([^,.]{2,50}?)(?:\s+(?:fica|em|tem|com|esta|e)\b|[,.]|$)/i);
     const nameCandidate = switchMatch ? switchMatch[1] : (scopedWorkMatch ? scopedWorkMatch[1] : (nameMatch ? nameMatch[1] : ""));
     if (switchMatch) {
       facts.switchProject = true;
@@ -1724,7 +1724,7 @@
 
   function isEloWorkMemoryQuestion_(message) {
     const text = normalizeText(message || "");
-    return /qual\s+contexto\s+voce\s+tem|qual\s+contexto\s+voc?\s+tem|lembra\s+(?:da\s+)?minha\s+obra|qual\s+cidade\s+da\s+obra|qual\s+uf\s+da\s+obra|use\s+a\s+cidade\s+da\s+obra|qual\s+referencia\s+de\s+uf|qual\s+refer?ncia\s+de\s+uf|o\s+que\s+voce\s+sabe\s+da\s+minha\s+obra|o\s+que\s+voc?\s+sabe\s+da\s+minha\s+obra|memoria\s+da\s+obra|mem?ria\s+da\s+obra|obra\s+atual/.test(text);
+    return /qual\s+contexto\s+voce\s+tem|qual\s+contexto\s+voc?\s+tem|lembra\s+(?:da\s+)?minha\s+obra|retome\s+(?:a\s+)?minha\s+obra|retomar\s+(?:a\s+)?minha\s+obra|qual\s+cidade\s+da\s+obra|qual\s+uf\s+da\s+obra|use\s+a\s+cidade\s+da\s+obra|qual\s+referencia\s+de\s+uf|qual\s+refer?ncia\s+de\s+uf|o\s+que\s+voce\s+sabe\s+da\s+minha\s+obra|o\s+que\s+voc?\s+sabe\s+da\s+minha\s+obra|memoria\s+da\s+obra|mem?ria\s+da\s+obra|obra\s+atual/.test(text);
   }
 
   function formatEloWorkMemorySavedSummary_(project) {

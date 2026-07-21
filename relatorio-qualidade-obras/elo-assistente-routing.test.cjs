@@ -1161,6 +1161,30 @@ test('ELO CORE memoria: deduplica historico e preserva continuidade isolada', ()
   assert.match(answer, /ELO Core/i);
   assert.doesNotMatch(answer, /CADISTA|Stock Sa[uú]de|Stock Saude/i);
 });
+test('ELO CORE memoria de obra: salva obra ativa e retoma apos outro assunto', () => {
+  const { elo, localStorage } = loadEloContext();
+
+  const save = elo.buildResponseForTest('Minha obra ativa é Residencial Alfa, 70 m² em Vitória da Conquista/BA');
+  assert.equal(save.sessionIntent, 'salvar_memoria_obra');
+  assert.equal(save.brain, 'conversational');
+  assert.notEqual(save.brain, 'budget');
+  assert.doesNotMatch(save.fullAnswer || save.shortAnswer || '', /orçamento|orcamento|SINAPI|Stock Sa[uú]de|CADISTA/i);
+
+  elo.buildResponseForTest('me conte uma piada');
+  const resume = elo.buildResponseForTest('retome minha obra');
+  const answer = [resume.shortAnswer, resume.fullAnswer, resume.nextAction].filter(Boolean).join(' ');
+
+  assert.equal(resume.sessionIntent, 'consultar_memoria_obra');
+  assert.equal(resume.brain, 'conversational');
+  assert.match(answer, /Residencial Alfa/i);
+  assert.match(answer, /70,00 m²|70 m²/i);
+  assert.match(answer, /Vitória da Conquista\/BA|Vitoria da Conquista\/BA/i);
+  assert.doesNotMatch(answer, /ativa é Residencial Alfa|ativa e Residencial Alfa/i);
+  assert.doesNotMatch(answer, /CADISTA|Stock Sa[uú]de|Stock Saude/i);
+
+  const stored = JSON.parse(localStorage.getItem('elo_work_memory_v1'));
+  assert.equal(Object.keys(stored.projects).filter((id) => /residencial_alfa/i.test(id)).length, 1);
+});
 test('ELO CORE confiabilidade: falha de memoria nao inventa nome e marca safe state', async () => {
   const { elo } = loadEloContext({ fetch: () => Promise.reject(new Error('backend offline')) });
   await elo.loadCoreMemoriesForTest();
