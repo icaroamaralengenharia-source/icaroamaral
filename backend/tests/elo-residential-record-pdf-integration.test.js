@@ -285,6 +285,47 @@ test("saida real observada do motor fica legivel sem JSON bruto no documento e n
   assert.doesNotMatch(html, /projectType|builtAreaM2|price_source_not_selected|CONTE\u00daDO T\u00c9CNICO CONSOLIDADO/i);
 });
 
+test("PDF residencial parcial exibe totais parciais e pendencias fora do total", () => {
+  const { elo } = loadAssistant();
+  const pendingItems = [
+    { serviceId: "reboco", description: "Reboco interno", quantity: 250, unit: "m2", reason: "manual_review", humanText: "Falta confirmar composição técnica segura." },
+    { serviceId: "esquadrias_janelas", description: "Janelas", quantity: 6, unit: "un", reason: "manual_review", humanText: "Falta confirmar material e composição." },
+    { serviceId: "pontos_iluminacao", description: "Pontos de iluminação", quantity: 8, unit: "un", reason: "manual_review", humanText: "Falta confirmar escopo do ponto." },
+    { serviceId: "limpeza_final", description: "Limpeza final", quantity: 70, unit: "m2", reason: "manual_review", humanText: "Falta confirmar composição técnica segura." }
+  ];
+  const documentData = {
+    budgetId: "ELO-BA-2026-000001",
+    documentType: "residential",
+    facts: { builtAreaM2: 70, city: "Vitória da Conquista", uf: "BA", standard: "medio" },
+    quantities: [{ serviceId: "alvenaria", description: "Alvenaria", quantity: 94.76, unit: "m2", source: "inferred_from_built_area" }],
+    financialLines: [{ serviceId: "alvenaria", description: "Alvenaria", quantity: 94.76, unit: "m2", unitPrice: 136.59, directCost: 12940.87, totalPrice: 12940.87, composition: { code: "101159" } }],
+    financialSummary: { status: "partial_pending_items", partialSubtotal: 167630.39, bdiPercent: 25, partialBdiValue: 41907.6, partialTotal: 209537.99, salePrice: null, excludedPendingItems: pendingItems },
+    bdi: { bdiPercent: 25 },
+    budget: { source: "SINAPI", referenceMonth: "2024-12" },
+    pendingFields: [],
+    scope: [],
+    materials: [],
+    compositions: [],
+    risks: [],
+    nextSteps: []
+  };
+
+  const data = elo.buildBudgetV2ProfessionalPdfDataForTest(documentData);
+  const html = elo.buildProfessionalPdfDocumentForTest(data.record, data.context);
+
+  assert.match(html, /Subtotal parcial[\s\S]*R\$ 167\.630,39/);
+  assert.match(html, /BDI parcial \(25%\)[\s\S]*R\$ 41\.907,60/);
+  assert.match(html, /Total parcial[\s\S]*R\$ 209\.537,99/);
+  assert.match(html, /ITENS PENDENTES FORA DO TOTAL PARCIAL/);
+  assert.equal((html.match(/manual_review|Falta confirmar/g) || []).length >= 4, true);
+  assert.match(html, /reboco[\s\S]*m2[\s\S]*250,00/i);
+  assert.match(html, /esquadrias_janelas[\s\S]*un[\s\S]*6,00/i);
+  assert.match(html, /pontos_iluminacao[\s\S]*un[\s\S]*8,00/i);
+  assert.match(html, /limpeza_final[\s\S]*m2[\s\S]*70,00/i);
+  assert.doesNotMatch(html, /Orçamento ainda não precificado|Orcamento ainda nao precificado/i);
+  assert.doesNotMatch(html, /R\$\s*0[,\.]00/);
+  assert.doesNotMatch(html, /Total do orçamento|Total do orcamento/i);
+});
 test("briefing residencial aceita sistema estrutural convencional sem inventar padrao de acabamento", () => {
   const message = "Quero orcamento residencial preliminar para casa terrea de 120 m2 em Vitoria da Conquista - BA, padrao medio, estrutura convencional";
   const { elo, calls } = loadAssistant({ budget: realObservedShapeBudget() });

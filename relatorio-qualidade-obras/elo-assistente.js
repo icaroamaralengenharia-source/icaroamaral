@@ -2276,20 +2276,30 @@
     }
     if (!rows.length) return null;
     const hasReliablePrices = hasEloBudgetV2ReliablePriceSource_(budget);
+    const summary = safe && safe.financialSummary || {};
+    const partialSubtotal = Number(summary.partialSubtotal || 0);
+    const hasPartialPrices = Number.isFinite(partialSubtotal) && partialSubtotal > 0;
+    const hasCompletePrices = hasReliablePrices && !hasPartialPrices;
+    const bdiPercentValue = summary.bdiPercent !== undefined && summary.bdiPercent !== null ? summary.bdiPercent : (budget.bdiPercent || budget.bdi || "");
+    const bdiPercentText = bdiPercentValue === "" || bdiPercentValue === null || bdiPercentValue === undefined ? "Pendente" : cleanEloDocumentText_(String(bdiPercentValue).replace(/%$/, "") + "%");
+    const pendingItems = Array.isArray(summary.excludedPendingItems) ? summary.excludedPendingItems : (Array.isArray(summary.unresolvedItems) ? summary.unresolvedItems : []);
     const facts = safe && safe.facts || {};
     return {
       rows: rows,
       compositions: compositions,
-      subtotal: hasReliablePrices ? formatEloBudgetV2Money_(budget.subtotal) : "Pendente",
-      bdiPercent: hasReliablePrices ? cleanEloDocumentText_(budget.bdiPercent || budget.bdi || "") : "Pendente",
-      bdiValue: hasReliablePrices ? formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi) : "Pendente",
-      total: hasReliablePrices ? formatEloBudgetV2Money_(budget.total) : "Pendente",
-      hasReliablePrices: hasReliablePrices,
+      subtotal: hasCompletePrices ? formatEloBudgetV2Money_(budget.subtotal) : (hasPartialPrices ? formatEloBudgetV2Money_(summary.partialSubtotal) : "Pendente"),
+      bdiPercent: hasCompletePrices ? cleanEloDocumentText_(budget.bdiPercent || budget.bdi || "") : bdiPercentText,
+      bdiValue: hasCompletePrices ? formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi) : (hasPartialPrices ? formatEloBudgetV2Money_(summary.partialBdiValue) : "Pendente"),
+      total: hasCompletePrices ? formatEloBudgetV2Money_(budget.total) : (hasPartialPrices ? formatEloBudgetV2Money_(summary.partialTotal) : "Pendente"),
+      hasReliablePrices: hasCompletePrices || hasPartialPrices,
+      hasPartialPrices: hasPartialPrices,
+      financialStatus: cleanEloDocumentText_(summary.status || ""),
+      pendingItems: pendingItems,
       source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || "SINAPI/ORSE pendente"),
-      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || "N\u00e3o informado no documento"),
-      area: cleanEloDocumentText_(facts.area || facts.areaConstruida || facts.builtAreaM2 ? (facts.area || facts.areaConstruida || facts.builtAreaM2) + " m\u00b2" : ""),
+      referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || "Não informado no documento"),
+      area: cleanEloDocumentText_(facts.area || facts.areaConstruida || facts.builtAreaM2 ? (facts.area || facts.areaConstruida || facts.builtAreaM2) + " m²" : ""),
       standard: cleanEloDocumentText_(facts.projectStandard || facts.standard || facts.padrao || ""),
-      observation: hasReliablePrices ? cleanEloDocumentText_(budget.observation || budget.observacao || "") : "Or\u00e7amento ainda n\u00e3o precificado. Quantitativos dispon\u00edveis; pre\u00e7os, BDI e encargos pendentes."
+      observation: hasCompletePrices ? cleanEloDocumentText_(budget.observation || budget.observacao || "") : (hasPartialPrices ? "Orçamento parcial: subtotal, BDI e total abaixo consideram apenas os itens resolvidos. Itens pendentes ficam fora do total parcial." : "Orçamento ainda não precificado. Quantitativos disponíveis; preços, BDI e encargos pendentes.")
     };
   }
 
@@ -3194,7 +3204,17 @@
       return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "-") + "</strong></div>";
     }
     const summary = budget.observation || "Or\u00e7amento residencial preliminar estruturado para revis\u00e3o t\u00e9cnica.";
-    const financialSummary = budget.hasReliablePrices ? "<aside class=\"elo-financial-summary\"><div><span>Subtotal</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>BDI (" + escapeEloHtml_(budget.bdiPercent) + ")</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>Total do or\u00e7amento</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>" : "<p class=\"elo-budget-object is-warning\">" + escapeEloHtml_(summary) + "</p>";
+    const pendingItems = Array.isArray(budget.pendingItems) ? budget.pendingItems : [];
+    const pendingRows = pendingItems.map(function (item) {
+      return "<tr><td>" + escapeEloHtml_(item.serviceId || "-") + "</td><td class=\"is-description\">" + escapeEloHtml_(item.description || item.candidateDescription || "Item pendente") + "</td><td class=\"is-center\">" + escapeEloHtml_(item.unit || "-") + "</td><td class=\"is-number\">" + escapeEloHtml_(item.quantity !== undefined && item.quantity !== null ? formatEloBudgetV2TableQuantity_(item.quantity) : "-") + "</td><td>" + escapeEloHtml_(item.humanText || item.reason || "Composição técnica pendente; item fora do total parcial.") + "</td></tr>";
+    }).join("\n");
+    const pendingSection = pendingRows ? [
+      "<section class=\"elo-pdf-section is-warning\"><h2>ITENS PENDENTES FORA DO TOTAL PARCIAL</h2>",
+      "<table class=\"elo-budget-table is-compact\"><thead><tr><th>Serviço</th><th>Descrição</th><th>Unidade</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>",
+      pendingRows,
+      "</tbody></table></section>"
+    ].join("\n") : "";
+    const financialSummary = budget.hasReliablePrices ? "<aside class=\"elo-financial-summary\"><div><span>" + escapeEloHtml_(budget.hasPartialPrices ? "Subtotal parcial" : "Subtotal") + "</span><strong>" + escapeEloHtml_(budget.subtotal) + "</strong></div><div><span>" + escapeEloHtml_(budget.hasPartialPrices ? "BDI parcial (" + budget.bdiPercent + ")" : "BDI (" + budget.bdiPercent + ")") + "</span><strong>" + escapeEloHtml_(budget.bdiValue) + "</strong></div><div class=\"is-total\"><span>" + escapeEloHtml_(budget.hasPartialPrices ? "Total parcial" : "Total do orçamento") + "</span><strong>" + escapeEloHtml_(budget.total) + "</strong></div></aside>" : "<p class=\"elo-budget-object is-warning\">" + escapeEloHtml_(summary) + "</p>";
     return [
       "<article class=\"elo-professional-pdf elo-budget-document\">",
       "<section class=\"elo-budget-page\">",
@@ -3218,6 +3238,7 @@
       buildEloProfessionalBudgetTable_(budget.rows),
       "</section>",
       financialSummary,
+      pendingSection,
       "<section class=\"elo-pdf-section\"><h2>Mem\u00f3ria de c\u00e1lculo resumida</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
       buildEloProfessionalCompositionTable_(budget.compositions),
       "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(safe.premissas || "Premissas n\u00e3o informadas.") + "</div></section>",
