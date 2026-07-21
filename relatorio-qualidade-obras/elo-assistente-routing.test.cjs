@@ -196,6 +196,13 @@ test('ELO direciona servi?os t?cnicos e RDO/relat?rio sem cair em fluxo gen?rico
   const report = elo.buildResponseForTest('relat\u00f3rio t\u00e9cnico de fissura');
   assert.equal(report.brain, 'report');
   assert.match(report.fullAnswer + report.nextAction, /relato tecnico|relato t.cnico|vistoria|fissura|relatorio|relat.rio/i);
+
+  const reportWithImage = elo.buildResponseForTest('gerar relatório técnico com esta imagem');
+  const reportWithImageAnswer = [reportWithImage.shortAnswer, reportWithImage.fullAnswer, reportWithImage.nextAction].filter(Boolean).join(' ');
+  assert.equal(reportWithImage.brain, 'report');
+  assert.equal(reportWithImage.sessionIntent, 'relatorio_imagem_obrareport');
+  assert.match(reportWithImageAnswer, /ObraReport|Relatorios|Relat[oó]rios|imagem|foto|evidencia/i);
+  assert.doesNotMatch(reportWithImageAnswer, /PROPOSTA T[EÉ]CNICA PRELIMINAR|proposta t[eé]cnica preliminar/i);
 });
 
 

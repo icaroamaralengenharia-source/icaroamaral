@@ -3468,6 +3468,26 @@
     ].join("\n");
   }
 
+  function buildEloReportImageRoutingAnswer_(message) {
+    const text = normalizeText(message || "");
+    if (!isEloReportPdfGenerationRequest_(message) || !/\b(imagem|foto|anexo|anexada|anexado)\b/.test(text)) {
+      return null;
+    }
+
+    return {
+      shortAnswer: "Vou tratar isso como relatorio tecnico com imagem no ObraReport.",
+      fullAnswer: [
+        "Esse pedido pertence ao fluxo de Relatorios do ObraReport, usando a imagem como evidencia visual.",
+        "Anexe a imagem no chat ou abra Relatorios, adicione a foto, descreva a ocorrencia e revise antes de gerar o documento.",
+        "Vou manter isso no fluxo de relatorio com evidencia visual."
+      ].join("\n"),
+      nextAction: "Abra Relatorios no ObraReport ou anexe a imagem para gerar o relatorio com evidencia visual.",
+      canSave: false,
+      sessionTheme: "relatorio",
+      sessionIntent: "relatorio_imagem_obrareport"
+    };
+  }
+
   function buildEloTechnicalProposalPackageResponse_(message) {
     if (!isEloTechnicalProposalTrigger_(message)) return null;
     const source = ELO_SESSION_MEMORY.lastTechnicalPackage;
@@ -19735,6 +19755,11 @@ function isEloResidentialNewPipelineEnabled_() {
 
     clearEloPendingContextIfTopicChanged_(cleanQuestion);
 
+    const reportImageRoutingAnswer = buildEloReportImageRoutingAnswer_(cleanQuestion);
+    if (reportImageRoutingAnswer) {
+      return reportImageRoutingAnswer;
+    }
+
     const operationalEcosystemAnswer = buildEloOperationalEcosystemAnswer_(cleanQuestion);
     if (operationalEcosystemAnswer) {
       rememberEloBudgetSource_(cleanQuestion, operationalEcosystemAnswer, operationalEcosystemAnswer.fullAnswer || operationalEcosystemAnswer.shortAnswer || "");
@@ -22516,6 +22541,11 @@ function isEloResidentialNewPipelineEnabled_() {
       rememberSessionTurn(cleanQuestion, operationalChatEcosystemAnswer, operationalAnswer);
       clearProductAttachmentPreview();
       return;
+    }
+
+    const reportImageRoutingAnswer = buildEloReportImageRoutingAnswer_(cleanQuestion);
+    if (reportImageRoutingAnswer) {
+      return reportImageRoutingAnswer;
     }
 
     const technicalProposalPackageAnswer = buildEloTechnicalProposalPackageResponse_(cleanQuestion);
