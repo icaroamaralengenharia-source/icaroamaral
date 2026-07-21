@@ -2115,8 +2115,29 @@ export function createApp(options = {}) {
 
 
 
+  function buildPublicEloAuthContext_(context) {
+    const profile = context && context.profile || {};
+    return {
+      userId: clean_(context && context.userId),
+      institutionId: clean_(context && context.institutionId),
+      companyId: clean_(context && context.companyId),
+      projectId: clean_(context && context.projectId || profile.project_id || profile.projectId),
+      role: clean_(context && context.role),
+      profile: {
+        id: clean_(profile.id),
+        institution_id: clean_(profile.institution_id),
+        company_id: clean_(profile.company_id),
+        unit_id: clean_(profile.unit_id),
+        name: clean_(profile.name),
+        email: clean_(profile.email),
+        role: clean_(profile.role),
+        status: clean_(profile.status)
+      }
+    };
+  }
   function getTrustedEloCoreUserId_(request) {
     return clean_(
+      request.eloAuthContext && request.eloAuthContext.userId ||
       request.user && (request.user.id || request.user.userId) ||
       request.auth && (request.auth.userId || request.auth.user_id || request.auth.sub) ||
       request.headers["x-elo-auth-user-id"] ||
@@ -2126,14 +2147,36 @@ export function createApp(options = {}) {
   }
   function getEloCoreIdentity_(request) {
     const trustedUserId = getTrustedEloCoreUserId_(request);
+    const context = buildPublicEloAuthContext_(request.eloAuthContext || {});
     return {
       userId: trustedUserId,
-      anonymousId: clean_(request.body && (request.body.anonymousId || request.body.anonymous_id) || request.query && (request.query.anonymousId || request.query.anonymous_id))
+      anonymousId: clean_(request.body && (request.body.anonymousId || request.body.anonymous_id) || request.query && (request.query.anonymousId || request.query.anonymous_id)),
+      institutionId: context.institutionId,
+      companyId: context.companyId,
+      projectId: context.projectId
     };
   }
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
   }
+
+  app.use("/api/elo", async (request, response, next) => {
+    if (!clean_(request.headers.authorization)) {
+      next();
+      return;
+    }
+    try {
+      const context = await app.locals.resolveAuthContext(request);
+      if (!context || !context.ok) {
+        response.status(context && context.status ? context.status : 401).json({ ok: false, error: clean_(context && context.error || "invalid_session") });
+        return;
+      }
+      request.eloAuthContext = context;
+      next();
+    } catch (error) {
+      response.status(401).json({ ok: false, error: "invalid_session" });
+    }
+  });
 
   app.post("/api/elo/web-search", async (request, response) => {
     const query = clean_(request.body && request.body.query).slice(0, 500);
@@ -2183,7 +2226,10 @@ export function createApp(options = {}) {
     catch (error) { sendEloCoreError_(response, error); }
   });
   app.post("/api/elo/identity/merge", (request, response) => {
-    try { response.json(eloCoreStore.mergeAnonymous(request.body && request.body.anonymousId, getTrustedEloCoreUserId_(request))); }
+    try {
+      const result = eloCoreStore.mergeAnonymous(request.body && request.body.anonymousId, getTrustedEloCoreUserId_(request));
+      response.json(Object.assign({}, result, request.eloAuthContext ? { authContext: buildPublicEloAuthContext_(request.eloAuthContext) } : {}));
+    }
     catch (error) { sendEloCoreError_(response, error); }
   });
   app.get("/api/elo/memories", (request, response) => {
