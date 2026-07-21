@@ -2247,13 +2247,116 @@
       return financialLines.find(function (line) { return key && rowKey_(line) === key; }) || null;
     }
     function moneyOrPending_(value) {
-      return value === null || value === undefined || value === "" ? "Pendente" : formatEloBudgetV2Money_(value);
+      if (value === null || value === undefined || value === "") return "Pendente";
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric <= 0) return "Pendente";
+      return formatEloBudgetV2Money_(value);
     }
     function humanSource_(value) {
       const text = normalizeText(value || "");
       if (/inferred_from_built_area/.test(text)) return "Estimado a partir da \u00e1rea constru\u00edda";
       if (/informed/.test(text)) return "Informado pelo usu\u00e1rio";
       return cleanEloDocumentText_(value || "Quantitativo preliminar");
+    }
+    function financialLineCode_(line) {
+      return cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode || line.composition && line.composition.code) || "");
+    }
+    function pricedValue_(line, names) {
+      for (let i = 0; i < names.length; i += 1) {
+        const value = line && line[names[i]];
+        if (value !== null && value !== undefined && value !== "") return value;
+      }
+      return null;
+    }
+    function hasPositivePrice_(line) {
+      return Number(pricedValue_(line, ["unitPrice", "price", "precoUnitario", "preco_unitario"])) > 0 || Number(pricedValue_(line, ["directCost", "totalPrice", "total", "valorTotal", "valor_total"])) > 0;
+    }
+    function residentialPdfText_(value) {
+      return cleanEloDocumentText_(value || "")
+        .replace(/\bLocacao\b/g, "Loca\u00e7\u00e3o")
+        .replace(/\bEscavacao\b/g, "Escava\u00e7\u00e3o")
+        .replace(/\bfundacoes\b/g, "funda\u00e7\u00f5es")
+        .replace(/\bFundacoes\b/g, "Funda\u00e7\u00f5es")
+        .replace(/\bfundacao\b/g, "funda\u00e7\u00e3o")
+        .replace(/\bFundacao\b/g, "Funda\u00e7\u00e3o")
+        .replace(/\bAco\b/g, "A\u00e7o")
+        .replace(/\baco\b/g, "a\u00e7o")
+        .replace(/\bEmboco\b/g, "Embo\u00e7o")
+        .replace(/\bemboco\b/g, "embo\u00e7o")
+        .replace(/\bRodape\b/g, "Rodap\u00e9")
+        .replace(/\brodape\b/g, "rodap\u00e9")
+        .replace(/\bAreas\b/g, "\u00c1reas")
+        .replace(/\bareas\b/g, "\u00e1reas")
+        .replace(/\bArea\b/g, "\u00c1rea")
+        .replace(/\barea\b/g, "\u00e1rea")
+        .replace(/ceramico/g, "cer\u00e2mico")
+        .replace(/Ceramico/g, "Cer\u00e2mico")
+        .replace(/eletrica/g, "el\u00e9trica")
+        .replace(/Eletrica/g, "El\u00e9trica")
+        .replace(/hidraulica/g, "hidr\u00e1ulica")
+        .replace(/Hidraulica/g, "Hidr\u00e1ulica")
+        .replace(/Instalacoes/g, "Instala\u00e7\u00f5es")
+        .replace(/instalacoes/g, "instala\u00e7\u00f5es")
+        .replace(/Impermeabilizacao/g, "Impermeabiliza\u00e7\u00e3o")
+        .replace(/impermeabilizacao/g, "impermeabiliza\u00e7\u00e3o")
+        .replace(/perimetro/g, "per\u00edmetro")
+        .replace(/vaos/g, "v\u00e3os")
+        .replace(/eletricos/g, "el\u00e9tricos")
+        .replace(/iluminacao/g, "ilumina\u00e7\u00e3o")
+        .replace(/hidraulicos/g, "hidr\u00e1ulicos")
+        .replace(/sanitarios/g, "sanit\u00e1rios")
+        .replace(/Loucas/g, "Lou\u00e7as")
+        .replace(/ceramica/g, "cer\u00e2mica");
+    }
+    function residentialPdfStage_(line) {
+      const text = normalizeText([line && line.serviceId, line && line.description, line && line.category, line && line.stage].filter(Boolean).join(" "));
+      if (/limpeza.*inicial|preparo|canteiro|locacao/.test(text)) return "Servi\u00e7os preliminares";
+      if (/fundacao|sapata|baldrame|escavacao|forma.*fundacao/.test(text)) return "Funda\u00e7\u00e3o";
+      if (/estrutura|pilar|viga|laje|aco|armacao|concreto.*estrutura/.test(text)) return "Estrutura";
+      if (/chapisco|reboco|emboco|embo.o|revestimento/.test(text)) return "Revestimentos";
+      if (/cobertura|telha|telhamento/.test(text)) return "Cobertura";
+      if (/contrapiso|piso|rodape|ceram/.test(text)) return "Pisos";
+      if (/alvenaria|bloco|parede/.test(text)) return "Alvenaria";
+      if (/eletric|iluminacao|tomada/.test(text)) return "Instala\u00e7\u00f5es el\u00e9tricas";
+      if (/hidraul|sanitar|esgoto/.test(text)) return "Instala\u00e7\u00f5es hidrossanit\u00e1rias";
+      if (/porta|janela|esquadria/.test(text)) return "Esquadrias";
+      if (/pintura|tinta/.test(text)) return "Pintura";
+      if (/limpeza.*final/.test(text)) return "Limpeza final";
+      return "Servi\u00e7os complementares";
+    }
+    function financialCompositions_() {
+      const seen = {};
+      return financialLines.filter(function (line) { return line && line.pricingRole !== "memory_summary"; }).map(function (line) {
+        const code = financialLineCode_(line);
+        if (!code || normalizeText(code) === "nao informado" || seen[code]) return null;
+        seen[code] = true;
+        const composition = line.composition || {};
+        return {
+          code: code,
+          description: residentialPdfText_(composition.description || composition.compositionName || line.description || line.service || line.serviceId || "Composi\u00e7\u00e3o SINAPI"),
+          unit: normalizeEloBudgetV2Unit_(composition.unit || composition.compositionUnit || line.unit || line.unidade || line.un),
+          source: residentialPdfText_(composition.source || line.source || line.fonte || "SINAPI")
+        };
+      }).filter(Boolean);
+    }
+    if (!rows.length && financialLines.length) {
+      rows = financialLines.filter(function (line) { return line && line.pricingRole !== "memory_summary"; }).map(function (line, index) {
+        const unitPrice = pricedValue_(line, ["unitPrice", "price", "precoUnitario", "preco_unitario"]);
+        const total = pricedValue_(line, ["directCost", "totalPrice", "total", "valorTotal", "valor_total"]);
+        const compositionStatus = line && line.composition && line.composition.status;
+        return {
+          item: index + 1,
+          etapa: residentialPdfStage_(line),
+          code: financialLineCode_(line),
+          description: residentialPdfText_(line.description || line.service || line.servico || line.serviceId || "Item de or\u00e7amento"),
+          unit: normalizeEloBudgetV2Unit_(line.unit || line.unidade || line.un),
+          quantity: formatEloBudgetV2TableQuantity_(line.quantity !== undefined ? line.quantity : line.quantidade),
+          unitPrice: moneyOrPending_(unitPrice),
+          total: moneyOrPending_(total),
+          status: hasPositivePrice_(line) ? "Pre\u00e7o informado" : (compositionStatus === "manual_review" ? "Pendente fora do total parcial" : "Composi\u00e7\u00e3o/pre\u00e7o pendente"),
+          source: cleanEloDocumentText_(line.source || line.fonte || line.composition && line.composition.source || "SINAPI")
+        };
+      }).filter(function (row) { return row.description && row.unit && row.quantity; });
     }
     if (!rows.length && quantities.length) {
       rows = quantities.map(function (quantity, index) {
@@ -2262,9 +2365,9 @@
         const total = line && (line.totalPrice || line.total || line.valorTotal || line.valor_total);
         return {
           item: index + 1,
-          etapa: cleanEloDocumentText_(quantity.category || quantity.stage || quantity.etapa || "Or\u00e7amento residencial"),
-          code: cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode) || ""),
-          description: cleanEloDocumentText_(quantity.description || quantity.service || quantity.servico || quantity.serviceId || "Servi\u00e7o"),
+          etapa: line ? residentialPdfStage_(line) : residentialPdfStage_(quantity),
+          code: cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode || line.composition && line.composition.code) || ""),
+          description: residentialPdfText_(quantity.description || quantity.service || quantity.servico || quantity.serviceId || "Item de or\u00e7amento"),
           unit: normalizeEloBudgetV2Unit_(quantity.unit || quantity.unidade || quantity.un),
           quantity: formatEloBudgetV2TableQuantity_(quantity.quantity !== undefined ? quantity.quantity : quantity.quantidade),
           unitPrice: moneyOrPending_(unitPrice),
@@ -2275,6 +2378,8 @@
       });
     }
     if (!rows.length) return null;
+    const resolvedCompositions = financialCompositions_();
+    const displayCompositions = resolvedCompositions.length ? resolvedCompositions : compositions.filter(function (row) { return normalizeText(row && row.code || "") !== "nao informado"; });
     const hasReliablePrices = hasEloBudgetV2ReliablePriceSource_(budget);
     const summary = safe && safe.financialSummary || {};
     const partialSubtotal = Number(summary.partialSubtotal || 0);
@@ -2286,7 +2391,7 @@
     const facts = safe && safe.facts || {};
     return {
       rows: rows,
-      compositions: compositions,
+      compositions: displayCompositions,
       subtotal: hasCompletePrices ? formatEloBudgetV2Money_(budget.subtotal) : (hasPartialPrices ? formatEloBudgetV2Money_(summary.partialSubtotal) : "Pendente"),
       bdiPercent: hasCompletePrices ? cleanEloDocumentText_(budget.bdiPercent || budget.bdi || "") : bdiPercentText,
       bdiValue: hasCompletePrices ? formatEloBudgetV2Money_(budget.bdiValue || budget.valorBdi || budget.valor_bdi) : (hasPartialPrices ? formatEloBudgetV2Money_(summary.partialBdiValue) : "Pendente"),
@@ -3150,7 +3255,8 @@
       return [
         "<tr>",
         "<td>" + escapeEloHtml_(row.etapa || "Or\u00e7amento residencial") + "</td>",
-        "<td class=\"is-description\">" + escapeEloHtml_(row.description || "Servi\u00e7o") + "</td>",
+        "<td class=\"is-description\">" + escapeEloHtml_(row.description || "Item de or\u00e7amento") + "</td>",
+        "<td class=\"is-center\">" + escapeEloHtml_(row.code || "-") + "</td>",
         "<td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td>",
         "<td class=\"is-number\">" + escapeEloHtml_(row.quantity || "-") + "</td>",
         "<td class=\"is-number\">" + escapeEloHtml_(row.unitPrice || "Pendente") + "</td>",
@@ -3161,7 +3267,7 @@
     }).join("\n");
     return [
       "<table class=\"elo-budget-table\">",
-      "<thead><tr><th>Etapa</th><th>Servi\u00e7o</th><th>Unidade</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Total</th><th>Situa\u00e7\u00e3o</th></tr></thead>",
+      "<thead><tr><th>Etapa</th><th>Servi\u00e7o</th><th>C\u00f3digo SINAPI</th><th>Unidade</th><th>Quantidade</th><th>Pre\u00e7o unit\u00e1rio</th><th>Total</th><th>Situa\u00e7\u00e3o</th></tr></thead>",
       "<tbody>", body, "</tbody></table>"
     ].join("\n");
   }
@@ -3170,7 +3276,8 @@
   function buildEloProfessionalCompositionTable_(rows) {
     if (!rows || !rows.length) return "";
     const body = rows.map(function (row) {
-      return "<tr><td>" + escapeEloHtml_(row.code || "-") + "</td><td>" + escapeEloHtml_(row.description || "-") + "</td><td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td><td>" + escapeEloHtml_(row.source || "-") + "</td></tr>";
+      const code = normalizeText(row.code || "") === "nao informado" ? "-" : row.code;
+      return "<tr><td>" + escapeEloHtml_(code || "-") + "</td><td>" + escapeEloHtml_(row.description || "-") + "</td><td class=\"is-center\">" + escapeEloHtml_(row.unit || "-") + "</td><td>" + escapeEloHtml_(row.source || "-") + "</td></tr>";
     }).join("\n");
     return [
       "<section class=\"elo-pdf-section\"><h2>Composi\u00e7\u00f5es adotadas</h2>",
@@ -3200,8 +3307,31 @@
   function buildEloProfessionalResidentialBudgetSection_(data) {
     const safe = data || {};
     const budget = safe.professionalBudget || {};
+    function displayValue_(value) {
+      const text = value === null || value === undefined ? "" : String(value);
+      if (!text.trim()) return "-";
+      return text.replace(/\bnao informado\b|\bn\u00e3o informado\b/gi, "-");
+    }
     function field(label, value) {
-      return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(value || "-") + "</strong></div>";
+      return "<div class=\"elo-pdf-field\"><span>" + escapeEloHtml_(label) + "</span><strong>" + escapeEloHtml_(displayValue_(value)) + "</strong></div>";
+    }
+    function finalPremises_() {
+      const lines = [
+        "- Cidade/UF: " + displayValue_(safe.cidade),
+        "- \u00c1rea constru\u00edda: " + displayValue_(budget.area || "-"),
+        "- Padr\u00e3o geral: " + displayValue_(budget.standard || "-"),
+        "- Base de custos: " + displayValue_(budget.source || safe.origemBase || "SINAPI"),
+        budget.hasPartialPrices ? "- Total parcial considera somente itens resolvidos; pend\u00eancias ficam fora do total." : "- Valores sujeitos a revis\u00e3o t\u00e9cnica antes de uso executivo."
+      ];
+      if (/Banheiro:\s*padr\u00e3o de acabamento econ\u00f4mico\./.test(String(safe.premissas || ""))) lines.push("- Banheiro: padr\u00e3o de acabamento econ\u00f4mico.");
+      return lines.join("\n");
+    }
+    function finalWarnings_() {
+      const pendingCount = pendingItems.length;
+      return [
+        pendingCount ? "- " + pendingCount + " itens pendentes est\u00e3o listados fora do total parcial." : "- Sem pend\u00eancias financeiras adicionais no quadro parcial.",
+        "- Validar projeto, memorial, composi\u00e7\u00f5es oficiais, BDI e responsabilidade t\u00e9cnica antes de contratar ou executar."
+      ].join("\n");
     }
     const summary = budget.observation || "Or\u00e7amento residencial preliminar estruturado para revis\u00e3o t\u00e9cnica.";
     const pendingItems = Array.isArray(budget.pendingItems) ? budget.pendingItems : [];
@@ -3241,8 +3371,8 @@
       pendingSection,
       "<section class=\"elo-pdf-section\"><h2>Mem\u00f3ria de c\u00e1lculo resumida</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
       buildEloProfessionalCompositionTable_(budget.compositions),
-      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(safe.premissas || "Premissas n\u00e3o informadas.") + "</div></section>",
-      "<section class=\"elo-pdf-section is-warning\"><h2>Pend\u00eancias e alertas</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_([safe.pendencias, safe.alertas].filter(Boolean).join("\n\n")) + "</div></section>",
+      "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(finalPremises_()) + "</div></section>",
+      "<section class=\"elo-pdf-section is-warning\"><h2>Pend\u00eancias e alertas</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(finalWarnings_()) + "</div></section>",
       "<section class=\"elo-pdf-signature\"><h2>Responsabilidade t\u00e9cnica e revis\u00e3o</h2><p>Este documento \u00e9 preliminar e deve ser revisado por profissional habilitado antes de contrata\u00e7\u00e3o, compra, execu\u00e7\u00e3o, emiss\u00e3o oficial ou envio ao cliente.</p><div class=\"elo-pdf-sign-line\"></div><strong>" + escapeEloHtml_(safe.assinatura) + "</strong></section>",
       "<footer class=\"elo-pdf-footer\"><span>\u00cdcaro Amaral Engenharia / ObraReport / ELO</span></footer>",
       "</section>",
