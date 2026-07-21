@@ -863,6 +863,35 @@ test('ELO CORE: abre ferramentas explicitas com nomes publicos e rotas auditadas
     assert.doesNotMatch(response.fullAnswer, /https?:\/\//i);
   }
 });
+test('ELO estoque: saldo conhecido roteia antes da ajuda de materiais', () => {
+  const { elo } = loadEloContext({
+    window: {
+      ObraReportOperationalStock: {
+        getAlmoxBalances() {
+          return [{
+            id: 'cimento',
+            name: 'Cimento CP II',
+            unit: 'sc',
+            entries: 100,
+            exits: 15,
+            balance: 85,
+            realBalance: 85,
+            minimumStock: 20,
+            status: 'OK'
+          }];
+        }
+      }
+    }
+  });
+
+  const response = elo.buildResponseForTest('quanto cimento ainda tem?');
+  const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join(' ');
+
+  assert.equal(response.brain, 'stock');
+  assert.equal(response.sessionIntent, 'stock_full_saldo');
+  assert.notEqual(response.sessionIntent, 'ajuda_materiais');
+  assert.match(answer, /85 sc de Cimento CP II|Saldo atual: 85 sc/i);
+});
 test('ELO CORE: pedido de link mostra botao sem navegar', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Qual Ã© o link do CADISTA?');

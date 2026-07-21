@@ -1822,6 +1822,7 @@
     if (/residential_budget_package|budget_v2_residential|budget_v2_briefing/.test(joined)) return "budget";
     if (/que\s+saco|cansad[oa]|nao\s+funciona|n.o\s+funciona|frustrad[oa]|ta\s+dificil|t.\s+dif.cil|estou\s+perdido|estou\s+perdida/.test(text) || /acolhimento|apoio_pratico/.test(joined)) return "support";
     if (/cadista|\bplanta\b|planta\s+baixa|terreno|quartos?|su.te|suite|garagem|ambientes?|prancha|dxf/.test(text) || /cadista/.test(joined)) return "cadista";
+    if (/stock_full_saldo/.test(joined)) return "stock";
     if (/estoque\s+da\s+obra|dar\s+baixa|baixa\s+no\s+estoque|stock\s+obras|stock\s+ai\s+obras/.test(text) || /stock_obras|estoque_obra/.test(joined)) return "stock_obras";
     if (/\brdo\b|di.rio\s+de\s+obra|di.rio\s+de\s+obras|fazer\s+di.rio|gerar\s+rdo|rdo\s+de\s+hoje|registrar\s+ocorr.ncia|ocorr.ncia\s+de\s+atraso|chuva\s+e\s+concretagem|equipe/.test(text) || /(^|_)rdo|rdo(_|$)/.test(joined)) return "rdo";
     if (/infiltra|fissura|trinca|umidade|patologia|vistoria|inconformidade|relatorio\s+tecnico|relat.rio\s+t.cnico/.test(text) || /relatorio|patologia|vistoria|inconformidade/.test(joined)) return "report";
@@ -18355,10 +18356,16 @@ function isEloResidentialNewPipelineEnabled_() {
     const asksBalance = hasAnyTerm(text, [
       "quantas", "quantos", "quanto tenho", "qual saldo", "saldo de", "saldo do",
       "saldo da", "tenho em estoque", "tenho no estoque", "tem no estoque",
-      "existe em estoque", "disponivel em estoque"
+      "existe em estoque", "disponivel em estoque", "quanto tem", "quanto ainda tem"
     ]);
     const stockContext = hasAnyTerm(text, ["estoque", "saldo", "almoxarifado", "stock full", "stock"]);
-    return asksBalance && stockContext;
+    if (asksBalance && stockContext) {
+      return true;
+    }
+    if (/^quanto\s+.+\s+(?:ainda\s+)?tem\??$/.test(text)) {
+      return !!findEloStockBalanceByQuestion_(message, getEloOperationalAlmoxBalances_());
+    }
+    return false;
   }
 
   function extractEloStockBalanceQuery_(message) {
@@ -18468,7 +18475,8 @@ function isEloResidentialNewPipelineEnabled_() {
         fullAnswer: "Não encontrei esse item no estoque atual. Confira se o nome está cadastrado no Almoxarifado/Stock Full ou pergunte usando o nome do produto como aparece na lista.",
         nextAction: "Abra a lista de itens ou tente perguntar pelo nome exato do produto.",
         canSave: false,
-        sessionTheme: "stock_full_saldo"
+        sessionTheme: "stock_full_saldo",
+        sessionIntent: "stock_full_saldo"
       };
     }
 
@@ -18501,7 +18509,8 @@ function isEloResidentialNewPipelineEnabled_() {
       fullAnswer: lines.join("\n"),
       nextAction: "Se quiser, posso ajudar a conferir itens abaixo do mínimo ou próximos do vencimento.",
       canSave: false,
-      sessionTheme: "stock_full_saldo"
+      sessionTheme: "stock_full_saldo",
+      sessionIntent: "stock_full_saldo"
     };
   }
 
@@ -22199,6 +22208,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
       return applyEloBrainMarker_(question, liveSearchResponse);
+    }
+    const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
+    if (stockBalanceResponse) {
+      return applyEloBrainMarker_(question, stockBalanceResponse);
     }
     const wallCompleteV2PriorityResponse = buildEloWallCompleteV2Answer_(question);
     if (wallCompleteV2PriorityResponse) {
