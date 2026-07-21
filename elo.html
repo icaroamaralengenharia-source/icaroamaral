@@ -20,6 +20,7 @@ defer></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="elo.css">
+  <script src="assets/elo-mascot-game.js" defer></script>
 </head>
 <body data-elo-mode="standalone" data-elo-product="chat">
   <header class="elo-product-top" aria-label="ELO CORE">
@@ -37,9 +38,15 @@ defer></script>
   <main class="elo-product-shell" aria-labelledby="elo-product-title">
     <section class="elo-product-center">
       <div class="elo-product-heading elo-core-welcome">
+        <div class="elo-mascot-hero" data-elo-mascot-shell>
+          <button type="button" class="elo-mascot-close" data-elo-mascot-close aria-label="Fechar mascote do ELO">×</button>
+          <img src="assets/elo-mascot.png" alt="" aria-hidden="true">
+          <button type="button" class="elo-mascot-play" data-elo-mascot-play>Jogar</button>
+        </div>
         <h1 id="elo-product-title" class="elo-hero-title" aria-live="polite">
           <span class="elo-rotating-text" data-elo-rotating-text>O que vamos <span class="elo-highlight">fazer</span> hoje?</span>
         </h1>
+        <p class="elo-empty-state">Estou pronto para analisar, organizar e continuar seu trabalho.</p>
       </div>
       <div class="elo-attachment-preview" data-elo-attachment-preview>
         <div class="elo-attachment-chip">
@@ -64,6 +71,24 @@ defer></script>
     </section>
   </main>
 
+  <div class="elo-mascot-game" data-elo-mascot-game hidden>
+    <div class="elo-mascot-game-backdrop" data-elo-game-close></div>
+    <section class="elo-mascot-game-dialog" role="dialog" aria-modal="true" aria-labelledby="elo-game-title">
+      <div class="elo-mascot-game-head">
+        <div>
+          <span class="elo-mascot-game-kicker">ELO mini game</span>
+          <h2 id="elo-game-title">Jogo da velha</h2>
+        </div>
+        <button type="button" class="elo-mascot-game-close" data-elo-game-close aria-label="Fechar jogo">×</button>
+      </div>
+      <p class="elo-mascot-game-status" data-elo-game-status>Sua vez. Você joga com X.</p>
+      <div class="elo-mascot-board" data-elo-game-board aria-label="Tabuleiro do jogo da velha"></div>
+      <div class="elo-mascot-game-actions">
+        <button type="button" data-elo-game-reset>Reiniciar</button>
+        <button type="button" data-elo-game-close>Fechar</button>
+      </div>
+    </section>
+  </div>
   <script>
     if ("scrollRestoration" in history) {
       history.scrollRestoration = "manual";
