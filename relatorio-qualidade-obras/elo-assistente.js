@@ -404,6 +404,16 @@
     return getConversationalResponse(normalizeText(question || ""));
   }
 
+  function handleEloCorePureConversationalAnswer_(question) {
+    const response = buildEloCorePureConversationalAnswer_(question);
+    if (!response) return false;
+    const answer = formatResponse(response);
+    appendAssistantMessage(question, answer, response.canSave !== false, response);
+    saveConversation(question, answer);
+    rememberSessionTurn(question, response, answer);
+    return true;
+  }
+
   function isEloCoreMetaWorkflowDiagnosis_(question) {
     const text = normalizeText(question || "");
     if (!text) return false;
@@ -23123,6 +23133,11 @@ function isEloResidentialNewPipelineEnabled_() {
         nextAction: "Escolha Sim, lembrar ou Não.",
         sessionIntent: "memoria_pessoal"
       }, "O Elo perguntou se deve guardar uma memória pessoal.");
+      return;
+    }
+
+    if (!attachedFiles.length && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
+      removeTypingIndicator();
       return;
     }
 

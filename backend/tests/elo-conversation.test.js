@@ -196,6 +196,45 @@ test("stress test do Elo mantem consistencia em sequencia de conversa", async ()
   }
 });
 
+test("Elo cobre conversa natural, ironia, tecnico curto e follow-up com contexto", async () => {
+  const originalFetch = globalThis.fetch;
+  const openAiCalls = [];
+  const forbiddenHits = [];
+  globalThis.fetch = buildMockedOpenAiFetch_(originalFetch, openAiCalls);
+
+  try {
+    await withTemporaryEloServer_(async (baseUrl) => {
+      const client = createEloConversationClient_(baseUrl);
+      const scenarios = [
+        { message: "oi", expectMode: "remote", expectOpenAi: true },
+        { message: "hi", expectMode: "remote", expectOpenAi: true },
+        { message: "tudo bem?", expectMode: "remote", expectOpenAi: true },
+        { message: "ah claro, ficou perfeito, so que nao", expectMode: "remote", expectOpenAi: true },
+        { message: "calcule parede 20x3", expectMode: "technical_validation", expectOpenAi: false },
+        { message: "resuma nossa conversa", expectMode: "remote", expectOpenAi: true }
+      ];
+
+      for (const scenario of scenarios) {
+        const beforeCalls = openAiCalls.length;
+        const data = await client.ask(scenario.message, "obras");
+        assertValidEloResponse_(data, {
+          group: "roteamento natural",
+          message: scenario.message,
+          mode: scenario.expectMode
+        });
+        collectForbiddenHits_(data.answer, "roteamento natural: " + scenario.message, forbiddenHits);
+        assert.equal(openAiCalls.length, beforeCalls + (scenario.expectOpenAi ? 1 : 0), scenario.message);
+      }
+
+      const followUpCall = openAiCalls[openAiCalls.length - 1];
+      assert.match(followUpCall.promptText, /calcule parede 20x3/i);
+      assert.match(followUpCall.promptText, /tudo bem\?/i);
+      assert.equal(forbiddenHits.length, 0, formatForbiddenHits_(forbiddenHits));
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 test("stress test do Elo documenta cobertura de cenarios", () => {
   const coverage = {
     scenarios: STRESS_SCENARIOS.length + CONSISTENCY_MESSAGES.length,
@@ -210,7 +249,16 @@ test("stress test do Elo documenta cobertura de cenarios", () => {
 
 function buildMockedOpenAiFetch_(originalFetch, openAiCalls) {
   return async function mockedFetch(url, options) {
-    if (String(url).startsWith("https://api.openai.com/")) {
+    const target = String(url);
+    if (target.startsWith("https://api.openai.com/v1/embeddings")) {
+      return new Response(JSON.stringify({
+        data: [{ embedding: Array.from({ length: 1536 }, () => 0.001) }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    if (target.startsWith("https://api.openai.com/")) {
       const payload = JSON.parse(options.body);
       const promptText = JSON.stringify(payload.input);
       const message = extractLatestEloMessage_(payload.input);
