@@ -263,6 +263,44 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   assert.match(source, /appendMessage\("system", "Nao consegui consultar informacoes em tempo real agora\."\)/);
   assert.doesNotMatch(source.slice(searchRouteIndex, searchRouteIndex + 700), /label: "Pesquise"|action: liveSearchResponse\.action/);
 });
+
+test("frontend preserva continuidade do wall_budget simples", () => {
+  const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");
+  const casualAnswer = source.match(/function buildEloCoreCasualConversationAnswer_[\s\S]*?\n  function buildEloCorePureConversationalAnswer_/)?.[0] || "";
+  const wallTask = source.match(/function buildEloWallBudgetTaskAnswer_[\s\S]*?\n  function detectEloConversationTopic_/)?.[0] || "";
+  const pendingAnswer = source.match(/function buildEloWallBudgetPendingActionAnswer_[\s\S]*?\n  function isEloWallBudgetFollowUp_/)?.[0] || "";
+  const wallParser = source.match(/function parseEloWallServiceBriefing_[\s\S]*?\n  function hasEloQuantitativeIntent_/)?.[0] || "";
+  const wallFacts = source.match(/function buildEloWallBudgetFacts_[\s\S]*?\n  function rememberEloActiveWallBudgetTask_/)?.[0] || "";
+
+  assert.match(casualAnswer, /if \(social\) return Object\.assign\(\{\}, social, \{ fullAnswer: ""/);
+  assert.match(casualAnswer, /if \(conversational\) return Object\.assign\(\{\}, conversational, \{ fullAnswer: ""/);
+  assert.match(casualAnswer, /const shortAnswer = "Tá mesmo\. Clima bom pra trabalhar sem sofrer tanto, né\?"/);
+  assert.doesNotMatch(casualAnswer, /shortAnswer: "Tá mesmo\.", fullAnswer/);
+
+  assert.match(wallParser, /if \(!hasAnyTerm\(text, \["parede", "muro", "alvenaria"\]\)\)/);
+  assert.doesNotMatch(wallParser, /bloco", "tijolo"[\s\S]*?return null/);
+  assert.match(wallTask, /pendingActionResponse[\s\S]*?const activeTask/);
+  assert.match(wallTask, /calcule\|calcular\|quantitativo/);
+  assert.match(wallTask, /pendingAction = \{ type: "include_chapisco_reboco", scope: "current_wall_budget"/);
+  assert.match(wallTask, /Quer incluir chapisco e reboco nos dois lados desse orçamento\?/);
+  assert.match(pendingAnswer, /isEloWallBudgetPositiveReply_\(message\)/);
+  assert.match(pendingAnswer, /task\.pendingAction = null/);
+  assert.match(pendingAnswer, /Inclui chapisco e reboco no orçamento atual/);
+  assert.match(pendingAnswer, /Mantive o orçamento sem alteração/);
+  assert.doesNotMatch(wallTask + pendingAnswer, /wall_budget_package/);
+  assert.match(wallFacts, /length: briefing\.length/);
+  assert.match(wallFacts, /height: briefing\.height/);
+  assert.match(wallFacts, /grossArea: estimate\.area \|\| briefing\.area/);
+  assert.match(wallFacts, /blockType:/);
+  assert.match(wallFacts, /faceA:/);
+  assert.match(wallFacts, /faceB:/);
+
+  assert.match(source, /sessionTheme: "wall_budget_package", sessionIntent: "budget_v2_wall_quantities"/);
+  const wallBriefingBlock = source.match(/buildWallBriefingResponse_\(state\) \{[\s\S]*?sessionIntent: "budget_v2_wall_briefing"/)?.[0] || "";
+  assert.match(wallBriefingBlock, /sessionTheme: "wall_budget_package"/);
+  assert.match(wallBriefingBlock, /sessionIntent: "budget_v2_wall_briefing"/);
+  assert.match(source, /sessionTheme: "wall_budget_package", sessionIntent: "budget_v2_wall_complete_created"/);
+});
 test("stress test do Elo documenta cobertura de cenarios", () => {
   const coverage = {
     scenarios: STRESS_SCENARIOS.length + CONSISTENCY_MESSAGES.length,

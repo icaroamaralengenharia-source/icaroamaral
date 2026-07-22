@@ -416,16 +416,16 @@
 
   function buildEloCoreCasualConversationAnswer_(question) {
     const social = getSocialGreetingResponse(question);
-    if (social) return Object.assign({}, social, { nextAction: "", sessionIntent: "conversa_humana" });
+    if (social) return Object.assign({}, social, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
     const conversational = getConversationalResponse(normalizeText(question || ""));
-    if (conversational) return Object.assign({}, conversational, { nextAction: "", sessionIntent: "conversa_humana" });
+    if (conversational) return Object.assign({}, conversational, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
     const casualIntent = detectEloCoreCasualConversationIntent_(question);
     if (!casualIntent) return null;
     const previous = sanitizeUserText(ELO_SESSION_MEMORY.lastQuestion || "");
     const contextLine = previous ? " Peguei o fio do que você vinha falando." : "";
     if (casualIntent === "clima") {
-      const fullAnswer = "Tá mesmo. Clima bom pra trabalhar sem sofrer tanto, né?" + contextLine;
-      return { shortAnswer: "Tá mesmo.", fullAnswer, nextAction: "", canSave: true, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
+      const shortAnswer = "Tá mesmo. Clima bom pra trabalhar sem sofrer tanto, né?" + contextLine;
+      return { shortAnswer, fullAnswer: "", nextAction: "", canSave: true, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
     }
     if (casualIntent === "ironia") {
       const fullAnswer = "Entendi a ironia. Parece que esse 'perfeito' veio com ressalva; me diz onde pegou que eu acompanho pelo contexto." + contextLine;
@@ -4648,8 +4648,9 @@
       height: briefing.height || 0,
       grossArea: estimate.area || briefing.area || 0,
       blockType: /baiano/.test(normalizeText(briefing.raw || "")) ? "ceramico baiano" : "ceramico",
-      faceA: ["chapisco", "reboco", /pintura/.test(normalizeText(briefing.raw || "")) ? "pintura" : ""].filter(Boolean),
-      faceB: /revestimento|ceramico|ceramica|50x50/.test(normalizeText(briefing.raw || "")) ? ["revestimento ceramico 50x50"] : []
+      faceA: [briefing.hasChapisco ? "chapisco" : "", briefing.hasReboco ? "reboco" : "", /pintura/.test(normalizeText(briefing.raw || "")) ? "pintura" : ""].filter(Boolean),
+      faceB: /revestimento|ceramico|ceramica|50x50/.test(normalizeText(briefing.raw || "")) ? ["revestimento ceramico 50x50"] : [],
+      includeChapiscoReboco: Boolean(briefing.hasChapisco && briefing.hasReboco)
     };
   }
 
@@ -4663,6 +4664,67 @@
     };
     ELO_SESSION_MEMORY.activeTask = task;
     return task;
+  }
+
+  function isEloWallBudgetPositiveReply_(message) {
+    return /^(sim|pode|pode sim|inclua|inclui|incluir|isso|isso mesmo|ok|certo)$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloWallBudgetNegativeReply_(message) {
+    return /^(nao|não|nao precisa|não precisa|sem isso|mantem|mantenha)$/i.test(normalizeText(message || ""));
+  }
+
+  function buildEloWallBriefingFromTask_(task, includeCoating) {
+    const facts = task && task.facts || {};
+    const area = parseEloOperationalNumber_(facts.grossArea || 0);
+    return {
+      length: parseEloOperationalNumber_(facts.length || 0),
+      height: parseEloOperationalNumber_(facts.height || 0),
+      area: area,
+      coatingArea: area * 2,
+      hasChapisco: Boolean(includeCoating),
+      hasReboco: Boolean(includeCoating),
+      wantsBudget: true,
+      wantsReferenceBudget: false,
+      blockDimension: "14x19x39 cm",
+      coatingSides: "2 lados",
+      raw: task && task.originalQuestion || ""
+    };
+  }
+
+  function buildEloWallBudgetPendingActionAnswer_(message) {
+    const task = ELO_SESSION_MEMORY.activeTask;
+    const pending = task && task.pendingAction;
+    if (!task || task.type !== "wall_budget" || !pending || pending.type !== "include_chapisco_reboco") return null;
+    if (!isEloWallBudgetPositiveReply_(message) && !isEloWallBudgetNegativeReply_(message)) return null;
+    const includeCoating = isEloWallBudgetPositiveReply_(message);
+    task.pendingAction = null;
+    task.status = includeCoating ? "updated_with_chapisco_reboco" : "kept_without_chapisco_reboco";
+    task.updatedAt = Date.now();
+    task.facts = Object.assign({}, task.facts || {}, { includeChapiscoReboco: includeCoating });
+    const estimate = rememberEloWallEstimate_(buildEloWallEstimate_(buildEloWallBriefingFromTask_(task, includeCoating)));
+    const impactLines = includeCoating ? [
+      "Inclui chapisco e reboco nos dois lados.",
+      "Impacto no quantitativo:",
+      "- Area adicional de chapisco: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2.",
+      "- Area adicional de reboco: " + formatEloOperationalQuantity_(estimate.coatingArea) + " m2.",
+      "- Cimento para chapisco: " + estimate.chapiscoCement + " sacos.",
+      "- Areia para chapisco: " + formatEloOperationalQuantity_(estimate.chapiscoSand) + " m3.",
+      "- Cimento para reboco: " + estimate.plasterCement + " sacos.",
+      "- Areia para reboco: " + formatEloOperationalQuantity_(estimate.plasterSand) + " m3."
+    ] : [
+      "Mantive o orçamento sem chapisco e reboco.",
+      "Impacto no quantitativo: nenhum item adicional incluido."
+    ];
+    const fullAnswer = ["Orcamento atualizado da parede", ""].concat(impactLines, [""], formatEloWallBudgetTaskLines_(task, estimate, false)).join("\n");
+    return {
+      shortAnswer: includeCoating ? "Inclui chapisco e reboco no orçamento atual." : "Mantive o orçamento sem alteração.",
+      fullAnswer: fullAnswer,
+      nextAction: "",
+      canSave: true,
+      sessionTheme: "elo_operacional_parede",
+      sessionIntent: includeCoating ? "orcamento_parede_chapisco_reboco_incluido" : "orcamento_parede_sem_chapisco_reboco"
+    };
   }
 
   function isEloWallBudgetFollowUp_(message) {
@@ -4696,6 +4758,8 @@
   }
 
   function buildEloWallBudgetTaskAnswer_(message) {
+    const pendingActionResponse = buildEloWallBudgetPendingActionAnswer_(message);
+    if (pendingActionResponse) return pendingActionResponse;
     const activeTask = ELO_SESSION_MEMORY.activeTask;
     const complaint = isEloWallBudgetComplaint_(message);
     const followUp = isEloWallBudgetFollowUp_(message) || complaint;
@@ -4707,17 +4771,26 @@
     }
     if (!briefing) return null;
     const text = normalizeText(message || "");
-    const wantsWallBudget = briefing.wantsBudget || /\borce\b|orcamento|or.amento|custo|valor|preco|pre.o/.test(text) || (activeTask && activeTask.type === "wall_budget" && followUp);
+    const wantsWallBudget = briefing.wantsBudget || /\borce\b|orcamento|or.amento|custo|valor|preco|pre.o|calcule|calcular|quantitativo/.test(text) || (activeTask && activeTask.type === "wall_budget" && followUp);
     if (!wantsWallBudget) return null;
     const estimate = rememberEloWallEstimate_(buildEloWallEstimate_(briefing));
     const task = activeTask && activeTask.type === "wall_budget" && followUp ? activeTask : rememberEloActiveWallBudgetTask_(sourceQuestion, briefing, estimate);
     task.status = "pending_execution";
     task.updatedAt = Date.now();
-    const fullAnswer = formatEloWallBudgetTaskLines_(task, estimate, complaint).join("\n");
+    const coatingAlreadyDecided = /chapisco|reboco|emboco|embo.o|revestimento/.test(normalizeText(sourceQuestion || ""));
+    if (!coatingAlreadyDecided) {
+      task.pendingAction = { type: "include_chapisco_reboco", scope: "current_wall_budget", createdAt: Date.now() };
+    }
+    const lines = formatEloWallBudgetTaskLines_(task, estimate, complaint);
+    if (!coatingAlreadyDecided) {
+      lines.push("");
+      lines.push("Quer incluir chapisco e reboco nos dois lados desse orçamento?");
+    }
+    const fullAnswer = lines.join("\n");
     return {
       shortAnswer: complaint ? "Vou retomar o orcamento da parede." : "Montei os quantitativos preliminares da parede.",
       fullAnswer: fullAnswer,
-      nextAction: "Informe a base de preco oficial ou autorize estimativa nao oficial se quiser total financeiro.",
+      nextAction: coatingAlreadyDecided ? "Informe a base de preco oficial ou autorize estimativa nao oficial se quiser total financeiro." : "",
       canSave: true,
       sessionTheme: "elo_operacional_parede",
       sessionIntent: "orcamento_parede_active_task"
@@ -12947,7 +13020,7 @@
   function parseEloWallServiceBriefing_(message) {
     const raw = String(message || "");
     const text = normalizeText(raw);
-    if (!hasAnyTerm(text, ["parede", "muro", "alvenaria"]) || !hasAnyTerm(text, ["bloco", "tijolo", "ceramico", "ceramico", "baiano"])) {
+    if (!hasAnyTerm(text, ["parede", "muro", "alvenaria"])) {
       return null;
     }
 
@@ -22501,6 +22574,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
+    }
+    const wallBudgetTaskPriorityResponse = buildEloWallBudgetTaskAnswer_(question);
+    if (wallBudgetTaskPriorityResponse) {
+      return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
