@@ -9,6 +9,7 @@ import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
 import { getSupabaseClient } from "./supabase.js";
 import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
+import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
@@ -748,6 +749,8 @@ export function createApp(options = {}) {
   const stockDemoStore = options.stockDemoStore || createStockDemoStore_();
   const eloVectorMemoryStore = options.eloVectorMemoryStore || createEloVectorMemoryStore_({ path: env.ELO_VECTOR_MEMORY_PATH || ELO_VECTOR_MEMORY_PATH, env });
   const eloCoreStore = options.eloCoreStore || createEloCoreStore({ dataPath: env.ELO_CORE_STORE_PATH || ELO_CORE_STORE_PATH });
+  const eloCoreStoreMode = clean_(env.ELO_CORE_STORE) === "supabase" ? "supabase" : "json";
+  let eloCoreSupabaseStore = options.eloCoreSupabaseStore || null;
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
@@ -2156,6 +2159,29 @@ export function createApp(options = {}) {
       projectId: context.projectId
     };
   }
+  function getEloCoreBearerJwt_(request) {
+    const authorization = clean_(request && request.headers && request.headers.authorization);
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    return match && match[1] ? clean_(match[1]) : "";
+  }
+  function getEloCoreSupabaseStore_() {
+    if (eloCoreSupabaseStore) return eloCoreSupabaseStore;
+    eloCoreSupabaseStore = createEloCoreSupabaseStore({ env });
+    return eloCoreSupabaseStore;
+  }
+  function getEloCoreRouteTarget_(request) {
+    if (eloCoreStoreMode !== "supabase") {
+      return { store: eloCoreStore, identity: getEloCoreIdentity_(request) };
+    }
+    const jwt = getEloCoreBearerJwt_(request);
+    if (!jwt || !request.eloAuthContext || !request.eloAuthContext.ok) {
+      throw Object.assign(new Error("authentication_required"), { status: 401 });
+    }
+    return {
+      store: getEloCoreSupabaseStore_(),
+      identity: Object.assign(getEloCoreIdentity_(request), { jwt })
+    };
+  }
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
   }
@@ -2205,25 +2231,40 @@ export function createApp(options = {}) {
     }
   });
 
-  app.get("/api/elo/conversations", (request, response) => {
-    try { response.json({ ok: true, conversations: eloCoreStore.listConversations(Object.assign(getEloCoreIdentity_(request), { includeArchived: request.query.includeArchived })) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.get("/api/elo/conversations", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const conversations = await target.store.listConversations(Object.assign(target.identity, { includeArchived: request.query.includeArchived }));
+      response.json({ ok: true, conversations });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.post("/api/elo/conversations", (request, response) => {
-    try { response.status(201).json({ ok: true, conversation: eloCoreStore.createConversation(Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.post("/api/elo/conversations", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const conversation = await target.store.createConversation(Object.assign({}, request.body || {}, target.identity));
+      response.status(201).json({ ok: true, conversation });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.get("/api/elo/conversations/:id", (request, response) => {
-    try { response.json(Object.assign({ ok: true }, eloCoreStore.getConversation(request.params.id, getEloCoreIdentity_(request)))); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.get("/api/elo/conversations/:id", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const result = await target.store.getConversation(request.params.id, target.identity);
+      response.json(Object.assign({ ok: true }, result));
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.put("/api/elo/conversations/:id", (request, response) => {
-    try { response.json({ ok: true, conversation: eloCoreStore.updateConversation(request.params.id, request.body || {}, getEloCoreIdentity_(request)) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.put("/api/elo/conversations/:id", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const conversation = await target.store.updateConversation(request.params.id, request.body || {}, target.identity);
+      response.json({ ok: true, conversation });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.post("/api/elo/conversations/:id/messages", (request, response) => {
-    try { response.status(201).json({ ok: true, message: eloCoreStore.addMessage(request.params.id, Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.post("/api/elo/conversations/:id/messages", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const message = await target.store.addMessage(request.params.id, Object.assign({}, request.body || {}, target.identity));
+      response.status(201).json({ ok: true, message });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
   app.post("/api/elo/identity/merge", (request, response) => {
     try {
@@ -2232,31 +2273,43 @@ export function createApp(options = {}) {
     }
     catch (error) { sendEloCoreError_(response, error); }
   });
-  app.get("/api/elo/memories", (request, response) => {
-    try { response.json({ ok: true, memories: eloCoreStore.listMemories(Object.assign(getEloCoreIdentity_(request), { includeInactive: request.query.includeInactive, category: request.query.category, memory_key: request.query.memory_key || request.query.memoryKey || request.query.key })) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.get("/api/elo/memories", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const memories = await target.store.listMemories(Object.assign(target.identity, { includeInactive: request.query.includeInactive, category: request.query.category, memory_key: request.query.memory_key || request.query.memoryKey || request.query.key }));
+      response.json({ ok: true, memories });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.post("/api/elo/memories", (request, response) => {
+  app.post("/api/elo/memories", async (request, response) => {
     try {
       if (request.body && (request.body.memoryDisabled === true || request.body.memory_disabled === true)) {
         response.json({ ok: true, memory: null, skipped: "memory_disabled" });
         return;
       }
-      response.status(201).json({ ok: true, memory: eloCoreStore.upsertMemory(Object.assign({}, request.body || {}, getEloCoreIdentity_(request))) });
-    }
-    catch (error) { sendEloCoreError_(response, error); }
+      const target = getEloCoreRouteTarget_(request);
+      const memory = await target.store.upsertMemory(Object.assign({}, request.body || {}, target.identity));
+      response.status(201).json({ ok: true, memory });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.put("/api/elo/memories/:id", (request, response) => {
-    try { response.json({ ok: true, memory: eloCoreStore.updateMemory(request.params.id, request.body || {}, getEloCoreIdentity_(request)) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.put("/api/elo/memories/:id", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const memory = await target.store.updateMemory(request.params.id, request.body || {}, target.identity);
+      response.json({ ok: true, memory });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.delete("/api/elo/memories/:id", (request, response) => {
-    try { response.json({ ok: true, memory: eloCoreStore.deleteMemory(request.params.id, getEloCoreIdentity_(request)) }); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.delete("/api/elo/memories/:id", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      const memory = await target.store.deleteMemory(request.params.id, target.identity);
+      response.json({ ok: true, memory });
+    } catch (error) { sendEloCoreError_(response, error); }
   });
-  app.delete("/api/elo/memories", (request, response) => {
-    try { response.json(eloCoreStore.clearMemories(getEloCoreIdentity_(request))); }
-    catch (error) { sendEloCoreError_(response, error); }
+  app.delete("/api/elo/memories", async (request, response) => {
+    try {
+      const target = getEloCoreRouteTarget_(request);
+      response.json(await target.store.clearMemories(target.identity));
+    } catch (error) { sendEloCoreError_(response, error); }
   });
 
   app.post("/api/elo/vector-memory", async (request, response) => {
