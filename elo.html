@@ -33,6 +33,18 @@ defer></script>
       <button type="button" data-elo-history>Histórico</button>
       <button type="button" data-elo-memory>Memória</button>
     </nav>
+    <section class="elo-local-auth" data-elo-auth-panel aria-label="Login Supabase do ELO">
+      <form class="elo-local-auth-form" data-elo-auth-form autocomplete="on">
+        <input type="email" name="email" placeholder="Email Supabase" autocomplete="username" required>
+        <input type="password" name="password" placeholder="Senha" autocomplete="current-password" required>
+        <button type="submit">Entrar</button>
+      </form>
+      <div class="elo-local-auth-session" data-elo-auth-session hidden>
+        <span data-elo-auth-user></span>
+        <button type="button" data-elo-auth-logout>Sair</button>
+      </div>
+      <p class="elo-local-auth-status" data-elo-auth-status aria-live="polite"></p>
+    </section>
   </header>
 
   <main class="elo-product-shell" aria-labelledby="elo-product-title">
