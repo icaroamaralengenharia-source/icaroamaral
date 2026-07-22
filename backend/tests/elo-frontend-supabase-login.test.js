@@ -35,17 +35,20 @@ function createElementStub() {
 }
 
 function loadElo({ fetchImpl, windowOverrides = {} }) {
-  const localStorage = createStorage({ elo_core_anonymous_id_v1: "elo_anon_login_test" });
+  const localStorage = createStorage({ elo_core_anonymous_id_v1: "elo_anon_login_test", elo_core_current_conversation_id_v1: "conversation-a" });
   const sessionStorage = createStorage();
   const authForm = createElementStub();
   const authSession = createElementStub();
   const authUser = createElementStub();
   const authStatus = createElementStub();
+  const messages = createElementStub();
+  messages.textContent = "Mensagem visivel de A";
   const elements = new Map([
     ["[data-elo-auth-form]", authForm],
     ["[data-elo-auth-session]", authSession],
     ["[data-elo-auth-user]", authUser],
-    ["[data-elo-auth-status]", authStatus]
+    ["[data-elo-auth-status]", authStatus],
+    [".elo-messages", messages]
   ]);
   const sandbox = {
     console,
@@ -84,12 +87,12 @@ function loadElo({ fetchImpl, windowOverrides = {} }) {
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
   vm.runInContext(readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8"), sandbox, { filename: "elo-assistente.js" });
-  return { elo: sandbox.window.EloAssistente, localStorage, sessionStorage, authForm, authSession, authUser, authStatus };
+  return { elo: sandbox.window.EloAssistente, localStorage, sessionStorage, authForm, authSession, authUser, authStatus, messages };
 }
 
 test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout limpa", async () => {
   const calls = [];
-  const { elo, localStorage, sessionStorage, authSession, authUser, authStatus } = loadElo({
+  const { elo, localStorage, sessionStorage, authSession, authUser, authStatus, messages } = loadElo({
     fetchImpl: async (url, options = {}) => {
       calls.push({ url: String(url), options });
       if (String(url) === "https://project.supabase.co/auth/v1/token?grant_type=password") {
@@ -109,6 +112,7 @@ test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout l
   });
 
   assert.equal(typeof elo.loginSupabaseForTest, "function");
+  elo.setCoreMessagesElementForTest(messages);
   await elo.loginSupabaseForTest("user-a@example.test", "secret-a");
 
   const saved = JSON.parse(localStorage.getItem("sb-elo-core-auth-token"));
@@ -130,6 +134,8 @@ test("ELO frontend login Supabase salva sessao, envia Bearer no merge e logout l
   sessionStorage.setItem("stockFullSupabaseToken", "legacy-token");
   sessionStorage.setItem("sb-project-auth-token", JSON.stringify({ access_token: "wildcard-token" }));
   await elo.logoutSupabaseForTest();
+  assert.equal(localStorage.getItem("elo_core_current_conversation_id_v1"), null);
+  assert.equal(messages.textContent, "");
   assert.equal(localStorage.getItem("sb-elo-core-auth-token"), null);
   assert.equal(sessionStorage.getItem("sb-elo-core-auth-token"), null);
   assert.equal(localStorage.getItem("sb-stock-full-backend-auth-token"), null);
@@ -156,4 +162,29 @@ test("ELO frontend login Supabase falha sem configuracao publica", async () => {
     () => elo.loginSupabaseForTest("user-a@example.test", "secret-a"),
     /supabase_public_config_missing/
   );
+});
+test("ELO frontend troca de usuario limpa conversa local antes de carregar novo historico", async () => {
+  let mergeUser = "auth-user-a";
+  const { elo, localStorage, messages } = loadElo({
+    fetchImpl: async (url, options = {}) => {
+      if (String(url) === "https://project.supabase.co/auth/v1/token?grant_type=password") {
+        return { ok: true, json: async () => ({ access_token: "jwt-next", refresh_token: "refresh-next", user: { email: "next@example.test" } }) };
+      }
+      if (String(url) === "http://localhost:3000/api/elo/identity/merge") {
+        return { ok: true, json: async () => ({ ok: true, authContext: { userId: mergeUser, profile: { email: mergeUser + "@example.test" } } }) };
+      }
+      throw new Error("unexpected fetch " + url + " " + JSON.stringify(options));
+    }
+  });
+
+  localStorage.setItem("elo_core_auth_context_v1", JSON.stringify({ userId: "auth-user-a", profile: { email: "a@example.test" } }));
+  localStorage.setItem("elo_core_current_conversation_id_v1", "conversation-a");
+  messages.textContent = "Mensagem visivel de A";
+  elo.setCoreMessagesElementForTest(messages);
+  mergeUser = "auth-user-b";
+
+  await elo.loginSupabaseForTest("user-b@example.test", "secret-b");
+
+  assert.equal(localStorage.getItem("elo_core_current_conversation_id_v1"), null);
+  assert.equal(messages.textContent, "");
 });
