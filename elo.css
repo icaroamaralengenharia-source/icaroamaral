@@ -961,6 +961,9 @@ body[data-elo-product="chat"] .elo-brand-name {
 }
 
 .elo-local-auth-session button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0 12px;
   color: rgba(220, 234, 250, 0.78);
   background: rgba(19, 36, 58, 0.34);
