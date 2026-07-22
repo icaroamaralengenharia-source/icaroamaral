@@ -388,20 +388,56 @@
     return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "elo_core_intent", sessionIntent: intents.map(function (intent) { return intent.type; }).join("+") };
   }
 
+  function hasEloCoreTechnicalConversationBlocker_(text) {
+    return /\b(orcamento|orcamentos|orcar|custo|preco|sinapi|orse|composicao|parede|bloco|reboco|concreto|rdo|relatorio|cadista|stock|estoque)\b/.test(text || "");
+  }
+
+  function detectEloCoreCasualConversationIntent_(question) {
+    const text = normalizeText(question || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!text || text.length > 120) return null;
+    if (hasEloCoreTechnicalConversationBlocker_(text)) return null;
+    if (/\b(so que nao|ironia|ironico|ironica)\b/.test(text)) return "ironia";
+    if (/\b(pois e|verdade|e verdade|bem isso|kkk+|rs+)\b/.test(text)) return "continuidade";
+    if (/\b(tempo|clima|dia)\b.{0,40}\b(bom|bonito|gostoso|agradavel)\b/.test(text) || /\bque dia\b.{0,30}\b(bom|bonito|gostoso|agradavel)\b/.test(text)) return "clima";
+    return null;
+  }
+
   function isEloCorePureConversationalRequest_(question) {
     const text = normalizeText(question || "").replace(/[?!.,;:]+/g, "").trim();
-    if (!text || text.length > 90) return false;
+    if (!text || text.length > 120) return false;
     const intent = detectConversationalIntent(text);
-    if (!intent) return false;
+    const casualIntent = detectEloCoreCasualConversationIntent_(question);
+    if (!intent && !casualIntent) return false;
     if (isEloCoreMetaWorkflowDiagnosis_(question)) return false;
     if (detectEloCoreTool_(question)) return false;
-    if (/(orcamento|orcamentos|orcar|custo|preco|sinapi|orse|composicao|parede|bloco|reboco|concreto|rdo|relatorio|cadista|stock|estoque)/.test(text)) return false;
+    if (hasEloCoreTechnicalConversationBlocker_(text)) return false;
     return true;
+  }
+
+  function buildEloCoreCasualConversationAnswer_(question) {
+    const social = getSocialGreetingResponse(question);
+    if (social) return Object.assign({}, social, { nextAction: "", sessionIntent: "conversa_humana" });
+    const conversational = getConversationalResponse(normalizeText(question || ""));
+    if (conversational) return Object.assign({}, conversational, { nextAction: "", sessionIntent: "conversa_humana" });
+    const casualIntent = detectEloCoreCasualConversationIntent_(question);
+    if (!casualIntent) return null;
+    const previous = sanitizeUserText(ELO_SESSION_MEMORY.lastQuestion || "");
+    const contextLine = previous ? " Peguei o fio do que você vinha falando." : "";
+    if (casualIntent === "clima") {
+      const fullAnswer = "Tá mesmo. Clima bom pra trabalhar sem sofrer tanto, né?" + contextLine;
+      return { shortAnswer: "Tá mesmo.", fullAnswer, nextAction: "", canSave: true, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
+    }
+    if (casualIntent === "ironia") {
+      const fullAnswer = "Entendi a ironia. Parece que esse 'perfeito' veio com ressalva; me diz onde pegou que eu acompanho pelo contexto." + contextLine;
+      return { shortAnswer: "Entendi a ironia.", fullAnswer, nextAction: "", canSave: true, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
+    }
+    const fullAnswer = "Pois é, faz sentido." + contextLine;
+    return { shortAnswer: "Pois é.", fullAnswer, nextAction: "", canSave: true, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
   }
 
   function buildEloCorePureConversationalAnswer_(question) {
     if (!isEloCorePureConversationalRequest_(question)) return null;
-    return getConversationalResponse(normalizeText(question || ""));
+    return buildEloCoreCasualConversationAnswer_(question);
   }
 
   function handleEloCorePureConversationalAnswer_(question) {
@@ -10239,7 +10275,7 @@
       return null;
     }
     const greetings = {
-      saudacao: ["oi", "ola", "olá", "e ai", "e aí", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
+      saudacao: ["oi", "hi", "ola", "olá", "e ai", "e aí", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
       checkin: ["tudo bem", "tudo certo", "como vai", "beleza", "tudo tranquilo", "como voce esta", "como você está", "como esta", "como está", "como voce esta hoje", "como você está hoje", "voce esta bem", "você está bem"]
     };
     if (greetings.saudacao.some(function (item) { return text === normalizeWakeCallText(item); })) {
@@ -22808,11 +22844,18 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(cleanQuestion);
     if (liveSearchResponse) {
-      const liveSearchAnswer = formatResponse(liveSearchResponse);
-      appendAssistantMessage(cleanQuestion, liveSearchAnswer, false, liveSearchResponse);
-      saveConversation(cleanQuestion, liveSearchAnswer);
-      rememberSessionTurn(cleanQuestion, liveSearchResponse, liveSearchAnswer);
-      clearProductAttachmentPreview();
+      showTypingIndicator();
+      requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
+        const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: searchAnswer, fullAnswer: searchAnswer, action: null });
+        appendAssistantMessage(cleanQuestion, searchAnswer, false, searchResponse);
+        saveConversation(cleanQuestion, searchAnswer);
+        rememberSessionTurn(cleanQuestion, searchResponse, searchAnswer);
+      }).catch(function () {
+        appendMessage("system", "Nao consegui consultar informacoes em tempo real agora.");
+      }).finally(function () {
+        removeTypingIndicator();
+        clearProductAttachmentPreview();
+      });
       return;
     }
     const directProjectMemoryResponse = buildEloCoreProjectMemoryAnswer_(cleanQuestion);

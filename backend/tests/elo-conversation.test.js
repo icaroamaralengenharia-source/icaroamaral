@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   createApp,
@@ -234,6 +235,33 @@ test("Elo cobre conversa natural, ironia, tecnico curto e follow-up com contexto
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("frontend roteia conversa humana e busca atual sem molde conceitual", () => {
+  const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");
+  const pureRouteIndex = source.indexOf("handleEloCorePureConversationalAnswer_(cleanQuestion)");
+  const onlineRouteIndex = source.lastIndexOf("requestEloOnlineAnswer(cleanQuestion, attachedFiles)");
+  const searchRouteIndex = source.indexOf("requestEloWebSearchAnswer_(cleanQuestion).then");
+  const searchButtonIndex = source.indexOf('label: "Pesquise"');
+  const technicalBlocker = source.match(/function hasEloCoreTechnicalConversationBlocker_[\s\S]*?\n  \}/)?.[0] || "";
+  const casualDetector = source.match(/function detectEloCoreCasualConversationIntent_[\s\S]*?\n  \}/)?.[0] || "";
+  const casualAnswer = source.match(/function buildEloCoreCasualConversationAnswer_[\s\S]*?\n  function buildEloCorePureConversationalAnswer_/)?.[0] || "";
+
+  assert.ok(pureRouteIndex >= 0 && onlineRouteIndex >= 0 && pureRouteIndex < onlineRouteIndex);
+  assert.ok(searchRouteIndex >= 0);
+  assert.ok(searchButtonIndex >= 0 && searchRouteIndex > searchButtonIndex);
+  assert.match(source, /saudacao: \["oi", "hi"/);
+  assert.match(casualDetector, /tempo\|clima\|dia/);
+  assert.match(casualDetector, /so que nao/);
+  assert.match(casualDetector, /kkk\+/);
+  assert.match(casualAnswer, /Clima bom pra trabalhar sem sofrer tanto/);
+  assert.match(casualAnswer, /Entendi a ironia/);
+  assert.match(casualAnswer, /getSocialGreetingResponse\(question\)/);
+  assert.match(casualAnswer, /getConversationalResponse/);
+  assert.doesNotMatch(casualAnswer, /estou pronto|Perspectivas|Reflex[aã]o|Pr[oó]xima a[cç][aã]o/i);
+  assert.match(technicalBlocker, /parede\|bloco\|reboco\|concreto/);
+  assert.match(source, /appendMessage\("system", "Nao consegui consultar informacoes em tempo real agora\."\)/);
+  assert.doesNotMatch(source.slice(searchRouteIndex, searchRouteIndex + 700), /label: "Pesquise"|action: liveSearchResponse\.action/);
 });
 test("stress test do Elo documenta cobertura de cenarios", () => {
   const coverage = {
