@@ -9,7 +9,7 @@
   --elo-product-line: rgba(127, 182, 230, 0.22);
   --elo-product-surface: rgba(19, 36, 58, 0.76);
   --elo-product-shadow: rgba(3, 10, 20, 0.34);
-  --elo-title-gradient: linear-gradient(90deg, #0f4c5c 0%, #0b5f7a 48%, #1479a8 100%);
+  --elo-title-gradient: linear-gradient(90deg, #58c7e8 0%, #78d9f1 45%, #a8ebf7 100%);
 }
 
 * {
@@ -199,7 +199,8 @@ body[data-elo-product="chat"] .elo-history-title {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  color: #0f4c5c;
+  color: #8fe4f4;
+  text-shadow: 0 0 16px rgba(88, 199, 232, 0.16);
 }
 .elo-product-heading p {
   margin: 6px 0 0;
@@ -905,6 +906,115 @@ body[data-elo-product="chat"] .elo-brand-name {
   background: rgba(19, 36, 58, 0.44);
   cursor: pointer;
 }
+.elo-local-auth {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.elo-local-auth-form,
+.elo-local-auth-session {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.elo-local-auth-form[hidden],
+.elo-local-auth-session[hidden] {
+  display: none !important;
+}
+
+.elo-local-auth-form input {
+  width: clamp(132px, 14vw, 190px);
+  min-height: 36px;
+  min-width: 0;
+  border: 1px solid rgba(127, 182, 230, 0.2);
+  border-radius: 999px;
+  color: rgba(246, 249, 252, 0.94);
+  background: rgba(19, 36, 58, 0.46);
+  padding: 0 12px;
+  outline: none;
+}
+
+.elo-local-auth-form input::placeholder {
+  color: rgba(220, 234, 250, 0.52);
+}
+
+.elo-local-auth-form button,
+.elo-local-auth-session button {
+  min-height: 36px;
+  border: 1px solid rgba(127, 182, 230, 0.18);
+  border-radius: 999px;
+  color: rgba(236, 246, 255, 0.9);
+  background: rgba(19, 36, 58, 0.5);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.elo-local-auth-form button {
+  padding: 0 13px;
+}
+
+.elo-local-auth-session button {
+  padding: 0 12px;
+  color: rgba(220, 234, 250, 0.78);
+  background: rgba(19, 36, 58, 0.34);
+}
+
+.elo-local-auth-session button:hover,
+.elo-local-auth-session button:focus-visible,
+.elo-local-auth-form button:hover,
+.elo-local-auth-form button:focus-visible {
+  border-color: rgba(127, 182, 230, 0.36);
+  color: rgba(246, 249, 252, 0.96);
+  outline: none;
+}
+
+.elo-local-auth-session [data-elo-auth-user] {
+  max-width: min(230px, 22vw);
+  overflow: hidden;
+  color: rgba(236, 246, 255, 0.82);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elo-local-auth-status {
+  max-width: 220px;
+  margin: 0;
+  color: rgba(220, 234, 250, 0.66);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+body.elo-auth-required .elo-local-auth {
+  width: min(420px, calc(100vw - 32px));
+  margin: 0;
+  justify-content: center;
+}
+
+body.elo-auth-required .elo-local-auth-form {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+body.elo-auth-required .elo-local-auth-form input,
+body.elo-auth-required .elo-local-auth-form button {
+  width: 100%;
+}
+
+body.elo-auth-required .elo-local-auth-status {
+  width: min(420px, calc(100vw - 32px));
+  max-width: none;
+  text-align: center;
+}
 
 body[data-elo-product="chat"] .elo-product-shell {
   min-height: 100vh;
@@ -1141,6 +1251,9 @@ body[data-elo-product="chat"] .elo-history-actions {
   body[data-elo-product="chat"] .elo-product-top {
     height: auto;
     min-height: 58px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 7px;
     padding: 9px 10px;
   }
   body[data-elo-product="chat"] .elo-core-actions {
@@ -1150,6 +1263,34 @@ body[data-elo-product="chat"] .elo-history-actions {
     min-height: 34px;
     padding: 0 8px;
     font-size: 0.82rem;
+  }
+
+  .elo-local-auth {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+
+  .elo-local-auth-form,
+  .elo-local-auth-session {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .elo-local-auth-form input {
+    flex: 1 1 132px;
+    width: auto;
+  }
+
+  .elo-local-auth-session [data-elo-auth-user] {
+    max-width: calc(100vw - 118px);
+  }
+
+  .elo-local-auth-status {
+    width: 100%;
+    max-width: none;
+    text-align: right;
   }
   body[data-elo-product="chat"] .elo-product-shell {
     padding: 68px 8px calc(10px + env(safe-area-inset-bottom));
