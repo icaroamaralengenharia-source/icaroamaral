@@ -2,16 +2,6 @@
 <html lang="pt-BR">
 <head>
 <meta name="robots" content="noindex, nofollow, noarchive">
-<script>
-document.documentElement.classList.add('site-access-locked');
-</script>
-
-<link rel="stylesheet"
-href="/assets/site-access-gate.css?v=20260710-access-v2">
-
-<script
-src="/assets/site-access-gate.js?v=20260710-access-v2"
-defer></script>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ELO CORE | Pergunte ao ELO</title>
@@ -20,9 +10,23 @@ defer></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="elo.css">
+  <style>
+    body.elo-auth-required .elo-product-brand,
+    body.elo-auth-required .elo-core-actions,
+    body.elo-auth-required .elo-product-shell {
+      display: none;
+    }
+    body.elo-auth-required .elo-product-top {
+      min-height: 100vh;
+      justify-content: center;
+    }
+    body.elo-auth-required .elo-local-auth {
+      display: flex;
+    }
+  </style>
   <script src="assets/elo-mascot-game.js" defer></script>
 </head>
-<body data-elo-mode="standalone" data-elo-product="chat">
+<body class="elo-auth-required" data-elo-mode="standalone" data-elo-product="chat">
   <header class="elo-product-top" aria-label="ELO CORE">
     <a class="elo-product-brand elo-product-brand--compact" href="index.html" aria-label="Voltar ao início">
       <span class="elo-mark" aria-hidden="true"></span>
@@ -308,6 +312,62 @@ defer></script>
     window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
   </script>
   <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
+  <script>
+    (function () {
+      const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+      window.ELO_SUPABASE_URL = String(window.ELO_SUPABASE_URL || config.eloSupabaseUrl || "").trim();
+      window.ELO_SUPABASE_ANON_KEY = String(window.ELO_SUPABASE_ANON_KEY || config.eloSupabaseAnonKey || "").trim();
+      const authKeys = ["sb-elo-core-auth-token", "sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"];
+      function findToken(value, depth) {
+        if (!value || depth > 4) return "";
+        if (typeof value === "string") {
+          const raw = value.trim();
+          if (!raw) return "";
+          if (/^[\[{]/.test(raw)) {
+            try { return findToken(JSON.parse(raw), depth + 1); } catch (error) { return ""; }
+          }
+          return raw;
+        }
+        if (Array.isArray(value)) {
+          for (let index = 0; index < value.length; index += 1) {
+            const found = findToken(value[index], depth + 1);
+            if (found) return found;
+          }
+          return "";
+        }
+        if (typeof value === "object") {
+          if (typeof value.access_token === "string") return value.access_token.trim();
+          return findToken(value.currentSession || value.session, depth + 1);
+        }
+        return "";
+      }
+      function hasSupabaseSession() {
+        const stores = [window.localStorage, window.sessionStorage].filter(Boolean);
+        for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
+          const storage = stores[storeIndex];
+          for (let keyIndex = 0; keyIndex < authKeys.length; keyIndex += 1) {
+            try { if (findToken(storage.getItem(authKeys[keyIndex]), 0)) return true; } catch (error) {}
+          }
+          try {
+            for (let index = 0; index < storage.length; index += 1) {
+              const key = storage.key(index) || "";
+              if (/^sb-.+-auth-token$/.test(key) && findToken(storage.getItem(key), 0)) return true;
+            }
+          } catch (error) {}
+        }
+        return false;
+      }
+      function renderAuthGate() {
+        const authenticated = hasSupabaseSession();
+        document.body.classList.toggle("elo-auth-required", !authenticated);
+        document.body.classList.toggle("elo-authenticated", authenticated);
+      }
+      document.addEventListener("DOMContentLoaded", renderAuthGate);
+      window.addEventListener("storage", renderAuthGate);
+      window.setInterval(renderAuthGate, 500);
+      renderAuthGate();
+    })();
+  </script>
   <script src="relatorio-qualidade-obras/ai-assistant.js"></script>
   <script src="relatorio-qualidade-obras/elo-technical-validator.js?v=20260622-unified-technical-validator"></script>
   <script src="relatorio-qualidade-obras/stock-ai-composition-engine.js"></script>
