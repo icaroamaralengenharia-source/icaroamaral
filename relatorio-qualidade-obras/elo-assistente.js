@@ -492,6 +492,7 @@
   function needsLiveSearch(userText) {
     const text = normalizeText(userText || "");
     if (!text) return false;
+    if (isEloObraAttentionRequest_(userText)) return false;
     if (/\b(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)\b/.test(text)) return false;
     if (/\b(hoje|agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|data de hoje|hora atual|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)\b/.test(text)) return true;
     if (/\b(quem\s+e\s+(?:atualmente\s+)?[oa]\s+presidente|presidente\s+do\s+brasil|ministro\s+atual|governador\s+atual|prefeito\s+atual)\b/.test(text)) return true;
@@ -525,7 +526,7 @@
     const subject = sanitizeUserText(evidence.material || evidence.service || evidence.description || alert.type || "ponto de atencao");
     const gap = impact.quantityGap ? " Gap: " + impact.quantityGap + (impact.unit ? " " + sanitizeUserText(impact.unit) : "") + "." : "";
     const action = sanitizeUserText(alert && alert.recommendedAction || "Revisar com o responsavel da obra.");
-    return (index + 1) + ". " + subject + " - " + sanitizeUserText(alert && alert.severity || "atenção") + "." + gap + " " + action;
+    return (index + 1) + ". " + subject + " - " + sanitizeUserText(alert && alert.severity || "atenï¿½ï¿½o") + "." + gap + " " + action;
   }
 
   function formatEloObraAttentionAnswer_(data) {
@@ -536,13 +537,13 @@
     const missing = Array.isArray(dataQuality.missingSources) ? dataQuality.missingSources : Object.keys(sources).filter(function (key) { return !sources[key]; });
     const qualityLabel = dataQuality.level === "low" ? "baixa" : "boa";
     const lines = [];
-    lines.push(alerts.length ? "Atenção hoje: encontrei " + alerts.length + " ponto(s) para olhar primeiro." : "Não encontrei alerta crítico nos dados disponíveis agora.");
+    lines.push(alerts.length ? "Atenï¿½ï¿½o hoje: encontrei " + alerts.length + " ponto(s) para olhar primeiro." : "Nï¿½o encontrei alerta crï¿½tico nos dados disponï¿½veis agora.");
     if (alerts.length) {
       lines.push("", "Prioridades:");
       alerts.slice(0, 5).forEach(function (alert, index) { lines.push(formatEloObraAttentionAlert_(alert, index)); });
     }
     lines.push("", "Qualidade dos dados: " + qualityLabel + "." + (missing.length ? " Faltam fontes: " + missing.join(", ") + "." : ""));
-    if (qualityLabel === "baixa") lines.push("Sem esses dados, eu não vou cravar conclusão nem inventar motivo.");
+    if (qualityLabel === "baixa") lines.push("Sem esses dados, eu nï¿½o vou cravar conclusï¿½o nem inventar motivo.");
     return sanitizeEloMultilineText_(lines.join("\n"));
   }
 
@@ -561,7 +562,7 @@
         return formatEloObraAttentionAnswer_(data);
       });
     }).catch(function () {
-      return "Não consegui consultar o Observador da Obra agora. Tente novamente em instantes; não vou inventar alerta sem dados.";
+      return "Nï¿½o consegui consultar o Observador da Obra agora. Tente novamente em instantes; nï¿½o vou inventar alerta sem dados.";
     });
   }
 
@@ -569,7 +570,7 @@
     if (!isEloObraAttentionRequest_(question)) return false;
     const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
     requestEloObraAttentionAnswer_(question).then(function (answer) {
-      const finalAnswer = sanitizeEloMultilineText_(answer) || "Não consegui consultar o Observador da Obra agora.";
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nï¿½o consegui consultar o Observador da Obra agora.";
       const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: true, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
       updateEloMessage_(statusMessage, finalAnswer);
       saveConversation(question, finalAnswer);
@@ -22678,6 +22679,16 @@ function isEloResidentialNewPipelineEnabled_() {
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
+    if (isEloObraAttentionRequest_(question)) {
+      return applyEloBrainMarker_(question, {
+        shortAnswer: "Consulte o Observador da Obra.",
+        fullAnswer: "Consulte o Observador da Obra.",
+        nextAction: "",
+        canSave: false,
+        sessionTheme: "observador_obra",
+        sessionIntent: "obra_attention_readonly"
+      });
+    }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
       return applyEloBrainMarker_(question, liveSearchResponse);
@@ -23018,6 +23029,10 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
       return;
     }
+    if (!attachedFiles.length && handleEloObraAttentionRequest_(cleanQuestion)) {
+      return;
+    }
+
     const liveSearchResponse = buildEloWebSearchRouteResponse_(cleanQuestion);
     if (liveSearchResponse) {
       showTypingIndicator();
@@ -23357,10 +23372,6 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (!attachedFiles.length && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
       removeTypingIndicator();
-      return;
-    }
-
-    if (!attachedFiles.length && handleEloObraAttentionRequest_(cleanQuestion)) {
       return;
     }
 

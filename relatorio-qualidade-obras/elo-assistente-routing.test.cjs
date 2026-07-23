@@ -1245,9 +1245,9 @@ test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conver
     window: { ELO_AUTH_TOKEN: 'token-test', ELO_PROJECT_ID: 'obra-a' }
   });
 
-  assert.equal(elo.detectObraAttentionForTest('O que precisa da minha atenção hoje?'), true);
+  assert.equal(elo.detectObraAttentionForTest('O que precisa da minha atenï¿½ï¿½o hoje?'), true);
   assert.equal(elo.detectObraAttentionForTest('Tem algo que pode parar a obra?'), true);
-  assert.equal(elo.detectObraAttentionForTest('Como está a obra hoje?'), true);
+  assert.equal(elo.detectObraAttentionForTest('Como estï¿½ a obra hoje?'), true);
   assert.equal(elo.detectObraAttentionForTest('oi'), false);
   assert.equal(elo.detectObraAttentionForTest('calcule parede 20x3'), false);
 
@@ -1262,20 +1262,57 @@ test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conver
   assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
   assert.equal(calls[0].options.method, 'GET');
   assert.equal(calls[0].options.headers.Authorization, 'Bearer token-test');
-  assert.match(answer, /Atenção hoje|Atencao hoje/i);
+  assert.match(answer, /Atenï¿½ï¿½o hoje|Atencao hoje/i);
   assert.match(answer, /Cimento Portland/i);
   assert.match(answer, /Qualidade dos dados: boa/i);
   assert.doesNotMatch(answer, /\{\s*"alerts"|material_shortage_risk/i);
 });
 
+test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', async () => {
+  const exactQuestion = 'O que precisa da minha aten\u00e7\u00e3o hoje?';
+  const calls = [];
+  const { elo } = loadEloContext({
+    fetch(url, options = {}) {
+      calls.push({ url: String(url), options });
+      assert.doesNotMatch(String(url), /web-search/i);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          ok: true,
+          summary: { alerts: 0 },
+          alerts: [],
+          sourcesUsed: { budget: true, stockObras: false, rdos: true },
+          dataQuality: { level: 'low', missingSources: ['stockObras'] }
+        })
+      });
+    },
+    window: { ELO_AUTH_TOKEN: 'token-test', ELO_PROJECT_ID: 'obra-a' }
+  });
+
+  const routed = elo.buildResponseForTest(exactQuestion);
+  const routedText = [routed.shortAnswer, routed.fullAnswer, routed.nextAction, routed.sessionIntent, routed.route].join(' ');
+  assert.notEqual(routed.route, 'meta_web_search');
+  assert.doesNotMatch(routedText, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search/i);
+
+  const answer = await elo.requestObraAttentionForTest(exactQuestion);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
+  assert.doesNotMatch(calls[0].url, /web-search/i);
+  assert.match(answer, /Qualidade dos dados|alerta cr/i);
+  assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search/i);
+
+  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
+  const errorAnswer = await offline.requestObraAttentionForTest(exactQuestion);
+  assert.match(errorAnswer, /consegui consultar/i);
+});
 test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
   const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); } }).elo;
-  const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
+  const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha atenï¿½ï¿½o hoje?');
   assert.match(weakAnswer, /Qualidade dos dados: baixa/i);
-  assert.match(weakAnswer, /não vou cravar conclusão|nao vou cravar conclusao|não vou.*inventar|nao vou.*inventar/i);
+  assert.match(weakAnswer, /nï¿½o vou cravar conclusï¿½o|nao vou cravar conclusao|nï¿½o vou.*inventar|nao vou.*inventar/i);
 
   const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
   const errorAnswer = await offline.requestObraAttentionForTest('Tem algo que pode parar a obra?');
-  assert.match(errorAnswer, /Não consegui consultar|Nao consegui consultar/i);
-  assert.match(errorAnswer, /não vou inventar|nao vou inventar/i);
+  assert.match(errorAnswer, /Nï¿½o consegui consultar|Nao consegui consultar/i);
+  assert.match(errorAnswer, /nï¿½o vou inventar|nao vou inventar/i);
 });
