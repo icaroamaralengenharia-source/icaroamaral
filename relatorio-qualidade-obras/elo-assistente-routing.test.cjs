@@ -1219,6 +1219,33 @@ test('ELO CORE confiabilidade: falha ao abrir ferramenta registra evento seguro'
   assert.doesNotMatch(JSON.stringify(snapshot.lastEvent), /anonymousId|userId|token|senha/i);
 });
 
+test('ELO auth token: usa somente fonte do ELO Core', async () => {
+  const eloStoragePayload = JSON.stringify({ currentSession: { access_token: 'elo-storage-token' } });
+  const stockStoragePayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
+  const genericStoragePayload = JSON.stringify({ currentSession: { access_token: 'generic-token' } });
+
+  const eloStored = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': eloStoragePayload } }).elo;
+  assert.equal(eloStored.getCoreAuthTokenForTest(), 'elo-storage-token');
+
+  const stockOnly = loadEloContext({ localStorage: { 'sb-stock-full-backend-auth-token': stockStoragePayload, 'sb-stock-full-auth-token': stockStoragePayload, stockFullSupabaseToken: stockStoragePayload } }).elo;
+  assert.equal(stockOnly.getCoreAuthTokenForTest(), '');
+
+  const genericOnly = loadEloContext({ localStorage: { 'sb-anything-auth-token': genericStoragePayload } }).elo;
+  assert.equal(genericOnly.getCoreAuthTokenForTest(), '');
+
+  const priority = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': eloStoragePayload }, window: { ELO_AUTH_TOKEN: 'window-token' } }).elo;
+  assert.equal(priority.getCoreAuthTokenForTest(), 'window-token');
+
+  const calls = [];
+  const noEloToken = loadEloContext({
+    localStorage: { 'sb-stock-full-backend-auth-token': stockStoragePayload, 'sb-anything-auth-token': genericStoragePayload },
+    fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
+  }).elo;
+  const answer = await noEloToken.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
+  assert.equal(calls.length, 0);
+  assert.match(answer, /sem autenticacao|Entre no ELO/i);
+});
+
 test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conversa ou tecnico', async () => {
   const calls = [];
   const { elo } = loadEloContext({
