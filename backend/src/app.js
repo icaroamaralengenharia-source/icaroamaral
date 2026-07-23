@@ -11,6 +11,7 @@ import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
+import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
@@ -755,6 +756,7 @@ export function createApp(options = {}) {
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
+  const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
@@ -833,6 +835,69 @@ export function createApp(options = {}) {
     };
   }
 
+  function getEloObraBudgetDocumentArrays_(documentData, keys) {
+    const data = documentData && typeof documentData === "object" ? documentData : {};
+    for (const key of keys) {
+      if (Array.isArray(data[key])) return data[key];
+    }
+    if (data.budgetPackage && typeof data.budgetPackage === "object") {
+      for (const key of keys) {
+        if (Array.isArray(data.budgetPackage[key])) return data.budgetPackage[key];
+      }
+    }
+    if (data.realBudgetInput && typeof data.realBudgetInput === "object") {
+      for (const key of keys) {
+        if (Array.isArray(data.realBudgetInput[key])) return data.realBudgetInput[key];
+      }
+    }
+    return [];
+  }
+
+  function normalizeEloObraBudgetMaterial_(item, projectId) {
+    const safe = item && typeof item === "object" ? item : {};
+    const quantity = safe.plannedQuantity ?? safe.quantity ?? safe.quantidade ?? safe.qtd;
+    return {
+      projectId: clean_(safe.projectId || safe.project_id || projectId),
+      name: clean_(safe.name || safe.material || safe.itemName || safe.description || safe.descricao || safe.nome),
+      unit: clean_(safe.unit || safe.unidade),
+      plannedQuantity: Number(quantity)
+    };
+  }
+
+  function normalizeEloObraBudgetService_(item, projectId) {
+    const safe = item && typeof item === "object" ? item : {};
+    const quantity = safe.plannedQuantity ?? safe.quantity ?? safe.quantidade ?? safe.qtd;
+    return {
+      projectId: clean_(safe.projectId || safe.project_id || projectId),
+      service: clean_(safe.service || safe.name || safe.description || safe.descricao || safe.nome),
+      unit: clean_(safe.unit || safe.unidade),
+      plannedQuantity: Number(quantity)
+    };
+  }
+
+  function normalizeEloObraBudgetForObserver_(budgetRecord) {
+    const documentData = budgetRecord && budgetRecord.document_data && typeof budgetRecord.document_data === "object" ? budgetRecord.document_data : {};
+    const projectId = clean_(budgetRecord && (budgetRecord.project_id || budgetRecord.projectId));
+    const plannedMaterials = getEloObraBudgetDocumentArrays_(documentData, ["plannedMaterials", "materials", "materiais", "inputs", "insumos"])
+      .map((item) => normalizeEloObraBudgetMaterial_(item, projectId))
+      .filter((item) => item.name && item.unit && Number.isFinite(item.plannedQuantity) && item.plannedQuantity > 0);
+    const plannedServices = getEloObraBudgetDocumentArrays_(documentData, ["plannedServices", "services", "servicos", "items", "itens"])
+      .map((item) => normalizeEloObraBudgetService_(item, projectId))
+      .filter((item) => item.service && item.unit && Number.isFinite(item.plannedQuantity) && item.plannedQuantity > 0);
+    return { plannedMaterials, plannedServices };
+  }
+
+  function selectLatestEloObraBudget_(budgets, context) {
+    const projectId = clean_(context && context.projectId);
+    return (Array.isArray(budgets) ? budgets : [])
+      .filter((budget) => {
+        if (!budget || typeof budget !== "object") return false;
+        if (!projectId) return true;
+        return clean_(budget.project_id || budget.projectId) === projectId;
+      })
+      .sort((a, b) => String(b.updated_at || b.updatedAt || b.created_at || b.createdAt || "").localeCompare(String(a.updated_at || a.updatedAt || a.created_at || a.createdAt || "")))[0] || null;
+  }
+
   async function buildEloObraObserverInput_(request) {
     const context = buildEloObraObserverAuthContext_(request);
     const sourcesUsed = { budget: false, stockObras: false, rdos: false };
@@ -843,10 +908,10 @@ export function createApp(options = {}) {
     if (typeof eloObraObserverReaders.readBudget === "function") {
       budget = await eloObraObserverReaders.readBudget(context);
       sourcesUsed.budget = Boolean(budget);
-    } else if (options.eloBudgetService && typeof options.eloBudgetService.listBudgets === "function") {
-      const budgets = options.eloBudgetService.listBudgets({ institutionId: context.institutionId, userId: context.userId, projectId: context.projectId });
-      budget = { plannedMaterials: (budgets || []).flatMap(function (item) { return item && item.document_data && Array.isArray(item.document_data.materials) ? item.document_data.materials : []; }) };
-      sourcesUsed.budget = Boolean(budget.plannedMaterials.length);
+    } else if (eloBudgetService && typeof eloBudgetService.listBudgets === "function") {
+      const budgets = eloBudgetService.listBudgets({ institutionId: context.institutionId, userId: context.userId, projectId: context.projectId });
+      budget = normalizeEloObraBudgetForObserver_(selectLatestEloObraBudget_(budgets, context));
+      sourcesUsed.budget = Boolean(budget.plannedMaterials.length || budget.plannedServices.length);
     }
 
     if (typeof eloObraObserverReaders.readStockObras === "function") {
