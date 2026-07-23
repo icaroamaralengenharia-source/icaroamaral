@@ -10,6 +10,7 @@ import { getSupabaseClient } from "./supabase.js";
 import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
+import { observeObra } from "./elo-obra-observer.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
 const MAX_TEXT_LENGTH = 6000;
@@ -755,6 +756,7 @@ export function createApp(options = {}) {
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
+  const eloObraObserverReaders = options.eloObraObserverReaders || {};
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
@@ -795,6 +797,84 @@ export function createApp(options = {}) {
   function handleObraReportError_(response, error) {
     response.status(Number(error && error.status) || 500).json({ ok: false, error: error && error.message ? error.message : "obrareport_error" });
   }
+
+  function buildEloObraObserverAuthContext_(request) {
+    const auth = request.eloAuthContext || {};
+    return {
+      userId: clean_(auth.userId),
+      institutionId: clean_(auth.institutionId),
+      projectId: clean_(request.query && (request.query.projectId || request.query.project_id)),
+      workId: clean_(request.query && (request.query.workId || request.query.work_id)),
+      profile: auth.profile || {}
+    };
+  }
+
+  function normalizeEloObraObserverRdos_(rdos) {
+    return (Array.isArray(rdos) ? rdos : []).map(function (rdo) {
+      const data = rdo && rdo.rdo_data_json && typeof rdo.rdo_data_json === "object" ? rdo.rdo_data_json : rdo;
+      return Object.assign({}, data || {}, {
+        id: clean_(rdo && rdo.id || data && data.id),
+        projectId: clean_(rdo && (rdo.project_id || rdo.projectId) || data && (data.projectId || data.project_id)),
+        workId: clean_(data && (data.workId || data.work_id) || rdo && (rdo.workId || rdo.work_id)),
+        date: clean_(rdo && (rdo.rdo_date || rdo.date) || data && (data.date || data.rdo_date))
+      });
+    });
+  }
+
+  function buildEloObraObserverDataQuality_(sourcesUsed, result) {
+    const missing = Object.keys(sourcesUsed).filter(function (key) { return !sourcesUsed[key]; });
+    const lowConfidenceAlerts = (result.alerts || []).filter(function (alert) { return alert.confidence === "low"; }).length;
+    const level = missing.length || lowConfidenceAlerts ? "low" : "high";
+    return {
+      level: level,
+      missingSources: missing,
+      lowConfidenceAlerts: lowConfidenceAlerts,
+      note: missing.length ? "Dados incompletos: resposta somente leitura, sem conclusao inventada." : "Dados suficientes para auditoria deterministica."
+    };
+  }
+
+  async function buildEloObraObserverInput_(request) {
+    const context = buildEloObraObserverAuthContext_(request);
+    const sourcesUsed = { budget: false, stockObras: false, rdos: false };
+    let budget = null;
+    let stockObras = null;
+    let rdos = [];
+
+    if (typeof eloObraObserverReaders.readBudget === "function") {
+      budget = await eloObraObserverReaders.readBudget(context);
+      sourcesUsed.budget = Boolean(budget);
+    } else if (options.eloBudgetService && typeof options.eloBudgetService.listBudgets === "function") {
+      const budgets = options.eloBudgetService.listBudgets({ institutionId: context.institutionId, userId: context.userId, projectId: context.projectId });
+      budget = { plannedMaterials: (budgets || []).flatMap(function (item) { return item && item.document_data && Array.isArray(item.document_data.materials) ? item.document_data.materials : []; }) };
+      sourcesUsed.budget = Boolean(budget.plannedMaterials.length);
+    }
+
+    if (typeof eloObraObserverReaders.readStockObras === "function") {
+      stockObras = await eloObraObserverReaders.readStockObras(context);
+      sourcesUsed.stockObras = Boolean(stockObras);
+    }
+
+    if (typeof eloObraObserverReaders.readRdos === "function") {
+      rdos = await eloObraObserverReaders.readRdos(context);
+      sourcesUsed.rdos = Array.isArray(rdos) && rdos.length > 0;
+    } else if (obraReportTransactionalService && typeof obraReportTransactionalService.listRdos === "function") {
+      rdos = normalizeEloObraObserverRdos_(obraReportTransactionalService.listRdos({ institutionId: context.institutionId, userId: context.userId, profile: context.profile }, { projectId: context.projectId }));
+      sourcesUsed.rdos = rdos.length > 0;
+    }
+
+    return {
+      context: context,
+      sourcesUsed: sourcesUsed,
+      input: {
+        projectId: context.projectId,
+        workId: context.workId,
+        budget: budget || {},
+        stockObras: stockObras || {},
+        rdos: rdos || []
+      }
+    };
+  }
+
 
   app.post("/api/obrareport/reports", (request, response) => {
     try {
@@ -2204,6 +2284,30 @@ export function createApp(options = {}) {
     }
   });
 
+  app.get("/api/elo/obra/attention", async (request, response) => {
+    if (!clean_(request.headers.authorization)) {
+      response.status(401).json({ ok: false, error: "authentication_required" });
+      return;
+    }
+    if (!request.eloAuthContext || !request.eloAuthContext.ok) {
+      response.status(401).json({ ok: false, error: "invalid_session" });
+      return;
+    }
+
+    try {
+      const observerData = await buildEloObraObserverInput_(request);
+      const result = observeObra(observerData.input);
+      response.json({
+        ok: true,
+        summary: result.summary,
+        alerts: result.alerts,
+        sourcesUsed: observerData.sourcesUsed,
+        dataQuality: buildEloObraObserverDataQuality_(observerData.sourcesUsed, result)
+      });
+    } catch (error) {
+      response.status(Number(error && error.status) || 500).json({ ok: false, error: clean_(error && error.message || "elo_obra_observer_error") });
+    }
+  });
   app.post("/api/elo/web-search", async (request, response) => {
     const query = clean_(request.body && request.body.query).slice(0, 500);
     if (!query) {
