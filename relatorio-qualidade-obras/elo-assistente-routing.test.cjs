@@ -1292,14 +1292,14 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
   const routed = elo.buildResponseForTest(exactQuestion);
   const routedText = [routed.shortAnswer, routed.fullAnswer, routed.nextAction, routed.sessionIntent, routed.route].join(' ');
   assert.notEqual(routed.route, 'meta_web_search');
-  assert.doesNotMatch(routedText, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search/i);
+  assert.doesNotMatch(routedText, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra/i);
 
   const answer = await elo.requestObraAttentionForTest(exactQuestion);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
   assert.doesNotMatch(calls[0].url, /web-search/i);
   assert.match(answer, /Qualidade dos dados|alerta cr/i);
-  assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search/i);
+  assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra/i);
 
   const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
   const errorAnswer = await offline.requestObraAttentionForTest(exactQuestion);

@@ -22679,16 +22679,6 @@ function isEloResidentialNewPipelineEnabled_() {
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
-    if (isEloObraAttentionRequest_(question)) {
-      return applyEloBrainMarker_(question, {
-        shortAnswer: "Consulte o Observador da Obra.",
-        fullAnswer: "Consulte o Observador da Obra.",
-        nextAction: "",
-        canSave: false,
-        sessionTheme: "observador_obra",
-        sessionIntent: "obra_attention_readonly"
-      });
-    }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
       return applyEloBrainMarker_(question, liveSearchResponse);
