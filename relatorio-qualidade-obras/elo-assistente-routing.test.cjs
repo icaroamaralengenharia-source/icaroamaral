@@ -1314,6 +1314,27 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
   assert.match(errorAnswer, /consegui consultar/i);
 });
 
+test('ELO Observador da Obra: mostra erros seguros da rota', async () => {
+  async function answerFor(error) {
+    const { elo } = loadEloContext({
+      fetch() {
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ ok: false, error })
+        });
+      },
+      window: { ELO_AUTH_TOKEN: 'token-test', ELO_PROJECT_ID: 'obra-a' }
+    });
+    return elo.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
+  }
+
+  assert.match(await answerFor('authentication_required'), /Sua sessão não foi enviada/i);
+  assert.match(await answerFor('invalid_session'), /Sua sessão expirou ou é inválida/i);
+  assert.match(await answerFor('project_required'), /Nenhuma obra foi selecionada/i);
+  assert.match(await answerFor('unknown_error'), /N.o consegui consultar|Nao consegui consultar/i);
+  assert.doesNotMatch(await answerFor('invalid_session'), /Bearer|token-test|Authorization|headers|\{\s*"ok"/i);
+});
+
 test('ELO Observador da Obra: data e hora reais continuam no roteador correto', () => {
   const elo = loadElo();
   const dateAnswer = elo.buildResponseForTest('Que dia é hoje?');

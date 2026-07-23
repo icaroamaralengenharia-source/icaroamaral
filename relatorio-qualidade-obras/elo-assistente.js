@@ -547,6 +547,14 @@
     return sanitizeEloMultilineText_(lines.join("\n"));
   }
 
+  function formatEloObraAttentionSafeError_(errorCode) {
+    const code = sanitizeUserText(errorCode);
+    if (code === "authentication_required") return "Sua sessão não foi enviada.";
+    if (code === "invalid_session") return "Sua sessão expirou ou é inválida.";
+    if (code === "project_required") return "Nenhuma obra foi selecionada.";
+    return "N�o consegui consultar o Observador da Obra agora. Tente novamente em instantes; n�o vou inventar alerta sem dados.";
+  }
+
   function requestEloObraAttentionAnswer_(question) {
     if (!isEloObraAttentionRequest_(question) || !window.fetch) return Promise.resolve(null);
     const params = new URLSearchParams();
@@ -560,7 +568,7 @@
     return window.fetch(endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
-        if (!response.ok || data.ok === false) throw new Error(data.error || "elo_obra_attention_error");
+        if (!response.ok || data.ok === false) return formatEloObraAttentionSafeError_(data.error);
         return formatEloObraAttentionAnswer_(data);
       });
     }).catch(function () {
