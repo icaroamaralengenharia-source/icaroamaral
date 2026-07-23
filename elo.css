@@ -472,7 +472,9 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
 .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
   max-height: none;
   min-height: 0;
-  padding: 12px 14px 6px;
+  padding: 16px 14px calc(14px + var(--elo-composer-height, 72px));
+  scroll-padding-top: 16px;
+  scroll-padding-bottom: calc(14px + var(--elo-composer-height, 72px));
   overflow-y: scroll;
   scrollbar-gutter: stable;
 }
@@ -1108,7 +1110,9 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-ac
   flex-direction: column;
   justify-content: flex-start;
   gap: 16px;
-  padding: 0 0 18px;
+  padding: 14px 0 calc(18px + var(--elo-composer-height, 72px));
+  scroll-padding-top: 14px;
+  scroll-padding-bottom: calc(18px + var(--elo-composer-height, 72px));
   overflow-y: scroll;
   overflow-x: hidden;
   transform: none;
@@ -1197,6 +1201,7 @@ body[data-elo-product="chat"] .elo-product-chat .elo-message.user .elo-message-b
 
 body[data-elo-product="chat"] .elo-message-actions,
 body[data-elo-product="chat"] .elo-memory-list {
+  scroll-margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1209,6 +1214,7 @@ body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-history
 }
 
 body[data-elo-product="chat"] .elo-history-list {
+  scroll-margin-top: 14px;
   width: 100%;
   min-width: 0;
   display: grid;
@@ -1311,7 +1317,8 @@ body[data-elo-product="chat"] .elo-history-actions {
     bottom: auto;
     width: 100%;
     gap: 12px;
-    padding-bottom: 12px;
+    padding-top: 12px;
+    padding-bottom: calc(12px + var(--elo-composer-height, 66px));
   }
   body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
     bottom: auto;
@@ -1355,7 +1362,9 @@ body[data-elo-product="chat"] .elo-history-actions {
 .report-elo-chat .elo-messages:empty {
   display: flex;
   max-height: none;
-  padding: 12px 14px 6px;
+  padding: 16px 14px calc(14px + var(--elo-composer-height, 72px));
+  scroll-padding-top: 16px;
+  scroll-padding-bottom: calc(14px + var(--elo-composer-height, 72px));
   overflow-y: scroll;
 }
 

@@ -406,8 +406,9 @@
     const text = normalizeText(question || "").replace(/[?!.,;:]+/g, "").trim();
     if (!text || text.length > 120) return false;
     const intent = detectConversationalIntent(text);
+    const socialIntent = detectSocialGreeting(question);
     const casualIntent = detectEloCoreCasualConversationIntent_(question);
-    if (!intent && !casualIntent) return false;
+    if (!intent && !socialIntent && !casualIntent) return false;
     if (isEloCoreMetaWorkflowDiagnosis_(question)) return false;
     if (detectEloCoreTool_(question)) return false;
     if (hasEloCoreTechnicalConversationBlocker_(text)) return false;
@@ -748,10 +749,10 @@
         list.appendChild(item);
       });
       message.appendChild(list);
-      scrollEloConversationToBottom_({ force: true });
+      ELO_UI.messages.scrollTop = 0;
     }).catch(function () { appendMessage("system", "Nao consegui carregar o historico agora."); });
   }
-  function showEloCoreMemoryPanel_() { loadEloCoreMemories_().then(function (memories) { const disabled = isEloCoreMemoryDisabled_(); const message = appendMessage("assistant", disabled ? "Memória do ELO desativada." : "Memória do ELO"); const panel = createElement("div", "elo-memory-list"); const toggleButton = createElement("button", "elo-inline-button", disabled ? "Ativar memória" : "Desativar memória"); const clearButton = createElement("button", "elo-inline-button", "Limpar tudo"); toggleButton.type = "button"; clearButton.type = "button"; toggleButton.addEventListener("click", function () { setEloCoreMemoryDisabled_(!disabled); appendMessage("system", disabled ? "Memória ativada." : "Memória desativada."); }); clearButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { ELO_UI.coreMemories = []; appendMessage("system", "Memórias apagadas."); }); }); panel.appendChild(toggleButton); panel.appendChild(clearButton); (memories || []).slice(0, 16).forEach(function (memory) { const item = createElement("button", "elo-inline-button", memory.category + ": " + memory.memory_value.slice(0, 90)); item.type = "button"; item.title = "Clique para apagar"; item.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories/" + encodeURIComponent(memory.id) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { appendMessage("system", "Memória apagada."); loadEloCoreMemories_(); }); }); panel.appendChild(item); }); message.appendChild(panel); }).catch(function () { appendMessage("system", "Não consegui carregar a memória agora."); }); }
+  function showEloCoreMemoryPanel_() { loadEloCoreMemories_().then(function (memories) { const disabled = isEloCoreMemoryDisabled_(); const message = appendMessage("assistant", disabled ? "Memória do ELO desativada." : "Memória do ELO"); if (ELO_UI.messages) ELO_UI.messages.scrollTop = 0; const panel = createElement("div", "elo-memory-list"); const toggleButton = createElement("button", "elo-inline-button", disabled ? "Ativar memória" : "Desativar memória"); const clearButton = createElement("button", "elo-inline-button", "Limpar tudo"); toggleButton.type = "button"; clearButton.type = "button"; toggleButton.addEventListener("click", function () { setEloCoreMemoryDisabled_(!disabled); appendMessage("system", disabled ? "Memória ativada." : "Memória desativada."); }); clearButton.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { ELO_UI.coreMemories = []; appendMessage("system", "Memórias apagadas."); }); }); panel.appendChild(toggleButton); panel.appendChild(clearButton); (memories || []).slice(0, 16).forEach(function (memory) { const item = createElement("button", "elo-inline-button", memory.category + ": " + memory.memory_value.slice(0, 90)); item.type = "button"; item.title = "Clique para apagar"; item.addEventListener("click", function () { eloCoreFetch_("/api/elo/memories/" + encodeURIComponent(memory.id) + "?" + new URLSearchParams(getEloCoreIdentity_()).toString(), { method: "DELETE" }).then(function () { appendMessage("system", "Memória apagada."); loadEloCoreMemories_(); }); }); panel.appendChild(item); }); message.appendChild(panel); if (ELO_UI.messages) ELO_UI.messages.scrollTop = 0; }).catch(function () { appendMessage("system", "Não consegui carregar a memória agora."); }); }
   function buildEloCoreMemoryRecallResponse_(question) {
     const text = normalizeText(question || "");
     if (!/\b(continue|continuar|retomar|lembra|lembre|memoria|memória)\b/.test(text)) return null;
@@ -10342,24 +10343,60 @@
     ]);
   }
 
+  function normalizeEloSocialGreetingText_(message) {
+    return normalizeText(message || "")
+      .replace(/[?!.,;:()\[\]{}"'`´“”‘’]+/g, " ")
+      .replace(/[^a-z0-9\s]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 40);
+  }
+
+  function getEloSocialGreetingDistance_(left, right) {
+    const a = String(left || "");
+    const b = String(right || "");
+    if (Math.abs(a.length - b.length) > 2) return 99;
+    const rows = Array.from({ length: a.length + 1 }, function (_, index) { return [index]; });
+    for (let column = 1; column <= b.length; column += 1) rows[0][column] = column;
+    for (let row = 1; row <= a.length; row += 1) {
+      for (let column = 1; column <= b.length; column += 1) {
+        const cost = a[row - 1] === b[column - 1] ? 0 : 1;
+        rows[row][column] = Math.min(rows[row - 1][column] + 1, rows[row][column - 1] + 1, rows[row - 1][column - 1] + cost);
+      }
+    }
+    return rows[a.length][b.length];
+  }
+
   function detectSocialGreeting(message) {
-    const text = stripEloAddress(message);
-    if (!text) {
-      return null;
+    const text = normalizeEloSocialGreetingText_(stripEloAddress(message));
+    if (!text || text.length > 40) return null;
+    if (hasEloCoreTechnicalConversationBlocker_(text) || /\b(baixo|alta|estoque|concreto|parede|orcamento|orcar|calcule|calcular|rdo|pdf|stock)\b/.test(text)) return null;
+    const compact = text.replace(/\s+/g, "");
+    const families = [
+      { kind: "saudacao", language: "pt", phrases: ["oi", "ola", "opa", "fala", "salve", "e ai", "eai", "eae", "bom dia", "boa tarde", "boa noite", "bd", "bt", "bn"] },
+      { kind: "checkin", language: "pt", phrases: ["tudo bem", "tudo certo", "beleza", "td bem", "tdb"] },
+      { kind: "saudacao", language: "en", phrases: ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"] }
+    ];
+    for (let groupIndex = 0; groupIndex < families.length; groupIndex += 1) {
+      const family = families[groupIndex];
+      for (let index = 0; index < family.phrases.length; index += 1) {
+        const phrase = normalizeEloSocialGreetingText_(family.phrases[index]);
+        if (text === phrase || compact === phrase.replace(/\s+/g, "")) return family;
+      }
     }
-    const greetings = {
-      saudacao: ["oi", "hi", "ola", "olá", "e ai", "e aí", "ei", "opa", "bom dia", "boa tarde", "boa noite"],
-      checkin: ["tudo bem", "tudo certo", "como vai", "beleza", "tudo tranquilo", "como voce esta", "como você está", "como esta", "como está", "como voce esta hoje", "como você está hoje", "voce esta bem", "você está bem"]
-    };
-    if (greetings.saudacao.some(function (item) { return text === normalizeWakeCallText(item); })) {
-      return "saudacao";
-    }
-    if (greetings.checkin.some(function (item) { return text === normalizeWakeCallText(item); })) {
-      return "checkin";
+    if (text.length > 18 || text.split(/\s+/).length > 3) return null;
+    for (let groupIndex = 0; groupIndex < families.length; groupIndex += 1) {
+      const family = families[groupIndex];
+      for (let index = 0; index < family.phrases.length; index += 1) {
+        const phrase = normalizeEloSocialGreetingText_(family.phrases[index]);
+        const phraseCompact = phrase.replace(/\s+/g, "");
+        const distance = getEloSocialGreetingDistance_(compact, phraseCompact);
+        const maxDistance = phraseCompact.length <= 5 ? 1 : 2;
+        if (distance <= maxDistance) return family;
+      }
     }
     return null;
   }
-
   function buildSocialPresenceContext() {
     const snapshot = getConnectedMemorySnapshot();
     return {
@@ -10390,39 +10427,22 @@
   }
 
   function buildSocialPresenceAnswer(message, context) {
-    const kind = detectSocialGreeting(message);
-    if (!kind) {
-      return null;
-    }
+    const greeting = detectSocialGreeting(message);
+    if (!greeting) return null;
     const currentContext = context || buildSocialPresenceContext();
-    const focus = currentContext.focusProject || "";
-    const latestAdvance = formatHumanRecentEvent(currentContext.latestAdvance);
-    const opening = getSocialGreetingOpening(message, kind, currentContext.userName);
-    const isCheckin = kind === "checkin";
-    let fullAnswer = "";
-
-    if (currentContext.hasMemory && focus && latestAdvance) {
-      fullAnswer = "Pelo que venho acompanhando, seu foco atual parece ser " + focus + ". O último registro importante foi: " + latestAdvance + ". Quer continuar de onde parou ou organizar o próximo passo?";
-    } else if (currentContext.hasMemory && focus) {
-      fullAnswer = "Pelo que venho acompanhando, " + focus + " aparece como seu foco atual. Quer continuar de onde parou ou organizar o próximo passo?";
-    } else if (currentContext.hasMemory && latestAdvance) {
-      fullAnswer = "Pelo que venho acompanhando, seu último avanço registrado foi sobre " + latestAdvance + ". Quer retomar isso ou começar por outra frente?";
-    } else {
-      fullAnswer = isCheckin
-        ? "Tudo bem por aqui. Quer conversar sobre suas memórias, projetos ou o ObraReport?"
-        : "Estou aqui com você. Quer começar por onde?";
-    }
-
+    const name = currentContext.userName ? currentContext.userName + ", " : "";
+    const answer = greeting.language === "en"
+      ? "Hi, I’m here with you."
+      : (greeting.kind === "checkin" ? name + "tudo certo por aqui." : name + "oi, estou por aqui.");
     return {
-      shortAnswer: opening,
-      fullAnswer: fullAnswer,
-      nextAction: "Diga se quer continuar de onde parou, revisar algo ou pedir uma orientação rápida.",
+      shortAnswer: answer,
+      fullAnswer: "",
+      nextAction: "",
       canSave: false,
       sessionTheme: "conversa",
       sessionIntent: "cumprimento_social"
     };
   }
-
   function buildSocialGreetingAnswer(kind) {
     const snapshot = getConnectedMemorySnapshot();
     const name = snapshot.userName ? snapshot.userName + ", " : "";

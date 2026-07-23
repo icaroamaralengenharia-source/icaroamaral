@@ -250,7 +250,21 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   assert.ok(pureRouteIndex >= 0 && onlineRouteIndex >= 0 && pureRouteIndex < onlineRouteIndex);
   assert.ok(searchRouteIndex >= 0);
   assert.ok(searchButtonIndex >= 0 && searchRouteIndex > searchButtonIndex);
-  assert.match(source, /saudacao: \["oi", "hi"/);
+  const greetingDetector = source.match(/function detectSocialGreeting[\s\S]*?return null;\n  \}/)?.[0] || "";
+  assert.match(source, /function normalizeEloSocialGreetingText_/);
+  assert.match(source, /function getEloSocialGreetingDistance_/);
+  assert.match(greetingDetector, /oi/);
+  assert.match(greetingDetector, /ola/);
+  assert.match(greetingDetector, /eae/);
+  assert.match(greetingDetector, /bd/);
+  assert.match(greetingDetector, /tdb/);
+  assert.match(greetingDetector, /hello/);
+  assert.match(greetingDetector, /hey/);
+  assert.match(greetingDetector, /good morning/);
+  assert.match(greetingDetector, /text\.length > 18/);
+  assert.match(greetingDetector, /split\(\/\\s\+\/\)\.length > 3/);
+  assert.match(greetingDetector, /hasEloCoreTechnicalConversationBlocker_/);
+  assert.match(greetingDetector, /estoque\|concreto\|parede/);
   assert.match(casualDetector, /tempo\|clima\|dia/);
   assert.match(casualDetector, /so que nao/);
   assert.match(casualDetector, /kkk\+/);
@@ -264,6 +278,22 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   assert.doesNotMatch(source.slice(searchRouteIndex, searchRouteIndex + 700), /label: "Pesquise"|action: liveSearchResponse\.action/);
 });
 
+test("frontend preserva scroll do chat historico e memoria", () => {
+  const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");
+  const css = readFileSync("elo.css", "utf8");
+  const historyBlock = source.match(/function showEloCoreHistory_[\s\S]*?\.catch/)?.[0] || "";
+  const memoryBlock = source.match(/function showEloCoreMemoryPanel_[\s\S]*?function buildEloCoreMemoryRecallResponse_/)?.[0] || "";
+  const appendMessageBlock = source.match(/function appendMessage[\s\S]*?return message;\n  \}/)?.[0] || "";
+
+  assert.match(historyBlock, /ELO_UI\.messages\.scrollTop = 0/);
+  assert.match(memoryBlock, /ELO_UI\.messages\.scrollTop = 0/);
+  assert.match(source, /scrollEloConversationToBottom_\(\{ force: shouldStick \|\| kind === "assistant" \}\)/);
+  assert.match(css, /scroll-padding-top: 16px/);
+  assert.match(css, /scroll-padding-bottom: calc\(14px \+ var\(--elo-composer-height, 72px\)\)/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-messages/);
+  assert.match(css, /scroll-margin-top: 14px/);
+  assert.match(css, /padding-bottom: calc\(12px \+ var\(--elo-composer-height, 66px\)\)/);
+});
 test("frontend preserva continuidade do wall_budget simples", () => {
   const source = readFileSync("relatorio-qualidade-obras/elo-assistente.js", "utf8");
   const casualAnswer = source.match(/function buildEloCoreCasualConversationAnswer_[\s\S]*?\n  function buildEloCorePureConversationalAnswer_/)?.[0] || "";
