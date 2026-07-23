@@ -1218,3 +1218,64 @@ test('ELO CORE confiabilidade: falha ao abrir ferramenta registra evento seguro'
   assert.equal(snapshot.safeModeActive, true);
   assert.doesNotMatch(JSON.stringify(snapshot.lastEvent), /anonymousId|userId|token|senha/i);
 });
+
+test('ELO Observador da Obra: detecta perguntas de atencao sem sequestrar conversa ou tecnico', async () => {
+  const calls = [];
+  const { elo } = loadEloContext({
+    fetch(url, options = {}) {
+      calls.push({ url: String(url), options });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          ok: true,
+          summary: { alerts: 1 },
+          alerts: [{
+            type: 'material_shortage_risk',
+            severity: 'critical',
+            confidence: 'high',
+            evidence: { material: 'Cimento Portland', unit: 'sc', plannedQuantity: 10, currentBalance: 3 },
+            impact: { financial: null, schedule: null, quantityGap: 7, unit: 'sc' },
+            recommendedAction: 'Comprar ou reservar cimento antes da proxima frente.'
+          }],
+          sourcesUsed: { budget: true, stockObras: true, rdos: true },
+          dataQuality: { level: 'high', missingSources: [], lowConfidenceAlerts: 0 }
+        })
+      });
+    },
+    window: { ELO_AUTH_TOKEN: 'token-test', ELO_PROJECT_ID: 'obra-a' }
+  });
+
+  assert.equal(elo.detectObraAttentionForTest('O que precisa da minha atenção hoje?'), true);
+  assert.equal(elo.detectObraAttentionForTest('Tem algo que pode parar a obra?'), true);
+  assert.equal(elo.detectObraAttentionForTest('Como está a obra hoje?'), true);
+  assert.equal(elo.detectObraAttentionForTest('oi'), false);
+  assert.equal(elo.detectObraAttentionForTest('calcule parede 20x3'), false);
+
+  const hello = await elo.requestObraAttentionForTest('oi');
+  const technical = await elo.requestObraAttentionForTest('calcule parede 20x3');
+  assert.equal(hello, null);
+  assert.equal(technical, null);
+  assert.equal(calls.length, 0);
+
+  const answer = await elo.requestObraAttentionForTest('Tem algo que pode parar a obra?');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-test');
+  assert.match(answer, /Atenção hoje|Atencao hoje/i);
+  assert.match(answer, /Cimento Portland/i);
+  assert.match(answer, /Qualidade dos dados: boa/i);
+  assert.doesNotMatch(answer, /\{\s*"alerts"|material_shortage_risk/i);
+});
+
+test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
+  const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); } }).elo;
+  const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
+  assert.match(weakAnswer, /Qualidade dos dados: baixa/i);
+  assert.match(weakAnswer, /não vou cravar conclusão|nao vou cravar conclusao|não vou.*inventar|nao vou.*inventar/i);
+
+  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
+  const errorAnswer = await offline.requestObraAttentionForTest('Tem algo que pode parar a obra?');
+  assert.match(errorAnswer, /Não consegui consultar|Nao consegui consultar/i);
+  assert.match(errorAnswer, /não vou inventar|nao vou inventar/i);
+});

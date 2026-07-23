@@ -501,6 +501,85 @@
   function buildEloWebSearchRouteResponse_(question) { if (!needsLiveSearch(question)) return null; const query = sanitizeUserText(question); return { route: "meta_web_search", needsLiveSearch: true, shortAnswer: "Vou pesquisar isso em tempo real.", fullAnswer: "Essa pergunta depende de informacao atual. Use Pesquise para consultar o backend de busca mantendo a pergunta original.", nextAction: "", canSave: false, sessionTheme: "meta_web_search", sessionIntent: "meta_web_search", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query } }; }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
   function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
+  function isEloObraAttentionRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text || isEloCorePureConversationalRequest_(question)) return false;
+    if (hasEloCoreTechnicalConversationBlocker_(text) && !/\b(obra|atencao|aten..o|parar|risco|pendencia|pend.ncia)\b/.test(text)) return false;
+    return /\b(o que|que|tem|existe|como|status)\b[\s\S]{0,80}\b(atencao|aten..o|parar|risco|critico|cr.tico|pendencia|pend.ncia)\b/.test(text) ||
+      /\bprecisa\b[\s\S]{0,50}\b(minha\s+)?atencao\b/.test(text) ||
+      /\b(pode|vai)\b[\s\S]{0,40}\bparar\b[\s\S]{0,40}\bobra\b/.test(text) ||
+      /\bcomo\b[\s\S]{0,80}\bobra\b[\s\S]{0,30}\bhoje\b/.test(text);
+  }
+
+  function getEloObraAttentionSeverityRank_(severity) {
+    const value = normalizeText(severity || "");
+    if (value === "critical" || value === "critica" || value === "critico") return 0;
+    if (value === "high" || value === "alta" || value === "alto") return 1;
+    if (value === "medium" || value === "media" || value === "medio") return 2;
+    return 3;
+  }
+
+  function formatEloObraAttentionAlert_(alert, index) {
+    const evidence = alert && alert.evidence || {};
+    const impact = alert && alert.impact || {};
+    const subject = sanitizeUserText(evidence.material || evidence.service || evidence.description || alert.type || "ponto de atencao");
+    const gap = impact.quantityGap ? " Gap: " + impact.quantityGap + (impact.unit ? " " + sanitizeUserText(impact.unit) : "") + "." : "";
+    const action = sanitizeUserText(alert && alert.recommendedAction || "Revisar com o responsavel da obra.");
+    return (index + 1) + ". " + subject + " - " + sanitizeUserText(alert && alert.severity || "atenção") + "." + gap + " " + action;
+  }
+
+  function formatEloObraAttentionAnswer_(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const alerts = Array.isArray(safe.alerts) ? safe.alerts.slice().sort(function (a, b) { return getEloObraAttentionSeverityRank_(a && a.severity) - getEloObraAttentionSeverityRank_(b && b.severity); }) : [];
+    const dataQuality = safe.dataQuality && typeof safe.dataQuality === "object" ? safe.dataQuality : {};
+    const sources = safe.sourcesUsed && typeof safe.sourcesUsed === "object" ? safe.sourcesUsed : {};
+    const missing = Array.isArray(dataQuality.missingSources) ? dataQuality.missingSources : Object.keys(sources).filter(function (key) { return !sources[key]; });
+    const qualityLabel = dataQuality.level === "low" ? "baixa" : "boa";
+    const lines = [];
+    lines.push(alerts.length ? "Atenção hoje: encontrei " + alerts.length + " ponto(s) para olhar primeiro." : "Não encontrei alerta crítico nos dados disponíveis agora.");
+    if (alerts.length) {
+      lines.push("", "Prioridades:");
+      alerts.slice(0, 5).forEach(function (alert, index) { lines.push(formatEloObraAttentionAlert_(alert, index)); });
+    }
+    lines.push("", "Qualidade dos dados: " + qualityLabel + "." + (missing.length ? " Faltam fontes: " + missing.join(", ") + "." : ""));
+    if (qualityLabel === "baixa") lines.push("Sem esses dados, eu não vou cravar conclusão nem inventar motivo.");
+    return sanitizeEloMultilineText_(lines.join("\n"));
+  }
+
+  function requestEloObraAttentionAnswer_(question) {
+    if (!isEloObraAttentionRequest_(question) || !window.fetch) return Promise.resolve(null);
+    const params = new URLSearchParams();
+    const identity = getEloCoreIdentity_();
+    if (identity.projectId) params.set("projectId", identity.projectId);
+    if (window.ELO_WORK_ID) params.set("workId", sanitizeUserText(window.ELO_WORK_ID));
+    const query = params.toString();
+    const endpoint = getEloBackendEndpoint_("/api/elo/obra/attention") + (query ? "?" + query : "");
+    return window.fetch(endpoint, { method: "GET", headers: getEloCoreAuthHeaders_() }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        applyEloCoreAuthContextFromResponse_(data);
+        if (!response.ok || data.ok === false) throw new Error(data.error || "elo_obra_attention_error");
+        return formatEloObraAttentionAnswer_(data);
+      });
+    }).catch(function () {
+      return "Não consegui consultar o Observador da Obra agora. Tente novamente em instantes; não vou inventar alerta sem dados.";
+    });
+  }
+
+  function handleEloObraAttentionRequest_(question) {
+    if (!isEloObraAttentionRequest_(question)) return false;
+    const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
+    requestEloObraAttentionAnswer_(question).then(function (answer) {
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Não consegui consultar o Observador da Obra agora.";
+      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: true, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
+      updateEloMessage_(statusMessage, finalAnswer);
+      saveConversation(question, finalAnswer);
+      rememberSessionTurn(question, response, finalAnswer);
+    }).finally(function () {
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+    });
+    return true;
+  }
   function buildEloCoreMetaWorkflowDiagnosisAnswer_(question) {
     if (!isEloCoreMetaWorkflowDiagnosis_(question)) return null;
     return {
@@ -23069,7 +23148,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
     if (attachedFiles.length) {
-      requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
+    requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
         if (onlineAnswer) {
           const onlineResponse = {
             shortAnswer: onlineAnswer,
@@ -23278,6 +23357,10 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (!attachedFiles.length && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
       removeTypingIndicator();
+      return;
+    }
+
+    if (!attachedFiles.length && handleEloObraAttentionRequest_(cleanQuestion)) {
       return;
     }
 
@@ -26433,6 +26516,10 @@ function isEloResidentialNewPipelineEnabled_() {
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     requestWebSearchForTest: requestEloWebSearchAnswer_,
+    detectObraAttentionForTest: isEloObraAttentionRequest_,
+    requestObraAttentionForTest: requestEloObraAttentionAnswer_,
+    formatObraAttentionForTest: formatEloObraAttentionAnswer_,
+
     ensureAuthMergeForTest: ensureEloCoreAuthMerge_,
     getCoreIdentityForTest: getEloCoreIdentity_,
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
