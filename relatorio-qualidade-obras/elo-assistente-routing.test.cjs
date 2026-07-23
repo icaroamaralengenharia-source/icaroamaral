@@ -1298,11 +1298,18 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
   const answer = await elo.requestObraAttentionForTest(exactQuestion);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-test');
   assert.doesNotMatch(calls[0].url, /web-search/i);
   assert.match(answer, /Qualidade dos dados|alerta cr/i);
   assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra|Hoje é|Hoje e|Agora são|Agora sao/i);
 
-  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
+  const noTokenCalls = [];
+  const noToken = loadEloContext({ fetch(url) { noTokenCalls.push(String(url)); throw new Error('fetch_should_not_run'); } }).elo;
+  const noTokenAnswer = await noToken.requestObraAttentionForTest(exactQuestion);
+  assert.equal(noTokenCalls.length, 0);
+  assert.match(noTokenAnswer, /sem autenticacao|Entre no ELO/i);
+
+  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); }, window: { ELO_AUTH_TOKEN: 'token-test' } }).elo;
   const errorAnswer = await offline.requestObraAttentionForTest(exactQuestion);
   assert.match(errorAnswer, /consegui consultar/i);
 });
@@ -1317,12 +1324,12 @@ test('ELO Observador da Obra: data e hora reais continuam no roteador correto', 
   assert.match([timeAnswer.shortAnswer, timeAnswer.fullAnswer].join(' '), /Agora são|Agora sao/i);
 });
 test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
-  const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); } }).elo;
+  const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); }, window: { ELO_AUTH_TOKEN: 'token-test' } }).elo;
   const weakAnswer = await weak.requestObraAttentionForTest('O que precisa da minha aten��o hoje?');
   assert.match(weakAnswer, /Qualidade dos dados: baixa/i);
   assert.match(weakAnswer, /n�o vou cravar conclus�o|nao vou cravar conclusao|n�o vou.*inventar|nao vou.*inventar/i);
 
-  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
+  const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); }, window: { ELO_AUTH_TOKEN: 'token-test' } }).elo;
   const errorAnswer = await offline.requestObraAttentionForTest('Tem algo que pode parar a obra?');
   assert.match(errorAnswer, /N�o consegui consultar|Nao consegui consultar/i);
   assert.match(errorAnswer, /n�o vou inventar|nao vou inventar/i);

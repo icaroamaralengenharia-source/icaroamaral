@@ -555,7 +555,9 @@
     if (window.ELO_WORK_ID) params.set("workId", sanitizeUserText(window.ELO_WORK_ID));
     const query = params.toString();
     const endpoint = getEloBackendEndpoint_("/api/elo/obra/attention") + (query ? "?" + query : "");
-    return window.fetch(endpoint, { method: "GET", headers: getEloCoreAuthHeaders_() }).then(function (response) {
+    const authHeaders = getEloCoreAuthHeaders_();
+    if (!authHeaders.Authorization) return Promise.resolve("Entre no ELO para consultar o Observador da Obra. Nao vou chamar a rota sem autenticacao.");
+    return window.fetch(endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
         if (!response.ok || data.ok === false) throw new Error(data.error || "elo_obra_attention_error");
