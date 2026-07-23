@@ -1292,18 +1292,29 @@ test('ELO Observador da Obra: pergunta de atencao nao cai em pesquisa web', asyn
   const routed = elo.buildResponseForTest(exactQuestion);
   const routedText = [routed.shortAnswer, routed.fullAnswer, routed.nextAction, routed.sessionIntent, routed.route].join(' ');
   assert.notEqual(routed.route, 'meta_web_search');
-  assert.doesNotMatch(routedText, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra/i);
+  assert.notEqual(routed.sessionIntent, 'date_time');
+  assert.doesNotMatch(routedText, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra|Hoje é|Hoje e|Agora são|Agora sao|date_time/i);
 
   const answer = await elo.requestObraAttentionForTest(exactQuestion);
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/api\/elo\/obra\/attention\?projectId=obra-a/);
   assert.doesNotMatch(calls[0].url, /web-search/i);
   assert.match(answer, /Qualidade dos dados|alerta cr/i);
-  assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra/i);
+  assert.doesNotMatch(answer, /Vou pesquisar isso em tempo real|Pesquise|meta_web_search|Consulte o Observador da Obra|Hoje é|Hoje e|Agora são|Agora sao/i);
 
   const offline = loadEloContext({ fetch() { return Promise.resolve({ ok: false, json: () => Promise.resolve({ ok: false, error: 'offline' }) }); } }).elo;
   const errorAnswer = await offline.requestObraAttentionForTest(exactQuestion);
   assert.match(errorAnswer, /consegui consultar/i);
+});
+
+test('ELO Observador da Obra: data e hora reais continuam no roteador correto', () => {
+  const elo = loadElo();
+  const dateAnswer = elo.buildResponseForTest('Que dia é hoje?');
+  const timeAnswer = elo.buildResponseForTest('Que horas são?');
+  assert.equal(elo.classifyIntentForTest('Que dia é hoje?')[0].type, 'date_time');
+  assert.equal(elo.classifyIntentForTest('Que horas são?')[0].type, 'date_time');
+  assert.match([dateAnswer.shortAnswer, dateAnswer.fullAnswer].join(' '), /Hoje é|Hoje e/i);
+  assert.match([timeAnswer.shortAnswer, timeAnswer.fullAnswer].join(' '), /Agora são|Agora sao/i);
 });
 test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', async () => {
   const weak = loadEloContext({ fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, summary: {}, alerts: [], sourcesUsed: { budget: false, stockObras: false, rdos: false }, dataQuality: { level: 'low', missingSources: ['budget', 'stockObras', 'rdos'] } }) }); } }).elo;

@@ -241,7 +241,7 @@
     if (tool && isEloCoreOpenRequest_(raw)) add({ type: "open_tool", toolId: tool.id, toolName: tool.publicName });
     const hasRdoRequest = /\b(rdo|diario de obra|diário de obra)\b/.test(text);
     if (hasRdoRequest) add({ type: "rdo" });
-    if (!hasRdoRequest && /\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
+    if (!hasRdoRequest && !isEloObraAttentionRequest_(raw) && /\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
     if (/\b(quantos graus|temperatura|clima|previsao do tempo|previsão do tempo|tempo em)\b/.test(text)) {
       const locationMatch = raw.match(/(?:em|para)\s+([^?.,;!]+)(?:[?.,;!]|$)/i);
       add({ type: "weather", location: locationMatch ? sanitizeUserText(locationMatch[1]).replace(/\s+e\s+quem\s+vai\s+ganhar[\s\S]*$/i, "") : "" });
@@ -22679,6 +22679,10 @@ function isEloResidentialNewPipelineEnabled_() {
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
+    const dateTimeIntentResponse = routeEloCoreIntents_(question, {});
+    if (dateTimeIntentResponse && dateTimeIntentResponse.sessionIntent === "date_time") {
+      return applyEloBrainMarker_(question, dateTimeIntentResponse);
+    }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
       return applyEloBrainMarker_(question, liveSearchResponse);
@@ -22985,6 +22989,10 @@ function isEloResidentialNewPipelineEnabled_() {
         }
       }
 
+      if (handleEloObraAttentionRequest_(cleanQuestion)) {
+        return;
+      }
+
       const response = technicalServiceResponse || buildResponse(cleanQuestion, {
         surface: "relatorio-qualidade-obras",
         useSession: true
@@ -23019,10 +23027,6 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
       return;
     }
-    if (!attachedFiles.length && handleEloObraAttentionRequest_(cleanQuestion)) {
-      return;
-    }
-
     const liveSearchResponse = buildEloWebSearchRouteResponse_(cleanQuestion);
     if (liveSearchResponse) {
       showTypingIndicator();
