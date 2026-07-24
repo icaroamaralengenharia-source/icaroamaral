@@ -709,11 +709,31 @@
   function ensureEloCoreAuthMerge_() { if (!getEloCoreAuthToken_()) return Promise.resolve(false); if (ELO_UI.coreAuthMergePromise) return ELO_UI.coreAuthMergePromise; ELO_UI.coreAuthMergePromise = eloCoreFetch_("/api/elo/identity/merge", { method: "POST", body: JSON.stringify({ anonymousId: getEloCoreAnonymousId_() }) }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); recordEloCoreReliabilityEvent_("identity_merged", { authenticated: true }); return true; }).catch(function (error) { recordEloCoreReliabilityEvent_("identity_merge_failed", { reason: error && error.message ? error.message : "merge_failed" }); return false; }); return ELO_UI.coreAuthMergePromise; }
   function getEloCoreSupabaseConfig_() {
     const relatorioConfig = window.RELATORIO_QUALIDADE_CONFIG || {};
-    const url = sanitizeUserText(window.ELO_SUPABASE_URL || window.SUPABASE_URL || window.STOCK_FULL_SUPABASE_URL || relatorioConfig.stockFullSupabaseUrl || "").replace(/\/+$/g, "");
-    const anonKey = sanitizeUserText(window.ELO_SUPABASE_ANON_KEY || window.SUPABASE_ANON_KEY || window.STOCK_FULL_SUPABASE_ANON_KEY || relatorioConfig.stockFullSupabaseAnonKey || "");
+    const url = sanitizeUserText(window.ELO_SUPABASE_URL || relatorioConfig.eloSupabaseUrl || "").replace(/\/+$/g, "");
+    const anonKey = sanitizeUserText(window.ELO_SUPABASE_ANON_KEY || relatorioConfig.eloSupabaseAnonKey || "");
     return { url: url, anonKey: anonKey };
   }
-  function writeEloCoreSupabaseSession_(data) {
+  function validateEloCoreSupabaseToken_(token) {
+    const safeToken = normalizeEloCoreUsableAuthToken_(token);
+    const config = getEloCoreSupabaseConfig_();
+    if (!safeToken || !config.url || !config.anonKey || typeof window.fetch !== "function") {
+      return Promise.reject(new Error("sessao_invalida"));
+    }
+    return window.fetch(config.url + "/auth/v1/user", {
+      method: "GET",
+      headers: {
+        apikey: config.anonKey,
+        Authorization: "Bearer " + safeToken
+      }
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) throw new Error("sessao_invalida");
+        return data;
+      });
+    }).catch(function () {
+      throw new Error("sessao_invalida");
+    });
+  }  function writeEloCoreSupabaseSession_(data) {
     const session = data && (data.session || data.currentSession || data);
     const token = sanitizeUserText(session && (session.access_token || data.access_token));
     if (!token) throw new Error("supabase_session_missing");
@@ -26574,7 +26594,8 @@ function isEloResidentialNewPipelineEnabled_() {
     logoutSupabaseForTest: logoutEloCoreSupabase_,
     clearLocalConversationForTest: clearEloCoreLocalConversationState_,
     setCoreMessagesElementForTest: function (element) { ELO_UI.messages = element; },
-    getCoreAuthTokenForTest: getEloCoreAuthToken_
+    getCoreAuthTokenForTest: getEloCoreAuthToken_,
+    validateSupabaseTokenForTest: validateEloCoreSupabaseToken_
   });
 
   // ELO_BOOTSTRAP

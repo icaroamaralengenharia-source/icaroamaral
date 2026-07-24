@@ -1276,6 +1276,59 @@ test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
   assert.equal(elo.getCoreAuthTokenForTest(), validToken);
   assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
 });
+test('ELO auth/v1/user: token invalido e config ausente rejeitam sem fetch', async () => {
+  const calls = [];
+  const invalid = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
+  }).elo;
+
+  await assert.rejects(invalid.validateSupabaseTokenForTest('token-solto'), /sessao_invalida/);
+  assert.equal(calls.length, 0);
+
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const missingConfig = loadEloContext({
+    fetch(url) { calls.push(String(url)); throw new Error('fetch_should_not_run'); }
+  }).elo;
+
+  await assert.rejects(missingConfig.validateSupabaseTokenForTest(validToken), /sessao_invalida/);
+  assert.equal(calls.length, 0);
+});
+
+test('ELO auth/v1/user: 401 rejeita com erro seguro sem vazar token', async () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const { elo } = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch() { return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'invalid' }) }); }
+  });
+
+  await assert.rejects(elo.validateSupabaseTokenForTest(validToken), (error) => {
+    assert.equal(error.message, 'sessao_invalida');
+    assert.doesNotMatch(error.message, new RegExp(validToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.doesNotMatch(error.message, /Bearer|Authorization|headers/i);
+    return true;
+  });
+});
+
+test('ELO auth/v1/user: 200 retorna usuario e envia headers corretos', async () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const calls = [];
+  const { elo } = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url, options = {}) {
+      calls.push({ url: String(url), options });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
+    }
+  });
+
+  const user = await elo.validateSupabaseTokenForTest(validToken);
+  assert.deepEqual(user, { id: 'user-a', email: 'a@b.com' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user');
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.headers.apikey, 'anon-key');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
+});
 
 test('ELO login novo sobrescreve token antigo nas tres fontes', async () => {
   const oldToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
