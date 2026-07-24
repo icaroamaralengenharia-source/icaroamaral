@@ -1249,6 +1249,33 @@ test('ELO token ELO: token expirado sozinho vira ausencia de sessao', () => {
   const storageOnly = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: expiredToken } }) } });
   assert.equal(storageOnly.elo.getCoreAuthTokenForTest(), '');
 });
+test('ELO JWT: string comum e JWT quebrado sao rejeitados', () => {
+  const common = loadEloContext({ window: { ELO_AUTH_TOKEN: 'token-solto' } });
+  assert.equal(common.elo.getCoreAuthTokenForTest(), '');
+  assert.equal(common.context.window.ELO_AUTH_TOKEN, '');
+
+  const brokenPayload = 'header.bm90LWpzb24.signature';
+  const broken = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: brokenPayload } }) } });
+  assert.equal(broken.elo.getCoreAuthTokenForTest(), '');
+});
+
+test('ELO issuer: JWT de outro projeto e exp ausente sao rejeitados', () => {
+  const wrongIssuer = createJwt({ iss: 'https://outro-projeto.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const missingExp = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1' });
+
+  const wrong = loadEloContext({ window: { ELO_AUTH_TOKEN: wrongIssuer } });
+  assert.equal(wrong.elo.getCoreAuthTokenForTest(), '');
+
+  const noExp = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': JSON.stringify({ currentSession: { access_token: missingExp } }) } });
+  assert.equal(noExp.elo.getCoreAuthTokenForTest(), '');
+});
+
+test('ELO JWT: token valido com issuer correto e exp futuro e aceito', () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const { elo, context } = loadEloContext({ window: { ELO_AUTH_TOKEN: validToken } });
+  assert.equal(elo.getCoreAuthTokenForTest(), validToken);
+  assert.equal(context.window.ELO_AUTH_TOKEN, validToken);
+});
 
 test('ELO login novo sobrescreve token antigo nas tres fontes', async () => {
   const oldToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) - 60 });
@@ -1312,13 +1339,14 @@ test('ELO token ELO valido continua enviado no Bearer', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
 });
-test('ELO auth token: usa somente fonte do ELO Core', async () => {
-  const eloStoragePayload = JSON.stringify({ currentSession: { access_token: 'elo-storage-token' } });
+test('ELO token ELO: usa somente fonte do ELO Core', async () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const eloStoragePayload = JSON.stringify({ currentSession: { access_token: validToken } });
   const stockStoragePayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
   const genericStoragePayload = JSON.stringify({ currentSession: { access_token: 'generic-token' } });
 
   const eloStored = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': eloStoragePayload } }).elo;
-  assert.equal(eloStored.getCoreAuthTokenForTest(), 'elo-storage-token');
+  assert.equal(eloStored.getCoreAuthTokenForTest(), validToken);
 
   const stockOnly = loadEloContext({ localStorage: { 'sb-stock-full-backend-auth-token': stockStoragePayload, 'sb-stock-full-auth-token': stockStoragePayload, stockFullSupabaseToken: stockStoragePayload } }).elo;
   assert.equal(stockOnly.getCoreAuthTokenForTest(), '');
@@ -1326,8 +1354,8 @@ test('ELO auth token: usa somente fonte do ELO Core', async () => {
   const genericOnly = loadEloContext({ localStorage: { 'sb-anything-auth-token': genericStoragePayload } }).elo;
   assert.equal(genericOnly.getCoreAuthTokenForTest(), '');
 
-  const priority = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': eloStoragePayload }, window: { ELO_AUTH_TOKEN: 'window-token' } }).elo;
-  assert.equal(priority.getCoreAuthTokenForTest(), 'window-token');
+  const priority = loadEloContext({ localStorage: { 'sb-elo-core-auth-token': eloStoragePayload }, window: { ELO_AUTH_TOKEN: validToken } }).elo;
+  assert.equal(priority.getCoreAuthTokenForTest(), validToken);
 
   const calls = [];
   const noEloToken = loadEloContext({
