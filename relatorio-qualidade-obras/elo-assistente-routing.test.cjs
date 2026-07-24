@@ -1597,6 +1597,75 @@ test('ELO login com auth/v1/user 401 nao autentica nem persiste', async () => {
   assert.equal(localStorage.getItem('sb-elo-core-auth-token'), null);
   assert.equal(sessionStorage.getItem('sb-elo-core-auth-token'), null);
 });
+test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', async () => {
+  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const status = createElement('p');
+  const calls = [];
+  const { elo, localStorage, sessionStorage, context } = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url, options = {}) {
+      calls.push({ url: String(url), options });
+      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
+      }
+      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
+      }
+      if (String(url).includes('/api/elo/identity/merge')) {
+        assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'unauthorized' }) });
+      }
+      throw new Error('fetch_should_not_run');
+    }
+  });
+  context.document.querySelector = (selector) => selector === '[data-elo-auth-status]' ? status : null;
+
+  await elo.loginSupabaseForTest('a@b.com', 'secret');
+
+  assert.deepEqual(calls.map((call) => call.url), [
+    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password',
+    'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user',
+    'http://localhost:3000/api/elo/identity/merge'
+  ]);
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
+  assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
+  assert.equal(JSON.parse(sessionStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
+  assert.equal(status.textContent, 'Nao consegui sincronizar seus dados agora.');
+  assert.equal(status.dataset.state, 'error');
+});
+
+test('ELO login com merge false mantem gate aberto e token no Bearer', async () => {
+  const newToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const status = createElement('p');
+  const calls = [];
+  const { elo, localStorage, context } = loadEloContext({
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    fetch(url, options = {}) {
+      calls.push({ url: String(url), options });
+      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
+      }
+      if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
+      }
+      if (String(url).includes('/api/elo/identity/merge')) {
+        assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: false, error: 'merge_failed' }) });
+      }
+      throw new Error('fetch_should_not_run');
+    }
+  });
+  context.document.querySelector = (selector) => selector === '[data-elo-auth-status]' ? status : null;
+
+  await elo.loginSupabaseForTest('a@b.com', 'secret');
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
+  assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
+  assert.equal(calls[calls.length - 1].options.headers.Authorization, 'Bearer ' + newToken);
+  assert.equal(status.textContent, 'Nao consegui sincronizar seus dados agora.');
+});
 
 test('ELO restaura sessao somente apos validar token salvo', async () => {
   const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });

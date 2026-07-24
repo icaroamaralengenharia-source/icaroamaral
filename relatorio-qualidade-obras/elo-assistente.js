@@ -815,10 +815,24 @@
           writeEloCoreSupabaseSession_(data);
           window.ELO_AUTH_SESSION_VALIDATED = true;
           ELO_UI.coreAuthMergePromise = null;
-          return ensureEloCoreAuthMerge_().then(function () { renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Usuario autenticado.", false); return data; });
+          renderEloCoreAuthPanel_();
+          setEloCoreAuthStatus_("Usuario autenticado.", false);
+          return data;
         });
       });
-    }).catch(function (error) { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); throw error; });
+    }).catch(function (error) { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao invalida.", true); throw error; }).then(function (data) {
+      return ensureEloCoreAuthMerge_().then(function (merged) {
+        if (!merged) {
+          ELO_UI.coreAuthMergePromise = null;
+          setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true);
+        }
+        return data;
+      }).catch(function () {
+        ELO_UI.coreAuthMergePromise = null;
+        setEloCoreAuthStatus_("Nao consegui sincronizar seus dados agora.", true);
+        return data;
+      });
+    });
   }
   function logoutEloCoreSupabase_() { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao Supabase encerrada.", false); return Promise.resolve(true); }
   function bindEloCoreSupabaseLogin_() {
