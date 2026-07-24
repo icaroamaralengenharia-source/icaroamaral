@@ -22,24 +22,44 @@ function createJwt(payload = {}) {
   return encode({ alg: 'none', typ: 'JWT' }) + '.' + encode(payload) + '.sig';
 }
 function createElement(tag) {
-  return {
+  const classes = new Set();
+  const element = {
     tagName: String(tag || '').toUpperCase(),
     dataset: {},
     style: {},
-    classList: { add() {}, remove() {}, toggle() {} },
-    appendChild() {},
+    children: [],
+    scrollTop: 0,
+    scrollHeight: 0,
+    clientHeight: 0,
+    classList: {
+      add(...names) { names.forEach((name) => classes.add(String(name))); },
+      remove(...names) { names.forEach((name) => classes.delete(String(name))); },
+      toggle(name, force) {
+        const key = String(name);
+        const active = force === undefined ? !classes.has(key) : Boolean(force);
+        if (active) classes.add(key);
+        else classes.delete(key);
+        return active;
+      },
+      contains(name) { return classes.has(String(name)); }
+    },
+    appendChild(child) { this.children.push(child); this.firstChild = this.children[0] || null; this.scrollHeight = Math.max(this.scrollHeight, this.children.length * 120); return child; },
     addEventListener() {},
-    setAttribute() {},
-    getAttribute() { return ''; },
+    setAttribute(name, value) { this[String(name)] = String(value); },
+    getAttribute(name) { return this[String(name)] || ''; },
     querySelector() { return null; },
     querySelectorAll() { return []; },
-    textContent: '',
     value: '',
     options: [],
     selectedIndex: -1
   };
+  Object.defineProperty(element, 'textContent', {
+    get() { return this._textContent || ''; },
+    set(value) { this._textContent = String(value || ''); if (this._textContent === '') { this.children = []; this.firstChild = null; this.scrollHeight = 0; } }
+  });
+  element.textContent = '';
+  return element;
 }
-
 function loadEloContext(options = {}) {
   const localStorage = createStorage(options.localStorage || {});
   const sessionStorage = createStorage(options.sessionStorage || {});
@@ -187,6 +207,92 @@ test('ELO gate: setAuthenticated abre e fecha o ELO', () => {
   gate.context.window.EloCoreAuthGate.setAuthenticated(false);
   assertEloGateClosed(gate);
 });
+test('ELO layout: login centralizado por estrutura 100dvh', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'elo.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+
+  assert.match(html, /<body class="elo-auth-required elo-empty-state"/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-auth-required \.elo-product-top[\s\S]*height:\s*100dvh/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-auth-required \.elo-product-top[\s\S]*align-items:\s*center/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-auth-required \.elo-product-top[\s\S]*justify-content:\s*center/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-auth-required \.elo-local-auth[\s\S]*width:\s*min\(420px, calc\(100vw - 36px\)\)/);
+});
+
+test('ELO layout: empty state mostra hero e composer separado', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'elo.html'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+
+  assert.match(html, /class="elo-product-heading elo-core-welcome"/);
+  assert.match(html, /class="elo-empty-copy"/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-empty-state \.elo-core-welcome[\s\S]*place-items:\s*center/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-input-row[\s\S]*border-radius:\s*26px/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-input-row[\s\S]*background:\s*#ffffff/);
+});
+
+test('ELO layout: chat state centraliza historico, separa composer e evita overflow mobile', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-chat-state \.elo-core-welcome[\s\S]*display:\s*none/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-messages[\s\S]*width:\s*min\(880px, 100%\)/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-chat-state \.elo-product-chat \.elo-messages[\s\S]*padding:\s*clamp\(34px, 7vh, 76px\) 0 18px/);
+  assert.match(css, /body\[data-elo-product="chat"\]\.elo-chat-state\.elo-short-conversation \.elo-product-chat \.elo-messages[\s\S]*justify-content:\s*flex-end/);
+  assert.doesNotMatch(css, /elo-chat-state[^{}]*:has\(\.elo-message:first-child:last-child\)/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-messages[\s\S]*overflow-y:\s*auto/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-chat \.elo-messages[\s\S]*overflow-x:\s*hidden/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*body\[data-elo-product="chat"\] \.elo-product-chat \.elo-input-row[\s\S]*width:\s*100%/);
+});
+
+test('ELO layout: primeira mensagem ativa chat state, scroll e Nova conversa restaura empty state', () => {
+  const { elo, context } = loadEloContext();
+  const messages = createElement('div');
+  messages.clientHeight = 100;
+  const panel = createElement('section');
+  context.document.body.classList.add('elo-empty-state');
+
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCorePanelElementForTest(panel);
+  elo.refreshLayoutStateForTest();
+
+  assert.equal(context.document.body.classList.contains('elo-empty-state'), true);
+  assert.equal(context.document.body.classList.contains('elo-chat-state'), false);
+
+  elo.appendMessageForLayoutTest('user', 'oi');
+
+  assert.equal(context.document.body.classList.contains('elo-chat-state'), true);
+  assert.equal(context.document.body.classList.contains('elo-empty-state'), false);
+  assert.equal(panel.classList.contains('is-chat-active'), true);
+  assert.equal(messages.scrollTop, Math.max(0, messages.scrollHeight - messages.clientHeight));
+
+  elo.startNewConversationForLayoutTest();
+
+  assert.equal(context.document.body.classList.contains('elo-empty-state'), true);
+  assert.equal(context.document.body.classList.contains('elo-chat-state'), false);
+  assert.equal(panel.classList.contains('is-chat-active'), false);
+  assert.equal(panel.classList.contains('elo-short-conversation'), false);
+  assert.equal(context.document.body.classList.contains('elo-short-conversation'), false);
+});
+
+test('ELO layout: short conversation usa classe explicita sem depender de has', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+  const { elo, context } = loadEloContext();
+  const messages = createElement('div');
+  const panel = createElement('section');
+
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setCorePanelElementForTest(panel);
+  elo.refreshLayoutStateForTest();
+
+  assert.equal(context.document.body.classList.contains('elo-short-conversation'), false);
+  elo.appendMessageForLayoutTest('user', 'oi');
+  assert.equal(context.document.body.classList.contains('elo-short-conversation'), true);
+  assert.equal(panel.classList.contains('elo-short-conversation'), true);
+  elo.startNewConversationForLayoutTest();
+  assert.equal(context.document.body.classList.contains('elo-short-conversation'), false);
+  assert.equal(panel.classList.contains('elo-short-conversation'), false);
+  assert.match(css, /elo-short-conversation/);
+  assert.doesNotMatch(css, /elo-chat-state[^{}]*:has\(\.elo-message:first-child:last-child\)/);
+});
+
 test('ELO padroniza marcadores de c?rebro nos roteamentos principais', () => {
   const elo = loadElo();
   const cases = [

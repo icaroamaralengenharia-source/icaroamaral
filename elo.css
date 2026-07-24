@@ -1382,7 +1382,7 @@ body[data-elo-product="chat"] .elo-history-actions {
   }
 }
 
-.elo-empty-state {
+.elo-empty-copy {
   max-width: min(560px, 92vw);
   margin: 12px auto 0;
   color: rgba(220, 234, 250, 0.62);
@@ -1414,7 +1414,7 @@ body[data-elo-product="chat"] .elo-product-chat .elo-message.system,
 }
 
 @media (max-width: 720px) {
-  .elo-empty-state {
+  .elo-empty-copy {
     font-size: 0.95rem;
   }
 
@@ -1435,4 +1435,300 @@ body[data-elo-product="chat"] .elo-product-chat .elo-message.system,
     opacity: 1;
     transform: none;
   }
+}
+
+/* ELO chat layout states */
+body[data-elo-product="chat"] {
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #f4f7fb;
+  color: #142235;
+}
+
+body[data-elo-product="chat"].elo-auth-required {
+  width: 100%;
+  min-height: 100dvh;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-product-top {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  border: 0;
+  background: #f4f7fb;
+  overflow-y: auto;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth {
+  width: min(420px, calc(100vw - 36px));
+  margin: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid rgba(25, 55, 86, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(22, 35, 58, 0.08);
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-form,
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-session {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-form input {
+  min-height: 46px;
+  border-color: rgba(25, 55, 86, 0.16);
+  color: #15253a;
+  background: #ffffff;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-form input::placeholder {
+  color: rgba(40, 58, 82, 0.5);
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-form button,
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-session button {
+  min-height: 46px;
+  color: #ffffff;
+  border-color: #1f6fae;
+  background: #1f6fae;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-status,
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth-session [data-elo-auth-user] {
+  color: rgba(21, 37, 58, 0.72);
+  text-align: center;
+}
+
+body[data-elo-product="chat"] .elo-product-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: 74px 18px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #f4f7fb;
+}
+
+body[data-elo-product="chat"] .elo-product-top {
+  border-bottom: 1px solid rgba(24, 49, 76, 0.1);
+  background: rgba(244, 247, 251, 0.92);
+  box-shadow: none;
+}
+
+body[data-elo-product="chat"] .elo-brand-name,
+body[data-elo-product="chat"] .elo-hero-title,
+body[data-elo-product="chat"] .elo-rotating-text {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #132238;
+  text-shadow: none;
+}
+
+body[data-elo-product="chat"] .elo-core-actions button {
+  color: #21364f;
+  border-color: rgba(31, 111, 174, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+body[data-elo-product="chat"] .elo-product-center {
+  width: min(900px, 100%);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+}
+
+body[data-elo-product="chat"].elo-empty-state .elo-core-welcome {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+body[data-elo-product="chat"].elo-empty-state .elo-product-chat {
+  width: min(840px, 100%);
+  min-height: auto;
+  flex: 0 0 auto;
+  margin: 0 auto;
+}
+
+body[data-elo-product="chat"].elo-chat-state .elo-core-welcome {
+  display: none;
+}
+
+body[data-elo-product="chat"].elo-chat-state .elo-product-center {
+  justify-content: stretch;
+  width: min(900px, 100%);
+}
+
+body[data-elo-product="chat"] .elo-product-chat,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel,
+body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-elo-product="chat"].elo-empty-state .elo-product-chat .elo-standalone-panel {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-messages {
+  width: min(880px, 100%);
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+body[data-elo-product="chat"].elo-empty-state .elo-product-chat .elo-messages {
+  display: none;
+}
+
+body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-messages {
+  display: flex;
+  padding: clamp(34px, 7vh, 76px) 0 18px;
+  scroll-padding-bottom: 18px;
+}
+
+body[data-elo-product="chat"].elo-chat-state.elo-short-conversation .elo-product-chat .elo-messages {
+  justify-content: flex-end;
+  padding-top: clamp(70px, 14vh, 140px);
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-input-hint {
+  display: none;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
+  width: min(860px, 100%);
+  min-height: 76px;
+  flex: 0 0 auto;
+  margin: 0 auto;
+  padding: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  border: 1px solid rgba(28, 62, 96, 0.14);
+  border-radius: 26px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(25, 42, 68, 0.1);
+}
+
+body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-input-row {
+  margin-top: 12px;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-input {
+  min-height: 50px;
+  color: #142235;
+  background: transparent;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-input::placeholder {
+  color: rgba(39, 58, 82, 0.5);
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-attach-button {
+  color: #27425f;
+  border-color: rgba(28, 62, 96, 0.12);
+  background: rgba(244, 247, 251, 0.9);
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-send-button {
+  color: #ffffff;
+  border-color: #1f6fae;
+  background: #1f6fae;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-message-bubble {
+  color: #17263a;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-message.user .elo-message-bubble {
+  color: #ffffff;
+  background: #1f6fae;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-message.assistant .elo-message-bubble,
+body[data-elo-product="chat"] .elo-product-chat .elo-message.system .elo-message-bubble {
+  color: #17263a;
+}
+
+body[data-elo-product="chat"] .elo-empty-copy {
+  max-width: min(560px, 92vw);
+  margin: 0 auto;
+  color: rgba(34, 51, 74, 0.66);
+}
+
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-product-shell {
+    padding: 66px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  body[data-elo-product="chat"] .elo-product-center,
+  body[data-elo-product="chat"].elo-chat-state .elo-product-center {
+    width: 100%;
+  }
+
+  body[data-elo-product="chat"].elo-empty-state .elo-core-welcome {
+    padding: 0 8px;
+  }
+
+  body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
+    width: 100%;
+    min-height: 68px;
+    gap: 7px;
+    border-radius: 22px;
+  }
+
+  body[data-elo-product="chat"] .elo-product-chat .elo-input {
+    min-width: 0;
+    font-size: 1rem;
+  }
+
+  body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-messages {
+    width: 100%;
+    padding-top: 20px;
+  }
+}
+body[data-elo-product="chat"].elo-auth-required .elo-product-top {
+  justify-content: center;
+}
+
+body[data-elo-product="chat"].elo-auth-required .elo-local-auth {
+  margin: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
