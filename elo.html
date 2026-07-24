@@ -294,55 +294,23 @@
       const config = window.RELATORIO_QUALIDADE_CONFIG || {};
       window.ELO_SUPABASE_URL = String(window.ELO_SUPABASE_URL || config.eloSupabaseUrl || "").trim();
       window.ELO_SUPABASE_ANON_KEY = String(window.ELO_SUPABASE_ANON_KEY || config.eloSupabaseAnonKey || "").trim();
-      const authKeys = ["sb-elo-core-auth-token", "sb-stock-full-backend-auth-token", "sb-stock-full-auth-token", "stockFullSupabaseToken"];
-      function findToken(value, depth) {
-        if (!value || depth > 4) return "";
-        if (typeof value === "string") {
-          const raw = value.trim();
-          if (!raw) return "";
-          if (/^[\[{]/.test(raw)) {
-            try { return findToken(JSON.parse(raw), depth + 1); } catch (error) { return ""; }
-          }
-          return raw;
-        }
-        if (Array.isArray(value)) {
-          for (let index = 0; index < value.length; index += 1) {
-            const found = findToken(value[index], depth + 1);
-            if (found) return found;
-          }
-          return "";
-        }
-        if (typeof value === "object") {
-          if (typeof value.access_token === "string") return value.access_token.trim();
-          return findToken(value.currentSession || value.session, depth + 1);
-        }
-        return "";
-      }
-      function hasSupabaseSession() {
-        const stores = [window.localStorage, window.sessionStorage].filter(Boolean);
-        for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
-          const storage = stores[storeIndex];
-          for (let keyIndex = 0; keyIndex < authKeys.length; keyIndex += 1) {
-            try { if (findToken(storage.getItem(authKeys[keyIndex]), 0)) return true; } catch (error) {}
-          }
-          try {
-            for (let index = 0; index < storage.length; index += 1) {
-              const key = storage.key(index) || "";
-              if (/^sb-.+-auth-token$/.test(key) && findToken(storage.getItem(key), 0)) return true;
-            }
-          } catch (error) {}
-        }
-        return false;
-      }
-      function renderAuthGate() {
-        const authenticated = hasSupabaseSession();
+      function renderAuthGate(authenticated) {
         document.body.classList.toggle("elo-auth-required", !authenticated);
         document.body.classList.toggle("elo-authenticated", authenticated);
       }
-      document.addEventListener("DOMContentLoaded", renderAuthGate);
-      window.addEventListener("storage", renderAuthGate);
-      window.setInterval(renderAuthGate, 500);
-      renderAuthGate();
+      function setAuthenticated(value) {
+        renderAuthGate(value === true);
+      }
+      function syncValidatedSession() {
+        setAuthenticated(window.ELO_AUTH_SESSION_VALIDATED === true);
+      }
+      window.EloCoreAuthGate = { setAuthenticated: setAuthenticated };
+      document.addEventListener("DOMContentLoaded", function () {
+        setAuthenticated(false);
+        syncValidatedSession();
+      });
+      window.setInterval(syncValidatedSession, 500);
+      setAuthenticated(false);
     })();
   </script>
   <script src="relatorio-qualidade-obras/ai-assistant.js"></script>

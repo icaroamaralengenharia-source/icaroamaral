@@ -96,6 +96,97 @@ function loadElo() {
   return loadEloContext().elo;
 }
 
+function loadEloHtmlGateContext(options = {}) {
+  const classes = new Set(['elo-auth-required']);
+  const intervals = [];
+  const body = {
+    classList: {
+      toggle(name, force) {
+        if (force) classes.add(name);
+        else classes.delete(name);
+      },
+      contains(name) { return classes.has(name); }
+    }
+  };
+  const localStorage = createStorage(options.localStorage || {});
+  const sessionStorage = createStorage(options.sessionStorage || {});
+  const context = {
+    window: {
+      RELATORIO_QUALIDADE_CONFIG: {},
+      localStorage,
+      sessionStorage,
+      addEventListener() {},
+      setInterval(fn) { intervals.push(fn); return intervals.length; }
+    },
+    document: {
+      body,
+      addEventListener(event, fn) { if (event === 'DOMContentLoaded') fn(); }
+    }
+  };
+  Object.assign(context.window, options.window || {});
+  context.window.window = context.window;
+  vm.createContext(context);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'elo.html'), 'utf8');
+  const match = html.match(/<script>\s*\(function \(\) \{\s*const config = window\.RELATORIO_QUALIDADE_CONFIG[\s\S]*?\}\)\(\);\s*<\/script>/);
+  if (!match) throw new Error('elo_html_gate_script_not_found');
+  const source = match[0].replace(/^<script>\s*/, '').replace(/\s*<\/script>$/, '');
+  vm.runInContext(source, context, { filename: 'elo.html#auth-gate' });
+  return { context, classes, localStorage, sessionStorage, intervals };
+}
+
+function assertEloGateClosed(gate) {
+  assert.equal(gate.classes.has('elo-auth-required'), true);
+  assert.equal(gate.classes.has('elo-authenticated'), false);
+}
+
+function assertEloGateOpen(gate) {
+  assert.equal(gate.classes.has('elo-auth-required'), false);
+  assert.equal(gate.classes.has('elo-authenticated'), true);
+}
+test('ELO gate: token Stock nao abre o ELO', () => {
+  const stockPayload = JSON.stringify({ currentSession: { access_token: 'stock-token' } });
+  const gate = loadEloHtmlGateContext({
+    localStorage: {
+      'sb-stock-full-backend-auth-token': stockPayload,
+      'sb-stock-full-auth-token': stockPayload,
+      stockFullSupabaseToken: stockPayload
+    },
+    sessionStorage: { 'sb-stock-full-auth-token': stockPayload }
+  });
+
+  assertEloGateClosed(gate);
+});
+
+test('ELO gate: wildcard generico nao abre o ELO', () => {
+  const genericPayload = JSON.stringify({ currentSession: { access_token: 'generic-token' } });
+  const gate = loadEloHtmlGateContext({
+    localStorage: { 'sb-anything-auth-token': genericPayload },
+    sessionStorage: { 'sb-random-auth-token': genericPayload }
+  });
+
+  assertEloGateClosed(gate);
+});
+
+test('ELO gate: token ELO nao validado nao abre por presenca no storage', () => {
+  const validToken = createJwt({ iss: 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const payload = JSON.stringify({ currentSession: { access_token: validToken } });
+  const gate = loadEloHtmlGateContext({
+    localStorage: { 'sb-elo-core-auth-token': payload },
+    sessionStorage: { 'sb-elo-core-auth-token': payload }
+  });
+
+  assertEloGateClosed(gate);
+});
+
+test('ELO gate: setAuthenticated abre e fecha o ELO', () => {
+  const gate = loadEloHtmlGateContext();
+
+  assertEloGateClosed(gate);
+  gate.context.window.EloCoreAuthGate.setAuthenticated(true);
+  assertEloGateOpen(gate);
+  gate.context.window.EloCoreAuthGate.setAuthenticated(false);
+  assertEloGateClosed(gate);
+});
 test('ELO padroniza marcadores de c?rebro nos roteamentos principais', () => {
   const elo = loadElo();
   const cases = [
