@@ -1602,7 +1602,7 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
   const status = createElement('p');
   const calls = [];
   const { elo, localStorage, sessionStorage, context } = loadEloContext({
-    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key' },
+    window: { ELO_SUPABASE_URL: 'https://lidueokjpzxdybtongbk.supabase.co', ELO_SUPABASE_ANON_KEY: 'anon-key', ELO_AUTH_CONTEXT: { institutionId: 'inst-old', projectId: 'proj-old' } },
     fetch(url, options = {}) {
       calls.push({ url: String(url), options });
       if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/token?grant_type=password') {
@@ -1612,6 +1612,11 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
+        assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.userId, 'user-a');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.profile.email, 'a@b.com');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.institutionId, 'inst-old');
+        assert.equal(context.window.ELO_AUTH_CONTEXT.projectId, 'proj-old');
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'unauthorized' }) });
       }
@@ -1631,6 +1636,9 @@ test('ELO login com merge 401 mantem sessao autenticada e avisa sincronizacao', 
   assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
   assert.equal(JSON.parse(sessionStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
+  assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.userId, 'user-a');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.profile.email, 'a@b.com');
   assert.equal(status.textContent, 'Nao consegui sincronizar seus dados agora.');
   assert.equal(status.dataset.state, 'error');
 });
@@ -1647,11 +1655,16 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { access_token: newToken, refresh_token: 'refresh-new' }, user: { id: 'user-a' } }) });
       }
       if (String(url) === 'https://lidueokjpzxdybtongbk.supabase.co/auth/v1/user') {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a' }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: 'user-a', email: 'a@b.com' }) });
       }
       if (String(url).includes('/api/elo/identity/merge')) {
         assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: false, error: 'merge_failed' }) });
+      }
+      if (String(url).includes('/api/elo/memories')) {
+        assert.match(String(url), /[?&]userId=user-a(?:&|$)/);
+        assert.equal(options.headers.Authorization, 'Bearer ' + newToken);
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'unauthorized' }) });
       }
       throw new Error('fetch_should_not_run');
     }
@@ -1664,7 +1677,16 @@ test('ELO login com merge false mantem gate aberto e token no Bearer', async () 
   assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
   assert.equal(JSON.parse(localStorage.getItem('sb-elo-core-auth-token')).access_token, newToken);
   assert.equal(calls[calls.length - 1].options.headers.Authorization, 'Bearer ' + newToken);
+  assert.equal(context.window.ELO_AUTH_USER_ID, 'user-a');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.userId, 'user-a');
+  assert.equal(context.window.ELO_AUTH_CONTEXT.profile.email, 'a@b.com');
   assert.equal(status.textContent, 'Nao consegui sincronizar seus dados agora.');
+
+  await elo.loadCoreMemoriesForTest();
+
+  assert.equal(context.window.ELO_AUTH_SESSION_VALIDATED, true);
+  assert.equal(context.window.ELO_AUTH_TOKEN, newToken);
+  assert.equal(status.textContent, 'Nao consegui carregar suas memorias agora');
 });
 
 test('ELO restaura sessao somente apos validar token salvo', async () => {
