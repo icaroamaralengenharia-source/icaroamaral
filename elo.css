@@ -598,6 +598,47 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
   opacity: 0.72;
 }
 
+.elo-product-chat .elo-local-actions {
+  width: min(860px, 100%);
+  margin: 0 auto 8px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.elo-product-chat .elo-local-actions[hidden],
+.elo-product-chat .elo-local-report-button[hidden] {
+  display: none !important;
+}
+
+.elo-product-chat .elo-local-report-button {
+  appearance: none;
+  border: 1px solid rgba(31, 111, 174, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f4f78;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 8px 11px;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.elo-product-chat .elo-local-report-button:hover,
+.elo-product-chat .elo-local-report-button:focus-visible {
+  border-color: rgba(31, 111, 174, 0.45);
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.elo-product-chat .elo-local-report-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
 .elo-tool-link {
   text-decoration: none;
 }
@@ -689,6 +730,18 @@ body:has(.elo-standalone-panel.is-chat-active) .elo-product-shell {
 }
 
 @media (max-width: 640px) {
+  .elo-product-chat .elo-local-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-bottom: 7px;
+    padding: 0 2px;
+  }
+
+  .elo-product-chat .elo-local-report-button {
+    font-size: 0.78rem;
+    padding: 7px 10px;
+  }
+
   .elo-product-top {
     top: 14px;
     right: 14px;
@@ -1427,6 +1480,10 @@ body[data-elo-product="chat"] .elo-product-chat .elo-message.system,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .elo-product-chat .elo-local-report-button {
+    transition: none;
+  }
+
   .elo-rotating-text {
     transition: none;
   }

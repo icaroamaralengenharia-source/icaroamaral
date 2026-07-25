@@ -42,11 +42,24 @@ function createElement(tag) {
     dataset: {},
     style: {},
     children: [],
+    parentNode: null,
+    hidden: false,
+    disabled: false,
+    events: {},
     classList: { add() {}, remove() {}, toggle() { return false; }, contains() { return false; } },
-    appendChild(child) { this.children.push(child); return child; },
-    addEventListener() {},
+    appendChild(child) { child.parentNode = this; this.children.push(child); return child; },
+    addEventListener(type, listener) { this.events[type] = this.events[type] || []; this.events[type].push(listener); },
+    click() { (this.events.click || []).forEach((listener) => listener({ preventDefault() {} })); },
     setAttribute(name, value) { this[String(name)] = String(value); },
     getAttribute(name) { return this[String(name)] || ""; },
+    closest(selector) {
+      let node = this;
+      while (node) {
+        if (selector === "[data-elo-local-actions]" && node.dataset && Object.prototype.hasOwnProperty.call(node.dataset, "eloLocalActions")) return node;
+        node = node.parentNode;
+      }
+      return null;
+    },
     querySelector() { return null; },
     querySelectorAll() { return []; },
     value: "",
@@ -385,4 +398,121 @@ test("perfil vazio informa fontes ausentes no relatorio local", async () => {
 
   assert.equal(localStorage.writes, 0);
   assert.match(answer, /fontes locais indisponiveis|nao ha dados locais suficientes|Fontes ausentes/i);
+});
+
+test("botao gerar relatorio aparece sem login e clique usa fluxo local", async () => {
+  let calls = 0;
+  const marks = [];
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const reportActions = createElement("div");
+  const reportButton = createElement("button");
+  reportActions.dataset.eloLocalActions = "";
+  reportActions.hidden = true;
+  reportButton.hidden = true;
+  reportButton.textContent = "Gerar relatório";
+  reportActions.appendChild(reportButton);
+  const elements = {
+    ".panel": panel,
+    ".form": form,
+    ".input": input,
+    ".messages": messages,
+    "[data-elo-local-report]": reportButton
+  };
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    elements,
+    window: {
+      ELO_PROJECT_ID: "proj-a",
+      ELO_WORK_ID: "obra-a-work",
+      performance: { now() { return 1; }, mark(name) { marks.push(name); } }
+    },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages", reportButton: "[data-elo-local-report]" }), true);
+  assert.equal(reportActions.hidden, false);
+  assert.equal(reportButton.hidden, false);
+  assert.equal(reportButton.disabled, false);
+
+  const reportAnswer = await elo.runLocalExecutionStockReportActionForTest();
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(localStorage.getItem("elo_core_reliability_events_v1"), null);
+  assert.deepEqual(marks, []);
+  assert.equal(reportButton.textContent, "Gerar relatório");
+  assert.equal(reportButton.disabled, false);
+  assert.equal(messages.children.length >= 2, true);
+  assert.match(reportAnswer, /Relatorio local de consumo e risco/);
+});
+
+test("botao gerar relatorio aparece autenticado e nao duplica apos nova conversa", async () => {
+  let calls = 0;
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const reportActions = createElement("div");
+  const reportButton = createElement("button");
+  reportActions.dataset.eloLocalActions = "";
+  reportButton.textContent = "Gerar relatório";
+  reportActions.appendChild(reportButton);
+  const elements = {
+    ".panel": panel,
+    ".form": form,
+    ".input": input,
+    ".messages": messages,
+    "[data-elo-local-report]": reportButton
+  };
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    elements,
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work", ELO_AUTH_TOKEN: createJwt({ sub: "user-a" }) },
+    fetch() { calls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, memories: [] }) }); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages", reportButton: "[data-elo-local-report]" }), true);
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages", reportButton: "[data-elo-local-report]" }), true);
+  assert.equal(reportButton.hidden, false);
+  const boundClickCount = (reportButton.events.click || []).length;
+  assert.equal(boundClickCount, 1);
+
+  calls = 0;
+  localStorage.writes = 0;
+  reportButton.click();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal((reportButton.events.click || []).length, 1);
+  assert.equal(messages.children.length >= 2, true);
+});
+
+test("botao gerar relatorio fica oculto quando modulos locais faltam", async () => {
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const reportActions = createElement("div");
+  const reportButton = createElement("button");
+  reportActions.dataset.eloLocalActions = "";
+  reportActions.appendChild(reportButton);
+  const elements = {
+    ".panel": panel,
+    ".form": form,
+    ".input": input,
+    ".messages": messages,
+    "[data-elo-local-report]": reportButton
+  };
+  const { elo } = await loadEloContext({ withModules: false, elements });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages", reportButton: "[data-elo-local-report]" }), true);
+  assert.equal(reportActions.hidden, true);
+  assert.equal(reportButton.hidden, true);
 });

@@ -107,6 +107,9 @@
         <section class="elo-standalone-panel" aria-label="Elo">
           <div class="elo-messages" aria-live="polite" aria-label="Mensagens da conversa"></div>
           <p class="elo-input-hint">O ELO pode guardar informações úteis para continuar suas conversas. Você pode revisar ou apagar essa memória quando quiser.</p>
+          <div class="elo-local-actions" data-elo-local-actions hidden>
+            <button type="button" class="elo-local-report-button" data-elo-local-report hidden>Gerar relatório</button>
+          </div>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar PDF, planilha ou imagem">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
@@ -313,6 +316,7 @@
           input: ".elo-input",
           attachmentInput: ".elo-attachment-input",
           attachmentButton: ".elo-attach-button",
+          reportButton: "[data-elo-local-report]",
           newChatButton: "[data-elo-new-chat]",
           historyButton: "[data-elo-history]",
           memoryButton: "[data-elo-memory]"

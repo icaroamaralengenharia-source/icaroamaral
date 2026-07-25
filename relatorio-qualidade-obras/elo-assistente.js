@@ -741,9 +741,10 @@
     return Promise.resolve(formatEloObraExecutionStockReportAnswer_(buildEloObraLocalExecutionStockReport_()));
   }
 
-  function handleEloObraExecutionStockReportRequest_(question) {
+  function handleEloObraExecutionStockReportRequest_(question, options) {
     if (!isEloObraExecutionStockReportRequest_(question)) return false;
-    const statusMessage = appendMessage("assistant", "Montando relatorio local de consumo e risco...");
+    const settings = options || {};
+    const statusMessage = appendMessage("assistant", settings.statusText || "Montando relatorio local de consumo e risco...");
     return requestEloObraExecutionStockReportAnswer_(question).then(function (answer) {
       const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao encontrei fontes locais suficientes para gerar o relatorio.";
       updateEloMessage_(statusMessage, finalAnswer);
@@ -757,6 +758,45 @@
     });
   }
 
+  function areEloLocalExecutionStockReportModulesAvailable_() {
+    return Boolean(getEloStockObrasSnapshotBuilder_() && getEloExecutionStockCrossBuilder_() && getEloExecutionStockReportBuilder_());
+  }
+
+  function updateEloLocalExecutionStockReportAction_() {
+    const button = ELO_UI.localReportButton || (document && document.querySelector ? document.querySelector("[data-elo-local-report]") : null);
+    if (!button) return false;
+    const actions = button.closest ? button.closest("[data-elo-local-actions]") : null;
+    const available = areEloLocalExecutionStockReportModulesAvailable_();
+    button.hidden = !available;
+    button.disabled = !available || button.dataset.eloLocalReportLoading === "true";
+    if (actions) actions.hidden = !available;
+    return available;
+  }
+
+  function runEloLocalExecutionStockReportAction_() {
+    if (!areEloLocalExecutionStockReportModulesAvailable_()) {
+      return Promise.resolve(false);
+    }
+    const question = "Gere um relatório de consumo da obra.";
+    const button = ELO_UI.localReportButton || (document && document.querySelector ? document.querySelector("[data-elo-local-report]") : null);
+    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+    const previousLabel = button ? (button.textContent || "Gerar relatório") : "Gerar relatório";
+    ELO_UI.suppressRemotePersistence = true;
+    if (button) {
+      button.dataset.eloLocalReportLoading = "true";
+      button.disabled = true;
+      button.textContent = "Gerando...";
+    }
+    appendMessage("user", question);
+    return Promise.resolve(handleEloObraExecutionStockReportRequest_(question, { statusText: "Gerando relatório local..." })).finally(function () {
+      ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+      if (button) {
+        delete button.dataset.eloLocalReportLoading;
+        button.textContent = previousLabel;
+      }
+      updateEloLocalExecutionStockReportAction_();
+    });
+  }
   function handleEloObraExecutionStockRequest_(question, options) {
     if (!isEloObraExecutionStockRequest_(question)) return false;
     const settings = options || {};
@@ -22582,6 +22622,7 @@ function isEloResidentialNewPipelineEnabled_() {
     attachmentInput: null,
     attachmentButton: null,
     attachmentStatus: null,
+    localReportButton: null,
     attachments: [],
     typingIndicator: null,
     activeRequestStartedAt: 0,
@@ -26692,6 +26733,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (panel.dataset.eloCoreSurfaceMounted === "true") {
       renderEloCoreSurfaceGreeting_(config.greetingTarget || "[data-elo-surface-greeting]");
       bindEloCoreSupabaseLogin_();
+      updateEloLocalExecutionStockReportAction_();
       return true;
     }
     panel.dataset.eloCoreSurfaceMounted = "true";
@@ -26706,6 +26748,7 @@ function isEloResidentialNewPipelineEnabled_() {
       input: config.input || ".elo-input",
       attachmentInput: config.attachmentInput || ".elo-attachment-input",
       attachmentButton: config.attachmentButton || ".elo-attach-button",
+      reportButton: config.reportButton || "[data-elo-local-report]",
       newChatButton: config.newChatButton || "[data-elo-new-chat]",
       historyButton: config.historyButton || "[data-elo-history]",
       memoryButton: config.memoryButton || "[data-elo-memory]"
@@ -26743,6 +26786,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const messages = document.querySelector(config.messages || ".elo-messages");
     const attachmentInput = document.querySelector(config.attachmentInput || ".elo-attachment-input");
     const attachmentButton = document.querySelector(config.attachmentButton || ".elo-attach-button");
+    const reportButton = document.querySelector(config.reportButton || "[data-elo-local-report]");
 
     if (!form || !input || !panel || !messages) {
       return false;
@@ -26753,6 +26797,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.input = input;
     ELO_UI.attachmentInput = attachmentInput;
     ELO_UI.attachmentButton = attachmentButton;
+    ELO_UI.localReportButton = reportButton;
     ELO_UI.attachmentStatus = document.querySelector(".elo-attachment-status") || createElement("p", "elo-attachment-status");
     ELO_UI.form = form;
     ELO_UI.attachments = [];
@@ -26764,6 +26809,17 @@ function isEloResidentialNewPipelineEnabled_() {
         attachmentInput.click();
       });
     }
+
+    if (reportButton && !reportButton.dataset.eloLocalReportBound) {
+      reportButton.dataset.eloLocalReportBound = "true";
+      reportButton.addEventListener("click", function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        runEloLocalExecutionStockReportAction_();
+      });
+    }
+    updateEloLocalExecutionStockReportAction_();
+    window.setTimeout(updateEloLocalExecutionStockReportAction_, 0);
+    window.setTimeout(updateEloLocalExecutionStockReportAction_, 350);
 
     if (attachmentInput && !attachmentInput.dataset.eloEngineBound) {
       attachmentInput.dataset.eloEngineBound = "true";
@@ -26848,6 +26904,8 @@ function isEloResidentialNewPipelineEnabled_() {
     detectObraExecutionStockReportForTest: isEloObraExecutionStockReportRequest_,
     requestObraExecutionStockForTest: requestEloObraExecutionStockAnswer_,
     requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
+    runLocalExecutionStockReportActionForTest: runEloLocalExecutionStockReportAction_,
+    updateLocalExecutionStockReportActionForTest: updateEloLocalExecutionStockReportAction_,
     requestObraAttentionForTest: requestEloObraAttentionAnswer_,
     formatObraAttentionForTest: formatEloObraAttentionAnswer_,
     buildLocalExecutionStockCrossForTest: buildEloObraLocalExecutionStockCross_,
