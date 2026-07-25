@@ -6,6 +6,7 @@ const vm = require("node:vm");
 
 const snapshotModulePromise = import("./elo-stock-obras-snapshot.js");
 const crossModulePromise = import("./elo-execution-stock-cross.js");
+const reportModulePromise = import("./elo-execution-stock-report.js");
 
 function createStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -99,6 +100,7 @@ async function loadEloContext(options = {}) {
   const sessionStorage = createStorage(options.sessionStorage || {});
   const { buildEloStockObrasSnapshot } = await snapshotModulePromise;
   const { crossExecutionWithStock } = await crossModulePromise;
+  const { buildExecutionStockReport } = await reportModulePromise;
   const elements = options.elements || {};
   const context = {
     console,
@@ -127,7 +129,8 @@ async function loadEloContext(options = {}) {
       atob(value) { return Buffer.from(String(value), "base64").toString("binary"); },
       btoa(value) { return Buffer.from(String(value), "binary").toString("base64"); },
       EloStockObrasSnapshot: options.withModules === false ? undefined : { buildEloStockObrasSnapshot },
-      EloExecutionStockCross: options.withModules === false ? undefined : { crossExecutionWithStock }
+      EloExecutionStockCross: options.withModules === false ? undefined : { crossExecutionWithStock },
+      EloExecutionStockReport: options.withModules === false ? undefined : { buildExecutionStockReport }
     },
     document: {
       readyState: "complete",
@@ -348,4 +351,38 @@ test("fluxo ask local readonly mantem suppress ate fim e nao grava", async () =>
   assert.equal(localStorage.getItem("elo_core_current_conversation_id_v1"), null);
   assert.deepEqual(marks, []);
   assert.equal(messages.children.length >= 2, true);
+});
+
+
+test("pergunta natural de relatorio aciona diagnostico local sem backend nem escrita", async () => {
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.detectObraExecutionStockReportForTest("Gere um relat?rio de consumo da obra."), true);
+  assert.equal(elo.detectObraExecutionStockReportForTest("Fa?a um relat?rio de desperd?cio."), true);
+  assert.equal(elo.detectObraExecutionStockReportForTest("Mostre o risco de falta de materiais."), true);
+  assert.equal(elo.detectObraExecutionStockReportForTest("Resuma execu??o, consumo e estoque."), true);
+  assert.equal(elo.detectObraExecutionStockReportForTest("Qual o saldo dos materiais?"), false);
+  assert.equal(elo.detectObraExecutionStockReportForTest("O consumo est? acima?"), false);
+
+  const answer = await elo.requestObraExecutionStockReportForTest("Gere um relat?rio de consumo da obra.");
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Relatorio local de consumo e risco/);
+  assert.match(answer, /Bloco ceramico/);
+  assert.match(answer, /esperado 2500 un/);
+});
+
+test("perfil vazio informa fontes ausentes no relatorio local", async () => {
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: {} });
+  const answer = await elo.requestObraExecutionStockReportForTest("Resuma execu??o, consumo e estoque.");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /fontes locais indisponiveis|nao ha dados locais suficientes|Fontes ausentes/i);
 });

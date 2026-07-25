@@ -549,6 +549,41 @@
     return api && typeof api.crossExecutionWithStock === "function" ? api.crossExecutionWithStock : null;
   }
 
+  function getEloExecutionStockReportBuilder_() {
+    const api = window.EloExecutionStockReport || window.eloExecutionStockReport;
+    return api && typeof api.buildExecutionStockReport === "function" ? api.buildExecutionStockReport : null;
+  }
+
+  function isEloObraExecutionStockReportRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text || isEloCorePureConversationalRequest_(question)) return false;
+    if (/\b(saldo\s+bancario|saldo\s+banc.rio|banco|pix|cartao|cart.o|conta|energia|luz|agua|.gua|combustivel|combust.vel)\b/.test(text)) return false;
+    const reportIntent = /\b(relatorio|relat.rio|resumo|resuma|diagnostico|diagn.stico)\b/.test(text) || /\b(mostre|mostrar)\b[\s\S]{0,40}\brisco\b[\s\S]{0,40}\bfalta\b/.test(text);
+    const localContext = /\b(consumo|desperdicio|desperd.cio|risco\s+de\s+falta|falta\s+de\s+materiais|materiais|material|estoque|almoxarifado|saida|sa.da|executado|execucao|execu..o|producao|produ..o|obra)\b/.test(text);
+    return reportIntent && localContext;
+  }
+
+  function buildEloObraLocalExecutionStockReport_() {
+    const reportBuilder = getEloExecutionStockReportBuilder_();
+    const localCross = buildEloObraLocalExecutionStockCross_();
+    if (!reportBuilder) return { ok: false, reason: "missing_module", missingModules: ["elo-execution-stock-report"], text: "Relatorio local de consumo e risco: modulo local indisponivel." };
+    if (!localCross.available) return { ok: false, reason: "insufficient_local_data", missingModules: localCross.missingModules || [], text: "Relatorio local de consumo e risco: fontes locais indisponiveis" + (localCross.missingModules && localCross.missingModules.length ? " (modulos ausentes: " + localCross.missingModules.join(", ") + ")" : "") + "." };
+    try {
+      return reportBuilder({ snapshot: localCross.snapshot || {}, cross: localCross.cross || {} });
+    } catch (error) {
+      return { ok: false, reason: "report_error", text: "Relatorio local de consumo e risco: nao consegui organizar o diagnostico local." };
+    }
+  }
+
+  function formatEloObraExecutionStockReportAnswer_(report) {
+    const safe = report && typeof report === "object" ? report : {};
+    const text = sanitizeEloMultilineText_(safe.text || "");
+    if (safe.ok === true) return text;
+    if (text) return text;
+    const missing = Array.isArray(safe.missingSources) ? safe.missingSources : [];
+    return "Relatorio local de consumo e risco: nao ha dados locais suficientes. Fontes ausentes: " + (missing.length ? missing.join(", ") : "rdos, stockMovements, stockBalances, plannedConsumptions") + ".";
+  }
+
   function buildEloObraLocalExecutionStockCross_() {
     const snapshotBuilder = getEloStockObrasSnapshotBuilder_();
     const crossBuilder = getEloExecutionStockCrossBuilder_();
@@ -699,6 +734,27 @@
     if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
     const answer = formatEloObraExecutionStockCrossAnswer_(buildEloObraLocalExecutionStockCross_());
     return Promise.resolve(answer || "Cruzamento local execucao x estoque: nao encontrei dados locais suficientes para comparar producao, consumo esperado, saidas e saldo.");
+  }
+
+  function requestEloObraExecutionStockReportAnswer_(question) {
+    if (!isEloObraExecutionStockReportRequest_(question)) return Promise.resolve(null);
+    return Promise.resolve(formatEloObraExecutionStockReportAnswer_(buildEloObraLocalExecutionStockReport_()));
+  }
+
+  function handleEloObraExecutionStockReportRequest_(question) {
+    if (!isEloObraExecutionStockReportRequest_(question)) return false;
+    const statusMessage = appendMessage("assistant", "Montando relatorio local de consumo e risco...");
+    return requestEloObraExecutionStockReportAnswer_(question).then(function (answer) {
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao encontrei fontes locais suficientes para gerar o relatorio.";
+      updateEloMessage_(statusMessage, finalAnswer);
+      return finalAnswer;
+    }).catch(function () {
+      updateEloMessage_(statusMessage, "Nao consegui montar o relatorio local com as fontes do navegador agora.");
+      return null;
+    }).finally(function () {
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+    });
   }
 
   function handleEloObraExecutionStockRequest_(question, options) {
@@ -23197,6 +23253,16 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    const localExecutionStockReport = !attachedFiles.length && isEloObraExecutionStockReportRequest_(cleanQuestion);
+    if (localExecutionStockReport) {
+      const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+      ELO_UI.suppressRemotePersistence = true;
+      appendMessage("user", cleanQuestion);
+      Promise.resolve(handleEloObraExecutionStockReportRequest_(cleanQuestion)).finally(function () {
+        ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+      });
+      return;
+    }
     const localReadonlyExecutionStock = !attachedFiles.length && !getEloCoreAuthHeaders_().Authorization && isEloObraExecutionStockRequest_(cleanQuestion);
     if (localReadonlyExecutionStock) {
       const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
@@ -23232,6 +23298,10 @@ function isEloResidentialNewPipelineEnabled_() {
         } catch (error) {
           technicalServiceResponse = null;
         }
+      }
+
+      if (handleEloObraExecutionStockReportRequest_(cleanQuestion)) {
+        return;
       }
 
       if (handleEloObraExecutionStockRequest_(cleanQuestion)) {
@@ -26775,7 +26845,9 @@ function isEloResidentialNewPipelineEnabled_() {
     requestWebSearchForTest: requestEloWebSearchAnswer_,
     detectObraAttentionForTest: isEloObraAttentionRequest_,
     detectObraExecutionStockForTest: isEloObraExecutionStockRequest_,
+    detectObraExecutionStockReportForTest: isEloObraExecutionStockReportRequest_,
     requestObraExecutionStockForTest: requestEloObraExecutionStockAnswer_,
+    requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
     requestObraAttentionForTest: requestEloObraAttentionAnswer_,
     formatObraAttentionForTest: formatEloObraAttentionAnswer_,
     buildLocalExecutionStockCrossForTest: buildEloObraLocalExecutionStockCross_,
