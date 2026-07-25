@@ -641,6 +641,7 @@
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetConversationAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetBriefingAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) return null;
+    if (response.budgetOrchestratorV2 && response.budgetOrchestratorV2.state) ELO_SESSION_MEMORY.budgetOrchestratorV2 = response.budgetOrchestratorV2.state;
     response.eloBudgetRouteContext = { projectId: context.projectId || "", workId: context.workId || "" };
     return response;
   }
@@ -2773,7 +2774,7 @@
 
   function applyEloBrainMarker_(question, response) {
     if (!response || typeof response !== "object") return response;
-    const brain = detectEloBrainRoute_(question, response);
+    const brain = /^budget_v2/.test(String(response.sessionIntent || "")) || response.budgetOrchestratorV2 ? "budget" : detectEloBrainRoute_(question, response);
     response.brain = brain;
     response.brainMarker = brain;
     if (brain === "budget") {
@@ -17783,6 +17784,22 @@
           facts.openings = wall.openings || wall.vaos || (hasEloNoWallOpenings_(normalizeText(raw)) ? { sem_vaos: true, portas: [], janelas: [] } : null);
           facts.currentFields.push("dimensions", "openings");
         }
+        if (previousType === "wall") {
+          const followUpBlock = extractEloBlockDimensionCm_(raw);
+          const followUpLossPercent = extractEloStockObrasLossPercent_(raw);
+          const followUpNoOpenings = hasEloNoWallOpenings_(text);
+          const followUpMentionsCoating = /sem\s+revestimento|revestimento|chapisco|reboco/.test(text);
+          const hasWallPremiseFollowUp = !!(followUpBlock || followUpLossPercent !== null || followUpNoOpenings || followUpMentionsCoating);
+          if (hasWallPremiseFollowUp) {
+            facts.type = "wall";
+            facts.dimensions = Object.assign({}, previousState.dimensions || {}, facts.dimensions || {});
+            if (followUpBlock) facts.dimensions.block = followUpBlock.join("x");
+            if (followUpLossPercent !== null && followUpLossPercent >= 0) facts.dimensions.lossPercent = followUpLossPercent;
+            if (followUpNoOpenings) facts.openings = { sem_vaos: true, portas: [], janelas: [] };
+            if (facts.currentFields.indexOf("dimensions") < 0) facts.currentFields.push("dimensions");
+            if (facts.openings && facts.currentFields.indexOf("openings") < 0) facts.currentFields.push("openings");
+          }
+        }
       }
       return facts;
     }
@@ -18270,11 +18287,11 @@
 
     handle(message, context = {}) {
       const text = normalizeText(message || "");
+      const previous = ELO_SESSION_MEMORY.budgetOrchestratorV2 || {};
       const legacyResidentialState = getEloResidentialBriefingState_();
-      if (legacyResidentialState.active && (isEloResidentialWallPartialMessage_(message) || isEloResidentialFoundationPartialMessage_(message))) {
+      if (previous.type !== "wall" && legacyResidentialState.active && (isEloResidentialWallPartialMessage_(message) || isEloResidentialFoundationPartialMessage_(message))) {
         return buildEloResidentialBudgetFlowAnswer_(message);
       }
-      const previous = ELO_SESSION_MEMORY.budgetOrchestratorV2 || {};
       if (previous.type === "technical_composition" && this.isTechnicalCompositionMemorialIntent_(text)) return this.buildTechnicalCompositionMemorialResponse_(previous);
       const advancedDetailsIntent = this.isAdvancedDetailsIntent_(text);
       if (advancedDetailsIntent && previous.type && previous.type !== "wall") {
@@ -23403,6 +23420,13 @@ function isEloResidentialNewPipelineEnabled_() {
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
+    }
+    const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (activeWallBudgetV2ForPriority && activeWallBudgetV2ForPriority.type === "wall" && isEloBudgetV2CompatibleUpdateMessage_(question)) {
+      const wallBudgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
+      if (wallBudgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(wallBudgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
+        return applyEloBrainMarker_(question, wallBudgetOrchestratorV2PriorityResponse);
+      }
     }
     const wallBudgetTaskPriorityResponse = buildEloWallBudgetTaskAnswer_(question);
     if (wallBudgetTaskPriorityResponse) {

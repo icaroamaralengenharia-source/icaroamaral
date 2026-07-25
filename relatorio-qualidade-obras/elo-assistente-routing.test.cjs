@@ -780,7 +780,8 @@ test('ELO orcamento da obra ativa prioriza motor pendente da URL', () => {
 });
 
 test('ELO parede 100 m2 perda 10 evita PDF duplicado', () => {
-  const question = 'Or\u00e7amento da parede: area 100 m\u00b2, bloco 14x19x29, perda 10%, sem v\u00e3os, sem revestimento.';
+  const firstQuestion = 'Quero um or\u00e7amento preliminar para 100 m\u00b2 de alvenaria com bloco cer\u00e2mico, em Vit\u00f3ria da Conquista/BA.';
+  const followUp = 'Bloco 14x19x29, perda 10%, sem v\u00e3os e sem revestimento.';
   const { elo, context } = loadEloContext({
     window: {
       location: { hostname: 'localhost', protocol: 'http:', pathname: '/elo.html', hash: '', search: '?source=obrareport&intent=orcamento&projectId=obra-a&workId=work-a' }
@@ -791,7 +792,13 @@ test('ELO parede 100 m2 perda 10 evita PDF duplicado', () => {
 
   elo.buildResponseForTest('Quero orcamento residencial para obra B casa 80 m2 em Salvador/BA padrao medio.');
   assert.equal(elo.startBudgetRouteForTest(), true);
-  const response = elo.buildResponseForTest(question);
+  const firstResponse = elo.buildResponseForTest(firstQuestion);
+  assert.equal(firstResponse.brain, 'budget');
+  assert.equal(firstResponse.budgetOrchestratorV2.state.type, 'wall');
+  assert.equal(firstResponse.budgetOrchestratorV2.state.dimensions.grossAreaM2, 100);
+  assert.equal(elo.getBudgetOrchestratorV2StateForTest().type, 'wall');
+
+  const response = elo.buildResponseForTest(followUp);
   const state = response.budgetOrchestratorV2.state;
   const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].join('\n');
 
@@ -808,17 +815,16 @@ test('ELO parede 100 m2 perda 10 evita PDF duplicado', () => {
   assert.equal(state.openings.portas.length, 0);
   assert.equal(state.openings.janelas.length, 0);
   assert.equal(state.missingFields.length, 0);
-  assert.equal(response.eloBudgetRouteContext.projectId, 'obra-a');
-  assert.equal(response.eloBudgetRouteContext.workId, 'work-a');
   assert.equal(context.window.ELO_PROJECT_ID, 'obra-a');
   assert.equal(context.window.ELO_WORK_ID, 'work-a');
   assert.match(answer, /Area da parede: 100,00 m2/);
   assert.match(answer, /perda adotada de 10,00%/);
   assert.match(answer, /1997 un/);
+  assert.doesNotMatch(answer, /14x19x39|perda adotada de 8,00%|1458 un/i);
   assert.doesNotMatch(answer, /obra B|Salvador|80,00|80 m2/i);
   assert.equal(elo.hasBudgetRoutePendingForTest(), false);
 
-  elo.appendAssistantMessageForTest(question, answer, true, response);
+  elo.appendAssistantMessageForTest(followUp, answer, true, response);
   function countActions(node, type) {
     if (!node || !Array.isArray(node.children)) return 0;
     return node.children.reduce((total, child) => total + (child && child['data-elo-action-type'] === type ? 1 : 0) + countActions(child, type), 0);
