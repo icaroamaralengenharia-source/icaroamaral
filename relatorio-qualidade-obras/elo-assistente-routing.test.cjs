@@ -694,6 +694,60 @@ test('ELO PDF residencial: casa 70m2 continua com PDF, quantitativos e esquadria
   assert.match(answer, /ALVENARIA[\s\S]*Servico:[\s\S]*Materiais:[\s\S]*Quantidade:[\s\S]*Preco:/i);
 });
 
+test('ELO PDF execucao/estoque usa adaptador unico e gerador profissional antigo', () => {
+  const openCalls = [];
+  const popup = {
+    document: {
+      html: '',
+      open() {},
+      write(html) { this.html += html; },
+      close() {}
+    },
+    focus() {}
+  };
+  const { elo } = loadEloContext({
+    window: {
+      open(...args) {
+        openCalls.push(args);
+        return popup;
+      }
+    }
+  });
+  const report = {
+    ok: true,
+    scope: { projectId: 'obra-1', workName: 'Obra Teste' },
+    period: { label: 'Hoje' },
+    sourcesUsed: { rdos: true, stockMovements: true },
+    limitations: ['plannedConsumptions'],
+    summary: { productions: 1, materials: 1, alerts: 1 },
+    productions: [{ service: 'Alvenaria', quantity: 12.5, unit: 'm2' }],
+    materials: [{ material: 'Bloco ceramico', unit: 'un', expectedConsumption: 100, actualStockExit: 90, currentBalance: 20, difference: -10, differencePercent: -10, classification: 'saida abaixo do esperado' }],
+    prioritizedAlerts: [{ material: 'Bloco ceramico', classification: 'risco de falta' }],
+    conclusion: 'Conclusao preservada.',
+    text: 'Texto consolidado preservado.'
+  };
+
+  const record = elo.buildExecutionStockProfessionalPdfRecordForTest(report, { issuedAt: new Date('2026-07-25T12:00:00.000Z') });
+  assert.equal(record.titulo, 'Relatorio de execucao, consumo e estoque');
+  assert.equal(record.obra, 'Obra Teste');
+  assert.match(record.servicos, /Alvenaria: 12,5 m2/);
+  assert.match(record.quantitativos, /Bloco ceramico[\s\S]*Saida real: 90/);
+  assert.match(record.avisos_profissionais, /risco de falta/);
+
+  const documentData = elo.buildExecutionStockReportPdfForTest(report, { issuedAt: new Date('2026-07-25T12:00:00.000Z') });
+  assert.equal(documentData.ok, true);
+  assert.equal((documentData.html.match(/<article class="elo-professional-pdf">/g) || []).length, 1);
+  assert.equal((documentData.html.match(/class="elo-pdf-cover"/g) || []).length, 1);
+  assert.doesNotMatch(documentData.html, /elo-execution-stock-document/);
+  assert.match(documentData.html, /Texto consolidado preservado/);
+
+  const opened = elo.openExecutionStockReportPdfForTest(report, { issuedAt: new Date('2026-07-25T12:00:00.000Z') });
+  assert.equal(opened.ok, true);
+  assert.equal(opened.opened, true);
+  assert.equal(openCalls.length, 1);
+  assert.equal((popup.document.html.match(/class="elo-pdf-cover"/g) || []).length, 1);
+});
+
 test('ELO orcamento direto 70m2 usa dados informados e gera pacote com PDF', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Casa terrea de 70 m2, 2 quartos, 2 banheiros, sala, cozinha e area de servico, Vitoria da Conquista/BA, padrao medio, SINAPI BA 2024-12, BDI 25%.');

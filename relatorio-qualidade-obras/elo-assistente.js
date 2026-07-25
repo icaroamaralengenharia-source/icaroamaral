@@ -613,9 +613,8 @@
     return "elo-relatorio-execucao-estoque-" + slugEloExecutionStockReportPdf_(obra) + "-" + date + ".pdf";
   }
 
-  function buildEloExecutionStockReportPdfDocument_(report, options) {
+  function buildEloExecutionStockProfessionalPdfRecord_(report, options) {
     const safe = report && typeof report === "object" ? report : {};
-    if (safe.ok !== true) return { ok: false, reason: "report_not_ready", message: "Gere um relatorio local completo antes de criar o PDF." };
     const settings = options || {};
     const issuedAt = settings.issuedAt || new Date();
     const issuedIso = issuedAt && typeof issuedAt.toISOString === "function" ? issuedAt.toISOString() : new Date().toISOString();
@@ -627,97 +626,78 @@
     const productions = Array.isArray(safe.productions) ? safe.productions : [];
     const materials = Array.isArray(safe.materials) ? safe.materials : [];
     const alerts = Array.isArray(safe.prioritizedAlerts) ? safe.prioritizedAlerts : [];
-    const productionRows = productions.length ? productions.map(function (item) {
-      return "<tr><td>" + escapeEloHtml_(item.service || "Servico") + "</td><td class=\"is-number\">" + escapeEloHtml_(formatEloExecutionStockReportPdfQuantity_(item.quantity, item.unit)) + "</td></tr>";
-    }).join("\n") : "<tr><td colspan=\"2\">Sem producao local informada.</td></tr>";
-    const materialRows = materials.map(function (item) {
+    const productionLines = productions.length ? productions.map(function (item) {
+      return "- " + sanitizeUserText(item.service || "Servico") + ": " + formatEloExecutionStockReportPdfQuantity_(item.quantity, item.unit);
+    }).join("\n") : "Sem producao local informada.";
+    const materialLines = materials.length ? materials.map(function (item) {
       return [
-        "<tr>",
-        "<td>" + escapeEloHtml_(item.material || "material") + "</td>",
-        "<td class=\"is-center\">" + escapeEloHtml_(item.unit || "-") + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(formatEloExecutionStockReportPdfNumber_(item.expectedConsumption)) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(formatEloExecutionStockReportPdfNumber_(item.actualStockExit)) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(item.currentBalance == null ? "nao informado" : formatEloExecutionStockReportPdfNumber_(item.currentBalance)) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(formatEloExecutionStockReportPdfNumber_(item.difference)) + "</td>",
-        "<td class=\"is-number\">" + escapeEloHtml_(formatEloExecutionStockReportPdfPercent_(item.differencePercent)) + "</td>",
-        "<td>" + escapeEloHtml_(item.classification || "referencia ausente") + "</td>",
-        "</tr>"
-      ].join("");
-    }).join("\n") || "<tr><td colspan=\"8\">Sem materiais locais suficientes para tabela.</td></tr>";
+        "- " + sanitizeUserText(item.material || "material") + " (" + sanitizeUserText(item.unit || "-") + ")",
+        "  Esperado: " + formatEloExecutionStockReportPdfNumber_(item.expectedConsumption),
+        "  Saida real: " + formatEloExecutionStockReportPdfNumber_(item.actualStockExit),
+        "  Saldo: " + (item.currentBalance == null ? "nao informado" : formatEloExecutionStockReportPdfNumber_(item.currentBalance)),
+        "  Diferenca: " + formatEloExecutionStockReportPdfNumber_(item.difference),
+        "  Percentual: " + formatEloExecutionStockReportPdfPercent_(item.differencePercent),
+        "  Classificacao: " + sanitizeUserText(item.classification || "referencia ausente")
+      ].join("\n");
+    }).join("\n\n") : "Sem materiais locais suficientes para tabela.";
     const alertLines = alerts.length ? alerts.map(function (alert) {
-      return "<li>" + escapeEloHtml_(alert.material || "material") + ": " + escapeEloHtml_(alert.classification || alert.status || "alerta") + ".</li>";
-    }).join("\n") : "<li>Sem alertas relevantes nos dados locais.</li>";
-    const css = [
-      "@page{size:A4;margin:16mm 12mm 18mm}",
-      "html,body{margin:0;background:#dfe7ef;color:#111827;font-family:Arial,Helvetica,sans-serif}",
-      "body{padding:24px}",
-      ".elo-print-actions{max-width:940px;margin:0 auto 16px;text-align:right}",
-      ".elo-print-actions button{background:#0f5ea8;color:#fff;border:0;border-radius:6px;padding:11px 16px;font-weight:700;cursor:pointer}",
-      ".elo-professional-pdf{max-width:940px;margin:0 auto;background:#fff;box-shadow:0 18px 55px rgba(15,23,42,.18);padding:34px 38px 56px;line-height:1.45}",
-      ".elo-pdf-cover{border-bottom:4px solid #0f5ea8;padding-bottom:22px;margin-bottom:22px}",
-      ".elo-pdf-brand{display:flex;justify-content:space-between;gap:16px;color:#0f5ea8;text-transform:uppercase;font-size:12px;letter-spacing:.08em;font-weight:800}",
-      ".elo-pdf-brand strong{font-size:18px;letter-spacing:.16em}",
-      ".elo-pdf-kicker{margin:28px 0 8px;color:#64748b;text-transform:uppercase;font-size:12px;font-weight:800;letter-spacing:.1em}",
-      "h1{margin:0;color:#0f172a;font-size:30px;line-height:1.1}",
-      ".elo-pdf-subtitle{max-width:680px;color:#475569;font-size:14px}",
-      ".elo-pdf-meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px}",
-      ".elo-pdf-field{border:1px solid #d8e2ef;background:#f8fafc;padding:10px;min-height:54px}",
-      ".elo-pdf-field span{display:block;color:#64748b;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}",
-      ".elo-pdf-field strong{display:block;margin-top:4px;font-size:13px;color:#0f172a;white-space:pre-wrap}",
-      ".elo-pdf-section{break-inside:avoid;margin:18px 0}",
-      ".elo-pdf-section h2,.elo-pdf-signature h2{margin:0 0 8px;color:#0f5ea8;font-size:14px;text-transform:uppercase;letter-spacing:.08em}",
-      ".elo-pdf-box{border:1px solid #d8e2ef;border-left:4px solid #0f5ea8;background:#fff;min-height:28px;padding:12px 14px;white-space:pre-wrap;font-size:13px}",
-      ".elo-pdf-section.is-warning .elo-pdf-box{border-left-color:#b45309;background:#fff8ed}",
-      ".elo-pdf-section.is-alert .elo-pdf-box{border-left-color:#991b1b;background:#fff5f5}",
-      ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;background:#fff}",
-      ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:5px 6px;border:1px solid #0d4f8d;font-size:8px;text-transform:uppercase;letter-spacing:.03em}",
-      ".elo-budget-table td{border:1px solid #d8e2ef;padding:5px 6px;vertical-align:top;word-break:normal}",
-      ".elo-budget-table .is-center{text-align:center}.elo-budget-table .is-number{text-align:right;white-space:nowrap}",
-      ".elo-pdf-signature{break-inside:avoid;margin-top:26px;border-top:1px solid #cbd5e1;padding-top:18px;font-size:13px}",
-      ".elo-pdf-sign-line{width:280px;border-top:1px solid #0f172a;margin:34px 0 8px}",
-      ".elo-pdf-footer{position:fixed;left:12mm;right:12mm;bottom:7mm;display:flex;justify-content:space-between;border-top:1px solid #cbd5e1;padding-top:5px;color:#64748b;font-size:10px}",
-      "@media print{html,body{background:#fff;padding:0}.elo-print-actions{display:none}.elo-professional-pdf{box-shadow:none;max-width:none;padding:0}.elo-pdf-meta-grid{grid-template-columns:repeat(3,1fr)}.elo-budget-table{page-break-inside:auto}.elo-budget-table thead{display:table-header-group}.elo-budget-table tr{break-inside:avoid}}",
-      "@media(max-width:720px){body{padding:12px}.elo-professional-pdf{padding:22px 18px 48px}.elo-pdf-meta-grid{grid-template-columns:1fr}.elo-budget-table{font-size:9px}h1{font-size:24px}}"
-    ].join("");
-    const html = [
-      "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + escapeEloHtml_(fileName) + "</title><style>" + css + "</style></head><body>",
-      "<div class=\"elo-print-actions\"><button onclick=\"window.print()\">Imprimir / salvar PDF</button></div>",
-      "<article class=\"elo-professional-pdf elo-execution-stock-document\">",
-      "<section class=\"elo-pdf-cover\"><div class=\"elo-pdf-brand\"><span>Icaro Amaral Engenharia</span><strong>ELO</strong></div><p class=\"elo-pdf-kicker\">Relatorio tecnico local</p><h1>Relatorio de execucao, consumo e estoque</h1><p class=\"elo-pdf-subtitle\">Documento local e somente leitura, gerado a partir do cruzamento entre producao executada, consumo esperado, saidas reais do almoxarifado e saldo atual.</p><div class=\"elo-pdf-meta-grid\">" +
-        "<div class=\"elo-pdf-field\"><span>Obra</span><strong>" + escapeEloHtml_(scope.workName || scope.workId || scope.projectId || "obra atual") + "</strong></div>" +
-        "<div class=\"elo-pdf-field\"><span>Periodo</span><strong>" + escapeEloHtml_(safe.period && safe.period.label || "periodo nao informado") + "</strong></div>" +
-        "<div class=\"elo-pdf-field\"><span>Emissao</span><strong>" + escapeEloHtml_(issuedIso.replace("T", " ").slice(0, 16)) + "</strong></div>" +
-        "<div class=\"elo-pdf-field\"><span>Projeto</span><strong>" + escapeEloHtml_(scope.projectId || "nao informado") + "</strong></div>" +
-        "<div class=\"elo-pdf-field\"><span>Fontes usadas</span><strong>" + escapeEloHtml_(sources.length ? sources.join(", ") : "nenhuma fonte completa") + "</strong></div>" +
-        "<div class=\"elo-pdf-field\"><span>Arquivo</span><strong>" + escapeEloHtml_(fileName) + "</strong></div></div></section>",
-      "<section class=\"elo-pdf-section\"><h2>Resumo executivo</h2><div class=\"elo-pdf-box\">Producoes: " + escapeEloHtml_(safe.summary && safe.summary.productions || productions.length) + "\nMateriais analisados: " + escapeEloHtml_(safe.summary && safe.summary.materials || materials.length) + "\nAlertas: " + escapeEloHtml_(safe.summary && safe.summary.alerts || alerts.length) + "</div></section>",
-      "<section class=\"elo-pdf-section\"><h2>Producao executada</h2><table class=\"elo-budget-table\"><thead><tr><th>Servico</th><th>Quantidade</th></tr></thead><tbody>" + productionRows + "</tbody></table></section>",
-      "<section class=\"elo-pdf-section\"><h2>Tabela de materiais</h2><table class=\"elo-budget-table\"><thead><tr><th>Material</th><th>Un.</th><th>Esperado</th><th>Saida real</th><th>Saldo</th><th>Diferenca</th><th>%</th><th>Classificacao</th></tr></thead><tbody>" + materialRows + "</tbody></table></section>",
-      "<section class=\"elo-pdf-section is-alert\"><h2>Alertas priorizados</h2><div class=\"elo-pdf-box\"><ul>" + alertLines + "</ul></div></section>",
-      "<section class=\"elo-pdf-section " + (missing.length ? "is-warning" : "") + "\"><h2>Limitacoes e fontes ausentes</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(missing.length ? missing.join(", ") + ". Sem essas fontes, o ELO nao inventa valores." : "Sem limitacoes adicionais nas fontes locais usadas.") + "</div></section>",
-      "<section class=\"elo-pdf-section\"><h2>Conclusao tecnica</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(safe.conclusion || "Conclusao nao informada.") + "</div></section>",
-      "<section class=\"elo-pdf-signature\"><h2>Responsabilidade tecnica e revisao</h2><p>Este documento e local, preliminar e deve ser revisado por profissional habilitado antes de compra, contratacao, execucao ou envio ao cliente.</p><div class=\"elo-pdf-sign-line\"></div><strong>Icaro Amaral Engenharia</strong></section>",
-      "<footer class=\"elo-pdf-footer\"><span>Icaro Amaral Engenharia / ObraReport / ELO</span><span>" + escapeEloHtml_(fileName) + "</span></footer>",
-      "</article><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},120);});</script></body></html>"
-    ].join("\n");
-    return { ok: true, html: html, fileName: fileName, report: safe };
+      return "- " + sanitizeUserText(alert.material || "material") + ": " + sanitizeUserText(alert.classification || alert.status || "alerta") + ".";
+    }).join("\n") : "Sem alertas relevantes nos dados locais.";
+    return {
+      numero: fileName,
+      versao: 1,
+      status: "rascunho tecnico",
+      titulo: "Relatorio de execucao, consumo e estoque",
+      cliente: "nao informado",
+      obra: sanitizeUserText(scope.workName || scope.workId || scope.projectId || "obra atual"),
+      cidade_uf: sanitizeUserText(scope.city || scope.cidade || scope.uf || "nao informado"),
+      data_criacao: issuedIso,
+      resumo_executivo: "Documento local e somente leitura, gerado a partir do cruzamento entre producao executada, consumo esperado, saidas reais do almoxarifado e saldo atual.",
+      servicos: "Producao executada\n" + productionLines,
+      quantitativos: [
+        "Resumo executivo",
+        "Producoes: " + (safe.summary && safe.summary.productions || productions.length),
+        "Materiais analisados: " + (safe.summary && safe.summary.materials || materials.length),
+        "Alertas: " + (safe.summary && safe.summary.alerts || alerts.length),
+        "",
+        "Tabela de materiais",
+        materialLines
+      ].join("\n"),
+      composicoes: "Fontes usadas: " + (sources.length ? sources.join(", ") : "nenhuma fonte completa"),
+      bases_tecnicas: "Arquivo: " + fileName + "\nPeriodo: " + (safe.period && safe.period.label || "periodo nao informado") + "\nProjeto: " + (scope.projectId || "nao informado"),
+      pendencias: missing.length ? missing.join(", ") + ". Sem essas fontes, o ELO nao inventa valores." : "Sem limitacoes adicionais nas fontes locais usadas.",
+      avisos_profissionais: alertLines,
+      conteudo_markdown: [
+        "Relatorio tecnico local",
+        "",
+        formatEloObraExecutionStockReportAnswer_(safe),
+        "",
+        "Conclusao tecnica",
+        safe.conclusion || "Conclusao nao informada.",
+        "",
+        "Responsabilidade tecnica e revisao",
+        "Este documento e local, preliminar e deve ser revisado por profissional habilitado antes de compra, contratacao, execucao ou envio ao cliente."
+      ].join("\n"),
+      assinatura: "Icaro Amaral Engenharia",
+      origem: "elo_execution_stock_report"
+    };
+  }
+
+  function buildEloExecutionStockReportPdfDocument_(report, options) {
+    const safe = report && typeof report === "object" ? report : {};
+    if (safe.ok !== true) return { ok: false, reason: "report_not_ready", message: "Gere um relatorio local completo antes de criar o PDF." };
+    const record = buildEloExecutionStockProfessionalPdfRecord_(safe, options || {});
+    const html = buildEloProfessionalPdfDocument(record, { nomeDocumento: record.titulo });
+    return { ok: true, html: html, fileName: record.numero, report: safe };
   }
 
   function openEloExecutionStockReportPdf_(report, options) {
-    const documentData = buildEloExecutionStockReportPdfDocument_(report, options || {});
-    if (!documentData.ok) return documentData;
-    let opened = false;
-    if (typeof window !== "undefined" && window.open) {
-      const popup = window.open("", "_blank");
-      if (popup && popup.document) {
-        popup.document.open();
-        popup.document.write(documentData.html);
-        popup.document.close();
-        try { popup.focus(); } catch (error) {}
-        opened = true;
-      }
-    }
-    return Object.assign({}, documentData, { opened: opened, message: opened ? "PDF local preparado." : "Nao consegui abrir a janela de impressao do PDF local." });
+    const safe = report && typeof report === "object" ? report : {};
+    if (safe.ok !== true) return { ok: false, reason: "report_not_ready", message: "Gere um relatorio local completo antes de criar o PDF." };
+    const record = buildEloExecutionStockProfessionalPdfRecord_(safe, options || {});
+    const html = openEloProfessionalPdfDocument_(record, { nomeDocumento: record.titulo });
+    const opened = Boolean(typeof window !== "undefined" && window.open);
+    return { ok: true, html: html, fileName: record.numero, report: safe, opened: opened, message: opened ? "PDF local preparado." : "Nao consegui abrir a janela de impressao do PDF local." };
   }
 
   function appendEloExecutionStockReportPdfAction_(message) {
@@ -27075,6 +27055,7 @@ function isEloResidentialNewPipelineEnabled_() {
     requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
     buildLocalExecutionStockReportForTest: buildEloObraLocalExecutionStockReport_,
     buildExecutionStockReportPdfForTest: buildEloExecutionStockReportPdfDocument_,
+    buildExecutionStockProfessionalPdfRecordForTest: buildEloExecutionStockProfessionalPdfRecord_,
     openExecutionStockReportPdfForTest: openEloExecutionStockReportPdf_,
     getLastLocalExecutionStockReportForTest: function () { return ELO_UI.lastLocalExecutionStockReport; },
     runLocalExecutionStockReportActionForTest: runEloLocalExecutionStockReportAction_,
