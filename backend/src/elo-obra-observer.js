@@ -1,3 +1,5 @@
+import { crossExecutionWithStock } from "../../relatorio-qualidade-obras/elo-execution-stock-cross.js";
+
 function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -184,6 +186,95 @@ function getEvidenceConfidence(evidence) {
 function alert(type, severity, evidence, impact, recommendedAction, confidence) {
   return { type, severity, confidence: confidence || getEvidenceConfidence(evidence), evidence, impact: buildImpact(impact), recommendedAction };
 }
+function hasCrossExecutionInput(input) {
+  return [
+    input.productions,
+    input.stockMovements,
+    input.stockBalances,
+    input.sinapiExpectedConsumptions
+  ].some((items) => Array.isArray(items) && items.length > 0);
+}
+
+function crossAlertType(status) {
+  const types = {
+    insufficient_balance: ELO_OBRA_ALERT_TYPES.materialShortageRisk,
+    consumption_above_expected: ELO_OBRA_ALERT_TYPES.consumptionAbovePlanned,
+    stock_exit_without_production: ELO_OBRA_ALERT_TYPES.exitWithoutCompatibleProduction,
+    production_without_stock_exit: ELO_OBRA_ALERT_TYPES.productionWithoutMaterialConsumption
+  };
+  return types[status] || status;
+}
+
+function crossAlertSeverity(status) {
+  const severities = {
+    insufficient_balance: "critical",
+    consumption_above_expected: "high",
+    stock_exit_without_production: "medium",
+    production_without_stock_exit: "medium",
+    consumption_below_expected: "low",
+    missing_reference: "low"
+  };
+  return severities[status] || "medium";
+}
+
+function crossAlertRecommendedAction(status, material) {
+  const actions = {
+    insufficient_balance: "Regularizar saldo de " + material + " antes da próxima frente.",
+    consumption_above_expected: "Comparar saída real, perda e coeficiente SINAPI de " + material + ".",
+    stock_exit_without_production: "Vincular a saída de " + material + " a uma produção ou justificar o consumo.",
+    production_without_stock_exit: "Registrar saída de almoxarifado compatível com a produção de " + material + ".",
+    consumption_below_expected: "Verificar se a saída de " + material + " foi lançada parcialmente.",
+    missing_reference: "Vincular " + material + " a uma composição SINAPI antes de concluir o consumo esperado."
+  };
+  return actions[status] || "Revisar divergência entre execução, consumo esperado e almoxarifado.";
+}
+
+function generalAlertKey(item) {
+  const evidence = item.evidence || {};
+  return [
+    item.type,
+    normalizeText(evidence.material || ""),
+    normalizeUnit(evidence.unit || "")
+  ].join("|");
+}
+
+function addUniqueAlert(alerts, nextAlert) {
+  const nextKey = generalAlertKey(nextAlert);
+  if (!alerts.some((current) => generalAlertKey(current) === nextKey)) {
+    alerts.push(nextAlert);
+  }
+}
+
+function buildCrossGeneralAlert(crossAlert, material) {
+  const status = clean(crossAlert && crossAlert.status);
+  const name = clean((material && material.material) || (crossAlert && crossAlert.material));
+  return alert(crossAlertType(status), crossAlertSeverity(status), {
+    source: "executionStockCross",
+    material: name,
+    unit: material ? material.unit : null,
+    expectedConsumption: material ? material.expectedConsumption : null,
+    actualStockExit: material ? material.actualStockExit : null,
+    currentBalance: material ? material.currentBalance : null,
+    difference: crossAlert ? crossAlert.difference : null,
+    crossStatus: status
+  }, {
+    quantityGap: crossAlert ? Math.abs(numberValue(crossAlert.difference)) : null,
+    unit: material ? material.unit : null
+  }, crossAlertRecommendedAction(status, name));
+}
+function stockBalancesForCross(stockBalances) {
+  return (Array.isArray(stockBalances) ? stockBalances : []).map((balance) => {
+    if (!balance || typeof balance !== "object" || !balance.item || typeof balance.item !== "object") return balance;
+    return Object.assign({}, balance, {
+      item: Object.assign({}, balance.item, {
+        projectId: balance.item.projectId || balance.item.project_id || balance.projectId || balance.project_id,
+        project_id: balance.item.project_id || balance.item.projectId || balance.project_id || balance.projectId,
+        workId: balance.item.workId || balance.item.work_id || balance.workId || balance.work_id,
+        work_id: balance.item.work_id || balance.item.workId || balance.work_id || balance.workId
+      })
+    });
+  });
+}
 
 export function observeObra(input = {}) {
   const scope = {
@@ -197,6 +288,7 @@ export function observeObra(input = {}) {
   const rdoConsumptions = collectRdoConsumptions(rdos);
   const productions = collectRdoProductions(rdos);
   const alerts = [];
+  let executionStockCross = null;
 
   budget.forEach((planned, key) => {
     const balance = stockBalance.get(key);
@@ -254,7 +346,23 @@ export function observeObra(input = {}) {
     });
   });
 
-  return {
+  if (hasCrossExecutionInput(input)) {
+    executionStockCross = crossExecutionWithStock({
+      projectId: scope.projectId,
+      workId: scope.workId,
+      productions: input.productions,
+      stockMovements: input.stockMovements,
+      stockBalances: stockBalancesForCross(input.stockBalances),
+      sinapiExpectedConsumptions: input.sinapiExpectedConsumptions
+    });
+    const materialByName = new Map(executionStockCross.materials.map((material) => [normalizeText(material.material), material]));
+    executionStockCross.alerts.forEach((crossAlert) => {
+      const material = materialByName.get(normalizeText(crossAlert.material));
+      addUniqueAlert(alerts, buildCrossGeneralAlert(crossAlert, material));
+    });
+  }
+
+  const result = {
     ok: true,
     scope,
     summary: {
@@ -267,6 +375,16 @@ export function observeObra(input = {}) {
     },
     alerts
   };
+  if (executionStockCross) {
+    result.executionStockCross = {
+      summary: executionStockCross.summary,
+      materials: executionStockCross.materials,
+      alerts: executionStockCross.alerts,
+      dataQuality: executionStockCross.dataQuality
+    };
+    result.summary.alerts = alerts.length;
+  }
+  return result;
 }
 
 export default observeObra;
