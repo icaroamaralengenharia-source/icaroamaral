@@ -635,9 +635,9 @@
     if (!(context && context.workId)) return null;
     const text = normalizeText(message || "");
     const wallBudgetMessage = /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
-    let response = buildEloWallBudgetTaskAnswer_(wallBudgetMessage);
-    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloBudgetOrchestratorV2Answer_(message);
-    if (!isEloBudgetRouteUsableResponse_(response) && wallBudgetMessage !== message) response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
+    let response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
+    if (!isEloBudgetRouteUsableResponse_(response) && wallBudgetMessage !== message) response = buildEloBudgetOrchestratorV2Answer_(message);
+    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloWallBudgetTaskAnswer_(wallBudgetMessage);
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetConversationAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetBriefingAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) return null;
@@ -13837,8 +13837,12 @@
       return null;
     }
 
+    const explicitAreaMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i);
+    const explicitArea = explicitAreaMatch ? parseEloOperationalNumber_(explicitAreaMatch[1]) : 0;
+    const geometryRaw = raw.replace(/\b(?:bloco\s+(?:ceramico\s+)?(?:baiano\s+)?)?\d{1,2}\s*x\s*\d{1,2}\s*x\s*\d{1,2}\b/gi, " ");
+
     const numbers = [];
-    raw.replace(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/gi, function (_, value) {
+    geometryRaw.replace(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\b/gi, function (_, value) {
       numbers.push(parseEloOperationalNumber_(value));
       return _;
     });
@@ -13846,11 +13850,11 @@
     let length = 0;
     let area = 0;
 
-    const heightMatch = raw.match(/(?:altura|alto|h)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
-      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
-    const lengthMatch = raw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
-      raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
-    const simplePairMatch = raw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
+    const heightMatch = geometryRaw.match(/(?:altura|alto|h)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
+      geometryRaw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:altura|alto)\b/i);
+    const lengthMatch = geometryRaw.match(/(?:comprimento|largura|linear|corridos?)\s*(?:de\s*)?(\d+(?:[,.]\d+)?)/i) ||
+      geometryRaw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:de\s*)?(?:comprimento|largura|linear|corridos?)\b/i);
+    const simplePairMatch = geometryRaw.match(/(?:parede|muro|alvenaria)[^\d]{0,50}(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:x|×|\?|por)\s*(\d+(?:[,.]\d+)?)/i);
     if (heightMatch) {
       height = parseEloOperationalNumber_(heightMatch[1]);
     }
@@ -13866,7 +13870,7 @@
       }
     }
     const allWallNumbers = [];
-    raw.replace(/(\d+(?:[,.]\d+)?)/g, function (_, value) {
+    geometryRaw.replace(/(\d+(?:[,.]\d+)?)/g, function (_, value) {
       const parsed = parseEloOperationalNumber_(value);
       if (parsed > 0) {
         allWallNumbers.push(parsed);
@@ -13890,11 +13894,12 @@
       height = height || sorted[0];
       length = length || sorted[sorted.length - 1];
     }
-    if (height > 0 && length > 0) {
+    if (explicitArea > 0) {
+      area = explicitArea;
+    } else if (height > 0 && length > 0) {
       area = height * length;
     } else {
-      const areaMatch = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
-      area = areaMatch ? parseEloOperationalNumber_(areaMatch[1]) : 0;
+      area = 0;
     }
     if (area <= 0) {
       return null;
@@ -13910,6 +13915,7 @@
       wantsBudget: hasAnyTerm(text, ["orcamento", "orcamento", "orca", "orcar", "custo", "preco", "preco", "valor"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|valor|custo|preco|pre.o/.test(text),
       wantsReferenceBudget: hasAnyTerm(text, ["referencia", "referencia", "padrao", "padrao", "estimativa", "preliminar"]),
       blockDimension: (raw.match(/\b((?:29|39)\s*x\s*19\s*x\s*14|14\s*x\s*19\s*x\s*(?:29|39))\b/i) || [])[1] || "14x19x39 cm",
+      lossPercent: extractEloStockObrasLossPercent_(raw),
       coatingSides: /um\s+lado|1\s+lado|uma\s+face/.test(text) ? "1 lado" : "2 lados",
       raw: raw
     };
@@ -17772,7 +17778,9 @@
           facts.dimensions.heightM = wall.altura_m || wall.height || null;
           facts.dimensions.grossAreaM2 = wall.area_bruta_m2 || wall.area || null;
           facts.dimensions.block = wall.bloco_ceramico_dimensao_cm ? wall.bloco_ceramico_dimensao_cm.join("x") : sanitizeUserText(wall.blockDimension || "").replace(/\s*cm$/i, "");
-          facts.openings = wall.vaos || null;
+          const wallLossPercent = wall.lossPercent !== null && wall.lossPercent !== undefined ? wall.lossPercent : extractEloStockObrasLossPercent_(raw);
+          if (wallLossPercent !== null && wallLossPercent >= 0) facts.dimensions.lossPercent = wallLossPercent;
+          facts.openings = wall.openings || wall.vaos || (hasEloNoWallOpenings_(normalizeText(raw)) ? { sem_vaos: true, portas: [], janelas: [] } : null);
           facts.currentFields.push("dimensions", "openings");
         }
       }
@@ -17877,8 +17885,10 @@
       }
       if (state.type === "wall") {
         const dimensions = state.dimensions || {};
-        if (!(dimensions.lengthM > 0)) missing.push("comprimento da parede");
-        if (!(dimensions.heightM > 0)) missing.push("altura da parede");
+        if (!(dimensions.grossAreaM2 > 0)) {
+          if (!(dimensions.lengthM > 0)) missing.push("comprimento da parede");
+          if (!(dimensions.heightM > 0)) missing.push("altura da parede");
+        }
         if (!dimensions.block) missing.push("tipo/dimensao do bloco");
         if (!state.openings) missing.push("vaos de portas e janelas");
       }
@@ -18204,7 +18214,8 @@
       const faceA = parts.length >= 3 ? Math.max(parts[0], parts[2]) / 100 : 0.29;
       const faceB = parts.length >= 2 ? parts[1] / 100 : 0.19;
       const unitArea = faceA * faceB || 0.0551;
-      const blockQty = Math.ceil(area / unitArea * 1.08);
+      const lossPercent = dimensions.lossPercent !== null && dimensions.lossPercent !== undefined ? Math.max(0, parseEloOperationalNumber_(dimensions.lossPercent)) : 8;
+      const blockQty = Math.ceil(area / unitArea * (1 + lossPercent / 100));
       const cityUf = [state.city, state.state].filter(Boolean).join("/") || "cidade/UF pendente";
       const lines = [
         "Orcamento tecnico preliminar - parede de bloco ceramico",
@@ -18216,7 +18227,7 @@
         "",
         "Servicos executaveis e quantitativos preliminares:",
         "- Alvenaria em bloco ceramico: " + formatEloResidentialPremiseNumber_(area, 2) + " m2.",
-        "- Blocos ceramicos aproximados: " + blockQty + " un, com perda preliminar de 8%.",
+        "- Blocos ceramicos aproximados: " + blockQty + " un, com perda adotada de " + formatEloResidentialPremiseNumber_(lossPercent, 2) + "%.",
         "- Mao de obra: considerada no escopo, preco pendente de composicao oficial.",
         "- Chapisco/reboco: a confirmar se entra no escopo final.",
         "",
@@ -18229,7 +18240,8 @@
         "Observacao:",
         "- Nao herdei dados de casa; este orcamento e somente da parede informada."
       ];
-      appendEloProfessionalServiceBlock_(lines, "PAREDE DE BLOCO CERAMICO", "execucao de parede", "bloco ceramico " + dimensions.block + ", argamassa", formatEloResidentialPremiseNumber_(area, 2) + " m2 / " + blockQty + " blocos aproximados", "pendente de composicao oficial");
+      appendEloProfessionalServiceBlock_(lines, "PAREDE DE BLOCO CERAMICO", "execucao de parede", "bloco ceramico " + dimensions.block + ", argamassa, perda " + formatEloResidentialPremiseNumber_(lossPercent, 2) + "%", formatEloResidentialPremiseNumber_(area, 2) + " m2 / " + blockQty + " blocos aproximados", "pendente de composicao oficial");
+      clearEloPendingPremises_();
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
@@ -25008,7 +25020,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
     const pdfAction = response && response.pdfAction;
-    if (pdfAction) {
+    if (pdfAction && pdfAction.type !== "budget_v2_professional_pdf") {
       const pdfButton = createElement("button", "elo-inline-button", pdfAction.label || "Gerar PDF");
       pdfButton.type = "button";
       pdfButton.setAttribute("data-elo-action-type", "budget_pdf");
@@ -27285,6 +27297,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    appendAssistantMessageForTest: appendAssistantMessage,
     startBudgetRouteForTest: maybeStartEloBudgetRoute_,
     hasBudgetRoutePendingForTest: hasEloBudgetRoutePending_,
     requestWebSearchForTest: requestEloWebSearchAnswer_,

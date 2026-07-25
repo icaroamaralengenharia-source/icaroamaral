@@ -779,6 +779,53 @@ test('ELO orcamento da obra ativa prioriza motor pendente da URL', () => {
   assert.equal(oldRoute.sessionIntent, 'safe_mode');
 });
 
+test('ELO parede 100 m2 perda 10 evita PDF duplicado', () => {
+  const question = 'Or\u00e7amento da parede: area 100 m\u00b2, bloco 14x19x29, perda 10%, sem v\u00e3os, sem revestimento.';
+  const { elo, context } = loadEloContext({
+    window: {
+      location: { hostname: 'localhost', protocol: 'http:', pathname: '/elo.html', hash: '', search: '?source=obrareport&intent=orcamento&projectId=obra-a&workId=work-a' }
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.buildResponseForTest('Quero orcamento residencial para obra B casa 80 m2 em Salvador/BA padrao medio.');
+  assert.equal(elo.startBudgetRouteForTest(), true);
+  const response = elo.buildResponseForTest(question);
+  const state = response.budgetOrchestratorV2.state;
+  const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].join('\n');
+
+  assert.equal(response.brain, 'budget');
+  assert.equal(response.sessionTheme, 'wall_budget_package');
+  assert.equal(response.sessionIntent, 'budget_v2_wall_quantities');
+  assert.equal(state.type, 'wall');
+  assert.equal(state.dimensions.grossAreaM2, 100);
+  assert.equal(state.dimensions.lengthM, null);
+  assert.equal(state.dimensions.heightM, null);
+  assert.equal(state.dimensions.block, '14x19x29');
+  assert.equal(state.dimensions.lossPercent, 10);
+  assert.equal(state.openings.sem_vaos, true);
+  assert.equal(state.openings.portas.length, 0);
+  assert.equal(state.openings.janelas.length, 0);
+  assert.equal(state.missingFields.length, 0);
+  assert.equal(response.eloBudgetRouteContext.projectId, 'obra-a');
+  assert.equal(response.eloBudgetRouteContext.workId, 'work-a');
+  assert.equal(context.window.ELO_PROJECT_ID, 'obra-a');
+  assert.equal(context.window.ELO_WORK_ID, 'work-a');
+  assert.match(answer, /Area da parede: 100,00 m2/);
+  assert.match(answer, /perda adotada de 10,00%/);
+  assert.match(answer, /1997 un/);
+  assert.doesNotMatch(answer, /obra B|Salvador|80,00|80 m2/i);
+  assert.equal(elo.hasBudgetRoutePendingForTest(), false);
+
+  elo.appendAssistantMessageForTest(question, answer, true, response);
+  function countActions(node, type) {
+    if (!node || !Array.isArray(node.children)) return 0;
+    return node.children.reduce((total, child) => total + (child && child['data-elo-action-type'] === type ? 1 : 0) + countActions(child, type), 0);
+  }
+  assert.equal(countActions(messages, 'budget_v2_professional_pdf'), 1);
+  assert.equal(countActions(messages, 'budget_pdf'), 0);
+});
 test('ELO orcamento direto 70m2 usa dados informados e gera pacote com PDF', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Casa terrea de 70 m2, 2 quartos, 2 banheiros, sala, cozinha e area de servico, Vitoria da Conquista/BA, padrao medio, SINAPI BA 2024-12, BDI 25%.');
