@@ -9,6 +9,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        if (new URLSearchParams(window.location.search).get("intent") === "orcamento") {
+          document.documentElement.classList.add("elo-intent-orcamento");
+        }
+      } catch (error) {
+        document.documentElement.classList.remove("elo-intent-orcamento");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="elo.css">
   <style>
     body.elo-auth-required .elo-product-brand,

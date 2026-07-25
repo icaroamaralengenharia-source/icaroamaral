@@ -1789,3 +1789,114 @@ body[data-elo-product="chat"].elo-auth-required .elo-local-auth {
   margin-left: 0;
   margin-right: 0;
 }
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-shell {
+  min-height: 100svh;
+  height: 100svh;
+  overflow: hidden;
+  padding-top: clamp(76px, 9vh, 104px);
+  padding-bottom: clamp(18px, 3vh, 32px);
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-center,
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-center {
+  width: min(900px, 100%);
+  min-height: 0;
+  height: 100%;
+  justify-content: center;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat,
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel,
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat {
+  width: min(860px, 100%);
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel,
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active {
+  height: auto;
+  max-height: min(420px, calc(100svh - 290px));
+  overflow: hidden;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active {
+  height: clamp(260px, 42svh, 420px);
+  display: flex;
+  flex-direction: column;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-empty-state .elo-product-chat .elo-standalone-panel,
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active:has(.elo-messages:empty) {
+  height: auto;
+  min-height: 124px;
+  max-height: 150px;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-messages,
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
+  width: min(840px, 100%);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 0 10px;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-empty-state .elo-product-chat .elo-messages,
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-messages:empty {
+  display: none;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-input-row {
+  width: min(840px, 100%);
+  height: 76px;
+  max-height: 76px;
+  flex: 0 0 auto;
+  align-self: center;
+  align-items: center;
+  min-height: 76px;
+  margin-top: 0;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-input-row {
+  margin-top: 10px;
+}
+
+html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active:has(.elo-messages:empty) .elo-input-row {
+  min-height: 76px;
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-shell {
+    padding: 72px 10px max(12px, env(safe-area-inset-bottom));
+  }
+
+  html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-center,
+  html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-center {
+    width: 100%;
+  }
+
+  html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active {
+    height: clamp(260px, 52svh, 430px);
+    max-height: min(430px, calc(100svh - 230px));
+  }
+
+  html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-messages,
+  html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-standalone-panel.is-chat-active .elo-messages {
+    width: 100%;
+    padding-top: 10px;
+  }
+
+  html.elo-intent-orcamento body[data-elo-product="chat"] .elo-product-chat .elo-input-row,
+  html.elo-intent-orcamento body[data-elo-product="chat"].elo-chat-state .elo-product-chat .elo-standalone-panel.is-chat-active:has(.elo-messages:empty) .elo-input-row {
+    width: 100%;
+    height: 68px;
+    max-height: 68px;
+    min-height: 68px;
+    align-items: center;
+  }
+}
