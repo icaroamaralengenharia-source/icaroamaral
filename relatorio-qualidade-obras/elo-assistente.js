@@ -513,6 +513,117 @@
       /\bcomo\b[\s\S]{0,80}\bobra\b[\s\S]{0,30}\bhoje\b/.test(text);
   }
 
+  function isEloObraExecutionStockRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text || isEloCorePureConversationalRequest_(question)) return false;
+    if (isEloObraAttentionRequest_(question)) return false;
+    if (hasEloCoreTechnicalConversationBlocker_(text) && !/\b(obra|rdo|almoxarifado|estoque|stock|saldo|saida|sa.da|consumo|desperdicio|desperd.cio|execucao|execu..o|executado|executada|producao|produ..o|material|materiais)\b/.test(text)) return false;
+    const hasCrossIntent = /\b(consumo|desperdicio|desperd.cio|saldo|estoque\s+da\s+obra|almoxarifado|saida|sa.da|execucao\s+versus\s+material|execu..o\s+versus\s+material|executado\s+versus\s+material|producao\s+versus\s+material|produ..o\s+versus\s+material)\b/.test(text);
+    const hasWorkContext = /\b(obra|rdo|servico|servi.o|material|materiais|almoxarifado|estoque|stock|saldo|executado|executada|producao|produ..o)\b/.test(text);
+    return hasCrossIntent && hasWorkContext;
+  }
+
+  function getEloObraSnapshotScope_() {
+    const context = getEloCoreAuthContext_();
+    let searchParams = null;
+    try { searchParams = new URLSearchParams(window.location && window.location.search || ""); } catch (error) { searchParams = null; }
+    const projectId = sanitizeUserText(window.ELO_PROJECT_ID || context.projectId || searchParams && searchParams.get("projectId") || "").slice(0, 140);
+    const workId = sanitizeUserText(window.ELO_WORK_ID || context.workId || searchParams && searchParams.get("workId") || "").slice(0, 140);
+    return { projectId: projectId, workId: workId };
+  }
+
+  function getEloStockObrasSnapshotBuilder_() {
+    const api = window.EloStockObrasSnapshot || window.eloStockObrasSnapshot;
+    return api && typeof api.buildEloStockObrasSnapshot === "function" ? api.buildEloStockObrasSnapshot : null;
+  }
+
+  function getEloExecutionStockCrossBuilder_() {
+    const api = window.EloExecutionStockCross || window.eloExecutionStockCross;
+    return api && typeof api.crossExecutionWithStock === "function" ? api.crossExecutionWithStock : null;
+  }
+
+  function buildEloObraLocalExecutionStockCross_() {
+    const snapshotBuilder = getEloStockObrasSnapshotBuilder_();
+    const crossBuilder = getEloExecutionStockCrossBuilder_();
+    const missingModules = [];
+    if (!snapshotBuilder) missingModules.push("elo-stock-obras-snapshot");
+    if (!crossBuilder) missingModules.push("elo-execution-stock-cross");
+    if (missingModules.length) return { available: false, missingModules: missingModules };
+    try {
+      const scope = getEloObraSnapshotScope_();
+      const snapshot = snapshotBuilder({
+        projectId: scope.projectId,
+        workId: scope.workId,
+        localStorage: window.localStorage,
+        obraReport: window.ObraReport || window.obraReport || window.obraReportData || {},
+        operationalStock: window.ObraReportOperationalStock || {}
+      });
+      const cross = crossBuilder(snapshot || {});
+      return { available: true, snapshot: snapshot || {}, cross: cross || {} };
+    } catch (error) {
+      return { available: false, error: error && error.message || "execution_stock_cross_error" };
+    }
+  }
+
+  function formatEloObraCrossQuantity_(value, unit) {
+    const number = Number(value);
+    const safeNumber = Number.isFinite(number) ? Math.round(number * 1000) / 1000 : 0;
+    return String(safeNumber).replace(".", ",") + (unit ? " " + sanitizeUserText(unit) : "");
+  }
+
+  function getEloObraCrossStatusLabel_(status) {
+    const key = normalizeText(status || "");
+    if (key === "consumption_above_expected") return "consumo acima do esperado";
+    if (key === "consumption_below_expected") return "saida abaixo do esperado";
+    if (key === "insufficient_balance") return "saldo insuficiente";
+    if (key === "production_without_stock_exit") return "producao sem saida do almoxarifado";
+    if (key === "stock_exit_without_production") return "saida sem producao vinculada";
+    if (key === "missing_reference") return "referencia de consumo ausente";
+    return "sem divergencia relevante";
+  }
+
+  function formatEloObraExecutionStockCrossAnswer_(crossInfo) {
+    const safe = crossInfo && typeof crossInfo === "object" ? crossInfo : {};
+    if (!safe.available) return "Cruzamento local execucao x estoque: fontes locais indisponiveis" + (safe.missingModules && safe.missingModules.length ? " (modulos ausentes: " + safe.missingModules.join(", ") + ")" : "") + ".";
+    const snapshot = safe.snapshot && typeof safe.snapshot === "object" ? safe.snapshot : {};
+    const cross = safe.cross && typeof safe.cross === "object" ? safe.cross : {};
+    const summary = cross.summary && typeof cross.summary === "object" ? cross.summary : {};
+    const materials = Array.isArray(cross.materials) ? cross.materials : [];
+    const alerts = Array.isArray(cross.alerts) ? cross.alerts : [];
+    const missing = snapshot.dataQuality && Array.isArray(snapshot.dataQuality.missingSources) ? snapshot.dataQuality.missingSources : [];
+    const productions = Array.isArray(snapshot.productions) ? snapshot.productions : [];
+    const lines = [];
+    if (!materials.length) {
+      if (missing.length) return "Cruzamento execucao x estoque: nao encontrei fontes suficientes para cruzar producao, consumo esperado, saidas e saldo. Fontes ausentes: " + missing.join(", ") + ".";
+      return "";
+    }
+    lines.push("Cruzamento execucao x estoque da obra atual:");
+    lines.push("- Producao executada lida: " + (summary.productions || productions.length || 0) + " registro(s).");
+    materials.slice(0, 6).forEach(function (item) {
+      const unit = sanitizeUserText(item && item.unit || "un");
+      const status = getEloObraCrossStatusLabel_(item && item.status);
+      lines.push("- " + sanitizeUserText(item && item.material || "material") + ": esperado " + formatEloObraCrossQuantity_(item && item.expectedConsumption, unit) + "; saiu " + formatEloObraCrossQuantity_(item && item.actualStockExit, unit) + "; saldo " + (item && item.currentBalance == null ? "nao informado" : formatEloObraCrossQuantity_(item.currentBalance, unit)) + "; diferenca " + formatEloObraCrossQuantity_(item && item.difference, unit) + "; " + status + ".");
+    });
+    if (alerts.length) {
+      const uniqueAlerts = [];
+      alerts.forEach(function (alert) {
+        const label = sanitizeUserText((alert && alert.material || "material") + ": " + getEloObraCrossStatusLabel_(alert && alert.status));
+        if (label && uniqueAlerts.indexOf(label) === -1) uniqueAlerts.push(label);
+      });
+      if (uniqueAlerts.length) lines.push("- Alertas: " + uniqueAlerts.slice(0, 6).join("; ") + ".");
+    }
+    if (missing.length) lines.push("- Fontes ausentes: " + missing.join(", ") + ". Sem essas fontes, eu nao invento valores.");
+    return sanitizeEloMultilineText_(lines.join("\n"));
+  }
+
+  function mergeEloObraAttentionWithCross_(data) {
+    const baseAnswer = formatEloObraAttentionAnswer_(data);
+    const backendCross = data && data.executionStockCross ? { available: true, snapshot: {}, cross: data.executionStockCross } : null;
+    const localCross = backendCross || buildEloObraLocalExecutionStockCross_();
+    const crossAnswer = formatEloObraExecutionStockCrossAnswer_(localCross);
+    if (!crossAnswer) return baseAnswer;
+    return sanitizeEloMultilineText_(baseAnswer + "\n\n" + crossAnswer);
+  }
   function getEloObraAttentionSeverityRank_(severity) {
     const value = normalizeText(severity || "");
     if (value === "critical" || value === "critica" || value === "critico") return 0;
@@ -573,10 +684,31 @@
         return formatEloObraAttentionAnswer_(data);
       });
     }).catch(function () {
-      return "N�o consegui consultar o Observador da Obra agora. Tente novamente em instantes; n�o vou inventar alerta sem dados.";
+      return "Nao consegui consultar o Observador da Obra agora. Tente novamente em instantes; nao vou inventar alerta sem dados.";
     });
   }
 
+  function requestEloObraExecutionStockAnswer_(question) {
+    if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
+    const answer = formatEloObraExecutionStockCrossAnswer_(buildEloObraLocalExecutionStockCross_());
+    return Promise.resolve(answer || "Cruzamento local execucao x estoque: nao encontrei dados locais suficientes para comparar producao, consumo esperado, saidas e saldo.");
+  }
+
+  function handleEloObraExecutionStockRequest_(question) {
+    if (!isEloObraExecutionStockRequest_(question)) return false;
+    const statusMessage = appendMessage("assistant", "Lendo execucao e estoque locais...");
+    requestEloObraExecutionStockAnswer_(question).then(function (answer) {
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao encontrei fontes locais suficientes para cruzar execucao e estoque.";
+      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise RDO, planejamento de consumo e saldos locais se a qualidade vier baixa.", canSave: true, sessionTheme: "execution_stock_cross", sessionIntent: "execution_stock_cross_local" };
+      updateEloMessage_(statusMessage, finalAnswer);
+      saveConversation(question, finalAnswer);
+      rememberSessionTurn(question, response, finalAnswer);
+    }).finally(function () {
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+    });
+    return true;
+  }
   function handleEloObraAttentionRequest_(question) {
     if (!isEloObraAttentionRequest_(question)) return false;
     const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
@@ -23078,6 +23210,10 @@ function isEloResidentialNewPipelineEnabled_() {
         }
       }
 
+      if (handleEloObraExecutionStockRequest_(cleanQuestion)) {
+        return;
+      }
+
       if (handleEloObraAttentionRequest_(cleanQuestion)) {
         return;
       }
@@ -26608,8 +26744,12 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponseForTest: buildResponse,
     requestWebSearchForTest: requestEloWebSearchAnswer_,
     detectObraAttentionForTest: isEloObraAttentionRequest_,
+    detectObraExecutionStockForTest: isEloObraExecutionStockRequest_,
+    requestObraExecutionStockForTest: requestEloObraExecutionStockAnswer_,
     requestObraAttentionForTest: requestEloObraAttentionAnswer_,
     formatObraAttentionForTest: formatEloObraAttentionAnswer_,
+    buildLocalExecutionStockCrossForTest: buildEloObraLocalExecutionStockCross_,
+    formatExecutionStockCrossForTest: formatEloObraExecutionStockCrossAnswer_,
 
     ensureAuthMergeForTest: ensureEloCoreAuthMerge_,
     getCoreIdentityForTest: getEloCoreIdentity_,

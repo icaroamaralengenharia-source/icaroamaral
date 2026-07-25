@@ -50,6 +50,8 @@
       (!scope.workId || !workId || workId === scope.workId);
   }
 
+  const SAAS_STORE_KEY = "obrareport-saas-v1";
+
   function readJson(storage, key, fallback) {
     if (!storage || typeof storage.getItem !== "function") return fallback;
     try {
@@ -62,6 +64,21 @@
 
   function arrayOf(value) {
     return Array.isArray(value) ? value : [];
+  }
+  function appStateFrom(input) {
+    const safe = input || {};
+    if (safe.appState && typeof safe.appState === "object") return safe.appState;
+    const state = readJson(safe.localStorage, SAAS_STORE_KEY, null);
+    return state && typeof state === "object" && state.version === 1 ? state : {};
+  }
+
+  function scopeFrom(input) {
+    const state = appStateFrom(input);
+    const local = state.local && typeof state.local === "object" ? state.local : {};
+    return {
+      projectId: clean(input && (input.projectId || local.lastProjectId || local.projectId || local.currentProjectId)),
+      workId: clean(input && (input.workId || local.lastWorkId || local.workId || local.currentWorkId))
+    };
   }
 
   function normalizeProduction(item, scope) {
@@ -128,7 +145,9 @@
 
   function localRdosFrom(input) {
     const storage = input.localStorage;
+    const state = appStateFrom(input);
     const report = input.obraReport && typeof input.obraReport === "object" ? input.obraReport : {};
+    if (Array.isArray(state.dailyLogs)) return state.dailyLogs;
     if (Array.isArray(report.rdos)) return report.rdos;
     if (Array.isArray(report.dailyLogs)) return report.dailyLogs;
     if (typeof report.getUserDailyLogs === "function") return arrayOf(report.getUserDailyLogs());
@@ -153,7 +172,16 @@
     if (Array.isArray(report.stockMovements)) return report.stockMovements;
     if (Array.isArray(report.movements)) return report.movements;
     if (typeof report.getStockMovements === "function") return arrayOf(report.getStockMovements());
-    return arrayOf(rdos).flatMap((rdo) => arrayOf(rdo.stockMovements || rdo.movements));
+    return arrayOf(rdos).flatMap((rdo) => {
+      const scoped = { projectId: rdo.projectId || rdo.project_id || scope.projectId, workId: rdo.workId || rdo.work_id || scope.workId };
+      const explicit = arrayOf(rdo.stockMovements || rdo.movements);
+      const materials = arrayOf(rdo.materials).map((material) => Object.assign({}, material, scoped, {
+        type: material.type || material.movementType || "saida",
+        material: material.material || material.materialName || material.name || material.description,
+        quantity: material.quantity || material.qty || material.amount || material.quantidade
+      }));
+      return explicit.concat(materials);
+    });
   }
 
   function stockBalancesFrom(input) {
@@ -168,8 +196,37 @@
     return [];
   }
 
+  function flattenPlannedConsumptions(value, scope) {
+    const result = [];
+    arrayOf(value).forEach((plan) => {
+      const safe = plan && typeof plan === "object" ? plan : {};
+      const items = Array.isArray(safe.itens) ? safe.itens : Array.isArray(safe.items) ? safe.items : null;
+      if (!items) {
+        result.push(safe);
+        return;
+      }
+      items.forEach((item) => {
+        const material = item && typeof item === "object" ? item : {};
+        result.push({
+          projectId: safe.projectId || safe.project_id || scope.projectId,
+          workId: safe.workId || safe.work_id || safe.obraId || scope.workId,
+          productionId: safe.productionId || safe.production_id || safe.serviceId || safe.service_id,
+          service: safe.servico || safe.service || safe.serviceName,
+          material: material.material || material.materialName || material.nome || material.name || material.insumo,
+          unit: material.unit || material.unidade,
+          coefficient: material.coefficient || material.coeficiente || 0,
+          expectedConsumption: material.expectedConsumption || material.expectedQuantity || material.quantidade || material.quantity
+        });
+      });
+    });
+    return result;
+  }
   function plannedConsumptionsFrom(input) {
+    const state = appStateFrom(input);
     const report = input.obraReport && typeof input.obraReport === "object" ? input.obraReport : {};
+    if (state.stockIa && Array.isArray(state.stockIa.plannedConsumptions)) return state.stockIa.plannedConsumptions;
+    if (state.stockIA && Array.isArray(state.stockIA.plannedConsumptions)) return state.stockIA.plannedConsumptions;
+    if (Array.isArray(state.plannedConsumptions)) return state.plannedConsumptions;
     if (report.stockIa && Array.isArray(report.stockIa.plannedConsumptions)) {
       return report.stockIa.plannedConsumptions;
     }
@@ -186,14 +243,11 @@
 
   function buildEloStockObrasSnapshot(input) {
     const safe = input || {};
-    const scope = {
-      projectId: clean(safe.projectId),
-      workId: clean(safe.workId)
-    };
+    const scope = scopeFrom(safe);
     const rdos = localRdosFrom(safe);
     const rawMovements = stockMovementsFrom(safe, rdos, scope);
     const rawBalances = stockBalancesFrom(safe);
-    const rawExpected = plannedConsumptionsFrom(safe);
+    const rawExpected = flattenPlannedConsumptions(plannedConsumptionsFrom(safe), scope);
     const productions = productionsFromRdos(rdos, scope);
     const stockMovements = rawMovements.map((item) => normalizeMovement(item, scope)).filter((item) => sameScope(item, scope) && item.material && item.quantity > 0);
     const stockBalances = rawBalances.map((item) => normalizeBalance(item, scope)).filter((item) => sameScope(item, scope) && item.item.name);
