@@ -12,7 +12,8 @@ function createStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
   return {
     writes: 0,
-    getItem(key) { return data.has(String(key)) ? data.get(String(key)) : null; },
+    reads: 0,
+    getItem(key) { this.reads += 1; return data.has(String(key)) ? data.get(String(key)) : null; },
     setItem(key, value) { this.writes += 1; data.set(String(key), String(value)); },
     removeItem(key) { this.writes += 1; data.delete(String(key)); },
     clear() { this.writes += 1; data.clear(); },
@@ -37,7 +38,8 @@ function createJwt(payload = {}) {
 }
 
 function createElement(tag) {
-  return {
+  let textValue = "";
+  const element = {
     tagName: String(tag || "").toUpperCase(),
     dataset: {},
     style: {},
@@ -50,6 +52,7 @@ function createElement(tag) {
     appendChild(child) { child.parentNode = this; this.children.push(child); return child; },
     addEventListener(type, listener) { this.events[type] = this.events[type] || []; this.events[type].push(listener); },
     click() { (this.events.click || []).forEach((listener) => listener({ preventDefault() {} })); },
+    focus() {},
     setAttribute(name, value) { this[String(name)] = String(value); },
     getAttribute(name) { return this[String(name)] || ""; },
     closest(selector) {
@@ -64,11 +67,36 @@ function createElement(tag) {
     querySelectorAll() { return []; },
     value: "",
     options: [],
-    selectedIndex: -1,
-    textContent: ""
+    selectedIndex: -1
   };
+  Object.defineProperty(element, "textContent", {
+    get() { return textValue; },
+    set(value) {
+      textValue = value == null ? "" : String(value);
+      if (textValue === "") element.children = [];
+    }
+  });
+  return element;
 }
 
+
+function collectElementText(element) {
+  if (!element) return "";
+  const own = element.textContent || "";
+  const children = Array.isArray(element.children) ? element.children.map(collectElementText).join("\n") : "";
+  return [own, children].filter(Boolean).join("\n");
+}
+
+function findElementByText(element, text) {
+  if (!element) return null;
+  if ((element.textContent || "") === text) return element;
+  const children = Array.isArray(element.children) ? element.children : [];
+  for (const child of children) {
+    const found = findElementByText(child, text);
+    if (found) return found;
+  }
+  return null;
+}
 function createTrackedClassList(initial = []) {
   const classes = new Set(initial);
   return {
@@ -515,4 +543,198 @@ test("botao gerar relatorio fica oculto quando modulos locais faltam", async () 
   assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages", reportButton: "[data-elo-local-report]" }), true);
   assert.equal(reportActions.hidden, true);
   assert.equal(reportButton.hidden, true);
+});
+
+test("PDF local so habilita com report ok e mantem contrato do relatorio", async () => {
+  const { elo } = await loadEloContext({
+    localStorage: buildLocalStorage(),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { throw new Error("should_not_fetch"); }
+  });
+  const report = elo.buildLocalExecutionStockReportForTest();
+  const pdf = elo.buildExecutionStockReportPdfForTest(report, { issuedAt: new Date("2026-07-25T10:30:00.000Z") });
+
+  assert.equal(report.ok, true);
+  assert.equal(pdf.ok, true);
+  assert.equal(pdf.fileName, "elo-relatorio-execucao-estoque-obra-a-work-2026-07-25.pdf");
+  assert.match(pdf.html, /Relatorio de execucao, consumo e estoque/);
+  assert.match(pdf.html, /Alvenaria/);
+  assert.match(pdf.html, /2500/);
+  assert.match(pdf.html, /2600/);
+  assert.match(pdf.html, /40/);
+  assert.match(pdf.html, /4%/);
+  assert.match(pdf.html, /consumo acima/);
+  assert.match(pdf.html, /Conclusao tecnica/);
+  assert.doesNotMatch(pdf.html, /9000|obra-b-work|proj-b/);
+
+  const unsafeReport = Object.assign({}, report, {
+    scope: { workName: "<img src=x onerror=alert(1)>", workId: "obra-a-work", projectId: "proj-a" },
+    materials: [{ material: "<script>alert(1)</script>", unit: "un", expectedConsumption: 1, actualStockExit: 2, currentBalance: 3, difference: 1, differencePercent: 100, classification: "consumo acima" }]
+  });
+  const unsafePdf = elo.buildExecutionStockReportPdfForTest(unsafeReport);
+  assert.equal(unsafePdf.ok, true);
+  assert.doesNotMatch(unsafePdf.html, /<img/i);
+  assert.doesNotMatch(unsafePdf.html, /<script>alert/i);
+});
+
+test("PDF local nao gera sem dados suficientes", async () => {
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: {} });
+  const report = elo.buildLocalExecutionStockReportForTest();
+  const pdf = elo.buildExecutionStockReportPdfForTest(report);
+
+  assert.equal(report.ok, false);
+  assert.equal(pdf.ok, false);
+  assert.equal(pdf.html, undefined);
+  assert.equal(localStorage.writes, 0);
+});
+
+test("PDF local mantem percentual ausente quando esperado e zero", async () => {
+  const { elo } = await loadEloContext();
+  const report = {
+    ok: true,
+    scope: { projectId: "proj-a", workId: "obra-a-work" },
+    period: { label: "2026-07-25" },
+    sourcesUsed: { rdos: true, stockMovements: true, stockBalances: true, plannedConsumptions: true },
+    summary: { productions: 1, materials: 1, alerts: 1 },
+    productions: [{ service: "Pintura", quantity: 10, unit: "m2" }],
+    materials: [{ material: "Tinta", unit: "l", expectedConsumption: 0, actualStockExit: 3, currentBalance: 2, difference: 3, differencePercent: null, classification: "referencia ausente", status: "missing_reference" }],
+    prioritizedAlerts: [{ material: "Tinta", classification: "referencia ausente", status: "missing_reference", severityRank: 4 }],
+    limitations: [],
+    conclusion: "Referencia ausente."
+  };
+  const pdf = elo.buildExecutionStockReportPdfForTest(report, { issuedAt: new Date("2026-07-25T10:30:00.000Z") });
+
+  assert.equal(pdf.ok, true);
+  assert.match(pdf.html, /ausente/);
+  assert.doesNotMatch(pdf.html, /Infinity|NaN/);
+});
+
+test("PDF local preserva prioridade dos alertas", async () => {
+  const { elo } = await loadEloContext();
+  const report = {
+    ok: true,
+    scope: { workId: "obra-a" },
+    period: { label: "periodo" },
+    sourcesUsed: { rdos: true, stockMovements: true, stockBalances: true, plannedConsumptions: true },
+    summary: { productions: 1, materials: 2, alerts: 2 },
+    productions: [{ service: "Alvenaria", quantity: 100, unit: "m2" }],
+    materials: [
+      { material: "Bloco", unit: "un", expectedConsumption: 2500, actualStockExit: 2600, currentBalance: 40, difference: 100, differencePercent: 4, classification: "consumo acima", status: "consumption_above_expected" },
+      { material: "Cimento", unit: "sc", expectedConsumption: 20, actualStockExit: 22, currentBalance: -1, difference: 2, differencePercent: 10, classification: "saldo insuficiente", status: "insufficient_balance" }
+    ],
+    prioritizedAlerts: [
+      { material: "Cimento", classification: "saldo insuficiente", status: "insufficient_balance", severityRank: 0 },
+      { material: "Bloco", classification: "consumo acima", status: "consumption_above_expected", severityRank: 2 }
+    ],
+    limitations: [],
+    conclusion: "Ha risco de falta."
+  };
+  const pdf = elo.buildExecutionStockReportPdfForTest(report);
+
+  assert.equal(pdf.ok, true);
+  assert.ok(pdf.html.indexOf("Cimento: saldo insuficiente") < pdf.html.indexOf("Bloco: consumo acima"));
+});
+
+test("abrir PDF local nao chama rede nem escreve storage", async () => {
+  let calls = 0;
+  const popupWrites = [];
+  const popup = {
+    document: {
+      open() { popupWrites.push("open"); },
+      write(html) { popupWrites.push(html); },
+      close() { popupWrites.push("close"); }
+    },
+    focus() { popupWrites.push("focus"); }
+  };
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work", open() { return popup; } },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+  const report = elo.buildLocalExecutionStockReportForTest();
+  const result = elo.openExecutionStockReportPdfForTest(report, { issuedAt: new Date("2026-07-25T10:30:00.000Z") });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.opened, true);
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(popupWrites[0], "open");
+  assert.match(popupWrites[1], /Imprimir \/ salvar PDF/);
+  assert.match(popupWrites[1], /window\.addEventListener\('load'/);
+  assert.equal(popupWrites[2], "close");
+});
+
+test("acao Imprimir salvar PDF aparece so com report valido e usa estado transitorio", async () => {
+  let calls = 0;
+  const popupWrites = [];
+  const popup = { document: { open() {}, write(html) { popupWrites.push(html); }, close() {} }, focus() {} };
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    elements: { ".panel": panel, ".form": form, ".input": input, ".messages": messages },
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work", open() { return popup; } },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" }), true);
+  await elo.runLocalExecutionStockReportActionForTest();
+  assert.equal(elo.getLastLocalExecutionStockReportForTest().ok, true);
+  const pdfButton = findElementByText(messages, "Imprimir / salvar PDF");
+  assert.ok(pdfButton);
+  localStorage.reads = 0;
+  pdfButton.click();
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.reads, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(popupWrites.length, 1);
+  assert.match(popupWrites.join("\n"), /Relatorio de execucao, consumo e estoque/);
+
+  elo.startNewConversationForLayoutTest();
+  assert.equal(elo.getLastLocalExecutionStockReportForTest(), null);
+  assert.equal(findElementByText(messages, "Imprimir / salvar PDF"), null);
+
+  const emptyMessages = createElement("div");
+  const empty = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: {},
+    elements: { ".panel": panel, ".form": form, ".input": input, ".messages": emptyMessages },
+    window: { open() { throw new Error("should_not_open"); } }
+  });
+  empty.elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" });
+  const emptyAnswer = await empty.elo.runLocalExecutionStockReportActionForTest();
+  assert.equal(empty.elo.getLastLocalExecutionStockReportForTest(), null);
+  assert.equal(findElementByText(emptyMessages, "Imprimir / salvar PDF"), null);
+  assert.match(emptyAnswer, /fontes locais|fontes ausentes|nao ha dados locais suficientes/i);
+});
+test("acao Imprimir salvar PDF informa popup bloqueado sem persistir", async () => {
+  let calls = 0;
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    elements: { ".panel": panel, ".form": form, ".input": input, ".messages": messages },
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work", open() { return null; } },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" }), true);
+  await elo.runLocalExecutionStockReportActionForTest();
+  const pdfButton = findElementByText(messages, "Imprimir / salvar PDF");
+  assert.ok(pdfButton);
+  localStorage.reads = 0;
+  pdfButton.click();
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.reads, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(collectElementText(messages), /Nao consegui abrir a janela de impressao do PDF local/);
 });
