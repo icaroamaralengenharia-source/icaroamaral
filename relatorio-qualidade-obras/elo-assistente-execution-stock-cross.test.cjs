@@ -7,6 +7,7 @@ const vm = require("node:vm");
 const snapshotModulePromise = import("./elo-stock-obras-snapshot.js");
 const crossModulePromise = import("./elo-execution-stock-cross.js");
 const reportModulePromise = import("./elo-execution-stock-report.js");
+const todayModulePromise = import("./elo-today-work-core.js");
 
 function createStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -142,6 +143,7 @@ async function loadEloContext(options = {}) {
   const { buildEloStockObrasSnapshot } = await snapshotModulePromise;
   const { crossExecutionWithStock } = await crossModulePromise;
   const { buildExecutionStockReport } = await reportModulePromise;
+  const { buildTodayWorkCore } = await todayModulePromise;
   const elements = options.elements || {};
   const context = {
     console,
@@ -171,7 +173,8 @@ async function loadEloContext(options = {}) {
       btoa(value) { return Buffer.from(String(value), "binary").toString("base64"); },
       EloStockObrasSnapshot: options.withModules === false ? undefined : { buildEloStockObrasSnapshot },
       EloExecutionStockCross: options.withModules === false ? undefined : { crossExecutionWithStock },
-      EloExecutionStockReport: options.withModules === false ? undefined : { buildExecutionStockReport }
+      EloExecutionStockReport: options.withModules === false ? undefined : { buildExecutionStockReport },
+    EloTodayWorkCore: options.withModules === false ? undefined : { buildTodayWorkCore }
     },
     document: {
       readyState: "complete",
@@ -254,15 +257,46 @@ test("pergunta de atencao autenticada usa backend", async () => {
   assert.match(answer, /Aten|alerta|dados/i);
 });
 
-test("pergunta de atencao sem token nao finge consulta", async () => {
+test("pergunta de atencao sem token usa Hoje na Obra local sem backend", async () => {
   let calls = 0;
-  const { elo } = await loadEloContext({ fetch() { calls += 1; throw new Error("should_not_fetch"); } });
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
 
-  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atenção hoje?");
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
 
   assert.equal(calls, 0);
-  assert.match(answer, /autenticacao|sessao|ELO/i);
-  assert.doesNotMatch(answer, /Cruzamento execucao x estoque/);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Hoje na obra/);
+  assert.match(answer, /Prioridades:/);
+  assert.match(answer, /Evidencia:/);
+  assert.match(answer, /Acao recomendada:/);
+  assert.match(answer, /Bloco ceramico/);
+  assert.match(answer, /esperado 2500 un/);
+  assert.match(answer, /saida 2600 un/);
+  assert.match(answer, /Qualidade dos dados:/);
+  assert.doesNotMatch(answer, /9000|obra-b-work|proj-b/);
+});
+
+test("Hoje na Obra local informa perfil vazio sem backend nem escrita", async () => {
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: {},
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Hoje na obra/);
+  assert.match(answer, /Qualidade dos dados: baixa/);
+  assert.match(answer, /Limitacoes: rdos, stockMovements, stockBalances, plannedConsumptions/);
 });
 
 test("pergunta de consumo sem token usa cruzamento local e appState real", async () => {

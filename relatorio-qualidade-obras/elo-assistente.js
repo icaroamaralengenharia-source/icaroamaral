@@ -554,6 +554,11 @@
     return api && typeof api.buildExecutionStockReport === "function" ? api.buildExecutionStockReport : null;
   }
 
+  function getEloTodayWorkCoreBuilder_() {
+    const api = window.EloTodayWorkCore || window.eloTodayWorkCore;
+    return api && typeof api.buildTodayWorkCore === "function" ? api.buildTodayWorkCore : null;
+  }
+
   function isEloObraExecutionStockReportRequest_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return false;
@@ -810,6 +815,48 @@
     if (!crossAnswer) return baseAnswer;
     return sanitizeEloMultilineText_(baseAnswer + "\n\n" + crossAnswer);
   }
+  function buildEloObraLocalTodayWork_() {
+    const todayBuilder = getEloTodayWorkCoreBuilder_();
+    const reportBuilder = getEloExecutionStockReportBuilder_();
+    const localCross = buildEloObraLocalExecutionStockCross_();
+    if (!todayBuilder) return { ok: false, reason: "missing_module", text: "Hoje na obra: modulo local indisponivel." };
+    if (!localCross.available) {
+      return todayBuilder({
+        snapshot: {},
+        executionStockCross: { dataQuality: { hasProductions: false, hasStockMovements: false, hasStockBalances: false, hasSinapiExpectedConsumptions: false }, materials: [] },
+        localReport: { ok: false, missingSources: localCross.missingModules || ["rdos", "stockMovements", "stockBalances", "plannedConsumptions"] }
+      });
+    }
+    const report = reportBuilder ? reportBuilder({ snapshot: localCross.snapshot || {}, cross: localCross.cross || {} }) : null;
+    return todayBuilder({
+      snapshot: localCross.snapshot || {},
+      executionStockCross: localCross.cross || {},
+      localReport: report || null
+    });
+  }
+
+  function formatEloTodayWorkAnswer_(today) {
+    const safe = today && typeof today === "object" ? today : {};
+    const summary = safe.summary && typeof safe.summary === "object" ? safe.summary : {};
+    const priorities = Array.isArray(safe.priorities) ? safe.priorities : [];
+    const quality = safe.dataQuality && typeof safe.dataQuality === "object" ? safe.dataQuality : {};
+    const missing = Array.isArray(quality.missingSources) ? quality.missingSources : [];
+    const lines = [];
+    lines.push(summary.text || "Hoje na obra: nao encontrei dados locais suficientes para priorizar.");
+    if (priorities.length) {
+      lines.push("", "Prioridades:");
+      priorities.slice(0, 5).forEach(function (item, index) {
+        lines.push((index + 1) + ". " + sanitizeUserText(item.label || "prioridade") + " - " + sanitizeUserText(item.subject || "obra") + ".");
+        lines.push("   Evidencia: " + sanitizeUserText(item.evidence || "nao informada") + ".");
+        lines.push("   Acao recomendada: " + sanitizeUserText(item.recommendedAction || "Revisar dados locais") + ".");
+      });
+    } else {
+      lines.push("", "Prioridades: nenhuma prioridade critica nos dados locais.");
+    }
+    lines.push("", "Qualidade dos dados: " + (quality.level === "low" ? "baixa" : "boa") + ".");
+    lines.push("Limitacoes: " + (missing.length ? missing.join(", ") + ". Sem essas fontes, eu nao invento motivo." : "sem limitacoes criticas nas fontes locais usadas."));
+    return sanitizeEloMultilineText_(lines.join("\n"));
+  }
   function getEloObraAttentionSeverityRank_(severity) {
     const value = normalizeText(severity || "");
     if (value === "critical" || value === "critica" || value === "critico") return 0;
@@ -854,15 +901,16 @@
   }
 
   function requestEloObraAttentionAnswer_(question) {
-    if (!isEloObraAttentionRequest_(question) || !window.fetch) return Promise.resolve(null);
+    if (!isEloObraAttentionRequest_(question)) return Promise.resolve(null);
+    const authHeaders = getEloCoreAuthHeaders_();
+    if (!authHeaders.Authorization) return Promise.resolve(formatEloTodayWorkAnswer_(buildEloObraLocalTodayWork_()));
+    if (!window.fetch) return Promise.resolve(null);
     const params = new URLSearchParams();
     const identity = getEloCoreIdentity_();
     if (identity.projectId) params.set("projectId", identity.projectId);
     if (window.ELO_WORK_ID) params.set("workId", sanitizeUserText(window.ELO_WORK_ID));
     const query = params.toString();
     const endpoint = getEloBackendEndpoint_("/api/elo/obra/attention") + (query ? "?" + query : "");
-    const authHeaders = getEloCoreAuthHeaders_();
-    if (!authHeaders.Authorization) return Promise.resolve("Entre no ELO para consultar o Observador da Obra. Nao vou chamar a rota sem autenticacao.");
     return window.fetch(endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
@@ -27053,6 +27101,7 @@ function isEloResidentialNewPipelineEnabled_() {
     detectObraExecutionStockReportForTest: isEloObraExecutionStockReportRequest_,
     requestObraExecutionStockForTest: requestEloObraExecutionStockAnswer_,
     requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
+    buildLocalTodayWorkForTest: buildEloObraLocalTodayWork_,
     buildLocalExecutionStockReportForTest: buildEloObraLocalExecutionStockReport_,
     buildExecutionStockReportPdfForTest: buildEloExecutionStockReportPdfDocument_,
     buildExecutionStockProfessionalPdfRecordForTest: buildEloExecutionStockProfessionalPdfRecord_,
