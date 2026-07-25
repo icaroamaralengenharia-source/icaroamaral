@@ -857,6 +857,79 @@
     lines.push("Limitacoes: " + (missing.length ? missing.join(", ") + ". Sem essas fontes, eu nao invento motivo." : "sem limitacoes criticas nas fontes locais usadas."));
     return sanitizeEloMultilineText_(lines.join("\n"));
   }
+  function getEloTodayWorkRouteParams_() {
+    const context = getEloCoreAuthContext_();
+    const projectId = sanitizeUserText((context && context.projectId) || window.ELO_PROJECT_ID || "").slice(0, 140);
+    const workId = sanitizeUserText(window.ELO_WORK_ID || "").slice(0, 140);
+    return { source: "elo-today-work", projectId: projectId, workId: workId };
+  }
+
+  function buildEloTodayWorkActionUrl_(type) {
+    const params = getEloTodayWorkRouteParams_();
+    if (type === "rdo") return buildEloCoreUrlWithParams_("/relatorio-qualidade-obras/", Object.assign({}, params, { section: "rdo" }));
+    if (type === "almoxarifado") return buildEloCoreUrlWithParams_("/relatorio-qualidade-obras/", Object.assign({}, params, { section: "almoxarifado" }));
+    if (type === "stock_obras") return buildEloCoreUrlWithParams_("/stock-ai-obras.html", params);
+    if (type === "report") return buildEloCoreUrlWithParams_("/relatorio-qualidade-obras/", Object.assign({}, params, { section: "relatorios" }));
+    return buildEloCoreUrlWithParams_("/elo.html", params);
+  }
+
+  function openEloTodayWorkActionUrl_(url) {
+    const targetUrl = sanitizeUserText(url);
+    if (!targetUrl) return false;
+    try {
+      if (window.location && typeof window.location.assign === "function") window.location.assign(targetUrl);
+      else if (window.location) window.location.href = targetUrl;
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function hasEloTodayWorkActions_(message) {
+    const children = message && Array.isArray(message.children) ? message.children : [];
+    return children.some(function (child) { return child && child.dataset && child.dataset.eloTodayWorkActions === "true"; });
+  }
+
+  function appendEloTodayWorkSafeActions_(message) {
+    if (!message || hasEloTodayWorkActions_(message)) return false;
+    const actions = createElement("div", "elo-library-actions");
+    actions.dataset.eloTodayWorkActions = "true";
+    [
+      { type: "rdo", label: "Abrir RDO" },
+      { type: "almoxarifado", label: "Abrir Almoxarifado" },
+      { type: "stock_obras", label: "Abrir Stock Obras" },
+      { type: "report", label: "Gerar relatório" },
+      { type: "pdf", label: "Imprimir / salvar PDF" }
+    ].forEach(function (item) {
+      const button = createElement("button", "elo-inline-button", item.label);
+      const params = getEloTodayWorkRouteParams_();
+      button.type = "button";
+      button.setAttribute("data-elo-action-type", "today_work_" + item.type);
+      button.setAttribute("data-project-id", params.projectId || "");
+      button.setAttribute("data-work-id", params.workId || "");
+      if (item.type !== "report" && item.type !== "pdf") button.setAttribute("data-target-url", buildEloTodayWorkActionUrl_(item.type));
+      button.addEventListener("click", function () {
+        if (item.type === "report") {
+          const report = buildEloObraLocalExecutionStockReport_();
+          if (report && report.ok === true) ELO_UI.lastLocalExecutionStockReport = report;
+          appendMessage("assistant", formatEloObraExecutionStockReportAnswer_(report));
+          return;
+        }
+        if (item.type === "pdf") {
+          const report = ELO_UI.lastLocalExecutionStockReport && ELO_UI.lastLocalExecutionStockReport.ok === true ? ELO_UI.lastLocalExecutionStockReport : buildEloObraLocalExecutionStockReport_();
+          if (report && report.ok === true) ELO_UI.lastLocalExecutionStockReport = report;
+          const result = openEloExecutionStockReportPdf_(report);
+          if (!result.ok || !result.opened) appendMessage("system", result.message || "Nao consegui abrir a versao para PDF agora.");
+          return;
+        }
+        if (!openEloTodayWorkActionUrl_(buildEloTodayWorkActionUrl_(item.type))) appendMessage("system", "Nao consegui abrir o modulo agora.");
+      });
+      actions.appendChild(button);
+    });
+    message.appendChild(actions);
+    scrollEloConversationToBottom_({ force: true });
+    return true;
+  }
   function getEloObraAttentionSeverityRank_(severity) {
     const value = normalizeText(severity || "");
     if (value === "critical" || value === "critica" || value === "critico") return 0;
@@ -1017,14 +1090,21 @@
   }
   function handleEloObraAttentionRequest_(question) {
     if (!isEloObraAttentionRequest_(question)) return false;
-    const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
+    const localReadonly = !getEloCoreAuthHeaders_().Authorization;
+    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+    if (localReadonly) ELO_UI.suppressRemotePersistence = true;
+    const statusMessage = appendMessage("assistant", localReadonly ? "Lendo dados locais da obra..." : "Consultando o Observador da Obra...");
     requestEloObraAttentionAnswer_(question).then(function (answer) {
       const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao consegui consultar o Observador da Obra agora.";
-      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: true, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
+      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: !localReadonly, sessionTheme: localReadonly ? "hoje_na_obra_local" : "observador_obra", sessionIntent: localReadonly ? "today_work_local_readonly" : "obra_attention_readonly" };
       updateEloMessage_(statusMessage, finalAnswer);
-      saveConversation(question, finalAnswer);
-      rememberSessionTurn(question, response, finalAnswer);
+      if (localReadonly) appendEloTodayWorkSafeActions_(statusMessage);
+      if (!localReadonly) {
+        saveConversation(question, finalAnswer);
+        rememberSessionTurn(question, response, finalAnswer);
+      }
     }).finally(function () {
+      if (localReadonly) ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
       removeTypingIndicator();
       clearProductAttachmentPreview();
     });
@@ -27110,6 +27190,7 @@ function isEloResidentialNewPipelineEnabled_() {
     runLocalExecutionStockReportActionForTest: runEloLocalExecutionStockReportAction_,
     updateLocalExecutionStockReportActionForTest: updateEloLocalExecutionStockReportAction_,
     requestObraAttentionForTest: requestEloObraAttentionAnswer_,
+    handleObraAttentionForTest: handleEloObraAttentionRequest_,
     formatObraAttentionForTest: formatEloObraAttentionAnswer_,
     buildLocalExecutionStockCrossForTest: buildEloObraLocalExecutionStockCross_,
     formatExecutionStockCrossForTest: formatEloObraExecutionStockCrossAnswer_,

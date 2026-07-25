@@ -98,6 +98,13 @@ function findElementByText(element, text) {
   }
   return null;
 }
+function findAllElementsByText(element, text, found = []) {
+  if (!element) return found;
+  if ((element.textContent || "") === text) found.push(element);
+  const children = Array.isArray(element.children) ? element.children : [];
+  for (const child of children) findAllElementsByText(child, text, found);
+  return found;
+}
 function createTrackedClassList(initial = []) {
   const classes = new Set(initial);
   return {
@@ -299,6 +306,104 @@ test("Hoje na Obra local informa perfil vazio sem backend nem escrita", async ()
   assert.match(answer, /Limitacoes: rdos, stockMovements, stockBalances, plannedConsumptions/);
 });
 
+test("Hoje na Obra exibe acoes seguras sem duplicar botoes", async () => {
+  let calls = 0;
+  const navigations = [];
+  const popupWrites = [];
+  const popup = { document: { open() {}, write(html) { popupWrites.push(html); }, close() {} }, focus() {} };
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorage(),
+    elements: { ".panel": panel, ".form": form, ".input": input, ".messages": messages },
+    window: {
+      ELO_PROJECT_ID: "proj-a",
+      ELO_WORK_ID: "obra-a-work",
+      innerWidth: 390,
+      location: { hostname: "localhost", protocol: "http:", pathname: "/elo.html", hash: "", search: "", assign(url) { navigations.push(String(url)); } },
+      open() { return popup; }
+    },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" }), true);
+  assert.equal(elo.handleObraAttentionForTest("O que precisa da minha atencao hoje?"), true);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const labels = ["Abrir RDO", "Abrir Almoxarifado", "Abrir Stock Obras", "Gerar relatório", "Imprimir / salvar PDF"];
+  labels.forEach(function (label) { assert.equal(findAllElementsByText(messages, label).length, 1); });
+
+  const rdoButton = findElementByText(messages, "Abrir RDO");
+  const almoxButton = findElementByText(messages, "Abrir Almoxarifado");
+  const stockButton = findElementByText(messages, "Abrir Stock Obras");
+  const reportButton = findElementByText(messages, "Gerar relatório");
+  const pdfButton = findElementByText(messages, "Imprimir / salvar PDF");
+
+  assert.match(rdoButton.getAttribute("data-target-url"), /section=rdo/);
+  assert.match(almoxButton.getAttribute("data-target-url"), /section=almoxarifado/);
+  assert.match(stockButton.getAttribute("data-target-url"), /stock-ai-obras.html/);
+  [rdoButton, almoxButton, stockButton, reportButton, pdfButton].forEach(function (button) {
+    assert.equal(button.getAttribute("data-project-id"), "proj-a");
+    assert.equal(button.getAttribute("data-work-id"), "obra-a-work");
+  });
+  assert.doesNotMatch(collectElementText(messages), /9000|obra-b-work|proj-b/);
+
+  localStorage.reads = 0;
+  localStorage.writes = 0;
+  rdoButton.click();
+  almoxButton.click();
+  stockButton.click();
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(navigations.length, 3);
+  assert.match(navigations[0], /section=rdo/);
+  assert.match(navigations[1], /section=almoxarifado/);
+  assert.match(navigations[2], /stock-ai-obras.html/);
+  assert.doesNotMatch(navigations.join("\\n"), /proj-b|obra-b-work/);
+
+  reportButton.click();
+  await Promise.resolve();
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(findAllElementsByText(messages, "Imprimir / salvar PDF").length, 1);
+  assert.equal(elo.getLastLocalExecutionStockReportForTest().ok, true);
+
+  pdfButton.click();
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.equal(popupWrites.length, 1);
+  assert.match(popupWrites.join("\\n"), /Bloco ceramico/);
+  assert.doesNotMatch(popupWrites.join("\\n"), /9000|obra-b-work|proj-b/);
+});
+
+test("Hoje na Obra com perfil vazio mantem acoes seguras no mobile", async () => {
+  let calls = 0;
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: {},
+    elements: { ".panel": panel, ".form": form, ".input": input, ".messages": messages },
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work", innerWidth: 390 },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+
+  assert.equal(elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" }), true);
+  assert.equal(elo.handleObraAttentionForTest("O que precisa da minha atencao hoje?"), true);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(collectElementText(messages), /Abrir RDO/);
+  assert.equal(findAllElementsByText(messages, "Imprimir / salvar PDF").length, 1);
+});
 test("pergunta de consumo sem token usa cruzamento local e appState real", async () => {
   let calls = 0;
   const { elo, localStorage } = await loadEloContext({
@@ -727,8 +832,7 @@ test("acao Imprimir salvar PDF aparece so com report valido e usa estado transit
   assert.equal(localStorage.reads, 0);
   assert.equal(localStorage.writes, 0);
   assert.equal(popupWrites.length, 1);
-  assert.match(popupWrites.join("\n"), /Relatorio de execucao, consumo e estoque/);
-
+  assert.match(popupWrites.join("\\n"), /Bloco ceramico/);
   elo.startNewConversationForLayoutTest();
   assert.equal(elo.getLastLocalExecutionStockReportForTest(), null);
   assert.equal(findElementByText(messages, "Imprimir / salvar PDF"), null);
