@@ -559,6 +559,34 @@
     return context;
   }
 
+  function setEloBudgetRoutePending_(context) {
+    if (!(context && context.active)) return false;
+    ELO_UI.pendingBudgetRouteContext = {
+      source: context.source,
+      intent: context.intent,
+      projectId: context.projectId || "",
+      workId: context.workId || ""
+    };
+    return true;
+  }
+
+  function hasEloBudgetRoutePending_() {
+    return !!(ELO_UI.pendingBudgetRouteContext && ELO_UI.pendingBudgetRouteContext.workId);
+  }
+
+  function consumeEloBudgetRoutePending_() {
+    const context = ELO_UI.pendingBudgetRouteContext || null;
+    ELO_UI.pendingBudgetRouteContext = null;
+    return context && context.workId ? context : null;
+  }
+
+  function applyEloBudgetRoutePendingContext_(context) {
+    if (!(context && context.workId)) return context;
+    window.ELO_PROJECT_ID = context.projectId || window.ELO_PROJECT_ID || "";
+    window.ELO_WORK_ID = context.workId || window.ELO_WORK_ID || "";
+    return context;
+  }
+
   function buildEloBudgetRouteStartAnswer_(context) {
     const lines = [
       "Or\u00e7amento aberto para a obra atual.",
@@ -584,13 +612,37 @@
       return false;
     }
     const context = applyEloBudgetRouteContext_();
-    if (!context.active || !ELO_UI.messages || ELO_UI.messages.children.length) {
+    if (!context.active) {
       return false;
     }
+    setEloBudgetRoutePending_(context);
     window.__eloBudgetRouteStarted = true;
+    if (!ELO_UI.messages || ELO_UI.messages.children.length) {
+      return true;
+    }
     appendAssistantMessage(buildEloBudgetRouteStartAnswer_(context));
     recordEloCoreReliabilityEvent_("budget_route_started", { source: context.source, projectId: context.projectId, workId: context.workId });
     return true;
+  }
+
+  function isEloBudgetRouteUsableResponse_(response) {
+    return !!(response && response.sessionIntent !== "safe_mode" && response.sessionTheme !== "elo_core_safe_mode");
+  }
+
+  function buildEloBudgetRoutePendingAnswer_(message) {
+    if (!hasEloBudgetRoutePending_()) return null;
+    const context = applyEloBudgetRoutePendingContext_(consumeEloBudgetRoutePending_());
+    if (!(context && context.workId)) return null;
+    const text = normalizeText(message || "");
+    const wallBudgetMessage = /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
+    let response = buildEloWallBudgetTaskAnswer_(wallBudgetMessage);
+    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloBudgetOrchestratorV2Answer_(message);
+    if (!isEloBudgetRouteUsableResponse_(response) && wallBudgetMessage !== message) response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
+    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetConversationAnswer_(message);
+    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetBriefingAnswer_(message);
+    if (!isEloBudgetRouteUsableResponse_(response)) return null;
+    response.eloBudgetRouteContext = { projectId: context.projectId || "", workId: context.workId || "" };
+    return response;
   }
 
   function getEloStockObrasSnapshotBuilder_() {
@@ -23323,6 +23375,8 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildResponse(question) {
     const startedAt = Date.now();
     try {
+    const pendingBudgetRouteResponse = buildEloBudgetRoutePendingAnswer_(question);
+    if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
     const pendingTechnicalEarlyResponse = buildEloResidentialPendingTechnicalChoicesAnswer_(question);
     if (pendingTechnicalEarlyResponse) return pendingTechnicalEarlyResponse;
     const residentialMaterialListEarlyResponse = buildEloResidentialActiveMaterialListAnswer_(question);
@@ -23661,6 +23715,7 @@ function isEloResidentialNewPipelineEnabled_() {
       let technicalServiceResponse = null;
 
       if (
+        !hasEloBudgetRoutePending_() &&
         window.EloTechnicalServiceRouter &&
         typeof window.EloTechnicalServiceRouter.route === "function"
       ) {
@@ -27230,6 +27285,8 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    startBudgetRouteForTest: maybeStartEloBudgetRoute_,
+    hasBudgetRoutePendingForTest: hasEloBudgetRoutePending_,
     requestWebSearchForTest: requestEloWebSearchAnswer_,
     detectObraAttentionForTest: isEloObraAttentionRequest_,
     detectObraExecutionStockForTest: isEloObraExecutionStockRequest_,

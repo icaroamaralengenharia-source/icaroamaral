@@ -748,6 +748,37 @@ test('ELO PDF execucao/estoque usa adaptador unico e gerador profissional antigo
   assert.equal((popup.document.html.match(/class="elo-pdf-cover"/g) || []).length, 1);
 });
 
+test('ELO orcamento da obra ativa prioriza motor pendente da URL', () => {
+  const question = 'Quero um or\u00e7amento preliminar para 100 m\u00b2 de alvenaria com bloco cer\u00e2mico, em Vit\u00f3ria da Conquista/BA.';
+  const { elo, context } = loadEloContext({
+    window: {
+      location: { hostname: 'localhost', protocol: 'http:', pathname: '/elo.html', hash: '', search: '?source=obrareport&intent=orcamento&projectId=obra-a&workId=work-a' }
+    }
+  });
+
+  assert.equal(elo.startBudgetRouteForTest(), true);
+  assert.equal(elo.hasBudgetRoutePendingForTest(), true);
+
+  const response = elo.buildResponseForTest(question);
+  const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].join('\n');
+  assert.equal(response.brain, 'budget');
+  assert.notEqual(response.sessionTheme, 'elo_core_safe_mode');
+  assert.notEqual(response.sessionIntent, 'safe_mode');
+  assert.match([response.sessionTheme, response.sessionIntent].join(' ' ), /orcamento|quantitativo|parede|confirmar/i);
+  assert.equal(response.eloBudgetRouteContext.projectId, 'obra-a');
+  assert.equal(response.eloBudgetRouteContext.workId, 'work-a');
+  assert.equal(context.window.ELO_PROJECT_ID, 'obra-a');
+  assert.equal(context.window.ELO_WORK_ID, 'work-a');
+  assert.match(answer, /100|alvenaria|bloco/i);
+  assert.doesNotMatch(answer, /obra-b|work-b/i);
+  assert.equal(elo.hasBudgetRoutePendingForTest(), false);
+
+  const withoutIntent = loadEloContext();
+  const oldRoute = withoutIntent.elo.buildResponseForTest(question);
+  assert.equal(oldRoute.sessionTheme, 'elo_core_safe_mode');
+  assert.equal(oldRoute.sessionIntent, 'safe_mode');
+});
+
 test('ELO orcamento direto 70m2 usa dados informados e gera pacote com PDF', () => {
   const elo = loadElo();
   const response = elo.buildResponseForTest('Casa terrea de 70 m2, 2 quartos, 2 banheiros, sala, cozinha e area de servico, Vitoria da Conquista/BA, padrao medio, SINAPI BA 2024-12, BDI 25%.');
