@@ -539,6 +539,60 @@
     return { projectId: projectId, workId: workId };
   }
 
+  function getEloBudgetRouteContext_() {
+    let searchParams = null;
+    try { searchParams = new URLSearchParams(window.location && window.location.search || ""); } catch (error) { searchParams = null; }
+    const source = normalizeText(searchParams && searchParams.get("source") || "");
+    const intent = normalizeText(searchParams && searchParams.get("intent") || "");
+    const projectId = sanitizeUserText(searchParams && searchParams.get("projectId") || "").slice(0, 140);
+    const workId = sanitizeUserText(searchParams && searchParams.get("workId") || "").slice(0, 140);
+    return { active: source === "obrareport" && intent === "orcamento" && !!workId, source: source, intent: intent, projectId: projectId, workId: workId };
+  }
+
+  function applyEloBudgetRouteContext_() {
+    const context = getEloBudgetRouteContext_();
+    if (!context.active) {
+      return context;
+    }
+    window.ELO_PROJECT_ID = context.projectId || window.ELO_PROJECT_ID || "";
+    window.ELO_WORK_ID = context.workId || window.ELO_WORK_ID || "";
+    return context;
+  }
+
+  function buildEloBudgetRouteStartAnswer_(context) {
+    const lines = [
+      "Or\u00e7amento aberto para a obra atual.",
+      "",
+      "Contexto recebido",
+      "- projectId: " + (context.projectId || "n\u00e3o informado"),
+      "- workId: " + (context.workId || "n\u00e3o informado"),
+      "",
+      "Para iniciar o or\u00e7amento existente, informe o servi\u00e7o, dimens\u00f5es, padr\u00e3o construtivo, UF/m\u00eas-base e BDI quando houver."
+    ];
+    return {
+      shortAnswer: "Or\u00e7amento aberto para a obra atual.",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Informe servi\u00e7o, dimens\u00f5es e premissas principais.",
+      canSave: false,
+      sessionTheme: "orcamento_obrareport",
+      sessionIntent: "budget_route_start"
+    };
+  }
+
+  function maybeStartEloBudgetRoute_() {
+    if (window.__eloBudgetRouteStarted) {
+      return false;
+    }
+    const context = applyEloBudgetRouteContext_();
+    if (!context.active || !ELO_UI.messages || ELO_UI.messages.children.length) {
+      return false;
+    }
+    window.__eloBudgetRouteStarted = true;
+    appendAssistantMessage(buildEloBudgetRouteStartAnswer_(context));
+    recordEloCoreReliabilityEvent_("budget_route_started", { source: context.source, projectId: context.projectId, workId: context.workId });
+    return true;
+  }
+
   function getEloStockObrasSnapshotBuilder_() {
     const api = window.EloStockObrasSnapshot || window.eloStockObrasSnapshot;
     return api && typeof api.buildEloStockObrasSnapshot === "function" ? api.buildEloStockObrasSnapshot : null;
@@ -27162,6 +27216,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (newChatButton && !newChatButton.dataset.eloCoreBound) { newChatButton.dataset.eloCoreBound = "true"; newChatButton.addEventListener("click", startEloCoreNewConversation_); }
     if (historyButton && !historyButton.dataset.eloCoreBound) { historyButton.dataset.eloCoreBound = "true"; historyButton.addEventListener("click", showEloCoreHistory_); }
     if (memoryButton && !memoryButton.dataset.eloCoreBound) { memoryButton.dataset.eloCoreBound = "true"; memoryButton.addEventListener("click", showEloCoreMemoryPanel_); }
+    maybeStartEloBudgetRoute_();
     setEloCoreWelcomeVisible_();
     initEloCorePersistence_();
 

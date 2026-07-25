@@ -4384,11 +4384,29 @@
               dailyLogWorkSelect.value = work.id;
             }
             setLastOpened_("diario", work.clientId, work.id, "");
+          }),
+          createMiniButton_("Novo orçamento", "", function () {
+            openBudgetForWork_(work);
           })
         ]
       );
       worksList.appendChild(item);
     });
+  }
+
+  function openBudgetForWork_(work) {
+    if (!work || !work.id) {
+      return;
+    }
+    setLastOpened_("obras", work.clientId, work.id, "");
+    scheduleLocalDataSave_();
+    const params = new URLSearchParams({
+      source: "obrareport",
+      intent: "orcamento",
+      projectId: work.clientId || "",
+      workId: work.id
+    });
+    window.location.href = "/elo.html?" + params.toString();
   }
 
   function renderReportsList_(target, reports) {
