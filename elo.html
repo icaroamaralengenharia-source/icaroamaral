@@ -23,6 +23,43 @@
     body.elo-auth-required .elo-local-auth {
       display: flex;
     }
+    body.elo-auth-required.elo-local-readonly .elo-product-shell {
+      display: block;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-product-top {
+      min-height: 62px;
+      justify-content: flex-end;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-core-actions {
+      display: none;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
+      inset: 0 0 auto;
+      height: 62px;
+      min-height: 62px;
+      overflow: visible;
+      background: rgba(244, 247, 251, 0.92);
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth {
+      width: auto;
+      margin-left: auto;
+      margin-right: clamp(14px, 3vw, 34px);
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth-form {
+      width: auto;
+      flex-direction: row;
+      align-items: center;
+    }
+    body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-local-auth-status {
+      width: auto;
+      max-width: 220px;
+      text-align: right;
+    }
   </style>
 </head>
 <body class="elo-auth-required elo-empty-state" data-elo-mode="standalone" data-elo-product="chat">
@@ -295,8 +332,10 @@
       window.ELO_SUPABASE_URL = String(window.ELO_SUPABASE_URL || config.eloSupabaseUrl || "").trim();
       window.ELO_SUPABASE_ANON_KEY = String(window.ELO_SUPABASE_ANON_KEY || config.eloSupabaseAnonKey || "").trim();
       function renderAuthGate(authenticated) {
-        document.body.classList.toggle("elo-auth-required", !authenticated);
-        document.body.classList.toggle("elo-authenticated", authenticated);
+        const isAuthenticated = authenticated === true;
+        document.body.classList.toggle("elo-auth-required", !isAuthenticated);
+        document.body.classList.toggle("elo-authenticated", isAuthenticated);
+        document.body.classList.toggle("elo-local-readonly", !isAuthenticated);
       }
       function setAuthenticated(value) {
         renderAuthGate(value === true);

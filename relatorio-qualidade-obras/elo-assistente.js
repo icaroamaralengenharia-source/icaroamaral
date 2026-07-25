@@ -516,11 +516,18 @@
   function isEloObraExecutionStockRequest_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return false;
-    if (isEloObraAttentionRequest_(question)) return false;
-    if (hasEloCoreTechnicalConversationBlocker_(text) && !/\b(obra|rdo|almoxarifado|estoque|stock|saldo|saida|sa.da|consumo|desperdicio|desperd.cio|execucao|execu..o|executado|executada|producao|produ..o|material|materiais)\b/.test(text)) return false;
-    const hasCrossIntent = /\b(consumo|desperdicio|desperd.cio|saldo|estoque\s+da\s+obra|almoxarifado|saida|sa.da|execucao\s+versus\s+material|execu..o\s+versus\s+material|executado\s+versus\s+material|producao\s+versus\s+material|produ..o\s+versus\s+material)\b/.test(text);
-    const hasWorkContext = /\b(obra|rdo|servico|servi.o|material|materiais|almoxarifado|estoque|stock|saldo|executado|executada|producao|produ..o)\b/.test(text);
-    return hasCrossIntent && hasWorkContext;
+    const localShortageQuestion = /\b(risco|falta|faltando|insuficiente|acabar|acabando)\b/.test(text) && /\b(material|materiais|insumo|insumos|estoque|almoxarifado|obra)\b/.test(text);
+    if (isEloObraAttentionRequest_(question) && !localShortageQuestion) return false;
+    if (/\b(saldo\s+bancario|saldo\s+banc.rio|banco|pix|cartao|cart.o|conta|energia|luz|agua|.gua|combustivel|combust.vel)\b/.test(text)) return false;
+
+    const materialContext = /\b(obra|rdo|material|materiais|insumo|insumos|estoque|almoxarifado|saida|sa.da|executado|executada|execucao|execu..o|producao|produ..o)\b/.test(text);
+    if (hasEloCoreTechnicalConversationBlocker_(text) && !materialContext) return false;
+
+    const consumptionExpected = /\bconsumo\b/.test(text) && /\b(esperado|previsto|acima|abaixo|diferen.a|diferenca|desperdicio|desperd.cio)\b/.test(text);
+    const shortageRisk = /\b(risco|falta|faltando|insuficiente|acabar|acabando)\b/.test(text) && /\b(material|materiais|insumo|insumos|estoque|almoxarifado|obra)\b/.test(text);
+    const stockBalance = /\b(saldo|estoque|almoxarifado)\b/.test(text) && materialContext;
+    const executionVsStock = /\b(executado|executada|execucao|execu..o|producao|produ..o)\b/.test(text) && /\b(material|materiais|saida|sa.da|estoque|almoxarifado|consumo)\b/.test(text);
+    return consumptionExpected || shortageRisk || stockBalance || executionVsStock;
   }
 
   function getEloObraSnapshotScope_() {
@@ -694,26 +701,33 @@
     return Promise.resolve(answer || "Cruzamento local execucao x estoque: nao encontrei dados locais suficientes para comparar producao, consumo esperado, saidas e saldo.");
   }
 
-  function handleEloObraExecutionStockRequest_(question) {
+  function handleEloObraExecutionStockRequest_(question, options) {
     if (!isEloObraExecutionStockRequest_(question)) return false;
+    const settings = options || {};
+    const localReadonly = settings.localReadonly === true;
     const statusMessage = appendMessage("assistant", "Lendo execucao e estoque locais...");
-    requestEloObraExecutionStockAnswer_(question).then(function (answer) {
+    return requestEloObraExecutionStockAnswer_(question).then(function (answer) {
       const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao encontrei fontes locais suficientes para cruzar execucao e estoque.";
       const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise RDO, planejamento de consumo e saldos locais se a qualidade vier baixa.", canSave: true, sessionTheme: "execution_stock_cross", sessionIntent: "execution_stock_cross_local" };
       updateEloMessage_(statusMessage, finalAnswer);
-      saveConversation(question, finalAnswer);
-      rememberSessionTurn(question, response, finalAnswer);
+      if (!localReadonly) {
+        saveConversation(question, finalAnswer);
+        rememberSessionTurn(question, response, finalAnswer);
+      }
+      return finalAnswer;
+    }).catch(function () {
+      updateEloMessage_(statusMessage, "Nao consegui cruzar execucao e estoque com as fontes locais agora.");
+      return null;
     }).finally(function () {
       removeTypingIndicator();
       clearProductAttachmentPreview();
     });
-    return true;
   }
   function handleEloObraAttentionRequest_(question) {
     if (!isEloObraAttentionRequest_(question)) return false;
     const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
     requestEloObraAttentionAnswer_(question).then(function (answer) {
-      const finalAnswer = sanitizeEloMultilineText_(answer) || "N�o consegui consultar o Observador da Obra agora.";
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao consegui consultar o Observador da Obra agora.";
       const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: true, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
       updateEloMessage_(statusMessage, finalAnswer);
       saveConversation(question, finalAnswer);
@@ -730,13 +744,13 @@
       mode: "elo_core_meta_workflow",
       sessionTheme: "elo_core_meta_workflow",
       sessionIntent: "meta_workflow_diagnosis",
-      shortAnswer: "O principal ruído está na mistura entre objetivo, comportamento esperado e implementação no mesmo pedido.",
+      shortAnswer: "O principal ruido esta na mistura entre objetivo, comportamento esperado e implementacao no mesmo pedido.",
       fullAnswer: [
-        "O principal ruído está na mistura entre objetivo, comportamento esperado e implementação no mesmo pedido. Quando isso acontece, eu tento resolver tudo de uma vez e posso puxar a conversa para o motor errado.",
-        "O ajuste é separar cada pedido em três blocos: objetivo, exemplos de entrada e saída esperada, e arquivos permitidos/proibidos.",
-        "O parafuso principal é fechar o comportamento esperado antes de codar. Assim a primeira versão sai mais precisa, com menos retrabalho e menos correções repetidas."
+        "O principal ruido esta na mistura entre objetivo, comportamento esperado e implementacao no mesmo pedido. Quando isso acontece, eu tento resolver tudo de uma vez e posso puxar a conversa para o motor errado.",
+        "O ajuste e separar cada pedido em tres blocos: objetivo, exemplos de entrada e saida esperada, e arquivos permitidos/proibidos.",
+        "O parafuso principal e fechar o comportamento esperado antes de codar. Assim a primeira versao sai mais precisa, com menos retrabalho e menos correcoes repetidas."
       ].join("\n\n"),
-      nextAction: "Para a próxima tarefa, passe primeiro o objetivo e os exemplos de saída esperada; depois autorizamos a implementação."
+      nextAction: "Para a proxima tarefa, passe primeiro o objetivo e os exemplos de saida esperada; depois autorizamos a implementacao."
     };
   }
 
@@ -824,7 +838,7 @@
     return null;
   }
   function cacheEloCoreMemory_(memory) { if (!memory) return; ELO_UI.coreMemories = (ELO_UI.coreMemories || []).filter(function (item) { return item.id !== memory.id && !(item.category === memory.category && item.memory_key === memory.memory_key); }); ELO_UI.coreMemories.unshift(memory); }
-  function persistEloCoreMessage_(role, content, attachments) { if (!isStandaloneMode() || !ELO_UI.messages || ELO_UI.replayingCoreHistory) return; if (role !== "user" && role !== "assistant") return; const cleanContent = sanitizeUserText(content); if (!cleanContent) return; ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "/messages", { method: "POST", body: JSON.stringify(Object.assign({ role: role, content: cleanContent, attachments: attachments || [] }, getEloCoreIdentity_())) }); }).then(function () { const candidate = detectEloCoreMemoryCandidate_(role, cleanContent); if (!candidate) return null; return ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/memories", { method: "POST", body: JSON.stringify(Object.assign({}, getEloCoreIdentity_(), candidate, { sourceConversationId: conversationId })) }); }); }).then(function (data) { if (data && data.memory) { cacheEloCoreMemory_(data.memory); recordEloCoreReliabilityEvent_("memory_saved", { category: data.memory.category, memory_key: data.memory.memory_key }); } }).catch(function (error) { ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "persist_failed" }); }); }
+  function persistEloCoreMessage_(role, content, attachments) { if (ELO_UI.suppressRemotePersistence || !getEloCoreAuthToken_() || !isStandaloneMode() || !ELO_UI.messages || ELO_UI.replayingCoreHistory) return; if (role !== "user" && role !== "assistant") return; const cleanContent = sanitizeUserText(content); if (!cleanContent) return; ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/conversations/" + encodeURIComponent(conversationId) + "/messages", { method: "POST", body: JSON.stringify(Object.assign({ role: role, content: cleanContent, attachments: attachments || [] }, getEloCoreIdentity_())) }); }).then(function () { const candidate = detectEloCoreMemoryCandidate_(role, cleanContent); if (!candidate) return null; return ensureEloCoreConversation_().then(function (conversationId) { return eloCoreFetch_("/api/elo/memories", { method: "POST", body: JSON.stringify(Object.assign({}, getEloCoreIdentity_(), candidate, { sourceConversationId: conversationId })) }); }); }).then(function (data) { if (data && data.memory) { cacheEloCoreMemory_(data.memory); recordEloCoreReliabilityEvent_("memory_saved", { category: data.memory.category, memory_key: data.memory.memory_key }); } }).catch(function (error) { ELO_CORE_RELIABILITY_STATE.memoryAvailable = false; recordEloCoreReliabilityEvent_("memory_failed", { reason: error && error.message ? error.message : "persist_failed" }); }); }
   function isEloConversationNearBottom_(container) { if (!container) return true; return container.scrollHeight - container.clientHeight - container.scrollTop <= 48; }
   function scrollEloConversationToBottom_(options) {
     if (!ELO_UI.messages) return;
@@ -23183,6 +23197,16 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    const localReadonlyExecutionStock = !attachedFiles.length && !getEloCoreAuthHeaders_().Authorization && isEloObraExecutionStockRequest_(cleanQuestion);
+    if (localReadonlyExecutionStock) {
+      const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+      ELO_UI.suppressRemotePersistence = true;
+      appendMessage("user", cleanQuestion);
+      Promise.resolve(handleEloObraExecutionStockRequest_(cleanQuestion, { localReadonly: true })).finally(function () {
+        ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+      });
+      return;
+    }
 
     clearEloPendingContextIfTopicChanged_(cleanQuestion);
 
@@ -26603,7 +26627,7 @@ function isEloResidentialNewPipelineEnabled_() {
     panel.dataset.eloCoreSurfaceMounted = "true";
     panel.dataset.eloCoreSurface = sanitizeUserText(config.surface || "elo");
     ELO_CORE_RELIABILITY_STATE.surface = panel.dataset.eloCoreSurface || "elo";
-    recordEloCoreReliabilityEvent_("surface_initialized", { surface: ELO_CORE_RELIABILITY_STATE.surface });
+    if (getEloCoreAuthToken_()) recordEloCoreReliabilityEvent_("surface_initialized", { surface: ELO_CORE_RELIABILITY_STATE.surface });
 
     const mounted = mountMinimalEloChat({
       panel: config.panel || ".elo-standalone-panel",
@@ -26627,11 +26651,17 @@ function isEloResidentialNewPipelineEnabled_() {
     renderEloCoreSurfaceGreeting_(greetingTarget);
     window.setTimeout(function () { renderEloCoreSurfaceGreeting_(greetingTarget); }, 0);
     window.setTimeout(function () { renderEloCoreSurfaceGreeting_(greetingTarget); }, 350);
-    loadEloCoreMemories_().then(function () {
+    if (getEloCoreAuthToken_()) {
+      loadEloCoreMemories_().then(function () {
+        renderEloCoreSurfaceGreeting_(greetingTarget);
+      }).catch(function () {
+        renderEloCoreSurfaceGreeting_(greetingTarget);
+      });
+    } else {
+      ELO_UI.coreMemories = [];
+      ELO_CORE_RELIABILITY_STATE.memoryAvailable = false;
       renderEloCoreSurfaceGreeting_(greetingTarget);
-    }).catch(function () {
-      renderEloCoreSurfaceGreeting_(greetingTarget);
-    });
+    }
     return true;
   }
 
