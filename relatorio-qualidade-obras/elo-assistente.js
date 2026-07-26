@@ -3669,6 +3669,10 @@
     const safe = budgetDocumentData || {};
     const budgetId = formatEloBudgetV2Scalar_(safe.budgetId) || "nao informado";
     const facts = safe.facts || {};
+    const isTechnicalCompositionDocument = safe.documentType === "technical_composition";
+    const documentTitle = isTechnicalCompositionDocument ? safe.title || "Orcamento tecnico composto" : "ELO Or?amentista V2";
+    const documentTypeLabel = isTechnicalCompositionDocument ? "or?amento t?cnico composto" : "or?amento residencial preliminar";
+    const documentSummary = isTechnicalCompositionDocument ? "Or?amento t?cnico composto gerado a partir de quantitativos, insumos e composi??es pendentes de valida??o oficial." : "Or?amento residencial preliminar gerado a partir do estado t?cnico padronizado do ELO Or?amentista V2.";
     const documentUf = formatEloBudgetV2Scalar_(facts.state || facts.uf || facts.estado || "BA").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || "BA";
     const documentNumber = /^ELO-[A-Z]{2}-\d{4}-\d{6}$/.test(budgetId) ? budgetId : "ELO-" + documentUf + "-" + new Date().getFullYear() + "-000001";
     const displayFacts = Object.assign({}, facts);
@@ -3721,10 +3725,11 @@
     const risks = formatEloBudgetV2NamedSection_("Riscos tecnicos", safe.risks, "Sem riscos tecnicos adicionais informados.");
     const nextSteps = formatEloBudgetV2NamedSection_("Proximos passos", safe.nextSteps, "Validar pendencias tecnicas antes de emitir orcamento executivo.");
     const technicalNotice = "Aviso tecnico\n" + ELO_BUDGET_V2_TECHNICAL_NOTICE;
+    const technicalCompositionAppendix = isTechnicalCompositionDocument ? [safe.budgetTableText, safe.materialsText, safe.financialSummaryText, safe.memorialText].filter(Boolean).join("\n\n") : "";
     const consolidated = [
-      "ELO Orçamentista V2",
+      documentTitle,
       "Numero do documento: " + documentNumber,
-      "Tipo: orçamento residencial preliminar",
+      "Tipo: " + documentTypeLabel,
       "ID interno do orçamento: " + budgetId,
       "",
       confirmed,
@@ -3757,22 +3762,24 @@
       "",
       nextSteps,
       "",
+      technicalCompositionAppendix,
+      "",
       technicalNotice
     ].join("\n");
     const record = {
       numero: documentNumber,
       versao: "2",
-      titulo: "ELO Orçamentista V2",
-      status: "orçamento residencial preliminar",
+      titulo: documentTitle,
+      status: documentTypeLabel,
       cidade_uf: displayCityUf,
-      resumo_executivo: "Orçamento residencial preliminar gerado a partir do estado técnico padronizado do ELO Orçamentista V2.",
-      escopo: ["Tipo: orçamento residencial preliminar", "", scope].join("\n"),
+      resumo_executivo: documentSummary,
+      escopo: ["Tipo: " + documentTypeLabel, "", scope].join("\n"),
       premissas: [confirmed, "", inherited, "", assumed].join("\n"),
-      servicos: [scope, "", materials].join("\n"),
-      quantitativos: quantities,
-      memoriaCalculo: [geometry, "", calculationMemory, "", coverage].join("\n"),
+      servicos: isTechnicalCompositionDocument ? [scope, "", safe.materialsText || materials].join("\n") : [scope, "", materials].join("\n"),
+      quantitativos: isTechnicalCompositionDocument ? [safe.budgetTableText || "", quantities].filter(Boolean).join("\n") : quantities,
+      memoriaCalculo: isTechnicalCompositionDocument ? [safe.memorialText || "", geometry, calculationMemory, coverage].filter(Boolean).join("\n\n") : [geometry, "", calculationMemory, "", coverage].join("\n"),
       composicoes: compositions,
-      custos_encontrados: [costs, "", financialTable].join("\n"),
+      custos_encontrados: isTechnicalCompositionDocument ? [safe.financialSummaryText || "", costs, financialTable].filter(Boolean).join("\n\n") : [costs, "", financialTable].join("\n"),
       pendencias: pending,
       avisos_profissionais: [risks, "", versions, "", nextSteps, "", technicalNotice].join("\n"),
       bases_tecnicas: financialBase,
@@ -3893,6 +3900,9 @@
 
   function isEloTechnicalCompositionBudgetIntent_(message) {
     const text = normalizeText(message || "");
+    const explicitComposition = /composi..o|composicao|tabela\s+analitica|tabela\s+anal.tica/.test(text);
+    const technicalService = /alvenaria|concreto|contrapiso|revestimento|estrutural|pilares?|vigas?|baldrame|sapatas?|chapisco|reboco|embo[c?]o|argamassa/.test(text);
+    if (explicitComposition && technicalService) return true;
     return /pilares?/.test(text) && /baldrame/.test(text) && /(parede|alvenaria|chapisco|reboco|embo[c?]o)/.test(text);
   }
 
@@ -4343,6 +4353,7 @@
   function buildBudgetV2DocumentDataFromState_(state, budgetPackage) {
     const safeState = state || {};
     if (safeState.type === "wall") return buildEloWallBudgetV2DocumentData_(safeState);
+    if (safeState.type === "technical_composition") return buildEloTechnicalCompositionDocumentData_(safeState);
     const pack = budgetPackage || safeState.budgetPackage || {};
     const facts = Object.assign({}, safeState.facts || {}, {
       projectType: safeState.type || "residential",
@@ -4415,6 +4426,9 @@
 
   function isBudgetV2ProfessionalPdfDataReady_(budgetDocumentData) {
     const doc = budgetDocumentData || {};
+    if (doc.documentType === "technical_composition") {
+      return !!(doc.budgetId && doc.budgetTableText && Array.isArray(doc.budgetRows) && doc.budgetRows.length);
+    }
     const facts = doc.facts || {};
     const pending = Array.isArray(doc.pendingFields) ? doc.pendingFields.map(function (item) { return normalizeText(item); }) : [];
     const hasCriticalPending = pending.some(function (item) {
@@ -24070,7 +24084,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (isEloBudgetV2PdfIntent_(message)) {
       return buildEloBudgetV2CurrentPdfAnswer_(message);
     }
-    if (isEloTechnicalCompositionBudgetIntent_(message) || (activeBudget && activeBudget.type === "technical_composition" && /\b(?:bdi|memorial|memoria|c.lculo|calculo|sinapi|orse|uf|competencia|desonerado|nao\s+desonerado|n?o\s+desonerado)\b/.test(text))) {
+    if (isEloTechnicalCompositionBudgetIntent_(message) || (activeBudget && activeBudget.type === "technical_composition" && /\b(?:bdi|memorial|memoria|c.lculo|calculo|sinapi|orse|uf|competencia|desonerado|nao\s+desonerado|n?o\s+desonerado|tabela|analitica|anal.tica)\b/.test(text))) {
+      if (activeBudget && activeBudget.type === "technical_composition" && /\b(?:tabela|analitica|anal.tica)\b/.test(text)) {
+        return getEloBudgetOrchestratorV2_().buildTechnicalCompositionResponse_(activeBudget);
+      }
+      if (isEloTechnicalCompositionBudgetIntent_(message) && !parseEloTechnicalCompositionBudget_(message)) {
+        return Object.assign({}, buildEloMissingTechnicalCompositionResponse_(message), { sessionTheme: "technical_composition_budget", sessionIntent: "budget_v2_technical_composition_missing" });
+      }
       const technicalCompositionResponse = buildEloBudgetOrchestratorV2Answer_(message);
       if (technicalCompositionResponse && /technical_composition/.test(String(technicalCompositionResponse.sessionIntent || technicalCompositionResponse.sessionTheme || ""))) return technicalCompositionResponse;
     }
