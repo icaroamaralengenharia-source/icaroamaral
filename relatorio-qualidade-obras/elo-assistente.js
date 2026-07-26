@@ -3307,7 +3307,7 @@
           item: index + 1,
           etapa: line ? residentialPdfStage_(line) : residentialPdfStage_(quantity),
           code: cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode || line.composition && line.composition.code) || ""),
-          description: residentialPdfText_(quantity.description || quantity.service || quantity.servico || quantity.serviceId || "Item de or\u00e7amento"),
+          description: residentialPdfText_(quantity.description || quantity.service || quantity.servico || quantity.label || quantity.name || quantity.nome || quantity.serviceId || "Item de or\u00e7amento"),
           unit: normalizeEloBudgetV2Unit_(quantity.unit || quantity.unidade || quantity.un),
           quantity: formatEloBudgetV2TableQuantity_(quantity.quantity !== undefined ? quantity.quantity : quantity.quantidade),
           unitPrice: moneyOrPending_(unitPrice),
@@ -3989,6 +3989,7 @@
 
   function buildBudgetV2DocumentDataFromState_(state, budgetPackage) {
     const safeState = state || {};
+    if (safeState.type === "wall") return buildEloWallBudgetV2DocumentData_(safeState);
     const pack = budgetPackage || safeState.budgetPackage || {};
     const facts = Object.assign({}, safeState.facts || {}, {
       projectType: safeState.type || "residential",
@@ -4263,7 +4264,9 @@
         "- Base de custos: " + displayValue_(budget.source || safe.origemBase || "SINAPI"),
         budget.hasPartialPrices ? "- Total parcial considera somente itens resolvidos; pend\u00eancias ficam fora do total." : "- Valores sujeitos a revis\u00e3o t\u00e9cnica antes de uso executivo."
       ];
-      if (/Banheiro:\s*padr\u00e3o de acabamento econ\u00f4mico\./.test(String(safe.premissas || ""))) lines.push("- Banheiro: padr\u00e3o de acabamento econ\u00f4mico.");
+      if (/Banheiro:\s*padr\u00e3o de acabamento econ\u00f4mico./.test(String(safe.premissas || ""))) lines.push("- Banheiro: padr\u00e3o de acabamento econ\u00f4mico.");
+      const lossMatch = String(safe.premissas || "").match(/perda adotada de\s*([\d.,]+%)/i);
+      if (lossMatch) lines.push("- Perda adotada: " + lossMatch[1] + ".");
       return lines.join("\n");
     }
     function finalWarnings_() {
@@ -17343,7 +17346,12 @@
     const parts = String(block || "14x19x29").split("x").map(function (item) { return Number(item); }).filter(function (item) { return item > 0; });
     const faceA = parts.length >= 3 ? Math.max(parts[0], parts[2]) / 100 : 0.29;
     const faceB = parts.length >= 2 ? parts[1] / 100 : 0.19;
-    const blockQty = area > 0 ? Math.ceil(area / (faceA * faceB || 0.0551) * 1.08) : 0;
+    const lossPercent = dimensions.lossPercent !== null && dimensions.lossPercent !== undefined ? Math.max(0, parseEloOperationalNumber_(dimensions.lossPercent)) : 8;
+    const blockQty = area > 0 ? Math.ceil(area / (faceA * faceB || 0.0551) * (1 + lossPercent / 100)) : 0;
+    const openings = state && state.openings || {};
+    const openingsText = openings.sem_vaos ? "sem vaos" : "vaos a confirmar";
+    const observation = openingsText + " e sem revestimento";
+    const blockQtyText = blockQty > 0 ? blockQty.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + " blocos" : "a confirmar";
     const title = "Orçamento preliminar — Parede de bloco cerâmico";
     return {
       budgetId: state && state.budgetId || "wall-" + Date.now(),
@@ -17351,24 +17359,37 @@
       title: title,
       facts: {
         projectType: "wall",
+        builtAreaM2: area > 0 ? formatEloResidentialPremiseNumber_(area, 2) + " m2" : "",
         cityUf: cityUf,
         "cidade/UF": cityUf,
+        service: "parede de bloco ceramico",
         wallAreaM2: area > 0 ? formatEloResidentialPremiseNumber_(area, 2) + " m2" : "",
         wallMeasures: dimensions.lengthM && dimensions.heightM ? formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " m x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) + " m" : "",
         block: block,
+        lossPercent: formatEloResidentialPremiseNumber_(lossPercent, 0) + "%",
+        observation: observation,
         laborIncluded: "sim"
       },
       inheritedFacts: {},
-      assumptions: ["perda preliminar de 8%", "preco pendente de composicao oficial"],
+      assumptions: ["perda adotada de " + formatEloResidentialPremiseNumber_(lossPercent, 0) + "%", observation, "preco pendente de composicao oficial"],
       pendingFields: area > 0 && block ? [] : ["medidas e bloco"],
-      scope: [{ label: "Execucao de parede de bloco ceramico" }],
+      scope: [{ label: "Execucao de parede de bloco ceramico", description: "parede de bloco ceramico" }],
       materials: [{ title: "Parede de bloco ceramico", items: ["bloco ceramico " + (block || "a confirmar"), "argamassa de assentamento", "cimento", "areia", "mao de obra a compor"] }],
       quantities: [
-        { label: "Area da parede", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "quantitativo preliminar" },
-        { label: "Blocos ceramicos aproximados", quantity: blockQty, unit: "un", status: "perda preliminar de 8%" },
+        { label: "Area da parede", description: "Area da parede", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "quantitativo preliminar" },
+        { label: "Blocos ceramicos aproximados", description: "Blocos ceramicos aproximados", quantity: blockQtyText, unit: "", status: "perda adotada de " + formatEloResidentialPremiseNumber_(lossPercent, 0) + "%" },
         { label: "Medidas", quantity: dimensions.lengthM && dimensions.heightM ? formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) : "a confirmar", unit: "m", status: "informado pelo usuario" },
-        { label: "Mao de obra", quantity: "sim", unit: "", status: "informado pelo usuario" }
+        { label: "Bloco", description: "Bloco informado", quantity: block || "a confirmar", unit: "", status: "informado pelo usuario" },
+        { label: "Observacao", description: "Observacao", quantity: observation, unit: "", status: "informado pelo usuario" }
       ],
+      calculationMemory: [
+        "Area da parede: " + formatEloResidentialPremiseNumber_(area, 2) + " m2.",
+        "Bloco informado: " + (block || "a confirmar") + ".",
+        "Perda adotada: " + formatEloResidentialPremiseNumber_(lossPercent, 0) + "%.",
+        "Quantitativo: " + blockQtyText + ".",
+        "Observacao: " + observation + "."
+      ],
+      quantityCoverage: ["Servico: parede de bloco ceramico.", "Sem item generico e sem quantidade zerada no payload do PDF."],
       compositions: [],
       budget: null,
       risks: ["Validar vaos, perda, produtividade, acesso, andaime e base SINAPI/ORSE."],
