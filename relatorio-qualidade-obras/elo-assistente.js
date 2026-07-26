@@ -17511,7 +17511,7 @@
     toEngineFacts_(state) {
       const cityUf = [state.city, state.state].filter(Boolean).join("/");
       return {
-        originalMessage: "orÃ§amento residencial preliminar " + (state.areaM2 || "") + " m2 " + cityUf + " padrÃ£o " + (state.standard || ""),
+        originalMessage: state.lastUserMessage || state.originalMessage || ("orcamento residencial preliminar " + (state.areaM2 || "") + " m2 " + cityUf + " padrao " + (state.standard || "")),
         projectType: "residential",
         builtAreaM2: state.areaM2 || null,
         areaConstruidaM2: state.areaM2 || null,
@@ -17521,7 +17521,11 @@
         projectStandard: state.standard || "",
         floors: state.floors || null,
         bedrooms: state.rooms || null,
-        bathrooms: state.wetAreas || null
+        bathrooms: state.wetAreas || null,
+        wallMaterial: state.wallMaterial || state.wall || state.parede || state.constructionSystem || "",
+        roofMaterial: state.roofMaterial || state.roof || state.cobertura || "",
+        floorMaterial: state.floorMaterial || state.floor || state.piso || "",
+        foundationType: state.foundationType || state.foundation || state.fundacao || ""
       };
     }
 
@@ -17602,6 +17606,49 @@
         packageBase.quantities = budget && budget.quantities || [];
         packageBase.compositions = budget && (budget.compositions || budget.compositionMatches) || [];
         packageBase.budget = budget || null;
+        packageBase.realBudget = budget && budget.realBudget || null;
+        packageBase.priceStatus = budget && budget.priceStatus || null;
+        packageBase.budgetEap = budget && budget.budgetEap || null;
+        packageBase.compositionResolution = budget && budget.compositionResolution || null;
+        packageBase.baseStatus = budget && budget.baseStatus || null;
+        packageBase.financialLines = budget && budget.realBudget && Array.isArray(budget.realBudget.items) ? budget.realBudget.items.map(function (item) {
+          return {
+            stage: item.etapa,
+            etapa: item.etapa,
+            serviceId: item.eapItemId,
+            service: item.item,
+            description: item.item,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            directCost: item.subtotal,
+            totalPrice: item.subtotal,
+            source: item.source,
+            uf: item.uf,
+            referenceMonth: item.referenceMonth,
+            composition: {
+              code: item.compositionCode,
+              description: item.compositionDescription,
+              unit: item.unit,
+              source: item.source,
+              uf: item.uf,
+              referenceMonth: item.referenceMonth
+            }
+          };
+        }) : [];
+        packageBase.financialSummary = budget && budget.realBudget ? {
+          status: budget.realBudget.status,
+          currency: "BRL",
+          directCost: budget.realBudget.subtotal,
+          partialSubtotal: budget.realBudget.subtotal,
+          bdiPercent: budget.realBudget.bdiPercent,
+          bdiValue: budget.realBudget.bdiValue,
+          salePrice: budget.realBudget.total,
+          partialTotal: budget.realBudget.total,
+          pricedItems: budget.realBudget.items && budget.realBudget.items.length || 0,
+          totalItems: budget.budgetEap && budget.budgetEap.itens && budget.budgetEap.itens.length || 0,
+          unresolvedItems: [].concat(budget.realBudget.missingCompositions || [], budget.realBudget.missingQuantities || [], budget.realBudget.missingPrices || [])
+        } : null;
         packageBase.risks = budget && budget.risks || [];
         packageBase.nextSteps = (budget && budget.missing || []).map(function (item) { return item.message || item.id || String(item); });
         return packageBase;

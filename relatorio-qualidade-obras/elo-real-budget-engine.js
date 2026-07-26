@@ -27,6 +27,12 @@
   function compositionDescription(composition) {
     return clean(composition && (composition.description || composition.nome || composition.name || composition.compositionName || composition.service));
   }
+  function compositionUf(composition) {
+    return clean(composition && (composition.uf || composition.sourceRegion || composition.region || composition.estado));
+  }
+  function compositionReferenceMonth(composition) {
+    return clean(composition && (composition.referenceMonth || composition.sourceDate || composition.mesBase || composition.competence || composition.dataBase));
+  }
   function selectedComposition(resolved) {
     return resolved && (resolved.composicaoSelecionada || resolved.composition || resolved.candidate || resolved.candidatos && resolved.candidatos[0]) || null;
   }
@@ -62,9 +68,27 @@
     const code = compositionCode(composition);
     const source = priceBase || {};
     const direct = source[code] != null ? source[code] : source.prices && source.prices[code];
-    const price = number(direct != null ? direct : (composition && (composition.unitPrice || composition.price || composition.precoUnitario)));
+    let price = number(direct != null ? direct : (composition && (composition.unitPrice || composition.price || composition.precoUnitario)));
+    let derived = false;
+    if (price == null && composition) {
+      const inputs = asArray(composition.inputs || composition.insumos || composition.items || composition.itens);
+      const total = inputs.reduce(function (sum, input) {
+        const value = number(input && (input.custoTotal != null ? input.custoTotal : (input.totalCost != null ? input.totalCost : input.total)));
+        return value == null ? sum : sum + value;
+      }, 0);
+      if (total > 0) {
+        price = round(total);
+        derived = true;
+      }
+    }
     if (price == null) return null;
-    return { unitPrice: price, source: clean(source.source || source.base || composition.source || composition.fonte || "priceBase") };
+    return {
+      unitPrice: price,
+      source: clean(source.source || source.base || composition.source || composition.fonte || (derived ? "official_composition_inputs" : "priceBase")),
+      uf: compositionUf(composition),
+      referenceMonth: compositionReferenceMonth(composition),
+      derivedFromInputs: derived
+    };
   }
 
   function hasExecutiveRelease(technicalAudit) {
@@ -128,6 +152,9 @@
         unitPrice: price.unitPrice,
         subtotal: round(quantity.quantity * price.unitPrice),
         source: price.source,
+        uf: price.uf,
+        referenceMonth: price.referenceMonth,
+        derivedFromInputs: price.derivedFromInputs,
         confidence: number(resolved && resolved.confianca) != null ? number(resolved.confianca) : null
       });
     });

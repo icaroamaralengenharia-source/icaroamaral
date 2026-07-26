@@ -228,6 +228,75 @@
     return "Informe fundação, estrutura, instalações e esquadrias para evoluir o orçamento.";
   }
 
+  function compositionCode_(composition) {
+    return clean(composition && (composition.code || composition.codigo || composition.compositionCode || composition.id));
+  }
+
+  function compositionInputPrice_(composition) {
+    const inputs = composition && (composition.inputs || composition.insumos || composition.items || composition.itens) || [];
+    if (!Array.isArray(inputs) || !inputs.length) return null;
+    const total = inputs.reduce(function (sum, input) {
+      const value = number(input && (input.custoTotal != null ? input.custoTotal : (input.totalCost != null ? input.totalCost : input.total)));
+      return value > 0 ? sum + value : sum;
+    }, 0);
+    return total > 0 ? Number(total.toFixed(2)) : null;
+  }
+
+  function compositionUnitPrice_(composition) {
+    const direct = number(composition && (composition.unitPrice || composition.price || composition.precoUnitario));
+    return direct > 0 ? direct : compositionInputPrice_(composition);
+  }
+
+  function firstComposition_(entry) {
+    return entry && (entry.composition || entry.composicaoSelecionada || entry.candidate || entry.candidates && entry.candidates[0] || entry.candidatos && entry.candidatos[0]) || null;
+  }
+
+  function buildOfficialPriceSource_(priceSource, compositionMatches, compositionResolution) {
+    const source = Object.assign({}, priceSource || {});
+    const prices = Object.assign({}, source.prices || {});
+    function add(composition) {
+      const code = compositionCode_(composition);
+      const price = compositionUnitPrice_(composition);
+      if (code && price > 0 && prices[code] == null && source[code] == null) prices[code] = price;
+    }
+    (compositionMatches || []).forEach(function (match) { add(firstComposition_(match)); });
+    (compositionResolution && compositionResolution.resolvedItems || []).forEach(function (item) { add(firstComposition_(item)); });
+    source.prices = prices;
+    source.source = source.source || source.base || "official_composition_inputs";
+    return source;
+  }
+
+  function enrichPartialPriceStatus_(priceStatus, bdiPercent) {
+    const status = priceStatus || { pricedRows: [], missingPrices: [], canTotal: false, totals: null };
+    const rows = status.pricedRows || [];
+    const pricedRows = rows.filter(function (row) { return row && row.unitPrice != null && row.totalPrice != null; });
+    const direct = Number(pricedRows.reduce(function (sum, row) { return sum + Number(row.totalPrice || 0); }, 0).toFixed(2));
+    const hasBdi = bdiPercent !== undefined && bdiPercent !== null && bdiPercent !== "";
+    const bdi = hasBdi ? number(bdiPercent) : null;
+    const bdiValue = hasBdi ? Number((direct * bdi / 100).toFixed(2)) : null;
+    const total = hasBdi ? Number((direct + bdiValue).toFixed(2)) : direct;
+    const stageTotals = {};
+    pricedRows.forEach(function (row) {
+      const key = row.package || row.packageId || row.stage || "Sem etapa";
+      stageTotals[key] = Number(((stageTotals[key] || 0) + Number(row.totalPrice || 0)).toFixed(2));
+    });
+    status.partialTotals = direct > 0 ? { subtotal: direct, bdiPercent: bdi, bdiValue: bdiValue, total: total, stageTotals: stageTotals, partial: status.canTotal !== true } : null;
+    if (!status.totals && status.partialTotals) status.totals = status.partialTotals;
+    return status;
+  }
+
+  function enrichBudgetEapTerms_(budgetEap, facts) {
+    const wallMaterial = clean(facts && facts.wallMaterial);
+    if (!budgetEap || !Array.isArray(budgetEap.itens) || !wallMaterial) return budgetEap;
+    budgetEap.itens.forEach(function (item) {
+      if (item && item.etapaId === "alvenaria" && /alvenaria|bloco|tijolo/i.test(item.nome || "")) {
+        item.termosBusca = (item.termosBusca || []).concat([wallMaterial, "alvenaria " + wallMaterial]).filter(function (term, index, list) {
+          return term && list.indexOf(term) === index;
+        });
+      }
+    });
+    return budgetEap;
+  }
   function buildPreliminaryBudget(projectFacts, technicalContext) {
     const facts = collectFacts(projectFacts || {}, technicalContext || {});
     const workPackageEngine = root.EloWorkPackageEngine;
@@ -258,7 +327,7 @@
     const missing = quantityResult.missing.concat(packageMissing);
     const confidence = Math.max(0.25, Math.min(0.9, 0.35 + (facts.builtAreaM2 ? 0.12 : 0) + (facts.wallMaterial ? 0.08 : 0) + (facts.roofMaterial ? 0.08 : 0) + (facts.floorMaterial ? 0.08 : 0) + (budgetTable.summary.readyRows * 0.03) - Math.min(0.25, missing.length * 0.01)));
     const constructionReadiness = buildConstructionReadiness(facts, technicalContext || {});
-    const budgetEap = buildBudgetEap(facts, technicalContext || {});
+    const budgetEap = enrichBudgetEapTerms_(buildBudgetEap(facts, technicalContext || {}), facts);
     const compositionResolution = buildCompositionResolution(budgetEap);
     const technicalAudit = buildTechnicalAudit({
       projectFacts: facts,
@@ -274,7 +343,7 @@
       compositionResolution: compositionResolution,
       technicalAudit: technicalAudit,
       quantities: quantityResult.quantities,
-      priceBase: technicalContext && (technicalContext.priceBase || technicalContext.priceSource) || {},
+      priceBase: buildOfficialPriceSource_(technicalContext && (technicalContext.priceBase || technicalContext.priceSource) || {}, compositionMatches, compositionResolution),
       bdiPercent: technicalContext && technicalContext.bdiPercent
     });
     const baseBudget = {
@@ -308,7 +377,8 @@
     const knowledgeGraphHints = graphEngine ? graphEngine.expandSearchTermsFromGraph([facts.roofMaterial, facts.wallMaterial, facts.floorMaterial, facts.projectType].filter(Boolean).join(" ")).slice(0, 20) : [];
     const selectableCompositions = selectionEngine ? selectionEngine.listSelectableCompositions(baseBudget) : [];
     const traceability = traceabilityEngine ? traceabilityEngine.buildTraceabilityEntries({ quantities: baseBudget.quantities, consumptions: baseBudget.consumptions, compositions: baseBudget.compositionMatches, blocked: baseBudget.consumptionBlocked }) : [];
-    const priceStatus = priceEngine ? priceEngine.attachPricesToBudgetRows(baseBudget.budgetTable && baseBudget.budgetTable.rows || [], technicalContext && technicalContext.priceSource || {}) : { pricedRows: [], missingPrices: [], canTotal: false, totals: null };
+    const officialPriceSource = buildOfficialPriceSource_(technicalContext && technicalContext.priceSource || {}, compositionMatches, compositionResolution);
+    const priceStatus = enrichPartialPriceStatus_(priceEngine ? priceEngine.attachPricesToBudgetRows(baseBudget.budgetTable && baseBudget.budgetTable.rows || [], officialPriceSource) : { pricedRows: [], missingPrices: [], canTotal: false, totals: null }, technicalContext && technicalContext.bdiPercent);
     baseBudget.priceStatus = priceStatus;
     const executiveClosing = executiveEngine && executiveEngine.prepareExecutiveClosing ? executiveEngine.prepareExecutiveClosing(savedRecord, baseBudget, { requireBdi: true }) : closingChecklist;
     const executivePreview = executiveReadiness && executiveReadiness.executivePreview || null;

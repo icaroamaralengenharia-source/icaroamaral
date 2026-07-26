@@ -2099,3 +2099,66 @@ test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', 
   assert.match(errorAnswer, /N�o consegui consultar|Nao consegui consultar/i);
   assert.match(errorAnswer, /n�o vou inventar|nao vou inventar/i);
 });
+
+test('ELO casa completa 100 m2 usa SINAPI local e calcula total parcial', () => {
+  const context = { console, window: {}, global: {} };
+  context.global = context;
+  context.window = context;
+  vm.createContext(context);
+  [
+    'stock-ai-real-compositions.js',
+    'stock-ai-composition-engine.js',
+    'bases-reais/sinapi-ba-202412-index.js',
+    'composition-search-engine.js',
+    'elo-composition-resolver.js',
+    'elo-budget-eap-engine.js',
+    'elo-work-package-engine.js',
+    'elo-quantity-engine.js',
+    'elo-consumption-engine.js',
+    'elo-budget-table-engine.js',
+    'elo-price-engine.js',
+    'elo-real-budget-engine.js',
+    'elo-executive-budget-engine.js',
+    'elo-budget-engine.js'
+  ].forEach((file) => {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    vm.runInContext(source, context, { filename: file });
+  });
+
+  const message = 'Orcamento completo de uma casa terrea residencial de 100 m2, 2 quartos, 1 banheiro, bloco ceramico 14x19x39, Vitoria da Conquista BA, padrao simples, fundacao baldrame, telha ceramica, piso ceramico.';
+  const budget = context.EloBudgetEngine.buildPreliminaryBudget({
+    originalMessage: message,
+    builtAreaM2: 100,
+    areaConstruidaM2: 100,
+    state: 'BA',
+    uf: 'BA',
+    bedrooms: 2,
+    bathrooms: 1,
+    wallMaterial: 'bloco ceramico 14x19x39',
+    roofMaterial: 'telha ceramica',
+    floorMaterial: 'piso ceramico',
+    projectStandard: 'simples',
+    foundationType: 'baldrame'
+  }, { lastMessage: message, uf: 'BA', referenceMonth: '2024-12', bdiPercent: 20 });
+
+  const wall = budget.compositionResolution.resolvedItems.find((item) => /alvenaria|bloco/i.test(item.nome || ''));
+  const pricedRealItems = budget.realBudget.items.filter((item) => Number(item.unitPrice) > 0 && Number(item.subtotal) > 0);
+
+  assert.equal(budget.budgetEap.itens.length, 60);
+  assert.equal(wall.composicaoSelecionada.code, '103324');
+  assert.equal(wall.composicaoSelecionada.unit, 'm2');
+  const officialWall = context.StockAiCompositionEngine.getImportedOfficialBaseCatalog().find((composition) => composition.code === '103324');
+  assert.equal(wall.composicaoSelecionada.source, 'SINAPI');
+  assert.equal(officialWall.sourceRegion, 'BA');
+  assert.equal(officialWall.sourceDate, '2024-12');
+  assert.equal(Number(wall.composicaoSelecionada.inputs.reduce((sum, input) => sum + Number(input.custoTotal || input.totalCost || 0), 0).toFixed(2)), 77.91);
+  assert.ok(budget.compositionResolution.summary.resolvedCount > 0);
+  assert.ok(pricedRealItems.length > 0);
+  assert.equal(budget.realBudget.status, 'partial');
+  assert.equal(budget.realBudget.missingPrices.length, 0);
+  assert.ok(budget.realBudget.subtotal > 0);
+  assert.equal(budget.realBudget.bdiPercent, 20);
+  assert.ok(budget.realBudget.bdiValue > 0);
+  assert.ok(budget.realBudget.total > budget.realBudget.subtotal);
+  assert.ok(budget.priceStatus.partialTotals.total > 0);
+});
