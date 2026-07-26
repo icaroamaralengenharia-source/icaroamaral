@@ -670,6 +670,7 @@
     const context = applyEloBudgetRoutePendingContext_(consumeEloBudgetRoutePending_());
     if (!(context && context.workId)) return null;
     const text = normalizeText(message || "");
+    if (isEloSurgicalWallTechnicalPriority_(message)) return null;
     const completeResidentialBudget = isEloCompleteResidentialBudgetPriorityRequest_(message) || isEloResidentialBudgetBriefingQuestion_(message);
     const wallBudgetMessage = !completeResidentialBudget && /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
     let response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
@@ -3025,7 +3026,7 @@
 
   function applyEloBrainMarker_(question, response) {
     if (!response || typeof response !== "object") return response;
-    const brain = /^budget_v2/.test(String(response.sessionIntent || "")) || response.budgetOrchestratorV2 ? "budget" : detectEloBrainRoute_(question, response);
+    const brain = isEloSurgicalWallTechnicalPriority_(question) ? "technical" : (/^budget_v2/.test(String(response.sessionIntent || "")) || response.budgetOrchestratorV2 ? "budget" : detectEloBrainRoute_(question, response));
     response.brain = brain;
     response.brainMarker = brain;
     if (brain === "budget") {
@@ -4457,7 +4458,12 @@
   }
 
   function isEloBudgetV2PdfIntent_(message) {
-    return /\b(pdf|gerar\s+pdf|baixar\s+pdf|exportar\s+pdf|imprimir)\b|nao\s+estou\s+vendo\s+o\s+botao|nao\s+vejo\s+o\s+botao/i.test(normalizeText(message || ""));
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    if (/\bpdf\b|\b(?:gerar|gere|baixar|exportar|abrir|abra)\s+(?:o\s+)?pdf\b|\bimprimir\b|nao\s+estou\s+vendo\s+o\s+botao|nao\s+vejo\s+o\s+botao/i.test(text)) return true;
+    const hasActiveBudget = isBudgetV2ProfessionalPdfDataReady_(ELO_SESSION_MEMORY.lastBudgetV2DocumentData) || !!(ELO_SESSION_MEMORY.budgetOrchestratorV2 && ELO_SESSION_MEMORY.budgetOrchestratorV2.type);
+    if (!hasActiveBudget) return false;
+    return /^(?:pode\s+gerar|pode\s+sim|gere|gerar|fa(?:ca|.{3}a)|abra\s+o\s+pdf|abrir\s+pdf|quero\s+o\s+relatorio|quero\s+relatorio)$/i.test(text);
   }
 
   function getSavedBudgetV2IdForDocument_(budgetDocumentData) {
@@ -24049,9 +24055,41 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
 
+  function isEloSurgicalWallTechnicalPriority_(message) {
+    const text = normalizeText(message || "");
+    if (!text || !hasEloWallSubject_(text)) return false;
+    if (isEloResidentialBudgetBriefingQuestion_(message) || isEloCompleteResidentialBudgetPriorityRequest_(message)) return false;
+    if (/\b(?:orcamento|or.amento|orcar|custo|preco|pre.o|valor|quanto|calcule|calcular|quantitativo|quantidade|materiais?|mao\s+de\s+obra|m.o\s+de\s+obra)\b/.test(text)) return false;
+    if (/\d+(?:[,.]\d+)?\s*(?:m|metros?|m2|m\^2|m?|metros?\s+quadrados?)\b/.test(text)) return false;
+    return /\b(?:parede|muro|alvenaria|bloco|tijolo)\b/.test(text);
+  }
+
+  function buildEloSurgicalRoutePriorityAnswer_(message) {
+    const activeBudget = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const text = normalizeText(message || "");
+    if (isEloBudgetV2PdfIntent_(message)) {
+      return buildEloBudgetV2CurrentPdfAnswer_(message);
+    }
+    if (isEloTechnicalCompositionBudgetIntent_(message) || (activeBudget && activeBudget.type === "technical_composition" && /\b(?:bdi|memorial|memoria|c.lculo|calculo|sinapi|orse|uf|competencia|desonerado|nao\s+desonerado|n?o\s+desonerado)\b/.test(text))) {
+      const technicalCompositionResponse = buildEloBudgetOrchestratorV2Answer_(message);
+      if (technicalCompositionResponse && /technical_composition/.test(String(technicalCompositionResponse.sessionIntent || technicalCompositionResponse.sessionTheme || ""))) return technicalCompositionResponse;
+    }
+    if (activeBudget && activeBudget.type === "reforma_banheiro" && /\b(?:banheiro|reforma|piso|revestimento|loucas?|lou.as?|metais|hidraulicos?|hidr.ulicos?|eletricos?|el.tricos?|demolicao|demoli..o)\b/.test(text)) {
+      const bathroomResponse = buildEloBudgetOrchestratorV2Answer_(message);
+      if (bathroomResponse && /bathroom|banheiro/.test(String(bathroomResponse.sessionIntent || bathroomResponse.sessionTheme || ""))) return bathroomResponse;
+    }
+    if (activeBudget && activeBudget.type === "residential" && isEloSurgicalWallTechnicalPriority_(message)) {
+      return buildEloConstructionTechnicalFallback_(message);
+    }
+    return null;
+  }
   function buildResponse(question) {
     const startedAt = Date.now();
     try {
+    const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);
+    if (surgicalRoutePriorityResponse) {
+      return applyEloBrainMarker_(question, surgicalRoutePriorityResponse);
+    }
     const pendingBudgetRouteResponse = buildEloBudgetRoutePendingAnswer_(question);
     if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
     const operationalReleasePriorityResponse = (isEloStockReleaseRequest_(question) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(question || ""))) ? buildEloOperationalConstructionAnswer_(question) : null;
