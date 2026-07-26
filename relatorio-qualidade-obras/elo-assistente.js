@@ -1208,6 +1208,129 @@
     return "N�o consegui consultar o Observador da Obra agora. Tente novamente em instantes; n�o vou inventar alerta sem dados.";
   }
 
+  function getEloProactiveAttentionScope_() {
+    const context = window.ELO_AUTH_CONTEXT && typeof window.ELO_AUTH_CONTEXT === "object" ? window.ELO_AUTH_CONTEXT : {};
+    return {
+      projectId: sanitizeUserText(context.projectId || window.ELO_PROJECT_ID || "").slice(0, 140),
+      workId: sanitizeUserText(window.ELO_WORK_ID || "").slice(0, 140)
+    };
+  }
+
+  function buildEloProactiveAttentionEndpoint_() {
+    const scope = getEloProactiveAttentionScope_();
+    const params = new URLSearchParams();
+    if (scope.projectId) params.set("projectId", scope.projectId);
+    if (scope.workId) params.set("workId", scope.workId);
+    const query = params.toString();
+    return { endpoint: getEloBackendEndpoint_("/api/elo/obra/attention") + (query ? "?" + query : ""), scope: scope };
+  }
+
+  function fetchEloProactiveAttentionData_() {
+    const authHeaders = getEloCoreAuthHeaders_();
+    if (!authHeaders.Authorization || !window.fetch) return Promise.resolve(null);
+    const target = buildEloProactiveAttentionEndpoint_();
+    return window.fetch(target.endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        applyEloCoreAuthContextFromResponse_(data);
+        if (!response.ok || data.ok === false) return null;
+        return Object.assign({}, data, { proactiveScope: target.scope, proactiveEndpoint: target.endpoint });
+      });
+    }).catch(function () { return null; });
+  }
+
+  function getEloProactiveAttentionItems_(data) {
+    const safe = data && typeof data === "object" ? data : {};
+    const summary = safe.dailySummary && typeof safe.dailySummary === "object" ? safe.dailySummary : {};
+    const cross = safe.executionStockCross && typeof safe.executionStockCross === "object" ? safe.executionStockCross : {};
+    const items = [];
+    (Array.isArray(summary.faltas) ? summary.faltas : []).forEach(function (item) {
+      items.push({ type: "falta", label: "Falta: " + sanitizeUserText(item.material || "material"), severity: item.severity || "critical" });
+    });
+    (Array.isArray(summary.desviosCriticos) ? summary.desviosCriticos : []).forEach(function (item) {
+      items.push({ type: "desvio", label: "Desvio crítico: " + sanitizeUserText(item.material || item.name || "material"), severity: "critical" });
+    });
+    (Array.isArray(summary.prioridades) ? summary.prioridades : []).forEach(function (item) {
+      const evidence = item && item.evidence || {};
+      const severity = sanitizeUserText(item && item.severity || "");
+      if (severity === "critical" || severity === "high" || item && item.type === "critical_pending_item") {
+        items.push({ type: "prioridade", label: "Prioridade: " + sanitizeUserText(evidence.material || evidence.service || evidence.description || item.type || "obra"), severity: severity || "high" });
+      }
+    });
+    (Array.isArray(cross.materials) ? cross.materials : []).forEach(function (item) {
+      const status = sanitizeUserText(item && item.status || "");
+      const classification = sanitizeUserText(item && item.classification || "");
+      if (classification === "atencao" || classification === "critico" || ["production_without_stock_exit", "stock_exit_without_production", "insufficient_balance", "missing_reference"].indexOf(status) >= 0) {
+        items.push({ type: status || classification, label: sanitizeUserText(item.material || "material") + ": " + getEloObraCrossStatusLabel_(status), severity: classification === "critico" ? "critical" : "high" });
+      }
+    });
+    (Array.isArray(cross.alerts) ? cross.alerts : []).forEach(function (item) {
+      const status = sanitizeUserText(item && item.status || "");
+      const classification = sanitizeUserText(item && item.classification || "");
+      if (classification === "atencao" || classification === "critico" || ["production_without_stock_exit", "stock_exit_without_production", "insufficient_balance", "missing_reference"].indexOf(status) >= 0) {
+        items.push({ type: status || classification, label: sanitizeUserText(item.material || "material") + ": " + getEloObraCrossStatusLabel_(status), severity: classification === "critico" ? "critical" : "high" });
+      }
+    });
+    return items.filter(function (item, index, list) {
+      return item.label && list.findIndex(function (candidate) { return candidate.type === item.type && candidate.label === item.label; }) === index;
+    }).slice(0, 5);
+  }
+
+  function buildEloProactiveAttentionSignature_(scope, items) {
+    const source = [scope.projectId || "sem-projeto", scope.workId || "sem-obra"].concat((items || []).map(function (item) { return item.type + ":" + item.label; })).join("|");
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+    return String(Math.abs(hash));
+  }
+
+  function getEloProactiveAttentionSessionKey_(scope, signature) {
+    return "elo_proactive_attention_seen:" + sanitizeUserText(scope.projectId || "sem-projeto") + ":" + sanitizeUserText(scope.workId || "sem-obra") + ":" + signature;
+  }
+
+  function hasSeenEloProactiveAttention_(key) {
+    try { return window.sessionStorage && window.sessionStorage.getItem(key) === "1"; } catch (error) { return false; }
+  }
+
+  function markEloProactiveAttentionSeen_(key) {
+    try { if (window.sessionStorage) window.sessionStorage.setItem(key, "1"); } catch (error) {}
+  }
+
+  function closeEloProactiveAttentionMessage_(message, key) {
+    markEloProactiveAttentionSeen_(key);
+    if (!message) return;
+    if (typeof message.remove === "function") message.remove();
+    else if (message.parentNode && typeof message.parentNode.removeChild === "function") message.parentNode.removeChild(message);
+    setEloCoreWelcomeVisible_();
+  }
+
+  function appendEloProactiveAttentionMessage_(items, key) {
+    const lines = ["Atenção na obra: encontrei ponto(s) para olhar agora."];
+    items.slice(0, 4).forEach(function (item) { lines.push("- " + sanitizeUserText(item.label)); });
+    const message = appendMessage("system", lines.join("\n"));
+    const actions = createElement("div", "elo-message-actions");
+    const closeButton = createElement("button", "elo-inline-button", "Fechar");
+    closeButton.type = "button";
+    closeButton.addEventListener("click", function () { closeEloProactiveAttentionMessage_(message, key); });
+    actions.appendChild(closeButton);
+    message.appendChild(actions);
+    scrollEloConversationToBottom_({ force: true });
+    return message;
+  }
+
+  function maybeShowEloProactiveAttention_() {
+    if (!ELO_UI.messages) return Promise.resolve(false);
+    return fetchEloProactiveAttentionData_().then(function (data) {
+      if (!data) return false;
+      const items = getEloProactiveAttentionItems_(data);
+      if (!items.length) return false;
+      const scope = data.proactiveScope || getEloProactiveAttentionScope_();
+      const signature = buildEloProactiveAttentionSignature_(scope, items);
+      const key = getEloProactiveAttentionSessionKey_(scope, signature);
+      if (hasSeenEloProactiveAttention_(key)) return false;
+      appendEloProactiveAttentionMessage_(items, key);
+      markEloProactiveAttentionSeen_(key);
+      return true;
+    });
+  }
   function requestEloObraAttentionAnswer_(question) {
     if (!isEloObraAttentionRequest_(question)) return Promise.resolve(null);
     const authHeaders = getEloCoreAuthHeaders_();
@@ -27827,6 +27950,7 @@ function isEloResidentialNewPipelineEnabled_() {
     maybeStartEloBudgetRoute_();
     setEloCoreWelcomeVisible_();
     initEloCorePersistence_();
+    maybeShowEloProactiveAttention_();
 
     return true;
   }
@@ -27898,7 +28022,8 @@ function isEloResidentialNewPipelineEnabled_() {
     refreshLayoutStateForTest: setEloCoreWelcomeVisible_,
     getCoreAuthTokenForTest: getEloCoreAuthToken_,
     validateSupabaseTokenForTest: validateEloCoreSupabaseToken_,
-    initCorePersistenceForTest: initEloCorePersistence_
+    initCorePersistenceForTest: initEloCorePersistence_,
+    maybeShowProactiveAttentionForTest: maybeShowEloProactiveAttention_
   });
 
   // ELO_BOOTSTRAP
