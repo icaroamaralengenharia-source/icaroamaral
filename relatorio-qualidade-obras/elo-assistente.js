@@ -549,6 +549,27 @@
     return { active: source === "obrareport" && intent === "orcamento" && !!workId, source: source, intent: intent, projectId: projectId, workId: workId };
   }
 
+  function attachEloCoreBridgeMetadata_(response) {
+    if (!response || typeof response !== "object") return response;
+    try {
+      const context = getEloBudgetRouteContext_();
+      if (!(context && context.active)) return response;
+      response.eloCoreBridgeMetadata = {
+        source: context.source || "obrareport",
+        projectId: context.projectId || "",
+        workId: context.workId || ""
+      };
+    } catch (error) {}
+    return response;
+  }
+  function rememberEloAssistantAnswer_(question, response) {
+    try {
+      const summary = sanitizeUserText(response && (response.shortAnswer || response.fullAnswer || ""));
+      rememberSessionTurn(question, response, summary);
+    } catch (error) {}
+    return response;
+  }
+
   function applyEloBudgetRouteContext_() {
     const context = getEloBudgetRouteContext_();
     if (!context.active) {
@@ -634,15 +655,17 @@
     const context = applyEloBudgetRoutePendingContext_(consumeEloBudgetRoutePending_());
     if (!(context && context.workId)) return null;
     const text = normalizeText(message || "");
-    const wallBudgetMessage = /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
+    const completeResidentialBudget = isEloCompleteResidentialBudgetPriorityRequest_(message);
+    const wallBudgetMessage = !completeResidentialBudget && /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
     let response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
     if (!isEloBudgetRouteUsableResponse_(response) && wallBudgetMessage !== message) response = buildEloBudgetOrchestratorV2Answer_(message);
-    if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloWallBudgetTaskAnswer_(wallBudgetMessage);
+    if (!isEloBudgetRouteUsableResponse_(response) && !completeResidentialBudget) response = buildEloWallBudgetTaskAnswer_(wallBudgetMessage);
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetConversationAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) response = buildEloResidentialBudgetBriefingAnswer_(message);
     if (!isEloBudgetRouteUsableResponse_(response)) return null;
     if (response.budgetOrchestratorV2 && response.budgetOrchestratorV2.state) ELO_SESSION_MEMORY.budgetOrchestratorV2 = response.budgetOrchestratorV2.state;
     response.eloBudgetRouteContext = { projectId: context.projectId || "", workId: context.workId || "" };
+    attachEloCoreBridgeMetadata_(response);
     return response;
   }
 
@@ -15396,6 +15419,25 @@
     return /\b(?:orcamento|or.amento|orcar|custo|preco|quanto\s+custa|quantitativo|eap|composi..o|composicao|sinapi|orse|bdi|valor\s+da\s+obra|estimar\s+o\s+custo)\b/.test(text);
   }
 
+  function isEloCompleteResidentialBudgetPriorityRequest_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    const hasBudget = /\b(?:orcamento|or.amento|custo|preco|pre.o|valor|eap)\b/.test(text);
+    const hasComplete = /\b(?:orcamento\s+completo|or.amento\s+completo|obra\s+completa|casa\s+completa)\b/.test(text);
+    const hasResidential = /\b(?:casa|residencia|residencial|sobrado)\b/.test(text);
+    if (!hasBudget || !hasResidential) return false;
+    let score = hasComplete ? 2 : 0;
+    if (/(?:\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)|area\s+construida)/.test(text)) score += 1;
+    if (/\b(?:quarto|quartos|dormitorio|dormitorios)\b/.test(text)) score += 1;
+    if (/\b(?:banheiro|banheiros|lavabo)\b/.test(text)) score += 1;
+    if (/\b(?:fundacao|fundação|baldrame|sapata|radier)\b/.test(text)) score += 1;
+    if (/\b(?:cobertura|telha|telhado|laje)\b/.test(text)) score += 1;
+    if (/\b(?:piso|contrapiso|revestimento)\b/.test(text)) score += 1;
+    if (/\bbdi\b/.test(text)) score += 1;
+    const stages = ["terraplenagem", "fundacao", "fundação", "estrutura", "alvenaria", "cobertura", "impermeabilizacao", "impermeabilização", "eletrica", "elétrica", "hidraulica", "hidráulica", "revestimento", "piso", "pintura", "esquadria", "louca", "louça", "servicos finais", "serviços finais"].filter(function (term) { return text.indexOf(term) >= 0; }).length;
+    if (stages >= 2) score += 1;
+    return score >= 5;
+  }
   function isEloResidentialDesignOnlyRequest_(message) {
     const text = normalizeText(message || "");
     if (!hasEloCadistaDesignIntent_(message)) return false;
@@ -17525,7 +17567,8 @@
         wallMaterial: state.wallMaterial || state.wall || state.parede || state.constructionSystem || "",
         roofMaterial: state.roofMaterial || state.roof || state.cobertura || "",
         floorMaterial: state.floorMaterial || state.floor || state.piso || "",
-        foundationType: state.foundationType || state.foundation || state.fundacao || ""
+        foundationType: state.foundationType || state.foundation || state.fundacao || "",
+        bdiPercent: state.bdiPercent || null
       };
     }
 
@@ -17598,7 +17641,7 @@
         return packageBase;
       }
       try {
-        const budget = engine.buildPreliminaryBudget(facts, Object.assign({}, context || {}, { source: "BudgetEngineAdapter", budgetId: packageBase.budgetId }));
+        const budget = engine.buildPreliminaryBudget(facts, Object.assign({}, context || {}, { source: "BudgetEngineAdapter", budgetId: packageBase.budgetId, bdiPercent: state && state.bdiPercent || facts.bdiPercent || null }));
         packageBase.engineCalled = true;
         packageBase.engineAvailable = true;
         packageBase.source = "EloBudgetEngine";
@@ -17775,6 +17818,7 @@
         facts.technicalComposition = parseEloTechnicalCompositionBudget_(raw);
         facts.currentFields.push("technicalComposition");
       } else if (previousType === "technical_composition" && bdiPercent) facts.type = "technical_composition";
+      else if (isEloCompleteResidentialBudgetPriorityRequest_(raw)) facts.type = "residential";
       else if (this.isWallBudgetIntent_(text)) facts.type = "wall";
       else if (/reforma\s+de\s+banheiro/.test(text)) facts.type = "reforma_banheiro";
       else if (/galpao|galp??o/.test(text)) facts.type = "renovation";
@@ -17831,6 +17875,14 @@
           facts.currentFields.push("desiredStage");
         }
       }
+      const blockDimension = extractEloBlockDimensionCm_(raw);
+      if (/\bbloco\b/.test(text)) {
+        facts.wallMaterial = "bloco ceramico" + (blockDimension ? " " + blockDimension.join("x") : "");
+        facts.currentFields.push("wallMaterial");
+      }
+      if (/\btelha\s+ceramica\b|\btelha\s+cer.mica\b/.test(text)) { facts.roofMaterial = "telha ceramica"; facts.currentFields.push("roofMaterial"); }
+      if (/\bpiso\s+ceramico\b|\bpiso\s+cer.mico\b/.test(text)) { facts.floorMaterial = "piso ceramico"; facts.currentFields.push("floorMaterial"); }
+      if (/\bbaldrame\b/.test(text)) { facts.foundationType = "baldrame"; facts.currentFields.push("foundationType"); }
       if (/\bpiscina\b/.test(text) && !/sem\s+piscina/.test(text)) { facts.hasPool = true; facts.currentFields.push("hasPool"); }
       if (/sem\s+piscina/.test(text)) { facts.hasPool = false; facts.currentFields.push("hasPool"); }
 
@@ -23500,14 +23552,15 @@ function isEloResidentialNewPipelineEnabled_() {
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
     }
+    const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question);
     const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
-    if (activeWallBudgetV2ForPriority && activeWallBudgetV2ForPriority.type === "wall" && isEloBudgetV2CompatibleUpdateMessage_(question)) {
+    if (!completeResidentialBudgetPriority && activeWallBudgetV2ForPriority && activeWallBudgetV2ForPriority.type === "wall" && isEloBudgetV2CompatibleUpdateMessage_(question)) {
       const wallBudgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
       if (wallBudgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(wallBudgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
         return applyEloBrainMarker_(question, wallBudgetOrchestratorV2PriorityResponse);
       }
     }
-    const wallBudgetTaskPriorityResponse = buildEloWallBudgetTaskAnswer_(question);
+    const wallBudgetTaskPriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallBudgetTaskAnswer_(question);
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
@@ -23523,7 +23576,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (stockBalanceResponse) {
       return applyEloBrainMarker_(question, stockBalanceResponse);
     }
-    const wallCompleteV2PriorityResponse = buildEloWallCompleteV2Answer_(question);
+    const wallCompleteV2PriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallCompleteV2Answer_(question);
     if (wallCompleteV2PriorityResponse) {
       return applyEloBrainMarker_(question, wallCompleteV2PriorityResponse);
     }
@@ -23561,16 +23614,28 @@ function isEloResidentialNewPipelineEnabled_() {
     if (reduceBathroomDetectedAnswer) return applyEloBrainMarker_(question, reduceBathroomDetectedAnswer);
     const bathroomEconomicFinishAnswer = buildEloResidentialBathroomEconomicFinishAnswer_(question);
     if (bathroomEconomicFinishAnswer) return applyEloBrainMarker_(question, bathroomEconomicFinishAnswer);
+    if (completeResidentialBudgetPriority) {
+      const completeResidentialBudgetResponse = buildEloBudgetOrchestratorV2Answer_(question);
+      if (completeResidentialBudgetResponse && /^budget_v2/.test(String(completeResidentialBudgetResponse.sessionIntent || "")) && completeResidentialBudgetResponse.sessionTheme !== "wall_budget_package") {
+        attachEloCoreBridgeMetadata_(completeResidentialBudgetResponse);
+        rememberEloAssistantAnswer_(question, completeResidentialBudgetResponse);
+        return applyEloBrainMarker_(question, completeResidentialBudgetResponse);
+      }
+    }
     const residentialBudgetConversationResponse = buildEloResidentialBudgetConversationAnswer_(question);
     if (residentialBudgetConversationResponse) {
       return applyEloBrainMarker_(question, residentialBudgetConversationResponse);
     }
     const residentialBudgetBriefingPriorityResponse = buildEloResidentialBudgetBriefingAnswer_(question);
     if (residentialBudgetBriefingPriorityResponse) {
+      attachEloCoreBridgeMetadata_(residentialBudgetBriefingPriorityResponse);
+      rememberEloAssistantAnswer_(question, residentialBudgetBriefingPriorityResponse);
       return applyEloBrainMarker_(question, residentialBudgetBriefingPriorityResponse);
     }
     const budgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
     if (budgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(budgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
+      attachEloCoreBridgeMetadata_(budgetOrchestratorV2PriorityResponse);
+      rememberEloAssistantAnswer_(question, budgetOrchestratorV2PriorityResponse);
       return applyEloBrainMarker_(question, budgetOrchestratorV2PriorityResponse);
     }
     const projectMemoryResponse = buildEloCoreProjectMemoryAnswer_(question);
