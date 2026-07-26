@@ -4160,7 +4160,7 @@
     if (/^(pdf|faca|sim|ok|obrigad[oa]?|valeu|oi|ola|hi)\b/.test(text)) return false;
     if (/\bbdi\s*(?:de\s*)?\d+/.test(text)) return true;
     if (/\b(area|m2|metros?\s+quadrados?|cidade|uf|estado|padrao|pavimentos?|terrea|sobrado)\b/.test(text)) return true;
-    if (/\b(parede|alvenaria|bloco|fundacao|fundacao|sapata|baldrame|estrutura|pilar|viga|laje|cobertura|instalacao|revestimento|pintura)\b/.test(text)) return true;
+    if (/\b(parede|alvenaria|bloco|fundacao|fundacao|sapata|baldrame|estrutura|pilar|viga|laje|cobertura|instalacao|revestimento|pintura|aberturas?|vaos?)\b/.test(text)) return true;
     if (/\b(lista\s+de\s+materiais|materiais|quantitativos?|composicoes?|precos?)\b/.test(text)) return true;
     return false;
   }
@@ -5561,6 +5561,12 @@
     const pendingActionResponse = buildEloWallBudgetPendingActionAnswer_(message);
     if (pendingActionResponse) return pendingActionResponse;
     const activeTask = ELO_SESSION_MEMORY.activeTask;
+    const activeBudgetV2 = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    if (activeBudgetV2 && activeBudgetV2.type === "wall" && /(?:sem\s+(?:aberturas?|v[aã]os?)|n[aã]o\s+(?:ter[aá]|tem|vai\s+ter|haver[aá])\s+(?:aberturas?|v[aã]os?))/i.test(String(message || ""))) {
+      const state = Object.assign({}, activeBudgetV2, { openings: { sem_vaos: true, portas: [], janelas: [] }, lastUserMessage: sanitizeUserText(message || "") });
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 = state;
+      return getEloBudgetOrchestratorV2_().buildWallQuantitativeResponse_(state);
+    }
     const complaint = isEloWallBudgetComplaint_(message);
     const followUp = isEloWallBudgetFollowUp_(message) || complaint;
     let sourceQuestion = message;
@@ -13992,7 +13998,7 @@
       /\b(?:nova|outra|tenho|quero|preciso|quantos|calcule|calcular)\b/.test(text);
   }
   function hasEloNoWallOpenings_(text) {
-    return /parede\s+integra|parede\s+inteira|sem\s+vaos?|sem\s+v\.o|sem\s+aberturas?|sem\s+portas?[\s,]+(?:e\s+)?sem\s+janelas?|sem\s+janelas?[\s,]+(?:e\s+)?sem\s+portas?/.test(text);
+    return /parede\s+integra|parede\s+inteira|sem\s+vaos?|sem\s+v\.o|sem\s+aberturas?|nao\s+(?:tera|tem|vai\s+ter|havera)\s+(?:aberturas?|vaos?)|sem\s+portas?[\s,]+(?:e\s+)?sem\s+janelas?|sem\s+janelas?[\s,]+(?:e\s+)?sem\s+portas?/.test(text);
   }
 
   function hasEloWallOpenings_(text) {
@@ -17810,7 +17816,7 @@
         if (previousType === "wall") {
           const followUpBlock = extractEloBlockDimensionCm_(raw);
           const followUpLossPercent = extractEloStockObrasLossPercent_(raw);
-          const followUpNoOpenings = hasEloNoWallOpenings_(text);
+          const followUpNoOpenings = hasEloNoWallOpenings_(text) || /nao\s+(?:tera|tem|vai\s+ter|havera)\s+(?:aberturas?|vaos?)/.test(text);
           const followUpMentionsCoating = /sem\s+revestimento|revestimento|chapisco|reboco/.test(text);
           const hasWallPremiseFollowUp = !!(followUpBlock || followUpLossPercent !== null || followUpNoOpenings || followUpMentionsCoating);
           if (hasWallPremiseFollowUp) {
@@ -18351,6 +18357,9 @@
       if (!isBudgetIntent && !isContinuation) return null;
       const next = this.mergeBudgetState(previous, facts);
       next.lastUserMessage = sanitizeUserText(message || "");
+      if (next.type === "wall" && /(?:sem\s+(?:aberturas?|v[aã]os?)|n[aã]o\s+(?:ter[aá]|tem|vai\s+ter|haver[aá])\s+(?:aberturas?|v[aã]os?))/i.test(String(message || ""))) {
+        next.openings = { sem_vaos: true, portas: [], janelas: [] };
+      }
       if (this.isCommercialBudgetRequest_(text) || previous.presentationMode === "commercial") next.presentationMode = "commercial";
       if (facts.type && previous.type && facts.type !== previous.type) {
         next.inheritedFields = [];
