@@ -405,24 +405,39 @@
     return null;
   }
 
+  function isEloCoreSimpleCommonQuestion_(question) {
+    const text = normalizeText(question || "").replace(/[?!.,;:]+/g, " ").replace(/s+/g, " ").trim();
+    if (!text || text.length > 160) return false;
+    if (hasEloCoreTechnicalConversationBlocker_(text)) return false;
+    if (/(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)/.test(text)) return false;
+    return /(receita|bolo|cozinhar|ingredientes?)/.test(text) || /(qual sua opiniao|sua opiniao|o que voce acha|voce acha)/.test(text);
+  }
+
   function isEloCorePureConversationalRequest_(question) {
     const text = normalizeText(question || "").replace(/[?!.,;:]+/g, "").trim();
-    if (!text || text.length > 120) return false;
+    if (!text || text.length > 160) return false;
     const intent = detectConversationalIntent(text);
     const socialIntent = detectSocialGreeting(question);
     const casualIntent = detectEloCoreCasualConversationIntent_(question);
-    if (!intent && !socialIntent && !casualIntent) return false;
+    const simpleCommonIntent = isEloCoreSimpleCommonQuestion_(question);
+    if (!intent && !socialIntent && !casualIntent && !simpleCommonIntent) return false;
     if (isEloCoreMetaWorkflowDiagnosis_(question)) return false;
     if (detectEloCoreTool_(question)) return false;
     if (hasEloCoreTechnicalConversationBlocker_(text)) return false;
     return true;
   }
-
   function buildEloCoreCasualConversationAnswer_(question) {
     const social = getSocialGreetingResponse(question);
     if (social) return Object.assign({}, social, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
     const conversational = getConversationalResponse(normalizeText(question || ""));
     if (conversational) return Object.assign({}, conversational, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
+    const simpleText = normalizeText(question || "");
+    if (/(receita|bolo|cozinhar|ingredientes?)/.test(simpleText)) {
+      return { shortAnswer: "Claro. Para bolo de cenoura: bata cenoura, ovos e oleo; misture acucar, farinha e fermento; asse ate firmar.", fullAnswer: "", nextAction: "", canSave: false, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
+    }
+    if (/(qual sua opiniao|sua opiniao|o que voce acha|voce acha)/.test(simpleText)) {
+      return { shortAnswer: "Minha opiniao: depende do contexto. Me diga o caso e eu te respondo direto.", fullAnswer: "", nextAction: "", canSave: false, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
+    }
     const casualIntent = detectEloCoreCasualConversationIntent_(question);
     if (!casualIntent) return null;
     const previous = sanitizeUserText(ELO_SESSION_MEMORY.lastQuestion || "");
@@ -495,13 +510,15 @@
   function needsLiveSearch(userText) {
     const text = normalizeText(userText || "");
     if (!text) return false;
+    if (isEloCorePureConversationalRequest_(userText)) return false;
     if (isEloObraAttentionRequest_(userText)) return false;
-    if (/\b(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)\b/.test(text)) return false;
-    if (/\b(hoje|agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|data de hoje|hora atual|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)\b/.test(text)) return true;
-    if (/\b(quem\s+e\s+(?:atualmente\s+)?[oa]\s+presidente|presidente\s+do\s+brasil|ministro\s+atual|governador\s+atual|prefeito\s+atual)\b/.test(text)) return true;
-    return /\b(que dia|qual dia|data atual|hora atual|que horas|horas sao|horas s.o)\b/.test(text);
+    if (/(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)/.test(text) && !/(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)/.test(text)) return false;
+    if (/(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)/.test(text)) return true;
+    if (/(que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao|horas s.o)/.test(text) && !/(clima|temperatura|noticias|not.cias|quem ganhou|quem vai ganhar|copa do mundo|cotacao|cota..o|preco atual|pre.o atual|valor atual)/.test(text)) return false;
+    if (/(agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)/.test(text)) return true;
+    if (/(quems+es+(?:atualmentes+)?[oa]s+presidente|presidentes+dos+brasil|ministros+atual|governadors+atual|prefeitos+atual)/.test(text)) return true;
+    return false;
   }
-
   function buildEloWebSearchRouteResponse_(question) { if (!needsLiveSearch(question)) return null; const query = sanitizeUserText(question); return { route: "meta_web_search", needsLiveSearch: true, shortAnswer: "Vou pesquisar isso em tempo real.", fullAnswer: "Essa pergunta depende de informacao atual. Use Pesquise para consultar o backend de busca mantendo a pergunta original.", nextAction: "", canSave: false, sessionTheme: "meta_web_search", sessionIntent: "meta_web_search", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query } }; }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
   function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
@@ -10742,7 +10759,6 @@
       "noticia",
       "noticias",
       "restaurante",
-      "receita",
       "preco atual",
       "cotacao",
       "dolar",
@@ -11612,7 +11628,7 @@
     const currentContext = context || buildSocialPresenceContext();
     const name = currentContext.userName ? currentContext.userName + ", " : "";
     const answer = greeting.language === "en"
-      ? "Hi, I’m here with you."
+      ? "Oi. Manda o que voc\u00ea precisa."
       : (greeting.kind === "checkin" ? name + "tudo certo por aqui." : name + "oi, estou por aqui.");
     return {
       shortAnswer: answer,
@@ -13060,12 +13076,15 @@
   function buildHelpfulFallbackAnswer(message, context) {
     const currentContext = context || buildEloCommunicationContext(message);
     const normalized = normalizeText(message || "");
-    let fullAnswer = "Eu consigo ajudar, sim. Posso responder uma pergunta comum, explicar um conceito ou seguir para uma tarefa tecnica quando voce pedir com contexto suficiente.";
+    const isStatusCheck = /\b(?:esta|est\u00e1|ta|t\u00e1)\s+funcionando\b|\bfunciona\b/.test(normalized);
+    let shortAnswer = isStatusCheck ? "Sim, est\u00e1 funcionando. Manda o que voc\u00ea precisa." : "Oi. Manda o que voc\u00ea precisa.";
+    let fullAnswer = "";
     if (/ceu\s+e\s+azul/.test(normalized)) {
+      shortAnswer = "Sim. O c\u00e9u parece azul por causa da luz espalhada na atmosfera.";
       fullAnswer = "O ceu parece azul porque a atmosfera espalha mais a luz azul do Sol do que as outras cores. Essa luz espalhada chega aos nossos olhos vinda de varias direcoes.";
     }
     return {
-      shortAnswer: "Ajudo sim.",
+      shortAnswer: shortAnswer,
       fullAnswer: fullAnswer,
       nextAction: "",
       canSave: false,
@@ -24164,9 +24183,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
-    const dateTimeIntentResponse = routeEloCoreIntents_(question, {});
-    if (dateTimeIntentResponse && dateTimeIntentResponse.sessionIntent === "date_time") {
-      return applyEloBrainMarker_(question, dateTimeIntentResponse);
+    const commonIntentPriorityResponse = routeEloCoreIntents_(question, {});
+    if (commonIntentPriorityResponse && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
+      return applyEloBrainMarker_(question, commonIntentPriorityResponse);
+    }
+    const pureConversationalPriorityResponse = buildEloCorePureConversationalAnswer_(question);
+    if (pureConversationalPriorityResponse) {
+      return applyEloBrainMarker_(question, pureConversationalPriorityResponse);
     }
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
