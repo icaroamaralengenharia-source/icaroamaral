@@ -2330,6 +2330,23 @@ export function createApp(options = {}) {
   function sendEloCoreError_(response, error) {
     response.status(error && error.status ? error.status : 400).json({ ok: false, error: clean_(error && error.message || "elo_core_error") });
   }
+  function buildEloBudgetContext_(request) {
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const query = request.query && typeof request.query === "object" ? request.query : {};
+    return {
+      institutionId: clean_(profile.institution_id || profile.institutionId || auth.institutionId || request.headers["x-institution-id"] || body.institutionId || body.institution_id || query.institutionId || query.institution_id),
+      userId: clean_(profile.id || profile.user_id || auth.userId || request.headers["x-user-id"] || body.userId || body.user_id || query.userId || query.user_id),
+      projectId: clean_(body.projectId || body.project_id || query.projectId || query.project_id),
+      profile: profile,
+      user: auth.user || null,
+      authenticated: Boolean(auth.userId || auth.profile)
+    };
+  }
+  function sendEloBudgetError_(response, error) {
+    response.status(Number(error && error.status) || 500).json({ ok: false, error: clean_(error && error.message || "elo_budget_error") });
+  }
 
   app.use("/api/elo", async (request, response, next) => {
     if (!clean_(request.headers.authorization)) {
@@ -2401,6 +2418,55 @@ export function createApp(options = {}) {
       console.error("Falha na pesquisa web do Elo:", error);
       response.status(502).json({ ok: false, error: "web_search_failed" });
     }
+  });
+
+  app.get("/api/elo/budgets", (request, response) => {
+    try {
+      const budgets = eloBudgetService.listBudgets(buildEloBudgetContext_(request));
+      response.json({ ok: true, budgets });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.post("/api/elo/budgets", (request, response) => {
+    try {
+      const budget = eloBudgetService.createBudget(request.body && request.body.documentData, buildEloBudgetContext_(request));
+      response.status(201).json({ ok: true, budget });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.get("/api/elo/budgets/:id", (request, response) => {
+    try {
+      const budget = eloBudgetService.getBudget(request.params.id, buildEloBudgetContext_(request));
+      response.json({ ok: true, budget });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.put("/api/elo/budgets/:id", (request, response) => {
+    try {
+      const budget = eloBudgetService.updateBudget(request.params.id, request.body || {}, buildEloBudgetContext_(request));
+      response.json({ ok: true, budget });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.post("/api/elo/budgets/:id/versions", (request, response) => {
+    try {
+      const version = eloBudgetService.createVersion(request.params.id, request.body && request.body.documentData, buildEloBudgetContext_(request));
+      response.status(201).json({ ok: true, version });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.post("/api/elo/budgets/:id/generate-pdf", (request, response) => {
+    try {
+      const document = eloBudgetService.generateBudgetPdf(request.params.id, buildEloBudgetContext_(request));
+      response.status(201).json({ ok: true, budgetId: request.params.id, document, html: document.html_content });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.get("/api/elo/budgets/:id/events", (request, response) => {
+    try {
+      const events = eloBudgetService.listEvents(request.params.id, buildEloBudgetContext_(request));
+      response.json({ ok: true, events });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  app.get("/api/elo/budgets/:id/documents", (request, response) => {
+    try {
+      const documents = eloBudgetService.listDocuments(request.params.id, buildEloBudgetContext_(request));
+      response.json({ ok: true, documents });
+    } catch (error) { sendEloBudgetError_(response, error); }
   });
 
   app.get("/api/elo/conversations", async (request, response) => {
@@ -2708,6 +2774,10 @@ export function createApp(options = {}) {
         attachmentErrors: chatRequest.attachmentErrors
       });
     }
+  });
+
+  app.use("/api", (request, response) => {
+    response.status(404).json({ ok: false, error: "api_route_not_found" });
   });
 
   return app;

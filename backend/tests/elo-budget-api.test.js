@@ -148,3 +148,13 @@ test("Elo Budget API valida payload minimo", async () => {
     assert.equal(response.data.error, "document_data_required");
   });
 });
+
+test("API inexistente sob /api retorna JSON", async () => {
+  await withServer(async (base) => {
+    const result = await json(base + "/api/elo/budgets-rota-inexistente");
+    assert.equal(result.response.status, 404);
+    assert.equal(result.response.headers.get("content-type").includes("application/json"), true);
+    assert.equal(result.data.ok, false);
+    assert.equal(result.data.error, "api_route_not_found");
+  });
+});
