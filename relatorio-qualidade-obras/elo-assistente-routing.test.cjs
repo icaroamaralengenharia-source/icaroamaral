@@ -107,6 +107,10 @@ function loadEloContext(options = {}) {
   Object.assign(context.window, options.window || {});
   context.globalThis = context.window;
   vm.createContext(context);
+  (options.preloadScripts || []).forEach((file) => {
+    const preload = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    vm.runInContext(preload, context, { filename: file });
+  });
   const source = fs.readFileSync(path.join(__dirname, 'elo-assistente.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'elo-assistente.js' });
   return { elo: context.window.EloAssistente, localStorage, sessionStorage, context };
@@ -1926,7 +1930,7 @@ test('ELO token ELO valido continua enviado no Bearer', async () => {
     }
   });
 
-  await elo.requestObraAttentionForTest('O que precisa da minha atenção hoje?');
+  await elo.requestObraAttentionForTest('O que precisa da minha atenï¿½ï¿½o hoje?');
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer ' + validToken);
@@ -2100,6 +2104,47 @@ test('ELO Observador da Obra: dados fracos e erro da rota nao inventam alerta', 
   assert.match(errorAnswer, /nï¿½o vou inventar|nao vou inventar/i);
 });
 
+
+test('ELO servico isolado usa ponte profissional para 10 servicos', () => {
+  const preloadScripts = [
+    'stock-ai-real-compositions.js',
+    'stock-ai-composition-engine.js',
+    'bases-reais/sinapi-ba-202412-index.js',
+    'composition-search-engine.js'
+  ];
+  const cases = [
+    ['parede', 'Orcamento de parede de bloco ceramico 14x19x39 com 100 m2, perda 10%, sem aberturas, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['calcada', 'Orcamento de calcada em concreto simples com 30 m2, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['chapisco_reboco', 'Orcamento de chapisco e reboco para parede interna e externa com 120 m2, argamassa convencional, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['contrapiso_piso', 'Orcamento de contrapiso e piso ceramico para 80 m2, padrao medio, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['fundacao', 'Orcamento de fundacao em viga baldrame para casa terrea de 90 m2, solo firme, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['laje', 'Orcamento de laje pre-moldada para cobertura de casa terrea com 90 m2, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['cobertura', 'Orcamento de cobertura com telha ceramica sobre estrutura de madeira para 90 m2, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['pintura', 'Orcamento de pintura interna e externa em paredes com massa e tinta acrilica, area total 250 m2, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['eletrica', 'Orcamento de instalacoes eletricas residenciais para casa de 90 m2, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.'],
+    ['hidraulica', 'Orcamento de instalacoes hidraulicas e sanitarias para casa de 90 m2, cozinha, area de servico, 1 suite e 1 banheiro social, Vitoria da Conquista/BA, SINAPI BA 2024-12, BDI 20%.']
+  ];
+
+  cases.forEach(([name, message]) => {
+    const { elo } = loadEloContext({ preloadScripts });
+    const response = elo.buildResponseForTest(message);
+    const text = [response.fullAnswer, response.shortAnswer].join(' ');
+    assert.equal(response.sessionIntent, 'budget_v2_isolated_service', name);
+    assert.equal(response.sessionTheme, 'isolated_service_budget', name);
+    assert.ok(response.pdfAction, name + ' deve gerar pdfAction');
+    assert.equal(response.pdfAction.type, 'budget_v2_professional_pdf', name);
+    assert.match(text, /BDI: 20%|BDI informado: 20/i, name);
+    assert.match(text, /Memoria de calculo/i, name);
+    assert.doesNotMatch(text, /boca para bueiro|bueiro tubular/i, name);
+    assert.ok(response.budgetOrchestratorV2 && response.budgetOrchestratorV2.budgetDocumentData, name);
+    const doc = response.budgetOrchestratorV2.budgetDocumentData;
+    assert.equal((doc.financialLines || []).length, 1, name);
+    assert.equal(response.isolatedServiceBridge.serviceId, name, name);
+    if ((response.isolatedServiceBridge.pending || []).length) {
+      assert.match(text, /Pendencias:/i, name);
+    }
+  });
+});
 test('ELO casa completa 100 m2 usa SINAPI local e calcula total parcial', () => {
   const context = { console, window: {}, global: {} };
   context.global = context;

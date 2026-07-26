@@ -3872,6 +3872,104 @@
     return item;
   }
 
+
+  function getEloIsolatedServiceBridgeSpecs_() {
+    return [
+      { id: "chapisco_reboco", label: "Chapisco e reboco", unit: "m2", patterns: [/chapisco|reboco|emboco|embo.o/], terms: ["chapisco aplicado alvenaria", "reboco emboco argamassa parede"], required: ["chapisco"], forbidden: ["bueiro", "piso", "telha", "cobertura"] },
+      { id: "contrapiso_piso", label: "Contrapiso e piso", unit: "m2", patterns: [/contrapiso|piso ceramico|piso cer.mico|\bpiso\b/], terms: ["contrapiso argamassa", "revestimento ceramico piso"], required: ["piso", "ceram"], forbidden: ["bueiro", "parede", "telha", "cobertura", "cimentado", "pedra"] },
+      { id: "fundacao", label: "Fundacao", unit: "m2", patterns: [/fundacao|funda..o|baldrame|sapata/], terms: ["fundacao viga baldrame concreto", "sapata concreto fundacao"], required: ["fundacao"], forbidden: ["bueiro", "telha", "pintura", "cobertura"] },
+      { id: "laje", label: "Laje", unit: "m2", patterns: [/\blaje\b/], terms: ["laje premoldada concreto", "laje pre moldada"], required: ["laje"], forbidden: ["bueiro", "telha", "pintura", "cobertura", "lastro", "radier", "solo", "piso"] },
+      { id: "cobertura", label: "Cobertura", unit: "m2", patterns: [/cobertura|telha|telhado/], terms: ["cobertura telha ceramica", "telhamento telha ceramica"], required: ["telha"], forbidden: ["bueiro", "piso", "parede", "rampa", "retirada", "recolocacao"] },
+      { id: "pintura", label: "Pintura", unit: "m2", patterns: [/pintura|tinta|massa corrida|massa acrilica/], terms: ["pintura parede tinta acrilica", "pintura latex acrilica parede"], required: ["pintura"], forbidden: ["bueiro", "piso", "telha", "cobertura"] },
+      { id: "eletrica", label: "Instalacoes eletricas", unit: "m2", patterns: [/eletrica|el.trica|tomada|iluminacao|ilumina..o/], terms: ["instalacoes eletricas residenciais", "ponto eletrico residencial"], required: ["eletric"], forbidden: ["bueiro", "hidraulica", "esgoto"] },
+      { id: "hidraulica", label: "Instalacoes hidraulicas e sanitarias", unit: "m2", patterns: [/hidraulica|hidr.ulica|sanitaria|sanit.ria|esgoto|agua fria|ponto hidraulico/], terms: ["instalacoes hidraulicas sanitarias residenciais", "ponto hidraulico agua fria esgoto"], required: ["hidraulic"], forbidden: ["bueiro", "eletrica", "telha", "cobertura", "ladrilho", "piso"] },
+      { id: "calcada", label: "Calcada", unit: "m2", patterns: [/calcada|cal.ada|passeio/], terms: ["calcada concreto moldado in loco", "passeio concreto calcada"], required: ["calcada", "concreto"], forbidden: ["bueiro", "boca para bueiro", "tubular", "drenagem", "rampa", "podotatil"] },
+      { id: "parede", label: "Parede de alvenaria", unit: "m2", patterns: [/parede|alvenaria|bloco|tijolo/], terms: ["alvenaria bloco ceramico 14x19x39", "alvenaria de vedacao bloco ceramico 14x19x39"], required: ["alvenaria", "bloco", "14x19x39"], forbidden: ["bueiro", "boca para bueiro", "tubo", "drenagem"] }
+    ];
+  }
+
+  function findEloIsolatedServiceBridgeSpec_(message) {
+    const text = normalizeText(message || "");
+    if (!text || isEloCompleteResidentialBudgetPriorityRequest_(message)) return null;
+    if (!/orcamento|or.amento|orcar|custo|preco|pre.o|valor|quanto|calcule|calcular|quantitativo/.test(text)) return null;
+    return getEloIsolatedServiceBridgeSpecs_().find(function (spec) { return spec.patterns.some(function (pattern) { return pattern.test(text); }); }) || null;
+  }
+
+  function parseEloIsolatedServiceQuantity_(message, spec) {
+    const raw = String(message || "");
+    const points = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:pontos?|un|und|unidades?)/i);
+    if (points && spec && /eletrica|hidraulica/.test(spec.id)) return { quantity: parseEloOperationalNumber_(points[1]), unit: "un", source: "pontos informados pelo usuario" };
+    if (spec && /eletrica|hidraulica/.test(spec.id)) return null;
+    const area = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m2|m\^2|metros?\s+quadrados?)/i);
+    if (area) return { quantity: parseEloOperationalNumber_(area[1]), unit: "m2", source: "area informada pelo usuario" };
+    return null;
+  }
+
+  function getEloCompositionUnitPriceFromOfficialInputs_(composition) {
+    const direct = getEloCompositionReliableUnitPrice_(composition);
+    if (direct > 0) return direct;
+    const total = getEloCompositionInputs_(composition).reduce(function (sum, input) {
+      const value = parseEloOperationalNumber_(input && (input.custoTotal !== undefined ? input.custoTotal : (input.totalCost !== undefined ? input.totalCost : input.total)));
+      return value > 0 ? sum + value : sum;
+    }, 0);
+    return total > 0 ? Number(total.toFixed(2)) : null;
+  }
+
+  function isEloIsolatedCompositionCompatible_(candidate, spec, quantity) {
+    if (!candidate || !spec) return false;
+    const contract = buildEloTechnicalCompositionContract_(candidate);
+    if (!contract || !contract.valid) return false;
+    const unit = normalizeText(contract.unidade || candidate.unit || "");
+    const expectedUnit = normalizeText(quantity && quantity.unit || spec.unit || "");
+    if (expectedUnit && unit && unit !== expectedUnit) return false;
+    const haystack = normalizeText([contract.codigo, contract.descricao, contract.fonte, candidate.serviceType, candidate.category].filter(Boolean).join(" "));
+    if ((spec.forbidden || []).some(function (term) { return haystack.indexOf(normalizeText(term)) >= 0; })) return false;
+    return (spec.required || []).some(function (term) { return haystack.indexOf(normalizeText(term)) >= 0; });
+  }
+
+  function resolveEloIsolatedServiceComposition_(spec, quantity) {
+    const root = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
+    const engine = root && root.CompositionSearchEngine;
+    const candidates = [];
+    if (engine && typeof engine.searchOfficialCompositions === "function") {
+      (spec.terms || [spec.label]).forEach(function (query) {
+        try {
+          const result = engine.searchOfficialCompositions(query, { unit: quantity && quantity.unit || spec.unit, limit: 8 });
+          (result && result.candidates || []).forEach(function (candidate) { candidates.push(candidate); });
+        } catch (error) {}
+      });
+    }
+    return { selected: candidates.find(function (candidate) { return isEloIsolatedCompositionCompatible_(candidate, spec, quantity); }) || null, candidates: candidates };
+  }
+
+  function buildEloIsolatedServiceProfessionalBudget_(message) {
+    const spec = findEloIsolatedServiceBridgeSpec_(message);
+    if (!spec) return null;
+    const quantity = parseEloIsolatedServiceQuantity_(message, spec);
+    const bdiPercent = parseEloBdiPercent_(message);
+    const pending = [];
+    if (!quantity || !(quantity.quantity > 0)) pending.push("quantidade/unidade executiva");
+    if (!bdiPercent) pending.push("BDI");
+    const resolution = quantity ? resolveEloIsolatedServiceComposition_(spec, quantity) : { selected: null, candidates: [] };
+    const composition = resolution.selected;
+    const contract = composition ? buildEloTechnicalCompositionContract_(composition) : null;
+    const unitPrice = composition ? getEloCompositionUnitPriceFromOfficialInputs_(composition) : null;
+    if (!composition) pending.push("composicao oficial compativel");
+    if (composition && !(unitPrice > 0)) pending.push("preco unitario oficial");
+    const subtotal = quantity && unitPrice > 0 ? Number((quantity.quantity * unitPrice).toFixed(2)) : null;
+    const bdiValue = subtotal !== null && bdiPercent ? Number((subtotal * bdiPercent / 100).toFixed(2)) : null;
+    const total = subtotal !== null ? Number((subtotal + (bdiValue || 0)).toFixed(2)) : null;
+    const line = { serviceId: spec.id, description: spec.label, service: spec.label, unit: quantity && quantity.unit || spec.unit, quantity: quantity && quantity.quantity || null, compositionCode: contract && contract.codigo || "", code: contract && contract.codigo || "", unitPrice: unitPrice, price: unitPrice, directCost: subtotal, totalPrice: subtotal, source: contract && contract.fonte || "SINAPI/ORSE", composition: composition ? { code: contract.codigo, description: contract.descricao, unit: contract.unidade, source: contract.fonte, referenceMonth: contract.mes } : null, priceStatus: subtotal !== null ? "priced" : "pending" };
+    const budgetPackage = { source: "isolated_service_bridge", scope: [{ item: spec.label, unit: line.unit, quantity: line.quantity }], quantities: [{ id: spec.id, serviceId: spec.id, description: spec.label, unit: line.unit, quantity: line.quantity, source: quantity && quantity.source || "pendente" }], compositions: composition ? [contract.fonte + " | " + contract.codigo + " | " + contract.descricao + " | " + contract.unidade] : ["Pendente: composicao oficial compativel nao localizada."], calculationMemory: [spec.label + ": quantidade = " + (quantity ? formatEloOperationalQuantity_(quantity.quantity) + " " + quantity.unit + " (" + quantity.source + ")" : "pendente"), subtotal !== null ? "Custo direto = quantidade x preco unitario = " + formatEloBudgetV2Money_(subtotal) : "Custo direto pendente ate composicao/preco seguro.", bdiPercent ? "BDI informado: " + formatEloOperationalQuantity_(bdiPercent) + "%." : "BDI pendente."], financialLines: [line], financialSummary: { status: subtotal !== null ? "isolated_service_priced" : "isolated_service_pending", currency: "BRL", directCost: subtotal, partialSubtotal: subtotal, bdiPercent: bdiPercent, partialBdiValue: bdiValue, bdiValue: pending.length ? null : bdiValue, salePrice: pending.length ? null : total, partialTotal: total, pricedItems: subtotal !== null ? 1 : 0, totalItems: 1, unresolvedItems: pending.length ? [{ serviceId: spec.id, description: spec.label, quantity: line.quantity, unit: line.unit, reason: pending.join(", ") }] : [], excludedPendingItems: pending.length ? [{ serviceId: spec.id, description: spec.label, quantity: line.quantity, unit: line.unit, reason: pending.join(", "), status: "pending" }] : [] }, priceStatus: { status: subtotal !== null ? "priced" : "pending", canTotal: pending.length === 0, partialSubtotal: subtotal, partialBdiValue: bdiValue, partialTotal: total, totals: pending.length === 0 ? { subtotal: subtotal, bdiPercent: bdiPercent, bdiValue: bdiValue, total: total } : null, missingPrices: pending.length ? pending.slice() : [] }, realBudget: { status: pending.length ? "partial" : "complete", subtotal: subtotal, bdiPercent: bdiPercent, bdiValue: bdiValue, total: total, items: subtotal !== null ? [{ item: spec.label, quantity: line.quantity, unit: line.unit, compositionCode: line.compositionCode, unitPrice: unitPrice, subtotal: subtotal, source: line.source }] : [], missingPrices: pending.length ? pending.slice() : [] }, baseStatus: { loaded: true, source: contract && contract.fonte || "SINAPI/ORSE", referenceMonth: contract && contract.mes || "" }, risks: pending.map(function (item) { return "Pendente: " + item + "."; }), nextSteps: pending.length ? ["Informar/validar " + pending.join(", ") + "."] : ["Revisar aderencia tecnica antes de fechar."] };
+    const state = { type: "isolated_service", budgetId: "isolated-service-" + spec.id + "-" + Date.now(), areaM2: quantity && quantity.unit === "m2" ? quantity.quantity : 1, bdiPercent: bdiPercent, facts: { projectType: "isolated_service", builtAreaM2: quantity && quantity.quantity || 1, service: spec.label, standard: "servico isolado" }, pendingFields: [], budgetPackage: budgetPackage };
+    const documentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage);
+    if (documentData) { documentData.documentType = "isolated_service_budget"; documentData.title = "Orcamento profissional - " + spec.label; documentData.pendingFields = []; }
+    const pdfAction = buildBudgetV2ProfessionalPdfAction_(documentData);
+    if (pdfAction) { pdfAction.budgetDocumentData = documentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = documentData; }
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = state;
+    return { shortAnswer: pending.length ? "Montei o orcamento profissional do servico com pendencias." : "Montei o orcamento profissional do servico.", fullAnswer: ["Orcamento profissional de servico isolado", "Servico: " + spec.label, "Quantidade: " + (quantity ? formatEloOperationalQuantity_(quantity.quantity) + " " + quantity.unit : "pendente"), composition ? "Composicao: " + contract.codigo + " - " + contract.descricao : "Composicao: pendente de composicao oficial compativel", unitPrice > 0 ? "Preco unitario: " + formatEloBudgetV2Money_(unitPrice) : "Preco unitario: pendente", subtotal !== null ? "Custo direto: " + formatEloBudgetV2Money_(subtotal) : "Custo direto: pendente", bdiPercent ? "BDI: " + formatEloOperationalQuantity_(bdiPercent) + "%" : "BDI: pendente", total !== null ? "Total parcial: " + formatEloBudgetV2Money_(total) : "Total: pendente", "Memoria de calculo: " + budgetPackage.calculationMemory.join(" "), pending.length ? "Pendencias: " + pending.join(", ") : "Pendencias: nenhuma para o item calculado."].join("\\n"), nextAction: pending.length ? "Complete as pendencias do item antes de fechar." : "Revise a composicao e gere o PDF profissional.", canSave: true, sessionTheme: "isolated_service_budget", sessionIntent: "budget_v2_isolated_service", pdfAction: pdfAction, isolatedServiceBridge: { serviceId: spec.id, pending: pending, compositionCandidates: resolution.candidates.length }, budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage, budgetDocumentData: documentData } };
+  }
+
   function summarizeEloBudgetPricing_(items, options) {
     const list = Array.isArray(items) ? items : [];
     const priced = list.filter(function (item) { return item.priceStatus === "priced" && Number(item.totalPriceNumber) > 0; });
@@ -23554,6 +23652,10 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question);
     const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const isolatedServiceBridgeResponse = completeResidentialBudgetPriority ? null : buildEloIsolatedServiceProfessionalBudget_(question);
+    if (isolatedServiceBridgeResponse) {
+      return applyEloBrainMarker_(question, isolatedServiceBridgeResponse);
+    }
     if (!completeResidentialBudgetPriority && activeWallBudgetV2ForPriority && activeWallBudgetV2ForPriority.type === "wall" && isEloBudgetV2CompatibleUpdateMessage_(question)) {
       const wallBudgetOrchestratorV2PriorityResponse = buildEloBudgetOrchestratorV2Answer_(question);
       if (wallBudgetOrchestratorV2PriorityResponse && /^budget_v2/.test(String(wallBudgetOrchestratorV2PriorityResponse.sessionIntent || ""))) {
