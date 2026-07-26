@@ -405,3 +405,53 @@ test("observador sem dados novos mantem contrato antigo", () => {
   assert.equal(result.summary.productions, 0);
   assert.equal(result.summary.alerts, 1);
 });
+test("dailySummary consolida saida e producao da data correta", () => {
+  const result = observeObra({
+    projectId: "obra-patrao-a",
+    workId: "obra-10",
+    referenceDate: "2026-07-26",
+    budget: {
+      plannedMaterials: [{ projectId: "obra-patrao-a", workId: "obra-10", name: "Cimento", unit: "sc", plannedQuantity: 20 }]
+    },
+    stockObras: {
+      balances: [{ projectId: "obra-patrao-a", workId: "obra-10", name: "Cimento", unit: "sc", currentQuantity: 3, item: { name: "Cimento", unit: "sc" }, balance: 3 }],
+      movements: [
+        { projectId: "obra-patrao-a", workId: "obra-10", serviceId: "serv-piso", type: "saida", material: "Cimento", unit: "sc", quantity: 13, date: "2026-07-26", totalValue: 130 },
+        { projectId: "obra-patrao-a", workId: "obra-10", serviceId: "serv-piso", type: "saida", material: "Areia", unit: "m3", quantity: 2, date: "2026-07-26" },
+        { projectId: "obra-patrao-a", workId: "obra-10", serviceId: "serv-piso", type: "saida", material: "Cimento", unit: "sc", quantity: 99, date: "2026-07-25", totalValue: 990 },
+        { projectId: "obra-patrao-b", workId: "obra-10", serviceId: "serv-piso", type: "saida", material: "Cimento", unit: "sc", quantity: 88, date: "2026-07-26", totalValue: 880 }
+      ],
+      plannedConsumptions: [{ projectId: "obra-patrao-a", workId: "obra-10", serviceId: "serv-piso", material: "Cimento", unit: "sc", coefficient: 1 }]
+    },
+    rdos: [
+      { projectId: "obra-patrao-a", workId: "obra-10", id: "rdo-hoje", date: "2026-07-26", productions: [{ serviceId: "serv-piso", service: "Piso cimentado", quantity: 10, unit: "m2" }] },
+      { projectId: "obra-patrao-a", workId: "obra-10", id: "rdo-ontem", date: "2026-07-25", productions: [{ serviceId: "serv-piso", service: "Piso cimentado", quantity: 90, unit: "m2" }] },
+      { projectId: "obra-patrao-b", workId: "obra-10", id: "rdo-outra", date: "2026-07-26", productions: [{ serviceId: "serv-piso", service: "Piso cimentado", quantity: 80, unit: "m2" }] }
+    ]
+  });
+
+  assert.equal(result.dailySummary.date, "2026-07-26");
+  assert.equal(result.dailySummary.retiradasHoje.length, 2);
+  assert.equal(result.dailySummary.retiradasHoje.some((item) => item.quantity === 99 || item.quantity === 88), false);
+  assert.equal(result.dailySummary.producaoHoje.length, 1);
+  assert.equal(result.dailySummary.producaoHoje[0].quantity, 10);
+  assert.equal(result.dailySummary.gastoConhecido, 130);
+  assert.equal(result.dailySummary.faltas.length, 1);
+  assert.equal(result.dailySummary.desviosCriticos.length, 1);
+  assert.equal(result.dailySummary.dataQuality.hasRetiradasHoje, true);
+  assert.equal(result.dailySummary.dataQuality.hasProducaoHoje, true);
+  assert.equal(result.dailySummary.dataQuality.hasGastoConhecido, true);
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
+
+test("dailySummary sem dados retorna listas vazias e custo nulo", () => {
+  const result = observeObra({ projectId: "obra-vazia", workId: "obra-0", stock: { balances: [], movements: [] }, rdos: [] });
+
+  assert.equal(result.dailySummary.date, null);
+  assert.deepEqual(result.dailySummary.retiradasHoje, []);
+  assert.deepEqual(result.dailySummary.producaoHoje, []);
+  assert.equal(result.dailySummary.gastoConhecido, null);
+  assert.deepEqual(result.dailySummary.faltas, []);
+  assert.deepEqual(result.dailySummary.desviosCriticos, []);
+  assert.equal(result.dailySummary.dataQuality.hasRetiradasHoje, false);
+});

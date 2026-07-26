@@ -386,6 +386,92 @@ function buildCrossGeneralAlert(crossAlert, material) {
     unit: material ? material.unit : null
   }, crossAlertRecommendedAction(status, name));
 }
+function dateKey(value) {
+  const text = clean(value);
+  if (!text) return "";
+  const iso = text.match(/\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const br = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return br ? br[3] + "-" + br[2] + "-" + br[1] : "";
+}
+
+function latestDailySummaryDate(rdos, movements) {
+  return [
+    ...rdos.map((rdo) => dateKey(rdo.date || rdo.rdo_date || rdo.createdAt || rdo.created_at)),
+    ...movements.map((movement) => dateKey(movement.date || movement.original && (movement.original.date || movement.original.createdAt || movement.original.created_at || movement.original.referenceDate)))
+  ].filter(Boolean).sort().pop() || "";
+}
+
+function movementKnownCost(movement) {
+  const source = movement && movement.original || movement || {};
+  const direct = numberValue(source.totalValue ?? source.total_value ?? source.totalCost ?? source.total_cost ?? source.valorTotal ?? source.valor_total);
+  if (direct > 0) return direct;
+  const unitValue = numberValue(source.unitValue ?? source.unit_value ?? source.price ?? source.precoUnitario ?? source.valorUnitario);
+  return unitValue > 0 && movement.quantity > 0 ? unitValue * movement.quantity : null;
+}
+
+function buildObserverDailySummary(input, scope, rdos, productions, movements, result) {
+  const referenceDate = dateKey(input.referenceDate || input.reference_date || input.date) || latestDailySummaryDate(rdos, movements);
+  const output = {
+    date: referenceDate || null,
+    scope,
+    retiradasHoje: [],
+    producaoHoje: [],
+    gastoConhecido: null,
+    faltas: [],
+    desviosCriticos: [],
+    prioridades: [],
+    dataQuality: {
+      hasRetiradasHoje: false,
+      hasProducaoHoje: false,
+      hasGastoConhecido: false,
+      hasFaltas: false,
+      hasDesviosCriticos: false
+    }
+  };
+  if (referenceDate) {
+    output.retiradasHoje = movements.filter((movement) => {
+      const movementDate = dateKey(movement.date || movement.original && (movement.original.date || movement.original.createdAt || movement.original.created_at || movement.original.referenceDate));
+      return movementDate === referenceDate && (movement.type.includes("saida") || movement.type.includes("exit") || movement.type.includes("consumo"));
+    }).map((movement) => ({
+      id: movement.id || null,
+      material: movement.name,
+      quantity: movement.quantity,
+      unit: movement.unit,
+      serviceId: movement.serviceId || null,
+      environmentId: movement.environmentId || null,
+      knownCost: movementKnownCost(movement)
+    }));
+    output.producaoHoje = productions.filter((production) => dateKey(production.date) === referenceDate).map((production) => ({
+      id: production.id || null,
+      serviceId: production.serviceId || null,
+      service: production.service,
+      quantity: production.quantity,
+      unit: production.unit,
+      rdoId: production.rdoId || null,
+      environmentId: production.environmentId || null
+    }));
+  }
+  const knownCosts = output.retiradasHoje.map((item) => item.knownCost).filter((value) => typeof value === "number" && Number.isFinite(value));
+  const crossMaterials = result.executionStockCross && Array.isArray(result.executionStockCross.materials) ? result.executionStockCross.materials : [];
+  output.gastoConhecido = knownCosts.length ? knownCosts.reduce((sum, value) => sum + value, 0) : null;
+  output.faltas = result.alerts.filter((item) => item.type === ELO_OBRA_ALERT_TYPES.materialShortageRisk).map((item) => ({
+    material: clean(item.evidence && item.evidence.material) || "material",
+    unit: clean(item.evidence && item.evidence.unit) || "un",
+    gap: item.impact && item.impact.quantityGap != null ? item.impact.quantityGap : null,
+    severity: clean(item.severity) || "critical"
+  }));
+  output.desviosCriticos = crossMaterials.filter((item) => item.classification === "critico" || ["insufficient_balance", "production_without_stock_exit", "stock_exit_without_production", "missing_reference"].includes(item.status));
+  output.prioridades = result.alerts.slice(0, 5);
+  output.dataQuality = {
+    hasRetiradasHoje: output.retiradasHoje.length > 0,
+    hasProducaoHoje: output.producaoHoje.length > 0,
+    hasGastoConhecido: knownCosts.length > 0,
+    hasFaltas: output.faltas.length > 0,
+    hasDesviosCriticos: output.desviosCriticos.length > 0
+  };
+  return output;
+}
 function stockBalancesForCross(stockBalances) {
   return (Array.isArray(stockBalances) ? stockBalances : []).map((balance) => {
     if (!balance || typeof balance !== "object" || !balance.item || typeof balance.item !== "object") return balance;
@@ -506,6 +592,7 @@ export function observeObra(input = {}) {
     };
     result.summary.alerts = alerts.length;
   }
+  result.dailySummary = buildObserverDailySummary(input, scope, rdos, productions, movements, result);
   return result;
 }
 

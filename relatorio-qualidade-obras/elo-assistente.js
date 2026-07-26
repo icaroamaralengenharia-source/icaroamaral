@@ -505,16 +505,29 @@
   function buildEloWebSearchRouteResponse_(question) { if (!needsLiveSearch(question)) return null; const query = sanitizeUserText(question); return { route: "meta_web_search", needsLiveSearch: true, shortAnswer: "Vou pesquisar isso em tempo real.", fullAnswer: "Essa pergunta depende de informacao atual. Use Pesquise para consultar o backend de busca mantendo a pergunta original.", nextAction: "", canSave: false, sessionTheme: "meta_web_search", sessionIntent: "meta_web_search", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query } }; }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
   function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
+  function getEloObraBossDailyQuestionType_(question) {
+    const text = normalizeText(question || "");
+    if (!text || isEloCorePureConversationalRequest_(question)) return "";
+    if (/\b(o que saiu hoje|que saiu hoje|saiu hoje|saidas? hoje|retiradas? hoje)\b/.test(text)) return "retiradas";
+    if (/\b(quanto foi gasto|quanto gastou|gasto hoje|valor gasto|quanto saiu em valor)\b/.test(text)) return "gasto";
+    if (/\b(quanto foi produzido|quanto produziu|producao hoje|produzido hoje)\b/.test(text)) return "producao";
+    if (/\b(o que esta faltando|o que falta|faltando hoje|materiais? faltando|falta material)\b/.test(text)) return "faltas";
+    if (/\b(ha desvios criticos|tem desvios criticos|desvios criticos|desvio critico|criticos hoje)\b/.test(text)) return "desvios";
+    if (/\b(qual obra exige atencao|obra exige atencao|qual obra precisa de atencao|obra precisa de atencao)\b/.test(text)) return "prioridades";
+    if (/\b(resuma o dia|resumo do dia|resumo diario|resumir o dia)\b/.test(text)) return "resumo";
+    return "";
+  }
+
   function isEloObraAttentionRequest_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return false;
+    if (getEloObraBossDailyQuestionType_(question)) return true;
     if (hasEloCoreTechnicalConversationBlocker_(text) && !/\b(obra|atencao|aten..o|parar|risco|pendencia|pend.ncia)\b/.test(text)) return false;
     return /\b(o que|que|tem|existe|como|status)\b[\s\S]{0,80}\b(atencao|aten..o|parar|risco|critico|cr.tico|pendencia|pend.ncia)\b/.test(text) ||
       /\bprecisa\b[\s\S]{0,50}\b(minha\s+)?atencao\b/.test(text) ||
       /\b(pode|vai)\b[\s\S]{0,40}\bparar\b[\s\S]{0,40}\bobra\b/.test(text) ||
       /\bcomo\b[\s\S]{0,80}\bobra\b[\s\S]{0,30}\bhoje\b/.test(text);
   }
-
   function isEloObraExecutionStockRequest_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return false;
@@ -1079,7 +1092,97 @@
     return (index + 1) + ". " + subject + " - " + sanitizeUserText(alert && alert.severity || "aten��o") + "." + gap + " " + action;
   }
 
-  function formatEloObraAttentionAnswer_(data) {
+  function formatEloObraDailyMoney_(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "sem dado disponível";
+    return "R$ " + number.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatEloObraDailyQuantity_(value, unit) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "sem dado disponível";
+    const normalized = Math.round(number * 1000) / 1000;
+    return String(normalized).replace(".", ",") + (unit ? " " + sanitizeUserText(unit) : "");
+  }
+
+  function formatEloObraDailyList_(items, formatter) {
+    if (!Array.isArray(items) || !items.length) return "sem dado disponível";
+    return items.slice(0, 6).map(formatter).filter(Boolean).join("; ") || "sem dado disponível";
+  }
+
+  function getEloObraDailySummary_(data) {
+    return data && data.dailySummary && typeof data.dailySummary === "object" ? data.dailySummary : {};
+  }
+
+  function getEloObraCriticalDeviations_(data, summary) {
+    if (Array.isArray(summary.desviosCriticos) && summary.desviosCriticos.length) return summary.desviosCriticos;
+    const cross = data && data.executionStockCross && typeof data.executionStockCross === "object" ? data.executionStockCross : {};
+    return (Array.isArray(cross.materials) ? cross.materials : []).filter(function (item) {
+      return item && (item.classification === "critico" || item.status === "insufficient_balance" || item.status === "production_without_stock_exit" || item.status === "stock_exit_without_production" || item.status === "missing_reference");
+    });
+  }
+
+  function formatEloObraDailyRetiradas_(summary) {
+    return formatEloObraDailyList_(summary.retiradasHoje, function (item) {
+      return sanitizeUserText(item.material || "material") + " " + formatEloObraDailyQuantity_(item.quantity, item.unit);
+    });
+  }
+
+  function formatEloObraDailyProducao_(summary) {
+    return formatEloObraDailyList_(summary.producaoHoje, function (item) {
+      return sanitizeUserText(item.service || "servico") + " " + formatEloObraDailyQuantity_(item.quantity, item.unit);
+    });
+  }
+
+  function formatEloObraDailyFaltas_(summary) {
+    return formatEloObraDailyList_(summary.faltas, function (item) {
+      const gap = item.gap == null ? "" : " - falta " + formatEloObraDailyQuantity_(item.gap, item.unit);
+      return sanitizeUserText(item.material || "material") + gap;
+    });
+  }
+
+  function formatEloObraDailyDesvios_(items) {
+    return formatEloObraDailyList_(items, function (item) {
+      const material = sanitizeUserText(item.material || item.name || "material");
+      const percent = item.differencePercent == null ? "" : " (" + formatEloObraDailyQuantity_(item.differencePercent, "%") + ")";
+      return material + percent;
+    });
+  }
+
+  function formatEloObraDailyPrioridades_(summary) {
+    return formatEloObraDailyList_(summary.prioridades, function (item) {
+      const evidence = item && item.evidence || {};
+      return sanitizeUserText(evidence.material || evidence.service || evidence.description || item.type || "prioridade");
+    });
+  }
+
+  function formatEloObraBossDailyAnswer_(data, question) {
+    const type = getEloObraBossDailyQuestionType_(question);
+    if (!type) return "";
+    const safe = data && typeof data === "object" ? data : {};
+    const summary = getEloObraDailySummary_(safe);
+    const deviations = getEloObraCriticalDeviations_(safe, summary);
+    const scope = summary.scope && typeof summary.scope === "object" ? summary.scope : {};
+    const scopeText = scope.projectId || scope.workId ? "Obra ativa: " + [scope.projectId, scope.workId].filter(Boolean).map(sanitizeUserText).join(" / ") + ".\n" : "";
+    if (type === "retiradas") return sanitizeEloMultilineText_("Retiradas de hoje: " + formatEloObraDailyRetiradas_(summary) + ".");
+    if (type === "gasto") return sanitizeEloMultilineText_("Gasto conhecido hoje: " + formatEloObraDailyMoney_(summary.gastoConhecido) + ".");
+    if (type === "producao") return sanitizeEloMultilineText_("Produção de hoje: " + formatEloObraDailyProducao_(summary) + ".");
+    if (type === "faltas") return sanitizeEloMultilineText_("Faltando agora: " + formatEloObraDailyFaltas_(summary) + ".");
+    if (type === "desvios") return sanitizeEloMultilineText_("Desvios críticos: " + formatEloObraDailyDesvios_(deviations) + ".");
+    if (type === "prioridades") return sanitizeEloMultilineText_(scopeText + "Prioridades: " + formatEloObraDailyPrioridades_(summary) + ".");
+    return sanitizeEloMultilineText_([
+      scopeText + "Resumo do dia:",
+      "- Retiradas: " + formatEloObraDailyRetiradas_(summary) + ".",
+      "- Gasto conhecido: " + formatEloObraDailyMoney_(summary.gastoConhecido) + ".",
+      "- Produção: " + formatEloObraDailyProducao_(summary) + ".",
+      "- Faltas: " + formatEloObraDailyFaltas_(summary) + ".",
+      "- Desvios críticos: " + formatEloObraDailyDesvios_(deviations) + ".",
+      "- Prioridades: " + formatEloObraDailyPrioridades_(summary) + "."
+    ].join("\n"));
+  }
+  function formatEloObraAttentionAnswer_(data, question) {
+    const bossAnswer = formatEloObraBossDailyAnswer_(data, question);
+    if (bossAnswer) return bossAnswer;
     const safe = data && typeof data === "object" ? data : {};
     const alerts = Array.isArray(safe.alerts) ? safe.alerts.slice().sort(function (a, b) { return getEloObraAttentionSeverityRank_(a && a.severity) - getEloObraAttentionSeverityRank_(b && b.severity); }) : [];
     const dataQuality = safe.dataQuality && typeof safe.dataQuality === "object" ? safe.dataQuality : {};
@@ -1120,7 +1223,7 @@
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
         if (!response.ok || data.ok === false) return formatEloObraAttentionSafeError_(data.error);
-        return formatEloObraAttentionAnswer_(data);
+        return formatEloObraAttentionAnswer_(data, question);
       });
     }).catch(function () {
       return "Nao consegui consultar o Observador da Obra agora. Tente novamente em instantes; nao vou inventar alerta sem dados.";

@@ -2367,7 +2367,10 @@ export function createApp(options = {}) {
         summary: result.summary,
         alerts: result.alerts,
         sourcesUsed: observerData.sourcesUsed,
-        dataQuality: buildEloObraObserverDataQuality_(observerData.sourcesUsed, result)
+        dataQuality: buildEloObraObserverDataQuality_(observerData.sourcesUsed, result),
+        executionStockCross: result.executionStockCross || null,
+        auditMemory: result.executionStockCross && result.executionStockCross.auditMemory || null,
+        dailySummary: result.dailySummary || null
       });
     } catch (error) {
       response.status(Number(error && error.status) || 500).json({ ok: false, error: clean_(error && error.message || "elo_obra_observer_error") });
