@@ -1,4 +1,6 @@
 import { crossExecutionWithStock } from "../../relatorio-qualidade-obras/elo-execution-stock-cross.js";
+import { buildExecutionStockReport } from "../../relatorio-qualidade-obras/elo-execution-stock-report.js";
+import { buildEloStockObrasSnapshot } from "../../relatorio-qualidade-obras/elo-stock-obras-snapshot.js";
 
 function clean(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -99,7 +101,8 @@ function normalizeStockBalance(stock, scope) {
 }
 
 function normalizeStockMovements(stock, scope) {
-  return (Array.isArray(stock && stock.movements) ? stock.movements : [])
+  const source = stock && (stock.movements || stock.stockMovements || stock.saidas || stock.exits || []);
+  return (Array.isArray(source) ? source : [])
     .filter((item) => sameScope(item, scope))
     .map((item) => ({
       original: item,
@@ -111,6 +114,8 @@ function normalizeStockMovements(stock, scope) {
       quantity: numberValue(item.quantity || item.quantidade),
       date: clean(item.date || item.createdAt || item.created_at),
       productionId: clean(item.productionId || item.production_id),
+      serviceId: clean(item.serviceId || item.service_id || item.workItemId || item.work_item_id || item.productionId || item.production_id),
+      environmentId: clean(item.environmentId || item.environment_id || item.ambienteId || item.ambiente_id),
       service: clean(item.service || item.productionService || item.servico),
       workId: clean(item.workId || item.work_id || item.obraId || item.obra_id),
       projectId: clean(item.projectId || item.project_id)
@@ -141,6 +146,11 @@ function collectRdoProductions(rdos) {
       if (!service || !(quantity > 0)) return;
       productions.push({
         id: clean(production.id),
+        productionId: clean(production.productionId || production.production_id || production.id),
+        projectId: clean(production.projectId || production.project_id || rdo.projectId || rdo.project_id),
+        workId: clean(production.workId || production.work_id || rdo.workId || rdo.work_id),
+        serviceId: clean(production.serviceId || production.service_id || production.workItemId || production.work_item_id || production.id),
+        environmentId: clean(production.environmentId || production.environment_id || rdo.environmentId || rdo.environment_id),
         service,
         serviceKey: normalizeText(service),
         quantity,
@@ -191,8 +201,120 @@ function hasCrossExecutionInput(input) {
     input.productions,
     input.stockMovements,
     input.stockBalances,
-    input.sinapiExpectedConsumptions
+    input.sinapiExpectedConsumptions,
+    input.expectedConsumptions,
+    input.stockObras && input.stockObras.plannedConsumptions,
+    input.stockObras && input.stockObras.sinapiExpectedConsumptions
   ].some((items) => Array.isArray(items) && items.length > 0);
+}
+
+function normalizeExpectedConsumptions(input, scope) {
+  const stock = input.stock || input.stockObras || {};
+  const source = input.sinapiExpectedConsumptions || input.expectedConsumptions ||
+    stock.sinapiExpectedConsumptions || stock.expectedConsumptions || stock.plannedConsumptions || [];
+  return (Array.isArray(source) ? source : [])
+    .filter((item) => sameScope(item, scope))
+    .map((item) => ({
+      projectId: clean(item.projectId || item.project_id || scope.projectId),
+      workId: clean(item.workId || item.work_id || item.obraId || item.obra_id || scope.workId),
+      productionId: clean(item.productionId || item.production_id),
+      serviceId: clean(item.serviceId || item.service_id || item.workItemId || item.work_item_id || item.productionId || item.production_id),
+      environmentId: clean(item.environmentId || item.environment_id || item.ambienteId || item.ambiente_id),
+      service: clean(item.service || item.serviceName || item.production || item.description),
+      material: clean(item.material || item.materialName || item.name || item.insumo),
+      unit: normalizeUnit(item.unit || item.unidade || item.measureUnit),
+      coefficient: numberValue(item.coefficient || item.consumptionCoefficient || item.quantityPerUnit || item.perUnit),
+      expectedConsumption: numberValue(item.expectedConsumption || item.expectedQuantity || item.quantity)
+    }))
+    .filter((item) => item.material && (item.coefficient > 0 || item.expectedConsumption > 0));
+}
+
+function stockMovementForCross(movement) {
+  return {
+    projectId: movement.projectId,
+    workId: movement.workId,
+    id: movement.id,
+    type: movement.type,
+    material: movement.name,
+    unit: movement.unit,
+    quantity: movement.quantity,
+    productionId: movement.productionId,
+    serviceId: movement.serviceId,
+    environmentId: movement.environmentId,
+    service: movement.service
+  };
+}
+
+function buildObserverCrossInput(input, scope, rdos, productions, movements) {
+  const directProductions = Array.isArray(input.productions) ? input.productions : [];
+  const directMovements = Array.isArray(input.stockMovements) ? input.stockMovements : [];
+  const stockSource = input.stock || input.stockObras || {};
+  const stockBalances = stockBalancesForCross(input.stockBalances || stockSource.stockBalances || stockSource.balances || stockSource.items || []);
+  const sinapiExpectedConsumptions = normalizeExpectedConsumptions(input, scope);
+  const normalizedProductions = directProductions.length ? directProductions : productions;
+  const productionServiceIds = new Set(normalizedProductions.map((item) => clean(item.serviceId || item.service_id || item.productionId || item.production_id || item.id)).filter(Boolean));
+  const normalizedMovements = directMovements.length ? directMovements : movements.map(stockMovementForCross);
+  const unlinkedStockMovements = directMovements.length ? [] : normalizedMovements.filter((item) => !clean(item.serviceId || item.service_id || item.productionId || item.production_id));
+  const linkedStockMovements = directMovements.length ? normalizedMovements : normalizedMovements.filter((item) => {
+    const serviceId = clean(item.serviceId || item.service_id || item.productionId || item.production_id);
+    return serviceId && (!productionServiceIds.size || productionServiceIds.has(serviceId));
+  });
+  const snapshot = buildEloStockObrasSnapshot({
+    projectId: scope.projectId,
+    workId: scope.workId,
+    obraReport: {
+      dailyLogs: rdos,
+      stockMovements: linkedStockMovements,
+      stockIa: { plannedConsumptions: sinapiExpectedConsumptions }
+    },
+    operationalStock: {
+      getAlmoxBalances() {
+        return stockBalances;
+      }
+    }
+  });
+  return {
+    projectId: scope.projectId,
+    workId: scope.workId,
+    productions: normalizedProductions,
+    stockMovements: linkedStockMovements,
+    stockBalances,
+    sinapiExpectedConsumptions,
+    snapshot,
+    unlinkedStockMovements
+  };
+}
+
+function crossDifferencePercent(material) {
+  const expected = numberValue(material && material.expectedConsumption);
+  if (!(expected > 0)) return null;
+  return Math.round((numberValue(material && material.difference) / expected) * 1000000) / 10000;
+}
+
+function crossDeviationClassification(material) {
+  const status = clean(material && material.status);
+  if (status === "insufficient_balance" || status === "production_without_stock_exit" || status === "stock_exit_without_production" || status === "missing_reference") return "critico";
+  const percent = crossDifferencePercent(material);
+  if (percent == null || Math.abs(percent) <= 10) return "normal";
+  if (Math.abs(percent) > 25) return "critico";
+  return "atencao";
+}
+
+function enrichExecutionStockCross(cross) {
+  if (!cross || typeof cross !== "object") return cross;
+  const materials = (Array.isArray(cross.materials) ? cross.materials : []).map((material) => Object.assign({}, material, {
+    differencePercent: crossDifferencePercent(material),
+    classification: crossDeviationClassification(material)
+  }));
+  const byMaterial = new Map(materials.map((material) => [normalizeText(material.material), material]));
+  const alerts = (Array.isArray(cross.alerts) ? cross.alerts : []).map((crossAlert) => {
+    const material = byMaterial.get(normalizeText(crossAlert.material));
+    return Object.assign({}, crossAlert, {
+      differencePercent: material ? material.differencePercent : null,
+      classification: material ? material.classification : crossDeviationClassification(crossAlert)
+    });
+  });
+  return Object.assign({}, cross, { materials, alerts });
 }
 
 function crossAlertType(status) {
@@ -256,7 +378,9 @@ function buildCrossGeneralAlert(crossAlert, material) {
     actualStockExit: material ? material.actualStockExit : null,
     currentBalance: material ? material.currentBalance : null,
     difference: crossAlert ? crossAlert.difference : null,
-    crossStatus: status
+    crossStatus: status,
+    differencePercent: material && material.differencePercent != null ? material.differencePercent : null,
+    classification: material && material.classification ? material.classification : null
   }, {
     quantityGap: crossAlert ? Math.abs(numberValue(crossAlert.difference)) : null,
     unit: material ? material.unit : null
@@ -347,14 +471,10 @@ export function observeObra(input = {}) {
   });
 
   if (hasCrossExecutionInput(input)) {
-    executionStockCross = crossExecutionWithStock({
-      projectId: scope.projectId,
-      workId: scope.workId,
-      productions: input.productions,
-      stockMovements: input.stockMovements,
-      stockBalances: stockBalancesForCross(input.stockBalances),
-      sinapiExpectedConsumptions: input.sinapiExpectedConsumptions
-    });
+    const crossInput = buildObserverCrossInput(input, scope, rdos, productions, movements);
+    executionStockCross = enrichExecutionStockCross(crossExecutionWithStock(crossInput));
+    executionStockCross.unlinkedStockMovements = crossInput.unlinkedStockMovements;
+    executionStockCross.auditMemory = buildExecutionStockReport({ snapshot: crossInput.snapshot, cross: executionStockCross });
     const materialByName = new Map(executionStockCross.materials.map((material) => [normalizeText(material.material), material]));
     executionStockCross.alerts.forEach((crossAlert) => {
       const material = materialByName.get(normalizeText(crossAlert.material));
@@ -380,6 +500,8 @@ export function observeObra(input = {}) {
       summary: executionStockCross.summary,
       materials: executionStockCross.materials,
       alerts: executionStockCross.alerts,
+      unlinkedStockMovements: executionStockCross.unlinkedStockMovements,
+      auditMemory: executionStockCross.auditMemory,
       dataQuality: executionStockCross.dataQuality
     };
     result.summary.alerts = alerts.length;

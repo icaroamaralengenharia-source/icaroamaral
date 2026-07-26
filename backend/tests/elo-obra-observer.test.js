@@ -216,6 +216,184 @@ test("observador nao mistura cruzamento da obra A com obra B", () => {
   assert.equal(result.executionStockCross.alerts.length, 0);
 });
 
+
+test("observador monta cross a partir de RDO persistido, almoxarifado e SINAPI recebidos", () => {
+  const result = observeObra({
+    projectId: "obra-parede-a",
+    workId: "obra-1",
+    stockObras: {
+      movements: [
+        { projectId: "obra-parede-a", workId: "obra-1", serviceId: "serv-parede", type: "saida", material: "Bloco ceramico", unit: "un", quantity: 1250 },
+        { projectId: "obra-parede-b", workId: "obra-1", serviceId: "serv-parede", type: "saida", material: "Bloco ceramico", unit: "un", quantity: 9000 },
+        { projectId: "obra-parede-a", workId: "obra-1", type: "saida", material: "Argamassa", unit: "kg", quantity: 10 }
+      ],
+      plannedConsumptions: [
+        { projectId: "obra-parede-a", workId: "obra-1", serviceId: "serv-parede", material: "Bloco ceramico", unit: "un", coefficient: 25 }
+      ]
+    },
+    rdos: [{
+      projectId: "obra-parede-a",
+      workId: "obra-1",
+      id: "rdo-parede-1",
+      productions: [{ serviceId: "serv-parede", service: "Parede de alvenaria", quantity: 50, unit: "m2" }]
+    }]
+  });
+
+  assert.equal(result.executionStockCross.summary.productions, 1);
+  assert.equal(result.executionStockCross.materials[0].expectedConsumption, 1250);
+  assert.equal(result.executionStockCross.materials[0].actualStockExit, 1250);
+  assert.equal(result.executionStockCross.materials.some((item) => item.actualStockExit === 9000), false);
+  assert.equal(result.executionStockCross.unlinkedStockMovements.length, 1);
+  assert.equal(result.executionStockCross.unlinkedStockMovements[0].material, "Argamassa");
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
+
+test("observador valida calcada 24 m2 com retiradas e consumo teorico", () => {
+  const result = observeObra({
+    projectId: "obra-calcada-a",
+    workId: "obra-2",
+    stockObras: {
+      movements: [
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", type: "saida", material: "Cimento", unit: "sc", quantity: 6 },
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", type: "saida", material: "Areia", unit: "m3", quantity: 3.6 },
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", type: "saida", material: "Brita", unit: "m3", quantity: 2.4 },
+        { projectId: "obra-calcada-b", workId: "obra-2", serviceId: "serv-calcada", type: "saida", material: "Cimento", unit: "sc", quantity: 99 },
+        { projectId: "obra-calcada-a", workId: "obra-2", type: "saida", material: "Acabamento", unit: "kg", quantity: 5 }
+      ],
+      plannedConsumptions: [
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", material: "Cimento", unit: "sc", coefficient: 0.25 },
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", material: "Areia", unit: "m3", coefficient: 0.15 },
+        { projectId: "obra-calcada-a", workId: "obra-2", serviceId: "serv-calcada", material: "Brita", unit: "m3", coefficient: 0.1 }
+      ]
+    },
+    rdos: [{
+      projectId: "obra-calcada-a",
+      workId: "obra-2",
+      id: "rdo-calcada-1",
+      productions: [{ serviceId: "serv-calcada", service: "Calcada em concreto", quantity: 24, unit: "m2" }]
+    }]
+  });
+  const byMaterial = Object.fromEntries(result.executionStockCross.materials.map((item) => [item.material, item]));
+
+  assert.equal(result.executionStockCross.summary.productions, 1);
+  assert.equal(byMaterial.Cimento.expectedConsumption, 6);
+  assert.equal(byMaterial.Cimento.actualStockExit, 6);
+  assert.equal(byMaterial.Cimento.difference, 0);
+  assert.equal(byMaterial.Areia.expectedConsumption, 3.6);
+  assert.equal(byMaterial.Areia.actualStockExit, 3.6);
+  assert.equal(byMaterial.Brita.expectedConsumption, 2.4);
+  assert.equal(byMaterial.Brita.actualStockExit, 2.4);
+  assert.equal(result.executionStockCross.materials.some((item) => item.actualStockExit === 99), false);
+  assert.equal(result.executionStockCross.unlinkedStockMovements.length, 1);
+  assert.equal(result.executionStockCross.unlinkedStockMovements[0].material, "Acabamento");
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
+
+test("observador valida pintura 200 m2 com tinta massa e consumo teorico", () => {
+  const result = observeObra({
+    projectId: "obra-pintura-a",
+    workId: "obra-3",
+    stockObras: {
+      movements: [
+        { projectId: "obra-pintura-a", workId: "obra-3", serviceId: "serv-pintura", type: "saida", material: "Tinta acrilica", unit: "l", quantity: 36 },
+        { projectId: "obra-pintura-a", workId: "obra-3", serviceId: "serv-pintura", type: "saida", material: "Massa corrida", unit: "kg", quantity: 120 },
+        { projectId: "obra-pintura-b", workId: "obra-3", serviceId: "serv-pintura", type: "saida", material: "Tinta acrilica", unit: "l", quantity: 500 },
+        { projectId: "obra-pintura-a", workId: "obra-3", type: "saida", material: "Lixa", unit: "un", quantity: 20 }
+      ],
+      plannedConsumptions: [
+        { projectId: "obra-pintura-a", workId: "obra-3", serviceId: "serv-pintura", material: "Tinta acrilica", unit: "l", coefficient: 0.18 },
+        { projectId: "obra-pintura-a", workId: "obra-3", serviceId: "serv-pintura", material: "Massa corrida", unit: "kg", coefficient: 0.6 }
+      ]
+    },
+    rdos: [{
+      projectId: "obra-pintura-a",
+      workId: "obra-3",
+      id: "rdo-pintura-1",
+      productions: [{ serviceId: "serv-pintura", service: "Pintura acrilica", quantity: 200, unit: "m2" }]
+    }]
+  });
+  const byMaterial = Object.fromEntries(result.executionStockCross.materials.map((item) => [item.material, item]));
+
+  assert.equal(result.executionStockCross.summary.productions, 1);
+  assert.equal(byMaterial["Tinta acrilica"].expectedConsumption, 36);
+  assert.equal(byMaterial["Tinta acrilica"].actualStockExit, 36);
+  assert.equal(byMaterial["Tinta acrilica"].difference, 0);
+  assert.equal(byMaterial["Massa corrida"].expectedConsumption, 120);
+  assert.equal(byMaterial["Massa corrida"].actualStockExit, 120);
+  assert.equal(result.executionStockCross.materials.some((item) => item.actualStockExit === 500), false);
+  assert.equal(result.executionStockCross.unlinkedStockMovements.length, 1);
+  assert.equal(result.executionStockCross.unlinkedStockMovements[0].material, "Lixa");
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
+
+function deviationObserverInput(actualQuantity) {
+  return {
+    projectId: "obra-desvio-a",
+    workId: "obra-4",
+    stockObras: {
+      movements: [
+        { projectId: "obra-desvio-a", workId: "obra-4", serviceId: "serv-desvio", type: "saida", material: "Cimento", unit: "sc", quantity: actualQuantity },
+        { projectId: "obra-desvio-a", workId: "obra-4", serviceId: "serv-outro", type: "saida", material: "Cimento", unit: "sc", quantity: 999 },
+        { projectId: "obra-desvio-b", workId: "obra-4", serviceId: "serv-desvio", type: "saida", material: "Cimento", unit: "sc", quantity: 888 }
+      ],
+      plannedConsumptions: [
+        { projectId: "obra-desvio-a", workId: "obra-4", serviceId: "serv-desvio", material: "Cimento", unit: "sc", coefficient: 1 }
+      ]
+    },
+    rdos: [{
+      projectId: "obra-desvio-a",
+      workId: "obra-4",
+      id: "rdo-desvio-1",
+      productions: [{ serviceId: "serv-desvio", service: "Servico com desvio", quantity: 100, unit: "m2" }]
+    }]
+  };
+}
+
+test("observador classifica consumo exato como normal", () => {
+  const result = observeObra(deviationObserverInput(100));
+  const material = result.executionStockCross.materials[0];
+
+  assert.equal(material.expectedConsumption, 100);
+  assert.equal(material.actualStockExit, 100);
+  assert.equal(material.difference, 0);
+  assert.equal(material.differencePercent, 0);
+  assert.equal(material.classification, "normal");
+  assert.equal(result.executionStockCross.alerts.length, 0);
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+  assert.equal(result.executionStockCross.materials.some((item) => item.actualStockExit === 999 || item.actualStockExit === 888), false);
+});
+
+test("observador classifica desvio intermediario como atencao", () => {
+  const result = observeObra(deviationObserverInput(115));
+  const material = result.executionStockCross.materials[0];
+  const crossAlert = result.executionStockCross.alerts[0];
+  const generalAlert = result.alerts.find((item) => item.evidence.crossStatus === "consumption_above_expected");
+
+  assert.equal(material.expectedConsumption, 100);
+  assert.equal(material.actualStockExit, 115);
+  assert.equal(material.difference, 15);
+  assert.equal(material.differencePercent, 15);
+  assert.equal(material.classification, "atencao");
+  assert.equal(crossAlert.classification, "atencao");
+  assert.equal(generalAlert.evidence.classification, "atencao");
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
+
+test("observador classifica desvio alto como critico", () => {
+  const result = observeObra(deviationObserverInput(130));
+  const material = result.executionStockCross.materials[0];
+  const crossAlert = result.executionStockCross.alerts[0];
+  const generalAlert = result.alerts.find((item) => item.evidence.crossStatus === "consumption_above_expected");
+
+  assert.equal(material.expectedConsumption, 100);
+  assert.equal(material.actualStockExit, 130);
+  assert.equal(material.difference, 30);
+  assert.equal(material.differencePercent, 30);
+  assert.equal(material.classification, "critico");
+  assert.equal(crossAlert.classification, "critico");
+  assert.equal(generalAlert.evidence.classification, "critico");
+  assert.equal(result.executionStockCross.auditMemory.ok, true);
+});
 test("observador sem dados novos mantem contrato antigo", () => {
   const result = observeObra(baseInput());
 
