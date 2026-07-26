@@ -1218,14 +1218,15 @@
     return sanitizeEloMultilineText_(lines.join("\n"));
   }
 
-  function formatEloObraAttentionSafeError_(errorCode) {
+  function formatEloObraAttentionSafeError_(errorCode, statusCode) {
     const code = sanitizeUserText(errorCode);
-    if (code === "authentication_required") return "Sua sessão não foi enviada.";
-    if (code === "invalid_session") return "Sua sessão expirou ou é inválida.";
-    if (code === "project_required") return "Nenhuma obra foi selecionada.";
-    return "N�o consegui consultar o Observador da Obra agora. Tente novamente em instantes; n�o vou inventar alerta sem dados.";
+    const status = Number(statusCode) || 0;
+    if (status === 401 || code === "authentication_required") return "Sua sess\u00e3o n\u00e3o foi enviada. Entre no ELO para eu consultar os alertas da obra; sem autentica\u00e7\u00e3o, eu n\u00e3o vou inventar faltas, produ\u00e7\u00e3o, gasto ou desvio.";
+    if (code === "invalid_session") return "Sua sess\u00e3o expirou ou \u00e9 inv\u00e1lida. Entre novamente no ELO para consultar os alertas da obra.";
+    if (status === 403 || code === "forbidden" || code === "access_denied") return "Seu usu\u00e1rio n\u00e3o tem acesso a esta obra no momento. Revise a permiss\u00e3o e tente de novo.";
+    if (code === "project_required") return "Nenhuma obra foi selecionada. Selecione uma obra ativa para eu consultar os alertas. Preciso de projectId ou workId.";
+    return "Nao consegui consultar o Observador da Obra agora. Tente novamente em instantes; nao vou inventar alerta sem dados.";
   }
-
   function getEloProactiveAttentionScope_() {
     const context = window.ELO_AUTH_CONTEXT && typeof window.ELO_AUTH_CONTEXT === "object" ? window.ELO_AUTH_CONTEXT : {};
     return {
@@ -1352,25 +1353,27 @@
   function requestEloObraAttentionAnswer_(question) {
     if (!isEloObraAttentionRequest_(question)) return Promise.resolve(null);
     const authHeaders = getEloCoreAuthHeaders_();
-    if (!authHeaders.Authorization) return Promise.resolve(formatEloTodayWorkAnswer_(buildEloObraLocalTodayWork_()));
-    if (!window.fetch) return Promise.resolve(null);
-    const params = new URLSearchParams();
+    if (!authHeaders.Authorization) return Promise.resolve(formatEloObraAttentionSafeError_("authentication_required", 401));
+    if (!window.fetch) return Promise.resolve(formatEloObraAttentionSafeError_("fetch_unavailable"));
     const identity = getEloCoreIdentity_();
-    if (identity.projectId) params.set("projectId", identity.projectId);
-    if (window.ELO_WORK_ID) params.set("workId", sanitizeUserText(window.ELO_WORK_ID));
+    const scope = getEloObraSnapshotScope_();
+    const projectId = sanitizeUserText(identity.projectId || scope.projectId || "").slice(0, 140);
+    const workId = sanitizeUserText(scope.workId || window.ELO_WORK_ID || "").slice(0, 140);
+    const params = new URLSearchParams();
+    if (projectId) params.set("projectId", projectId);
+    if (workId) params.set("workId", workId);
     const query = params.toString();
     const endpoint = getEloBackendEndpoint_("/api/elo/obra/attention") + (query ? "?" + query : "");
     return window.fetch(endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
-        if (!response.ok || data.ok === false) return formatEloObraAttentionSafeError_(data.error);
+        if (!response.ok || data.ok === false) return formatEloObraAttentionSafeError_(data.error, response.status);
         return formatEloObraAttentionAnswer_(data, question);
       });
     }).catch(function () {
-      return "Nao consegui consultar o Observador da Obra agora. Tente novamente em instantes; nao vou inventar alerta sem dados.";
+      return formatEloObraAttentionSafeError_("request_failed");
     });
   }
-
   function requestEloObraExecutionStockAnswer_(question) {
     if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
     const answer = formatEloObraExecutionStockCrossAnswer_(buildEloObraLocalExecutionStockCross_());
@@ -1466,21 +1469,20 @@
   }
   function handleEloObraAttentionRequest_(question) {
     if (!isEloObraAttentionRequest_(question)) return false;
-    const localReadonly = !getEloCoreAuthHeaders_().Authorization;
-    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
-    if (localReadonly) ELO_UI.suppressRemotePersistence = true;
-    const statusMessage = appendMessage("assistant", localReadonly ? "Lendo dados locais da obra..." : "Consultando o Observador da Obra...");
+    const hasAuth = !!getEloCoreAuthHeaders_().Authorization;
+    const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
     requestEloObraAttentionAnswer_(question).then(function (answer) {
-      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao consegui consultar o Observador da Obra agora.";
-      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: !localReadonly, sessionTheme: localReadonly ? "hoje_na_obra_local" : "observador_obra", sessionIntent: localReadonly ? "today_work_local_readonly" : "obra_attention_readonly" };
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "N?o consegui consultar o Observador da Obra agora.";
+      const response = { shortAnswer: finalAnswer.split("\\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: hasAuth, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
       updateEloMessage_(statusMessage, finalAnswer);
-      if (localReadonly) appendEloTodayWorkSafeActions_(statusMessage);
-      if (!localReadonly) {
+      if (hasAuth) {
         saveConversation(question, finalAnswer);
         rememberSessionTurn(question, response, finalAnswer);
       }
+      return finalAnswer;
+    }).catch(function () {
+      updateEloMessage_(statusMessage, "N?o consegui consultar o Observador da Obra agora. Tente novamente em instantes.");
     }).finally(function () {
-      if (localReadonly) ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
       removeTypingIndicator();
       clearProductAttachmentPreview();
     });
