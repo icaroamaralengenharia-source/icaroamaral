@@ -3253,10 +3253,10 @@
       if (/limpeza.*inicial|preparo|canteiro|locacao/.test(text)) return "Servi\u00e7os preliminares";
       if (/fundacao|sapata|baldrame|escavacao|forma.*fundacao/.test(text)) return "Funda\u00e7\u00e3o";
       if (/estrutura|pilar|viga|laje|aco|armacao|concreto.*estrutura/.test(text)) return "Estrutura";
+      if (/alvenaria|bloco|parede/.test(text)) return "Alvenaria";
       if (/chapisco|reboco|emboco|embo.o|revestimento/.test(text)) return "Revestimentos";
       if (/cobertura|telha|telhamento/.test(text)) return "Cobertura";
       if (/contrapiso|piso|rodape|ceram/.test(text)) return "Pisos";
-      if (/alvenaria|bloco|parede/.test(text)) return "Alvenaria";
       if (/eletric|iluminacao|tomada/.test(text)) return "Instala\u00e7\u00f5es el\u00e9tricas";
       if (/hidraul|sanitar|esgoto/.test(text)) return "Instala\u00e7\u00f5es hidrossanit\u00e1rias";
       if (/porta|janela|esquadria/.test(text)) return "Esquadrias";
@@ -3308,7 +3308,7 @@
           etapa: line ? residentialPdfStage_(line) : residentialPdfStage_(quantity),
           code: cleanEloDocumentText_(line && (line.code || line.codigo || line.compositionCode || line.composition && line.composition.code) || ""),
           description: residentialPdfText_(quantity.description || quantity.service || quantity.servico || quantity.label || quantity.name || quantity.nome || quantity.serviceId || "Item de or\u00e7amento"),
-          unit: normalizeEloBudgetV2Unit_(quantity.unit || quantity.unidade || quantity.un),
+          unit: quantity.unit === "" ? "" : normalizeEloBudgetV2Unit_(quantity.unit || quantity.unidade || quantity.un),
           quantity: formatEloBudgetV2TableQuantity_(quantity.quantity !== undefined ? quantity.quantity : quantity.quantidade),
           unitPrice: moneyOrPending_(unitPrice),
           total: moneyOrPending_(total),
@@ -3329,6 +3329,8 @@
     const bdiPercentText = bdiPercentValue === "" || bdiPercentValue === null || bdiPercentValue === undefined ? "Pendente" : cleanEloDocumentText_(String(bdiPercentValue).replace(/%$/, "") + "%");
     const pendingItems = Array.isArray(summary.excludedPendingItems) ? summary.excludedPendingItems : (Array.isArray(summary.unresolvedItems) ? summary.unresolvedItems : []);
     const facts = safe && safe.facts || {};
+    const areaValue = facts.area || facts.areaConstruida || facts.builtAreaM2 || "";
+    const areaText = areaValue ? (/m2|m\u00b2/i.test(String(areaValue)) ? String(areaValue).replace(/m2/g, "m\u00b2") : areaValue + " m\u00b2") : "";
     return {
       rows: rows,
       compositions: displayCompositions,
@@ -3342,7 +3344,7 @@
       pendingItems: pendingItems,
       source: cleanEloDocumentText_(budget.source || budget.fonte || budget.priceSource || "SINAPI/ORSE pendente"),
       referenceMonth: cleanEloDocumentText_(budget.referenceMonth || budget.mesReferencia || budget.mes_base || "Não informado no documento"),
-      area: cleanEloDocumentText_(facts.area || facts.areaConstruida || facts.builtAreaM2 ? (facts.area || facts.areaConstruida || facts.builtAreaM2) + " m²" : ""),
+      area: cleanEloDocumentText_(areaText),
       standard: cleanEloDocumentText_(facts.projectStandard || facts.standard || facts.padrao || ""),
       observation: hasCompletePrices ? cleanEloDocumentText_(budget.observation || budget.observacao || "") : (hasPartialPrices ? "Orçamento parcial: subtotal, BDI e total abaixo consideram apenas os itens resolvidos. Itens pendentes ficam fora do total parcial." : "Orçamento ainda não precificado. Quantitativos disponíveis; preços, BDI e encargos pendentes.")
     };
@@ -4405,9 +4407,9 @@
       ".elo-budget-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9.2px;background:#fff}",
       ".elo-budget-table th{background:#0f5ea8;color:#fff;text-align:left;padding:4px 5px;border:1px solid #0d4f8d;font-size:8px;text-transform:uppercase;letter-spacing:.03em}",
       ".elo-budget-table td{border:1px solid #d8e2ef;padding:4px 5px;vertical-align:top;overflow:visible;word-break:normal}",
-      ".elo-budget-table .is-description{width:35%;line-height:1.35}",
+      ".elo-budget-table .is-description{width:40%;line-height:1.35;overflow-wrap:anywhere}",
       ".elo-budget-table .is-center{text-align:center}",
-      ".elo-budget-table .is-number{text-align:right;white-space:nowrap}",
+      ".elo-budget-table .is-number{text-align:right;white-space:normal}",
       ".elo-budget-table.is-compact th,.elo-budget-table.is-compact td{font-size:8.6px;padding:3px 4px}",
       ".elo-financial-summary{width:285px;margin:8px 0 0 auto;border:1px solid #cbd5e1;background:#f8fafc}",
       ".elo-financial-summary div{display:flex;justify-content:space-between;gap:10px;padding:5px 8px;border-bottom:1px solid #e2e8f0}",
@@ -17377,7 +17379,7 @@
       materials: [{ title: "Parede de bloco ceramico", items: ["bloco ceramico " + (block || "a confirmar"), "argamassa de assentamento", "cimento", "areia", "mao de obra a compor"] }],
       quantities: [
         { label: "Area da parede", description: "Area da parede", quantity: formatEloResidentialPremiseNumber_(area, 2), unit: "m2", status: "quantitativo preliminar" },
-        { label: "Blocos ceramicos aproximados", description: "Blocos ceramicos aproximados", quantity: blockQtyText, unit: "", status: "perda adotada de " + formatEloResidentialPremiseNumber_(lossPercent, 0) + "%" },
+        { label: "Blocos ceramicos aproximados", description: "Blocos ceramicos aproximados", quantity: blockQtyText, unit: "un", status: "perda adotada de " + formatEloResidentialPremiseNumber_(lossPercent, 0) + "%" },
         { label: "Medidas", quantity: dimensions.lengthM && dimensions.heightM ? formatEloResidentialPremiseNumber_(dimensions.lengthM, 2) + " x " + formatEloResidentialPremiseNumber_(dimensions.heightM, 2) : "a confirmar", unit: "m", status: "informado pelo usuario" },
         { label: "Bloco", description: "Bloco informado", quantity: block || "a confirmar", unit: "", status: "informado pelo usuario" },
         { label: "Observacao", description: "Observacao", quantity: observation, unit: "", status: "informado pelo usuario" }
