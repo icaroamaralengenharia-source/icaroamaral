@@ -670,7 +670,7 @@
     const context = applyEloBudgetRoutePendingContext_(consumeEloBudgetRoutePending_());
     if (!(context && context.workId)) return null;
     const text = normalizeText(message || "");
-    const completeResidentialBudget = isEloCompleteResidentialBudgetPriorityRequest_(message);
+    const completeResidentialBudget = isEloCompleteResidentialBudgetPriorityRequest_(message) || isEloResidentialBudgetBriefingQuestion_(message);
     const wallBudgetMessage = !completeResidentialBudget && /alvenaria|bloco|tijolo/.test(text) && !/parede|muro/.test(text) ? "orcamento de parede para " + String(message || "") : message;
     let response = buildEloBudgetOrchestratorV2Answer_(wallBudgetMessage);
     if (!isEloBudgetRouteUsableResponse_(response) && wallBudgetMessage !== message) response = buildEloBudgetOrchestratorV2Answer_(message);
@@ -3300,7 +3300,7 @@
       alertas: cleanEloDocumentText_(alertas, "Documento preliminar assistido por sistema computacional. Nao substitui revisao profissional."),
       origemBase: cleanEloDocumentText_(basesTecnicas, "nao localizada"),
       conteudoTecnico: cleanEloDocumentText_(markdown, "nao informado"),
-      professionalBudget: safe.professionalBudget || ctx.professionalBudget || null,
+      professionalBudget: safe.professionalBudget || safe.record && safe.record.professionalBudget || ctx.professionalBudget || null,
       assinatura: cleanEloDocumentText_(ctx.assinatura || "Icaro Amaral Engenharia", "Icaro Amaral Engenharia")
     };
   }
@@ -4171,6 +4171,7 @@
   }
 
   function buildEloIsolatedServiceProfessionalBudget_(message) {
+    if (isEloResidentialBudgetBriefingQuestion_(message)) return null;
     const spec = findEloIsolatedServiceBridgeSpec_(message);
     if (!spec) return null;
     const quantity = parseEloIsolatedServiceQuantity_(message, spec);
@@ -4624,7 +4625,7 @@
       const pendingCount = pendingItems.length;
       return [
         pendingCount ? "- " + pendingCount + " itens pendentes est\u00e3o listados fora do total parcial." : "- Sem pend\u00eancias financeiras adicionais no quadro parcial.",
-        "- Validar projeto, memorial, composi\u00e7\u00f5es oficiais, BDI e responsabilidade t\u00e9cnica antes de contratar ou executar."
+        "- Validar projeto, memorial, composi\u00e7\u00f5es oficiais, bonifica\u00e7\u00e3o e despesas indiretas e responsabilidade t\u00e9cnica antes de contratar ou executar."
       ].join("\n");
     }
     const summary = budget.observation || "Or\u00e7amento residencial preliminar estruturado para revis\u00e3o t\u00e9cnica.";
@@ -4642,6 +4643,7 @@
     return [
       "<article class=\"elo-professional-pdf elo-budget-document\">",
       "<section class=\"elo-budget-page\">",
+      "<span class=\"elo-page-label\">P\u00e1gina 1 de 2</span>",
       "<header class=\"elo-budget-header\">",
       "<div class=\"elo-pdf-brand\"><span>\u00cdcaro Amaral Engenharia</span><strong>ELO</strong></div>",
       "<h1>OR\u00c7AMENTO RESIDENCIAL</h1>",
@@ -4663,6 +4665,9 @@
       "</section>",
       financialSummary,
       pendingSection,
+      "</section>",
+      "<section class=\"elo-budget-page\">",
+      "<span class=\"elo-page-label\">P\u00e1gina 2 de 2</span>",
       "<section class=\"elo-pdf-section\"><h2>Mem\u00f3ria de c\u00e1lculo resumida</h2>" + buildEloProfessionalServiceSpecs_(budget) + "</section>",
       buildEloProfessionalCompositionTable_(budget.compositions),
       "<section class=\"elo-pdf-section\"><h2>Premissas e limita\u00e7\u00f5es</h2><div class=\"elo-pdf-box\">" + escapeEloHtml_(finalPremises_()) + "</div></section>",
@@ -16238,6 +16243,11 @@
     return hasActiveEloResidentialBudgetSession_() && /\b(?:sinapi|orse|bdi|preco|precos|valor\s+final|fechamento|bahia|competencia|encargos)\b/.test(text);
   }
 
+  function isEloActiveResidentialBudgetV2Continuation_(message) {
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    return !!(state && state.type === "residential" && (isEloResidentialPricingContinuation_(message) || isEloResidentialScopeChange_(message)));
+  }
+
   function addUniqueEloResidentialRoom_(rooms, room) {
     const list = Array.isArray(rooms) ? rooms.slice() : [];
     if (room && !list.some(function (item) { return normalizeText(item) === normalizeText(room); })) list.push(room);
@@ -16810,7 +16820,7 @@
     const internalWallFacesM2 = internalWallLengthM * ceilingHeightM * 2;
     const externalOpeningsM2 = externalWallGrossM2 * 0.16;
     const internalDoorAreaM2 = (program.bedrooms + program.bathrooms + program.kitchens + program.serviceAreas + program.garages + program.stairs) * 1.68;
-    const roofSystem = safe.roof || (/laje\s+impermeabilizada/.test(text) ? "laje impermeabilizada" : /telha\s+ceramica/.test(text) ? "telha ceramica" : "cobertura preliminar");
+    const roofSystem = safe.roof || safe.roofMaterial || safe.systems && (safe.systems.roof || safe.systems.slab) || (/laje\s+impermeabilizada/.test(text) ? "laje impermeabilizada" : /telha\s+ceramica/.test(text) ? "telha ceramica" : "cobertura preliminar");
     const roofFactor = /laje\s+impermeabilizada/.test(normalizeText(roofSystem)) ? 1.05 : 1.22;
     return { source: dimensions ? "informed_dimensions" : "inferred_from_built_area", builtAreaM2: roundEloResidentialQuantity_(area), floors: floors, footprintAreaM2: roundEloResidentialQuantity_(footprintArea), widthM: roundEloResidentialQuantity_(width), lengthM: roundEloResidentialQuantity_(length), externalPerimeterM: roundEloResidentialQuantity_(externalPerimeterM), ceilingHeightM: ceilingHeightM, externalWallGrossM2: roundEloResidentialQuantity_(externalWallGrossM2), internalWallLengthM: roundEloResidentialQuantity_(internalWallLengthM), internalWallFacesM2: roundEloResidentialQuantity_(internalWallFacesM2), openingsM2: roundEloResidentialQuantity_(externalOpeningsM2 + internalDoorAreaM2), masonryNetM2: roundEloResidentialQuantity_(Math.max(0, externalWallGrossM2 + internalWallFacesM2 - externalOpeningsM2 - internalDoorAreaM2)), wetWallAreaM2: roundEloResidentialQuantity_(program.bathrooms * 18 + program.kitchens * 12 + program.serviceAreas * 8), roofAreaM2: roundEloResidentialQuantity_(footprintArea * roofFactor), roofSystem: roofSystem, program: program, assumptions: ["Pe-direito preliminar de 2.80 m.", "Perimetro externo calculado por dimensoes informadas ou retangulo equivalente.", "Paredes internas estimadas por indice de 0.62 m de parede por m2 construida.", "Vaos externos estimados em 16% da area bruta externa."] };
   }
@@ -17079,7 +17089,7 @@
     const activePricing = activeResidential && activeResidential.pricing || {};
     const residentialState = state && (state.residentialBudgetState || state.residentialCanonicalState) || {};
     const persistedSource = getEloTechnicalSourcePreference_();
-    const pricing = Object.assign({}, state && state.pricing || {}, residentialState.pricing || {}, activePricing);
+    const pricing = Object.assign({}, activePricing, residentialState.pricing || {}, state && state.pricing || {});
     if (!pricing.source && persistedSource) pricing.source = persistedSource;
     if (!pricing.uf && pricing.source) pricing.uf = activeResidential && activeResidential.project && activeResidential.project.uf || residentialState.project && residentialState.project.uf || state && (state.uf || state.state) || null;
     pricing.manualApprovals = Object.assign({}, state && state.manualCompositionApprovals || {}, residentialState.manualCompositionApprovals || {}, activeResidential && activeResidential.manualCompositionApprovals || {});
@@ -17099,9 +17109,10 @@
     (quantities || []).forEach(function (quantity) {
       const service = Object.assign({}, catalog[quantity.serviceId] || { serviceId: quantity.serviceId, description: quantity.description, category: quantity.category, unit: quantity.unit, searchTerms: [quantity.description], requiredTerms: [], forbiddenTerms: [], pricingMode: "priced" });
       if (state && state.systems && state.systems.flooring === "porcelanato 90x90" && quantity.serviceId === "piso_interno") { service.description = "Porcelanato 90 x 90 interno"; service.searchTerms = ["porcelanato", "90 x 90", "argamassa colante ac iii", "piso"]; service.requiredTerms = ["porcelanato"]; }
-      if (state && state.systems && /laje impermeabilizada/.test(normalizeText(state.systems.roof || "")) && quantity.serviceId === "cobertura") { service.description = "Laje impermeabilizada de cobertura"; service.searchTerms = ["impermeabilizacao", "laje", "cobertura"]; service.requiredTerms = ["impermeabilizacao"]; }
+      const residentialSystems = Object.assign({}, activeResidential && activeResidential.systems || {}, residentialState && residentialState.systems || {}, state && state.systems || {});
+      if (/laje impermeabilizada/.test(normalizeText(residentialSystems.roof || residentialSystems.slab || "")) && quantity.serviceId === "cobertura") { service.description = "Laje impermeabilizada de cobertura"; service.searchTerms = ["impermeabilizacao", "laje", "cobertura"]; service.requiredTerms = ["impermeabilizacao"]; }
       applyEloResidentialScopePreferencesToService_(service, state, activeResidential, residentialState);
-      const quantityValue = Number(quantity.quantity);
+      const quantityValue = Number(quantity.quantity || activeResidential && activeResidential.project && activeResidential.project.areaM2 || 0);
       const isSummary = service.pricingMode === "non_priced_summary";
       const composition = isSummary ? buildEloResidentialNonPricedSummaryComposition_(service, pricing, quantity) : resolveEloResidentialComposition_(service, pricing, baseStatus);
       const canPrice = !isSummary && ["exact", "compatible", "compatible_approved"].indexOf(composition.status) >= 0 && quantityValue > 0 && normalizeEloResidentialBudgetUnit_(quantity.unit) === normalizeEloResidentialBudgetUnit_(composition.unit) && composition.unitPrice > 0;
@@ -17114,9 +17125,9 @@
         equipmentCost += Number(composition.breakdown.equipment || 0) * quantityValue;
       } else if (!isSummary) {
         unresolved.push({ serviceId: quantity.serviceId, description: quantity.description, status: composition.status, reason: composition.reason, critical: isCritical, code: composition.code || "", candidateDescription: composition.description || "", unit: normalizeEloResidentialBudgetUnit_(quantity.unit), quantity: quantityValue, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], warnings: composition.warnings || [] });
-        if (isCritical || composition.status === "blocked") blockers.push({ serviceId: quantity.serviceId, reason: composition.reason, status: composition.status });
+        if (composition.status === "blocked") blockers.push({ serviceId: quantity.serviceId, reason: composition.reason, status: composition.status });
       }
-      lines.push({ serviceId: quantity.serviceId, description: quantity.description, quantity: quantityValue, unit: normalizeEloResidentialBudgetUnit_(quantity.unit), pricingRole: isSummary ? "memory_summary" : "financial_service", critical: isCritical, composition: { status: composition.status, source: composition.source, code: composition.code, description: composition.description, unit: composition.unit, uf: composition.uf, competence: composition.competence, regime: composition.regime, unitPrice: composition.unitPrice, confidence: composition.confidence, reason: composition.reason, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], candidates: composition.candidates || [], approval: composition.approval || null, inputs: (composition.inputs || []).slice(0) }, unitPrice: canPrice ? composition.unitPrice : null, directCost: direct, breakdown: composition.breakdown, warnings: composition.warnings || [], blockers: (!canPrice && !isSummary && (isCritical || composition.status === "blocked")) ? [{ code: composition.reason, status: composition.status }] : [] });
+      lines.push({ serviceId: quantity.serviceId, description: quantity.description, quantity: quantityValue, unit: normalizeEloResidentialBudgetUnit_(quantity.unit), pricingRole: isSummary ? "memory_summary" : "financial_service", critical: isCritical, composition: { status: composition.status, source: composition.source, code: composition.code, description: composition.description, unit: composition.unit, uf: composition.uf, competence: composition.competence, regime: composition.regime, unitPrice: composition.unitPrice, confidence: composition.confidence, reason: composition.reason, matchedTerms: composition.matchedTerms || [], missingTerms: composition.missingTerms || [], candidates: composition.candidates || [], approval: composition.approval || null, inputs: (composition.inputs || []).slice(0) }, unitPrice: canPrice ? composition.unitPrice : null, directCost: direct, breakdown: composition.breakdown, warnings: composition.warnings || [], blockers: (!canPrice && !isSummary && composition.status === "blocked") ? [{ code: composition.reason, status: composition.status }] : [] });
     });
 
     directCost = Number(directCost.toFixed(2));
@@ -17137,7 +17148,7 @@
     });
     const partialBdiValue = bdi.bdiPercent !== null ? Number((directCost * bdi.bdiPercent / 100).toFixed(2)) : null;
     const partialTotal = partialBdiValue !== null ? Number((directCost + partialBdiValue).toFixed(2)) : null;
-    const summaryStatus = !pricing.source ? "unpriced" : hasUnresolvedFinancial ? "partial_pending_items" : hasBlockers ? "blocked" : canTotal ? "financially_ready" : "financial_partial";
+    const summaryStatus = !pricing.source ? "unpriced" : hasBlockers ? "blocked" : canTotal ? "financially_ready" : "financial_partial";
     const financialSummary = { status: summaryStatus, currency: "BRL", directCost: directCost || null, partialSubtotal: directCost || null, materialsCost: materialsCost || null, laborCost: laborCost || null, equipmentCost: equipmentCost || null, otherCost: null, bdiPercent: bdi.bdiPercent, bdiValue: canTotal ? bdi.bdiValue : null, partialBdiValue: partialBdiValue, salePrice: canTotal ? bdi.salePrice : null, partialTotal: partialTotal, pricedItems: pricedItems, totalItems: totalItems, informationalItems: lines.length - totalItems, pricedCoveragePercent: pricingCoverage, pricingCoverage: pricingCoverage, unresolvedItems: unresolved, excludedPendingItems: excludedPendingItems, blockers: blockers, warnings: ["Base disponivel: SINAPI BA, competencia 2024-12. Nao chamar de preco atual.", "Encargos seguem o regime da composicao oficial; nao foram reaplicados.", "Total final permanece pendente enquanto houver itens em revisao manual."] };
     const materialsByService = buildEloResidentialMaterialsByService_(lines.filter(function (line) { return line.directCost !== null; }));
     const materials = consolidateEloResidentialMaterials_(materialsByService);
@@ -17388,7 +17399,7 @@
     const effectiveResidentialProgram = buildEloResidentialEffectiveProgram_(safe, legacyResidentialProgram);
     const program = effectiveResidentialProgram;
     const isSobrado = floors > 1 || /sobrado/.test(normalizeText(safe.constructionType || safe.originalMessage || ""));
-    const roofText = normalizeText(geometry.roofSystem || safe.roof || safe.originalMessage || "");
+    const roofText = normalizeText(geometry.roofSystem || safe.roof || safe.systems && (safe.systems.roof || safe.systems.slab) || safe.originalMessage || "");
     const revision = Array.isArray(safe.revisions) && safe.revisions.length ? safe.revisions.length + 1 : 1;
     const quantities = [];
     const memory = [];
@@ -18139,6 +18150,19 @@
         facts.bdiPercent = bdiPercent;
         facts.currentFields.push("bdiPercent");
       }
+      const pricing = {};
+      if (bdiPercent) pricing.bdi = { source: "user", bdiPercent: bdiPercent };
+      if (/\bsinapi\b/.test(text)) pricing.source = "SINAPI";
+      else if (/\borse\b/.test(text)) pricing.source = "ORSE";
+      if (/\bbahia\b|\bba\b/.test(text)) pricing.uf = "BA";
+      const competenceMatch = text.match(/\b(20\d{2}[-\/]\d{2})\b/);
+      if (competenceMatch) pricing.competence = competenceMatch[1].replace("/", "-");
+      if (/nao\s+desonerado|n.o\s+desonerado/.test(text)) pricing.regime = "non_exempt";
+      else if (/\bdesonerado\b/.test(text)) pricing.regime = "exempt";
+      if (Object.keys(pricing).length) {
+        facts.pricing = pricing;
+        facts.currentFields.push("pricing");
+      }
       const previousType = previousState && previousState.type;
       if (isEloTechnicalCompositionBudgetIntent_(raw)) {
         facts.type = "technical_composition";
@@ -18207,7 +18231,8 @@
         facts.wallMaterial = "bloco ceramico" + (blockDimension ? " " + blockDimension.join("x") : "");
         facts.currentFields.push("wallMaterial");
       }
-      if (/\btelha\s+ceramica\b|\btelha\s+cer.mica\b/.test(text)) { facts.roofMaterial = "telha ceramica"; facts.currentFields.push("roofMaterial"); }
+      if (/laje\s+impermeabilizada/.test(text)) { facts.roofMaterial = "laje impermeabilizada"; facts.currentFields.push("roofMaterial"); }
+      else if (/\btelha\s+ceramica\b|\btelha\s+cer.mica\b/.test(text)) { facts.roofMaterial = "telha ceramica"; facts.currentFields.push("roofMaterial"); }
       if (/\bpiso\s+ceramico\b|\bpiso\s+cer.mico\b/.test(text)) { facts.floorMaterial = "piso ceramico"; facts.currentFields.push("floorMaterial"); }
       if (/\bbaldrame\b/.test(text)) { facts.foundationType = "baldrame"; facts.currentFields.push("foundationType"); }
       if (/\bpiscina\b/.test(text) && !/sem\s+piscina/.test(text)) { facts.hasPool = true; facts.currentFields.push("hasPool"); }
@@ -18269,6 +18294,7 @@
         if (previous[field] !== undefined && previous[field] !== null && previous[field] !== "" && currentFields.indexOf(field) < 0) inheritedFields.push(field);
       });
       const merged = Object.assign({}, this.defaultState, previous, cleanFacts);
+      if (previous.pricing || cleanFacts.pricing) merged.pricing = Object.assign({}, previous.pricing || {}, cleanFacts.pricing || {});
       if (!merged.budgetId) merged.budgetId = this.createBudgetId_();
       merged.confirmedFields = currentFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
       merged.inheritedFields = inheritedFields.filter(function (field, index, list) { return list.indexOf(field) === index; });
@@ -18511,6 +18537,7 @@
       else if (budgetPackage && budgetPackage.source === "adapter_fallback" && !pending.length) lines.push("", "Base oficial:", "- pendente de composicao SINAPI/ORSE oficial.");
       lines.push("", "Nota:", "- Estimativa preliminar; valores oficiais dependem de quantitativos, BDI e base vigente. nao vou inventar preco.");
       state.budgetPackage = budgetPackage || null;
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 = state;
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, budgetPackage || null);
       if (budgetDocumentData && isGenericPreliminary) budgetDocumentData.isGenericPreliminary = true;
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
@@ -18525,7 +18552,7 @@
         nextAction: missingForUser.length ? "Refine informando " + missingForUser.join(", ") + "." : "Peça modo avançado para ver auditoria, premissas e checklist técnico.",
         canSave: !pending.length,
         sessionTheme: "residential_budget_package",
-        sessionIntent: pending.length ? "budget_v2_briefing" : "budget_v2_scope",
+        sessionIntent: pending.length ? "budget_v2_briefing" : (state.type === "residential" ? "budget_v2_residential_created" : "budget_v2_scope"),
         pdfAction: pdfAction,
         budgetActions: budgetActions,
         budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems, budgetDocumentData: budgetDocumentData }
@@ -18941,6 +18968,7 @@ function isEloResidentialNewPipelineEnabled_() {
       canonicalState.pendingFields = missing.slice();
       canonicalState.status = "briefing";
       setActiveEloResidentialBudgetState_(canonicalState);
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 = canonicalState;
       return {
         shortAnswer: "Vamos montar o orcamento residencial preliminar com os dados basicos primeiro.",
         fullAnswer: [
@@ -21510,6 +21538,24 @@ function isEloResidentialNewPipelineEnabled_() {
       return budgetV2ListIntentAnswer;
     }
 
+    if (isEloActiveResidentialBudgetV2Continuation_(cleanQuestion)) {
+      const residentialBudgetV2ContinuationAnswer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
+      if (residentialBudgetV2ContinuationAnswer && /^budget_v2/.test(String(residentialBudgetV2ContinuationAnswer.sessionIntent || ""))) {
+        attachEloCoreBridgeMetadata_(residentialBudgetV2ContinuationAnswer);
+        if (isEloResidentialScopeChange_(cleanQuestion)) {
+          const residentialScopeRevisionAnswer = buildEloResidentialBudgetConversationAnswer_(cleanQuestion);
+          if (residentialScopeRevisionAnswer) {
+            attachEloCoreBridgeMetadata_(residentialScopeRevisionAnswer);
+            rememberEloAssistantAnswer_(cleanQuestion, residentialScopeRevisionAnswer);
+            return residentialScopeRevisionAnswer;
+          }
+          if (!residentialBudgetV2ContinuationAnswer.revision) residentialBudgetV2ContinuationAnswer.revision = { type: "residential_scope_change" };
+        }
+        rememberEloAssistantAnswer_(cleanQuestion, residentialBudgetV2ContinuationAnswer);
+        return residentialBudgetV2ContinuationAnswer;
+      }
+    }
+
     const activeBudgetV2State = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
     if (activeBudgetV2State && activeBudgetV2State.type && isEloBudgetV2CompatibleUpdateMessage_(cleanQuestion)) {
       const updateBudgetOrchestratorV2Answer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
@@ -24023,11 +24069,28 @@ function isEloResidentialNewPipelineEnabled_() {
     if (userNameMemoryResponse) {
       return applyEloBrainMarker_(question, userNameMemoryResponse);
     }
+    if (isEloActiveResidentialBudgetV2Continuation_(question)) {
+      const residentialBudgetV2ContinuationResponse = buildEloBudgetOrchestratorV2Answer_(question);
+      if (residentialBudgetV2ContinuationResponse && /^budget_v2/.test(String(residentialBudgetV2ContinuationResponse.sessionIntent || ""))) {
+        attachEloCoreBridgeMetadata_(residentialBudgetV2ContinuationResponse);
+        if (isEloResidentialScopeChange_(question)) {
+          const residentialScopeRevisionResponse = buildEloResidentialBudgetConversationAnswer_(question);
+          if (residentialScopeRevisionResponse) {
+            attachEloCoreBridgeMetadata_(residentialScopeRevisionResponse);
+            rememberEloAssistantAnswer_(question, residentialScopeRevisionResponse);
+            return applyEloBrainMarker_(question, residentialScopeRevisionResponse);
+          }
+          if (!residentialBudgetV2ContinuationResponse.revision) residentialBudgetV2ContinuationResponse.revision = { type: "residential_scope_change" };
+        }
+        rememberEloAssistantAnswer_(question, residentialBudgetV2ContinuationResponse);
+        return applyEloBrainMarker_(question, residentialBudgetV2ContinuationResponse);
+      }
+    }
     const coreToolResponse = buildEloCoreToolIntentResponse_(question);
     if (coreToolResponse) {
       return applyEloBrainMarker_(question, coreToolResponse);
     }
-    const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question);
+    const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question) || isEloResidentialBudgetBriefingQuestion_(question);
     const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
     const isolatedServiceBridgeResponse = completeResidentialBudgetPriority ? null : buildEloIsolatedServiceProfessionalBudget_(question);
     if (isolatedServiceBridgeResponse) {
