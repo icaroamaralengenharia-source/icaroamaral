@@ -9950,10 +9950,14 @@
       sector: clean(formData.get("sector")),
       purpose: clean(formData.get("purpose")),
       responsible: clean(formData.get("responsible")) || getCurrentStockFullSession_().userName,
+      projectId: clean(formData.get("projectId")) || null,
+      workId: clean(formData.get("workId")) || null,
+      source: clean(formData.get("source")) || null,
+      releaseId: clean(formData.get("releaseId")) || null,
       unitCost: 0,
       total: 0,
       reason: clean(formData.get("purpose")) || "Saida manual",
-      origin: "manual_exit",
+      origin: clean(formData.get("origin")) || "manual_exit",
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
@@ -21394,7 +21398,100 @@
     calculateStockAiPredictedConsumption: calculateStockAiPredictedConsumption
   });
 
+  function createOperationalFormData_(data) {
+    const safe = data || {};
+    return {
+      get: function (name) {
+        return safe[name] !== undefined && safe[name] !== null ? safe[name] : "";
+      }
+    };
+  }
+
+  function findOperationalBalanceByItemId_(balances, itemId) {
+    return (balances || []).find(function (balance) {
+      return clean(balance.itemId || balance.id) === clean(itemId);
+    }) || null;
+  }
+
+  function createConfirmedOperationalExit_(payload) {
+    const safe = payload && typeof payload === "object" ? payload : {};
+    const releaseId = clean(safe.releaseId);
+    const source = clean(safe.source) || "elo";
+    const projectId = clean(safe.projectId) || null;
+    const workId = clean(safe.workId) || null;
+    const requestedBy = clean(safe.requestedBy) || "ELO";
+    const environmentId = clean(safe.environmentId) || getActiveStockEnvironmentId_();
+    const items = Array.isArray(safe.items) ? safe.items : [];
+
+    if (!releaseId) return { ok: false, message: "releaseId obrigatorio para confirmar saida." };
+    if (!items.length) return { ok: false, message: "Nenhum item liberavel informado." };
+    if (clean(environmentId) !== clean(getActiveStockEnvironmentId_())) {
+      return { ok: false, message: "Ambiente do Almoxarifado diferente da sugestao pendente." };
+    }
+
+    const stateBefore = loadAlmoxState_();
+    const duplicate = (stateBefore.movements || []).filter(function (movement) {
+      return movement.type === "saida" && clean(movement.releaseId) === releaseId && clean(movement.origin) === "elo_release";
+    });
+    if (duplicate.length) {
+      return { ok: true, duplicate: true, message: "Saida ja confirmada anteriormente.", movements: duplicate, before: getOperationalAlmoxBalanceSnapshot_(), after: getOperationalAlmoxBalanceSnapshot_(), history: duplicate };
+    }
+
+    const before = getOperationalAlmoxBalanceSnapshot_();
+    const blocked = [];
+    items.forEach(function (item) {
+      const itemId = clean(item.stockItemId || item.itemId);
+      const quantity = parseNumber_(item.releaseQuantity || item.quantity);
+      const balance = findOperationalBalanceByItemId_(before, itemId);
+      const available = parseNumber_(balance && (balance.balance || balance.realBalance));
+      if (!itemId || quantity <= 0) blocked.push({ item: item, message: "Item ou quantidade invalida." });
+      else if (!balance) blocked.push({ item: item, message: "Item nao encontrado no Almoxarifado." });
+      else if (quantity > available) blocked.push({ item: item, message: "Saldo insuficiente." });
+    });
+    if (blocked.length) {
+      return { ok: false, message: "Saida bloqueada para evitar saldo negativo.", blocked: blocked, before: before, after: before, movements: [] };
+    }
+
+    const movements = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const formData = createOperationalFormData_({
+        itemId: clean(item.stockItemId || item.itemId),
+        quantity: parseNumber_(item.releaseQuantity || item.quantity),
+        recipient: requestedBy,
+        sector: workId || projectId || "obra atual",
+        purpose: "Liberacao confirmada pelo ELO",
+        responsible: requestedBy,
+        notes: "Origem ELO. releaseId=" + releaseId + ". Material: " + clean(item.material || item.name) + ".",
+        projectId: projectId,
+        workId: workId,
+        source: source,
+        releaseId: releaseId,
+        origin: "elo_release"
+      });
+      const result = saveAlmoxExitFromFormData_(formData);
+      if (!result || result.ok !== true) {
+        return { ok: false, message: result && result.message || "Falha ao registrar saida.", movements: movements, before: before, after: getOperationalAlmoxBalanceSnapshot_() };
+      }
+      const stateAfterItem = loadAlmoxState_();
+      const movement = (stateAfterItem.movements || []).find(function (candidate) {
+        return candidate.type === "saida" && clean(candidate.releaseId) === releaseId && clean(candidate.itemId) === clean(item.stockItemId || item.itemId);
+      });
+      if (movement) {
+        const balanceAfterItem = findOperationalBalanceByItemId_(getOperationalAlmoxBalanceSnapshot_(), movement.itemId) || {};
+        movements.push(Object.assign({}, movement, {
+          material: clean(item.material || item.name),
+          unit: clean(item.unit || balanceAfterItem.unit || "un"),
+          balanceAfter: balanceAfterItem.balance
+        }));
+      }
+    }
+
+    const after = getOperationalAlmoxBalanceSnapshot_();
+    return { ok: true, releaseId: releaseId, source: source, projectId: projectId, workId: workId, environmentId: environmentId, movements: movements, before: before, after: after, history: movements };
+  }
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
-    getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_
+    getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
+    createConfirmedExit: createConfirmedOperationalExit_
   });
 })();

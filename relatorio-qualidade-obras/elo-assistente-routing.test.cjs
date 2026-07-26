@@ -2207,3 +2207,102 @@ test('ELO casa completa 100 m2 usa SINAPI local e calcula total parcial', () => 
   assert.ok(budget.realBudget.total > budget.realBudget.subtotal);
   assert.ok(budget.priceStatus.partialTotals.total > 0);
 });
+
+test('ELO cria sugestao de saida e confirma baixa no bridge do Almoxarifado', () => {
+  function buildStockEngine(requiredMultiplier = 1) {
+    return {
+      parseRequest() {
+        return { services: [{ service: 'Calcada', serviceType: 'calcada', quantity: 24, unit: 'm2' }] };
+      },
+      calculateMultipleServices(services) {
+        return {
+          predictedItems: [
+            { name: 'Cimento', unit: 'saco', quantity: 2 * requiredMultiplier },
+            { name: 'Areia', unit: 'm3', quantity: 1 * requiredMultiplier },
+            { name: 'Brita', unit: 'm3', quantity: 1 * requiredMultiplier },
+            { name: 'Piso ceramico', unit: 'm2', quantity: 24 * requiredMultiplier }
+          ],
+          predictions: [{ composition: { source: 'SINAPI', code: '94992', unit: 'm2', isRealComposition: true, inputs: [{ name: 'Cimento', coefficient: 1 }] } }]
+        };
+      }
+    };
+  }
+
+  const bridgeCalls = [];
+  const operationalStock = {
+    getAlmoxBalances() {
+      return [
+        { itemId: 'mat-cimento', name: 'Cimento', unit: 'saco', balance: 10, realBalance: 10, environmentId: 'env-a' },
+        { itemId: 'mat-areia', name: 'Areia', unit: 'm3', balance: 5, realBalance: 5, environmentId: 'env-a' },
+        { itemId: 'mat-brita', name: 'Brita', unit: 'm3', balance: 5, realBalance: 5, environmentId: 'env-a' },
+        { itemId: 'mat-piso', name: 'Piso ceramico', unit: 'm2', balance: 40, realBalance: 40, environmentId: 'env-a' }
+      ];
+    },
+    createConfirmedExit(payload) {
+      bridgeCalls.push(payload);
+      return {
+        ok: true,
+        movements: payload.items.map((item, index) => ({ id: 'mov-' + index, stockItemId: item.stockItemId, material: item.material, quantity: item.releaseQuantity, unit: item.unit })),
+        after: [
+          { itemId: 'mat-cimento', name: 'Cimento', unit: 'saco', balance: 8 },
+          { itemId: 'mat-areia', name: 'Areia', unit: 'm3', balance: 4 },
+          { itemId: 'mat-brita', name: 'Brita', unit: 'm3', balance: 4 },
+          { itemId: 'mat-piso', name: 'Piso ceramico', unit: 'm2', balance: 16 }
+        ]
+      };
+    }
+  };
+
+  const { elo, sessionStorage } = loadEloContext({
+    window: { ELO_PROJECT_ID: 'proj-a', ELO_WORK_ID: 'obra-a-work', StockAiCompositionEngine: buildStockEngine(), ObraReportOperationalStock: operationalStock }
+  });
+  const response = elo.buildResponseForTest('O pedreiro vai executar uma calcada de 8 x 3 m. Qual material completo preciso liberar?');
+  const text = [response.shortAnswer, response.fullAnswer].join('\n');
+  assert.equal(bridgeCalls.length, 0);
+  assert.match(text, /24\s*m2|24\s*m²|Quantidade considerada: 24/i);
+  assert.match(text, /Sugestao de saida/i);
+  assert.match(text, /pendente de confirmacao humana/i);
+  assert.ok(sessionStorage.getItem('obraReport.elo.pendingStockRelease'));
+
+  const confirmed = elo.buildResponseForTest('Confirme a saida.');
+  assert.equal(bridgeCalls.length, 1);
+  assert.equal(bridgeCalls[0].projectId, 'proj-a');
+  assert.equal(bridgeCalls[0].workId, 'obra-a-work');
+  assert.equal(bridgeCalls[0].items.length, 4);
+  assert.match(confirmed.fullAnswer, /Saida confirmada pelo ELO/i);
+  assert.match(confirmed.fullAnswer, /Saldo depois/i);
+
+  const repeated = elo.buildResponseForTest('Confirme a saida.');
+  assert.equal(bridgeCalls.length, 1);
+  assert.match(repeated.fullAnswer, /nao criou nova baixa/i);
+
+  const insufficientCalls = [];
+  const insufficient = loadEloContext({
+    window: {
+      ELO_PROJECT_ID: 'proj-a',
+      ELO_WORK_ID: 'obra-a-work',
+      StockAiCompositionEngine: buildStockEngine(),
+      ObraReportOperationalStock: {
+        getAlmoxBalances() { return [{ itemId: 'mat-cimento', name: 'Cimento', unit: 'saco', balance: 1, realBalance: 1, environmentId: 'env-a' }]; },
+        createConfirmedExit(payload) { insufficientCalls.push(payload); return { ok: true, movements: [] }; }
+      }
+    }
+  }).elo;
+  const blocked = insufficient.buildResponseForTest('O pedreiro vai executar uma calcada de 8 x 3 m. Qual material completo preciso liberar?');
+  assert.match(blocked.fullAnswer, /bloqueada|faltam|nao encontrado/i);
+  insufficient.buildResponseForTest('Confirme a saida.');
+  assert.equal(insufficientCalls.length, 0);
+
+  const otherCalls = [];
+  const other = loadEloContext({
+    window: {
+      ELO_PROJECT_ID: 'proj-b',
+      ELO_WORK_ID: 'obra-b-work',
+      StockAiCompositionEngine: buildStockEngine(),
+      ObraReportOperationalStock: Object.assign({}, operationalStock, { createConfirmedExit(payload) { otherCalls.push(payload); return { ok: true, movements: [], after: [] }; } })
+    }
+  }).elo;
+  other.buildResponseForTest('O pedreiro vai executar uma calcada de 8 x 3 m. Qual material completo preciso liberar?');
+  other.buildResponseForTest('Confirme a saida.');
+  assert.equal(otherCalls[0].workId, 'obra-b-work');
+});

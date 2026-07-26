@@ -54,6 +54,7 @@
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
   const ELO_STOCK_IA_PENDING_PLAN_KEY = "obraReport.stockIa.pendingLaunchPlan";
+  const ELO_PENDING_STOCK_RELEASE_KEY = "obraReport.elo.pendingStockRelease";
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
@@ -251,7 +252,8 @@
       const topicMatch = raw.match(/(Copa[^?.,;!]*)/i);
       add({ type: "research_or_opinion", topic: topicMatch ? sanitizeUserText(topicMatch[1]) : "previsão" });
     }
-    if (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text)) add({ type: "math" });
+    const operationalReleaseMath = /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text) && /material|materiais|liberar|saida|sa.da|almoxarifado/.test(text);
+    if (!operationalReleaseMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))) add({ type: "math" });
     if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
@@ -5557,6 +5559,7 @@
     lastRecommendation: "",
     lastOperationalWallEstimate: null,
     pendingQuantitativePremises: null,
+    pendingStockRelease: null,
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
     activeConversationTopic: "",
@@ -13822,13 +13825,13 @@
     }
     const serviceTerms = [
       "alvenaria", "parede", "piso", "reboco", "emboço", "emboco",
-      "concreto", "pilar", "viga", "laje"
+      "concreto", "pilar", "viga", "laje", "calcada", "calçada", "passeio"
     ];
     const intentTerms = [
       "posso executar", "da para executar", "dá para executar",
       "tenho material", "tem saldo", "consigo fazer", "posso fazer",
       "executar amanha", "executar amanhã", "fazer parede", "precisa comprar",
-      "material suficiente", "saldo suficiente"
+      "material suficiente", "saldo suficiente", "material completo", "preciso liberar", "liberar material"
     ];
     const hasService = hasAnyTerm(text, serviceTerms);
     const hasIntent = hasAnyTerm(text, intentTerms);
@@ -19980,12 +19983,163 @@ function isEloResidentialNewPipelineEnabled_() {
     }) || null;
   }
 
+  function isEloStockReleaseRequest_(message) {
+    const text = normalizeText(message || "");
+    return /liberar|saida|sa.da|retirada|baixar|dar baixa|separar material|material completo/.test(text) && /material|materiais|cimento|areia|brita|piso|bloco|concreto/.test(text);
+  }
+
+  function isEloStockReleaseConfirmation_(message) {
+    return /^(confirme|confirmar|confirmo|pode confirmar|pode baixar|baixe|dar baixa|registre)(\s+a)?\s*(saida|sa.da|retirada|baixa)?\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingStockRelease_() {
+    if (ELO_SESSION_MEMORY.pendingStockRelease) return ELO_SESSION_MEMORY.pendingStockRelease;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_STOCK_RELEASE_KEY) || "null");
+      if (saved && typeof saved === "object") {
+        ELO_SESSION_MEMORY.pendingStockRelease = saved;
+        return saved;
+      }
+    } catch (error) {}
+    return null;
+  }
+
+  function setEloPendingStockRelease_(release) {
+    ELO_SESSION_MEMORY.pendingStockRelease = release || null;
+    try {
+      if (release) window.sessionStorage.setItem(ELO_PENDING_STOCK_RELEASE_KEY, JSON.stringify(release));
+      else window.sessionStorage.removeItem(ELO_PENDING_STOCK_RELEASE_KEY);
+    } catch (error) {}
+    return release;
+  }
+
+  function isEloPendingStockReleaseExpired_(release) {
+    const createdAt = Number(release && release.createdAt || 0);
+    return !createdAt || Date.now() - createdAt > 30 * 60 * 1000;
+  }
+
+  function getEloStockReleaseScope_() {
+    const scope = getEloObraSnapshotScope_ ? getEloObraSnapshotScope_() : {};
+    return {
+      projectId: sanitizeUserText(scope.projectId || window.ELO_PROJECT_ID || "").slice(0, 140),
+      workId: sanitizeUserText(scope.workId || window.ELO_WORK_ID || "").slice(0, 140)
+    };
+  }
+
+  function createEloPendingStockRelease_(message, prediction, balances) {
+    const scope = getEloStockReleaseScope_();
+    const releaseId = "elo_release_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+    let blocked = false;
+    const items = (prediction.predictedItems || []).map(function (item) {
+      const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
+      const match = matchEloPredictedMaterialToBalance_(item, balances);
+      if (!match) {
+        blocked = true;
+        return { material: item.name || item.material || "Material", unit: item.unit || "un", required: required, availableBefore: 0, missing: required, status: "sem_item" };
+      }
+      const available = roundEloOperationalQuantity_(match.balance || match.realBalance || 0);
+      const missing = roundEloOperationalQuantity_(Math.max(required - available, 0));
+      if (missing > 0) blocked = true;
+      return {
+        stockItemId: match.itemId || match.id || "",
+        itemId: match.itemId || match.id || "",
+        material: item.name || item.material || match.name || "Material",
+        unit: item.unit || match.unit || "un",
+        required: required,
+        availableBefore: available,
+        releaseQuantity: missing > 0 ? 0 : required,
+        missing: missing,
+        environmentId: match.environmentId || "",
+        status: missing > 0 ? "saldo_insuficiente" : "liberavel"
+      };
+    });
+    const releasable = items.filter(function (item) { return item.status === "liberavel" && item.releaseQuantity > 0 && item.stockItemId; });
+    const release = {
+      id: releaseId,
+      status: blocked || !releasable.length ? "blocked" : "pending_confirmation",
+      createdAt: Date.now(),
+      source: "elo",
+      projectId: scope.projectId,
+      workId: scope.workId,
+      question: sanitizeUserText(message).slice(0, 500),
+      service: prediction.service || {},
+      items: items,
+      releaseItems: releasable
+    };
+    if (release.status === "pending_confirmation") setEloPendingStockRelease_(release);
+    return release;
+  }
+
+  function formatEloPendingStockReleaseLines_(release) {
+    if (!release || !Array.isArray(release.items)) return [];
+    return release.items.map(function (item) {
+      return "- " + (item.material || "Material") + ": necessidade " + formatEloOperationalQuantity_(item.required || 0) + " " + formatEloOperationalDisplayUnit_(item.unit || "un") + "; saldo antes " + formatEloOperationalQuantity_(item.availableBefore || 0) + "; " + (item.status === "liberavel" ? "pode liberar " + formatEloOperationalQuantity_(item.releaseQuantity || 0) : "faltam " + formatEloOperationalQuantity_(item.missing || 0)) + " " + formatEloOperationalDisplayUnit_(item.unit || "un") + ".";
+    });
+  }
+
+  function buildEloConfirmedStockReleaseAnswer_(release, result) {
+    const movements = Array.isArray(result && result.movements) ? result.movements : [];
+    const after = Array.isArray(result && result.after) ? result.after : [];
+    const lines = [
+      "Saida confirmada pelo ELO no Almoxarifado.",
+      "Escopo: projectId " + (release.projectId || "nao informado") + "; workId " + (release.workId || "nao informado") + ".",
+      "Movimentos criados: " + movements.length + "."
+    ];
+    movements.forEach(function (movement) {
+      lines.push("- " + (movement.material || movement.itemName || movement.stockItemId || "Material") + ": " + formatEloOperationalQuantity_(movement.quantity || 0) + " " + formatEloOperationalDisplayUnit_(movement.unit || "un") + "; movimento " + (movement.id || "registrado") + ".");
+    });
+    if (after.length) {
+      lines.push("Saldo depois:");
+      after.forEach(function (item) {
+        lines.push("- " + (item.name || item.material || "Material") + ": " + formatEloOperationalQuantity_(item.balance || item.realBalance || 0) + " " + formatEloOperationalDisplayUnit_(item.unit || "un") + ".");
+      });
+    }
+    lines.push("Historico: " + (movements.length ? "movimentacao registrada com origem ELO." : "nenhum movimento novo."));
+    return lines.join("\n");
+  }
+
+  function buildEloStockReleaseConfirmationAnswer_(message) {
+    if (!isEloStockReleaseConfirmation_(message)) return null;
+    const release = getEloPendingStockRelease_();
+    if (!release) return null;
+    if (isEloPendingStockReleaseExpired_(release)) {
+      setEloPendingStockRelease_(null);
+      return { shortAnswer: "A sugestao de saida expirou.", fullAnswer: "A sugestao de saida expirou por seguranca. Refaca o pedido de materiais antes de confirmar qualquer baixa.", nextAction: "Refaca o pedido de liberacao.", canSave: false, sessionTheme: "elo_almoxarifado", sessionIntent: "stock_release_expired" };
+    }
+    if (release.status === "confirmed" && release.confirmationText) {
+      return { shortAnswer: "Saida ja confirmada.", fullAnswer: release.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova baixa.", nextAction: "Consulte o saldo ou o historico no Almoxarifado.", canSave: false, sessionTheme: "elo_almoxarifado", sessionIntent: "stock_release_idempotent", stockRelease: release };
+    }
+    if (release.status !== "pending_confirmation") return null;
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedExit !== "function") {
+      return { shortAnswer: "Ponte do Almoxarifado indisponivel.", fullAnswer: "Nao consegui confirmar a saida porque a ponte oficial do Almoxarifado nao esta disponivel nesta tela. Nenhum estoque foi movimentado.", nextAction: "Abra o ObraReport com Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "elo_almoxarifado", sessionIntent: "stock_release_bridge_missing" };
+    }
+    const result = bridge.createConfirmedExit({
+      releaseId: release.id,
+      source: "elo",
+      projectId: release.projectId,
+      workId: release.workId,
+      items: release.releaseItems,
+      requestedBy: "ELO"
+    });
+    if (!result || result.ok !== true) {
+      const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a saida. Nenhum saldo foi movimentado.");
+      return { shortAnswer: "Saida bloqueada.", fullAnswer: messageText, nextAction: "Revise saldo, obra ativa e itens vinculados antes de confirmar.", canSave: false, sessionTheme: "elo_almoxarifado", sessionIntent: "stock_release_blocked", stockRelease: release };
+    }
+    release.status = "confirmed";
+    release.confirmedAt = Date.now();
+    release.result = result;
+    release.confirmationText = buildEloConfirmedStockReleaseAnswer_(release, result);
+    setEloPendingStockRelease_(release);
+    return { shortAnswer: "Saida confirmada no Almoxarifado.", fullAnswer: release.confirmationText, nextAction: "Consulte o saldo ou o historico da retirada.", canSave: false, sessionTheme: "elo_almoxarifado", sessionIntent: "stock_release_confirmed", stockRelease: release };
+  }
   function buildEloOperationalConstructionAnswer_(message) {
-    if (!isEloOperationalConstructionQuestion_(message)) {
+    const releaseRequest = isEloStockReleaseRequest_(message) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(message || ""));
+    if (!releaseRequest && !isEloOperationalConstructionQuestion_(message)) {
       return null;
     }
     updateEloWorkMemoryFromMessage_(message);
-    const premiseQuestion = buildEloPremiseQuestion_(message);
+    const premiseQuestion = releaseRequest ? null : buildEloPremiseQuestion_(message);
     if (premiseQuestion) {
       return premiseQuestion;
     }
@@ -20017,30 +20171,6 @@ function isEloResidentialNewPipelineEnabled_() {
     let hasMissing = false;
 
     const standaloneOperationalMode = isStandaloneMode();
-    if (!balances.length) {
-      almoxLines.push(standaloneOperationalMode
-        ? "- Sem estoque vinculado nesta pagina. Use esta resposta como previsao tecnica de materiais."
-        : "- Nao encontrei saldo do Almoxarifado disponivel nesta tela para comparar.");
-    } else {
-      prediction.predictedItems.forEach(function (item) {
-        const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
-        const match = matchEloPredictedMaterialToBalance_(item, balances);
-        if (!match) {
-          hasMissing = true;
-          almoxLines.push("- " + (item.name || item.material || "Material") + ": não encontrado no Almoxarifado.");
-          return;
-        }
-        const available = roundEloOperationalQuantity_(match.balance || match.realBalance || 0);
-        const missing = roundEloOperationalQuantity_(Math.max(required - available, 0));
-        if (missing > 0) {
-          hasInsufficient = true;
-        }
-        almoxLines.push("- " + (item.name || item.material || match.name || "Material") + ": disponível " +
-          formatEloOperationalQuantity_(available) + " " + formatEloOperationalDisplayUnit_(match.unit || item.unit || "un") +
-          (missing > 0 ? " | faltam " + formatEloOperationalQuantity_(missing) + " " + formatEloOperationalDisplayUnit_(item.unit || match.unit || "un") : " | OK"));
-      });
-    }
-
     let resultTitle = "✅ Saldo suficiente";
     let recommendation = "A obra pode executar esse serviço sem necessidade de compra.";
     if (!balances.length) {
@@ -20056,8 +20186,23 @@ function isEloResidentialNewPipelineEnabled_() {
       recommendation = "Comprar ou transferir o material faltante antes da execução.";
     }
 
-    return {
-      shortAnswer: resultTitle,
+    const releaseIntent = releaseRequest;
+    const pendingRelease = releaseIntent && balances.length ? createEloPendingStockRelease_(message, prediction, balances) : null;
+    const releaseLines = [];
+    if (pendingRelease) {
+      releaseLines.push("Sugestao de saida:");
+      releaseLines.push.apply(releaseLines, formatEloPendingStockReleaseLines_(pendingRelease));
+      if (pendingRelease.status === "pending_confirmation") {
+        resultTitle = "Sugestao de saida pendente";
+        recommendation = "Responda exatamente: Confirme a saida.";
+        releaseLines.push("Status: pendente de confirmacao humana. Nenhuma baixa foi criada ainda.");
+      } else {
+        setEloPendingStockRelease_(null);
+        releaseLines.push("Status: bloqueada. Nenhuma baixa foi criada porque ha item sem saldo suficiente ou sem cadastro vinculado.");
+      }
+    }
+
+    return {      shortAnswer: resultTitle,
       fullAnswer: [
         "📐 Previsão Stock AI",
         "Fonte: " + sourceLabel,
@@ -20074,6 +20219,8 @@ function isEloResidentialNewPipelineEnabled_() {
         "",
         resultTitle,
         recommendation,
+        releaseLines.length ? "" : "",
+        releaseLines.length ? releaseLines.join("\n") : "",
         "",
         standaloneOperationalMode ? "Observacao: esta conversa e uma previsao tecnica. Confira medidas, perdas e precos locais antes da compra." : "Observacao: esta conversa apenas consulta e recomenda. A baixa oficial continua no fluxo do RDO/Almoxarifado."
       ].join("\n"),
@@ -23635,6 +23782,10 @@ function isEloResidentialNewPipelineEnabled_() {
     try {
     const pendingBudgetRouteResponse = buildEloBudgetRoutePendingAnswer_(question);
     if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
+    const operationalReleasePriorityResponse = (isEloStockReleaseRequest_(question) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(question || ""))) ? buildEloOperationalConstructionAnswer_(question) : null;
+    if (operationalReleasePriorityResponse) {
+      return applyEloBrainMarker_(question, operationalReleasePriorityResponse);
+    }
     const pendingTechnicalEarlyResponse = buildEloResidentialPendingTechnicalChoicesAnswer_(question);
     if (pendingTechnicalEarlyResponse) return pendingTechnicalEarlyResponse;
     const residentialMaterialListEarlyResponse = buildEloResidentialActiveMaterialListAnswer_(question);
@@ -23673,6 +23824,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const liveSearchResponse = buildEloWebSearchRouteResponse_(question);
     if (liveSearchResponse) {
       return applyEloBrainMarker_(question, liveSearchResponse);
+    }
+    const stockReleaseConfirmationResponse = buildEloStockReleaseConfirmationAnswer_(question);
+    if (stockReleaseConfirmationResponse) {
+      return applyEloBrainMarker_(question, stockReleaseConfirmationResponse);
     }
     const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
     if (stockBalanceResponse) {
@@ -24168,6 +24323,15 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
 
+    const stockReleaseConfirmationResponse = buildEloStockReleaseConfirmationAnswer_(cleanQuestion);
+    if (stockReleaseConfirmationResponse) {
+      const releaseAnswer = formatResponse(stockReleaseConfirmationResponse);
+      appendAssistantMessage(cleanQuestion, releaseAnswer, false, stockReleaseConfirmationResponse);
+      saveConversation(cleanQuestion, releaseAnswer);
+      rememberSessionTurn(cleanQuestion, stockReleaseConfirmationResponse, releaseAnswer);
+      clearProductAttachmentPreview();
+      return;
+    }
     const stockIaPlanConfirmationAnswer = tryConfirmPendingStockIaPlan(cleanQuestion);
     if (stockIaPlanConfirmationAnswer) {
       const confirmationResponse = {
@@ -24466,6 +24630,10 @@ function isEloResidentialNewPipelineEnabled_() {
       return wallServiceResponse;
     }
 
+    const stockReleaseConfirmationResponse = buildEloStockReleaseConfirmationAnswer_(question);
+    if (stockReleaseConfirmationResponse) {
+      return applyEloBrainMarker_(question, stockReleaseConfirmationResponse);
+    }
     const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
     if (stockBalanceResponse) {
       return stockBalanceResponse;
