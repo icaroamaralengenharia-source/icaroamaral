@@ -6351,6 +6351,54 @@ test("frontend Elo nao usa hoje isolado como rota de data/hora", async () => {
   assert.ok(data.some((intent) => intent.type === "date_time"));
 });
 
+
+test("frontend Elo classifica semanticamente os 200 casos massivos", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.location.pathname = "/elo.html";
+  const corpus = JSON.parse(readFileSync(new URL("./fixtures/elo-massive-26523cf-corpus.json", import.meta.url), "utf8"));
+  assert.equal(corpus.cases.length, 200);
+
+  const failures = [];
+  corpus.cases.forEach((item) => {
+    const context = item.requiresActiveTechnicalContext
+      ? { active: true, topic: "parede", wall: true, budget: true }
+      : { active: false, topic: "" };
+    const route = sandbox.window.EloAssistente.classifySemanticRouteForTest(item.frase, context);
+    if (!route || route.intent !== item.expectedIntent) {
+      failures.push({ id: item.id, frase: item.frase, expected: item.expectedIntent, actual: route && route.intent, reason: route && route.reason });
+    }
+  });
+
+  assert.deepEqual(failures, []);
+});
+
+test("frontend Elo separa conversa, busca atual e continuacao tecnica por intencao", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const classify = (message, context) => sandbox.window.EloAssistente.classifySemanticRouteForTest(message, context || { active: false });
+
+  assert.equal(classify("estou aqui agora s? pra conversar").intent, "conversa_geral");
+  assert.equal(classify("atual n?o, s? quero bater papo").intent, "conversa_geral");
+  assert.equal(classify("qual a diferen?a entre clima e tempo?").intent, "conversa_geral");
+  assert.equal(classify("qual o clima hoje em Salvador?").intent, "busca_atual");
+  assert.equal(classify("como registrar patologia em relat?rio?").intent, "tecnico_obra");
+  assert.equal(classify("o que ? junta de dilata??o?").intent, "tecnico_obra");
+  assert.equal(classify("sem portas e sem janelas", { active: true, topic: "parede", wall: true }).intent, "continuacao_contexto_tecnico");
+  assert.equal(classify("e com 10%?", { active: false, topic: "" }).intent, "conversa_geral");
+});
+
+test("frontend Elo higieniza nomes e flags internos antes de renderizar", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  const answer = sandbox.window.EloAssistente.sanitizeHumanFacingAnswerForTest([
+    "Auditoria t?cnica V3",
+    "Ready for cost: false",
+    "meta_web_search sessionIntent sessionTheme budgetOrchestratorV2",
+    "Resposta humana preservada."
+  ].join("\n"));
+
+  assert.match(answer, /Resposta humana preservada/);
+  assert.doesNotMatch(answer, /Auditoria t?cnica V3|Ready for cost|meta_web_search|sessionIntent|sessionTheme|budgetOrchestratorV2/i);
+});
+
 test("frontend Elo preserva fallback online universal sem regex tecnica ampla", () => {
   const source = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
 
@@ -6358,6 +6406,11 @@ test("frontend Elo preserva fallback online universal sem regex tecnica ampla", 
   assert.match(source, /if \(isStandaloneMode\(\) && intent === "apoio_pratico"\)/);
   assert.match(source, /function shouldUseCleanEloOnlineHistory_/);
   assert.match(source, /requestEloWebSearchAnswer_/);
+  assert.match(source, /classifyEloSemanticRoute_/);
+  assert.match(source, /effectiveSemanticRoute.intent === "conversa_geral"[\s\S]{0,180}handleEloUniversalOnlineFallback_/);
+  assert.match(source, /effectiveSemanticRoute.intent === "busca_atual"[\s\S]{0,140}buildEloWebSearchRouteResponse_/);
+  assert.match(source, /isEloSemanticTechnicalDispatchIntent_\(effectiveSemanticRoute.intent\)/);
+  assert.match(source, /buildEloSemanticTechnicalDispatchResponse_\(cleanQuestion,\s*effectiveSemanticRoute\)/);
   assert.equal(source.includes("aco|a.o"), false);
   assert.equal(source.includes("a.o|aco"), false);
   assert.equal(source.includes("kg\\s+de\\s+a.o"), false);
