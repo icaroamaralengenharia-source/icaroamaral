@@ -1321,9 +1321,10 @@ test("Orcamentista V2 conecta auditor V3 no or�amento residencial", () => {
   const response = assistant.buildResponseForTest("Quero orcamento residencial preliminar");
 
   assert.equal(calls.executiveBudgetEngine, 1);
-  assert.match(response.fullAnswer, /Auditoria tecnica V3/i);
-  assert.match(response.fullAnswer, /Tipologia identificada: residencia_nova/i);
-  assert.match(response.fullAnswer, /Ready for cost: false/i);
+  assert.doesNotMatch(response.fullAnswer, /Auditoria tecnica V3/i);
+  assert.doesNotMatch(response.fullAnswer, /Ready for cost/i);
+  assert.equal(response.technicalAudit.typology, "residencia_nova");
+  assert.equal(response.technicalAudit.readyForCost, false);
   assert.doesNotMatch(response.fullAnswer, /R\$\s*\d/i);
 });
 
@@ -1331,27 +1332,31 @@ test("Orcamentista V2 casa terrea 70m2 retorna estrutura tecnica V3", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
   const response = assistant.buildResponseForTest("casa terrea 70m�");
 
-  assert.match(response.fullAnswer, /Auditoria tecnica V3/i);
-  assert.match(response.fullAnswer, /fundacao/i);
-  assert.match(response.fullAnswer, /alvenaria/i);
-  assert.match(response.fullAnswer, /Premissas faltantes/i);
+  assert.doesNotMatch(response.fullAnswer, /Auditoria tecnica V3/i);
+  assert.doesNotMatch(response.fullAnswer, /Ready for cost/i);
+  assert.equal(response.technicalAudit.typology, "residencia_nova");
+  assert.ok(response.technicalAudit.checklist.some((item) => item.id === "fundacao"));
+  assert.ok(response.technicalAudit.checklist.some((item) => item.id === "alvenaria"));
+  assert.match(response.fullAnswer, /Dados que faltam|Premissas faltantes/i);
 });
 
 test("Orcamentista V2 sobrado 140m2 exige escada laje e estrutura no auditor V3", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
   const response = assistant.buildResponseForTest("sobrado 140m�");
 
-  assert.match(response.fullAnswer, /Tipologia identificada: sobrado/i);
-  assert.match(response.fullAnswer, /escada, laje e compatibilidade estrutural/i);
-  assert.match(response.fullAnswer, /Ready for cost: false/i);
+  assert.doesNotMatch(response.fullAnswer, /Tipologia identificada:/i);
+  assert.doesNotMatch(response.fullAnswer, /Ready for cost/i);
+  assert.equal(response.technicalAudit.typology, "sobrado");
+  assert.ok(response.technicalAudit.pendencias.some((item) => /escada, laje e compatibilidade estrutural/i.test(item.message || "")));
 });
 
 test("Orcamentista V2 galpao metalico nao vira residencia", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
   const response = assistant.buildResponseForTest("orcamento completo de galpao metalico 300 m2");
 
-  assert.match(response.fullAnswer, /Tipologia identificada: galpao_metalico/i);
-  assert.match(response.fullAnswer, /estrutura_metalica/i);
+  assert.doesNotMatch(response.fullAnswer, /Tipologia identificada:/i);
+  assert.equal(response.technicalAudit.typology, "galpao_metalico");
+  assert.ok(response.technicalAudit.typologyRouting.applicableDisciplines.includes("estrutura_metalica"));
   assert.doesNotMatch(response.fullAnswer, /loucas|metais/i);
 });
 
@@ -1359,9 +1364,11 @@ test("Orcamentista V2 reforma de banheiro nao vira obra nova", () => {
   const { assistant } = loadAssistant("/elo.html", { executiveBudgetEngine: mockExecutiveBudgetV3 });
   const response = assistant.buildResponseForTest("orcamento completo para reforma de banheiro");
 
-  assert.match(response.fullAnswer, /Tipologia identificada: reforma_banheiro/i);
-  assert.match(response.fullAnswer, /demolicao/i);
-  assert.match(response.fullAnswer, /impermeabilizacao/i);
+  assert.doesNotMatch(response.fullAnswer, /Tipologia identificada:/i);
+  assert.doesNotMatch(response.fullAnswer, /Auditoria tecnica V3|Ready for cost/i);
+  assert.equal(response.technicalAudit.typology, "reforma_banheiro");
+  assert.ok(response.technicalAudit.typologyRouting.applicableDisciplines.includes("demolicao"));
+  assert.ok(response.technicalAudit.typologyRouting.applicableDisciplines.includes("impermeabilizacao"));
   assert.doesNotMatch(response.fullAnswer, /fundacao complementar|estrutura_metalica/i);
 });
 

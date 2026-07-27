@@ -243,7 +243,7 @@
     if (tool && isEloCoreOpenRequest_(raw)) add({ type: "open_tool", toolId: tool.id, toolName: tool.publicName });
     const hasRdoRequest = /\b(rdo|diario de obra|diário de obra)\b/.test(text);
     if (hasRdoRequest) add({ type: "rdo" });
-    if (!hasRdoRequest && !isEloObraAttentionRequest_(raw) && /\b(qual dia|que dia|data de hoje|data atual|hoje|hora atual|que horas|horas sao|horas são)\b/.test(text)) add({ type: "date_time" });
+    if (!hasRdoRequest && !isEloObraAttentionRequest_(raw) && isEloCoreExplicitDateTimeRequest_(raw)) add({ type: "date_time" });
     if (/\b(quantos graus|temperatura|clima|previsao do tempo|previsão do tempo|tempo em)\b/.test(text)) {
       const locationMatch = raw.match(/(?:em|para)\s+([^?.,;!]+)(?:[?.,;!]|$)/i);
       add({ type: "weather", location: locationMatch ? sanitizeUserText(locationMatch[1]).replace(/\s+e\s+quem\s+vai\s+ganhar[\s\S]*$/i, "") : "" });
@@ -274,6 +274,12 @@
     } catch (error) {
       return "Hoje é " + current.toISOString().slice(0, 10) + ".";
     }
+  }
+
+  function isEloCoreExplicitDateTimeRequest_(message) {
+    const text = normalizeText(message || "").replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!text) return false;
+    return /\b(?:que\s+dia\s+e\s+hoje|qual\s+(?:e\s+)?a\s+data(?:\s+de\s+hoje)?|data\s+(?:de\s+hoje|atual)|que\s+horas\s+sao|hora\s+atual)\b/.test(text);
   }
 
   function calculateSimpleEloCoreMath_(message) {
@@ -515,6 +521,7 @@
     if (/\b(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)\b/.test(text)) return false;
     if (/\b(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)\b/.test(text)) return true;
     if (/\b(que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao|horas s.o)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|quem ganhou|quem vai ganhar|copa do mundo|cotacao|cota..o|preco atual|pre.o atual|valor atual)\b/.test(text)) return false;
+    if (/\b(preco|pre.o|valor|cotacao|cota..o|noticias|not.cias|resultado|placar|temperatura|clima)\b[\s\S]{0,50}\b(hoje|agora|atual|atuais|atualmente)\b|\b(hoje|agora|atual|atuais|atualmente)\b[\s\S]{0,50}\b(preco|pre.o|valor|cotacao|cota..o|noticias|not.cias|resultado|placar|temperatura|clima)\b/.test(text)) return true;
     if (/\b(agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)\b/.test(text)) return true;
     if (/\b(quem\s+e\s+(?:atualmente\s+)?[oa]\s+presidente|presidente\s+do\s+brasil|ministro\s+atual|governador\s+atual|prefeito\s+atual)\b/.test(text)) return true;
     return false;
@@ -6033,10 +6040,50 @@
     return /\bagora\b|vamos\s+para|mudar\s+para|trocar\s+para|calcule\s+fundacao|calcule\s+fundação|fundacao\s+completa|fundação\s+completa|estrutura|proposta|orcamento\s+residencial|orçamento\s+residencial|\bcadista\b|\bstock\b|relatorio|relatório/.test(text);
   }
 
+  function hasEloActiveTechnicalConversationState_() {
+    return !!(ELO_SESSION_MEMORY.budgetOrchestratorV2 && ELO_SESSION_MEMORY.budgetOrchestratorV2.type) ||
+      !!ELO_SESSION_MEMORY.lastOperationalWallEstimate ||
+      !!(ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active);
+  }
+
+  function isEloTechnicalTopic_(topic) {
+    return ["cadista", "stock", "proposta_tecnica", "orcamento_residencial", "fundacao", "estrutura", "parede_completa", "parede", "relatorio"].indexOf(topic) >= 0;
+  }
+
+  function isEloGeneralSubjectAfterTechnical_(message) {
+    const nextTopic = detectEloConversationTopic_(message);
+    if (nextTopic !== "conversa_geral") return false;
+    if (isEloPendingContextContinuation_(message) && !hasEloExplicitTopicSwitchMarker_(message)) return false;
+    return true;
+  }
+
+  function clearEloActiveTechnicalConversationState_() {
+    ELO_SESSION_MEMORY.budgetOrchestratorV2 = null;
+    ELO_SESSION_MEMORY.lastBudgetV2DocumentData = null;
+    ELO_SESSION_MEMORY.activeResidentialBudgetState = null;
+    ELO_SESSION_MEMORY.lastOperationalWallEstimate = null;
+    if (ELO_SESSION_MEMORY.stockObrasCompositionBriefing) {
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active = false;
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing.pending_question = "";
+    }
+  }
+
   function detectEloTopicSwitch_(previousTopic, newMessage) {
     const nextTopic = detectEloConversationTopic_(newMessage);
-    if (!previousTopic || previousTopic === "conversa_geral" || nextTopic === "conversa_geral") {
+    if (!previousTopic || previousTopic === "conversa_geral") {
+      if (hasEloActiveTechnicalConversationState_() && isEloGeneralSubjectAfterTechnical_(newMessage)) {
+        return { switched: true, previousTopic: previousTopic || "", nextTopic: nextTopic, reason: "technical_to_general" };
+      }
       return { switched: false, previousTopic: previousTopic || "", nextTopic: nextTopic };
+    }
+    if (nextTopic === "conversa_geral") {
+      if (isEloPendingContextContinuation_(newMessage) && !hasEloExplicitTopicSwitchMarker_(newMessage)) {
+        return { switched: false, previousTopic: previousTopic, nextTopic: previousTopic };
+      }
+      if (isEloTechnicalTopic_(previousTopic) || hasEloActiveTechnicalConversationState_()) {
+        return { switched: true, previousTopic: previousTopic, nextTopic: nextTopic, reason: "technical_to_general" };
+      }
+      return { switched: false, previousTopic: previousTopic, nextTopic: nextTopic };
     }
     if (previousTopic === nextTopic) {
       return { switched: false, previousTopic: previousTopic, nextTopic: nextTopic };
@@ -6053,9 +6100,9 @@
     const nextTopic = switchState.nextTopic || detectEloConversationTopic_(message);
     if (switchState.switched) {
       clearEloPendingPremises_();
-      if (ELO_SESSION_MEMORY.stockObrasCompositionBriefing) {
-        ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active = false;
-        ELO_SESSION_MEMORY.stockObrasCompositionBriefing.pending_question = "";
+      clearEloActiveTechnicalConversationState_();
+      if (nextTopic === "conversa_geral") {
+        ELO_SESSION_MEMORY.activeConversationTopic = "";
       }
     }
     if (nextTopic && nextTopic !== "conversa_geral") {
@@ -6280,19 +6327,36 @@
     return getMemory().conversations.slice(0, ELO_CONFIG.maxHistory);
   }
 
-  function getEloOnlineHistory() {
+  function isEloTechnicalHistoryContent_(content) {
+    const text = normalizeText(content || "");
+    if (!text) return false;
+    if (detectEloConversationTopic_(content) !== "conversa_geral") return true;
+    return /orcamento|or.amento|parede|alvenaria|sinapi|orse|composi..o|bdi|quantitativo|servico\s+isolado|isolated_service_budget|fundacao|sapata|baldrame|auditoria\s+tecnica|ready\s+for\s+cost|mvp\s+elo\s+orcamentista|memoria\s+de\s+calculo/.test(text);
+  }
+
+  function shouldUseCleanEloOnlineHistory_(question) {
+    return isEloGeneralSubjectAfterTechnical_(question) || (detectEloConversationTopic_(question) === "conversa_geral" && !isEloConstructionTechnicalQuestion_(question));
+  }
+
+  function getEloOnlineHistory(question) {
     const history = [];
+    const cleanGeneralHistory = shouldUseCleanEloOnlineHistory_(question);
     getRecentQuestions().slice().reverse().forEach(function (item) {
-      if (item.question) {
+      const questionText = sanitizeUserText(item.question);
+      const answerText = sanitizeUserText(item.answer);
+      if (cleanGeneralHistory && (isEloTechnicalHistoryContent_(questionText) || isEloTechnicalHistoryContent_(answerText))) {
+        return;
+      }
+      if (questionText) {
         history.push({
           role: "user",
-          content: sanitizeUserText(item.question)
+          content: questionText
         });
       }
-      if (item.answer) {
+      if (answerText) {
         history.push({
           role: "assistant",
-          content: sanitizeUserText(item.answer)
+          content: answerText
         });
       }
     });
@@ -6459,7 +6523,7 @@
     const payload = {
       message: sanitizeUserText(question),
       eloContext: eloContext,
-      history: getEloOnlineHistory(),
+      history: getEloOnlineHistory(question),
       context: {
         memoriesSummary: buildEloMemorySummary(),
         deviceId: getEloDeviceId(),
@@ -18640,7 +18704,7 @@
       }
       this.appendResidentialPremisesLines_(lines, residentialPremises, advancedMode);
       appendEloResidentialQuantitativeLines_(lines, state, residentialPremises);
-      if (!isGenericPreliminary && (showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
+      if (false && !isGenericPreliminary && (showTechnicalDetails || advancedMode) && (audit || advancedMode)) {
         lines.push("", "Auditoria tecnica V3:");
         if (audit && !audit.error) {
           lines.push("- Tipologia identificada: " + (audit.typology || "a confirmar"));
@@ -18677,6 +18741,7 @@
         sessionIntent: pending.length ? "budget_v2_briefing" : (state.type === "residential" ? "budget_v2_residential_created" : "budget_v2_scope"),
         pdfAction: pdfAction,
         budgetActions: budgetActions,
+        technicalAudit: audit && !audit.error ? audit : null,
         budgetOrchestratorV2: { state: state, budgetPackage: budgetPackage || null, scopeItems: scopeItems, budgetDocumentData: budgetDocumentData }
       };
     }
@@ -18715,7 +18780,7 @@
         lines.push("", "Observacao:", "- Nao herdei dados de casa nem de parede; este escopo e somente da reforma parcial do banheiro.");
       }
       const bathroomAudit = this.budgetEngineAdapter.buildExecutiveAudit_(state, options) || this.budgetEngineAdapter.buildExecutiveAuditClassifierFallback_(state);
-      if (bathroomAudit && !bathroomAudit.error) {
+      if (false && bathroomAudit && !bathroomAudit.error) {
         lines.push("", "Auditoria tecnica V3:");
         lines.push("- Tipologia identificada: " + (bathroomAudit.typology || "reforma_banheiro"));
         lines.push("- Ready for cost: " + (bathroomAudit.readyForCost ? "true" : "false"));
@@ -18730,7 +18795,7 @@
       const budgetDocumentData = buildBudgetV2DocumentDataFromState_(state, null);
       const pdfAction = buildBudgetV2ProfessionalPdfAction_(budgetDocumentData);
       if (pdfAction) { pdfAction.budgetDocumentData = budgetDocumentData; ELO_SESSION_MEMORY.lastBudgetV2DocumentData = budgetDocumentData; }
-      return { shortAnswer: "Vamos tratar como reforma parcial de banheiro.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Informe " + missing.join(", ") + "." : "Confirmar base oficial, BDI e perdas.", canSave: missing.length === 0, sessionTheme: "partial_renovation_budget", sessionIntent: "budget_v2_bathroom_renovation", pdfAction: pdfAction, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
+      return { shortAnswer: "Vamos tratar como reforma parcial de banheiro.", fullAnswer: lines.join("\n"), nextAction: missing.length ? "Informe " + missing.join(", ") + "." : "Confirmar base oficial, BDI e perdas.", canSave: missing.length === 0, sessionTheme: "partial_renovation_budget", sessionIntent: "budget_v2_bathroom_renovation", pdfAction: pdfAction, technicalAudit: bathroomAudit && !bathroomAudit.error ? bathroomAudit : null, budgetOrchestratorV2: { state: state, budgetDocumentData: budgetDocumentData } };
     }
     buildMaterialListResponse_(state) {
       const groups = [
@@ -20720,7 +20785,7 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildEloStockPurchaseAnswer_(message) {
     const text = normalizeText(message);
     const stockIntent = /estoque|almoxarifado|comprar|compra|pedido|reposicao|reposi.ao|acabando|acabou|saldo|saida|sa.da|baixar|retirada/.test(text);
-    const materialIntent = /cimento|areia|bloco|tijolo|argamassa|piso|concreto|aco|a.o|brita|material|materiais/.test(text);
+    const materialIntent = /cimento|areia|bloco|tijolo|argamassa|piso|concreto|\baco\b|brita|material|materiais/.test(text);
     if (!stockIntent || !materialIntent) {
       return null;
     }
@@ -21016,7 +21081,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function isEloConstructionTechnicalQuestion_(message) {
     const text = normalizeText(message || "");
-    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|a.o|aco|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
+    return /sinapi|orse|composi..o|composicao|alvenaria|parede|bloco|tijolo|chapisco|reboco|embo.o|emboco|concreto|\bfck\b|laje|contrapiso|\bpiso\b|rodape|rodap.|telha|telhado|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|horas?|homens?-hora|\bbdi\b|custo|or.amento|orcamento|quantitativo|insumos?|\baco\b|ca-50|funda..o|fundacao|viga|pilar|sapata|\bcasa\b|resid.ncia|residencia|m²|m2|m3|m³/.test(text);
   }
 
   function extractEloGeometryPair_(message) {
@@ -21179,7 +21244,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   function isEloHighLevelConstructionBudgetQuestion_(message) {
     const text = normalizeText(message || "");
-    return isEloConstructionTechnicalQuestion_(message) && /composi..o|composicao|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|horas?\s+necessarias|\bbdi\b|quanto\s+custa|custo|or.amento|orcamento|valor|cronograma|curva\s+abc|insumos?.*80|participa..o\s+percentual|participacao\s+percentual|reduzir\s+o\s+custo|otimiza..o|otimizacao|sacos?\s+de\s+cimento|kg\s+de\s+a.o|kg\s+de\s+aco|estimativa\s+de\s+blocos|quantitativos\s+principais/.test(text);
+    return isEloConstructionTechnicalQuestion_(message) && /composi..o|composicao|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|homens?-hora|horas?\s+necessarias|\bbdi\b|quanto\s+custa|custo|or.amento|orcamento|valor|cronograma|curva\s+abc|insumos?.*80|participa..o\s+percentual|participacao\s+percentual|reduzir\s+o\s+custo|otimiza..o|otimizacao|sacos?\s+de\s+cimento|kg\s+de\s+aco|estimativa\s+de\s+blocos|quantitativos\s+principais/.test(text);
   }
   function buildEloConciseMissingServicePremisesAnswer_(message, project) {
     const text = normalizeText(message || "");
@@ -21306,6 +21371,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return social;
     }
     if (/que\s+saco|cansad[oa]|nao\s+funciona|n.o\s+funciona|frustrad[oa]|ta\s+dificil|t.\s+dif.cil/.test(text)) {
+      if (isStandaloneMode()) return null;
       return {
         shortAnswer: "Entendi. Vamos simplificar.",
         fullAnswer: "Entendi a frustracao. Vou reduzir isso para o proximo passo pratico, sem aprofundar tecnicamente automaticamente.",
@@ -22969,6 +23035,9 @@ function isEloResidentialNewPipelineEnabled_() {
   function getConversationalResponse(normalizedQuestion) {
     const intent = detectConversationalIntent(normalizedQuestion);
     if (!intent) {
+      return null;
+    }
+    if (isStandaloneMode() && intent === "apoio_pratico") {
       return null;
     }
 

@@ -6340,6 +6340,29 @@ test("Elo PDF profissional usa o mesmo template nos tres pontos de entrada", asy
   }
 });
 
+test("frontend Elo nao usa hoje isolado como rota de data/hora", async () => {
+  const sandbox = await loadEloOperationalSandbox_([]);
+  sandbox.location.pathname = "/elo.html";
+
+  const conversa = sandbox.window.EloAssistente.classifyIntentForTest("estou cansado hoje");
+  const data = sandbox.window.EloAssistente.classifyIntentForTest("que dia e hoje?");
+
+  assert.ok(!conversa.some((intent) => intent.type === "date_time"));
+  assert.ok(data.some((intent) => intent.type === "date_time"));
+});
+
+test("frontend Elo preserva fallback online universal sem regex tecnica ampla", () => {
+  const source = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+
+  assert.match(source, /history:\s*getEloOnlineHistory\(question\)/);
+  assert.match(source, /if \(isStandaloneMode\(\) && intent === "apoio_pratico"\)/);
+  assert.match(source, /function shouldUseCleanEloOnlineHistory_/);
+  assert.match(source, /requestEloWebSearchAnswer_/);
+  assert.equal(source.includes("aco|a.o"), false);
+  assert.equal(source.includes("a.o|aco"), false);
+  assert.equal(source.includes("kg\\s+de\\s+a.o"), false);
+});
+
 function writeEloVectorTestFile_(path, items) {
   writeFileSync(path, JSON.stringify({
     items,
