@@ -750,6 +750,73 @@
     };
   }
 
+  function detectEloCommandBridgeRequest_(message) {
+    const raw = sanitizeUserText(message || "");
+    const text = canonicalizeEloSemanticText_(raw);
+    if (!text) return null;
+    if (/\b(?:cadista|dxf|dwg|planta\s+baixa|fachada|corte\s+a\s*a|prancha\s+tecnica|offset|espelhe|escada)\b/.test(text)) return null;
+    const payload = { message: raw };
+    if (/\b(?:sinapi|orse|composicao|composicoes|insumos|analitico|base\s+oficial|codigo\s+sinapi|stock\s+obras)\b/.test(text)) {
+      return { module: "stock_obras", action: /exporte|csv|xlsx/.test(text) ? "preview_export" : "search_composition", payload: payload };
+    }
+    if (/\b(?:rdo|diario\s+de\s+obra|equipe|trabalhadores|pedreiros|serventes|ocorrencia|producao\s+de|chuva\s+forte|obra\s+ficou\s+parada|feche\s+o\s+rdo|rdos)\b/.test(text)) {
+      return { module: "obrareport_rdo", action: /crie|novo/.test(text) ? "preview_new_rdo" : /feche|gere\s+o\s+pdf/.test(text) ? "close_rdo" : "list_rdos", payload: payload };
+    }
+    if (/\b(?:relatorio|relatorios|laudo|inspecao|vistoria|fissura|trinca|infiltracao|manifestacao\s+patologica|conclusao\s+tecnica|sumario|assinatura|foto\s+dessa|constatacao|causa\s+provavel|recomendacao)\b/.test(text)) {
+      return { module: "obrareport_report", action: /atualize|adicione|inclua|registre|crie/.test(text) ? "preview_update_report" : /gere|exporte/.test(text) ? "generate_final_document" : "list_reports", payload: payload };
+    }
+    if (/\b(?:stock\s+full|estoque|produto|produtos|saldo|entrada|saida|saidas|movimentacao|movimentacoes|offline|sincronize|empresa|usuario|funcionario|estoque\s+baixo)\b/.test(text)) {
+      return { module: "stock_full", action: /entrada/.test(text) ? "stock_entry" : /saida|retirar|retire/.test(text) ? "stock_exit" : /cadastre|crie/.test(text) ? "create_product" : "list_products", payload: payload };
+    }
+    if (/\b(?:orcamento|orcamentos|bdi|padrao|escopo|eap|estimativa|custo|pdf\s+profissional\s+desse\s+orcamento|pendencias\s+do\s+orcamento|dados\s+ainda\s+estao\s+faltando)\b/.test(text)) {
+      return { module: "budget", action: /bdi|padrao|escopo|retire|inclua|acrescente|atualize/.test(text) ? "preview_change" : /pdf/.test(text) ? "generate_pdf" : /listar|ultimos/.test(text) ? "list" : /pendencia|faltando/.test(text) ? "pending" : "current_budget", payload: payload };
+    }
+    if (/\b(?:memoria|memorias|lembre|lembrar|contexto\s+tecnico|contexto\s+temporario|recomendacao\s+tecnica|continue\s+de\s+onde|obra\s+ativa)\b/.test(text)) {
+      return { module: "memory", action: /limpe|apague|remova/.test(text) ? "clear_memory" : "list_memories", payload: payload };
+    }
+    if (/\b(?:alertas?|pendencias?|pendencia\s+de|avise\s+se|atencao\s+da\s+obra)\b/.test(text)) {
+      return { module: "alerts", action: "list_alerts", payload: payload };
+    }
+    return null;
+  }
+
+  function isEloCommandBridgePriorityRequest_(request) {
+    if (!request || !request.module || !request.action) return false;
+    if (["obrareport_rdo", "obrareport_report", "stock_full", "memory"].indexOf(request.module) < 0) return false;
+    return /^(?:preview_|close_|create_|stock_|clear_|generate_final_document|update_)/.test(request.action);
+  }
+  function buildEloCommandBridgeAnswer_(bridgeResult) {
+    if (!bridgeResult || bridgeResult.handled === false) return null;
+    const answer = sanitizeEloHumanFacingAnswer_(bridgeResult.humanAnswer || bridgeResult.preview || bridgeResult.error || "");
+    if (!answer) return null;
+    const modeLabel = bridgeResult.requiresConfirmation ? "Preparei uma previa e preciso da sua confirmacao antes de executar." : "";
+    const fullAnswer = [answer, modeLabel].filter(Boolean).join("\n\n");
+    return {
+      shortAnswer: answer,
+      fullAnswer: fullAnswer,
+      nextAction: bridgeResult.requiresConfirmation ? "Revise a previa e confirme se deseja prosseguir." : "",
+      canSave: false,
+      sessionTheme: "elo_command_bridge",
+      sessionIntent: "elo_command_bridge",
+      route: "elo_command_bridge",
+      commandBridge: bridgeResult
+    };
+  }
+
+  function buildEloCommandBridgeResponse_(message, options) {
+    const bridge = window.EloCommandBridge;
+    if (!bridge || typeof bridge.execute !== "function") return null;
+    const request = detectEloCommandBridgeRequest_(message);
+    if (!request) return null;
+    const result = bridge.execute(Object.assign({}, request, {
+      context: Object.assign({
+        authToken: getEloCoreAuthToken_(),
+        identity: getEloCoreIdentity_()
+      }, options && options.context || {}),
+      dryRun: true
+    }));
+    return buildEloCommandBridgeAnswer_(result);
+  }
   function needsLiveSearch(userText) {
     return classifyEloSemanticRoute_(userText).intent === "busca_atual";
   }
@@ -24953,11 +25020,35 @@ function isEloResidentialNewPipelineEnabled_() {
         return;
       }
 
+      const priorityCommandBridgeRequest = detectEloCommandBridgeRequest_(cleanQuestion);
+      if (isEloCommandBridgePriorityRequest_(priorityCommandBridgeRequest)) {
+        const priorityCommandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
+        if (priorityCommandBridgeResponse) {
+          const priorityCommandBridgeAnswer = formatResponse(priorityCommandBridgeResponse);
+          appendAssistantMessage(cleanQuestion, priorityCommandBridgeAnswer, priorityCommandBridgeResponse.canSave !== false, priorityCommandBridgeResponse);
+          saveConversation(cleanQuestion, priorityCommandBridgeAnswer);
+          rememberSessionTurn(cleanQuestion, priorityCommandBridgeResponse, priorityCommandBridgeAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
+      }
+
       if (handleEloObraAttentionRequest_(cleanQuestion)) {
         return;
       }
 
       if (effectiveSemanticRoute.intent === "conversa_geral") {
+        const commandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
+        if (commandBridgeResponse) {
+          const commandBridgeAnswer = formatResponse(commandBridgeResponse);
+          appendAssistantMessage(cleanQuestion, commandBridgeAnswer, commandBridgeResponse.canSave !== false, commandBridgeResponse);
+          saveConversation(cleanQuestion, commandBridgeAnswer);
+          rememberSessionTurn(cleanQuestion, commandBridgeResponse, commandBridgeAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
         handleEloUniversalOnlineFallback_(cleanQuestion, attachedFiles);
         return;
       }
@@ -28583,6 +28674,8 @@ function isEloResidentialNewPipelineEnabled_() {
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
+    detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
+    buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     needsLiveSearchForTest: needsLiveSearch,
     sanitizeHumanFacingAnswerForTest: sanitizeEloHumanFacingAnswer_,
     routeIntentForTest: routeEloCoreIntent_,
