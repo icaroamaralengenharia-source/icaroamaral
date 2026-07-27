@@ -15942,6 +15942,41 @@
     return !!(state && state.status && state.status !== "closed");
   }
 
+
+  function isEloResidentialBudgetResumeRequest_(message) {
+    const text = normalizeText(message || "");
+    return /^(?:continuar\s+(?:meu\s+)?or.amento|continuar\s+or.amento|retomar\s+(?:meu\s+)?or.amento|onde\s+paramos\??|prossiga|pode\s+continuar)[.!?]*$/.test(text);
+  }
+
+  function buildEloResidentialBudgetResumeAnswer_(message) {
+    if (!isEloResidentialBudgetResumeRequest_(message)) return null;
+    const state = ELO_SESSION_MEMORY.budgetOrchestratorV2 || getActiveEloResidentialBudgetState_() || null;
+    if (!state || state.type !== "residential") {
+      return { shortAnswer: "Nao ha orcamento residencial em andamento.", fullAnswer: "Nao ha orcamento residencial em andamento. Me diga a area, cidade/UF e escopo da casa para eu iniciar.", nextAction: "Informe os dados basicos da casa.", canSave: false, sessionTheme: "residential_budget_package", sessionIntent: "budget_v2_resume_empty" };
+    }
+    const pending = [];
+    function addPending_(field) { if (field && pending.indexOf(field) < 0) pending.push(field); }
+    (Array.isArray(state.missingFields) ? state.missingFields : []).forEach(addPending_);
+    if (!state.rooms) addPending_("quartos");
+    if (!state.wetAreas) addPending_("banheiros");
+    if (state.garage === null || state.garage === undefined) addPending_("garagem");
+    if (!state.desiredStage && !state.currentStage) addPending_("etapa desejada");
+    if (!state.source && !state.priceSource && !(state.pricing && state.pricing.source)) addPending_("fonte SINAPI/ORSE");
+    if (!state.referenceMonth && !state.competence && !(state.pricing && (state.pricing.referenceMonth || state.pricing.competence))) pending.push("competencia da base");
+    if (!state.bdiPercent && !(state.pricing && state.pricing.bdiPercent)) pending.push("BDI");
+    const area = state.areaM2 || state.project && state.project.areaM2 || null;
+    const cityUf = [state.city || state.project && state.project.city, state.state || state.uf || state.project && state.project.uf].filter(Boolean).join("/") || "cidade/UF pendente";
+    const hasPackage = !!(state.budgetPackage || ELO_SESSION_MEMORY.lastBudgetV2DocumentData);
+    const nextMissing = pending.length ? pending[0] : null;
+    const lines = [
+      "Orcamento residencial preliminar em andamento" + (area ? ": " + formatEloResidentialPremiseNumber_(area, 0) + " m2" : "."),
+      "Local: " + cityUf + ".",
+      nextMissing ? "Proximo dado faltante: " + nextMissing + "." : "O pacote esta pronto para revisao, PDF ou fechamento.",
+      hasPackage ? "Pacote financeiro preservado; nao recalculei nada." : "Estado preservado; nao recalculei nada."
+    ];
+    return { shortAnswer: nextMissing ? "Retomei o orcamento. Falta " + nextMissing + "." : "Seu orcamento esta pronto para revisar ou gerar PDF.", fullAnswer: lines.join("\n"), nextAction: nextMissing ? "Informe " + nextMissing + "." : "Peca PDF ou fechamento quando quiser.", canSave: true, sessionTheme: "residential_budget_package", sessionIntent: nextMissing ? "budget_v2_resume_missing" : "budget_v2_resume_ready", budgetOrchestratorV2: { state: state, budgetPackage: state.budgetPackage || null, budgetDocumentData: ELO_SESSION_MEMORY.lastBudgetV2DocumentData || null } };
+  }
+
   function isEloResidentialBudgetMessage_(message) {
     const text = normalizeText(message || "");
     return isEloResidentialBudgetBriefingQuestion_(message) || (/\b(?:casa|sobrado|residencia|residencial)\b/.test(text) && /\b(?:orcamento|or.amento|orcar|custo|preco|valor|eap|estimativa)\b/.test(text)) || (/\bplanta\s+ativa\b/.test(text) && hasEloResidentialBudgetIntent_(message)) || (/\b(?:casa|sobrado|residencia)\b/.test(text) && parseEloResidentialArea_(message) > 0 && !/\b(?:parede|banheiro|piscina|forro|pintura|muro)\b/.test(text));
@@ -21585,6 +21620,12 @@ function isEloResidentialNewPipelineEnabled_() {
       return budgetV2ListIntentAnswer;
     }
 
+    const residentialBudgetResumeAnswer = buildEloResidentialBudgetResumeAnswer_(cleanQuestion);
+    if (residentialBudgetResumeAnswer) {
+      attachEloCoreBridgeMetadata_(residentialBudgetResumeAnswer);
+      return residentialBudgetResumeAnswer;
+    }
+
     if (isEloActiveResidentialBudgetV2Continuation_(cleanQuestion)) {
       const residentialBudgetV2ContinuationAnswer = buildEloBudgetOrchestratorV2Answer_(cleanQuestion);
       if (residentialBudgetV2ContinuationAnswer && /^budget_v2/.test(String(residentialBudgetV2ContinuationAnswer.sessionIntent || ""))) {
@@ -24154,6 +24195,12 @@ function isEloResidentialNewPipelineEnabled_() {
     if (userNameMemoryResponse) {
       return applyEloBrainMarker_(question, userNameMemoryResponse);
     }
+    const residentialBudgetResumeResponse = buildEloResidentialBudgetResumeAnswer_(question);
+    if (residentialBudgetResumeResponse) {
+      attachEloCoreBridgeMetadata_(residentialBudgetResumeResponse);
+      return applyEloBrainMarker_(question, residentialBudgetResumeResponse);
+    }
+
     if (isEloActiveResidentialBudgetV2Continuation_(question)) {
       const residentialBudgetV2ContinuationResponse = buildEloBudgetOrchestratorV2Answer_(question);
       if (residentialBudgetV2ContinuationResponse && /^budget_v2/.test(String(residentialBudgetV2ContinuationResponse.sessionIntent || ""))) {
