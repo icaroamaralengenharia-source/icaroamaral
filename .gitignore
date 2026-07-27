@@ -3,6 +3,10 @@ dist/
 *.log
 npm-debug.log*
 .env
+.env.e2e
 backend/.env
 *.bak*
 backend/data/
+artifacts/
+test-results/
+tmp/
