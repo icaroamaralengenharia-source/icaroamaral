@@ -92,6 +92,8 @@ async function setup() {
   if (state.ids.companyId) {
     profile = await insertIfTableExists(supabase, "profiles", {
       auth_user_id: state.ids.authUserId,
+      institution_id: state.ids.institutionId || null,
+      unit_id: state.ids.unitId || null,
       company_id: state.ids.companyId,
       name: "Admin E2E",
       email: env.E2E_ADMIN_EMAIL,
@@ -210,8 +212,11 @@ async function setup() {
     }
   }
 
+  const stockFullInstitutionId = state.ids.institutionId || slug;
+  state.ids.stockFullInstitutionId = stockFullInstitutionId;
+
   const runtimeItems = await insertManyIfTableExists(supabase, "stock_full_items", stockSeed.map((item) => ({
-    institution_id: slug,
+    institution_id: stockFullInstitutionId,
     name: item.name,
     unit: item.unit,
     category: "E2E",
@@ -228,8 +233,8 @@ async function setup() {
     const exits = [];
     runtimeItems.data.forEach((item, index) => {
       const seed = stockSeed[index];
-      entries.push({ institution_id: slug, item_id: item.id, quantity: seed.initial, source: "e2e", supplier: "Fornecedor E2E", notes: "Seed E2E", created_by: state.ids.profileId || null });
-      exits.push({ institution_id: slug, item_id: item.id, quantity: seed.exit, destination: "Obra E2E", responsible: "Admin E2E", notes: "Seed E2E", created_by: state.ids.profileId || null });
+      entries.push({ institution_id: stockFullInstitutionId, item_id: item.id, quantity: seed.initial, source: "e2e", supplier: "Fornecedor E2E", notes: "Seed E2E", created_by: state.ids.profileId || null });
+      exits.push({ institution_id: stockFullInstitutionId, item_id: item.id, quantity: seed.exit, destination: "Obra E2E", responsible: "Admin E2E", notes: "Seed E2E", created_by: state.ids.profileId || null });
     });
     const entriesResult = await insertManyIfTableExists(supabase, "stock_full_entries", entries);
     const exitsResult = await insertManyIfTableExists(supabase, "stock_full_exits", exits);
