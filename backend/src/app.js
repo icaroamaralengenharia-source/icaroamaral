@@ -2964,6 +2964,9 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
   if (!payload.name) {
     return { ok: false, error: "name_required" };
   }
+  if (isUnsafeStockFullName_(payload.name)) {
+    return { ok: false, error: "invalid_product_name" };
+  }
   if (!payload.unit) {
     return { ok: false, error: "unit_required" };
   }
@@ -2971,6 +2974,20 @@ function validateStockFullItemPayload_(body, profile, options = {}) {
     payload.created_by = clean_(profile && profile.id);
   }
   return { ok: true, payload };
+}
+
+function isUnsafeStockFullName_(value) {
+  const text = clean_(value);
+  if (!text) {
+    return false;
+  }
+  if (/[\u0000-\u001F\u007F]/.test(text)) {
+    return true;
+  }
+  if (/(^|[\\/])\.\.($|[\\/])|\.\.[\\/]/.test(text)) {
+    return true;
+  }
+  return false;
 }
 
 function mapStockFullItemFromDatabase_(item) {

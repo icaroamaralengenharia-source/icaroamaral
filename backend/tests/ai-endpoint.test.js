@@ -855,6 +855,55 @@ test("stock full cria atualiza e desativa item remoto", async () => {
   }
 });
 
+test("stock full rejeita nome de produto com path traversal sem inserir", async () => {
+  const supabase = createMockStockSaudeSupabase_();
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: supabase
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/items", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: "../../etc/passwd",
+        unit: "un",
+        currentQuantity: 0
+      })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "invalid_product_name");
+    assert.equal(supabase.stockFullItems.length, 0);
+
+    const validResponse = await fetch(testServer.baseUrl + "/api/stock-full/items", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: "Tubo PVC 1/2 - Aço 50",
+        unit: "un",
+        currentQuantity: 0
+      })
+    });
+    const validData = await validResponse.json();
+
+    assert.equal(validResponse.status, 200);
+    assert.equal(validData.ok, true);
+    assert.equal(validData.item.name, "Tubo PVC 1/2 - Aço 50");
+    assert.equal(supabase.stockFullItems.length, 1);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
 test("stock full nao atualiza item de outra instituicao", async () => {
   const app = createApp({
     env: { PORT: "0" },
