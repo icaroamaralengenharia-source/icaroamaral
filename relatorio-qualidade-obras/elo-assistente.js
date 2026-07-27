@@ -15789,7 +15789,7 @@
   }
   function hasEloCadistaDesignIntent_(message) {
     const text = normalizeText(message || "");
-    return /\b(?:planta|desenhar|desenho|layout|distribuicao\s+dos\s+ambientes|croqui|projeto\s+arquitetonico|fachada|corte|implantacao)\b/.test(text);
+    return /\b(?:planta|desenhar|desenhe|desenho|layout|distribuicao\s+dos\s+ambientes|croqui|projeto\s+arquitetonico|fachada|corte|implantacao)\b/.test(text);
   }
 
   function hasEloResidentialBudgetIntent_(message) {
@@ -15800,7 +15800,7 @@
   function isEloCompleteResidentialBudgetPriorityRequest_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
-    const hasBudget = /\b(?:orcamento|or.amento|custo|preco|pre.o|valor|eap)\b/.test(text);
+    const hasBudget = /\b(?:orcamento|or.amento|custo|preco|pre.o|valor|eap|sinapi|orse|bdi)\b/.test(text);
     const hasComplete = /\b(?:orcamento\s+completo|or.amento\s+completo|obra\s+completa|casa\s+completa)\b/.test(text);
     const hasResidential = /\b(?:casa|residencia|residencial|sobrado)\b/.test(text);
     if (!hasBudget || !hasResidential) return false;
@@ -15812,6 +15812,7 @@
     if (/\b(?:cobertura|telha|telhado|laje)\b/.test(text)) score += 1;
     if (/\b(?:piso|contrapiso|revestimento)\b/.test(text)) score += 1;
     if (/\bbdi\b/.test(text)) score += 1;
+    if (extractEloResidentialCityUf_(message)) score += 1;
     const stages = ["terraplenagem", "fundacao", "fundação", "estrutura", "alvenaria", "cobertura", "impermeabilizacao", "impermeabilização", "eletrica", "elétrica", "hidraulica", "hidráulica", "revestimento", "piso", "pintura", "esquadria", "louca", "louça", "servicos finais", "serviços finais"].filter(function (term) { return text.indexOf(term) >= 0; }).length;
     if (stages >= 2) score += 1;
     return score >= 5;
@@ -21249,7 +21250,7 @@ function isEloResidentialNewPipelineEnabled_() {
         sessionIntent: "agradecimento"
       };
     }
-    if (/cadista|\bplanta\b|planta\s+baixa|terreno|quartos?|su.te|suite|garagem|ambientes?|prancha|dxf/.test(text) && !isEloResidentialBudgetBriefingQuestion_(message)) {
+    if (/cadista|\bcad\b|\bdxf\b|\bplanta\b|planta\s+baixa|desenh(?:ar|e|o)|layout|croqui|fachada|corte|prancha|projeto\s+arquitetonico|projeto\s+arquitet.nico/.test(text) && !isEloResidentialBudgetBriefingQuestion_(message) && !isEloCompleteResidentialBudgetPriorityRequest_(message)) {
       return {
         shortAnswer: "O CADISTA transforma dados de projeto em desenho tecnico.",
         fullAnswer: "Fluxo CADISTA/planta: vamos organizar terreno, ambientes, quartos, suite, garagem e premissas para projeto. Para gerar uma planta, preciso de terreno, programa de necessidades, pavimentos, recuos e saida desejada em PDF/DXF.",
@@ -24191,7 +24192,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
     }
     const commonIntentPriorityResponse = routeEloCoreIntents_(question, {});
-    if (commonIntentPriorityResponse && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
+    if (commonIntentPriorityResponse && !completeResidentialBudgetPriority && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
       return applyEloBrainMarker_(question, commonIntentPriorityResponse);
     }
     const pureConversationalPriorityResponse = buildEloCorePureConversationalAnswer_(question);
