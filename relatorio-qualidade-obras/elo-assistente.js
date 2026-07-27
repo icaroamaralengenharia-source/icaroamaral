@@ -409,8 +409,8 @@
     const text = normalizeText(question || "").replace(/[?!.,;:]+/g, " ").replace(/s+/g, " ").trim();
     if (!text || text.length > 160) return false;
     if (hasEloCoreTechnicalConversationBlocker_(text)) return false;
-    if (/(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)/.test(text)) return false;
-    return /(receita|bolo|cozinhar|ingredientes?)/.test(text) || /(qual sua opiniao|sua opiniao|o que voce acha|voce acha)/.test(text);
+    if (/\b(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)\b/.test(text)) return false;
+    return /\b(receita|bolo|cozinhar|ingredientes?)\b/.test(text) || /\b(qual sua opiniao|sua opiniao|o que voce acha|voce acha)\b/.test(text);
   }
 
   function isEloCorePureConversationalRequest_(question) {
@@ -432,10 +432,10 @@
     const conversational = getConversationalResponse(normalizeText(question || ""));
     if (conversational) return Object.assign({}, conversational, { fullAnswer: "", nextAction: "", sessionIntent: "conversa_humana" });
     const simpleText = normalizeText(question || "");
-    if (/(receita|bolo|cozinhar|ingredientes?)/.test(simpleText)) {
+    if (/\b(receita|bolo|cozinhar|ingredientes?)\b/.test(simpleText)) {
       return { shortAnswer: "Claro. Para bolo de cenoura: bata cenoura, ovos e oleo; misture acucar, farinha e fermento; asse ate firmar.", fullAnswer: "", nextAction: "", canSave: false, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
     }
-    if (/(qual sua opiniao|sua opiniao|o que voce acha|voce acha)/.test(simpleText)) {
+    if (/\b(qual sua opiniao|sua opiniao|o que voce acha|voce acha)\b/.test(simpleText)) {
       return { shortAnswer: "Minha opiniao: depende do contexto. Me diga o caso e eu te respondo direto.", fullAnswer: "", nextAction: "", canSave: false, sessionTheme: "conversa", sessionIntent: "conversa_humana" };
     }
     const casualIntent = detectEloCoreCasualConversationIntent_(question);
@@ -512,11 +512,11 @@
     if (!text) return false;
     if (isEloCorePureConversationalRequest_(userText)) return false;
     if (isEloObraAttentionRequest_(userText)) return false;
-    if (/(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)/.test(text) && !/(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)/.test(text)) return false;
-    if (/(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)/.test(text)) return true;
-    if (/(que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao|horas s.o)/.test(text) && !/(clima|temperatura|noticias|not.cias|quem ganhou|quem vai ganhar|copa do mundo|cotacao|cota..o|preco atual|pre.o atual|valor atual)/.test(text)) return false;
-    if (/(agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)/.test(text)) return true;
-    if (/(quem\s+e\s+(?:atualmente\s+)?[oa]\s+presidente|presidente\s+do\s+brasil|ministro\s+atual|governador\s+atual|prefeito\s+atual)/.test(text)) return true;
+    if (/\b(rdo|diario de obra|di.rio de obra|relatorio|relat.rio|abrir|gerar|criar|fazer)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|quem ganhou|quem vai ganhar)\b/.test(text)) return false;
+    if (/\b(pesquise|pesquisar|busque|buscar|procure|internet|web|google|online|tempo real)\b/.test(text)) return true;
+    if (/\b(que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao|horas s.o)\b/.test(text) && !/\b(clima|temperatura|noticias|not.cias|quem ganhou|quem vai ganhar|copa do mundo|cotacao|cota..o|preco atual|pre.o atual|valor atual)\b/.test(text)) return false;
+    if (/\b(agora|atualmente|atual|atuais|quantos graus|temperatura|clima|previsao|previs.o|noticias|not.cias|ultimas noticias|.ltimas not.cias|quem ganhou|quem ganhou hoje|quem vai ganhar|cotacao|cota..o|preco atual|pre.o atual|valor atual|resultado de jogo|estatisticas|estat.sticas|proximos jogos|pr.ximos jogos|agenda de jogos|calendario de jogos|calend.rio de jogos|copa do mundo)\b/.test(text)) return true;
+    if (/\b(quem\s+e\s+(?:atualmente\s+)?[oa]\s+presidente|presidente\s+do\s+brasil|ministro\s+atual|governador\s+atual|prefeito\s+atual)\b/.test(text)) return true;
     return false;
   }
   function buildEloWebSearchRouteResponse_(question) {
@@ -9494,6 +9494,46 @@
     };
   }
 
+  function buildEloOnlineResponseMeta_(answer) {
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "Continue a conversa ou peça um resumo prático.",
+      canSave: true,
+      sessionTheme: "elo_online",
+      sessionIntent: "conversa_geral_backend"
+    };
+  }
+
+  function appendEloOnlineAnswer_(question, answer) {
+    const onlineResponse = buildEloOnlineResponseMeta_(answer);
+    appendAssistantMessage(question, answer, true, onlineResponse);
+    saveConversation(question, answer);
+    rememberSessionTurn(question, onlineResponse, answer);
+  }
+
+  function appendEloOnlineUnavailableAnswer_(question) {
+    const response = buildEloOnlineUnavailableResponse_();
+    const answer = formatResponse(response);
+    appendAssistantMessage(question, answer, false, response);
+    saveConversation(question, answer);
+    rememberSessionTurn(question, response, answer);
+  }
+
+  function handleEloUniversalOnlineFallback_(question, attachments) {
+    requestEloOnlineAnswer(question, attachments).then(function (onlineAnswer) {
+      if (onlineAnswer) {
+        appendEloOnlineAnswer_(question, onlineAnswer);
+        return;
+      }
+      appendEloOnlineUnavailableAnswer_(question);
+    }).catch(function () {
+      appendEloOnlineUnavailableAnswer_(question);
+    }).finally(function () {
+      removeTypingIndicator();
+      clearProductAttachmentPreview();
+    });
+  }
   function sanitizeEloAnswerForDisplay(value) {
     const forbiddenLine = /^\s*(?:guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|guardar biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)\s*$/i;
     const forbiddenControlsLine = /^\s*(?:[\s.,;:|â€¢·-]+|guardar|não guardar|nao guardar|guardar na biblioteca|não guardar na biblioteca|nao guardar na biblioteca|memória|memoria|biblioteca|não salvar|nao salvar)+\s*$/i;
@@ -16559,11 +16599,11 @@
     else if (/somente\s+emboco|apenas\s+emboco/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "render_only" };
     else if (/manter\s+pendente/.test(text) && /reboco/.test(text)) choices.wallFinishSystem = { serviceId: "reboco", value: "pending" };
 
-    if (/janela|janelas|esquadria|esquadrias|aluminio|aco|madeira|pvc/.test(text)) {
+    if (/janela|janelas|esquadria|esquadrias|aluminio|aco|madeira|\bpvc\b/.test(text)) {
       if (/aluminio/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "aluminum" };
-      else if (/aco/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "steel" };
+      else if (/\baco\b/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "steel" };
       else if (/madeira/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "wood" };
-      else if (/pvc/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "pvc" };
+      else if (/\bpvc\b/.test(text)) choices.windowMaterial = { serviceId: "esquadrias_janelas", value: "pvc" };
     }
 
     if (/infraestrutura\s+eletrica|iluminacao|luminaria|caixa|suporte/.test(text)) {
@@ -21593,7 +21633,8 @@ function isEloResidentialNewPipelineEnabled_() {
       sessionIntent: "triagem_patologia"
     };
   }
-  function buildResponseCore_(question) {
+  function buildResponseCore_(question, options) {
+    const routeOptions = options || {};
     const cleanQuestion = sanitizeUserText(question);
     const normalizedQuestion = normalizeText(cleanQuestion);
     if (normalizedQuestion && isEloConstructionTechnicalQuestion_(cleanQuestion)) {
@@ -22088,6 +22129,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return explainFutureSearch(cleanQuestion);
     }
 
+    if (routeOptions.skipLocalCommunicationFallback) {
+      return null;
+    }
     return answerWithEloCommunicationEngine(cleanQuestion);
   }
 
@@ -24171,7 +24215,8 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     return null;
   }
-  function buildResponse(question) {
+  function buildResponse(question, options) {
+    const routeOptions = options || {};
     const startedAt = Date.now();
     try {
     const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);
@@ -24242,7 +24287,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (commonIntentPriorityResponse && !completeResidentialBudgetPriority && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
       return applyEloBrainMarker_(question, commonIntentPriorityResponse);
     }
-    const pureConversationalPriorityResponse = buildEloCorePureConversationalAnswer_(question);
+    const pureConversationalPriorityResponse = routeOptions.skipLocalCommunicationFallback ? null : buildEloCorePureConversationalAnswer_(question);
     if (pureConversationalPriorityResponse) {
       return applyEloBrainMarker_(question, pureConversationalPriorityResponse);
     }
@@ -24328,7 +24373,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (metaWorkflowResponse) {
       return applyEloBrainMarker_(question, metaWorkflowResponse);
     }
-    const pureConversationalResponse = buildEloCorePureConversationalAnswer_(question);
+    const pureConversationalResponse = routeOptions.skipLocalCommunicationFallback ? null : buildEloCorePureConversationalAnswer_(question);
     if (pureConversationalResponse) {
       return applyEloBrainMarker_(question, pureConversationalResponse);
     }
@@ -24340,7 +24385,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (memoryRecallResponse) {
       return applyEloBrainMarker_(question, memoryRecallResponse);
     }
-    const finalResponse = applyEloBrainMarker_(question, buildResponseCore_(question));
+    const finalResponse = applyEloBrainMarker_(question, buildResponseCore_(question, routeOptions));
     if (finalResponse && /fallback/i.test(finalResponse.sessionIntent || "")) recordEloCoreReliabilityEvent_("fallback_used", { intent: finalResponse.sessionIntent, message: question });
     if (Date.now() - startedAt > ELO_CORE_SLOW_RESPONSE_MS) recordEloCoreReliabilityEvent_("slow_response", { durationMs: Date.now() - startedAt });
     ELO_CORE_RELIABILITY_STATE.safeModeActive = false;
@@ -24620,8 +24665,13 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const response = technicalServiceResponse || buildResponse(cleanQuestion, {
         surface: "relatorio-qualidade-obras",
-        useSession: true
+        useSession: true,
+        skipLocalCommunicationFallback: true
       });
+      if (!response) {
+        handleEloUniversalOnlineFallback_(cleanQuestion, attachedFiles);
+        return;
+      }
       const answer = formatResponse(response);
       appendAssistantMessage(cleanQuestion, answer, response.canSave !== false, response);
       saveConversation(cleanQuestion, answer);

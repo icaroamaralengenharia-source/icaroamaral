@@ -3826,8 +3826,19 @@ test("elo chat oficial responde perguntas abertas sem texto legado do frontend",
       const library = await post("guarde na biblioteca um resumo do projeto Stock Full");
       const pdf = await post("quero gerar PDF");
       const memory = await post("lembre que prefiro respostas curtas no Elo");
+      const generalMessages = [
+        "quero uma receita de bolo de banana",
+        "como faço uma pipa?",
+        "conte uma piada",
+        "estou cansado hoje",
+        "explique buracos negros"
+      ];
+      const generalAnswers = [];
+      for (const message of generalMessages) {
+        generalAnswers.push(await post(message));
+      }
 
-      assert.equal(openAiInputs.length, 3);
+      assert.equal(openAiInputs.length, 8);
       assert.equal(calc.mode, "technical_validation");
       assert.match(calc.answer, /dimensão real do bloco cerâmico/i);
       assert.equal(calc.savePrompt.show, false);
@@ -3845,12 +3856,63 @@ test("elo chat oficial responde perguntas abertas sem texto legado do frontend",
       assert.equal(memory.savePrompt.show, true);
       assert.equal(memory.savePrompt.type, "memory");
       assert.doesNotMatch(memory.answer, /Deseja guardar|Guardar|Não guardar/i);
+
+      generalAnswers.forEach((answer) => {
+        assert.equal(answer.ok, true);
+        assert.equal(answer.mode, "remote");
+        assert.match(answer.answer, /Resposta do cérebro oficial do Elo/i);
+        assert.doesNotMatch(answer.answer, /Manda o que você precisa|Manda o que voce precisa|Para registrar materiais|próxima ação/i);
+      });
     });
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
+
+test("elo web-search entrega resposta natural para pergunta atual", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (url, options) {
+    if (String(url).startsWith("https://api.openai.com/")) {
+      const payload = JSON.parse(options.body);
+      assert.match(JSON.stringify(payload.tools), /web_search_preview/);
+      return new Response(JSON.stringify({
+        output: [{ content: [{ type: "output_text", text: "Hoje, a cotação consultada está em R$ 5,50 segundo a fonte financeira pesquisada." }] }]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    await withTemporaryEloServer_({
+      env: {
+        PORT: "0",
+        AI_ALLOWED_ORIGINS: "http://127.0.0.1:5500",
+        OPENAI_API_KEY: "test-key"
+      }
+    }, async (url) => {
+      const response = await fetch(url + "/api/elo/web-search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://127.0.0.1:5500"
+        },
+        body: JSON.stringify({ query: "qual a cotação atual do dólar?" })
+      });
+      const data = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.equal(data.ok, true);
+      assert.equal(data.mode, "remote");
+      assert.match(data.answer, /cotação|Hoje/i);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 test("prompt mestre do Elo define identidade, memoria e limites", () => {
   const prompt = buildEloSystemPrompt_();
 
@@ -5168,23 +5230,33 @@ test("frontend do Elo envia eloContext no JSON e multipart", async () => {
   assert.match(content, /stock-ai/);
 });
 
-test("frontend do Elo chama endpoint oficial antes dos handlers legados", async () => {
+test("frontend do Elo usa backend universal quando nenhuma rota tecnica assume", async () => {
   const { readFile } = await import("node:fs/promises");
   const content = await readFile(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
   const askStart = content.indexOf("function askElo");
-  const firstOnlineCall = content.indexOf("requestEloOnlineAnswer(cleanQuestion", askStart);
   const fallbackStart = content.indexOf("function buildEloLocalFallbackResponseForQuestion_");
   const fallbackEnd = content.indexOf("function buildProductAttachmentControls", fallbackStart);
 
   assert.ok(askStart > 0);
-  assert.ok(firstOnlineCall > askStart);
-  assert.ok(fallbackStart > firstOnlineCall);
+  assert.ok(fallbackStart > askStart);
+  assert.ok(fallbackEnd > fallbackStart);
 
   const askBeforeFallback = content.slice(askStart, fallbackStart);
-  assert.doesNotMatch(askBeforeFallback, /buildEloStockBalanceAnswer_/);
-  assert.doesNotMatch(askBeforeFallback, /buildEloOperationalConstructionAnswer_/);
-  assert.doesNotMatch(askBeforeFallback, /applyEloCommunicationLayer\(cleanQuestion/);
-  assert.doesNotMatch(askBeforeFallback, /buildResponse\(cleanQuestion\)/);
+  const buildResponseIndex = askBeforeFallback.indexOf("buildResponse(cleanQuestion");
+  const skipFallbackIndex = askBeforeFallback.indexOf("skipLocalCommunicationFallback: true");
+  const nullResponseGuardIndex = askBeforeFallback.indexOf("if (!response)");
+  const universalFallbackIndex = askBeforeFallback.indexOf("handleEloUniversalOnlineFallback_(cleanQuestion, attachedFiles)");
+
+  assert.ok(buildResponseIndex > 0);
+  assert.ok(skipFallbackIndex > buildResponseIndex);
+  assert.ok(nullResponseGuardIndex > skipFallbackIndex);
+  assert.ok(universalFallbackIndex > nullResponseGuardIndex);
+  assert.equal(askBeforeFallback.indexOf("isEloTechnicalLocalResponse_"), -1);
+  const firstUniversalReturnEnd = askBeforeFallback.indexOf("const eloCoreToolResponse", universalFallbackIndex);
+  assert.ok(firstUniversalReturnEnd > universalFallbackIndex);
+  const firstUniversalReturnBlock = askBeforeFallback.slice(universalFallbackIndex, firstUniversalReturnEnd);
+  assert.match(firstUniversalReturnBlock, /handleEloUniversalOnlineFallback_\(cleanQuestion,\s*attachedFiles\);\s+return;/);
+  assert.doesNotMatch(firstUniversalReturnBlock, /applyEloCommunicationLayer\(cleanQuestion|buildEloLocalFallbackResponseForQuestion_\(cleanQuestion\)/);
 
   const fallbackBlock = content.slice(fallbackStart, fallbackEnd);
   assert.match(fallbackBlock, /buildEloStockBalanceAnswer_/);
