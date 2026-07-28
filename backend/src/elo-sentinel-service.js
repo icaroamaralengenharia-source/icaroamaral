@@ -2,227 +2,64 @@ import { createHash } from "node:crypto";
 
 const EVIDENCE_TYPES = new Set(["text", "photo", "document", "note"]);
 const SOURCES = new Set(["manual", "upload", "system"]);
-const EVENT_TYPES = new Set(["evidence_created", "manual_note"]);
+const EVENT_TYPES = new Set(["evidence_created", "manual_note", "pending_item_created", "pending_item_updated", "pending_item_status_changed", "pending_item_assigned", "pending_item_due_date_changed", "pending_item_evidence_linked", "pending_item_validated", "pending_item_validation_rejected"]);
+const PENDING_STATUS = new Set(["suggested", "open", "in_progress", "awaiting_validation", "resolved", "rejected", "cancelled"]);
+const VALIDATION_STATUS = new Set(["pending", "approved", "rejected"]);
+const PRIORITIES = new Set(["low", "medium", "high", "critical"]);
+const SEVERITIES = new Set(["informational", "minor", "major", "critical"]);
+const RELATION_TYPES = new Set(["source", "correction", "validation", "supporting"]);
+const SUGGESTED_BY = new Set(["manual", "system"]);
+const TRANSITIONS = { suggested: new Set(["open", "rejected", "cancelled"]), open: new Set(["in_progress", "awaiting_validation", "cancelled"]), in_progress: new Set(["awaiting_validation", "open", "cancelled"]), awaiting_validation: new Set(["in_progress", "resolved", "rejected"]), resolved: new Set([]), rejected: new Set([]), cancelled: new Set([]) };
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 const MAX_METADATA_BYTES = 12000;
 const HASH_RE = /^[a-f0-9]{64}$/i;
 const STORAGE_PATH_RE = /^(?![a-z]+:\/\/)(?![a-zA-Z]:)(?!\/)(?!.*(?:^|[\\/])\.\.(?:[\\/]|$))[A-Za-z0-9._/@=-]+$/;
-const EVIDENCE_CREATE_FIELDS = new Set([
-  "project_id", "projectId", "evidence_type", "evidenceType", "source", "title", "description",
-  "storage_path", "storagePath", "file_hash", "fileHash", "mime_type", "mimeType", "metadata",
-  "occurred_at", "occurredAt", "content", "idempotency_key", "idempotencyKey", "operation_id", "operationId",
-  "institution_id", "institutionId", "company_id", "companyId", "created_by", "createdBy"
-]);
+const EVIDENCE_CREATE_FIELDS = new Set(["project_id", "projectId", "evidence_type", "evidenceType", "source", "title", "description", "storage_path", "storagePath", "file_hash", "fileHash", "mime_type", "mimeType", "metadata", "occurred_at", "occurredAt", "content", "idempotency_key", "idempotencyKey", "operation_id", "operationId", "institution_id", "institutionId", "company_id", "companyId", "created_by", "createdBy"]);
+const PENDING_CREATE_FIELDS = new Set(["project_id", "projectId", "source_evidence_id", "sourceEvidenceId", "title", "description", "category", "priority", "severity", "responsible_user_id", "responsibleUserId", "due_at", "dueAt", "status", "metadata", "idempotency_key", "idempotencyKey", "operation_id", "operationId", "institution_id", "institutionId", "company_id", "companyId", "created_by", "createdBy", "suggested_by", "suggestedBy"]);
+const PENDING_UPDATE_FIELDS = new Set(["project_id", "projectId", "title", "description", "category", "priority", "severity", "responsible_user_id", "responsibleUserId", "due_at", "dueAt", "status", "resolution_notes", "resolutionNotes", "metadata", "institution_id", "institutionId", "company_id", "companyId", "created_by", "createdBy"]);
 
-function clean(value, max = 4000) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
-}
+function clean(value, max = 4000) { return String(value || "").replace(/\s+/g, " ").trim().slice(0, max); }
+function safeError(code, status = 400) { return Object.assign(new Error(code), { status }); }
+function requireScope(input = {}) { const institutionId = clean(input.institution_id || input.institutionId, 140); const companyId = clean(input.company_id || input.companyId, 140); const projectId = clean(input.project_id || input.projectId, 140); if (!institutionId) throw safeError("institution_id_required"); if (!companyId) throw safeError("company_id_required"); if (!projectId) throw safeError("project_id_required"); return { institution_id: institutionId, company_id: companyId, project_id: projectId }; }
+function normalizeMetadata(value) { if (!value || typeof value !== "object" || Array.isArray(value)) return {}; const json = JSON.stringify(value); if (Buffer.byteLength(json, "utf8") > MAX_METADATA_BYTES) throw safeError("metadata_too_large", 413); return JSON.parse(json); }
+function normalizeDate(value, code) { const text = clean(value, 80); if (!text) return null; const date = new Date(text); if (Number.isNaN(date.getTime())) throw safeError(code || "invalid_date"); return date.toISOString(); }
+function normalizeLimit(value) { if (value === undefined || value === null || value === "") return DEFAULT_LIMIT; const limit = Number(value); if (!Number.isInteger(limit) || limit < 1) throw safeError("invalid_limit"); return Math.min(limit, MAX_LIMIT); }
+function normalizeOffset(value) { if (value === undefined || value === null || value === "") return 0; const offset = Number(value); if (!Number.isInteger(offset) || offset < 0) throw safeError("invalid_offset"); return offset; }
+function normalizeStoragePath(value) { const path = clean(value, 1000); if (!path) return null; if (!STORAGE_PATH_RE.test(path)) throw safeError("unsafe_storage_path"); return path; }
+function normalizeHash(input = {}) { const provided = clean(input.file_hash || input.fileHash, 160).toLowerCase(); if (provided) { if (!HASH_RE.test(provided)) throw safeError("invalid_file_hash"); return { file_hash: provided, hash_source: "provided" }; } const content = clean(input.content, 200000); if (!content) return { file_hash: null, hash_source: null }; return { file_hash: createHash("sha256").update(content).digest("hex"), hash_source: "content_sha256" }; }
+function rejectUnknownFields(input = {}, allowed, code) { Object.keys(input || {}).forEach((key) => { if (!allowed.has(key)) throw safeError(code); }); }
+function ensureSet(value, set, code) { if (value && !set.has(value)) throw safeError(code); return value; }
+function sameScope(a = {}, b = {}) { return a.institution_id === b.institution_id && a.company_id === b.company_id && a.project_id === b.project_id; }
+function sanitizeEvidence(evidence = {}) { return { id: evidence.id, institution_id: evidence.institution_id, company_id: evidence.company_id, project_id: evidence.project_id, created_by: evidence.created_by || null, evidence_type: evidence.evidence_type, source: evidence.source, title: evidence.title, description: evidence.description || null, storage_path: evidence.storage_path || null, file_hash: evidence.file_hash || null, mime_type: evidence.mime_type || null, metadata: evidence.metadata || {}, status: evidence.status, occurred_at: evidence.occurred_at, idempotency_key: evidence.idempotency_key || null, created_at: evidence.created_at, updated_at: evidence.updated_at }; }
+function sanitizeEvent(event = {}) { return { id: event.id, institution_id: event.institution_id, company_id: event.company_id, project_id: event.project_id, evidence_id: event.evidence_id || null, event_type: event.event_type, title: event.title, description: event.description || null, occurred_at: event.occurred_at, created_by: event.created_by || null, metadata: event.metadata || {}, evidence: event.evidence || null, created_at: event.created_at }; }
+function sanitizePending(pending = {}) { return { id: pending.id, institution_id: pending.institution_id, company_id: pending.company_id, project_id: pending.project_id, source_evidence_id: pending.source_evidence_id || null, title: pending.title, description: pending.description || null, category: pending.category || null, priority: pending.priority, severity: pending.severity, status: pending.status, responsible_user_id: pending.responsible_user_id || null, due_at: pending.due_at || null, suggested_by: pending.suggested_by || null, created_by: pending.created_by || null, validated_by: pending.validated_by || null, validated_at: pending.validated_at || null, validation_status: pending.validation_status, resolution_notes: pending.resolution_notes || null, resolved_at: pending.resolved_at || null, metadata: pending.metadata || {}, idempotency_key: pending.idempotency_key || null, evidences: pending.evidences || [], created_at: pending.created_at, updated_at: pending.updated_at }; }
+function sanitizeLink(link = {}) { return { id: link.id, institution_id: link.institution_id, company_id: link.company_id, project_id: link.project_id, pending_item_id: link.pending_item_id, evidence_id: link.evidence_id, relation_type: link.relation_type, created_by: link.created_by || null, evidence: link.evidence || null, created_at: link.created_at }; }
+function eventPayload(scope, type, pending, title, description, createdBy, extra = {}) { return Object.assign({}, scope, { event_type: type, title, description: description || null, occurred_at: new Date().toISOString(), created_by: createdBy || pending.created_by || null, metadata: Object.assign({ pending_item_id: pending.id }, extra) }); }
 
-function safeError(code, status = 400) {
-  return Object.assign(new Error(code), { status });
-}
+function normalizeEvidenceInput(input = {}) { rejectUnknownFields(input, EVIDENCE_CREATE_FIELDS, "unknown_evidence_field"); const scope = requireScope(input); const evidenceType = clean(input.evidence_type || input.evidenceType, 80); const source = clean(input.source, 80) || "manual"; const title = clean(input.title, 240); const description = clean(input.description, 6000); const storagePath = normalizeStoragePath(input.storage_path || input.storagePath); const metadata = normalizeMetadata(input.metadata); const hash = normalizeHash(input); if (!evidenceType) throw safeError("evidence_type_required"); ensureSet(evidenceType, EVIDENCE_TYPES, "invalid_evidence_type"); ensureSet(source, SOURCES, "invalid_evidence_source"); if (!title) throw safeError("evidence_title_required"); if (!description && !storagePath && !hash.file_hash) throw safeError("evidence_content_required"); if (hash.hash_source) metadata.hash_source = hash.hash_source; return Object.assign({}, scope, { created_by: clean(input.created_by || input.createdBy, 140) || null, evidence_type: evidenceType, source, title, description: description || null, storage_path: storagePath, file_hash: hash.file_hash, mime_type: clean(input.mime_type || input.mimeType, 160) || null, metadata, status: "registered", occurred_at: normalizeDate(input.occurred_at || input.occurredAt, "invalid_occurred_at") || new Date().toISOString(), idempotency_key: clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160) || null }); }
+function normalizeEvidenceFilters(input = {}) { const scope = requireScope(input); const filters = Object.assign({}, scope, { limit: normalizeLimit(input.limit), offset: normalizeOffset(input.offset ?? input.cursor), date_from: normalizeDate(input.date_from || input.dateFrom, "invalid_date_from"), date_to: normalizeDate(input.date_to || input.dateTo, "invalid_date_to") }); if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) throw safeError("invalid_date_range"); const evidenceType = clean(input.evidence_type || input.evidenceType, 80); const source = clean(input.source, 80); if (evidenceType) ensureSet(evidenceType, EVIDENCE_TYPES, "invalid_evidence_type"); if (source) ensureSet(source, SOURCES, "invalid_evidence_source"); filters.evidence_type = evidenceType || null; filters.source = source || null; return filters; }
+function normalizeTimelineFilters(input = {}) { const filters = normalizeEvidenceFilters(input); delete filters.evidence_type; delete filters.source; const eventType = clean(input.event_type || input.eventType, 80); if (eventType) ensureSet(eventType, EVENT_TYPES, "invalid_event_type"); filters.event_type = eventType || null; return filters; }
+function evidenceEventPayload(payload) { return { institution_id: payload.institution_id, company_id: payload.company_id, project_id: payload.project_id, event_type: "evidence_created", title: payload.title, description: payload.description ? payload.description.slice(0, 1000) : null, occurred_at: payload.occurred_at, created_by: payload.created_by, metadata: { evidence_type: payload.evidence_type, source: payload.source } }; }
 
-function requireScope(input = {}) {
-  const institutionId = clean(input.institution_id || input.institutionId, 140);
-  const companyId = clean(input.company_id || input.companyId, 140);
-  const projectId = clean(input.project_id || input.projectId, 140);
-  if (!institutionId) throw safeError("institution_id_required");
-  if (!companyId) throw safeError("company_id_required");
-  if (!projectId) throw safeError("project_id_required");
-  return { institution_id: institutionId, company_id: companyId, project_id: projectId };
-}
-
-function normalizeMetadata(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const json = JSON.stringify(value);
-  if (Buffer.byteLength(json, "utf8") > MAX_METADATA_BYTES) throw safeError("metadata_too_large", 413);
-  return JSON.parse(json);
-}
-
-function normalizeDate(value, code) {
-  const text = clean(value, 80);
-  if (!text) return null;
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) throw safeError(code || "invalid_date");
-  return date.toISOString();
-}
-
-function normalizeLimit(value) {
-  if (value === undefined || value === null || value === "") return DEFAULT_LIMIT;
-  const limit = Number(value);
-  if (!Number.isInteger(limit) || limit < 1) throw safeError("invalid_limit");
-  return Math.min(limit, MAX_LIMIT);
-}
-
-function normalizeOffset(value) {
-  if (value === undefined || value === null || value === "") return 0;
-  const offset = Number(value);
-  if (!Number.isInteger(offset) || offset < 0) throw safeError("invalid_offset");
-  return offset;
-}
-
-function normalizeStoragePath(value) {
-  const path = clean(value, 1000);
-  if (!path) return null;
-  if (!STORAGE_PATH_RE.test(path)) throw safeError("unsafe_storage_path");
-  return path;
-}
-
-function normalizeHash(input = {}) {
-  const provided = clean(input.file_hash || input.fileHash, 160).toLowerCase();
-  if (provided) {
-    if (!HASH_RE.test(provided)) throw safeError("invalid_file_hash");
-    return { file_hash: provided, hash_source: "provided" };
-  }
-  const content = clean(input.content, 200000);
-  if (!content) return { file_hash: null, hash_source: null };
-  return { file_hash: createHash("sha256").update(content).digest("hex"), hash_source: "content_sha256" };
-}
-
-function rejectUnknownFields(input = {}) {
-  Object.keys(input || {}).forEach((key) => {
-    if (!EVIDENCE_CREATE_FIELDS.has(key)) throw safeError("unknown_evidence_field");
-  });
-}
-
-function sanitizeEvidence(evidence = {}) {
-  return {
-    id: evidence.id,
-    institution_id: evidence.institution_id,
-    company_id: evidence.company_id,
-    project_id: evidence.project_id,
-    created_by: evidence.created_by || null,
-    evidence_type: evidence.evidence_type,
-    source: evidence.source,
-    title: evidence.title,
-    description: evidence.description || null,
-    storage_path: evidence.storage_path || null,
-    file_hash: evidence.file_hash || null,
-    mime_type: evidence.mime_type || null,
-    metadata: evidence.metadata || {},
-    status: evidence.status,
-    occurred_at: evidence.occurred_at,
-    idempotency_key: evidence.idempotency_key || null,
-    created_at: evidence.created_at,
-    updated_at: evidence.updated_at
-  };
-}
-
-function sanitizeEvent(event = {}) {
-  return {
-    id: event.id,
-    institution_id: event.institution_id,
-    company_id: event.company_id,
-    project_id: event.project_id,
-    evidence_id: event.evidence_id || null,
-    event_type: event.event_type,
-    title: event.title,
-    description: event.description || null,
-    occurred_at: event.occurred_at,
-    created_by: event.created_by || null,
-    metadata: event.metadata || {},
-    evidence: event.evidence || null,
-    created_at: event.created_at
-  };
-}
-
-function normalizeEvidenceInput(input = {}) {
-  rejectUnknownFields(input);
-  const scope = requireScope(input);
-  const evidenceType = clean(input.evidence_type || input.evidenceType, 80);
-  const source = clean(input.source, 80) || "manual";
-  const title = clean(input.title, 240);
-  const description = clean(input.description, 6000);
-  const storagePath = normalizeStoragePath(input.storage_path || input.storagePath);
-  const metadata = normalizeMetadata(input.metadata);
-  const hash = normalizeHash(input);
-  if (!evidenceType) throw safeError("evidence_type_required");
-  if (!EVIDENCE_TYPES.has(evidenceType)) throw safeError("invalid_evidence_type");
-  if (!SOURCES.has(source)) throw safeError("invalid_evidence_source");
-  if (!title) throw safeError("evidence_title_required");
-  if (!description && !storagePath && !hash.file_hash) throw safeError("evidence_content_required");
-  if (hash.hash_source) metadata.hash_source = hash.hash_source;
-  const idempotencyKey = clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160) || null;
-
-  return Object.assign({}, scope, {
-    created_by: clean(input.created_by || input.createdBy, 140) || null,
-    evidence_type: evidenceType,
-    source,
-    title,
-    description: description || null,
-    storage_path: storagePath,
-    file_hash: hash.file_hash,
-    mime_type: clean(input.mime_type || input.mimeType, 160) || null,
-    metadata,
-    status: "registered",
-    occurred_at: normalizeDate(input.occurred_at || input.occurredAt, "invalid_occurred_at") || new Date().toISOString(),
-    idempotency_key: idempotencyKey
-  });
-}
-
-function normalizeFilters(input = {}, kind = "evidence") {
-  const scope = requireScope(input);
-  const filters = Object.assign({}, scope, {
-    limit: normalizeLimit(input.limit),
-    offset: normalizeOffset(input.offset ?? input.cursor),
-    date_from: normalizeDate(input.date_from || input.dateFrom, "invalid_date_from"),
-    date_to: normalizeDate(input.date_to || input.dateTo, "invalid_date_to")
-  });
-  if (filters.date_from && filters.date_to && filters.date_from > filters.date_to) throw safeError("invalid_date_range");
-  if (kind === "evidence") {
-    const evidenceType = clean(input.evidence_type || input.evidenceType, 80);
-    const source = clean(input.source, 80);
-    if (evidenceType && !EVIDENCE_TYPES.has(evidenceType)) throw safeError("invalid_evidence_type");
-    if (source && !SOURCES.has(source)) throw safeError("invalid_evidence_source");
-    filters.evidence_type = evidenceType || null;
-    filters.source = source || null;
-  }
-  if (kind === "timeline") {
-    const eventType = clean(input.event_type || input.eventType, 80);
-    if (eventType && !EVENT_TYPES.has(eventType)) throw safeError("invalid_event_type");
-    filters.event_type = eventType || null;
-  }
-  return filters;
-}
-
-function evidenceEventPayload(payload) {
-  return {
-    institution_id: payload.institution_id,
-    company_id: payload.company_id,
-    project_id: payload.project_id,
-    event_type: "evidence_created",
-    title: payload.title,
-    description: payload.description ? payload.description.slice(0, 1000) : null,
-    occurred_at: payload.occurred_at,
-    created_by: payload.created_by,
-    metadata: { evidence_type: payload.evidence_type, source: payload.source }
-  };
-}
+function normalizePendingCreate(input = {}) { rejectUnknownFields(input, PENDING_CREATE_FIELDS, "unknown_pending_field"); const scope = requireScope(input); const title = clean(input.title, 240); if (!title) throw safeError("pending_title_required"); const priority = ensureSet(clean(input.priority, 40) || "medium", PRIORITIES, "invalid_priority"); const severity = ensureSet(clean(input.severity, 40) || "minor", SEVERITIES, "invalid_severity"); const status = ensureSet(clean(input.status, 40) || "suggested", new Set(["suggested", "open"]), "invalid_initial_status"); const suggestedBy = ensureSet(clean(input.suggested_by || input.suggestedBy, 80) || "manual", SUGGESTED_BY, "invalid_suggested_by"); return Object.assign({}, scope, { source_evidence_id: clean(input.source_evidence_id || input.sourceEvidenceId, 140) || null, title, description: clean(input.description, 6000) || null, category: clean(input.category, 120) || null, priority, severity, status, responsible_user_id: clean(input.responsible_user_id || input.responsibleUserId, 140) || null, due_at: normalizeDate(input.due_at || input.dueAt, "invalid_due_at"), suggested_by: suggestedBy, created_by: clean(input.created_by || input.createdBy, 140) || null, validation_status: "pending", metadata: normalizeMetadata(input.metadata), idempotency_key: clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160) || null }); }
+function normalizePendingFilters(input = {}) { const scope = requireScope(input); const filters = Object.assign({}, scope, { limit: normalizeLimit(input.limit), offset: normalizeOffset(input.offset ?? input.cursor), status: clean(input.status, 40) || null, priority: clean(input.priority, 40) || null, severity: clean(input.severity, 40) || null, responsible_user_id: clean(input.responsible_user_id || input.responsibleUserId, 140) || null, due_from: normalizeDate(input.due_from || input.dueFrom, "invalid_due_from"), due_to: normalizeDate(input.due_to || input.dueTo, "invalid_due_to") }); if (filters.status) ensureSet(filters.status, PENDING_STATUS, "invalid_status"); if (filters.priority) ensureSet(filters.priority, PRIORITIES, "invalid_priority"); if (filters.severity) ensureSet(filters.severity, SEVERITIES, "invalid_severity"); return filters; }
+function normalizePendingPatch(input = {}) { rejectUnknownFields(input, PENDING_UPDATE_FIELDS, "unknown_pending_field"); const patch = {}; if (input.title !== undefined) { patch.title = clean(input.title, 240); if (!patch.title) throw safeError("pending_title_required"); } if (input.description !== undefined) patch.description = clean(input.description, 6000) || null; if (input.category !== undefined) patch.category = clean(input.category, 120) || null; if (input.priority !== undefined) patch.priority = ensureSet(clean(input.priority, 40), PRIORITIES, "invalid_priority"); if (input.severity !== undefined) patch.severity = ensureSet(clean(input.severity, 40), SEVERITIES, "invalid_severity"); if (input.responsible_user_id !== undefined || input.responsibleUserId !== undefined) patch.responsible_user_id = clean(input.responsible_user_id || input.responsibleUserId, 140) || null; if (input.due_at !== undefined || input.dueAt !== undefined) patch.due_at = normalizeDate(input.due_at || input.dueAt, "invalid_due_at"); if (input.resolution_notes !== undefined || input.resolutionNotes !== undefined) patch.resolution_notes = clean(input.resolution_notes || input.resolutionNotes, 6000) || null; if (input.metadata !== undefined) patch.metadata = normalizeMetadata(input.metadata); if (input.status !== undefined) patch.status = ensureSet(clean(input.status, 40), PENDING_STATUS, "invalid_status"); return patch; }
+function correctionLinks(pending) { return (pending.evidences || []).filter((link) => link.relation_type === "correction"); }
+function requireReasonForTerminal(nextStatus, patch) { if ((nextStatus === "rejected" || nextStatus === "cancelled") && !clean(patch.resolution_notes) && !(patch.metadata && clean(patch.metadata.reason))) throw safeError("status_reason_required"); }
+function validateTransition(pending, patch) { if (!patch.status || patch.status === pending.status) return; if (!TRANSITIONS[pending.status] || !TRANSITIONS[pending.status].has(patch.status)) throw safeError("invalid_status_transition"); requireReasonForTerminal(patch.status, patch); if (patch.status === "awaiting_validation" && correctionLinks(pending).length === 0) throw safeError("correction_evidence_required"); if (patch.status === "resolved" && pending.validation_status !== "approved") throw safeError("approved_validation_required"); }
 
 export function createEloSentinelService(options = {}) {
   const store = options.store;
   if (!store) throw safeError("elo_sentinel_store_required", 500);
-
-  async function createEvidence(input = {}) {
-    const payload = normalizeEvidenceInput(input);
-    const result = await store.createEvidenceWithEvent(payload, evidenceEventPayload(payload));
-    return {
-      evidence: sanitizeEvidence(result.evidence),
-      event: result.event ? sanitizeEvent(result.event) : null,
-      idempotent: result.idempotent === true
-    };
-  }
-
-  async function listEvidences(input = {}) {
-    const result = await store.listEvidencesByProject(normalizeFilters(input, "evidence"));
-    return { evidences: (result.items || []).map(sanitizeEvidence), page: result.page };
-  }
-
-  async function listTimeline(input = {}) {
-    const result = await store.listTimelineByProject(normalizeFilters(input, "timeline"));
-    return { events: (result.items || []).map(sanitizeEvent), page: result.page };
-  }
-
-  return { createEvidence, listEvidences, listTimeline };
+  async function createEvidence(input = {}) { const payload = normalizeEvidenceInput(input); const result = await store.createEvidenceWithEvent(payload, evidenceEventPayload(payload)); return { evidence: sanitizeEvidence(result.evidence), event: result.event ? sanitizeEvent(result.event) : null, idempotent: result.idempotent === true }; }
+  async function listEvidences(input = {}) { const result = await store.listEvidencesByProject(normalizeEvidenceFilters(input)); return { evidences: (result.items || []).map(sanitizeEvidence), page: result.page }; }
+  async function listTimeline(input = {}) { const result = await store.listTimelineByProject(normalizeTimelineFilters(input)); return { events: (result.items || []).map(sanitizeEvent), page: result.page }; }
+  async function createPendingItem(input = {}) { const payload = normalizePendingCreate(input); if (payload.source_evidence_id) { const evidence = await store.findEvidenceById(payload.source_evidence_id, payload); if (!evidence) throw safeError("source_evidence_not_found", 404); } const existing = await store.findPendingItemByIdempotencyKey(payload); if (existing) return { pending_item: sanitizePending(existing), idempotent: true }; const pending = await store.createPendingItem(payload); if (payload.source_evidence_id) await store.linkEvidenceToPendingItem(Object.assign({}, payload, { pending_item_id: pending.id, evidence_id: payload.source_evidence_id, relation_type: "source" })); const fresh = await store.findPendingItemById(pending.id, payload); const event = await store.createEvent(eventPayload(payload, "pending_item_created", pending, pending.title, pending.description, payload.created_by, { status: pending.status })); return { pending_item: sanitizePending(fresh || pending), event: sanitizeEvent(event), idempotent: false }; }
+  async function listPendingItems(input = {}) { const result = await store.listPendingItemsByProject(normalizePendingFilters(input)); return { pending_items: (result.items || []).map(sanitizePending), page: result.page }; }
+  async function getPendingItem(id, input = {}) { const scope = requireScope(input); const pending = await store.findPendingItemById(id, scope); if (!pending) throw safeError("pending_item_not_found", 404); return { pending_item: sanitizePending(pending), events: (await store.listPendingItemEvents(id, scope)).map(sanitizeEvent) }; }
+  async function updatePendingItem(id, input = {}) { const scope = requireScope(input); const patch = normalizePendingPatch(input); const pending = await store.findPendingItemById(id, scope); if (!pending) throw safeError("pending_item_not_found", 404); validateTransition(pending, patch); const before = Object.assign({}, pending); const updated = await store.updatePendingItem(id, scope, patch); if (!updated) throw safeError("pending_item_not_found", 404); const events = []; const createdBy = clean(input.created_by || input.createdBy, 140) || updated.created_by; if (patch.status && patch.status !== before.status) events.push(await store.createEvent(eventPayload(scope, "pending_item_status_changed", updated, updated.title, `Status alterado de ${before.status} para ${patch.status}.`, createdBy, { from: before.status, to: patch.status }))); if (patch.responsible_user_id !== undefined && patch.responsible_user_id !== before.responsible_user_id) events.push(await store.createEvent(eventPayload(scope, "pending_item_assigned", updated, updated.title, "Responsavel atualizado.", createdBy, { responsible_user_id: patch.responsible_user_id }))); if (patch.due_at !== undefined && patch.due_at !== before.due_at) events.push(await store.createEvent(eventPayload(scope, "pending_item_due_date_changed", updated, updated.title, "Prazo atualizado.", createdBy, { due_at: patch.due_at }))); if (events.length === 0) events.push(await store.createEvent(eventPayload(scope, "pending_item_updated", updated, updated.title, "Pendencia atualizada.", createdBy))); return { pending_item: sanitizePending(updated), events: events.map(sanitizeEvent) }; }
+  async function linkEvidenceToPendingItem(id, input = {}) { const scope = requireScope(input); const pending = await store.findPendingItemById(id, scope); if (!pending) throw safeError("pending_item_not_found", 404); const evidenceId = clean(input.evidence_id || input.evidenceId, 140); if (!evidenceId) throw safeError("evidence_id_required"); const relationType = ensureSet(clean(input.relation_type || input.relationType, 40), RELATION_TYPES, "invalid_relation_type"); const evidence = await store.findEvidenceById(evidenceId, scope); if (!evidence) throw safeError("evidence_not_found", 404); const result = await store.linkEvidenceToPendingItem(Object.assign({}, scope, { pending_item_id: id, evidence_id: evidenceId, relation_type: relationType, created_by: clean(input.created_by || input.createdBy, 140) || pending.created_by })); const event = result.idempotent ? null : await store.createEvent(eventPayload(scope, "pending_item_evidence_linked", pending, pending.title, "Evidencia vinculada a pendencia.", input.created_by || pending.created_by, { relation_type: relationType, evidence_id: evidenceId })); return { link: sanitizeLink(result.link), event: event ? sanitizeEvent(event) : null, idempotent: result.idempotent === true }; }
+  async function validatePendingItem(id, input = {}) { const scope = requireScope(input); const decision = clean(input.decision, 40); if (!VALIDATION_STATUS.has(decision) || decision === "pending") throw safeError("invalid_validation_decision"); const pending = await store.findPendingItemById(id, scope); if (!pending) throw safeError("pending_item_not_found", 404); const actor = clean(input.created_by || input.createdBy, 140); if (!actor) throw safeError("validated_by_required"); if (input.evidence_id || input.evidenceId) await linkEvidenceToPendingItem(id, Object.assign({}, input, scope, { relation_type: decision === "approved" ? "validation" : "supporting" })); const latest = await store.findPendingItemById(id, scope); if (decision === "approved") { if (latest.status !== "awaiting_validation") throw safeError("pending_not_awaiting_validation"); if (correctionLinks(latest).length === 0) throw safeError("correction_evidence_required"); const nowIso = new Date().toISOString(); const updated = await store.updatePendingItem(id, scope, { validation_status: "approved", validated_by: actor, validated_at: nowIso, status: "resolved", resolved_at: nowIso, resolution_notes: clean(input.notes, 6000) || latest.resolution_notes || null }); const event = await store.createEvent(eventPayload(scope, "pending_item_validated", updated, updated.title, clean(input.notes, 1000) || "Pendencia validada.", actor, { decision: "approved" })); return { pending_item: sanitizePending(updated), event: sanitizeEvent(event) }; } if (!clean(input.notes, 6000)) throw safeError("validation_notes_required"); const updated = await store.updatePendingItem(id, scope, { validation_status: "rejected", validated_by: actor, validated_at: new Date().toISOString(), status: latest.status === "awaiting_validation" ? "in_progress" : "open", resolution_notes: clean(input.notes, 6000) }); const event = await store.createEvent(eventPayload(scope, "pending_item_validation_rejected", updated, updated.title, clean(input.notes, 1000), actor, { decision: "rejected" })); return { pending_item: sanitizePending(updated), event: sanitizeEvent(event) }; }
+  return { createEvidence, listEvidences, listTimeline, createPendingItem, listPendingItems, getPendingItem, updatePendingItem, linkEvidenceToPendingItem, validatePendingItem };
 }

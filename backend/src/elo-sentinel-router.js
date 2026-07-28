@@ -100,6 +100,73 @@ export function createEloSentinelRouter(options = {}) {
     }
   });
 
+
+  router.post("/pending-items", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const scope = requestScope(request, context);
+      const result = await service.createPendingItem(Object.assign({}, request.body || {}, scope));
+      response.status(result.idempotent ? 200 : 201).json({ ok: true, pending_item: result.pending_item, event: result.event, idempotent: result.idempotent });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  router.get("/pending-items", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const result = await service.listPendingItems(Object.assign({}, request.query || {}, requestScope(request, context)));
+      response.json({ ok: true, pending_items: result.pending_items, page: result.page });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  router.get("/pending-items/:id", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const result = await service.getPendingItem(request.params.id, Object.assign({}, request.query || {}, requestScope(request, context)));
+      response.json({ ok: true, pending_item: result.pending_item, events: result.events });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  router.put("/pending-items/:id", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const result = await service.updatePendingItem(request.params.id, Object.assign({}, request.body || {}, requestScope(request, context)));
+      response.json({ ok: true, pending_item: result.pending_item, events: result.events });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  router.post("/pending-items/:id/evidences", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const result = await service.linkEvidenceToPendingItem(request.params.id, Object.assign({}, request.body || {}, requestScope(request, context)));
+      response.status(result.idempotent ? 200 : 201).json({ ok: true, link: result.link, event: result.event, idempotent: result.idempotent });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  router.post("/pending-items/:id/validate", async (request, response) => {
+    try {
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const result = await service.validatePendingItem(request.params.id, Object.assign({}, request.body || {}, requestScope(request, context)));
+      response.json({ ok: true, pending_item: result.pending_item, event: result.event });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
   return router;
 }
 

@@ -200,3 +200,142 @@ Como a Fase 2 usa rotas e tabelas isoladas, o rollback nao exige alterar tabelas
 ## Proibicao
 
 Nao usar em producao antes de testes completos e revisao de seguranca. Nao registrar secrets, tokens, senhas, cookies ou chaves Supabase nesta documentacao.
+## Fase 3: pendencias tecnicas e validacao humana
+
+A Fase 3 adiciona pendencias tecnicas isoladas ao ELO Sentinela, mantendo frontend, ELO Conversa, ObraReport, RDO, Stock Obras, Stock Full, orcamento e memoria fora do fluxo.
+
+### Tabelas da Fase 3
+
+- `elo_sentinel_pending_items`
+- `elo_sentinel_pending_item_evidences`
+
+Campos principais de `elo_sentinel_pending_items`:
+
+- `source_evidence_id`
+- `title`
+- `description`
+- `category`
+- `priority`
+- `severity`
+- `status`
+- `responsible_user_id`
+- `due_at`
+- `suggested_by`
+- `created_by`
+- `validated_by`
+- `validated_at`
+- `validation_status`
+- `resolution_notes`
+- `resolved_at`
+- `metadata`
+- `idempotency_key`
+
+### Rotas da Fase 3
+
+- `POST /api/elo/sentinel/pending-items`
+- `GET /api/elo/sentinel/pending-items`
+- `GET /api/elo/sentinel/pending-items/:id`
+- `PUT /api/elo/sentinel/pending-items/:id`
+- `POST /api/elo/sentinel/pending-items/:id/evidences`
+- `POST /api/elo/sentinel/pending-items/:id/validate`
+
+Todas exigem feature flag ligada, autenticacao e `project_id`.
+
+### Estados
+
+Status permitidos:
+
+- `suggested`
+- `open`
+- `in_progress`
+- `awaiting_validation`
+- `resolved`
+- `rejected`
+- `cancelled`
+
+Validation status:
+
+- `pending`
+- `approved`
+- `rejected`
+
+Priority:
+
+- `low`
+- `medium`
+- `high`
+- `critical`
+
+Severity:
+
+- `informational`
+- `minor`
+- `major`
+- `critical`
+
+### Transicoes
+
+- `suggested` -> `open`, `rejected`, `cancelled`
+- `open` -> `in_progress`, `awaiting_validation`, `cancelled`
+- `in_progress` -> `awaiting_validation`, `open`, `cancelled`
+- `awaiting_validation` -> `in_progress`, `resolved`, `rejected`
+
+`resolved` exige validacao humana aprovada. `awaiting_validation` exige evidencia de correcao vinculada. `rejected` e `cancelled` exigem justificativa por `resolution_notes` ou `metadata.reason`.
+
+### Vinculo de evidencias
+
+`POST /pending-items/:id/evidences` vincula uma evidencia existente da mesma obra e tenant. Tipos permitidos:
+
+- `source`
+- `correction`
+- `validation`
+- `supporting`
+
+O vinculo duplicado com mesma pendencia, evidencia e tipo retorna o vinculo existente e nao cria duplicata.
+
+### Validacao humana
+
+`POST /pending-items/:id/validate` aceita `decision: approved` ou `decision: rejected`.
+
+Regras:
+
+- `validated_by` sempre vem do usuario autenticado.
+- `approved` exige pendencia em `awaiting_validation`.
+- `approved` exige evidencia de correcao vinculada.
+- `approved` altera `validation_status` para `approved` e `status` para `resolved`.
+- `rejected` exige `notes`.
+- `rejected` altera `validation_status` para `rejected` e retorna o status para execucao.
+
+### Eventos automaticos
+
+A Fase 3 registra eventos na timeline:
+
+- `pending_item_created`
+- `pending_item_updated`
+- `pending_item_status_changed`
+- `pending_item_assigned`
+- `pending_item_due_date_changed`
+- `pending_item_evidence_linked`
+- `pending_item_validated`
+- `pending_item_validation_rejected`
+
+### Limitacoes da Fase 3
+
+- Nao ha IA.
+- Nao ha audio ou video.
+- Nao ha geracao de RDO ou relatorio.
+- Nao ha integracao visual.
+- Nao ha aplicacao remota do schema nesta fase.
+
+### E2E remoto pendente
+
+O schema acumulado das Fases 1, 2 e 3 precisa ser aplicado ao Supabase E2E isolado antes de executar a suite real remota. Depois disso, validar o fluxo:
+
+1. evidencia;
+2. pendencia;
+3. evidencia de correcao;
+4. `awaiting_validation`;
+5. validacao humana;
+6. timeline.
+
+Nao usar producao.
