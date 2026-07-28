@@ -1,202 +1,144 @@
-# ObraReport
+﻿# Sistema SaaS/ELO
 
-SaaS para relatórios técnicos de fiscalização de obras da Ícaro Amaral Engenharia.
+Este repositorio contem a plataforma publica e operacional da Icaro Amaral Engenharia, com paginas Vite, backend Express, modulos de estoque, relatorios tecnicos, RDO, orcamento e o assistente ELO.
 
-## Protocolo de Operação do ELO
+## Proposito
 
-Toda evolução do ELO deve seguir: docs/POC-ELO-1.0.md
+O sistema apoia rotinas de engenharia, obras, estoque e atendimento assistido por IA. O ELO funciona como camada transversal de conversa, roteamento, memoria e apoio tecnico. Stock Obras esta documentado como modulo estavel de piloto tecnico e nao deve ser alterado sem nova auditoria. CADISTA existe neste repositorio como prototipo/experimento publicado em `cadista/`, mas o projeto CADISTA principal deve ser tratado separadamente em `cadista_ia`.
 
-## Frontend
+## Modulos existentes
 
-```bash
-npm install
-npm run dev
-```
+| Modulo | Entrada principal | Status registrado |
+| --- | --- | --- |
+| ELO Brain | `elo.html`, `backend/src/app.js` | publicado, transversal, SaaS parcial |
+| ObraReport | `relatorio-qualidade-obras/relatorio-qualidade-obras.html` | piloto publicado |
+| Stock Obras | `stock-ai-obras.html`, `stock-ai-obras-bridge.js` | piloto tecnico estavel |
+| Stock Full | `stockfull.html`, `stock-full-*.js`, `/api/stock-full/*` | piloto SaaS |
+| Stock Saude | `stock-saude.html`, `stock-saude.js`, `/api/stock-saude/*` | piloto funcional controlado |
+| RDO e relatorios | `backend/src/services/obrareport-transactional-service.js` | backend transacional local/Supabase E2E |
+| Orcamentos ELO | `backend/src/services/elo-budget-service.js` | backend com geracao HTML/PDF adapter |
+| CADISTA | `cadista/`, `cadista-login.html` | separado e experimental |
 
-Acesse:
+## Requisitos
 
-```text
-http://127.0.0.1:5500/relatorio-qualidade-obras.html
-```
+- Node.js compativel com Vite 5 e Node test runner.
+- npm.
+- Navegador Chromium para Playwright.
+- Projeto Supabase isolado apenas para E2E real.
+- Variaveis de ambiente configuradas localmente, sem versionar valores reais.
 
-Build de produção:
+## Instalacao
 
-```bash
-npm run build
-```
+Na raiz:
 
-## Backend seguro da IA
-
-O backend fica em:
-
-```text
-backend/
-```
-
-Ele protege a chave da OpenAI. A chave nunca deve ser colocada no HTML, no JavaScript público ou em arquivos publicados no site.
-
-### Instalar
-
-```bash
-cd backend
+```powershell
 npm install
 ```
 
-### Configurar
+No backend:
 
-Crie o arquivo `.env` dentro de `backend/`, usando `.env.example` como base:
-
-```text
-OPENAI_API_KEY=sua_chave_aqui
-PORT=3000
-OPENAI_MODEL=gpt-5.4-mini
-AI_ALLOWED_ORIGINS=http://127.0.0.1:5500,http://localhost:5500
+```powershell
+cd backend
+npm install
 ```
 
-### Rodar
+## Execucao frontend
 
-```bash
+```powershell
+npm run dev
+```
+
+URL padrao do script:
+
+```text
+http://127.0.0.1:5500/
+```
+
+O Playwright usa servidor Vite em `http://127.0.0.1:5541/relatorio-qualidade-obras.html` quando executado por `npm run test:e2e`.
+
+## Execucao backend
+
+```powershell
 cd backend
 npm run dev
 ```
 
-Endpoint:
+Servidor Express:
 
 ```text
-POST http://localhost:3000/api/ai/improve-text
-POST http://localhost:3000/api/ai/analyze-image
+http://localhost:3000
 ```
 
-Actions aceitas:
+Health check:
 
 ```text
-improve
-conclusion
-review
+GET /api/health
 ```
 
-Se o backend estiver desligado, sem `.env` ou sem `OPENAI_API_KEY`, o frontend continua usando a IA local/mock automaticamente.
-
-### IA visual de fotos
-
-A análise visual usa a foto já comprimida pelo frontend do ObraReport. O upload original não é alterado.
-
-Fluxo:
+## Estrutura principal
 
 ```text
-foto do usuário -> compressão local JPEG/base64 -> botão "Analisar foto com IA" -> backend seguro -> sugestão revisável
+assets/                         portao de acesso e configuracao publica
+backend/src/app.js              aplicacao Express e rotas HTTP
+backend/src/data/               schemas SQL e bases demonstrativas
+backend/src/services/           servicos transacionais de relatorio/RDO/orcamento
+backend/tests/                  testes unitarios e integracao do backend/ELO
+relatorio-qualidade-obras/      ObraReport, ELO operacional e motores tecnicos
+scripts/e2e/                    validacao, setup, schema e cleanup E2E
+tests/e2e/                      jornadas Playwright
+tests/platform/                 testes de roteamento/modulos da plataforma
+src/platform/                   registry de modulos e roteador de segmentos
+docs/                           documentacao tecnica e operacional
+cadista/                        prototipo CADISTA separado/experimental
 ```
-
-O backend recebe:
-
-```json
-{
-  "image": {
-    "base64": "...",
-    "mimeType": "image/jpeg",
-    "fileName": "foto.jpg",
-    "width": 1280,
-    "height": 720
-  },
-  "context": {}
-}
-```
-
-A IA visual retorna descrição técnica, possíveis inconformidades, recomendação e texto pronto para inserir no relatório. O usuário sempre revisa e aceita ou recusa.
-
-## Rodar frontend e backend juntos
-
-Terminal 1:
-
-```bash
-npm run dev
-```
-
-Terminal 2:
-
-```bash
-cd backend
-npm run dev
-```
-
-## Planos e limites em modo demo
-
-A camada comercial local fica em:
-
-```text
-relatorio-qualidade-obras/plans.js
-relatorio-qualidade-obras/usage-limits.js
-relatorio-qualidade-obras/billing-demo.js
-```
-
-Planos disponíveis:
-
-```text
-Gratuito: até 2 clientes, 2 obras, 5 relatórios/mês, 10 fotos/relatório, IA limitada e PDF marcado para marca d'água.
-Profissional: clientes/obras ilimitados, 100 relatórios/mês, 50 fotos/relatório, IA liberada e PDF sem marca d'água.
-Empresa: estrutura preparada para relatórios ilimitados e múltiplos usuários futuramente.
-```
-
-No ambiente local (`127.0.0.1` ou `localhost`), a aba **Planos** permite trocar o plano em modo demo, sem pagamento real. Em produção, essa troca fica bloqueada até integrar checkout.
-
-Os limites bloqueiam de forma amigável:
-
-```text
-criação de clientes
-criação de obras
-criação de relatórios mensais
-adição de fotos por relatório
-uso de IA
-```
-
-Pagamentos reais com Stripe ou Mercado Pago ainda não foram implementados.
 
 ## Testes
 
-Frontend:
+Backend unitario/integracao:
 
-```bash
-npm run build
-```
-
-Backend:
-
-```bash
+```powershell
 cd backend
 npm test
 ```
 
-## Portao unico de acesso
+Atalho da raiz para testes backend `.test.js`:
 
-Todas as paginas HTML publicaveis devem carregar a mesma protecao frontend:
-
-```html
-<script>
-document.documentElement.classList.add('site-access-locked');
-</script>
-
-<link rel="stylesheet"
-href="/assets/site-access-gate.css?v=20260710-access-v2">
-
-<script
-src="/assets/site-access-gate.js?v=20260710-access-v2"
-defer></script>
+```powershell
+npm test
 ```
 
-Arquivos compartilhados:
+E2E Playwright:
 
-```text
-assets/site-access-gate.css
-assets/site-access-gate.js
+```powershell
+npm run test:e2e
 ```
 
-A sessao usa `sessionStorage` com a chave `icaro_site_access_v2`, vale para as paginas protegidas durante a navegacao da mesma aba e pode ser encerrada com `window.logoutSite()`. Ela nao persiste permanentemente no navegador e termina ao fechar completamente a aba.
+Validacao do ambiente E2E:
 
-Ao adicionar qualquer novo arquivo `.html`, incluir o snippet acima no inicio do `<head>` e tambem `<meta name="robots" content="noindex, nofollow, noarchive">` para manter a pagina bloqueada e fora de indexacao temporariamente. Este bloqueio e apenas frontend, temporario e voltado a visitantes comuns; JavaScript frontend pode ser contornado, os arquivos continuam sendo entregues pela hospedagem e protecao real exige Cloudflare Access, autenticacao de servidor ou origem privada.
-## Segurança
+```powershell
+node scripts/e2e/validate-e2e-env.mjs --env .env.e2e
+```
 
-- Não versionar `backend/.env`.
-- Usar apenas `backend/.env.example` como modelo.
-- O frontend chama somente o endpoint seguro.
-- A IA local continua ativa como fallback.
-- Upload de fotos, PDF, Apps Script, IndexedDB e localStorage são preservados.
+Setup E2E, somente em Supabase isolado:
+
+```powershell
+node scripts/e2e/setup-e2e-tenant.mjs --env .env.e2e
+```
+
+Nunca execute E2E real contra producao.
+
+## Documentacao
+
+- `docs/ARQUITETURA.md`
+- `docs/FLUXOS-REAIS.md`
+- `docs/TESTES.md`
+- `docs/DEPLOY-E-AMBIENTES.md`
+- `docs/PENDENCIAS-E-ROADMAP.md`
+- `docs/INVENTARIO-TECNICO.md`
+- `docs/e2e-test-environment.md`
+- `docs/render-backend-deploy.md`
+- `docs/stock-full-runtime-schema.md`
+
+## Seguranca
+
+Nao versionar `.env.e2e`, `backend/.env`, senhas, tokens, cookies, chaves Supabase, Bearer ou qualquer segredo. Use apenas arquivos `.example` e documentos que listem nomes de variaveis, nunca valores.
