@@ -17,7 +17,9 @@ function safeStatus(error, fallback = 500) {
 }
 
 function safeErrorCode(error, fallback = "elo_sentinel_request_failed") {
-  return clean(error && (error.code || error.message), 160) || fallback;
+  const known = clean(error && (error.code || error.message), 160);
+  if (!known || /database|postgres|duplicate key|violates|syntax/i.test(known)) return fallback;
+  return known;
 }
 
 function contextScope(context = {}, source = {}) {
@@ -70,7 +72,7 @@ export function createEloSentinelRouter(options = {}) {
       if (!context) return;
       const scope = requestScope(request, context);
       const result = await service.createEvidence(Object.assign({}, request.body || {}, scope));
-      response.status(201).json({ ok: true, evidence: result.evidence, event: result.event });
+      response.status(result.idempotent ? 200 : 201).json({ ok: true, evidence: result.evidence, event: result.event, idempotent: result.idempotent });
     } catch (error) {
       response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
     }
@@ -80,8 +82,8 @@ export function createEloSentinelRouter(options = {}) {
     try {
       const context = await requireAuth(request, response, resolveAuthContext);
       if (!context) return;
-      const items = await service.listEvidences(requestScope(request, context));
-      response.json({ ok: true, evidences: items });
+      const result = await service.listEvidences(Object.assign({}, request.query || {}, requestScope(request, context)));
+      response.json({ ok: true, evidences: result.evidences, page: result.page });
     } catch (error) {
       response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
     }
@@ -91,8 +93,8 @@ export function createEloSentinelRouter(options = {}) {
     try {
       const context = await requireAuth(request, response, resolveAuthContext);
       if (!context) return;
-      const items = await service.listTimeline(requestScope(request, context));
-      response.json({ ok: true, events: items });
+      const result = await service.listTimeline(Object.assign({}, request.query || {}, requestScope(request, context)));
+      response.json({ ok: true, events: result.events, page: result.page });
     } catch (error) {
       response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
     }

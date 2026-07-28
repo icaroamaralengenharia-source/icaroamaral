@@ -116,7 +116,7 @@ test("ELO Sentinela isola evidencias e timeline por tenant e obra", async () => 
     const timeline = await json(base, "GET", "/api/elo/sentinel/timeline?projectId=obra-a");
     assert.equal(timeline.response.status, 200);
     assert.equal(timeline.data.events.length, 1);
-    assert.equal(timeline.data.events[0].event_type, "evidence_registered");
+    assert.equal(timeline.data.events[0].event_type, "evidence_created");
 
     const otherTimeline = await json(base, "GET", "/api/elo/sentinel/timeline?projectId=obra-b");
     assert.equal(otherTimeline.response.status, 200);
@@ -129,6 +129,9 @@ test("falha do store Sentinela nao derruba ELO nem ObraReport", async () => {
     async createEvidence() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
     async listEvidences() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
     async createEvent() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
+    async createEvidenceWithEvent() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
+    async listEvidencesByProject() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
+    async listTimelineByProject() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); },
     async listTimeline() { throw Object.assign(new Error("sentinel_store_failed"), { status: 503 }); }
   };
   await withServer({ env: { ELO_SENTINEL_ENABLED: "true" }, store: brokenStore, institutionIdA: "inst-a", companyIdA: "company-a" }, async (base) => {

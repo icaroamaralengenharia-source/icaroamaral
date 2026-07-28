@@ -54,12 +54,14 @@ function normalizeEvidence(row) {
     mime_type: row.mime_type || null,
     metadata: row.metadata || {},
     status: row.status,
+    occurred_at: row.occurred_at || row.created_at,
+    idempotency_key: row.idempotency_key || null,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
 }
 
-function normalizeEvent(row) {
+function normalizeEvent(row, evidence = null) {
   if (!row) return null;
   return {
     id: row.id,
@@ -73,7 +75,35 @@ function normalizeEvent(row) {
     occurred_at: row.occurred_at,
     created_by: row.created_by || null,
     metadata: row.metadata || {},
+    evidence: evidence ? {
+      id: evidence.id,
+      evidence_type: evidence.evidence_type,
+      source: evidence.source,
+      title: evidence.title,
+      status: evidence.status,
+      storage_path: evidence.storage_path || null,
+      file_hash: evidence.file_hash || null
+    } : null,
     created_at: row.created_at
+  };
+}
+
+function applyFilters(query, filters = {}) {
+  if (filters.evidence_type) query = query.eq("evidence_type", filters.evidence_type);
+  if (filters.source) query = query.eq("source", filters.source);
+  if (filters.event_type) query = query.eq("event_type", filters.event_type);
+  if (filters.date_from) query = query.gte(filters.dateField || "occurred_at", filters.date_from);
+  if (filters.date_to) query = query.lte(filters.dateField || "occurred_at", filters.date_to);
+  return query;
+}
+
+function pageResult(items, page) {
+  const limit = Number(page.limit) || 50;
+  const offset = Number(page.offset) || 0;
+  const hasMore = items.length > limit;
+  return {
+    items: hasMore ? items.slice(0, limit) : items,
+    page: { limit, offset, next_offset: hasMore ? offset + limit : null, has_more: hasMore }
   };
 }
 
@@ -85,7 +115,7 @@ export function createEloSentinelStore(options = {}) {
     return client;
   }
 
-  async function createEvidence(input = {}) {
+  async function insertEvidence(input = {}) {
     const scope = assertScope(input);
     assertTable("elo_sentinel_evidences");
     const payload = Object.assign({}, input, scope, {
@@ -98,25 +128,13 @@ export function createEloSentinelStore(options = {}) {
       file_hash: clean(input.file_hash || input.fileHash, 160) || null,
       mime_type: clean(input.mime_type || input.mimeType, 160) || null,
       metadata: input.metadata && typeof input.metadata === "object" ? input.metadata : {},
-      status: clean(input.status, 80) || "draft"
+      status: clean(input.status, 80) || "registered",
+      occurred_at: clean(input.occurred_at || input.occurredAt, 80) || now(),
+      idempotency_key: clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160) || null
     });
     const result = await database().from("elo_sentinel_evidences").insert(payload).select("*").single();
     rethrowStoreError(result.error);
     return clone(normalizeEvidence(result.data));
-  }
-
-  async function listEvidences(scopeInput = {}) {
-    const scope = assertScope(scopeInput);
-    assertTable("elo_sentinel_evidences");
-    const result = await database()
-      .from("elo_sentinel_evidences")
-      .select("*")
-      .eq("institution_id", scope.institution_id)
-      .eq("company_id", scope.company_id)
-      .eq("project_id", scope.project_id)
-      .order("created_at", { ascending: false });
-    rethrowStoreError(result.error);
-    return (result.data || []).map((item) => clone(normalizeEvidence(item)));
   }
 
   async function createEvent(input = {}) {
@@ -136,21 +154,136 @@ export function createEloSentinelStore(options = {}) {
     return clone(normalizeEvent(result.data));
   }
 
-  async function listTimeline(scopeInput = {}) {
+  async function deleteEvidence(id, scopeInput = {}) {
     const scope = assertScope(scopeInput);
-    assertTable("elo_sentinel_events");
+    const result = await database()
+      .from("elo_sentinel_evidences")
+      .delete()
+      .eq("id", clean(id, 140))
+      .eq("institution_id", scope.institution_id)
+      .eq("company_id", scope.company_id)
+      .eq("project_id", scope.project_id)
+      .select("id")
+      .maybeSingle();
+    rethrowStoreError(result.error);
+    return Boolean(result.data);
+  }
+
+  async function findEvidenceById(id, scopeInput = {}) {
+    const scope = assertScope(scopeInput);
+    const result = await database()
+      .from("elo_sentinel_evidences")
+      .select("*")
+      .eq("id", clean(id, 140))
+      .eq("institution_id", scope.institution_id)
+      .eq("company_id", scope.company_id)
+      .eq("project_id", scope.project_id)
+      .maybeSingle();
+    rethrowStoreError(result.error);
+    return result.data ? clone(normalizeEvidence(result.data)) : null;
+  }
+
+  async function findEvidenceByIdempotencyKey(input = {}) {
+    const scope = assertScope(input);
+    const key = clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160);
+    if (!key) return null;
+    const result = await database()
+      .from("elo_sentinel_evidences")
+      .select("*")
+      .eq("institution_id", scope.institution_id)
+      .eq("company_id", scope.company_id)
+      .eq("project_id", scope.project_id)
+      .eq("idempotency_key", key)
+      .maybeSingle();
+    rethrowStoreError(result.error);
+    return result.data ? clone(normalizeEvidence(result.data)) : null;
+  }
+
+  async function findEventForEvidence(evidenceId, scopeInput = {}) {
+    const scope = assertScope(scopeInput);
     const result = await database()
       .from("elo_sentinel_events")
       .select("*")
       .eq("institution_id", scope.institution_id)
       .eq("company_id", scope.company_id)
       .eq("project_id", scope.project_id)
-      .order("occurred_at", { ascending: false });
+      .eq("evidence_id", clean(evidenceId, 140))
+      .eq("event_type", "evidence_created")
+      .maybeSingle();
     rethrowStoreError(result.error);
-    return (result.data || []).map((item) => clone(normalizeEvent(item)));
+    return result.data ? clone(normalizeEvent(result.data)) : null;
   }
 
-  return { createEvidence, listEvidences, createEvent, listTimeline };
+  async function createEvidenceWithEvent(input = {}, eventInput = {}) {
+    const scope = assertScope(input);
+    const existing = await findEvidenceByIdempotencyKey(input);
+    if (existing) {
+      return { evidence: existing, event: await findEventForEvidence(existing.id, scope), idempotent: true };
+    }
+    const evidence = await insertEvidence(input);
+    try {
+      const event = await createEvent(Object.assign({}, eventInput, scope, { evidence_id: evidence.id }));
+      return { evidence, event, idempotent: false };
+    } catch (error) {
+      await deleteEvidence(evidence.id, scope).catch(() => false);
+      throw error;
+    }
+  }
+
+  async function listEvidencesByProject(input = {}) {
+    const scope = assertScope(input);
+    const limit = Number(input.limit) || 50;
+    const offset = Number(input.offset) || 0;
+    let query = database()
+      .from("elo_sentinel_evidences")
+      .select("*")
+      .eq("institution_id", scope.institution_id)
+      .eq("company_id", scope.company_id)
+      .eq("project_id", scope.project_id);
+    query = applyFilters(query, Object.assign({}, input, { dateField: "occurred_at" }));
+    query = query.order("occurred_at", { ascending: false }).range(offset, offset + limit);
+    const result = await query;
+    rethrowStoreError(result.error);
+    const normalized = (result.data || []).map((item) => clone(normalizeEvidence(item)));
+    return pageResult(normalized, { limit, offset });
+  }
+
+  async function listTimelineByProject(input = {}) {
+    const scope = assertScope(input);
+    const limit = Number(input.limit) || 50;
+    const offset = Number(input.offset) || 0;
+    let query = database()
+      .from("elo_sentinel_events")
+      .select("*")
+      .eq("institution_id", scope.institution_id)
+      .eq("company_id", scope.company_id)
+      .eq("project_id", scope.project_id);
+    query = applyFilters(query, Object.assign({}, input, { dateField: "occurred_at" }));
+    query = query.order("occurred_at", { ascending: false }).range(offset, offset + limit);
+    const result = await query;
+    rethrowStoreError(result.error);
+    const normalized = await Promise.all((result.data || []).map(async (item) => {
+      const event = normalizeEvent(item);
+      if (event.evidence_id) {
+        const evidence = await findEvidenceById(event.evidence_id, scope);
+        return clone(normalizeEvent(item, evidence));
+      }
+      return clone(event);
+    }));
+    return pageResult(normalized, { limit, offset });
+  }
+
+  return {
+    createEvidence: insertEvidence,
+    listEvidences: (scope) => listEvidencesByProject(scope).then((result) => result.items),
+    createEvent,
+    listTimeline: (scope) => listTimelineByProject(scope).then((result) => result.items),
+    createEvidenceWithEvent,
+    findEvidenceById,
+    findEvidenceByIdempotencyKey,
+    listEvidencesByProject,
+    listTimelineByProject
+  };
 }
 
 export function createEloSentinelMemoryStore() {
@@ -161,51 +294,117 @@ export function createEloSentinelMemoryStore() {
     return prefix + "-" + String(list.length + 1).padStart(4, "0");
   }
 
-  return {
-    async createEvidence(input = {}) {
-      const scope = assertScope(input);
-      const row = normalizeEvidence(Object.assign({}, input, scope, {
-        id: input.id || nextId("evidence", evidences),
-        created_by: input.created_by || input.createdBy || null,
-        evidence_type: input.evidence_type || input.evidenceType,
-        storage_path: input.storage_path || input.storagePath || null,
-        file_hash: input.file_hash || input.fileHash || null,
-        mime_type: input.mime_type || input.mimeType || null,
-        metadata: input.metadata || {},
-        status: input.status || "draft",
-        created_at: input.created_at || now(),
-        updated_at: input.updated_at || now()
-      }));
-      evidences.push(row);
-      return clone(row);
-    },
-    async listEvidences(scopeInput = {}) {
-      const scope = assertScope(scopeInput);
-      return evidences
-        .filter((item) => item.institution_id === scope.institution_id && item.company_id === scope.company_id && item.project_id === scope.project_id)
-        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-        .map((item) => clone(item));
-    },
-    async createEvent(input = {}) {
-      const scope = assertScope(input);
-      const row = normalizeEvent(Object.assign({}, input, scope, {
-        id: input.id || nextId("event", events),
-        evidence_id: input.evidence_id || input.evidenceId || null,
-        event_type: input.event_type || input.eventType,
-        occurred_at: input.occurred_at || input.occurredAt || now(),
-        created_by: input.created_by || input.createdBy || null,
-        metadata: input.metadata || {},
-        created_at: input.created_at || now()
-      }));
-      events.push(row);
-      return clone(row);
-    },
-    async listTimeline(scopeInput = {}) {
-      const scope = assertScope(scopeInput);
-      return events
-        .filter((item) => item.institution_id === scope.institution_id && item.company_id === scope.company_id && item.project_id === scope.project_id)
-        .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))
-        .map((item) => clone(item));
+  function matchesScope(item, scope) {
+    return item.institution_id === scope.institution_id && item.company_id === scope.company_id && item.project_id === scope.project_id;
+  }
+
+  function matchesFilters(item, filters = {}) {
+    if (filters.evidence_type && item.evidence_type !== filters.evidence_type) return false;
+    if (filters.source && item.source !== filters.source) return false;
+    if (filters.event_type && item.event_type !== filters.event_type) return false;
+    if (filters.date_from && String(item.occurred_at || item.created_at) < filters.date_from) return false;
+    if (filters.date_to && String(item.occurred_at || item.created_at) > filters.date_to) return false;
+    return true;
+  }
+
+  async function findEvidenceById(id, scopeInput = {}) {
+    const scope = assertScope(scopeInput);
+    const item = evidences.find((evidence) => evidence.id === clean(id, 140) && matchesScope(evidence, scope));
+    return item ? clone(item) : null;
+  }
+
+  async function findEvidenceByIdempotencyKey(input = {}) {
+    const scope = assertScope(input);
+    const key = clean(input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId, 160);
+    if (!key) return null;
+    const item = evidences.find((evidence) => matchesScope(evidence, scope) && evidence.idempotency_key === key);
+    return item ? clone(item) : null;
+  }
+
+  function eventForEvidence(evidenceId, scope) {
+    return events.find((event) => event.evidence_id === evidenceId && event.event_type === "evidence_created" && matchesScope(event, scope));
+  }
+
+  async function createEvidence(input = {}) {
+    const scope = assertScope(input);
+    const row = normalizeEvidence(Object.assign({}, input, scope, {
+      id: input.id || nextId("evidence", evidences),
+      created_by: input.created_by || input.createdBy || null,
+      evidence_type: input.evidence_type || input.evidenceType,
+      storage_path: input.storage_path || input.storagePath || null,
+      file_hash: input.file_hash || input.fileHash || null,
+      mime_type: input.mime_type || input.mimeType || null,
+      metadata: input.metadata || {},
+      status: input.status || "registered",
+      occurred_at: input.occurred_at || input.occurredAt || now(),
+      idempotency_key: input.idempotency_key || input.idempotencyKey || input.operation_id || input.operationId || null,
+      created_at: input.created_at || now(),
+      updated_at: input.updated_at || now()
+    }));
+    evidences.push(row);
+    return clone(row);
+  }
+
+  async function createEvent(input = {}) {
+    const scope = assertScope(input);
+    const row = normalizeEvent(Object.assign({}, input, scope, {
+      id: input.id || nextId("event", events),
+      evidence_id: input.evidence_id || input.evidenceId || null,
+      event_type: input.event_type || input.eventType,
+      occurred_at: input.occurred_at || input.occurredAt || now(),
+      created_by: input.created_by || input.createdBy || null,
+      metadata: input.metadata || {},
+      created_at: input.created_at || now()
+    }));
+    events.push(row);
+    return clone(row);
+  }
+
+  async function createEvidenceWithEvent(input = {}, eventInput = {}) {
+    const scope = assertScope(input);
+    const existing = await findEvidenceByIdempotencyKey(input);
+    if (existing) return { evidence: existing, event: clone(eventForEvidence(existing.id, scope) || null), idempotent: true };
+    const evidence = await createEvidence(input);
+    try {
+      const event = await createEvent(Object.assign({}, eventInput, scope, { evidence_id: evidence.id }));
+      return { evidence, event, idempotent: false };
+    } catch (error) {
+      const index = evidences.findIndex((item) => item.id === evidence.id && matchesScope(item, scope));
+      if (index >= 0) evidences.splice(index, 1);
+      throw error;
     }
+  }
+
+  async function listEvidencesByProject(input = {}) {
+    const scope = assertScope(input);
+    const limit = Number(input.limit) || 50;
+    const offset = Number(input.offset) || 0;
+    const items = evidences
+      .filter((item) => matchesScope(item, scope) && matchesFilters(item, input))
+      .sort((a, b) => String(b.occurred_at || b.created_at).localeCompare(String(a.occurred_at || a.created_at)));
+    return pageResult(items.slice(offset, offset + limit + 1).map((item) => clone(item)), { limit, offset });
+  }
+
+  async function listTimelineByProject(input = {}) {
+    const scope = assertScope(input);
+    const limit = Number(input.limit) || 50;
+    const offset = Number(input.offset) || 0;
+    const items = events
+      .filter((item) => matchesScope(item, scope) && matchesFilters(item, input))
+      .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))
+      .map((event) => normalizeEvent(event, evidences.find((evidence) => evidence.id === event.evidence_id && matchesScope(evidence, scope)) || null));
+    return pageResult(items.slice(offset, offset + limit + 1).map((item) => clone(item)), { limit, offset });
+  }
+
+  return {
+    createEvidence,
+    listEvidences: (scope) => listEvidencesByProject(scope).then((result) => result.items),
+    createEvent,
+    listTimeline: (scope) => listTimelineByProject(scope).then((result) => result.items),
+    createEvidenceWithEvent,
+    findEvidenceById,
+    findEvidenceByIdempotencyKey,
+    listEvidencesByProject,
+    listTimelineByProject
   };
 }
