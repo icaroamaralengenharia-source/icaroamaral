@@ -11,6 +11,7 @@ import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
+import { registerEloSentinelRoutes } from "./elo-sentinel-router.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
@@ -2774,6 +2775,13 @@ export function createApp(options = {}) {
         attachmentErrors: chatRequest.attachmentErrors
       });
     }
+  });
+
+  registerEloSentinelRoutes(app, {
+    env,
+    database: options.eloSentinelSupabaseClient || getSupabaseClient(env),
+    store: options.eloSentinelStore,
+    resolveAuthContext: app.locals.resolveAuthContext
   });
 
   app.use("/api", (request, response) => {
