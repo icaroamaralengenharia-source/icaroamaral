@@ -80,6 +80,8 @@ function createSentinelMock(page) {
       expect(body.status).toBeUndefined();
       expect(body.resolved).toBeUndefined();
       expect(body.validated_by).toBeUndefined();
+      expect(body.source_evidence_id).toBe("evidence-1");
+      expect(body.evidence_id).toBeUndefined();
       const pending = { id: `pending-${state.pending.length + 1}`, title: body.title, description: body.description, category: body.category, priority: body.priority, severity: body.severity, status: "suggested", links: [] };
       state.pending.unshift(pending);
       event("pending_item_created", "Pendência criada");
@@ -89,6 +91,8 @@ function createSentinelMock(page) {
     if (method === "POST" && pendingEvidence) {
       expect(body.project_id).toBe("obra-a");
       expect(body.relation_type).toBe("correction");
+      expect(body.evidence_id).toBeTruthy();
+      expect(body.source_evidence_id).toBeUndefined();
       const pending = state.pending.find((item) => item.id === pendingEvidence[1]);
       pending.links.push({ evidence_id: body.evidence_id, relation_type: "correction" });
       pending.has_correction = true;
@@ -153,7 +157,10 @@ test.describe("ELO Sentinela UI", () => {
     await exposeElo(page);
     await expect(page.getByRole("button", { name: "Sentinela" })).toBeVisible();
     await page.getByRole("button", { name: "Sentinela" }).click();
-    await expect(page.getByText("Obra A")).toBeVisible();
+    await expect(page.locator("[data-elo-sentinel-context-title]")).toHaveText("Obra A");
+    await expect(page.locator("[data-elo-sentinel-context-meta]")).toContainText("Empresa A");
+    await expect(page.locator("[data-elo-sentinel-context-meta]")).toContainText("Obra A");
+    await expect(page.locator("[data-elo-sentinel-context-meta]")).not.toContainText("obra-a");
 
     await page.locator("[data-elo-sentinel-evidence-form] input[name='title']").fill("Fissura na fachada");
     await page.locator("[data-elo-sentinel-evidence-form] textarea[name='description']").fill("Trinca horizontal próxima ao peitoril.");
@@ -193,7 +200,14 @@ test.describe("ELO Sentinela UI", () => {
     expect(mock.state.pending[0].validated_by).toBe("user-a");
     expect(mock.state.pending[0].validated_at).toBeTruthy();
     expect(mock.calls.some((call) => call.method === "POST" && call.path === "/evidences")).toBe(true);
-    expect(mock.calls.some((call) => call.method === "POST" && call.path === "/pending-items")).toBe(true);
+    const pendingCreateCall = mock.calls.find((call) => call.method === "POST" && call.path === "/pending-items");
+    expect(pendingCreateCall).toBeTruthy();
+    expect(pendingCreateCall.body.source_evidence_id).toBe("evidence-1");
+    expect(pendingCreateCall.body.evidence_id).toBeUndefined();
+    const correctionLinkCall = mock.calls.find((call) => call.method === "POST" && /\/pending-items\/[^/]+\/evidences/.test(call.path));
+    expect(correctionLinkCall).toBeTruthy();
+    expect(correctionLinkCall.body.evidence_id).toBeTruthy();
+    expect(correctionLinkCall.body.source_evidence_id).toBeUndefined();
   });
 
   for (const viewport of [
