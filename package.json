@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5500",
+    "dev:elo": "vite --config vite.elo.config.js",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "test": "cd backend && node --test tests/*.test.js",
