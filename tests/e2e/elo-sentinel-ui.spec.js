@@ -79,6 +79,12 @@ function createSentinelMock(page) {
       expect(body.institution_id).toBeUndefined();
       expect(body.status).toBeUndefined();
       expect(body.resolved).toBeUndefined();
+      expect(body.priority).toBe("medium");
+      expect(body.severity).toBe("minor");
+      expect(["low", "medium", "high", "critical"]).toContain(body.priority);
+      expect(["informational", "minor", "major", "critical"]).toContain(body.severity);
+      expect(body.priority).not.toBe("normal");
+      expect(body.severity).not.toBe("medium");
       expect(body.validated_by).toBeUndefined();
       expect(body.source_evidence_id).toBe("evidence-1");
       expect(body.evidence_id).toBeUndefined();
@@ -169,6 +175,8 @@ test.describe("ELO Sentinela UI", () => {
     await expect(page.getByText("Evidência criada")).toBeVisible();
 
     await page.getByText("Fissura na fachada").click();
+    await expect(page.locator("[data-elo-sentinel-pending-form] select[name='priority'] option").evaluateAll((options) => options.map((option) => option.value))).resolves.toEqual(["medium", "low", "high", "critical"]);
+    await expect(page.locator("[data-elo-sentinel-pending-form] select[name='severity'] option").evaluateAll((options) => options.map((option) => option.value))).resolves.toEqual(["minor", "informational", "major", "critical"]);
     await page.locator("[data-elo-sentinel-pending-form] input[name='title']").fill("Corrigir fissura");
     await page.locator("[data-elo-sentinel-pending-form] textarea[name='description']").fill("Executar abertura, tratamento e recomposição.");
     await page.getByRole("button", { name: "Criar pendência" }).click();
@@ -176,10 +184,10 @@ test.describe("ELO Sentinela UI", () => {
 
     await page.getByText("Corrigir fissura").click();
     await page.getByRole("button", { name: "Atualizar status" }).click();
-    await expect(page.getByText("open · normal · medium")).toBeVisible();
+    await expect(page.getByText("open · medium · minor")).toBeVisible();
     await page.getByText("Corrigir fissura").click();
     await page.getByRole("button", { name: "Atualizar status" }).click();
-    await expect(page.getByText("in_progress · normal · medium")).toBeVisible();
+    await expect(page.getByText("in_progress · medium · minor")).toBeVisible();
 
     await page.locator("[data-elo-sentinel-evidence-form] input[name='title']").fill("Correção executada");
     await page.locator("[data-elo-sentinel-evidence-form] textarea[name='description']").fill("Tratamento concluído e área recomposta.");
@@ -191,11 +199,11 @@ test.describe("ELO Sentinela UI", () => {
     await page.getByText("Corrigir fissura").click();
     await page.locator("[data-elo-sentinel-status-select]").selectOption("awaiting_validation");
     await page.getByRole("button", { name: "Atualizar status" }).click();
-    await expect(page.getByText("awaiting_validation · normal · medium")).toBeVisible();
+    await expect(page.getByText("awaiting_validation · medium · minor")).toBeVisible();
 
     await page.getByText("Corrigir fissura").click();
     await page.getByRole("button", { name: "Aprovar" }).click();
-    await expect(page.getByText("resolved · normal · medium")).toBeVisible();
+    await expect(page.getByText("resolved · medium · minor")).toBeVisible();
     expect(mock.state.pending[0].validation_status).toBe("approved");
     expect(mock.state.pending[0].validated_by).toBe("user-a");
     expect(mock.state.pending[0].validated_at).toBeTruthy();
@@ -220,7 +228,7 @@ test.describe("ELO Sentinela UI", () => {
       await installSentinelInit(page, { enabled: true });
       const mock = createSentinelMock(page);
       mock.state.evidences.push({ id: "evidence-a", evidence_type: "text", source: "manual", title: "Registro visual", description: "Ponto vistoriado" });
-      mock.state.pending.push({ id: "pending-a", title: "Pendência visual", status: "open", priority: "normal", severity: "medium", links: [] });
+      mock.state.pending.push({ id: "pending-a", title: "Pendência visual", status: "open", priority: "medium", severity: "minor", links: [] });
       mock.state.events.push({ id: "event-a", event_type: "evidence_created", title: "Evidência criada", occurred_at: "2026-07-29T12:00:00.000Z" });
       await page.goto(eloUrl, { waitUntil: "domcontentloaded" });
       await exposeElo(page);
