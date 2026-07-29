@@ -562,7 +562,7 @@ create table if not exists public.elo_sentinel_events (
   created_by text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  constraint elo_sentinel_events_type_chk check (event_type in ('evidence_created', 'evidence_registered', 'manual_note', 'pending_item_created', 'pending_item_updated', 'pending_item_status_changed', 'pending_item_assigned', 'pending_item_due_date_changed', 'pending_item_evidence_linked', 'pending_item_validated', 'pending_item_validation_rejected'))
+  constraint elo_sentinel_events_type_chk check (length(btrim(event_type)) > 0)
 );
 
 alter table public.elo_sentinel_evidences
@@ -590,6 +590,25 @@ create unique index if not exists elo_sentinel_evidences_idempotency_idx
   on public.elo_sentinel_evidences(institution_id, company_id, project_id, idempotency_key)
   where idempotency_key is not null;
 
+
+
+alter table public.elo_sentinel_events
+  add column if not exists source_module text,
+  add column if not exists source_entity_type text,
+  add column if not exists source_entity_id text,
+  add column if not exists severity text,
+  add column if not exists status text,
+  add column if not exists idempotency_key text;
+
+do $
+begin
+  alter table public.elo_sentinel_events drop constraint if exists elo_sentinel_events_type_chk;
+  alter table public.elo_sentinel_events
+    add constraint elo_sentinel_events_type_chk check (length(btrim(event_type)) > 0);
+exception
+  when duplicate_object then null;
+end $;
+
 create index if not exists elo_sentinel_events_institution_id_idx
   on public.elo_sentinel_events(institution_id);
 
@@ -601,6 +620,30 @@ create index if not exists elo_sentinel_events_evidence_id_idx
 
 create index if not exists elo_sentinel_events_project_type_idx
   on public.elo_sentinel_events(institution_id, company_id, project_id, event_type, occurred_at desc);
+
+
+
+create index if not exists elo_sentinel_events_project_occurred_created_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, occurred_at desc, created_at desc);
+
+create index if not exists elo_sentinel_events_source_module_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, source_module, occurred_at desc);
+
+create index if not exists elo_sentinel_events_source_entity_type_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, source_entity_type, occurred_at desc);
+
+create index if not exists elo_sentinel_events_source_entity_id_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, source_entity_id);
+
+create index if not exists elo_sentinel_events_severity_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, severity, occurred_at desc);
+
+create index if not exists elo_sentinel_events_status_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, status, occurred_at desc);
+
+create unique index if not exists elo_sentinel_events_idempotency_idx
+  on public.elo_sentinel_events(institution_id, company_id, project_id, idempotency_key)
+  where idempotency_key is not null;
 
 alter table public.elo_sentinel_evidences enable row level security;
 alter table public.elo_sentinel_events enable row level security;

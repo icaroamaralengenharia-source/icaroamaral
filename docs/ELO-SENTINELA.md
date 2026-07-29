@@ -429,3 +429,153 @@ As falhas abaixo foram comparadas no worktree da Fase 4 e em copia limpa do HEAD
 2. Evoluir upload controlado de evidencias.
 3. Adicionar filtros e paginacao mais completos no painel visual.
 4. Planejar integracoes com RDO e relatorios somente com fatos validados.
+## Timeline operacional unica da obra
+
+A Timeline Operacional Unica transforma `elo_sentinel_events` no indice cronologico central da obra. Ela nao substitui RDO, relatorios tecnicos, documentos, orcamentos ou PDFs: cada modulo segue como fonte da verdade e a timeline guarda apenas referencias seguras.
+
+### Feature flag
+
+A rota operacional usa flag propria e fica desligada por padrao:
+
+- `ELO_OPERATIONAL_TIMELINE_ENABLED`
+
+Alias aceito:
+
+- `ELO_SENTINEL_OPERATIONAL_TIMELINE_ENABLED`
+
+Com a flag desligada, `GET /api/elo/projects/:projectId/timeline` responde `elo_operational_timeline_disabled` e nao afeta `/api/elo/chat` nem as rotas atuais do Sentinela.
+
+### Evolucao aditiva de `elo_sentinel_events`
+
+Campos adicionados quando ausentes:
+
+- `source_module`
+- `source_entity_type`
+- `source_entity_id`
+- `severity`
+- `status`
+- `idempotency_key`
+
+Indices adicionados:
+
+- escopo e ordenacao por `institution_id`, `company_id`, `project_id`, `occurred_at`, `created_at`;
+- origem por `source_module`, `source_entity_type`, `source_entity_id`;
+- filtros por `severity` e `status`;
+- indice unico contextual para `idempotency_key` nao nula.
+
+O constraint de `event_type` passa a aceitar qualquer texto nao vazio para permitir extensao futura sem invalidar eventos antigos.
+
+### Contrato `OperationalTimelineEvent`
+
+Campos normalizados:
+
+- `id`
+- `institution_id`
+- `company_id`
+- `project_id`
+- `event_type`
+- `source_module`
+- `source_entity_type`
+- `source_entity_id`
+- `title`
+- `description`
+- `occurred_at`
+- `created_by`
+- `severity`
+- `status`
+- `metadata`
+- `idempotency_key`
+
+Fontes iniciais:
+
+- `sentinel`
+- `obrareport`
+- `rdo`
+- `technical_report`
+- `generated_document`
+- `elo_budget`
+- `budget_pdf`
+
+Severidades iniciais:
+
+- `informational`
+- `minor`
+- `major`
+- `critical`
+
+Status operacionais iniciais:
+
+- `created`
+- `active`
+- `completed`
+- `cancelled`
+- `failed`
+- `archived`
+
+### Rota
+
+`GET /api/elo/projects/:projectId/timeline`
+
+Filtros:
+
+- `date_from`
+- `date_to`
+- `event_type`
+- `source_module`
+- `source_entity_type`
+- `source_entity_id`
+- `severity`
+- `status`
+- `created_by`
+- `search`
+- `limit`
+- `offset` ou `cursor`
+
+A rota exige autenticacao, escopo completo por `institution_id`, `company_id` e `project_id`, e nao confia em body/query para tenant. O filtro `created_by` so e aplicado quando enviado explicitamente na query.
+
+### Adaptadores iniciais
+
+Adaptadores isolados registram referencias apos sucesso da operacao original:
+
+- Sentinela: evidencia, pendencia, validacao e correcao;
+- RDO: criado, atualizado e documento gerado;
+- relatorios tecnicos: criado, atualizado e documento gerado;
+- documentos gerados do ObraReport;
+- orcamento: criado, versao criada e PDF gerado.
+
+Se a timeline falhar, a operacao original nao e desfeita. A falha e registrada de forma segura no log do backend.
+
+### Idempotencia
+
+Chave preferencial:
+
+`source_module:source_entity_type:source_entity_id:event_type:version`
+
+A mesma chave no mesmo tenant, empresa e obra retorna o evento existente. A mesma chave em outra obra ou tenant nao colide. Eventos sem `idempotency_key` continuam validos para compatibilidade.
+
+### Referencia sem copia
+
+A timeline nunca copia PDF, HTML, arquivo, documento completo ou payload proprietario. `metadata` e sanitizada para remover conteudo bruto, chaves de documento, PDF, HTML, base64 e campos equivalentes. A busca textual consulta apenas titulo, descricao, metadata segura, modulo e tipo de origem.
+
+### Eventos orfaos
+
+Quando a origem referenciada nao existe mais, o evento permanece na timeline com `source_exists: false`. A listagem nao retorna erro 500, nao remove historico e nao inventa URL.
+
+### Validacao
+
+Resultados desta fase:
+
+- Timeline operacional: `3/3 PASS` em `backend/tests/elo-operational-timeline.test.js`.
+- Sentinela Fases 1, 2 e 3 + adaptadores ObraReport/orcamento: `38/38 PASS`.
+- E2E real Timeline: `1/1 PASS` em `tests/e2e/real/elo-operational-timeline-real.spec.js`.
+- E2E real Sentinela: `2/2 PASS` em `tests/e2e/real/elo-sentinel-real.spec.js`.
+- UI Sentinela: `6/6 PASS` em `tests/e2e/elo-sentinel-ui.spec.js`.
+
+A validacao E2E real usou somente Supabase E2E TEST, com schema confirmado antes da execucao e sem aplicar migracao remota nesta etapa.
+
+### Limitacoes
+
+- Stock Obras, Stock Full e Stock Saude ficam fora desta fase.
+- Nenhuma conclusao tecnica automatica e gerada.
+- A timeline e indice operacional, nao acervo documental.
+- Acervo e anexos controlados ficam para etapa posterior.

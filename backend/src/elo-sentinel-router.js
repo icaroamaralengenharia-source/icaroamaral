@@ -10,6 +10,10 @@ function isEnabled(env = {}) {
   return clean(env.ELO_SENTINEL_ENABLED).toLowerCase() === "true";
 }
 
+function isOperationalTimelineEnabled(env = {}) {
+  return clean(env.ELO_OPERATIONAL_TIMELINE_ENABLED || env.ELO_SENTINEL_OPERATIONAL_TIMELINE_ENABLED).toLowerCase() === "true";
+}
+
 function safeStatus(error, fallback = 500) {
   const status = Number(error && (error.status || error.statusCode)) || fallback;
   if (status < 400 || status > 599) return fallback;
@@ -170,6 +174,39 @@ export function createEloSentinelRouter(options = {}) {
   return router;
 }
 
+export function createEloOperationalTimelineRouter(options = {}) {
+  const env = options.env || process.env;
+  const router = express.Router();
+  const store = options.store || createEloSentinelStore({ client: options.database || null });
+  const service = options.service || createEloSentinelService({ store });
+  const resolveAuthContext = options.resolveAuthContext || (async () => ({ ok: false, status: 401, error: "authentication_required" }));
+
+  router.get("/:projectId/timeline", async (request, response) => {
+    try {
+      if (!isOperationalTimelineEnabled(env)) {
+        response.status(503).json({ ok: false, error: "elo_operational_timeline_disabled" });
+        return;
+      }
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const scope = contextScope(context, Object.assign({}, request.query || {}, { project_id: request.params.projectId }));
+      if (clean(request.query.project_id || request.query.projectId, 140) && clean(request.query.project_id || request.query.projectId, 140) !== scope.project_id) {
+        response.status(404).json({ ok: false, error: "project_not_found" });
+        return;
+      }
+      const filters = Object.assign({}, request.query || {}, scope);
+      if (!clean(request.query.created_by || request.query.createdBy, 140)) delete filters.created_by;
+      const result = await service.listOperationalTimeline(filters);
+      response.json({ ok: true, events: result.events, page: result.page });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error) });
+    }
+  });
+
+  return router;
+}
+
 export function registerEloSentinelRoutes(app, options = {}) {
   app.use("/api/elo/sentinel", createEloSentinelRouter(options));
+  app.use("/api/elo/projects", createEloOperationalTimelineRouter(options));
 }

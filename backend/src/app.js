@@ -12,6 +12,8 @@ import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
 import { registerEloSentinelRoutes } from "./elo-sentinel-router.js";
+import { createEloSentinelService } from "./elo-sentinel-service.js";
+import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
 import { defaultObraReportTransactionalService } from "./services/obrareport-transactional-service.js";
 
@@ -760,6 +762,8 @@ export function createApp(options = {}) {
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
+  const eloSentinelStoreForApp = options.eloSentinelStore || createEloSentinelStore({ client: options.eloSentinelSupabaseClient || getSupabaseClient(env) });
+  let operationalTimelineService = null;
   const getStockSaudeDatabase = (response) => requireStockSaudeDatabase_(env, response, stockSaudeSupabaseClient);
   const getStockFullDatabase = (response) => requireStockFullDatabase_(env, response, stockFullSupabaseClient);
   const getAuthContextDatabase = () => authContextSupabaseClient || getSupabaseClient(env);
@@ -795,6 +799,48 @@ export function createApp(options = {}) {
       institutionId: clean_(request.headers["x-institution-id"] || request.body.institutionId || request.body.institution_id),
       userId: clean_(request.headers["x-user-id"] || request.body.userId || request.body.user_id)
     };
+  }
+
+  function operationalTimelineEnabled_() {
+    return clean_(env.ELO_OPERATIONAL_TIMELINE_ENABLED || env.ELO_SENTINEL_OPERATIONAL_TIMELINE_ENABLED).toLowerCase() === "true";
+  }
+
+  function getOperationalTimelineService_() {
+    if (operationalTimelineService) return operationalTimelineService;
+    operationalTimelineService = createEloSentinelService({ store: eloSentinelStoreForApp });
+    return operationalTimelineService;
+  }
+
+  function timelineScopeFromRequest_(request, record = {}) {
+    const body = request.body && typeof request.body === "object" ? request.body : {};
+    const query = request.query && typeof request.query === "object" ? request.query : {};
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    const institutionId = clean_(record.institution_id || profile.institution_id || profile.institutionId || auth.institutionId || request.headers["x-institution-id"] || body.institutionId || body.institution_id || query.institutionId || query.institution_id);
+    const companyId = clean_(record.company_id || profile.company_id || profile.companyId || auth.companyId || request.headers["x-company-id"] || body.companyId || body.company_id || query.companyId || query.company_id || institutionId);
+    const recordData = record.document_data && typeof record.document_data === "object" ? record.document_data : {};
+    const projectId = clean_(record.project_id || recordData.projectId || recordData.project_id || body.projectId || body.project_id || query.projectId || query.project_id);
+    return { institution_id: institutionId, company_id: companyId, project_id: projectId, created_by: clean_(profile.id || auth.userId || request.headers["x-user-id"] || body.userId || body.user_id || record.created_by || record.owner_user_id) || null };
+  }
+
+  async function safeEmitOperationalTimeline_(request, event = {}) {
+    if (!operationalTimelineEnabled_()) return;
+    try {
+      const scope = timelineScopeFromRequest_(request, event.record || {});
+      if (!scope.institution_id || !scope.company_id || !scope.project_id) return;
+      const payload = Object.assign({}, event, scope);
+      delete payload.record;
+      await getOperationalTimelineService_().createOperationalTimelineEvent(payload);
+    } catch (error) {
+      console.warn("Falha segura ao registrar timeline operacional:", clean_(error && error.message || "timeline_failed"));
+    }
+  }
+  function timelineRecordWithRequestCompany_(request, record = {}) {
+    const auth = request.eloAuthContext || {};
+    const profile = auth.profile || {};
+    return Object.assign({}, record, {
+      company_id: record.company_id || profile.company_id || profile.companyId || auth.companyId || request.headers["x-company-id"] || null
+    });
   }
 
   function handleObraReportError_(response, error) {
@@ -942,9 +988,10 @@ export function createApp(options = {}) {
   }
 
 
-  app.post("/api/obrareport/reports", (request, response) => {
+  app.post("/api/obrareport/reports", async (request, response) => {
     try {
       const report = obraReportTransactionalService.createTechnicalReport(buildObraReportContext_(request), request.body || {});
+      await safeEmitOperationalTimeline_(request, { record: report, event_type: "report_created", source_module: "technical_report", source_entity_type: "report", source_entity_id: report.id, title: report.title || "Relatorio tecnico criado", description: "Referencia de relatorio tecnico criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, report });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -969,9 +1016,10 @@ export function createApp(options = {}) {
     }
   });
 
-  app.put("/api/obrareport/reports/:id", (request, response) => {
+  app.put("/api/obrareport/reports/:id", async (request, response) => {
     try {
       const report = obraReportTransactionalService.updateTechnicalReport(buildObraReportContext_(request), request.params.id, request.body || {});
+      await safeEmitOperationalTimeline_(request, { record: report, event_type: "report_updated", source_module: "technical_report", source_entity_type: "report", source_entity_id: report.id, title: report.title || "Relatorio tecnico atualizado", description: "Referencia de relatorio tecnico atualizada.", severity: "informational", status: "active" });
       response.json({ ok: true, report });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -987,9 +1035,11 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/obrareport/reports/:id/generate-document", (request, response) => {
+  app.post("/api/obrareport/reports/:id/generate-document", async (request, response) => {
     try {
       const document = obraReportTransactionalService.generateTechnicalReportDocument(buildObraReportContext_(request), request.params.id);
+      const reportForTimeline = obraReportTransactionalService.getTechnicalReport(buildObraReportContext_(request), request.params.id);
+      await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: reportForTimeline.project_id }), event_type: "report_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de relatorio gerado", description: "Referencia de documento controlado gerado.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
       response.status(201).json({ ok: true, document });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1005,9 +1055,10 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/obrareport/rdos", (request, response) => {
+  app.post("/api/obrareport/rdos", async (request, response) => {
     try {
       const rdo = obraReportTransactionalService.createRdo(buildObraReportContext_(request), request.body || {});
+      await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_created", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO criado", description: "Referencia de RDO criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, rdo });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1023,9 +1074,10 @@ export function createApp(options = {}) {
     }
   });
 
-  app.put("/api/obrareport/rdos/:id", (request, response) => {
+  app.put("/api/obrareport/rdos/:id", async (request, response) => {
     try {
       const rdo = obraReportTransactionalService.updateRdo(buildObraReportContext_(request), request.params.id, request.body || {});
+      await safeEmitOperationalTimeline_(request, { record: rdo, event_type: "rdo_updated", source_module: "rdo", source_entity_type: "rdo", source_entity_id: rdo.id, title: rdo.title || "RDO atualizado", description: "Referencia de RDO atualizada.", severity: "informational", status: rdo.status === "closed" ? "completed" : "active" });
       response.json({ ok: true, rdo });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -1041,9 +1093,11 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/obrareport/rdos/:id/generate-document", (request, response) => {
+  app.post("/api/obrareport/rdos/:id/generate-document", async (request, response) => {
     try {
       const document = obraReportTransactionalService.generateRdoDocument(buildObraReportContext_(request), request.params.id);
+      const rdoForTimeline = obraReportTransactionalService.getRdo(buildObraReportContext_(request), request.params.id);
+      await safeEmitOperationalTimeline_(request, { record: Object.assign({}, document, { project_id: rdoForTimeline.project_id }), event_type: "rdo_document_generated", source_module: "generated_document", source_entity_type: "document", source_entity_id: document.id, title: document.document_type || "Documento de RDO gerado", description: "Referencia de documento de RDO gerado.", severity: "informational", status: "completed", metadata: { source_type: document.source_type, source_id: document.source_id, hash: document.hash, file_id: document.file && document.file.id } });
       response.status(201).json({ ok: true, document });
     } catch (error) {
       handleObraReportError_(response, error);
@@ -2427,9 +2481,10 @@ export function createApp(options = {}) {
       response.json({ ok: true, budgets });
     } catch (error) { sendEloBudgetError_(response, error); }
   });
-  app.post("/api/elo/budgets", (request, response) => {
+  app.post("/api/elo/budgets", async (request, response) => {
     try {
       const budget = eloBudgetService.createBudget(request.body && request.body.documentData, buildEloBudgetContext_(request));
+      await safeEmitOperationalTimeline_(request, { record: timelineRecordWithRequestCompany_(request, budget), event_type: "budget_created", source_module: "elo_budget", source_entity_type: "budget", source_entity_id: budget.id, title: budget.title || "Orcamento criado", description: "Referencia de orcamento criada.", severity: "informational", status: "created" });
       response.status(201).json({ ok: true, budget });
     } catch (error) { sendEloBudgetError_(response, error); }
   });
@@ -2445,15 +2500,18 @@ export function createApp(options = {}) {
       response.json({ ok: true, budget });
     } catch (error) { sendEloBudgetError_(response, error); }
   });
-  app.post("/api/elo/budgets/:id/versions", (request, response) => {
+  app.post("/api/elo/budgets/:id/versions", async (request, response) => {
     try {
       const version = eloBudgetService.createVersion(request.params.id, request.body && request.body.documentData, buildEloBudgetContext_(request));
+      await safeEmitOperationalTimeline_(request, { record: timelineRecordWithRequestCompany_(request, version), event_type: "budget_version_created", source_module: "elo_budget", source_entity_type: "budget_version", source_entity_id: version.id, title: "Versao de orcamento criada", description: "Referencia de versao de orcamento criada.", severity: "informational", status: "created", version: String(version.version_number || 1), metadata: { budget_id: version.budget_id, version_number: version.version_number } });
       response.status(201).json({ ok: true, version });
     } catch (error) { sendEloBudgetError_(response, error); }
   });
-  app.post("/api/elo/budgets/:id/generate-pdf", (request, response) => {
+  app.post("/api/elo/budgets/:id/generate-pdf", async (request, response) => {
     try {
       const document = eloBudgetService.generateBudgetPdf(request.params.id, buildEloBudgetContext_(request));
+      const budgetForTimeline = eloBudgetService.getBudget(request.params.id, buildEloBudgetContext_(request));
+      await safeEmitOperationalTimeline_(request, { record: timelineRecordWithRequestCompany_(request, Object.assign({}, document, { institution_id: budgetForTimeline.institution_id, company_id: budgetForTimeline.company_id, project_id: budgetForTimeline.project_id, created_by: budgetForTimeline.owner_user_id })), event_type: "pdf_generated", source_module: "budget_pdf", source_entity_type: "budget_pdf", source_entity_id: document.id, title: document.file_name || "PDF de orcamento gerado", description: "Referencia de PDF de orcamento gerado.", severity: "informational", status: "completed", metadata: { budget_id: document.budget_id, version_id: document.version_id, file_name: document.file_name } });
       response.status(201).json({ ok: true, budgetId: request.params.id, document, html: document.html_content });
     } catch (error) { sendEloBudgetError_(response, error); }
   });
@@ -2780,7 +2838,7 @@ export function createApp(options = {}) {
   registerEloSentinelRoutes(app, {
     env,
     database: options.eloSentinelSupabaseClient || getSupabaseClient(env),
-    store: options.eloSentinelStore,
+    store: eloSentinelStoreForApp,
     resolveAuthContext: app.locals.resolveAuthContext
   });
 
