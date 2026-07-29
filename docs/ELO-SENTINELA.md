@@ -327,15 +327,36 @@ A Fase 3 registra eventos na timeline:
 - Nao ha integracao visual.
 - Nao ha aplicacao remota do schema nesta fase.
 
-### E2E remoto pendente
+### E2E remoto validado
 
-O schema acumulado das Fases 1, 2 e 3 precisa ser aplicado ao Supabase E2E isolado antes de executar a suite real remota. Depois disso, validar o fluxo:
+O schema acumulado das Fases 1, 2 e 3 foi validado no Supabase E2E TEST isolado, sem uso de producao. O spec real fica em `tests/e2e/real/elo-sentinel-real.spec.js`.
 
-1. evidencia;
-2. pendencia;
-3. evidencia de correcao;
-4. `awaiting_validation`;
-5. validacao humana;
-6. timeline.
+Fluxo validado:
+
+1. autenticacao no tenant E2E;
+2. criacao de evidencia textual;
+3. persistencia da evidencia;
+4. evento `evidence_created` na timeline;
+5. idempotencia por `idempotency_key` sem duplicata;
+6. criacao de pendencia vinculada a evidencia source;
+7. transicoes `open` e `in_progress`;
+8. evidencia de correcao;
+9. vinculo `correction`;
+10. transicao para `awaiting_validation`;
+11. validacao humana `approved`;
+12. status final `resolved` e `validation_status` `approved`;
+13. preenchimento de `validated_by` e `validated_at`;
+14. timeline final com eventos da jornada;
+15. isolamento entre obra A e obra B;
+16. isolamento entre tenant A e tenant B;
+17. smoke de `/api/elo/chat`;
+18. smoke de ObraReport.
+
+Comandos executados na validacao:
+
+- `node --test backend\tests\elo-sentinel-foundation.test.js backend\tests\elo-sentinel-evidence-timeline.test.js backend\tests\elo-sentinel-pending-validation.test.js`
+- `npx.cmd playwright test tests/e2e/real/elo-sentinel-real.spec.js --reporter=line`
+
+A validacao real encontrou e corrigiu um vazamento de campos de pendencia para `elo_sentinel_events` no evento `pending_item_created`. O evento agora recebe apenas colunas validas na raiz e dados de pendencia ficam em `metadata`.
 
 Nao usar producao.

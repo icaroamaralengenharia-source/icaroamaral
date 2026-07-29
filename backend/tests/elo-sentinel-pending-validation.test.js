@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
 import { createEloSentinelMemoryStore } from "../src/elo-sentinel-store.js";
+import { createEloSentinelService } from "../src/elo-sentinel-service.js";
 
 async function withServer(options = {}, callback) {
   const app = createApp({
@@ -249,4 +250,64 @@ test("Fase 3 flag desligada mantem modulo indisponivel", async () => {
     assert.equal(result.response.status, 503);
     assert.equal(result.data.error, "elo_sentinel_disabled");
   });
+});
+
+test("Fase 3 nao vaza campos de pendencia para evento ou vinculo source", async () => {
+  const captured = { events: [], links: [] };
+  const pendingRow = {
+    id: "pending-1",
+    institution_id: "inst-a",
+    company_id: "company-a",
+    project_id: "obra-a",
+    source_evidence_id: "evidence-1",
+    title: "Corrigir fissura",
+    description: "Fissura junto ao pilar",
+    category: "estrutura",
+    priority: "high",
+    severity: "major",
+    status: "suggested",
+    created_by: "user-a",
+    validation_status: "pending",
+    metadata: {},
+    evidences: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  const store = {
+    async findEvidenceById() { return { id: "evidence-1", institution_id: "inst-a", company_id: "company-a", project_id: "obra-a" }; },
+    async findPendingItemByIdempotencyKey() { return null; },
+    async createPendingItem() { return pendingRow; },
+    async linkEvidenceToPendingItem(payload) { captured.links.push(payload); return { link: Object.assign({ id: "link-1", created_at: new Date().toISOString() }, payload), idempotent: false }; },
+    async findPendingItemById() { return Object.assign({}, pendingRow, { evidences: captured.links }); },
+    async createEvent(payload) { captured.events.push(payload); return Object.assign({ id: "event-1", created_at: new Date().toISOString() }, payload); }
+  };
+  const service = createEloSentinelService({ store });
+
+  const result = await service.createPendingItem({
+    institution_id: "inst-a",
+    company_id: "company-a",
+    project_id: "obra-a",
+    source_evidence_id: "evidence-1",
+    title: "Corrigir fissura",
+    description: "Fissura junto ao pilar",
+    category: "estrutura",
+    priority: "high",
+    severity: "major",
+    idempotency_key: "pend-guard",
+    created_by: "user-a"
+  });
+
+  assert.equal(result.event.event_type, "pending_item_created");
+  const forbiddenRootFields = ["source_evidence_id", "category", "priority", "severity", "status", "responsible_user_id", "due_at", "suggested_by", "validation_status", "idempotency_key"];
+  for (const field of forbiddenRootFields) {
+    assert.equal(Object.hasOwn(captured.events[0], field), false, field + " vazou para evento");
+  }
+  assert.deepEqual(captured.events[0].metadata, {
+    pending_item_id: "pending-1",
+    status: "suggested",
+    priority: "high",
+    severity: "major",
+    category: "estrutura"
+  });
+  assert.deepEqual(Object.keys(captured.links[0]).sort(), ["company_id", "created_by", "evidence_id", "institution_id", "pending_item_id", "project_id", "relation_type"].sort());
 });
