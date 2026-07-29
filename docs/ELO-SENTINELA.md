@@ -360,3 +360,72 @@ Comandos executados na validacao:
 A validacao real encontrou e corrigiu um vazamento de campos de pendencia para `elo_sentinel_events` no evento `pending_item_created`. O evento agora recebe apenas colunas validas na raiz e dados de pendencia ficam em `metadata`.
 
 Nao usar producao.
+
+## Fase 4: integracao visual segura
+
+A Fase 4 adiciona uma interface visual minima do ELO Sentinela dentro do proprio ELO, sem criar segundo chat e sem alterar o comportamento padrao do modo Conversa.
+
+### Feature flag visual
+
+A interface visual usa a flag frontend `ELO_SENTINEL_UI_ENABLED`, desligada por padrao. Quando a flag nao esta ativa, o seletor Sentinela, o painel visual e chamadas para `/api/elo/sentinel/*` permanecem ocultos.
+
+O painel tambem exige backend Sentinela disponivel, usuario autenticado, empresa ativa e obra ativa valida. Sem obra ativa, a UI nao mostra formularios nem dispara fetch Sentinela e exibe apenas: `Selecione uma obra para usar o Sentinela.`
+
+### Modo dentro do ELO
+
+O ELO passa a ter um controle discreto de modo:
+
+- `Conversa`
+- `Sentinela`
+
+O modo padrao continua sendo `Conversa`. A alternancia para Sentinela nao altera historico do chat, prompt, memoria, roteamento ou `/api/elo/chat`.
+
+### Blocos visuais
+
+O modulo visual isolado fica em `relatorio-qualidade-obras/elo-sentinel-ui.js`, com estilos em `relatorio-qualidade-obras/elo-sentinel-ui.css`.
+
+Blocos criados:
+
+- contexto da empresa e obra ativa;
+- registro de evidencia textual/manual;
+- evidencias recentes;
+- timeline;
+- pendencias;
+- abertura manual de pendencia;
+- transicoes seguras de status;
+- vinculo de evidencia de correcao;
+- validacao humana.
+
+A UI nao permite resolver pendencia diretamente, nao aceita `company_id` ou `institution_id` por input manual e nao permite `validated_by` pelo frontend. A validacao aprovada ou rejeitada usa a rota dedicada e deixa claro que a IA nao conclui tecnicamente: a validacao e humana.
+
+### Resultados da validacao
+
+- UI Sentinela: `6/6 PASS` em `tests/e2e/elo-sentinel-ui.spec.js`.
+- E2E real Sentinela: `2/2 PASS` em `tests/e2e/real/elo-sentinel-real.spec.js`.
+- Backend relevante: `67/67 PASS`.
+- `node --check relatorio-qualidade-obras/elo-sentinel-ui.js`: PASS.
+- `git diff --check`: PASS.
+- Varredura de secrets nos arquivos alterados: sem ocorrencias.
+
+### Falhas frontend preexistentes
+
+As falhas abaixo foram comparadas no worktree da Fase 4 e em copia limpa do HEAD `a08001e`, com resultado igual. Permanecem fora do escopo desta fase:
+
+- `tests/e2e/elo-surfaces.spec.js`: falha preexistente; esperava `brain = "technical"` e recebeu `""`.
+- `tests/e2e/elo-conversation-conductor.spec.js`: falha preexistente; respostas genericas no lugar dos textos esperados.
+- `tests/e2e/elo-mobile-regressions.spec.js`: instabilidade preexistente; timeout com `--workers=1` no worktree e no HEAD limpo.
+
+### Limitacoes atuais
+
+- Sem upload binario, foto, audio ou video.
+- Sem IA para concluir tecnicamente eventos.
+- Sem geracao automatica de RDO, relatorio ou PDF.
+- Sem uso em producao antes de revisao operacional.
+- A flag visual deve permanecer desligada por padrao.
+
+### Proximos passos
+
+1. Corrigir em etapa separada as falhas frontend preexistentes do ELO.
+2. Evoluir upload controlado de evidencias.
+3. Adicionar filtros e paginacao mais completos no painel visual.
+4. Planejar integracoes com RDO e relatorios somente com fatos validados.
