@@ -1,5 +1,6 @@
 import express from "express";
-import { createMunicipalAdminService, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
+import { createMunicipalAdminService, createSupabaseMunicipalAdminStore, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
+import { createMunicipalOperationalShelfService } from "./municipal-operational-shelf-service.js";
 
 function clean(value) {
   return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -44,6 +45,7 @@ export function createMunicipalAdminRouter(options = {}) {
   const router = express.Router();
   const database = options.database || null;
   let service = options.service || null;
+  let operationalShelfService = options.operationalShelfService || null;
   const resolveAuthContext = options.resolveAuthContext;
 
   function getService() {
@@ -56,6 +58,13 @@ export function createMunicipalAdminRouter(options = {}) {
     }
     service = createMunicipalAdminService({ database, store: options.store });
     return service;
+  }
+
+  function getOperationalShelfService() {
+    if (operationalShelfService) return operationalShelfService;
+    const shelfStore = options.operationalShelfStore || options.store || createSupabaseMunicipalAdminStore(database);
+    operationalShelfService = createMunicipalOperationalShelfService({ store: shelfStore });
+    return operationalShelfService;
   }
 
   async function requireContext(request) {
@@ -97,6 +106,7 @@ export function createMunicipalAdminRouter(options = {}) {
   router.get("/institutions/:institutionId/units", route((request, context, svc) => svc.listUnits(context, request.params.institutionId)));
   router.patch("/units/:unitId", route((request, context, svc) => svc.updateUnit(context, request.params.unitId, request.body || {})));
   router.post("/units/:unitId/deactivate", route((request, context, svc) => svc.deactivateUnit(context, request.params.unitId)));
+  router.get("/units/:unitId/operational-dashboard", route((request, context) => getOperationalShelfService().getOperationalDashboard(context, request.params.unitId)));
 
   router.post("/institutions/:institutionId/invites", route((request, context, svc) => svc.createInvite(context, request.params.institutionId, request.body || {})));
   router.get("/institutions/:institutionId/users", route((request, context, svc) => svc.listUsers(context, request.params.institutionId)));

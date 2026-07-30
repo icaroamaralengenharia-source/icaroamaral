@@ -38,7 +38,37 @@ async function mockMunicipalApi(page, options = {}) {
       ],
       "inst-b": [{ id: "profile-b", auth_user_id: "func-b", institution_id: "inst-b", unit_id: "unit-b", name: "Func B", email: "func@b.test", role: "funcionario", status: "active" }]
     },
-    inviteCount: 0
+    inviteCount: 0,
+    dashboards: {
+      "unit-a": {
+        unit: { id: "unit-a", institution_id: "inst-a", name: "Almox Central", code: "CENTRAL", address: "Rua A", status: "active" },
+        metrics: { total_items: 2, total_quantity: 11, low_stock_items: 1, zero_stock_items: 1, recent_entries: 1, recent_exits: 1, open_alerts: 2, last_movement_at: "2026-02-04T10:00:00.000Z", last_audit_at: "2026-02-04T11:00:00.000Z" },
+        items: [
+          { id: "item-seringa", name: "Seringa", unit: "un", current_quantity: 2, minimum_quantity: 5, situation: "baixo" },
+          { id: "item-luva", name: "Luva", unit: "cx", current_quantity: 0, minimum_quantity: 1, situation: "zerado" }
+        ],
+        movements: [
+          { id: "mov-entry", type: "entrada", item_name: "Seringa", quantity: 10, created_at: "2026-02-03T10:00:00.000Z", responsible: "Ana", reason: "NF 10", source: "stock_saude" },
+          { id: "mov-exit", type: "saida", item_name: "Luva", quantity: 1, created_at: "2026-02-04T10:00:00.000Z", responsible: "Bia", reason: "UBS", source: "stock_saude" }
+        ],
+        alerts: [
+          { id: "alert-seringa", title: "Seringa", type: "estoque_baixo", current_quantity: 2, minimum_quantity: 5 },
+          { id: "alert-luva", title: "Luva", type: "item_zerado", current_quantity: 0, minimum_quantity: 1 }
+        ],
+        audit_log: [{ id: "audit-1", action: "stock_checked", user: "gestor-user", created_at: "2026-02-04T11:00:00.000Z", summary: "Conferencia" }],
+        partial_errors: []
+      },
+      "unit-a-2": {
+        unit: { id: "unit-a-2", institution_id: "inst-a", name: "Almox Distrital", code: "DIST", address: "Rua D", status: "active" },
+        metrics: { total_items: 0, total_quantity: 0, low_stock_items: 0, zero_stock_items: 0, recent_entries: 0, recent_exits: 0, open_alerts: 0, last_movement_at: "", last_audit_at: "" },
+        items: [], movements: [], alerts: [], audit_log: [], partial_errors: []
+      },
+      "unit-b": {
+        unit: { id: "unit-b", institution_id: "inst-b", name: "Almox B", code: "B", address: "Rua B", status: "active" },
+        metrics: { total_items: 1, total_quantity: 99, low_stock_items: 0, zero_stock_items: 0, recent_entries: 0, recent_exits: 0, open_alerts: 0 },
+        items: [], movements: [], alerts: [], audit_log: [], partial_errors: []
+      }
+    }
   };
 
   function actorCanUseInstitution(id) {
@@ -120,6 +150,15 @@ async function mockMunicipalApi(page, options = {}) {
       const unit = { id: "unit-new", institution_id: unitsMatch[1], name: body.name, code: body.code, address: body.address || "", status: body.status || "active" };
       state.units[unitsMatch[1]] = (state.units[unitsMatch[1]] || []).concat(unit);
       return route.fulfill({ json: { ok: true, unit } });
+    }
+    const dashboardMatch = path.match(/^\/units\/([^/]+)\/operational-dashboard$/);
+    if (dashboardMatch && request.method() === "GET") {
+      const unit = findUnit(dashboardMatch[1]);
+      if (!unit || !actorCanUseInstitution(unit.institution_id)) return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      if (actorRole === "gestor" && unit.id !== "unit-a") return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      if (options.shelfFailUnit === unit.id) return route.fulfill({ status: 500, json: { ok: false, error: "stock_source_failed" } });
+      const dashboard = state.dashboards[unit.id];
+      return dashboard ? route.fulfill({ json: { ok: true, dashboard } }) : route.fulfill({ status: 404, json: { ok: false, error: "unit_not_found" } });
     }
     const unitPatch = path.match(/^\/units\/([^/]+)$/);
     if (unitPatch && request.method() === "PATCH") {
@@ -386,5 +425,57 @@ test.describe("Administracao Municipal UI", () => {
     await expect(page.getByRole("heading", { name: "Administracao Municipal" })).toBeVisible();
     await expect(page.locator(".ma-detail")).toContainText("Usuarios");
     await expect(page.locator(".ma-detail")).toBeVisible();
+  });
+  test("prateleira operacional exibe metricas reais e detalhe do almoxarifado", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    const shelf = page.locator(".ma-shelf");
+    await expect(shelf.getByRole("heading", { name: "Prateleira Operacional" })).toBeVisible();
+    await expect(shelf).toContainText("Itens cadastrados");
+    await expect(shelf).toContainText("Seringa");
+    await expect(shelf).toContainText("Luva");
+    await expect(shelf).toContainText("Movimentacoes");
+    await expect(shelf).toContainText("Historico/Auditoria");
+  });
+
+  test("gestor ve somente almoxarifado autorizado na prateleira", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "gestor" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    const shelf = page.locator(".ma-shelf");
+    await expect(shelf).toContainText("Almox Central");
+    await expect(shelf).not.toContainText("Almox Distrital");
+    await expect(shelf).not.toContainText("Almox B");
+  });
+
+  test("troca manual de almoxarifado externo fica bloqueada", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "gestor" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".ma-status")).toContainText("Prefeitura carregada");
+    await page.evaluate(() => window.MunicipalAdminUi.openShelfUnitForTest("unit-a-2"));
+    await expect(page.locator(".ma-status")).toContainText("Acesso negado para almoxarifado");
+    await expect(page.locator(".ma-shelf")).not.toContainText("Almox Distrital");
+  });
+
+  test("almoxarifado sem itens apresenta estados vazios", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.locator(".ma-shelf-card", { hasText: "Almox Distrital" }).getByRole("button", { name: "Abrir almoxarifado" }).click();
+    const detail = page.locator(".ma-shelf-detail");
+    await expect(detail).toContainText("Unidade sem itens");
+    await expect(detail).toContainText("Unidade sem movimentacoes");
+    await expect(detail).toContainText("Unidade sem alertas");
+  });
+
+  test("falha em um almoxarifado nao derruba os demais", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin", shelfFailUnit: "unit-a-2" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    const shelf = page.locator(".ma-shelf");
+    await expect(shelf).toContainText("Seringa");
+    await expect(page.locator(".ma-shelf-card", { hasText: "Almox Distrital" })).toContainText("stock_source_failed");
   });
 });

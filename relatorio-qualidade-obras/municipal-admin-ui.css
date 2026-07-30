@@ -85,3 +85,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .user-actions { grid-template-columns: 1fr; }
   .ma-inline-select { width: 100%; }
 }
+.ma-shelf { display: grid; gap: 12px; }
+.ma-shelf > .ma-actions { justify-content: space-between; }
+.ma-shelf-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.ma-shelf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.ma-shelf-card { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--ma-line); border-radius: 8px; background: #fff; }
+.ma-shelf-card strong, .ma-shelf-card span, .ma-shelf-card small { min-width: 0; overflow-wrap: anywhere; }
+.ma-shelf-card span, .ma-shelf-card small { color: var(--ma-muted); font-size: 0.83rem; line-height: 1.35; }
+.ma-shelf-detail { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(31, 111, 174, 0.18); border-radius: 8px; background: #f8fbfe; }
+.ma-shelf-detail h3, .ma-shelf-section h4 { margin: 0; font-size: 0.95rem; }
+.ma-shelf-section { display: grid; gap: 7px; min-width: 0; }
+@media (max-width: 620px) {
+  .ma-shelf-grid, .ma-shelf-overview { grid-template-columns: 1fr; }
+  .ma-shelf-card .ma-actions { grid-template-columns: 1fr; }
+}
