@@ -2839,6 +2839,9 @@ export function createApp(options = {}) {
     env,
     database: options.eloSentinelSupabaseClient || getSupabaseClient(env),
     store: eloSentinelStoreForApp,
+    eloBudgetService,
+    obraReportTransactionalService,
+    archiveService: options.archiveService,
     resolveAuthContext: app.locals.resolveAuthContext
   });
 

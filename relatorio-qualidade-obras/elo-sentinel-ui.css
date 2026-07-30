@@ -1,5 +1,6 @@
-﻿.elo-sentinel-mode-switch[hidden],
-.elo-sentinel-shell[hidden] {
+.elo-sentinel-mode-switch[hidden],
+.elo-sentinel-shell[hidden],
+.elo-archive-shell[hidden] {
   display: none !important;
 }
 
@@ -35,6 +36,10 @@
 }
 
 body.elo-sentinel-mode-active .elo-product-chat .elo-standalone-panel {
+  display: none !important;
+}
+
+body.elo-archive-mode-active .elo-product-chat .elo-standalone-panel {
   display: none !important;
 }
 
@@ -265,5 +270,99 @@ button.elo-sentinel-item {
   .elo-sentinel-actions button,
   .elo-sentinel-form button {
     flex: 1 1 130px;
+  }
+}
+
+.elo-archive-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.elo-archive-filters input,
+.elo-archive-filters select {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid rgba(28, 62, 96, 0.14);
+  border-radius: 7px;
+  color: #142235;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+}
+
+.elo-archive-filters button,
+.elo-archive-open {
+  min-height: 38px;
+  border: 1px solid rgba(31, 111, 174, 0.2);
+  border-radius: 7px;
+  color: #ffffff;
+  background: #1f6fae;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.elo-archive-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  overflow: auto;
+}
+
+.elo-archive-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+  border: 1px solid rgba(28, 62, 96, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.elo-archive-item-main {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.elo-archive-item-main strong,
+.elo-archive-item-main span,
+.elo-archive-item-main time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.elo-archive-item-main strong {
+  color: #17263a;
+  font-size: 0.95rem;
+}
+
+.elo-archive-item-main span,
+.elo-archive-item-main time {
+  color: rgba(39, 58, 82, 0.72);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 760px) {
+  .elo-archive-filters,
+  .elo-archive-item {
+    grid-template-columns: 1fr;
+  }
+
+  .elo-archive-open {
+    width: 100%;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1040px) {
+  .elo-archive-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

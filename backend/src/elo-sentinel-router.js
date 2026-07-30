@@ -1,4 +1,5 @@
 import express from "express";
+import { createEloArchiveService } from "./elo-archive-service.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 
@@ -12,6 +13,10 @@ function isEnabled(env = {}) {
 
 function isOperationalTimelineEnabled(env = {}) {
   return clean(env.ELO_OPERATIONAL_TIMELINE_ENABLED || env.ELO_SENTINEL_OPERATIONAL_TIMELINE_ENABLED).toLowerCase() === "true";
+}
+
+function isArchiveEnabled(env = {}) {
+  return clean(env.ELO_ARCHIVE_ENABLED).toLowerCase() === "true";
 }
 
 function safeStatus(error, fallback = 500) {
@@ -179,6 +184,7 @@ export function createEloOperationalTimelineRouter(options = {}) {
   const router = express.Router();
   const store = options.store || createEloSentinelStore({ client: options.database || null });
   const service = options.service || createEloSentinelService({ store });
+  const archiveService = options.archiveService || createEloArchiveService(options);
   const resolveAuthContext = options.resolveAuthContext || (async () => ({ ok: false, status: 401, error: "authentication_required" }));
 
   router.get("/:projectId/timeline", async (request, response) => {
@@ -203,6 +209,25 @@ export function createEloOperationalTimelineRouter(options = {}) {
     }
   });
 
+  router.get("/:projectId/archive", async (request, response) => {
+    try {
+      if (!isArchiveEnabled(env)) {
+        response.status(503).json({ ok: false, error: "elo_archive_disabled" });
+        return;
+      }
+      const context = await requireAuth(request, response, resolveAuthContext);
+      if (!context) return;
+      const scope = contextScope(context, Object.assign({}, request.query || {}, { project_id: request.params.projectId }));
+      if (clean(request.query.project_id || request.query.projectId, 140) && clean(request.query.project_id || request.query.projectId, 140) !== scope.project_id) {
+        response.status(404).json({ ok: false, error: "project_not_found" });
+        return;
+      }
+      const result = await archiveService.listArchive(Object.assign({}, request.query || {}, scope));
+      response.json({ ok: true, items: result.items, page: result.page, warnings: result.warnings || [] });
+    } catch (error) {
+      response.status(safeStatus(error, 500)).json({ ok: false, error: safeErrorCode(error, "elo_archive_request_failed") });
+    }
+  });
   return router;
 }
 

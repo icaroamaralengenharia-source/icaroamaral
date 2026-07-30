@@ -58,7 +58,7 @@ test("OperationalTimelineEvent valida contrato, idempotencia, filtros, isolament
   const scope = { institution_id: "inst-a", company_id: "company-a" };
   const created = await service.createOperationalTimelineEvent(event(scope, { idempotency_key: "sentinel:evidence:source-1:entity_changed:1", occurred_at: "2026-07-29T10:00:00.000Z", metadata: { safe: "ok", html_content: "<b>removido</b>" } }));
   const duplicate = await service.createOperationalTimelineEvent(event(scope, { title: "Nao duplica", idempotency_key: "sentinel:evidence:source-1:entity_changed:1" }));
-  const version = await service.createOperationalTimelineEvent(event(scope, { title: "Nova versao", version: "2" }));
+  const version = await service.createOperationalTimelineEvent(event(scope, { title: "Nova versao", version: "2", occurred_at: "2026-07-29T09:00:00.000Z" }));
   const rdo = await service.createOperationalTimelineEvent(event(scope, { event_type: "rdo_created", source_module: "rdo", source_entity_type: "rdo", source_entity_id: "rdo-1", title: "RDO criado", severity: "minor", status: "active", occurred_at: "2026-07-29T11:00:00.000Z" }));
   await service.createOperationalTimelineEvent(event(scope, { project_id: "obra-b", source_entity_id: "source-b", title: "Outra obra" }));
   await service.createOperationalTimelineEvent(event({ institution_id: "inst-b", company_id: "company-b" }, { source_entity_id: "source-c", title: "Outro tenant" }));
