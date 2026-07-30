@@ -12,6 +12,7 @@ import { createEloCoreStore } from "./elo-core-store.js";
 import { createEloCoreSupabaseStore } from "./elo-core-supabase-store.js";
 import { observeObra } from "./elo-obra-observer.js";
 import { registerEloSentinelRoutes } from "./elo-sentinel-router.js";
+import { registerMunicipalAdminRoutes } from "./municipal-admin-router.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
@@ -759,6 +760,7 @@ export function createApp(options = {}) {
   const stockSaudeSupabaseClient = options.stockSaudeSupabaseClient || null;
   const stockFullSupabaseClient = options.stockFullSupabaseClient || null;
   const authContextSupabaseClient = options.authContextSupabaseClient || null;
+  const municipalAdminSupabaseClient = options.municipalAdminSupabaseClient || authContextSupabaseClient || null;
   const eloBudgetService = options.eloBudgetService || defaultEloBudgetService;
   const obraReportTransactionalService = options.obraReportTransactionalService || defaultObraReportTransactionalService;
   const eloObraObserverReaders = options.eloObraObserverReaders || {};
@@ -2833,6 +2835,12 @@ export function createApp(options = {}) {
         attachmentErrors: chatRequest.attachmentErrors
       });
     }
+  });
+
+  registerMunicipalAdminRoutes(app, {
+    database: municipalAdminSupabaseClient || getSupabaseClient(env),
+    store: options.municipalAdminStore,
+    resolveAuthContext: app.locals.resolveAuthContext
   });
 
   registerEloSentinelRoutes(app, {

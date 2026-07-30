@@ -1,0 +1,125 @@
+import express from "express";
+import { createMunicipalAdminService, toMunicipalAdminHttpError } from "./municipal-admin-service.js";
+
+function clean(value) {
+  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+
+function bearer(request) {
+  const match = clean(request && request.headers && request.headers.authorization).match(/^Bearer\s+(.+)$/i);
+  return match && match[1] ? clean(match[1]) : "";
+}
+
+async function authUserFromRequest(request, database) {
+  if (!database || !database.auth || typeof database.auth.getUser !== "function") {
+    const error = new Error("municipal_admin_auth_not_configured");
+    error.status = 503;
+    error.code = "municipal_admin_auth_not_configured";
+    throw error;
+  }
+  const token = bearer(request);
+  if (!token) {
+    const error = new Error("authentication_required");
+    error.status = 401;
+    error.code = "authentication_required";
+    throw error;
+  }
+  const { data, error } = await database.auth.getUser(token);
+  const user = data && data.user;
+  if (error || !user || !clean(user.id)) {
+    const err = new Error("invalid_session");
+    err.status = 401;
+    err.code = "invalid_session";
+    throw err;
+  }
+  return user;
+}
+
+function sendError(response, err) {
+  const safe = toMunicipalAdminHttpError(err);
+  response.status(safe.status).json({ ok: false, error: safe.error });
+}
+
+export function createMunicipalAdminRouter(options = {}) {
+  const router = express.Router();
+  const database = options.database || null;
+  let service = options.service || null;
+  const resolveAuthContext = options.resolveAuthContext;
+
+  function getService() {
+    if (service) return service;
+    if (!database && !options.store) {
+      const error = new Error("municipal_admin_database_not_configured");
+      error.status = 503;
+      error.code = "municipal_admin_database_not_configured";
+      throw error;
+    }
+    service = createMunicipalAdminService({ database, store: options.store });
+    return service;
+  }
+
+  async function requireContext(request) {
+    if (typeof resolveAuthContext !== "function") {
+      const error = new Error("municipal_admin_auth_not_configured");
+      error.status = 503;
+      error.code = "municipal_admin_auth_not_configured";
+      throw error;
+    }
+    const context = await resolveAuthContext(request);
+    if (!context || !context.ok) {
+      const error = new Error(clean(context && context.error) || "authentication_required");
+      error.status = context && context.status ? context.status : 401;
+      error.code = clean(context && context.error) || "authentication_required";
+      throw error;
+    }
+    return context;
+  }
+
+  function route(handler) {
+    return async (request, response) => {
+      try {
+        const context = await requireContext(request);
+        const result = await handler(request, context, getService());
+        response.json(Object.assign({ ok: true }, result || {}));
+      } catch (err) {
+        sendError(response, err);
+      }
+    };
+  }
+
+  router.post("/institutions", route((request, context, svc) => svc.createInstitution(context, request.body || {})));
+  router.get("/institutions", route((request, context, svc) => svc.listInstitutions(context)));
+  router.get("/institutions/:institutionId", route((request, context, svc) => svc.getInstitution(context, request.params.institutionId)));
+  router.patch("/institutions/:institutionId", route((request, context, svc) => svc.updateInstitution(context, request.params.institutionId, request.body || {})));
+  router.post("/institutions/:institutionId/deactivate", route((request, context, svc) => svc.deactivateInstitution(context, request.params.institutionId)));
+
+  router.post("/institutions/:institutionId/units", route((request, context, svc) => svc.createUnit(context, request.params.institutionId, request.body || {})));
+  router.get("/institutions/:institutionId/units", route((request, context, svc) => svc.listUnits(context, request.params.institutionId)));
+  router.patch("/units/:unitId", route((request, context, svc) => svc.updateUnit(context, request.params.unitId, request.body || {})));
+  router.post("/units/:unitId/deactivate", route((request, context, svc) => svc.deactivateUnit(context, request.params.unitId)));
+
+  router.post("/institutions/:institutionId/invites", route((request, context, svc) => svc.createInvite(context, request.params.institutionId, request.body || {})));
+  router.get("/institutions/:institutionId/users", route((request, context, svc) => svc.listUsers(context, request.params.institutionId)));
+  router.patch("/users/:userId/role", route((request, context, svc) => svc.updateUserRole(context, request.params.userId, request.body || {})));
+  router.patch("/users/:userId/units", route((request, context, svc) => svc.updateUserUnits(context, request.params.userId, request.body || {})));
+  router.post("/users/:userId/deactivate", route((request, context, svc) => svc.deactivateUser(context, request.params.userId)));
+  router.get("/me", route((request, context, svc) => svc.me(context)));
+
+  router.post("/invites/:token/accept", async (request, response) => {
+    try {
+      const user = options.authUserFromRequest
+        ? await options.authUserFromRequest(request)
+        : await authUserFromRequest(request, database);
+      const result = await getService().acceptInvite(request.params.token, user);
+      response.json(Object.assign({ ok: true }, result));
+    } catch (err) {
+      sendError(response, err);
+    }
+  });
+
+  return router;
+}
+
+export function registerMunicipalAdminRoutes(app, options = {}) {
+  app.use("/api/municipal-admin", createMunicipalAdminRouter(options));
+}
