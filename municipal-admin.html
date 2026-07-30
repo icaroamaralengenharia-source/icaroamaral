@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administracao Municipal | ELO</title>
+  <meta name="description" content="Painel administrativo municipal do ELO.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="relatorio-qualidade-obras/municipal-admin-ui.css">
+</head>
+<body>
+  <main class="municipal-admin" data-municipal-admin-root aria-labelledby="municipal-admin-title">
+    <section class="municipal-admin__boot" aria-live="polite">
+      <strong>Administracao Municipal</strong>
+      <span>Carregando sessao administrativa...</span>
+    </section>
+  </main>
+  <script>
+    window.OBRAREPORT_API_BASE_URL = window.OBRAREPORT_API_BASE_URL || "https://obrareport-backend.onrender.com";
+  </script>
+  <script src="assets/elo-public-config.js"></script>
+  <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
+  <script src="relatorio-qualidade-obras/municipal-admin-ui.js"></script>
+</body>
+</html>

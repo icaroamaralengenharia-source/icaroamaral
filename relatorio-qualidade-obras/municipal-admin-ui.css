@@ -1,0 +1,80 @@
+:root {
+  --ma-bg: #f4f7fb;
+  --ma-panel: #ffffff;
+  --ma-ink: #142235;
+  --ma-muted: #607188;
+  --ma-line: rgba(28, 62, 96, 0.14);
+  --ma-blue: #1f6fae;
+  --ma-blue-soft: #eef6fd;
+  --ma-red: #9b2c2c;
+  --ma-green: #176b4d;
+  --ma-shadow: 0 18px 50px rgba(24, 47, 76, 0.08);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; color: var(--ma-ink); background: var(--ma-bg); font-family: Inter, Arial, sans-serif; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.6; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(31, 111, 174, 0.25); outline-offset: 2px; }
+
+.municipal-admin { width: min(1280px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 40px; }
+.municipal-admin__boot, .ma-panel, .ma-card, .ma-row, .ma-form, .ma-detail { border: 1px solid var(--ma-line); border-radius: 8px; background: var(--ma-panel); box-shadow: var(--ma-shadow); }
+.municipal-admin__boot { display: grid; gap: 6px; margin-top: 20vh; padding: 22px; text-align: center; }
+.ma-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; margin-bottom: 14px; padding: 16px; border: 1px solid var(--ma-line); border-radius: 8px; background: #fff; box-shadow: var(--ma-shadow); }
+.ma-brand { display: grid; gap: 4px; min-width: 0; }
+.ma-brand h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.35rem); line-height: 1.05; letter-spacing: 0; }
+.ma-brand span, .ma-session span, .ma-muted { color: var(--ma-muted); font-size: 0.9rem; }
+.ma-session { display: grid; justify-items: end; gap: 4px; min-width: 220px; }
+.ma-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ma-button { min-height: 38px; border: 1px solid rgba(31, 111, 174, 0.22); border-radius: 7px; color: #fff; background: var(--ma-blue); font-weight: 800; padding: 8px 12px; }
+.ma-button.secondary { color: #1f4f78; background: var(--ma-blue-soft); }
+.ma-button.danger { color: #fff; background: #a64040; border-color: rgba(166, 64, 64, 0.35); }
+.ma-status { min-height: 28px; margin: 0 0 12px; color: var(--ma-muted); font-weight: 700; }
+.ma-status.is-error { color: var(--ma-red); }
+.ma-status.is-ok { color: var(--ma-green); }
+
+.ma-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ma-card { min-height: 92px; padding: 14px; }
+.ma-card span { display: block; color: var(--ma-muted); font-size: 0.78rem; font-weight: 900; text-transform: uppercase; }
+.ma-card strong { display: block; margin-top: 9px; font-size: 1.8rem; line-height: 1; }
+.ma-layout { display: grid; grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.3fr); gap: 12px; align-items: start; }
+.ma-panel { padding: 14px; min-width: 0; }
+.ma-panel h2, .ma-panel h3 { margin: 0 0 10px; font-size: 1rem; }
+.ma-list { display: grid; gap: 8px; margin-top: 10px; }
+.ma-row { width: 100%; display: grid; gap: 7px; padding: 11px; color: inherit; text-align: left; }
+.ma-row strong, .ma-row span, .ma-row small { min-width: 0; overflow-wrap: anywhere; }
+.ma-row strong { font-size: 0.95rem; }
+.ma-row span, .ma-row small { color: var(--ma-muted); font-size: 0.83rem; }
+.ma-row.is-selected { border-color: rgba(31, 111, 174, 0.45); background: var(--ma-blue-soft); }
+.ma-row.is-inactive { border-color: rgba(155, 44, 44, 0.24); background: #fff7f7; }
+.ma-empty, .ma-error { margin: 0; color: var(--ma-muted); line-height: 1.45; }
+.ma-error { color: var(--ma-red); }
+
+.ma-form { display: grid; gap: 10px; padding: 12px; margin-bottom: 12px; }
+.ma-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.ma-form label { display: grid; gap: 5px; color: #273a52; font-size: 0.84rem; font-weight: 800; }
+.ma-form input, .ma-form select { width: 100%; min-height: 39px; border: 1px solid var(--ma-line); border-radius: 7px; color: var(--ma-ink); background: #f8fafc; padding: 8px 10px; }
+.ma-form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ma-detail { display: grid; gap: 12px; padding: 14px; }
+.ma-detail-head { display: grid; gap: 5px; }
+.ma-detail-head strong { font-size: 1.15rem; }
+.ma-section-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ma-token { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(23, 107, 77, 0.22); border-radius: 8px; background: #f0fbf6; }
+.ma-token code { display: block; min-width: 0; overflow-wrap: anywhere; color: #0f5138; font-size: 0.86rem; }
+.ma-table-list { display: grid; gap: 7px; }
+.ma-pill { display: inline-flex; width: fit-content; min-height: 24px; align-items: center; border-radius: 999px; padding: 3px 8px; color: #1f4f78; background: var(--ma-blue-soft); font-size: 0.76rem; font-weight: 850; }
+.ma-pill.inactive { color: var(--ma-red); background: #fff1f1; }
+
+@media (max-width: 980px) {
+  .ma-layout, .ma-section-grid { grid-template-columns: 1fr; }
+  .ma-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .municipal-admin { width: min(100% - 16px, 1280px); padding-top: 8px; }
+  .ma-top { grid-template-columns: 1fr; }
+  .ma-session { justify-items: start; min-width: 0; }
+  .ma-metrics, .ma-form-grid { grid-template-columns: 1fr; }
+  .ma-actions, .ma-form-actions { display: grid; grid-template-columns: 1fr; }
+  .ma-button { width: 100%; }
+}
