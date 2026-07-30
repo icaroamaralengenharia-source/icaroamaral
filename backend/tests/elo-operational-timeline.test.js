@@ -68,6 +68,8 @@ test("OperationalTimelineEvent valida contrato, idempotencia, filtros, isolament
   assert.equal(duplicate.event.id, created.event.id);
   assert.notEqual(version.event.id, created.event.id);
   assert.equal(created.event.metadata.html_content, undefined);
+  assert.equal(created.event.metadata.operational_contract.contract_version, "1.0");
+  assert.equal(created.event.metadata.operational_contract.source_module, "sentinel");
 
   const list = await service.listOperationalTimeline(Object.assign({}, scope, { project_id: "obra-a" }));
   assert.equal(list.events.length, 3);

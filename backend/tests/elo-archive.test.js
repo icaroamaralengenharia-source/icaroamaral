@@ -57,6 +57,8 @@ test("EloArchiveItem agrega fontes reais, filtra, busca, ordena e pagina", async
   ["rdo", "technical_report", "generated_document", "elo_budget", "budget_pdf", "sentinel"].forEach((mod) => assert.ok(modules.has(mod), mod));
   assert.equal(list.items.some((item) => JSON.stringify(item).includes("orcamento</html>")), false);
   assert.equal(list.items.some((item) => JSON.stringify(item).includes("secret")), false);
+  assert.ok(list.items.every((item) => item.metadata && item.metadata.operational_contract));
+  assert.ok(list.items.some((item) => item.metadata.operational_contract.source_module === "rdo"));
 
   const searched = await service.listArchive(Object.assign({}, context(), { institution_id: "inst-a", company_id: "company-a", project_id: "obra-a", search: "fissuras" }));
   assert.ok(searched.items.every((item) => JSON.stringify(item).toLowerCase().includes("fissuras")));

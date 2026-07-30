@@ -1,4 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
+import {
+  adaptRdoToSourceReference,
+  adaptTimelineEventToAuditEvent,
+  sanitizeMetadata as sanitizeOperationalMetadata
+} from "./contracts/elo-operational-contracts.js";
 
 const SOURCE_MODULES = new Set(["rdo", "technical_report", "generated_document", "elo_budget", "budget_pdf", "sentinel"]);
 const SENSITIVE_KEY = /(secret|token|password|senha|key|html_content|document_data|file_path|storage_path|base64|content)/i;
@@ -48,11 +53,14 @@ function dateValue(value) {
 }
 
 function safeMetadata(value) {
-  const source = objectOf(value);
-  return Object.fromEntries(Object.entries(source)
-    .filter(([key, item]) => !SENSITIVE_KEY.test(key) && typeof item !== "function")
-    .slice(0, 24)
-    .map(([key, item]) => [key, typeof item === "object" ? safeMetadata(item) : item]));
+  try { return sanitizeOperationalMetadata(value) || {}; }
+  catch (_) {
+    const source = objectOf(value);
+    return Object.fromEntries(Object.entries(source)
+      .filter(([key, item]) => !SENSITIVE_KEY.test(key) && typeof item !== "function")
+      .slice(0, 24)
+      .map(([key, item]) => [key, typeof item === "object" ? safeMetadata(item) : item]));
+  }
 }
 
 function fileReference(input = {}) {
@@ -91,6 +99,27 @@ function baseItem(scope, row, sourceModule, sourceEntityType, sourceEntityId) {
   };
 }
 
+function archiveOperationalContract(item = {}) {
+  try {
+    const adapter = item.source_module === "rdo" ? adaptRdoToSourceReference : adaptTimelineEventToAuditEvent;
+    const contract = adapter(item, item);
+    return {
+      contract_version: contract.contract_version || "1.0",
+      source_module: contract.source_module,
+      source_entity_type: contract.source_entity_type,
+      source_entity_id: contract.source_entity_id,
+      occurred_at: contract.occurred_at || item.occurred_at || null
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function applyOperationalContract(item = {}) {
+  const contract = archiveOperationalContract(item);
+  if (!contract) return item;
+  return Object.assign({}, item, { metadata: Object.assign({}, safeMetadata(item.metadata), { operational_contract: contract }) });
+}
 function scoped(row, scope) {
   if (!row) return false;
   if (clean(row.institution_id, 140) !== scope.institution_id) return false;
@@ -245,7 +274,7 @@ export function createEloArchiveService(options = {}) {
     }
     const byId = new Map();
     groups.forEach((item) => {
-      if (item && item.source_entity_id && !byId.has(item.id)) byId.set(item.id, item);
+      if (item && item.source_entity_id && !byId.has(item.id)) byId.set(item.id, applyOperationalContract(item));
     });
     const sorted = applyFilters(Array.from(byId.values()), input)
       .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)) || String(b.created_at).localeCompare(String(a.created_at)));

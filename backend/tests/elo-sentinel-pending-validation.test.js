@@ -69,6 +69,8 @@ test("Fase 3 cria pendencia, vincula evidencia source e lista por status", async
     assert.equal(created.data.pending_item.status, "suggested");
     assert.equal(created.data.pending_item.validation_status, "pending");
     assert.equal(created.data.pending_item.evidences[0].relation_type, "source");
+    assert.equal(created.data.pending_item.metadata.operational_contract.contract_version, "1.0");
+    assert.equal(created.data.pending_item.metadata.operational_contract.source_module, "sentinel");
     assert.equal(created.data.event.event_type, "pending_item_created");
 
     const repeat = await createPending(base, { source_evidence_id: evidence.id, idempotency_key: "pend-1" });
