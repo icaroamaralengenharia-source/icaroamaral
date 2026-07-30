@@ -118,6 +118,7 @@
       <div class="elo-product-chat" aria-label="Conversa com o Elo">
         <div class="elo-sentinel-mode-switch" data-elo-sentinel-mode-switch hidden aria-label="Modo do ELO">
           <button type="button" data-elo-sentinel-mode="chat" aria-pressed="true">Conversa</button>
+          <button type="button" data-elo-sentinel-mode="operational" aria-pressed="false" hidden>Operacional</button>
           <button type="button" data-elo-sentinel-mode="sentinel" aria-pressed="false">Sentinela</button>
           <button type="button" data-elo-sentinel-mode="archive" aria-pressed="false" hidden>Acervo</button>
         </div>
@@ -134,6 +135,7 @@
             <button type="submit" class="elo-send-button">Enviar</button>
           </form>
         </section>
+        <section class="elo-sentinel-shell elo-operational-shell" data-elo-operational-root hidden aria-label="Interface operacional do ELO"></section>
         <section class="elo-sentinel-shell" data-elo-sentinel-root hidden aria-label="ELO Sentinela"></section>
         <section class="elo-sentinel-shell elo-archive-shell" data-elo-archive-root hidden aria-label="Acervo da obra"></section>
       </div>
@@ -424,6 +426,7 @@
   <script type="module" src="relatorio-qualidade-obras/elo-today-work-core.js?v=20260725-today-work-core-v1"></script>
   <script src="relatorio-qualidade-obras/elo-command-bridge.js?v=20260727-command-bridge-v1"></script>
   <script src="relatorio-qualidade-obras/elo-sentinel-ui.js"></script>
+  <script src="relatorio-qualidade-obras/elo-operational-ui.js"></script>
   <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260721-auth-context-v1"></script>
 </body>
 </html>

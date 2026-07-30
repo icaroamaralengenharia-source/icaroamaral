@@ -366,3 +366,188 @@ button.elo-sentinel-item {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+.elo-operational-shell[hidden] {
+  display: none !important;
+}
+
+body.elo-operational-mode-active .elo-product-chat .elo-standalone-panel {
+  display: none !important;
+}
+
+.elo-operational-tabs,
+.elo-operational-shortcuts,
+.elo-operational-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.elo-operational-tabs {
+  padding: 4px;
+  border: 1px solid rgba(28, 62, 96, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.elo-operational-tabs button,
+.elo-operational-shortcut,
+.elo-operational-filters button {
+  min-height: 38px;
+  border: 1px solid rgba(31, 111, 174, 0.18);
+  border-radius: 7px;
+  color: #1f4f78;
+  background: #eef5fb;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.elo-operational-tabs button[aria-pressed="true"],
+.elo-operational-shortcut:hover,
+.elo-operational-filters button {
+  color: #ffffff;
+  background: #1f6fae;
+}
+
+.elo-operational-metrics,
+.elo-operational-overview-grid,
+.elo-operational-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.elo-operational-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.elo-operational-metric {
+  min-height: 94px;
+  padding: 14px;
+  border: 1px solid rgba(28, 62, 96, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.elo-operational-metric span {
+  display: block;
+  color: rgba(39, 58, 82, 0.72);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.elo-operational-metric strong {
+  display: block;
+  margin-top: 8px;
+  color: #142235;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.elo-operational-overview-grid {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.elo-operational-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  align-items: start;
+}
+
+.elo-operational-filters {
+  margin-bottom: 12px;
+}
+
+.elo-operational-filters input,
+.elo-operational-filters select {
+  min-width: 150px;
+  min-height: 38px;
+  flex: 1 1 150px;
+  border: 1px solid rgba(28, 62, 96, 0.14);
+  border-radius: 7px;
+  color: #142235;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+}
+
+.elo-operational-row {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(28, 62, 96, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.elo-operational-row.is-clickable {
+  width: 100%;
+  cursor: pointer;
+}
+
+.elo-operational-row strong,
+.elo-operational-row span,
+.elo-operational-row small,
+.elo-operational-detail strong,
+.elo-operational-detail span,
+.elo-operational-detail p,
+.elo-operational-detail small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.elo-operational-row strong,
+.elo-operational-detail strong {
+  color: #17263a;
+  font-size: 0.95rem;
+}
+
+.elo-operational-row span,
+.elo-operational-row small,
+.elo-operational-detail span,
+.elo-operational-detail small {
+  color: rgba(39, 58, 82, 0.72);
+  font-size: 0.82rem;
+}
+
+.elo-operational-detail {
+  display: grid;
+  gap: 8px;
+}
+
+.elo-operational-detail p {
+  margin: 0;
+  color: rgba(39, 58, 82, 0.84);
+  line-height: 1.45;
+}
+
+@media (max-width: 920px) {
+  .elo-operational-metrics,
+  .elo-operational-overview-grid,
+  .elo-operational-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .elo-operational-tabs,
+  .elo-operational-shortcuts,
+  .elo-operational-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .elo-operational-filters input,
+  .elo-operational-filters select,
+  .elo-operational-tabs button,
+  .elo-operational-shortcut,
+  .elo-operational-filters button {
+    width: 100%;
+  }
+}
