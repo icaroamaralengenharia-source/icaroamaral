@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 
 const ROLES = new Set(["platform_admin", "municipal_admin", "gestor", "almoxarife", "funcionario", "leitura"]);
 const ACTIVE = new Set(["active", "ativo"]);
@@ -126,6 +126,21 @@ function assertActorCanAssignRole(session, role) {
   return normalized;
 }
 
+function assertActorCanManageUser(session, user) {
+  if (!user) throw error(404, "user_not_found");
+  if (clean(user.auth_user_id || user.id) === clean(session.userId || session.profileId)) throw error(403, "self_management_forbidden");
+  if (session.role === "platform_admin") return true;
+  if (session.role === "municipal_admin") {
+    if (["platform_admin", "municipal_admin"].includes(normalizeRole(user.role))) throw error(403, "user_level_forbidden");
+    return true;
+  }
+  if (session.role === "gestor") {
+    if (!["almoxarife", "funcionario", "leitura"].includes(normalizeRole(user.role))) throw error(403, "user_level_forbidden");
+    if (session.unitId && clean(user.unit_id) && clean(user.unit_id) !== session.unitId) throw error(403, "unit_scope_forbidden");
+    return true;
+  }
+  throw error(403, "user_management_forbidden");
+}
 async function assertUnitInInstitution(store, institutionId, unitId) {
   const id = clean(unitId);
   if (!id) return "";
@@ -345,6 +360,7 @@ export function createMunicipalAdminService(options = {}) {
       const user = await findUser(store, userId);
       if (!user) throw error(404, "user_not_found");
       assertInstitutionScope(session, user.institution_id);
+      assertActorCanManageUser(session, user);
       const role = assertActorCanAssignRole(session, body && body.role);
       const updated = await store.update("profiles", user.id, { role });
       await writeAudit(store, session, "user_role_updated", "user", clean(user.auth_user_id || user.id), user.institution_id, { role });
@@ -357,6 +373,7 @@ export function createMunicipalAdminService(options = {}) {
       const user = await findUser(store, userId);
       if (!user) throw error(404, "user_not_found");
       assertInstitutionScope(session, user.institution_id);
+      assertActorCanManageUser(session, user);
       const requested = body && (body.unit_id || body.unitId || (Array.isArray(body.unit_ids) ? body.unit_ids[0] : ""));
       if (Array.isArray(body && body.unit_ids) && body.unit_ids.length > 1) throw error(400, "single_unit_supported_in_mvp");
       const unitId = await assertUnitInInstitution(store, user.institution_id, requested);
@@ -372,6 +389,7 @@ export function createMunicipalAdminService(options = {}) {
       const user = await findUser(store, userId);
       if (!user) throw error(404, "user_not_found");
       assertInstitutionScope(session, user.institution_id);
+      assertActorCanManageUser(session, user);
       const updated = await store.update("profiles", user.id, { status: "inactive" });
       await writeAudit(store, session, "user_deactivated", "user", clean(user.auth_user_id || user.id), user.institution_id);
       return { user: updated };

@@ -78,3 +78,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .ma-actions, .ma-form-actions { display: grid; grid-template-columns: 1fr; }
   .ma-button { width: 100%; }
 }
+.ma-metrics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.user-actions { align-items: stretch; }
+.ma-inline-select { min-width: 150px; min-height: 38px; border: 1px solid var(--ma-line); border-radius: 7px; color: var(--ma-ink); background: #f8fafc; padding: 7px 9px; }
+@media (max-width: 620px) {
+  .user-actions { grid-template-columns: 1fr; }
+  .ma-inline-select { width: 100%; }
+}

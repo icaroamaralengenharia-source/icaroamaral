@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createMemoryMunicipalAdminStore, createMunicipalAdminService } from "../src/municipal-admin-service.js";
 
@@ -116,4 +116,7 @@ test("papel e unidades sao validados ao alterar usuario", async () => {
   await rejectsCode(service.updateUserUnits(ctx("municipal_admin", { userId: "admin-a" }), "func-a", { unit_id: "unit-b" }), "unit_scope_invalid");
   const updated = await service.updateUserUnits(ctx("municipal_admin", { userId: "admin-a" }), "func-a", { unit_id: "unit-a" });
   assert.deepEqual(updated.units, ["unit-a"]);
+  await rejectsCode(service.deactivateUser(ctx("gestor", { userId: "gestor-a", unitId: "unit-a" }), "admin-a"), "user_level_forbidden");
+  await rejectsCode(service.deactivateUser(ctx("gestor", { userId: "gestor-a", unitId: "unit-a" }), "gestor-a"), "self_management_forbidden");
+  await rejectsCode(service.updateUserRole(ctx("municipal_admin", { userId: "admin-a" }), "admin-a", { role: "gestor" }), "self_management_forbidden");
 });
