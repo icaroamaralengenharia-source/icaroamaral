@@ -84,11 +84,12 @@ function sessionFromContext(context) {
   if (!isActive(status)) throw error(403, "user_inactive");
   const role = normalizeRole(context.role || profile.role);
   if (!ROLES.has(role)) throw error(403, "municipal_role_not_allowed");
+  const platformAdmin = role === "platform_admin";
   return {
     userId: clean(context.userId || profile.auth_user_id),
     profileId: clean(profile.id),
-    institutionId: clean(context.institutionId || profile.institution_id),
-    unitId: clean(profile.unit_id),
+    institutionId: platformAdmin ? "" : clean(context.institutionId || profile.institution_id),
+    unitId: platformAdmin ? "" : clean(profile.unit_id),
     role,
     profile: Object.assign({}, profile, { role, status })
   };

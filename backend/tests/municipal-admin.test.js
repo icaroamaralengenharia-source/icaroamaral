@@ -110,6 +110,35 @@ test("listagem nao mistura tenants e GET /me retorna somente escopo autorizado",
   assert.deepEqual(me.me.allowed_units.map((unit) => unit.id), ["unit-a"]);
 });
 
+test("GET /me municipal ignora company_id legado para platform_admin", async () => {
+  const { service } = setup();
+  const platform = await service.me(ctx("platform_admin", {
+    userId: "platform-user",
+    institutionId: "legacy-company",
+    unitId: "legacy-unit",
+    profile: {
+      institution_id: "",
+      unit_id: "legacy-unit",
+      company_id: "legacy-company",
+      role: "platform_admin"
+    }
+  }));
+  assert.equal(platform.me.institution_id, "");
+  assert.equal(platform.me.unit_id, null);
+  assert.deepEqual(platform.me.allowed_units, []);
+
+  const municipal = await service.me(ctx("municipal_admin", {
+    userId: "admin-a",
+    institutionId: "inst-a",
+    profile: {
+      institution_id: "inst-a",
+      company_id: "legacy-company",
+      role: "municipal_admin"
+    }
+  }));
+  assert.equal(municipal.me.institution_id, "inst-a");
+});
+
 test("papel e unidades sao validados ao alterar usuario", async () => {
   const { service } = setup();
   await rejectsCode(service.updateUserRole(ctx("gestor", { userId: "gestor-a", unitId: "unit-a" }), "func-a", { role: "municipal_admin" }), "role_assignment_forbidden");
