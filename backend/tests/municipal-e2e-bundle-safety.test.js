@@ -121,3 +121,19 @@ test("bundle preserva equivalencia estrutural dos schemas de origem", () => {
   assert.match(bundle, /on\s+delete\s+restrict/i, "bundle deve preservar ON DELETE RESTRICT");
   assert.match(bundle, /on\s+delete\s+cascade/i, "bundle deve preservar ON DELETE CASCADE");
 });
+test("verification.sql valida constraints de notificacoes por nomes exatos", () => {
+  const sql = read(VERIFY);
+  const blocks = sql.match(/select\s+tc\.table_name[\s\S]*?from\s+information_schema\.table_constraints\s+tc[\s\S]*?;/gi) || [];
+  const block = blocks.find((item) => item.includes("municipal_notifications_channel_check") && item.includes("municipal_notifications_status_check")) || "";
+  assert.ok(block, "verification deve consultar constraints channel/status por nome exato");
+  assert.equal(/\bcc\.table_name\b/i.test(block), false, "check_constraints nao possui cc.table_name");
+  assert.equal(/constraint_table_usage/i.test(block), false, "usar table_constraints tc em vez de constraint_table_usage nesse bloco");
+  assert.match(block, /join\s+information_schema\.check_constraints\s+cc/i);
+  assert.match(block, /cc\.constraint_schema\s*=\s*tc\.constraint_schema/i);
+  assert.match(block, /cc\.constraint_name\s*=\s*tc\.constraint_name/i);
+  assert.match(block, /tc\.table_schema\s*=\s*'public'/i);
+  assert.match(block, /tc\.table_name\s*=\s*'municipal_notifications'/i);
+  assert.match(block, /tc\.constraint_name\s+in\s*\(/i);
+  assert.match(block, /municipal_notifications_channel_check/i);
+  assert.match(block, /municipal_notifications_status_check/i);
+});

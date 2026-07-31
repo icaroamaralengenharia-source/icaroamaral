@@ -1,4 +1,4 @@
-﻿-- Municipal E2E verification SQL.
+-- Municipal E2E verification SQL.
 -- Read-only checks only. Run manually after homologation in project mplpzyalcxhhinuvjthx.
 
 select table_name
@@ -39,19 +39,18 @@ where tc.table_schema = 'public'
   and tc.table_name = 'municipal_assets'
   and tc.constraint_name = 'municipal_assets_tag_per_institution_unique';
 
-select cc.table_name, cc.constraint_name, cc.check_clause
-from information_schema.check_constraints cc
-join information_schema.constraint_table_usage ctu on ctu.constraint_name = cc.constraint_name
-where ctu.table_schema = 'public'
-  and ctu.table_name = 'municipal_notifications'
-  and cc.check_clause like '%channel%';
-
-select cc.table_name, cc.constraint_name, cc.check_clause
-from information_schema.check_constraints cc
-join information_schema.constraint_table_usage ctu on ctu.constraint_name = cc.constraint_name
-where ctu.table_schema = 'public'
-  and ctu.table_name = 'municipal_notifications'
-  and cc.check_clause like '%status%';
+select tc.table_name, tc.constraint_name, cc.check_clause
+from information_schema.table_constraints tc
+join information_schema.check_constraints cc
+  on cc.constraint_schema = tc.constraint_schema
+ and cc.constraint_name = tc.constraint_name
+where tc.table_schema = 'public'
+  and tc.table_name = 'municipal_notifications'
+  and tc.constraint_name in (
+    'municipal_notifications_channel_check',
+    'municipal_notifications_status_check'
+  )
+order by tc.constraint_name;
 
 select 'municipal_assets' as table_name, count(*) as total_records from public.municipal_assets
 union all
