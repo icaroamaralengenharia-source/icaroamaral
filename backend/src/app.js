@@ -15,6 +15,7 @@ import { registerEloSentinelRoutes } from "./elo-sentinel-router.js";
 import { registerMunicipalAdminRoutes } from "./municipal-admin-router.js";
 import { registerMunicipalDocumentRoutes } from "./municipal-document-router.js";
 import { registerMunicipalSentinelRoutes } from "./municipal-sentinel-router.js";
+import { buildEloMunicipalAnswerIfNeeded } from "./elo-municipal-tools.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
@@ -2701,6 +2702,46 @@ export function createApp(options = {}) {
       history: validation.payload.history,
       context: validation.payload.context
     });
+
+    let municipalAnswer = null;
+    try {
+      municipalAnswer = await buildEloMunicipalAnswerIfNeeded({
+        request,
+        message: validation.payload.message,
+        context: validation.payload.context,
+        body: chatRequest.body || {},
+        database: municipalAdminSupabaseClient || getSupabaseClient(env),
+        store: options.municipalAdminStore,
+        resolveAuthContext: app.locals.resolveAuthContext
+      });
+    } catch (err) {
+      const status = err && err.status || 500;
+      const code = clean_(err && (err.code || err.message) || "elo_municipal_tools_failed");
+      if (status >= 400 && status < 500) {
+        response.status(status).json({ ok: false, mode: "municipal_tools", error: code });
+        return;
+      }
+      console.warn("elo_municipal_tools_failed", { code });
+    }
+    if (municipalAnswer) {
+      response.json(Object.assign(municipalAnswer, {
+        answer: sanitizeEloAnswerText_(municipalAnswer.answer),
+        savePrompt: buildEloSavePromptMeta_({ show: false, reason: "municipal_tools", suggestedTarget: "none" }),
+        interpretation: validation.payload.interpretation,
+        eloIntent: validation.payload.eloIntent,
+        operationalRoute: validation.payload.operationalRoute,
+        contextSummary: {
+          conversationSummary: "",
+          productContextSummary: buildEloProductContextSummary_(validation.payload.eloIntent, validation.payload.context),
+          hasRelevantMemory: false,
+          hasRelevantLibrary: false
+        },
+        documents: [],
+        stockIaLaunchPlan: null,
+        attachmentErrors: chatRequest.attachmentErrors
+      }));
+      return;
+    }
 
     const technicalValidation = validateEloTechnicalQuestion_(validation.payload.message, {
       entry: "backend_elo_chat",
