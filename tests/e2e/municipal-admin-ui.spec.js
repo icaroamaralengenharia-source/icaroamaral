@@ -1,4 +1,4 @@
-﻿import { expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -39,6 +39,14 @@ async function mockMunicipalApi(page, options = {}) {
       "inst-b": [{ id: "profile-b", auth_user_id: "func-b", institution_id: "inst-b", unit_id: "unit-b", name: "Func B", email: "func@b.test", role: "funcionario", status: "active" }]
     },
     inviteCount: 0,
+    documentCount: 1,
+    versionCount: 1,
+    documents: (options.docsEmpty ? [] : [
+      { id: "doc-a", institution_id: "inst-a", unit_id: "unit-a", title: "Relatorio A", description: "Documento do acervo", document_type: "relatorio", status: "active", current_version: 1, created_by: "admin-a", created_at: "2026-02-05T10:00:00.000Z", storage_path: "private/raw/doc-a.pdf" }
+    ]),
+    versions: {
+      "doc-a": [{ id: "ver-a-1", document_id: "doc-a", institution_id: "inst-a", unit_id: "unit-a", version_number: 1, original_filename: "relatorio-a.pdf", mime_type: "application/pdf", size_bytes: 1024, file_reference: "/api/municipal-admin/document-files/relatorio-a.pdf", file_hash: "HASH_A", storage_path: "private/raw/relatorio-a.pdf", created_at: "2026-02-05T10:05:00.000Z" }]
+    },
     dashboards: {
       "unit-a": {
         unit: { id: "unit-a", institution_id: "inst-a", name: "Almox Central", code: "CENTRAL", address: "Rua A", status: "active" },
@@ -213,7 +221,68 @@ async function mockMunicipalApi(page, options = {}) {
       user.status = "inactive";
       return route.fulfill({ json: { ok: true, user } });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: "not_found" } });
+    if (request.method() === "GET" && path === "/documents") {
+      const requestedInstitution = url.searchParams.get("institution_id") || actorInstitution;
+      if (!actorCanUseInstitution(requestedInstitution)) return route.fulfill({ status: 403, json: { ok: false, error: "institution_scope_forbidden" } });
+      if (options.documentsFail) return route.fulfill({ status: 500, json: { ok: false, error: "documents_failed" } });
+      let docs = state.documents.filter((doc) => doc.institution_id === requestedInstitution);
+      if (actorRole === "gestor") docs = docs.filter((doc) => !doc.unit_id || doc.unit_id === "unit-a");
+      if (actorRole === "leitura") docs = docs.filter((doc) => doc.institution_id === actorInstitution);
+      return route.fulfill({ json: { ok: true, documents: docs } });
+    }
+    if (request.method() === "POST" && path === "/documents") {
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole)) return route.fulfill({ status: 403, json: { ok: false, error: "document_write_forbidden" } });
+      const body = request.postDataJSON();
+      const instId = actorRole === "platform_admin" ? body.institution_id || "inst-a" : actorInstitution;
+      if (!actorCanUseInstitution(instId)) return route.fulfill({ status: 403, json: { ok: false, error: "institution_scope_forbidden" } });
+      const unit = body.unit_id ? findUnit(body.unit_id) : null;
+      if (body.unit_id && (!unit || unit.institution_id !== instId || (actorRole === "gestor" && body.unit_id !== "unit-a"))) return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      state.documentCount += 1;
+      const doc = { id: "doc-new-" + state.documentCount, institution_id: instId, unit_id: body.unit_id || null, title: body.title, description: body.description || "", document_type: body.document_type || "outro", status: "active", current_version: 0, created_by: actorRole + "-user", created_at: "2026-02-06T10:00:00.000Z" };
+      state.documents.unshift(doc);
+      state.versions[doc.id] = [];
+      return route.fulfill({ json: { ok: true, document: doc } });
+    }
+    const docMatch = path.match(/^\/documents\/([^/]+)$/);
+    if (docMatch && request.method() === "GET") {
+      const doc = state.documents.find((item) => item.id === docMatch[1]);
+      if (!doc) return route.fulfill({ status: 404, json: { ok: false, error: "document_not_found" } });
+      if (!actorCanUseInstitution(doc.institution_id) || (actorRole === "gestor" && doc.unit_id && doc.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "institution_scope_forbidden" } });
+      return route.fulfill({ json: { ok: true, document: doc, versions: state.versions[doc.id] || [] } });
+    }
+    const versionMatch = path.match(/^\/documents\/([^/]+)\/versions$/);
+    if (versionMatch && request.method() === "POST") {
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole)) return route.fulfill({ status: 403, json: { ok: false, error: "document_write_forbidden" } });
+      const doc = state.documents.find((item) => item.id === versionMatch[1]);
+      if (!doc) return route.fulfill({ status: 404, json: { ok: false, error: "document_not_found" } });
+      if (doc.status === "archived") return route.fulfill({ status: 409, json: { ok: false, error: "document_archived" } });
+      if (actorRole === "gestor" && doc.unit_id !== "unit-a") return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      const body = request.postDataJSON();
+      if (!/^https?:\/\//.test(body.file_reference || "") && !(body.file_reference || "").startsWith("/api/municipal-admin/document-files/")) return route.fulfill({ status: 400, json: { ok: false, error: "file_reference_unsafe" } });
+      const next = (state.versions[doc.id] || []).length + 1;
+      state.versionCount += 1;
+      const version = { id: "ver-new-" + state.versionCount, document_id: doc.id, institution_id: doc.institution_id, unit_id: doc.unit_id, version_number: next, original_filename: body.original_filename || "", mime_type: body.mime_type || "", size_bytes: Number(body.size_bytes || 0), file_reference: body.file_reference, file_hash: body.file_hash || "", created_at: "2026-02-06T10:10:00.000Z", storage_path: "private/raw/new.pdf" };
+      state.versions[doc.id] = (state.versions[doc.id] || []).concat(version);
+      doc.current_version = next;
+      return route.fulfill({ json: { ok: true, document: doc, version } });
+    }
+    const downloadMatch = path.match(/^\/documents\/([^/]+)\/download$/);
+    if (downloadMatch && request.method() === "GET") {
+      const doc = state.documents.find((item) => item.id === downloadMatch[1]);
+      if (!doc) return route.fulfill({ status: 404, json: { ok: false, error: "document_not_found" } });
+      const versions = state.versions[doc.id] || [];
+      const latest = versions[versions.length - 1];
+      if (!latest) return route.fulfill({ status: 404, json: { ok: false, error: "document_version_not_found" } });
+      return route.fulfill({ json: { ok: true, download: { document_id: doc.id, version_id: latest.id, version_number: latest.version_number, file_reference: latest.file_reference, original_filename: latest.original_filename, mime_type: latest.mime_type, size_bytes: latest.size_bytes, file_hash: latest.file_hash, storage_path: latest.storage_path } } });
+    }
+    const archiveMatch = path.match(/^\/documents\/([^/]+)\/archive$/);
+    if (archiveMatch && request.method() === "POST") {
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole)) return route.fulfill({ status: 403, json: { ok: false, error: "document_write_forbidden" } });
+      const doc = state.documents.find((item) => item.id === archiveMatch[1]);
+      if (!doc) return route.fulfill({ status: 404, json: { ok: false, error: "document_not_found" } });
+      doc.status = "archived";
+      return route.fulfill({ json: { ok: true, document: doc } });
+    }    return route.fulfill({ status: 404, json: { ok: false, error: "not_found" } });
   });
 
   return { calls, state };
@@ -430,6 +499,7 @@ test.describe("Administracao Municipal UI", () => {
     await installSession(page);
     await mockMunicipalApi(page, { role: "municipal_admin" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Prateleira Operacional" }).click();
     const shelf = page.locator(".ma-shelf");
     await expect(shelf.getByRole("heading", { name: "Prateleira Operacional" })).toBeVisible();
     await expect(shelf).toContainText("Itens cadastrados");
@@ -443,6 +513,7 @@ test.describe("Administracao Municipal UI", () => {
     await installSession(page);
     await mockMunicipalApi(page, { role: "gestor" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Prateleira Operacional" }).click();
     const shelf = page.locator(".ma-shelf");
     await expect(shelf).toContainText("Almox Central");
     await expect(shelf).not.toContainText("Almox Distrital");
@@ -454,6 +525,7 @@ test.describe("Administracao Municipal UI", () => {
     await mockMunicipalApi(page, { role: "gestor" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
     await expect(page.locator(".ma-status")).toContainText("Prefeitura carregada");
+    await page.getByRole("button", { name: "Prateleira Operacional" }).click();
     await page.evaluate(() => window.MunicipalAdminUi.openShelfUnitForTest("unit-a-2"));
     await expect(page.locator(".ma-status")).toContainText("Acesso negado para almoxarifado");
     await expect(page.locator(".ma-shelf")).not.toContainText("Almox Distrital");
@@ -463,6 +535,7 @@ test.describe("Administracao Municipal UI", () => {
     await installSession(page);
     await mockMunicipalApi(page, { role: "municipal_admin" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Prateleira Operacional" }).click();
     await page.locator(".ma-shelf-card", { hasText: "Almox Distrital" }).getByRole("button", { name: "Abrir almoxarifado" }).click();
     const detail = page.locator(".ma-shelf-detail");
     await expect(detail).toContainText("Unidade sem itens");
@@ -474,8 +547,118 @@ test.describe("Administracao Municipal UI", () => {
     await installSession(page);
     await mockMunicipalApi(page, { role: "municipal_admin", shelfFailUnit: "unit-a-2" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Prateleira Operacional" }).click();
     const shelf = page.locator(".ma-shelf");
     await expect(shelf).toContainText("Seringa");
     await expect(page.locator(".ma-shelf-card", { hasText: "Almox Distrital" })).toContainText("stock_source_failed");
   });
-});
+
+  test("aba Acervo aparece para platform_admin, municipal_admin e gestor", async ({ page }) => {
+    for (const role of ["platform_admin", "municipal_admin", "gestor"]) {
+      await page.context().clearCookies();
+      await installSession(page);
+      await mockMunicipalApi(page, { role });
+      await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("button", { name: "Acervo", exact: true })).toBeVisible();
+    }
+  });
+
+  test("leitura acessa Acervo em modo somente leitura", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "leitura" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Acervo", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Administracao" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Criar documento" })).toHaveCount(0);
+    await expect(page.getByText("Relatorio A")).toBeVisible();
+  });
+
+  test("Acervo exibe lista vazia e falha parcial sem derrubar painel", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin", docsEmpty: true });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await expect(page.getByText("Nenhum documento encontrado.")).toBeVisible();
+
+    const page2 = await page.context().newPage();
+    await installSession(page2);
+    await mockMunicipalApi(page2, { role: "municipal_admin", documentsFail: true });
+    await page2.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page2.getByRole("button", { name: "Acervo" }).click();
+    await expect(page2.locator(".ma-panel").first()).toContainText("documents_failed");
+    await expect(page2.getByRole("button", { name: "Administracao" })).toBeVisible();
+  });
+
+  test("Acervo lista documento, filtra por unidade, tipo e busca", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await expect(page.getByText("Relatorio A")).toBeVisible();
+    await page.locator("[data-form='document-filters'] select[name='unit_id']").selectOption("unit-a-2");
+    await expect(page.getByText("Relatorio A")).toHaveCount(0);
+    await page.locator("[data-form='document-filters'] select[name='unit_id']").selectOption("");
+    await page.locator("[data-form='document-filters'] select[name='document_type']").selectOption("relatorio");
+    await expect(page.getByText("Relatorio A")).toBeVisible();
+    await page.locator("[data-form='document-filters'] input[name='search']").fill("zzz");
+    await expect(page.getByText("Relatorio A")).toHaveCount(0);
+  });
+
+  test("Acervo cria documento e cria versao 1", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "gestor", docsEmpty: true });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await page.locator("[data-form='document-create'] input[name='title']").fill("RELATORIO_HOMOLOGACAO_E2E");
+    await page.locator("[data-form='document-create'] input[name='description']").fill("Documento de teste");
+    await page.locator("[data-form='document-create'] select[name='unit_id']").selectOption("unit-a");
+    await page.getByRole("button", { name: "Criar documento" }).click();
+    await expect(page.locator(".ma-status")).toContainText("Documento aberto");
+    await expect(page.getByText("Documento sem versao.")).toBeVisible();
+    await page.locator("[data-form='document-version'] input[name='original_filename']").fill("relatorio.pdf");
+    await page.locator("[data-form='document-version'] input[name='mime_type']").fill("application/pdf");
+    await page.locator("[data-form='document-version'] input[name='size_bytes']").fill("1024");
+    await page.locator("[data-form='document-version'] input[name='file_reference']").fill("/api/municipal-admin/document-files/relatorio.pdf");
+    await page.locator("[data-form='document-version'] input[name='file_hash']").fill("HASH_TESTE");
+    await page.getByRole("button", { name: "Criar versao" }).click();
+    await expect(page.locator(".ma-status")).toContainText("Documento aberto");
+    await expect(page.getByText("Versao 1")).toBeVisible();
+  });
+
+  test("Acervo rejeita referencia insegura, abre detalhe e download seguro", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir" }).first().click();
+    await expect(page.getByText("Versao 1")).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("storage_path");
+    await expect(page.locator("body")).not.toContainText("private/raw");
+    await page.locator("[data-form='document-version'] input[name='file_reference']").fill("file:///tmp/raw.pdf");
+    await page.getByRole("button", { name: "Criar versao" }).click();
+    await expect(page.locator(".ma-status")).toContainText("Referencia de arquivo insegura");
+    await page.getByRole("button", { name: "Abrir/baixar referencia" }).click();
+    await expect(page.locator(".ma-status")).toContainText("Download autorizado");
+  });
+
+  test("Acervo arquiva e bloqueia nova versao", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir" }).first().click();
+    await page.getByRole("button", { name: "Arquivar documento" }).click();
+    await expect(page.locator(".ma-status")).toContainText("Documento arquivado");
+    await expect(page.getByText("Documento arquivado nao recebe nova versao.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Criar versao" })).toHaveCount(0);
+  });
+
+  test("Acervo nunca mostra unidade externa para gestor", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "gestor" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Acervo", exact: true }).click();
+    await expect(page.locator(".ma-panel").first()).toContainText("Almox Central");
+    await expect(page.locator(".ma-panel").first()).not.toContainText("Almox Distrital");
+    await expect(page.locator(".ma-panel").first()).not.toContainText("Almox B");
+  });});
