@@ -9,12 +9,36 @@ const NOTIFIABLE_RULES = new Set(["item_zero_stock", "item_below_minimum", "asse
 const NOTIFIABLE_SEVERITIES = new Set(["critical", "high"]);
 const SENSITIVE_KEY = /token|secret|password|senha|authorization|bearer|service_role|phone|telefone|whatsapp|email|storage_path|storagePath/i;
 const SENSITIVE_TEXT = /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?\d[\d .()-]{7,}\d)|(?:token|bearer|senha|password|secret)\s*[:=]\s*\S+)/gi;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function clean(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
 function safeText(value) { return clean(value).replace(SENSITIVE_TEXT, "[redigido]"); }
 function lower(value) { return clean(value).toLowerCase(); }
-function nowIso(now = () => new Date()) { const value = now(); return value instanceof Date ? value.toISOString() : new Date(value).toISOString(); }
+function nowIso(now = () => new Date()) {
+  const value = now();
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw makeError(400, "invalid_notification_timestamp");
+  return date.toISOString();
+}
+function temporalOrNull(value) {
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) throw makeError(400, "invalid_notification_timestamp");
+    return value.toISOString();
+  }
+  const raw = clean(value);
+  if (!raw || ["undefined", "null", "invalid date"].includes(raw.toLowerCase())) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) throw makeError(400, "invalid_notification_timestamp");
+  return parsed.toISOString();
+}
+function temporalOrNow(value) {
+  return value === undefined || value === null || !clean(value) ? nowIso() : temporalOrNull(value);
+}
 function makeError(status, code) { const err = new Error(code); err.status = status; err.code = code; return err; }
+function isUuid(value) { return UUID_RE.test(clean(value)); }
+function uuidRequired(value, code) { const id = clean(value); if (!isUuid(id)) throw makeError(400, code); return id; }
+function uuidOrNull(value) { const id = clean(value); if (!id || ["undefined", "null"].includes(id.toLowerCase())) return null; return isUuid(id) ? id : null; }
 function isActive(row) { return ["active", "ativo"].includes(lower(row && row.status || "active")); }
 function statusValue(value, fallback = "pending") { const normalized = lower(value) || fallback; if (!STATUSES.has(normalized)) throw makeError(400, "invalid_notification_status"); return normalized; }
 function channelValue(value) { const normalized = lower(value) || "in_app"; if (!CHANNELS.has(normalized)) throw makeError(400, "invalid_notification_channel"); return normalized; }
@@ -48,16 +72,16 @@ async function resolveInstitution(store, session, requestedInstitutionId) {
   return await assertInstitution(store, id);
 }
 async function resolveUnit(store, session, institutionId, requestedUnitId) {
-  const id = clean(requestedUnitId || (session.role === "gestor" ? session.unitId : ""));
-  if (!id) return "";
+  const id = clean(requestedUnitId ?? (session.role === "gestor" ? session.unitId : ""));
+  if (!id) return null;
+  uuidRequired(id, "unit_id_invalid");
   const unit = await store.get("units", id);
   if (!unit || clean(unit.institution_id) !== clean(institutionId) || !isActive(unit)) throw makeError(403, "unit_scope_forbidden");
   if (session.role === "gestor" && clean(session.unitId) !== id) throw makeError(403, "unit_scope_forbidden");
   return id;
 }
 async function assertRecipient(store, institutionId, recipientUserId) {
-  const id = clean(recipientUserId);
-  if (!id) throw makeError(400, "recipient_user_id_required");
+  const id = uuidRequired(recipientUserId, "recipient_user_id_invalid");
   const user = await store.findOne("profiles", { auth_user_id: id }) || await store.get("profiles", id);
   if (!user || clean(user.institution_id) !== clean(institutionId) || !isActive(user)) throw makeError(403, "recipient_scope_forbidden");
   return id;
@@ -71,10 +95,10 @@ function canSee(session, row) {
 }
 async function writeAudit(store, session, action, institutionId, targetId, metadata = {}) {
   await store.insert("municipal_admin_audit_log", {
-    actor_user_id: clean(session.userId),
-    institution_id: clean(institutionId),
+    actor_user_id: uuidOrNull(session.userId),
+    institution_id: uuidRequired(institutionId, "institution_id_invalid"),
     target_type: "municipal_notification",
-    target_id: clean(targetId),
+    target_id: uuidOrNull(targetId),
     action,
     metadata: sanitize(metadata) || {},
     created_at: nowIso()
@@ -91,10 +115,10 @@ function dedupeKey(institutionId, unitId, recipientUserId, sourceType, sourceId,
 function notificationPayload(session, institutionId, unitId, input = {}) {
   const channel = channelValue(input.channel);
   const source = normalizeSource(input);
-  const recipient = clean(input.recipient_user_id || input.recipientUserId || input.responsible_user_id || input.responsibleUserId || session.userId);
+  const recipient = uuidRequired(input.recipient_user_id ?? input.recipientUserId ?? input.responsible_user_id ?? input.responsibleUserId ?? session.userId, "recipient_user_id_invalid");
   return {
-    institution_id: institutionId,
-    unit_id: clean(input.unit_id || input.unitId || unitId),
+    institution_id: uuidRequired(institutionId, "institution_id_invalid"),
+    unit_id: uuidOrNull(input.unit_id ?? input.unitId ?? unitId),
     recipient_user_id: recipient,
     source_type: source.sourceType,
     source_id: source.sourceId,
@@ -103,13 +127,13 @@ function notificationPayload(session, institutionId, unitId, input = {}) {
     message: safeText(input.message || input.description) || "Existe uma ocorrencia municipal para revisar.",
     severity: severityValue(input.severity),
     status: statusValue(input.status || "pending"),
-    deduplication_key: clean(input.deduplication_key || input.deduplicationKey) || dedupeKey(institutionId, clean(input.unit_id || input.unitId || unitId), recipient, source.sourceType, source.sourceId, channel),
-    scheduled_at: clean(input.scheduled_at || input.scheduledAt),
-    sent_at: clean(input.sent_at || input.sentAt),
-    delivered_at: clean(input.delivered_at || input.deliveredAt),
-    read_at: clean(input.read_at || input.readAt),
+    deduplication_key: clean(input.deduplication_key ?? input.deduplicationKey) || dedupeKey(institutionId, clean(input.unit_id ?? input.unitId ?? unitId), recipient, source.sourceType, source.sourceId, channel),
+    scheduled_at: temporalOrNull(input.scheduled_at ?? input.scheduledAt),
+    sent_at: temporalOrNull(input.sent_at ?? input.sentAt),
+    delivered_at: temporalOrNull(input.delivered_at ?? input.deliveredAt),
+    read_at: temporalOrNull(input.read_at ?? input.readAt),
     failure_reason: safeText(input.failure_reason || input.failureReason),
-    created_at: clean(input.created_at || input.createdAt) || nowIso(),
+    created_at: temporalOrNow(input.created_at ?? input.createdAt),
     metadata: sanitize(input.metadata || {}) || {}
   };
 }
@@ -147,7 +171,7 @@ function applyAdapterStatus(payload, env) {
   return Object.assign({}, payload, { status: "pending" });
 }
 async function createOne(store, session, institutionId, unitId, input, env) {
-  const scopedUnit = await resolveUnit(store, session, institutionId, input.unit_id || input.unitId || unitId);
+  const scopedUnit = await resolveUnit(store, session, institutionId, input.unit_id ?? input.unitId ?? unitId);
   let payload = notificationPayload(session, institutionId, scopedUnit, Object.assign({}, input, { unit_id: scopedUnit }));
   await assertRecipient(store, institutionId, payload.recipient_user_id);
   const existing = await store.findOne("municipal_notifications", { deduplication_key: payload.deduplication_key });

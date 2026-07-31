@@ -1,0 +1,61 @@
+# Evidencia de Homologacao Funcional E2E Municipal
+
+- Data/hora: 2026-07-31 11:27:00 -03:00
+- HEAD: `91d57b2`
+- Project ref confirmado: `mplpzyalcxhhinuvjthx`
+- Projeto proibido nao acessado: `lidueokjpzxdybtongbk`
+- Instituicao E2E: HOMOLOGACAO_PREFEITURA_E2E
+- Papeis testados:
+  - platform_admin: validado
+  - gestor: validado no bloqueio de unidade fora do escopo e como destinatario da notificacao in_app
+  - leitura: criado/localizado em dominio reservado e validado sem escrita
+- Modulos testados:
+  - Patrimonio: aprovado no bloco backend vivo 1/1
+  - Notificacoes: aprovado no bloco backend vivo 1/1
+  - Painel Municipal Integrado: aprovado no Playwright live 4/4
+- Correcoes aplicadas durante a homologacao:
+  - 22007: datas opcionais de notificacao normalizadas para ISO valido ou null
+  - 22P02: UUIDs validados e `municipal_admin_audit_log.target_id` textual substituido por null no dispatch
+  - 403 do fixture: destinatario da notificacao de apoio passou a ser gestor da mesma instituicao/unidade, sem afrouxar permissoes
+  - Painel live: `file://` substituido por HTTP local para evitar origem null
+  - Seletor ambiguo: aba Notificacoes usa `exact: true`; sino permanece identificado por aria-label especifico
+- Testes aprovados:
+  - Patrimonio live: 1/1
+  - Notificacoes live: 1/1
+  - Painel principal live: 1/1
+  - Responsivo desktop: aprovado
+  - Responsivo tablet: aprovado
+  - Responsivo celular: aprovado
+  - Testes locais de notificacao: 9/9
+  - Testes locais de isolamento de notificacao: 4/4
+- Testes falhos:
+  - Falhas anteriores 22007, 22P02, 403 e seletor ambiguo foram corrigidas e revalidadas
+- Dados criados:
+  - Prefixo: `HOMOLOGACAO_FUNCIONAL_43_`
+  - Bens: criados com prefixo durante validacao patrimonial e painel
+  - Notificacoes: criadas com prefixo durante validacao funcional
+  - Unidade auxiliar de transferencia: criada/localizada com prefixo se o E2E tinha menos de duas unidades ativas
+  - Usuario leitura E2E: criado/localizado com dominio reservado `@elo-e2e.test`, sem expor senha
+- Dados removidos:
+  - Cleanup automatico executado: nao
+  - Cleanup manual pendente: sim
+- Isolamento:
+  - Instituicao: project ref autorizado confirmado; projeto proibido nao usado
+  - Unidade: gestor bloqueado fora da unidade autorizada no teste patrimonial
+  - Papel leitura sem escrita: validado para cadastro, edicao, transferencia, manutencao e baixa
+  - Notificacao de apoio pertence a mesma instituicao/unidade autorizada
+- Offline:
+  - Painel validou entrada em modo offline na aba Patrimonio apos sincronizacao
+  - Escrita offline nao foi executada
+  - Troca/logout de usuario nao foi reexecutada nesta rodada live do painel
+- WhatsApp/e-mail:
+  - WhatsApp habilitado: nao
+  - E-mail habilitado: nao
+  - Envio externo realizado: nao
+- Auditoria:
+  - Patrimonio: `asset_deactivated` auditado no teste vivo
+  - Notificacoes: criacao, leitura, falha controlada e cancelamento validados no teste vivo
+- Riscos:
+  - Dados de homologacao permanecem no E2E ate cleanup manual controlado
+  - Validacao offline cobriu consulta visual no painel, nao escrita offline nem troca/logout nesta rodada
+- Decisao final: APROVADO COM RESSALVAS

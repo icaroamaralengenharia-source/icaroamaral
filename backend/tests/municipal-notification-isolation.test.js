@@ -1,29 +1,42 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../src/app.js";
 import { createMemoryMunicipalAdminStore } from "../src/municipal-admin-service.js";
 
+const IDS = {
+  instA: "11111111-1111-4111-8111-111111111111",
+  instB: "22222222-2222-4222-8222-222222222222",
+  unitA: "33333333-3333-4333-8333-333333333333",
+  unitA2: "44444444-4444-4444-8444-444444444444",
+  unitB: "55555555-5555-4555-8555-555555555555",
+  admin: "66666666-6666-4666-8666-666666666666",
+  gestor: "77777777-7777-4777-8777-777777777777",
+  leitura: "88888888-8888-4888-8888-888888888888",
+  func: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  adminB: "99999999-9999-4999-8999-999999999999"
+};
+
 function createStore() {
   return createMemoryMunicipalAdminStore({
     institutions: [
-      { id: "inst-a", name: "Prefeitura A", status: "active" },
-      { id: "inst-b", name: "Prefeitura B", status: "active" }
+      { id: IDS.instA, name: "Prefeitura A", status: "active" },
+      { id: IDS.instB, name: "Prefeitura B", status: "active" }
     ],
     units: [
-      { id: "unit-a", institution_id: "inst-a", name: "Central", status: "active" },
-      { id: "unit-a2", institution_id: "inst-a", name: "Norte", status: "active" },
-      { id: "unit-b", institution_id: "inst-b", name: "Outra", status: "active" }
+      { id: IDS.unitA, institution_id: IDS.instA, name: "Central", status: "active" },
+      { id: IDS.unitA2, institution_id: IDS.instA, name: "Norte", status: "active" },
+      { id: IDS.unitB, institution_id: IDS.instB, name: "Outra", status: "active" }
     ],
     profiles: [
-      { id: "profile-admin", auth_user_id: "admin-a", institution_id: "inst-a", unit_id: null, role: "municipal_admin", status: "active" },
-      { id: "profile-gestor", auth_user_id: "gestor-a", institution_id: "inst-a", unit_id: "unit-a", role: "gestor", status: "active" },
-      { id: "profile-leitura", auth_user_id: "leitura-a", institution_id: "inst-a", unit_id: "unit-a", role: "leitura", status: "active" },
-      { id: "profile-func", auth_user_id: "func-a", institution_id: "inst-a", unit_id: "unit-a", role: "funcionario", status: "active" },
-      { id: "profile-b", auth_user_id: "admin-b", institution_id: "inst-b", unit_id: "unit-b", role: "municipal_admin", status: "active" }
+      { id: "profile-admin", auth_user_id: IDS.admin, institution_id: IDS.instA, unit_id: null, role: "municipal_admin", status: "active" },
+      { id: "profile-gestor", auth_user_id: IDS.gestor, institution_id: IDS.instA, unit_id: IDS.unitA, role: "gestor", status: "active" },
+      { id: "profile-leitura", auth_user_id: IDS.leitura, institution_id: IDS.instA, unit_id: IDS.unitA, role: "leitura", status: "active" },
+      { id: "profile-func", auth_user_id: IDS.func, institution_id: IDS.instA, unit_id: IDS.unitA, role: "funcionario", status: "active" },
+      { id: "profile-b", auth_user_id: IDS.adminB, institution_id: IDS.instB, unit_id: IDS.unitB, role: "municipal_admin", status: "active" }
     ],
     stock_items: [
-      { id: "item-zero", institution_id: "inst-a", unit_id: "unit-a", name: "Zerado", minimum_quantity: 5 },
-      { id: "item-b", institution_id: "inst-b", unit_id: "unit-b", name: "Tenant B", minimum_quantity: 1 }
+      { id: "item-zero", institution_id: IDS.instA, unit_id: IDS.unitA, name: "Zerado", minimum_quantity: 5 },
+      { id: "item-b", institution_id: IDS.instB, unit_id: IDS.unitB, name: "Tenant B", minimum_quantity: 1 }
     ],
     stock_entries: [],
     stock_exits: [],
@@ -37,11 +50,11 @@ function createStore() {
 
 function createAuthMock(store) {
   const users = {
-    admin: { id: "admin-a" },
-    gestor: { id: "gestor-a" },
-    leitura: { id: "leitura-a" },
-    funcionario: { id: "func-a" },
-    adminb: { id: "admin-b" }
+    admin: { id: IDS.admin },
+    gestor: { id: IDS.gestor },
+    leitura: { id: IDS.leitura },
+    funcionario: { id: IDS.func },
+    adminb: { id: IDS.adminB }
   };
   return {
     auth: {
@@ -93,7 +106,7 @@ function auth(token) {
 
 test("rotas criam, listam e deduplicam notificacoes in-app", async () => {
   await withServer(async (base, store) => {
-    const body = { unit_id: "unit-a", recipient_user_id: "gestor-a", source_type: "sentinel_alert", source_id: "alert-1", title: "Alerta", message: "Estoque baixo", severity: "high" };
+    const body = { unit_id: IDS.unitA, recipient_user_id: IDS.gestor, source_type: "sentinel_alert", source_id: "alert-1", title: "Alerta", message: "Estoque baixo", severity: "high" };
     const first = await json(base, "/api/municipal-admin/notifications/dispatch", { method: "POST", headers: auth("admin"), body: JSON.stringify(body) });
     assert.equal(first.response.status, 200);
     assert.equal(first.data.notifications.length, 1);
@@ -112,7 +125,7 @@ test("rotas respeitam unread-count, leitura e cancelamento", async () => {
     const created = await json(base, "/api/municipal-admin/notifications/dispatch", {
       method: "POST",
       headers: auth("admin"),
-      body: JSON.stringify({ unit_id: "unit-a", recipient_user_id: "leitura-a", source_type: "manual", source_id: "n-read", title: "Aviso" })
+      body: JSON.stringify({ unit_id: IDS.unitA, recipient_user_id: IDS.leitura, source_type: "manual", source_id: "n-read", title: "Aviso" })
     });
     const id = created.data.notifications[0].id;
     const count = await json(base, "/api/municipal-admin/notifications/unread-count", { headers: auth("leitura") });
@@ -126,7 +139,7 @@ test("rotas respeitam unread-count, leitura e cancelamento", async () => {
     const cancellable = await json(base, "/api/municipal-admin/notifications/dispatch", {
       method: "POST",
       headers: auth("admin"),
-      body: JSON.stringify({ unit_id: "unit-a", recipient_user_id: "gestor-a", source_type: "manual", source_id: "n-cancel", title: "Cancelar" })
+      body: JSON.stringify({ unit_id: IDS.unitA, recipient_user_id: IDS.gestor, source_type: "manual", source_id: "n-cancel", title: "Cancelar" })
     });
     const cancel = await json(base, `/api/municipal-admin/notifications/${cancellable.data.notifications[0].id}/cancel`, { method: "POST", headers: auth("admin") });
     assert.equal(cancel.response.status, 200);
@@ -141,7 +154,7 @@ test("rotas bloqueiam papel inferior, unidade externa e tenant externo", async (
     const unitDenied = await json(base, "/api/municipal-admin/notifications/dispatch", {
       method: "POST",
       headers: auth("gestor"),
-      body: JSON.stringify({ unit_id: "unit-a2", recipient_user_id: "gestor-a", title: "externa" })
+      body: JSON.stringify({ unit_id: IDS.unitA2, recipient_user_id: IDS.gestor, title: "externa" })
     });
     assert.equal(unitDenied.response.status, 403);
     const tenantDenied = await json(base, "/api/municipal-admin/notifications?institution_id=inst-b", { headers: auth("gestor") });
@@ -155,11 +168,11 @@ test("dispatch do Sentinela por rota nao mistura tenants nem altera estoque", as
     const result = await json(base, "/api/municipal-admin/notifications/dispatch", {
       method: "POST",
       headers: auth("admin"),
-      body: JSON.stringify({ scan: true, unit_id: "unit-a" })
+      body: JSON.stringify({ scan: true, unit_id: IDS.unitA })
     });
     assert.equal(result.response.status, 200);
     assert.ok(result.data.notifications.some((row) => row.metadata && row.metadata.rule_code === "item_zero_stock"));
-    assert.equal(result.data.notifications.some((row) => row.institution_id === "inst-b"), false);
+    assert.equal(result.data.notifications.some((row) => row.institution_id === IDS.instB), false);
     assert.equal(JSON.stringify(store.tables.stock_items), beforeStock);
   });
 });
