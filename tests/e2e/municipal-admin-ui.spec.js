@@ -56,6 +56,15 @@ async function mockMunicipalApi(page, options = {}) {
     versions: {
       "doc-a": [{ id: "ver-a-1", document_id: "doc-a", institution_id: "inst-a", unit_id: "unit-a", version_number: 1, original_filename: "relatorio-a.pdf", mime_type: "application/pdf", size_bytes: 1024, file_reference: "/api/municipal-admin/document-files/relatorio-a.pdf", file_hash: "HASH_A", storage_path: "private/raw/relatorio-a.pdf", created_at: "2026-02-05T10:05:00.000Z" }]
     },
+    notifications: [
+      { id: "notif-a", institution_id: "inst-a", unit_id: "unit-a", recipient_user_id: actorRole + "-user", source_type: "sentinel_alert", source_id: "sent-a", channel: "in_app", title: "Item zerado", message: "Luva zerada", severity: "high", status: "pending", deduplication_key: "notif-a", created_at: "2026-02-06T08:00:00.000Z" },
+      { id: "notif-b", institution_id: "inst-b", unit_id: "unit-b", recipient_user_id: "admin-b", source_type: "manual", source_id: "tenant-b", channel: "in_app", title: "Tenant B", message: "Nao deve aparecer", severity: "high", status: "pending", deduplication_key: "notif-b", created_at: "2026-02-06T08:00:00.000Z" }
+    ],
+    sentinelAlerts: [
+      { id: "sent-a", institution_id: "inst-a", unit_id: "unit-a", rule_code: "item_zero_stock", title: "Luva zerada", description: "Saldo zerado no almoxarifado", severity: "high", status: "open", source_entity_type: "stock_item", source_entity_id: "item-luva", detected_at: "2026-02-06T08:00:00.000Z", metadata: { safe: true } },
+      { id: "sent-b", institution_id: "inst-b", unit_id: "unit-b", rule_code: "item_zero_stock", title: "Tenant B", description: "Nao deve aparecer", severity: "high", status: "open", source_entity_type: "stock_item", source_entity_id: "item-b", detected_at: "2026-02-06T08:00:00.000Z" }
+    ],
+    reportArchiveCount: 0,
     dashboards: {
       "unit-a": {
         unit: { id: "unit-a", institution_id: "inst-a", name: "Almox Central", code: "CENTRAL", address: "Rua A", status: "active" },
@@ -364,7 +373,71 @@ async function mockMunicipalApi(page, options = {}) {
       if (!doc) return route.fulfill({ status: 404, json: { ok: false, error: "document_not_found" } });
       doc.status = "archived";
       return route.fulfill({ json: { ok: true, document: doc } });
-    }    return route.fulfill({ status: 404, json: { ok: false, error: "not_found" } });
+    }
+    if (request.method() === "GET" && path === "/notifications") {
+      let rows = state.notifications.filter((item) => actorCanUseInstitution(item.institution_id));
+      if (actorRole === "gestor") rows = rows.filter((item) => !item.unit_id || item.unit_id === "unit-a");
+      return route.fulfill({ json: { ok: true, notifications: rows } });
+    }
+    if (request.method() === "GET" && path === "/notifications/unread-count") {
+      const requestedNotificationInstitution = url.searchParams.get("institution_id") || "";
+      const rows = state.notifications.filter((item) => actorCanUseInstitution(item.institution_id) && (!requestedNotificationInstitution || item.institution_id === requestedNotificationInstitution) && item.status !== "read" && item.status !== "cancelled");
+      return route.fulfill({ json: { ok: true, unread_count: rows.length } });
+    }
+    const notificationRead = path.match(/^\/notifications\/([^/]+)\/read$/);
+    if (notificationRead && request.method() === "POST") {
+      const item = state.notifications.find((row) => row.id === notificationRead[1]);
+      if (!item || !actorCanUseInstitution(item.institution_id)) return route.fulfill({ status: 404, json: { ok: false, error: "notification_not_found" } });
+      item.status = "read";
+      item.read_at = "2026-02-06T09:00:00.000Z";
+      return route.fulfill({ json: { ok: true, notification: item } });
+    }
+    const notificationCancel = path.match(/^\/notifications\/([^/]+)\/cancel$/);
+    if (notificationCancel && request.method() === "POST") {
+      const item = state.notifications.find((row) => row.id === notificationCancel[1]);
+      if (!item || !actorCanUseInstitution(item.institution_id)) return route.fulfill({ status: 404, json: { ok: false, error: "notification_not_found" } });
+      item.status = "cancelled";
+      return route.fulfill({ json: { ok: true, notification: item } });
+    }
+    if (request.method() === "GET" && path === "/sentinel/alerts") {
+      let alerts = state.sentinelAlerts.filter((item) => actorCanUseInstitution(item.institution_id));
+      if (actorRole === "gestor") alerts = alerts.filter((item) => item.unit_id === "unit-a");
+      return route.fulfill({ json: { ok: true, alerts } });
+    }
+    const sentinelDetail = path.match(/^\/sentinel\/alerts\/([^/]+)$/);
+    if (sentinelDetail && request.method() === "GET") {
+      const alert = state.sentinelAlerts.find((item) => item.id === sentinelDetail[1]);
+      if (!alert || !actorCanUseInstitution(alert.institution_id)) return route.fulfill({ status: 404, json: { ok: false, error: "sentinel_alert_not_found" } });
+      return route.fulfill({ json: { ok: true, alert } });
+    }
+    const sentinelAction = path.match(/^\/sentinel\/alerts\/([^/]+)\/(acknowledge|resolve)$/);
+    if (sentinelAction && request.method() === "POST") {
+      if (actorRole === "leitura") return route.fulfill({ status: 403, json: { ok: false, error: "sentinel_write_forbidden" } });
+      const alert = state.sentinelAlerts.find((item) => item.id === sentinelAction[1]);
+      if (!alert || !actorCanUseInstitution(alert.institution_id)) return route.fulfill({ status: 404, json: { ok: false, error: "sentinel_alert_not_found" } });
+      alert.status = sentinelAction[2] === "resolve" ? "resolved" : "acknowledged";
+      return route.fulfill({ json: { ok: true, alert } });
+    }
+    if (request.method() === "POST" && path === "/sentinel/scan") {
+      if (actorRole === "leitura") return route.fulfill({ status: 403, json: { ok: false, error: "sentinel_write_forbidden" } });
+      let alerts = state.sentinelAlerts.filter((item) => actorCanUseInstitution(item.institution_id));
+      if (actorRole === "gestor") alerts = alerts.filter((item) => item.unit_id === "unit-a");
+      return route.fulfill({ json: { ok: true, alerts } });
+    }
+    if (request.method() === "POST" && path === "/reports/preview") {
+      if (actorRole === "leitura") return route.fulfill({ status: 403, json: { ok: false, error: "report_write_forbidden" } });
+      const body = request.postDataJSON();
+      if (actorRole === "gestor" && body.unit_id !== "unit-a") return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      return route.fulfill({ json: { ok: true, report: { id: "report-preview-a", operation_id: "op-report-a", report_type: body.report_type, title: "Relatorio municipal de " + body.report_type, unit_id: body.unit_id, period: body.period, conclusion: "Preview gerado com dados municipais." } } });
+    }
+    if (request.method() === "POST" && path === "/reports/archive") {
+      if (actorRole === "leitura") return route.fulfill({ status: 403, json: { ok: false, error: "report_write_forbidden" } });
+      const body = request.postDataJSON();
+      if (!body.confirmation) return route.fulfill({ status: 400, json: { ok: false, error: "confirmation_required" } });
+      state.reportArchiveCount += 1;
+      return route.fulfill({ json: { ok: true, document: { id: "doc-report-" + state.reportArchiveCount, title: body.title, unit_id: body.unit_id, status: "active", current_version: 1 }, version: { version_number: 1 } } });
+    }
+    return route.fulfill({ status: 404, json: { ok: false, error: "not_found" } });
   });
 
   return { calls, state };
@@ -650,7 +723,7 @@ test.describe("Administracao Municipal UI", () => {
     await mockMunicipalApi(page, { role: "leitura" });
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: "Acervo", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Administracao" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Almoxarifados", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Criar documento" })).toHaveCount(0);
     await expect(page.getByText("Relatorio A")).toBeVisible();
   });
@@ -668,7 +741,7 @@ test.describe("Administracao Municipal UI", () => {
     await page2.goto(pageUrl, { waitUntil: "domcontentloaded" });
     await page2.getByRole("button", { name: "Acervo" }).click();
     await expect(page2.locator(".ma-panel").first()).toContainText("documents_failed");
-    await expect(page2.getByRole("button", { name: "Administracao" })).toBeVisible();
+    await expect(page2.getByRole("button", { name: "Almoxarifados" })).toBeVisible();
   });
 
   test("Acervo lista documento, filtra por unidade, tipo e busca", async ({ page }) => {
@@ -851,3 +924,97 @@ test.describe("Administracao Municipal UI", () => {
       await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
     }
   });});
+
+
+test("painel integrado navega por todas as areas principais", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page);
+  await page.goto(pageUrl);
+  for (const name of ["Visao Geral", "Almoxarifados", "Sentinela", "Relatorios", "Acervo", "Patrimonio", "Auditoria", "Notificacoes", "Assistente ELO"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Visao Geral" })).toBeVisible();
+  await page.getByRole("button", { name: "Notificacoes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Notificacoes" })).toBeVisible();
+});
+
+test("visao geral mostra cards com dados municipais e contador de notificacoes", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page);
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByText("Almoxarifados ativos")).toBeVisible();
+  await expect(page.getByText("Baixos/zerados")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Notificacoes nao lidas: 1/ })).toBeVisible();
+  await expect(page.getByText("Ultima sincronizacao offline")).toBeVisible();
+});
+
+test("Sentinela abre alerta, reconhece e resolve com confirmacao humana", async ({ page }) => {
+  await installSession(page);
+  const mock = await mockMunicipalApi(page);
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Sentinela", exact: true }).click();
+  await expect(page.getByText("Luva zerada").first()).toBeVisible();
+  await page.getByText("Luva zerada").first().click();
+  await page.getByRole("button", { name: "Reconhecer" }).click();
+  await expect.poll(() => mock.state.sentinelAlerts.find((item) => item.id === "sent-a")?.status).toBe("acknowledged");
+  await page.getByRole("button", { name: "Resolver" }).click();
+  await expect.poll(() => mock.state.sentinelAlerts.find((item) => item.id === "sent-a")?.status).toBe("resolved");
+});
+
+test("relatorio gera preview e confirma salvamento no Acervo", async ({ page }) => {
+  await installSession(page);
+  const mock = await mockMunicipalApi(page);
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Relatorios", exact: true }).click();
+  await page.getByRole("button", { name: "Gerar preview" }).click();
+  await expect(page.getByText("Preview gerado com dados municipais")).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar e salvar no Acervo" }).click();
+  await expect.poll(() => mock.state.reportArchiveCount).toBe(1);
+});
+
+test("ELO abre com contexto municipal autorizado sem expor IDs", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page);
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Assistente ELO", exact: true }).click();
+  await page.getByRole("button", { name: "Perguntar ao ELO" }).nth(1).click();
+  await expect(page.getByText("Contexto municipal autorizado. Use o chat ELO existente para consultar estoque", { exact: false })).toBeVisible();
+  await expect(page.getByText("institution_id")).toHaveCount(0);
+  await expect(page.getByText("unit_id")).toHaveCount(0);
+});
+
+test("gestor nao ve unidade externa no painel integrado", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page, { role: "gestor" });
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByText("Almox Central").first()).toBeVisible();
+  await expect(page.getByText("Almox Distrital")).toHaveCount(0);
+  await page.getByRole("button", { name: "Sentinela", exact: true }).click();
+  await expect(page.getByText("Tenant B")).toHaveCount(0);
+});
+
+test("leitura ve dashboard e nao executa escritas", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page, { role: "leitura" });
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Visao Geral" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Relatorios", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Notificacoes", exact: true }).click();
+  await page.getByRole("button", { name: "Marcar como lida" }).click();
+  await expect(page.getByText("Notificacao lida.")).toBeVisible();
+});
+
+test("falha parcial nao derruba a visao geral", async ({ page }) => {
+  await installSession(page);
+  await mockMunicipalApi(page, { assetsFail: true, documentsFail: true, shelfFailUnit: "unit-a" });
+  await page.goto(pageUrl);
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Visao Geral" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => { const s = window.MunicipalAdminUi && window.MunicipalAdminUi.getStateForTest(); return [s && s.documentsError, s && s.assetsError, Object.values(s && s.shelfByUnit || {}).map((item) => item && item.error).join(" ")].filter(Boolean).join(" "); })).not.toBe("");
+  await page.getByRole("button", { name: "Visao Geral", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Visao Geral" })).toBeVisible();
+});
