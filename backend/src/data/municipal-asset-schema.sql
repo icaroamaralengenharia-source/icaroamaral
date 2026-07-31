@@ -46,3 +46,84 @@ create index if not exists municipal_asset_history_scope_idx on public.municipal
 
 alter table public.municipal_assets enable row level security;
 alter table public.municipal_asset_history enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'municipal_assets'
+      and policyname = 'municipal_assets_select_scoped'
+  ) then
+    create policy municipal_assets_select_scoped
+      on public.municipal_assets for select
+      using (
+        institution_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'institution_id', '')
+        and (
+          nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin')
+          or unit_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'unit_id', '')
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'municipal_assets'
+      and policyname = 'municipal_assets_write_admin_scoped'
+  ) then
+    create policy municipal_assets_write_admin_scoped
+      on public.municipal_assets for all
+      using (
+        institution_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'institution_id', '')
+        and nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin', 'gestor')
+        and (
+          nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin')
+          or unit_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'unit_id', '')
+        )
+      )
+      with check (
+        institution_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'institution_id', '')
+        and nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin', 'gestor')
+        and (
+          nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin')
+          or unit_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'unit_id', '')
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'municipal_asset_history'
+      and policyname = 'municipal_asset_history_select_scoped'
+  ) then
+    create policy municipal_asset_history_select_scoped
+      on public.municipal_asset_history for select
+      using (
+        institution_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'institution_id', '')
+        and (
+          nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin')
+          or unit_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'unit_id', '')
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'municipal_asset_history'
+      and policyname = 'municipal_asset_history_write_admin_scoped'
+  ) then
+    create policy municipal_asset_history_write_admin_scoped
+      on public.municipal_asset_history for insert
+      with check (
+        institution_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'institution_id', '')
+        and nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin', 'gestor')
+        and (
+          nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('platform_admin', 'municipal_admin')
+          or unit_id::text = coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'unit_id', '')
+        )
+      );
+  end if;
+end $$;
