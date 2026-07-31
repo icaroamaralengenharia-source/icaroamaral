@@ -39,6 +39,15 @@ async function mockMunicipalApi(page, options = {}) {
       "inst-b": [{ id: "profile-b", auth_user_id: "func-b", institution_id: "inst-b", unit_id: "unit-b", name: "Func B", email: "func@b.test", role: "funcionario", status: "active" }]
     },
     inviteCount: 0,
+    assetCount: 2,
+    assets: (options.assetsEmpty ? [] : [
+      { id: "asset-a", institution_id: "inst-a", unit_id: "unit-a", asset_tag: "PAT-001", name: "Mesa Diretoria", description: "Mesa em madeira", category: "Mobiliario", brand: "Marca A", model: "M1", serial_number: "SER-1", acquisition_date: "2026-01-10", acquisition_value: 1200, condition: "bom", status: "ativo", location: "Sala 1", responsible_user_id: "gestor-user", created_by: "admin-a", created_at: "2026-02-01T10:00:00.000Z", updated_at: "2026-02-01T10:00:00.000Z" },
+      { id: "asset-b", institution_id: "inst-a", unit_id: "unit-a-2", asset_tag: "PAT-002", name: "Cadeira Reserva", description: "", category: "Mobiliario", condition: "ruim", status: "ativo", location: "Deposito", responsible_user_id: "", created_by: "admin-a", created_at: "2026-02-02T10:00:00.000Z", updated_at: "2026-02-02T10:00:00.000Z" },
+      { id: "asset-tenant-b", institution_id: "inst-b", unit_id: "unit-b", asset_tag: "PAT-B", name: "Bem Tenant B", category: "Sigiloso", condition: "bom", status: "ativo", location: "Outra prefeitura", responsible_user_id: "func-b", created_at: "2026-02-03T10:00:00.000Z", updated_at: "2026-02-03T10:00:00.000Z" }
+    ]),
+    assetHistory: {
+      "asset-a": [{ id: "hist-a-1", asset_id: "asset-a", institution_id: "inst-a", unit_id: "unit-a", action: "asset_created", performed_by: "admin-a", created_at: "2026-02-01T10:00:00.000Z" }]
+    },
     documentCount: 1,
     versionCount: 1,
     documents: (options.docsEmpty ? [] : [
@@ -220,6 +229,79 @@ async function mockMunicipalApi(page, options = {}) {
       if (!canActOn(user)) return route.fulfill({ status: 403, json: { ok: false, error: "user_management_forbidden" } });
       user.status = "inactive";
       return route.fulfill({ json: { ok: true, user } });
+    }
+    if (request.method() === "GET" && path === "/assets") {
+      const requestedInstitution = url.searchParams.get("institution_id") || actorInstitution || "inst-a";
+      const requestedUnit = url.searchParams.get("unit_id") || "";
+      if (!actorCanUseInstitution(requestedInstitution)) return route.fulfill({ status: 403, json: { ok: false, error: "institution_scope_forbidden" } });
+      if (options.assetsFail) return route.fulfill({ status: 500, json: { ok: false, error: "assets_failed" } });
+      let assets = state.assets.filter((asset) => asset.institution_id === requestedInstitution);
+      if (requestedUnit) assets = assets.filter((asset) => asset.unit_id === requestedUnit);
+      if (actorRole === "gestor") assets = assets.filter((asset) => asset.unit_id === "unit-a");
+      return route.fulfill({ json: { ok: true, assets, sync_cursor: "2026-02-06T10:00:00.000Z" } });
+    }
+    if (request.method() === "POST" && path === "/assets") {
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole)) return route.fulfill({ status: 403, json: { ok: false, error: "asset_write_forbidden" } });
+      const body = request.postDataJSON();
+      const instId = actorRole === "platform_admin" ? body.institution_id || "inst-a" : actorInstitution;
+      const unit = findUnit(body.unit_id);
+      if (!actorCanUseInstitution(instId) || !unit || unit.institution_id !== instId || (actorRole === "gestor" && unit.id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "unit_scope_forbidden" } });
+      if (state.assets.some((asset) => asset.institution_id === instId && asset.asset_tag === body.asset_tag)) return route.fulfill({ status: 409, json: { ok: false, error: "asset_tag_duplicate" } });
+      state.assetCount += 1;
+      const asset = { id: "asset-new-" + state.assetCount, institution_id: instId, unit_id: body.unit_id, asset_tag: body.asset_tag, name: body.name, description: body.description || "", category: body.category || "", brand: body.brand || "", model: body.model || "", serial_number: body.serial_number || "", acquisition_date: body.acquisition_date || "", acquisition_value: Number(body.acquisition_value || 0), condition: body.condition || "bom", status: body.status || "ativo", location: body.location || "", responsible_user_id: body.responsible_user_id || "", created_by: actorRole + "-user", created_at: "2026-02-07T10:00:00.000Z", updated_at: "2026-02-07T10:00:00.000Z" };
+      state.assets.unshift(asset);
+      state.assetHistory[asset.id] = [{ id: "hist-" + asset.id, asset_id: asset.id, institution_id: instId, unit_id: asset.unit_id, action: "asset_created", performed_by: actorRole + "-user", created_at: asset.created_at }];
+      return route.fulfill({ json: { ok: true, asset } });
+    }
+    const assetMatch = path.match(/^\/assets\/([^/]+)$/);
+    if (assetMatch && request.method() === "GET") {
+      const asset = state.assets.find((item) => item.id === assetMatch[1]);
+      if (!asset) return route.fulfill({ status: 404, json: { ok: false, error: "asset_not_found" } });
+      if (!actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && asset.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      return route.fulfill({ json: { ok: true, asset } });
+    }
+    if (assetMatch && request.method() === "PATCH") {
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole)) return route.fulfill({ status: 403, json: { ok: false, error: "asset_write_forbidden" } });
+      const asset = state.assets.find((item) => item.id === assetMatch[1]);
+      if (!asset || !actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && asset.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      const body = request.postDataJSON();
+      if (body.asset_tag && state.assets.some((item) => item.id !== asset.id && item.institution_id === asset.institution_id && item.asset_tag === body.asset_tag)) return route.fulfill({ status: 409, json: { ok: false, error: "asset_tag_duplicate" } });
+      Object.assign(asset, body, { updated_at: "2026-02-07T11:00:00.000Z" });
+      state.assetHistory[asset.id] = (state.assetHistory[asset.id] || []).concat({ id: "hist-update-" + asset.id, asset_id: asset.id, institution_id: asset.institution_id, unit_id: asset.unit_id, action: "asset_updated", performed_by: actorRole + "-user", created_at: asset.updated_at });
+      return route.fulfill({ json: { ok: true, asset } });
+    }
+    const assetHistoryMatch = path.match(/^\/assets\/([^/]+)\/history$/);
+    if (assetHistoryMatch && request.method() === "GET") {
+      const asset = state.assets.find((item) => item.id === assetHistoryMatch[1]);
+      if (!asset || !actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && asset.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      return route.fulfill({ json: { ok: true, history: state.assetHistory[asset.id] || [] } });
+    }
+    const assetTransfer = path.match(/^\/assets\/([^/]+)\/transfer$/);
+    if (assetTransfer && request.method() === "POST") {
+      const asset = state.assets.find((item) => item.id === assetTransfer[1]);
+      const body = request.postDataJSON();
+      const target = findUnit(body.target_unit_id);
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole) || !asset || !target || target.institution_id !== asset.institution_id || !actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && (asset.unit_id !== "unit-a" || target.id !== "unit-a"))) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      asset.unit_id = target.id; asset.location = body.location || asset.location; asset.status = "transferido"; asset.updated_at = "2026-02-07T12:00:00.000Z";
+      state.assetHistory[asset.id] = (state.assetHistory[asset.id] || []).concat({ id: "hist-transfer-" + asset.id, asset_id: asset.id, institution_id: asset.institution_id, unit_id: asset.unit_id, action: "asset_transferred", performed_by: actorRole + "-user", created_at: asset.updated_at });
+      return route.fulfill({ json: { ok: true, asset } });
+    }
+    const assetMaintenance = path.match(/^\/assets\/([^/]+)\/maintenance$/);
+    if (assetMaintenance && request.method() === "POST") {
+      const asset = state.assets.find((item) => item.id === assetMaintenance[1]);
+      const body = request.postDataJSON();
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole) || !asset || !actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && asset.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      asset.condition = body.condition || asset.condition; asset.status = "em_manutencao"; asset.updated_at = "2026-02-07T13:00:00.000Z";
+      state.assetHistory[asset.id] = (state.assetHistory[asset.id] || []).concat({ id: "hist-maint-" + asset.id, asset_id: asset.id, institution_id: asset.institution_id, unit_id: asset.unit_id, action: "asset_maintenance_registered", performed_by: actorRole + "-user", created_at: asset.updated_at });
+      return route.fulfill({ json: { ok: true, asset } });
+    }
+    const assetDeactivate = path.match(/^\/assets\/([^/]+)\/deactivate$/);
+    if (assetDeactivate && request.method() === "POST") {
+      const asset = state.assets.find((item) => item.id === assetDeactivate[1]);
+      if (!["platform_admin", "municipal_admin", "gestor"].includes(actorRole) || !asset || !actorCanUseInstitution(asset.institution_id) || (actorRole === "gestor" && asset.unit_id !== "unit-a")) return route.fulfill({ status: 403, json: { ok: false, error: "asset_scope_forbidden" } });
+      asset.status = "baixado"; asset.updated_at = "2026-02-07T14:00:00.000Z";
+      state.assetHistory[asset.id] = (state.assetHistory[asset.id] || []).concat({ id: "hist-low-" + asset.id, asset_id: asset.id, institution_id: asset.institution_id, unit_id: asset.unit_id, action: "asset_deactivated", performed_by: actorRole + "-user", created_at: asset.updated_at });
+      return route.fulfill({ json: { ok: true, asset } });
     }
     if (request.method() === "GET" && path === "/documents") {
       const requestedInstitution = url.searchParams.get("institution_id") || actorInstitution;
@@ -661,4 +743,111 @@ test.describe("Administracao Municipal UI", () => {
     await expect(page.locator(".ma-panel").first()).toContainText("Almox Central");
     await expect(page.locator(".ma-panel").first()).not.toContainText("Almox Distrital");
     await expect(page.locator(".ma-panel").first()).not.toContainText("Almox B");
+  });
+  test("Patrimonio lista, filtra, busca e abre detalhe", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Patrimonio" }).click();
+    await expect(page.getByRole("heading", { name: "Patrimonio" })).toBeVisible();
+    await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    await expect(page.getByText("PAT-002 - Cadeira Reserva")).toBeVisible();
+    await page.locator('[data-form="asset-filters"] input[name="search"]').fill("PAT-001");
+    await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    await expect(page.getByText("PAT-002 - Cadeira Reserva")).toHaveCount(0);
+    await page.getByRole("button", { name: "Abrir" }).click();
+    await expect(page.locator(".ma-detail")).toContainText("Conservacao: Bom");
+    await expect(page.locator(".ma-detail")).toContainText("Historico");
+  });
+
+  test("Patrimonio cadastra bem e rejeita tombamento duplicado", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Patrimonio" }).click();
+    const create = page.locator('[data-form="asset-create"]');
+    await create.locator('input[name="asset_tag"]').fill("PAT-010");
+    await create.locator('input[name="name"]').fill("Notebook Fiscalizacao");
+    await create.locator('input[name="category"]').fill("Informatica");
+    await create.locator('select[name="unit_id"]').selectOption("unit-a");
+    await create.getByRole("button", { name: "Cadastrar bem" }).click();
+    await expect(page.locator("[data-municipal-admin-root]")).toContainText("Bem cadastrado");
+    await expect(page.locator(".ma-list").getByText("PAT-010 - Notebook Fiscalizacao")).toBeVisible();
+    await create.locator('input[name="asset_tag"]').fill("PAT-001");
+    await create.locator('input[name="name"]').fill("Duplicado");
+    await create.getByRole("button", { name: "Cadastrar bem" }).click();
+    await expect(page.locator("[data-municipal-admin-root]")).toContainText("asset_tag_duplicate");
+  });
+
+  test("Patrimonio transfere, registra manutencao e da baixa sem excluir", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Patrimonio" }).click();
+    await page.getByRole("button", { name: "Abrir" }).first().click();
+    const transfer = page.locator('[data-form="asset-transfer"]');
+    await transfer.locator('select[name="target_unit_id"]').selectOption("unit-a-2");
+    await transfer.locator('input[name="location"]').fill("Sala 2");
+    await transfer.locator('input[name="reason"]').fill("Remanejamento");
+    await transfer.getByRole("button", { name: "Transferir" }).click();
+    await expect(page.locator(".ma-detail")).toContainText("Status: Transferido");
+    const maintenance = page.locator('[data-form="asset-maintenance"]');
+    await maintenance.locator('input[name="notes"]').fill("Ajuste preventivo");
+    await maintenance.locator('select[name="condition"]').selectOption("regular");
+    await maintenance.getByRole("button", { name: "Registrar manutencao" }).click();
+    await expect(page.locator(".ma-detail")).toContainText("Status: Em manutencao");
+    await page.getByRole("button", { name: "Dar baixa" }).click();
+    await expect(page.locator(".ma-detail")).toContainText("Status: Baixado");
+    await expect(page.locator(".ma-list").getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+  });
+
+  test("Patrimonio respeita isolamento e permissoes", async ({ page }) => {
+    await installSession(page);
+    await mockMunicipalApi(page, { role: "gestor" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Patrimonio" }).click();
+    await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    await expect(page.getByText("PAT-002 - Cadeira Reserva")).toHaveCount(0);
+    await expect(page.getByText("Bem Tenant B")).toHaveCount(0);
+
+    const leitura = await page.context().newPage();
+    await installSession(leitura);
+    await mockMunicipalApi(leitura, { role: "leitura" });
+    await leitura.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await expect(leitura.getByRole("button", { name: "Patrimonio", exact: true })).toBeVisible();
+    await leitura.getByRole("button", { name: "Patrimonio", exact: true }).click();
+    await expect(leitura.getByText("Perfil leitura: consulta patrimonial sem escrita.")).toBeVisible();
+    await expect(leitura.getByRole("button", { name: "Cadastrar bem" })).toHaveCount(0);
+    await leitura.close();
+  });
+
+  test("Patrimonio consulta e busca offline sem escrita", async ({ page, context }) => {
+    await installSession(page);
+    const mock = await mockMunicipalApi(page, { role: "municipal_admin" });
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Patrimonio" }).click();
+    await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    const before = mock.state.assets.length;
+    await context.setOffline(true);
+    await page.route("https://municipal.local/api/municipal-admin/assets**", (route) => route.abort());
+    await page.getByRole("button", { name: "Atualizar patrimonio" }).click();
+    await expect(page.locator("[data-municipal-admin-root]")).toContainText("dados sincronizados em");
+    await page.locator('[data-form="asset-filters"] input[name="search"]').fill("PAT-001");
+    await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cadastrar bem" })).toHaveCount(0);
+    await expect(page.getByText("Consulta offline somente leitura")).toBeVisible();
+    expect(mock.state.assets.length).toBe(before);
+    await context.setOffline(false);
+  });
+
+  test("Patrimonio renderiza em desktop, tablet e celular", async ({ page }) => {
+    for (const size of [{ width: 1280, height: 820 }, { width: 820, height: 900 }, { width: 390, height: 840 }]) {
+      await page.setViewportSize(size);
+      await installSession(page);
+      await mockMunicipalApi(page, { role: "municipal_admin" });
+      await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "Patrimonio" }).click();
+      await expect(page.getByRole("heading", { name: "Patrimonio" })).toBeVisible();
+      await expect(page.getByText("PAT-001 - Mesa Diretoria")).toBeVisible();
+    }
   });});

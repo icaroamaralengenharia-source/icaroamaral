@@ -106,3 +106,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .ma-shelf-grid, .ma-shelf-overview { grid-template-columns: 1fr; }
   .ma-shelf-card .ma-actions { grid-template-columns: 1fr; }
 }
+.ma-asset-filters { background: #f8fbfe; }
+.ma-asset-history { box-shadow: none; }
+.ma-asset-history .ma-row span { color: var(--ma-muted); }
