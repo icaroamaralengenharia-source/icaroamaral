@@ -17,6 +17,7 @@ import { registerMunicipalDocumentRoutes } from "./municipal-document-router.js"
 import { registerMunicipalSentinelRoutes } from "./municipal-sentinel-router.js";
 import { registerMunicipalReportRoutes } from "./municipal-report-router.js";
 import { registerMunicipalAssetRoutes } from "./municipal-asset-router.js";
+import { registerMunicipalNotificationRoutes } from "./municipal-notification-router.js";
 import { buildEloMunicipalAnswerIfNeeded } from "./elo-municipal-tools.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
@@ -2907,6 +2908,12 @@ export function createApp(options = {}) {
   registerMunicipalAssetRoutes(app, {
     database: municipalAdminSupabaseClient || getSupabaseClient(env),
     store: options.municipalAdminStore,
+    resolveAuthContext: app.locals.resolveAuthContext
+  });
+  registerMunicipalNotificationRoutes(app, {
+    database: municipalAdminSupabaseClient || getSupabaseClient(env),
+    store: options.municipalAdminStore,
+    env,
     resolveAuthContext: app.locals.resolveAuthContext
   });
   registerEloSentinelRoutes(app, {
