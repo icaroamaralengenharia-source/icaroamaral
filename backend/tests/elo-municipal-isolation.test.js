@@ -28,6 +28,8 @@ function createStore() {
     stock_audit_log: [],
     municipal_documents: [],
     municipal_document_versions: [],
+    municipal_assets: [],
+    municipal_asset_history: [],
     municipal_admin_audit_log: []
   });
 }

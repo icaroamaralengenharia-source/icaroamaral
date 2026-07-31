@@ -2,7 +2,7 @@ import { createSupabaseMunicipalAdminStore, municipalAdminInternals } from "./mu
 import { createMunicipalSentinelService } from "./municipal-sentinel-service.js";
 
 const READ_ROLES = new Set(["platform_admin", "municipal_admin", "gestor", "leitura"]);
-const MUNICIPAL_HINT = /prefeitura|almoxarifado|unidade municipal|estoque municipal|sentinela municipal|acervo municipal|auditoria municipal/i;
+const MUNICIPAL_HINT = /prefeitura|almoxarifado|unidade municipal|estoque municipal|sentinela municipal|acervo municipal|auditoria municipal|patrimonio municipal|mobiliario municipal|tombamento|bem permanente/i;
 const SENSITIVE_KEY = /token|secret|password|senha|authorization|bearer|service_role|storage_path|storagePath/i;
 
 function clean(value) {
@@ -137,6 +137,33 @@ function answerSections({ main, data, assumptions, alerts, next }) {
 
 function buildMainAnswer(question, snapshot) {
   const text = normalizeText(question);
+  if (/tombamento|asset tag/.test(text)) {
+    const tagMatch = text.match(/(?:tombamento|tag)\s+([a-z0-9._-]+)/i);
+    const tag = tagMatch ? tagMatch[1] : "";
+    const rows = tag ? snapshot.assets.filter((item) => normalizeText(item.asset_tag) === normalizeText(tag)) : snapshot.assets;
+    return rows.length ? "Bens localizados por tombamento: " + rows.slice(0, 6).map((item) => `${item.asset_tag} - ${item.name} (${item.condition}, ${item.status})`).join("; ") + "." : "Nao encontrei bem patrimonial com o tombamento informado nos dados consultados.";
+  }
+  if (/estado ruim|conservacao ruim|condicao ruim/.test(text)) {
+    const rows = snapshot.assets.filter((item) => lower(item.condition) === "ruim");
+    return rows.length ? "Bens em estado ruim: " + rows.map((item) => `${item.asset_tag} - ${item.name}`).join(", ") + "." : "Nao encontrei bens em estado ruim nos dados consultados.";
+  }
+  if (/sem responsavel/.test(text)) {
+    const rows = snapshot.assets.filter((item) => !clean(item.responsible_user_id));
+    return rows.length ? "Bens sem responsavel: " + rows.map((item) => `${item.asset_tag} - ${item.name}`).join(", ") + "." : "Nao encontrei bens sem responsavel nos dados consultados.";
+  }
+  if (/manutencao/.test(text)) {
+    const rows = snapshot.assets.filter((item) => lower(item.status) === "em_manutencao");
+    return rows.length ? "Bens em manutencao: " + rows.map((item) => `${item.asset_tag} - ${item.name}`).join(", ") + "." : "Nao encontrei bens em manutencao nos dados consultados.";
+  }
+  if (/categoria|categorias/.test(text) && /patrimonio|mobiliario|bem/.test(text)) {
+    const counts = new Map();
+    for (const asset of snapshot.assets) counts.set(clean(asset.category) || "sem categoria", (counts.get(clean(asset.category) || "sem categoria") || 0) + 1);
+    return counts.size ? "Resumo por categoria: " + Array.from(counts.entries()).map(([key, value]) => `${key}: ${value}`).join("; ") + "." : "Nao encontrei bens para resumir por categoria.";
+  }
+  if (/transferencia|transferencias/.test(text)) {
+    const rows = snapshot.asset_history.filter((item) => lower(item.action) === "asset_transferred");
+    return rows.length ? "Ultimas transferencias: " + rows.slice(0, 6).map((item) => `${item.asset_id} em ${dateText(item.created_at)}`).join("; ") + "." : "Nao encontrei transferencias patrimoniais nos dados consultados.";
+  }
   if (/abaixo do minimo/.test(text)) {
     const rows = snapshot.stock.filter((item) => item.current_quantity > 0 && item.current_quantity < asNumber(item.minimum_quantity));
     return rows.length ? "Itens abaixo do minimo: " + rows.map((item) => `${item.name} (${item.current_quantity}/${item.minimum_quantity})`).join(", ") + "." : "Nao ha itens abaixo do minimo nos dados consultados.";
@@ -163,7 +190,7 @@ function buildMainAnswer(question, snapshot) {
   if (/auditoria|acoes recentes/.test(text)) {
     return snapshot.audit.length ? "Acoes recentes da auditoria: " + snapshot.audit.slice(0, 8).map((item) => `${item.action} em ${dateText(item.created_at)}`).join("; ") + "." : "Nao encontrei acoes recentes de auditoria nos dados consultados.";
   }
-  return "Consultei unidades, estoque, movimentacoes, alertas, documentos e auditoria municipais autorizados.";
+  return "Consultei unidades, estoque, movimentacoes, alertas, documentos, patrimonio e auditoria municipais autorizados.";
 }
 
 function dataLines(snapshot) {
@@ -173,6 +200,7 @@ function dataLines(snapshot) {
     `${snapshot.movements.length} movimentacao(oes)`,
     `${snapshot.alerts.length} alerta(s) do Sentinela Municipal`,
     `${snapshot.documents.length} documento(s) do Acervo Municipal`,
+    `${snapshot.assets.length} bem(ns) patrimonial(is)`,
     `${snapshot.audit.length} registro(s) de auditoria`
   ];
 }
@@ -188,13 +216,15 @@ export function createEloMunicipalTools(options = {}) {
     const unitId = await assertUnit(store, session, institutionId, query.unit_id || query.unitId);
     const filters = unitId ? { institution_id: institutionId, unit_id: unitId } : { institution_id: institutionId };
     const partialErrors = [];
-    const [unitsRaw, itemsRaw, entriesRaw, exitsRaw, documentsRaw, auditRaw] = await Promise.all([
+    const [unitsRaw, itemsRaw, entriesRaw, exitsRaw, documentsRaw, auditRaw, assetsRaw, assetHistoryRaw] = await Promise.all([
       safeList(store, "units", { institution_id: institutionId }, partialErrors),
       safeList(store, "stock_items", filters, partialErrors),
       safeList(store, "stock_entries", filters, partialErrors),
       safeList(store, "stock_exits", filters, partialErrors),
       safeList(store, "municipal_documents", filters, partialErrors),
-      safeList(store, "municipal_admin_audit_log", { institution_id: institutionId }, partialErrors)
+      safeList(store, "municipal_admin_audit_log", { institution_id: institutionId }, partialErrors),
+      safeList(store, "municipal_assets", filters, partialErrors),
+      safeList(store, "municipal_asset_history", filters, partialErrors)
     ]);
     const units = session.role === "gestor" && session.unitId ? unitsRaw.filter((unit) => clean(unit.id) === clean(session.unitId)) : unitsRaw;
     const allowedUnitIds = new Set(units.map((unit) => clean(unit.id)));
@@ -230,7 +260,10 @@ export function createEloMunicipalTools(options = {}) {
       .map(sanitize)
       .sort((a, b) => new Date(b.created_at || b.updated_at || 0).getTime() - new Date(a.created_at || a.updated_at || 0).getTime());
     const audit = auditRaw.map(sanitize).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    return { institution_id: institutionId, unit_id: unitId, units: units.map(sanitize), stock, movements, alerts: alerts.map(sanitize), documents, audit, partial_errors: partialErrors };
+    const assets = assetsRaw.filter((asset) => session.role !== "gestor" || allowedUnitIds.has(clean(asset.unit_id))).map(sanitize);
+    const assetIds = new Set(assets.map((asset) => clean(asset.id)));
+    const asset_history = assetHistoryRaw.filter((item) => assetIds.has(clean(item.asset_id))).map(sanitize).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    return { institution_id: institutionId, unit_id: unitId, units: units.map(sanitize), stock, movements, alerts: alerts.map(sanitize), documents, assets, asset_history, audit, partial_errors: partialErrors };
   }
 
   return {
@@ -241,6 +274,7 @@ export function createEloMunicipalTools(options = {}) {
     async listSentinelAlerts(context, query) { return (await buildSnapshot(context, query)).alerts; },
     async listDocuments(context, query) { return (await buildSnapshot(context, query)).documents; },
     async listAudit(context, query) { return (await buildSnapshot(context, query)).audit; },
+    async listAssets(context, query) { return (await buildSnapshot(context, query)).assets; },
     async answer(context, question, query = {}) {
       const snapshot = await buildSnapshot(context, query);
       const alerts = snapshot.partial_errors.map((item) => `${item.tool}: ${item.error}`);

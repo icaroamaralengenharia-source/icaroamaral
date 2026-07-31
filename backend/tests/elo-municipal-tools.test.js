@@ -53,6 +53,8 @@ function setup(extra = {}) {
       { id: "doc-b", institution_id: "inst-b", unit_id: "unit-b", title: "Documento B", document_type: "relatorio", status: "active", current_version: 1 }
     ],
     municipal_document_versions: [],
+    municipal_assets: [],
+    municipal_asset_history: [],
     municipal_admin_audit_log: [
       { id: "audit-a", institution_id: "inst-a", action: "stock_entry_created", target_type: "stock_entry", target_id: "entry-low", created_at: "2026-01-04T00:00:00.000Z", token_hash: "HASH_NAO_SAIR" },
       { id: "audit-b", institution_id: "inst-b", action: "stock_entry_created", target_type: "stock_entry", target_id: "entry-b", created_at: "2026-01-04T00:00:00.000Z" }
