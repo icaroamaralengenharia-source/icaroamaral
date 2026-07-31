@@ -96,6 +96,40 @@ test("convite expirado ou reutilizado e rejeitado", async () => {
   await rejectsCode(service.acceptInvite(invite.invite_token, { id: "new-user-2", email: "novo2@example.com" }), "invite_not_found");
 });
 
+test("cancelamento seguro de convite respeita papel escopo e status", async () => {
+  const { store } = setup();
+  let tokenCounter = 0;
+  const service = createMunicipalAdminService({
+    store,
+    randomToken: () => "cancel-token-" + tokenCounter++,
+    now: () => new Date("2026-01-10T00:00:00.000Z")
+  });
+
+  const platformInvite = await service.createInvite(ctx("municipal_admin", { userId: "admin-a" }), "inst-a", { email: "platform-cancel@example.com", role: "gestor", unit_id: "unit-a" });
+  const platformCancelled = await service.cancelInvite(ctx("platform_admin", { userId: "platform-user", institutionId: "" }), platformInvite.invite.id);
+  assert.equal(platformCancelled.invite.status, "cancelled");
+  assert.equal(platformCancelled.invite.token_hash, undefined);
+  assert.equal(store.tables.municipal_admin_audit_log.at(-1).action, "invite_cancelled");
+
+  const ownInvite = await service.createInvite(ctx("municipal_admin", { userId: "admin-a" }), "inst-a", { email: "own-cancel@example.com", role: "gestor", unit_id: "unit-a" });
+  const ownCancelled = await service.cancelInvite(ctx("municipal_admin", { userId: "admin-a", institutionId: "inst-a" }), ownInvite.invite.id);
+  assert.equal(ownCancelled.invite.status, "cancelled");
+
+  const crossInvite = await service.createInvite(ctx("platform_admin", { userId: "platform-user", institutionId: "" }), "inst-b", { email: "cross@example.com", role: "gestor", unit_id: "unit-b" });
+  await rejectsCode(service.cancelInvite(ctx("municipal_admin", { userId: "admin-a", institutionId: "inst-a" }), crossInvite.invite.id), "institution_scope_forbidden");
+
+  const gestorInvite = await service.createInvite(ctx("municipal_admin", { userId: "admin-a" }), "inst-a", { email: "gestor-denied@example.com", role: "funcionario", unit_id: "unit-a" });
+  await rejectsCode(service.cancelInvite(ctx("gestor", { userId: "gestor-a", unitId: "unit-a" }), gestorInvite.invite.id), "invite_cancel_forbidden");
+
+  const acceptedInvite = await service.createInvite(ctx("municipal_admin", { userId: "admin-a" }), "inst-a", { email: "accepted@example.com", role: "funcionario", unit_id: "unit-a" });
+  await service.acceptInvite(acceptedInvite.invite_token, { id: "accepted-user", email: "accepted@example.com" });
+  await rejectsCode(service.cancelInvite(ctx("municipal_admin", { userId: "admin-a" }), acceptedInvite.invite.id), "invite_not_pending");
+
+  const cancelledInvite = await service.createInvite(ctx("municipal_admin", { userId: "admin-a" }), "inst-a", { email: "cancelled@example.com", role: "funcionario", unit_id: "unit-a" });
+  await service.cancelInvite(ctx("municipal_admin", { userId: "admin-a" }), cancelledInvite.invite.id);
+  await rejectsCode(service.cancelInvite(ctx("municipal_admin", { userId: "admin-a" }), cancelledInvite.invite.id), "invite_not_pending");
+  await rejectsCode(service.acceptInvite(cancelledInvite.invite_token, { id: "cancelled-user", email: "cancelled@example.com" }), "invite_not_found");
+});
 test("usuario desativado perde acesso", async () => {
   const { service } = setup();
   await rejectsCode(service.me(ctx("gestor", { status: "inactive" })), "user_inactive");

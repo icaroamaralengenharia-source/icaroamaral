@@ -109,6 +109,7 @@ export function createMunicipalAdminRouter(options = {}) {
   router.get("/units/:unitId/operational-dashboard", route((request, context) => getOperationalShelfService().getOperationalDashboard(context, request.params.unitId)));
 
   router.post("/institutions/:institutionId/invites", route((request, context, svc) => svc.createInvite(context, request.params.institutionId, request.body || {})));
+  router.post("/invites/:inviteId/cancel", route((request, context, svc) => svc.cancelInvite(context, request.params.inviteId)));
   router.get("/institutions/:institutionId/users", route((request, context, svc) => svc.listUsers(context, request.params.institutionId)));
   router.patch("/users/:userId/role", route((request, context, svc) => svc.updateUserRole(context, request.params.userId, request.body || {})));
   router.patch("/users/:userId/units", route((request, context, svc) => svc.updateUserUnits(context, request.params.userId, request.body || {})));

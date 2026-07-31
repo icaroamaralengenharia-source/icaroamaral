@@ -107,6 +107,10 @@ function canManageUsers(session) {
   return session.role === "platform_admin" || session.role === "municipal_admin" || session.role === "gestor";
 }
 
+function canCancelInvites(session) {
+  return session.role === "platform_admin" || session.role === "municipal_admin";
+}
+
 function allowedInviteRoles(session) {
   if (session.role === "platform_admin") return new Set(["municipal_admin", "gestor", "almoxarife", "funcionario", "leitura"]);
   if (session.role === "municipal_admin") return new Set(["gestor", "almoxarife", "funcionario", "leitura"]);
@@ -318,6 +322,18 @@ export function createMunicipalAdminService(options = {}) {
       });
       await writeAudit(store, session, "invite_created", "invite", invite.id, id, { email, role, unit_id: unitId });
       return { invite: publicInvite(invite), invite_token: token };
+    },
+
+    async cancelInvite(context, inviteId) {
+      const session = sessionFromContext(context);
+      if (!canCancelInvites(session)) throw error(403, "invite_cancel_forbidden");
+      const invite = await store.get("municipal_admin_invites", inviteId);
+      if (!invite) throw error(404, "invite_not_found");
+      assertInstitutionScope(session, invite.institution_id);
+      if (!PENDING.has(lower(invite.status)) || invite.accepted_at) throw error(409, "invite_not_pending");
+      const cancelled = await store.update("municipal_admin_invites", invite.id, { status: "cancelled" });
+      await writeAudit(store, session, "invite_cancelled", "invite", invite.id, invite.institution_id, { email: invite.email, role: invite.role });
+      return { invite: publicInvite(cancelled) };
     },
 
     async acceptInvite(token, authUser) {

@@ -148,6 +148,24 @@ test("rotas municipais aplicam permissoes, isolamento e convite seguro", async (
     });
     assert.equal(reused.response.status, 404);
 
+    const cancelInvite = await json(base, "/api/municipal-admin/institutions/inst-a/invites", {
+      method: "POST",
+      headers: auth("adminA"),
+      body: JSON.stringify({ email: "cancelar@example.com", role: "gestor", unit_id: "unit-a" })
+    });
+    assert.equal(cancelInvite.response.status, 200);
+    const cancelled = await json(base, "/api/municipal-admin/invites/" + cancelInvite.data.invite.id + "/cancel", {
+      method: "POST",
+      headers: auth("adminA")
+    });
+    assert.equal(cancelled.response.status, 200);
+    assert.equal(cancelled.data.invite.status, "cancelled");
+    assert.equal(cancelled.data.invite.token_hash, undefined);
+    const acceptCancelled = await json(base, "/api/municipal-admin/invites/" + cancelInvite.data.invite_token + "/accept", {
+      method: "POST",
+      headers: auth("newUser")
+    });
+    assert.equal(acceptCancelled.response.status, 404);
     const crossUsers = await json(base, "/api/municipal-admin/institutions/inst-b/users", { headers: auth("adminA") });
     assert.equal(crossUsers.response.status, 403);
 
