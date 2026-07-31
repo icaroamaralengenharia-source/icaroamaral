@@ -14,6 +14,7 @@ import { observeObra } from "./elo-obra-observer.js";
 import { registerEloSentinelRoutes } from "./elo-sentinel-router.js";
 import { registerMunicipalAdminRoutes } from "./municipal-admin-router.js";
 import { registerMunicipalDocumentRoutes } from "./municipal-document-router.js";
+import { registerMunicipalSentinelRoutes } from "./municipal-sentinel-router.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
@@ -2849,6 +2850,12 @@ export function createApp(options = {}) {
     store: options.municipalAdminStore,
     resolveAuthContext: app.locals.resolveAuthContext
   });
+  registerMunicipalSentinelRoutes(app, {
+    database: municipalAdminSupabaseClient || getSupabaseClient(env),
+    store: options.municipalAdminStore,
+    resolveAuthContext: app.locals.resolveAuthContext
+  });
+
   registerEloSentinelRoutes(app, {
     env,
     database: options.eloSentinelSupabaseClient || getSupabaseClient(env),
