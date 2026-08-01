@@ -195,8 +195,12 @@ test("ausencia de IA nao derruba validacao", () => {
 
 test("esta etapa nao altera codigo funcional", () => {
   const allowed = new Set([
+    " M backend/tests/municipal-demo-final-readiness.test.js",
+    "M backend/tests/municipal-demo-final-readiness.test.js",
     "?? backend/tests/municipal-demo-final-readiness.test.js",
-    "?? docs/RELATORIO-FINAL-PRONTIDAO-DEMO-MUNICIPAL.md"
+    "?? backend/tests/municipal-demo-repeatability.test.js",
+    "?? docs/RELATORIO-FINAL-PRONTIDAO-DEMO-MUNICIPAL.md",
+    "?? docs/RELATORIO-ETAPA-56-PREFLIGHT-10X.md"
   ]);
   const status = trackedAndUntrackedStatus();
   for (const line of status) {
@@ -208,4 +212,3 @@ test("documentacao nao afirma que demo real ja existe", () => {
   const docs = [files.operationDocs, files.checklistLive, files.readinessDocs, files.wizardDocs, files.exampleDocs].map(read).join("\n");
   assert.doesNotMatch(docs, /demo real (criada|existe|provisionada|implantada)|banco real criado|deploy realizado/i);
 });
-
