@@ -21,8 +21,11 @@ import { cleanupDemo } from "../scripts/municipal-demo-cleanup.js";
 
 const root = process.cwd();
 const safeEnv = {
+  APP_ENV: "demo",
+  NODE_ENV: "production",
   MUNICIPAL_DEMO_MODE: "true",
   DEMO_SUPABASE_URL: "https://demomunicipalabcdefghijkl.supabase.co",
+  DEMO_SUPABASE_ANON_KEY: "anon_fixture_value_never_print",
   SUPABASE_SERVICE_ROLE_KEY: "service_fixture_value_never_print",
   AI_ALLOWED_ORIGINS: "https://demo.exemplo.com",
   MUNICIPAL_WHATSAPP_ENABLED: "false",

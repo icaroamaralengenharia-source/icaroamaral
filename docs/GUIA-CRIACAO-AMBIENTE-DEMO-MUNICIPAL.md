@@ -1,4 +1,4 @@
-﻿# Guia de Criacao do Ambiente Demo Municipal
+# Guia de Criacao do Ambiente Demo Municipal
 
 Este guia prepara um ambiente demonstrativo isolado para a Plataforma Municipal Integrada. Ele nao autoriza uso de E2E nem producao.
 
@@ -34,6 +34,8 @@ Configurar no backend:
 Nao registrar valores de chaves em documentos, logs ou prints.
 
 ## 4. Isolamento
+
+Antes de aplicar qualquer SQL, preencher docs/CHECKLIST-EXECUCAO-DEMO-MUNICIPAL.md e executar os dry-runs locais da Etapa 50.
 
 Antes de aplicar qualquer SQL:
 

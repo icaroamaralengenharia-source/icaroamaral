@@ -1,10 +1,18 @@
+import { validateMunicipalDemoConfig } from "../src/municipal-demo-config.js";
 import { CONFIRMATIONS, FILES, assertNoBlockedProject, assertSqlSafety, buildContext, isMain, parseArgs, readRequiredFile, runCli, sanitize } from "./municipal-demo-lib.js";
 
 async function preflight(args = {}, options = {}) {
   const env = options.env || process.env;
   const cwd = options.cwd || process.cwd();
-  const context = buildContext(args, env, cwd);
   assertNoBlockedProject(env);
+  const config = validateMunicipalDemoConfig(env);
+  if (!config.ok) {
+    const err = new Error("demo_config_invalid");
+    err.code = "demo_config_invalid";
+    err.summary = sanitize({ checks: config.checks, config: config.config });
+    throw err;
+  }
+  const context = buildContext(args, env, cwd);
   const files = {};
   for (const [kind, relativePath] of Object.entries(FILES)) {
     const file = readRequiredFile(context.root, relativePath);
@@ -21,6 +29,7 @@ async function preflight(args = {}, options = {}) {
     project_ref: context.projectRef ? "[configured]" : "[not_configured]",
     demo_mode: context.demoMode,
     service_role_configured: context.serviceRoleConfigured,
+    environment_validated: config.ok,
     blocked_projects: "checked",
     confirmations: CONFIRMATIONS,
     files

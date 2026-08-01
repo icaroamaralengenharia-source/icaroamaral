@@ -84,6 +84,15 @@ Nesta etapa, a execucao automatica de SQL permanece sem executor real configurad
 
 A aplicacao manual via SQL Editor continua sendo o caminho aprovado ate existir ferramenta de execucao auditada e autorizada.
 
+
+## Dry-runs Locais da Etapa 50
+
+- `npm run demo:env:example`: valida a geracao do exemplo de ambiente sem sobrescrever arquivo real.
+- `npm run demo:smoke:local`: valida app, arquivos, SQLs e integracoes desligadas sem banco.
+- `npm run demo:evidence:dry-run`: monta evidencia sanitizada sem gravar por padrao.
+- `npm run demo:full:dry-run`: executa preflight, schema, seed, verification, cleanup e smoke somente em dry-run.
+
+Nenhum desses comandos passa `--execute`, abre conexao real, acessa Supabase ou executa SQL.
 ## Fluxo Recomendado
 
 1. Rodar `npm run demo:preflight`.

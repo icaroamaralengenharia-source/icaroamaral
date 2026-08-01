@@ -1,26 +1,30 @@
-﻿{
-  "name": "obrareport-ai-backend",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test tests/*.test.js",
-    "test:elo:hardening": "node --test tests/elo-hardening-stress.test.js",
-    "demo:preflight": "node scripts/municipal-demo-preflight.js",
-    "demo:apply-schema": "node scripts/municipal-demo-apply-schema.js",
-    "demo:apply-seed": "node scripts/municipal-demo-apply-seed.js",
-    "demo:verify": "node scripts/municipal-demo-verify.js",
-    "demo:cleanup": "node scripts/municipal-demo-cleanup.js"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.107.0",
-    "busboy": "^1.6.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "pdf-parse": "^2.4.5",
-    "xlsx": "^0.18.5"
-  }
+{
+    "name":  "obrareport-ai-backend",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "start":  "node src/server.js",
+                    "dev":  "node --watch src/server.js",
+                    "test":  "node --test tests/*.test.js",
+                    "test:elo:hardening":  "node --test tests/elo-hardening-stress.test.js",
+                    "demo:preflight":  "node scripts/municipal-demo-preflight.js",
+                    "demo:apply-schema":  "node scripts/municipal-demo-apply-schema.js",
+                    "demo:apply-seed":  "node scripts/municipal-demo-apply-seed.js",
+                    "demo:verify":  "node scripts/municipal-demo-verify.js",
+                    "demo:cleanup":  "node scripts/municipal-demo-cleanup.js",
+                    "demo:env:example":  "node scripts/municipal-demo-generate-env.js --dry-run",
+                    "demo:smoke:local":  "node scripts/municipal-demo-smoke-local.js",
+                    "demo:evidence:dry-run":  "node scripts/municipal-demo-create-evidence.js",
+                    "demo:full:dry-run":  "node scripts/municipal-demo-smoke-local.js --full"
+                },
+    "dependencies":  {
+                         "@supabase/supabase-js":  "^2.107.0",
+                         "busboy":  "^1.6.0",
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.4.7",
+                         "express":  "^4.21.2",
+                         "pdf-parse":  "^2.4.5",
+                         "xlsx":  "^0.18.5"
+                     }
 }
