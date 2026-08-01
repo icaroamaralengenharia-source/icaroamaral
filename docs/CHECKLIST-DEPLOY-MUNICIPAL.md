@@ -15,6 +15,12 @@ Este checklist prepara demonstracao e producao sem tocar em SQL nesta etapa. Qua
 
 ## Variaveis Obrigatorias
 
+- `APP_ENV=demo` para ambiente demonstrativo.
+- `NODE_ENV=production` no backend demo publicado.
+- `MUNICIPAL_DEMO_MODE=true` no ambiente demonstrativo.
+- `DEMO_SUPABASE_URL`: banco demo dedicado, sem fallback para E2E ou producao.
+- `DEMO_SUPABASE_ANON_KEY`: anon key do banco demo quando necessaria.
+
 - `SUPABASE_URL`: somente backend.
 - `SUPABASE_SERVICE_ROLE_KEY`: somente backend, nunca frontend.
 - `SUPABASE_ANON_KEY`: apenas quando explicitamente necessario para cliente publico.
@@ -25,6 +31,8 @@ Este checklist prepara demonstracao e producao sem tocar em SQL nesta etapa. Qua
 - `MUNICIPAL_WHATSAPP_PROVIDER_TOKEN`: vazio em demonstracao.
 - `MUNICIPAL_EMAIL_PROVIDER_TOKEN`: vazio em demonstracao.
 - `OBRAREPORT_API_BASE_URL`: URL do backend do ambiente correto.
+
+Validar essas variaveis com `backend/src/municipal-demo-config.js` e `backend/tests/municipal-demo-config.test.js` antes de qualquer publicacao.
 
 ## Banco E Schemas
 
