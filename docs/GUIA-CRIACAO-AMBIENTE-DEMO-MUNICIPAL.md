@@ -1,4 +1,4 @@
-# Guia de Criacao do Ambiente Demo Municipal
+﻿# Guia de Criacao do Ambiente Demo Municipal
 
 Este guia prepara um ambiente demonstrativo isolado para a Plataforma Municipal Integrada. Ele nao autoriza uso de E2E nem producao.
 
@@ -42,7 +42,18 @@ Antes de aplicar qualquer SQL:
 3. Confirmar que nao e producao.
 4. Confirmar que nao ha dados de cliente.
 
-## 5. Aplicar Bundle
+## 5. Preflight Seguro
+
+Antes da aplicacao manual, rodar em dry-run:
+
+```bash
+cd backend
+npm run demo:preflight
+```
+
+O preflight nao executa SQL e bloqueia E2E/producao conhecida.
+
+## 6. Aplicar Bundle
 
 1. Abrir o SQL Editor do banco demo.
 2. Copiar integralmente `backend/src/data/municipal-demo-schema-bundle.sql`.
@@ -50,7 +61,7 @@ Antes de aplicar qualquer SQL:
 4. Salvar o resultado exibido.
 5. Em caso de erro, parar e analisar antes de repetir.
 
-## 6. Usuarios Ficticios
+## 7. Usuarios Ficticios
 
 Criar manualmente usuarios ficticios no Auth do projeto demo para:
 
@@ -61,7 +72,7 @@ Criar manualmente usuarios ficticios no Auth do projeto demo para:
 
 Nao usar nome real, CPF, telefone, e-mail real ou cliente real.
 
-## 7. Substituir Placeholders
+## 8. Substituir Placeholders
 
 No arquivo `backend/src/data/municipal-demo-seed.sql`, substituir:
 
@@ -72,14 +83,14 @@ No arquivo `backend/src/data/municipal-demo-seed.sql`, substituir:
 
 Usar somente UUIDs reais dos usuarios ficticios criados no Auth demo.
 
-## 8. Aplicar Seed
+## 9. Aplicar Seed
 
 1. Confirmar que todos os placeholders foram substituidos.
 2. Copiar integralmente o seed ajustado.
 3. Executar uma unica vez.
 4. Confirmar que todos os dados criados usam prefixo `DEMO_MUNICIPAL_`.
 
-## 9. Rodar Verificacao
+## 10. Rodar Verificacao
 
 1. Abrir nova consulta.
 2. Copiar `backend/src/data/municipal-demo-verification.sql`.
@@ -87,14 +98,14 @@ Usar somente UUIDs reais dos usuarios ficticios criados no Auth demo.
 4. Salvar todos os resultados.
 5. Confirmar tabelas, RLS, policies, indices, dados demo e inconsistencias zero.
 
-## 10. Iniciar Backend
+## 11. Iniciar Backend
 
 1. Subir backend com variaveis demo.
 2. Validar `/api/health`.
 3. Confirmar que a resposta nao exibe segredos.
 4. Confirmar WhatsApp e e-mail desativados.
 
-## 11. Testar Painel
+## 12. Testar Painel
 
 Validar:
 
@@ -110,7 +121,7 @@ Validar:
 
 Usar somente usuarios ficticios e dados `DEMO_MUNICIPAL_`.
 
-## 12. Testar Offline
+## 13. Testar Offline
 
 1. Sincronizar patrimonio autorizado.
 2. Desconectar rede.
@@ -119,13 +130,13 @@ Usar somente usuarios ficticios e dados `DEMO_MUNICIPAL_`.
 5. Confirmar que nenhuma escrita funciona offline.
 6. Fazer logout e confirmar invalidacao do cache sensivel.
 
-## 13. Rollback
+## 14. Rollback
 
 Rollback de schema e somente documentado/aditivo: nao usar `DROP` ou `TRUNCATE`.
 
 Para remover dados demo, usar apenas o cleanup manual depois de revisar filtros.
 
-## 14. Cleanup
+## 15. Cleanup
 
 1. Confirmar que todos os dados a remover usam `DEMO_MUNICIPAL_`.
 2. Copiar `backend/src/data/municipal-demo-cleanup.sql`.
@@ -133,7 +144,7 @@ Para remover dados demo, usar apenas o cleanup manual depois de revisar filtros.
 4. Nunca apagar usuarios Auth automaticamente.
 5. Rodar verificacao novamente.
 
-## 15. Encerramento
+## 16. Encerramento
 
 Encerrar a demo somente apos:
 

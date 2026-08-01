@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "obrareport-ai-backend",
   "version": "1.0.0",
   "private": true,
@@ -7,7 +7,12 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/*.test.js",
-    "test:elo:hardening": "node --test tests/elo-hardening-stress.test.js"
+    "test:elo:hardening": "node --test tests/elo-hardening-stress.test.js",
+    "demo:preflight": "node scripts/municipal-demo-preflight.js",
+    "demo:apply-schema": "node scripts/municipal-demo-apply-schema.js",
+    "demo:apply-seed": "node scripts/municipal-demo-apply-seed.js",
+    "demo:verify": "node scripts/municipal-demo-verify.js",
+    "demo:cleanup": "node scripts/municipal-demo-cleanup.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

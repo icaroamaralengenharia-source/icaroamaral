@@ -1,4 +1,4 @@
-﻿# Relatorio de Prontidao Demo Municipal
+# Relatorio de Prontidao Demo Municipal
 
 Data: 2026-08-01
 
@@ -24,6 +24,14 @@ A demo usa um banco Supabase isolado e exclusivo. O fluxo municipal usa `institu
 - `backend/tests/municipal-demo-seed-safety.test.js`
 - `backend/tests/municipal-demo-smoke.test.js`
 - `docs/GUIA-CRIACAO-AMBIENTE-DEMO-MUNICIPAL.md`
+- `docs/OPERACAO-AMBIENTE-DEMO-MUNICIPAL.md`
+- `backend/scripts/municipal-demo-lib.js`
+- `backend/scripts/municipal-demo-preflight.js`
+- `backend/scripts/municipal-demo-apply-schema.js`
+- `backend/scripts/municipal-demo-apply-seed.js`
+- `backend/scripts/municipal-demo-verify.js`
+- `backend/scripts/municipal-demo-cleanup.js`
+- `backend/tests/municipal-demo-provisioning.test.js`
 - `docs/RELATORIO-PRONTIDAO-DEMO-MUNICIPAL.md`
 
 ## Modulos
@@ -47,6 +55,9 @@ A demo usa um banco Supabase isolado e exclusivo. O fluxo municipal usa `institu
 - Seed com placeholders obrigatorios para usuarios ficticios.
 - Cleanup manual filtrado por `DEMO_MUNICIPAL_`.
 - Verificacao somente leitura.
+- Ferramentas de provisionamento em dry-run por padrao.
+- Escrita bloqueada sem `--execute` e confirmacao literal.
+- Execucao automatica de SQL sem executor seguro retorna `automatic_sql_execution_not_configured`.
 - WhatsApp e e-mail desativados por padrao.
 - Configuracao demo rejeita E2E, producao conhecida e CORS `*`.
 
@@ -170,4 +181,4 @@ Correcoes realizadas na ETAPA 48B:
 
 ## Decisao Final
 
-PRONTO PARA CRIACAO DO AMBIENTE DEMO
+PRONTO COM RESSALVA OPERACIONAL
