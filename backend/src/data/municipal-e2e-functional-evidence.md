@@ -1,7 +1,7 @@
 # Evidencia de Homologacao Funcional E2E Municipal
 
-- Data/hora: 2026-07-31 11:27:00 -03:00
-- HEAD: `91d57b2`
+- Data/hora: 2026-08-01 12:45:47 -03:00
+- HEAD: `aec017b`
 - Project ref confirmado: `mplpzyalcxhhinuvjthx`
 - Projeto proibido nao acessado: `lidueokjpzxdybtongbk`
 - Instituicao E2E: HOMOLOGACAO_PREFEITURA_E2E
@@ -13,6 +13,7 @@
   - Patrimonio: aprovado no bloco backend vivo 1/1
   - Notificacoes: aprovado no bloco backend vivo 1/1
   - Painel Municipal Integrado: aprovado no Playwright live 4/4
+  - Ressalva offline/logout/troca de usuario: aprovada no Playwright live filtrado 1/1
 - Correcoes aplicadas durante a homologacao:
   - 22007: datas opcionais de notificacao normalizadas para ISO valido ou null
   - 22P02: UUIDs validados e `municipal_admin_audit_log.target_id` textual substituido por null no dispatch
@@ -26,6 +27,7 @@
   - Responsivo desktop: aprovado
   - Responsivo tablet: aprovado
   - Responsivo celular: aprovado
+  - Ressalva offline live: npx.cmd playwright test tests/e2e/municipal-live-homologation.spec.js --grep "offline|logout|troca de usuario" --workers=1 --reporter=line aprovado 1/1
   - Testes locais de notificacao: 9/9
   - Testes locais de isolamento de notificacao: 4/4
 - Testes falhos:
@@ -45,9 +47,14 @@
   - Papel leitura sem escrita: validado para cadastro, edicao, transferencia, manutencao e baixa
   - Notificacao de apoio pertence a mesma instituicao/unidade autorizada
 - Offline:
-  - Painel validou entrada em modo offline na aba Patrimonio apos sincronizacao
-  - Escrita offline nao foi executada
-  - Troca/logout de usuario nao foi reexecutada nesta rodada live do painel
+  - Usuario A sincronizou patrimonio com cache contendo `institution_id`, `unit_id`, `user_id` e `last_synced_at`
+  - API/internet foi simulada como indisponivel e a consulta por tombamento funcionou com cache offline
+  - Escrita offline permaneceu bloqueada com `asset_offline_write_forbidden`
+  - Logout invalidou o cache do usuario A
+  - Usuario B nao acessou cache do usuario A
+  - Troca de unidade e troca de instituicao nao reutilizaram cache anterior
+  - Retorno online permitiu nova sincronizacao
+  - Nenhum token foi persistido no cache local
 - WhatsApp/e-mail:
   - WhatsApp habilitado: nao
   - E-mail habilitado: nao
@@ -57,5 +64,4 @@
   - Notificacoes: criacao, leitura, falha controlada e cancelamento validados no teste vivo
 - Riscos:
   - Dados de homologacao permanecem no E2E ate cleanup manual controlado
-  - Validacao offline cobriu consulta visual no painel, nao escrita offline nem troca/logout nesta rodada
-- Decisao final: APROVADO COM RESSALVAS
+- Decisao final: APROVADO

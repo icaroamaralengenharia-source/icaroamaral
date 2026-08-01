@@ -129,6 +129,132 @@ test("painel municipal integrado homologa dados reais do E2E", async ({ page }) 
   await page.context().setOffline(false);
 });
 
+
+test("painel municipal live fecha ressalva offline logout troca de usuario", async ({ page, context }) => {
+  const fx = await createMunicipalLiveFixture();
+  expect(fx.projectRef).toBe("mplpzyalcxhhinuvjthx");
+
+  const tag = makeLiveName("OFFLINE_TOMBAMENTO");
+  const asset = await apiJson(fx, "platform", "POST", "/api/municipal-admin/assets", {
+    institution_id: fx.institution.id,
+    unit_id: fx.unitA.id,
+    asset_tag: tag,
+    name: `${LIVE_PREFIX}OFFLINE_BEM`,
+    category: `${LIVE_PREFIX}OFFLINE_CATEGORIA`,
+    condition: "bom",
+    status: "ativo",
+    location: `${LIVE_PREFIX}OFFLINE_LOCAL`,
+    responsible_user_id: fx.profiles.gestor.auth_user_id
+  });
+  expect(asset.status, JSON.stringify(asset.data)).toBe(200);
+
+  const scopeA = {
+    institution_id: fx.institution.id,
+    unit_id: fx.unitA.id,
+    user_id: fx.profiles.gestor.auth_user_id
+  };
+  const scopeB = {
+    institution_id: fx.institution.id,
+    unit_id: fx.unitA.id,
+    user_id: fx.profiles.leitura.auth_user_id
+  };
+  const otherUnitScope = {
+    institution_id: fx.institution.id,
+    unit_id: fx.unitB.id,
+    user_id: fx.profiles.gestor.auth_user_id
+  };
+  const otherInstitutionScope = {
+    institution_id: "institution-forbidden-local-check",
+    unit_id: fx.unitA.id,
+    user_id: fx.profiles.gestor.auth_user_id
+  };
+
+  await installLiveSession(page, fx, "gestor");
+  await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-municipal-admin-root]")).toContainText("Administracao Municipal");
+
+  const synced = await page.evaluate(async ({ apiBase, scope, token, tag }) => {
+    const store = window.MunicipalAssetOfflineStore.create({ apiBase });
+    const cache = await store.sync(scope, { token });
+    return {
+      scope: cache.scope,
+      last_synced_at: cache.last_synced_at,
+      found: store.search(scope, { asset_tag: tag }).map((item) => item.asset_tag),
+      raw: JSON.stringify(window.localStorage)
+    };
+  }, { apiBase: fx.backendBaseUrl, scope: scopeA, token: fx.tokens.gestor, tag });
+  expect(synced.scope).toEqual(scopeA);
+  expect(synced.last_synced_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  expect(synced.found).toContain(tag);
+  expect(synced.raw).not.toContain(fx.tokens.gestor);
+  expect(synced.raw).not.toContain(fx.tokens.leitura);
+  expect(synced.raw).not.toContain("lidueokjpzxdybtongbk");
+
+  await page.route(`${fx.backendBaseUrl}/api/municipal-admin/assets**`, (route) => route.abort());
+  await context.setOffline(true);
+  const offline = await page.evaluate(async ({ apiBase, scope, tag }) => {
+    const store = window.MunicipalAssetOfflineStore.create({ apiBase });
+    const failedSync = await store.sync(scope);
+    let writeError = "";
+    try {
+      store.transferOffline();
+    } catch (error) {
+      writeError = error && error.message;
+    }
+    return {
+      online: failedSync.online,
+      status: store.status(scope, false),
+      found: store.search(scope, { asset_tag: tag }).map((item) => item.asset_tag),
+      writeError
+    };
+  }, { apiBase: fx.backendBaseUrl, scope: scopeA, tag });
+  expect(offline.online).toBe(false);
+  expect(offline.status).toBe("offline");
+  expect(offline.found).toContain(tag);
+  expect(offline.writeError).toBe("asset_offline_write_forbidden");
+
+  const afterLogout = await page.evaluate(({ apiBase, scopeA, scopeB, otherUnitScope, otherInstitutionScope, userId, tag }) => {
+    const store = window.MunicipalAssetOfflineStore.create({ apiBase });
+    store.invalidateUser(userId);
+    return {
+      userA: store.search(scopeA, { asset_tag: tag }).length,
+      userB: store.search(scopeB, { asset_tag: tag }).length,
+      otherUnit: store.search(otherUnitScope, { asset_tag: tag }).length,
+      otherInstitution: store.search(otherInstitutionScope, { asset_tag: tag }).length,
+      raw: JSON.stringify(window.localStorage)
+    };
+  }, {
+    apiBase: fx.backendBaseUrl,
+    scopeA,
+    scopeB,
+    otherUnitScope,
+    otherInstitutionScope,
+    userId: scopeA.user_id,
+    tag
+  });
+  expect(afterLogout.userA).toBe(0);
+  expect(afterLogout.userB).toBe(0);
+  expect(afterLogout.otherUnit).toBe(0);
+  expect(afterLogout.otherInstitution).toBe(0);
+  expect(afterLogout.raw).not.toContain(tag);
+  expect(afterLogout.raw).not.toContain("lidueokjpzxdybtongbk");
+
+  await context.setOffline(false);
+  await page.unroute(`${fx.backendBaseUrl}/api/municipal-admin/assets**`);
+  const resynced = await page.evaluate(async ({ apiBase, scope, token, tag }) => {
+    const store = window.MunicipalAssetOfflineStore.create({ apiBase });
+    const cache = await store.sync(scope, { token });
+    return {
+      online: cache.online,
+      found: store.search(scope, { asset_tag: tag }).map((item) => item.asset_tag),
+      raw: JSON.stringify(window.localStorage)
+    };
+  }, { apiBase: fx.backendBaseUrl, scope: scopeA, token: fx.tokens.gestor, tag });
+  expect(resynced.online).toBe(true);
+  expect(resynced.found).toContain(tag);
+  expect(resynced.raw).not.toContain(fx.tokens.gestor);
+  expect(resynced.raw).not.toContain("lidueokjpzxdybtongbk");
+});
 for (const viewport of [
   { name: "desktop", width: 1366, height: 768 },
   { name: "tablet", width: 820, height: 1180 },
