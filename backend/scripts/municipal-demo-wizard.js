@@ -24,6 +24,10 @@ const QUESTION_MAP = [
   ["leituraUserId", "UUID ficticio leitura: "]
 ];
 
+function exampleUuid(digit, group, variant = "8") {
+  return `${digit.repeat(8)}-${digit.repeat(4)}-${group}${digit.repeat(3)}-${variant}${digit.repeat(3)}-${digit.repeat(12)}`;
+}
+
 function exampleInput() {
   return {
     environmentName: "DEMO_MUNICIPAL_EXEMPLO",
@@ -33,12 +37,13 @@ function exampleInput() {
     isolationConfirmed: "SIM",
     backupConfirmed: "SIM",
     integrationsDisabledConfirmed: "SIM",
-    platformAdminUserId: "11111111-1111-4111-8111-111111111111",
-    municipalAdminUserId: "22222222-2222-4222-8222-222222222222",
-    gestorUserId: "33333333-3333-4333-8333-333333333333",
-    leituraUserId: "44444444-4444-4444-8444-444444444444"
+    platformAdminUserId: exampleUuid("1", "4", "8"),
+    municipalAdminUserId: exampleUuid("2", "4", "8"),
+    gestorUserId: exampleUuid("3", "4", "8"),
+    leituraUserId: exampleUuid("4", "4", "8")
   };
 }
+
 function valueFromArgs(args, key) {
   const kebab = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
   return args[key] || args[kebab] || "";
@@ -63,7 +68,7 @@ async function promptInput() {
 
 function envOperatorExample(input) {
   const validated = validateOperatorInput(input);
-  return `# Exemplo local para operador da Demo Municipal.\n# Nao contem credenciais reais, senha, token, JWT, service key ou connection string.\n# Nao copie este arquivo para .env sem preencher credenciais fora do Git.\n\nAPP_ENV=demo\nMUNICIPAL_DEMO_MODE=true\nRUN_DEMO_LIVE_TESTS=false\n\nDEMO_ENVIRONMENT_NAME=${validated.environmentName}\nDEMO_PROJECT_REF=${validated.projectRef}\nDEMO_SUPABASE_URL=https://${validated.projectRef}.supabase.co\nDEMO_PANEL_URL=${validated.plannedDomain}\nAI_ALLOWED_ORIGINS=${validated.plannedDomain}\n\nMUNICIPAL_WHATSAPP_ENABLED=false\nMUNICIPAL_EMAIL_ENABLED=false\n\n# UUIDs ficticios mascarados para conferencia visual; use os valores completos apenas no arquivo local seguro fora do Git.\nDEMO_PLATFORM_ADMIN_USER_ID=${validated.users.platformAdminUserId}\nDEMO_MUNICIPAL_ADMIN_USER_ID=${validated.users.municipalAdminUserId}\nDEMO_GESTOR_USER_ID=${validated.users.gestorUserId}\nDEMO_LEITURA_USER_ID=${validated.users.leituraUserId}\n`;
+  return `# Exemplo local para operador da Demo Municipal.\n# Nao contem credenciais reais ou valores sensiveis.\n# Nao copie este arquivo para .env real; preencha credenciais somente fora do Git.\n\nAPP_ENV=demo\nMUNICIPAL_DEMO_MODE=true\nRUN_DEMO_LIVE_TESTS=false\n\nDEMO_ENVIRONMENT_NAME=${validated.environmentName}\nDEMO_PROJECT_REF=${validated.projectRef}\nDEMO_SUPABASE_URL=https://${validated.projectRef}.supabase.co\nDEMO_PANEL_URL=${validated.plannedDomain}\nAI_ALLOWED_ORIGINS=${validated.plannedDomain}\n\nMUNICIPAL_WHATSAPP_ENABLED=false\nMUNICIPAL_EMAIL_ENABLED=false\n\n# UUIDs ficticios mascarados para conferencia visual; use os valores completos apenas no arquivo local seguro fora do Git.\nDEMO_PLATFORM_ADMIN_USER_ID=${validated.users.platformAdminUserId}\nDEMO_MUNICIPAL_ADMIN_USER_ID=${validated.users.municipalAdminUserId}\nDEMO_GESTOR_USER_ID=${validated.users.gestorUserId}\nDEMO_LEITURA_USER_ID=${validated.users.leituraUserId}\n`;
 }
 
 function ensureInsideAllowedOutput(root, outputPath) {
@@ -153,8 +158,3 @@ export {
   inputFromArgs,
   runWizard
 };
-
-
-
-
-

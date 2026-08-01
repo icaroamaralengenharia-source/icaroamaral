@@ -86,8 +86,8 @@ function buildRunbook(input = {}, options = {}) {
       "Nao inserir credenciais no Git.",
       "Nao usar E2E ou producao.",
       "Nao ativar WhatsApp/e-mail.",
-      "Nao definir RUN_DEMO_LIVE_TESTS=true sem autorizacao manual.",
-      "Nao imprimir URLs privadas, tokens, senhas ou UUIDs completos."
+      "Nao ativar a flag de testes live sem autorizacao manual.",
+      "Nao imprimir URLs privadas, credenciais sensiveis ou UUIDs completos."
     ]
   });
   return runbook;
