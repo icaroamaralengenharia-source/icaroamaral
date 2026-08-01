@@ -113,3 +113,41 @@ Nenhum desses comandos passa `--execute`, abre conexao real, acessa Supabase ou 
 - Nao ativar WhatsApp ou e-mail.
 - Nao usar E2E nem producao como demo.
 - Nao executar cleanup sem revisao humana.
+
+## Assistente Local da Demo Real
+
+Use o wizard somente para preparar arquivos locais e orientar o operador. Ele nao cria projeto, nao acessa Supabase, nao testa conexao, nao executa SQL, nao cria usuario e nao faz deploy.
+
+Comandos seguros:
+
+- `npm --prefix backend run demo:wizard`
+- `npm --prefix backend run demo:wizard:example`
+- `npm --prefix backend run demo:runbook:dry-run`
+
+Dados permitidos no wizard:
+
+- nome interno ficticio iniciado por `DEMO_MUNICIPAL_`;
+- dominio HTTPS planejado;
+- project ref demo isolado;
+- responsavel tecnico sem e-mail, telefone, CPF ou segredo;
+- confirmacoes `SIM` para isolamento, backup e integracoes desligadas;
+- UUIDs ficticios dos quatro usuarios.
+
+Dados proibidos:
+
+- senha;
+- token;
+- JWT;
+- service key;
+- anon key;
+- connection string;
+- URL completa de banco;
+- dados pessoais reais.
+
+Arquivos gerados pelo wizard:
+
+- `backend/.env.demo.operator.example`;
+- `artifacts/municipal-demo-runbook.json`;
+- `artifacts/municipal-demo-operator-checklist.md`.
+
+Pare imediatamente e peca autorizacao manual antes de qualquer acao que envolva Supabase, banco, SQL, criacao de usuario, deploy, cleanup ou `RUN_DEMO_LIVE_TESTS=true`.
