@@ -201,9 +201,13 @@ test("esta etapa nao altera codigo funcional", () => {
     "?? backend/tests/municipal-demo-operator-pack.test.js",
     "?? backend/tests/municipal-demo-repeatability.test.js",
     "?? docs/CHECKLIST-UNICO-DEMO-MUNICIPAL.md",
+    "?? docs/FORMULARIO-OPERADOR-DEMO.example.md",
+    " M docs/RELATORIO-FINAL-PRONTIDAO-DEMO-MUNICIPAL.md",
+    "M docs/RELATORIO-FINAL-PRONTIDAO-DEMO-MUNICIPAL.md",
     "?? docs/RELATORIO-FINAL-PRONTIDAO-DEMO-MUNICIPAL.md",
     "?? docs/RELATORIO-ETAPA-56-PREFLIGHT-10X.md",
-    "?? docs/PACOTE-OPERACIONAL-DEMO-MUNICIPAL.md"
+    "?? docs/PACOTE-OPERACIONAL-DEMO-MUNICIPAL.md",
+    "?? docs/SESSAO-OPERACIONAL-CRIACAO-DEMO.md"
   ]);
   const status = trackedAndUntrackedStatus();
   for (const line of status) {

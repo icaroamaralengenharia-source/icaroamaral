@@ -70,7 +70,7 @@ Consolidar a auditoria final de prontidao de todos os artefatos que serao usados
 - Nenhum package script usa `--execute`.
 - Nenhum package script habilita teste live automaticamente.
 - Projetos E2E e proibido seguem bloqueados.
-- Nenhum JWT, connection string ou valor sensivel real foi encontrado nos artefatos auditados.
+- Nenhum credencial de sessao, connection string ou valor sensivel real foi encontrado nos artefatos auditados.
 - Documentacao nao expoe UUID completo.
 - `artifacts/` permanece ignorado.
 - Bundle, seed, verification e cleanup existem.
@@ -143,6 +143,13 @@ Total: 119 testes locais aprovados e 1 check de sintaxe aprovado.
 - Executar painel/live/offline no ambiente real.
 - Decidir aprovacao final da demo real.
 
+## Sessao Operacional Preparada
+
+- Sessao operacional de criacao manual preparada em `docs/SESSAO-OPERACIONAL-CRIACAO-DEMO.md`.
+- Formulario versionavel de operador criado em `docs/FORMULARIO-OPERADOR-DEMO.example.md`.
+- Nenhuma acao externa foi executada durante a preparacao da sessao.
+- Nenhum projeto, banco, usuario, SQL, Supabase, deploy ou credencial foi criado, acessado ou solicitado.
+- A demo real ainda nao foi criada.
 ## Nao Executado Nesta Etapa
 
 - Criacao de projeto.
@@ -160,4 +167,3 @@ Total: 119 testes locais aprovados e 1 check de sintaxe aprovado.
 PRONTO PARA CRIAR A DEMO REAL
 
 Esta decisao significa que os artefatos locais e documentais estao prontos para a criacao manual controlada. Nao significa que a demo real ja exista ou que banco/RLS/deploy reais ja tenham sido testados.
-
