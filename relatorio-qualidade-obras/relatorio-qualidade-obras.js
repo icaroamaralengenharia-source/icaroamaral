@@ -80,6 +80,10 @@
   const dailyLogMaterialTotal = document.getElementById("dailyLogMaterialTotal");
   const dailyLogAuditPanel = document.getElementById("dailyLogAuditPanel");
   const dailyLogIndicators = document.getElementById("dailyLogIndicators");
+  const executionStockAlertsHistory = document.getElementById("executionStockAlertsHistory");
+  const executionStockAlertsHistoryStatus = document.getElementById("executionStockAlertsHistoryStatus");
+  const executionStockAlertStatusButtons = Array.from(document.querySelectorAll("[data-execution-alert-status]"));
+  const executionStockAlertSeverityButtons = Array.from(document.querySelectorAll("[data-execution-alert-severity]"));
   const stockIaSummaryCards = document.getElementById("stockIaSummaryCards");
   const stockQuickExamplePanel = document.getElementById("stockQuickExamplePanel");
   const stockQuickExampleText = document.getElementById("stockQuickExampleText");
@@ -300,6 +304,7 @@
   let dailyLogDraft = createEmptyDailyLogDraft_();
   let currentDailyLogMaterialRequests_ = [];
   let dailyLogSearchTerm = "";
+  let executionStockAlertHistoryFilters = { status: "all", severity: "all" };
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
   let localAccessGrantedInMemory = false;
@@ -4733,10 +4738,28 @@
       dailyLogWorkSelect.addEventListener("change", function () {
         const work = findWork_(dailyLogWorkSelect.value);
         setLastOpened_("diario", work ? work.clientId : "", dailyLogWorkSelect.value, "");
+        renderExecutionStockAlertsHistory_();
         scheduleLocalDataSave_({ syncCloud: false });
       });
     }
 
+    executionStockAlertStatusButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        executionStockAlertHistoryFilters.status = button.dataset.executionAlertStatus || "all";
+        renderExecutionStockAlertsHistory_();
+      });
+    });
+
+    executionStockAlertSeverityButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        executionStockAlertHistoryFilters.severity = button.dataset.executionAlertSeverity || "all";
+        renderExecutionStockAlertsHistory_();
+      });
+    });
+
+    window.addEventListener("obrareport:execution-stock-alert-history-ready", function () {
+      renderExecutionStockAlertsHistory_();
+    });
     if (dailyLogRecordsList) {
       dailyLogRecordsList.addEventListener("click", function (event) {
         const target = event.target && event.target.nodeType === 1 ? event.target : event.target.parentElement;
@@ -6225,6 +6248,7 @@
     renderCompositionModule_();
     renderDailyLogRecords_(dailyLogs);
     renderDailyLogAudit_(dailyLogs);
+    renderExecutionStockAlertsHistory_();
     renderDailyLogIndicators_(dailyLogs);
 
     if (dailyLogStatus) {
@@ -7798,6 +7822,137 @@
     });
   }
 
+  function getExecutionStockAlertHistoryApi_() {
+    return window.ObraReportExecutionStockAlertHistory || null;
+  }
+
+  function getActiveExecutionStockAlertWorkId_() {
+    return dailyLogWorkSelect && dailyLogWorkSelect.value || appState.local && appState.local.lastWorkId || "";
+  }
+
+  function setExecutionStockAlertFilterButtonState_(buttons, activeValue, datasetKey) {
+    buttons.forEach(function (button) {
+      const isActive = button.dataset[datasetKey] === activeValue;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function formatExecutionStockAlertStatusLabel_(status) {
+    const labels = { open: "Aberto", acknowledged: "Reconhecido", resolved: "Resolvido", obsolete: "Obsoleto" };
+    return labels[String(status || "").toLowerCase()] || "Status não informado";
+  }
+
+  function formatExecutionStockAlertSeverityLabel_(severity) {
+    const labels = { critical: "Crítica", high: "Alta", medium: "Média", low: "Baixa" };
+    return labels[String(severity || "").toLowerCase()] || "Baixa";
+  }
+
+  function formatExecutionStockAlertQuantity_(value, unit) {
+    const number = Number(value);
+    const unitLabel = unit ? " " + unit : "";
+    return Number.isFinite(number) ? formatQuantity_(number) + unitLabel : "não informado";
+  }
+
+  function renderExecutionStockAlertsHistory_() {
+    if (!executionStockAlertsHistory) {
+      return;
+    }
+
+    const api = getExecutionStockAlertHistoryApi_();
+    const workId = getActiveExecutionStockAlertWorkId_();
+    setExecutionStockAlertFilterButtonState_(executionStockAlertStatusButtons, executionStockAlertHistoryFilters.status, "executionAlertStatus");
+    setExecutionStockAlertFilterButtonState_(executionStockAlertSeverityButtons, executionStockAlertHistoryFilters.severity, "executionAlertSeverity");
+
+    if (!api || !workId) {
+      executionStockAlertsHistory.textContent = !workId ? "Escolha uma obra para consultar os alertas." : "Histórico local de alertas carregando.";
+      executionStockAlertsHistory.className = "diary-item-list empty-list";
+      if (executionStockAlertsHistoryStatus) executionStockAlertsHistoryStatus.textContent = !workId ? "Sem obra" : "Local";
+      return;
+    }
+
+    const allAlerts = api.getAlertsForWork(appState, workId);
+    const visibleAlerts = api.filterAlerts(allAlerts, executionStockAlertHistoryFilters);
+    executionStockAlertsHistory.innerHTML = "";
+    if (executionStockAlertsHistoryStatus) {
+      executionStockAlertsHistoryStatus.textContent = allAlerts.length + " alerta(s) locais";
+    }
+
+    if (!visibleAlerts.length) {
+      executionStockAlertsHistory.textContent = allAlerts.length ? "Nenhum alerta corresponde aos filtros." : "Nenhum alerta de consumo registrado para esta obra.";
+      executionStockAlertsHistory.className = "diary-item-list empty-list";
+      return;
+    }
+
+    executionStockAlertsHistory.className = "diary-item-list";
+    visibleAlerts.forEach(function (alert) {
+      executionStockAlertsHistory.appendChild(createExecutionStockAlertHistoryItem_(alert));
+    });
+  }
+
+  function createExecutionStockAlertHistoryItem_(alert) {
+    const unit = alert.unit || "";
+    const sourceRdo = findDailyLog_(alert.sourceRdoId);
+    const detail = [
+      formatExecutionStockAlertSeverityLabel_(alert.severity),
+      formatExecutionStockAlertStatusLabel_(alert.status),
+      alert.materialName || "Material não informado",
+      alert.serviceName || alert.serviceCode || "Serviço não informado"
+    ].join(" · ");
+    const note = [
+      alert.summary || "Sem resumo técnico.",
+      "Recomendação: " + (alert.recommendation || "Revisar RDO, consumo esperado e estoque local."),
+      "RDO: " + (sourceRdo ? formatDateOnly_(sourceRdo.date) : alert.sourceRdoId || "não informado"),
+      "Esperado: " + formatExecutionStockAlertQuantity_(alert.expectedQuantity, unit),
+      "Realizado: " + formatExecutionStockAlertQuantity_(alert.actualQuantity, unit),
+      "Diferença: " + formatExecutionStockAlertQuantity_(alert.differenceQuantity, unit),
+      "Criado em: " + formatDateTime_(alert.createdAt),
+      "Atualizado em: " + formatDateTime_(alert.updatedAt)
+    ].join(" · ");
+    return createDiaryListItem_(alert.title || "Alerta de consumo", detail, note, createExecutionStockAlertHistoryActions_(alert));
+  }
+
+  function createExecutionStockAlertHistoryActions_(alert) {
+    const actions = [];
+    const status = String(alert.status || "").toLowerCase();
+    if (status === "open") {
+      actions.push(createMiniButton_("Reconhecer", "", function () { updateExecutionStockAlertStatus_(alert.id, "acknowledged"); }));
+      actions.push(createMiniButton_("Resolver", "primary", function () { updateExecutionStockAlertStatus_(alert.id, "resolved"); }));
+    } else if (status === "acknowledged") {
+      actions.push(createMiniButton_("Resolver", "primary", function () { updateExecutionStockAlertStatus_(alert.id, "resolved"); }));
+    } else if (status === "resolved") {
+      actions.push(createMiniButton_("Reabrir", "", function () { updateExecutionStockAlertStatus_(alert.id, "open"); }));
+    }
+    actions.push(createMiniButton_("Abrir RDO", "", function () { openExecutionStockAlertSourceRdo_(alert); }));
+    return actions;
+  }
+
+  function updateExecutionStockAlertStatus_(alertId, nextStatus) {
+    const api = getExecutionStockAlertHistoryApi_();
+    if (!api || typeof api.updateAlertStatus !== "function") {
+      return false;
+    }
+    const result = api.updateAlertStatus(appState, alertId, nextStatus, { workId: getActiveExecutionStockAlertWorkId_() });
+    if (!result.ok) {
+      setDailyLogStatus_("Não foi possível alterar este alerta local.", "error");
+      return false;
+    }
+    saveLocalData({ syncCloud: false });
+    renderExecutionStockAlertsHistory_();
+    setDailyLogStatus_("Status do alerta atualizado localmente.", "success");
+    return true;
+  }
+
+  function openExecutionStockAlertSourceRdo_(alert) {
+    const sourceRdo = findDailyLog_(alert && alert.sourceRdoId);
+    if (!sourceRdo) {
+      setDailyLogStatus_("RDO de origem não encontrado neste navegador.", "error");
+      return;
+    }
+    loadDailyLogIntoForm_(sourceRdo.id);
+    showDashboardPanel_("diario");
+    setDailyLogStatus_("RDO de origem carregado para consulta.", "info");
+  }
   function renderDailyLogIndicators_(dailyLogs) {
     if (!dailyLogIndicators) {
       return;

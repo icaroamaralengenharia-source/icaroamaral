@@ -911,9 +911,22 @@
     return key === "open" || key === "acknowledged" || key === "resolved" || key === "obsolete";
   }
 
-  function isEloExecutionStockAlertHistoryRequest_(question) {
+  function getEloExecutionStockAlertHistoryStatusFilter_(question) {
     const text = normalizeText(question || "");
-    return /\b(historico|hist.rico|resolvidos?|obsoletos?|encerrados?|todos)\b/.test(text);
+    const wantsHistory = /\b(historico|hist.rico|todos)\b/.test(text);
+    const wantsResolved = /\b(resolvidos?|encerrados?)\b/.test(text);
+    const wantsObsolete = /\b(obsoletos?)\b/.test(text);
+    const wantsAcknowledged = /\b(reconhecidos?|acknowledged)\b/.test(text);
+    if (wantsResolved && wantsObsolete) return "closed";
+    if (wantsResolved) return "resolved";
+    if (wantsObsolete) return "obsolete";
+    if (wantsAcknowledged) return "acknowledged";
+    if (wantsHistory) return "all";
+    return "";
+  }
+
+  function isEloExecutionStockAlertHistoryRequest_(question) {
+    return Boolean(getEloExecutionStockAlertHistoryStatusFilter_(question));
   }
 
   function getEloExecutionStockAlertSeverityRank_(severity) {
@@ -954,10 +967,18 @@
       return String(b && (b.updatedAt || b.createdAt) || "").localeCompare(String(a && (a.updatedAt || a.createdAt) || ""));
     });
     const includeHistory = settings.includeHistory === true;
+    const historyStatus = includeHistory ? sanitizeUserText(settings.historyStatus || "all").slice(0, 40) : "";
     const openAlerts = valid.filter(function (alert) { return normalizeText(alert.status || "") === "open"; });
     const acknowledgedAlerts = valid.filter(function (alert) { return normalizeText(alert.status || "") === "acknowledged"; });
-    const historyAlerts = includeHistory ? valid.filter(function (alert) { const status = normalizeText(alert.status || ""); return status === "resolved" || status === "obsolete"; }) : [];
-    return { available: true, state: state, scope: { projectId: scope.projectId || "", workId: targetWorkId }, alerts: valid, openAlerts: openAlerts, acknowledgedAlerts: acknowledgedAlerts, historyAlerts: historyAlerts };
+    const historyAlerts = includeHistory ? valid.filter(function (alert) {
+      const status = normalizeText(alert.status || "");
+      if (historyStatus === "resolved") return status === "resolved";
+      if (historyStatus === "obsolete") return status === "obsolete";
+      if (historyStatus === "acknowledged") return status === "acknowledged";
+      if (historyStatus === "closed") return status === "resolved" || status === "obsolete";
+      return true;
+    }) : [];
+    return { available: true, state: state, scope: { projectId: scope.projectId || "", workId: targetWorkId }, alerts: valid, openAlerts: openAlerts, acknowledgedAlerts: acknowledgedAlerts, historyAlerts: historyAlerts, historyStatus: historyStatus };
   }
 
   function formatEloExecutionStockAlertQuantity_(value) {
@@ -976,7 +997,7 @@
     const diff = formatEloExecutionStockAlertQuantity_(alert && alert.differenceQuantity) + unitLabel;
     const percent = alert && alert.differencePercent != null && Number.isFinite(Number(alert.differencePercent)) ? String(Number(alert.differencePercent)).replace(".", ",") + "%" : "sem percentual confiavel";
     const date = sanitizeUserText(alert && (alert.updatedAt || alert.createdAt) || "data nao informada");
-    return (index + 1) + ". " + sanitizeUserText(alert && alert.title || "Alerta de consumo") + " - " + sanitizeUserText(alert && alert.severity || "atencao") + ". Material: " + material + "; servico: " + service + "; esperado: " + expected + "; realizado: " + actual + "; diferenca: " + diff + " (" + percent + "). Recomendacao: " + sanitizeUserText(alert && alert.recommendation || "Revisar RDO, consumo esperado e estoque local.") + " RDO: " + sanitizeUserText(alert && alert.sourceRdoId || "nao informado") + "; data: " + date + ".";
+    return (index + 1) + ". " + sanitizeUserText(alert && alert.title || "Alerta de consumo") + " - " + sanitizeUserText(alert && alert.severity || "atencao") + ". Status: " + sanitizeUserText(alert && alert.status || "open") + ". Material: " + material + "; servico: " + service + "; esperado: " + expected + "; realizado: " + actual + "; diferenca: " + diff + " (" + percent + "). Recomendacao: " + sanitizeUserText(alert && alert.recommendation || "Revisar RDO, consumo esperado e estoque local.") + " RDO: " + sanitizeUserText(alert && alert.sourceRdoId || "nao informado") + "; data: " + date + ".";
   }
 
   function formatEloExecutionStockPersistedAlertsAnswer_(info, question) {
@@ -984,10 +1005,21 @@
     const openAlerts = Array.isArray(safe.openAlerts) ? safe.openAlerts : [];
     const acknowledgedAlerts = Array.isArray(safe.acknowledgedAlerts) ? safe.acknowledgedAlerts : [];
     const historyAlerts = Array.isArray(safe.historyAlerts) ? safe.historyAlerts : [];
+    const historyStatus = sanitizeUserText(safe.historyStatus || "").slice(0, 40);
     const visible = openAlerts.concat(acknowledgedAlerts);
     if (!visible.length && !historyAlerts.length) return "";
-    const criticalHigh = visible.filter(function (alert) { return getEloExecutionStockAlertSeverityRank_(alert && alert.severity) <= 1; }).length;
     const lines = [];
+    if (historyStatus) {
+      const historyCriticalHigh = historyAlerts.filter(function (alert) { return getEloExecutionStockAlertSeverityRank_(alert && alert.severity) <= 1; }).length;
+      lines.push("Historico de alertas persistidos da obra: " + historyAlerts.length + " registro(s) locais; " + historyCriticalHigh + " critico(s)/alto(s).");
+      if (historyAlerts.length) {
+        lines.push("", "Historico solicitado:");
+        historyAlerts.slice(0, 8).forEach(function (alert, index) { lines.push(formatEloExecutionStockPersistedAlertLine_(alert, index)); });
+      }
+      lines.push("", "Fonte: executionStockAlerts local. Nenhuma movimentacao de estoque foi criada por esta consulta.");
+      return lines.join("\n");
+    }
+    const criticalHigh = visible.filter(function (alert) { return getEloExecutionStockAlertSeverityRank_(alert && alert.severity) <= 1; }).length;
     lines.push("Alertas persistidos da obra: " + visible.length + " ativo(s) locais; " + criticalHigh + " critico(s)/alto(s).");
     if (openAlerts.length) {
       lines.push("", "Abertos:");
@@ -1507,7 +1539,7 @@
   }
 
   function buildEloObraLocalAttentionAnswer_(question) {
-    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question) });
+    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question), historyStatus: getEloExecutionStockAlertHistoryStatusFilter_(question) });
     if (persisted.available) {
       const persistedAnswer = formatEloExecutionStockPersistedAlertsAnswer_(persisted, question);
       if (persistedAnswer) return persistedAnswer;
@@ -1926,7 +1958,7 @@
   }
   function requestEloObraExecutionStockAnswer_(question) {
     if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
-    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question) });
+    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question), historyStatus: getEloExecutionStockAlertHistoryStatusFilter_(question) });
     if (persisted.available) {
       const persistedAnswer = formatEloExecutionStockPersistedAlertsAnswer_(persisted, question);
       if (persistedAnswer) return Promise.resolve(persistedAnswer);

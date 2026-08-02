@@ -440,6 +440,48 @@ test("historico mostra resolved e obsolete apenas quando solicitado", async () =
   assert.match(historyAnswer, /Obsoleto/);
 });
 
+test("ELO responde historico resolvido sem misturar alertas abertos", async () => {
+  const alerts = [
+    buildExecutionStockAlert({ id: "open-alert", status: "open", materialName: "Aberto", title: "Aberto" }),
+    buildExecutionStockAlert({ id: "resolved-alert", status: "resolved", materialName: "Resolvido", title: "Resolvido" })
+  ];
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts(alerts), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const answer = await elo.requestObraAttentionForTest("Quais alertas foram resolvidos?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Historico solicitado/);
+  assert.match(answer, /Resolvido/);
+  assert.doesNotMatch(answer, /Aberto/);
+});
+
+test("ELO responde historico obsoleto sem misturar resolvidos ou abertos", async () => {
+  const alerts = [
+    buildExecutionStockAlert({ id: "open-alert", status: "open", materialName: "Aberto", title: "Aberto" }),
+    buildExecutionStockAlert({ id: "resolved-alert", status: "resolved", materialName: "Resolvido", title: "Resolvido" }),
+    buildExecutionStockAlert({ id: "obsolete-alert", status: "obsolete", materialName: "Obsoleto", title: "Obsoleto" })
+  ];
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts(alerts), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const answer = await elo.requestObraAttentionForTest("Quais alertas ficaram obsoletos?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Historico solicitado/);
+  assert.match(answer, /Obsoleto/);
+  assert.doesNotMatch(answer, /Aberto|Resolvido/);
+});
+
+test("pergunta geral continua usando alertas abertos sem historico fechado", async () => {
+  const alerts = [
+    buildExecutionStockAlert({ id: "open-alert", status: "open", materialName: "Aberto", title: "Aberto" }),
+    buildExecutionStockAlert({ id: "resolved-alert", status: "resolved", materialName: "Resolvido", title: "Resolvido" }),
+    buildExecutionStockAlert({ id: "obsolete-alert", status: "obsolete", materialName: "Obsoleto", title: "Obsoleto" })
+  ];
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts(alerts), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Aberto/);
+  assert.doesNotMatch(answer, /Historico solicitado|Resolvido|Obsoleto/);
+});
 test("ELO local usa executionStockAnalysis ready antes de erro de autenticacao", async () => {
   let calls = 0;
   const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis(), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { calls += 1; throw new Error("should_not_fetch"); } });

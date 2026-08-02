@@ -1140,6 +1140,27 @@ defer></script>
               <div id="dailyLogAuditPanel" class="diary-audit empty-list">Nenhum consumo registrado.</div>
             </section>
 
+            <section class="workspace-card" id="execution-stock-alerts-history-card">
+              <div class="section-row">
+                <h3>Histórico de alertas de consumo</h3>
+                <span class="auth-note" id="executionStockAlertsHistoryStatus">Local</span>
+              </div>
+              <div class="almox-dashboard-periods" aria-label="Filtros de status dos alertas de consumo">
+                <button type="button" class="mini-button compact active" data-execution-alert-status="all" aria-pressed="true">Todos</button>
+                <button type="button" class="mini-button compact" data-execution-alert-status="open" aria-pressed="false">Abertos</button>
+                <button type="button" class="mini-button compact" data-execution-alert-status="acknowledged" aria-pressed="false">Reconhecidos</button>
+                <button type="button" class="mini-button compact" data-execution-alert-status="resolved" aria-pressed="false">Resolvidos</button>
+                <button type="button" class="mini-button compact" data-execution-alert-status="obsolete" aria-pressed="false">Obsoletos</button>
+              </div>
+              <div class="almox-dashboard-periods" aria-label="Filtros de gravidade dos alertas de consumo">
+                <button type="button" class="mini-button compact active" data-execution-alert-severity="all" aria-pressed="true">Todas</button>
+                <button type="button" class="mini-button compact" data-execution-alert-severity="critical" aria-pressed="false">Crítica</button>
+                <button type="button" class="mini-button compact" data-execution-alert-severity="high" aria-pressed="false">Alta</button>
+                <button type="button" class="mini-button compact" data-execution-alert-severity="medium" aria-pressed="false">Média</button>
+                <button type="button" class="mini-button compact" data-execution-alert-severity="low" aria-pressed="false">Baixa</button>
+              </div>
+              <div id="executionStockAlertsHistory" class="diary-item-list empty-list">Nenhum alerta de consumo registrado.</div>
+            </section>
             <section class="workspace-card" id="diary-indicators">
               <h3>Indicadores</h3>
               <div id="dailyLogIndicators" class="indicator-grid"></div>
@@ -2295,6 +2316,7 @@ defer></script>
   <script type="module" src="./elo-stock-obras-snapshot.js?v=20260725-stock-obras-snapshot-v1"></script>
   <script type="module" src="./elo-execution-stock-cross.js?v=20260725-execution-stock-cross-v1"></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
+  <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
   <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20260727-command-bridge-v1" defer></script>
