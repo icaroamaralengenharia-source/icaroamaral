@@ -1,41 +1,45 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Notícias de Engenharia e Construção</title>
-    <meta name="description" content="Atualizações selecionadas automaticamente a partir de fontes públicas e institucionais sobre engenharia, arquitetura e construção.">
+    <title>Notícias de Engenharia, Arquitetura, Urbanismo e Tecnologia</title>
+    <meta name="description" content="Informação técnica e atualizações selecionadas automaticamente a partir de fontes públicas e institucionais.">
     <link rel="canonical" href="https://www.icaroamaral.com.br/noticias/">
     <meta name="robots" content="index,follow">
-    <meta property="og:title" content="Notícias de Engenharia e Construção">
-    <meta property="og:description" content="Atualizações selecionadas automaticamente a partir de fontes públicas e institucionais.">
+    <meta property="og:title" content="Notícias de Engenharia, Arquitetura, Urbanismo e Tecnologia">
+    <meta property="og:description" content="Informação técnica e atualizações selecionadas automaticamente a partir de fontes públicas e institucionais.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.icaroamaral.com.br/noticias/">
     <link rel="stylesheet" href="./noticias.css">
     <script src="./noticias.js" defer></script>
   </head>
   <body>
-    <main class="news-shell">
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand-link" href="/" aria-label="Voltar para a página inicial">
+          Amaral Engenharia, Arquitetura, Urbanismo e Tecnologia
+        </a>
+        <a class="back-link" href="/">Voltar ao site</a>
+      </div>
+    </header>
+
+    <main class="news-shell" id="conteudo">
       <section class="news-hero" aria-labelledby="page-title">
-        <p class="news-kicker">www.icaroamaral.com.br</p>
-        <h1 id="page-title">Notícias de Engenharia e Construção</h1>
-        <p class="news-subtitle">Atualizações selecionadas automaticamente a partir de fontes públicas e institucionais.</p>
-        <dl class="news-meta" aria-label="Resumo da atualização">
-          <div>
-            <dt>Última atualização</dt>
-            <dd id="ultima-atualizacao">Carregando...</dd>
-          </div>
-          <div>
-            <dt>Notícias</dt>
-            <dd id="total-noticias">0</dd>
-          </div>
-        </dl>
+        <p class="news-kicker">Radar editorial</p>
+        <h1 id="page-title">Notícias de Engenharia, Arquitetura, Urbanismo e Tecnologia</h1>
+        <p class="news-subtitle">Informação técnica e atualizações selecionadas automaticamente a partir de fontes públicas e institucionais.</p>
+        <p class="news-meta-line" aria-label="Resumo da atualização">
+          Atualizado em <strong id="ultima-atualizacao">Carregando...</strong>
+          <span aria-hidden="true">•</span>
+          <strong id="total-noticias">0</strong> notícias disponíveis
+        </p>
       </section>
 
-      <section class="news-tools" aria-label="Filtros">
+      <section class="news-tools" aria-label="Filtros de notícias">
         <label class="search-field" for="busca-noticias">
           <span>Buscar</span>
-          <input id="busca-noticias" type="search" placeholder="Título, fonte ou assunto" autocomplete="off">
+          <input id="busca-noticias" type="search" placeholder="Buscar por título, fonte ou assunto" autocomplete="off">
         </label>
         <label class="category-field" for="filtro-categoria">
           <span>Categoria</span>
@@ -43,14 +47,17 @@
             <option value="">Todas</option>
           </select>
         </label>
+        <button id="limpar-filtros" class="clear-button" type="button" disabled>Limpar</button>
       </section>
 
-      <p id="estado-carregamento" class="status-message" role="status">Carregando notícias...</p>
-      <section id="lista-noticias" class="news-grid" aria-live="polite"></section>
+      <p id="resumo-resultados" class="results-summary" role="status" aria-live="polite">Exibindo 0 de 0 notícias</p>
+      <p id="estado-carregamento" class="status-message" role="status" aria-live="polite">Carregando notícias...</p>
+      <section id="lista-noticias" class="news-grid" aria-label="Lista de notícias" aria-busy="true"></section>
 
-      <section class="source-note" aria-label="Aviso editorial">
-        <p>Os conteúdos pertencem às fontes originais. Esta página publica apenas título, resumo curto, data, fonte e link para leitura no endereço original.</p>
-      </section>
+      <footer class="source-note" aria-label="Aviso editorial">
+        <p>As notícias são resumidas automaticamente e pertencem às fontes originais.</p>
+        <p><span id="ano-atual"></span> Amaral Engenharia, Arquitetura, Urbanismo e Tecnologia. <a href="/">Voltar ao site</a></p>
+      </footer>
     </main>
   </body>
 </html>
