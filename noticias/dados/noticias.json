@@ -1,6 +1,6 @@
 {
-  "atualizadoEm": "2026-08-02T04:01:39.809Z",
-  "coletadoEm": "2026-08-02T04:01:39.809Z",
+  "atualizadoEm": "2026-08-02T13:06:57.993Z",
+  "coletadoEm": "2026-08-02T13:06:57.993Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
@@ -126,12 +126,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/cbic-divulga-radar-convencoes-coletivas-de-junho-4/",
       "publicadoEm": "2026-07-31T19:30:34.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/05/wide-convencoes-coletivas-1.jpeg",
+      "imagemAlt": "CBIC divulga Radar Convenções Coletivas de junho",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "c2273f1024e40428",
@@ -140,12 +140,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/para-a-cbic-nova-nr-10-reforca-a-prevencao-de-acidentes-e-exige-planejamento-das-empresas/",
       "publicadoEm": "2026-07-31T17:13:53.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
       "categoria": "Infraestrutura e Obras",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2020/02/Constru%C3%A7%C3%A3o_Trabalhadores.jpeg",
+      "imagemAlt": "Para a CBIC, nova NR-10 reforça a prevenção de acidentes e exige planejamento das empresas",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "60a3b0b5668508f4",
@@ -154,12 +154,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/inscricoes-abertas-para-o-forum-construindo-cidades-resilientes-em-sao-paulo/",
       "publicadoEm": "2026-07-31T17:10:13.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/whatsapp-image-2026-07-30-at-32512-pm.jpeg",
+      "imagemAlt": "Inscrições abertas para o Fórum Construindo Cidades Resilientes, em São Paulo",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "2ddbdfcea5cf383b",
@@ -196,12 +196,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/dncs-2026-esta-chegando-com-programacao-em-diversas-cidades-brasileiras/",
       "publicadoEm": "2026-07-30T21:27:39.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/whatsapp-image-2026-07-30-at-62337-pm.jpeg",
+      "imagemAlt": "DNCS 2026 está chegando com programação em diversas cidades brasileiras",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "d07c4cdc87fe00f1",
@@ -210,12 +210,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/cbic-leva-pautas-estrategicas-da-construcao-civil-ao-palacio-do-planalto/",
       "publicadoEm": "2026-07-30T21:24:24.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/chatgpt-image-30-de-jul-de-2026-181949.png",
+      "imagemAlt": "CBIC leva pautas estratégicas da construção civil ao Palácio do Planalto",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "1dbc739307a054ca",
@@ -224,12 +224,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/cbic-debate-impactos-da-reforma-tributaria-e-traz-orientacoes-para-o-setor-empresas-sobre-proximos-passos/",
       "publicadoEm": "2026-07-30T21:14:57.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/captura-de-tela-2026-07-30-as-164717.png",
+      "imagemAlt": "CBIC debate impactos da reforma tributária e traz orientações para o setor sobre próximos passos",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "30d6fb4334cbf57b",
@@ -238,12 +238,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/construcao-cria-168-962-empregos-formais-no-primeiro-semestre-de-2026/",
       "publicadoEm": "2026-07-30T19:11:51.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2023/06/17344276879f877ac0313o-2.jpg",
+      "imagemAlt": "Construção cria 168.962 empregos formais no primeiro semestre de 2026",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "5b028c47b4f4b5a5",
@@ -252,12 +252,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/deu-na-midia-cbic-participa-de-materias-sobre-distribuicao-do-lucro-do-fgts-e-desafios-de-infraestrutura/",
       "publicadoEm": "2026-07-29T19:02:44.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
       "categoria": "Infraestrutura e Obras",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/whatsapp-image-2026-07-29-at-145820.jpeg",
+      "imagemAlt": "Deu na mídia: CBIC participa de matérias sobre distribuição do lucro do FGTS e desafios de infraestrutura",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "3b16a8398844e890",
@@ -266,12 +266,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/sindiscon-sp-programa-de-saude-e-seguranca-do-trabalhador-da-construcao-ja-capacitou-146-mil-profissionais/",
       "publicadoEm": "2026-07-29T17:52:25.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Segurança do Trabalho",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Seguranca do Trabalho",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/sindusconsp.jpeg",
+      "imagemAlt": "SindusCon-SP: Programa de saúde e segurança do trabalhador da construção já capacitou 14,6 mil profissionais",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "230f399f1bdad23c",
@@ -280,12 +280,12 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/cbic-promove-evento-sobre-impactos-da-reducao-da-jornada-de-trabalho/",
       "publicadoEm": "2026-07-28T18:51:35.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/wide-15-1024x576.png",
+      "imagemAlt": "CBIC promove evento sobre impactos da redução da jornada de trabalho",
+      "imagemOrigem": "CBIC"
     },
     {
       "id": "dfcf65f14b063b89",
@@ -294,12 +294,68 @@
       "fonte": "CBIC",
       "url": "https://cbic.org.br/reforma-tributaria-pode-impulsionar-industrializacao-cbic-promove-evento-sobre-o-tema-na-quinta-feira/",
       "publicadoEm": "2026-07-27T21:33:37.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Engenharia e Construção",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
       "dominio": "cbic.org.br",
-      "imagemUrl": null,
-      "imagemAlt": null,
-      "imagemOrigem": null
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/whatsapp-image-2026-07-27-at-120501.jpeg",
+      "imagemAlt": "Reforma Tributária pode impulsionar industrialização; CBIC promove evento sobre o tema na quinta-feira",
+      "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "b68c516a38b8f419",
+      "titulo": "Seconci-PR alerta para impactos do absenteísmo na construção civil",
+      "resumo": "Afastamentos por problemas de saúde, acidentes e transtornos mentais reforçam a importância de ações preventivas nos canteiros de obras O absenteísmo, caracterizado pelas ausências frequentes ou prolongadas dos trabalhadores, está entre os principais desafios da construção civil.",
+      "fonte": "CBIC",
+      "url": "https://cbic.org.br/seconci-pr-alerta-para-impactos-do-absenteismo-na-construcao-civil/",
+      "publicadoEm": "2026-07-27T17:17:55.000Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Infraestrutura e Obras",
+      "dominio": "cbic.org.br",
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/20cc-whatsapp-image-2026-07-20-at-15-edited.jpeg",
+      "imagemAlt": "Seconci-PR alerta para impactos do absenteísmo na construção civil",
+      "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "04ee7e4457edafa3",
+      "titulo": "Seconci-DF lança projeto “Construindo Histórias”",
+      "resumo": "Iniciativa busca destacar trajetórias de trabalhadores da construção civil atendidos nas áreas de atuação do serviço social do setor O Seconci-DF lançou o projeto Construindo Histórias , uma iniciativa que reúne depoimentos de trabalhadores da construção civil atendidos pela instituição e...",
+      "fonte": "CBIC",
+      "url": "https://cbic.org.br/seconci-df-lanca-projeto-construindo-historias/",
+      "publicadoEm": "2026-07-27T17:04:09.000Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "cbic.org.br",
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/apresentacao1-1.png",
+      "imagemAlt": "Seconci-DF lança projeto “Construindo Histórias”",
+      "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "d0fe8a23e2746df8",
+      "titulo": "Artigo: Emprego na construção desacelera, mas setor segue entre os que mais contratam",
+      "resumo": "Yorki Estefan, presidente do SindusCon-SP O ritmo de geração de empregos na construção vem desacelerando. De acordo com o Caged, o setor gerou 12 mil novos postos de trabalho com carteira assinada em maio, ante 16,6 mil criados no mesmo mês de 2025.",
+      "fonte": "CBIC",
+      "url": "https://cbic.org.br/artigo-emprego-na-construcao-desacelera-mas-setor-segue-entre-os-que-mais-contratam/",
+      "publicadoEm": "2026-07-24T18:11:30.000Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "cbic.org.br",
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/chatgpt-image-24-de-jul-de-2026-150454.png",
+      "imagemAlt": "Artigo: Emprego na construção desacelera, mas setor segue entre os que mais contratam",
+      "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "a0a161e0575111ef",
+      "titulo": "Sinduscon-SP: Centro de proteção contra quedas capacita trabalhadores da construção",
+      "resumo": "Desde o início de 2026, cerca de 255 profissionais da construção civil foram capacitados no curso \"NR-35: Segurança nas Atividades com Trabalho em Altura\", realizado pelo SindusCon-SP no Centro de Treinamento de Proteção Contra Quedas, em São Paulo.",
+      "fonte": "CBIC",
+      "url": "https://cbic.org.br/sinduscon-sp-centro-de-protecao-contra-quedas-capacita-trabalhadores-da-construcao/",
+      "publicadoEm": "2026-07-24T18:09:19.000Z",
+      "coletadoEm": "2026-08-02T13:06:57.993Z",
+      "categoria": "Seguranca do Trabalho",
+      "dominio": "cbic.org.br",
+      "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/07/chatgpt-image-24-de-jul-de-2026-150720-1024x576.png",
+      "imagemAlt": "Sinduscon-SP: Centro de proteção contra quedas capacita trabalhadores da construção",
+      "imagemOrigem": "CBIC"
     }
   ]
 }
