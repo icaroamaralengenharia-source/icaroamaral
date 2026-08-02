@@ -84,6 +84,10 @@
   const executionStockAlertsHistoryStatus = document.getElementById("executionStockAlertsHistoryStatus");
   const executionStockAlertStatusButtons = Array.from(document.querySelectorAll("[data-execution-alert-status]"));
   const executionStockAlertSeverityButtons = Array.from(document.querySelectorAll("[data-execution-alert-severity]"));
+  const operationalDocumentsList = document.getElementById("operationalDocumentsList");
+  const operationalDocumentsStatus = document.getElementById("operationalDocumentsStatus");
+  const operationalDocumentTypeButtons = Array.from(document.querySelectorAll("[data-operational-document-type]"));
+  const operationalDocumentStatusButtons = Array.from(document.querySelectorAll("[data-operational-document-status]"));
   const stockIaSummaryCards = document.getElementById("stockIaSummaryCards");
   const stockQuickExamplePanel = document.getElementById("stockQuickExamplePanel");
   const stockQuickExampleText = document.getElementById("stockQuickExampleText");
@@ -305,6 +309,7 @@
   let currentDailyLogMaterialRequests_ = [];
   let dailyLogSearchTerm = "";
   let executionStockAlertHistoryFilters = { status: "all", severity: "all" };
+  let operationalDocumentFilters = { type: "all", status: "all" };
   let compositionDraft = createEmptyCompositionDraft_();
   let pendingHomeAction = "";
   let localAccessGrantedInMemory = false;
@@ -3178,6 +3183,7 @@
       compositions: [],
       executionStockAnalysis: null,
       executionStockAlerts: [],
+      operationalDocuments: [],
       billing: {}
     });
   }
@@ -3193,6 +3199,11 @@
       ? state.executionStockAnalysis
       : null;
     state.executionStockAlerts = Array.isArray(state.executionStockAlerts) ? state.executionStockAlerts : [];
+    if (window.ObraReportOperationalDocuments && typeof window.ObraReportOperationalDocuments.normalizeOperationalDocuments === "function") {
+      window.ObraReportOperationalDocuments.normalizeOperationalDocuments(state);
+    } else {
+      state.operationalDocuments = Array.isArray(state.operationalDocuments) ? state.operationalDocuments : [];
+    }
     state.local = state.local || {};
     state.local.lastRoute = state.local.lastRoute || "dashboard";
     state.local.lastView = state.local.lastView || state.local.lastRoute;
@@ -3532,6 +3543,7 @@
         dailyLogs: mergeDailyLogsFromCloud_(appState.dailyLogs, state.dailyLogs || []),
         compositions: mergeCompositionsFromCloud_(appState.compositions, state.compositions || []),
         billing: state.billing || appState.billing || {},
+        operationalDocuments: Array.isArray(appState.operationalDocuments) ? appState.operationalDocuments : [],
         local: Object.assign({}, appState.local || {}, {
           updatedAt: new Date().toISOString()
         })
@@ -4739,6 +4751,7 @@
         const work = findWork_(dailyLogWorkSelect.value);
         setLastOpened_("diario", work ? work.clientId : "", dailyLogWorkSelect.value, "");
         renderExecutionStockAlertsHistory_();
+        renderOperationalDocumentsList_();
         scheduleLocalDataSave_({ syncCloud: false });
       });
     }
@@ -4754,6 +4767,20 @@
       button.addEventListener("click", function () {
         executionStockAlertHistoryFilters.severity = button.dataset.executionAlertSeverity || "all";
         renderExecutionStockAlertsHistory_();
+      });
+    });
+
+    operationalDocumentTypeButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        operationalDocumentFilters.type = button.dataset.operationalDocumentType || "all";
+        renderOperationalDocumentsList_();
+      });
+    });
+
+    operationalDocumentStatusButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        operationalDocumentFilters.status = button.dataset.operationalDocumentStatus || "all";
+        renderOperationalDocumentsList_();
       });
     });
 
@@ -6249,6 +6276,7 @@
     renderDailyLogRecords_(dailyLogs);
     renderDailyLogAudit_(dailyLogs);
     renderExecutionStockAlertsHistory_();
+    renderOperationalDocumentsList_();
     renderDailyLogIndicators_(dailyLogs);
 
     if (dailyLogStatus) {
@@ -7854,6 +7882,133 @@
     return Number.isFinite(number) ? formatQuantity_(number) + unitLabel : "não informado";
   }
 
+  function getOperationalDocumentsApi_() {
+    return window.ObraReportOperationalDocuments || null;
+  }
+
+  function getOperationalDocumentAlertIdsForRdo_(workId, rdoId) {
+    return (appState.executionStockAlerts || []).filter(function (alert) {
+      return alert && alert.workId === workId && alert.sourceRdoId === rdoId;
+    }).map(function (alert) { return alert.id; }).filter(Boolean);
+  }
+
+  function getOperationalDocumentAnalysisFingerprintForRdo_(workId, rdoId) {
+    const analysis = appState.executionStockAnalysis && typeof appState.executionStockAnalysis === "object" ? appState.executionStockAnalysis : null;
+    if (!analysis || analysis.workId !== workId || analysis.sourceRdoId !== rdoId) return "";
+    return analysis.sourceFingerprint || analysis.analysisFingerprint || "";
+  }
+
+  function registerRdoOperationalDocument_(logItem) {
+    const api = getOperationalDocumentsApi_();
+    const safe = logItem && typeof logItem === "object" ? logItem : {};
+    if (!api || typeof api.registerOperationalDocument !== "function" || !safe.id || !safe.workId) return null;
+    try {
+      const work = findWork_(safe.workId);
+      const result = api.registerOperationalDocument(appState, {
+        type: "rdo",
+        workId: safe.workId,
+        clientId: work && work.clientId || safe.clientId || "",
+        title: "RDO - " + (work && work.name || getWorkName_(safe.workId) || "Diario de Obras") + " - " + formatDateOnly_(safe.date),
+        sourceRdoIds: [safe.id],
+        sourceAlertIds: getOperationalDocumentAlertIdsForRdo_(safe.workId, safe.id),
+        analysisFingerprint: getOperationalDocumentAnalysisFingerprintForRdo_(safe.workId, safe.id),
+        renderer: "daily_log_pdf_v1"
+      });
+      if (result && result.ok) {
+        saveLocalData({ syncCloud: false });
+        renderOperationalDocumentsList_();
+      }
+      return result;
+    } catch (error) {
+      return { ok: false, reason: "document_register_error" };
+    }
+  }
+
+  function setOperationalDocumentFilterButtonState_(buttons, activeValue, datasetKey) {
+    buttons.forEach(function (button) {
+      const isActive = button.dataset[datasetKey] === activeValue;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function formatOperationalDocumentTypeLabel_(type) {
+    const api = getOperationalDocumentsApi_();
+    const labels = api && api.typeLabels || {};
+    return labels[type] || type || "Documento";
+  }
+
+  function renderOperationalDocumentsList_() {
+    if (!operationalDocumentsList) return;
+    const api = getOperationalDocumentsApi_();
+    const workId = getActiveExecutionStockAlertWorkId_();
+    setOperationalDocumentFilterButtonState_(operationalDocumentTypeButtons, operationalDocumentFilters.type, "operationalDocumentType");
+    setOperationalDocumentFilterButtonState_(operationalDocumentStatusButtons, operationalDocumentFilters.status, "operationalDocumentStatus");
+    if (!api || !workId) {
+      operationalDocumentsList.textContent = !workId ? "Escolha uma obra para consultar os documentos." : "Indice documental local carregando.";
+      operationalDocumentsList.className = "diary-item-list empty-list";
+      if (operationalDocumentsStatus) operationalDocumentsStatus.textContent = !workId ? "Sem obra" : "Local";
+      return;
+    }
+    const documents = api.getDocumentsForWork(appState, workId, operationalDocumentFilters);
+    const allDocuments = api.getDocumentsForWork(appState, workId, { type: "all", status: "all" });
+    operationalDocumentsList.innerHTML = "";
+    if (operationalDocumentsStatus) operationalDocumentsStatus.textContent = allDocuments.length + " documento(s) locais";
+    if (!documents.length) {
+      operationalDocumentsList.textContent = allDocuments.length ? "Nenhum documento corresponde aos filtros." : "Nenhum documento operacional registrado para esta obra.";
+      operationalDocumentsList.className = "diary-item-list empty-list";
+      return;
+    }
+    operationalDocumentsList.className = "diary-item-list";
+    documents.forEach(function (documentItem) {
+      const detail = [formatOperationalDocumentTypeLabel_(documentItem.type), documentItem.status === "obsolete" ? "Obsoleto" : "Ativo", "Atualizado em " + formatDateTime_(documentItem.updatedAt || documentItem.createdAt)].join(" � ");
+      const note = [
+        "RDOs vinculados: " + (documentItem.sourceRdoIds && documentItem.sourceRdoIds.length || 0),
+        "Alertas vinculados: " + (documentItem.sourceAlertIds && documentItem.sourceAlertIds.length || 0),
+        documentItem.lastOpenedAt ? "Aberto em: " + formatDateTime_(documentItem.lastOpenedAt) : "Ainda nao reaberto"
+      ].join(" � ");
+      operationalDocumentsList.appendChild(createDiaryListItem_(documentItem.title, detail, note, [
+        createMiniButton_("Abrir/regenerar", "primary", function () { openOperationalDocument_(documentItem.id); })
+      ]));
+    });
+  }
+
+  function openOperationalDocument_(documentId) {
+    const api = getOperationalDocumentsApi_();
+    if (!api || typeof api.openOperationalDocument !== "function") return false;
+    const result = api.openOperationalDocument(appState, documentId, {
+      rdo: function (documentItem) {
+        const rdo = findDailyLog_(documentItem.sourceRdoIds && documentItem.sourceRdoIds[0]);
+        if (!rdo) return { ok: false, reason: "missing_rdo" };
+        return { ok: true, html: buildDailyLogPdfHtml_(decorateDailyLogForExport_(rdo)), title: documentItem.title };
+      }
+    });
+    if (!result.ok) {
+      saveLocalData({ syncCloud: false });
+      renderOperationalDocumentsList_();
+      setDailyLogStatus_(result.reason === "missing_renderer" ? "Este tipo de documento deve ser aberto pelo ELO." : "Origem do documento indisponivel neste navegador.", "error");
+      return false;
+    }
+    saveLocalData({ syncCloud: false });
+    renderOperationalDocumentsList_();
+    openGeneratedHtml_(result.html);
+    setDailyLogStatus_("Documento regenerado com dados locais atuais.", "success");
+    return true;
+  }
+
+  function openGeneratedHtml_(html) {
+    const pdfWindow = window.open("", "_blank");
+    if (!pdfWindow) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+      return false;
+    }
+    pdfWindow.document.open();
+    pdfWindow.document.write(html);
+    pdfWindow.document.close();
+    return true;
+  }
   function renderExecutionStockAlertsHistory_() {
     if (!executionStockAlertsHistory) {
       return;
@@ -18943,6 +19098,7 @@
 
     setDailyLogStatus_("Preparando PDF do diário...", "info");
     const html = buildDailyLogPdfHtml_(snapshot);
+    registerRdoOperationalDocument_(snapshot);
     const pdfWindow = window.open("", "_blank");
 
     if (!pdfWindow) {

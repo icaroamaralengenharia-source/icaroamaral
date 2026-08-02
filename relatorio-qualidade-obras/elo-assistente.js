@@ -1197,6 +1197,69 @@
     return reportIntent && localContext;
   }
 
+  function getEloOperationalDocumentsApi_() { return window.ObraReportOperationalDocuments || null; }
+  function writeEloSaasState_(state) { try { if (!window.localStorage || !state || typeof state !== "object") return false; window.localStorage.setItem("obrareport-saas-v1", JSON.stringify(state)); return true; } catch (error) { return false; } }
+  function getEloOperationalDocumentTargetWorkId_(state) { const scope = getEloObraSnapshotScope_(); const local = state && state.local && typeof state.local === "object" ? state.local : {}; return sanitizeUserText(scope.workId || local.lastWorkId || "").slice(0, 140); }
+  function registerEloExecutionStockOperationalDocument_(report) {
+    const api = getEloOperationalDocumentsApi_();
+    if (!report || report.ok !== true) return null;
+    const state = getEloSaasState_();
+    const workId = sanitizeUserText(report.scope && report.scope.workId || getEloOperationalDocumentTargetWorkId_(state)).slice(0, 140);
+    if (!workId) return { ok: false, reason: "missing_work_id" };
+    const preferred = getLatestExecutionStockAnalysisForElo_();
+    const sourceRdoIds = preferred.available && preferred.analysis && preferred.analysis.sourceRdoId ? [preferred.analysis.sourceRdoId] : (Array.isArray(state.dailyLogs) ? state.dailyLogs.filter(function (log) { return sanitizeUserText(log && log.workId || "").slice(0, 140) === workId; }).slice(0, 5).map(function (log) { return sanitizeUserText(log && log.id || "").slice(0, 140); }).filter(Boolean) : []);
+    const alertIds = (Array.isArray(state.executionStockAlerts) ? state.executionStockAlerts : []).filter(function (alert) { return sanitizeUserText(alert && alert.workId || "").slice(0, 140) === workId && normalizeText(alert && alert.status || "") !== "obsolete"; }).map(function (alert) { return sanitizeUserText(alert && alert.id || "").slice(0, 260); }).filter(Boolean);
+    const now = new Date().toISOString();
+    const manualId = "opdoc_elo_execution_stock_" + workId;
+    const manualDocument = { id: manualId, version: 1, type: "execution_stock_report", workId: workId, clientId: "", title: "Relatorio local de consumo e risco - " + sanitizeUserText(report.scope && (report.scope.workName || report.scope.workId) || workId), sourceRdoIds: sourceRdoIds, sourceAlertIds: alertIds, analysisFingerprint: preferred.available && preferred.analysis ? sanitizeUserText(preferred.analysis.sourceFingerprint || "") : "", renderer: "elo_execution_stock_report_v1", status: "active", createdAt: now, updatedAt: now, lastOpenedAt: "" };
+    state.operationalDocuments = Array.isArray(state.operationalDocuments) ? state.operationalDocuments.filter(function (item) { return item && item.id !== manualId; }) : [];
+    state.operationalDocuments.unshift(manualDocument);
+    writeEloSaasState_(state);
+    return { ok: true, created: true, document: manualDocument };
+    if (!api || typeof api.registerOperationalDocument !== "function") {
+      const now = new Date().toISOString();
+      const documentId = "opdoc_elo_execution_stock_" + workId;
+      state.operationalDocuments = Array.isArray(state.operationalDocuments) ? state.operationalDocuments.filter(function (item) { return item && item.id !== documentId; }) : [];
+      state.operationalDocuments.unshift({ id: documentId, version: 1, type: "execution_stock_report", workId: workId, clientId: "", title: "Relatorio local de consumo e risco - " + sanitizeUserText(report.scope && (report.scope.workName || report.scope.workId) || workId), sourceRdoIds: sourceRdoIds, sourceAlertIds: alertIds, analysisFingerprint: preferred.available && preferred.analysis ? sanitizeUserText(preferred.analysis.sourceFingerprint || "") : "", renderer: "elo_execution_stock_report_v1", status: "active", createdAt: now, updatedAt: now, lastOpenedAt: "" });
+      writeEloSaasState_(state);
+      return { ok: true, created: true, document: state.operationalDocuments[0] };
+    }
+    try {
+      const result = api.registerOperationalDocument(state, { type: "execution_stock_report", workId: workId, clientId: "", title: "Relatorio local de consumo e risco - " + sanitizeUserText(report.scope && (report.scope.workName || report.scope.workId) || workId), sourceRdoIds: sourceRdoIds, sourceAlertIds: alertIds, analysisFingerprint: preferred.available && preferred.analysis ? sanitizeUserText(preferred.analysis.sourceFingerprint || "") : "", renderer: "elo_execution_stock_report_v1" });
+      if (result && result.ok) {
+        writeEloSaasState_(state);
+        return result;
+      }
+      const fallback = api.registerOperationalDocument(state, { type: "execution_stock_report", workId: workId, clientId: "", title: "Relatorio local de consumo e risco - " + sanitizeUserText(report.scope && (report.scope.workName || report.scope.workId) || workId), sourceRdoIds: [], sourceAlertIds: [], analysisFingerprint: preferred.available && preferred.analysis ? sanitizeUserText(preferred.analysis.sourceFingerprint || "") : "", renderer: "elo_execution_stock_report_v1" });
+      if (fallback && fallback.ok) writeEloSaasState_(state);
+      return fallback;
+    } catch (error) { return { ok: false, reason: "document_register_error" }; }
+  }
+  function getEloOperationalDocumentsForActiveWork_() { const api = getEloOperationalDocumentsApi_(); const state = getEloSaasState_(); const workId = getEloOperationalDocumentTargetWorkId_(state); if (!api || !workId || typeof api.getDocumentsForWork !== "function") return { available: false, workId: workId, documents: [] }; return { available: true, workId: workId, state: state, documents: api.getDocumentsForWork(state, workId, { type: "all", status: "all" }) }; }
+  function isEloOperationalDocumentRequest_(question) { const text = normalizeText(question || ""); if (!text) return false; const docIntent = /\b(documentos?|relatorios?|relat.rios?|pdfs?)\b/.test(text); const workContext = /\b(obra|rdo|consumo|alertas?|execucao|execu..o|estoque)\b/.test(text); const openIntent = /\b(abra|abrir|mostre|mostrar|liste|listar|quais|ultimo|ltimo|vinculados?)\b/.test(text); return docIntent && workContext && openIntent; }
+  function formatEloOperationalDocumentsAnswer_(query) {
+    const result = getEloOperationalDocumentsForActiveWork_();
+    if (!result.available) return "Documentos da obra: nao encontrei indice documental local para a obra ativa.";
+    if (!result.documents.length) return "Documentos da obra: nenhum documento operacional local registrado para esta obra.";
+    const text = normalizeText(query || "");
+    const docs = result.documents.filter(function (item) { if (/\brdo\b/.test(text)) return item.type === "rdo"; if (/alertas?/.test(text)) return item.type === "consumption_alert_report"; if (/consumo|estoque|execucao|execu..o/.test(text)) return item.type === "execution_stock_report"; return true; });
+    const visible = docs.length ? docs : result.documents;
+    const lines = ["Documentos da obra: " + visible.length + " registro(s) locais para " + sanitizeUserText(result.workId) + "."];
+    visible.slice(0, 8).forEach(function (item, index) { lines.push((index + 1) + ". " + sanitizeUserText(item.title || item.type) + " - " + sanitizeUserText(item.type) + " - " + sanitizeUserText(item.status || "active") + " - atualizado em " + sanitizeUserText(item.updatedAt || item.createdAt || "data nao informada") + "."); });
+    lines.push("Fonte: operationalDocuments local. Nenhuma rede, estoque ou RDO foi alterado por esta consulta.");
+    return lines.join("\n");
+  }
+  function handleEloOperationalDocumentRequest_(question) {
+    if (!isEloOperationalDocumentRequest_(question)) return false;
+    const statusMessage = appendMessage("assistant", "Consultando documentos locais da obra...");
+    const text = normalizeText(question || "");
+    if (/\b(abra|abrir|ultimo|ltimo)\b/.test(text) && /\b(consumo|estoque|execucao|execu..o)\b/.test(text)) {
+      const report = buildEloObraLocalExecutionStockReport_();
+      if (report && report.ok === true) { ELO_UI.lastLocalExecutionStockReport = report; registerEloExecutionStockOperationalDocument_(report); const opened = openEloExecutionStockReportPdf_(report); updateEloMessage_(statusMessage, opened && opened.ok ? "Abri o ultimo relatorio local de consumo da obra e atualizei o registro documental." : "Nao consegui abrir o relatorio local agora."); return true; }
+    }
+    updateEloMessage_(statusMessage, formatEloOperationalDocumentsAnswer_(question));
+    return true;
+  }
   function buildEloObraLocalExecutionStockReport_() {
     const reportBuilder = getEloExecutionStockReportBuilder_();
     const localCross = buildEloObraLocalExecutionStockCrossFromSources_();
@@ -1341,6 +1404,7 @@
         opened = true;
       }
     }
+    registerEloExecutionStockOperationalDocument_(safe);
     return { ok: true, html: html, fileName: record.numero, report: safe, opened: opened, message: opened ? "PDF local preparado." : "Nao consegui abrir a janela de impressao do PDF local." };
   }
 
@@ -1656,7 +1720,7 @@
       button.addEventListener("click", function () {
         if (item.type === "report") {
           const report = buildEloObraLocalExecutionStockReport_();
-          if (report && report.ok === true) ELO_UI.lastLocalExecutionStockReport = report;
+          if (report && report.ok === true) { ELO_UI.lastLocalExecutionStockReport = report; registerEloExecutionStockOperationalDocument_(report); }
           appendMessage("assistant", formatEloObraExecutionStockReportAnswer_(report));
           return;
         }
@@ -1984,6 +2048,7 @@
     return Promise.resolve().then(function () {
       const report = buildEloObraLocalExecutionStockReport_();
       ELO_UI.lastLocalExecutionStockReport = report && report.ok === true ? report : null;
+      if (report && report.ok === true) registerEloExecutionStockOperationalDocument_(report);
       const finalAnswer = sanitizeEloMultilineText_(formatEloObraExecutionStockReportAnswer_(report)) || "Nao encontrei fontes locais suficientes para gerar o relatorio.";
       updateEloMessage_(statusMessage, finalAnswer);
       appendEloExecutionStockReportPdfAction_(statusMessage);
@@ -24884,6 +24949,8 @@ function isEloResidentialNewPipelineEnabled_() {
     const routeOptions = options || {};
     const startedAt = Date.now();
     try {
+    const operationalDocumentResponse = isEloOperationalDocumentRequest_(question) ? { shortAnswer: "Documentos da obra", fullAnswer: formatEloOperationalDocumentsAnswer_(question), nextAction: "Abra explicitamente um documento para regenerar a versao local.", canSave: false, sessionTheme: "operational_documents", sessionIntent: "operational_documents_readonly" } : null;
+    if (operationalDocumentResponse) return operationalDocumentResponse;
     const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);
     if (surgicalRoutePriorityResponse) {
       return applyEloBrainMarker_(question, surgicalRoutePriorityResponse);
@@ -25251,6 +25318,16 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    const localOperationalDocument = !attachedFiles.length && isEloOperationalDocumentRequest_(cleanQuestion);
+    if (localOperationalDocument) {
+      const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+      ELO_UI.suppressRemotePersistence = true;
+      appendMessage("user", cleanQuestion);
+      Promise.resolve(handleEloOperationalDocumentRequest_(cleanQuestion)).finally(function () {
+        ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+      });
+      return;
+    }
     const localExecutionStockReport = !attachedFiles.length && isEloObraExecutionStockReportRequest_(cleanQuestion);
     if (localExecutionStockReport) {
       const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
@@ -28948,6 +29025,8 @@ function isEloResidentialNewPipelineEnabled_() {
     buildLocalTodayWorkForTest: buildEloObraLocalTodayWork_,
     getLatestExecutionStockAnalysisForTest: getLatestExecutionStockAnalysisForElo_,
     getExecutionStockAlertsForTest: getExecutionStockAlertsForElo_,
+    getOperationalDocumentsForTest: getEloOperationalDocumentsForActiveWork_,
+    formatOperationalDocumentsForTest: formatEloOperationalDocumentsAnswer_,
     buildLocalExecutionStockReportForTest: buildEloObraLocalExecutionStockReport_,
     buildExecutionStockReportPdfForTest: buildEloExecutionStockReportPdfDocument_,
     buildExecutionStockProfessionalPdfRecordForTest: buildEloExecutionStockProfessionalPdfRecord_,

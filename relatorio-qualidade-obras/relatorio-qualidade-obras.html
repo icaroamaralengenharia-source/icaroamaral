@@ -1161,6 +1161,24 @@ defer></script>
               </div>
               <div id="executionStockAlertsHistory" class="diary-item-list empty-list">Nenhum alerta de consumo registrado.</div>
             </section>
+            <section class="workspace-card" id="operational-documents-card">
+              <div class="section-row">
+                <h3>Documentos da obra</h3>
+                <span class="auth-note" id="operationalDocumentsStatus">Local</span>
+              </div>
+              <div class="almox-dashboard-periods" aria-label="Filtros de tipo dos documentos da obra">
+                <button type="button" class="mini-button compact active" data-operational-document-type="all" aria-pressed="true">Todos</button>
+                <button type="button" class="mini-button compact" data-operational-document-type="rdo" aria-pressed="false">RDO</button>
+                <button type="button" class="mini-button compact" data-operational-document-type="execution_stock_report" aria-pressed="false">Execucao x estoque</button>
+                <button type="button" class="mini-button compact" data-operational-document-type="consumption_alert_report" aria-pressed="false">Alertas</button>
+              </div>
+              <div class="almox-dashboard-periods" aria-label="Filtros de status dos documentos da obra">
+                <button type="button" class="mini-button compact active" data-operational-document-status="all" aria-pressed="true">Todos</button>
+                <button type="button" class="mini-button compact" data-operational-document-status="active" aria-pressed="false">Ativos</button>
+                <button type="button" class="mini-button compact" data-operational-document-status="obsolete" aria-pressed="false">Obsoletos</button>
+              </div>
+              <div id="operationalDocumentsList" class="diary-item-list empty-list">Nenhum documento operacional registrado.</div>
+            </section>
             <section class="workspace-card" id="diary-indicators">
               <h3>Indicadores</h3>
               <div id="dailyLogIndicators" class="indicator-grid"></div>
@@ -2317,6 +2335,7 @@ defer></script>
   <script type="module" src="./elo-execution-stock-cross.js?v=20260725-execution-stock-cross-v1"></script>
   <script type="module" src="./execution-stock-analysis.js?v=20260802-execution-stock-analysis-v1"></script>
   <script type="module" src="./execution-stock-alert-history.js?v=20260802-execution-stock-alert-history-v1"></script>
+  <script src="./operational-documents.js?v=20260802-operational-documents-v1"></script>
   <script src="./relatorio-qualidade-obras.js?v=20260601-premium-landing"></script>
   <div id="elo-operational-dashboard"></div>
   <script src="elo-command-bridge.js?v=20260727-command-bridge-v1" defer></script>
