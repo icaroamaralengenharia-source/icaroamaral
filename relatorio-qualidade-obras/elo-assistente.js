@@ -845,7 +845,7 @@
     if (!text || isEloCorePureConversationalRequest_(question)) return false;
     if (getEloObraBossDailyQuestionType_(question)) return true;
     if (hasEloCoreTechnicalConversationBlocker_(text) && !/\b(obra|atencao|aten..o|parar|risco|pendencia|pend.ncia)\b/.test(text)) return false;
-    return /\b(o que|que|tem|existe|como|status)\b[\s\S]{0,80}\b(atencao|aten..o|parar|risco|critico|cr.tico|pendencia|pend.ncia)\b/.test(text) ||
+    return /\b(o que|que|tem|existe|como|status|quais?)\b[\s\S]{0,80}\b(atencao|aten..o|parar|risco|critico|cr.tico|pendencia|pend.ncia|alertas?)\b/.test(text) ||
       /\bprecisa\b[\s\S]{0,50}\b(minha\s+)?atencao\b/.test(text) ||
       /\b(pode|vai)\b[\s\S]{0,40}\bparar\b[\s\S]{0,40}\bobra\b/.test(text) ||
       /\bcomo\b[\s\S]{0,80}\bobra\b[\s\S]{0,30}\bhoje\b/.test(text);
@@ -904,6 +904,105 @@
     if (sanitizeUserText(sourceRdo.workId || "").slice(0, 140) !== workId) return { available: false, reason: "source_work_mismatch" };
     if (sanitizeUserText(sourceRdo.updatedAt || "").slice(0, 80) !== sourceRdoUpdatedAt) return { available: false, reason: "obsolete_source_rdo" };
     return { available: true, analysis: analysis, state: state, scope: { projectId: scope.projectId || "", workId: workId } };
+  }
+
+  function isEloExecutionStockAlertStatus_(status) {
+    const key = normalizeText(status || "");
+    return key === "open" || key === "acknowledged" || key === "resolved" || key === "obsolete";
+  }
+
+  function isEloExecutionStockAlertHistoryRequest_(question) {
+    const text = normalizeText(question || "");
+    return /\b(historico|hist.rico|resolvidos?|obsoletos?|encerrados?|todos)\b/.test(text);
+  }
+
+  function getEloExecutionStockAlertSeverityRank_(severity) {
+    const value = normalizeText(severity || "");
+    if (value === "critical" || value === "critica" || value === "critico") return 0;
+    if (value === "high" || value === "alta" || value === "alto") return 1;
+    if (value === "medium" || value === "media" || value === "medio") return 2;
+    return 3;
+  }
+
+  function getExecutionStockAlertsForElo_(options) {
+    const settings = options || {};
+    const state = getEloSaasState_();
+    const scope = getEloObraSnapshotScope_();
+    const local = state.local && typeof state.local === "object" ? state.local : {};
+    const targetWorkId = sanitizeUserText(scope.workId || local.lastWorkId || "").slice(0, 140);
+    if (!targetWorkId) return { available: false, reason: "missing_work_id", alerts: [], openAlerts: [], acknowledgedAlerts: [], historyAlerts: [] };
+    const logs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
+    const alerts = Array.isArray(state.executionStockAlerts) ? state.executionStockAlerts : [];
+    const seen = new Set();
+    const valid = alerts.filter(function (item) {
+      const alert = item && typeof item === "object" ? item : {};
+      const id = sanitizeUserText(alert.id || "").slice(0, 260);
+      const workId = sanitizeUserText(alert.workId || "").slice(0, 140);
+      const sourceRdoId = sanitizeUserText(alert.sourceRdoId || "").slice(0, 140);
+      const status = normalizeText(alert.status || "");
+      const type = sanitizeUserText(alert.type || "").slice(0, 140);
+      const title = sanitizeUserText(alert.title || "").slice(0, 240);
+      if (Number(alert.version) !== 1 || !id || !workId || workId !== targetWorkId || !sourceRdoId || !isEloExecutionStockAlertStatus_(status) || !type || !title) return false;
+      if (seen.has(id)) return false;
+      const sourceRdo = logs.find(function (log) { return sanitizeUserText(log && log.id || "").slice(0, 140) === sourceRdoId; });
+      if (!sourceRdo || sanitizeUserText(sourceRdo.workId || "").slice(0, 140) !== workId) return false;
+      seen.add(id);
+      return true;
+    }).slice().sort(function (a, b) {
+      const severityDiff = getEloExecutionStockAlertSeverityRank_(a && a.severity) - getEloExecutionStockAlertSeverityRank_(b && b.severity);
+      if (severityDiff) return severityDiff;
+      return String(b && (b.updatedAt || b.createdAt) || "").localeCompare(String(a && (a.updatedAt || a.createdAt) || ""));
+    });
+    const includeHistory = settings.includeHistory === true;
+    const openAlerts = valid.filter(function (alert) { return normalizeText(alert.status || "") === "open"; });
+    const acknowledgedAlerts = valid.filter(function (alert) { return normalizeText(alert.status || "") === "acknowledged"; });
+    const historyAlerts = includeHistory ? valid.filter(function (alert) { const status = normalizeText(alert.status || ""); return status === "resolved" || status === "obsolete"; }) : [];
+    return { available: true, state: state, scope: { projectId: scope.projectId || "", workId: targetWorkId }, alerts: valid, openAlerts: openAlerts, acknowledgedAlerts: acknowledgedAlerts, historyAlerts: historyAlerts };
+  }
+
+  function formatEloExecutionStockAlertQuantity_(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "nao informado";
+    return String(Math.round(number * 1000) / 1000).replace(".", ",");
+  }
+
+  function formatEloExecutionStockPersistedAlertLine_(alert, index) {
+    const unit = sanitizeUserText(alert && alert.unit || "");
+    const unitLabel = unit ? " " + unit : "";
+    const material = sanitizeUserText(alert && alert.materialName || "material nao informado");
+    const service = sanitizeUserText(alert && (alert.serviceName || alert.serviceCode) || "servico nao informado");
+    const expected = formatEloExecutionStockAlertQuantity_(alert && alert.expectedQuantity) + unitLabel;
+    const actual = formatEloExecutionStockAlertQuantity_(alert && alert.actualQuantity) + unitLabel;
+    const diff = formatEloExecutionStockAlertQuantity_(alert && alert.differenceQuantity) + unitLabel;
+    const percent = alert && alert.differencePercent != null && Number.isFinite(Number(alert.differencePercent)) ? String(Number(alert.differencePercent)).replace(".", ",") + "%" : "sem percentual confiavel";
+    const date = sanitizeUserText(alert && (alert.updatedAt || alert.createdAt) || "data nao informada");
+    return (index + 1) + ". " + sanitizeUserText(alert && alert.title || "Alerta de consumo") + " - " + sanitizeUserText(alert && alert.severity || "atencao") + ". Material: " + material + "; servico: " + service + "; esperado: " + expected + "; realizado: " + actual + "; diferenca: " + diff + " (" + percent + "). Recomendacao: " + sanitizeUserText(alert && alert.recommendation || "Revisar RDO, consumo esperado e estoque local.") + " RDO: " + sanitizeUserText(alert && alert.sourceRdoId || "nao informado") + "; data: " + date + ".";
+  }
+
+  function formatEloExecutionStockPersistedAlertsAnswer_(info, question) {
+    const safe = info && typeof info === "object" ? info : {};
+    const openAlerts = Array.isArray(safe.openAlerts) ? safe.openAlerts : [];
+    const acknowledgedAlerts = Array.isArray(safe.acknowledgedAlerts) ? safe.acknowledgedAlerts : [];
+    const historyAlerts = Array.isArray(safe.historyAlerts) ? safe.historyAlerts : [];
+    const visible = openAlerts.concat(acknowledgedAlerts);
+    if (!visible.length && !historyAlerts.length) return "";
+    const criticalHigh = visible.filter(function (alert) { return getEloExecutionStockAlertSeverityRank_(alert && alert.severity) <= 1; }).length;
+    const lines = [];
+    lines.push("Alertas persistidos da obra: " + visible.length + " ativo(s) locais; " + criticalHigh + " critico(s)/alto(s).");
+    if (openAlerts.length) {
+      lines.push("", "Abertos:");
+      openAlerts.slice(0, 6).forEach(function (alert, index) { lines.push(formatEloExecutionStockPersistedAlertLine_(alert, index)); });
+    }
+    if (acknowledgedAlerts.length) {
+      lines.push("", "Reconhecidos, ainda nao resolvidos:");
+      acknowledgedAlerts.slice(0, 4).forEach(function (alert, index) { lines.push(formatEloExecutionStockPersistedAlertLine_(alert, index)); });
+    }
+    if (historyAlerts.length) {
+      lines.push("", "Historico solicitado:");
+      historyAlerts.slice(0, 6).forEach(function (alert, index) { lines.push(formatEloExecutionStockPersistedAlertLine_(alert, index)); });
+    }
+    lines.push("", "Fonte: executionStockAlerts local. Nenhuma movimentacao de estoque foi criada por esta consulta.");
+    return sanitizeEloMultilineText_(lines.join("\n"));
   }
 
   function getEloBudgetRouteContext_() {
@@ -1408,6 +1507,11 @@
   }
 
   function buildEloObraLocalAttentionAnswer_(question) {
+    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question) });
+    if (persisted.available) {
+      const persistedAnswer = formatEloExecutionStockPersistedAlertsAnswer_(persisted, question);
+      if (persistedAnswer) return persistedAnswer;
+    }
     const preferred = getLatestExecutionStockAnalysisForElo_();
     if (preferred.available) {
       const analysisAnswer = formatEloExecutionStockAnalysisAnswer_(preferred.analysis, question);
@@ -1822,6 +1926,11 @@
   }
   function requestEloObraExecutionStockAnswer_(question) {
     if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
+    const persisted = getExecutionStockAlertsForElo_({ includeHistory: isEloExecutionStockAlertHistoryRequest_(question) });
+    if (persisted.available) {
+      const persistedAnswer = formatEloExecutionStockPersistedAlertsAnswer_(persisted, question);
+      if (persistedAnswer) return Promise.resolve(persistedAnswer);
+    }
     const preferred = getLatestExecutionStockAnalysisForElo_();
     if (preferred.available) {
       const analysisAnswer = formatEloExecutionStockAnalysisAnswer_(preferred.analysis, question);
@@ -28806,6 +28915,7 @@ function isEloResidentialNewPipelineEnabled_() {
     requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
     buildLocalTodayWorkForTest: buildEloObraLocalTodayWork_,
     getLatestExecutionStockAnalysisForTest: getLatestExecutionStockAnalysisForElo_,
+    getExecutionStockAlertsForTest: getExecutionStockAlertsForElo_,
     buildLocalExecutionStockReportForTest: buildEloObraLocalExecutionStockReport_,
     buildExecutionStockReportPdfForTest: buildEloExecutionStockReportPdfDocument_,
     buildExecutionStockProfessionalPdfRecordForTest: buildEloExecutionStockProfessionalPdfRecord_,

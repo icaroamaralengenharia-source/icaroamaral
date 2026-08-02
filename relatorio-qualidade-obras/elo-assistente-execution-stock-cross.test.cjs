@@ -267,6 +267,179 @@ function buildLocalStorageWithExecutionStockAnalysis(analysisOverrides = {}, ext
   return buildLocalStorage(Object.assign({ "obrareport-saas-v1": JSON.stringify(buildAppStateWithExecutionStockAnalysis(analysisOverrides)) }, extra));
 }
 
+function buildExecutionStockAlert(overrides = {}) {
+  return Object.assign({
+    id: "exa-obra-a-rdo-a-bloco",
+    version: 1,
+    workId: "obra-a-work",
+    sourceRdoId: "rdo-a",
+    sourceRdoUpdatedAt: "2026-07-25T10:00:00.000Z",
+    sourceFingerprint: "fp-alert-a",
+    type: "consumption_above_expected",
+    severity: "high",
+    title: "Consumo acima do previsto em Bloco ceramico",
+    summary: "Bloco ceramico teve consumo acima do previsto.",
+    recommendation: "Conferir desperdicio e baixa do almoxarifado.",
+    serviceCode: "alvenaria",
+    serviceName: "Alvenaria",
+    materialCode: null,
+    materialName: "Bloco ceramico",
+    expectedQuantity: 2500,
+    actualQuantity: 2600,
+    differenceQuantity: 100,
+    differencePercent: 4,
+    status: "open",
+    createdAt: "2026-07-25T10:02:00.000Z",
+    updatedAt: "2026-07-25T10:02:00.000Z",
+    resolvedAt: null
+  }, overrides);
+}
+
+function buildAppStateWithExecutionStockAlerts(alerts, options = {}) {
+  const state = options.withAnalysis ? buildAppStateWithExecutionStockAnalysis(options.analysisOverrides || {}) : buildRealAppState();
+  state.dailyLogs = state.dailyLogs.map((log) => log.id === "rdo-a" ? Object.assign({}, log, { updatedAt: "2026-07-25T10:00:00.000Z" }) : log);
+  state.executionStockAlerts = alerts;
+  return state;
+}
+
+function buildLocalStorageWithExecutionStockAlerts(alerts, options = {}, extra = {}) {
+  return buildLocalStorage(Object.assign({ "obrareport-saas-v1": JSON.stringify(buildAppStateWithExecutionStockAlerts(alerts, options)) }, extra));
+}
+
+test("ELO usa alerta persistido apos reload sem analysis", async () => {
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAlerts([buildExecutionStockAlert()]),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+  const answer = await elo.requestObraAttentionForTest("Quais alertas estao abertos?");
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Alertas persistidos da obra/);
+  assert.match(answer, /Bloco ceramico/);
+  assert.match(answer, /RDO: rdo-a/);
+  assert.match(answer, /Fonte: executionStockAlerts local/);
+});
+
+test("helper de alertas persistidos rejeita outra obra obsolete e resolved aberto", async () => {
+  const alerts = [
+    buildExecutionStockAlert(),
+    buildExecutionStockAlert({ id: "other-work", workId: "obra-b-work", sourceRdoId: "rdo-b", materialName: "Material B" }),
+    buildExecutionStockAlert({ id: "obsolete", status: "obsolete", materialName: "Obsoleto", title: "Obsoleto" }),
+    buildExecutionStockAlert({ id: "resolved", status: "resolved", materialName: "Resolvido", title: "Resolvido" })
+  ];
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts(alerts), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const info = elo.getExecutionStockAlertsForTest();
+  const answer = await elo.requestObraAttentionForTest("Quais alertas estao abertos?");
+
+  assert.equal(info.openAlerts.length, 1);
+  assert.equal(info.openAlerts[0].materialName, "Bloco ceramico");
+  assert.equal(localStorage.writes, 0);
+  assert.doesNotMatch(answer, /Material B|Obsoleto|Resolvido/);
+});
+
+test("alerta acknowledged aparece separado e nao como resolvido", async () => {
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAlerts([buildExecutionStockAlert({ status: "acknowledged", id: "ack-alert" })]),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }
+  });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Reconhecidos, ainda nao resolvidos/);
+  assert.doesNotMatch(answer, /Historico solicitado/);
+});
+
+test("alertas persistidos ordenam critical antes de low", async () => {
+  const low = buildExecutionStockAlert({ id: "low-alert", severity: "low", materialName: "Areia", title: "Baixo risco em Areia", updatedAt: "2026-07-25T11:00:00.000Z" });
+  const critical = buildExecutionStockAlert({ id: "critical-alert", severity: "critical", materialName: "Cimento", title: "Saldo insuficiente em Cimento", type: "insufficient_balance", updatedAt: "2026-07-25T10:00:00.000Z" });
+  const { elo } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts([low, critical]), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const answer = await elo.requestObraAttentionForTest("Quais alertas estao abertos?");
+
+  assert.ok(answer.indexOf("Cimento") < answer.indexOf("Areia"));
+});
+
+test("mesma ocorrencia nao duplica pela analysis atual", async () => {
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAlerts([buildExecutionStockAlert()], { withAnalysis: true }),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { throw new Error("should_not_fetch"); }
+  });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /Alertas persistidos da obra/);
+  assert.doesNotMatch(answer, /analise local automatica pronta/);
+  assert.equal((answer.match(/Bloco ceramico/g) || []).length, 2);
+});
+
+test("sem alertas persistidos cai para executionStockAnalysis", async () => {
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAnalysis(),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { throw new Error("should_not_fetch"); }
+  });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /analise local automatica pronta/);
+});
+
+test("alertas persistidos sem token nao bloqueiam por autenticacao nem fazem rede", async () => {
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAlerts([buildExecutionStockAlert()]),
+    window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" },
+    fetch() { calls += 1; throw new Error("should_not_fetch"); }
+  });
+  const answer = await elo.requestObraExecutionStockForTest("Existe desperdicio no consumo da obra?");
+
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.doesNotMatch(answer, /authentication_required|sessao|autentic/i);
+  assert.match(answer, /Alertas persistidos da obra/);
+});
+
+test("consulta de alertas persistidos nao escreve storage nem movimenta estoque", async () => {
+  let exits = 0;
+  const { elo, localStorage } = await loadEloContext({
+    readOnlyStorage: true,
+    localStorage: buildLocalStorageWithExecutionStockAlerts([buildExecutionStockAlert()]),
+    window: {
+      ELO_PROJECT_ID: "proj-a",
+      ELO_WORK_ID: "obra-a-work",
+      ObraReportOperationalStock: { createConfirmedExit() { exits += 1; throw new Error("stock_movement_forbidden"); } }
+    },
+    fetch() { throw new Error("should_not_fetch"); }
+  });
+  await elo.requestObraAttentionForTest("Quais alertas estao abertos?");
+
+  assert.equal(exits, 0);
+  assert.equal(localStorage.writes, 0);
+});
+
+test("historico mostra resolved e obsolete apenas quando solicitado", async () => {
+  const alerts = [
+    buildExecutionStockAlert({ id: "resolved", status: "resolved", materialName: "Resolvido", title: "Resolvido" }),
+    buildExecutionStockAlert({ id: "obsolete", status: "obsolete", materialName: "Obsoleto", title: "Obsoleto" })
+  ];
+  const { elo } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAlerts(alerts), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const openAnswer = await elo.requestObraAttentionForTest("Quais alertas estao abertos?");
+  const historyAnswer = await elo.requestObraAttentionForTest("Quais alertas do historico estao resolvidos e obsoletos");
+
+  assert.doesNotMatch(openAnswer, /Resolvido|Obsoleto/);
+  assert.match(historyAnswer, /Historico solicitado/);
+  assert.match(historyAnswer, /Resolvido/);
+  assert.match(historyAnswer, /Obsoleto/);
+});
+
 test("ELO local usa executionStockAnalysis ready antes de erro de autenticacao", async () => {
   let calls = 0;
   const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis(), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { calls += 1; throw new Error("should_not_fetch"); } });
