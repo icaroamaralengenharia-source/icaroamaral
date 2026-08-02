@@ -7,13 +7,27 @@ import vm from "node:vm";
 import { createApp } from "../src/app.js";
 import { createEloCoreStore } from "../src/elo-core-store.js";
 
+const TEST_SUPABASE_ISSUER = "https://lidueokjpzxdybtongbk.supabase.co/auth/v1";
+const TEST_JWT_EXP = 4102444800;
+
+function createTestJwt(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return [
+    encode({ alg: "none", typ: "JWT" }),
+    encode(Object.assign({ iss: TEST_SUPABASE_ISSUER, exp: TEST_JWT_EXP }, payload)),
+    "test-signature"
+  ].join(".");
+}
+
+const TOKEN_USER_A = createTestJwt({ sub: "auth-user-a", email: "a@example.com" });
+const TOKEN_USER_B = createTestJwt({ sub: "auth-user-b", email: "b@example.com" });
 function createSupabaseMock() {
   const profilesByToken = {
-    "token-user-a": {
+    [TOKEN_USER_A]: {
       user: { id: "auth-user-a", email: "a@example.com" },
       profile: { id: "profile-a", auth_user_id: "auth-user-a", institution_id: "inst-a", company_id: "company-a", role: "admin", email: "a@example.com" }
     },
-    "token-user-b": {
+    [TOKEN_USER_B]: {
       user: { id: "auth-user-b", email: "b@example.com" },
       profile: { id: "profile-b", auth_user_id: "auth-user-b", institution_id: "inst-b", company_id: "company-b", role: "viewer", email: "b@example.com" }
     }
@@ -65,7 +79,7 @@ function createStorage(initial = {}) {
 function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_001" } = {}) {
   const localStorage = createStorage({
     elo_core_anonymous_id_v1: anonymousId,
-    "sb-stock-full-backend-auth-token": token ? JSON.stringify({ currentSession: { access_token: token }, access_token: token }) : ""
+    "sb-elo-core-auth-token": token ? JSON.stringify({ currentSession: { access_token: token }, access_token: token }) : ""
   });
   const sessionStorage = createStorage();
   const sandbox = {
@@ -100,6 +114,8 @@ function loadEloAssistant({ baseUrl, token = "", anonymousId = "elo_anon_front_0
     localStorage,
     sessionStorage,
     crypto: { randomUUID() { return "front-test-random"; } },
+    atob(value) { return Buffer.from(String(value), "base64").toString("binary"); },
+    btoa(value) { return Buffer.from(String(value), "binary").toString("base64"); },
     setTimeout(fn) { if (typeof fn === "function") fn(); return 0; },
     clearTimeout() {},
     addEventListener() {},
@@ -157,7 +173,7 @@ test("ELO authContext migra anonimo no primeiro login e preserva isolamento", as
 
     const merged = await json(base + "/api/elo/identity/merge", {
       method: "POST",
-      headers: { Authorization: "Bearer token-user-a" },
+      headers: { Authorization: "Bearer " + TOKEN_USER_A },
       body: JSON.stringify({ anonymousId })
     });
     assert.equal(merged.response.status, 200);
@@ -168,18 +184,18 @@ test("ELO authContext migra anonimo no primeiro login e preserva isolamento", as
     assert.equal(merged.data.authContext.role, "admin");
 
     const userAConversations = await json(base + "/api/elo/conversations", {
-      headers: { Authorization: "Bearer token-user-a" }
+      headers: { Authorization: "Bearer " + TOKEN_USER_A }
     });
     assert.deepEqual(userAConversations.data.conversations.map((item) => item.title), ["Conversa anonima"]);
 
     const userAMemories = await json(base + "/api/elo/memories", {
-      headers: { Authorization: "Bearer token-user-a" }
+      headers: { Authorization: "Bearer " + TOKEN_USER_A }
     });
     assert.equal(userAMemories.data.memories.length, 1);
     assert.equal(userAMemories.data.memories[0].memory_key, "tom");
 
     const userBConversations = await json(base + "/api/elo/conversations", {
-      headers: { Authorization: "Bearer token-user-b" }
+      headers: { Authorization: "Bearer " + TOKEN_USER_B }
     });
     assert.deepEqual(userBConversations.data.conversations, []);
 
@@ -213,7 +229,7 @@ test("ELO frontend le sessao existente e envia Bearer no merge", async () => {
       body: JSON.stringify({ anonymousId, category: "preference", memory_key: "frontend", memory_value: "Memoria criada antes do login." })
     });
 
-    const { elo, localStorage } = loadEloAssistant({ baseUrl: base, token: "token-user-a", anonymousId });
+    const { elo, localStorage } = loadEloAssistant({ baseUrl: base, token: TOKEN_USER_A, anonymousId });
     assert.equal(typeof elo.ensureAuthMergeForTest, "function");
     const merged = await elo.ensureAuthMergeForTest();
     assert.equal(merged, true);
@@ -225,12 +241,12 @@ test("ELO frontend le sessao existente e envia Bearer no merge", async () => {
     assert.equal(JSON.parse(localStorage.getItem("elo_core_auth_context_v1")).userId, "auth-user-a");
 
     const userAConversations = await json(base + "/api/elo/conversations", {
-      headers: { Authorization: "Bearer token-user-a" }
+      headers: { Authorization: "Bearer " + TOKEN_USER_A }
     });
     assert.deepEqual(userAConversations.data.conversations.map((item) => item.title), ["Conversa frontend anonima"]);
 
     const userBConversations = await json(base + "/api/elo/conversations", {
-      headers: { Authorization: "Bearer token-user-b" }
+      headers: { Authorization: "Bearer " + TOKEN_USER_B }
     });
     assert.deepEqual(userBConversations.data.conversations, []);
 

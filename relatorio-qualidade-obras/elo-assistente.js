@@ -2344,6 +2344,7 @@
     try { window.sessionStorage.removeItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY); } catch (error) {}
     try { window.localStorage.removeItem(ELO_CORE_AUTH_CONTEXT_STORAGE_KEY); } catch (error) {}
     window.ELO_AUTH_TOKEN = "";
+    window.ELO_AUTH_SESSION_VALIDATED = false;
     window.ELO_AUTH_CONTEXT = {};
     window.ELO_AUTH_USER_ID = "";
     ELO_UI.coreAuthMergePromise = null;
@@ -2402,7 +2403,7 @@
       });
     });
   }
-  function logoutEloCoreSupabase_() { clearEloCoreSupabaseSessionTokens_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao Supabase encerrada.", false); return Promise.resolve(true); }
+  function logoutEloCoreSupabase_() { clearEloCoreSupabaseSession_(); renderEloCoreAuthPanel_(); setEloCoreAuthStatus_("Sessao Supabase encerrada.", false); return Promise.resolve(true); }
   function bindEloCoreSupabaseLogin_() {
     const form = document.querySelector("[data-elo-auth-form]");
     const logout = document.querySelector("[data-elo-auth-logout]");
