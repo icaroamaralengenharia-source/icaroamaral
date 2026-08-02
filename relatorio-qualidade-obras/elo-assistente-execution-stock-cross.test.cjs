@@ -246,6 +246,105 @@ function buildLocalStorage(extra = {}) {
   }, extra);
 }
 
+function buildReadyExecutionStockAnalysis(overrides = {}) {
+  const result = {
+    summary: { workId: "obra-a-work", productions: 1, materials: 1, alerts: 1, services: "Alvenaria" },
+    materials: [{ material: "Bloco ceramico", unit: "un", expectedConsumption: 2500, actualStockExit: 2600, currentBalance: 40, difference: 100, status: "consumption_above_expected" }],
+    alerts: [{ material: "Bloco ceramico", unit: "un", expectedConsumption: 2500, actualStockExit: 2600, currentBalance: 40, difference: 100, status: "consumption_above_expected" }],
+    dataQuality: { hasProductions: true, hasStockMovements: true, hasStockBalances: true, hasSinapiExpectedConsumptions: true, missingSources: [] }
+  };
+  return Object.assign({ version: 1, status: "ready", workId: "obra-a-work", sourceRdoId: "rdo-a", sourceRdoUpdatedAt: "2026-07-25T10:00:00.000Z", calculatedAt: "2026-07-25T10:01:00.000Z", sourceFingerprint: "safe-fingerprint-without-images", summary: result.summary, result, alerts: result.alerts }, overrides);
+}
+
+function buildAppStateWithExecutionStockAnalysis(analysisOverrides = {}) {
+  const state = buildRealAppState();
+  state.dailyLogs = state.dailyLogs.map((log) => log.id === "rdo-a" ? Object.assign({}, log, { updatedAt: "2026-07-25T10:00:00.000Z" }) : log);
+  state.executionStockAnalysis = buildReadyExecutionStockAnalysis(analysisOverrides);
+  return state;
+}
+
+function buildLocalStorageWithExecutionStockAnalysis(analysisOverrides = {}, extra = {}) {
+  return buildLocalStorage(Object.assign({ "obrareport-saas-v1": JSON.stringify(buildAppStateWithExecutionStockAnalysis(analysisOverrides)) }, extra));
+}
+
+test("ELO local usa executionStockAnalysis ready antes de erro de autenticacao", async () => {
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis(), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { calls += 1; throw new Error("should_not_fetch"); } });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /analise local automatica pronta/);
+  assert.match(answer, /Bloco ceramico/);
+  assert.match(answer, /esperado 2500 un/);
+  assert.match(answer, /saiu 2600 un/);
+  assert.match(answer, /4%/);
+  assert.match(answer, /Memoria de calculo/);
+  assert.doesNotMatch(answer, /authentication_required|sessao|autentic/i);
+});
+
+test("helper do ELO rejeita analise de outra obra", async () => {
+  const { elo } = await loadEloContext({ localStorage: buildLocalStorageWithExecutionStockAnalysis({ workId: "obra-b-work" }), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const latest = elo.getLatestExecutionStockAnalysisForTest();
+  assert.equal(latest.available, false);
+  assert.equal(latest.reason, "work_mismatch");
+});
+
+test("helper do ELO rejeita analise obsoleta quando RDO de origem mudou", async () => {
+  const { elo } = await loadEloContext({ localStorage: buildLocalStorageWithExecutionStockAnalysis({ sourceRdoUpdatedAt: "2026-07-25T09:00:00.000Z" }), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" } });
+  const latest = elo.getLatestExecutionStockAnalysisForTest();
+  assert.equal(latest.available, false);
+  assert.equal(latest.reason, "obsolete_source_rdo");
+});
+
+test("ELO local declara dados insuficientes sem inventar alerta", async () => {
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis({ status: "insufficient_data", missingInputs: ["plannedConsumptions", "stockMovements"], result: { summary: { workId: "obra-a-work" }, materials: [], alerts: [] }, alerts: [] }), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { throw new Error("should_not_fetch"); } });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /faltam dados/);
+  assert.match(answer, /plannedConsumptions, stockMovements/);
+  assert.match(answer, /nao invento alertas/);
+  assert.doesNotMatch(answer, /consumo acima do esperado|saldo insuficiente/);
+});
+
+test("ELO local informa erro de analise sem impedir RDO salvo", async () => {
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis({ status: "error", error: "analysis_failed", result: { summary: { workId: "obra-a-work" }, materials: [], alerts: [] }, alerts: [] }), window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { throw new Error("should_not_fetch"); } });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /RDO continua salvo/);
+  assert.match(answer, /analise local automatica ficou indisponivel/);
+});
+
+test("backend autenticado com falha cai uma vez para analysis local", async () => {
+  const calls = [];
+  const validToken = createJwt({ sub: "user-a" });
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis(), window: { ELO_AUTH_TOKEN: validToken, ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch(url) { calls.push(String(url)); return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({ ok: false, error: "backend_unavailable" }) }); } });
+  const answer = await elo.requestObraAttentionForTest("O que precisa da minha atencao hoje?");
+  assert.equal(calls.length, 1);
+  assert.equal(localStorage.writes, 0);
+  assert.match(answer, /analise local automatica pronta/);
+  assert.match(answer, /Bloco ceramico/);
+});
+
+test("UI de atencao sem token nao fica presa em consulta remota e mantem acoes seguras", async () => {
+  const panel = createElement("section");
+  const form = createElement("form");
+  const input = createElement("textarea");
+  const messages = createElement("div");
+  let calls = 0;
+  const { elo, localStorage } = await loadEloContext({ readOnlyStorage: true, localStorage: buildLocalStorageWithExecutionStockAnalysis(), elements: { ".panel": panel, ".form": form, ".input": input, ".messages": messages }, window: { ELO_PROJECT_ID: "proj-a", ELO_WORK_ID: "obra-a-work" }, fetch() { calls += 1; throw new Error("should_not_fetch"); } });
+  elo.mountMinimal({ panel: ".panel", form: ".form", input: ".input", messages: ".messages" });
+  assert.equal(elo.handleObraAttentionForTest("O que precisa da minha atencao hoje?"), true);
+  await Promise.resolve();
+  await Promise.resolve();
+  const output = collectElementText(messages);
+  assert.equal(calls, 0);
+  assert.equal(localStorage.writes, 0);
+  assert.doesNotMatch(output, /Consultando o Observador da Obra/);
+  assert.equal(findAllElementsByText(messages, "Abrir RDO").length, 1);
+  assert.equal(findAllElementsByText(messages, "Abrir Almoxarifado").length, 1);
+  assert.equal(findAllElementsByText(messages, "Abrir Stock Obras").length, 1);
+});
+
 test("pergunta de atencao autenticada usa backend", async () => {
   const calls = [];
   const validToken = createJwt({ sub: "user-a" });

@@ -876,6 +876,36 @@
     return { projectId: projectId, workId: workId };
   }
 
+  function isEloExecutionStockAnalysisStatus_(status) {
+    const key = normalizeText(status || "");
+    return key === "ready" || key === "insufficient_data" || key === "error";
+  }
+
+  function getLatestExecutionStockAnalysisForElo_() {
+    const state = getEloSaasState_();
+    const analysis = state && state.executionStockAnalysis && typeof state.executionStockAnalysis === "object" ? state.executionStockAnalysis : null;
+    if (!analysis) return { available: false, reason: "missing_analysis" };
+    if (Number(analysis.version) !== 1) return { available: false, reason: "invalid_version" };
+    const status = normalizeText(analysis.status || "");
+    if (!isEloExecutionStockAnalysisStatus_(status)) return { available: false, reason: "invalid_status" };
+    const workId = sanitizeUserText(analysis.workId || "").slice(0, 140);
+    const sourceRdoId = sanitizeUserText(analysis.sourceRdoId || "").slice(0, 140);
+    const sourceRdoUpdatedAt = sanitizeUserText(analysis.sourceRdoUpdatedAt || "").slice(0, 80);
+    const calculatedAt = sanitizeUserText(analysis.calculatedAt || "").slice(0, 80);
+    if (!workId || !sourceRdoId || !sourceRdoUpdatedAt || !calculatedAt) return { available: false, reason: "missing_source_metadata" };
+    if (!Number.isFinite(Date.parse(calculatedAt))) return { available: false, reason: "invalid_calculated_at" };
+    const scope = getEloObraSnapshotScope_();
+    const local = state.local && typeof state.local === "object" ? state.local : {};
+    const targetWorkId = sanitizeUserText(scope.workId || local.lastWorkId || "").slice(0, 140);
+    if (targetWorkId && workId !== targetWorkId) return { available: false, reason: "work_mismatch" };
+    const logs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
+    const sourceRdo = logs.find(function (item) { return sanitizeUserText(item && item.id || "").slice(0, 140) === sourceRdoId; });
+    if (!sourceRdo) return { available: false, reason: "source_rdo_missing" };
+    if (sanitizeUserText(sourceRdo.workId || "").slice(0, 140) !== workId) return { available: false, reason: "source_work_mismatch" };
+    if (sanitizeUserText(sourceRdo.updatedAt || "").slice(0, 80) !== sourceRdoUpdatedAt) return { available: false, reason: "obsolete_source_rdo" };
+    return { available: true, analysis: analysis, state: state, scope: { projectId: scope.projectId || "", workId: workId } };
+  }
+
   function getEloBudgetRouteContext_() {
     let searchParams = null;
     try { searchParams = new URLSearchParams(window.location && window.location.search || ""); } catch (error) { searchParams = null; }
@@ -1038,7 +1068,7 @@
 
   function buildEloObraLocalExecutionStockReport_() {
     const reportBuilder = getEloExecutionStockReportBuilder_();
-    const localCross = buildEloObraLocalExecutionStockCross_();
+    const localCross = buildEloObraLocalExecutionStockCrossFromSources_();
     if (!reportBuilder) return { ok: false, reason: "missing_module", missingModules: ["elo-execution-stock-report"], text: "Relatorio local de consumo e risco: modulo local indisponivel." };
     if (!localCross.available) return { ok: false, reason: "insufficient_local_data", missingModules: localCross.missingModules || [], text: "Relatorio local de consumo e risco: fontes locais indisponiveis" + (localCross.missingModules && localCross.missingModules.length ? " (modulos ausentes: " + localCross.missingModules.join(", ") + ")" : "") + "." };
     try {
@@ -1168,8 +1198,18 @@
     const safe = report && typeof report === "object" ? report : {};
     if (safe.ok !== true) return { ok: false, reason: "report_not_ready", message: "Gere um relatorio local completo antes de criar o PDF." };
     const record = buildEloExecutionStockProfessionalPdfRecord_(safe, options || {});
-    const html = openEloProfessionalPdfDocument_(record, { nomeDocumento: record.titulo });
-    const opened = Boolean(typeof window !== "undefined" && window.open);
+    const html = buildEloProfessionalPdfDocument(record, { nomeDocumento: record.titulo }).replace("Imprimir / Salvar como PDF", "Imprimir / salvar PDF").replace("</body></html>", "<script>window.addEventListener(\'load\',function(){try{if(window.focus)window.focus();}catch(error){}});</script></body></html>");
+    let opened = false;
+    if (typeof window !== "undefined" && typeof window.open === "function") {
+      const popup = window.open("", "_blank");
+      if (popup && popup.document) {
+        popup.document.open();
+        popup.document.write(html);
+        popup.document.close();
+        try { if (typeof popup.focus === "function") popup.focus(); } catch (error) {}
+        opened = true;
+      }
+    }
     return { ok: true, html: html, fileName: record.numero, report: safe, opened: opened, message: opened ? "PDF local preparado." : "Nao consegui abrir a janela de impressao do PDF local." };
   }
 
@@ -1201,7 +1241,27 @@
     scrollEloConversationToBottom_({ force: true });
     return true;
   }
-  function buildEloObraLocalExecutionStockCross_() {
+  function buildEloExecutionStockAnalysisCrossInfo_(analysis) {
+    const safe = analysis && typeof analysis === "object" ? analysis : {};
+    const result = safe.result && typeof safe.result === "object" ? safe.result : {};
+    const dataQuality = result.dataQuality && typeof result.dataQuality === "object" ? result.dataQuality : {};
+    const missingInputs = Array.isArray(safe.missingInputs) ? safe.missingInputs : [];
+    const missingSources = Array.isArray(dataQuality.missingSources) ? dataQuality.missingSources : missingInputs;
+    return {
+      available: true,
+      source: "executionStockAnalysis",
+      analysis: safe,
+      snapshot: { dataQuality: { missingSources: missingSources } },
+      cross: Object.assign({}, result, {
+        summary: result.summary || safe.summary || {},
+        materials: Array.isArray(result.materials) ? result.materials : [],
+        alerts: Array.isArray(result.alerts) ? result.alerts : Array.isArray(safe.alerts) ? safe.alerts : [],
+        dataQuality: dataQuality
+      })
+    };
+  }
+
+  function buildEloObraLocalExecutionStockCrossFromSources_() {
     const snapshotBuilder = getEloStockObrasSnapshotBuilder_();
     const crossBuilder = getEloExecutionStockCrossBuilder_();
     const missingModules = [];
@@ -1222,6 +1282,14 @@
     } catch (error) {
       return { available: false, error: error && error.message || "execution_stock_cross_error" };
     }
+  }
+
+  function buildEloObraLocalExecutionStockCross_() {
+    const preferred = getLatestExecutionStockAnalysisForElo_();
+    if (preferred.available && normalizeText(preferred.analysis.status || "") === "ready") {
+      return buildEloExecutionStockAnalysisCrossInfo_(preferred.analysis);
+    }
+    return buildEloObraLocalExecutionStockCrossFromSources_();
   }
 
   function formatEloObraCrossQuantity_(value, unit) {
@@ -1275,6 +1343,79 @@
     return sanitizeEloMultilineText_(lines.join("\n"));
   }
 
+  function formatEloAnalysisPercentDifference_(item) {
+    const expected = Number(item && item.expectedConsumption);
+    const difference = Number(item && item.difference);
+    if (!Number.isFinite(expected) || Math.abs(expected) <= 0.000001 || !Number.isFinite(difference)) return "sem percentual confiavel";
+    const percent = Math.round((difference / expected) * 10000) / 100;
+    return String(percent).replace(".", ",") + "%";
+  }
+
+  function getEloExecutionStockRecommendation_(status) {
+    const key = normalizeText(status || "");
+    if (key === "consumption_above_expected") return "conferir desperdicio, perdas, retrabalho ou baixa de almoxarifado acima do executado.";
+    if (key === "consumption_below_expected") return "confirmar se a saida de estoque foi lancada e se a producao do RDO esta completa.";
+    if (key === "insufficient_balance") return "priorizar saldo, compra ou transferencia antes de a frente parar.";
+    if (key === "production_without_stock_exit") return "conferir se houve producao sem baixa correspondente no almoxarifado.";
+    if (key === "stock_exit_without_production") return "conferir saida de material sem servico executado no RDO.";
+    if (key === "missing_reference") return "completar o consumo esperado antes de tomar decisao quantitativa.";
+    return "manter acompanhamento e revisar apenas os itens com divergencia.";
+  }
+
+  function formatEloExecutionStockAnalysisAnswer_(analysis, question) {
+    const safe = analysis && typeof analysis === "object" ? analysis : {};
+    const status = normalizeText(safe.status || "");
+    const result = safe.result && typeof safe.result === "object" ? safe.result : {};
+    const summary = result.summary && typeof result.summary === "object" ? result.summary : safe.summary && typeof safe.summary === "object" ? safe.summary : {};
+    const materials = Array.isArray(result.materials) ? result.materials : [];
+    const alerts = Array.isArray(result.alerts) ? result.alerts : Array.isArray(safe.alerts) ? safe.alerts : [];
+    const missingInputs = Array.isArray(safe.missingInputs) ? safe.missingInputs.map(sanitizeUserText).filter(Boolean) : [];
+    const lines = [];
+    if (status === "insufficient_data") {
+      lines.push("Hoje na obra: a analise local automatica foi executada, mas ainda faltam dados para comparar producao, consumo esperado, saidas e saldo.");
+      lines.push("- Obra: " + sanitizeUserText(safe.workId || summary.workId || "obra atual") + ".");
+      if (missingInputs.length) lines.push("- Entradas faltantes: " + missingInputs.join(", ") + ". Sem essas fontes, eu nao invento alertas.");
+      lines.push("- Proximo passo: completar RDO, consumo esperado e estoque local antes de decidir compra ou ajuste de frente.");
+      lines.push("- Memoria de calculo: tentativa local registrada em " + sanitizeUserText(safe.calculatedAt || "data nao informada") + ".");
+      return sanitizeEloMultilineText_(lines.join("\n"));
+    }
+    if (status === "error") {
+      lines.push("Hoje na obra: o RDO continua salvo, mas a analise local automatica ficou indisponivel nesta execucao.");
+      lines.push("- Obra: " + sanitizeUserText(safe.workId || summary.workId || "obra atual") + ".");
+      lines.push("- Proximo passo: revisar RDO, consumo esperado e estoque local; depois salvar o RDO novamente para recalcular.");
+      lines.push("- Memoria de calculo: erro local registrado em " + sanitizeUserText(safe.calculatedAt || "data nao informada") + ".");
+      return sanitizeEloMultilineText_(lines.join("\n"));
+    }
+    if (status !== "ready") return "";
+    lines.push("Hoje na obra: analise local automatica pronta para " + sanitizeUserText(safe.workId || summary.workId || "obra atual") + ".");
+    lines.push("- Alertas: " + alerts.length + " item(ns). Gravidade: " + (alerts.length ? "alta" : "sem alerta critico") + ".");
+    lines.push("- Servicos afetados: " + sanitizeUserText(summary.services || summary.service || "nao informado no resultado derivado") + ".");
+    materials.slice(0, 6).forEach(function (item) {
+      const unit = sanitizeUserText(item && item.unit || "un");
+      const label = sanitizeUserText(item && item.material || "material");
+      const statusLabel = getEloObraCrossStatusLabel_(item && item.status);
+      const percent = formatEloAnalysisPercentDifference_(item);
+      lines.push("- " + label + ": esperado " + formatEloObraCrossQuantity_(item && item.expectedConsumption, unit) + "; saiu " + formatEloObraCrossQuantity_(item && item.actualStockExit, unit) + "; saldo " + (item && item.currentBalance == null ? "nao informado" : formatEloObraCrossQuantity_(item.currentBalance, unit)) + "; diferenca " + formatEloObraCrossQuantity_(item && item.difference, unit) + " (" + percent + "); " + statusLabel + ".");
+    });
+    if (alerts.length) {
+      const firstStatus = alerts[0] && alerts[0].status || materials[0] && materials[0].status || "";
+      lines.push("- Recomendacao: " + getEloExecutionStockRecommendation_(firstStatus));
+    } else {
+      lines.push("- Recomendacao: manter acompanhamento local, sem criar movimento de estoque a partir desta leitura.");
+    }
+    lines.push("- Memoria de calculo: resultado derivado do RDO " + sanitizeUserText(safe.sourceRdoId || "nao informado") + ", calculado em " + sanitizeUserText(safe.calculatedAt || "data nao informada") + ".");
+    return sanitizeEloMultilineText_(lines.join("\n"));
+  }
+
+  function buildEloObraLocalAttentionAnswer_(question) {
+    const preferred = getLatestExecutionStockAnalysisForElo_();
+    if (preferred.available) {
+      const analysisAnswer = formatEloExecutionStockAnalysisAnswer_(preferred.analysis, question);
+      if (analysisAnswer) return analysisAnswer;
+    }
+    return formatEloTodayWorkAnswer_(buildEloObraLocalTodayWork_());
+  }
+
   function mergeEloObraAttentionWithCross_(data) {
     const baseAnswer = formatEloObraAttentionAnswer_(data);
     const backendCross = data && data.executionStockCross ? { available: true, snapshot: {}, cross: data.executionStockCross } : null;
@@ -1295,11 +1436,11 @@
         localReport: { ok: false, missingSources: localCross.missingModules || ["rdos", "stockMovements", "stockBalances", "plannedConsumptions"] }
       });
     }
-    const report = reportBuilder ? reportBuilder({ snapshot: localCross.snapshot || {}, cross: localCross.cross || {} }) : null;
+    const report = localCross.source === "executionStockAnalysis" ? null : reportBuilder ? reportBuilder({ snapshot: localCross.snapshot || {}, cross: localCross.cross || {} }) : null;
     return todayBuilder({
       snapshot: localCross.snapshot || {},
       executionStockCross: localCross.cross || {},
-      localReport: report || null
+      localReport: report || { ok: true, source: localCross.source || "local_cross", missingSources: [] }
     });
   }
 
@@ -1657,12 +1798,12 @@
   }
   function requestEloObraAttentionAnswer_(question) {
     if (!isEloObraAttentionRequest_(question)) return Promise.resolve(null);
+    const localAnswer = function () { return buildEloObraLocalAttentionAnswer_(question); };
     const authHeaders = getEloCoreAuthHeaders_();
-    if (!authHeaders.Authorization) return Promise.resolve(formatEloObraAttentionSafeError_("authentication_required", 401));
-    if (!window.fetch) return Promise.resolve(formatEloObraAttentionSafeError_("fetch_unavailable"));
-    const identity = getEloCoreIdentity_();
+    if (!authHeaders.Authorization) return Promise.resolve(localAnswer());
+    if (!window.fetch) return Promise.resolve(localAnswer() || formatEloObraAttentionSafeError_("fetch_unavailable"));
     const scope = getEloObraSnapshotScope_();
-    const projectId = sanitizeUserText(identity.projectId || scope.projectId || "").slice(0, 140);
+    const projectId = sanitizeUserText(scope.projectId || "").slice(0, 140);
     const workId = sanitizeUserText(scope.workId || window.ELO_WORK_ID || "").slice(0, 140);
     const params = new URLSearchParams();
     if (projectId) params.set("projectId", projectId);
@@ -1672,15 +1813,20 @@
     return window.fetch(endpoint, { method: "GET", headers: authHeaders }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         applyEloCoreAuthContextFromResponse_(data);
-        if (!response.ok || data.ok === false) return formatEloObraAttentionSafeError_(data.error, response.status);
+        if (!response.ok || data.ok === false) return localAnswer() || formatEloObraAttentionSafeError_(data.error, response.status);
         return formatEloObraAttentionAnswer_(data, question);
       });
     }).catch(function () {
-      return formatEloObraAttentionSafeError_("request_failed");
+      return localAnswer() || formatEloObraAttentionSafeError_("request_failed");
     });
   }
   function requestEloObraExecutionStockAnswer_(question) {
     if (!isEloObraExecutionStockRequest_(question)) return Promise.resolve(null);
+    const preferred = getLatestExecutionStockAnalysisForElo_();
+    if (preferred.available) {
+      const analysisAnswer = formatEloExecutionStockAnalysisAnswer_(preferred.analysis, question);
+      if (analysisAnswer) return Promise.resolve(analysisAnswer);
+    }
     const answer = formatEloObraExecutionStockCrossAnswer_(buildEloObraLocalExecutionStockCross_());
     return Promise.resolve(answer || "Cruzamento local execucao x estoque: nao encontrei dados locais suficientes para comparar producao, consumo esperado, saidas e saldo.");
   }
@@ -1775,18 +1921,21 @@
   function handleEloObraAttentionRequest_(question) {
     if (!isEloObraAttentionRequest_(question)) return false;
     const hasAuth = !!getEloCoreAuthHeaders_().Authorization;
-    const statusMessage = appendMessage("assistant", "Consultando o Observador da Obra...");
+    const statusMessage = appendMessage("assistant", hasAuth ? "Consultando o Observador da Obra..." : "Lendo analise local da obra...");
+    appendEloTodayWorkSafeActions_(statusMessage);
     requestEloObraAttentionAnswer_(question).then(function (answer) {
-      const finalAnswer = sanitizeEloMultilineText_(answer) || "N?o consegui consultar o Observador da Obra agora.";
-      const response = { shortAnswer: finalAnswer.split("\\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: hasAuth, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
+      const finalAnswer = sanitizeEloMultilineText_(answer) || "Nao consegui consultar a atencao da obra agora.";
+      const response = { shortAnswer: finalAnswer.split("\n")[0], fullAnswer: finalAnswer, nextAction: "Revise os dados da obra se a qualidade vier baixa.", canSave: hasAuth, sessionTheme: "observador_obra", sessionIntent: "obra_attention_readonly" };
       updateEloMessage_(statusMessage, finalAnswer);
+      appendEloTodayWorkSafeActions_(statusMessage);
       if (hasAuth) {
         saveConversation(question, finalAnswer);
         rememberSessionTurn(question, response, finalAnswer);
       }
       return finalAnswer;
     }).catch(function () {
-      updateEloMessage_(statusMessage, "N?o consegui consultar o Observador da Obra agora. Tente novamente em instantes.");
+      updateEloMessage_(statusMessage, "Nao consegui consultar a atencao da obra agora. Tente novamente em instantes.");
+      appendEloTodayWorkSafeActions_(statusMessage);
     }).finally(function () {
       removeTypingIndicator();
       clearProductAttachmentPreview();
@@ -28656,6 +28805,7 @@ function isEloResidentialNewPipelineEnabled_() {
     requestObraExecutionStockForTest: requestEloObraExecutionStockAnswer_,
     requestObraExecutionStockReportForTest: requestEloObraExecutionStockReportAnswer_,
     buildLocalTodayWorkForTest: buildEloObraLocalTodayWork_,
+    getLatestExecutionStockAnalysisForTest: getLatestExecutionStockAnalysisForElo_,
     buildLocalExecutionStockReportForTest: buildEloObraLocalExecutionStockReport_,
     buildExecutionStockReportPdfForTest: buildEloExecutionStockReportPdfDocument_,
     buildExecutionStockProfessionalPdfRecordForTest: buildEloExecutionStockProfessionalPdfRecord_,
