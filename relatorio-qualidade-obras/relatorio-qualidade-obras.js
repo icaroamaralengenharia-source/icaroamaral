@@ -3171,6 +3171,7 @@
       reports: [],
       dailyLogs: [],
       compositions: [],
+      executionStockAnalysis: null,
       billing: {}
     });
   }
@@ -3182,6 +3183,9 @@
     state.reports = Array.isArray(state.reports) ? state.reports : [];
     state.dailyLogs = Array.isArray(state.dailyLogs) ? state.dailyLogs : [];
     state.compositions = ensureCompositionLibrary_(state.compositions);
+    state.executionStockAnalysis = state.executionStockAnalysis && typeof state.executionStockAnalysis === "object"
+      ? state.executionStockAnalysis
+      : null;
     state.local = state.local || {};
     state.local.lastRoute = state.local.lastRoute || "dashboard";
     state.local.lastView = state.local.lastView || state.local.lastRoute;
@@ -6258,9 +6262,48 @@
     const work = findWork_(logItem.workId);
     setLastOpened_("diario", work ? work.clientId : "", logItem.workId, "");
     saveLocalData({ syncCloud: true });
+    refreshExecutionStockAnalysisAfterRdoSave_(logItem);
     renderSaasState_();
     resetDailyLogForm_();
     setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
+  }
+
+  function refreshExecutionStockAnalysisAfterRdoSave_(savedRdo) {
+    const analysisApi = window.ObraReportExecutionStockAnalysis;
+    const snapshotApi = window.EloStockObrasSnapshot;
+    const crossApi = window.EloExecutionStockCross;
+
+    if (!analysisApi || typeof analysisApi.refreshExecutionStockAnalysisAfterRdoSave !== "function") {
+      return;
+    }
+
+    try {
+      const result = analysisApi.refreshExecutionStockAnalysisAfterRdoSave(appState, savedRdo, {
+        snapshotBuilder: snapshotApi && snapshotApi.buildEloStockObrasSnapshot,
+        crossBuilder: crossApi && crossApi.crossExecutionWithStock,
+        localStorage: window.localStorage || null,
+        operationalStock: window.ObraReportOperationalStock || {}
+      });
+
+      if (result && result.changed) {
+        saveLocalData({ syncCloud: false });
+      }
+    } catch (error) {
+      appState.executionStockAnalysis = {
+        version: 1,
+        status: "error",
+        workId: savedRdo && savedRdo.workId ? savedRdo.workId : null,
+        sourceRdoId: savedRdo && savedRdo.id ? savedRdo.id : null,
+        sourceRdoUpdatedAt: savedRdo && savedRdo.updatedAt ? savedRdo.updatedAt : null,
+        calculatedAt: new Date().toISOString(),
+        sourceFingerprint: "",
+        summary: null,
+        alerts: [],
+        result: null,
+        missingInputs: []
+      };
+      saveLocalData({ syncCloud: false });
+    }
   }
 
   function collectDailyLogForm_() {
