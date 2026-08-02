@@ -3,7 +3,7 @@ name: Atualizar notícias
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "17 * * * *"
 
 concurrency:
   group: atualizar-noticias
@@ -25,13 +25,17 @@ jobs:
           node-version: "lts/*"
 
       - name: Validar sintaxe
-        run: node --check scripts/atualizar-noticias.mjs
+        run: |
+          node --check scripts/atualizar-noticias.mjs
+          node --check scripts/atualizar-conteudo-noticias.mjs
 
       - name: Executar testes
-        run: node --test tests/atualizar-noticias.test.mjs
+        run: |
+          node --test tests/atualizar-noticias.test.mjs
+          node --test tests/atualizar-conteudo-noticias.test.mjs
 
       - name: Atualizar JSON
-        run: node scripts/atualizar-noticias.mjs
+        run: node scripts/atualizar-conteudo-noticias.mjs
 
       - name: Validar arquivos alterados
         run: |
@@ -41,19 +45,25 @@ jobs:
             echo "Sem mudanças para commitar."
             exit 0
           fi
-          if [ "$changed" != "noticias/dados/noticias.json" ]; then
+          allowed="noticias/dados/noticias.json
+noticias/dados/oportunidades.json"
+          unexpected="$(comm -23 <(printf '%s
+' "$changed" | sort) <(printf '%s
+' "$allowed" | sort))"
+          if [ -n "$unexpected" ]; then
             echo "Arquivo inesperado alterado; abortando."
+            echo "$unexpected"
             exit 1
           fi
 
       - name: Commit automático
         run: |
-          if git diff --quiet -- noticias/dados/noticias.json; then
-            echo "Sem mudanças reais no JSON."
+          if git diff --quiet -- noticias/dados/noticias.json noticias/dados/oportunidades.json; then
+            echo "Sem mudanças reais nos JSON."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add noticias/dados/noticias.json
-          git commit -m "chore: atualiza notícias de engenharia"
+          git add noticias/dados/noticias.json noticias/dados/oportunidades.json
+          git commit -m "chore: atualiza notícias e oportunidades"
           git push

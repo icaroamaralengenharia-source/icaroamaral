@@ -149,7 +149,7 @@ test("rejeita data futura absurda", () => {
   assert.equal(result.items.length, 0);
 });
 
-test("aplica limite por fonte", () => {
+test("aplica limite por fonte respeitando maximo por execucao", () => {
   const many = Array.from({ length: 20 }, (_, index) => item({
     titulo: `Engenharia civil fiscaliza obra publica ${index}`,
     url: `https://fonte.example/${index}`,
@@ -157,9 +157,44 @@ test("aplica limite por fonte", () => {
   const normalized = normalizeItems(many, now);
   const payload = mergeWithExisting({ noticias: [] }, normalized.items, now);
   const count = payload.noticias.filter((news) => news.fonte === "Fonte Teste").length;
-  assert.equal(count, 15);
+  assert.equal(count, 10);
 });
 
+test("limita novas noticias a 10 por execucao e preserva anteriores", () => {
+  const previous = normalizeItems([item({
+    titulo: "Engenharia civil preservada em obra anterior",
+    url: "https://fonte.example/anterior",
+    publicadoEm: "2026-07-20T10:00:00Z",
+  })], now).items[0];
+  const many = Array.from({ length: 12 }, (_, index) => item({
+    titulo: `Engenharia civil fiscaliza obra nova ${index}`,
+    url: `https://fonte.example/nova-${index}`,
+    publicadoEm: `2026-07-31T${String(index).padStart(2, "0")}:00:00Z`,
+  }));
+  const normalized = normalizeItems(many, now);
+  const payload = mergeWithExisting({ noticias: [previous] }, normalized.items, now);
+
+  assert.equal(payload.noticias.filter((news) => news.url.includes("/nova-")).length, 10);
+  assert.equal(payload.noticias.some((news) => news.url === "https://fonte.example/anterior"), true);
+});
+
+test("limita total final a 60 noticias", () => {
+  const previous = Array.from({ length: 60 }, (_, index) => normalizeItems([item({
+    titulo: `Engenharia civil anterior ${index}`,
+    url: `https://fonte${index}.example/anterior-${index}`,
+    fonte: `Fonte Anterior ${index}`,
+    publicadoEm: "2026-07-20T10:00:00Z",
+  })], now).items[0]);
+  const news = Array.from({ length: 10 }, (_, index) => item({
+    titulo: `Engenharia civil recente ${index}`,
+    url: `https://fonte.example/recente-${index}`,
+    publicadoEm: "2026-07-31T10:00:00Z",
+  }));
+  const normalized = normalizeItems(news, now);
+  const payload = mergeWithExisting({ noticias: previous }, normalized.items, now);
+
+  assert.equal(payload.noticias.length, 60);
+});
 test("gera ID deterministico", () => {
   const first = deterministicId({ titulo: "Engenharia civil", url: "https://fonte.example/a" });
   const second = deterministicId({ titulo: "Engenharia civil", url: "https://fonte.example/a" });
