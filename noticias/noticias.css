@@ -555,3 +555,241 @@ button:focus,
 .news-grid > .status-message {
   grid-column: 1 / -1;
 }
+/* 61O: filtro discreto, com busca recolhida no mobile. */
+.news-tools {
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px) auto;
+  gap: 10px;
+  margin: 0 0 6px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.search-toggle {
+  display: none;
+}
+
+.search-field,
+.category-field {
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+input,
+select,
+.clear-button,
+.search-toggle {
+  min-height: 42px;
+}
+
+input,
+select {
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 8px 11px;
+}
+
+input[type="search"] {
+  padding-left: 36px;
+  background-position: 6px 3px, 21px 23px;
+}
+
+.clear-button {
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--green-dark);
+}
+
+.results-summary {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 920px) {
+  .news-tools {
+    grid-template-columns: minmax(0, 1fr) minmax(176px, 230px) auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .news-hero {
+    padding-bottom: 14px;
+  }
+
+  .news-meta-line {
+    margin-top: 8px;
+  }
+
+  .news-tools {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+    margin-top: 6px;
+    margin-bottom: 4px;
+  }
+
+  .search-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: auto;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: transparent;
+    color: var(--green-dark);
+    font-size: 0.84rem;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .search-field {
+    display: none;
+    grid-column: 1 / -1;
+  }
+
+  .news-tools.is-search-open .search-field {
+    display: grid;
+  }
+
+  .category-field {
+    min-width: 0;
+  }
+
+  .search-field > span,
+  .category-field > span {
+    font-size: 0.68rem;
+  }
+
+  .news-tools .clear-button {
+    width: auto;
+    min-height: 42px;
+    padding: 4px 2px;
+    border: 0;
+    background: transparent;
+    color: var(--green-dark);
+    font-size: 0.82rem;
+    text-align: left;
+  }
+
+  .news-tools .clear-button:disabled {
+    background: transparent;
+    color: #8a948f;
+  }
+
+  .results-summary {
+    margin: 0 0 7px;
+    font-size: 0.78rem;
+  }
+}
+/* 61O refinamento: labels acessÃ­veis sem aumentar a barra. */
+.news-tools .search-field > span,
+.news-tools .category-field > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.news-tools .search-field,
+.news-tools .category-field {
+  position: relative;
+}
+
+.news-tools .clear-button {
+  grid-column: auto;
+  justify-self: auto;
+}
+
+@media (max-width: 640px) {
+  .news-tools {
+    align-items: center;
+  }
+
+  .news-tools .clear-button {
+    justify-self: end;
+  }
+}
+/* 61P: reduzir cabeçalho e capa do destaque apenas no mobile. */
+@media (max-width: 600px) {
+  .header-inner,
+  .news-shell {
+    width: min(100% - 32px, 1180px);
+  }
+
+  .site-header,
+  .header-inner {
+    min-height: 52px;
+  }
+
+  .header-inner {
+    gap: 10px;
+    padding-block: 6px;
+  }
+
+  .brand-link {
+    max-width: 205px;
+    font-size: 0.72rem;
+    line-height: 1.12;
+  }
+
+  .back-link {
+    min-height: 32px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    line-height: 1.05;
+  }
+
+  .news-tools {
+    margin-bottom: 3px;
+  }
+
+  .results-summary {
+    margin-bottom: 6px;
+  }
+
+  .news-card.featured .card-cover {
+    min-height: 98px;
+    padding: 12px;
+  }
+
+  .news-card.featured .card-cover::before {
+    inset: 12px;
+    border-left-width: 3px;
+  }
+
+  .news-card.featured .card-cover::after {
+    right: -24px;
+    bottom: -36px;
+    width: 104px;
+    height: 104px;
+    border-width: 20px;
+  }
+
+  .news-card.featured .cover-label {
+    max-width: 72%;
+    font-size: 0.7rem;
+  }
+
+  .featured-badge {
+    top: 10px;
+    right: 10px;
+    padding: 4px 8px;
+    font-size: 0.66rem;
+  }
+
+  .news-card.featured .card-body {
+    padding-top: 16px;
+  }
+}

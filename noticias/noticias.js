@@ -2,6 +2,7 @@
   noticias: [],
   categoria: "",
   busca: "",
+  buscaAberta: false,
 };
 
 const elements = {
@@ -11,6 +12,8 @@ const elements = {
   list: document.getElementById("lista-noticias"),
   status: document.getElementById("estado-carregamento"),
   search: document.getElementById("busca-noticias"),
+  searchToggle: document.getElementById("alternar-busca"),
+  tools: document.querySelector(".news-tools"),
   category: document.getElementById("filtro-categoria"),
   clear: document.getElementById("limpar-filtros"),
   year: document.getElementById("ano-atual"),
@@ -34,9 +37,9 @@ function normalizeText(value) {
 }
 
 function formatDate(value) {
-  if (!value) return "Não informado";
+  if (!value) return "N\u00e3o informado";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Não informado";
+  if (Number.isNaN(date.getTime())) return "N\u00e3o informado";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -66,6 +69,30 @@ function appendText(parent, tag, text, className) {
   return node;
 }
 
+function updateSearchDisclosure() {
+  if (!elements.tools || !elements.searchToggle) return;
+  const shouldOpen = state.buscaAberta || Boolean(state.busca.trim());
+  elements.tools.classList.toggle("is-search-open", shouldOpen);
+  elements.searchToggle.setAttribute("aria-expanded", String(shouldOpen));
+}
+
+function setSearchDisclosure(open, shouldFocus) {
+  state.buscaAberta = open;
+  updateSearchDisclosure();
+  if (open && shouldFocus) {
+    window.requestAnimationFrame(() => elements.search.focus());
+  }
+}
+
+function toggleSearchDisclosure() {
+  const isOpen = elements.tools.classList.contains("is-search-open");
+  if (isOpen && !state.busca.trim()) {
+    setSearchDisclosure(false, false);
+    return;
+  }
+  setSearchDisclosure(true, true);
+}
+
 function renderCategories() {
   const categories = [...new Set(state.noticias.map((item) => item.categoria).filter(Boolean))].sort();
   const defaultOption = document.createElement("option");
@@ -91,8 +118,9 @@ function updateFilterState(filteredCount) {
   const totalCount = state.noticias.length;
   const hasActiveFilter = Boolean(state.busca.trim() || state.categoria);
   elements.total.textContent = String(totalCount);
-  elements.results.textContent = `Exibindo ${filteredCount} de ${totalCount} notícias`;
+  elements.results.textContent = `Exibindo ${filteredCount} de ${totalCount} not\u00edcias`;
   elements.clear.disabled = !hasActiveFilter;
+  updateSearchDisclosure();
 }
 
 function renderEmptyState(message, showClearButton) {
@@ -129,7 +157,7 @@ function createMeta(item) {
   meta.append(source);
 
   const separator = document.createElement("span");
-  separator.textContent = "•";
+  separator.textContent = "\u2022";
   separator.setAttribute("aria-hidden", "true");
   meta.append(separator);
 
@@ -139,7 +167,7 @@ function createMeta(item) {
 
 function createSourceLink(item) {
   if (!isSafeHttpUrl(item.url)) {
-    return appendText(document.createElement("span"), "span", "Fonte indisponível", "invalid-source");
+    return appendText(document.createElement("span"), "span", "Fonte indispon\u00edvel", "invalid-source");
   }
 
   const link = document.createElement("a");
@@ -147,7 +175,7 @@ function createSourceLink(item) {
   link.target = "_blank";
   link.rel = "noopener noreferrer external";
   link.textContent = "Ler na fonte";
-  link.setAttribute("aria-label", `Ler na fonte: ${item.titulo || "notícia"}`);
+  link.setAttribute("aria-label", `Ler na fonte: ${item.titulo || "not\u00edcia"}`);
   return link;
 }
 
@@ -166,10 +194,10 @@ function createCard(item, index) {
   body.className = "card-body";
   appendText(body, "span", item.categoria || "Geral", "category-pill");
 
-  const title = appendText(body, "h2", item.titulo || "Notícia sem título");
-  title.title = item.titulo || "Notícia sem título";
+  const title = appendText(body, "h2", item.titulo || "Not\u00edcia sem t\u00edtulo");
+  title.title = item.titulo || "Not\u00edcia sem t\u00edtulo";
 
-  appendText(body, "p", item.resumo || "Resumo não informado.");
+  appendText(body, "p", item.resumo || "Resumo n\u00e3o informado.");
   body.append(createMeta(item));
   body.append(createSourceLink(item));
 
@@ -185,8 +213,8 @@ function renderList() {
   if (filtered.length === 0) {
     elements.status.textContent = "";
     const message = state.noticias.length === 0
-      ? "Nenhuma notícia disponível no momento."
-      : "Nenhuma notícia encontrada com os filtros selecionados.";
+      ? "Nenhuma not\u00edcia dispon\u00edvel no momento."
+      : "Nenhuma not\u00edcia encontrada com os filtros selecionados.";
     renderEmptyState(message, state.noticias.length > 0);
     return;
   }
@@ -201,6 +229,7 @@ function clearFilters() {
   state.categoria = "";
   elements.search.value = "";
   elements.category.value = "";
+  setSearchDisclosure(false, false);
   renderList();
 }
 
@@ -218,11 +247,11 @@ async function loadNews() {
     renderList();
   } catch (error) {
     state.noticias = [];
-    elements.updatedAt.textContent = "Indisponível";
+    elements.updatedAt.textContent = "Indispon\u00edvel";
     elements.total.textContent = "0";
-    elements.results.textContent = "Exibindo 0 de 0 notícias";
+    elements.results.textContent = "Exibindo 0 de 0 not\u00edcias";
     elements.list.setAttribute("aria-busy", "false");
-    elements.status.textContent = "Não foi possível carregar as notícias agora. Tente novamente mais tarde.";
+    elements.status.textContent = "N\u00e3o foi poss\u00edvel carregar as not\u00edcias agora. Tente novamente mais tarde.";
     elements.list.replaceChildren();
   }
 }
@@ -233,8 +262,21 @@ if (elements.year) {
 
 elements.search.addEventListener("input", (event) => {
   state.busca = event.target.value;
+  if (state.busca.trim()) state.buscaAberta = true;
   renderList();
 });
+
+elements.search.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  state.busca = "";
+  elements.search.value = "";
+  setSearchDisclosure(false, false);
+  renderList();
+});
+
+if (elements.searchToggle) {
+  elements.searchToggle.addEventListener("click", toggleSearchDisclosure);
+}
 
 elements.category.addEventListener("change", (event) => {
   state.categoria = event.target.value;
@@ -243,4 +285,5 @@ elements.category.addEventListener("change", (event) => {
 
 elements.clear.addEventListener("click", clearFilters);
 
+updateSearchDisclosure();
 loadNews();
