@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Administracao Municipal | ELO</title>
   <meta name="description" content="Painel administrativo municipal do ELO.">
+  <link rel="manifest" href="municipal-manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -25,5 +26,12 @@
   <script src="relatorio-qualidade-obras/relatorio-config.js"></script>
   <script src="relatorio-qualidade-obras/municipal-asset-offline-store.js"></script>
   <script src="relatorio-qualidade-obras/municipal-admin-ui.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("municipal-sw.js", { scope: "./" }).catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>
