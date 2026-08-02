@@ -793,3 +793,101 @@ input[type="search"] {
     padding-top: 16px;
   }
 }
+
+/* 61R: imagens reais opcionais nos cards, com fallback CSS intacto. */
+.card-cover.has-real-image {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  align-items: flex-end;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--green-dark), var(--petrol));
+}
+
+.card-cover.has-real-image::before {
+  inset: 0;
+  border: 0;
+  background: linear-gradient(180deg, rgba(16, 63, 50, 0.1), rgba(16, 32, 27, 0.7));
+  opacity: 1;
+  z-index: 1;
+}
+
+.card-cover.has-real-image::after {
+  display: none;
+}
+
+.card-cover.has-real-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.card-cover.has-real-image .cover-label,
+.card-cover.has-real-image .image-credit {
+  position: relative;
+  z-index: 2;
+}
+
+.card-cover.has-real-image .cover-label {
+  max-width: min(82%, 360px);
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(16, 63, 50, 0.82);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+.image-credit {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  max-width: min(58%, 260px);
+  overflow: hidden;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--green-dark);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-card.featured .card-cover.has-real-image {
+  min-height: 220px;
+  aspect-ratio: 2.05 / 1;
+}
+
+.news-card.featured .card-cover.has-real-image .cover-label {
+  max-width: min(70%, 420px);
+}
+
+@media (max-width: 920px) {
+  .news-card.featured .card-cover.has-real-image {
+    min-height: 170px;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+@media (max-width: 640px) {
+  .card-cover.has-real-image,
+  .news-card.featured .card-cover.has-real-image {
+    min-height: 150px;
+    aspect-ratio: 16 / 9;
+    padding: 12px;
+  }
+
+  .image-credit {
+    right: 8px;
+    bottom: 8px;
+    max-width: 52%;
+    font-size: 0.62rem;
+  }
+}
+/* 61S: fallback comum tambem preserva proporcao 16:9. */
+.news-card:not(.featured) .card-cover {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+}

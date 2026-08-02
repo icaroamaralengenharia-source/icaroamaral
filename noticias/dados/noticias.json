@@ -1,11 +1,26 @@
 {
-  "atualizadoEm": "2026-08-01T23:00:27.230Z",
-  "coletadoEm": "2026-08-01T23:00:27.230Z",
+  "atualizadoEm": "2026-08-02T04:01:39.809Z",
+  "coletadoEm": "2026-08-02T04:01:39.809Z",
   "fontes": [
+    "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "e43432d83b8f4f6d",
+      "titulo": "Participação feminina na direção de filmes permanece abaixo de 20%",
+      "resumo": "Embora ainda sejam a maioria entre os que se formam em cursos audiovisuais, as mulheres não encontram representação em cargos de liderança das obras cinematográficas produzidas no Brasil.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/cultura/noticia/2026-08/participacao-feminina-na-direcao-de-filmes-permanece-abaixo-de-20",
+      "publicadoEm": "2026-08-01T20:43:00.000Z",
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Infraestrutura e Obras",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/p5LhYiNTX3dUp922eC9ruI92RgI=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/01/fotos-2026-07-26-parte1-43-1.jpg?itok=9Em0tKFC",
+      "imagemAlt": "Participação feminina na direção de filmes permanece abaixo de 20%",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "7c01f6cd5bbe5b7a",
       "titulo": "Conheça a estrutura do processo eleitoral do Conselho de Arquitetura e Urbanismo",
@@ -13,9 +28,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/conheca-a-estrutura-do-processo-eleitoral-do-conselho-de-arquitetura-e-urbanismo/",
       "publicadoEm": "2026-07-31T22:15:00.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Conselhos e Fiscalização",
-      "dominio": "caubr.gov.br"
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/06/Eleicoes-materia-_420x200.png",
+      "imagemAlt": "Conheça a estrutura do processo eleitoral do Conselho de Arquitetura e Urbanismo",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "bad48368b3aecddb",
@@ -24,9 +42,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/novas-sedes-do-cau-revelam-caminhos-com-retrofit-e-preservacao-do-patrimonio/",
       "publicadoEm": "2026-07-31T22:11:47.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Conselhos e Fiscalização",
-      "dominio": "caubr.gov.br"
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/CAUMG-420-11.png",
+      "imagemAlt": "Novas sedes do CAU revelam caminhos com retrofit e preservação do patrimônio",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "c223513ad5ad4576",
@@ -35,9 +56,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/cau-digital-concentra-emissao-de-rrt-simples-para-arquitetos-e-urbanistas/",
       "publicadoEm": "2026-07-31T21:34:36.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
       "categoria": "Tecnologia e BIM",
-      "dominio": "caubr.gov.br"
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/RRT-420.png",
+      "imagemAlt": "CAU Digital concentra emissão de RRT Simples para arquitetos e urbanistas",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "fe339e0775899355",
@@ -46,9 +70,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/por-que-os-teatros-da-amazonia-conquistaram-o-titulo-de-patrimonio-mundial-da-unesco/",
       "publicadoEm": "2026-07-31T21:28:45.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
       "categoria": "Arquitetura e Urbanismo",
-      "dominio": "caubr.gov.br"
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/420-Estados-11.png",
+      "imagemAlt": "Por que os teatros da Amazônia conquistaram o título de Patrimônio Mundial da Unesco?",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "e97fd96e536532e8",
@@ -57,9 +84,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/plano-nacional-de-fiscalizacao-avanca-para-nova-etapa/",
       "publicadoEm": "2026-07-31T21:22:13.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Conselhos e Fiscalização",
-      "dominio": "caubr.gov.br"
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/03/Fiscaliza-420x200-3.png",
+      "imagemAlt": "Plano Nacional de Fiscalização do conjunto autárquico CAU avança para nova etapa",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "30ce66abfb4bb6b3",
@@ -68,9 +98,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/patrimonio-cultural-de-mato-grosso-do-sul-sera-tema-de-encontro-em-campo-grande/",
       "publicadoEm": "2026-07-31T20:12:30.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Conselhos e Fiscalização",
-      "dominio": "caubr.gov.br"
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/CAUMS-420-5.png",
+      "imagemAlt": "Patrimônio Cultural de Mato Grosso do Sul será tema de encontro em Campo Grande",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "8b7e80b77feb71af",
@@ -79,9 +112,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/dia-da-mulher-arquiteta-e-urbanista-a-forca-feminina-que-projeta-o-futuro-das-cidades/",
       "publicadoEm": "2026-07-31T20:08:16.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
-      "categoria": "Conselhos e Fiscalização",
-      "dominio": "caubr.gov.br"
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/CAUAL-420-4.png",
+      "imagemAlt": "Dia da Mulher Arquiteta e Urbanista: A força feminina que projeta o futuro das cidades",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "bea410d32b4b19cf",
@@ -92,7 +128,10 @@
       "publicadoEm": "2026-07-31T19:30:34.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "c2273f1024e40428",
@@ -103,7 +142,10 @@
       "publicadoEm": "2026-07-31T17:13:53.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Infraestrutura e Obras",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "60a3b0b5668508f4",
@@ -114,7 +156,10 @@
       "publicadoEm": "2026-07-31T17:10:13.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "2ddbdfcea5cf383b",
@@ -123,9 +168,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/pessoas-juridicas-podem-pagar-anuidade-com-60-de-desconto-ate-o-dia-31-7-2/",
       "publicadoEm": "2026-07-30T21:48:29.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
       "categoria": "Arquitetura e Urbanismo",
-      "dominio": "caubr.gov.br"
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/420-Estados-12.png",
+      "imagemAlt": "Pessoas jurídicas podem pagar anuidade com 60% de desconto até o dia 31/7",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "dcbfc29e05447816",
@@ -134,9 +182,12 @@
       "fonte": "CAU/BR",
       "url": "https://caubr.gov.br/jornada-bim-parana-4-0-preve-passagem-por-nove-municipios-paranaenses/",
       "publicadoEm": "2026-07-30T21:28:48.000Z",
-      "coletadoEm": "2026-08-01T23:00:27.230Z",
+      "coletadoEm": "2026-08-02T04:01:39.809Z",
       "categoria": "Tecnologia e BIM",
-      "dominio": "caubr.gov.br"
+      "dominio": "caubr.gov.br",
+      "imagemUrl": "https://caubr.gov.br/wp-content/uploads/2026/07/CAUPR-420-2.png",
+      "imagemAlt": "Jornada BIM Paraná 4.0 prevê passagem por nove municípios paranaenses",
+      "imagemOrigem": "CAU/BR"
     },
     {
       "id": "ca91a29c29786cf8",
@@ -147,7 +198,10 @@
       "publicadoEm": "2026-07-30T21:27:39.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "d07c4cdc87fe00f1",
@@ -158,7 +212,10 @@
       "publicadoEm": "2026-07-30T21:24:24.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "1dbc739307a054ca",
@@ -169,7 +226,10 @@
       "publicadoEm": "2026-07-30T21:14:57.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "30d6fb4334cbf57b",
@@ -180,7 +240,10 @@
       "publicadoEm": "2026-07-30T19:11:51.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "5b028c47b4f4b5a5",
@@ -191,7 +254,10 @@
       "publicadoEm": "2026-07-29T19:02:44.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Infraestrutura e Obras",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "3b16a8398844e890",
@@ -202,7 +268,10 @@
       "publicadoEm": "2026-07-29T17:52:25.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Segurança do Trabalho",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "230f399f1bdad23c",
@@ -213,7 +282,10 @@
       "publicadoEm": "2026-07-28T18:51:35.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     },
     {
       "id": "dfcf65f14b063b89",
@@ -224,7 +296,10 @@
       "publicadoEm": "2026-07-27T21:33:37.000Z",
       "coletadoEm": "2026-08-01T23:00:27.230Z",
       "categoria": "Engenharia e Construção",
-      "dominio": "cbic.org.br"
+      "dominio": "cbic.org.br",
+      "imagemUrl": null,
+      "imagemAlt": null,
+      "imagemOrigem": null
     }
   ]
 }

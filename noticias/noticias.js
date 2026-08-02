@@ -49,7 +49,17 @@ function formatDate(value) {
 function isSafeHttpUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+  } catch (error) {
+    return false;
+  }
+}
+
+function isSafeImageUrl(value) {
+  if (!isSafeHttpUrl(value)) return false;
+  try {
+    const pathname = new URL(value).pathname.toLocaleLowerCase("pt-BR");
+    return !pathname.endsWith(".svg") && !pathname.endsWith(".svgz");
   } catch (error) {
     return false;
   }
@@ -140,9 +150,35 @@ function renderEmptyState(message, showClearButton) {
   elements.list.replaceChildren(container);
 }
 
+function createImageCredit(item) {
+  const origin = String(item.imagemOrigem || item.fonte || "").trim();
+  if (!origin) return null;
+  return appendText(document.createElement("span"), "span", `Imagem: ${origin}`, "image-credit");
+}
+
 function createCover(item) {
   const cover = document.createElement("div");
   cover.className = "card-cover";
+  if (isSafeImageUrl(item.imagemUrl)) {
+    cover.classList.add("has-real-image");
+
+    const image = document.createElement("img");
+    image.src = item.imagemUrl;
+    image.alt = String(item.imagemAlt || item.titulo || "Imagem da not\u00edcia").trim();
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.referrerPolicy = "no-referrer";
+    image.addEventListener("error", () => {
+      image.remove();
+      cover.classList.remove("has-real-image");
+      const credit = cover.querySelector(".image-credit");
+      if (credit) credit.remove();
+    });
+    cover.append(image);
+
+    const credit = createImageCredit(item);
+    if (credit) cover.append(credit);
+  }
   appendText(cover, "span", item.categoria || "Geral", "cover-label");
   return cover;
 }
