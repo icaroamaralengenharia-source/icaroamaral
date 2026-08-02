@@ -3172,6 +3172,7 @@
       dailyLogs: [],
       compositions: [],
       executionStockAnalysis: null,
+      executionStockAlerts: [],
       billing: {}
     });
   }
@@ -3186,6 +3187,7 @@
     state.executionStockAnalysis = state.executionStockAnalysis && typeof state.executionStockAnalysis === "object"
       ? state.executionStockAnalysis
       : null;
+    state.executionStockAlerts = Array.isArray(state.executionStockAlerts) ? state.executionStockAlerts : [];
     state.local = state.local || {};
     state.local.lastRoute = state.local.lastRoute || "dashboard";
     state.local.lastView = state.local.lastView || state.local.lastRoute;
@@ -6285,7 +6287,17 @@
         operationalStock: window.ObraReportOperationalStock || {}
       });
 
-      if (result && result.changed) {
+      let alertsChanged = false;
+      if (result && result.analysis && result.analysis.status === "ready" && typeof analysisApi.persistExecutionStockAlerts === "function") {
+        try {
+          const alertsResult = analysisApi.persistExecutionStockAlerts(appState, result.analysis, { maxAlerts: 500 });
+          alertsChanged = Boolean(alertsResult && alertsResult.changed);
+        } catch (alertError) {
+          console.warn("Não foi possível persistir os alertas locais da análise do RDO.", alertError);
+        }
+      }
+
+      if (result && (result.changed || alertsChanged)) {
         saveLocalData({ syncCloud: false });
       }
     } catch (error) {

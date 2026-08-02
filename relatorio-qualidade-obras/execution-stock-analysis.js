@@ -89,6 +89,204 @@
     };
   }
 
+  function stableText(value, max) {
+    return clean(value, max || 400).toLowerCase();
+  }
+
+  function numberOrNull(value) {
+    if (value == null || value === "") return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  function severityForType(type) {
+    const safe = stableText(type, 120);
+    if (safe === "insufficient_balance" || safe === "stock_exit_without_production") return "critical";
+    if (safe === "consumption_above_expected" || safe === "production_without_stock_exit") return "high";
+    if (safe === "consumption_below_expected" || safe === "missing_reference") return "medium";
+    return "low";
+  }
+
+  function titleForAlert(type, materialName) {
+    const material = clean(materialName, 160) || "Material";
+    const safe = stableText(type, 120);
+    if (safe === "consumption_above_expected") return "Consumo acima do previsto em " + material;
+    if (safe === "consumption_below_expected") return "Consumo abaixo do previsto em " + material;
+    if (safe === "production_without_stock_exit") return "Producao sem saida de estoque em " + material;
+    if (safe === "stock_exit_without_production") return "Saida sem producao vinculada em " + material;
+    if (safe === "insufficient_balance") return "Saldo insuficiente em " + material;
+    if (safe === "missing_reference") return "Referencia de consumo ausente em " + material;
+    return "Alerta de consumo em " + material;
+  }
+
+  function summaryForAlert(type, materialName, differenceQuantity, differencePercent) {
+    const parts = [titleForAlert(type, materialName) + "."];
+    if (differenceQuantity != null) parts.push("Diferenca: " + differenceQuantity + ".");
+    if (differencePercent != null) parts.push("Desvio: " + differencePercent + "%.");
+    return parts.join(" ");
+  }
+
+  function recommendationForType(type) {
+    const safe = stableText(type, 120);
+    if (safe === "consumption_above_expected") return "Conferir producao executada, perdas e baixa do estoque antes da proxima saida.";
+    if (safe === "consumption_below_expected") return "Verificar se a producao foi concluida e se todas as saidas foram registradas.";
+    if (safe === "production_without_stock_exit") return "Registrar ou revisar a saida de estoque relacionada ao servico executado.";
+    if (safe === "stock_exit_without_production") return "Vincular a saida a um RDO ou confirmar se houve consumo sem producao apontada.";
+    if (safe === "insufficient_balance") return "Revisar saldo, entradas e consumos antes de liberar nova movimentacao.";
+    if (safe === "missing_reference") return "Vincular composicao ou consumo previsto para tornar a analise rastreavel.";
+    return "Revisar dados do RDO, previsao de consumo e estoque antes de executar a proxima acao.";
+  }
+
+  function findMaterialResult(analysis, alert) {
+    const alertMaterial = stableText(alert && (alert.material || alert.name), 160);
+    const alertStatus = stableText(alert && alert.status, 120);
+    return arrayOf(analysis && analysis.result && analysis.result.materials).find(function (item) {
+      const material = item && typeof item === "object" ? item : {};
+      return stableText(material.material || material.name, 160) === alertMaterial
+        && (!alertStatus || stableText(material.status, 120) === alertStatus);
+    }) || null;
+  }
+
+  function encodeIdPart(value) {
+    return stableText(value, 160).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "null";
+  }
+
+  function buildExecutionStockAlertId(input) {
+    const safe = input || {};
+    return [
+      "exa",
+      encodeIdPart(safe.workId),
+      encodeIdPart(safe.sourceRdoId),
+      encodeIdPart(safe.sourceFingerprint),
+      encodeIdPart(safe.type),
+      encodeIdPart(safe.serviceCode || safe.serviceName),
+      encodeIdPart(safe.materialCode || safe.materialName)
+    ].join("_");
+  }
+
+  function buildOccurrenceKey(alert) {
+    const safe = alert || {};
+    return [
+      encodeIdPart(safe.workId),
+      encodeIdPart(safe.sourceRdoId),
+      encodeIdPart(safe.type),
+      encodeIdPart(safe.serviceCode || safe.serviceName),
+      encodeIdPart(safe.materialCode || safe.materialName)
+    ].join("|");
+  }
+
+  function normalizePersistentAlert(analysis, alert, options) {
+    const type = clean(alert && (alert.type || alert.status || alert.classification), 120);
+    const materialName = clean(alert && (alert.materialName || alert.material || alert.name), 160);
+    if (!type && !materialName) return null;
+
+    const material = findMaterialResult(analysis, alert) || {};
+    const expectedQuantity = numberOrNull(material.expectedConsumption);
+    const actualQuantity = numberOrNull(material.actualStockExit);
+    const differenceQuantity = numberOrNull(alert && alert.difference != null ? alert.difference : material.difference);
+    const differencePercent = expectedQuantity ? Number(((differenceQuantity || 0) / Math.abs(expectedQuantity) * 100).toFixed(2)) : null;
+    const createdAt = nowIso(options);
+    const persistent = {
+      id: "",
+      version: VERSION,
+      workId: clean(analysis.workId) || null,
+      sourceRdoId: clean(analysis.sourceRdoId) || null,
+      sourceRdoUpdatedAt: clean(analysis.sourceRdoUpdatedAt) || null,
+      sourceFingerprint: clean(analysis.sourceFingerprint, 2000) || null,
+      type: type || null,
+      severity: severityForType(type),
+      title: titleForAlert(type, materialName),
+      summary: summaryForAlert(type, materialName, differenceQuantity, differencePercent),
+      recommendation: recommendationForType(type),
+      serviceCode: clean(alert && alert.serviceCode) || clean(material.serviceCode) || null,
+      serviceName: clean(alert && alert.serviceName) || clean(material.serviceName) || null,
+      materialCode: clean(alert && alert.materialCode) || clean(material.materialCode) || null,
+      materialName: materialName || clean(material.material || material.name) || null,
+      expectedQuantity: expectedQuantity,
+      actualQuantity: actualQuantity,
+      differenceQuantity: differenceQuantity,
+      differencePercent: differencePercent,
+      status: "open",
+      createdAt: createdAt,
+      updatedAt: createdAt,
+      resolvedAt: null
+    };
+    persistent.id = buildExecutionStockAlertId(persistent);
+    return persistent;
+  }
+
+  function trimExecutionStockAlerts(alerts, max) {
+    const limit = max || 500;
+    if (alerts.length <= limit) return alerts;
+    const removable = alerts
+      .map(function (alert, index) { return { alert: alert, index: index }; })
+      .filter(function (item) { return item.alert.status === "resolved" || item.alert.status === "obsolete"; })
+      .sort(function (a, b) { return String(a.alert.updatedAt || a.alert.createdAt || "").localeCompare(String(b.alert.updatedAt || b.alert.createdAt || "")); });
+    const removeCount = Math.min(alerts.length - limit, removable.length);
+    const removeIndexes = removable.slice(0, removeCount).map(function (item) { return item.index; });
+    return alerts.filter(function (_alert, index) { return removeIndexes.indexOf(index) === -1; });
+  }
+
+  function persistExecutionStockAlerts(state, analysis, options) {
+    const appState = state && typeof state === "object" ? state : {};
+    const safe = analysis && typeof analysis === "object" ? analysis : {};
+    appState.executionStockAlerts = Array.isArray(appState.executionStockAlerts) ? appState.executionStockAlerts : [];
+
+    if (safe.version !== VERSION || safe.status !== "ready" || !clean(safe.workId) || !clean(safe.sourceRdoId) || !clean(safe.sourceFingerprint)) {
+      return { changed: false, alerts: appState.executionStockAlerts, created: 0, updated: 0, obsoleted: 0, skipped: true };
+    }
+
+    const normalized = arrayOf(safe.alerts).map(function (alert) {
+      return normalizePersistentAlert(safe, alert, options);
+    }).filter(Boolean);
+
+    const now = nowIso(options);
+    let changed = false;
+    let created = 0;
+    let updated = 0;
+    let obsoleted = 0;
+    const currentKeys = normalized.map(buildOccurrenceKey);
+
+    normalized.forEach(function (next) {
+      const key = buildOccurrenceKey(next);
+      const existing = appState.executionStockAlerts.find(function (item) {
+        return buildOccurrenceKey(item) === key;
+      });
+
+      if (!existing) {
+        appState.executionStockAlerts.push(next);
+        created += 1;
+        changed = true;
+        return;
+      }
+
+      const preservedStatus = existing.status === "acknowledged" || existing.status === "resolved" ? existing.status : "open";
+      const preservedResolvedAt = preservedStatus === "resolved" ? existing.resolvedAt || now : null;
+      Object.assign(existing, next, {
+        status: preservedStatus,
+        createdAt: existing.createdAt || next.createdAt,
+        updatedAt: now,
+        resolvedAt: preservedResolvedAt
+      });
+      updated += 1;
+      changed = true;
+    });
+
+    appState.executionStockAlerts.forEach(function (existing) {
+      if (existing.workId !== safe.workId || existing.sourceRdoId !== safe.sourceRdoId) return;
+      if (currentKeys.indexOf(buildOccurrenceKey(existing)) !== -1) return;
+      if (existing.status === "obsolete") return;
+      existing.status = "obsolete";
+      existing.updatedAt = now;
+      existing.resolvedAt = null;
+      obsoleted += 1;
+      changed = true;
+    });
+
+    appState.executionStockAlerts = trimExecutionStockAlerts(appState.executionStockAlerts, options && options.maxAlerts);
+    return { changed: changed, alerts: appState.executionStockAlerts, created: created, updated: updated, obsoleted: obsoleted, skipped: false };
+  }
+
   function buildRecord(status, savedRdo, fingerprint, details, options) {
     const safe = details || {};
     return {
@@ -160,14 +358,20 @@
 
   const api = {
     refreshExecutionStockAnalysisAfterRdoSave: refreshExecutionStockAnalysisAfterRdoSave,
+    persistExecutionStockAlerts: persistExecutionStockAlerts,
+    buildExecutionStockAlertId: buildExecutionStockAlertId,
     sourceFingerprint: sourceFingerprint
   };
 
   if (typeof exports !== "undefined") exports.refreshExecutionStockAnalysisAfterRdoSave = refreshExecutionStockAnalysisAfterRdoSave;
+  if (typeof exports !== "undefined") exports.persistExecutionStockAlerts = persistExecutionStockAlerts;
+  if (typeof exports !== "undefined") exports.buildExecutionStockAlertId = buildExecutionStockAlertId;
   if (typeof exports !== "undefined") exports.sourceFingerprint = sourceFingerprint;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.ObraReportExecutionStockAnalysis = api;
 })(typeof window !== "undefined" ? window : globalThis);
 
 export const refreshExecutionStockAnalysisAfterRdoSave = globalThis.ObraReportExecutionStockAnalysis.refreshExecutionStockAnalysisAfterRdoSave;
+export const persistExecutionStockAlerts = globalThis.ObraReportExecutionStockAnalysis.persistExecutionStockAlerts;
+export const buildExecutionStockAlertId = globalThis.ObraReportExecutionStockAnalysis.buildExecutionStockAlertId;
 export const sourceFingerprint = globalThis.ObraReportExecutionStockAnalysis.sourceFingerprint;
