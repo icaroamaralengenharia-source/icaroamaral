@@ -153,3 +153,33 @@ test("Stock Full NF-e reader rejeita tentativa de XXE", () => {
   assert.equal(result.ok, false);
   assert.equal(result.error, "xml_external_entities_not_allowed");
 });
+test("Stock Full NF-e SQL final acompanha RPC runtime segura", () => {
+  const runtime = readFileSync(join(rootDir, "backend", "src", "data", "stock-full-runtime-schema.sql"), "utf8");
+  const manual = readFileSync(join(rootDir, "backend", "src", "data", "stock-full-nfe-rpc-final-staging-manual.sql"), "utf8");
+  const signature = "public.confirm_stock_full_nfe_import(uuid, uuid, text, uuid, jsonb, jsonb)";
+
+  assert.match(runtime, /drop function if exists public\.confirm_stock_full_nfe_import\(text, uuid, text, uuid, jsonb, jsonb\);/);
+  assert.match(manual, /drop function if exists public\.confirm_stock_full_nfe_import\(text, uuid, text, uuid, jsonb, jsonb\);/);
+  assert.match(runtime, /p_institution_id uuid/);
+  assert.match(manual, /p_institution_id uuid/);
+  assert.match(runtime, /v_institution_id_text text := p_institution_id::text/);
+  assert.match(manual, /v_institution_id_text text := p_institution_id::text/);
+  assert.doesNotMatch(runtime, /p_institution_id text/);
+  assert.doesNotMatch(manual, /p_institution_id text/);
+  assert.match(runtime, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from public"));
+  assert.match(runtime, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from anon"));
+  assert.match(runtime, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from authenticated"));
+  assert.match(manual, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from public"));
+  assert.match(manual, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from anon"));
+  assert.match(manual, new RegExp("revoke all on function " + signature.replace(/[()]/g, "\\$&") + " from authenticated"));
+  assert.match(manual, new RegExp("grant execute on function " + signature.replace(/[()]/g, "\\$&") + " to service_role"));
+
+  const extractRpc = (sql) => sql
+    .slice(sql.indexOf("create or replace function public.confirm_stock_full_nfe_import("), sql.indexOf("revoke all on function public.confirm_stock_full_nfe_import"))
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== "")
+    .join("\n")
+    .trim();
+
+  assert.equal(extractRpc(manual), extractRpc(runtime));
+});
