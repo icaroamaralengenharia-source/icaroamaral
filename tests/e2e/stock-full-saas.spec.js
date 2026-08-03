@@ -1,8 +1,66 @@
 import { expect, test } from "@playwright/test";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { createReadStream, existsSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import { extname, join, normalize, sep } from "node:path";
 
-const APP_URL = pathToFileURL(resolve("stockfull.html")).toString();
+const ROOT_DIR = process.cwd();
+const STOCK_FULL_API_BASE_URL = "https://backend.example/api/stock-full";
+const MIME_TYPES = {
+  ".css": "text/css",
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp"
+};
+
+let staticServer = null;
+let APP_ORIGIN = "";
+let APP_URL = "";
+
+function startStockFullStaticServer() {
+  return new Promise((resolveServer, reject) => {
+    const server = createServer((request, response) => {
+      const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
+      const relativePath = requestUrl.pathname === "/" ? "stockfull.html" : requestUrl.pathname.slice(1);
+      const filePath = normalize(join(ROOT_DIR, relativePath));
+      if (filePath !== ROOT_DIR && !filePath.startsWith(ROOT_DIR + sep)) {
+        response.writeHead(403);
+        response.end("Forbidden");
+        return;
+      }
+      if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+        response.writeHead(404);
+        response.end("Not found");
+        return;
+      }
+      response.writeHead(200, { "Content-Type": MIME_TYPES[extname(filePath)] || "application/octet-stream" });
+      createReadStream(filePath).pipe(response);
+    });
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => resolveServer(server));
+  });
+}
+
+async function installStockFullHarness(target) {
+  await target.addInitScript(() => {
+    window.sessionStorage.setItem("icaro_site_access_v2", JSON.stringify({
+      authenticated: true,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 60 * 60 * 1000
+    }));
+  });
+  await target.route("https://cdn.jsdelivr.net/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "text/javascript", body: "" });
+  });
+  await target.route("https://fonts.googleapis.com/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "text/css", body: "" });
+  });
+  await target.route("https://fonts.gstatic.com/**", async (route) => {
+    await route.fulfill({ status: 200, contentType: "font/woff2", body: "" });
+  });
+}
 
 async function openApp(page, login = "manoel", options = {}) {
   if (options.clearStorage) {
@@ -62,6 +120,22 @@ async function selectByText(select, text) {
 }
 
 test.describe("Stock Full SaaS - fase A cirurgica", () => {
+  test.beforeAll(async () => {
+    staticServer = await startStockFullStaticServer();
+    APP_ORIGIN = "http://127.0.0.1:" + staticServer.address().port;
+    APP_URL = APP_ORIGIN + "/stockfull.html";
+  });
+
+  test.afterAll(async () => {
+    if (!staticServer) return;
+    await new Promise((resolveClose) => staticServer.close(resolveClose));
+    staticServer = null;
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await installStockFullHarness(page);
+  });
+
   test("admin e funcionario respeitam permissoes centrais", async ({ page }) => {
     await openApp(page, "manoel");
     expect(await page.evaluate(() => window.StockFullCore.canStockFull("products:import", "admin"))).toBe(true);
@@ -169,21 +243,33 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await expect(page.locator("#almoxItemsSection")).not.toContainText("Produto Empresa B");
   });
 
-  test("mobile 390px sem rolagem horizontal nem botao cortado", async ({ page }) => {
+  test("mobile sem rolagem horizontal nem botao cortado", async ({ page }) => {
     const consoleErrors = [];
+    const pageErrors = [];
     page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openApp(page, "manoel");
-    const metrics = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-      clippedButtons: Array.from(document.querySelectorAll("button, .mini-button, a.mini-button")).filter((element) => {
-        const rect = element.getBoundingClientRect();
-        return rect.left < -1 || rect.right > window.innerWidth + 1;
-      }).length
-    }));
-    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
-    expect(metrics.clippedButtons).toBe(0);
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    for (const viewport of [{ width: 360, height: 800 }, { width: 390, height: 844 }, { width: 412, height: 915 }]) {
+      await page.setViewportSize(viewport);
+      await openApp(page, "manoel", { clearStorage: true });
+      const metrics = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        clippedButtons: Array.from(document.querySelectorAll("button, .mini-button, a.mini-button")).filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.left < -1 || rect.right > window.innerWidth + 1;
+        }).length
+      }));
+      expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+      expect(metrics.clippedButtons).toBe(0);
+      await expect(page.locator("#stockFullDashboard")).toBeVisible();
+      await expect(page.locator("[data-almox-action=\"entry\"]").first()).toBeVisible();
+      await expect(page.locator("[data-almox-action=\"exit\"]").first()).toBeVisible();
+      await expect(page.locator("#stockFullSyncDetails")).toBeVisible();
+      await expect(page.locator("#stockFullSyncNowButton")).toBeVisible();
+    }
+
+    expect(pageErrors).toEqual([]);
     expect(consoleErrors.filter((text) => !/favicon|cdn.jsdelivr|supabase/i.test(text))).toEqual([]);
   });
   test("modo online real escolhe backend em producao e bloqueia demo", async ({ page }) => {
@@ -297,27 +383,33 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
   test("dois clientes simulados compartilham produto e saldo pelo backend", async ({ browser }) => {
     const remote = { items: [], entries: [], exits: [] };
     async function installRoutes(context) {
-      await context.route("https://backend.example/api/stock-full/items", async (route) => {
-        const request = route.request();
-        if (request.method() === "POST") {
-          const body = request.postDataJSON();
-          const item = { id: "prod_shared", name: body.name, currentQuantity: Number(body.currentQuantity || 0), institution_id: "inst_shared" };
-          remote.items = [item];
-          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, item }) });
-          return;
-        }
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: remote.items }) });
-      });
-      await context.route("https://backend.example/api/stock-full/entries", async (route) => {
-        const body = route.request().postDataJSON();
-        const item = remote.items[0];
-        item.currentQuantity = Number(item.currentQuantity || 0) + Number(body.quantity || 0);
-        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entry: { id: "entry_shared" }, item }) });
-      });
+      for (const url of [STOCK_FULL_API_BASE_URL + "/items", APP_ORIGIN + "/api/stock-full/items"]) {
+        await context.route(url, async (route) => {
+          const request = route.request();
+          if (request.method() === "POST") {
+            const body = request.postDataJSON();
+            const item = { id: "prod_shared", name: body.name, currentQuantity: Number(body.currentQuantity || 0), institution_id: "inst_shared" };
+            remote.items = [item];
+            await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, item }) });
+            return;
+          }
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: remote.items }) });
+        });
+      }
+      for (const url of [STOCK_FULL_API_BASE_URL + "/entries", APP_ORIGIN + "/api/stock-full/entries"]) {
+        await context.route(url, async (route) => {
+          const body = route.request().postDataJSON();
+          const item = remote.items[0];
+          item.currentQuantity = Number(item.currentQuantity || 0) + Number(body.quantity || 0);
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entry: { id: "entry_shared" }, item }) });
+        });
+      }
     }
 
     const contextA = await browser.newContext();
     const contextB = await browser.newContext();
+    await installStockFullHarness(contextA);
+    await installStockFullHarness(contextB);
     await installRoutes(contextA);
     await installRoutes(contextB);
     await contextA.addInitScript(() => {
