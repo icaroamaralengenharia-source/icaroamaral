@@ -41,7 +41,7 @@ const elements = {
     list: document.getElementById("lista-licitacoes"), highlights: document.getElementById("lista-licitacoes-destaque"), status: document.getElementById("estado-licitacoes"), results: document.getElementById("resumo-licitacoes"),
     updated: document.getElementById("licitacoes-atualizacao"), total: document.getElementById("licitacoes-total"), engineering: document.getElementById("licitacoes-engenharia"), technology: document.getElementById("licitacoes-tecnologia"), deadlines: document.getElementById("licitacoes-prazos"),
     search: document.getElementById("busca-licitacoes"), toggle: document.getElementById("alternar-busca-licitacoes"), tools: document.querySelector("[data-tools='licitacoes']"),
-    category: document.getElementById("filtro-categoria-licitacoes"), state: document.getElementById("filtro-estado-licitacoes"), mode: document.getElementById("filtro-modalidade-licitacoes"), deadline: document.getElementById("filtro-prazo-licitacoes"), order: document.getElementById("ordem-licitacoes"), clear: document.getElementById("limpar-filtros-licitacoes"),
+    category: document.getElementById("filtro-categoria-licitacoes"), state: document.getElementById("filtro-estado-licitacoes"), mode: document.getElementById("filtro-modalidade-licitacoes"), deadline: document.getElementById("filtro-prazo-licitacoes"), order: document.getElementById("ordem-licitacoes"), apply: document.getElementById("buscar-licitacoes"), clear: document.getElementById("limpar-filtros-licitacoes"),
   },
 
 };
@@ -614,6 +614,8 @@ function setupFilters() {
   elements.licitacoes.mode.addEventListener("change", (event) => { state.filters.licitacoes.modalidade = event.target.value; renderLicitacoes(); });
   elements.licitacoes.deadline.addEventListener("change", (event) => { state.filters.licitacoes.prazo = event.target.value; renderLicitacoes(); });
   elements.licitacoes.order.addEventListener("change", (event) => { state.filters.licitacoes.ordem = event.target.value || "prazo"; renderLicitacoes(); });
+  elements.licitacoes.apply.addEventListener("click", () => { renderLicitacoes(); });
+  elements.licitacoes.search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); renderLicitacoes(); } });
   elements.oportunidades.type.addEventListener("change", (event) => { state.filters.oportunidades.tipo = event.target.value; renderOportunidades(); });
   elements.oportunidades.state.addEventListener("change", (event) => { state.filters.oportunidades.estado = event.target.value; renderOportunidades(); });
   elements.oportunidades.mode.addEventListener("change", (event) => { state.filters.oportunidades.modalidade = event.target.value; renderOportunidades(); });
