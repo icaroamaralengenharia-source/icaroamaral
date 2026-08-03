@@ -5,7 +5,7 @@
     {
       "id": "dica-rota-acessivel-entrada",
       "titulo": "Rota acessivel desde a entrada",
-      "resumo": "Confira desn?veis, largura livre e obstaculos antes de fechar o layout.",
+      "resumo": "Confira desníveis, largura livre e obstaculos antes de fechar o layout.",
       "conteudo": "A rota principal deve conectar acesso, circulacao e ambientes de uso frequente com continuidade. Verifique soleiras, tapetes, moveis e pontos de estrangulamento antes da execucao. Pequenos ajustes no inicio evitam retrabalho caro depois.",
       "categoria": "Acessibilidade",
       "tags": [
@@ -864,7 +864,7 @@
       "id": "dica-piso-com-desnivel",
       "titulo": "Desnivel em piso pede causa",
       "resumo": "Antes de corrigir acabamento, confira base, caimento e movimentacao.",
-      "conteudo": "Desnivel pode vir de contrapiso, recalque, erro de execucao ou caimento planejado. Me?a, fotografe e relacione com portas, ralos e mobiliario antes de especificar correcao.",
+      "conteudo": "Desnivel pode vir de contrapiso, recalque, erro de execucao ou caimento planejado. Meça, fotografe e relacione com portas, ralos e mobiliario antes de especificar correcao.",
       "categoria": "Patologias",
       "tags": [
         "patologias",

@@ -251,7 +251,6 @@ function createTipCard(item, index) {
     button.focus();
   });
   body.append(button);
-  body.append(appendText(document.createElement("div"), "p", item.avisoTecnico || TECH_NOTE, "tech-note"));
   built.card.append(details);
   return built.card;
 }
