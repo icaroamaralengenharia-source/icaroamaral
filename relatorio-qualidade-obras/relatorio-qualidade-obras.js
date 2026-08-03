@@ -179,6 +179,10 @@
   const stockFullDashboard = document.getElementById("stockFullDashboard");
   const stockFullMetricCards = document.getElementById("stockFullMetricCards");
   const stockFullQuickSearch = document.getElementById("stockFullQuickSearch");
+  const stockFullReportPeriod = document.getElementById("stockFullReportPeriod");
+  const stockFullReportProduct = document.getElementById("stockFullReportProduct");
+  const stockFullReportUser = document.getElementById("stockFullReportUser");
+  const stockFullReportType = document.getElementById("stockFullReportType");
   const stockFullMonitorRows = document.getElementById("stockFullMonitorRows");
   const stockFullUrgentList = document.getElementById("stockFullUrgentList");
   const stockFullActivityList = document.getElementById("stockFullActivityList");
@@ -12358,6 +12362,7 @@
     renderAlmoxDashboard_();
     renderStockFullDashboard_();
     renderAlmoxTopManagerPanel_();
+    renderStockFullManagementReportFilters_();
     renderAlmoxItems_();
     renderAlmoxHistory_();
     renderAlmoxParsedNoteItems_();
@@ -15997,7 +16002,234 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(email));
   }
 
+
+  function renderStockFullManagementReportFilters_() {
+    if (!isStockFullContext_() || (!stockFullReportProduct && !stockFullReportUser)) return;
+    const data = collectAlmoxManagerData_();
+    const items = (data.state.items || []).slice().sort(function (a, b) { return clean(a.name).localeCompare(clean(b.name)); });
+    const users = [];
+    const seen = {};
+    (data.movements || []).forEach(function (movement) {
+      const label = clean(movement.responsible || movement.recipient || movement.createdBy || movement.created_by);
+      if (label && !seen[label]) { seen[label] = true; users.push(label); }
+    });
+    const session = getCurrentStockFullSession_();
+    if (clean(session.userName) && !seen[clean(session.userName)]) users.push(clean(session.userName));
+    updateStockFullReportSelect_(stockFullReportProduct, items.map(function (item) { return { value: clean(item.id), label: clean(item.name) || clean(item.sku) || "Produto" }; }), "Todos os produtos");
+    updateStockFullReportSelect_(stockFullReportUser, users.sort().map(function (user) { return { value: user, label: user }; }), "Todos os usuarios");
+  }
+
+  function updateStockFullReportSelect_(select, options, emptyLabel) {
+    if (!select) return;
+    const current = clean(select.value);
+    select.innerHTML = "";
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = emptyLabel;
+    select.appendChild(empty);
+    (options || []).forEach(function (option) {
+      const item = document.createElement("option");
+      item.value = option.value;
+      item.textContent = option.label;
+      select.appendChild(item);
+    });
+    select.value = (options || []).some(function (option) { return option.value === current; }) ? current : "";
+  }
+
+  function readStockFullManagementReportFilters_() {
+    return {
+      period: clean(stockFullReportPeriod && stockFullReportPeriod.value) || almoxDashboardPeriod || "30d",
+      productId: clean(stockFullReportProduct && stockFullReportProduct.value),
+      user: clean(stockFullReportUser && stockFullReportUser.value),
+      type: clean(stockFullReportType && stockFullReportType.value) || "all"
+    };
+  }
+
+  function getStockFullSecureReportProfile_() {
+    const session = getCurrentStockFullSession_();
+    const environment = getActiveStockEnvironment_() || {};
+    return {
+      companyName: clean(session.companyName) || clean((session.company || {}).name) || "Empresa autenticada",
+      unitName: clean(environment.unitName) || clean(environment.environmentName) || clean((stockFullAuthContext.profile || {}).unit_name) || "Unidade ativa",
+      environmentName: clean(environment.environmentName) || "Estoque principal",
+      institutionId: clean(session.companyId || session.institutionId || stockFullAuthContext.institutionId),
+      generatedBy: clean(session.userName || session.userEmail || currentUser && currentUser.name) || "Usuario autenticado",
+      generatedAt: formatDateTime_(new Date().toISOString())
+    };
+  }
+
+  function getStockFullManagementMovementType_(movement) {
+    const origin = clean(movement && (movement.origin || movement.movementOrigin || movement.sourceType)).toLowerCase();
+    if (origin === "nfe_import" || clean(movement && (movement.nfeAccessKey || movement.nfe_access_key))) return "nfe_import";
+    if (origin === "adjustment" || origin === "ajuste" || movement && movement.type === "ajuste") return "ajuste";
+    if (getStockFullMovementOrigin_(movement) === "adjustment") return "ajuste";
+    return movement && movement.type === "saida" ? "saida" : "entrada";
+  }
+
+  function getStockFullMovementUser_(movement) {
+    return clean(movement && (movement.responsible || movement.recipient || movement.createdBy || movement.created_by));
+  }
+
+  function filterStockFullManagementReportMovements_(movements, filters) {
+    const safe = filters || {};
+    return getAlmoxMovementsByPeriod_(movements || [], safe.period).filter(function (movement) {
+      if (safe.productId && clean(movement.itemId || movement.productId) !== safe.productId) return false;
+      if (safe.user && getStockFullMovementUser_(movement) !== safe.user) return false;
+      if (safe.type && safe.type !== "all" && getStockFullManagementMovementType_(movement) !== safe.type) return false;
+      return true;
+    });
+  }
+
+  function getStockFullSelectedReportProductLabel_(productId, itemsById) {
+    const id = clean(productId);
+    if (!id) return "Todos os produtos";
+    if (itemsById && itemsById[id] && clean(itemsById[id].name)) return clean(itemsById[id].name);
+    if (stockFullReportProduct && stockFullReportProduct.selectedOptions && stockFullReportProduct.selectedOptions[0]) return clean(stockFullReportProduct.selectedOptions[0].textContent) || id;
+    return id;
+  }
+
+  function buildStockFullMovementRowsByProduct_(movements, itemsById) {
+    const grouped = {};
+    (movements || []).forEach(function (movement) {
+      const item = (itemsById || {})[movement.itemId] || {};
+      const key = clean(movement.itemId) || clean(item.name) || "produto";
+      grouped[key] = grouped[key] || { item: item, entries: 0, exits: 0, adjustments: 0, nfe: 0, count: 0 };
+      const quantity = parseNumber_(movement.quantity);
+      const type = getStockFullManagementMovementType_(movement);
+      if (type === "saida") grouped[key].exits += quantity;
+      else if (type === "ajuste") grouped[key].adjustments += quantity;
+      else if (type === "nfe_import") grouped[key].nfe += quantity;
+      else grouped[key].entries += quantity;
+      grouped[key].count += 1;
+    });
+    return Object.keys(grouped).map(function (key) {
+      const group = grouped[key];
+      return [clean(group.item.name) || "Produto sem cadastro", clean(group.item.sku || group.item.fiscalCode) || "-", formatQuantity_(group.entries), formatQuantity_(group.exits), formatQuantity_(group.adjustments), formatQuantity_(group.nfe), String(group.count)];
+    }).sort(function (a, b) { return a[0].localeCompare(b[0]); });
+  }
+
+  function buildStockFullNfeRows_(movements, itemsById) {
+    const grouped = {};
+    (movements || []).filter(function (movement) { return getStockFullManagementMovementType_(movement) === "nfe_import"; }).forEach(function (movement) {
+      const accessKey = clean(movement.nfeAccessKey || movement.nfe_access_key || movement.documentNumber);
+      const key = accessKey || clean(movement.id);
+      const item = (itemsById || {})[movement.itemId] || {};
+      grouped[key] = grouped[key] || { date: getAlmoxMovementDisplayDateTime_(movement), number: clean(movement.nfeNumber || movement.nfe_number) || "-", accessKey: accessKey, supplier: clean(movement.supplier) || "Fornecedor nao informado", products: [], quantity: 0 };
+      grouped[key].products.push(clean(item.name) || "Produto sem cadastro");
+      grouped[key].quantity += parseNumber_(movement.quantity);
+    });
+    return Object.keys(grouped).map(function (key) {
+      const row = grouped[key];
+      return [row.date, row.number, abbreviateStockFullNfeKey_(row.accessKey), row.supplier, summarizeStockIaList_(row.products, 3), formatQuantity_(row.quantity)];
+    });
+  }
+
+  function abbreviateStockFullNfeKey_(value) {
+    const key = clean(value);
+    if (!key) return "-";
+    if (key.length <= 16) return key;
+    return key.slice(0, 8) + "..." + key.slice(-8);
+  }
+
+  function buildStockFullManagementReportViewModel_() {
+    const data = collectAlmoxManagerData_();
+    const filters = readStockFullManagementReportFilters_();
+    const periodMovements = filterStockFullManagementReportMovements_(data.movements, filters);
+    const entries = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "entrada"; });
+    const exits = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida"; });
+    const adjustments = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "ajuste"; });
+    const nfe = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "nfe_import"; });
+    const totalBalance = data.balances.reduce(function (sum, balance) { return sum + parseNumber_(balance.balance); }, 0);
+    const risk = buildAlmoxRiskLevel_(data);
+    const productFilter = getStockFullSelectedReportProductLabel_(filters.productId, data.itemsById);
+    const recommendations = [];
+    if (data.zeroItems.length) recommendations.push("Repor itens zerados antes de autorizar novas saidas.");
+    if (data.criticalItems.length) recommendations.push("Revisar compras para itens abaixo do estoque minimo.");
+    if (!recommendations.length) recommendations.push("Manter conferencia periodica de saldo, entradas fiscais e retiradas.");
+    return {
+      title: "Relatorio Gerencial - Stock Full",
+      profile: getStockFullSecureReportProfile_(),
+      filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
+      metrics: [
+        { label: "Total de produtos", value: String(data.balances.length) },
+        { label: "Saldo total", value: formatQuantity_(totalBalance) + " un." },
+        { label: "Itens zerados", value: String(data.zeroItems.length) },
+        { label: "Abaixo do minimo", value: String(data.criticalItems.length) },
+        { label: "Entradas no periodo", value: String(entries.length) },
+        { label: "Saidas no periodo", value: String(exits.length) },
+        { label: "Ajustes no periodo", value: String(adjustments.length) },
+        { label: "NF-e importadas", value: String(nfe.length) }
+      ],
+      summary: [
+        ["Risco operacional", risk.label + " - " + risk.message],
+        ["Periodo selecionado", getAlmoxDashboardPeriodLabel_(filters.period)],
+        ["Filtro de produto", productFilter],
+        ["Filtro de usuario", filters.user || "Todos os usuarios"],
+        ["Filtro de tipo", getStockFullManagementTypeLabel_(filters.type)],
+        ["Resumo executivo", "O Stock Full consolidou " + data.balances.length + " produto(s), saldo total de " + formatQuantity_(totalBalance) + " unidade(s), " + data.zeroItems.length + " zerado(s) e " + data.criticalItems.length + " abaixo do minimo."],
+        ["Recomendacoes", recommendations.join(" ")]
+      ],
+      tables: {
+        movementByProduct: buildStockFullMovementRowsByProduct_(periodMovements, data.itemsById),
+        recentMovements: periodMovements.slice(0, 12).map(function (movement) { const item = data.itemsById[movement.itemId] || {}; return [getAlmoxMovementDisplayDateTime_(movement), getStockFullManagementTypeLabel_(getStockFullManagementMovementType_(movement)), clean(item.name) || "Produto sem cadastro", formatQuantity_(movement.quantity) + " " + (item.unit || "un"), getStockFullMovementUser_(movement) || "-", clean(movement.documentNumber || movement.reason || movement.sector || movement.origin) || "-"]; }),
+        nfe: buildStockFullNfeRows_(periodMovements, data.itemsById),
+        alerts: data.activeAlerts.map(function (alert) { return [alert.severity === "critical" ? "Critico" : "Atencao", clean(alert.itemName) || "Produto", clean(alert.message) || "Alerta"]; })
+      }
+    };
+  }
+
+  function getStockFullManagementTypeLabel_(type) {
+    if (type === "entrada") return "Entradas";
+    if (type === "saida") return "Saidas";
+    if (type === "ajuste") return "Ajustes";
+    if (type === "nfe_import") return "NF-e importadas";
+    return "Todos os tipos";
+  }
+
+  function buildStockFullManagementReportPdfHtml_() {
+    const viewModel = buildStockFullManagementReportViewModel_();
+    const profile = viewModel.profile;
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+      "<title>" + escapeHtml_(viewModel.title) + "</title><style>" +
+      "@page{size:A4;margin:15mm 13mm 17mm;@bottom-center{content:'Pagina ' counter(page) ' de ' counter(pages);font:9px Arial,sans-serif;color:#555}}" +
+      "*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.35}.page{width:100%;margin:0 auto}.report-head{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px}.brand{font-size:12px;font-weight:700;text-transform:uppercase}.brand strong{display:block;font-size:22px;letter-spacing:0}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;text-align:right}.meta span,.filters span{display:block;color:#444;font-size:9px;text-transform:uppercase;font-weight:700}.filters,.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0 12px}.box,.metric{border:1px solid #999;padding:7px;break-inside:avoid}.metric strong{display:block;font-size:16px;margin-top:3px}.section{margin-top:12px;break-inside:auto}h1,h2,h3,p{margin-top:0}h1{font-size:20px;margin-bottom:4px}h2{font-size:13px;border-bottom:1px solid #111;padding-bottom:4px;margin-bottom:7px}.list{display:grid;grid-template-columns:42mm 1fr;gap:5px 8px}.list dt{font-weight:700}.list dd{margin:0}.print-footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #999;padding-top:4px;font-size:9px;color:#444;display:flex;justify-content:space-between}.page-number:after{content:'Pagina ' counter(page)}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #999;padding:5px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;color:#111;font-size:9px;text-transform:uppercase}.empty{border:1px solid #999;padding:7px;color:#444}.muted{color:#444}@media screen{body{background:#e5e7eb;padding:24px}.page{max-width:210mm;min-height:297mm;background:#fff;padding:15mm 13mm 17mm;box-shadow:0 18px 60px rgba(0,0,0,.18)}}@media print{body{background:#fff}.page{padding:0;box-shadow:none}.section{break-inside:auto}}" +
+      "</style></head><body><main class=\"page\" data-stock-full-management-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Relatorio gerencial profissional</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Controle comercial de estoque por empresa e unidade ativa.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsavel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
+      "<section class=\"filters\">" + formatStockFullReportBoxes_(viewModel.filters) + "</section>" +
+      "<section class=\"metrics\">" + viewModel.metrics.map(function (metric) { return "<article class=\"metric\"><span>" + escapeHtml_(metric.label) + "</span><strong>" + escapeHtml_(metric.value) + "</strong></article>"; }).join("") + "</section>" +
+      "<section class=\"section\"><h2>Resumo executivo</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summary) + "</section>" +
+      "<section class=\"section\"><h2>Movimentacoes por produto</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Saidas", "Ajustes", "NF-e", "Mov."], viewModel.tables.movementByProduct, "Nenhuma movimentacao encontrada para os filtros selecionados.") + "</section>" +
+      "<section class=\"section\"><h2>Ultimas movimentacoes</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "Quantidade", "Usuario", "Origem"], viewModel.tables.recentMovements, "Nenhuma movimentacao no periodo filtrado.") + "</section>" +
+      "<section class=\"section\"><h2>NF-e importadas no periodo</h2>" + formatAlmoxHtmlTable_(["Data", "Numero", "Chave", "Fornecedor", "Produtos", "Quantidade"], viewModel.tables.nfe, "Nenhuma NF-e importada nos filtros selecionados.") + "</section>" +
+      "<section class=\"section\"><h2>Alertas e recomendacoes</h2>" + formatAlmoxHtmlTable_(["Status", "Produto", "Mensagem"], viewModel.tables.alerts, "Nenhum alerta ativo para a unidade atual.") + "</section>" +
+      "<footer class=\"print-footer\"><span>Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.</span><span class=\"page-number\"></span></footer><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},150);});</script></main></body></html>";
+  }
+
+  function formatStockFullReportBoxes_(filters) {
+    return [["Periodo", filters.period], ["Produto", filters.product], ["Usuario", filters.user], ["Tipo", filters.type]].map(function (item) {
+      return "<div class=\"box\"><span>" + escapeHtml_(item[0]) + "</span>" + escapeHtml_(item[1]) + "</div>";
+    }).join("");
+  }
+
+  function openStockFullManagementReportPdf_() {
+    const html = buildStockFullManagementReportPdfHtml_();
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    showAlmoxToast_("PDF gerencial Stock Full aberto em formato A4 para imprimir/salvar.", "success");
+  }
+
   function printAlmoxReport_() {
+    if (isStockFullContext_()) {
+      openStockFullManagementReportPdf_();
+      return;
+    }
     if (!almoxLastSummaryText) {
       almoxLastSummaryText = buildAlmoxGeneratedSummaryText_();
     }
@@ -21856,6 +22088,10 @@
     const after = getOperationalAlmoxBalanceSnapshot_();
     return { ok: true, releaseId: releaseId, source: source, projectId: projectId, workId: workId, environmentId: environmentId, movements: movements, before: before, after: after, history: movements };
   }
+  window.StockFullManagementPdf = Object.assign({}, window.StockFullManagementPdf || {}, {
+    buildHtmlForTest: buildStockFullManagementReportPdfHtml_,
+    buildViewModelForTest: buildStockFullManagementReportViewModel_
+  });
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
     createConfirmedExit: createConfirmedOperationalExit_

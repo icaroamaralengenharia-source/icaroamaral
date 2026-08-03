@@ -135,3 +135,9 @@
 .stock-full-app .stock-full-nfe-result[data-status="ok"] { border-color:rgba(34,197,94,.42); }
 .stock-full-app .stock-full-nfe-result[data-status="error"] { border-color:rgba(239,68,68,.5); }
 @media (max-width:430px) { .stock-full-app .stock-full-nfe-actions { display:grid; } }
+
+.stock-full-app .stock-full-report-filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:14px; padding:14px; border:1px solid var(--sf-line); border-radius:14px; background:rgba(3,11,21,.42); }
+.stock-full-app .stock-full-report-filters label { font-size:.82rem; }
+.stock-full-app .stock-full-report-filters select { min-height:40px; border-radius:10px; }
+@media (max-width:860px) { .stock-full-app .stock-full-report-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:430px) { .stock-full-app .stock-full-report-filters { grid-template-columns:1fr; padding:10px; } }
