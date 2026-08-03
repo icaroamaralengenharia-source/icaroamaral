@@ -70,3 +70,25 @@ As dicas são conteúdo manual conservador. Dicas não revisadas permanecem no J
 ## Política de conteúdo
 
 A página não copia matérias completas. Ela mostra título, resumo curto extraído da própria fonte, data, fonte e link para a publicação original. As fontes devem ser revisadas periodicamente para confirmar disponibilidade, qualidade técnica e adequação editorial.
+## Hunter Licitacoes
+
+A aba `Hunter Licitacoes` usa somente a API publica de consulta do Portal Nacional de Contratacoes Publicas (PNCP), sem autenticacao e sem chamadas de escrita. O endpoint validado no OpenAPI oficial e:
+
+- Documentacao: `https://pncp.gov.br/pncp-consulta/v3/api-docs`
+- Consulta usada: `https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao`
+
+O coletor `scripts/atualizar-licitacoes.mjs` consulta publicacoes dos ultimos 7 dias, filtra processos ainda abertos, aplica regras deterministicas para engenharia, arquitetura, laudos, fiscalizacao, infraestrutura, tecnologia e SaaS, remove duplicados e grava somente `noticias/dados/licitacoes.json`.
+
+Comandos locais:
+
+```bash
+node --check scripts/atualizar-licitacoes.mjs
+node --check noticias/noticias.js
+node --test tests/atualizar-licitacoes.test.mjs
+node scripts/atualizar-licitacoes.mjs --dry-run
+node scripts/atualizar-licitacoes.mjs
+```
+
+O workflow `Atualizar Hunter Licitacoes` fica em `.github/workflows/atualizar-licitacoes.yml`, preserva `workflow_dispatch` e roda em `0 11,19 * * *`, equivalente a 08:00 e 16:00 no horario de Brasilia. Ele testa antes da coleta e permite commit automatico apenas de `noticias/dados/licitacoes.json`, com a mensagem `chore: atualiza Hunter Licitacoes`.
+
+Se o PNCP falhar, se o retorno nao for JSON ou se nenhum item compativel for encontrado, o JSON anterior e preservado e o workflow falha sem commitar lista vazia.

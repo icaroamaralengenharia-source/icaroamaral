@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
@@ -11,8 +11,8 @@
     <meta property="og:description" content="Dicas práticas, notícias atualizadas e oportunidades para profissionais, estudantes e empresas do setor.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.icaroamaral.com.br/noticias/">
-    <link rel="stylesheet" href="./noticias.css?v=20260802-central-61x">
-    <script src="./noticias.js?v=20260802-central-61x" defer></script>
+    <link rel="stylesheet" href="./noticias.css?v=20260802-hunter-64a">
+    <script src="./noticias.js?v=20260802-hunter-64a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -39,6 +39,7 @@
       <nav class="content-tabs" role="tablist" aria-label="Seções de conteúdo">
         <button id="tab-dicas" class="content-tab" type="button" role="tab" aria-selected="true" aria-controls="panel-dicas" tabindex="0" data-tab="dicas">Dicas de Projeto</button>
         <button id="tab-noticias" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-noticias" tabindex="-1" data-tab="noticias">Notícias</button>
+        <button id="tab-licitacoes" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-licitacoes" tabindex="-1" data-tab="licitacoes">Hunter Licita&ccedil;&otilde;es</button>
         <button id="tab-oportunidades" class="content-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-oportunidades" tabindex="-1" data-tab="oportunidades">Trabalho e Oportunidades</button>
       </nav>
 
@@ -79,6 +80,42 @@
         <section id="lista-noticias" class="content-grid news-grid" aria-label="Lista de notícias" aria-busy="true"></section>
       </section>
 
+      <section id="panel-licitacoes" class="tab-panel" role="tabpanel" aria-labelledby="tab-licitacoes" data-panel="licitacoes" hidden>
+        <div class="section-head">
+          <div>
+            <h2>Hunter Licita&ccedil;&otilde;es</h2>
+            <p>Licita&ccedil;&otilde;es e contrata&ccedil;&otilde;es p&uacute;blicas abertas nas &aacute;reas de engenharia, arquitetura, servi&ccedil;os t&eacute;cnicos e tecnologia.</p>
+          </div>
+        </div>
+        <p class="hunter-warning">Os dados s&atilde;o obtidos de fontes p&uacute;blicas. O edital completo, a habilita&ccedil;&atilde;o e os prazos devem ser conferidos no portal oficial antes de qualquer participa&ccedil;&atilde;o.</p>
+        <section class="hunter-metrics" aria-label="Resumo das licita&ccedil;&otilde;es">
+          <span>&Uacute;ltima atualiza&ccedil;&atilde;o: <strong id="licitacoes-atualizacao">Carregando...</strong></span>
+          <span>Total aberto: <strong id="licitacoes-total">0</strong></span>
+          <span>Engenharia: <strong id="licitacoes-engenharia">0</strong></span>
+          <span>Tecnologia: <strong id="licitacoes-tecnologia">0</strong></span>
+          <span>Pr&oacute;ximos 7 dias: <strong id="licitacoes-prazos">0</strong></span>
+        </section>
+        <div class="compact-tools" data-tools="licitacoes">
+          <button id="alternar-busca-licitacoes" class="search-toggle" type="button" aria-expanded="false" aria-controls="busca-licitacoes"><span aria-hidden="true">âŒ•</span><span>Buscar</span></button>
+          <label class="search-field" for="busca-licitacoes"><span>Buscar</span><input id="busca-licitacoes" type="search" placeholder="Buscar licita&ccedil;&otilde;es" autocomplete="off"></label>
+          <label class="category-field" for="filtro-categoria-licitacoes"><span>Categoria</span><select id="filtro-categoria-licitacoes"><option value="">Todas</option></select></label>
+          <label class="category-field optional-filter" for="filtro-estado-licitacoes"><span>Estado</span><select id="filtro-estado-licitacoes"><option value="">UF</option></select></label>
+          <label class="category-field optional-filter" for="filtro-modalidade-licitacoes"><span>Modalidade</span><select id="filtro-modalidade-licitacoes"><option value="">Modalidade</option></select></label>
+          <label class="category-field optional-filter" for="filtro-prazo-licitacoes"><span>Prazo</span><select id="filtro-prazo-licitacoes"><option value="">Todos</option><option value="proximos-7">Pr&oacute;ximos 7 dias</option><option value="sem-prazo">Sem prazo</option></select></label>
+          <label class="category-field optional-filter" for="ordem-licitacoes"><span>Ordenar</span><select id="ordem-licitacoes"><option value="prazo">Prazo mais pr&oacute;ximo</option><option value="publicacao">Publica&ccedil;&atilde;o mais recente</option><option value="valor">Maior valor</option><option value="categoria">Categoria</option></select></label>
+          <button id="limpar-filtros-licitacoes" class="clear-button" type="button" disabled>Limpar</button>
+        </div>
+        <p id="resumo-licitacoes" class="results-summary" role="status" aria-live="polite">Exibindo 0 de 0 licita&ccedil;&otilde;es</p>
+        <p id="estado-licitacoes" class="status-message" role="status" aria-live="polite">Carregando licita&ccedil;&otilde;es...</p>
+        <section class="hunter-block" aria-labelledby="licitacoes-destaque-titulo">
+          <h3 id="licitacoes-destaque-titulo">Licita&ccedil;&otilde;es em destaque</h3>
+          <section id="lista-licitacoes-destaque" class="content-grid hunter-grid" aria-label="Licita&ccedil;&otilde;es em destaque" aria-busy="true"></section>
+        </section>
+        <section class="hunter-block" aria-labelledby="licitacoes-todas-titulo">
+          <h3 id="licitacoes-todas-titulo">Todas as licita&ccedil;&otilde;es</h3>
+          <section id="lista-licitacoes" class="content-grid hunter-grid" aria-label="Lista de licita&ccedil;&otilde;es" aria-busy="true"></section>
+        </section>
+      </section>
       <section id="panel-oportunidades" class="tab-panel" role="tabpanel" aria-labelledby="tab-oportunidades" data-panel="oportunidades" hidden>
         <div class="section-head">
           <div>

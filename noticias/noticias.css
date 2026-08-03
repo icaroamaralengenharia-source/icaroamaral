@@ -568,3 +568,81 @@ a:focus {
     max-height: 170px;
   }
 }
+.hunter-warning {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--amber);
+  background: #fff8ec;
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hunter-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.hunter-metrics span {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hunter-metrics strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+[data-tools="licitacoes"] {
+  grid-template-columns: minmax(190px, 1fr) repeat(5, minmax(100px, 150px)) auto;
+}
+
+.hunter-block { margin-top: 14px; }
+
+.hunter-block h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.hunter-card .card-body { gap: 10px; }
+
+.hunter-card.featured h3 { font-size: 22px; }
+
+.hunter-meta span {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--panel-soft);
+}
+
+@media (max-width: 1120px) {
+  [data-tools="licitacoes"] { grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(120px, 180px)) auto; }
+  [data-tools="licitacoes"] .optional-filter { grid-column: auto; }
+  .hunter-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 920px) {
+  [data-tools="licitacoes"] { grid-template-columns: minmax(200px, 1fr) minmax(140px, 210px) auto; }
+  .hunter-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  [data-tools="licitacoes"] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .hunter-warning { margin-bottom: 7px; padding: 8px 9px; font-size: 12px; }
+  .hunter-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .hunter-metrics span { padding: 7px 8px; font-size: 11px; }
+  .hunter-metrics strong { font-size: 13px; }
+  .hunter-block { margin-top: 11px; }
+  .hunter-block h3 { font-size: 16px; }
+}

@@ -1,0 +1,66 @@
+name: Atualizar Hunter Licitacoes
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 11,19 * * *"
+
+concurrency:
+  group: atualizar-licitacoes
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Validar sintaxe
+        run: |
+          node --check scripts/atualizar-licitacoes.mjs
+          node --check noticias/noticias.js
+
+      - name: Executar testes
+        run: node --test tests/atualizar-licitacoes.test.mjs
+
+      - name: Atualizar licitacoes
+        run: node scripts/atualizar-licitacoes.mjs
+
+      - name: Validar arquivos alterados
+        run: |
+          changed="$(git diff --name-only)"
+          echo "$changed"
+          if [ -z "$changed" ]; then
+            echo "Sem mudancas para commitar."
+            exit 0
+          fi
+          allowed="noticias/dados/licitacoes.json"
+          unexpected="$(comm -23 <(printf '%s
+' "$changed" | sort) <(printf '%s
+' "$allowed" | sort))"
+          if [ -n "$unexpected" ]; then
+            echo "Arquivo inesperado alterado; abortando."
+            echo "$unexpected"
+            exit 1
+          fi
+
+      - name: Commit automatico
+        run: |
+          if git diff --quiet -- noticias/dados/licitacoes.json; then
+            echo "Sem mudancas reais no JSON."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add noticias/dados/licitacoes.json
+          git commit -m "chore: atualiza Hunter Licitacoes"
+          git push

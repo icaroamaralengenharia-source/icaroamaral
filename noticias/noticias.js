@@ -1,14 +1,17 @@
-const TECH_NOTE = "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.";
+﻿const TECH_NOTE = "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.";
 
 const state = {
   activeTab: "dicas",
   dicas: [],
   noticias: [],
   oportunidades: [],
+  licitacoes: [],
+  licitacoesAtualizadoEm: null,
   filters: {
     dicas: { busca: "", categoria: "", nivel: "", buscaAberta: false },
     noticias: { busca: "", categoria: "", buscaAberta: false },
     oportunidades: { busca: "", tipo: "", estado: "", modalidade: "", prazo: "", buscaAberta: false },
+    licitacoes: { busca: "", categoria: "", estado: "", modalidade: "", prazo: "", ordem: "prazo", buscaAberta: false },
   },
 };
 
@@ -33,6 +36,13 @@ const elements = {
     search: document.getElementById("busca-oportunidades"), toggle: document.getElementById("alternar-busca-oportunidades"), tools: document.querySelector("[data-tools='oportunidades']"),
     type: document.getElementById("filtro-tipo-oportunidades"), state: document.getElementById("filtro-estado-oportunidades"), mode: document.getElementById("filtro-modalidade-oportunidades"), deadline: document.getElementById("filtro-prazo-oportunidades"), clear: document.getElementById("limpar-filtros-oportunidades"),
   },
+  licitacoes: {
+    list: document.getElementById("lista-licitacoes"), highlights: document.getElementById("lista-licitacoes-destaque"), status: document.getElementById("estado-licitacoes"), results: document.getElementById("resumo-licitacoes"),
+    updated: document.getElementById("licitacoes-atualizacao"), total: document.getElementById("licitacoes-total"), engineering: document.getElementById("licitacoes-engenharia"), technology: document.getElementById("licitacoes-tecnologia"), deadlines: document.getElementById("licitacoes-prazos"),
+    search: document.getElementById("busca-licitacoes"), toggle: document.getElementById("alternar-busca-licitacoes"), tools: document.querySelector("[data-tools='licitacoes']"),
+    category: document.getElementById("filtro-categoria-licitacoes"), state: document.getElementById("filtro-estado-licitacoes"), mode: document.getElementById("filtro-modalidade-licitacoes"), deadline: document.getElementById("filtro-prazo-licitacoes"), order: document.getElementById("ordem-licitacoes"), clear: document.getElementById("limpar-filtros-licitacoes"),
+  },
+
 };
 
 function normalizeText(value) {
@@ -99,7 +109,7 @@ function updateSearchDisclosure(key) {
 }
 
 function setTab(tabName, updateHash = true) {
-  const allowed = ["dicas", "noticias", "oportunidades"];
+  const allowed = ["dicas", "noticias", "licitacoes", "oportunidades"];
   const safeTab = allowed.includes(tabName) ? tabName : "dicas";
   state.activeTab = safeTab;
   elements.tabs.forEach((tab) => {
@@ -368,10 +378,140 @@ function renderOportunidades() {
   controls.list.replaceChildren(...filtered.slice(0, 3).map((item, index) => createOpportunityCard(item, index)).concat(filtered.slice(3).map((item, index) => createOpportunityCard(item, index + 3))));
 }
 
+function formatCurrency(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "Valor nao informado";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+}
+
+function isValidFutureDate(value) {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.getTime() >= Date.now();
+}
+
+function licitationOpen(item) {
+  if (normalizeText(item.situacao).includes("encerrada")) return false;
+  if (!item.dataLimite) return true;
+  return isValidFutureDate(item.dataLimite);
+}
+
+function daysUntil(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.ceil((date.getTime() - Date.now()) / 86400000);
+}
+
+function sortLicitationItems(items, order) {
+  return [...items].sort((a, b) => {
+    if (order === "valor") return (b.valorEstimado || -1) - (a.valorEstimado || -1);
+    if (order === "publicacao") return (new Date(b.dataPublicacao).getTime() || 0) - (new Date(a.dataPublicacao).getTime() || 0);
+    if (order === "categoria") return String(a.categoria || "").localeCompare(String(b.categoria || ""), "pt-BR");
+    const da = a.dataLimite ? new Date(a.dataLimite).getTime() : Number.MAX_SAFE_INTEGER;
+    const db = b.dataLimite ? new Date(b.dataLimite).getTime() : Number.MAX_SAFE_INTEGER;
+    return da - db;
+  });
+}
+
+function selectLicitationHighlights(items) {
+  return sortLicitationItems(items.filter(licitationOpen), "prazo")
+    .sort((a, b) => {
+      const ba = a.estado === "BA" ? 0 : 1;
+      const bb = b.estado === "BA" ? 0 : 1;
+      if (ba !== bb) return ba - bb;
+      const va = typeof a.valorEstimado === "number" ? 0 : 1;
+      const vb = typeof b.valorEstimado === "number" ? 0 : 1;
+      return va - vb;
+    })
+    .slice(0, 5);
+}
+
+function createLicitationCard(item, index) {
+  const card = document.createElement("article");
+  card.className = index === 0 ? "content-card hunter-card featured" : "content-card hunter-card";
+  const body = document.createElement("div");
+  body.className = "card-body";
+  const row = document.createElement("div");
+  row.className = "card-row";
+  appendPill(row, item.categoria || "Servico tecnico");
+  appendPill(row, item.estado || "UF", "warning");
+  appendPill(row, item.situacao || "Aberta");
+  body.append(row);
+  appendText(body, "h3", item.titulo || "Licitacao sem titulo");
+  appendText(body, "p", item.objeto || "Objeto nao informado.");
+  const meta = document.createElement("div");
+  meta.className = "card-meta hunter-meta";
+  appendText(meta, "span", item.orgao || "Orgao nao informado");
+  appendText(meta, "span", [item.cidade, item.estado].filter(Boolean).join("/") || "Local nao informado");
+  appendText(meta, "span", item.modalidade || "Modalidade nao informada");
+  appendText(meta, "span", formatCurrency(item.valorEstimado));
+  appendText(meta, "span", "Publicacao: " + formatDate(item.dataPublicacao));
+  appendText(meta, "span", item.dataLimite ? "Prazo: " + formatDate(item.dataLimite) : "Prazo nao informado");
+  body.append(meta);
+  const words = document.createElement("div");
+  words.className = "card-row";
+  (Array.isArray(item.palavrasEncontradas) ? item.palavrasEncontradas : []).slice(0, 4).forEach((word) => appendPill(words, word));
+  body.append(words);
+  if (isSafeHttpUrl(item.oportunidadeUrl)) {
+    const link = document.createElement("a");
+    link.className = "card-action";
+    link.href = item.oportunidadeUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer external";
+    link.textContent = "Abrir licitacao oficial";
+    body.append(link);
+  }
+  card.append(body);
+  return card;
+}
+
+function updateLicitationMetrics(items) {
+  const controls = elements.licitacoes;
+  const open = items.filter(licitationOpen);
+  const nextSeven = open.filter((item) => {
+    const days = daysUntil(item.dataLimite);
+    return days !== null && days >= 0 && days <= 7;
+  }).length;
+  const engineering = open.filter((item) => ["Engenharia", "Arquitetura", "Laudos e Pericias", "Fiscalizacao", "Infraestrutura", "Outros Servicos Tecnicos"].includes(item.categoria)).length;
+  const technology = open.filter((item) => ["Tecnologia", "SaaS e Sistemas"].includes(item.categoria)).length;
+  if (controls.updated) controls.updated.textContent = formatDate(state.licitacoesAtualizadoEm);
+  if (controls.total) controls.total.textContent = String(open.length);
+  if (controls.engineering) controls.engineering.textContent = String(engineering);
+  if (controls.technology) controls.technology.textContent = String(technology);
+  if (controls.deadlines) controls.deadlines.textContent = String(nextSeven);
+}
+
+function renderLicitacoes() {
+  const controls = elements.licitacoes;
+  const filters = state.filters.licitacoes;
+  if (!controls || !controls.list) return;
+  const openItems = state.licitacoes.filter(licitationOpen);
+  const search = normalizeText(filters.busca);
+  const filtered = sortLicitationItems(openItems.filter((item) => {
+    const text = normalizeText([item.titulo, item.objeto, item.orgao, item.unidadeCompradora, item.cidade, item.estado, item.modalidade, item.categoria, ...(item.palavrasEncontradas || [])].join(" "));
+    const days = daysUntil(item.dataLimite);
+    const prazoOk = !filters.prazo || (filters.prazo === "proximos-7" && days !== null && days >= 0 && days <= 7) || (filters.prazo === "sem-prazo" && !item.dataLimite);
+    return (!filters.categoria || item.categoria === filters.categoria) && (!filters.estado || item.estado === filters.estado) && (!filters.modalidade || item.modalidade === filters.modalidade) && prazoOk && (!search || text.includes(search));
+  }), filters.ordem || "prazo");
+  updateLicitationMetrics(openItems);
+  controls.results.textContent = "Exibindo " + filtered.length + " de " + openItems.length + " licitacoes";
+  controls.clear.disabled = !filters.busca && !filters.categoria && !filters.estado && !filters.modalidade && !filters.prazo && (!filters.ordem || filters.ordem === "prazo");
+  controls.list.setAttribute("aria-busy", "false");
+  if (controls.highlights) controls.highlights.setAttribute("aria-busy", "false");
+  controls.status.textContent = "";
+  updateSearchDisclosure("licitacoes");
+  if (controls.highlights) {
+    const highlights = selectLicitationHighlights(openItems);
+    if (highlights.length) controls.highlights.replaceChildren(...highlights.map(createLicitationCard));
+    else renderEmpty(controls.highlights, "Nenhuma licitacao em destaque no momento.");
+  }
+  if (!filtered.length) return renderEmpty(controls.list, openItems.length ? "Nenhuma licitacao encontrada com os filtros selecionados." : "Nenhuma licitacao aberta foi encontrada no momento.");
+  controls.list.replaceChildren(...filtered.map(createLicitationCard));
+}
+
 function renderTotals() {
   const reviewed = state.dicas.filter((item) => item && item.revisadoManualmente === true).length;
   const openOpps = state.oportunidades.filter(opportunityOpen).length;
-  const total = reviewed + state.noticias.length + openOpps;
+  const openBids = state.licitacoes.filter(licitationOpen).length;
+  const total = reviewed + state.noticias.length + openOpps + openBids;
   elements.total.textContent = String(total);
 }
 
@@ -428,8 +568,26 @@ async function loadOportunidades() {
   }
 }
 
+async function loadLicitacoes() {
+  try {
+    const payload = await fetchJson("./dados/licitacoes.json", { licitacoes: [] });
+    state.licitacoes = Array.isArray(payload.licitacoes) ? payload.licitacoes : [];
+    state.licitacoesAtualizadoEm = payload.atualizadoEm || null;
+    fillSelect(elements.licitacoes.category, [...new Set(state.licitacoes.map((item) => item.categoria))], "Todas");
+    fillSelect(elements.licitacoes.state, [...new Set(state.licitacoes.map((item) => item.estado))], "UF");
+    fillSelect(elements.licitacoes.mode, [...new Set(state.licitacoes.map((item) => item.modalidade))], "Modalidade");
+  } catch {
+    state.licitacoes = [];
+    state.licitacoesAtualizadoEm = null;
+    if (elements.licitacoes.status) elements.licitacoes.status.textContent = "Nao foi possivel carregar as licitacoes agora.";
+  } finally {
+    renderLicitacoes();
+    renderTotals();
+  }
+}
+
 function setupFilters() {
-  ["dicas", "noticias", "oportunidades"].forEach((key) => {
+  ["dicas", "noticias", "licitacoes", "oportunidades"].forEach((key) => {
     const controls = elements[key];
     const filters = state.filters[key];
     if (controls.toggle) controls.toggle.addEventListener("click", () => {
@@ -443,6 +601,11 @@ function setupFilters() {
   elements.dicas.category.addEventListener("change", (event) => { state.filters.dicas.categoria = event.target.value; renderDicas(); });
   elements.dicas.level.addEventListener("change", (event) => { state.filters.dicas.nivel = event.target.value; renderDicas(); });
   elements.noticias.category.addEventListener("change", (event) => { state.filters.noticias.categoria = event.target.value; renderNoticias(); });
+  elements.licitacoes.category.addEventListener("change", (event) => { state.filters.licitacoes.categoria = event.target.value; renderLicitacoes(); });
+  elements.licitacoes.state.addEventListener("change", (event) => { state.filters.licitacoes.estado = event.target.value; renderLicitacoes(); });
+  elements.licitacoes.mode.addEventListener("change", (event) => { state.filters.licitacoes.modalidade = event.target.value; renderLicitacoes(); });
+  elements.licitacoes.deadline.addEventListener("change", (event) => { state.filters.licitacoes.prazo = event.target.value; renderLicitacoes(); });
+  elements.licitacoes.order.addEventListener("change", (event) => { state.filters.licitacoes.ordem = event.target.value || "prazo"; renderLicitacoes(); });
   elements.oportunidades.type.addEventListener("change", (event) => { state.filters.oportunidades.tipo = event.target.value; renderOportunidades(); });
   elements.oportunidades.state.addEventListener("change", (event) => { state.filters.oportunidades.estado = event.target.value; renderOportunidades(); });
   elements.oportunidades.mode.addEventListener("change", (event) => { state.filters.oportunidades.modalidade = event.target.value; renderOportunidades(); });
@@ -450,13 +613,14 @@ function setupFilters() {
 }
 
 function clearControlValues(controls) {
-  ["search", "category", "level", "type", "state", "mode", "deadline"].forEach((key) => { if (controls[key]) controls[key].value = ""; });
+  ["search", "category", "level", "type", "state", "mode", "deadline", "order"].forEach((key) => { if (controls[key]) controls[key].value = ""; });
 }
 
 function renderAll() {
   renderDicas();
   renderNoticias();
   renderOportunidades();
+  renderLicitacoes();
 }
 
 if (elements.year) elements.year.textContent = String(new Date().getFullYear());
@@ -465,3 +629,4 @@ setupFilters();
 loadDicas();
 loadNoticias();
 loadOportunidades();
+loadLicitacoes();
