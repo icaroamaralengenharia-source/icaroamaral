@@ -522,3 +522,49 @@ a:focus {
   .content-card h3 { font-size: 19px; }
   .card-cover { aspect-ratio: 16 / 8.6; }
 }
+/* 61Y: imagens reais nas Dicas de Projeto com fallback verde preservado. */
+.card-cover.has-real-image {
+  background: linear-gradient(135deg, var(--green-dark), var(--petrol) 62%, #87918d);
+}
+
+.tip-card.featured .card-cover.has-real-image {
+  aspect-ratio: 16 / 7.5;
+  max-height: 280px;
+}
+
+.tip-card:not(.featured) .card-cover.has-real-image {
+  aspect-ratio: 16 / 9;
+}
+
+.card-cover.has-real-image img {
+  object-fit: cover;
+  object-position: center;
+}
+
+.card-cover.has-real-image .image-credit {
+  text-decoration: none;
+}
+
+.card-cover.has-real-image .image-credit:hover {
+  background: #ffffff;
+}
+
+
+@media (max-width: 1320px) {
+  .tip-card.featured .card-cover.has-real-image {
+    max-height: 240px;
+  }
+}@media (max-width: 920px) {
+  .tip-card.featured .card-cover.has-real-image {
+    aspect-ratio: 16 / 8;
+    max-height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tip-card.featured .card-cover.has-real-image,
+  .tip-card:not(.featured) .card-cover.has-real-image {
+    aspect-ratio: 16 / 8.5;
+    max-height: 170px;
+  }
+}

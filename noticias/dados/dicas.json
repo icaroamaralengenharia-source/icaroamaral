@@ -8,15 +8,21 @@
       "resumo": "Organize escopo, levantamento, responsáveis e registros antes de contratar ou iniciar serviços.",
       "conteudo": "Antes da reforma, reúna medidas do imóvel, fotos, objetivos, restrições do condomínio, pontos de água, energia e ventilação. Separe dúvidas para o responsável técnico e registre decisões por escrito para reduzir retrabalho.",
       "categoria": "Planejamento",
-      "tags": ["reforma", "checklist", "planejamento"],
+      "tags": [
+        "reforma",
+        "checklist",
+        "planejamento"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
-      "imagemUrl": null,
-      "imagemAlt": "Checklist de reforma",
+      "imagemUrl": "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1200&q=80",
+      "imagemAlt": "Profissional conferindo planta e materiais antes de uma reforma",
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": true
+      "revisadoManualmente": true,
+      "imagemOrigem": "Unsplash",
+      "imagemCredito": "Imagem: Unsplash"
     },
     {
       "id": "dica-porta-mobiliario-001",
@@ -24,15 +30,21 @@
       "resumo": "Verifique giro, circulação e uso real do ambiente antes de definir portas e móveis fixos.",
       "conteudo": "Em planta, confira se a folha da porta não invade armários, bancadas, camas ou áreas de passagem. Também observe se interruptores e comandos ficam acessíveis após a abertura da porta.",
       "categoria": "Arquitetura",
-      "tags": ["porta", "layout", "mobiliário"],
+      "tags": [
+        "porta",
+        "layout",
+        "mobiliário"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
-      "imagemUrl": null,
-      "imagemAlt": "Porta e mobiliário em planta",
+      "imagemUrl": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
+      "imagemAlt": "Ambiente interno com porta e mobiliário planejado",
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": true
+      "revisadoManualmente": true,
+      "imagemOrigem": "Unsplash",
+      "imagemCredito": "Imagem: Unsplash"
     },
     {
       "id": "dica-levantamento-cadastral-001",
@@ -40,15 +52,21 @@
       "resumo": "Medidas, fotos, pontos técnicos e observações de uso ajudam a transformar vistoria em projeto confiável.",
       "conteudo": "Um levantamento útil registra dimensões gerais, vãos, pé-direito, níveis, posição de instalações aparentes, fotos orientadas e observações sobre patologias visíveis. O material não substitui avaliação técnica quando houver dúvida estrutural ou de segurança.",
       "categoria": "Fiscalização",
-      "tags": ["levantamento", "vistoria", "cadastro"],
+      "tags": [
+        "levantamento",
+        "vistoria",
+        "cadastro"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
-      "imagemUrl": null,
-      "imagemAlt": "Levantamento cadastral",
+      "imagemUrl": "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80",
+      "imagemAlt": "Profissional realizando medição técnica em campo",
       "nivel": "Intermediário",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": true
+      "revisadoManualmente": true,
+      "imagemOrigem": "Unsplash",
+      "imagemCredito": "Imagem: Unsplash"
     },
     {
       "id": "dica-aprovar-planta-001",
@@ -56,15 +74,21 @@
       "resumo": "Cheque usos, acessos, medidas principais e compatibilidade entre ambientes antes de avançar.",
       "conteudo": "Confirme nomes dos ambientes, dimensões principais, posição de portas e janelas, circulação, orientação de abertura e interferências aparentes. Pendências técnicas devem ser avaliadas pelo responsável do projeto.",
       "categoria": "Arquitetura",
-      "tags": ["planta", "conferência", "projeto"],
+      "tags": [
+        "planta",
+        "conferência",
+        "projeto"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
-      "imagemUrl": null,
-      "imagemAlt": "Conferência de planta",
+      "imagemUrl": "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80",
+      "imagemAlt": "Equipe analisando documentos e planta de projeto",
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": true
+      "revisadoManualmente": true,
+      "imagemOrigem": "Unsplash",
+      "imagemCredito": "Imagem: Unsplash"
     },
     {
       "id": "dica-orcamentos-001",
@@ -72,15 +96,21 @@
       "resumo": "Compare escopo, unidade, quantidade, prazo, impostos e exclusões antes de escolher pelo menor preço.",
       "conteudo": "Orçamentos só são comparáveis quando partem do mesmo escopo. Verifique se todos consideram materiais, mão de obra, perdas, transporte, descarte, garantias e condições de pagamento.",
       "categoria": "Orçamento",
-      "tags": ["orçamento", "escopo", "custos"],
+      "tags": [
+        "orçamento",
+        "escopo",
+        "custos"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
-      "imagemUrl": null,
-      "imagemAlt": "Comparação de orçamentos",
+      "imagemUrl": "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80",
+      "imagemAlt": "Análise de orçamento e custos em planilha",
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": true
+      "revisadoManualmente": true,
+      "imagemOrigem": "Unsplash",
+      "imagemCredito": "Imagem: Unsplash"
     },
     {
       "id": "rascunho-ventilacao-001",
@@ -88,15 +118,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Arquitetura",
-      "tags": ["ventilação", "iluminação"],
+      "tags": [
+        "ventilação",
+        "iluminação"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-compatibilizacao-001",
@@ -104,15 +139,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Instalações",
-      "tags": ["compatibilização", "instalações"],
+      "tags": [
+        "compatibilização",
+        "instalações"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Intermediário",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-estruturas-001",
@@ -120,15 +160,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Estruturas",
-      "tags": ["estrutura", "reforma"],
+      "tags": [
+        "estrutura",
+        "reforma"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Avançado",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-patologias-001",
@@ -136,15 +181,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Patologias",
-      "tags": ["vistoria", "fissuras"],
+      "tags": [
+        "vistoria",
+        "fissuras"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Intermediário",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-bim-001",
@@ -152,15 +202,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "BIM e Tecnologia",
-      "tags": ["bim", "tecnologia"],
+      "tags": [
+        "bim",
+        "tecnologia"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Intermediário",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-acessibilidade-001",
@@ -168,15 +223,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Acessibilidade",
-      "tags": ["acessibilidade", "circulação"],
+      "tags": [
+        "acessibilidade",
+        "circulação"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     },
     {
       "id": "rascunho-sustentabilidade-001",
@@ -184,15 +244,20 @@
       "resumo": "Rascunho em revisão.",
       "conteudo": "Rascunho pendente de revisão manual.",
       "categoria": "Sustentabilidade",
-      "tags": ["desperdício", "obra"],
+      "tags": [
+        "desperdício",
+        "obra"
+      ],
       "dataPublicacao": "2026-08-02T00:00:00.000Z",
       "fonte": "Curadoria técnica local",
       "fonteUrl": "https://www.icaroamaral.com.br/noticias/",
       "imagemUrl": null,
-      "imagemAlt": "",
+      "imagemAlt": null,
       "nivel": "Básico",
       "avisoTecnico": "Conteúdo informativo. A aplicação em obra ou projeto deve considerar normas vigentes, condições locais e responsabilidade técnica.",
-      "revisadoManualmente": false
+      "revisadoManualmente": false,
+      "imagemOrigem": null,
+      "imagemCredito": null
     }
   ]
 }

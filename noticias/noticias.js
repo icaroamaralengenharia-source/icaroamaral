@@ -132,19 +132,44 @@ function setupTabs() {
   if (!window.location.hash) window.history.replaceState(null, "", "#dicas");
 }
 
+function createImageCredit(item) {
+  const creditText = String(item.imagemCredito || (item.imagemOrigem ? `Imagem: ${item.imagemOrigem}` : "")).trim();
+  if (!creditText) return null;
+  if (isSafeHttpUrl(item.fonteUrl)) {
+    const link = document.createElement("a");
+    link.className = "image-credit";
+    link.href = item.fonteUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer external";
+    link.textContent = creditText;
+    return link;
+  }
+  const credit = document.createElement("span");
+  credit.className = "image-credit";
+  credit.textContent = creditText;
+  return credit;
+}
+
 function createCover(item, label) {
   const cover = document.createElement("div");
   cover.className = "card-cover";
   if (isSafeImageUrl(item.imagemUrl)) {
+    cover.classList.add("has-real-image");
     const image = document.createElement("img");
     image.src = item.imagemUrl;
-    image.alt = String(item.imagemAlt || item.titulo || label || "Imagem").trim();
+    const alt = String(item.imagemAlt || item.titulo || label || "Imagem da dica").trim();
+    image.alt = isSafeHttpUrl(alt) ? String(item.titulo || label || "Imagem da dica") : alt;
     image.loading = "lazy";
     image.decoding = "async";
     image.referrerPolicy = "no-referrer";
-    image.addEventListener("error", () => image.remove());
+    const credit = createImageCredit(item);
+    image.addEventListener("error", () => {
+      image.remove();
+      if (credit) credit.remove();
+      cover.classList.remove("has-real-image");
+    });
     cover.append(image);
-    if (item.imagemOrigem) appendText(cover, "span", `Imagem: ${item.imagemOrigem}`, "image-credit");
+    if (credit) cover.append(credit);
   }
   appendText(cover, "span", label || "Conteúdo", "cover-label");
   return cover;
@@ -171,6 +196,7 @@ function createBaseCard(item, index, label) {
 
 function createTipCard(item, index) {
   const built = createBaseCard(item, index, item.categoria || "Dica");
+  built.card.classList.add("tip-card");
   const body = built.body;
   const row = document.createElement("div");
   row.className = "card-row";
