@@ -1,9 +1,19 @@
 name: Atualizar notícias
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/atualizar-noticias.mjs"
+      - "scripts/atualizar-conteudo-noticias.mjs"
+      - "tests/atualizar-noticias.test.mjs"
+      - "tests/atualizar-conteudo-noticias.test.mjs"
+      - "dados/**"
+      - ".github/workflows/atualizar-noticias.yml"
 
 concurrency:
   group: atualizar-noticias
