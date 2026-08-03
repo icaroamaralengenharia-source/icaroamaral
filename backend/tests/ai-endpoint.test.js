@@ -661,6 +661,76 @@ test("stock full me exige Authorization quando Supabase esta configurado", async
   }
 });
 
+test("stock full login valido retorna sessao e perfil seguro", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "gestor@teste.local", password: "123456" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.session.access_token, "valid-token");
+    assert.equal(data.profile.institution_id, "inst_auth");
+    assert.equal(data.profile.auth_user_id, undefined);
+    assert.equal(JSON.stringify(data).includes("service_role"), false);
+    assert.equal(JSON.stringify(data).includes("123456"), false);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full login invalido retorna 401", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_()
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "gestor@teste.local", password: "errada" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "invalid_credentials");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full login sem profile retorna 403", async () => {
+  const app = createApp({
+    env: { PORT: "0" },
+    stockFullSupabaseClient: createMockStockSaudeSupabase_({ profile: null })
+  });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "sem-profile@teste.local", password: "123456" })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(data.ok, false);
+    assert.equal(data.error, "stock_full_profile_not_found");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
 test("stock full me reconhece profile autenticado", async () => {
   const supabase = createMockStockSaudeSupabase_();
   const app = createApp({
@@ -1555,7 +1625,7 @@ test("stock full sync nao duplica saldo ao reenviar offline_uuid", async () => {
     assert.equal(second.results[0].status, "duplicate");
     assert.equal(supabase.stockFullItems[0].current_quantity, 5);
     assert.equal(supabase.stockFullExits.length, 1);
-    assert.equal(supabase.stockFullAuditLogs.some((log) => log.action === "stock_full_offline_duplicate_ignored"), true);
+    assert.equal(supabase.stockFullAuditLogs.some((log) => log.action === "stock_full_offline_sync_completed"), true);
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -1582,7 +1652,7 @@ test("stock full sync rejeita saida maior que saldo e audita", async () => {
     assert.equal(data.results[0].message, "stock_full_insufficient_quantity");
     assert.equal(supabase.stockFullItems[0].current_quantity, 1);
     assert.equal(supabase.stockFullExits.length, 0);
-    assert.equal(supabase.stockFullAuditLogs.some((log) => log.action === "stock_full_negative_stock_blocked"), true);
+    assert.equal(supabase.stockFullAuditLogs.some((log) => log.action === "stock_full_offline_sync_rejected"), true);
   } finally {
     await closeTestServer_(testServer.server);
   }
@@ -1636,7 +1706,7 @@ test("stock full live retorna visao ao vivo e status de sync", async () => {
     ],
     stockFullAuditLogs: [
       { id: "audit_sync", institution_id: "inst_auth", action: "stock_full_offline_sync_completed", created_at: "2026-06-08T10:30:00.000Z" },
-      { id: "audit_fail", institution_id: "inst_auth", action: "stock_full_sync_error", created_at: "2026-06-08T10:31:00.000Z" }
+      { id: "audit_fail", institution_id: "inst_auth", action: "stock_full_offline_sync_rejected", created_at: "2026-06-08T10:31:00.000Z" }
     ]
   });
   const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
@@ -6757,6 +6827,20 @@ function createMockStockSaudeSupabase_(options = {}) {
     stockFullExits,
     stockFullAuditLogs,
     auth: {
+      async signInWithPassword(credentials) {
+        const email = String(credentials && credentials.email || "").toLowerCase();
+        const password = String(credentials && credentials.password || "");
+        if (password !== "123456" || email !== String(authUser.email || "").toLowerCase()) {
+          return { data: null, error: { message: "invalid" } };
+        }
+        return {
+          data: {
+            user: { id: authUser.id, email: authUser.email, user_metadata: authUser.user_metadata || {} },
+            session: { access_token: "valid-token", refresh_token: "refresh-token", expires_at: 1893456000, token_type: "bearer" }
+          },
+          error: null
+        };
+      },
       async getUser(token) {
         if (token !== "valid-token") {
           return { data: null, error: { message: "invalid" } };

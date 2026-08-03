@@ -1157,6 +1157,59 @@ export function createApp(options = {}) {
     });
   });
 
+  app.post("/api/stock-full/login", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const email = clean_(request.body && request.body.email).toLowerCase();
+    const password = String(request.body && request.body.password || "");
+    if (!email || !password) {
+      response.status(400).json({ ok: false, error: "credentials_required" });
+      return;
+    }
+    if (!database.auth || typeof database.auth.signInWithPassword !== "function") {
+      response.status(503).json({ ok: false, error: "stock_full_login_not_configured" });
+      return;
+    }
+
+    try {
+      const { data, error } = await database.auth.signInWithPassword({ email, password });
+      const user = data && data.user;
+      const session = data && data.session;
+      if (error || !user || !session || !clean_(session.access_token)) {
+        response.status(401).json({ ok: false, error: "invalid_credentials" });
+        return;
+      }
+
+      const profile = await getStockFullProfileByAuthUser_(database, user.id);
+      if (!profile || !clean_(profile.institution_id)) {
+        response.status(403).json({ ok: false, error: "stock_full_profile_not_found" });
+        return;
+      }
+
+      response.json({
+        ok: true,
+        module: "stock-full",
+        mode: "remote",
+        user: {
+          id: user.id,
+          email: user.email || email
+        },
+        profile: sanitizeStockFullProfile_(profile),
+        session: {
+          access_token: clean_(session.access_token),
+          refresh_token: clean_(session.refresh_token),
+          expires_at: session.expires_at || null,
+          token_type: clean_(session.token_type) || "bearer"
+        }
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_login_failed" });
+    }
+  });
+
   app.get("/api/stock-full/me", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -1402,13 +1455,27 @@ export function createApp(options = {}) {
     }
 
     try {
+      const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_entries", validation.payload, session.profile);
+      if (duplicate) {
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile);
+        response.json({
+          ok: true,
+          mode: "remote",
+          duplicate: true,
+          entry: mapStockFullEntryFromDatabase_(duplicate),
+          item: mapStockFullItemFromDatabase_(duplicateItem)
+        });
+        return;
+      }
+
       const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
         return;
       }
 
-      const nextQuantity = parsePositiveNumber_(item.current_quantity, 0) + validation.payload.quantity;
+      const previousBalance = parsePositiveNumber_(item.current_quantity, 0);
+      const nextQuantity = previousBalance + validation.payload.quantity;
       const { data: updatedItem, error: updateError } = await database
         .from("stock_full_items")
         .update({ current_quantity: nextQuantity, updated_at: new Date().toISOString() })
@@ -1436,9 +1503,16 @@ export function createApp(options = {}) {
 
       await createStockFullAuditLog_(database, {
         institutionId: session.profile.institution_id,
-        action: "entry_created",
-        entityType: "stock_full_entries",
+        action: "stock_full_entry_created",
+        entityType: "stock_full_entry",
         entityId: entry.id,
+        productId: updatedItem.id,
+        operationId: validation.payload.operation_id,
+        offlineUuid: validation.payload.offline_uuid,
+        deviceId: validation.payload.device_id,
+        source: validation.payload.source,
+        beforeData: { current_quantity: previousBalance },
+        afterData: { current_quantity: parsePositiveNumber_(updatedItem.current_quantity, 0), quantity: validation.payload.quantity },
         description: "Entrada registrada para " + (updatedItem.name || "produto") + ".",
         createdBy: session.profile.id
       });
@@ -1502,6 +1576,19 @@ export function createApp(options = {}) {
     }
 
     try {
+      const duplicate = await findStockFullMovementByIdempotency_(database, "stock_full_exits", validation.payload, session.profile);
+      if (duplicate) {
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicate.item_id, session.profile);
+        response.json({
+          ok: true,
+          mode: "remote",
+          duplicate: true,
+          exit: mapStockFullExitFromDatabase_(duplicate),
+          item: mapStockFullItemFromDatabase_(duplicateItem)
+        });
+        return;
+      }
+
       const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
       if (!item) {
         response.status(404).json({ ok: false, error: "stock_full_item_not_found" });
@@ -1545,7 +1632,14 @@ export function createApp(options = {}) {
         action: "stock_full_exit_created",
         entityType: "stock_full_exit",
         entityId: exit.id,
-        description: "Saída registrada para " + (updatedItem.name || "produto") + ": " +
+        productId: updatedItem.id,
+        operationId: validation.payload.operation_id,
+        offlineUuid: validation.payload.offline_uuid,
+        deviceId: validation.payload.device_id,
+        source: validation.payload.source,
+        beforeData: { current_quantity: currentQuantity },
+        afterData: { current_quantity: parsePositiveNumber_(updatedItem.current_quantity, 0), quantity: validation.payload.quantity },
+        description: "Saida registrada para " + (updatedItem.name || "produto") + ": " +
           validation.payload.quantity + " " + (updatedItem.unit || "un") + ".",
         createdBy: session.profile.id
       });
@@ -1588,6 +1682,133 @@ export function createApp(options = {}) {
       });
     } catch (error) {
       response.status(500).json({ ok: false, error: "stock_full_audit_log_query_failed" });
+    }
+  });
+
+  app.post("/api/stock-full/sync", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const movements = Array.isArray(request.body && request.body.movements) ? request.body.movements.slice(0, 50) : [];
+    if (!movements.length) {
+      response.status(400).json({ ok: false, error: "movements_required" });
+      return;
+    }
+
+    const results = [];
+    for (const movement of movements) {
+      results.push(await processStockFullSyncMovement_(database, movement, session.profile));
+    }
+
+    response.json({
+      ok: true,
+      mode: "remote",
+      results
+    });
+  });
+
+  app.get("/api/stock-full/sync/status", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const [entriesResult, exitsResult, auditResult] = await Promise.all([
+        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
+        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
+        database.from("stock_full_audit_log").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false })
+      ]);
+      if (entriesResult.error || exitsResult.error || auditResult.error) {
+        throw entriesResult.error || exitsResult.error || auditResult.error;
+      }
+      const operationId = clean_(request.query.operation_id || request.query.operationId);
+      const offlineUuid = clean_(request.query.offline_uuid || request.query.offlineUuid);
+      const movements = []
+        .concat((entriesResult.data || []).map((entry) => mapStockFullSyncStatusMovement_(entry, "entrada")))
+        .concat((exitsResult.data || []).map((exit) => mapStockFullSyncStatusMovement_(exit, "saida")));
+      const filtered = movements.filter((movement) => {
+        return (!operationId || movement.operationId === operationId) && (!offlineUuid || movement.offlineUuid === offlineUuid);
+      });
+      const rejected = (auditResult.data || []).filter((record) => clean_(record.action) === "stock_full_offline_sync_rejected");
+      const lastSync = (auditResult.data || [])
+        .filter((record) => clean_(record.action) === "stock_full_offline_sync_completed")
+        .map((record) => record.created_at)
+        .filter(Boolean)
+        .sort()
+        .pop() || movements.map((movement) => movement.syncedAt || movement.createdAt).filter(Boolean).sort().pop() || "";
+      const recentFailures = rejected.slice(0, 10).map(mapStockFullAuditLogFromDatabase_);
+      response.json({
+        ok: true,
+        mode: "remote",
+        pending: 0,
+        confirmed: movements.length,
+        rejected: rejected.length,
+        lastSyncAt: lastSync,
+        recentFailures,
+        statuses: operationId || offlineUuid ? filtered : movements.slice(0, 50)
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_sync_status_failed" });
+    }
+  });
+
+  app.get("/api/stock-full/live", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    try {
+      const [itemsResult, entriesResult, exitsResult] = await Promise.all([
+        database.from("stock_full_items").select("*").eq("institution_id", session.profile.institution_id).eq("is_active", true).order("name", { ascending: true }),
+        database.from("stock_full_entries").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false }),
+        database.from("stock_full_exits").select("*").eq("institution_id", session.profile.institution_id).order("created_at", { ascending: false })
+      ]);
+      if (itemsResult.error || entriesResult.error || exitsResult.error) {
+        throw itemsResult.error || entriesResult.error || exitsResult.error;
+      }
+      const items = (itemsResult.data || []).map(mapStockFullItemFromDatabase_);
+      const itemIndex = indexStockFullItemsById_(itemsResult.data || []);
+      const entries = (entriesResult.data || []).map((entry) => mapStockFullLiveMovement_(entry, "entrada", itemIndex));
+      const exits = (exitsResult.data || []).map((exit) => mapStockFullLiveMovement_(exit, "saida", itemIndex));
+      const lastMovements = entries.concat(exits).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 20);
+      const today = new Date().toISOString().slice(0, 10);
+      const todayMovements = lastMovements.filter((movement) => String(movement.createdAt || "").slice(0, 10) === today).length;
+      const criticalProducts = items.filter((item) => item.currentQuantity <= 0 || item.currentQuantity <= item.minQuantity);
+      response.json({
+        ok: true,
+        mode: "remote",
+        version: "stock-full-live/v1",
+        generatedAt: new Date().toISOString(),
+        cursor: lastMovements[0] && lastMovements[0].createdAt || "",
+        items,
+        balances: items.map((item) => ({ item, balance: item.currentQuantity })),
+        criticalProducts,
+        todayMovements,
+        entries: entries.slice(0, 20),
+        exits: exits.slice(0, 20),
+        lastMovements
+      });
+    } catch (error) {
+      response.status(500).json({ ok: false, error: "stock_full_live_failed" });
     }
   });
 
@@ -3094,6 +3315,225 @@ async function requireStockFullAuth_(request, response, supabase) {
   }
 }
 
+function sanitizeStockFullProfile_(profile) {
+  const source = profile || {};
+  return {
+    id: source.id || "",
+    institution_id: source.institution_id || "",
+    unit_id: source.unit_id || "",
+    name: source.name || "",
+    email: source.email || "",
+    role: source.role || ""
+  };
+}
+
+async function findStockFullMovementByIdempotency_(database, table, payload, profile) {
+  const institutionId = clean_(profile && profile.institution_id);
+  const offlineUuid = clean_(payload && payload.offline_uuid);
+  const operationId = clean_(payload && payload.operation_id);
+  if (!institutionId || (!offlineUuid && !operationId)) {
+    return null;
+  }
+  for (const filter of [
+    offlineUuid ? { column: "offline_uuid", value: offlineUuid } : null,
+    operationId ? { column: "operation_id", value: operationId } : null
+  ].filter(Boolean)) {
+    const { data, error } = await database
+      .from(table)
+      .select("*")
+      .eq("institution_id", institutionId)
+      .eq(filter.column, filter.value)
+      .maybeSingle();
+    if (error) {
+      throw error;
+    }
+    if (data) {
+      return data;
+    }
+  }
+  return null;
+}
+
+async function processStockFullSyncMovement_(database, movement, profile) {
+  const type = normalizeStockFullMovementType_(movement && movement.type);
+  const base = {
+    operation_id: clean_(movement && (movement.operationId ?? movement.operation_id)),
+    offline_uuid: clean_(movement && (movement.offlineUuid ?? movement.offline_uuid ?? movement.operationId ?? movement.operation_id)),
+    device_id: clean_(movement && (movement.deviceId ?? movement.device_id)),
+    type: type || clean_(movement && movement.type)
+  };
+  try {
+    if (!type) {
+      return Object.assign({}, base, { status: "rejected", message: "stock_full_movement_type_invalid" });
+    }
+    const body = Object.assign({}, movement || {}, {
+      itemId: movement && (movement.itemId ?? movement.item_id ?? movement.productId ?? movement.product_id),
+      offlineUuid: base.offline_uuid,
+      operationId: base.operation_id,
+      deviceId: base.device_id,
+      source: "offline",
+      syncStatus: "synced",
+      syncedAt: new Date().toISOString()
+    });
+    const table = type === "saida" ? "stock_full_exits" : "stock_full_entries";
+    const validation = type === "saida" ? validateStockFullExitPayload_(body, profile) : validateStockFullEntryPayload_(body, profile);
+    if (!validation.ok) {
+      await auditStockFullSyncRejection_(database, profile, base, validation.error, body);
+      return Object.assign({}, base, { status: "rejected", message: validation.error });
+    }
+
+    const duplicate = await findStockFullMovementByIdempotency_(database, table, validation.payload, profile);
+    if (duplicate) {
+      const item = await getStockFullItemForProfile_(database, duplicate.item_id, profile);
+      const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
+      return Object.assign({}, base, {
+        status: "duplicate",
+        movement_id: duplicate.id,
+        itemId: duplicate.item_id,
+        previousBalance: currentQuantity,
+        newBalance: currentQuantity
+      });
+    }
+
+    const item = await getStockFullItemForProfile_(database, validation.payload.item_id, profile);
+    if (!item) {
+      await auditStockFullSyncRejection_(database, profile, base, "stock_full_item_not_found", body);
+      return Object.assign({}, base, { status: "rejected", message: "stock_full_item_not_found" });
+    }
+    const previousBalance = parsePositiveNumber_(item.current_quantity, 0);
+    if (type === "saida" && validation.payload.quantity > previousBalance) {
+      await auditStockFullSyncRejection_(database, profile, base, "stock_full_insufficient_quantity", body, item);
+      return Object.assign({}, base, {
+        status: "rejected",
+        message: "stock_full_insufficient_quantity",
+        itemId: item.id,
+        previousBalance,
+        newBalance: previousBalance
+      });
+    }
+
+    const newBalance = type === "saida" ? previousBalance - validation.payload.quantity : previousBalance + validation.payload.quantity;
+    const { data: updatedItem, error: updateError } = await database
+      .from("stock_full_items")
+      .update({ current_quantity: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .eq("institution_id", profile.institution_id)
+      .eq("is_active", true)
+      .select("*")
+      .maybeSingle();
+    if (updateError) {
+      throw updateError;
+    }
+    if (!updatedItem) {
+      await auditStockFullSyncRejection_(database, profile, base, "stock_full_item_not_found", body);
+      return Object.assign({}, base, { status: "rejected", message: "stock_full_item_not_found" });
+    }
+
+    const insertQuery = database
+      .from(table)
+      .insert(validation.payload)
+      .select("*");
+    const { data: movementRecord, error: insertError } = await insertQuery.single();
+    if (insertError) {
+      throw insertError;
+    }
+
+    await createStockFullAuditLog_(database, {
+      institutionId: profile.institution_id,
+      action: "stock_full_offline_sync_completed",
+      entityType: type === "saida" ? "stock_full_exit" : "stock_full_entry",
+      entityId: movementRecord.id,
+      productId: item.id,
+      operationId: validation.payload.operation_id,
+      offlineUuid: validation.payload.offline_uuid,
+      deviceId: validation.payload.device_id,
+      source: "offline",
+      beforeData: { current_quantity: previousBalance },
+      afterData: { current_quantity: newBalance, quantity: validation.payload.quantity, type },
+      description: "Movimento offline sincronizado no Stock Full.",
+      createdBy: profile.id
+    });
+
+    return Object.assign({}, base, {
+      status: "synced",
+      movement_id: movementRecord.id,
+      itemId: item.id,
+      previousBalance,
+      newBalance,
+      item: mapStockFullItemFromDatabase_(updatedItem)
+    });
+  } catch (error) {
+    await auditStockFullSyncRejection_(database, profile, base, clean_(error && error.message) || "stock_full_sync_error", movement);
+    return Object.assign({}, base, { status: "rejected", message: clean_(error && error.message) || "stock_full_sync_error" });
+  }
+}
+
+function normalizeStockFullMovementType_(type) {
+  const value = clean_(type).toLowerCase();
+  if (["saida", "saída", "exit", "stock:exit", "stock_exit"].includes(value)) return "saida";
+  if (["entrada", "entry", "stock:entry", "stock_entry", "stock:adjust", "adjust", "ajuste"].includes(value)) return "entrada";
+  return "";
+}
+
+async function auditStockFullSyncRejection_(database, profile, base, message, source, item = null) {
+  await createStockFullAuditLog_(database, {
+    institutionId: profile && profile.institution_id,
+    action: "stock_full_offline_sync_rejected",
+    entityType: "stock_full_sync",
+    productId: item && item.id || clean_(source && (source.itemId || source.item_id || source.productId || source.product_id)) || null,
+    operationId: base && base.operation_id,
+    offlineUuid: base && base.offline_uuid,
+    deviceId: base && base.device_id,
+    source: "offline",
+    afterData: { message: clean_(message) },
+    description: clean_(message) || "Movimento offline rejeitado no Stock Full.",
+    createdBy: profile && profile.id
+  });
+}
+
+function mapStockFullSyncStatusMovement_(record, type) {
+  const source = record || {};
+  return {
+    id: source.id || "",
+    type,
+    itemId: source.item_id || "",
+    quantity: parsePositiveNumber_(source.quantity, 0),
+    status: source.sync_status || "synced",
+    operationId: source.operation_id || "",
+    offlineUuid: source.offline_uuid || "",
+    deviceId: source.device_id || "",
+    syncedAt: source.synced_at || "",
+    createdAt: source.created_at || ""
+  };
+}
+
+function indexStockFullItemsById_(items) {
+  const index = {};
+  (items || []).forEach((item) => {
+    if (item && item.id) index[item.id] = item;
+  });
+  return index;
+}
+
+function mapStockFullLiveMovement_(record, type, itemIndex) {
+  const source = record || {};
+  const item = itemIndex && itemIndex[source.item_id] || {};
+  return {
+    id: source.id || "",
+    type,
+    itemId: source.item_id || "",
+    itemName: item.name || source.item_name || "",
+    quantity: parsePositiveNumber_(source.quantity, 0),
+    unit: item.unit || "un",
+    employeeName: source.responsible || source.created_by || "",
+    responsible: source.responsible || "",
+    currentQuantity: parsePositiveNumber_(item.current_quantity, 0),
+    operationId: source.operation_id || "",
+    offlineUuid: source.offline_uuid || "",
+    createdAt: source.created_at || ""
+  };
+}
+
 function validateStockFullItemPayload_(body, profile, options = {}) {
   const update = Boolean(options.update);
   const payload = {
@@ -3170,6 +3610,12 @@ function validateStockFullEntryPayload_(body, profile) {
     supplier: clean_(body.supplier),
     invoice_number: clean_(body.invoiceNumber ?? body.invoice_number),
     notes: clean_(body.notes),
+    offline_uuid: clean_(body.offlineUuid ?? body.offline_uuid),
+    operation_id: clean_(body.operationId ?? body.operation_id),
+    device_id: clean_(body.deviceId ?? body.device_id),
+    sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
+    source: clean_(body.source) || "online",
+    synced_at: clean_(body.syncedAt ?? body.synced_at) || null,
     created_by: clean_(profile && profile.id)
   };
 
@@ -3196,6 +3642,12 @@ function validateStockFullExitPayload_(body, profile) {
     destination: clean_(body.destination),
     responsible: clean_(body.responsible),
     notes: clean_(body.notes),
+    offline_uuid: clean_(body.offlineUuid ?? body.offline_uuid),
+    operation_id: clean_(body.operationId ?? body.operation_id),
+    device_id: clean_(body.deviceId ?? body.device_id),
+    sync_status: clean_(body.syncStatus ?? body.sync_status) || "synced",
+    source: clean_(body.source) || "online",
+    synced_at: clean_(body.syncedAt ?? body.synced_at) || null,
     created_by: clean_(profile && profile.id)
   };
 
@@ -3236,6 +3688,12 @@ function mapStockFullEntryFromDatabase_(entry) {
     supplier: source.supplier || "",
     invoiceNumber: source.invoice_number || "",
     notes: source.notes || "",
+    offlineUuid: source.offline_uuid || "",
+    operationId: source.operation_id || "",
+    deviceId: source.device_id || "",
+    syncStatus: source.sync_status || "",
+    source: source.source || "",
+    syncedAt: source.synced_at || "",
     createdBy: source.created_by || "",
     createdAt: source.created_at || ""
   };
@@ -3251,6 +3709,12 @@ function mapStockFullExitFromDatabase_(exit) {
     destination: source.destination || "",
     responsible: source.responsible || "",
     notes: source.notes || "",
+    offlineUuid: source.offline_uuid || "",
+    operationId: source.operation_id || "",
+    deviceId: source.device_id || "",
+    syncStatus: source.sync_status || "",
+    source: source.source || "",
+    syncedAt: source.synced_at || "",
     createdBy: source.created_by || "",
     createdAt: source.created_at || ""
   };
