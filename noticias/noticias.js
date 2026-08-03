@@ -19,6 +19,7 @@ const elements = {
   updatedAt: document.getElementById("ultima-atualizacao"),
   total: document.getElementById("total-conteudos"),
   year: document.getElementById("ano-atual"),
+  subject: document.getElementById("seletor-assunto"),
   tabs: Array.from(document.querySelectorAll("[role='tab'][data-tab]")),
   panels: Array.from(document.querySelectorAll("[role='tabpanel'][data-panel]")),
   dicas: {
@@ -108,20 +109,27 @@ function updateSearchDisclosure(key) {
   controls.toggle.setAttribute("aria-expanded", String(open));
 }
 
+function syncSubjectSelect(tabName) {
+  if (!elements.subject) return;
+  if (elements.subject.value !== tabName) elements.subject.value = tabName;
+}
+
 function setTab(tabName, updateHash = true) {
   const allowed = ["dicas", "noticias", "licitacoes", "oportunidades"];
   const safeTab = allowed.includes(tabName) ? tabName : "dicas";
   state.activeTab = safeTab;
+  syncSubjectSelect(safeTab);
   elements.tabs.forEach((tab) => {
     const active = tab.dataset.tab === safeTab;
     tab.setAttribute("aria-selected", String(active));
     tab.tabIndex = active ? 0 : -1;
   });
   elements.panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== safeTab; });
-  if (updateHash && window.location.hash !== `#${safeTab}`) window.history.replaceState(null, "", `#${safeTab}`);
+  if (updateHash && window.location.hash !== `#${safeTab}`) window.location.hash = safeTab;
 }
 
 function setupTabs() {
+  if (elements.subject) elements.subject.addEventListener("change", (event) => setTab(event.target.value || "dicas"));
   elements.tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => setTab(tab.dataset.tab || "dicas"));
     tab.addEventListener("keydown", (event) => {

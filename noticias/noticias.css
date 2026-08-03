@@ -646,3 +646,24 @@ a:focus {
   .hunter-block { margin-top: 11px; }
   .hunter-block h3 { font-size: 16px; }
 }
+
+.subject-switcher {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px);
+  margin: -4px 0 12px;
+}
+
+.subject-field select {
+  min-height: 40px;
+}
+
+@media (max-width: 640px) {
+  .subject-switcher {
+    grid-template-columns: 1fr;
+    margin: -2px 0 10px;
+  }
+
+  .subject-field select {
+    min-height: 38px;
+  }
+}
