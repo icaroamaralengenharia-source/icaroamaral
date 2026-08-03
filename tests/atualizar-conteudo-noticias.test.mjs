@@ -41,7 +41,8 @@ test("dica revisada aparece e dica nao revisada fica marcada para ocultar", asyn
 
 test("aviso tecnico presente", async () => {
   const dicas = await readJson("noticias/dados/dicas.json");
-  assert.equal(dicas.dicas.every((item) => String(item.avisoTecnico || "").includes("Conteúdo informativo")), true);
+  assert.equal(dicas.dicas.every((item) => String(item.avisoTecnico || "").trim().length > 0), true);
+  assert.equal(dicas.dicas.every((item) => String(item.avisoTecnico || "").includes("Consulte normas, projeto executivo e profissional habilitado")), true);
 });
 
 test("URL insegura bloqueada e sem APIs HTML perigosas", async () => {
@@ -139,9 +140,14 @@ test("cards visiveis na primeira tela", async () => {
 
 test("quantidade de dicas iniciais respeita requisito", async () => {
   const dicas = await readJson("noticias/dados/dicas.json");
-  const reviewed = dicas.dicas.filter((item) => item.revisadoManualmente === true).length;
-  const drafts = dicas.dicas.filter((item) => item.revisadoManualmente !== true).length;
-  assert.equal(dicas.dicas.length >= 12 && dicas.dicas.length <= 20, true);
-  assert.equal(reviewed >= 3, true);
-  assert.equal(drafts > reviewed, true);
+  const reviewed = dicas.dicas.filter((item) => item.revisadoManualmente === true);
+  const drafts = dicas.dicas.filter((item) => item.revisadoManualmente !== true);
+  const categories = new Map();
+  for (const item of reviewed) {
+    categories.set(item.categoria, (categories.get(item.categoria) || 0) + 1);
+  }
+  assert.equal(reviewed.length, 50);
+  assert.equal(drafts.length, 7);
+  assert.equal(categories.size, 10);
+  assert.deepEqual([...categories.values()].sort((a, b) => a - b), Array(10).fill(5));
 });
