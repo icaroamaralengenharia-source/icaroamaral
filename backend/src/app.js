@@ -1467,6 +1467,19 @@ export function createApp(options = {}) {
         });
         return;
       }
+      const duplicateNfe = await findStockFullEntryByNfeAccessKey_(database, validation.payload, session.profile);
+      if (duplicateNfe) {
+        const duplicateItem = await getStockFullItemForProfile_(database, duplicateNfe.item_id, session.profile);
+        response.status(409).json({
+          ok: false,
+          mode: "remote",
+          duplicate: true,
+          error: "stock_full_nfe_already_imported",
+          entry: mapStockFullEntryFromDatabase_(duplicateNfe),
+          item: mapStockFullItemFromDatabase_(duplicateItem)
+        });
+        return;
+      }
 
       const item = await getStockFullItemForProfile_(database, validation.payload.item_id, session.profile);
       if (!item) {
@@ -1685,6 +1698,99 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/stock-full/nfe-import", async (request, response) => {
+    const database = getStockFullDatabase(response);
+    if (!database) {
+      return;
+    }
+
+    const session = await requireStockFullAuth_(request, response, database);
+    if (!session) {
+      return;
+    }
+
+    const body = request.body || {};
+    const movementInput = body.movement && typeof body.movement === "object" ? body.movement : body;
+    const productInput = body.product && typeof body.product === "object" ? body.product : null;
+    const accessKey = clean_(movementInput.nfeAccessKey ?? movementInput.nfe_access_key);
+    if (!accessKey) {
+      response.status(400).json({ ok: false, error: "nfe_access_key_required" });
+      return;
+    }
+
+    const rawItemId = clean_(movementInput.itemId ?? movementInput.item_id ?? movementInput.productId ?? movementInput.product_id);
+    const useExistingItem = rawItemId && rawItemId.indexOf("tmp_") !== 0;
+    const productValidation = productInput && !useExistingItem ? validateStockFullItemPayload_(Object.assign({}, productInput, { currentQuantity: 0, current_quantity: 0, initialQuantity: 0 }), session.profile) : null;
+    if (productValidation && !productValidation.ok) {
+      response.status(400).json({ ok: false, error: productValidation.error });
+      return;
+    }
+    if (!useExistingItem && !productValidation) {
+      response.status(400).json({ ok: false, error: "stock_full_item_required" });
+      return;
+    }
+
+    const quantity = parsePositiveNumber_(movementInput.quantity);
+    if (!(quantity > 0)) {
+      response.status(400).json({ ok: false, error: "quantity_required" });
+      return;
+    }
+
+    const movementPayload = {
+      item_id: useExistingItem ? rawItemId : null,
+      quantity,
+      unit_cost: movementInput.unitCost === undefined && movementInput.unit_cost === undefined ? null : parsePositiveNumber_(movementInput.unitCost ?? movementInput.unit_cost, null),
+      supplier: clean_(movementInput.supplier),
+      invoice_number: clean_(movementInput.invoiceNumber ?? movementInput.invoice_number ?? movementInput.documentNumber),
+      nfe_access_key: accessKey,
+      notes: clean_(movementInput.notes),
+      offline_uuid: clean_(movementInput.offlineUuid ?? movementInput.offline_uuid ?? movementInput.operationId ?? movementInput.operation_id),
+      operation_id: clean_(movementInput.operationId ?? movementInput.operation_id),
+      device_id: clean_(movementInput.deviceId ?? movementInput.device_id),
+      source: clean_(movementInput.source) || "online",
+      sync_status: clean_(movementInput.syncStatus ?? movementInput.sync_status) || "synced",
+      synced_at: clean_(movementInput.syncedAt ?? movementInput.synced_at) || new Date().toISOString(),
+      created_by: session.profile.id
+    };
+
+    try {
+      const { data, error } = await database.rpc("confirm_stock_full_nfe_import", {
+        p_institution_id: session.profile.institution_id,
+        p_profile_id: session.profile.id,
+        p_nfe_access_key: accessKey,
+        p_item_id: useExistingItem ? rawItemId : null,
+        p_product: productValidation ? productValidation.payload : null,
+        p_movement: movementPayload
+      });
+      if (error) {
+        throw error;
+      }
+      const result = data && typeof data === "object" ? data : {};
+      if (result.status === "duplicate" || result.duplicate) {
+        response.json({
+          ok: true,
+          mode: "remote",
+          duplicate: true,
+          status: "duplicate",
+          entry: mapStockFullEntryFromDatabase_(result.entry),
+          item: mapStockFullItemFromDatabase_(result.item || result.product)
+        });
+        return;
+      }
+      response.json({
+        ok: true,
+        mode: "remote",
+        status: result.status || "synced",
+        entry: mapStockFullEntryFromDatabase_(result.entry),
+        item: mapStockFullItemFromDatabase_(result.item || result.product),
+        audit: result.audit || null
+      });
+    } catch (error) {
+      const message = clean_(error && error.message) || "stock_full_nfe_import_failed";
+      const status = message === "stock_full_nfe_already_imported" ? 409 : 500;
+      response.status(status).json({ ok: false, error: message });
+    }
+  });
   app.post("/api/stock-full/sync", async (request, response) => {
     const database = getStockFullDatabase(response);
     if (!database) {
@@ -3353,6 +3459,23 @@ async function findStockFullMovementByIdempotency_(database, table, payload, pro
   }
   return null;
 }
+async function findStockFullEntryByNfeAccessKey_(database, payload, profile) {
+  const institutionId = clean_(profile && profile.institution_id);
+  const accessKey = clean_(payload && payload.nfe_access_key);
+  if (!institutionId || !accessKey) {
+    return null;
+  }
+  const { data, error } = await database
+    .from("stock_full_entries")
+    .select("*")
+    .eq("institution_id", institutionId)
+    .eq("nfe_access_key", accessKey)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
 
 async function processStockFullSyncMovement_(database, movement, profile) {
   const type = normalizeStockFullMovementType_(movement && movement.type);
@@ -3390,6 +3513,19 @@ async function processStockFullSyncMovement_(database, movement, profile) {
         status: "duplicate",
         movement_id: duplicate.id,
         itemId: duplicate.item_id,
+        previousBalance: currentQuantity,
+        newBalance: currentQuantity
+      });
+    }
+    const duplicateNfe = type === "entrada" ? await findStockFullEntryByNfeAccessKey_(database, validation.payload, profile) : null;
+    if (duplicateNfe) {
+      const item = await getStockFullItemForProfile_(database, duplicateNfe.item_id, profile);
+      const currentQuantity = parsePositiveNumber_(item && item.current_quantity, 0);
+      return Object.assign({}, base, {
+        status: "duplicate",
+        message: "stock_full_nfe_already_imported",
+        movement_id: duplicateNfe.id,
+        itemId: duplicateNfe.item_id,
         previousBalance: currentQuantity,
         newBalance: currentQuantity
       });
@@ -3608,7 +3744,8 @@ function validateStockFullEntryPayload_(body, profile) {
       ? null
       : parsePositiveNumber_(body.unitCost ?? body.unit_cost, null),
     supplier: clean_(body.supplier),
-    invoice_number: clean_(body.invoiceNumber ?? body.invoice_number),
+    invoice_number: clean_(body.invoiceNumber ?? body.invoice_number ?? body.documentNumber),
+    nfe_access_key: clean_(body.nfeAccessKey ?? body.nfe_access_key),
     notes: clean_(body.notes),
     offline_uuid: clean_(body.offlineUuid ?? body.offline_uuid),
     operation_id: clean_(body.operationId ?? body.operation_id),
@@ -3687,6 +3824,7 @@ function mapStockFullEntryFromDatabase_(entry) {
     unitCost: source.unit_cost === null || source.unit_cost === undefined ? null : parsePositiveNumber_(source.unit_cost, 0),
     supplier: source.supplier || "",
     invoiceNumber: source.invoice_number || "",
+    nfeAccessKey: source.nfe_access_key || "",
     notes: source.notes || "",
     offlineUuid: source.offline_uuid || "",
     operationId: source.operation_id || "",

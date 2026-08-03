@@ -276,6 +276,9 @@
       },
       async createAdjustment(payload) {
         return sendMovementToSync("entrada", payload, "entry");
+      },
+      async confirmNfe(payload) {
+        return fetchJson("/api/stock-full/nfe-import", { method: "POST", body: JSON.stringify(payload || {}) });
       }
     };
   }
@@ -324,6 +327,8 @@
       quantity: parseNumber(source.quantity),
       unitCost: parseNumber(source.unitCost),
       supplier: clean(source.supplier),
+      invoiceNumber: clean(source.documentNumber || source.invoiceNumber || source.invoice_number),
+      nfeAccessKey: clean(source.nfeAccessKey || source.nfe_access_key),
       destination: clean(source.destination || source.sector || source.recipient),
       responsible: clean(source.responsible),
       notes: clean(source.notes),
@@ -397,6 +402,7 @@
     if ((item.operation === "stock:entry" || item.operation === "stock:exit" || item.operation === "stock:adjust") && clean(payload.itemId).indexOf("tmp_product_") === 0 && !idMap[clean(payload.itemId)]) {
       throw new Error("product_dependency_pending");
     }
+    if (item.operation === "nfe:confirm") return transport.confirmNfe(payload);
     if (item.operation === "product:create") return transport.createProduct(payload);
     if (item.operation === "product:update") return transport.updateProduct(Object.assign({}, payload, { remoteId: idMap[clean(payload.id)] || clean(payload.id) }));
     if (item.operation === "stock:entry") return syncMovementOnce(item, payload, transport.createEntry);
@@ -434,6 +440,13 @@
       saveIdMap(idMap);
       replaceTemporaryIdInAlmoxState(clean(payload.id), remoteId);
     }
+    const productPayloadId = clean(payload.product && payload.product.id);
+    const itemRemoteId = clean(result && (result.item && result.item.id || result.product && result.product.id));
+    if (itemRemoteId && productPayloadId.indexOf("tmp_") === 0) {
+      idMap[productPayloadId] = itemRemoteId;
+      saveIdMap(idMap);
+      replaceTemporaryIdInAlmoxState(productPayloadId, itemRemoteId);
+    }
   }
 
   function replaceTemporaryIdInAlmoxState(temporaryId, remoteId) {
@@ -456,8 +469,15 @@
     const previousItems = indexById(previousState && previousState.items);
     const previousMovements = indexById(previousState && previousState.movements);
     const itemIdMap = {};
+    const nfeCombinedProductIds = new Set();
+    (nextState.movements || []).forEach(function (movement) {
+      if (!movement || previousMovements[clean(movement.id)] || clean(movement.origin) !== "nfe_import") return;
+      const productId = clean(movement.itemId || movement.productId);
+      if (productId.indexOf("tmp_product_nfe_") === 0 && !previousItems[productId]) nfeCombinedProductIds.add(productId);
+    });
     (nextState.items || []).forEach(function (item) {
       if (!item || previousItems[clean(item.id)]) return;
+      if (nfeCombinedProductIds.has(clean(item.id))) return;
       if (clean(item.id).indexOf("tmp_product_") !== 0) {
         const oldId = clean(item.id);
         item.id = createTemporaryId("product");
@@ -476,6 +496,7 @@
         enqueueOperation("product:update", Object.assign({}, item), { localOperationKey: "product:update:" + item.id + ":" + item.updatedAt, companyId: getCompanyId(item) });
       }
     });
+    const nextItems = indexById(nextState.items || []);
     (nextState.movements || []).forEach(function (movement) {
       if (!movement || previousMovements[clean(movement.id)]) return;
       const oldMovementId = clean(movement.id);
@@ -484,11 +505,15 @@
       if (itemIdMap[clean(movement.productId)]) movement.productId = itemIdMap[clean(movement.productId)];
       movement.createdAt = clean(movement.createdAt) || new Date().toISOString();
       const operation = movement.type === "saida" ? "stock:exit" : (movement.type === "ajuste" ? "stock:adjust" : "stock:entry");
+      const productId = clean(movement.itemId || movement.productId);
+      if (operation === "stock:entry" && clean(movement.origin) === "nfe_import") {
+        enqueueOperation("nfe:confirm", { operationId: clean(movement.operationId), offlineUuid: clean(movement.offlineUuid || movement.operationId), nfeAccessKey: clean(movement.nfeAccessKey || movement.documentNumber), product: nfeCombinedProductIds.has(productId) ? Object.assign({}, nextItems[productId] || {}) : null, movement: Object.assign({}, movement) }, { localOperationKey: "nfe:confirm:" + (clean(movement.nfeAccessKey) || clean(movement.documentNumber) || oldMovementId || movement.id), operationId: clean(movement.operationId), companyId: getCompanyId(movement) });
+        return;
+      }
       enqueueOperation(operation, Object.assign({}, movement), { localOperationKey: operation + ":" + (oldMovementId || movement.id), companyId: getCompanyId(movement) });
     });
     return nextState;
   }
-
   function indexById(items) {
     const map = {};
     (Array.isArray(items) ? items : []).forEach(function (item) {

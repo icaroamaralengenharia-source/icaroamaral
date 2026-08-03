@@ -177,6 +177,45 @@ async function seedStockFullProduct(page) {
   await expect(page.locator("#stockFullDashboard")).toBeVisible();
 }
 
+async function readStockFullState(page) {
+  return page.evaluate(() => JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}"));
+}
+
+async function readStockFullQueue(page) {
+  return page.evaluate(() => window.StockFullSync.getQueue());
+}
+
+async function clearStockFullQueue(page) {
+  await page.evaluate(() => window.localStorage.removeItem(window.StockFullSync.storageKeys.queue));
+}
+
+async function createStockFullProductThroughModal(page, name = "Cimento cadastrado NF-e") {
+  const itemForm = await openModal(page, "item");
+  await itemForm.locator('[name="name"]').fill(name);
+  await itemForm.locator('[name="category"]').fill("Fiscal");
+  await itemForm.locator('[name="unit"]').fill("SC");
+  await itemForm.locator('[name="initialQuantity"]').fill("0");
+  await itemForm.locator('[name="minimumStock"]').fill("0");
+  await submitModal(page, itemForm);
+  await clearStockFullQueue(page);
+}
+async function loadSingleItemNfe(page) {
+  await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml({ secondItem: false }));
+}
+
+async function confirmLoadedNfe(page) {
+  const result = await page.evaluate(() => window.StockFullNfeReview.confirmForTest());
+  await expect(page.locator("#stockFullNfeResults")).toBeVisible();
+  return result;
+}
+
+async function setStockFullSession(page, session) {
+  await page.evaluate((nextSession) => {
+    window.StockFullCore.setSession(Object.assign({ isAuthenticated: true, mode: "local" }, nextSession));
+  }, session);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#stockFullDashboard")).toBeVisible();
+}
 test.describe("Stock Full SaaS - fase A cirurgica", () => {
   test.beforeAll(async () => {
     staticServer = await startStockFullStaticServer();
@@ -590,5 +629,168 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(sideEffects).toEqual({ fetches: 0, enqueues: 0 });
     expect(after.items || []).toHaveLength((before.items || []).length);
     expect(after.movements || []).toHaveLength((before.movements || []).length);
+  });
+  test("Stock Full NF-e confirmacao registra entrada para produto existente pelo fluxo oficial", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await createStockFullProductThroughModal(page);
+    await loadSingleItemNfe(page);
+    const productId = await selectByText(page.locator('[data-stock-full-nfe-product-select]').first(), "Cimento cadastrado NF-e");
+
+    const result = await confirmLoadedNfe(page);
+    const state = await readStockFullState(page);
+    const queue = await readStockFullQueue(page);
+    const movement = state.movements.find((candidate) => candidate.origin === "nfe_import");
+    const balance = await page.evaluate((itemId) => {
+      const stored = JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}");
+      return window.StockFullStock.getItemBalance({ id: itemId }, stored.movements || []);
+    }, productId);
+
+    expect(result.ok).toBe(true);
+    expect(movement).toMatchObject({ itemId: productId, type: "entrada", documentNumber: "29260612345678000199550010000012341000012345", companyId: "company_manoel_importados" });
+    expect(movement.operationId).toContain("stock:entry:nfe:");
+    expect(movement.offlineUuid).toBe(movement.operationId);
+    expect(balance).toBe(10.5);
+    expect(queue.map((item) => item.operation)).toEqual(["nfe:confirm"]);
+    expect(queue[0].payload.product).toBeNull();
+    expect(queue[0].payload.movement.documentNumber).toBe(movement.documentNumber);
+  });
+
+  test("Stock Full NF-e confirmacao cria produto novo e entrada oficial sem saldo direto", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+
+    const result = await confirmLoadedNfe(page);
+    const state = await readStockFullState(page);
+    const queue = await readStockFullQueue(page);
+    const product = state.items.find((item) => item.name === "Cimento CP II");
+    const movement = state.movements.find((candidate) => candidate.origin === "nfe_import");
+    const balance = await page.evaluate((itemId) => {
+      const stored = JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}");
+      return window.StockFullStock.getItemBalance({ id: itemId }, stored.movements || []);
+    }, product.id);
+
+    expect(result.ok).toBe(true);
+    expect(product.id).toContain("tmp_product_nfe_");
+    expect(product.currentStock).toBe(0);
+    expect(movement.itemId).toBe(product.id);
+    expect(balance).toBe(10.5);
+    expect(queue.map((item) => item.operation)).toEqual(["nfe:confirm"]);
+    expect(queue[0].payload.nfeAccessKey).toBe("29260612345678000199550010000012341000012345");
+    expect(queue[0].payload.product.name).toBe("Cimento CP II");
+  });
+
+  test("Stock Full NF-e confirmacao bloqueia duplicidade por empresa e aceita mesma chave em outra empresa", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    expect((await confirmLoadedNfe(page)).ok).toBe(true);
+
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    const duplicate = await confirmLoadedNfe(page);
+    expect(duplicate.ok).toBe(false);
+    expect(duplicate.errors.join(" ")).toContain("ja confirmada");
+
+    await setStockFullSession(page, {
+      userId: "user_sul_admin",
+      userName: "Loja Sul",
+      userEmail: "sul@lojateste.com",
+      companyId: "company_loja_teste_sul",
+      companyName: "Loja Teste Sul",
+      role: "admin"
+    });
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    expect((await confirmLoadedNfe(page)).ok).toBe(true);
+
+    const state = await readStockFullState(page);
+    expect(state.movements.filter((movement) => movement.origin === "nfe_import" && movement.companyId === "company_loja_teste_sul")).toHaveLength(1);
+  });
+
+  test("Stock Full NF-e confirmacao falha sem confirmacao parcial silenciosa", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await createStockFullProductThroughModal(page);
+    const before = await readStockFullState(page);
+    await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml());
+    await selectByText(page.locator('[data-stock-full-nfe-product-select]').first(), "Cimento cadastrado NF-e");
+
+    const result = await confirmLoadedNfe(page);
+    const after = await readStockFullState(page);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("Item 2");
+    expect(after.items).toEqual(before.items);
+    expect(after.movements).toEqual(before.movements);
+  });
+
+  test("Stock Full NF-e confirmacao offline preserva idempotencia e sincroniza depois", async ({ page, context }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await context.setOffline(true);
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    expect((await confirmLoadedNfe(page)).ok).toBe(true);
+    const queue = await readStockFullQueue(page);
+    expect(queue.map((item) => item.operation)).toEqual(["nfe:confirm"]);
+    expect(queue[0].payload.nfeAccessKey).toBe("29260612345678000199550010000012341000012345");
+    expect(queue[0].payload.product.name).toBe("Cimento CP II");
+    expect(queue.every((item) => item.operationId && item.payload.offlineUuid)).toBe(true);
+
+    await context.setOffline(false);
+    const synced = await page.evaluate(async () => {
+      window.__stockFullNfeSyncCalls = [];
+      window.StockFullSync.configure({ transport: {
+        async confirmNfe(payload) {
+          window.__stockFullNfeSyncCalls.push({ type: "nfe:confirm", payload });
+          return { ok: true, status: "synced", entry: { id: "remote_entry_nfe_1" }, item: { id: "remote_prod_nfe_1" } };
+        },
+        async createProduct(payload) {
+          window.__stockFullNfeSyncCalls.push({ type: "product:create", payload });
+          return { ok: true, remoteId: "remote_prod_nfe_1", item: { id: "remote_prod_nfe_1" } };
+        },
+        async updateProduct(payload) {
+          window.__stockFullNfeSyncCalls.push({ type: "product:update", payload });
+          return { ok: true, remoteId: payload.id };
+        },
+        async createEntry(payload) {
+          window.__stockFullNfeSyncCalls.push({ type: "stock:entry", payload });
+          return { ok: true, remoteId: "remote_entry_nfe_1", entry: { id: "remote_entry_nfe_1" } };
+        },
+        async createExit(payload) {
+          window.__stockFullNfeSyncCalls.push({ type: "stock:exit", payload });
+          return { ok: true, remoteId: payload.id };
+        }
+      } });
+      await window.StockFullSync.processQueue();
+      return { queue: window.StockFullSync.getQueue(), calls: window.__stockFullNfeSyncCalls };
+    });
+
+    expect(synced.queue.every((item) => item.status === "synced")).toBe(true);
+    expect(synced.calls.map((call) => call.type)).toEqual(["nfe:confirm"]);
+    expect(synced.calls[0].payload.movement.itemId).toContain("tmp_product_nfe_");
+    expect(synced.calls[0].payload.movement.operationId).toContain("stock:entry:nfe:");
+    expect(synced.calls[0].payload.movement.documentNumber).toBe("29260612345678000199550010000012341000012345");
+    expect(synced.calls[0].payload.movement.offlineUuid).toContain("stock:entry:nfe:");
+  });
+
+  test("Stock Full NF-e confirmacao respeita permissao do usuario", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await setStockFullSession(page, {
+      userId: "user_carla_vendas",
+      userName: "Carla Vendas",
+      userEmail: "carla@manoelimportados.com",
+      companyId: "company_manoel_importados",
+      companyName: "Manoel Importados",
+      role: "vendedor"
+    });
+    await loadSingleItemNfe(page);
+    await page.locator('[data-stock-full-nfe-create-new]').first().check({ force: true });
+
+    const result = await confirmLoadedNfe(page);
+    const state = await readStockFullState(page);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("sem permissao");
+    expect(state.movements || []).toHaveLength(0);
   });
 });

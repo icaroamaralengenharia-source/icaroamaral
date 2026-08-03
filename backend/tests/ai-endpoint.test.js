@@ -1691,7 +1691,197 @@ test("stock full sync ignora institution_id do frontend e isola empresa", async 
   }
 });
 
-test("stock full live retorna visao ao vivo e status de sync", async () => {
+
+test("stock full nfe rpc confirma produto existente com saldo e auditoria", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [{ id: "sf_item_1", institution_id: "inst_auth", name: "Cimento", unit: "sc", current_quantity: 1, is_active: true }]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ movement: { itemId: "sf_item_1", quantity: 5, offlineUuid: "nfe-off-1", operationId: "nfe-op-1", nfeAccessKey: "29260612345678000199550010000012341000012345", documentNumber: "29260612345678000199550010000012341000012345", institution_id: "forged_inst" } })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.status, "synced");
+    assert.equal(data.entry.nfeAccessKey, "29260612345678000199550010000012341000012345");
+    assert.equal(data.item.currentQuantity, 6);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullAuditLogs.length, 1);
+    assert.equal(supabase.lastStockFullNfeImportArgs.p_institution_id, "inst_auth");
+    assert.equal(supabase.stockFullEntries[0].institution_id, "inst_auth");
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe rpc cria produto novo e entrada na mesma operacao", async () => {
+  const supabase = createMockStockSaudeSupabase_();
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product: { id: "tmp_product_nfe_1", name: "Produto NF-e", unit: "un", currentQuantity: 99 },
+        movement: { itemId: "tmp_product_nfe_1", quantity: 2, offlineUuid: "nfe-new-off", operationId: "nfe-new-op", nfeAccessKey: "NFE-PRODUTO-NOVO-1" }
+      })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(data.status, "synced");
+    assert.equal(supabase.stockFullItems.length, 1);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 2);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullEntries[0].item_id, supabase.stockFullItems[0].id);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe rpc bloqueia mesma chave na mesma empresa", async () => {
+  const supabase = createMockStockSaudeSupabase_({
+    stockFullItems: [{ id: "sf_item_1", institution_id: "inst_auth", name: "Cimento", unit: "sc", current_quantity: 0, is_active: true }]
+  });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  const body = (offlineUuid, operationId) => JSON.stringify({ movement: { itemId: "sf_item_1", quantity: 5, offlineUuid, operationId, nfeAccessKey: "29260612345678000199550010000012341000012345" } });
+  try {
+    const first = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: body("nfe-off-1", "nfe-op-1") });
+    const second = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: body("nfe-off-2", "nfe-op-2") });
+    const firstData = await first.json();
+    const secondData = await second.json();
+
+    assert.equal(firstData.status, "synced");
+    assert.equal(secondData.status, "duplicate");
+    assert.equal(secondData.duplicate, true);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 5);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe rpc permite mesma chave em empresas diferentes", async () => {
+  const key = "29260612345678000199550010000012341000012345";
+  const supabaseA = createMockStockSaudeSupabase_({ stockFullItems: [{ id: "sf_item_a", institution_id: "inst_auth", name: "Cimento A", unit: "sc", current_quantity: 0, is_active: true }] });
+  const profileB = Object.assign({}, createMockStockSaudeProfile_("gestor"), { institution_id: "inst_b", unit_id: "unit_b" });
+  const supabaseB = createMockStockSaudeSupabase_({ profile: profileB, institutions: [{ id: "inst_b" }], units: [{ id: "unit_b", institution_id: "inst_b" }], stockFullItems: [{ id: "sf_item_b", institution_id: "inst_b", name: "Cimento B", unit: "sc", current_quantity: 0, is_active: true }] });
+  const appA = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabaseA });
+  const appB = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabaseB });
+  const serverA = await listenTestApp_(appA);
+  const serverB = await listenTestApp_(appB);
+  try {
+    const responseA = await fetch(serverA.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: JSON.stringify({ movement: { itemId: "sf_item_a", quantity: 2, offlineUuid: "nfe-a", operationId: "nfe-a", nfeAccessKey: key } }) });
+    const responseB = await fetch(serverB.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: JSON.stringify({ movement: { itemId: "sf_item_b", quantity: 3, offlineUuid: "nfe-b", operationId: "nfe-b", nfeAccessKey: key } }) });
+    assert.equal((await responseA.json()).status, "synced");
+    assert.equal((await responseB.json()).status, "synced");
+    assert.equal(supabaseA.stockFullEntries.length, 1);
+    assert.equal(supabaseB.stockFullEntries.length, 1);
+  } finally {
+    await closeTestServer_(serverA.server);
+    await closeTestServer_(serverB.server);
+  }
+});
+
+test("stock full nfe rpc retry e dois dispositivos geram uma unica entrada", async () => {
+  const supabase = createMockStockSaudeSupabase_({ stockFullItems: [{ id: "sf_item_1", institution_id: "inst_auth", name: "Argamassa", unit: "sc", current_quantity: 0, is_active: true }] });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  const body = (offlineUuid, operationId) => JSON.stringify({ movement: { itemId: "sf_item_1", quantity: 4, offlineUuid, operationId, nfeAccessKey: "NFE-CONCORRENTE-1" } });
+  try {
+    const [firstResponse, secondResponse] = await Promise.all([
+      fetch(testServer.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: body("device-a", "op-device-a") }),
+      fetch(testServer.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: body("device-b", "op-device-b") })
+    ]);
+    const retryResponse = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: body("device-a", "op-device-a") });
+    const statuses = [(await firstResponse.json()).status, (await secondResponse.json()).status, (await retryResponse.json()).status].sort();
+
+    assert.deepEqual(statuses, ["duplicate", "duplicate", "synced"]);
+    assert.equal(supabase.stockFullEntries.length, 1);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 4);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe rpc falha apos criar produto sem alteracao parcial", async () => {
+  const supabase = createMockStockSaudeSupabase_();
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product: { id: "tmp_product_nfe_1", name: "Produto NF-e", unit: "un", currentQuantity: 0 },
+        movement: { itemId: "tmp_product_nfe_1", quantity: 2, offlineUuid: "nfe-new-off", operationId: "nfe-new-op", nfeAccessKey: "NFE-COMPENSADA-1", notes: "force-entry-fail" }
+      })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 500);
+    assert.equal(data.ok, false);
+    assert.equal(supabase.stockFullEntries.length, 0);
+    assert.equal(supabase.stockFullItems.length, 0);
+    assert.equal(supabase.stockFullAuditLogs.length, 0);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe rpc falha antes da entrada sem alteracao parcial", async () => {
+  const supabase = createMockStockSaudeSupabase_({ stockFullItems: [{ id: "sf_item_1", institution_id: "inst_auth", name: "Cimento", unit: "sc", current_quantity: 7, is_active: true }] });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const response = await fetch(testServer.baseUrl + "/api/stock-full/nfe-import", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ movement: { itemId: "sf_item_1", quantity: 2, offlineUuid: "nfe-before-off", operationId: "nfe-before-op", nfeAccessKey: "NFE-FALHA-ANTES-1", notes: "force-before-entry" } })
+    });
+    const data = await response.json();
+
+    assert.equal(response.status, 500);
+    assert.equal(data.ok, false);
+    assert.equal(supabase.stockFullEntries.length, 0);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 7);
+    assert.equal(supabase.stockFullAuditLogs.length, 0);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});
+
+test("stock full nfe preserva entrada manual sem chave e entrada existente com chave", async () => {
+  const supabase = createMockStockSaudeSupabase_({ stockFullItems: [{ id: "sf_item_1", institution_id: "inst_auth", name: "Caneta", unit: "un", current_quantity: 0, is_active: true }] });
+  const app = createApp({ env: { PORT: "0" }, stockFullSupabaseClient: supabase });
+  const testServer = await listenTestApp_(app);
+  try {
+    const manual = await fetch(testServer.baseUrl + "/api/stock-full/entries", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: JSON.stringify({ itemId: "sf_item_1", quantity: 1, invoiceNumber: "MANUAL-1" }) });
+    const nfe = await fetch(testServer.baseUrl + "/api/stock-full/entries", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: JSON.stringify({ itemId: "sf_item_1", quantity: 2, invoiceNumber: "NF-1", nfeAccessKey: "NFE-EXISTENTE-1" }) });
+    const duplicate = await fetch(testServer.baseUrl + "/api/stock-full/entries", { method: "POST", headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" }, body: JSON.stringify({ itemId: "sf_item_1", quantity: 2, invoiceNumber: "NF-1", nfeAccessKey: "NFE-EXISTENTE-1" }) });
+    const manualData = await manual.json();
+    const nfeData = await nfe.json();
+    const duplicateData = await duplicate.json();
+
+    assert.equal(manual.status, 200);
+    assert.equal(manualData.entry.nfeAccessKey, "");
+    assert.equal(nfe.status, 200);
+    assert.equal(nfeData.entry.nfeAccessKey, "NFE-EXISTENTE-1");
+    assert.equal(duplicate.status, 409);
+    assert.equal(duplicateData.error, "stock_full_nfe_already_imported");
+    assert.equal(supabase.stockFullEntries.length, 2);
+    assert.equal(supabase.stockFullItems[0].current_quantity, 3);
+  } finally {
+    await closeTestServer_(testServer.server);
+  }
+});test("stock full live retorna visao ao vivo e status de sync", async () => {
   const supabase = createMockStockSaudeSupabase_({
     stockFullItems: [
       { id: "sf_item_1", institution_id: "inst_auth", name: "Parafuso", unit: "cx", current_quantity: 1, min_quantity: 2, is_active: true },
@@ -6857,6 +7047,12 @@ function createMockStockSaudeSupabase_(options = {}) {
         };
       }
     },
+    async rpc(name, args) {
+      if (name === "confirm_stock_full_nfe_import") {
+        return executeMockStockFullNfeImportRpc_(client, args || {});
+      }
+      return { data: null, error: { message: "rpc_not_implemented" } };
+    },
     from(table) {
       if (table === "profiles") {
         return createMockProfilesQuery_(profiles);
@@ -6900,6 +7096,109 @@ function createMockStockSaudeSupabase_(options = {}) {
   return client;
 }
 
+function executeMockStockFullNfeImportRpc_(client, args) {
+  client.lastStockFullNfeImportArgs = args;
+  const itemsSnapshot = client.stockFullItems.map((item) => Object.assign({}, item));
+  const entriesSnapshot = client.stockFullEntries.map((entry) => Object.assign({}, entry));
+  const auditSnapshot = client.stockFullAuditLogs.map((record) => Object.assign({}, record));
+  const rollback = () => {
+    client.stockFullItems.splice(0, client.stockFullItems.length, ...itemsSnapshot.map((item) => Object.assign({}, item)));
+    client.stockFullEntries.splice(0, client.stockFullEntries.length, ...entriesSnapshot.map((entry) => Object.assign({}, entry)));
+    client.stockFullAuditLogs.splice(0, client.stockFullAuditLogs.length, ...auditSnapshot.map((record) => Object.assign({}, record)));
+  };
+  const clean = (value) => String(value ?? "").trim();
+  const movement = args.p_movement || {};
+  const product = args.p_product || null;
+  const institutionId = clean(args.p_institution_id);
+  const accessKey = clean(args.p_nfe_access_key);
+  const operationId = clean(movement.operation_id);
+  const offlineUuid = clean(movement.offline_uuid || operationId);
+  const quantity = Number(movement.quantity || 0);
+
+  try {
+    const profile = client.profiles.find((candidate) => candidate.id === args.p_profile_id && candidate.institution_id === institutionId);
+    if (!profile) throw new Error("stock_full_profile_not_found");
+    if (["leitura", "viewer", "read_only"].includes(clean(profile.role).toLowerCase())) throw new Error("permission_denied");
+    if (!accessKey) throw new Error("nfe_access_key_required");
+    if (!(quantity > 0)) throw new Error("quantity_required");
+
+    const duplicateOperation = client.stockFullEntries.find((entry) => entry.institution_id === institutionId && ((offlineUuid && entry.offline_uuid === offlineUuid) || (operationId && entry.operation_id === operationId)));
+    if (duplicateOperation) {
+      const duplicateItem = client.stockFullItems.find((item) => item.id === duplicateOperation.item_id);
+      return { data: { status: "duplicate", duplicate: true, entry: duplicateOperation, item: duplicateItem }, error: null };
+    }
+
+    const duplicateNfe = client.stockFullEntries.find((entry) => entry.institution_id === institutionId && entry.nfe_access_key === accessKey);
+    if (duplicateNfe) {
+      const duplicateItem = client.stockFullItems.find((item) => item.id === duplicateNfe.item_id);
+      return { data: { status: "duplicate", duplicate: true, entry: duplicateNfe, item: duplicateItem }, error: null };
+    }
+
+    let item = null;
+    if (clean(args.p_item_id)) {
+      item = client.stockFullItems.find((candidate) => candidate.id === clean(args.p_item_id) && candidate.institution_id === institutionId && candidate.is_active !== false);
+      if (!item) throw new Error("stock_full_item_not_found");
+    } else {
+      if (!product) throw new Error("stock_full_item_required");
+      item = Object.assign({
+        id: "stock_full_item_" + String(client.stockFullItems.length + 1),
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, product, { institution_id: institutionId, current_quantity: 0, created_by: args.p_profile_id });
+      client.stockFullItems.push(item);
+    }
+
+    if (clean(item.name) === "") throw new Error("name_required");
+    if (clean(movement.notes) === "force-before-entry") throw new Error("forced_before_entry_failure");
+    const previousBalance = Number(item.current_quantity || 0);
+    item.current_quantity = previousBalance + quantity;
+    item.updated_at = new Date().toISOString();
+    if (clean(movement.notes) === "force-entry-fail") throw new Error("forced_entry_insert_failure");
+
+    const entry = {
+      id: "stock_full_entry_" + String(client.stockFullEntries.length + 1),
+      institution_id: institutionId,
+      item_id: item.id,
+      quantity,
+      unit_cost: movement.unit_cost === null || movement.unit_cost === undefined ? null : Number(movement.unit_cost),
+      supplier: clean(movement.supplier),
+      invoice_number: clean(movement.invoice_number || accessKey),
+      nfe_access_key: accessKey,
+      notes: clean(movement.notes),
+      offline_uuid: offlineUuid,
+      operation_id: operationId,
+      device_id: clean(movement.device_id),
+      sync_status: clean(movement.sync_status) || "synced",
+      source: clean(movement.source) || "online",
+      synced_at: clean(movement.synced_at) || new Date().toISOString(),
+      created_by: args.p_profile_id,
+      created_at: new Date().toISOString()
+    };
+    client.stockFullEntries.push(entry);
+    const audit = {
+      id: "stock_full_audit_" + String(client.stockFullAuditLogs.length + 1),
+      institution_id: institutionId,
+      action: "stock_full_nfe_imported",
+      entity_type: "stock_full_entry",
+      entity_id: entry.id,
+      product_id: item.id,
+      before_data: { current_quantity: previousBalance },
+      after_data: { current_quantity: item.current_quantity, quantity, nfe_access_key: accessKey },
+      offline_uuid: offlineUuid,
+      operation_id: operationId,
+      source: entry.source,
+      description: "NF-e importada no Stock Full.",
+      created_by: args.p_profile_id,
+      created_at: new Date().toISOString()
+    };
+    client.stockFullAuditLogs.push(audit);
+    return { data: { status: "synced", duplicate: false, entry, item, audit }, error: null };
+  } catch (error) {
+    rollback();
+    return { data: null, error: { message: clean(error && error.message) || "stock_full_nfe_import_failed" } };
+  }
+}
 function createMockStockSaudeProfile_(role = "gestor") {
   return {
     id: "profile_auth",
@@ -7092,16 +7391,18 @@ function createMockStockFullEntriesQuery_(entries) {
       return this;
     },
     insert(payload) {
+      const sourcePayload = Array.isArray(payload) ? payload[0] : payload;
+      const shouldFail = sourcePayload && sourcePayload.notes === "force-entry-fail";
       const entry = Object.assign({
         id: "stock_full_entry_" + String(entries.length + 1),
         created_at: new Date().toISOString()
-      }, Array.isArray(payload) ? payload[0] : payload);
-      entries.push(entry);
+      }, sourcePayload);
+      if (!shouldFail) entries.push(entry);
       return {
         select() {
           return {
             async single() {
-              return { data: entry, error: null };
+              return shouldFail ? { data: null, error: { message: "forced_entry_insert_failure" } } : { data: entry, error: null };
             }
           };
         }

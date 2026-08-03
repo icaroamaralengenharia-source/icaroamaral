@@ -4,6 +4,7 @@
   const core = root.StockFullCore || {};
   const productsApi = root.StockFullProducts || {};
   const clean = core.clean || function (value) { return String(value || "").trim(); };
+  const parseNumber = core.parseNumber || function (value) { const number = Number(String(value || "0").replace(",", ".")); return Number.isFinite(number) ? number : 0; };
   const storageKey = core.storageKey || "obraReportAlmoxarifadoData";
   let currentReview = null;
 
@@ -13,16 +14,20 @@
       input: root.document.getElementById("stockFullNfeXmlInput"),
       panel: root.document.getElementById("stockFullNfeReviewPanel"),
       cancel: root.document.getElementById("stockFullNfeCancelButton"),
+      confirm: root.document.getElementById("stockFullNfeConfirmButton"),
       status: root.document.getElementById("stockFullNfeStatus"),
       header: root.document.getElementById("stockFullNfeHeader"),
       warnings: root.document.getElementById("stockFullNfeWarnings"),
-      items: root.document.getElementById("stockFullNfeItems")
+      items: root.document.getElementById("stockFullNfeItems"),
+      results: root.document.getElementById("stockFullNfeResults")
     };
   }
 
+  function getStorage() { return core.getLocalStorage ? core.getLocalStorage() : root.localStorage; }
+
   function readState() {
     try {
-      const storage = core.getLocalStorage ? core.getLocalStorage() : root.localStorage;
+      const storage = getStorage();
       const raw = storage ? storage.getItem(storageKey) : "";
       return raw ? JSON.parse(raw) : {};
     } catch (error) {
@@ -30,13 +35,45 @@
     }
   }
 
+  function writeState(state) {
+    const storage = getStorage();
+    if (!storage) throw new Error("storage_unavailable");
+    storage.setItem(storageKey, JSON.stringify(state || {}));
+  }
+
   function getSession() { return core.getSession ? core.getSession() : {}; }
 
-  function getAvailableProducts() {
-    const state = readState();
+  function getCompanyId() {
     const session = getSession();
-    const companyId = clean(session.companyId);
-    const environmentId = clean(state.activeStockEnvironmentId);
+    return clean(session.companyId || session.institutionId || session.company_id || session.institution_id) || "local";
+  }
+
+  function getEnvironmentId(state, companyId) {
+    return clean(state && state.activeStockEnvironmentId) || (companyId ? "env_" + companyId : "env_local");
+  }
+
+  function can(permission) {
+    return core.canStockFull ? core.canStockFull(permission, getSession()) : true;
+  }
+
+  function normalizeState(state) {
+    const companyId = getCompanyId();
+    const safe = state && typeof state === "object" ? Object.assign({}, state) : {};
+    safe.items = Array.isArray(safe.items) ? safe.items.slice() : [];
+    safe.movements = Array.isArray(safe.movements) ? safe.movements.slice() : [];
+    safe.auditLog = Array.isArray(safe.auditLog) ? safe.auditLog.slice() : [];
+    safe.stockEnvironments = Array.isArray(safe.stockEnvironments) ? safe.stockEnvironments.slice() : [];
+    safe.activeStockEnvironmentId = getEnvironmentId(safe, companyId);
+    if (!safe.stockEnvironments.some(function (environment) { return clean(environment && environment.id) === safe.activeStockEnvironmentId; })) {
+      safe.stockEnvironments.push({ id: safe.activeStockEnvironmentId, companyId: companyId, environmentName: "Estoque principal", mode: "almoxarifado" });
+    }
+    return safe;
+  }
+
+  function getAvailableProducts() {
+    const state = normalizeState(readState());
+    const companyId = getCompanyId();
+    const environmentId = getEnvironmentId(state, companyId);
     return (Array.isArray(state.items) ? state.items : []).filter(function (item) {
       const itemCompanyId = clean(item && item.companyId);
       const itemEnvironmentId = clean(item && item.environmentId);
@@ -96,6 +133,21 @@
       const item = root.document.createElement("span");
       item.textContent = clean(warning);
       elements.warnings.appendChild(item);
+    });
+  }
+
+  function renderResults(results) {
+    const elements = getElements();
+    clearNode(elements.results);
+    if (!elements.results) return;
+    const safeResults = Array.isArray(results) ? results : [];
+    elements.results.classList.toggle("is-hidden", !safeResults.length);
+    safeResults.forEach(function (result) {
+      const item = root.document.createElement("div");
+      item.className = "stock-full-nfe-result";
+      item.dataset.status = result.ok ? "ok" : "error";
+      item.textContent = clean(result.message) || (result.ok ? "Item confirmado" : "Item rejeitado");
+      elements.results.appendChild(item);
     });
   }
 
@@ -195,6 +247,8 @@
       version: "stock-full-nfe-review/v1",
       draft: clone(draft),
       warnings: Array.isArray(result && result.warnings) ? result.warnings.slice() : [],
+      confirmed: false,
+      confirmationResults: [],
       items: (draft.items || []).map(function (item) {
         return { lineNumber: clean(item.lineNumber), productId: "", createProduct: false, description: clean(item.description), unit: clean(item.unit), quantity: clean(item.quantity), unitValue: clean(item.unitValue), totalValue: clean(item.totalValue), ncm: clean(item.ncm), code: clean(item.code) };
       })
@@ -207,7 +261,91 @@
     renderHeader(currentReview.draft);
     renderWarnings(currentReview.warnings);
     renderItems(currentReview.draft);
+    renderResults(currentReview.confirmationResults);
     setStatus("Rascunho carregado em memoria. Nenhum produto ou movimento foi criado.", "success");
+  }
+
+  function safeKey(value) { return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 90) || "nfe"; }
+
+  function findProductById(state, productId, companyId, environmentId) {
+    return (state.items || []).find(function (item) {
+      return clean(item.id) === clean(productId) && (!clean(item.companyId) || clean(item.companyId) === companyId) && (!clean(item.environmentId) || clean(item.environmentId) === environmentId);
+    }) || null;
+  }
+
+  function hasDuplicateNfe(state, companyId, accessKey) {
+    return (state.movements || []).some(function (movement) {
+      return clean(movement.companyId) === companyId && clean(movement.documentNumber) === accessKey && clean(movement.origin) === "nfe_import";
+    });
+  }
+
+  function buildAudit(companyId, environmentId, action, entityId, description, metadata) {
+    const session = getSession();
+    return { id: "sfaudit_nfe_" + safeKey(entityId || description) + "_" + Date.now().toString(36), companyId: companyId, environmentId: environmentId, createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), action: action, entityType: "stock_nfe", entityId: clean(entityId), description: description, metadata: metadata || {}, createdAt: new Date().toISOString() };
+  }
+
+  function validateConfirmation(state, companyId, environmentId) {
+    const errors = [];
+    if (!currentReview || !currentReview.draft) errors.push("Nenhuma NF-e carregada.");
+    if (!can("movements:in")) errors.push("Usuario sem permissao para registrar entrada.");
+    const accessKey = clean(currentReview && currentReview.draft && currentReview.draft.accessKey);
+    if (!accessKey) errors.push("Chave da NF-e ausente.");
+    if (accessKey && hasDuplicateNfe(state, companyId, accessKey)) errors.push("NF-e ja confirmada para esta empresa.");
+    const needsProductCreate = currentReview && currentReview.items.some(function (item) { return item.createProduct; });
+    if (needsProductCreate && !can("products:create")) errors.push("Usuario sem permissao para criar produto.");
+    (currentReview && currentReview.items || []).forEach(function (item, index) {
+      const label = "Item " + (item.lineNumber || index + 1);
+      if (!item.createProduct && !clean(item.productId)) errors.push(label + ": relacione um produto existente ou marque produto novo.");
+      if (item.productId && !findProductById(state, item.productId, companyId, environmentId)) errors.push(label + ": produto existente nao encontrado nesta empresa.");
+      if (item.createProduct && !clean(item.description)) errors.push(label + ": descricao obrigatoria para criar produto.");
+      if (parseNumber(item.quantity) <= 0) errors.push(label + ": quantidade invalida.");
+      if (parseNumber(item.unitValue) < 0) errors.push(label + ": valor unitario invalido.");
+    });
+    return errors;
+  }
+
+  function confirmEntry() {
+    showPanel();
+    const state = normalizeState(readState());
+    const companyId = getCompanyId();
+    const environmentId = getEnvironmentId(state, companyId);
+    const errors = validateConfirmation(state, companyId, environmentId);
+    if (errors.length) {
+      currentReview.confirmationResults = errors.map(function (message) { return { ok: false, message: message }; });
+      renderResults(currentReview.confirmationResults);
+      setStatus("Entrada da NF-e nao confirmada. Corrija todos os itens antes de tentar novamente.", "error");
+      return { ok: false, errors: errors.slice(), results: clone(currentReview.confirmationResults) };
+    }
+
+    const accessKey = clean(currentReview.draft.accessKey);
+    const now = new Date().toISOString();
+    const date = clean(currentReview.draft.issuedAt).slice(0, 10) || now.slice(0, 10);
+    const supplier = clean(currentReview.draft.supplier && currentReview.draft.supplier.name);
+    const nextState = normalizeState(clone(state));
+    const results = [];
+    currentReview.items.forEach(function (item, index) {
+      const line = clean(item.lineNumber) || String(index + 1);
+      let productId = clean(item.productId);
+      if (item.createProduct) {
+        productId = "tmp_product_nfe_" + safeKey(companyId + "_" + accessKey + "_" + line);
+        nextState.items.push({ id: productId, operationId: "product:create:nfe:" + safeKey(companyId + ":" + accessKey + ":" + line), offlineUuid: "product:create:nfe:" + safeKey(companyId + ":" + accessKey + ":" + line), companyId: companyId, environmentId: environmentId, fiscalCode: clean(item.code), sku: clean(item.code), name: clean(item.description), category: "NF-e", unit: clean(item.unit) || "un", initialQuantity: 0, currentStock: 0, minimumStock: 0, minStock: 0, costPrice: parseNumber(item.unitValue), supplier: supplier, notes: "Criado a partir da NF-e " + accessKey, createdAt: now, updatedAt: now });
+        nextState.auditLog.unshift(buildAudit(companyId, environmentId, "product_created", productId, "Produto criado por conferencia de NF-e: " + clean(item.description), { accessKey: accessKey, lineNumber: line }));
+      }
+      const movementId = "tmp_movement_nfe_" + safeKey(companyId + "_" + accessKey + "_" + line);
+      const operationId = "stock:entry:nfe:" + safeKey(companyId + ":" + accessKey + ":" + line + ":" + productId);
+      nextState.movements.push({ id: movementId, operationId: operationId, offlineUuid: operationId, companyId: companyId, environmentId: environmentId, itemId: productId, productId: productId, type: "entrada", quantity: parseNumber(item.quantity), responsible: clean(getSession().userName || getSession().userEmail) || "Stock Full", documentNumber: accessKey, unitCost: parseNumber(item.unitValue), total: parseNumber(item.quantity) * parseNumber(item.unitValue), supplier: supplier, reason: "Entrada por NF-e", origin: "nfe_import", nfeAccessKey: accessKey, nfeNumber: clean(currentReview.draft.number), date: date, movementDate: date, movementTime: "00:00", movementDateTime: date + "T00:00:00.000", notes: "Entrada confirmada pela conferencia de XML NF-e.", createdAt: now });
+      nextState.auditLog.unshift(buildAudit(companyId, environmentId, "movement_in_created", movementId, "Entrada por NF-e confirmada: " + clean(item.description), { accessKey: accessKey, lineNumber: line, itemId: productId, quantity: parseNumber(item.quantity), operationId: operationId }));
+      updateReviewItem(index, { productId: productId });
+      results.push({ ok: true, message: "Item " + line + " confirmado: " + clean(item.description), itemId: productId, operationId: operationId });
+    });
+    nextState.auditLog = nextState.auditLog.slice(0, 300);
+    nextState.updatedAt = now;
+    writeState(nextState);
+    currentReview.confirmed = true;
+    currentReview.confirmationResults = results;
+    renderResults(results);
+    setStatus("Entrada da NF-e confirmada pelo fluxo oficial do Stock Full.", "success");
+    return { ok: true, results: clone(results), state: readState() };
   }
 
   function loadXmlText(xmlText) {
@@ -224,6 +362,7 @@
       clearNode(getElements().header);
       clearNode(getElements().items);
       renderWarnings([]);
+      renderResults([]);
       setStatus("XML rejeitado: " + clean(result && result.error || "nfe_invalid"), "error");
       return result;
     }
@@ -262,6 +401,7 @@
     clearNode(elements.header);
     clearNode(elements.items);
     renderWarnings([]);
+    renderResults([]);
     if (elements.input) elements.input.value = "";
     if (elements.panel) elements.panel.classList.add("is-hidden");
     setStatus("Rascunho cancelado.", "info");
@@ -273,8 +413,9 @@
     elements.button.addEventListener("click", function () { elements.input.click(); });
     elements.input.addEventListener("change", function () { handleFile(elements.input.files && elements.input.files[0]); });
     if (elements.cancel) elements.cancel.addEventListener("click", clearDraft);
+    if (elements.confirm) elements.confirm.addEventListener("click", confirmEntry);
   }
 
-  root.StockFullNfeReview = { init, loadXmlTextForTest: loadXmlText, clearDraft, getDraftForTest: function () { return clone(currentReview); }, getAvailableProductsForTest: getAvailableProducts };
+  root.StockFullNfeReview = { init, loadXmlTextForTest: loadXmlText, confirmForTest: confirmEntry, clearDraft, getDraftForTest: function () { return clone(currentReview); }, getAvailableProductsForTest: getAvailableProducts };
   if (root.document.readyState === "loading") root.document.addEventListener("DOMContentLoaded", init); else init();
 })(window);
