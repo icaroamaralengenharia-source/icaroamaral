@@ -107,3 +107,25 @@
   .stock-full-app h1 { font-size:1.85rem; }
   .stock-full-app .stock-full-dashboard-hero h2 { font-size:1.6rem; }
 }
+
+.stock-full-app .stock-full-nfe-review { border:1px solid var(--sf-line); background:linear-gradient(145deg, rgba(11,29,51,.94), rgba(4,14,27,.96)); border-radius:18px; box-shadow:0 24px 70px rgba(0,0,0,.28); padding:18px; }
+.stock-full-app .stock-full-nfe-status { margin:0 0 12px; padding:10px 12px; border:1px solid rgba(132,169,210,.28); border-radius:12px; background:rgba(3,11,21,.5); }
+.stock-full-app .stock-full-nfe-status[data-status="success"] { border-color:rgba(34,197,94,.45); color:#bbf7d0; }
+.stock-full-app .stock-full-nfe-status[data-status="error"] { border-color:rgba(239,68,68,.5); color:#fecaca; }
+.stock-full-app .stock-full-nfe-header { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.stock-full-app .stock-full-nfe-header div,.stock-full-app .stock-full-nfe-item { border:1px solid var(--sf-line); border-radius:14px; padding:12px; background:rgba(3,11,21,.48); min-width:0; }
+.stock-full-app .stock-full-nfe-header strong,.stock-full-app .stock-full-nfe-header span { display:block; overflow-wrap:anywhere; }
+.stock-full-app .stock-full-nfe-header strong { color:#a8d4ff; font-size:.78rem; text-transform:uppercase; }
+.stock-full-app .stock-full-nfe-warnings { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.stock-full-app .stock-full-nfe-warnings span { border:1px solid rgba(245,158,11,.35); border-radius:999px; padding:7px 10px; background:rgba(245,158,11,.12); color:#fde68a; font-weight:800; }
+.stock-full-app .stock-full-nfe-items { display:grid; gap:10px; }
+.stock-full-app .stock-full-nfe-item-title { display:grid; gap:4px; margin-bottom:10px; }
+.stock-full-app .stock-full-nfe-item-title small { color:var(--sf-muted); }
+.stock-full-app .stock-full-nfe-fields,.stock-full-app .stock-full-nfe-relation { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.stock-full-app .stock-full-nfe-relation { grid-template-columns:minmax(0,1fr) auto; align-items:end; margin-top:10px; }
+.stock-full-app .stock-full-nfe-check { display:flex; align-items:center; gap:8px; min-height:46px; }
+.stock-full-app .stock-full-nfe-check input { width:auto; min-height:0; }
+@media (max-width:430px) {
+  .stock-full-app .stock-full-nfe-review { border-radius:12px; padding:12px; }
+  .stock-full-app .stock-full-nfe-header,.stock-full-app .stock-full-nfe-fields,.stock-full-app .stock-full-nfe-relation { grid-template-columns:1fr; }
+}

@@ -119,6 +119,64 @@ async function selectByText(select, text) {
   return value;
 }
 
+
+function stockFullNfeXml(options = {}) {
+  const secondItem = options.secondItem === false ? "" : `
+      <det nItem="2">
+        <prod>
+          <cProd>SKU-002</cProd>
+          <xProd>Tubo PVC 100mm</xProd>
+          <NCM>39172300</NCM>
+          <uCom>UN</uCom>
+          <qCom>3.0000</qCom>
+          <vUnCom>55.9900</vUnCom>
+          <vProd>167.9700</vProd>
+        </prod>
+      </det>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe29260612345678000199550010000012341000012345" versao="4.00">
+      <ide>
+        <cUF>29</cUF>
+        <nNF>1234</nNF>
+        <dhEmi>2026-08-03T10:20:30-03:00</dhEmi>
+      </ide>
+      <emit>
+        <CNPJ>12345678000199</CNPJ>
+        <xNome>Fornecedor Teste Ltda</xNome>
+      </emit>
+      <det nItem="1">
+        <prod>
+          <cProd>SKU-001</cProd>
+          <xProd>Cimento CP II</xProd>
+          <NCM>25232910</NCM>
+          <uCom>SC</uCom>
+          <qCom>10.5000</qCom>
+          <vUnCom>35.1234567890</vUnCom>
+          <vProd>368.7962962845</vProd>
+        </prod>
+      </det>
+      ${secondItem}
+    </infNFe>
+  </NFe>
+</nfeProc>`;
+}
+
+async function seedStockFullProduct(page) {
+  await page.evaluate(() => {
+    window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify({
+      stockEnvironments: [{ id: "env_company_manoel_importados", companyId: "company_manoel_importados", environmentName: "Estoque principal" }],
+      activeStockEnvironmentId: "env_company_manoel_importados",
+      items: [{ id: "prod_cimento", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", name: "Cimento cadastrado", sku: "SKU-001", unit: "SC", initialQuantity: 0, currentStock: 0 }],
+      movements: [],
+      auditLog: []
+    }));
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#stockFullDashboard")).toBeVisible();
+}
+
 test.describe("Stock Full SaaS - fase A cirurgica", () => {
   test.beforeAll(async () => {
     staticServer = await startStockFullStaticServer();
@@ -443,5 +501,94 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(seenByAdmin.items[0].currentQuantity).toBe(10);
     await contextA.close();
     await contextB.close();
+  });
+
+  test("Stock Full NF-e review carrega XML valido por arquivo", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await page.locator("#stockFullNfeXmlInput").setInputFiles({ name: "nfe.xml", mimeType: "application/xml", buffer: Buffer.from(stockFullNfeXml()) });
+
+    await expect(page.locator("#stockFullNfeReviewPanel")).toBeVisible();
+    await expect(page.locator('[data-stock-full-nfe-header="accessKey"]')).toHaveText("29260612345678000199550010000012341000012345");
+    await expect(page.locator('[data-stock-full-nfe-header="number"]')).toHaveText("1234");
+    await expect(page.locator('[data-stock-full-nfe-header="supplierName"]')).toHaveText("Fornecedor Teste Ltda");
+    await expect(page.locator('[data-stock-full-nfe-item-row]')).toHaveCount(2);
+    await expect(page.locator('[data-stock-full-nfe-item-row]').first()).toContainText("Cimento CP II");
+  });
+
+  test("Stock Full NF-e review mostra erro de XML invalido", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await page.evaluate(() => window.StockFullNfeReview.loadXmlTextForTest("<NFe><infNFe></NFe>"));
+
+    await expect(page.locator("#stockFullNfeReviewPanel")).toBeVisible();
+    await expect(page.locator("#stockFullNfeStatus")).toContainText("XML rejeitado");
+    await expect(page.locator('[data-stock-full-nfe-item-row]')).toHaveCount(0);
+  });
+
+  test("Stock Full NF-e review relaciona item com produto existente", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    const itemForm = await openModal(page, "item");
+    await itemForm.locator('[name="name"]').fill("Cimento cadastrado NF-e");
+    await itemForm.locator('[name="category"]').fill("Fiscal");
+    await itemForm.locator('[name="unit"]').fill("SC");
+    await itemForm.locator('[name="initialQuantity"]').fill("0");
+    await itemForm.locator('[name="minimumStock"]').fill("0");
+    await submitModal(page, itemForm);
+    await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml({ secondItem: false }));
+
+    const productId = await selectByText(page.locator('[data-stock-full-nfe-product-select]').first(), "Cimento cadastrado NF-e");
+    const review = await page.evaluate(() => window.StockFullNfeReview.getDraftForTest());
+    expect(review.items[0].productId).toBe(productId);
+    expect(review.items[0].createProduct).toBe(false);
+  });
+
+  test("Stock Full NF-e review marca produto novo sem criar cadastro", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml({ secondItem: false }));
+
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    const review = await page.evaluate(() => window.StockFullNfeReview.getDraftForTest());
+    const state = await page.evaluate(() => JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey)));
+    expect(review.items[0].createProduct).toBe(true);
+    expect(state.items || []).toHaveLength(0);
+  });
+
+  test("Stock Full NF-e review cancela sem efeito colateral", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await seedStockFullProduct(page);
+    const before = await page.evaluate(() => window.localStorage.getItem(window.StockFullCore.storageKey));
+    await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml());
+    await page.locator('[data-stock-full-nfe-create-new]').first().check();
+    await page.locator("#stockFullNfeCancelButton").click();
+
+    await expect(page.locator("#stockFullNfeReviewPanel")).toHaveClass(/is-hidden/);
+    expect(await page.evaluate(() => window.StockFullNfeReview.getDraftForTest())).toBeNull();
+    expect(await page.evaluate(() => window.localStorage.getItem(window.StockFullCore.storageKey))).toBe(before);
+  });
+
+  test("Stock Full NF-e review nao faz fetch, produto ou movimentacao", async ({ page }) => {
+    await openApp(page, "manoel", { clearStorage: true });
+    await page.evaluate(() => {
+      window.__stockFullNfeSideEffects = { fetches: 0, enqueues: 0 };
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = function () {
+        window.__stockFullNfeSideEffects.fetches += 1;
+        return originalFetch.apply(window, arguments);
+      };
+      if (window.StockFullSync && typeof window.StockFullSync.enqueue === "function") {
+        const originalEnqueue = window.StockFullSync.enqueue;
+        window.StockFullSync.enqueue = function () {
+          window.__stockFullNfeSideEffects.enqueues += 1;
+          return originalEnqueue.apply(window.StockFullSync, arguments);
+        };
+      }
+    });
+    const before = await page.evaluate(() => JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey)));
+    await page.evaluate((xml) => window.StockFullNfeReview.loadXmlTextForTest(xml), stockFullNfeXml());
+    const after = await page.evaluate(() => JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey)));
+    const sideEffects = await page.evaluate(() => window.__stockFullNfeSideEffects);
+
+    expect(sideEffects).toEqual({ fetches: 0, enqueues: 0 });
+    expect(after.items || []).toHaveLength((before.items || []).length);
+    expect(after.movements || []).toHaveLength((before.movements || []).length);
   });
 });
