@@ -1,4 +1,4 @@
-name: Atualizar notícias
+name: Atualizar noticias
 
 on:
   schedule:
@@ -15,24 +15,29 @@ on:
       - "dados/**"
       - ".github/workflows/atualizar-noticias.yml"
 
+permissions:
+  contents: write
+
 concurrency:
-  group: atualizar-noticias
+  group: atualizar-noticias-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   atualizar:
+    name: Atualizar conteudo
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    timeout-minutes: 20
 
-      - name: Configurar Node LTS
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "22"
 
       - name: Validar sintaxe
         run: |
@@ -41,39 +46,28 @@ jobs:
 
       - name: Executar testes
         run: |
-          node --test tests/atualizar-noticias.test.mjs
           node --test tests/atualizar-conteudo-noticias.test.mjs
+          node --test tests/atualizar-noticias.test.mjs
 
-      - name: Atualizar JSON
-        run: node scripts/atualizar-conteudo-noticias.mjs
+      - name: Atualizar noticias
+        run: node scripts/atualizar-noticias.mjs
 
-      - name: Validar arquivos alterados
+      - name: Verificar alteracoes
+        id: changes
+        shell: bash
         run: |
-          changed="$(git diff --name-only)"
-          echo "$changed"
-          if [ -z "$changed" ]; then
-            echo "Sem mudanças para commitar."
-            exit 0
-          fi
-          allowed="noticias/dados/noticias.json
-noticias/dados/oportunidades.json"
-          unexpected="$(comm -23 <(printf '%s
-' "$changed" | sort) <(printf '%s
-' "$allowed" | sort))"
-          if [ -n "$unexpected" ]; then
-            echo "Arquivo inesperado alterado; abortando."
-            echo "$unexpected"
-            exit 1
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Commit automático
+      - name: Publicar atualizacao
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
         run: |
-          if git diff --quiet -- noticias/dados/noticias.json noticias/dados/oportunidades.json; then
-            echo "Sem mudanças reais nos JSON."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add noticias/dados/noticias.json noticias/dados/oportunidades.json
-          git commit -m "chore: atualiza notícias e oportunidades"
+          git add -- noticias/dados/noticias.json noticias/dados/oportunidades.json
+          git commit -m "chore: atualiza noticias automaticamente"
           git push
