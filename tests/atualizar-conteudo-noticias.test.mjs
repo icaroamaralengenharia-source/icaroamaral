@@ -44,6 +44,37 @@ test("aviso tecnico presente", async () => {
   assert.equal(dicas.dicas.every((item) => String(item.avisoTecnico || "").trim().length > 0), true);
   assert.equal(dicas.dicas.every((item) => String(item.avisoTecnico || "").includes("Consulte normas, projeto executivo e profissional habilitado")), true);
 });
+test("dicas preservam acentos no texto visivel e ids tecnicos sem acento", async () => {
+  const dicas = await readJson("noticias/dados/dicas.json");
+  const visibleText = dicas.dicas.map((item) => [
+    item.titulo,
+    item.categoria,
+    item.resumo,
+    item.conteudo,
+    item.avisoTecnico,
+    item.imagemAlt,
+    ...(item.tags || []),
+  ].filter(Boolean).join(" ")).join("\n");
+
+  assert.match(visibleText, /Compatibilização/);
+  assert.match(visibleText, /Informação/);
+  assert.match(visibleText, /Conteúdo orientativo/);
+  assert.match(visibleText, /orientativo/);
+  assert.match(visibleText, /desníveis/);
+  assert.match(visibleText, /Meça/);
+  assert.match(visibleText, /instalações/);
+  assert.match(visibleText, /orçamento/);
+  assert.match(visibleText, /fiscalização/);
+  assert.doesNotMatch(visibleText, /Computabilizacao|Compatibilizacao|Informacao|Conteudo|desn\?veis|Me\?a|inspe\?\?|pagina\?\?|infiltra\?\?|�/);
+
+  const compat = dicas.dicas.find((item) => item.id === "dica-compatibilizacao-digital");
+  assert.equal(compat.titulo, "Compatibilização digital antes da obra");
+  assert.equal(compat.id, "dica-compatibilizacao-digital");
+
+  const js = await readText("noticias/noticias.js");
+  assert.match(js, /appendText\(body, "h3", item\.titulo/);
+  assert.match(js, /const text = normalizeText\(\[item\.titulo, item\.resumo, item\.conteudo, item\.categoria/);
+});
 
 test("URL insegura bloqueada e sem APIs HTML perigosas", async () => {
   const js = await readText("noticias/noticias.js");
