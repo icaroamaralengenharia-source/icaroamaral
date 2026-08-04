@@ -226,11 +226,12 @@ async function seedStockFullManagementReportData(page) {
         { id: "prod_outro_tenant", companyId: "company_loja_teste_sul", environmentId: "env_company_loja_teste_sul", name: "Produto Tenant Sul", sku: "SUL-001", unit: "UN", initialQuantity: 999, minimumStock: 1 }
       ],
       movements: [
-        { id: "mov_entry_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "entrada", quantity: 12, responsible: "Manoel Gerente", documentNumber: "NF-100", origin: "manual_entry", movementDateTime: "2026-08-03T09:00:00", createdAt: now },
-        { id: "mov_exit_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "saida", quantity: 4, responsible: "Joao Estoque", recipient: "Balcao", sector: "Loja", origin: "manual_exit", movementDateTime: "2026-08-03T10:00:00", createdAt: now },
-        { id: "mov_adjust_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 2, responsible: "Manoel Gerente", reason: "Ajuste inventario", origin: "adjustment", movementDateTime: "2026-08-03T11:00:00", createdAt: now },
-        { id: "mov_nfe_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 7, responsible: "Manoel Gerente", supplier: "Fornecedor PDF Ltda", documentNumber: "29260612345678000199550010000012341000012345", nfeAccessKey: "29260612345678000199550010000012341000012345", nfeNumber: "1234", origin: "nfe_import", movementDateTime: "2026-08-03T12:00:00", createdAt: now },
-        { id: "mov_other_tenant", companyId: "company_loja_teste_sul", environmentId: "env_company_loja_teste_sul", itemId: "prod_outro_tenant", type: "entrada", quantity: 999, responsible: "Loja Sul", supplier: "Fornecedor Sul", origin: "nfe_import", nfeNumber: "9999", nfeAccessKey: "99999999999999999999999999999999999999999999", movementDateTime: "2026-08-03T12:00:00", createdAt: now }
+        { id: "mov_entry_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "entrada", quantity: 12, responsible: "Manoel Gerente", supplier: "Fornecedor Manual", documentNumber: "NF-100", origin: "manual_entry", deviceId: "caixa-desktop-01", operationId: "op_entry_pdf", offlineUuid: "off_entry_pdf", syncStatus: "synced", balanceBefore: 5, balanceAfter: 17, movementDateTime: "2026-08-03T09:00:00", createdAt: now },
+        { id: "mov_exit_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "saida", quantity: 4, responsible: "Joao Estoque", recipient: "Balcao", sector: "Loja", origin: "manual_exit", deviceId: "tablet-loja-02", operationId: "op_exit_pdf", offlineUuid: "off_exit_pdf", syncStatus: "pending", balanceBefore: 17, balanceAfter: 13, movementDateTime: "2026-08-03T10:00:00", createdAt: now },
+        { id: "mov_adjust_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 2, responsible: "Manoel Gerente", reason: "Ajuste inventario", origin: "adjustment", deviceId: "admin-note-03", operationId: "op_adjust_pdf", offlineUuid: "off_adjust_pdf", syncStatus: "synced", balanceBefore: 0, balanceAfter: 2, movementDateTime: "2026-08-03T11:00:00", createdAt: now },
+        { id: "mov_nfe_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 7, responsible: "Manoel Gerente", supplier: "Fornecedor PDF Ltda", documentNumber: "29260612345678000199550010000012341000012345", nfeAccessKey: "29260612345678000199550010000012341000012345", nfeNumber: "1234", origin: "nfe_import", deviceId: "xml-import-04", operationId: "op_nfe_pdf", offlineUuid: "off_nfe_pdf", syncStatus: "synced", balanceBefore: 2, balanceAfter: 9, movementDateTime: "2026-08-03T12:00:00", createdAt: now },
+        { id: "mov_exit_inconsistent_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "saida", quantity: 1, responsible: "", origin: "manual_exit", deviceId: "offline-celular-05", operationId: "op_conflict_pdf", offlineUuid: "off_conflict_pdf", syncStatus: "conflict", balanceBefore: 9, balanceAfter: 8, movementDateTime: "2026-08-03T13:00:00", createdAt: now },
+        { id: "mov_other_tenant", companyId: "company_loja_teste_sul", environmentId: "env_company_loja_teste_sul", itemId: "prod_outro_tenant", type: "entrada", quantity: 999, responsible: "Loja Sul", supplier: "Fornecedor Sul", origin: "nfe_import", nfeNumber: "9999", nfeAccessKey: "99999999999999999999999999999999999999999999", deviceId: "tenant-sul-device", operationId: "op_other_tenant", offlineUuid: "off_other_tenant", syncStatus: "synced", balanceBefore: 999, balanceAfter: 1998, movementDateTime: "2026-08-03T12:00:00", createdAt: now }
       ],
       alertHistory: [], auditLog: []
     }));
@@ -239,6 +240,16 @@ async function seedStockFullManagementReportData(page) {
   await expect(page.locator("#stockFullDashboard")).toBeVisible();
 }
 
+async function waitForStockFullReportFilters(page) {
+  await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
+  await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
+}
+
+async function selectStockFullReportProductByLabel(page, label) {
+  const value = await page.locator("#stockFullReportProduct option", { hasText: label }).first().getAttribute("value");
+  expect(value).toBeTruthy();
+  await page.selectOption("#stockFullReportProduct", value);
+}
 async function setStockFullSession(page, session) {
   await page.evaluate((nextSession) => {
     window.StockFullCore.setSession(Object.assign({ isAuthenticated: true, mode: "local" }, nextSession));
@@ -855,10 +866,9 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
   test("PDF gerencial Stock Full aplica filtros de produto, usuario e tipo", async ({ page }) => {
     await openApp(page, "manoel");
     await seedStockFullManagementReportData(page);
-    await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
-    await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
+    await waitForStockFullReportFilters(page);
     await page.selectOption("#stockFullReportPeriod", "all");
-    await page.selectOption("#stockFullReportProduct", { label: "Cimento PDF" });
+    await selectStockFullReportProductByLabel(page, "Cimento PDF");
     await page.selectOption("#stockFullReportUser", "Joao Estoque");
     await page.selectOption("#stockFullReportType", "saida");
     const result = await page.evaluate(() => ({ html: window.StockFullManagementPdf.buildHtmlForTest(), model: window.StockFullManagementPdf.buildViewModelForTest() }));
@@ -876,10 +886,9 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page, "manoel");
     await seedStockFullManagementReportData(page);
-    await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
-    await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
+    await waitForStockFullReportFilters(page);
     await page.selectOption("#stockFullReportPeriod", "all");
-    await page.selectOption("#stockFullReportProduct", { label: "Cimento PDF" });
+    await selectStockFullReportProductByLabel(page, "Cimento PDF");
     await page.selectOption("#stockFullReportUser", "Joao Estoque");
     await page.selectOption("#stockFullReportType", "saida");
     await page.evaluate(() => {
@@ -910,4 +919,99 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(html).not.toContain("Relatorio Stock IA - Almoxarifado");
   });
 
-});
+
+
+  test("PDF de auditoria Stock Full contem rastreabilidade completa e isolamento", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementReportData(page);
+    await waitForStockFullReportFilters(page);
+    await page.selectOption("#stockFullReportPeriod", "all");
+    const result = await page.evaluate(() => ({ html: window.StockFullAuditPdf.buildHtmlForTest(), model: window.StockFullAuditPdf.buildViewModelForTest() }));
+    expect(result.model.profile.companyName).toBe("Manoel Importados");
+    expect(result.model.profile.unitName).toBe("Matriz Centro");
+    expect(result.html).toContain("Relatorio de Auditoria - Stock Full");
+    expect(result.html).toContain("Resumo da auditoria");
+    expect(result.html).toContain("Movimentacoes auditadas");
+    expect(result.html).toContain("Saldo ant.");
+    expect(result.html).toContain("Saldo post.");
+    expect(result.html).toContain("operation_id");
+    expect(result.html).toContain("offline_uuid");
+    expect(result.html).toContain("tablet-loja-02");
+    expect(result.html).toContain("op_exit_pdf");
+    expect(result.html).toContain("off_exit_pdf");
+    expect(result.html).toContain("pending");
+    expect(result.html).toContain("conflict");
+    expect(result.html).toContain("Saida sem responsavel");
+    expect(result.html).toContain("Saida sem setor/destino");
+    expect(result.html).toContain("Fornecedor PDF Ltda");
+    expect(result.html).toContain("29260612...00012345");
+    expect(result.html).toContain("@page{size:A4");
+    expect(result.html).toContain("counter(page)");
+    expect(result.html).toContain("thead{display:table-header-group}");
+    expect(result.html).toContain("break-inside:avoid");
+    expect(result.html).not.toContain("Produto Tenant Sul");
+    expect(result.html).not.toContain("Loja Teste Sul");
+    expect(result.html).not.toContain("op_other_tenant");
+  });
+
+  test("PDF de auditoria Stock Full calcula saldo anterior e posterior", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementReportData(page);
+    await waitForStockFullReportFilters(page);
+    await page.selectOption("#stockFullReportPeriod", "all");
+    await page.selectOption("#stockFullReportProduct", "");
+    await page.selectOption("#stockFullReportUser", "");
+    await page.selectOption("#stockFullReportType", "all");
+    const model = await page.evaluate(() => window.StockFullAuditPdf.buildViewModelForTest());
+    const cimentoEntrada = model.movements.find((row) => row[14] === "op_entry_pdf");
+    const cimentoSaida = model.movements.find((row) => row[14] === "op_exit_pdf");
+    const nfe = model.movements.find((row) => row[14] === "op_nfe_pdf");
+    const inconsistent = model.movements.find((row) => row[14] === "op_conflict_pdf");
+    expect(cimentoEntrada[6]).toBe("5");
+    expect(cimentoEntrada[7]).toBe("17");
+    expect(cimentoSaida[6]).toBe("17");
+    expect(cimentoSaida[7]).toBe("13");
+    expect(nfe[6]).toBe("2");
+    expect(nfe[7]).toBe("9");
+    expect(inconsistent[6]).toBe("9");
+    expect(inconsistent[7]).toBe("8");
+  });
+
+  test("PDF de auditoria Stock Full aplica filtros reais", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementReportData(page);
+    await waitForStockFullReportFilters(page);
+    await page.selectOption("#stockFullReportPeriod", "all");
+    await selectStockFullReportProductByLabel(page, "Cimento PDF");
+    await page.selectOption("#stockFullReportUser", "Joao Estoque");
+    await page.selectOption("#stockFullReportType", "saida");
+    const result = await page.evaluate(() => ({ html: window.StockFullAuditPdf.buildHtmlForTest(), model: window.StockFullAuditPdf.buildViewModelForTest() }));
+    expect(result.model.filters.product).toBe("Cimento PDF");
+    expect(result.model.filters.user).toBe("Joao Estoque");
+    expect(result.model.filters.type).toBe("Saidas");
+    expect(result.model.movements).toHaveLength(1);
+    expect(result.html).toContain("op_exit_pdf");
+    expect(result.html).not.toContain("op_nfe_pdf");
+    expect(result.html).not.toContain("Tubo PDF</td>");
+  });
+
+  test("botao Gerar auditoria abre PDF de auditoria separado no desktop e mobile", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementReportData(page);
+    await page.evaluate(() => {
+      window.__stockFullOpenedHtml = "";
+      window.open = function () { return { document: { open() {}, write(html) { window.__stockFullOpenedHtml = html; }, close() {} } }; };
+    });
+    await page.locator("#almoxManagerAuditButton").click();
+    const desktopHtml = await page.evaluate(() => window.__stockFullOpenedHtml);
+    expect(desktopHtml).toContain("data-stock-full-audit-pdf");
+    expect(desktopHtml).toContain("Relatorio de Auditoria - Stock Full");
+    expect(desktopHtml).not.toContain("data-stock-full-management-pdf");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => { window.__stockFullOpenedHtml = ""; });
+    await page.locator("#almoxManagerAuditButton").click();
+    const mobileHtml = await page.evaluate(() => window.__stockFullOpenedHtml);
+    expect(mobileHtml).toContain("data-stock-full-audit-pdf");
+    expect(mobileHtml).toContain("window.print");
+  });});
