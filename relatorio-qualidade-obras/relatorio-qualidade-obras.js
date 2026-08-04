@@ -9056,6 +9056,9 @@
       return false;
     }
     ensureStockFullCompanyEnvironment_();
+    if (stockFullReportProduct || stockFullReportUser) {
+      setTimeout(renderStockFullManagementReportFilters_, 0);
+    }
     const session = getCurrentStockFullSession_();
     if (stockFullCompanyName) stockFullCompanyName.textContent = session.companyName;
     if (stockFullUserMeta) stockFullUserMeta.textContent = "Usuario: " + session.userName + " · " + formatStockFullRole_(session.role);
@@ -15887,6 +15890,10 @@
   }
 
   function handleGenerateAlmoxAudit_() {
+    if (isStockFullContext_()) {
+      openStockFullAuditReportPdf_();
+      return;
+    }
     const audit = buildAlmoxAuditText_();
     almoxLastAuditText = audit;
     renderAlmoxGeneratedReport_("Auditoria do estoque", buildAlmoxReportViewModel_());
@@ -16129,6 +16136,202 @@
     if (!key) return "-";
     if (key.length <= 16) return key;
     return key.slice(0, 8) + "..." + key.slice(-8);
+  }
+
+  function getStockFullAuditQueueByOperationId_() {
+    const map = {};
+    try {
+      const queue = window.StockFullSync && typeof window.StockFullSync.getQueue === "function" ? window.StockFullSync.getQueue() : [];
+      (queue || []).forEach(function (entry) {
+        const operationId = clean(entry.operationId || entry.offlineUuid || entry.offline_uuid || entry.id);
+        if (operationId) map[operationId] = entry;
+      });
+    } catch (error) {
+      return map;
+    }
+    return map;
+  }
+
+  function getStockFullAuditMovementOperationId_(movement) {
+    return clean(movement && (movement.operationId || movement.operation_id || movement.offlineUuid || movement.offline_uuid));
+  }
+
+  function getStockFullAuditMovementOfflineUuid_(movement) {
+    return clean(movement && (movement.offlineUuid || movement.offline_uuid || movement.operationId || movement.operation_id));
+  }
+
+  function getStockFullAuditSyncStatus_(movement, queueByOperationId) {
+    const operationId = getStockFullAuditMovementOperationId_(movement);
+    const offlineUuid = getStockFullAuditMovementOfflineUuid_(movement);
+    const queued = queueByOperationId[operationId] || queueByOperationId[offlineUuid] || null;
+    return clean(movement && (movement.syncStatus || movement.sync_status || movement.status)) || clean(queued && queued.status) || (offlineUuid ? "registrado offline/local" : "local");
+  }
+
+  function getStockFullAuditDevice_(movement, queueByOperationId) {
+    const operationId = getStockFullAuditMovementOperationId_(movement);
+    const offlineUuid = getStockFullAuditMovementOfflineUuid_(movement);
+    const queued = queueByOperationId[operationId] || queueByOperationId[offlineUuid] || null;
+    return clean(movement && (movement.deviceId || movement.device_id || movement.device || movement.dispositivo)) || clean(queued && (queued.deviceId || queued.device_id || queued.device)) || "Dispositivo nao informado";
+  }
+
+  function getStockFullAuditPartner_(movement) {
+    if (getStockFullManagementMovementType_(movement) === "nfe_import") return clean(movement.supplier || movement.provider || movement.fornecedor) || "Fornecedor nao informado";
+    return clean(movement.sector || movement.destination || movement.destino || movement.recipient || movement.supplier || movement.documentNumber) || "-";
+  }
+
+  function getStockFullAuditOrigin_(movement) {
+    return clean(movement && (movement.origin || movement.movementOrigin || movement.sourceType || movement.source)) || "manual";
+  }
+
+  function buildStockFullAuditWarnings_(movement, item, balanceAfter, queueByOperationId) {
+    const warnings = [];
+    const type = getStockFullManagementMovementType_(movement);
+    const syncStatus = getStockFullAuditSyncStatus_(movement, queueByOperationId).toLowerCase();
+    if (type === "saida" && !getStockFullMovementUser_(movement)) warnings.push("Saida sem responsavel");
+    if (type === "saida" && !clean(movement.sector || movement.destination || movement.destino || movement.recipient)) warnings.push("Saida sem setor/destino");
+    if ((type === "entrada" || type === "nfe_import") && !clean(movement.supplier || movement.documentNumber || movement.nfeAccessKey || movement.nfe_access_key)) warnings.push("Entrada sem fornecedor/documento");
+    if (syncStatus.indexOf("pending") >= 0 || syncStatus.indexOf("pendente") >= 0) warnings.push("Sincronizacao pendente");
+    if (syncStatus.indexOf("fail") >= 0 || syncStatus.indexOf("erro") >= 0 || syncStatus.indexOf("conflict") >= 0 || syncStatus.indexOf("conflito") >= 0) warnings.push("Falha ou conflito de sincronizacao");
+    if (balanceAfter <= 0) warnings.push("Item zerado apos operacao");
+    if (item && parseNumber_(item.minimumStock) > 0 && balanceAfter < parseNumber_(item.minimumStock)) warnings.push("Saldo abaixo do minimo apos operacao");
+    return warnings.length ? warnings.join("; ") : "Sem inconsistencias";
+  }
+
+  function getStockFullAuditExplicitBalance_(movement, keys) {
+    const source = movement || {};
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (source[key] !== undefined && source[key] !== null && clean(source[key]) !== "") return parseNumber_(source[key]);
+    }
+    return null;
+  }
+  function buildStockFullAuditMovementSnapshots_(movements, itemsById, currentBalances) {
+    const balances = {};
+    Object.keys(itemsById || {}).forEach(function (itemId) {
+      balances[itemId] = parseNumber_(itemsById[itemId].initialQuantity);
+    });
+    (currentBalances || []).forEach(function (balance) {
+      const itemId = clean(balance && balance.item && balance.item.id);
+      if (itemId) balances[itemId] = parseNumber_(balance.balance);
+    });
+    (movements || []).forEach(function (movement) {
+      const itemId = clean(movement.itemId || movement.productId);
+      const quantity = parseNumber_(movement.quantity);
+      balances[itemId] = parseNumber_(balances[itemId]) - (getStockFullManagementMovementType_(movement) === "saida" ? -quantity : quantity);
+    });
+    const chronological = (movements || []).slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(a)).localeCompare(String(getAlmoxMovementSortKey_(b)));
+    });
+    const snapshotsById = {};
+    chronological.forEach(function (movement) {
+      const itemId = clean(movement.itemId || movement.productId);
+      const before = parseNumber_(balances[itemId]);
+      const quantity = parseNumber_(movement.quantity);
+      const after = getStockFullManagementMovementType_(movement) === "saida" ? before - quantity : before + quantity;
+      balances[itemId] = roundQuantity_(after);
+      const snapshot = { before: roundQuantity_(before), after: roundQuantity_(after) };
+      const keys = [clean(movement.id), getStockFullAuditMovementOperationId_(movement), getStockFullAuditMovementOfflineUuid_(movement)];
+      keys.forEach(function (key) {
+        if (key) snapshotsById[key] = snapshot;
+      });
+      if (!keys.some(Boolean)) snapshotsById[String(Object.keys(snapshotsById).length)] = snapshot;
+    });
+    return snapshotsById;
+  }
+
+  function countStockFullAuditOffline_(movements) {
+    return (movements || []).filter(function (movement) {
+      return Boolean(getStockFullAuditMovementOfflineUuid_(movement)) || clean(getStockFullAuditOrigin_(movement)).toLowerCase().indexOf("offline") >= 0;
+    }).length;
+  }
+
+  function countStockFullAuditProblemStatus_(movements, queueByOperationId, pattern) {
+    return (movements || []).filter(function (movement) {
+      return getStockFullAuditSyncStatus_(movement, queueByOperationId).toLowerCase().indexOf(pattern) >= 0;
+    }).length;
+  }
+
+  function buildStockFullAuditReportViewModel_() {
+    const data = collectAlmoxManagerData_();
+    const filters = readStockFullManagementReportFilters_();
+    const filteredMovements = filterStockFullManagementReportMovements_(data.movements, filters);
+    const queueByOperationId = getStockFullAuditQueueByOperationId_();
+    const snapshots = buildStockFullAuditMovementSnapshots_(data.movements, data.itemsById, data.balances);
+    const entries = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "entrada"; });
+    const exits = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida"; });
+    const adjustments = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "ajuste"; });
+    const nfe = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "nfe_import"; });
+    const noResponsibleExits = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida" && !getStockFullMovementUser_(movement); });
+    const noDestinationExits = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida" && !clean(movement.sector || movement.destination || movement.destino || movement.recipient); });
+    const noDocumentEntries = filteredMovements.filter(function (movement) { const type = getStockFullManagementMovementType_(movement); return (type === "entrada" || type === "nfe_import") && !clean(movement.supplier || movement.documentNumber || movement.nfeAccessKey || movement.nfe_access_key); });
+    const pending = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "pending") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "pendente");
+    const conflicts = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflict") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflito");
+    const failures = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "fail") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "erro");
+    const productFilter = getStockFullSelectedReportProductLabel_(filters.productId, data.itemsById);
+    const recommendation = pending || conflicts || failures || noResponsibleExits.length || noDestinationExits.length || noDocumentEntries.length || data.zeroItems.length || data.criticalItems.length ? "Corrigir inconsistencias, concluir sincronizacao e revisar saldo minimo antes do fechamento comercial." : "Auditoria sem bloqueios criticos para os filtros aplicados.";
+    return {
+      title: "Relatorio de Auditoria - Stock Full",
+      profile: getStockFullSecureReportProfile_(),
+      filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
+      summary: [
+        ["Periodo e filtros aplicados", getAlmoxDashboardPeriodLabel_(filters.period) + " | Produto: " + productFilter + " | Usuario: " + (filters.user || "Todos os usuarios") + " | Tipo: " + getStockFullManagementTypeLabel_(filters.type)],
+        ["Total de movimentacoes", String(filteredMovements.length)],
+        ["Entradas, saidas, ajustes e NF-e", entries.length + " entradas; " + exits.length + " saidas; " + adjustments.length + " ajustes; " + nfe.length + " NF-e"],
+        ["Operacoes offline", String(countStockFullAuditOffline_(filteredMovements))],
+        ["Pendentes, falhas ou conflitos", pending + " pendentes; " + failures + " falhas; " + conflicts + " conflitos"],
+        ["Saidas sem responsavel/destino", noResponsibleExits.length + " sem responsavel; " + noDestinationExits.length + " sem destino"],
+        ["Entradas sem fornecedor/documento", String(noDocumentEntries.length)],
+        ["Itens zerados ou abaixo do minimo", data.zeroItems.length + " zerados; " + data.criticalItems.length + " abaixo do minimo"],
+        ["Conclusao e recomendacoes", recommendation]
+      ],
+      movements: filteredMovements.map(function (movement) {
+        const item = data.itemsById[movement.itemId] || data.itemsById[movement.productId] || {};
+        const computedSnapshot = snapshots[clean(movement.id)] || snapshots[getStockFullAuditMovementOperationId_(movement)] || snapshots[getStockFullAuditMovementOfflineUuid_(movement)] || { before: 0, after: 0 };
+        const explicitBefore = getStockFullAuditExplicitBalance_(movement, ["balanceBefore", "saldoAnterior", "previousBalance", "previous_balance", "balance_before"]);
+        const explicitAfter = getStockFullAuditExplicitBalance_(movement, ["balanceAfter", "saldoPosterior", "nextBalance", "next_balance", "balance_after"]);
+        const snapshot = {
+          before: explicitBefore !== null ? explicitBefore : computedSnapshot.before,
+          after: explicitAfter !== null ? explicitAfter : computedSnapshot.after
+        };
+        const type = getStockFullManagementMovementType_(movement);
+        const accessKey = clean(movement.nfeAccessKey || movement.nfe_access_key || (type === "nfe_import" ? movement.documentNumber : ""));
+        return [getAlmoxMovementDisplayDateTime_(movement), getStockFullManagementTypeLabel_(type), clean(item.name) || "Produto sem cadastro", clean(item.sku || item.fiscalCode) || "-", clean(item.unit) || "un", formatQuantity_(movement.quantity), formatQuantity_(snapshot.before), formatQuantity_(snapshot.after), getStockFullMovementUser_(movement) || "-", getStockFullAuditPartner_(movement), clean(movement.documentNumber || movement.document_number || movement.nfeNumber || movement.nfe_number) || "-", abbreviateStockFullNfeKey_(accessKey), getStockFullAuditOrigin_(movement), getStockFullAuditDevice_(movement, queueByOperationId), getStockFullAuditMovementOperationId_(movement) || "-", getStockFullAuditMovementOfflineUuid_(movement) || "-", getStockFullAuditSyncStatus_(movement, queueByOperationId), buildStockFullAuditWarnings_(movement, item, snapshot.after, queueByOperationId)];
+      })
+    };
+  }
+
+  function buildStockFullAuditReportPdfHtml_() {
+    const viewModel = buildStockFullAuditReportViewModel_();
+    const profile = viewModel.profile;
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+      "<title>" + escapeHtml_(viewModel.title) + "</title><style>" +
+      "@page{size:A4;margin:14mm 10mm 17mm;@bottom-center{content:'Pagina ' counter(page) ' de ' counter(pages);font:9px Arial,sans-serif;color:#555}}" +
+      "*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:9px;line-height:1.3}.page{width:100%;margin:0 auto}.report-head{display:grid;grid-template-columns:1fr auto;gap:10px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:10px}.brand{font-size:11px;font-weight:700;text-transform:uppercase}.brand strong{display:block;font-size:20px}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 10px;text-align:right}.meta span,.filters span{display:block;color:#444;font-size:8px;text-transform:uppercase;font-weight:700}.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0 10px}.box{border:1px solid #999;padding:6px;break-inside:avoid}.section{margin-top:10px;break-inside:auto}h1,h2,p{margin-top:0}h1{font-size:18px;margin-bottom:3px}h2{font-size:12px;border-bottom:1px solid #111;padding-bottom:3px;margin-bottom:6px}.list{display:grid;grid-template-columns:44mm 1fr;gap:4px 7px}.list dt{font-weight:700}.list dd{margin:0}.print-footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #999;padding-top:4px;font-size:8px;color:#444;display:flex;justify-content:space-between}.page-number:after{content:'Pagina ' counter(page)}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #999;padding:4px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;color:#111;font-size:7.5px;text-transform:uppercase}.empty{border:1px solid #999;padding:7px;color:#444}.muted{color:#444}@media screen{body{background:#e5e7eb;padding:18px}.page{max-width:210mm;min-height:297mm;background:#fff;padding:14mm 10mm 17mm;box-shadow:0 18px 60px rgba(0,0,0,.18)}}@media print{body{background:#fff}.page{padding:0;box-shadow:none}.section{break-inside:auto}}" +
+      "</style></head><body><main class=\"page\" data-stock-full-audit-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Auditoria profissional de movimentacoes</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Rastreabilidade operacional por empresa, unidade e ambiente ativo.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsavel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
+      "<section class=\"filters\">" + formatStockFullReportBoxes_(viewModel.filters) + "</section>" +
+      "<section class=\"section\"><h2>Resumo da auditoria</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summary) + "</section>" +
+      "<section class=\"section\"><h2>Movimentacoes auditadas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "SKU", "Un.", "Qtd.", "Saldo ant.", "Saldo post.", "Usuario", "Setor/destino/fornecedor", "Doc.", "Chave NF-e", "Origem", "Dispositivo", "operation_id", "offline_uuid", "Sync", "Alertas/inconsistencias"], viewModel.movements, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
+      "<footer class=\"print-footer\"><span>Stock Full - auditoria sem segredos ou dados de outro tenant.</span><span class=\"page-number\"></span></footer><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},150);});</script></main></body></html>";
+  }
+
+  function openStockFullAuditReportPdf_() {
+    const html = buildStockFullAuditReportPdfHtml_();
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+      return;
+    }
+    try {
+      printWindow.opener = null;
+    } catch (error) {
+      // A janela de impressao pode bloquear acesso ao opener em alguns navegadores.
+    }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    showAlmoxToast_("PDF de auditoria Stock Full aberto em formato A4 para imprimir/salvar.", "success");
   }
 
   function buildStockFullManagementReportViewModel_() {
@@ -22091,6 +22294,10 @@
   window.StockFullManagementPdf = Object.assign({}, window.StockFullManagementPdf || {}, {
     buildHtmlForTest: buildStockFullManagementReportPdfHtml_,
     buildViewModelForTest: buildStockFullManagementReportViewModel_
+  });
+  window.StockFullAuditPdf = Object.assign({}, window.StockFullAuditPdf || {}, {
+    buildHtmlForTest: buildStockFullAuditReportPdfHtml_,
+    buildViewModelForTest: buildStockFullAuditReportViewModel_
   });
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
