@@ -86,7 +86,7 @@ async function openWithEmployeeSession(page) {
       isAuthenticated: true,
       mode: "local",
       userId: "user_joao_estoque",
-      userName: "Joao Estoque",
+      userName: "Jo\u00e3o Estoque",
       userEmail: "joao@manoelimportados.com",
       companyId: "company_manoel_importados",
       companyName: "Manoel Importados",
@@ -227,7 +227,7 @@ async function seedStockFullManagementReportData(page) {
       ],
       movements: [
         { id: "mov_entry_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "entrada", quantity: 12, responsible: "Manoel Gerente", supplier: "Fornecedor Manual", documentNumber: "NF-100", origin: "manual_entry", deviceId: "caixa-desktop-01", operationId: "op_entry_pdf", offlineUuid: "off_entry_pdf", syncStatus: "synced", balanceBefore: 5, balanceAfter: 17, movementDateTime: "2026-08-03T09:00:00", createdAt: now },
-        { id: "mov_exit_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "saida", quantity: 4, responsible: "Joao Estoque", recipient: "Balcao", sector: "Loja", origin: "manual_exit", deviceId: "tablet-loja-02", operationId: "op_exit_pdf", offlineUuid: "off_exit_pdf", syncStatus: "pending", balanceBefore: 17, balanceAfter: 13, movementDateTime: "2026-08-03T10:00:00", createdAt: now },
+        { id: "mov_exit_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_cimento_pdf", type: "saida", quantity: 4, responsible: "Jo\u00e3o Estoque", recipient: "Balc\u00e3o", sector: "Loja", origin: "manual_exit", deviceId: "tablet-loja-02", operationId: "op_exit_pdf", offlineUuid: "off_exit_pdf", syncStatus: "pending", balanceBefore: 17, balanceAfter: 13, movementDateTime: "2026-08-03T10:00:00", createdAt: now },
         { id: "mov_adjust_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 2, responsible: "Manoel Gerente", reason: "Ajuste inventario", origin: "adjustment", deviceId: "admin-note-03", operationId: "op_adjust_pdf", offlineUuid: "off_adjust_pdf", syncStatus: "synced", balanceBefore: 0, balanceAfter: 2, movementDateTime: "2026-08-03T11:00:00", createdAt: now },
         { id: "mov_nfe_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "entrada", quantity: 7, responsible: "Manoel Gerente", supplier: "Fornecedor PDF Ltda", documentNumber: "29260612345678000199550010000012341000012345", nfeAccessKey: "29260612345678000199550010000012341000012345", nfeNumber: "1234", origin: "nfe_import", deviceId: "xml-import-04", operationId: "op_nfe_pdf", offlineUuid: "off_nfe_pdf", syncStatus: "synced", balanceBefore: 2, balanceAfter: 9, movementDateTime: "2026-08-03T12:00:00", createdAt: now },
         { id: "mov_exit_inconsistent_pdf", companyId: "company_manoel_importados", environmentId: "env_company_manoel_importados", itemId: "prod_tubo_pdf", type: "saida", quantity: 1, responsible: "", origin: "manual_exit", deviceId: "offline-celular-05", operationId: "op_conflict_pdf", offlineUuid: "off_conflict_pdf", syncStatus: "conflict", balanceBefore: 9, balanceAfter: 8, movementDateTime: "2026-08-03T13:00:00", createdAt: now },
@@ -320,27 +320,34 @@ async function appendStockFullReportRowsForPagination(page, count = 80) {
       currentStock: 20 + index,
       minimumStock: 1
     }));
-    const movements = items.map((item, index) => ({
-      id: `mov_page_${index}`,
-      companyId,
-      environmentId,
-      itemId: item.id,
-      type: index % 3 === 0 ? "saida" : "entrada",
-      quantity: 1 + (index % 5),
-      responsible: index % 3 === 0 ? "Joao Estoque" : "Manoel Gerente",
-      supplier: "Fornecedor Paginacao",
-      origin: index % 4 === 0 ? "nfe_import" : "manual_entry",
-      documentNumber: `NF-PAGE-${index}`,
-      nfeAccessKey: index % 4 === 0 ? `292606123456780001995500100000${String(index).padStart(8, "0")}` : "",
-      deviceId: `device-page-${index}`,
-      operationId: `op_page_${index}`,
-      offlineUuid: `off_page_${index}`,
-      syncStatus: "synced",
-      balanceBefore: 20 + index,
-      balanceAfter: 21 + index,
-      movementDateTime: "2026-08-03T12:00:00",
-      createdAt: now
-    }));
+    const movements = items.map((item, index) => {
+      const isNfe = index % 4 === 0;
+      const isExit = index % 3 === 0 && !isNfe;
+      const quantity = 1 + (index % 5);
+      const balanceBefore = 20 + index;
+      const balanceAfter = isExit ? balanceBefore - quantity : balanceBefore + quantity;
+      return {
+        id: `mov_page_${index}`,
+        companyId,
+        environmentId,
+        itemId: item.id,
+        type: isExit ? "saida" : "entrada",
+        quantity,
+        responsible: isExit ? "Jo\u00e3o Estoque" : "Manoel Gerente",
+        supplier: isExit ? "" : "Fornecedor Paginacao",
+        origin: isNfe ? "nfe_import" : (isExit ? "manual_exit" : "manual_entry"),
+        documentNumber: `NF-PAGE-${index}`,
+        nfeAccessKey: isNfe ? `292606123456780001995500100000${String(index).padStart(8, "0")}` : "",
+        deviceId: `device-page-${index}`,
+        operationId: `op_page_${index}`,
+        offlineUuid: `off_page_${index}`,
+        syncStatus: "synced",
+        balanceBefore,
+        balanceAfter,
+        movementDateTime: "2026-08-03T12:00:00",
+        createdAt: now
+      };
+    });
     state.items = items.concat((state.items || []).filter((item) => item.companyId !== companyId || !String(item.id || "").startsWith("prod_page_")));
     state.movements = movements.concat((state.movements || []).filter((movement) => movement.companyId !== companyId || !String(movement.id || "").startsWith("mov_page_")));
     window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify(state));
@@ -351,7 +358,7 @@ async function appendStockFullReportRowsForPagination(page, count = 80) {
 
 async function waitForStockFullReportFilters(page) {
   await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
-  await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
+  await expect(page.locator("#stockFullReportUser option", { hasText: "Jo\u00e3o Estoque" })).toHaveCount(1);
 }
 
 async function selectStockFullReportProductByLabel(page, label) {
@@ -422,7 +429,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await exitForm.locator('[name="itemId"]').selectOption(productId);
     await exitForm.locator('[name="quantity"]').fill("3");
     await exitForm.locator('[name="recipient"]').fill("Loja");
-    await exitForm.locator('[name="sector"]').fill("Balcao");
+    await exitForm.locator('[name="sector"]').fill("Balc\u00e3o");
     await exitForm.locator('[name="responsible"]').fill("Admin Fase A");
     await submitModal(page, exitForm);
 
@@ -1087,16 +1094,16 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await waitForStockFullReportFilters(page);
     await page.selectOption("#stockFullReportPeriod", "all");
     await selectStockFullReportProductByLabel(page, "Cimento PDF");
-    await page.selectOption("#stockFullReportUser", "Joao Estoque");
+    await page.selectOption("#stockFullReportUser", "Jo\u00e3o Estoque");
     await page.selectOption("#stockFullReportType", "saida");
     const result = await page.evaluate(() => ({ html: window.StockFullManagementPdf.buildHtmlForTest(), model: window.StockFullManagementPdf.buildViewModelForTest() }));
     expect(result.model.filters.product).toBe("Cimento PDF");
-    expect(result.model.filters.user).toBe("Joao Estoque");
+    expect(result.model.filters.user).toBe("Jo\u00e3o Estoque");
     expect(result.model.filters.type).toBe("Saidas");
     expect(result.html).toContain("Cimento PDF");
-    expect(result.html).toContain("Joao Estoque");
+    expect(result.html).toContain("Jo\u00e3o Estoque");
     expect(result.html).not.toContain("Fornecedor PDF Ltda");
-    expect(result.html).not.toContain("Tubo PDF</td>");
+    expect(result.html).not.toContain("Tubo PDF");
     expect(getStockFullManagementMetric(result.model, "Total de produtos").value).toBe("1");
     expect(getStockFullManagementMetric(result.model, "Saldo total").value).toBe("13 SC");
     expect(result.html).not.toContain("Produtos com saldo");
@@ -1110,7 +1117,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await waitForStockFullReportFilters(page);
     await page.selectOption("#stockFullReportPeriod", "all");
     await selectStockFullReportProductByLabel(page, "Cimento PDF");
-    await page.selectOption("#stockFullReportUser", "Joao Estoque");
+    await page.selectOption("#stockFullReportUser", "Jo\u00e3o Estoque");
     await page.selectOption("#stockFullReportType", "saida");
     await page.evaluate(() => {
       window.__stockFullOpenedHtml = "";
@@ -1120,7 +1127,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     const html = await page.evaluate(() => window.__stockFullOpenedHtml);
     expect(html).toContain("data-stock-full-management-pdf");
     expect(html).toContain("Cimento PDF");
-    expect(html).toContain("Joao Estoque");
+    expect(html).toContain("Jo\u00e3o Estoque");
     expect(html).not.toContain("Produto Tenant Sul");
   });
 
@@ -1150,28 +1157,32 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     const result = await page.evaluate(() => ({ html: window.StockFullAuditPdf.buildHtmlForTest(), model: window.StockFullAuditPdf.buildViewModelForTest() }));
     expect(result.model.profile.companyName).toBe("Manoel Importados");
     expect(result.model.profile.unitName).toBe("Matriz Centro");
-    expect(result.html).toContain("Relatorio de Auditoria - Stock Full");
+    expect(result.html).toContain("Relat\u00f3rio de Auditoria - Stock Full");
     expect(result.html).toContain("Resumo da auditoria");
-    expect(result.html).toContain("Movimentacoes auditadas");
-    expect(result.html).toContain("Saldo ant.");
-    expect(result.html).toContain("Saldo post.");
-    expect(result.html).toContain("operation_id");
-    expect(result.html).toContain("offline_uuid");
+    expect(result.html).toContain("Movimenta\u00e7\u00f5es auditadas");
+    expect(result.html).toContain("movement-card");
+    expect(result.html).toContain("Movimenta\u00e7\u00e3o 001");
+    expect(result.html).toContain("Saldo anterior");
+    expect(result.html).toContain("Saldo posterior");
+    expect(result.html).toContain("Operation ID");
+    expect(result.html).toContain("Offline UUID");
     expect(result.html).toContain("tablet-loja-02");
     expect(result.html).toContain("op_exit_pdf");
     expect(result.html).toContain("off_exit_pdf");
     expect(result.html).toContain("pending");
     expect(result.html).toContain("conflict");
-    expect(result.html).toContain("Saida sem responsavel");
-    expect(result.html).toContain("Saida sem setor/destino");
+    expect(result.html).toContain("Sa\u00edda sem respons\u00e1vel");
+    expect(result.html).toContain("Sa\u00edda sem setor/destino");
     expect(result.html).toContain("Fornecedor PDF Ltda");
     expect(result.html).toContain("29260612...00012345");
-    expect(result.html).toContain("@page{size:A4");
+    expect(result.html).toContain("@page{size:A4 landscape");
     expect(result.html).toContain("Stock Full - auditoria sem segredos ou dados de outro tenant.");
     expect(countHtmlOccurrences(result.html, "Stock Full - auditoria sem segredos ou dados de outro tenant.")).toBe(1);
     expectNoStockFullPaginationArtifacts(result.html);
-    expect(result.html).toContain("thead{display:table-header-group}");
+    expect(result.html).toContain(".movement-main{display:grid");
+    expect(result.html).toContain(".technical .value{overflow-wrap:anywhere");
     expect(result.html).toContain("break-inside:avoid");
+    expect(result.html).not.toContain("word-break:break-all");
     expect(result.html).not.toContain("Produto Tenant Sul");
     expect(result.html).not.toContain("Loja Teste Sul");
     expect(result.html).not.toContain("op_other_tenant");
@@ -1198,6 +1209,78 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(countHtmlOccurrences(result.auditHtml, "Stock Full - auditoria sem segredos ou dados de outro tenant.")).toBe(1);
     expectNoStockFullPaginationArtifacts(result.managementHtml);
     expectNoStockFullPaginationArtifacts(result.auditHtml);
+  });
+
+  test("PDF de auditoria Stock Full preserva coerencia matematica dos saldos", async ({ page }) => {
+    await openApp(page, "manoel");
+    await page.evaluate(() => {
+      const companyId = "company_manoel_importados";
+      const environmentId = "env_company_manoel_importados";
+      const product = { id: "prod_math_audit", companyId, environmentId, name: "Produto Saldo Auditavel", sku: "MATH-001", unit: "UN", initialQuantity: 20, currentStock: 26, minimumStock: 1 };
+      const base = { companyId, environmentId, itemId: product.id, responsible: "Jo\u00e3o Estoque", sector: "Almoxarifado", destination: "Almoxarifado", supplier: "Fornecedor Matem\u00e1tico", documentNumber: "DOC-MATH", deviceId: "device-math-01", syncStatus: "synced", createdAt: "2026-08-03T12:00:00" };
+      const movements = [
+        { ...base, id: "mov_math_entry", type: "entrada", quantity: 5, origin: "manual_entry", operationId: "op_math_entry", offlineUuid: "off_math_entry", movementDateTime: "2026-08-03T09:00:00", balanceBefore: 20, balanceAfter: 25 },
+        { ...base, id: "mov_math_exit", type: "saida", quantity: 3, origin: "manual_exit", operationId: "op_math_exit", offlineUuid: "off_math_exit", movementDateTime: "2026-08-03T10:00:00", balanceBefore: 25, balanceAfter: 22 },
+        { ...base, id: "mov_math_adjust_pos", type: "ajuste", quantity: 2, origin: "adjustment", operationId: "op_math_adjust_pos", offlineUuid: "off_math_adjust_pos", movementDateTime: "2026-08-03T11:00:00", balanceBefore: 22, balanceAfter: 24 },
+        { ...base, id: "mov_math_adjust_neg", type: "ajuste", quantity: -4, origin: "adjustment", operationId: "op_math_adjust_neg", offlineUuid: "off_math_adjust_neg", movementDateTime: "2026-08-03T12:00:00", balanceBefore: 24, balanceAfter: 20 },
+        { ...base, id: "mov_math_nfe", type: "entrada", quantity: 6, origin: "nfe_import", operationId: "op_math_nfe", offlineUuid: "off_math_nfe", movementDateTime: "2026-08-03T13:00:00", nfeNumber: "2000", nfeAccessKey: "29260612345678000199550010000000000000000000", balanceBefore: 20, balanceAfter: 26 }
+      ];
+      const state = JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}");
+      state.items = [product];
+      state.movements = movements;
+      state.alertHistory = [];
+      state.auditLog = [{ id: "rejected_math_exit", operationId: "op_math_rejected_exit", type: "saida_rejeitada", quantity: 30, balanceBefore: 26, balanceAfter: 26 }];
+      window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify(state));
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator("#stockFullReportProduct option", { hasText: "Produto Saldo Auditavel" })).toHaveCount(1);
+    await expect(page.locator("#stockFullReportUser option", { hasText: "Jo\u00e3o Estoque" })).toHaveCount(1);
+    await page.selectOption("#stockFullReportPeriod", "all");
+    const explicit = await page.evaluate(() => window.StockFullAuditPdf.buildViewModelForTest());
+    const explicitByOperation = Object.fromEntries(explicit.movements.map((row) => [row[14], row]));
+    expect(explicitByOperation.op_math_entry.slice(5, 8)).toEqual(["5", "20", "25"]);
+    expect(explicitByOperation.op_math_exit.slice(5, 8)).toEqual(["3", "25", "22"]);
+    expect(explicitByOperation.op_math_adjust_pos.slice(5, 8)).toEqual(["2", "22", "24"]);
+    expect(explicitByOperation.op_math_adjust_neg.slice(5, 8)).toEqual(["-4", "24", "20"]);
+    expect(explicitByOperation.op_math_nfe.slice(5, 8)).toEqual(["6", "20", "26"]);
+    expect(explicitByOperation.op_math_entry[1]).toBe("Entrada");
+    expect(explicitByOperation.op_math_exit[1]).toBe("Sa\u00edda");
+    expect(explicitByOperation.op_math_nfe[1]).toBe("NF-e importada");
+    expect(explicitByOperation.op_math_adjust_pos[1]).toBe("Ajuste positivo");
+    expect(explicitByOperation.op_math_adjust_neg[1]).toBe("Ajuste negativo");
+    expect(explicitByOperation.op_math_adjust_pos[5]).toBe("2");
+    expect(explicitByOperation.op_math_adjust_neg[5]).toBe("-4");
+    expect(new Set(explicit.movements.map((row) => row[15])).size).toBe(5);
+    expect(explicitByOperation.op_math_entry[12]).toBe("Entrada manual");
+    expect(explicitByOperation.op_math_exit[12]).toBe("Sa\u00edda manual");
+    expect(explicitByOperation.op_math_adjust_pos[12]).toBe("Ajuste de estoque");
+    expect(explicitByOperation.op_math_adjust_neg[12]).toBe("Ajuste de estoque");
+    expect(explicitByOperation.op_math_nfe[12]).toBe("Importa\u00e7\u00e3o de NF-e");
+    expect(explicit.movements.every((row) => row[19] === "N\u00e3o determinada")).toBe(true);
+    const syncSummary = explicit.summary.find((row) => row[0] === "Offline e sincroniza\u00e7\u00e3o");
+    const conclusion = explicit.summary.find((row) => row[0] === "Conclus\u00e3o e recomenda\u00e7\u00f5es");
+    expect(syncSummary[1]).toBe("0 criadas offline; 5 sincronizadas; 0 pendentes; 5 com origem offline n\u00e3o determinada");
+    expect(conclusion[1]).toBe("Auditoria sem bloqueios cr\u00edticos para os filtros aplicados. A origem offline de 5 movimenta\u00e7\u00f5es n\u00e3o p\u00f4de ser determinada.");
+    expect(conclusion[1]).not.toContain("Concluir sincronizacao");
+    expect(explicit.movements.some((row) => row[14] === "op_math_rejected_exit")).toBe(false);
+
+    const fallback = await page.evaluate(() => {
+      const state = JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}");
+      state.movements = (state.movements || []).map(({ balanceBefore, balanceAfter, ...movement }) => movement);
+      window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify(state));
+      return window.StockFullAuditPdf.buildViewModelForTest();
+    });
+    const fallbackByOperation = Object.fromEntries(fallback.movements.map((row) => [row[14], row]));
+    expect(fallbackByOperation.op_math_entry.slice(5, 8)).toEqual(["5", "20", "25"]);
+    expect(fallbackByOperation.op_math_exit.slice(5, 8)).toEqual(["3", "25", "22"]);
+    expect(fallbackByOperation.op_math_adjust_pos.slice(5, 8)).toEqual(["2", "22", "24"]);
+    expect(fallbackByOperation.op_math_adjust_neg.slice(5, 8)).toEqual(["-4", "24", "20"]);
+    expect(fallbackByOperation.op_math_nfe.slice(5, 8)).toEqual(["6", "20", "26"]);
+    expect(fallbackByOperation.op_math_entry[1]).toBe("Entrada");
+    expect(fallbackByOperation.op_math_exit[1]).toBe("Sa\u00edda");
+    expect(fallbackByOperation.op_math_nfe[1]).toBe("NF-e importada");
+    expect(fallbackByOperation.op_math_adjust_pos[1]).toBe("Ajuste positivo");
+    expect(fallbackByOperation.op_math_adjust_neg[1]).toBe("Ajuste negativo");
   });
 
   test("PDF de auditoria Stock Full calcula saldo anterior e posterior", async ({ page }) => {
@@ -1229,16 +1312,16 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await waitForStockFullReportFilters(page);
     await page.selectOption("#stockFullReportPeriod", "all");
     await selectStockFullReportProductByLabel(page, "Cimento PDF");
-    await page.selectOption("#stockFullReportUser", "Joao Estoque");
+    await page.selectOption("#stockFullReportUser", "Jo\u00e3o Estoque");
     await page.selectOption("#stockFullReportType", "saida");
     const result = await page.evaluate(() => ({ html: window.StockFullAuditPdf.buildHtmlForTest(), model: window.StockFullAuditPdf.buildViewModelForTest() }));
     expect(result.model.filters.product).toBe("Cimento PDF");
-    expect(result.model.filters.user).toBe("Joao Estoque");
-    expect(result.model.filters.type).toBe("Saidas");
+    expect(result.model.filters.user).toBe("Jo\u00e3o Estoque");
+    expect(result.model.filters.type).toBe("Sa\u00eddas");
     expect(result.model.movements).toHaveLength(1);
     expect(result.html).toContain("op_exit_pdf");
     expect(result.html).not.toContain("op_nfe_pdf");
-    expect(result.html).not.toContain("Tubo PDF</td>");
+    expect(result.html).not.toContain("Tubo PDF");
   });
 
   test("botao Gerar auditoria abre PDF de auditoria separado no desktop e mobile", async ({ page }) => {
@@ -1251,7 +1334,7 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     await page.locator("#almoxManagerAuditButton").click();
     const desktopHtml = await page.evaluate(() => window.__stockFullOpenedHtml);
     expect(desktopHtml).toContain("data-stock-full-audit-pdf");
-    expect(desktopHtml).toContain("Relatorio de Auditoria - Stock Full");
+    expect(desktopHtml).toContain("Relat\u00f3rio de Auditoria - Stock Full");
     expect(desktopHtml).not.toContain("data-stock-full-management-pdf");
 
     await page.setViewportSize({ width: 390, height: 844 });
