@@ -240,6 +240,53 @@ async function seedStockFullManagementReportData(page) {
   await expect(page.locator("#stockFullDashboard")).toBeVisible();
 }
 
+async function seedStockFullManagementUnitScenario(page, options) {
+  const config = Object.assign({
+    companyId: "company_manoel_importados",
+    companyName: "Manoel Importados",
+    environmentId: "env_company_manoel_importados",
+    unitName: "Matriz Centro",
+    otherCompanyId: "company_loja_teste_sul",
+    otherCompanyName: "Loja Teste Sul",
+    otherEnvironmentId: "env_company_loja_teste_sul",
+    otherUnitName: "Filial Sul",
+    items: [],
+    otherItems: []
+  }, options || {});
+  await page.evaluate((scenario) => {
+    const normalizeItem = (item, companyId, environmentId) => Object.assign({}, item, {
+      companyId,
+      environmentId,
+      currentStock: item.currentStock ?? item.initialQuantity ?? 0,
+      minimumStock: item.minimumStock ?? item.minStock ?? 0
+    });
+    const activeItems = scenario.items.map((item) => normalizeItem(item, scenario.companyId, scenario.environmentId));
+    const externalItems = scenario.otherItems.map((item) => normalizeItem(item, scenario.otherCompanyId, scenario.otherEnvironmentId));
+    window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "local", userId: "user_pdf_unit", userName: "Gestor PDF", userEmail: "gestor.pdf@teste.local", companyId: scenario.companyId, companyName: scenario.companyName, role: "admin" }));
+    window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify({
+      stockEnvironments: [
+        { id: scenario.environmentId, companyId: scenario.companyId, mode: "almoxarifado", clientName: scenario.companyName, unitName: scenario.unitName, environmentName: "Estoque PDF", responsible: "Gestor PDF" },
+        { id: scenario.otherEnvironmentId, companyId: scenario.otherCompanyId, mode: "almoxarifado", clientName: scenario.otherCompanyName, unitName: scenario.otherUnitName, environmentName: "Estoque PDF B", responsible: "Gestor B" }
+      ],
+      activeStockEnvironmentId: scenario.environmentId,
+      items: activeItems.concat(externalItems),
+      movements: [],
+      alertHistory: [],
+      auditLog: []
+    }));
+  }, config);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#stockFullDashboard")).toBeVisible();
+}
+
+async function getStockFullManagementReportForTest(page) {
+  return page.evaluate(() => ({ html: window.StockFullManagementPdf.buildHtmlForTest(), model: window.StockFullManagementPdf.buildViewModelForTest() }));
+}
+
+function getStockFullManagementMetric(model, label) {
+  return (model.metrics || []).find((metric) => metric.label === label);
+}
+
 async function waitForStockFullReportFilters(page) {
   await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
   await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
@@ -845,7 +892,11 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).toContain("Relatorio Gerencial - Stock Full");
     expect(result.html).toContain("Resumo executivo");
     expect(result.html).toContain("Total de produtos");
-    expect(result.html).toContain("Saldo total");
+    expect(result.html).toContain("Produtos com saldo");
+    expect(result.html).not.toContain("Saldo total</span>");
+    expect(result.html).not.toContain("21 un.");
+    expect(getStockFullManagementMetric(result.model, "Produtos com saldo").value).toBe("2");
+    expect(result.html).toContain("multiplas unidades de medida");
     expect(result.html).toContain("Itens zerados");
     expect(result.html).toContain("Abaixo do minimo");
     expect(result.html).toContain("Movimentacoes por produto");
@@ -863,6 +914,109 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).not.toContain("Cliente Antigo Nao Usar");
   });
 
+  test("PDF gerencial Stock Full mostra saldo total quando todos os produtos usam UN", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementUnitScenario(page, {
+      items: [
+        { id: "prod_un_01", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Parafuso UN", sku: "UN-001", unit: "UN", initialQuantity: 10, minimumStock: 1 },
+        { id: "prod_un_02", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Bucha UN", sku: "UN-002", unit: "un", initialQuantity: 5, minimumStock: 1 }
+      ]
+    });
+    const result = await getStockFullManagementReportForTest(page);
+    expect(getStockFullManagementMetric(result.model, "Saldo total").value).toBe("15 UN");
+    expect(result.html).toContain("Saldo total");
+    expect(result.html).toContain("15 UN");
+    expect(result.html).not.toContain("Produtos com saldo");
+  });
+
+  test("PDF gerencial Stock Full mostra saldo total com unidade unica CX sem unidade generica", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementUnitScenario(page, {
+      items: [
+        { id: "prod_cx_01", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Caixa fechada CX", sku: "CX-001", unit: "CX", initialQuantity: 12, minimumStock: 1 },
+        { id: "prod_cx_02", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Caixa avulsa CX", sku: "CX-002", unit: "cx", initialQuantity: 3, minimumStock: 1 }
+      ]
+    });
+    const result = await getStockFullManagementReportForTest(page);
+    expect(getStockFullManagementMetric(result.model, "Saldo total").value).toBe("15 CX");
+    expect(result.html).toContain("15 CX");
+    expect(result.html).not.toContain("15 un.");
+    expect(result.html).not.toContain("15 unidade(s)");
+  });
+
+  test("PDF gerencial Stock Full nao soma 642 un quando ha unidades heterogeneas", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementUnitScenario(page, {
+      items: [
+        { id: "prod_unit_un", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto UN", sku: "MIX-UN", unit: "UN", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_cx", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto CX", sku: "MIX-CX", unit: "CX", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_kg", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto KG", sku: "MIX-KG", unit: "KG", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_l", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto L", sku: "MIX-L", unit: "L", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_m", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto M", sku: "MIX-M", unit: "M", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_sc", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto SC", sku: "MIX-SC", unit: "SC", initialQuantity: 100, minimumStock: 1 },
+        { id: "prod_unit_zero", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto zerado", sku: "MIX-ZERO", unit: "UN", initialQuantity: 0, minimumStock: 1 },
+        { id: "prod_unit_negative", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto negativo", sku: "MIX-NEG", unit: "CX", initialQuantity: -8, minimumStock: 1 },
+        { id: "prod_unit_empty", companyId: "company_pdf_unit_a", environmentId: "env_pdf_unit_a", name: "Produto sem unidade", sku: "MIX-EMPTY", unit: "   ", initialQuantity: 50, minimumStock: 1 }
+      ]
+    });
+    const result = await getStockFullManagementReportForTest(page);
+    expect(getStockFullManagementMetric(result.model, "Produtos com saldo").value).toBe("7");
+    expect(result.model.metrics.some((metric) => metric.label === "Saldo total")).toBe(false);
+    expect(result.html).toContain("Produtos com saldo");
+    expect(result.html).toContain("multiplas unidades de medida");
+    expect(result.html).not.toContain("Saldo total</span>");
+    expect(result.html).not.toContain("642 un.");
+    expect(result.html).not.toContain("saldo total de 642 unidade(s)");
+    expect(getStockFullManagementMetric(result.model, "Itens zerados").value).toBe("2");
+  });
+
+
+
+
+  test("PDF gerencial Stock Full calcula empresas A e B separadamente", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementUnitScenario(page, {
+      companyId: "company_manoel_importados",
+      companyName: "Manoel Importados",
+      environmentId: "env_company_manoel_importados",
+      unitName: "Matriz Centro",
+      otherCompanyId: "company_loja_teste_sul",
+      otherCompanyName: "Loja Teste Sul",
+      otherEnvironmentId: "env_company_loja_teste_sul",
+      otherUnitName: "Filial Sul",
+      items: [
+        { id: "prod_alfa_un", name: "Alfa Produto UN", sku: "ALFA-UN", unit: "UN", initialQuantity: 11, minimumStock: 1 }
+      ],
+      otherItems: [
+        { id: "prod_beta_cx", name: "Beta Produto CX", sku: "BETA-CX", unit: "CX", initialQuantity: 22, minimumStock: 1 }
+      ]
+    });
+    const alfa = await getStockFullManagementReportForTest(page);
+    expect(alfa.model.profile.companyName).toBe("Manoel Importados");
+    expect(getStockFullManagementMetric(alfa.model, "Saldo total").value).toBe("11 UN");
+    expect(alfa.html).not.toContain("Beta Produto CX");
+
+    await seedStockFullManagementUnitScenario(page, {
+      companyId: "company_loja_teste_sul",
+      companyName: "Loja Teste Sul",
+      environmentId: "env_company_loja_teste_sul",
+      unitName: "Filial Sul",
+      otherCompanyId: "company_manoel_importados",
+      otherCompanyName: "Manoel Importados",
+      otherEnvironmentId: "env_company_manoel_importados",
+      otherUnitName: "Matriz Centro",
+      items: [
+        { id: "prod_beta_cx", name: "Beta Produto CX", sku: "BETA-CX", unit: "CX", initialQuantity: 22, minimumStock: 1 }
+      ],
+      otherItems: [
+        { id: "prod_alfa_un", name: "Alfa Produto UN", sku: "ALFA-UN", unit: "UN", initialQuantity: 11, minimumStock: 1 }
+      ]
+    });
+    const beta = await getStockFullManagementReportForTest(page);
+    expect(beta.model.profile.companyName).toBe("Loja Teste Sul");
+    expect(getStockFullManagementMetric(beta.model, "Saldo total").value).toBe("22 CX");
+    expect(beta.html).not.toContain("Alfa Produto UN");
+  });
   test("PDF gerencial Stock Full aplica filtros de produto, usuario e tipo", async ({ page }) => {
     await openApp(page, "manoel");
     await seedStockFullManagementReportData(page);
@@ -879,6 +1033,9 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).toContain("Joao Estoque");
     expect(result.html).not.toContain("Fornecedor PDF Ltda");
     expect(result.html).not.toContain("Tubo PDF</td>");
+    expect(getStockFullManagementMetric(result.model, "Total de produtos").value).toBe("1");
+    expect(getStockFullManagementMetric(result.model, "Saldo total").value).toBe("13 SC");
+    expect(result.html).not.toContain("Produtos com saldo");
   });
 
 

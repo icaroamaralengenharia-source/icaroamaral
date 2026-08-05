@@ -16564,6 +16564,46 @@
     showAlmoxToast_(auditModel.isLimited ? auditModel.limitMessage : "PDF de auditoria Stock Full aberto em formato A4 para imprimir/salvar.", auditModel.isLimited ? "info" : "success");
   }
 
+  function normalizeStockFullBalanceUnit_(unit) {
+    const normalized = clean(unit).replace(/\s+/g, " ").trim();
+    return normalized ? normalized.toUpperCase() : "Sem unidade definida";
+  }
+
+  function filterStockFullManagementReportBalances_(balances, filters) {
+    const productId = clean(filters && filters.productId);
+    if (!productId) return (balances || []).slice();
+    return (balances || []).filter(function (balance) {
+      const item = balance && balance.item || {};
+      return clean(item.id || balance.itemId || balance.productId) === productId;
+    });
+  }
+
+  function buildStockFullBalanceUnitSummary_(balances) {
+    const unitTotals = {};
+    (balances || []).forEach(function (balance) {
+      const item = balance && balance.item || {};
+      const unit = normalizeStockFullBalanceUnit_(item.unit || balance.unit);
+      unitTotals[unit] = roundQuantity_(parseNumber_(unitTotals[unit]) + parseNumber_(balance && balance.balance));
+    });
+    const units = Object.keys(unitTotals).sort();
+    const totalBalance = units.reduce(function (sum, unit) { return sum + parseNumber_(unitTotals[unit]); }, 0);
+    const productsWithBalance = (balances || []).filter(function (balance) { return parseNumber_(balance && balance.balance) > 0; }).length;
+    return {
+      units: units,
+      hasSingleUnit: units.length === 1,
+      totalBalance: roundQuantity_(totalBalance),
+      productsWithBalance: productsWithBalance,
+      singleUnit: units[0] || "Sem unidade definida"
+    };
+  }
+
+  function formatStockFullPluralCount_(count, singular, plural) {
+    const safeCount = Number(count || 0);
+    if (!safeCount) return "nenhum " + singular;
+    if (safeCount === 1) return "1 " + singular;
+    return safeCount + " " + plural;
+  }
+
   function buildStockFullManagementReportViewModel_() {
     const data = collectAlmoxManagerData_();
     const filters = readStockFullManagementReportFilters_();
@@ -16572,22 +16612,31 @@
     const exits = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida"; });
     const adjustments = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "ajuste"; });
     const nfe = periodMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "nfe_import"; });
-    const totalBalance = data.balances.reduce(function (sum, balance) { return sum + parseNumber_(balance.balance); }, 0);
+    const consideredBalances = filterStockFullManagementReportBalances_(data.balances, filters);
+    const zeroItems = buildAlmoxZeroItems_(consideredBalances);
+    const criticalItems = buildAlmoxCriticalItems_(consideredBalances);
+    const balanceUnitSummary = buildStockFullBalanceUnitSummary_(consideredBalances);
     const risk = buildAlmoxRiskLevel_(data);
     const productFilter = getStockFullSelectedReportProductLabel_(filters.productId, data.itemsById);
+    const balanceMetric = balanceUnitSummary.hasSingleUnit
+      ? { label: "Saldo total", value: formatQuantity_(balanceUnitSummary.totalBalance) + " " + balanceUnitSummary.singleUnit }
+      : { label: "Produtos com saldo", value: String(balanceUnitSummary.productsWithBalance) };
+    const executiveSummary = balanceUnitSummary.hasSingleUnit
+      ? "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, saldo total de " + formatQuantity_(balanceUnitSummary.totalBalance) + " " + balanceUnitSummary.singleUnit + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do minimo", "abaixo do minimo") + "."
+      : "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, " + formatStockFullPluralCount_(balanceUnitSummary.productsWithBalance, "com saldo disponivel", "com saldo disponivel") + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do minimo", "abaixo do minimo") + ". Os saldos sao controlados em multiplas unidades de medida.";
     const recommendations = [];
-    if (data.zeroItems.length) recommendations.push("Repor itens zerados antes de autorizar novas saidas.");
-    if (data.criticalItems.length) recommendations.push("Revisar compras para itens abaixo do estoque minimo.");
+    if (zeroItems.length) recommendations.push("Repor itens zerados antes de autorizar novas saidas.");
+    if (criticalItems.length) recommendations.push("Revisar compras para itens abaixo do estoque minimo.");
     if (!recommendations.length) recommendations.push("Manter conferencia periodica de saldo, entradas fiscais e retiradas.");
     return {
       title: "Relatorio Gerencial - Stock Full",
       profile: getStockFullSecureReportProfile_(),
       filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
       metrics: [
-        { label: "Total de produtos", value: String(data.balances.length) },
-        { label: "Saldo total", value: formatQuantity_(totalBalance) + " un." },
-        { label: "Itens zerados", value: String(data.zeroItems.length) },
-        { label: "Abaixo do minimo", value: String(data.criticalItems.length) },
+        { label: "Total de produtos", value: String(consideredBalances.length) },
+        balanceMetric,
+        { label: "Itens zerados", value: String(zeroItems.length) },
+        { label: "Abaixo do minimo", value: String(criticalItems.length) },
         { label: "Entradas no periodo", value: String(entries.length) },
         { label: "Saidas no periodo", value: String(exits.length) },
         { label: "Ajustes no periodo", value: String(adjustments.length) },
@@ -16599,7 +16648,7 @@
         ["Filtro de produto", productFilter],
         ["Filtro de usuario", filters.user || "Todos os usuarios"],
         ["Filtro de tipo", getStockFullManagementTypeLabel_(filters.type)],
-        ["Resumo executivo", "O Stock Full consolidou " + data.balances.length + " produto(s), saldo total de " + formatQuantity_(totalBalance) + " unidade(s), " + data.zeroItems.length + " zerado(s) e " + data.criticalItems.length + " abaixo do minimo."],
+        ["Resumo executivo", executiveSummary],
         ["Recomendacoes", recommendations.join(" ")]
       ],
       tables: {
