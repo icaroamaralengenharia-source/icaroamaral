@@ -16310,7 +16310,16 @@
     const operationId = getStockFullAuditMovementOperationId_(movement);
     const offlineUuid = getStockFullAuditMovementOfflineUuid_(movement);
     const queued = queueByOperationId[operationId] || queueByOperationId[offlineUuid] || null;
-    return clean(movement && (movement.syncStatus || movement.sync_status || movement.status)) || clean(queued && queued.status) || (offlineUuid ? "registrado offline/local" : "local");
+    return clean(movement && (movement.syncStatus || movement.sync_status || movement.status)) || clean(queued && queued.status) || "local";
+  }
+
+  function hasStockFullAuditOfflineEvidence_(movement) {
+    const source = movement || {};
+    const origin = clean(source.origin || source.movementOrigin || source.sourceType || source.source).toLowerCase();
+    const mode = clean(source.mode || source.creationMode || source.creation_mode || source.createdMode || source.created_mode).toLowerCase();
+    const metadata = source.metadata || source.meta || {};
+    const metadataOrigin = clean(metadata.origin || metadata.source || metadata.mode || metadata.creationMode || metadata.creation_mode).toLowerCase();
+    return origin.indexOf("offline") >= 0 || mode === "offline" || metadataOrigin.indexOf("offline") >= 0 || source.createdOffline === true || source.created_offline === true || source.isOffline === true || source.is_offline === true;
   }
 
   function getStockFullAuditDevice_(movement, queueByOperationId) {
@@ -16320,27 +16329,47 @@
     return clean(movement && (movement.deviceId || movement.device_id || movement.device || movement.dispositivo)) || clean(queued && (queued.deviceId || queued.device_id || queued.device)) || "Dispositivo nao informado";
   }
 
-  function getStockFullAuditPartner_(movement) {
-    if (getStockFullManagementMovementType_(movement) === "nfe_import") return clean(movement.supplier || movement.provider || movement.fornecedor) || "Fornecedor nao informado";
-    return clean(movement.sector || movement.destination || movement.destino || movement.recipient || movement.supplier || movement.documentNumber) || "-";
+  function getStockFullAuditDestination_(movement) {
+    return clean(movement.sector || movement.destination || movement.destino || movement.recipient) || "-";
   }
 
-  function getStockFullAuditOrigin_(movement) {
+  function getStockFullAuditSupplier_(movement) {
+    if (getStockFullManagementMovementType_(movement) === "nfe_import") return clean(movement.supplier || movement.provider || movement.fornecedor) || "Fornecedor nao informado";
+    return clean(movement.supplier || movement.provider || movement.fornecedor) || "-";
+  }
+
+  function getStockFullAuditOriginCode_(movement) {
     return clean(movement && (movement.origin || movement.movementOrigin || movement.sourceType || movement.source)) || "manual";
+  }
+
+  function getStockFullAuditOriginLabel_(movement) {
+    const origin = getStockFullAuditOriginCode_(movement).toLowerCase();
+    if (origin === "manual_entry") return "Entrada manual";
+    if (origin === "manual_exit") return "Sa\u00edda manual";
+    if (origin === "nfe_import") return "Importa\u00e7\u00e3o de NF-e";
+    if (origin === "adjustment" || origin === "ajuste") return "Ajuste de estoque";
+    if (origin === "manual") return "Manual";
+    return getStockFullAuditOriginCode_(movement);
+  }
+
+  function getStockFullAuditOfflineCreationLabel_(movement) {
+    if (hasStockFullAuditOfflineEvidence_(movement)) return "Criada offline";
+    if (getStockFullAuditMovementOfflineUuid_(movement)) return "N\u00e3o determinada";
+    return "N\u00e3o aplic\u00e1vel";
   }
 
   function buildStockFullAuditWarnings_(movement, item, balanceAfter, queueByOperationId) {
     const warnings = [];
     const type = getStockFullManagementMovementType_(movement);
     const syncStatus = getStockFullAuditSyncStatus_(movement, queueByOperationId).toLowerCase();
-    if (type === "saida" && !getStockFullMovementUser_(movement)) warnings.push("Saida sem responsavel");
-    if (type === "saida" && !clean(movement.sector || movement.destination || movement.destino || movement.recipient)) warnings.push("Saida sem setor/destino");
+    if (type === "saida" && !getStockFullMovementUser_(movement)) warnings.push("Sa\u00edda sem respons\u00e1vel");
+    if (type === "saida" && !clean(movement.sector || movement.destination || movement.destino || movement.recipient)) warnings.push("Sa\u00edda sem setor/destino");
     if ((type === "entrada" || type === "nfe_import") && !clean(movement.supplier || movement.documentNumber || movement.nfeAccessKey || movement.nfe_access_key)) warnings.push("Entrada sem fornecedor/documento");
-    if (syncStatus.indexOf("pending") >= 0 || syncStatus.indexOf("pendente") >= 0) warnings.push("Sincronizacao pendente");
-    if (syncStatus.indexOf("fail") >= 0 || syncStatus.indexOf("erro") >= 0 || syncStatus.indexOf("conflict") >= 0 || syncStatus.indexOf("conflito") >= 0) warnings.push("Falha ou conflito de sincronizacao");
-    if (balanceAfter <= 0) warnings.push("Item zerado apos operacao");
-    if (item && parseNumber_(item.minimumStock) > 0 && balanceAfter < parseNumber_(item.minimumStock)) warnings.push("Saldo abaixo do minimo apos operacao");
-    return warnings.length ? warnings.join("; ") : "Sem inconsistencias";
+    if (syncStatus.indexOf("pending") >= 0 || syncStatus.indexOf("pendente") >= 0) warnings.push("Sincroniza\u00e7\u00e3o pendente");
+    if (syncStatus.indexOf("fail") >= 0 || syncStatus.indexOf("erro") >= 0 || syncStatus.indexOf("conflict") >= 0 || syncStatus.indexOf("conflito") >= 0) warnings.push("Falha ou conflito de sincroniza\u00e7\u00e3o");
+    if (balanceAfter <= 0) warnings.push("Item zerado ap\u00f3s opera\u00e7\u00e3o");
+    if (item && parseNumber_(item.minimumStock) > 0 && balanceAfter < parseNumber_(item.minimumStock)) warnings.push("Saldo abaixo do m\u00ednimo ap\u00f3s opera\u00e7\u00e3o");
+    return warnings.length ? warnings.join("; ") : "Sem inconsist\u00eancias";
   }
 
   function getStockFullAuditExplicitBalance_(movement, keys) {
@@ -16353,15 +16382,25 @@
   }
   function buildStockFullAuditMovementSnapshots_(movements, itemsById, currentBalances) {
     const balances = {};
+    const anchoredFromInitial = {};
     Object.keys(itemsById || {}).forEach(function (itemId) {
-      balances[itemId] = parseNumber_(itemsById[itemId].initialQuantity);
+      const item = itemsById[itemId] || {};
+      const initialSource = item.initialQuantity !== undefined && item.initialQuantity !== null && clean(item.initialQuantity) !== ""
+        ? item.initialQuantity
+        : (item.currentStock !== undefined && item.currentStock !== null && clean(item.currentStock) !== "" ? item.currentStock : item.currentQuantity);
+      const hasInitialQuantity = initialSource !== undefined && initialSource !== null && clean(initialSource) !== "";
+      if (hasInitialQuantity) {
+        balances[itemId] = parseNumber_(initialSource);
+        anchoredFromInitial[itemId] = true;
+      }
     });
     (currentBalances || []).forEach(function (balance) {
       const itemId = clean(balance && balance.item && balance.item.id);
-      if (itemId) balances[itemId] = parseNumber_(balance.balance);
+      if (itemId && !anchoredFromInitial[itemId]) balances[itemId] = parseNumber_(balance.balance);
     });
     (movements || []).forEach(function (movement) {
       const itemId = clean(movement.itemId || movement.productId);
+      if (!itemId || anchoredFromInitial[itemId]) return;
       const quantity = parseNumber_(movement.quantity);
       balances[itemId] = parseNumber_(balances[itemId]) - (getStockFullManagementMovementType_(movement) === "saida" ? -quantity : quantity);
     });
@@ -16376,6 +16415,7 @@
       const after = getStockFullManagementMovementType_(movement) === "saida" ? before - quantity : before + quantity;
       balances[itemId] = roundQuantity_(after);
       const snapshot = { before: roundQuantity_(before), after: roundQuantity_(after) };
+      movement.__stockFullAuditSnapshot = snapshot;
       const keys = [clean(movement.id), getStockFullAuditMovementOperationId_(movement), getStockFullAuditMovementOfflineUuid_(movement)];
       keys.forEach(function (key) {
         if (key) snapshotsById[key] = snapshot;
@@ -16385,10 +16425,25 @@
     return snapshotsById;
   }
 
-  function countStockFullAuditOffline_(movements) {
-    return (movements || []).filter(function (movement) {
-      return Boolean(getStockFullAuditMovementOfflineUuid_(movement)) || clean(getStockFullAuditOrigin_(movement)).toLowerCase().indexOf("offline") >= 0;
-    }).length;
+  function buildStockFullAuditSyncSummary_(movements, queueByOperationId) {
+    let offlineCreated = 0;
+    let synced = 0;
+    let pending = 0;
+    let offlineUndetermined = 0;
+    (movements || []).forEach(function (movement) {
+      const syncStatus = getStockFullAuditSyncStatus_(movement, queueByOperationId).toLowerCase();
+      if (hasStockFullAuditOfflineEvidence_(movement)) offlineCreated += 1;
+      if (getStockFullAuditMovementOfflineUuid_(movement) && !hasStockFullAuditOfflineEvidence_(movement)) offlineUndetermined += 1;
+      if (syncStatus.indexOf("pending") >= 0 || syncStatus.indexOf("pendente") >= 0) pending += 1;
+      if (syncStatus.indexOf("sync") >= 0 || syncStatus.indexOf("sincronizado") >= 0 || syncStatus.indexOf("synced") >= 0) synced += 1;
+    });
+    return {
+      offlineCreated: offlineCreated,
+      synced: synced,
+      pending: pending,
+      offlineUndetermined: offlineUndetermined,
+      label: offlineCreated + " criadas offline; " + synced + " sincronizadas; " + pending + " pendentes" + (offlineUndetermined ? "; " + offlineUndetermined + " com origem offline n\u00e3o determinada" : "")
+    };
   }
 
   function countStockFullAuditProblemStatus_(movements, queueByOperationId, pattern) {
@@ -16397,12 +16452,51 @@
     }).length;
   }
 
+  function formatStockFullAuditCount_(count, singular, plural) {
+    const safeCount = Number(count || 0);
+    return safeCount + " " + (safeCount === 1 ? singular : plural);
+  }
+
+  function formatStockFullAuditMovementTotals_(entries, exits, adjustments, nfe) {
+    return [
+      formatStockFullAuditCount_(entries, "entrada", "entradas"),
+      formatStockFullAuditCount_(exits, "sa\u00edda", "sa\u00eddas"),
+      formatStockFullAuditCount_(adjustments, "ajuste", "ajustes"),
+      formatStockFullAuditCount_(nfe, "NF-e", "NF-e")
+    ].join("; ");
+  }
+
+  function getStockFullAuditTypeLabel_(type) {
+    if (type === "entrada") return "Entradas";
+    if (type === "saida") return "Sa\u00eddas";
+    if (type === "ajuste") return "Ajustes";
+    if (type === "nfe_import") return "NF-e importadas";
+    return "Todos os tipos";
+  }
+
+  function getStockFullAuditMovementTypeLabel_(type) {
+    if (type === "entrada") return "Entrada";
+    if (type === "saida") return "Sa\u00edda";
+    if (type === "nfe_import") return "NF-e importada";
+    return getStockFullAuditTypeLabel_(type);
+  }
+
+  function formatStockFullAuditPeriodLabel_(label) {
+    return clean(label).replace(/historico/g, "hist\u00f3rico").replace(/usuarios/g, "usu\u00e1rios");
+  }
+
+  function formatStockFullAuditReportBoxes_(filters) {
+    return [["Per\u00edodo", filters.period], ["Produto", filters.product], ["Usu\u00e1rio", filters.user], ["Tipo", filters.type]].map(function (item) {
+      return "<div class=\"box\"><span>" + escapeHtml_(item[0]) + "</span>" + escapeHtml_(item[1]) + "</div>";
+    }).join("");
+  }
+
   function buildStockFullAuditAggregateRows_(movements, itemsById, queueByOperationId) {
     const byType = {};
     const bySync = {};
     const byProduct = {};
     (movements || []).forEach(function (movement) {
-      const typeLabel = getStockFullManagementTypeLabel_(getStockFullManagementMovementType_(movement));
+      const typeLabel = getStockFullAuditTypeLabel_(getStockFullManagementMovementType_(movement));
       const syncLabel = getStockFullAuditSyncStatus_(movement, queueByOperationId) || "Outros";
       const item = itemsById[movement.itemId] || itemsById[movement.productId] || {};
       const productKey = clean(movement.itemId || movement.productId || clean(item.name) || "produto-sem-cadastro");
@@ -16467,26 +16561,38 @@
     const conflicts = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflict") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflito");
     const failures = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "fail") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "erro");
     const productFilter = getStockFullSelectedReportProductLabel_(filters.productId, data.itemsById);
+    const periodLabel = formatStockFullAuditPeriodLabel_(getAlmoxDashboardPeriodLabel_(filters.period));
+    const auditUserFilter = filters.user || "Todos os usu\u00e1rios";
     const limitNote = overLimit ? STOCK_FULL_AUDIT_LIMIT_MESSAGE : "";
-    const recommendation = overLimit ? "Geracao detalhada bloqueada no navegador. Use periodo menor ou filtros especificos; consulte o resumo agregado abaixo." : (pending || conflicts || failures || noResponsibleExits.length || noDestinationExits.length || noDocumentEntries.length || data.zeroItems.length || data.criticalItems.length ? "Corrigir inconsistencias, concluir sincronizacao e revisar saldo minimo antes do fechamento comercial." : "Auditoria sem bloqueios criticos para os filtros aplicados.");
+    const syncSummary = buildStockFullAuditSyncSummary_(filteredMovements, queueByOperationId);
+    const recommendationParts = [];
+    if (pending || conflicts || failures) recommendationParts.push("Concluir sincroniza\u00e7\u00e3o e revisar falhas/conflitos antes do fechamento.");
+    if (noDocumentEntries.length) recommendationParts.push("Completar rastreabilidade de entradas sem fornecedor/documento.");
+    if (noDestinationExits.length) recommendationParts.push("Informar destino das sa\u00eddas sem setor/destino.");
+    if (noResponsibleExits.length) recommendationParts.push("Informar respons\u00e1vel das sa\u00eddas sem usu\u00e1rio.");
+    if (data.zeroItems.length || data.criticalItems.length) recommendationParts.push("Revisar saldo m\u00ednimo e reposi\u00e7\u00e3o dos itens cr\u00edticos.");
+    const offlineUndeterminedNote = syncSummary.offlineUndetermined
+      ? " A origem offline de " + formatStockFullAuditCount_(syncSummary.offlineUndetermined, "movimenta\u00e7\u00e3o", "movimenta\u00e7\u00f5es") + " n\u00e3o p\u00f4de ser determinada."
+      : "";
+    const recommendation = overLimit ? "Gera\u00e7\u00e3o detalhada bloqueada no navegador. Use per\u00edodo menor ou filtros espec\u00edficos; consulte o resumo agregado abaixo." + offlineUndeterminedNote : (recommendationParts.length ? recommendationParts.join(" ") + offlineUndeterminedNote : "Auditoria sem bloqueios cr\u00edticos para os filtros aplicados." + offlineUndeterminedNote);
     const aggregateRows = overLimit ? buildStockFullAuditAggregateRows_(filteredMovements, data.itemsById, queueByOperationId) : null;
     const summary = [
-      ["Periodo e filtros aplicados", getAlmoxDashboardPeriodLabel_(filters.period) + " | Produto: " + productFilter + " | Usuario: " + (filters.user || "Todos os usuarios") + " | Tipo: " + getStockFullManagementTypeLabel_(filters.type)],
-      ["Total de movimentacoes", String(filteredMovements.length)],
-      ["Limite de detalhamento", overLimit ? limitNote : "Dentro do limite de " + STOCK_FULL_AUDIT_PDF_LIMIT + " movimentacoes para PDF detalhado"],
-      ["Entradas, saidas, ajustes e NF-e", entries.length + " entradas; " + exits.length + " saidas; " + adjustments.length + " ajustes; " + nfe.length + " NF-e"],
-      ["Operacoes offline", String(countStockFullAuditOffline_(filteredMovements))],
+      ["Per\u00edodo e filtros aplicados", periodLabel + " | Produto: " + productFilter + " | Usu\u00e1rio: " + auditUserFilter + " | Tipo: " + getStockFullAuditTypeLabel_(filters.type)],
+      ["Total de movimenta\u00e7\u00f5es", String(filteredMovements.length)],
+      ["Limite de detalhamento", overLimit ? limitNote : "Dentro do limite de " + STOCK_FULL_AUDIT_PDF_LIMIT + " movimenta\u00e7\u00f5es para PDF detalhado"],
+      ["Entradas, sa\u00eddas, ajustes e NF-e", formatStockFullAuditMovementTotals_(entries.length, exits.length, adjustments.length, nfe.length)],
+      ["Offline e sincroniza\u00e7\u00e3o", syncSummary.label],
       ["Pendentes, falhas ou conflitos", pending + " pendentes; " + failures + " falhas; " + conflicts + " conflitos"],
-      ["Saidas sem responsavel/destino", noResponsibleExits.length + " sem responsavel; " + noDestinationExits.length + " sem destino"],
+      ["Sa\u00eddas sem respons\u00e1vel/destino", noResponsibleExits.length + " sem respons\u00e1vel; " + noDestinationExits.length + " sem destino"],
       ["Entradas sem fornecedor/documento", String(noDocumentEntries.length)],
-      ["Itens zerados ou abaixo do minimo", data.zeroItems.length + " zerados; " + data.criticalItems.length + " abaixo do minimo"],
-      ["Conclusao e recomendacoes", recommendation]
+      ["Itens zerados ou abaixo do m\u00ednimo", data.zeroItems.length + " zerados; " + data.criticalItems.length + " abaixo do m\u00ednimo"],
+      ["Conclus\u00e3o e recomenda\u00e7\u00f5es", recommendation]
     ];
     if (overLimit) {
       return {
-        title: "Relatorio de Auditoria - Stock Full",
+        title: "Relat\u00f3rio de Auditoria - Stock Full",
         profile: getStockFullSecureReportProfile_(),
-        filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
+        filters: { period: periodLabel, product: productFilter, user: auditUserFilter, type: getStockFullAuditTypeLabel_(filters.type) },
         summary: summary,
         movements: [],
         isLimited: true,
@@ -16498,13 +16604,13 @@
     }
     const snapshots = buildStockFullAuditMovementSnapshots_(data.movements, data.itemsById, data.balances);
     return {
-      title: "Relatorio de Auditoria - Stock Full",
+      title: "Relat\u00f3rio de Auditoria - Stock Full",
       profile: getStockFullSecureReportProfile_(),
-      filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
+      filters: { period: periodLabel, product: productFilter, user: auditUserFilter, type: getStockFullAuditTypeLabel_(filters.type) },
       summary: summary,
       movements: filteredMovements.map(function (movement) {
         const item = data.itemsById[movement.itemId] || data.itemsById[movement.productId] || {};
-        const computedSnapshot = snapshots[clean(movement.id)] || snapshots[getStockFullAuditMovementOperationId_(movement)] || snapshots[getStockFullAuditMovementOfflineUuid_(movement)] || { before: 0, after: 0 };
+        const computedSnapshot = movement.__stockFullAuditSnapshot || snapshots[clean(movement.id)] || snapshots[getStockFullAuditMovementOperationId_(movement)] || snapshots[getStockFullAuditMovementOfflineUuid_(movement)] || { before: 0, after: 0 };
         const explicitBefore = getStockFullAuditExplicitBalance_(movement, ["balanceBefore", "saldoAnterior", "previousBalance", "previous_balance", "balance_before"]);
         const explicitAfter = getStockFullAuditExplicitBalance_(movement, ["balanceAfter", "saldoPosterior", "nextBalance", "next_balance", "balance_after"]);
         const snapshot = {
@@ -16513,7 +16619,11 @@
         };
         const type = getStockFullManagementMovementType_(movement);
         const accessKey = clean(movement.nfeAccessKey || movement.nfe_access_key || (type === "nfe_import" ? movement.documentNumber : ""));
-        return [getAlmoxMovementDisplayDateTime_(movement), getStockFullManagementTypeLabel_(type), clean(item.name) || "Produto sem cadastro", clean(item.sku || item.fiscalCode) || "-", clean(item.unit) || "un", formatQuantity_(movement.quantity), formatQuantity_(snapshot.before), formatQuantity_(snapshot.after), getStockFullMovementUser_(movement) || "-", getStockFullAuditPartner_(movement), clean(movement.documentNumber || movement.document_number || movement.nfeNumber || movement.nfe_number) || "-", abbreviateStockFullNfeKey_(accessKey), getStockFullAuditOrigin_(movement), getStockFullAuditDevice_(movement, queueByOperationId), getStockFullAuditMovementOperationId_(movement) || "-", getStockFullAuditMovementOfflineUuid_(movement) || "-", getStockFullAuditSyncStatus_(movement, queueByOperationId), buildStockFullAuditWarnings_(movement, item, snapshot.after, queueByOperationId)];
+        const documentLabel = type === "nfe_import"
+          ? clean(movement.nfeNumber || movement.nfe_number || movement.documentNumber || movement.document_number)
+          : clean(movement.documentNumber || movement.document_number || movement.nfeNumber || movement.nfe_number);
+        const typeLabel = type === "ajuste" && snapshot.after > snapshot.before ? "Ajuste positivo" : (type === "ajuste" && snapshot.after < snapshot.before ? "Ajuste negativo" : getStockFullAuditMovementTypeLabel_(type));
+        return [getAlmoxMovementDisplayDateTime_(movement), typeLabel, clean(item.name) || "Produto sem cadastro", clean(item.sku || item.fiscalCode) || "-", clean(item.unit) || "un", formatQuantity_(movement.quantity), formatQuantity_(snapshot.before), formatQuantity_(snapshot.after), getStockFullMovementUser_(movement) || "-", getStockFullAuditDestination_(movement), documentLabel || "-", abbreviateStockFullNfeKey_(accessKey), getStockFullAuditOriginLabel_(movement), getStockFullAuditDevice_(movement, queueByOperationId), getStockFullAuditMovementOperationId_(movement) || "-", getStockFullAuditMovementOfflineUuid_(movement) || "-", getStockFullAuditSyncStatus_(movement, queueByOperationId), buildStockFullAuditWarnings_(movement, item, snapshot.after, queueByOperationId), getStockFullAuditSupplier_(movement), getStockFullAuditOfflineCreationLabel_(movement)];
       }),
       isLimited: false,
       limit: STOCK_FULL_AUDIT_PDF_LIMIT,
@@ -16528,19 +16638,56 @@
     const profile = viewModel.profile;
     const detailSection = viewModel.isLimited
       ? "<section class=\"section\"><h2>Limite de detalhamento</h2><p class=\"empty\">" + escapeHtml_(viewModel.limitMessage) + "</p></section>" +
-        "<section class=\"section\"><h2>Resumo agregado por tipo</h2>" + formatAlmoxHtmlTable_(["Tipo", "Movimentacoes"], viewModel.aggregateRows.byType, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
-        "<section class=\"section\"><h2>Resumo agregado por sincronizacao</h2>" + formatAlmoxHtmlTable_(["Status", "Movimentacoes"], viewModel.aggregateRows.bySync, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
-        "<section class=\"section\"><h2>Produtos mais movimentados</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Saidas", "Ajustes", "NF-e", "Quantidade total"], viewModel.aggregateRows.byProduct, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>"
-      : "<section class=\"section\"><h2>Movimentacoes auditadas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "SKU", "Un.", "Qtd.", "Saldo ant.", "Saldo post.", "Usuario", "Setor/destino/fornecedor", "Doc.", "Chave NF-e", "Origem", "Dispositivo", "operation_id", "offline_uuid", "Sync", "Alertas/inconsistencias"], viewModel.movements, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>";
+        "<section class=\"section\"><h2>Resumo agregado por tipo</h2>" + formatAlmoxHtmlTable_(["Tipo", "Movimenta\u00e7\u00f5es"], viewModel.aggregateRows.byType, "Nenhuma movimenta\u00e7\u00e3o encontrada nos filtros selecionados.") + "</section>" +
+        "<section class=\"section\"><h2>Resumo agregado por sincronizacao</h2>" + formatAlmoxHtmlTable_(["Status", "Movimenta\u00e7\u00f5es"], viewModel.aggregateRows.bySync, "Nenhuma movimenta\u00e7\u00e3o encontrada nos filtros selecionados.") + "</section>" +
+        "<section class=\"section\"><h2>Produtos mais movimentados</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Sa\u00eddas", "Ajustes", "NF-e", "Quantidade total"], viewModel.aggregateRows.byProduct, "Nenhuma movimenta\u00e7\u00e3o encontrada nos filtros selecionados.") + "</section>"
+      : "<section class=\"section\"><h2>Movimenta\u00e7\u00f5es auditadas</h2>" + formatStockFullAuditMovementBlocks_(viewModel.movements, "Nenhuma movimenta\u00e7\u00e3o encontrada nos filtros selecionados.") + "</section>";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
       "<title>" + escapeHtml_(viewModel.title) + "</title><style>" +
-      "@page{size:A4;margin:14mm 10mm 17mm}" +
-      "*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:9px;line-height:1.3}.page{width:100%;margin:0 auto}.report-head{display:grid;grid-template-columns:1fr auto;gap:10px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:10px}.brand{font-size:11px;font-weight:700;text-transform:uppercase}.brand strong{display:block;font-size:20px}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 10px;text-align:right}.meta span,.filters span{display:block;color:#444;font-size:8px;text-transform:uppercase;font-weight:700}.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0 10px}.box{border:1px solid #999;padding:6px;break-inside:avoid}.section{margin-top:10px;break-inside:auto}h1,h2,p{margin-top:0}h1{font-size:18px;margin-bottom:3px}h2{font-size:12px;border-bottom:1px solid #111;padding-bottom:3px;margin-bottom:6px}.list{display:grid;grid-template-columns:44mm 1fr;gap:4px 7px}.list dt{font-weight:700}.list dd{margin:0}.print-footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #999;padding-top:4px;font-size:8px;color:#444;display:block}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #999;padding:4px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;color:#111;font-size:7.5px;text-transform:uppercase}.empty{border:1px solid #999;padding:7px;color:#444}.muted{color:#444}@media screen{body{background:#e5e7eb;padding:18px}.page{max-width:210mm;min-height:297mm;background:#fff;padding:14mm 10mm 17mm;box-shadow:0 18px 60px rgba(0,0,0,.18)}}@media print{body{background:#fff}.page{padding:0;box-shadow:none}.section{break-inside:auto}}" +
-      "</style></head><body><main class=\"page\" data-stock-full-audit-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Auditoria profissional de movimentacoes</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Rastreabilidade operacional por empresa, unidade e ambiente ativo.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsavel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
-      "<section class=\"filters\">" + formatStockFullReportBoxes_(viewModel.filters) + "</section>" +
+      "@page{size:A4 landscape;margin:12mm 11mm 20mm}" +
+      "*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:9.2px;line-height:1.32}.page{width:100%;margin:0 auto}.report-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(82mm,112mm);gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:10px}.brand{font-size:10px;font-weight:700;text-transform:uppercase}.brand strong{display:block;font-size:18px}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;text-align:left}.meta span,.filters span{display:block;color:#444;font-size:8px;text-transform:uppercase;font-weight:700}.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:8px 0 10px}.box{border:1px solid #999;padding:6px;break-inside:avoid;page-break-inside:avoid}.section{margin-top:10px;break-inside:auto}h1,h2,p{margin-top:0}h1{font-size:17px;margin-bottom:3px}h2{font-size:12px;border-bottom:1px solid #111;padding-bottom:3px;margin-bottom:7px}.list{display:grid;grid-template-columns:44mm 1fr;gap:4px 7px}.list dt{font-weight:700}.list dd{margin:0}.audit-blocks{display:block}.movement-card{border:1px solid #c7c7c7;border-left:3px solid #111;padding:7px 8px;margin:0 0 7px;background:#fff;break-inside:avoid;page-break-inside:avoid}.movement-title{font-size:10px;font-weight:700;margin-bottom:5px}.movement-main{display:grid;grid-template-columns:28mm 20mm minmax(42mm,1.4fr) 24mm 15mm 22mm 31mm 31mm minmax(28mm,.8fr);gap:5px 8px;padding-bottom:5px;border-bottom:1px solid #ddd}.movement-details{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px 8px;padding-top:5px}.field{min-width:0;white-space:normal;overflow-wrap:normal;word-break:normal}.label{display:block;color:#555;font-size:8.5px;font-weight:700;text-transform:uppercase}.value{display:block;font-size:9.2px}.technical .value{overflow-wrap:anywhere;word-break:break-word}.print-footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #999;padding-top:4px;font-size:8.5px;color:#444;display:block}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #999;padding:4px;text-align:left;vertical-align:top;white-space:normal;overflow-wrap:normal;word-break:normal}th{background:#eee;color:#111;font-size:8.5px;text-transform:uppercase}.empty{border:1px solid #999;padding:7px;color:#444}.muted{color:#444}@media screen{body{background:#e5e7eb;padding:18px}.page{max-width:297mm;min-height:210mm;background:#fff;padding:12mm 11mm 16mm;box-shadow:0 18px 60px rgba(0,0,0,.18)}}@media print{body{background:#fff}.page{padding:0;box-shadow:none}.section{break-inside:auto}}" +
+      "</style></head><body><main class=\"page\" data-stock-full-audit-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Auditoria profissional de movimenta\u00e7\u00f5es</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Rastreabilidade operacional por empresa, unidade e ambiente ativo.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Respons\u00e1vel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
+      "<section class=\"filters\">" + formatStockFullAuditReportBoxes_(viewModel.filters) + "</section>" +
       "<section class=\"section\"><h2>Resumo da auditoria</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summary) + "</section>" +
       detailSection +
       "<footer class=\"print-footer\">Stock Full - auditoria sem segredos ou dados de outro tenant.</footer><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},150);});</script></main></body></html>";
+  }
+
+  function formatStockFullAuditMovementBlocks_(rows, emptyText) {
+    if (!rows || !rows.length) {
+      return "<p class=\"empty\">" + escapeHtml_(emptyText) + "</p>";
+    }
+
+    function field(label, value, technical) {
+      return "<div class=\"field" + (technical ? " technical" : "") + "\"><span class=\"label\">" + escapeHtml_(label) + "</span><span class=\"value\">" + escapeHtml_(value || "-") + "</span></div>";
+    }
+
+    return "<div class=\"audit-blocks\">" + rows.map(function (row, index) {
+      return "<article class=\"movement-card\"><div class=\"movement-title\">Movimenta\u00e7\u00e3o " + String(index + 1).padStart(3, "0") + "</div>" +
+        "<div class=\"movement-main\">" +
+        field("Data/hora", row[0]) +
+        field("Tipo", row[1]) +
+        field("Produto", row[2]) +
+        field("SKU", row[3]) +
+        field("Unidade", row[4]) +
+        field("Quantidade", row[5]) +
+        field("Saldo anterior", row[6]) +
+        field("Saldo posterior", row[7]) +
+        field("Usu\u00e1rio", row[8]) +
+        "</div><div class=\"movement-details\">" +
+        field("Setor/destino", row[9]) +
+        field("Fornecedor", row[18]) +
+        field("Documento", row[10]) +
+        field("Chave NF-e", row[11], true) +
+        field("Origem", row[12]) +
+        field("Cria\u00e7\u00e3o offline", row[19]) +
+        field("Dispositivo", row[13]) +
+        field("Operation ID", row[14], true) +
+        field("Offline UUID", row[15], true) +
+        field("Sync", row[16]) +
+        field("Alertas/inconsist\u00eancias", row[17]) +
+        "</div></article>";
+    }).join("") + "</div>";
   }
 
   function openStockFullAuditReportPdf_() {
