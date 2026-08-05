@@ -287,6 +287,68 @@ function getStockFullManagementMetric(model, label) {
   return (model.metrics || []).find((metric) => metric.label === label);
 }
 
+function expectNoStockFullPaginationArtifacts(html) {
+  expect(html).not.toContain("Pagina 0");
+  expect(html).not.toContain("Página 0");
+  expect(html).not.toContain("Pagina NaN");
+  expect(html).not.toContain("Página NaN");
+  expect(html).not.toContain("Pagina undefined");
+  expect(html).not.toContain("Página undefined");
+  expect(html).not.toContain("page-number");
+  expect(html).not.toContain("counter(page)");
+  expect(html).not.toContain("counter(pages)");
+}
+
+function countHtmlOccurrences(html, value) {
+  return (html.match(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length;
+}
+
+async function appendStockFullReportRowsForPagination(page, count = 80) {
+  await page.evaluate((totalRows) => {
+    const state = JSON.parse(window.localStorage.getItem(window.StockFullCore.storageKey) || "{}");
+    const companyId = "company_manoel_importados";
+    const environmentId = "env_company_manoel_importados";
+    const now = new Date().toISOString();
+    const items = Array.from({ length: totalRows }, (_, index) => ({
+      id: `prod_page_${index}`,
+      companyId,
+      environmentId,
+      name: `Produto paginado ${String(index + 1).padStart(2, "0")}`,
+      sku: `PAGE-${String(index + 1).padStart(2, "0")}`,
+      unit: index % 2 ? "CX" : "UN",
+      initialQuantity: 20 + index,
+      currentStock: 20 + index,
+      minimumStock: 1
+    }));
+    const movements = items.map((item, index) => ({
+      id: `mov_page_${index}`,
+      companyId,
+      environmentId,
+      itemId: item.id,
+      type: index % 3 === 0 ? "saida" : "entrada",
+      quantity: 1 + (index % 5),
+      responsible: index % 3 === 0 ? "Joao Estoque" : "Manoel Gerente",
+      supplier: "Fornecedor Paginacao",
+      origin: index % 4 === 0 ? "nfe_import" : "manual_entry",
+      documentNumber: `NF-PAGE-${index}`,
+      nfeAccessKey: index % 4 === 0 ? `292606123456780001995500100000${String(index).padStart(8, "0")}` : "",
+      deviceId: `device-page-${index}`,
+      operationId: `op_page_${index}`,
+      offlineUuid: `off_page_${index}`,
+      syncStatus: "synced",
+      balanceBefore: 20 + index,
+      balanceAfter: 21 + index,
+      movementDateTime: "2026-08-03T12:00:00",
+      createdAt: now
+    }));
+    state.items = items.concat((state.items || []).filter((item) => item.companyId !== companyId || !String(item.id || "").startsWith("prod_page_")));
+    state.movements = movements.concat((state.movements || []).filter((movement) => movement.companyId !== companyId || !String(movement.id || "").startsWith("mov_page_")));
+    window.localStorage.setItem(window.StockFullCore.storageKey, JSON.stringify(state));
+  }, count);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("#stockFullDashboard")).toBeVisible();
+}
+
 async function waitForStockFullReportFilters(page) {
   await expect(page.locator("#stockFullReportProduct option", { hasText: "Cimento PDF" })).toHaveCount(1);
   await expect(page.locator("#stockFullReportUser option", { hasText: "Joao Estoque" })).toHaveCount(1);
@@ -905,7 +967,9 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).toContain("Fornecedor PDF Ltda");
     expect(result.html).toContain("29260612...00012345");
     expect(result.html).toContain("@page{size:A4");
-    expect(result.html).toContain("counter(page)");
+    expect(result.html).toContain("Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.");
+    expect(countHtmlOccurrences(result.html, "Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.")).toBe(1);
+    expectNoStockFullPaginationArtifacts(result.html);
     expect(result.html).toContain("thead{display:table-header-group}");
     expect(result.html).toContain("break-inside:avoid");
     expect(result.html).not.toContain("Produto Tenant Sul");
@@ -1103,12 +1167,37 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).toContain("Fornecedor PDF Ltda");
     expect(result.html).toContain("29260612...00012345");
     expect(result.html).toContain("@page{size:A4");
-    expect(result.html).toContain("counter(page)");
+    expect(result.html).toContain("Stock Full - auditoria sem segredos ou dados de outro tenant.");
+    expect(countHtmlOccurrences(result.html, "Stock Full - auditoria sem segredos ou dados de outro tenant.")).toBe(1);
+    expectNoStockFullPaginationArtifacts(result.html);
     expect(result.html).toContain("thead{display:table-header-group}");
     expect(result.html).toContain("break-inside:avoid");
     expect(result.html).not.toContain("Produto Tenant Sul");
     expect(result.html).not.toContain("Loja Teste Sul");
     expect(result.html).not.toContain("op_other_tenant");
+  });
+
+  test("PDFs Stock Full extensos nao usam contador interno de pagina", async ({ page }) => {
+    await openApp(page, "manoel");
+    await seedStockFullManagementReportData(page);
+    await appendStockFullReportRowsForPagination(page, 90);
+    await page.selectOption("#stockFullReportPeriod", "all");
+    const result = await page.evaluate(() => ({
+      managementHtml: window.StockFullManagementPdf.buildHtmlForTest(),
+      auditHtml: window.StockFullAuditPdf.buildHtmlForTest(),
+      managementModel: window.StockFullManagementPdf.buildViewModelForTest(),
+      auditModel: window.StockFullAuditPdf.buildViewModelForTest()
+    }));
+    expect(result.managementModel.tables.movementByProduct.length).toBeGreaterThan(40);
+    expect(result.auditModel.movements.length).toBeGreaterThan(40);
+    expect(result.managementHtml).toContain("Produto paginado 90");
+    expect(result.auditHtml).toContain("op_page_89");
+    expect(result.managementHtml).toContain("Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.");
+    expect(result.auditHtml).toContain("Stock Full - auditoria sem segredos ou dados de outro tenant.");
+    expect(countHtmlOccurrences(result.managementHtml, "Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.")).toBe(1);
+    expect(countHtmlOccurrences(result.auditHtml, "Stock Full - auditoria sem segredos ou dados de outro tenant.")).toBe(1);
+    expectNoStockFullPaginationArtifacts(result.managementHtml);
+    expectNoStockFullPaginationArtifacts(result.auditHtml);
   });
 
   test("PDF de auditoria Stock Full calcula saldo anterior e posterior", async ({ page }) => {
