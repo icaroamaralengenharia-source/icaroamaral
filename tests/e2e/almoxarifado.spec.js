@@ -17,24 +17,37 @@ const PRODUCT_NAMES = [
 
 async function loginLocal(page) {
   await page.goto("/relatorio-qualidade-obras.html#app/almoxarifado");
-  await page.keyboard.press("Control+F5").catch(() => {});
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("load");
+  await waitForObraReportReady(page);
+  await goToRoute(page, "almoxarifado");
 
-  if (await page.locator("#loginForm").isVisible().catch(() => false)) {
-    await page.locator("[name='userPassword']").fill("ObraReport2026");
-    await page.locator("#loginForm").locator("button[type='submit']").click();
-  }
+  const loginPanel = page.locator("#loginPanel");
+  await expect(loginPanel).toBeVisible();
+  const passwordInput = loginPanel.locator("[name='userPassword']");
+  await expect(passwordInput).toBeVisible();
+  await passwordInput.fill("ObraReport2026");
+  await loginPanel.locator("#loginForm").locator("button[type='submit']").click();
+  await expect(page.locator("#dashboardPanel")).toBeVisible();
 
+  await goToRoute(page, "almoxarifado");
   await expect(page.locator("#almoxManagerPanel")).toBeVisible();
 }
 
 async function enterStockFullDemo(page) {
-  const demoButton = page.locator('[data-stock-full-demo-login="manoel"]');
-  if (await demoButton.isVisible().catch(() => false)) {
-    await demoButton.click();
+  await waitForObraReportReady(page);
+  if (await page.locator("#stockFullDashboard").isVisible().catch(() => false)) {
+    return;
   }
+  const demoButton = page.locator('[data-stock-full-demo-login="manoel"]');
+  await expect(demoButton).toBeVisible();
+  await demoButton.click();
   await expect(page.locator("#stockFullDashboard")).toBeVisible();
 }
+
+async function waitForObraReportReady(page) {
+  await page.waitForFunction(() => Boolean(window.ObraReportOperationalStock || window.StockFullAuditPdf));
+}
+
 async function goToRoute(page, route) {
   await page.evaluate((nextRoute) => {
     window.location.hash = "#app/" + nextRoute;
@@ -125,10 +138,22 @@ async function createExit(page, index, quantity) {
 
 test.describe("Almoxarifado", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem("icaro_site_access_v2", JSON.stringify({
+        authenticated: true,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 60 * 60 * 1000
+      }));
+    });
     await page.goto("/relatorio-qualidade-obras.html");
     await page.evaluate(() => {
       window.localStorage.clear();
       window.sessionStorage.clear();
+      window.sessionStorage.setItem("icaro_site_access_v2", JSON.stringify({
+        authenticated: true,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 60 * 60 * 1000
+      }));
     });
   });
 
@@ -167,7 +192,7 @@ test.describe("Almoxarifado", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#almoxExportBackupButton").click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/^stock-full-backup-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}\.json$/);
+    expect(download.suggestedFilename()).toMatch(/^stock-full-backup-[a-z0-9-]+-\d{4}-\d{2}-\d{2}\.json$/);
     const backupPath = testInfo.outputPath("stock-full-backup.json");
     await download.saveAs(backupPath);
     await expect(page.locator("#almoxActionMessage")).toContainText(/Backup|exportado/i);
@@ -217,8 +242,7 @@ test.describe("Almoxarifado", () => {
     await expect(page.locator("body")).toContainText("Funciona localmente para entrada, saída, saldo e histórico.");
 
     await page.locator("a", { hasText: "Testar Stock Full" }).first().click();
-    await expect(page).toHaveURL(/produto=stock-full/);
-    await expect(page).toHaveURL(/perfil=loja/);
+    await expect(page).toHaveURL(/stockfull\.html/);
     await enterStockFullDemo(page);
     await expect(page.locator("#stockFullDashboard")).toBeVisible();
     await expect(page.locator("#almoxOfflineStatus")).toContainText("Modo local");
@@ -297,7 +321,7 @@ test.describe("Almoxarifado", () => {
     expect(queued.queue.map((item) => item.status)).toEqual(["pending", "pending", "pending"]);
     expect(queued.canBlockInvalidExit).toBe(true);
     await expect(page.locator("#stockFullSyncStatus")).toContainText(/Offline|Pendente/i);
-    await expect(page.locator("#stockFullSyncDetails")).toContainText("3 pendência");
+    await expect(page.locator("#stockFullSyncDetails")).toContainText(/Pendencias:\s*3/);
 
     await context.setOffline(false);
     await page.evaluate(() => {

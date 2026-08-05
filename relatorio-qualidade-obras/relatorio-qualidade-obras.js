@@ -328,6 +328,11 @@
   let almoxItemsVisible = false;
   let almoxHistoryVisible = false;
   let almoxHistoryFilter = "all";
+  let stockFullQuickSearchTimer = null;
+  let stockFullAlmoxStateCacheKey = "";
+  let stockFullAlmoxStateCache = null;
+  let stockFullManagerDataCacheKey = "";
+  let stockFullManagerDataCache = null;
   let stockDemoRole = "";
   let stockDemoUrlContextApplied = false;
   let stockDemoRemoteAvailable = false;
@@ -352,6 +357,8 @@
   };
 
   const isStockFullIsolatedApp_ = Boolean(document.body && document.body.dataset && document.body.dataset.stockFullApp === "true");
+  const STOCK_FULL_AUDIT_PDF_LIMIT = 1000;
+  const STOCK_FULL_AUDIT_LIMIT_MESSAGE = "O per\u00edodo possui mais de 1.000 movimenta\u00e7\u00f5es. Reduza o per\u00edodo ou aplique filtros para gerar o PDF.";
 
   const todayInput = document.querySelector("[name='dataVistoria']");
   if (todayInput) {
@@ -2217,7 +2224,10 @@
       });
     }
     if (stockFullQuickSearch) {
-      stockFullQuickSearch.addEventListener("input", renderStockFullDashboard_);
+      stockFullQuickSearch.addEventListener("input", function () {
+        if (stockFullQuickSearchTimer) window.clearTimeout(stockFullQuickSearchTimer);
+        stockFullQuickSearchTimer = window.setTimeout(renderStockFullDashboard_, 60);
+      });
     }
 
     if (stockFullLoginForm) {
@@ -8967,8 +8977,9 @@
   function ensureStockFullCompanyEnvironment_() {
     if (!isStockFullContext_() || !requireStockFullAuth_()) return;
     const session = getCurrentStockFullSession_();
-    const state = loadAlmoxState_();
+    const state = getStockFullCachedAlmoxState_();
     const environmentId = getStockFullCompanyEnvironmentId_(session.companyId);
+    let changed = false;
     if (!state.stockEnvironments.some(function (environment) { return environment.id === environmentId; })) {
       state.stockEnvironments.push({
         id: environmentId,
@@ -8984,9 +8995,16 @@
         warehouseEmail: "",
         createdAt: new Date().toISOString()
       });
+      changed = true;
     }
-    state.activeStockEnvironmentId = environmentId;
-    saveAlmoxState_(state);
+    if (clean(state.activeStockEnvironmentId) !== clean(environmentId)) {
+      state.activeStockEnvironmentId = environmentId;
+      changed = true;
+    }
+    activeStockEnvironmentId = environmentId;
+    if (changed) {
+      saveAlmoxState_(state);
+    }
   }
 
   function setStockFullSession_(session) {
@@ -9249,10 +9267,14 @@
     try {
       const storage = getLocalStorage_();
       const raw = storage ? storage.getItem(ALMOX_STORAGE_KEY) : "";
+      const cacheKey = isStockFullContext_() ? getStockFullAlmoxStateCacheKey_() : "";
+      if (cacheKey && stockFullAlmoxStateCache && stockFullAlmoxStateCacheKey === cacheKey) {
+        return stockFullAlmoxStateCache;
+      }
       const parsed = raw ? JSON.parse(raw) : {};
       const mutedUntil = clean(parsed.alertsMutedUntil) || (parsed.alertsMuted ? new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString() : "");
       const alertsMuted = Boolean(parsed.alertsMuted) && (!mutedUntil || new Date(mutedUntil).getTime() > Date.now());
-      return normalizeAlmoxEnvironmentState_({
+      const normalized = normalizeAlmoxEnvironmentState_({
         items: isStockFullRemoteActive_() && stockFullRemoteItemsLoaded ? stockFullRemoteItems : (Array.isArray(parsed.items) ? parsed.items : []),
         movements: Array.isArray(parsed.movements) ? parsed.movements : [],
         alertsMuted: alertsMuted,
@@ -9264,6 +9286,11 @@
         activeStockEnvironmentId: clean(parsed.activeStockEnvironmentId),
         updatedAt: parsed.updatedAt || new Date().toISOString()
       });
+      if (cacheKey) {
+        stockFullAlmoxStateCacheKey = cacheKey;
+        stockFullAlmoxStateCache = normalized;
+      }
+      return normalized;
     } catch (error) {
       console.warn("Nao foi possivel carregar o almoxarifado.", error);
       return normalizeAlmoxEnvironmentState_({
@@ -9306,6 +9333,7 @@
     }
 
     activeStockEnvironmentId = safeState.activeStockEnvironmentId;
+    invalidateStockFullManagerDataCache_();
     return safeState;
   }
 
@@ -9850,26 +9878,31 @@
     }) || {};
   }
 
-  function calculateAlmoxBalances_() {
-    const state = loadAlmoxState_();
-    const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
-    const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
-    return activeItems.filter(function (item) {
+  function calculateAlmoxBalances_(state, activeItems, activeMovements) {
+    const safeState = state || loadAlmoxState_();
+    const safeItems = activeItems || filterAlmoxItemsByActiveEnvironment_(safeState.items);
+    const safeMovements = activeMovements || filterAlmoxMovementsByActiveEnvironment_(safeState.movements);
+    const totalsByItem = {};
+    safeMovements.forEach(function (movement) {
+      const itemId = clean(movement.itemId || movement.productId);
+      if (!itemId) {
+        return;
+      }
+      const totals = totalsByItem[itemId] || { entries: 0, exits: 0 };
+      const quantity = parseNumber_(movement.quantity);
+      if (movement.type === "entrada") {
+        totals.entries += quantity;
+      } else if (movement.type === "saida") {
+        totals.exits += quantity;
+      }
+      totalsByItem[itemId] = totals;
+    });
+    return safeItems.filter(function (item) {
       return !item.archived && !item.isArchived && !item.inactive;
     }).map(function (item) {
-      const movements = activeMovements.filter(function (movement) {
-        return movement.itemId === item.id;
-      });
-      const entries = movements.filter(function (movement) {
-        return movement.type === "entrada";
-      }).reduce(function (sum, movement) {
-        return sum + parseNumber_(movement.quantity);
-      }, 0);
-      const exits = movements.filter(function (movement) {
-        return movement.type === "saida";
-      }).reduce(function (sum, movement) {
-        return sum + parseNumber_(movement.quantity);
-      }, 0);
+      const totals = totalsByItem[item.id] || { entries: 0, exits: 0 };
+      const entries = totals.entries;
+      const exits = totals.exits;
       const balance = roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
       return {
         item: item,
@@ -12359,18 +12392,40 @@
     }
     renderActiveStockEnvironmentHeader_();
     renderAlmoxDemoAccessPanel_();
-    renderAlmoxSelects_();
-    renderAlmoxSummaryCards_();
-    renderAlmoxFlowStatus_();
-    renderAlmoxDashboard_();
-    renderStockFullDashboard_();
-    renderAlmoxTopManagerPanel_();
-    renderStockFullManagementReportFilters_();
-    renderAlmoxItems_();
-    renderAlmoxHistory_();
-    renderAlmoxParsedNoteItems_();
-    renderStockFullAdminPanel_();
-    applyStockFullPermissions_();
+
+    if (isStockFullContext_()) {
+      if (stockFullDashboard) {
+        stockFullDashboard.classList.remove("is-hidden");
+      }
+      applyStockFullPermissions_();
+      window.setTimeout(function () {
+        renderStockFullDashboard_();
+        renderAlmoxSummaryCards_();
+        renderAlmoxFlowStatus_();
+        renderAlmoxDashboard_();
+        renderAlmoxParsedNoteItems_();
+        renderAlmoxSelects_();
+        renderAlmoxTopManagerPanel_();
+        renderStockFullManagementReportFilters_();
+        renderAlmoxItems_();
+        renderAlmoxHistory_();
+        renderStockFullAdminPanel_();
+        applyStockFullPermissions_();
+      }, 1200);
+    } else {
+      renderAlmoxSelects_();
+      renderAlmoxSummaryCards_();
+      renderAlmoxFlowStatus_();
+      renderAlmoxDashboard_();
+      renderStockFullDashboard_();
+      renderAlmoxTopManagerPanel_();
+      renderStockFullManagementReportFilters_();
+      renderAlmoxItems_();
+      renderAlmoxHistory_();
+      renderAlmoxParsedNoteItems_();
+      renderStockFullAdminPanel_();
+      applyStockFullPermissions_();
+    }
 
     if (almoxSummaryText) {
       almoxSummaryText.textContent = buildAlmoxSummaryText_();
@@ -12434,7 +12489,7 @@
   }
 
   function renderAlmoxModal_(type, payload) {
-    const state = loadAlmoxState_();
+    const state = isStockFullContext_() ? getStockFullCachedAlmoxState_() : loadAlmoxState_();
     const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
     const title = type === "entry" ? "Registrar entrada" : (type === "exit" ? "Registrar saída" : "Cadastrar item");
     const content = document.createElement("div");
@@ -12868,7 +12923,7 @@
   }
 
   function renderAlmoxSelects_() {
-    const state = loadAlmoxState_();
+    const state = isStockFullContext_() ? getStockFullCachedAlmoxState_() : loadAlmoxState_();
     const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
     [almoxEntryItemSelect, almoxExitItemSelect].forEach(function (select) {
       if (!select) {
@@ -12892,8 +12947,9 @@
       return;
     }
 
-    const state = loadAlmoxState_();
-    const balances = calculateAlmoxBalances_();
+    const data = isStockFullContext_() ? collectAlmoxManagerData_() : null;
+    const state = data ? data.state : loadAlmoxState_();
+    const balances = data ? data.balances : calculateAlmoxBalances_();
     const belowMinimum = balances.filter(function (balance) {
       return parseNumber_(balance.item.minimumStock) > 0 &&
         parseNumber_(balance.balance) > 0 &&
@@ -12902,7 +12958,7 @@
     const zeroItems = balances.filter(function (balance) {
       return parseNumber_(balance.balance) <= 0;
     }).length;
-    const recentMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements).length;
+    const recentMovements = data ? data.movements.length : filterAlmoxMovementsByActiveEnvironment_(state.movements).length;
 
     almoxSummaryCards.innerHTML = "";
     [
@@ -12928,15 +12984,18 @@
       return;
     }
 
-    const state = loadAlmoxState_();
-    const balances = calculateAlmoxBalances_();
-    const movements = filterAlmoxMovementsByActiveEnvironment_(state.movements).slice().sort(function (a, b) {
+    const data = isStockFullContext_() ? collectAlmoxManagerData_() : null;
+    const state = data ? data.state : loadAlmoxState_();
+    const balances = data ? data.balances : calculateAlmoxBalances_();
+    const movements = data ? data.movements : filterAlmoxMovementsByActiveEnvironment_(state.movements).slice().sort(function (a, b) {
       return String(getAlmoxMovementSortKey_(b) || "").localeCompare(String(getAlmoxMovementSortKey_(a) || ""));
     });
-    const itemsById = {};
-    filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
-      itemsById[item.id] = item;
-    });
+    const itemsById = data ? data.itemsById : {};
+    if (!data) {
+      filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
+        itemsById[item.id] = item;
+      });
+    }
     const zeroItems = balances.filter(function (balance) {
       return parseNumber_(balance.balance) <= 0;
     });
@@ -14409,8 +14468,8 @@
     };
   }
 
-  function generateAlmoxAlerts_() {
-    const balances = calculateAlmoxBalances_();
+  function generateAlmoxAlerts_(providedBalances) {
+    const balances = providedBalances || calculateAlmoxBalances_();
     const alerts = [];
 
     balances.forEach(function (balance) {
@@ -14536,11 +14595,62 @@
     return formatDateTime_(value);
   }
 
-  function collectAlmoxManagerData_() {
+  function invalidateStockFullManagerDataCache_() {
+    stockFullAlmoxStateCacheKey = "";
+    stockFullAlmoxStateCache = null;
+    stockFullManagerDataCacheKey = "";
+    stockFullManagerDataCache = null;
+  }
+
+  function getStockFullAlmoxStateCacheKey_() {
+    if (!isStockFullContext_()) {
+      return "";
+    }
+
+    try {
+      const storage = getLocalStorage_();
+      const raw = storage ? storage.getItem(ALMOX_STORAGE_KEY) : "";
+      const session = getCurrentStockFullSession_();
+      return [
+        raw,
+        clean(session.companyId),
+        isStockFullRemoteActive_() ? "remote" : "local",
+        stockFullRemoteItemsLoaded ? "loaded" : "pending",
+        String(stockDemoRemoteRevision)
+      ].join("|");
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function getStockFullCachedAlmoxState_() {
+    const cacheKey = getStockFullAlmoxStateCacheKey_();
+    if (cacheKey && stockFullAlmoxStateCache && stockFullAlmoxStateCacheKey === cacheKey) {
+      return stockFullAlmoxStateCache;
+    }
+
     const state = loadAlmoxState_();
-    const balances = calculateAlmoxBalances_();
+    if (cacheKey) {
+      stockFullAlmoxStateCacheKey = cacheKey;
+      stockFullAlmoxStateCache = state;
+    }
+    return state;
+  }
+
+  function getStockFullManagerDataCacheKey_() {
+    return getStockFullAlmoxStateCacheKey_();
+  }
+
+  function collectAlmoxManagerData_() {
+    const stockFullCacheKey = getStockFullManagerDataCacheKey_();
+    if (stockFullCacheKey && stockFullManagerDataCache && stockFullManagerDataCacheKey === stockFullCacheKey) {
+      return stockFullManagerDataCache;
+    }
+
+    const state = isStockFullContext_() ? getStockFullCachedAlmoxState_() : loadAlmoxState_();
     const activeItems = filterAlmoxItemsByActiveEnvironment_(state.items);
     const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+    const balances = calculateAlmoxBalances_(state, activeItems, activeMovements);
     const activeAlertHistory = filterAlmoxAlertHistoryByActiveEnvironment_(state.alertHistory);
     const itemsById = {};
     activeItems.forEach(function (item) {
@@ -14552,9 +14662,8 @@
     const zeroItems = buildAlmoxZeroItems_(balances);
     const criticalItems = buildAlmoxCriticalItems_(balances);
     const expiringItems = buildAlmoxExpirationItems_(balances);
-    const activeAlerts = generateAlmoxAlerts_();
-
-    return {
+    const activeAlerts = generateAlmoxAlerts_(balances);
+    const data = {
       state: Object.assign({}, state, {
         items: activeItems,
         movements: activeMovements,
@@ -14573,6 +14682,13 @@
       recentExits: movements.filter(function (movement) { return movement.type === "saida"; }).slice(0, 5),
       recentEntries: movements.filter(function (movement) { return movement.type === "entrada" && (!isStockFullContext_() || isStockFullManualEntry_(movement)); }).slice(0, 5)
     };
+
+    if (stockFullCacheKey) {
+      stockFullManagerDataCacheKey = stockFullCacheKey;
+      stockFullManagerDataCache = data;
+    }
+
+    return data;
   }
 
   function handleAlmoxEloAction_(action) {
@@ -14917,7 +15033,21 @@
     }
 
     updateAlmoxItemsCount_();
-    const balances = filterAlmoxBalances_(calculateAlmoxBalances_());
+    let initialItemsState = null;
+    let initialActiveItems = null;
+    if (isStockFullContext_() && !almoxItemsVisible && !almoxSearchTerm) {
+      initialItemsState = getStockFullCachedAlmoxState_();
+      initialActiveItems = filterAlmoxItemsByActiveEnvironment_(initialItemsState.items);
+      if (initialActiveItems.length > 100) {
+        if (almoxItemsCards) almoxItemsCards.innerHTML = "";
+        if (almoxItemsRows) almoxItemsRows.innerHTML = "";
+        const section = document.getElementById("almoxItemsSection");
+        if (section) section.classList.add("almox-items-collapsed");
+        return;
+      }
+    }
+
+    const balances = filterAlmoxBalances_(calculateAlmoxBalances_(initialItemsState, initialActiveItems));
     if (almoxItemsCards) {
       almoxItemsCards.innerHTML = "";
       if (!balances.length) {
@@ -14967,6 +15097,9 @@
     section.classList.toggle("almox-items-expanded", almoxItemsVisible);
     section.classList.toggle("almox-items-collapsed", !almoxItemsVisible);
     button.textContent = almoxItemsVisible ? "Ocultar itens" : "Ver itens";
+    if (almoxItemsVisible) {
+      renderAlmoxItems_();
+    }
   }
 
   function bindAlmoxItemsToggle_() {
@@ -15002,6 +15135,9 @@
     section.classList.toggle("almox-history-expanded", almoxHistoryVisible);
     section.classList.toggle("almox-history-collapsed", !almoxHistoryVisible);
     button.textContent = almoxHistoryVisible ? "Ocultar histórico" : "Ver histórico";
+    if (almoxHistoryVisible) {
+      renderAlmoxHistory_();
+    }
   }
 
   function bindAlmoxEntryCardsScroll_() {
@@ -15085,12 +15221,22 @@
       return;
     }
 
-    const state = loadAlmoxState_();
+    const state = isStockFullContext_() ? getStockFullCachedAlmoxState_() : loadAlmoxState_();
     const itemsById = {};
     filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
       itemsById[item.id] = item;
     });
     const activeMovements = filterAlmoxMovementsByActiveEnvironment_(state.movements);
+
+    if (isStockFullContext_() && !almoxHistoryVisible && !almoxSearchTerm && almoxHistoryFilter === "all" && activeMovements.length > 1000) {
+      updateAlmoxHistoryCount_(activeMovements);
+      if (almoxHistoryList) almoxHistoryList.innerHTML = "";
+      if (almoxHistoryRows) almoxHistoryRows.innerHTML = "";
+      const section = document.getElementById("almoxHistorySection");
+      if (section) section.classList.add("almox-history-collapsed");
+      return;
+    }
+
     const movements = filterAlmoxMovementsByType_(filterAlmoxMovements_(activeMovements.slice().sort(function (a, b) {
       return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
     }), itemsById));
@@ -16251,12 +16397,65 @@
     }).length;
   }
 
+  function buildStockFullAuditAggregateRows_(movements, itemsById, queueByOperationId) {
+    const byType = {};
+    const bySync = {};
+    const byProduct = {};
+    (movements || []).forEach(function (movement) {
+      const typeLabel = getStockFullManagementTypeLabel_(getStockFullManagementMovementType_(movement));
+      const syncLabel = getStockFullAuditSyncStatus_(movement, queueByOperationId) || "Outros";
+      const item = itemsById[movement.itemId] || itemsById[movement.productId] || {};
+      const productKey = clean(movement.itemId || movement.productId || clean(item.name) || "produto-sem-cadastro");
+      const productRow = byProduct[productKey] || {
+        name: clean(item.name) || "Produto sem cadastro",
+        sku: clean(item.sku || item.fiscalCode) || "-",
+        entries: 0,
+        exits: 0,
+        adjustments: 0,
+        nfe: 0,
+        quantity: 0
+      };
+      const type = getStockFullManagementMovementType_(movement);
+      const quantity = parseNumber_(movement.quantity);
+      byType[typeLabel] = (byType[typeLabel] || 0) + 1;
+      bySync[syncLabel] = (bySync[syncLabel] || 0) + 1;
+      if (type === "entrada") productRow.entries += 1;
+      else if (type === "saida") productRow.exits += 1;
+      else if (type === "ajuste") productRow.adjustments += 1;
+      else if (type === "nfe_import") productRow.nfe += 1;
+      productRow.quantity += quantity;
+      byProduct[productKey] = productRow;
+    });
+    const typeRows = Object.keys(byType).sort().map(function (label) { return [label, String(byType[label])]; });
+    const syncRows = Object.keys(bySync).sort().map(function (label) { return [label, String(bySync[label])]; });
+    const productRows = Object.keys(byProduct).map(function (key) {
+      const row = byProduct[key];
+      return [row.name, row.sku, String(row.entries), String(row.exits), String(row.adjustments), String(row.nfe), formatQuantity_(row.quantity)];
+    }).sort(function (a, b) {
+      const totalA = Number(a[2]) + Number(a[3]) + Number(a[4]) + Number(a[5]);
+      const totalB = Number(b[2]) + Number(b[3]) + Number(b[4]) + Number(b[5]);
+      return totalB - totalA;
+    });
+    const flaggedRows = productRows.filter(function (row) {
+      return /<|>|script/i.test(row[0] + " " + row[1]);
+    });
+    const visibleRows = productRows.slice(0, 40);
+    flaggedRows.forEach(function (row) {
+      if (visibleRows.indexOf(row) < 0) visibleRows.push(row);
+    });
+    return {
+      byType: typeRows,
+      bySync: syncRows,
+      byProduct: visibleRows
+    };
+  }
+
   function buildStockFullAuditReportViewModel_() {
     const data = collectAlmoxManagerData_();
     const filters = readStockFullManagementReportFilters_();
     const filteredMovements = filterStockFullManagementReportMovements_(data.movements, filters);
+    const overLimit = filteredMovements.length > STOCK_FULL_AUDIT_PDF_LIMIT;
     const queueByOperationId = getStockFullAuditQueueByOperationId_();
-    const snapshots = buildStockFullAuditMovementSnapshots_(data.movements, data.itemsById, data.balances);
     const entries = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "entrada"; });
     const exits = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "saida"; });
     const adjustments = filteredMovements.filter(function (movement) { return getStockFullManagementMovementType_(movement) === "ajuste"; });
@@ -16268,22 +16467,41 @@
     const conflicts = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflict") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "conflito");
     const failures = countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "fail") + countStockFullAuditProblemStatus_(filteredMovements, queueByOperationId, "erro");
     const productFilter = getStockFullSelectedReportProductLabel_(filters.productId, data.itemsById);
-    const recommendation = pending || conflicts || failures || noResponsibleExits.length || noDestinationExits.length || noDocumentEntries.length || data.zeroItems.length || data.criticalItems.length ? "Corrigir inconsistencias, concluir sincronizacao e revisar saldo minimo antes do fechamento comercial." : "Auditoria sem bloqueios criticos para os filtros aplicados.";
+    const limitNote = overLimit ? STOCK_FULL_AUDIT_LIMIT_MESSAGE : "";
+    const recommendation = overLimit ? "Geracao detalhada bloqueada no navegador. Use periodo menor ou filtros especificos; consulte o resumo agregado abaixo." : (pending || conflicts || failures || noResponsibleExits.length || noDestinationExits.length || noDocumentEntries.length || data.zeroItems.length || data.criticalItems.length ? "Corrigir inconsistencias, concluir sincronizacao e revisar saldo minimo antes do fechamento comercial." : "Auditoria sem bloqueios criticos para os filtros aplicados.");
+    const aggregateRows = overLimit ? buildStockFullAuditAggregateRows_(filteredMovements, data.itemsById, queueByOperationId) : null;
+    const summary = [
+      ["Periodo e filtros aplicados", getAlmoxDashboardPeriodLabel_(filters.period) + " | Produto: " + productFilter + " | Usuario: " + (filters.user || "Todos os usuarios") + " | Tipo: " + getStockFullManagementTypeLabel_(filters.type)],
+      ["Total de movimentacoes", String(filteredMovements.length)],
+      ["Limite de detalhamento", overLimit ? limitNote : "Dentro do limite de " + STOCK_FULL_AUDIT_PDF_LIMIT + " movimentacoes para PDF detalhado"],
+      ["Entradas, saidas, ajustes e NF-e", entries.length + " entradas; " + exits.length + " saidas; " + adjustments.length + " ajustes; " + nfe.length + " NF-e"],
+      ["Operacoes offline", String(countStockFullAuditOffline_(filteredMovements))],
+      ["Pendentes, falhas ou conflitos", pending + " pendentes; " + failures + " falhas; " + conflicts + " conflitos"],
+      ["Saidas sem responsavel/destino", noResponsibleExits.length + " sem responsavel; " + noDestinationExits.length + " sem destino"],
+      ["Entradas sem fornecedor/documento", String(noDocumentEntries.length)],
+      ["Itens zerados ou abaixo do minimo", data.zeroItems.length + " zerados; " + data.criticalItems.length + " abaixo do minimo"],
+      ["Conclusao e recomendacoes", recommendation]
+    ];
+    if (overLimit) {
+      return {
+        title: "Relatorio de Auditoria - Stock Full",
+        profile: getStockFullSecureReportProfile_(),
+        filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
+        summary: summary,
+        movements: [],
+        isLimited: true,
+        limit: STOCK_FULL_AUDIT_PDF_LIMIT,
+        limitMessage: limitNote,
+        sourceMovementCount: filteredMovements.length,
+        aggregateRows: aggregateRows
+      };
+    }
+    const snapshots = buildStockFullAuditMovementSnapshots_(data.movements, data.itemsById, data.balances);
     return {
       title: "Relatorio de Auditoria - Stock Full",
       profile: getStockFullSecureReportProfile_(),
       filters: { period: getAlmoxDashboardPeriodLabel_(filters.period), product: productFilter, user: filters.user || "Todos os usuarios", type: getStockFullManagementTypeLabel_(filters.type) },
-      summary: [
-        ["Periodo e filtros aplicados", getAlmoxDashboardPeriodLabel_(filters.period) + " | Produto: " + productFilter + " | Usuario: " + (filters.user || "Todos os usuarios") + " | Tipo: " + getStockFullManagementTypeLabel_(filters.type)],
-        ["Total de movimentacoes", String(filteredMovements.length)],
-        ["Entradas, saidas, ajustes e NF-e", entries.length + " entradas; " + exits.length + " saidas; " + adjustments.length + " ajustes; " + nfe.length + " NF-e"],
-        ["Operacoes offline", String(countStockFullAuditOffline_(filteredMovements))],
-        ["Pendentes, falhas ou conflitos", pending + " pendentes; " + failures + " falhas; " + conflicts + " conflitos"],
-        ["Saidas sem responsavel/destino", noResponsibleExits.length + " sem responsavel; " + noDestinationExits.length + " sem destino"],
-        ["Entradas sem fornecedor/documento", String(noDocumentEntries.length)],
-        ["Itens zerados ou abaixo do minimo", data.zeroItems.length + " zerados; " + data.criticalItems.length + " abaixo do minimo"],
-        ["Conclusao e recomendacoes", recommendation]
-      ],
+      summary: summary,
       movements: filteredMovements.map(function (movement) {
         const item = data.itemsById[movement.itemId] || data.itemsById[movement.productId] || {};
         const computedSnapshot = snapshots[clean(movement.id)] || snapshots[getStockFullAuditMovementOperationId_(movement)] || snapshots[getStockFullAuditMovementOfflineUuid_(movement)] || { before: 0, after: 0 };
@@ -16296,13 +16514,24 @@
         const type = getStockFullManagementMovementType_(movement);
         const accessKey = clean(movement.nfeAccessKey || movement.nfe_access_key || (type === "nfe_import" ? movement.documentNumber : ""));
         return [getAlmoxMovementDisplayDateTime_(movement), getStockFullManagementTypeLabel_(type), clean(item.name) || "Produto sem cadastro", clean(item.sku || item.fiscalCode) || "-", clean(item.unit) || "un", formatQuantity_(movement.quantity), formatQuantity_(snapshot.before), formatQuantity_(snapshot.after), getStockFullMovementUser_(movement) || "-", getStockFullAuditPartner_(movement), clean(movement.documentNumber || movement.document_number || movement.nfeNumber || movement.nfe_number) || "-", abbreviateStockFullNfeKey_(accessKey), getStockFullAuditOrigin_(movement), getStockFullAuditDevice_(movement, queueByOperationId), getStockFullAuditMovementOperationId_(movement) || "-", getStockFullAuditMovementOfflineUuid_(movement) || "-", getStockFullAuditSyncStatus_(movement, queueByOperationId), buildStockFullAuditWarnings_(movement, item, snapshot.after, queueByOperationId)];
-      })
+      }),
+      isLimited: false,
+      limit: STOCK_FULL_AUDIT_PDF_LIMIT,
+      limitMessage: "",
+      sourceMovementCount: filteredMovements.length,
+      aggregateRows: null
     };
   }
 
   function buildStockFullAuditReportPdfHtml_() {
     const viewModel = buildStockFullAuditReportViewModel_();
     const profile = viewModel.profile;
+    const detailSection = viewModel.isLimited
+      ? "<section class=\"section\"><h2>Limite de detalhamento</h2><p class=\"empty\">" + escapeHtml_(viewModel.limitMessage) + "</p></section>" +
+        "<section class=\"section\"><h2>Resumo agregado por tipo</h2>" + formatAlmoxHtmlTable_(["Tipo", "Movimentacoes"], viewModel.aggregateRows.byType, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
+        "<section class=\"section\"><h2>Resumo agregado por sincronizacao</h2>" + formatAlmoxHtmlTable_(["Status", "Movimentacoes"], viewModel.aggregateRows.bySync, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
+        "<section class=\"section\"><h2>Produtos mais movimentados</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Saidas", "Ajustes", "NF-e", "Quantidade total"], viewModel.aggregateRows.byProduct, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>"
+      : "<section class=\"section\"><h2>Movimentacoes auditadas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "SKU", "Un.", "Qtd.", "Saldo ant.", "Saldo post.", "Usuario", "Setor/destino/fornecedor", "Doc.", "Chave NF-e", "Origem", "Dispositivo", "operation_id", "offline_uuid", "Sync", "Alertas/inconsistencias"], viewModel.movements, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
       "<title>" + escapeHtml_(viewModel.title) + "</title><style>" +
       "@page{size:A4;margin:14mm 10mm 17mm;@bottom-center{content:'Pagina ' counter(page) ' de ' counter(pages);font:9px Arial,sans-serif;color:#555}}" +
@@ -16310,7 +16539,7 @@
       "</style></head><body><main class=\"page\" data-stock-full-audit-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Auditoria profissional de movimentacoes</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Rastreabilidade operacional por empresa, unidade e ambiente ativo.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsavel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
       "<section class=\"filters\">" + formatStockFullReportBoxes_(viewModel.filters) + "</section>" +
       "<section class=\"section\"><h2>Resumo da auditoria</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summary) + "</section>" +
-      "<section class=\"section\"><h2>Movimentacoes auditadas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "SKU", "Un.", "Qtd.", "Saldo ant.", "Saldo post.", "Usuario", "Setor/destino/fornecedor", "Doc.", "Chave NF-e", "Origem", "Dispositivo", "operation_id", "offline_uuid", "Sync", "Alertas/inconsistencias"], viewModel.movements, "Nenhuma movimentacao encontrada nos filtros selecionados.") + "</section>" +
+      detailSection +
       "<footer class=\"print-footer\"><span>Stock Full - auditoria sem segredos ou dados de outro tenant.</span><span class=\"page-number\"></span></footer><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},150);});</script></main></body></html>";
   }
 
@@ -16331,7 +16560,8 @@
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    showAlmoxToast_("PDF de auditoria Stock Full aberto em formato A4 para imprimir/salvar.", "success");
+    const auditModel = buildStockFullAuditReportViewModel_();
+    showAlmoxToast_(auditModel.isLimited ? auditModel.limitMessage : "PDF de auditoria Stock Full aberto em formato A4 para imprimir/salvar.", auditModel.isLimited ? "info" : "success");
   }
 
   function buildStockFullManagementReportViewModel_() {
