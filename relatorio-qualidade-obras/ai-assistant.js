@@ -346,10 +346,18 @@
         },
         body: JSON.stringify(payload)
       });
-      const result = await response.json();
+      const result = await response.json().catch(function () {
+        return null;
+      });
 
-      if (!response.ok || !result || !result.suggestion) {
-        throw new Error(result && result.error ? result.error : "Resposta inválida da IA visual.");
+      if (!response.ok) {
+        const httpError = new Error("visual_http_error");
+        httpError.status = response.status;
+        throw httpError;
+      }
+
+      if (!result || !result.suggestion) {
+        throw new Error("visual_invalid_response");
       }
 
       return {
@@ -360,12 +368,23 @@
         analysis: result.analysis || null
       };
     } catch (error) {
+      const isHttpError = error && error.message === "visual_http_error";
+      const isNetworkError = error instanceof TypeError || /failed to fetch|network|fetch/i.test(error && error.message ? error.message : "");
+      if (window.console && typeof window.console.warn === "function") {
+        window.console.warn("Falha na IA visual", {
+          type: isHttpError ? "http" : (isNetworkError ? "network" : "unknown"),
+          status: isHttpError ? error.status : 0,
+          message: error && error.message ? String(error.message).slice(0, 120) : "visual_error"
+        });
+      }
       if (payload.context && payload.context.source === "elo") {
         return {
           mode: "error",
           title: "IA visual indisponivel",
-          suggestion: "Não consegui acessar a IA visual agora.",
-          note: error && error.message ? error.message : "O backend de IA visual não respondeu.",
+          suggestion: isNetworkError
+            ? "Não consegui acessar o serviço de análise visual agora. Tente novamente em alguns instantes."
+            : "Não consegui concluir a análise visual agora. Tente novamente em alguns instantes.",
+          note: "A análise visual não foi executada.",
           analysis: null
         };
       }
@@ -373,7 +392,6 @@
       return buildLocalImageFallback_(payload, "O backend de IA visual não respondeu. O ObraReport manteve o fluxo seguro sem alterar o upload ou o PDF.");
     }
   }
-
   function buildLocalImageFallback_(payload, note) {
     const image = payload.image || {};
     const context = payload.context || {};

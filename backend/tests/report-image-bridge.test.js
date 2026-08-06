@@ -3,11 +3,32 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const frontendSource = readFileSync(join(repoRoot, "relatorio-qualidade-obras", "relatorio-qualidade-obras.js"), "utf8");
 const assistantSource = readFileSync(join(repoRoot, "relatorio-qualidade-obras", "ai-assistant.js"), "utf8");
 const appsScriptSource = readFileSync(join(repoRoot, "apps-script-versionado", "Code.gs"), "utf8");
+function loadVisualAssistant(fetchImpl) {
+  const warnings = [];
+  const sandbox = {
+    window: {
+      RELATORIO_QUALIDADE_CONFIG: {
+        aiImageAnalysisUrl: "https://backend.test/api/ai/analyze-image"
+      },
+      console: {
+        warn(...args) {
+          warnings.push(args);
+        }
+      }
+    },
+    fetch: fetchImpl
+  };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(assistantSource, sandbox, { filename: "ai-assistant.js" });
+  return { assistant: sandbox.window.ObraReportAI, warnings };
+}
 
 test("ponte foto IA mostra botao apenas com analise estruturada", () => {
   assert.match(frontendSource, /Aplicar an.lise nos campos/);
@@ -58,4 +79,51 @@ test("pdf continua recebendo os campos preenchidos normalmente", () => {
   assert.match(appsScriptSource, /item\.descricaoTecnica/);
   assert.match(appsScriptSource, /item\.solucaoRecomendada/);
   assert.match(appsScriptSource, /item\.grauRisco/);
+});
+
+test("assistente visual do Elo troca Failed to fetch por mensagem amigavel", async () => {
+  const { assistant, warnings } = loadVisualAssistant(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+
+  const result = await assistant.analyzeImage({
+    base64: "BASE64_TESTE",
+    mimeType: "image/jpeg",
+    fileName: "foto.jpg"
+  }, { source: "elo" });
+  const visible = [result.title, result.suggestion, result.note].join("\n");
+
+  assert.equal(result.mode, "error");
+  assert.equal(result.analysis, null);
+  assert.match(visible, /N.o consegui acessar o servi.o de an.lise visual agora\. Tente novamente em alguns instantes\./);
+  assert.doesNotMatch(visible, /Failed to fetch|BASE64_TESTE|token|stack/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0][1].type, "network");
+  assert.doesNotMatch(JSON.stringify(warnings), /BASE64_TESTE/);
+});
+
+test("assistente visual do Elo nao expoe corpo bruto de erro HTTP", async () => {
+  const { assistant, warnings } = loadVisualAssistant(async () => ({
+    ok: false,
+    status: 500,
+    async json() {
+      return { error: "<html>stack token segredo interno</html>" };
+    }
+  }));
+
+  const result = await assistant.analyzeImage({
+    base64: "BASE64_TESTE",
+    mimeType: "image/jpeg",
+    fileName: "foto.jpg"
+  }, { source: "elo" });
+  const visible = [result.title, result.suggestion, result.note].join("\n");
+
+  assert.equal(result.mode, "error");
+  assert.equal(result.analysis, null);
+  assert.match(visible, /N.o consegui concluir a an.lise visual agora\. Tente novamente em alguns instantes\./);
+  assert.doesNotMatch(visible, /<html>|stack|token|segredo|BASE64_TESTE/i);
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0][1].type, "http");
+  assert.equal(warnings[0][1].status, 500);
+  assert.doesNotMatch(JSON.stringify(warnings), /BASE64_TESTE|segredo interno/);
 });
