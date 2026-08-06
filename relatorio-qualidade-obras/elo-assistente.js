@@ -5154,7 +5154,9 @@
   function isEloBudgetV2PdfIntent_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
-    if (/\bpdf\b|\b(?:gerar|gere|baixar|exportar|abrir|abra)\s+(?:o\s+)?pdf\b|\bimprimir\b|nao\s+estou\s+vendo\s+o\s+botao|nao\s+vejo\s+o\s+botao/i.test(text)) return true;
+    const hasPdfRequest = /\bpdf\b|\bimprimir\b|nao\s+estou\s+vendo\s+o\s+botao|nao\s+vejo\s+o\s+botao/i.test(text);
+    const hasBudgetContext = /\b(?:orcamento|orcamentos|proposta|budget)\b/i.test(text);
+    if (hasPdfRequest && hasBudgetContext) return true;
     const hasActiveBudget = isBudgetV2ProfessionalPdfDataReady_(ELO_SESSION_MEMORY.lastBudgetV2DocumentData) || !!(ELO_SESSION_MEMORY.budgetOrchestratorV2 && ELO_SESSION_MEMORY.budgetOrchestratorV2.type);
     if (!hasActiveBudget) return false;
     return /^(?:pode\s+gerar|pode\s+sim|gere|gerar|fa(?:ca|.{3}a)|abra\s+o\s+pdf|abrir\s+pdf|quero\s+o\s+relatorio|quero\s+relatorio)$/i.test(text);
@@ -25364,6 +25366,29 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
 
+    if (attachedFiles.length && !isEloBudgetV2PdfIntent_(cleanQuestion)) {
+      requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
+        if (onlineAnswer) {
+          const onlineResponse = {
+            shortAnswer: onlineAnswer,
+            fullAnswer: onlineAnswer,
+            nextAction: "Continue a conversa ou peca um resumo pratico.",
+            canSave: true,
+            sessionTheme: "elo_online"
+          };
+          appendAssistantMessage(cleanQuestion, onlineAnswer, true, onlineResponse);
+          saveConversation(cleanQuestion, onlineAnswer);
+          rememberSessionTurn(cleanQuestion, onlineResponse, onlineAnswer);
+          return;
+        }
+        appendProductAttachmentNotice();
+      }).finally(function () {
+        removeTypingIndicator();
+        clearProductAttachmentPreview();
+      });
+      return;
+    }
+
     if (!attachedFiles.length) {
       let technicalServiceResponse = null;
 
@@ -25627,7 +25652,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
 
     if (attachedFiles.length) {
-    requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
+      requestEloOnlineAnswer(cleanQuestion, attachedFiles).then(function (onlineAnswer) {
         if (onlineAnswer) {
           const onlineResponse = {
             shortAnswer: onlineAnswer,

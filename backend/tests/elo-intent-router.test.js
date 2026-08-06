@@ -184,6 +184,60 @@ test("Elo expõe roteadores de anexo no motor compartilhado", () => {
 });
 
 
+
+
+test("Elo nao trata leitura de PDF como PDF de orcamento", () => {
+  const { assistant } = loadAssistant();
+  const documentRequests = [
+    "analise este PDF",
+    "descreva o PDF",
+    "leia o PDF anexado",
+    "resuma esse PDF",
+    "verifique o documento PDF",
+    "analise e descreva"
+  ];
+
+  documentRequests.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionIntent, "budget_v2_pdf_without_budget", message);
+    assert.doesNotMatch(response.fullAnswer || response.shortAnswer || "", /Ainda n.o h. or.amento ativo para PDF/i, message);
+  });
+});
+
+test("Elo mantem PDF de orcamento quando a intencao e explicita", () => {
+  const { assistant } = loadAssistant();
+  [
+    "gerar PDF do orcamento",
+    "exportar orcamento em PDF",
+    "baixar PDF da proposta",
+    "criar relatorio PDF do orcamento",
+    "emitir PDF do orcamento atual"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionIntent, "budget_v2_pdf_without_budget", message);
+    assert.match(response.fullAnswer || response.shortAnswer || "", /gerar o PDF do or.amento|or.amento/i, message);
+  });
+});
+
+test("Elo prioriza PDF anexado como documento antes dos handlers locais", () => {
+  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
+  const reportPdfIndex = source.indexOf("if (isEloReportPdfGenerationRequest_(cleanQuestion))");
+  const attachmentPriorityIndex = source.indexOf("if (attachedFiles.length && !isEloBudgetV2PdfIntent_(cleanQuestion))");
+  const noAttachmentRouterIndex = source.indexOf("if (!attachedFiles.length)", attachmentPriorityIndex);
+  const lateAttachmentFallbackIndex = source.indexOf("if (attachedFiles.length)", noAttachmentRouterIndex);
+  const imageIntentIndex = source.indexOf("if (attachmentIntent.type === \"image\")");
+  const imageAnalysisIndex = source.indexOf("analyzeEloImageAttachment_(question, attachmentIntent.file)");
+
+  assert.notEqual(reportPdfIndex, -1);
+  assert.notEqual(attachmentPriorityIndex, -1);
+  assert.notEqual(noAttachmentRouterIndex, -1);
+  assert.notEqual(lateAttachmentFallbackIndex, -1);
+  assert.ok(reportPdfIndex < attachmentPriorityIndex);
+  assert.ok(attachmentPriorityIndex < noAttachmentRouterIndex);
+  assert.ok(noAttachmentRouterIndex < lateAttachmentFallbackIndex);
+  assert.ok(source.includes("requestEloOnlineAnswer(cleanQuestion, attachedFiles)"));
+  assert.ok(imageIntentIndex >= 0 && imageAnalysisIndex > imageIntentIndex);
+});
 test("PDF profissional de orcamento nao despeja HTML no chat e gera artefato completo", () => {
   const { assistant, calls } = loadAssistant();
   assistant.clearBudgetRecordsForTest();
