@@ -22070,7 +22070,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   function isEloConstructionPathologyQuestion_(message) {
     const text = normalizeText(message || "");
-    return /trinca|fissura|rachadura|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
+    return /trinca|fissura|rachadura|rachando|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
   function hasEloBudgetOrCompositionIntent_(message) {
@@ -22310,7 +22310,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
     const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
     const causes = [];
-    if (/trinca|fissura|rachadura/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
+    if (/trinca|fissura|rachadura|rachando/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
     if (moisture) causes.push("falha de impermeabilização", "entrada de água por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
     if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trás do revestimento");
     if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");

@@ -133,6 +133,35 @@ test("IntentRouter prioriza patologia antes de orcamento ou alvenaria", () => {
   });
   assertNoTechnicalCalls(calls);
 });
+
+test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
+  const { assistant, calls } = loadAssistant();
+  const pathologyMessages = [
+    "Minha parede está rachando.",
+    "Minha parede tem uma rachadura.",
+    "Existe uma fissura na parede.",
+    "Encontrei uma trinca no concreto."
+  ];
+  const nonPathologyMessages = [
+    "Quanto custa fazer uma parede?",
+    "Quero a composição SINAPI de alvenaria.",
+    "Calcule a quantidade de blocos da parede."
+  ];
+
+  pathologyMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(response.fullAnswer, /Triagem|vistoria|causas|fissura|rachadura/i, message);
+  });
+
+  nonPathologyMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionTheme, "patologia_obras", message);
+    assert.notEqual(response.sessionIntent, "triagem_patologia", message);
+  });
+  assertNoTechnicalCalls(calls);
+});
 test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", () => {
   const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
   const pathologyIndex = source.indexOf("const immediatePathologyResponse = buildEloConstructionPathologyAnswer_(cleanQuestion);");
