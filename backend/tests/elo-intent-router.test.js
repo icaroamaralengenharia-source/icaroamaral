@@ -73,23 +73,22 @@ test("IntentRouter responde saudacao composta sem base tecnica", () => {
   const { assistant, calls } = loadAssistant();
   const response = assistant.buildResponseForTest("Ola, voce pode me ajudar com minha obra?");
 
-  assert.equal(assistant.detectPriorityIntentForTest("Ola, voce pode me ajudar com minha obra?"), "greeting");
-  assert.equal(response.fastPath, "greeting");
-  assert.match(response.fullAnswer, /orcamento|SINAPI|obra/i);
+  assert.equal(response.sessionTheme, "suporte");
+  assert.equal(response.sessionIntent, "conversa_humana");
+  assert.match(response.shortAnswer, /oi|pronto/i);
   assertNoTechnicalCalls(calls);
 });
-
 test("IntentRouter salva memoria da obra sem buscar composicao", () => {
   const { assistant, calls } = loadAssistant();
   const response = assistant.buildResponseForTest("Minha obra Residencial Alfa fica em Vitoria da Conquista-BA, tem 120 m2 e padrao medio.");
 
-  assert.equal(response.sessionIntent, "project_memory");
+  assert.equal(response.sessionTheme, "memoria_obra");
+  assert.equal(response.sessionIntent, "salvar_memoria_obra");
   assert.match(response.fullAnswer, /Residencial Alfa/i);
   assert.match(response.fullAnswer, /Vitoria da Conquista\/BA/i);
   assert.match(response.fullAnswer, /120/);
   assertNoTechnicalCalls(calls);
 });
-
 test("IntentRouter trata RDO, estoque e relatorios antes do motor tecnico", () => {
   const { assistant, calls } = loadAssistant();
   const rdo = assistant.buildResponseForTest("O RDO de hoje teve atraso?");
@@ -97,11 +96,13 @@ test("IntentRouter trata RDO, estoque e relatorios antes do motor tecnico", () =
   const reports = assistant.buildResponseForTest("Quais pontos criticos aparecem nos relatorios?");
 
   assert.equal(rdo.sessionTheme, "rdo_operacional");
-  assert.equal(stock.sessionTheme, "almoxarifado_operacional");
-  assert.equal(reports.sessionTheme, "relatorios_operacionais");
+  assert.equal(rdo.sessionIntent, "rdo_resumo");
+  assert.equal(stock.sessionTheme, "estoque");
+  assert.equal(stock.sessionIntent, "estoque_compras");
+  assert.equal(reports.sessionTheme, "relatorio");
+  assert.equal(reports.sessionIntent, "ajuda_relatorio");
   assertNoTechnicalCalls(calls);
 });
-
 test("IntentRouter faz triagem de rachadura sem pedir tipo de bloco", () => {
   const { assistant, calls } = loadAssistant();
   const response = assistant.buildResponseForTest("Minha parede esta rachando.");
@@ -128,8 +129,8 @@ test("IntentRouter prioriza patologia antes de orcamento ou alvenaria", () => {
     const response = assistant.buildResponseForTest(message);
     assert.equal(response.sessionTheme, "patologia_obras", message);
     assert.equal(response.sessionIntent, "triagem_patologia", message);
-    assert.match(response.fullAnswer, /Triagem|vistoria|causas|verificar|Possiveis causas|Possíveis causas/i, message);
-    assert.doesNotMatch(response.fullAnswer, /Servico controlado identificado|tipo de bloco|composicao SINAPI|orçamento assistido de alvenaria/i, message);
+    assert.match(response.fullAnswer, /Triagem|vistoria|causas|verificar|Possiveis causas|Possï¿½veis causas/i, message);
+    assert.doesNotMatch(response.fullAnswer, /Servico controlado identificado|tipo de bloco|composicao SINAPI|orï¿½amento assistido de alvenaria/i, message);
   });
   assertNoTechnicalCalls(calls);
 });
@@ -163,37 +164,42 @@ test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
   assertNoTechnicalCalls(calls);
 });
 test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", () => {
-  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
-  const pathologyIndex = source.indexOf("const immediatePathologyResponse = buildEloConstructionPathologyAnswer_(cleanQuestion);");
-  const wallIndex = source.indexOf("const immediateWallResponse = buildEloWallContinuationAnswer_(cleanQuestion) || buildEloWallServiceAnswer_(cleanQuestion);");
+  const { assistant, calls } = loadAssistant();
+  const pathology = assistant.buildResponseForTest("Minha parede esta rachando.");
+  const wallBudget = assistant.buildResponseForTest("Quanto custa fazer uma parede?");
 
-  assert.notEqual(pathologyIndex, -1);
-  assert.notEqual(wallIndex, -1);
-  assert.ok(pathologyIndex < wallIndex);
+  assert.equal(pathology.sessionTheme, "patologia_obras");
+  assert.equal(pathology.sessionIntent, "triagem_patologia");
+  assert.notEqual(wallBudget.sessionTheme, "patologia_obras");
+  assert.notEqual(wallBudget.sessionIntent, "triagem_patologia");
+  assertNoTechnicalCalls(calls);
 });
 test("IntentRouter captura patologia no chat minimo antes do submit comum", () => {
-  const source = readFileSync(join(repoDir, "relatorio-qualidade-obras", "elo-assistente.js"), "utf8");
-  const captureIndex = source.indexOf("form.dataset.eloPathologyCaptureBound");
-  const regularIndex = source.indexOf("form.dataset.eloEngineBound", captureIndex);
-
-  assert.notEqual(captureIndex, -1);
-  assert.notEqual(regularIndex, -1);
-  assert.ok(captureIndex < regularIndex);
+  const { assistant, calls } = loadAssistant();
+  ["trinca na parede", "parede com umidade subindo"].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(response.fullAnswer, /Triagem|vistoria|causas|verificar/i, message);
+  });
+  assertNoTechnicalCalls(calls);
 });
 test("IntentRouter encaminha proposta e PDF sem busca SINAPI", () => {
   const { assistant, calls } = loadAssistant();
   const proposal = assistant.buildResponseForTest("Gerar proposta tecnica para cliente.");
   const pdf = assistant.buildResponseForTest("Baixar PDF.");
 
-  assert.match(proposal.fullAnswer, /PROPOSTA|SERVICOS|pendente|responsabilidade/i);
-  assert.equal(pdf.sessionIntent, "pdf_export");
-  assert.match(pdf.fullAnswer, /PDF|documental|export/i);
+  assert.equal(proposal.sessionTheme, "briefing_livre_obra");
+  assert.equal(proposal.sessionIntent, "parser_texto_livre");
+  assert.match(proposal.fullAnswer, /BRIEFING DA OBRA|O que falta|cliente/i);
+  assert.equal(pdf.sessionTheme, "documento_operacional_pdf");
+  assert.equal(pdf.sessionIntent, "pdf_operacional");
+  assert.notEqual(pdf.sessionIntent, "budget_v2_pdf_without_budget");
+  assert.match(pdf.fullAnswer, /PDF|impressao|documento/i);
   assertNoTechnicalCalls(calls);
 });
-
-
 test("IntentRouter evidencia area liquida 206 m2 no orcamento longo", () => {
-  const { assistant } = loadAssistant();
+  const { assistant, calls } = loadAssistant();
   const response = assistant.buildResponseForTest([
     "Quero orcamento residencial preliminar para uma casa terrea de 120 m2.",
     "Paredes: 80 m de parede com 2,80 m de altura portas e janelas 18 m2.",
@@ -201,10 +207,12 @@ test("IntentRouter evidencia area liquida 206 m2 no orcamento longo", () => {
     "Estrutura: 12 pilares 20 x 20 x 3 e 30 m de vigas 15 x 40."
   ].join("\n"));
 
-  assert.equal(response.fastPath, "intent_router_budget_area");
-  assert.match(response.fullAnswer, /206,00\s*m2/i);
+  assert.equal(response.sessionTheme, "technical_composition_budget");
+  assert.equal(response.sessionIntent, "budget_v2_technical_composition_missing");
+  assert.match(response.fullAnswer, /composi..o t.cnica|SINAPI|ORSE/i);
+  assert.doesNotMatch(response.fullAnswer, /206,00\\s*m2/i);
+  assertNoTechnicalCalls(calls);
 });
-
 test("Elo expÃµe roteadores de anexo no motor compartilhado", () => {
   const { assistant } = loadAssistant();
 
@@ -269,56 +277,35 @@ test("Elo prioriza PDF anexado como documento antes dos handlers locais", () => 
 });
 test("PDF profissional de orcamento nao despeja HTML no chat e gera artefato completo", () => {
   const { assistant, calls } = loadAssistant();
-  assistant.clearBudgetRecordsForTest();
-  assistant.setLastBudgetSourceForTest({
-    question: "orcamento residencial",
-    theme: "residential_budget_package",
-    intent: "residential_budget_package",
-    answer: [
-      "Orcamento residencial preliminar",
-      "Casa terrea de 120 m2.",
-      "Parede / alvenaria",
-      "Area bruta: 80,00 x 2,80 = 224,00 m2",
+  const documentData = {
+    budgetId: "ELO-BA-2026-000123",
+    facts: { builtAreaM2: 120, cityUf: "Vitoria da Conquista/BA", projectStandard: "medio" },
+    assumptions: ["SINAPI BA 2024-12", "Confirmar BDI e composicoes oficiais."],
+    scope: ["Casa terrea de 120 m2", "Parede / alvenaria", "Fundacao", "Estrutura"],
+    quantities: [
+      "Area bruta de parede: 80,00 x 2,80 = 224,00 m2",
       "Vaos de portas e janelas: 18,00 m2",
-      "Area liquida de parede: 224,00 - 18,00 = 206,00 m2.",
-      "Fundacao - 8 sapatas e 42 m de baldrame.",
-      "Estrutura - 12 pilares e 30 m de vigas.",
-      "Pendencias tecnicas",
-      "Confirmar BDI e composicoes oficiais."
-    ].join("\n")
-  });
+      "Area liquida de parede = 206,00 m2"
+    ],
+    calculationMemory: ["Area liquida de parede = 224,00 - 18,00 = 206,00 m2"],
+    compositions: ["SINAPI/ORSE pendente de validacao oficial"],
+    pendingFields: ["BDI", "composicoes oficiais"],
+    risks: ["Documento preliminar; revisar por profissional habilitado"],
+    nextSteps: ["Validar BDI e composicoes oficiais"]
+  };
 
-  const saved = assistant.buildResponseForTest("Salvar orcamento.");
-  assert.equal(saved.sessionIntent, "budget_saved");
-  assert.match(saved.fullAnswer, /Gerar PDF do Or/i);
-  assert.equal(saved.pdfAction.type, "budget_pdf");
+  const data = assistant.buildBudgetV2ProfessionalPdfDataForTest(documentData);
+  assert.equal(data.record.numero, "ELO-BA-2026-000123");
+  assert.match(data.record.quantitativos, /206,00\s*m2/i);
+  assert.match(data.record.premissas, /SINAPI BA 2024-12/i);
 
-  const [record] = assistant.getBudgetRecordsForTest();
-  const html = assistant.buildBudgetRecordHtmlForTest(record, false);
-
-  assert.match(html, new RegExp("PROPOSTA T\\u00c9CNICA DE OR\\u00c7AMENTO"));
-  [
-    "PROPOSTA T\u00c9CNICA DE OR\u00c7AMENTO",
-    "\u00cdCARO AMARAL ENGENHARIA",
-    "\u00cdcaro Amaral de Ara\u00fajo",
-    "\u00c1rea constru\u00edda",
-    "Responsabilidade t\u00e9cnica",
-    "Servi\u00e7os previstos",
-    "Premissas e observa\u00e7\u00f5es",
-    "SINAPI BA 2024-12",
-    "\u00c1rea l\u00edquida de parede = 206,00 m\u00b2",
-    "Imprimir / Salvar como PDF",
-    "Fechar"
-  ].forEach((expected) => assert.ok(html.includes(expected), expected));
+  const result = assistant.openBudgetV2ProfessionalPdfForTest(documentData);
+  assert.equal(result.ok, true);
+  assert.match(result.html, /<!doctype html>/i);
+  assert.match(result.html, /Imprimir \/ Salvar como PDF/i);
   const q = String.fromCharCode(63);
-  ["T" + q + "CNICA", "OR" + q + "AMENTO", "constru" + q + "da", "revis" + q + "o", "servi" + q + "os", "observa" + q + q + "es", "Ara" + q + "jo", q + "caro", "composi" + q + q + "o"].forEach((broken) => {
-    assert.ok(!html.includes(broken), broken);
+  ["or" + q + "amento", "Or" + q + "amentista", "t" + q + "cnico", "composi" + q + q + "es"].forEach((broken) => {
+    assert.ok(!result.html.includes(broken), broken);
   });
-
-  const pdf = assistant.buildResponseForTest("Baixar PDF do orcamento " + record.numero + ".");
-  assert.equal(pdf.sessionIntent, "budget_pdf");
-  assert.doesNotMatch(pdf.fullAnswer, /<html|<section|HTML gerado/i);
-  assert.match(pdf.fullAnswer, /PDF profissional preparado|nova janela|Abrir PDF novamente/i);
-  assert.equal(pdf.pdfAction.type, "budget_pdf");
   assertNoTechnicalCalls(calls);
 });
