@@ -4351,7 +4351,7 @@
     const facts = safe.facts || {};
     const isTechnicalCompositionDocument = safe.documentType === "technical_composition";
     const documentTitle = isTechnicalCompositionDocument ? safe.title || "Orcamento tecnico composto" : "ELO Or?amentista V2";
-    const documentTypeLabel = isTechnicalCompositionDocument ? "or?amento t?cnico composto" : "or?amento residencial preliminar";
+    const documentTypeLabel = isTechnicalCompositionDocument ? "or?amento t?cnico composto" : "or\u00e7amento residencial preliminar";
     const documentSummary = isTechnicalCompositionDocument ? "Or?amento t?cnico composto gerado a partir de quantitativos, insumos e composi??es pendentes de valida??o oficial." : "Or?amento residencial preliminar gerado a partir do estado t?cnico padronizado do ELO Or?amentista V2.";
     const documentUf = formatEloBudgetV2Scalar_(facts.state || facts.uf || facts.estado || "BA").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || "BA";
     const documentNumber = /^ELO-[A-Z]{2}-\d{4}-\d{6}$/.test(budgetId) ? budgetId : "ELO-" + documentUf + "-" + new Date().getFullYear() + "-000001";
