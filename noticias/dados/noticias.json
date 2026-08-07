@@ -1,6 +1,6 @@
 {
-  "atualizadoEm": "2026-08-07T15:08:19.576Z",
-  "coletadoEm": "2026-08-07T15:08:19.576Z",
+  "atualizadoEm": "2026-08-07T16:08:35.149Z",
+  "coletadoEm": "2026-08-07T16:08:35.149Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
@@ -20,6 +20,20 @@
       "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/08/1000836399-768x355-1.jpg",
       "imagemAlt": "Seconci-Rio e Firjan SESI levam atendimento oftalmológico itinerante aos canteiros de obras",
       "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "db55c69cad300f0f",
+      "titulo": "Ciclone bomba continua no Sul e Sudeste do país",
+      "resumo": "Uma faixa no litoral do país que se estende do estado de São Paulo até o Rio Grande do Sul está, nesta sexta-feira (7), em alerta laranja de perigo para vendaval e fortes chuvas causadas pela atuação de um ciclone bomba , segundo o Instituto Nacional de Meteorologia (Inmet).",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/meio-ambiente/noticia/2026-08/ciclone-bomba-continua-no-sul-e-sudeste-do-pais",
+      "publicadoEm": "2026-08-07T13:04:00.000Z",
+      "coletadoEm": "2026-08-07T16:08:35.149Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/ABEOKJlb6FoPnpGZENysL2khS38=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2024/06/19/_mg_5183.jpg?itok=_QiL1BYk",
+      "imagemAlt": "Ciclone bomba continua no Sul e Sudeste do país",
+      "imagemOrigem": "Agencia Brasil"
     },
     {
       "id": "06c04b7481ce3811",
