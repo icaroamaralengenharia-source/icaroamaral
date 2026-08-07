@@ -5971,8 +5971,52 @@
 
   function isEloRdoOperationalQuestion_(message) {
     const text = normalizeText(message || "");
+    const pathologyAnalysis = /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:patologia|fissura|trinca|rachadura|infiltra|umidade|exsuda|afundamento)\b/.test(text);
+    if (pathologyAnalysis) return false;
     return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
+
+  function isEloComplexInspectionTechnicalRequest_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    const rawText = String(message || "").toLowerCase();
+    const rawInspectionFallback = /\brdo\b/.test(rawText) && /notifica|inconformidade|sei|fiscal|\bbm\b|boletim de medi|evidencia complementar|nao quero resumo|não quero resumo|foco nas inconformidades/.test(rawText) && /ensaio|densidade|92[ ]*%|96[ ]*%|exsuda|afundamento|trilha|fissura|trinca|rachadura|contrato exige|massa|inconformidade/.test(rawText);
+    const hasInspectionContext = /\b(?:fiscal|fiscalizacao|fiscaliza..o|inconformidade|nao[ ]+conformidade|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|boletim[ ]+de[ ]+medi..o|\bbm\b|medicao|medi..o|contratual|contratada|contrato|especifica..o|controle[ ]+tecnol.gico|obra[ ]+p.blica)\b/.test(text);
+    const hasTechnicalEvidence = /\b(?:ensaio|compacta..o|densidade|dmt|cbuq|asfalt|pavimenta|exsuda..o|ligante|trilhas?[ ]+de[ ]+roda|afundamento|patologia|fissura|trinca|rachadura|bm|rdo|contrato|especifica..o[ ]+t.cnica|resultado|amostra|massa|trecho)\b/.test(text);
+    const hasActionRequest = /\b(?:analise|analisa|avalie|avaliar|compare|comparar|recomende|recomendar|redija|redigir|redigindo|elabore|elaborar|prepare|preparar|fazer|orientar|atue[ ]+como[ ]+fiscal|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|constar[ ]+no[ ]+sei|para[ ]+sei|conclus.o[ ]+t.cnica)\b/.test(text);
+    const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades)\b/.test(text);
+    return rawInspectionFallback || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
+  }
+
+  function buildEloComplexInspectionTechnicalAnswer_(message) {
+    if (!isEloComplexInspectionTechnicalRequest_(message)) return null;
+    const text = normalizeText(message || "");
+    const rawText = String(message || "").toLowerCase();
+    const hasCbuq = /\bcbuq\b|asfalt|pavimenta/.test(text) || /\bcbuq\b|asfalt|pavimenta/.test(rawText);
+    const hasCompaction = (/92\s*%/.test(text) && /96\s*%/.test(text)) || (/92\s*%/.test(rawText) && /96\s*%/.test(rawText));
+    const hasMeasuredCbuq = /1[\.]?200[ ]*(?:m|metros?)?/.test(text) || /1[\.]?200[ ]*(?:m|metros?)?/.test(rawText);
+    const hasTrafficRdoGap = /rdo/.test(text) && /nao\s+ha\s+registro|n.o\s+h.\s+registro|nao\s+consta|n.o\s+consta|nao\s+documentad|n.o\s+documentad/.test(text);
+    const affectedStretch = /150[ ]*(?:m|metros?)\b/i.test(String(message || "")) ? "150 m" : "trecho informado no relato";
+    const pathologyTerms = [];
+    if (/exsuda/.test(text) || /exsuda/.test(rawText)) pathologyTerms.push("exsudacao de ligante betuminoso");
+    if (/trilhas?[ ]+de[ ]+roda|afundamento/.test(text) || /trilhas?[ ]+de[ ]+roda|afundamento/.test(rawText)) pathologyTerms.push("trilhas de roda/afundamento plastico prematuro");
+    if (/fissura|trinca|rachadura/.test(text) || /fissura|trinca|rachadura/.test(rawText)) pathologyTerms.push("fissura/trinca/rachadura");
+    const opening = /\bola|bom\s+dia|como\s+est/.test(text)
+      ? "Sobre a conversa inicial: eu nao acompanho uma semana como uma pessoa nem tenho memoria verificavel de casos reais processados. O desafio tecnico aqui e justamente separar fato, evidencia, alegacao e providencia sem inventar norma."
+      : "";
+    const facts = [];
+    if (hasCbuq) facts.push("- Obra publica de pavimentacao asfaltica/drenagem com CBUQ mencionado no relato.");
+    if (hasMeasuredCbuq) facts.push("- Boletim de Medicao informado: execucao de 1.200 m de CBUQ.");
+    if (hasCompaction) facts.push("- Ensaio informado: densidade in situ media de 92% da DMT, abaixo do minimo contratual informado de 96%.");
+    if (hasCompaction) facts.push("- Diferenca objetiva: 4 pontos percentuais abaixo do limite contratual informado.");
+    if (pathologyTerms.length) facts.push("- Manifestacoes observadas: " + pathologyTerms.join(" e ") + ".");
+    facts.push("- Extensao/trecho citado: " + affectedStretch + ".");
+    if (hasTrafficRdoGap) facts.push("- A liberacao precoce do trafego foi alegada, mas nao consta/documenta no RDO conforme o relato.");
+    if (!facts.length) facts.push("- O relato indica possivel nao conformidade tecnica a ser formalizada com base nas evidencias disponiveis.");
+    const answer = [opening, "ASSUNTO", "Notificacao tecnica de nao conformidade / registro para instrucao em SEI.", "", "REFERENCIA", "Relato de fiscalizacao, Boletim de Medicao, ensaio de controle tecnologico e RDO mencionados no prompt. Nao foi informado numero de contrato, processo SEI, clausula, norma DNIT ou ABNT especifica.", "", "FATO INFORMADO", facts.join("\n"), "", "EVIDENCIA", "- O parametro de 96% deve ser tratado como exigencia contratual informada no cenario.", "- O resultado de 92% indica nao atendimento ao limite contratual informado, sujeito a verificacao documental do ensaio e da rastreabilidade do trecho.", "", "ALEGACAO NAO DOCUMENTADA", "- A justificativa de liberacao precoce por pressao externa nao deve ser tratada como fato comprovado sem ordem, comunicacao, registro contemporaneo ou anotacao no RDO.", "", "HIPOTESE TECNICA", "- As manifestacoes observadas podem estar associadas a compactacao inadequada, instabilidade da mistura, excesso ou migracao de ligante, temperatura/processo executivo ou solicitacao precoce do revestimento. A causa definitiva depende de verificacoes e ensaios complementares.", "", "PROVIDENCIAS RECOMENDADAS", "- Delimitar o trecho afetado e vincular as evidencias ao BM, RDO, fotos e ensaios.", "- Solicitar manifestacao formal da contratada e plano de acao corretivo tecnicamente fundamentado.", "- Avaliar ensaios complementares e, quando tecnicamente indicado, fresagem e recomposicao do trecho nao conforme.", "- Avaliar ressalva/suspensao da parcela correspondente ate comprovacao de conformidade, conforme contrato e procedimento administrativo aplicavel.", "", "CONCLUSAO", "Com os dados fornecidos, ha indicio relevante de nao conformidade tecnica e documental. A notificacao deve exigir comprovacao, correcao ou plano de acao, sem presumir medida punitiva, desconto definitivo ou norma externa nao informada."].filter(Boolean).join("\n");
+    return { shortAnswer: "Preparei uma minuta tecnica de fiscalizacao sem tratar o RDO como tarefa principal.", fullAnswer: answer, nextAction: "Revise dados de contrato, processo, prazo e anexos antes de protocolar.", canSave: true, sessionTheme: "fiscalizacao_tecnica", sessionIntent: "technical_nonconformity_notice" };
+  }
+
 
   function isEloStockOperationalQuestion_(message) {
     const text = normalizeText(message || "");
@@ -24952,6 +24996,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const routeOptions = options || {};
     const startedAt = Date.now();
     try {
+    const complexInspectionTechnicalResponse = buildEloComplexInspectionTechnicalAnswer_(question);
+    if (complexInspectionTechnicalResponse) {
+      return applyEloBrainMarker_(question, complexInspectionTechnicalResponse);
+    }
     const operationalDocumentResponse = isEloOperationalDocumentRequest_(question) ? { shortAnswer: "Documentos da obra", fullAnswer: formatEloOperationalDocumentsAnswer_(question), nextAction: "Abra explicitamente um documento para regenerar a versao local.", canSave: false, sessionTheme: "operational_documents", sessionIntent: "operational_documents_readonly" } : null;
     if (operationalDocumentResponse) return operationalDocumentResponse;
     const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);

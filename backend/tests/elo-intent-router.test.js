@@ -103,6 +103,61 @@ test("IntentRouter trata RDO, estoque e relatorios antes do motor tecnico", () =
   assert.equal(reports.sessionIntent, "ajuda_relatorio");
   assertNoTechnicalCalls(calls);
 });
+test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", () => {
+  const { assistant, calls } = loadAssistant();
+  const rdoCases = [
+    "Mostre o ultimo RDO.",
+    "Resuma o RDO de hoje.",
+    "Compare o RDO de ontem com o de hoje.",
+    "Qual foi a equipe registrada no RDO?"
+  ];
+  rdoCases.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "rdo_operacional", message);
+    assert.equal(response.sessionIntent, "rdo_resumo", message);
+  });
+
+  const cbuqScenario = [
+    "[TESTE DE ESTRESSE DO SISTEMA - ELO]",
+    "Ola, Elo. Como estao as coisas por ai hoje? Antes de comecarmos o batente, me diga qual foi a coisa mais curiosa ou desafiadora que voce processou nos seus dados esta semana?",
+    "Depois de trocarmos essa ideia, preciso que voce assuma o seu papel de assistente tecnico senior e processe o seguinte cenario critico de fiscalizacao:",
+    "Contexto: Estou em campo em uma obra publica de pavimentacao asfaltica e drenagem.",
+    "O Boletim de Medicao BM aponta a execucao de 1.200 metros de CBUQ, mas ao cruzar com o RDO notei divergencias graves.",
+    "O ensaio de controle tecnologico apresentou densidade in situ media de 92% da DMT, quando a especificacao tecnica do contrato exige no minimo 96%.",
+    "Na pista ha exsudacao de ligante betuminoso e trilhas de roda prematuras em trecho de 150 m.",
+    "A construtora alega liberacao precoce do trafego, mas nao ha registro disso no RDO.",
+    "Sua tarefa: converse comigo brevemente e atue como fiscal de engenharia redigindo notificacao formal / relatorio tecnico de inconformidade para SEI."
+  ].join("\n");
+  const cbuq = assistant.buildResponseForTest(cbuqScenario);
+  assert.equal(cbuq.sessionTheme, "fiscalizacao_tecnica");
+  assert.equal(cbuq.sessionIntent, "technical_nonconformity_notice");
+  assert.doesNotMatch(cbuq.fullAnswer, /Nao encontrei RDO registrado|Cadastre o diario de obra/i);
+  assert.match(cbuq.fullAnswer, /92%/);
+  assert.match(cbuq.fullAnswer, /96%/);
+  assert.match(cbuq.fullAnswer, /4 pontos percentuais/i);
+  assert.match(cbuq.fullAnswer, /exsudacao|exsuda/i);
+  assert.match(cbuq.fullAnswer, /trilhas de roda|afundamento/i);
+  assert.match(cbuq.fullAnswer, /150 m/);
+  assert.match(cbuq.fullAnswer, /nao consta|nao deve ser tratada como fato comprovado|nao documentada/i);
+  assert.match(cbuq.fullAnswer, /plano de acao|fresagem|recomposicao/i);
+  assert.doesNotMatch(cbuq.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|glosa definitiva|multa/i);
+  assert.match(cbuq.fullAnswer, /nao acompanho uma semana como uma pessoa|memoria verificavel/i);
+
+  [
+    "Estou cruzando o BM com o RDO. O ensaio deu 92% e o contrato exige 96%. Redija uma notificacao tecnica.",
+    "No RDO nao consta a liberacao antecipada do trafego. Isso deve constar na notificacao?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.doesNotMatch(response.fullAnswer, /Nao encontrei RDO registrado|Cadastre o diario de obra/i, message);
+  });
+
+  const pathology = assistant.buildResponseForTest("Ha uma fissura e mencionei isso no RDO. Analise a patologia.");
+  assert.equal(pathology.sessionTheme, "patologia_obras");
+  assert.equal(pathology.sessionIntent, "triagem_patologia");
+  assertNoTechnicalCalls(calls);
+});
 test("IntentRouter faz triagem de rachadura sem pedir tipo de bloco", () => {
   const { assistant, calls } = loadAssistant();
   const response = assistant.buildResponseForTest("Minha parede esta rachando.");
