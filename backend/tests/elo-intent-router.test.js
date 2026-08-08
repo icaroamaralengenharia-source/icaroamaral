@@ -140,6 +140,17 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
     assert.match(response.fullAnswer, /exsudacao|exsuda|afundamento|vistoria|ensaios|preliminar/i, message);
     assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|92%|96%|glosa definitiva|multa/i, message);
   });
+  [
+    "No trecho asfaltico apareceram trilhas de roda. Avalie hipoteses tecnicas e providencias.",
+    "O pavimento apresenta trilhas de roda. Avalie tecnicamente as possiveis causas.",
+    "Ha deformacao em trilha de roda no asfalto. Quais providencias tecnicas devo considerar?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.match(response.fullAnswer, /trilhas de roda|afundamento|compactacao|instabilidade|vistoria|ensaios|preliminar/i, message);
+    assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|92%|96%|glosa definitiva|multa/i, message);
+  });
   const cbuqScenario = [
     "[TESTE DE ESTRESSE DO SISTEMA - ELO]",
     "Ola, Elo. Como estao as coisas por ai hoje? Antes de comecarmos o batente, me diga qual foi a coisa mais curiosa ou desafiadora que voce processou nos seus dados esta semana?",
@@ -187,11 +198,15 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
 
   [
     "Qual o custo do pavimento asfáltico?",
+    "Qual o custo do asfalto?",
     "Quero composição SINAPI de pavimentação.",
     "Calcule a área do pavimento.",
     "O pavimento tem 200 m.",
+    "O carro deixou trilha de roda na lama.",
     "Explique o que é exsudação.",
-    "Quanto custa reparar afundamento no asfalto?"
+    "Explique o que e trilha de roda.",
+    "Quanto custa reparar afundamento no asfalto?",
+    "Quanto custa reparar trilha de roda no asfalto?"
   ].forEach((message) => {
     const response = assistant.buildResponseForTest(message);
     assert.notEqual(response.sessionTheme, "fiscalizacao_tecnica", message);
