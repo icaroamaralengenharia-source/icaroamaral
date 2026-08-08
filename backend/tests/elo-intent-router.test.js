@@ -151,6 +151,17 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
     assert.match(response.fullAnswer, /trilhas de roda|afundamento|compactacao|instabilidade|vistoria|ensaios|preliminar/i, message);
     assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|92%|96%|glosa definitiva|multa/i, message);
   });
+  [
+    "Relatorio tecnico de nao conformidade em pavimentacao com evidencia de campo.",
+    "Preciso de relatorio tecnico de inconformidade no pavimento apos vistoria de campo.",
+    "Elabore parecer tecnico sobre nao conformidade no asfalto observada em inspecao de campo."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.match(response.fullAnswer, /nao conformidade|pavimentacao|evidencia de campo|preliminar|vistoria|ensaios/i, message);
+    assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|92%|96%|glosa definitiva|multa/i, message);
+  });
   const cbuqScenario = [
     "[TESTE DE ESTRESSE DO SISTEMA - ELO]",
     "Ola, Elo. Como estao as coisas por ai hoje? Antes de comecarmos o batente, me diga qual foi a coisa mais curiosa ou desafiadora que voce processou nos seus dados esta semana?",
@@ -198,6 +209,12 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
 
   [
     "Qual o custo do pavimento asfáltico?",
+    "Faca um relatorio tecnico da parede.",
+    "Gere relatorio da obra.",
+    "Relatorio de produtividade da equipe.",
+    "Faca relatorio de orcamento.",
+    "Explique o que e nao conformidade.",
+    "Pavimentacao asfaltica.",
     "Qual o custo do asfalto?",
     "Quero composição SINAPI de pavimentação.",
     "Calcule a área do pavimento.",

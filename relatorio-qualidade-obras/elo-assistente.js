@@ -5982,6 +5982,16 @@
     return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
 
+  function isEloPavementNonconformityTechnicalReport_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    const hasTechnicalDocument = /\b(?:relatorio[ ]+tecnico|parecer[ ]+tecnico)\b/.test(text);
+    const hasNonconformity = /\b(?:nao[ ]+conformidade|inconformidade)\b/.test(text);
+    const hasPavementContext = /\b(?:pavimentacao|pavimenta..o|pavimento|asfalto|asfaltico)\b/.test(text);
+    const hasFieldEvidence = /\b(?:evidencia[ ]+de[ ]+campo|evid.ncia[ ]+de[ ]+campo|vistoria[ ]+de[ ]+campo|inspe..o[ ]+de[ ]+campo)\b/.test(text);
+    return hasTechnicalDocument && hasNonconformity && hasPavementContext && hasFieldEvidence;
+  }
+
   function isEloComplexInspectionTechnicalRequest_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
@@ -5995,14 +6005,15 @@
     const hasPavementWheelTrackTechnicalEvaluation = /\b(?:pavimento|asfalto|asfaltico|trecho[ ]+asfaltico)\b/.test(text) && /\b(?:trilhas?[ ]+de[ ]+roda|afundamento[ ]+em[ ]+trilha[ ]+de[ ]+roda|deforma..o[ ]+em[ ]+trilha[ ]+de[ ]+roda)\b/.test(text) && /\b(?:avalie|avaliar|avalia..o[ ]+t.cnica|hipoteses[ ]+tecnicas|hip.teses[ ]+t.cnicas|providencias|provid.ncias|parecer[ ]+preliminar)\b/.test(text);
     const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades)\b/.test(text);
     const hasExplicitRdoAsContext = hasExplicitRdoAsContext_(message);
-    return rawInspectionFallback || hasRdoTechnicalEvaluation || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
+    return rawInspectionFallback || hasRdoTechnicalEvaluation || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || isEloPavementNonconformityTechnicalReport_(message) || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
   }
 
   function buildEloComplexInspectionTechnicalAnswer_(message) {
     if (!isEloComplexInspectionTechnicalRequest_(message)) return null;
     const text = normalizeText(message || "");
     const rawText = String(message || "").toLowerCase();
-    const hasCbuq = /\bcbuq\b|asfalt|pavimenta/.test(text) || /\bcbuq\b|asfalt|pavimenta/.test(rawText);
+    const hasCbuq = /\bcbuq\b/.test(text) || /\bcbuq\b/.test(rawText);
+    const hasPavementNonconformityTechnicalReport = isEloPavementNonconformityTechnicalReport_(message);
     const hasCompaction = (/92\s*%/.test(text) && /96\s*%/.test(text)) || (/92\s*%/.test(rawText) && /96\s*%/.test(rawText));
     const hasMeasuredCbuq = /1[\.]?200[ ]*(?:m|metros?)?/.test(text) || /1[\.]?200[ ]*(?:m|metros?)?/.test(rawText);
     const hasTrafficRdoGap = /rdo/.test(text) && /nao\s+ha\s+registro|n.o\s+h.\s+registro|nao\s+consta|n.o\s+consta|nao\s+documentad|n.o\s+documentad/.test(text);
@@ -6015,6 +6026,8 @@
       ? "Sobre a conversa inicial: eu nao acompanho uma semana como uma pessoa nem tenho memoria verificavel de casos reais processados. O desafio tecnico aqui e justamente separar fato, evidencia, alegacao e providencia sem inventar norma."
       : "";
     const facts = [];
+    if (hasPavementNonconformityTechnicalReport) facts.push("- Documento solicitado: relatorio/parecer tecnico de nao conformidade em pavimentacao com evidencia de campo.");
+    if (hasPavementNonconformityTechnicalReport) facts.push("- Objeto da constatacao: pavimentacao/asfalto indicado no relato, com conclusao preliminar dependente da caracterizacao da evidencia.");
     if (hasCbuq) facts.push("- Obra publica de pavimentacao asfaltica/drenagem com CBUQ mencionado no relato.");
     if (hasMeasuredCbuq) facts.push("- Boletim de Medicao informado: execucao de 1.200 m de CBUQ.");
     if (hasCompaction) facts.push("- Ensaio informado: densidade in situ media de 92% da DMT, abaixo do minimo contratual informado de 96%.");
@@ -21723,6 +21736,9 @@ function isEloResidentialNewPipelineEnabled_() {
     const wantsReport = hasAnyTerm(text, ["relatorio", "laudo", "vistoria", "parecer", "descrever", "escrever"]) || /relat|laudo|vistoria|parecer|descrev|escrev/.test(text);
     const hasPathology = hasAnyTerm(text, ["infiltracao", "umidade", "mofo", "trinca", "fissura", "rachadura", "vazamento", "banheiro", "parede"]) || /infiltra|umidade|mofo|trinca|fissura|rachadura|vazamento|banheiro|parede/.test(text);
     const hasEvidenceRequest = /vistoria|fotos?|evidencia|evid.ncia|registro/.test(text);
+    if (isEloPavementNonconformityTechnicalReport_(message)) {
+      return null;
+    }
     if (!wantsReport || (!hasPathology && !hasEvidenceRequest)) {
       return null;
     }
