@@ -213,12 +213,18 @@ test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
     "Minha parede está rachando.",
     "Minha parede tem uma rachadura.",
     "Existe uma fissura na parede.",
-    "Encontrei uma trinca no concreto."
+    "Encontrei uma trinca no concreto.",
+    "A parede rachou perto do pilar, o que pode ser?",
+    "O muro rachou perto do pilar.",
+    "O concreto rachou junto ao apoio."
   ];
   const nonPathologyMessages = [
     "Quanto custa fazer uma parede?",
+    "Quanto custa fazer uma parede perto do pilar?",
+    "Calcule a quantidade de blocos da parede.",
+    "Calcule os blocos da parede.",
     "Quero a composição SINAPI de alvenaria.",
-    "Calcule a quantidade de blocos da parede."
+    "Rachou o orcamento da obra."
   ];
 
   pathologyMessages.forEach((message) => {
