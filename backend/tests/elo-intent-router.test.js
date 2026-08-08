@@ -144,6 +144,8 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
   assert.match(cbuq.fullAnswer, /nao acompanho uma semana como uma pessoa|memoria verificavel/i);
 
   [
+    "O RDO menciona aplicacao de massa, mas o ensaio indica densidade insuficiente. Avalie.",
+    "Cruzei o RDO com o ensaio e a densidade ficou abaixo do minimo. Avalie.",
     "Estou cruzando o BM com o RDO. O ensaio deu 92% e o contrato exige 96%. Redija uma notificacao tecnica.",
     "No RDO nao consta a liberacao antecipada do trafego. Isso deve constar na notificacao?"
   ].forEach((message) => {
@@ -156,6 +158,21 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
   const pathology = assistant.buildResponseForTest("Ha uma fissura e mencionei isso no RDO. Analise a patologia.");
   assert.equal(pathology.sessionTheme, "patologia_obras");
   assert.equal(pathology.sessionIntent, "triagem_patologia");
+  const budget = assistant.buildResponseForTest("Avalie meu orcamento.");
+  assert.notEqual(budget.sessionTheme, "fiscalizacao_tecnica");
+  assert.notEqual(budget.sessionIntent, "technical_nonconformity_notice");
+
+  const simplePathology = assistant.buildResponseForTest("Avalie esta fissura na parede.");
+  assert.equal(simplePathology.sessionTheme, "patologia_obras");
+  assert.equal(simplePathology.sessionIntent, "triagem_patologia");
+
+  const pdf = assistant.buildResponseForTest("Avalie este PDF.");
+  assert.notEqual(pdf.sessionTheme, "fiscalizacao_tecnica");
+  assert.notEqual(pdf.sessionIntent, "technical_nonconformity_notice");
+
+  const productivity = assistant.buildResponseForTest("Avalie a produtividade da equipe.");
+  assert.notEqual(productivity.sessionTheme, "fiscalizacao_tecnica");
+  assert.notEqual(productivity.sessionIntent, "technical_nonconformity_notice");
   assertNoTechnicalCalls(calls);
 });
 test("IntentRouter faz triagem de rachadura sem pedir tipo de bloco", () => {

@@ -5981,11 +5981,12 @@
     if (!text) return false;
     const rawText = String(message || "").toLowerCase();
     const rawInspectionFallback = /\brdo\b/.test(rawText) && /notifica|inconformidade|sei|fiscal|\bbm\b|boletim de medi|evidencia complementar|nao quero resumo|não quero resumo|foco nas inconformidades/.test(rawText) && /ensaio|densidade|92[ ]*%|96[ ]*%|exsuda|afundamento|trilha|fissura|trinca|rachadura|contrato exige|massa|inconformidade/.test(rawText);
+    const hasRdoTechnicalEvaluation = /\brdo\b/.test(text) && /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:ensaio|densidade|compacta..o|controle[ ]+tecnol.gico|resultado)\b/.test(text) && /\b(?:insuficiente|abaixo|inferior|nao[ ]+conforme|inadequad|requisito|exigido|m.nimo)\b/.test(text);
     const hasInspectionContext = /\b(?:fiscal|fiscalizacao|fiscaliza..o|inconformidade|nao[ ]+conformidade|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|boletim[ ]+de[ ]+medi..o|\bbm\b|medicao|medi..o|contratual|contratada|contrato|especifica..o|controle[ ]+tecnol.gico|obra[ ]+p.blica)\b/.test(text);
     const hasTechnicalEvidence = /\b(?:ensaio|compacta..o|densidade|dmt|cbuq|asfalt|pavimenta|exsuda..o|ligante|trilhas?[ ]+de[ ]+roda|afundamento|patologia|fissura|trinca|rachadura|bm|rdo|contrato|especifica..o[ ]+t.cnica|resultado|amostra|massa|trecho)\b/.test(text);
     const hasActionRequest = /\b(?:analise|analisa|avalie|avaliar|compare|comparar|recomende|recomendar|redija|redigir|redigindo|elabore|elaborar|prepare|preparar|fazer|orientar|atue[ ]+como[ ]+fiscal|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|constar[ ]+no[ ]+sei|para[ ]+sei|conclus.o[ ]+t.cnica)\b/.test(text);
     const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades)\b/.test(text);
-    return rawInspectionFallback || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
+    return rawInspectionFallback || hasRdoTechnicalEvaluation || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
   }
 
   function buildEloComplexInspectionTechnicalAnswer_(message) {
