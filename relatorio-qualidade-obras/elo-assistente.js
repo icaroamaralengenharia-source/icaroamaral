@@ -22115,7 +22115,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   function isEloConstructionPathologyQuestion_(message) {
     const text = normalizeText(message || "");
-    return /trinca|fissura|rachadura|rachando|rachou|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
+    return /trinca|fissura|rachadura|rachando|rachou|destacamento|destacando|eflorescencia|eflorescência|infiltra|umidade|mofo|vazamento|soltando\s+em\s+placas|reboco.*(soltando|caindo)|piso.*(oco|estufando)|ceramico.*(oco|estufando)|cerâmico.*(oco|estufando)|descascando|concreto.*(fraco|esfarelando)|\besfarelando\b|argamassa.{0,40}(virou|ficou).{0,20}(po|pó)|virou\s+(po|pó)|armadura\s+aparecendo|laje\s+cedendo|muro\s+inclinando|porta\s+emperrando|bolhas?\s+na\s+pintura|cheiro\s+de\s+esgoto|manchas?\s+brancas?|sem\s+caimento|empo[cç]ando/.test(text);
   }
 
   function hasEloBudgetOrCompositionIntent_(message) {
@@ -22352,10 +22352,12 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const text = normalizeText(message || "");
     const structuralRisk = /pilar|viga|laje\s+cedendo|fundacao|fundação|rachadura\s+grande|muro\s+inclinando|armadura\s+aparecendo|meio\s+do\s+vao|meio\s+do\s+vão/.test(text);
-    const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando/.test(text);
-    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso/.test(text);
+    const moisture = /infiltra|umidade|mofo|vazamento|cheiro\s+de\s+esgoto|bolhas?\s+na\s+pintura|descascando|eflorescencia|eflorescência/.test(text);
+    const coating = /reboco|piso|revestimento|ceramico|cerâmico|argamassa|pintura|manchas?|contrapiso|destacamento|destacando/.test(text);
     const causes = [];
     if (/trinca|fissura|rachadura|rachando|rachou/.test(text)) causes.push("movimentação estrutural ou de alvenaria", "retração/acomodação", "falha em verga, contraverga, junta ou fundação");
+    if (/eflorescencia|eflorescência/.test(text)) causes.push("presença de sais solúveis", "transporte de umidade", "evaporação superficial");
+    if (/destacamento|destacando/.test(text)) causes.push("perda de aderência", "preparo inadequado da base", "incompatibilidade entre camadas", "umidade ou execução inadequada");
     if (moisture) causes.push("falha de impermeabilização", "entrada de água por cobertura/esquadria", "umidade ascendente ou vazamento oculto");
     if (coating) causes.push("base mal preparada", "argamassa inadequada ou cura insuficiente", "umidade por trás do revestimento");
     if (/concreto|armadura/.test(text)) causes.push("cobrimento insuficiente", "corrosão de armadura", "concreto mal adensado ou degradado");
