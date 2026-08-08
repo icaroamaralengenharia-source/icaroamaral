@@ -129,6 +129,17 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
     assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
     assert.doesNotMatch(response.fullAnswer, /Nao encontrei RDO registrado|Cadastre o diario de obra/i, message);
   });
+  [
+    "Pavimento com exsudacao e afundamento; preciso de conclusao tecnica preliminar.",
+    "O asfalto apresenta exsudação e afundamento. Faça uma avaliação técnica preliminar.",
+    "Há afundamento no pavimento e exsudação superficial. Preciso de parecer preliminar."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.match(response.fullAnswer, /exsudacao|exsuda|afundamento|vistoria|ensaios|preliminar/i, message);
+    assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|92%|96%|glosa definitiva|multa/i, message);
+  });
   const cbuqScenario = [
     "[TESTE DE ESTRESSE DO SISTEMA - ELO]",
     "Ola, Elo. Como estao as coisas por ai hoje? Antes de comecarmos o batente, me diga qual foi a coisa mais curiosa ou desafiadora que voce processou nos seus dados esta semana?",
@@ -174,6 +185,18 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
   assert.notEqual(budget.sessionTheme, "fiscalizacao_tecnica");
   assert.notEqual(budget.sessionIntent, "technical_nonconformity_notice");
 
+  [
+    "Qual o custo do pavimento asfáltico?",
+    "Quero composição SINAPI de pavimentação.",
+    "Calcule a área do pavimento.",
+    "O pavimento tem 200 m.",
+    "Explique o que é exsudação.",
+    "Quanto custa reparar afundamento no asfalto?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.notEqual(response.sessionIntent, "technical_nonconformity_notice", message);
+  });
   const simplePathology = assistant.buildResponseForTest("Avalie esta fissura na parede.");
   assert.equal(simplePathology.sessionTheme, "patologia_obras");
   assert.equal(simplePathology.sessionIntent, "triagem_patologia");
