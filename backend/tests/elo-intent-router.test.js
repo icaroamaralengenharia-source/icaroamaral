@@ -386,6 +386,52 @@ test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", ()
   assert.notEqual(wallBudget.sessionIntent, "triagem_patologia");
   assertNoTechnicalCalls(calls);
 });
+test("IntentRouter prioriza analise tecnica explicita antes de orcamento", () => {
+  const { assistant, calls } = loadAssistant();
+  const pathologyFirstMessages = [
+    "Quero orcamento, mas antes analise a trinca estrutural.",
+    "Preciso do custo, mas primeiro analise a fissura junto ao pilar.",
+    "Antes de orçar o reparo, avalie tecnicamente a rachadura na viga.",
+    "Faça a análise da trinca primeiro; depois vemos o orçamento."
+  ];
+  const budgetMessages = [
+    "Quero orcamento para reparar a trinca.",
+    "Quanto custa reparar a fissura?",
+    "Faça composição para reparo da rachadura.",
+    "Analise a trinca e faça o orçamento agora.",
+    "Quero orçamento da parede estrutural."
+  ];
+  const simplePathologyMessages = [
+    "Analise a trinca estrutural.",
+    "Minha viga rachou, o que pode ser?",
+    "Preciso avaliar rachadura sem falar de custo."
+  ];
+
+  pathologyFirstMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join("\n");
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(answer, /Triagem|diagn[oó]stico|vistoria|causas|verificar/i, message);
+    assert.match(answer, /or[çc]amento.*diagn[oó]stico|diagn[oó]stico.*or[çc]amento/i, message);
+    assert.doesNotMatch(answer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|multa|glosa definitiva|preco unitario|custo direto|composi..o SINAPI/i, message);
+  });
+
+  budgetMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionTheme, "patologia_obras", message);
+    assert.notEqual(response.sessionIntent, "triagem_patologia", message);
+    assert.match([response.sessionTheme, response.sessionIntent].join("/"), /orcamento|budget|quantitativo|compos|parede/i, message);
+  });
+
+  simplePathologyMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+  });
+  assertNoTechnicalCalls(calls);
+});
+
 test("IntentRouter captura patologia no chat minimo antes do submit comum", () => {
   const { assistant, calls } = loadAssistant();
   ["trinca na parede", "parede com umidade subindo"].forEach((message) => {

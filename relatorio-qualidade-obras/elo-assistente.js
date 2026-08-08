@@ -22163,6 +22163,15 @@ function isEloResidentialNewPipelineEnabled_() {
     const text = normalizeText(message || "");
     return hasEloRdoPathologyEvaluationNoCostIntent_(message) || (hasEloExplicitNoCostIntent_(message) && isEloConstructionPathologyQuestion_(message) && /\b(?:avaliar|avalie|analise|analisar|diagnostico|causa|entender|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text));
   }
+  function hasEloExplicitPathologyBeforeBudgetIntent_(message) {
+    const text = normalizeText(message || "");
+    const hasBudgetIntent = hasEloBudgetOrCompositionIntent_(message) || /\b(?:orcar|orcamento|custo|preco|valor|composi..o|composicao)\b/.test(text);
+    if (!isEloConstructionPathologyQuestion_(message) || !hasBudgetIntent) return false;
+    return /\b(?:mas[ ]+antes|antes)[ ]+(?:analise|analisar|avalie|avaliar|verifique|verificar|diagnostique|diagnosticar)\b/.test(text) ||
+      /\b(?:primeiro[ ]+(?:analise|analisar|avalie|avaliar|verifique|verificar)|(?:analise|analisar|avalie|avaliar|verifique|verificar)[\s\S]{0,40}\bprimeiro\b)\b/.test(text) ||
+      /\bantes[ ]+(?:de|do)[\s\S]{0,40}\b(?:orcar|orcamento|custo|composi..o|composicao)\b[\s\S]{0,80}\b(?:analise|analisar|avalie|avaliar|verifique|verificar)\b/.test(text);
+  }
+
   function hasEloBudgetOrCompositionIntent_(message) {
     const text = normalizeText(message || "");
     return /quanto[\s\S]{0,30}custa[\s\S]{0,30}reparar|orcamento|custo|valor|preco|composi..o|composicao|sinapi|orse|transporte|servico|executar|execu..o|produtividade|m.o\s+de\s+obra|mao\s+de\s+obra|pedreiro|servente|insumos?|coeficiente|cronograma|curva\s+abc|bdi/.test(text);
@@ -22400,7 +22409,8 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function buildEloConstructionPathologyAnswer_(message) {
-    if (isEloRdoPathologyDocumentRequest_(message) || !isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !hasEloPathologyEvaluationNoCostIntent_(message))) {
+    const pathologyBeforeBudget = hasEloExplicitPathologyBeforeBudgetIntent_(message);
+    if (isEloRdoPathologyDocumentRequest_(message) || !isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !hasEloPathologyEvaluationNoCostIntent_(message) && !pathologyBeforeBudget)) {
       return null;
     }
     const text = normalizeText(message || "");
@@ -22429,6 +22439,7 @@ function isEloResidentialNewPipelineEnabled_() {
       "Possíveis causas:",
       uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
       "",
+      pathologyBeforeBudget ? "Primeiro é necessário caracterizar tecnicamente a manifestação; depois, com diagnóstico e escopo de reparo definidos, o orçamento pode ser elaborado." : "",
       "O que verificar:",
       "- quando apareceu e se está aumentando;",
       "- presença de água, som oco, deformação, corrosão, destacamento ou fissuras próximas;",
