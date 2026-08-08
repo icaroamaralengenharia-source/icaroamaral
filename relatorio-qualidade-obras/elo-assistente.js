@@ -5978,7 +5978,8 @@
   function isEloRdoOperationalQuestion_(message) {
     const text = normalizeText(message || "");
     const pathologyAnalysis = /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:patologia|fissura|trinca|rachadura|infiltra|umidade|exsuda|afundamento)\b/.test(text);
-    if (pathologyAnalysis || hasExplicitRdoAsContext_(message)) return false;
+    const budgetOrRepairRequest = /\b(?:quanto[\s\S]{0,30}custa|custo|preco|orcamento|composi..o|composicao|reparar|reparo)\b/.test(text);
+    if (pathologyAnalysis || budgetOrRepairRequest || hasExplicitRdoAsContext_(message)) return false;
     return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
 
@@ -6003,7 +6004,7 @@
     const hasActionRequest = /\b(?:analise|analisa|avalie|avaliar|compare|comparar|recomende|recomendar|redija|redigir|redigindo|elabore|elaborar|prepare|preparar|fazer|orientar|atue[ ]+como[ ]+fiscal|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|constar[ ]+no[ ]+sei|para[ ]+sei|conclus.o[ ]+t.cnica)\b/.test(text);
     const hasPavementTechnicalConclusion = /\b(?:pavimento|asfalto|asfaltico|asfáltico)\b/.test(text) && /\b(?:exsuda..o|afundamento)\b/.test(text) && /\b(?:conclus.o[ ]+t.cnica|avalia..o[ ]+t.cnica|parecer[ ]+preliminar)\b/.test(text);
     const hasPavementWheelTrackTechnicalEvaluation = /\b(?:pavimento|asfalto|asfaltico|trecho[ ]+asfaltico)\b/.test(text) && /\b(?:trilhas?[ ]+de[ ]+roda|afundamento[ ]+em[ ]+trilha[ ]+de[ ]+roda|deforma..o[ ]+em[ ]+trilha[ ]+de[ ]+roda)\b/.test(text) && /\b(?:avalie|avaliar|avalia..o[ ]+t.cnica|hipoteses[ ]+tecnicas|hip.teses[ ]+t.cnicas|providencias|provid.ncias|parecer[ ]+preliminar)\b/.test(text);
-    const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades)\b/.test(text);
+    const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades|custo|preco|orcamento|composi..o|composicao|reparar)\b/.test(text);
     const hasExplicitRdoAsContext = hasExplicitRdoAsContext_(message);
     return rawInspectionFallback || hasRdoTechnicalEvaluation || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || isEloPavementNonconformityTechnicalReport_(message) || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
   }
@@ -22147,12 +22148,20 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function hasEloExplicitNoCostIntent_(message) {
     const text = normalizeText(message || "");
-    return /\b(?:sem[ ]+(?:falar[ ]+de[ ]+)?(?:custo|preco|orcamento)|nao[ ]+(?:quero|preciso)[ ]+(?:de[ ]+)?(?:custo|preco|orcamento))\b/.test(text);
+    return /\b(?:sem[ ]+(?:abrir[ ]+)?(?:falar[ ]+de[ ]+)?(?:custo|preco|orcamento|composi..o|composicao)|nao[ ]+(?:(?:quero|preciso|abrir|fazer|gerar)[ ]+(?:de[ ]+)?)?(?:custo|preco|orcamento|composi..o|composicao))\b/.test(text);
+  }
+
+  function hasEloRdoPathologyEvaluationNoCostIntent_(message) {
+    const text = normalizeText(message || "");
+    const hasRdoContext = /\b(?:rdo[ ]+(?:fala|menciona|cita|registra|aponta)[ ]+de|segundo[ ]+o[ ]+rdo|consta[ ]+no[ ]+rdo)\b/.test(text);
+    const hasTechnicalRequest = /\b(?:analise|analisar|avalie|avaliar|avalia..o[ ]+t.cnica|diagnostico|causa|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text);
+    const hasNoBudgetOrComposition = /\b(?:sem[ ]+(?:abrir[ ]+)?(?:composi..o|composicao|orcamento|custo|preco)|nao[ ]+(?:(?:quero|preciso|abrir|fazer|gerar)[ ]+(?:de[ ]+)?)?(?:composi..o|composicao|orcamento|custo|preco))\b/.test(text);
+    return hasRdoContext && isEloConstructionPathologyQuestion_(message) && hasTechnicalRequest && hasNoBudgetOrComposition;
   }
 
   function hasEloPathologyEvaluationNoCostIntent_(message) {
     const text = normalizeText(message || "");
-    return hasEloExplicitNoCostIntent_(message) && isEloConstructionPathologyQuestion_(message) && /\b(?:avaliar|avalie|analise|analisar|diagnostico|causa|entender|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text);
+    return hasEloRdoPathologyEvaluationNoCostIntent_(message) || (hasEloExplicitNoCostIntent_(message) && isEloConstructionPathologyQuestion_(message) && /\b(?:avaliar|avalie|analise|analisar|diagnostico|causa|entender|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text));
   }
   function hasEloBudgetOrCompositionIntent_(message) {
     const text = normalizeText(message || "");
@@ -22382,8 +22391,16 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
+  function isEloRdoPathologyDocumentRequest_(message) {
+    const text = normalizeText(message || "");
+    if (!/\brdos?\b/.test(text) || !isEloConstructionPathologyQuestion_(message)) return false;
+    const asksDocument = /\b(?:mostre|mostrar|resuma|resumir|compare|comparar|qual|quais|registro|registrada|registrado|ocorrencia|ocorr.ncia)\b/.test(text);
+    const asksTechnical = /\b(?:analise|analisar|avalie|avaliar|avalia..o[ ]+t.cnica|diagnostico|causa|o[ ]+que[ ]+pode[ ]+ser)\b/.test(text);
+    return asksDocument && !asksTechnical && !hasEloBudgetOrCompositionIntent_(message);
+  }
+
   function buildEloConstructionPathologyAnswer_(message) {
-    if (!isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !hasEloPathologyEvaluationNoCostIntent_(message))) {
+    if (isEloRdoPathologyDocumentRequest_(message) || !isEloConstructionPathologyQuestion_(message) || (hasEloBudgetOrCompositionIntent_(message) && !hasEloPathologyEvaluationNoCostIntent_(message))) {
       return null;
     }
     const text = normalizeText(message || "");
@@ -22407,6 +22424,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const answer = [
       "Triagem técnica",
       "Não dá para fechar diagnóstico definitivo sem vistoria, mas os indícios merecem checagem.",
+      /\brdo\b/.test(text) ? "Vou tratar a menção do RDO apenas como contexto documental, não como inspeção física confirmada." : "",
       "",
       "Possíveis causas:",
       uniqueCauses.map(function (item) { return "- " + item + ";"; }).join("\n"),
@@ -25089,13 +25107,13 @@ function isEloResidentialNewPipelineEnabled_() {
         return applyEloBrainMarker_(question, residentialBudgetV2ContinuationResponse);
       }
     }
-    const coreToolResponse = buildEloCoreToolIntentResponse_(question);
-    if (coreToolResponse) {
-      return applyEloBrainMarker_(question, coreToolResponse);
-    }
     const explicitNoCostPathologyPriorityResponse = hasEloPathologyEvaluationNoCostIntent_(question) ? buildEloConstructionPathologyAnswer_(question) : null;
     if (explicitNoCostPathologyPriorityResponse) {
       return applyEloBrainMarker_(question, explicitNoCostPathologyPriorityResponse);
+    }
+    const coreToolResponse = buildEloCoreToolIntentResponse_(question);
+    if (coreToolResponse) {
+      return applyEloBrainMarker_(question, coreToolResponse);
     }
     const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question) || isEloResidentialBudgetBriefingQuestion_(question);
     const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;

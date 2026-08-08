@@ -327,6 +327,54 @@ test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
   });
   assertNoTechnicalCalls(calls);
 });
+test("IntentRouter prioriza patologia quando RDO e contexto e composicao foi negada", () => {
+  const { assistant, calls } = loadAssistant();
+  const pathologyMessages = [
+    "O RDO fala de rachadura; analise tecnicamente sem abrir composicao.",
+    "Segundo o RDO há uma fissura. Analise a causa, sem composição.",
+    "Consta no RDO que a parede rachou. Quero avaliação técnica, não orçamento."
+  ];
+
+  pathologyMessages.forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    const answer = [response.shortAnswer, response.fullAnswer, response.nextAction].filter(Boolean).join("\n");
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.match(answer, /Triagem|rachadura|fissura|causas|vistoria/i, message);
+    assert.match(answer, /RDO|contexto documental|inspeção física confirmada|inspecao fisica confirmada/i, message);
+    assert.doesNotMatch(answer, /composi..o SINAPI|preco unitario|custo direto|orcamento profissional/i, message);
+    assert.doesNotMatch(answer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|multa|glosa definitiva/i, message);
+  });
+
+  [
+    "O RDO fala de uma rachadura. Mostre o registro.",
+    "Qual foi a ocorrência de rachadura registrada no RDO?",
+    "Resuma o RDO que menciona fissura."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "rdo_operacional", message);
+    assert.equal(response.sessionIntent, "rdo_resumo", message);
+  });
+
+  const rdoCompare = assistant.buildResponseForTest("Compare os RDOs que registraram trincas.");
+  assert.match([rdoCompare.sessionTheme, rdoCompare.sessionIntent].join("/"), /rdo/i);
+  assert.notEqual(rdoCompare.sessionTheme, "patologia_obras");
+  assert.notEqual(rdoCompare.sessionIntent, "triagem_patologia");
+
+  [
+    "Há uma rachadura. Abra a composição para o reparo.",
+    "Quero orçamento para reparar a rachadura.",
+    "Analise a fissura e depois faça a composição.",
+    "Qual o custo para reparar a trinca registrada no RDO?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionTheme, "patologia_obras", message);
+    assert.notEqual(response.sessionIntent, "triagem_patologia", message);
+    assert.match([response.sessionTheme, response.sessionIntent].join("/"), /orcamento|budget|quantitativo|compos/i, message);
+  });
+  assertNoTechnicalCalls(calls);
+});
+
 test("IntentRouter consulta patologia antes do atalho imediato de alvenaria", () => {
   const { assistant, calls } = loadAssistant();
   const pathology = assistant.buildResponseForTest("Minha parede esta rachando.");
