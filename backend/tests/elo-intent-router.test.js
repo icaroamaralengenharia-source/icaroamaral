@@ -208,6 +208,29 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
   assert.notEqual(budget.sessionIntent, "technical_nonconformity_notice");
 
   [
+    "Existe alegacao de liberacao precoce nao documentada. Como registrar na notificacao?",
+    "A construtora alega liberação antecipada, mas não há registro. Como consignar isso na notificação?",
+    "Foi alegada abertura ao tráfego sem registro no RDO. Como relatar tecnicamente?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.match(response.fullAnswer, /alegacao|declaracao da parte|nao foi localizado registro|documento contemporaneo|nao afirme/i, message);
+    assert.doesNotMatch(response.fullAnswer, /DNIT\s*\d|ABNT\s*NBR\s*\d|NBR\s*\d|processo\s+SEI\s*\d|prazo\s+de\s+\d+\s+dias|glosa definitiva|multa/i, message);
+  });
+
+  [
+    "Existe diferenca entre fissura e trinca?",
+    "Existe concreto impermeavel?",
+    "Existe diferenca entre RDO e diario de obra?",
+    "Existe obrigacao de registrar isso?"
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.notEqual(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.notEqual(response.sessionIntent, "technical_nonconformity_notice", message);
+  });
+
+  [
     "Qual o custo do pavimento asfáltico?",
     "Faca um relatorio tecnico da parede.",
     "Gere relatorio da obra.",

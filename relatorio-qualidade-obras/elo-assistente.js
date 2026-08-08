@@ -5993,6 +5993,16 @@
     return hasTechnicalDocument && hasNonconformity && hasPavementContext && hasFieldEvidence;
   }
 
+  function isEloUndocumentedOperationalAllegationNoticeRequest_(message) {
+    const text = normalizeText(message || "");
+    if (!text) return false;
+    const hasAllegation = /\b(?:alegacao|alega..o|alega|alegada|alegado|alegaram|foi[ ]+alegad[ao]|construtora[ ]+alega)\b/.test(text);
+    const hasMissingRecord = /\b(?:nao|n.o)[ ]+(?:documentad[ao]|registrad[ao]|consta|ha[ ]+registro)\b|\bsem[ ]+(?:registro|comprovacao|comprova..o)\b/.test(text);
+    const hasOperationalContext = /\b(?:libera..o|liberacao)[ ]+(?:precoce|antecipad[ao])\b|\babertura[ ]+ao[ ]+tr.fego\b|\btr.fego\b|\bexecu..o\b|\bservi.o\b|\bobra\b/.test(text);
+    const hasDocumentRequest = /\bnotifica..o\b|\bcomo[ ]+(?:registrar|consignar|relatar|mencionar)\b|\brelatar[ ]+tecnicamente\b/.test(text);
+    return hasAllegation && hasMissingRecord && hasOperationalContext && hasDocumentRequest;
+  }
+
   function isEloComplexInspectionTechnicalRequest_(message) {
     const text = normalizeText(message || "");
     if (!text) return false;
@@ -6006,7 +6016,7 @@
     const hasPavementWheelTrackTechnicalEvaluation = /\b(?:pavimento|asfalto|asfaltico|trecho[ ]+asfaltico)\b/.test(text) && /\b(?:trilhas?[ ]+de[ ]+roda|afundamento[ ]+em[ ]+trilha[ ]+de[ ]+roda|deforma..o[ ]+em[ ]+trilha[ ]+de[ ]+roda)\b/.test(text) && /\b(?:avalie|avaliar|avalia..o[ ]+t.cnica|hipoteses[ ]+tecnicas|hip.teses[ ]+t.cnicas|providencias|provid.ncias|parecer[ ]+preliminar)\b/.test(text);
     const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades|custo|preco|orcamento|composi..o|composicao|reparar)\b/.test(text);
     const hasExplicitRdoAsContext = hasExplicitRdoAsContext_(message);
-    return rawInspectionFallback || hasRdoTechnicalEvaluation || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || isEloPavementNonconformityTechnicalReport_(message) || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
+    return rawInspectionFallback || hasRdoTechnicalEvaluation || isEloUndocumentedOperationalAllegationNoticeRequest_(message) || hasPavementTechnicalConclusion || hasPavementWheelTrackTechnicalEvaluation || isEloPavementNonconformityTechnicalReport_(message) || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
   }
 
   function buildEloComplexInspectionTechnicalAnswer_(message) {
@@ -6015,6 +6025,7 @@
     const rawText = String(message || "").toLowerCase();
     const hasCbuq = /\bcbuq\b/.test(text) || /\bcbuq\b/.test(rawText);
     const hasPavementNonconformityTechnicalReport = isEloPavementNonconformityTechnicalReport_(message);
+    const hasUndocumentedOperationalAllegation = isEloUndocumentedOperationalAllegationNoticeRequest_(message);
     const hasCompaction = (/92\s*%/.test(text) && /96\s*%/.test(text)) || (/92\s*%/.test(rawText) && /96\s*%/.test(rawText));
     const hasMeasuredCbuq = /1[\.]?200[ ]*(?:m|metros?)?/.test(text) || /1[\.]?200[ ]*(?:m|metros?)?/.test(rawText);
     const hasTrafficRdoGap = /rdo/.test(text) && /nao\s+ha\s+registro|n.o\s+h.\s+registro|nao\s+consta|n.o\s+consta|nao\s+documentad|n.o\s+documentad/.test(text);
@@ -6033,14 +6044,15 @@
     if (hasMeasuredCbuq) facts.push("- Boletim de Medicao informado: execucao de 1.200 m de CBUQ.");
     if (hasCompaction) facts.push("- Ensaio informado: densidade in situ media de 92% da DMT, abaixo do minimo contratual informado de 96%.");
     if (hasCompaction) facts.push("- Diferenca objetiva: 4 pontos percentuais abaixo do limite contratual informado.");
+    if (hasUndocumentedOperationalAllegation) facts.push("- Ha alegacao operacional sem registro/documento comprovatorio informado no relato.");
     if (pathologyTerms.length) facts.push("- Manifestacoes observadas: " + pathologyTerms.join(" e ") + ".");
     facts.push("- Extensao/trecho citado: " + affectedStretch + ".");
     if (hasTrafficRdoGap) facts.push("- A liberacao precoce do trafego foi alegada, mas nao consta/documenta no RDO conforme o relato.");
     if (!facts.length) facts.push("- O relato indica possivel nao conformidade tecnica a ser formalizada com base nas evidencias disponiveis.");
     const referenceLine = /\bbm\b|boletim[ ]+de[ ]+medi|ensaio|controle[ ]+tecnol.gico|\brdo\b/.test(text) ? "Relato de fiscalizacao, Boletim de Medicao, ensaio de controle tecnologico e RDO mencionados no prompt. Nao foi informado numero de contrato, processo SEI, clausula, norma DNIT ou ABNT especifica." : "Relato tecnico informado pelo usuario. Nao foi informado BM, RDO, ensaio, contrato, processo SEI, clausula, norma DNIT ou ABNT especifica.";
     const evidenceLines = hasCompaction ? ["- O parametro de 96% deve ser tratado como exigencia contratual informada no cenario.", "- O resultado de 92% indica nao atendimento ao limite contratual informado, sujeito a verificacao documental do ensaio e da rastreabilidade do trecho."] : ["- A avaliacao deve ser preliminar, dependente de vistoria, fotos, delimitacao do trecho e ensaios quando cabiveis.", "- Nao e possivel fechar causa definitiva apenas pelo relato textual."];
-    const answer = [opening, "ASSUNTO", "Notificacao tecnica de nao conformidade / registro para instrucao em SEI.", "", "REFERENCIA", referenceLine, "", "FATO INFORMADO", facts.join("\n"), "", "EVIDENCIA", evidenceLines.join("\n"), "", "ALEGACAO NAO DOCUMENTADA", hasTrafficRdoGap ? "- A justificativa de liberacao precoce por pressao externa nao deve ser tratada como fato comprovado sem ordem, comunicacao, registro contemporaneo ou anotacao no RDO." : "- Nao foi informada alegacao documentada no relato; nao presuma causa, responsavel ou justificativa sem evidencias complementares.", "", "HIPOTESE TECNICA", "- As manifestacoes observadas podem estar associadas a compactacao inadequada, instabilidade da mistura, suporte insuficiente das camadas inferiores, excesso ou migracao de ligante, temperatura/processo executivo ou solicitacao precoce do revestimento. A causa definitiva depende de verificacoes e ensaios complementares.", "", "PROVIDENCIAS RECOMENDADAS", "- Delimitar o trecho afetado e vincular as evidencias ao BM, RDO, fotos e ensaios quando existirem.", "- Solicitar manifestacao formal da contratada e plano de acao corretivo tecnicamente fundamentado.", "- Avaliar ensaios complementares e, quando tecnicamente indicado, fresagem e recomposicao do trecho nao conforme.", "- Avaliar ressalva/suspensao da parcela correspondente ate comprovacao de conformidade, conforme contrato e procedimento administrativo aplicavel.", "", "CONCLUSAO", "Com os dados fornecidos, ha indicio relevante de nao conformidade tecnica e documental. A notificacao deve exigir comprovacao, correcao ou plano de acao, sem presumir medida punitiva, desconto definitivo ou norma externa nao informada."].filter(Boolean).join("\n");
-    return { shortAnswer: "Preparei uma minuta tecnica de fiscalizacao sem tratar o RDO como tarefa principal.", fullAnswer: answer, nextAction: "Revise dados de contrato, processo, prazo e anexos antes de protocolar.", canSave: true, sessionTheme: "fiscalizacao_tecnica", sessionIntent: "technical_nonconformity_notice" };
+    const answer = [opening, "ASSUNTO", "Notificacao tecnica de nao conformidade / registro para instrucao em SEI.", "", "REFERENCIA", referenceLine, "", "FATO INFORMADO", facts.join("\n"), "", "EVIDENCIA", evidenceLines.join("\n"), "", "ALEGACAO NAO DOCUMENTADA", (hasTrafficRdoGap || hasUndocumentedOperationalAllegation) ? "- Registre a alegacao como declaracao da parte, informando que nao foi localizado registro/documento contemporaneo que a comprove. Nao afirme que a liberacao ocorreu nem atribua responsabilidade sem evidencia." : "- Nao foi informada alegacao documentada no relato; nao presuma causa, responsavel ou justificativa sem evidencias complementares.", "", "HIPOTESE TECNICA", "- As manifestacoes observadas podem estar associadas a compactacao inadequada, instabilidade da mistura, suporte insuficiente das camadas inferiores, excesso ou migracao de ligante, temperatura/processo executivo ou solicitacao precoce do revestimento. A causa definitiva depende de verificacoes e ensaios complementares.", "", "PROVIDENCIAS RECOMENDADAS", "- Delimitar o trecho afetado e vincular as evidencias ao BM, RDO, fotos e ensaios quando existirem.", "- Solicitar manifestacao formal da contratada e plano de acao corretivo tecnicamente fundamentado.", "- Avaliar ensaios complementares e, quando tecnicamente indicado, fresagem e recomposicao do trecho nao conforme.", "- Avaliar ressalva/suspensao da parcela correspondente ate comprovacao de conformidade, conforme contrato e procedimento administrativo aplicavel.", "", "CONCLUSAO", "Com os dados fornecidos, ha indicio relevante de nao conformidade tecnica e documental. A notificacao deve exigir comprovacao, correcao ou plano de acao, sem presumir medida punitiva, desconto definitivo ou norma externa nao informada."].filter(Boolean).join("\n");
+    return { shortAnswer: hasUndocumentedOperationalAllegation ? "Preparei uma orientacao prudente para registrar a alegacao nao documentada." : "Preparei uma minuta tecnica de fiscalizacao sem tratar o RDO como tarefa principal.", fullAnswer: answer, nextAction: "Revise dados de contrato, processo, prazo e anexos antes de protocolar.", canSave: true, sessionTheme: "fiscalizacao_tecnica", sessionIntent: "technical_nonconformity_notice" };
   }
 
 
