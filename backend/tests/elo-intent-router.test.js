@@ -287,7 +287,11 @@ test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
     "Patologia por destacamento e eflorescencia.",
     "O revestimento está destacando.",
     "Há eflorescência na parede.",
-    "Há eflorescencia no revestimento."
+    "Há eflorescencia no revestimento.",
+    "Preciso avaliar rachadura sem falar de custo.",
+    "Analise esta fissura, nao quero orcamento.",
+    "Minha parede rachou. Quero entender a causa, sem custo.",
+    "Ha uma trinca no concreto; nao preciso de orcamento, so analise tecnica."
   ];
   const nonPathologyMessages = [
     "Quanto custa fazer uma parede?",
@@ -300,7 +304,13 @@ test("IntentRouter reconhece rachando sem roubar intents de orcamento", () => {
     "Quero composição SINAPI para revestimento.",
     "Calcule a área de revestimento.",
     "Destacar item do orçamento.",
-    "Faça um destaque no relatório."
+    "Faça um destaque no relatório.",
+    "Quanto custa reparar a rachadura?",
+    "Faca um orcamento para reparar a fissura.",
+    "Qual o custo do reparo da trinca?",
+    "Preciso avaliar a rachadura e tambem saber o custo.",
+    "Sem falar de rachadura, qual o custo da parede?",
+    "Quero composicao SINAPI para reparar fissura."
   ];
 
   pathologyMessages.forEach((message) => {
