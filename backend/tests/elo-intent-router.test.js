@@ -432,6 +432,51 @@ test("IntentRouter prioriza analise tecnica explicita antes de orcamento", () =>
   assertNoTechnicalCalls(calls);
 });
 
+test("IntentRouter nao encaminha patologia de fachada para CADISTA", () => {
+  const { assistant, calls } = loadAssistant();
+  const id58 = assistant.buildResponseForTest("Rachadura na fachada proxima a esquadria.");
+  const id58Answer = [id58.shortAnswer, id58.fullAnswer, id58.nextAction].filter(Boolean).join("\n");
+
+  assert.equal(id58.sessionTheme, "patologia_obras");
+  assert.equal(id58.sessionIntent, "triagem_patologia");
+  assert.match(id58Answer, /Triagem|vistoria|causas|verificar|fotos|localiza/i);
+  assert.doesNotMatch([id58.sessionTheme, id58.sessionIntent, id58Answer].join("\n"), /cadista|planta\/projeto|briefing inicial/i);
+
+  [
+    "Analise uma fissura na fachada.",
+    "A esquadria apresenta infiltração. Avalie.",
+    "Explique por que a janela está apresentando infiltração."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "patologia_obras", message);
+    assert.equal(response.sessionIntent, "triagem_patologia", message);
+    assert.notEqual(response.sessionTheme, "cadista", message);
+  });
+
+  assertNoTechnicalCalls(calls);
+});
+
+test("IntentRouter preserva CADISTA grafico legitimo", () => {
+  const { assistant, calls } = loadAssistant();
+  [
+    "Desenhe uma fachada moderna.",
+    "Crie uma planta de casa com 2 quartos.",
+    "Faça um desenho de esquadria.",
+    "Projete a fachada frontal.",
+    "Desenhe uma janela de 1,20 x 1,00."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    if (/janela/.test(message.toLowerCase())) {
+      assert.notEqual(response.sessionTheme, "patologia_obras", message);
+      assert.notEqual(response.sessionIntent, "triagem_patologia", message);
+    } else {
+      assert.equal(response.sessionTheme, "cadista", message);
+      assert.match(response.sessionIntent, /cadista/, message);
+    }
+  });
+  assertNoTechnicalCalls(calls);
+});
+
 test("IntentRouter captura patologia no chat minimo antes do submit comum", () => {
   const { assistant, calls } = loadAssistant();
   ["trinca na parede", "parede com umidade subindo"].forEach((message) => {

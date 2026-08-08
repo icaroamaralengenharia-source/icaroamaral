@@ -16618,6 +16618,15 @@
     return /\b(?:planta|desenhar|desenhe|desenho|layout|distribuicao\s+dos\s+ambientes|croqui|projeto\s+arquitetonico|fachada|corte|implantacao)\b/.test(text);
   }
 
+  function isEloTechnicalObjectOnlyCadistaConflict_(message) {
+    const text = normalizeText(message || "");
+    const hasGraphicAction = /\b(?:desenhe|desenhar|desenho|crie|criar|gere|gerar|modele|modelar|projete|projetar|layout|planta\s+baixa|croqui|dxf|dwg|cadista)\b/.test(text);
+    if (hasGraphicAction) return false;
+    const hasTechnicalObject = /\b(?:fachada|esquadria|porta|janela|parede|planta)\b/.test(text);
+    const hasTechnicalIssue = isEloConstructionPathologyQuestion_(message) || /\b(?:nao\s+conformidade|inconformidade|falha|defeito|problema|avaliar|avalie|analise|analisar|diagnostico|verifique|verificar|explique|fiscalize|fiscalizar)\b/.test(text);
+    return hasTechnicalObject && hasTechnicalIssue;
+  }
+
   function hasEloResidentialBudgetIntent_(message) {
     const text = normalizeText(message || "");
     return /\b(?:orcamento|or.amento|orcar|custo|preco|quanto\s+custa|quantitativo|eap|composi..o|composicao|sinapi|orse|bdi|valor\s+da\s+obra|estimar\s+o\s+custo)\b/.test(text);
@@ -16646,6 +16655,7 @@
   function isEloResidentialDesignOnlyRequest_(message) {
     const text = normalizeText(message || "");
     if (!hasEloCadistaDesignIntent_(message)) return false;
+    if (isEloTechnicalObjectOnlyCadistaConflict_(message)) return false;
     if (/\borcamento\s+ativo\b/.test(text) && /\b(?:ver|mostrar|abrir|fazer|gerar)\b[\s\S]{0,40}\bplanta\b/.test(text)) return true;
     return !hasEloResidentialBudgetIntent_(message);
   }
@@ -22116,7 +22126,7 @@ function isEloResidentialNewPipelineEnabled_() {
         sessionIntent: "agradecimento"
       };
     }
-    if (/cadista|\bcad\b|\bdxf\b|\bplanta\b|planta\s+baixa|desenh(?:ar|e|o)|layout|croqui|fachada|corte|prancha|projeto\s+arquitetonico|projeto\s+arquitet.nico/.test(text) && !isEloResidentialBudgetBriefingQuestion_(message) && !isEloCompleteResidentialBudgetPriorityRequest_(message)) {
+    if (/cadista|\bcad\b|\bdxf\b|\bplanta\b|planta\s+baixa|desenh(?:ar|e|o)|layout|croqui|fachada|corte|prancha|projeto\s+arquitetonico|projeto\s+arquitet.nico/.test(text) && !isEloTechnicalObjectOnlyCadistaConflict_(message) && !isEloResidentialBudgetBriefingQuestion_(message) && !isEloCompleteResidentialBudgetPriorityRequest_(message)) {
       return {
         shortAnswer: "O CADISTA transforma dados de projeto em desenho tecnico.",
         fullAnswer: "Fluxo CADISTA/planta: vamos organizar terreno, ambientes, quartos, suite, garagem e premissas para projeto. Para gerar uma planta, preciso de terreno, programa de necessidades, pavimentos, recuos e saida desejada em PDF/DXF.",
