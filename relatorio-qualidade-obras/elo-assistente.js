@@ -5969,10 +5969,16 @@
     };
   }
 
+  function hasExplicitRdoAsContext_(message) {
+    const text = normalizeText(message || "");
+    if (!/\brdo\b/.test(text)) return false;
+    return /evidencia\s+complementar|evidência\s+complementar|como\s+evidencia|como\s+evidência|apenas\s+como\s+contexto|somente\s+como\s+contexto|rdo\s+(?:e|é)\s+(?:somente|apenas)\s+contexto|sem\s+tratar\s+rdo\s+como\s+pedido\s+principal/.test(text);
+  }
+
   function isEloRdoOperationalQuestion_(message) {
     const text = normalizeText(message || "");
     const pathologyAnalysis = /\b(?:analise|analisa|avalie|avaliar)\b/.test(text) && /\b(?:patologia|fissura|trinca|rachadura|infiltra|umidade|exsuda|afundamento)\b/.test(text);
-    if (pathologyAnalysis) return false;
+    if (pathologyAnalysis || hasExplicitRdoAsContext_(message)) return false;
     return /\brdo\b|diario|diário|executado\s+hoje|execucao\s+de\s+hoje|execução\s+de\s+hoje|ocorrencias\s+do\s+diario|ocorrências\s+do\s+diário|seguranca|segurança|resumo\s+do\s+diario|resumo\s+do\s+diário/.test(text);
   }
 
@@ -5986,7 +5992,8 @@
     const hasTechnicalEvidence = /\b(?:ensaio|compacta..o|densidade|dmt|cbuq|asfalt|pavimenta|exsuda..o|ligante|trilhas?[ ]+de[ ]+roda|afundamento|patologia|fissura|trinca|rachadura|bm|rdo|contrato|especifica..o[ ]+t.cnica|resultado|amostra|massa|trecho)\b/.test(text);
     const hasActionRequest = /\b(?:analise|analisa|avalie|avaliar|compare|comparar|recomende|recomendar|redija|redigir|redigindo|elabore|elaborar|prepare|preparar|fazer|orientar|atue[ ]+como[ ]+fiscal|notifica..o|parecer|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|constar[ ]+no[ ]+sei|para[ ]+sei|conclus.o[ ]+t.cnica)\b/.test(text);
     const hasOnlyRdoLookup = /\b(?:mostre|mostrar|resuma|resumir|qual|quais|buscar|busque|consulte|consultar|equipe|registrada|registrado|ultimo|ultima|.ltimo|.ltima)\b/.test(text) && !/\b(?:inconformidade|nao[ ]+conformidade|notifica..o|parecer|atue[ ]+como[ ]+fiscal|relatorio[ ]+tecnico|relat.rio[ ]+t.cnico|sei|patologia|fissura|trinca|rachadura|ensaio|compacta..o|contrato[ ]+exige|foco[ ]+nas[ ]+inconformidades)\b/.test(text);
-    return rawInspectionFallback || hasRdoTechnicalEvaluation || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
+    const hasExplicitRdoAsContext = hasExplicitRdoAsContext_(message);
+    return rawInspectionFallback || hasRdoTechnicalEvaluation || (hasExplicitRdoAsContext && hasActionRequest && !hasOnlyRdoLookup) || (hasInspectionContext && hasTechnicalEvidence && hasActionRequest && !hasOnlyRdoLookup);
   }
 
   function buildEloComplexInspectionTechnicalAnswer_(message) {

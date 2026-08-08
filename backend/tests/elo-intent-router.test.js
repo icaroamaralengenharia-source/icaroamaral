@@ -109,7 +109,9 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
     "Mostre o ultimo RDO.",
     "Resuma o RDO de hoje.",
     "Compare o RDO de ontem com o de hoje.",
-    "Qual foi a equipe registrada no RDO?"
+    "Qual foi a equipe registrada no RDO?",
+    "Use este RDO para montar o resumo do dia.",
+    "Há evidência no RDO?"
   ];
   rdoCases.forEach((message) => {
     const response = assistant.buildResponseForTest(message);
@@ -117,6 +119,16 @@ test("IntentRouter distingue RDO operacional de fiscalizacao tecnica complexa", 
     assert.equal(response.sessionIntent, "rdo_resumo", message);
   });
 
+  [
+    "Analise tecnica do RDO como evidencia complementar, sem tratar RDO como pedido principal.",
+    "Use o RDO apenas como evidência complementar e avalie tecnicamente a situação.",
+    "O RDO é somente contexto. Faça a análise técnica."
+  ].forEach((message) => {
+    const response = assistant.buildResponseForTest(message);
+    assert.equal(response.sessionTheme, "fiscalizacao_tecnica", message);
+    assert.equal(response.sessionIntent, "technical_nonconformity_notice", message);
+    assert.doesNotMatch(response.fullAnswer, /Nao encontrei RDO registrado|Cadastre o diario de obra/i, message);
+  });
   const cbuqScenario = [
     "[TESTE DE ESTRESSE DO SISTEMA - ELO]",
     "Ola, Elo. Como estao as coisas por ai hoje? Antes de comecarmos o batente, me diga qual foi a coisa mais curiosa ou desafiadora que voce processou nos seus dados esta semana?",
