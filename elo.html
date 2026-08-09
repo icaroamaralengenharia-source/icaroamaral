@@ -43,6 +43,15 @@
       justify-content: flex-end;
     }
     body.elo-auth-required.elo-local-readonly .elo-core-actions {
+      position: absolute;
+      left: clamp(14px, 3vw, 34px);
+      top: 14px;
+      z-index: 3;
+      display: flex;
+    }
+    body.elo-auth-required.elo-local-readonly .elo-core-actions [data-elo-new-chat],
+    body.elo-auth-required.elo-local-readonly .elo-core-actions [data-elo-memory],
+    body.elo-auth-required.elo-local-readonly .elo-history-actions button:last-child {
       display: none;
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
