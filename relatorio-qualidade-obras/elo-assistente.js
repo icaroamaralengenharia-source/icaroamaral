@@ -574,6 +574,12 @@
       /\b(?:so|apenas)\b[\s\S]{0,36}\b(?:conversar|bater papo|papo|conversa)\b/.test(text);
   }
 
+  function isEloSportsScheduleLiveSearchIntent_(text) {
+    const sportsScheduleSubject = /\b(?:jogo|jogos|partida|partidas|rodada|agenda de jogos|programacao esportiva|copa do mundo|copa|selecao|campeonato|mundial)\b/.test(text);
+    const sportsScheduleTime = /\b(?:proximo|proximos|proxima|proximas|amanha|semana|esta semana|quando|agenda|programacao)\b/.test(text);
+    const technicalNextStep = /\bproxim[oa]s?\b[\s\S]{0,36}\b(?:passo|etapa|servico|sequencia|item|orcamento|obra|concretagem|execucao)\b/.test(text);
+    return sportsScheduleSubject && sportsScheduleTime && !technicalNextStep;
+  }
   function hasEloSemanticLiveSearchIntent_(message) {
     const text = canonicalizeEloSemanticText_(message);
     if (!text || hasEloSemanticConversationNegation_(text)) return false;
@@ -583,6 +589,7 @@
     const hasExternalSubject = new RegExp("\\b(?:" + subjectPattern + ")\\b").test(text) || /\b(?:clima|tempo|temperatura|previsao)\b[\s\S]{0,24}\b(?:em|para)\b/.test(text);
     if (explicitSearch && hasExternalSubject) return true;
     if (/\b(?:que dia|qual dia|data de hoje|data atual|hora atual|que horas|horas sao)\b/.test(text) && !hasExternalSubject) return false;
+    if (isEloSportsScheduleLiveSearchIntent_(text)) return true;
     const temporalPattern = "hoje|agora|atual|atuais|atualmente|ultimas|tempo real";
     if (new RegExp("\\b(?:" + temporalPattern + ")\\b[\\s\\S]{0,70}\\b(?:" + subjectPattern + ")\\b").test(text)) return true;
     if (new RegExp("\\b(?:" + subjectPattern + ")\\b[\\s\\S]{0,70}\\b(?:" + temporalPattern + ")\\b").test(text)) return true;
@@ -823,6 +830,9 @@
   function buildEloWebSearchRouteResponse_(question) {
     if (!needsLiveSearch(question)) return null;
     const query = sanitizeUserText(question);
+    if (isEloSportsScheduleLiveSearchIntent_(canonicalizeEloSemanticText_(query))) {
+      return { route: "web_search", needsLiveSearch: true, shortAnswer: "Posso pesquisar isso em tempo real.", fullAnswer: "Posso pesquisar isso em tempo real.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query }, webSearchQuery: query };
+    }
     return { route: "web_search", needsLiveSearch: true, shortAnswer: "Vou consultar e te respondo direto.", fullAnswer: "Vou consultar e te respondo direto.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: null, webSearchQuery: query };
   }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
@@ -25642,6 +25652,16 @@ function isEloResidentialNewPipelineEnabled_() {
 
       const liveSearchResponse = effectiveSemanticRoute.intent === "busca_atual" ? buildEloWebSearchRouteResponse_(cleanQuestion) : null;
       if (liveSearchResponse) {
+
+        if (liveSearchResponse.action && liveSearchResponse.action.type === "meta_web_search") {
+          const liveSearchAnswer = formatResponse(liveSearchResponse);
+          appendAssistantMessage(cleanQuestion, liveSearchAnswer, false, liveSearchResponse);
+          saveConversation(cleanQuestion, liveSearchAnswer);
+          rememberSessionTurn(cleanQuestion, liveSearchResponse, liveSearchAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
         requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
           const finalAnswer = sanitizeEloMultilineText_(searchAnswer) || "Nao consegui consultar informacoes em tempo real agora.";
           const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: finalAnswer, fullAnswer: finalAnswer, action: null });
@@ -25709,6 +25729,14 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const liveSearchResponse = effectiveSemanticRoute.intent === "busca_atual" ? buildEloWebSearchRouteResponse_(cleanQuestion) : null;
     if (liveSearchResponse) {
+      if (liveSearchResponse.action && liveSearchResponse.action.type === "meta_web_search") {
+        const liveSearchAnswer = formatResponse(liveSearchResponse);
+        appendAssistantMessage(cleanQuestion, liveSearchAnswer, false, liveSearchResponse);
+        saveConversation(cleanQuestion, liveSearchAnswer);
+        rememberSessionTurn(cleanQuestion, liveSearchResponse, liveSearchAnswer);
+        clearProductAttachmentPreview();
+        return;
+      }
       showTypingIndicator();
       requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
         const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: searchAnswer, fullAnswer: searchAnswer, action: null });
