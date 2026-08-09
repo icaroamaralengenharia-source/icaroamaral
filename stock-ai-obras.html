@@ -14,8 +14,8 @@ src="/assets/site-access-gate.js?v=20260710-access-v2"
 defer></script>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stock AI Obras | Powered by Elo Obras</title>
-  <meta name="description" content="Stock AI Obras com Elo Obras para composições, previsão de consumo, auditoria e planejamento de compra.">
+  <title>Stock Obras | Composi&ccedil;&otilde;es e insumos de obra</title>
+  <meta name="description" content="Consulte composi&ccedil;&otilde;es, insumos, fonte, UF e compet&ecirc;ncia das bases dispon&iacute;veis para apoiar or&ccedil;amentos e confer&ecirc;ncias.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -152,6 +152,27 @@ defer></script>
       line-height: 1.4;
       text-align: left;
       cursor: pointer;
+    }
+
+    .stock-obras-commercial-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0 0 24px;
+    }
+
+    .stock-obras-commercial-actions a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 1px solid rgba(127, 182, 230, 0.3);
+      border-radius: 10px;
+      color: var(--elo-product-text);
+      background: rgba(30, 111, 174, 0.28);
+      font-weight: 900;
+      text-decoration: none;
     }
 
     .stock-obras-prompt:hover,
@@ -407,7 +428,7 @@ defer></script>
 </head>
 <body data-elo-mode="standalone" data-elo-product="stock-ai-obras" data-elo-context="obras">
   <header class="elo-product-top">
-    <a class="elo-about-link" href="index.html">Início</a>
+    <a class="elo-about-link" href="index.html">In&iacute;cio</a>
   </header>
 
   <main class="stock-obras-shell" aria-labelledby="stock-ai-obras-title">
@@ -429,28 +450,32 @@ defer></script>
           <path d="M22 20h20" stroke="#d7edff" stroke-width="3" stroke-linecap="round"></path>
         </svg>
         <span>
-          <strong>Stock AI Obras</strong>
-          <small>Quantitativos + compras inteligentes</small>
+          <strong>Stock Obras</strong>
+          <small>Composi&ccedil;&otilde;es + insumos</small>
         </span>
       </div>
       <span class="stock-obras-kicker">Powered by Elo Obras</span>
-      <h1 id="stock-ai-obras-title" class="stock-obras-title">Stock AI <span>Obras</span></h1>
-      <p class="stock-obras-subtitle" data-elo-surface-greeting>O que vamos fazer hoje?</p>
-      <p class="stock-obras-copy">Converse com um especialista operacional para transformar serviços executados em composição, consumo previsto, auditoria previsto x real e planejamento de compra.</p>
-      <ul class="stock-obras-capabilities" aria-label="Recursos do Stock AI Obras">
-        <li>Composições editáveis</li>
-        <li>Previsão de consumo</li>
-        <li>Auditoria de desperdício</li>
-        <li>Lista de compra</li>
+      <h1 id="stock-ai-obras-title" class="stock-obras-title">Consulte composi&ccedil;&otilde;es e insumos de obra com mais organiza&ccedil;&atilde;o.</h1>
+      <p class="stock-obras-subtitle" data-elo-surface-greeting>Apoio para localizar composi&ccedil;&otilde;es, insumos, fonte, UF e compet&ecirc;ncia das bases dispon&iacute;veis.</p>
+      <p class="stock-obras-copy">Use o Stock Obras para organizar consultas de or&ccedil;amento, comparar informa&ccedil;&otilde;es da base importada e apoiar a revis&atilde;o antes de usar os dados em proposta ou planejamento.</p>
+      <ul class="stock-obras-capabilities" aria-label="Recursos do Stock Obras">
+        <li>Composi&ccedil;&otilde;es dispon&iacute;veis</li>
+        <li>Insumos, fonte e compet&ecirc;ncia</li>
+        <li>UF e m&ecirc;s da base utilizada</li>
+        <li>Consulta assistida pelo ELO Obras</li>
       </ul>
+      <div class="stock-obras-commercial-actions" aria-label="A&ccedil;&otilde;es comerciais do Stock Obras">
+        <a href="https://wa.me/5577981214968?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Stock%20Obras." target="_blank" rel="noopener">Conhecer o Stock Obras</a>
+        <a href="#stock-obras-import-title">Ver bases e ressalvas</a>
+      </div>
       <div class="stock-obras-prompts" aria-label="Exemplos de perguntas">
-        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Vou fazer 60m² de alvenaria com bloco cerâmico, chapisco e reboco. Faça a composição.">Vou fazer 60m² de alvenaria, chapisco e reboco.</button>
+        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Vou fazer 60 m2 de alvenaria com bloco ceramico, chapisco e reboco. Ajude a organizar a composicao.">Vou fazer 60 m2 de alvenaria, chapisco e reboco.</button>
         <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Quanto preciso comprar para 100 m2 de parede, massa e pintura?">Quanto preciso comprar para parede, massa e pintura?</button>
-        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Existe desperdício se eu consumi mais cimento que o previsto?">Existe desperdício?</button>
+        <button class="stock-obras-prompt" type="button" data-stock-obras-prompt="Quero revisar consumo de cimento em relacao ao previsto na base usada.">Quero revisar consumo em rela&ccedil;&atilde;o ao previsto.</button>
       </div>
       <section class="stock-obras-import" aria-labelledby="stock-obras-import-title">
         <h2 id="stock-obras-import-title">Importar base oficial SINAPI/ORSE</h2>
-        <p>Importe um arquivo CSV/XLSX obtido de fonte oficial. O sistema valida os dados antes de usar no Stock AI.</p>
+        <p>Importe um arquivo CSV/XLSX obtido de fonte oficial. O sistema valida os dados antes de usar no Stock Obras.</p>
         <div class="stock-obras-import-controls">
           <label class="stock-obras-import-field">
             Fonte
@@ -491,6 +516,7 @@ defer></script>
           <li>Templates, examples e mocks ser&atilde;o rejeitados.</li>
           <li>A base demonstrativa continua dispon&iacute;vel como fallback.</li>
           <li>Leitura XLSX habilitada no navegador; se a biblioteca falhar, use CSV ou o fluxo backend/testes.</li>
+        <li>A validade depende da base importada, fonte e compet&ecirc;ncia utilizadas.</li>
         </ul>
         <div class="stock-obras-import-status" aria-live="polite">Nenhuma base importada. O Stock AI usa a base demonstrativa/edit&aacute;vel.</div>
       </section>

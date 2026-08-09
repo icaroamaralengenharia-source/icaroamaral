@@ -14,8 +14,10 @@ src="/assets/site-access-gate.js?v=20260710-access-v2"
 defer></script>
 <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Stock Full | Controle de estoque offline</title>
-  <meta name="description" content="Controle estoque mesmo sem internet. Cadastre produtos, registre entradas e saidas, acompanhe saldo, historico, auditoria e backup local.">
+  <title>Stock Full | Controle de estoque e almoxarifado</title>
+  <meta name="description" content="Controle entradas, sa&iacute;das, respons&aacute;veis, saldos, hist&oacute;rico e relat&oacute;rios de estoque com piloto assistido.">
+  <meta property="og:title" content="Stock Full | Controle de estoque e almoxarifado">
+  <meta property="og:description" content="Controle entradas, sa&iacute;das, respons&aacute;veis, saldos, hist&oacute;rico e relat&oacute;rios de estoque com piloto assistido.">
   <style>
     :root {
       --bg: #f5f7fb;
@@ -481,6 +483,10 @@ defer></script>
         width: 100%;
       }
 
+      .topbar-actions {
+        flex-direction: column;
+      }
+
       .button {
         width: 100%;
       }
@@ -510,8 +516,8 @@ defer></script>
         <span>Stock Full</span>
       </a>
       <nav class="topbar-actions" aria-label="Acoes do Stock Full">
-        <a class="button" href="https://wa.me/5577981214968?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Stock%20Full%20para%20controle%20de%20estoque." target="_blank" rel="noopener">Falar no WhatsApp</a>
-        <a class="button primary" href="stockfull.html">Testar Stock Full</a>
+        <a class="button" href="#como-funciona-title">Ver como funciona</a>
+        <a class="button primary" href="https://wa.me/5577981214968?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20piloto%20assistido%20do%20Stock%20Full." target="_blank" rel="noopener">Conhecer o piloto assistido</a>
       </nav>
     </div>
   </header>
@@ -520,11 +526,11 @@ defer></script>
     <section class="hero page-shell" aria-labelledby="stock-full-title">
       <div>
         <p class="eyebrow">Estoque simples para comercio real</p>
-        <h1 id="stock-full-title">Controle seu estoque mesmo sem internet.</h1>
-        <p class="lead">Cadastre produtos, registre entradas e saídas, acompanhe saldo, histórico, auditoria e faça backup local dos seus dados.</p>
+        <h1 id="stock-full-title">Controle entradas, sa&iacute;das, respons&aacute;veis e saldos sem depender de planilhas paralelas.</h1>
+        <p class="lead">Uma forma simples de organizar o almoxarifado da empresa ou obra, acompanhar movimenta&ccedil;&otilde;es e gerar relat&oacute;rios para confer&ecirc;ncia.</p>
         <div class="hero-actions">
-          <a class="button primary" href="stockfull.html">Testar Stock Full</a>
-          <a class="button" href="https://wa.me/5577981214968?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Stock%20Full%20para%20controle%20de%20estoque." target="_blank" rel="noopener">Falar no WhatsApp</a>
+          <a class="button primary" href="https://wa.me/5577981214968?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20piloto%20assistido%20do%20Stock%20Full." target="_blank" rel="noopener">Conhecer o piloto assistido</a>
+          <a class="button" href="#como-funciona-title">Ver como funciona</a>
         </div>
         <ul class="badges" aria-label="Diferenciais do Stock Full">
           <li>Funciona offline</li>
@@ -561,17 +567,16 @@ defer></script>
       </aside>
     </section>
 
-    <section class="problem page-shell" aria-labelledby="problema-title">
-      <div class="section-intro">
-        <p class="eyebrow">O problema</p>
-        <h2 id="problema-title">Quando o estoque fica solto, a loja perde dinheiro.</h2>
-        <p>O Stock Full foi pensado para donos de loja que precisam de controle sem depender de planilhas difíceis ou sistemas grandes demais.</p>
+    <section class="problem page-shell" aria-labelledby="problem-title">
+      <div>
+        <p class="eyebrow">Problema</p>
+        <h2 id="problem-title">Quando o estoque fica solto, a confer&ecirc;ncia vira retrabalho.</h2>
       </div>
-      <div class="grid">
-        <article class="card"><h3>Planilha confusa</h3><p>Fica difícil saber qual número está certo quando cada pessoa atualiza de um jeito.</p></article>
-        <article class="card"><h3>Produto sumindo</h3><p>Sem histórico, ninguém sabe quando saiu, quem retirou ou para onde foi.</p></article>
-        <article class="card"><h3>Saldo errado</h3><p>Comprar pouco gera falta. Comprar demais prende dinheiro em estoque parado.</p></article>
-        <article class="card"><h3>Medo de perder dados</h3><p>Sem backup, limpar o navegador ou trocar de computador pode virar dor de cabeça.</p></article>
+      <div class="problem-grid">
+        <article><strong>Estoque que n&atilde;o bate</strong><span>Entradas e sa&iacute;das sem hist&oacute;rico dificultam a confer&ecirc;ncia.</span></article>
+        <article><strong>Sa&iacute;da sem registro</strong><span>Material sai do almoxarifado sem respons&aacute;vel, data ou motivo claro.</span></article>
+        <article><strong>Respons&aacute;vel indefinido</strong><span>A equipe perde tempo perguntando quem retirou, recebeu ou autorizou.</span></article>
+        <article><strong>Hist&oacute;rico dif&iacute;cil</strong><span>Relat&oacute;rios e auditorias dependem de planilhas paralelas e mensagens soltas.</span></article>
       </div>
     </section>
 
