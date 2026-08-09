@@ -20815,15 +20815,32 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
+  function hasEloRecentWallContinuationContext_() {
+    const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
+    if (!estimate) return false;
+    const recentText = normalizeText([
+      ELO_SESSION_MEMORY.activeConversationTopic || "",
+      ELO_SESSION_MEMORY.lastTheme || "",
+      ELO_SESSION_MEMORY.lastIntent || "",
+      ELO_SESSION_MEMORY.lastQuestion || "",
+      ELO_SESSION_MEMORY.lastAnswer || "",
+      ELO_SESSION_MEMORY.lastRecommendation || ""
+    ].join(" "));
+    return /\b(?:elo_operacional_parede|orcamento_parede|lista_materiais_parede|retomar_orcamento_parede|parede|alvenaria|bloco)\b/.test(recentText);
+  }
   function buildEloWallContinuationAnswer_(message) {
     const text = normalizeText(message);
     const estimate = ELO_SESSION_MEMORY.lastOperationalWallEstimate || window.__eloLastOperationalWallEstimate;
     if (!estimate) {
       return null;
     }
+    const wantsBudgetContinuation = /^(?:o\s+)?or.amento[\s,]*(?:faca|fa.a|faz|fazer|pode\s+fazer|continue|continua|finalize|finaliza|gere|gerar)?\s*$/.test(text) ||
+      /^(?:faca|fa.a|faz|fazer|pode\s+fazer|continue|continua|finalize|finaliza|pode\s+gerar|gere|gerar)(?:\s+o)?\s+or.amento\s*$/.test(text) ||
+      /\b(?:elo\s+)?nao\s+(?:criou|gerou|montou|fez)\s+(?:o\s+)?or.amento\b/.test(text) ||
+      /^(?:pode\s+fazer|continue|continua)$/.test(text);
     const wantsLabor = /mao\s*de\s*obra|m.o|servico|pedreiro|quanto\s+cobrar|preco\s+do\s+servico|pre.o\s+do\s+servico/.test(text);
     const wantsLoss = /perda|perdas|desperdicio|desperd.cio|quebra|sobra|10\s*(?:%|por cento)|15\s*(?:%|por cento)/.test(text);
-    const wantsBudget = hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
+    const wantsBudget = wantsBudgetContinuation || hasAnyTerm(text, ["orcamento", "custo", "preco", "valor", "referencia", "padrao"]) || /orcament|or.amento|\borca\b|\bor.a\b|orcar|quanto|mais ou menos|refer|refer.ncia|padrao|padr.o|preco|pre.o|valor|custo/.test(text) || text === "sim";
     const wantsDetail = hasAnyTerm(text, ["detalhar", "detalhe", "quantidade"]) || text === "sim";
     if (wantsLabor) {
       if (!isEloPreliminaryEstimateAuthorized_(message)) {
@@ -20883,7 +20900,28 @@ function isEloResidentialNewPipelineEnabled_() {
       };
     }
     if (wantsBudget || wantsDetail) {
-      if (!isEloPreliminaryEstimateAuthorized_(message)) {
+      if (estimate.preliminaryAuthorized !== true && !isEloPreliminaryEstimateAuthorized_(message)) {
+        if (wantsBudgetContinuation) {
+          rememberEloWallEstimate_(estimate);
+          return {
+            shortAnswer: "Retomei o orcamento da parede anterior.",
+            fullAnswer: [
+              "Retomada do orcamento da parede",
+              "",
+              "Mantive os dados ja calculados da parede anterior, sem inventar preco unitario.",
+              "",
+              formatEloWallEstimateLines_(estimate).join("\n"),
+              "",
+              "Precos pendentes:",
+              "- Nao apliquei preco unitario, BDI, frete, impostos ou total financeiro sem base confirmada.",
+              "- Para transformar em valor, informe SINAPI/ORSE/composicao validada ou autorize estimativa nao oficial separadamente."
+            ].join("\n"),
+            nextAction: "Informe a base de preco oficial ou autorize explicitamente estimativa nao oficial.",
+            canSave: true,
+            sessionTheme: "elo_operacional_parede",
+            sessionIntent: "retomar_orcamento_parede"
+          };
+        }
         return buildEloMissingTechnicalCompositionResponse_(message);
       }
       estimate.preliminaryAuthorized = true;
@@ -25578,6 +25616,16 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       if (effectiveSemanticRoute.intent === "conversa_geral") {
+        const wallContinuationCommandBridgeBypassResponse = hasEloRecentWallContinuationContext_() ? buildEloWallContinuationAnswer_(cleanQuestion) : null;
+        if (wallContinuationCommandBridgeBypassResponse) {
+          const wallContinuationAnswer = formatResponse(wallContinuationCommandBridgeBypassResponse);
+          appendAssistantMessage(cleanQuestion, wallContinuationAnswer, wallContinuationCommandBridgeBypassResponse.canSave !== false, wallContinuationCommandBridgeBypassResponse);
+          saveConversation(cleanQuestion, wallContinuationAnswer);
+          rememberSessionTurn(cleanQuestion, wallContinuationCommandBridgeBypassResponse, wallContinuationAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
         const commandBridgeResponse = buildEloCommandBridgeResponse_(cleanQuestion, { semanticRoute: effectiveSemanticRoute });
         if (commandBridgeResponse) {
           const commandBridgeAnswer = formatResponse(commandBridgeResponse);
