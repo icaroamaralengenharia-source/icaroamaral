@@ -1,12 +1,40 @@
 {
-  "atualizadoEm": "2026-08-10T15:16:01.584Z",
-  "coletadoEm": "2026-08-10T15:16:01.584Z",
+  "atualizadoEm": "2026-08-10T16:10:15.415Z",
+  "coletadoEm": "2026-08-10T16:10:15.415Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "bf8d2cef250f8de7",
+      "titulo": "Tempestades causadas por tufão Dolphin atingem leste da China",
+      "resumo": "Chuvas torrenciais e tempestades na esteira do tufão Dolphin inundaram várias províncias no leste da China, alagando a região costeira e inundando as ruas de Xangai. Cerca de 40% dos voos foram cancelados nesta segunda-feira (10) em Xangai, devido às condições climáticas.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/internacional/noticia/2026-08/tempestades-causadas-por-tufao-dolphin-atingem-leste-da-china",
+      "publicadoEm": "2026-08-10T14:01:00.000Z",
+      "coletadoEm": "2026-08-10T16:10:15.415Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/9z1YuVivMq2QCy5Jb0WyusIfkhA=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/08/2026-08-08t150828z_1_lynxmpem7709j_rtroptp_4_asia-weather-japan-typhoon.jpg?itok=DajBAM1J",
+      "imagemAlt": "Tempestades causadas por tufão Dolphin atingem leste da China",
+      "imagemOrigem": "Agencia Brasil"
+    },
+    {
+      "id": "5a6a0ca7b2ca74a9",
+      "titulo": "Prazo para solicitação de voto em trânsito vai até dia 20 deste mês",
+      "resumo": "Vai até o dia 20 deste mês o prazo para o eleitor solicitar a habilitação para votar em trânsito nas eleições de outubro. A solicitação pode ser feita pela página do Tribunal Superior Eleitoral (TSE) na internet ou nos cartórios eleitorais em todo o país.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/justica/noticia/2026-08/prazo-para-solicitacao-de-voto-em-transito-vai-ate-dia-20-deste-mes",
+      "publicadoEm": "2026-08-10T12:19:00.000Z",
+      "coletadoEm": "2026-08-10T16:10:15.415Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/88ax7ZZEtSKCcQtDNHCAOfgOvis=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/predio-tse_mcamgo_abr_22062023-5.jpg?itok=smL4v_WI",
+      "imagemAlt": "Prazo para solicitação de voto em trânsito vai até dia 20 deste mês",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "e49a19f3856d1847",
       "titulo": "Semana do Patrimônio Histórico de Cuiabá promove programação especial",
