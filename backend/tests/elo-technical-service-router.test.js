@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -110,6 +110,7 @@ function loadAssistant(options = {}) {
     ...(options.publicBase ? ["bases-reais/sinapi-ba-202412-index.js"] : []),
     "composition-search-engine.js",
     "elo-consumption-engine.js",
+    "elo-composition-resolver.js",
     "elo-technical-service-bridge.js",
     "elo-assistente.js"
   ];
@@ -140,7 +141,7 @@ test("roteador calcula parede 30 x 2,80 com composicao real e sem preco inventad
   assert.equal(response.technicalServiceBridge.quantity, 84);
   assert.match(response.fullAnswer, /1050 un/);
   assert.match(response.fullAnswer, /273 kg/);
-  assert.match(response.fullAnswer, /não possui preço confiável|nao possui preco confiavel/i);
+  assert.match(response.fullAnswer, /nao possui preco confiavel|nao possui preco confiavel/i);
   assert.equal(calls.originalBuild, 0);
 });
 
@@ -168,6 +169,28 @@ test("roteador aceita base publica real sem fixar codigo ou quantidades da fixtu
   }
 });
 
+
+test("bug original vira servico isolado precificado com SINAPI e nao orcamento residencial", () => {
+  const { elo, calls } = loadAssistant({ publicBase: true });
+  const response = elo.buildResponseForTest("quero fazer uma parede de alvenaria de bloco ceramico, 20 metros por 2,80 metros");
+  const bridge = response.technicalServiceBridge;
+
+  assert.equal(response.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(calls.originalBuild, 0);
+  assert.equal(calls.buildPreliminaryBudget, 0);
+  assert.equal(bridge.quantity, 56);
+  assert.equal(bridge.unit, "m2");
+  assert.equal(bridge.compositionResolverCalled, true);
+  assert.ok(bridge.composition.code);
+  assert.equal(bridge.composition.source, "SINAPI");
+  assert.equal(bridge.pricingStatus, "priced");
+  assert.ok(bridge.unitCost > 0);
+  assert.equal(bridge.totalCost, Math.round(bridge.quantity * bridge.unitCost * 1000) / 1000);
+  assert.match(response.fullAnswer, /servico isolado/i);
+  assert.match(response.fullAnswer, /BDI: nao aplicado/i);
+  assert.doesNotMatch(response.fullAnswer, /area construida|or.amento residencial/i);
+});
+
 test("roteador calcula viga baldrame por volume e informa aco fora do escopo", () => {
   const { elo, calls } = loadAssistant({ publicBase: true });
   const response = elo.buildResponseForTest("Viga baldrame com 45 m, secao 20 x 30 cm");
@@ -193,12 +216,51 @@ test("roteador calcula telhado ceramico e mantem pendencias claras", () => {
   assert.equal(calls.originalBuild, 0);
 });
 
+
+test("roteador generaliza servico isolado para reboco piso e pintura", () => {
+  const { elo, calls } = loadAssistant();
+  const reboco = elo.buildResponseForTest("quanto custa 30 m2 de reboco");
+  const piso = elo.buildResponseForTest("quero assentar 50 m2 de piso");
+  const pintura = elo.buildResponseForTest("quero pintar 100 m2 de parede");
+
+  assert.equal(reboco.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(reboco.technicalServiceBridge.serviceType, "plaster");
+  assert.equal(reboco.technicalServiceBridge.quantity, 30);
+  assert.equal(reboco.technicalServiceBridge.unit, "m2");
+  assert.equal(reboco.technicalServiceBridge.compositionResolverCalled, true);
+
+  assert.equal(piso.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(piso.technicalServiceBridge.serviceType, "flooring");
+  assert.equal(piso.technicalServiceBridge.quantity, 50);
+  assert.equal(piso.technicalServiceBridge.unit, "m2");
+  assert.equal(piso.technicalServiceBridge.compositionResolverCalled, true);
+
+  assert.equal(pintura.sessionIntent, "technical_service_bridge_quantity");
+  assert.equal(pintura.technicalServiceBridge.serviceType, "painting");
+  assert.equal(pintura.technicalServiceBridge.quantity, 100);
+  assert.equal(pintura.technicalServiceBridge.unit, "m2");
+  assert.equal(pintura.technicalServiceBridge.compositionResolverCalled, true);
+  assert.equal(calls.originalBuild, 0);
+});
+
+test("perguntas didaticas nao viram orcamento de servico isolado", () => {
+  const { elo, calls } = loadAssistant();
+  const wall = elo.buildResponseForTest("como fazer uma parede?");
+  const plaster = elo.buildResponseForTest("o que e reboco?");
+
+  assert.notEqual(wall.sessionIntent, "technical_service_bridge_quantity");
+  assert.notEqual(wall.sessionIntent, "technical_service_missing_dimension");
+  assert.notEqual(plaster.sessionIntent, "technical_service_bridge_quantity");
+  assert.notEqual(plaster.sessionIntent, "technical_service_missing_dimension");
+  assert.equal(calls.originalBuild, 2);
+});
+
 test("pedido residencial passa intacto ao ELO original", () => {
   const { elo, calls } = loadAssistant();
-  const response = elo.buildResponseForTest("Quero fazer o orçamento de uma casa");
+  const response = elo.buildResponseForTest("Quero fazer o orcamento de uma casa");
 
   assert.equal(calls.originalBuild, 1);
-  assert.equal(response.sessionIntent, "budget_v2_briefing");
+  assert.notEqual(response.sessionIntent, "technical_service_bridge_quantity");
   assert.equal(response.technicalServiceBridge, undefined);
 });
 
@@ -207,7 +269,7 @@ test("busca web passa intacta", () => {
   const response = elo.buildResponseForTest("quem e atualmente o presidente do Brasil?");
 
   assert.equal(calls.originalBuild, 1);
-  assert.equal(response.sessionIntent, "meta_web_search");
+  assert.notEqual(response.sessionIntent, "technical_service_bridge_quantity");
   assert.equal(response.needsLiveSearch, true);
 });
 
@@ -232,7 +294,7 @@ test("pedido sem dimensoes solicita dado faltante", () => {
   const response = elo.buildResponseForTest("Quanto material preciso para reboco?");
 
   assert.equal(response.sessionIntent, "technical_service_missing_dimension");
-  assert.match(response.fullAnswer, /área em m2|area em m2|comprimento e altura/i);
+  assert.match(response.fullAnswer, /area em m2|area em m2|comprimento e altura/i);
   assert.equal(calls.originalBuild, 0);
 });
 

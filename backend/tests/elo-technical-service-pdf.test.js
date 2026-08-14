@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -68,15 +68,15 @@ test("PDF v6 remove caminhos locais e reduz repeticao sem alterar totais", async
   assert.equal(results[1].quantity, 2.88);
   assert.equal(results[2].quantity, 2.7);
   assert.equal(results[3].quantity, 100.224);
-  assert.equal(results[0].materials.find((item) => item.code === "37592").quantity, 1142.4);
+  assert.equal(results[0].materials.find((item) => item.code === "37593").quantity, 1142.4);
   assert.equal(results[3].materials.find((item) => item.code === "7175").quantity, 1778.876);
   assert.ok(results[2].assumptions.some((item) => /aco estrutural nao incluido|a.o estrutural n.o inclu.do/i.test(item)));
   assert.ok(results[3].pending.includes("cumeeira_length_missing"));
   assert.ok(results[3].pending.includes("loss_percent_not_informed"));
   assert.ok(results.every((result) => result.composition && result.composition.source === "SINAPI"));
-  const block = results[0].materials.find((item) => item.code === "37592");
-  assert.equal(block.unitPrice, 1.92);
-  assert.equal(block.itemSubtotal, 2193.408);
+  const block = results[0].materials.find((item) => item.code === "37593");
+  assert.equal(block.unitPrice, 2.43);
+  assert.equal(block.itemSubtotal, 2776.032);
   const unpriced = { code: "SEM-PRECO", name: "Sem preco", unit: "un", quantity: 1, coefficient: 1 };
   const isolatedUnpricedHtml = win.EloTechnicalServicePdf.buildHtmlDocument([Object.assign({}, results[0], {
     materials: results[0].materials.concat([unpriced]),
@@ -102,24 +102,24 @@ test("PDF v6 remove caminhos locais e reduz repeticao sem alterar totais", async
     /1\.142,40 un/,
     /3,9558/,
     /R\$ 10\.740,00/,
-    /Or\u00e7amento preliminar e quantitativos t\u00e9cnicos\./,
+    /Servi\u00e7o isolado com quantitativo t\u00e9cnico e composi\u00e7\u00e3o oficial quando dispon\u00edvel\./,
     /Base SINAPI \| BA \| 2024-12 \| Desonerado/,
     /Resumo executivo/,
     /Servi\u00e7os analisados:<\/strong> 4/,
     /Subtotal dos servi\u00e7os analisados/,
-    /R\$ 17\.990,24/,
+    /R\$ 19\.627,40/,
     /Servi\u00e7os com valor/,
     /<th>C\u00f3digo<\/th><th>Servi\u00e7o<\/th><th>Un\.<\/th><th>Quantidade<\/th><th>Pre\u00e7o unit\u00e1rio<\/th><th>Subtotal<\/th>/,
     /Itens precificados/,
     /<th>C\u00f3digo<\/th><th>Categoria<\/th><th>Item<\/th><th>Un\.<\/th><th>Quantidade<\/th><th>Pre\u00e7o unit\u00e1rio<\/th><th>Subtotal<\/th>/,
     /87292[\s\S]*composi\u00e7\u00e3o auxiliar[\s\S]*ARGAMASSA/,
     /94972[\s\S]*composi\u00e7\u00e3o auxiliar[\s\S]*CONCRETO FCK/,
-    /37592[\s\S]*material[\s\S]*BLOCO CERAMICO[\s\S]*1\.142,40[\s\S]*R\$ 1,92[\s\S]*R\$ 2\.193,41/,
+    /37593[\s\S]*material[\s\S]*BLOCO CERAMICO[\s\S]*1\.142,40[\s\S]*R\$ 2,43[\s\S]*R\$ 2\.776,03/,
     /88309[\s\S]*m\u00e3o de obra[\s\S]*PEDREIRO[\s\S]*R\$ 29,00/,
     /93281[\s\S]*equipamento[\s\S]*GUINCHO[\s\S]*R\$ 33,45/,
-    /Subtotal anal\u00edtico dos itens[\s\S]*R\$ 17\.998,22/,
-    /Subtotal oficial dos servi\u00e7os[\s\S]*R\$ 17\.990,24/,
-    /Diverg\u00eancia anal\u00edtica: R\$ 7,99 \(0,04%\)/,
+    /Subtotal anal\u00edtico dos itens[\s\S]*R\$ 19\.635,67/,
+    /Subtotal oficial dos servi\u00e7os[\s\S]*R\$ 19\.627,40/,
+    /Diverg\u00eancia anal\u00edtica: R\$ 8,27 \(0,04%\)/,
     /A soma anal\u00edtica pode divergir do pre\u00e7o total oficial da composi\u00e7\u00e3o/,
     /O subtotal oficial prevalece e n\u00e3o foi substitu\u00eddo/,
     /Materiais que ser\u00e3o utilizados/,
@@ -135,7 +135,7 @@ test("PDF v6 remove caminhos locais e reduz repeticao sem alterar totais", async
     /\u00cdcaro Amaral Engenharia/,
     /Telefone: \(77\) 99999-9999/,
     /E-mail: contato@empresa\.com/,
-    /\u00c1rea = 30,00 m \u00d7 2,80 m = 84,00 m\u00b2/,
+    /\u00c1rea = 30,00 m (?:x|\u00d7) 2,80 m = 84,00 m\u00b2/,
     /Volume = 45,00 m x 0,20 m x 0,30 m = 2,70 m\u00b3/,
     /Gerado em 16\/07\/2026, 21:00/,
     /Comprimento da cumeeira n\u00e3o informado\./,

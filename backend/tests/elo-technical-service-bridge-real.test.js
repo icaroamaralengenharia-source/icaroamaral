@@ -157,13 +157,13 @@ test("ponte transporta preco analitico da base publica real ate os itens", () =>
     text: "Quero fazer uma parede com bloco ceramico baiano, 30 metros de comprimento e 2,80 metros de altura. Qual material necessario?"
   });
 
-  const block = wall.materials.find((item) => item.code === "37592");
-  assert.ok(block, "bloco ceramico 37592 deve existir");
-  assert.equal(block.unitPrice, 1.92);
+  const block = wall.materials.find((item) => item.code === "37593");
+  assert.ok(block, "bloco ceramico 37593 deve existir");
+  assert.equal(block.unitPrice, 2.43);
   assert.equal(block.quantity, 1142.4);
   assert.equal(block.itemSubtotal, Math.round(block.quantity * block.unitPrice * 1000) / 1000);
-  assert.equal(block.itemSubtotal, 2193.408);
-  assert.equal(wall.totalCost, 4907.28);
+  assert.equal(block.itemSubtotal, 2776.032);
+  assert.equal(wall.totalCost, 6544.44);
 
   const mason = wall.labor.find((item) => item.code === "88309");
   assert.ok(mason, "pedreiro deve estar em mao de obra");

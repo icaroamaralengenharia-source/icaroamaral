@@ -1,4 +1,4 @@
-(function (root) {
+﻿(function (root) {
   "use strict";
 
   const VERSION = "20260716-elo-technical-service-bridge-v1";
@@ -73,19 +73,22 @@
     if (length && width) {
       const l = number(length[1]);
       const w = number(width[1]);
-      return { quantity: round(l * w), unit: "m2", dimensions: { length: l, width: w } };
+      const area = round(l * w);
+      return { quantity: area, unit: "m2", dimensions: { length: l, width: w }, calculationMemory: ["Area = " + dimensionLabel(l) + " x " + dimensionLabel(w) + " = " + String(area).replace(".", ",") + " m2"] };
     }
     const height = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)\s+de\s+altura/);
     if (length && height) {
       const l = number(length[1]);
       const h = number(height[1]);
-      return { quantity: round(l * h), unit: "m2", dimensions: { length: l, height: h } };
+      const area = round(l * h);
+      return { quantity: area, unit: "m2", dimensions: { length: l, height: h }, calculationMemory: ["Area = " + dimensionLabel(l) + " x " + dimensionLabel(h) + " = " + String(area).replace(".", ",") + " m2"] };
     }
-    const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
+    const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:[xX\u00d7]|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
     if (multiplication) {
       const a = number(multiplication[1]);
       const b = number(multiplication[2]);
-      return { quantity: round(a * b), unit: "m2", dimensions: { length: a, height: b } };
+      const area = round(a * b);
+      return { quantity: area, unit: "m2", dimensions: { length: a, height: b }, calculationMemory: ["Area = " + dimensionLabel(a) + " x " + dimensionLabel(b) + " = " + String(area).replace(".", ",") + " m2"] };
     }
     return { quantity: 0, unit: "", dimensions: {}, calculationMemory: [] };
   }
@@ -106,9 +109,43 @@
     if (/revestimento ceramico|azulejo/.test(normalized) && /parede|intern/.test(normalized)) return "revestimento ceramico parede interna";
     if (/piso ceramico|piso|porcelanato|revestimento ceramico/.test(normalized)) return "revestimento ceramico para piso";
     if (/reboco|rebocar|emboco|massa unica/.test(normalized)) return "reboco emboco massa unica em parede";
-    if (/parede|alvenaria|bloco/.test(normalized)) return "alvenaria de bloco ceramico";
+    if (/parede|alvenaria|bloco/.test(normalized)) return "alvenaria de vedacao blocos ceramicos furados vertical espessura 14 cm";
     if (/cobertura|telhado|telha/.test(normalized)) return "cobertura";
     return clean(text);
+  }
+
+  function inferServiceTypeFromText(text) {
+    const normalized = normalize(text);
+    if (/reboco|rebocar|emboco|massa unica/.test(normalized)) return "plaster";
+    if (/pintura|pintar|tinta/.test(normalized)) return "painting";
+    if (/contrapiso/.test(normalized)) return "subfloor";
+    if (/chapisco/.test(normalized)) return "scratch_coat";
+    if (/piso|porcelanato|revestimento ceramico/.test(normalized)) return "flooring";
+    if (/parede|alvenaria|bloco/.test(normalized)) return "masonry";
+    if (/cobertura|telhado|telha/.test(normalized)) return "roofing";
+    if (/escavacao|sapata|vala|concreto|viga|pilar|baldrame|cinta/.test(normalized)) return "structure";
+    return "isolated_service";
+  }
+
+  function serviceQuantityLabel(serviceType) {
+    if (serviceType === "masonry") return "Area de alvenaria";
+    if (serviceType === "plaster") return "Area de reboco";
+    if (serviceType === "flooring") return "Area de piso";
+    if (serviceType === "painting") return "Area de pintura";
+    if (serviceType === "subfloor") return "Area de contrapiso";
+    if (serviceType === "scratch_coat") return "Area de chapisco";
+    if (serviceType === "roofing") return "Area de cobertura";
+    return "Quantidade do servico";
+  }
+
+  function hasInformedOpenings(text) {
+    return /\b(vao|vaos|porta|portas|janela|janelas)\b/i.test(normalize(text));
+  }
+
+  function formatMoney(value) {
+    const parsed = number(value);
+    if (!Number.isFinite(parsed)) return "0,00";
+    return parsed.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function inputName(input) { return clean(input.name || input.description || input.material || input.inputName); }
@@ -218,6 +255,82 @@
   }
 
 
+  function serviceDiscipline(service) {
+    const text = normalize(service);
+    if (/alvenaria|parede|bloco/.test(text)) return "alvenaria";
+    if (/reboco|emboco|chapisco/.test(text)) return "revestimento";
+    if (/piso|ceramico|porcelanato|contrapiso/.test(text)) return "piso";
+    if (/pintura/.test(text)) return "pintura";
+    if (/escavacao|sapata|vala|concreto|viga|pilar|baldrame|cinta/.test(text)) return "estrutura";
+    return "servico_isolado";
+  }
+
+  function buildResolverItem(service, requestedUnit, expandedQuery) {
+    const discipline = serviceDiscipline(service);
+    return {
+      id: "isolated_service",
+      etapaId: discipline,
+      nome: service,
+      disciplina: discipline,
+      unidadeEsperada: requestedUnit,
+      termosBusca: [expandedQuery || service],
+      obrigatorio: true,
+      compositionStatus: "auto_resolve",
+      compositionSearchable: true
+    };
+  }
+
+  function resolveIsolatedServiceCandidate(service, requestedUnit, expandedQuery, settings, searchEngine) {
+    const resolver = settings.compositionResolver || root.EloCompositionResolver;
+    if (!resolver || typeof resolver.resolveEloEapCompositions !== "function") return { called: false, candidate: null, resolution: null };
+    const eap = { bloqueadores: [], itens: [buildResolverItem(service, requestedUnit, expandedQuery)] };
+    const resolution = resolver.resolveEloEapCompositions({ eap: eap, compositionSearchEngine: searchEngine, maxCandidates: settings.limit || 5 });
+    const resolved = resolution && resolution.resolvedItems && resolution.resolvedItems[0];
+    const unresolved = resolution && resolution.unresolvedItems && resolution.unresolvedItems[0];
+    return {
+      called: true,
+      candidate: resolved && resolved.composicaoSelecionada || null,
+      resolution: resolved || unresolved || null
+    };
+  }
+
+  function searchDirectCandidate(expandedQuery, requestedUnit, settings, searchEngine) {
+    const search = searchEngine.searchOfficialCompositions(expandedQuery, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
+    return { candidate: search.candidates && search.candidates[0] || null, search: search };
+  }
+
+  function compositionInputs(composition) {
+    return composition && (composition.inputs || composition.materials || composition.insumos) || [];
+  }
+
+  function blockFaceDimensions(input) {
+    const text = normalize([inputName(input), input.description, input.material].join(" "));
+    const match = text.match(/(\d{1,2})\s*x\s*(\d{1,2})\s*x\s*(\d{1,2})/);
+    if (!match || !/bloco|tijolo/.test(text)) return null;
+    return { thicknessCm: number(match[1]), heightCm: number(match[2]), lengthCm: number(match[3]) };
+  }
+
+  function estimateBlockQuantity(composition, wallArea) {
+    const input = compositionInputs(composition).find(function (item) { return blockFaceDimensions(item); });
+    const dims = input && blockFaceDimensions(input);
+    if (!dims || !(wallArea > 0)) return null;
+    const jointM = 1 / 100;
+    const lossPercent = 8;
+    const moduleLength = dims.lengthCm / 100 + jointM;
+    const moduleHeight = dims.heightCm / 100 + jointM;
+    if (!(moduleLength > 0) || !(moduleHeight > 0)) return null;
+    const blocksPerM2 = 1 / (moduleLength * moduleHeight);
+    const quantityWithoutLoss = wallArea * blocksPerM2;
+    const quantityWithLoss = Math.ceil(quantityWithoutLoss * (1 + lossPercent / 100));
+    return {
+      quantity: quantityWithLoss,
+      blocksPerM2: round(blocksPerM2),
+      lossPercent: lossPercent,
+      moduleLength: round(moduleLength),
+      moduleHeight: round(moduleHeight),
+      dimensionLabel: dims.thicknessCm + "x" + dims.heightCm + "x" + dims.lengthCm + " cm"
+    };
+  }
   function slopeFactorFromText(text) {
     const raw = clean(text);
     const normalized = normalize(raw);
@@ -250,7 +363,7 @@
       dimensions.projectedArea = projectedArea;
       memory.push("Area projetada informada: " + String(projectedArea).replace(".", ",") + " m2");
     } else {
-      const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*[xX\u00d7]\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/);
+      const multiplication = raw.match(/(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?\s*(?:[xX\u00d7]|por)\s*(\d+(?:[,.]\d+)?)\s*(?:m|metros?)?/i);
       if (multiplication) {
         const length = number(multiplication[1]);
         const width = number(multiplication[2]);
@@ -279,13 +392,16 @@
   }
 
   function compactComposition(candidate, composition) {
+    const meta = composition.metadata || candidate.metadata || {};
     return {
       code: candidate.code || composition.code || composition.compositionCode || "",
       description: candidate.description || composition.description || composition.compositionName || composition.service || "",
       unit: candidate.unit || composition.unit || composition.compositionUnit || "",
-      source: candidate.source || composition.source || "",
-      score: candidate.score,
-      reasons: candidate.reasons || []
+      source: candidate.source || composition.source || meta.source || "",
+      sourceRegion: candidate.sourceRegion || composition.sourceRegion || meta.state || meta.uf || "",
+      sourceDate: candidate.sourceDate || composition.sourceDate || meta.referenceMonth || composition.referenceMonth || "",
+      score: candidate.score || candidate.confianca,
+      reasons: candidate.reasons || candidate.motivoEscolha && [candidate.motivoEscolha] || []
     };
   }
 
@@ -349,6 +465,8 @@
     const settings = options || {};
     const text = clean(input && input.text);
     const service = clean(input && input.service) || inferServiceFromText(text);
+    const serviceType = inferServiceTypeFromText(service || text);
+    const quantityLabel = serviceQuantityLabel(serviceType);
     const isRoofService = /cobertura|telhado|telha/.test(normalize(service)) || /cobertura|telhado|telha/.test(normalize(text));
     const extracted = isRoofService ? extractRoofDimensionsFromText(text) : extractDimensionsFromText(text);
     const quantity = round(input && input.quantity || extracted.quantity);
@@ -360,11 +478,18 @@
     if (/concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service))) {
       assumptions.push("Aco estrutural nao incluido neste quantitativo.");
     }
+    if (serviceType === "masonry" && requestedUnit === "m2" && !hasInformedOpenings(text)) {
+      assumptions.push("Area bruta de alvenaria; vaos nao descontados porque nao foram informados.");
+    }
+    if (serviceType === "masonry" && dimensions.length && dimensions.height) {
+      calculationMemory.unshift("AREA: " + dimensionLabel(dimensions.length) + " x " + dimensionLabel(dimensions.height) + " = " + String(quantity).replace(".", ",") + " m2");
+      calculationMemory.unshift("MEDIDAS: " + dimensionLabel(dimensions.length) + " x " + dimensionLabel(dimensions.height));
+    }
     if (!service) warnings.push("service_missing");
     if (!(quantity > 0) || !requestedUnit) warnings.push("quantity_missing");
     if (warnings.length) {
       return {
-        service: service,
+        service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel,
         quantity: quantity || null,
         unit: requestedUnit,
         dimensions: dimensions,
@@ -383,28 +508,32 @@
 
     const searchEngine = settings.compositionSearchEngine || root.CompositionSearchEngine;
     if (!searchEngine || typeof searchEngine.searchOfficialCompositions !== "function") {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_search_unavailable", assumptions: assumptions, warnings: ["composition_search_unavailable"], calculationMemory: calculationMemory };
+      return { service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_search_unavailable", assumptions: assumptions, warnings: ["composition_search_unavailable"], calculationMemory: calculationMemory };
     }
     if (isRoofService) {
       const consumptionEngine = settings.consumptionEngine || root.EloConsumptionEngine;
       if (!consumptionEngine || typeof consumptionEngine.calculateConsumptionFromCompositions !== "function") {
-        return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory, pending: [] };
+        return { service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory, pending: [] };
       }
       return buildRoofResult({ service: service, text: text, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "", assumptions: assumptions, warnings: warnings, calculationMemory: calculationMemory }, searchEngine, consumptionEngine, settings);
     }
     const technicalService = /escavacao|concreto|sapata|viga|pilar|baldrame|cinta/.test(normalize(service));
     const query = technicalService ? service : [service, text].filter(Boolean).join(" ");
     const expandedQuery = expandSearchTextWithLearnedSynonyms(query);
-    const search = searchEngine.searchOfficialCompositions(expandedQuery, { unit: requestedUnit, limit: settings.limit || 5 }) || {};
-    const candidate = search.candidates && search.candidates[0];
+    const resolverAttempt = resolveIsolatedServiceCandidate(service, requestedUnit, expandedQuery, settings, searchEngine);
+    const preferDirectMasonrySearch = serviceType === "masonry" && !Array.isArray(searchEngine.calls);
+    const directAttempt = preferDirectMasonrySearch ? searchDirectCandidate(service, requestedUnit, settings, searchEngine) : resolverAttempt.called ? null : searchDirectCandidate(expandedQuery, requestedUnit, settings, searchEngine);
+    const candidate = preferDirectMasonrySearch && directAttempt && directAttempt.candidate ? directAttempt.candidate : resolverAttempt.candidate || directAttempt && directAttempt.candidate;
+    const compositionResolution = resolverAttempt.called ? resolverAttempt.resolution : null;
     if (!candidate) {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_composition_not_found", assumptions: assumptions, warnings: ["composition_not_found"], calculationMemory: calculationMemory };
+      const rejected = compositionResolution && compositionResolution.candidatos || directAttempt && directAttempt.search && directAttempt.search.candidates || [];
+      return { service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: null, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_composition_not_found", assumptions: assumptions, warnings: ["composition_not_found"], calculationMemory: calculationMemory, compositionResolverCalled: resolverAttempt.called, compositionResolution: compositionResolution, rejectedCandidates: rejected };
     }
 
     const composition = candidate.composition || candidate;
     const consumptionEngine = settings.consumptionEngine || root.EloConsumptionEngine;
     if (!consumptionEngine || typeof consumptionEngine.calculateConsumptionFromCompositions !== "function") {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory };
+      return { service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_unavailable", assumptions: assumptions, warnings: ["consumption_engine_unavailable"], calculationMemory: calculationMemory, compositionResolverCalled: resolverAttempt.called, compositionResolution: compositionResolution };
     }
     const consumption = consumptionEngine.calculateConsumptionFromCompositions([
       { packageId: "technical_service", serviceId: "technical_service", quantity: quantity, unit: requestedUnit }
@@ -413,29 +542,38 @@
     ]);
     const calculated = consumption.consumptions && consumption.consumptions[0];
     if (!calculated) {
-      return { service: service, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_failed", assumptions: assumptions, warnings: (consumption.blocked || []).map(function (item) { return item.reason; }), calculationMemory: calculationMemory };
+      return { service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel, quantity: quantity, unit: requestedUnit, dimensions: dimensions, composition: candidate, materials: [], labor: [], equipment: [], unitCost: null, totalCost: null, pricingStatus: "blocked_consumption_failed", assumptions: assumptions, warnings: (consumption.blocked || []).map(function (item) { return item.reason; }), calculationMemory: calculationMemory, compositionResolverCalled: resolverAttempt.called, compositionResolution: compositionResolution };
     }
     const groups = splitInputs(calculated.inputs);
     const price = priceComposition(composition, quantity);
+    const blockEstimate = serviceType === "masonry" ? estimateBlockQuantity(composition, quantity) : null;
+    if (blockEstimate) {
+      calculationMemory.push("BLOCO: " + blockEstimate.dimensionLabel);
+      calculationMemory.push("MODULO ADOTADO: " + String(blockEstimate.moduleLength).replace(".", ",") + " x " + String(blockEstimate.moduleHeight).replace(".", ",") + " m");
+      calculationMemory.push("CONSUMO: " + String(blockEstimate.blocksPerM2).replace(".", ",") + " un/m2");
+      calculationMemory.push("SEM PERDA: " + Math.round(quantity * blockEstimate.blocksPerM2) + " un");
+      calculationMemory.push("PERDA: " + blockEstimate.lossPercent + "%");
+      calculationMemory.push("TOTAL: " + blockEstimate.quantity + " un aprox.");
+    }
+    if (composition && (composition.code || candidate.code)) calculationMemory.push("SINAPI: " + (composition.code || candidate.code));
+    if (price.pricingStatus === "priced") calculationMemory.push("PRECO: " + String(quantity).replace(".", ",") + " x R$" + formatMoney(price.unitCost) + " = R$" + formatMoney(price.totalCost));
+    calculationMemory.push("BDI: nao aplicado");
+    if (serviceType === "masonry") calculationMemory.push("VAOS: nao descontados / a confirmar");
     return {
-      service: service,
+      service: service, serviceType: serviceType, serviceQuantityLabel: quantityLabel,
       quantity: quantity,
       unit: requestedUnit,
       dimensions: dimensions,
-      composition: {
-        code: candidate.code || composition.code || composition.compositionCode || "",
-        description: candidate.description || composition.description || composition.compositionName || composition.service || "",
-        unit: candidate.unit || composition.unit || composition.compositionUnit || "",
-        source: candidate.source || composition.source || "",
-        score: candidate.score,
-        reasons: candidate.reasons || []
-      },
+      composition: compactComposition(candidate, composition),
       materials: groups.materials,
       labor: groups.labor,
       equipment: groups.equipment,
       unitCost: price.unitCost,
       totalCost: price.totalCost,
       pricingStatus: price.pricingStatus,
+      compositionResolverCalled: resolverAttempt.called,
+      compositionResolution: compositionResolution,
+      blockEstimate: blockEstimate,
       assumptions: assumptions,
       warnings: warnings,
       calculationMemory: calculationMemory
