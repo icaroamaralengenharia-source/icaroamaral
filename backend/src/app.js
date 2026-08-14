@@ -6133,7 +6133,7 @@ async function callOpenAiElo_(payload, env) {
       model,
       input,
       temperature: 0.7,
-      max_output_tokens: 500
+      max_output_tokens: 1800
     })
   });
 
