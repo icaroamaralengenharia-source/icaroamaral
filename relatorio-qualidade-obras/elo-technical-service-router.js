@@ -1,4 +1,4 @@
-(function (root) {
+﻿(function (root) {
   "use strict";
 
   const VERSION = "20260716-elo-technical-service-router-v1";
@@ -7,7 +7,7 @@
 
   function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
   function normalize(value) {
-    return clean(value).replace(/m(?:\^?2|²|Â²)/gi, "m2").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return clean(value).replace(/m(?:\^?2|²|²)/gi, "m2").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   }
   function formatNumber(value) {
     const number = Number(value);
@@ -64,12 +64,13 @@
   function hasPendingPdfIdentification() { return !!pendingTechnicalPdfIdentification; }
   function clearPdfIdentificationForTest() { pendingTechnicalPdfIdentification = null; }
   function hasDimension(text) {
-    return /d+(?:[,.]d+)?s*(?:m3|m^3|m?|m??|metros?s+c[u?]bicos?)/i.test(text) ||
-      /d+(?:[,.]d+)?s*(?:m2|m^2|m?|m??|metros?s+quadrados?)/i.test(text) ||
-      /d+(?:[,.]d+)?s*(?:m|metros?)s+des+comprimento/i.test(text) && /d+(?:[,.]d+)?s*(?:m|metros?)s+des+altura/i.test(text) ||
-      /se[c?][a?]os+d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?/i.test(text) ||
-      /d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:cm|m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:cm|m|metros?)?/i.test(text) ||
-      /d+(?:[,.]d+)?s*(?:m|metros?)?s*[xX???]s*d+(?:[,.]d+)?s*(?:m|metros?)?/i.test(text);
+    const raw = clean(text);
+    return /\d+(?:[,.]\d+)?\s*(?:m3|m\^3|m³|metros?\s+cubicos?)/i.test(raw) ||
+      /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros?\s+quadrados?)/i.test(raw) ||
+      /\d+(?:[,.]\d+)?\s*(?:m|metros?)\s+de\s+comprimento/i.test(raw) && /\d+(?:[,.]\d+)?\s*(?:m|metros?)\s+de\s+altura/i.test(raw) ||
+      /secao\s+\d+(?:[,.]\d+)?\s*(?:cm|m|metros?)?\s*[xX×]\s*\d+(?:[,.]\d+)?/i.test(raw) ||
+      /\d+(?:[,.]\d+)?\s*(?:cm|m|metros?)?\s*[xX×]\s*\d+(?:[,.]\d+)?\s*(?:cm|m|metros?)?\s*[xX×]\s*\d+(?:[,.]\d+)?\s*(?:cm|m|metros?)?/i.test(raw) ||
+      /\d+(?:[,.]\d+)?\s*(?:m|metros?)?\s*(?:[xX×]|por)\s*\d+(?:[,.]\d+)?\s*(?:m|metros?)?/i.test(raw);
   }
   function shouldRoute(message) {
     const text = normalize(message);
@@ -78,7 +79,10 @@
     const hasService = /parede|alvenaria|bloco|piso|revestimento|ceramico|porcelanato|reboco|rebocar|emboco|chapisco|contrapiso|pintura|pintar|tinta|cobertura|telhado|telha|escav|sapata|vala|concreto|viga|baldrame|pilar|cinta/.test(text);
     const hasStructuralService = /escav|sapata|vala|concreto|viga|baldrame|pilar|cinta|cobertura|telhado|telha/.test(text);
     const hasIntent = /quantitativo|quantidade|material|materiais|consumo|orcamento|orcament|custo|preco|valor|quanto|qual material/.test(text);
-    return hasService && (hasIntent || hasStructuralService && hasDimension(message));
+    const hasExecutionIntent = /quero fazer|vou fazer|fazer uma|fazer um|executar|construir|levantar|assentar|rebocar|pintar|colocar|instalar/.test(text);
+    const isDidactic = /^(como|o que|qual|quais|explique|diferenca)\b/.test(text);
+    if (isDidactic && !hasIntent) return false;
+    return hasService && (hasIntent || hasStructuralService && hasDimension(message) || hasExecutionIntent && hasDimension(message));
   }
   function missingDimensionResponse(message) {
     const text = normalize(message);
@@ -92,9 +96,9 @@
     else if (/chapisco/.test(text)) service = "chapisco";
     else if (/reboco|rebocar|emboco/.test(text)) service = "reboco";
     return {
-      shortAnswer: "Preciso da dimensão do " + service + ".",
-      fullAnswer: "Para calcular o quantitativo, informe a área em m2 ou as dimensões. Ex.: parede 30 m x 2,80 m, piso 40 m2 ou reboco 100 m2.",
-      nextAction: "Informe área em m2 ou comprimento e altura.",
+      shortAnswer: "Preciso da dimensao do " + service + ".",
+      fullAnswer: "Para calcular o quantitativo, informe a area em m2 ou as dimensoes. Ex.: parede 30 m x 2,80 m, piso 40 m2 ou reboco 100 m2.",
+      nextAction: "Informe area em m2 ou comprimento e altura.",
       canSave: false,
       sessionTheme: "technical_service_bridge",
       sessionIntent: "technical_service_missing_dimension"
@@ -111,44 +115,51 @@
   }
   function formatBridgeResult(result) {
     const composition = result.composition || {};
+    const reference = [composition.source, composition.sourceRegion, composition.sourceDate].filter(Boolean).join(" | ") || "nao informada";
+    const quantityLabel = result.serviceQuantityLabel || "Quantidade do servico";
     const lines = [
-      "Quantitativo calculado por composição técnica.",
+      "Orcamento preliminar - servico isolado.",
       "",
-      "Serviço: " + (result.service || "não identificado"),
-      "Quantidade: " + formatNumber(result.quantity) + " " + (result.unit || ""),
-      "Composição utilizada: " + [composition.code, composition.description].filter(Boolean).join(" - "),
-      "Fonte: " + (composition.source || "não informada")
+      "Servico: " + (result.service || "nao identificado"),
+      quantityLabel + ": " + formatNumber(result.quantity) + " " + (result.unit || ""),
+      "Composicao utilizada: " + ([composition.code, composition.description].filter(Boolean).join(" - ") || "pendente"),
+      "Fonte/base: " + reference
     ];
     if (result.calculationMemory && result.calculationMemory.length) {
       lines.push("", "Memoria de calculo:");
       result.calculationMemory.forEach(function (item) { lines.push("- " + item); });
     }
     if (result.relatedCompositions && result.relatedCompositions.length > 1) {
-      lines.push("", "Composi??es complementares:");
+      lines.push("", "Composicoes complementares:");
       result.relatedCompositions.slice(1).forEach(function (item) { lines.push("- " + [item.code, item.description].filter(Boolean).join(" - ")); });
+    }
+    if (result.assumptions && result.assumptions.length) {
+      lines.push("", "Premissas:");
+      result.assumptions.forEach(function (item) { lines.push("- " + item); });
     }
     if (result.pending && result.pending.length) {
       lines.push("", "Pendencias:");
       result.pending.forEach(function (item) { lines.push("- " + item); });
     }
     lines.push.apply(lines, lineItems("Materiais", result.materials));
-    lines.push.apply(lines, lineItems("Mão de obra", result.labor));
+    lines.push.apply(lines, lineItems("Mao de obra", result.labor));
     lines.push.apply(lines, lineItems("Equipamentos", result.equipment));
     lines.push("");
     if ((result.assumptions || []).some(function (item) { return /aco estrutural nao incluido|a.o estrutural n.o inclu.do/i.test(String(item || "")); })) {
       lines.push("", "A?o estrutural n?o inclu?do neste quantitativo.");
     }
     if (result.pricingStatus === "priced") {
-      lines.push("Preço:");
-      lines.push("- Custo unitário: R$ " + formatNumber(result.unitCost) + "/" + result.unit);
+      lines.push("Preco:");
+      lines.push("- Custo unitario: R$ " + formatNumber(result.unitCost) + "/" + result.unit);
       lines.push("- Custo total: R$ " + formatNumber(result.totalCost));
+      lines.push("- BDI: nao aplicado / a definir.");
     } else {
-      lines.push("Quantitativo calculado. A base encontrada não possui preço confiável, portanto não fechei o orçamento.");
+      lines.push("Quantitativo calculado. A base encontrada nao possui preco confiavel; nao inventei preco.");
     }
     return {
       shortAnswer: "Quantitativo calculado.",
       fullAnswer: lines.join("\n"),
-      nextAction: result.pricingStatus === "priced" ? "Revise BDI, perdas e escopo antes de fechar." : "Para orçamento, carregue base com preços confiáveis.",
+      nextAction: result.pricingStatus === "priced" ? "Revise BDI, perdas e escopo antes de fechar." : "Para orcamento, carregue base com precos confiaveis.",
       canSave: true,
       sessionTheme: "technical_service_bridge",
       sessionIntent: "technical_service_bridge_quantity",
@@ -185,7 +196,7 @@
     const bridge = root.EloTechnicalServiceBridge;
     if (!bridge || typeof bridge.build !== "function") return null;
     const result = bridge.build({ text: message });
-    if (!result || !result.composition || /^blocked_(search|consumption|composition)/.test(result.pricingStatus || "")) return null;
+    if (!result || /^blocked_(search|consumption)/.test(result.pricingStatus || "")) return null;
     return formatBridgeResult(result);
   }
   function install() {

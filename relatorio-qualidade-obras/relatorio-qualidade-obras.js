@@ -1447,7 +1447,8 @@
     return {
       id: clean(item.id),
       environmentId: getActiveStockEnvironmentId_(),
-      fiscalCode: "",
+      fiscalCode: clean(item.sku),
+      sku: clean(item.sku),
       name: clean(item.name),
       category: clean(item.category) || "Geral",
       unit: clean(item.unit) || "un",
@@ -1466,6 +1467,7 @@
     const settings = options || {};
     return {
       name: clean(item.name),
+      sku: normalizeStockFullSku_(item.sku || item.fiscalCode),
       unit: clean(item.unit) || "un",
       category: clean(item.category) || "Geral",
       minQuantity: parseNumber_(item.minimumStock),
@@ -1838,10 +1840,10 @@
 
     setStockFullText_("eyebrow", profile === "gestor" ? "Painel do gestor" : "Loja / Operacao");
     setStockFullText_("title", "Stock Full");
-    setStockFullText_("description", "Saiba o que entrou, o que saiu e o que precisa comprar. Controle estoque com saldo, alertas, historico e painel do gestor.");
-    setStockFullText_("managerEyebrow", profile === "gestor" ? "Gestao do estoque" : "Operacao da loja");
+    setStockFullText_("description", "Saiba o que entrou, o que saiu e o que precisa comprar. Controle estoque com saldo, alertas, histórico e painel do gestor.");
+    setStockFullText_("managerEyebrow", profile === "gestor" ? "Gestão do estoque" : "Operação da loja");
     setStockFullText_("managerTitle", isStockFullIsolatedApp_ ? "Central do Stock Full" : (profile === "gestor" ? "Central do Gestor" : "Central da Loja"));
-    setStockFullText_("managerNote", profile === "gestor" ? "Dashboard, alertas, auditoria, relatorio, PDF e e-mail para acompanhar a operacao." : "Acoes principais para cadastrar produto, registrar entrada, registrar saida e consultar saldo.");
+    setStockFullText_("managerNote", profile === "gestor" ? "Dashboard, alertas, auditoria, relatório, PDF e e-mail para acompanhar a operação." : "Ações principais para cadastrar produto, registrar entrada, registrar saída e consultar saldo.");
     setStockFullText_("buttonItem", "Cadastrar produto");
     setStockFullText_("itemsLink", "Produtos cadastrados");
     setStockFullText_("eloEyebrow", "Apoio operacional");
@@ -7975,12 +7977,12 @@
     }
     operationalDocumentsList.className = "diary-item-list";
     documents.forEach(function (documentItem) {
-      const detail = [formatOperationalDocumentTypeLabel_(documentItem.type), documentItem.status === "obsolete" ? "Obsoleto" : "Ativo", "Atualizado em " + formatDateTime_(documentItem.updatedAt || documentItem.createdAt)].join(" � ");
+      const detail = [formatOperationalDocumentTypeLabel_(documentItem.type), documentItem.status === "obsolete" ? "Obsoleto" : "Ativo", "Atualizado em " + formatDateTime_(documentItem.updatedAt || documentItem.createdAt)].join(" · ");
       const note = [
         "RDOs vinculados: " + (documentItem.sourceRdoIds && documentItem.sourceRdoIds.length || 0),
         "Alertas vinculados: " + (documentItem.sourceAlertIds && documentItem.sourceAlertIds.length || 0),
         documentItem.lastOpenedAt ? "Aberto em: " + formatDateTime_(documentItem.lastOpenedAt) : "Ainda nao reaberto"
-      ].join(" � ");
+      ].join(" · ");
       operationalDocumentsList.appendChild(createDiaryListItem_(documentItem.title, detail, note, [
         createMiniButton_("Abrir/regenerar", "primary", function () { openOperationalDocument_(documentItem.id); })
       ]));
@@ -9068,7 +9070,7 @@
     if (stockFullLoginPanel) stockFullLoginPanel.classList.toggle("is-hidden", authenticated);
     if (stockFullDashboard) stockFullDashboard.classList.toggle("is-hidden", !authenticated);
     if (!authenticated) {
-      if (stockFullCompanyName) stockFullCompanyName.textContent = "Gestao completa de estoque";
+      if (stockFullCompanyName) stockFullCompanyName.textContent = "Gestão completa de estoque";
       if (stockFullUserMeta) stockFullUserMeta.textContent = "Usuario: acesso necessario";
       if (stockFullAvatar) stockFullAvatar.textContent = "SF";
       return false;
@@ -9993,6 +9995,7 @@
 
   async function saveStockFullRemoteItemFromFormData_(formData) {
     const name = clean(formData.get("name"));
+    const sku = normalizeStockFullSku_(formData.get("sku") || formData.get("fiscalCode"));
     const initialQuantity = parseNumber_(formData.get("initialQuantity"));
     const minimumStock = parseNumber_(formData.get("minimumStock"));
 
@@ -10009,10 +10012,15 @@
       };
     }
 
+    if (findStockFullDuplicateSku_(stockFullRemoteItems, sku, getActiveStockEnvironmentId_())) {
+      return buildStockFullDuplicateSkuResult_(sku);
+    }
+
     const item = {
       id: "",
       environmentId: getActiveStockEnvironmentId_(),
-      fiscalCode: clean(formData.get("fiscalCode")),
+      fiscalCode: sku,
+      sku: sku,
       name: name,
       category: clean(formData.get("category")) || "Geral",
       unit: clean(formData.get("unit")) || "un",
@@ -10039,10 +10047,39 @@
         item: remoteItem
       };
     } catch (error) {
+      if (clean(error && error.message) === "stock_full_sku_duplicate") {
+        return buildStockFullDuplicateSkuResult_(sku);
+      }
       console.info("Stock Full: cadastro remoto indisponivel; salvando item no modo local.");
       setStockFullRuntimeMode_("local");
       return saveAlmoxItemFromFormData_(formData);
     }
+  }
+
+
+  function normalizeStockFullSku_(value) {
+    return clean(value).toUpperCase();
+  }
+
+  function findStockFullDuplicateSku_(items, sku, environmentId, currentItemId) {
+    const normalizedSku = normalizeStockFullSku_(sku);
+    const currentId = clean(currentItemId);
+    const activeEnvironment = clean(environmentId || getActiveStockEnvironmentId_());
+    if (!normalizedSku) return null;
+    return (items || []).find(function (item) {
+      const itemEnvironmentId = clean(item && item.environmentId) || activeEnvironment;
+      return clean(item && item.id) !== currentId &&
+        itemEnvironmentId === activeEnvironment &&
+        normalizeStockFullSku_(item && (item.sku || item.fiscalCode)) === normalizedSku;
+    }) || null;
+  }
+
+  function buildStockFullDuplicateSkuResult_(sku) {
+    return {
+      ok: false,
+      error: "stock_full_sku_duplicate",
+      message: "Ja existe um produto com este SKU nesta empresa."
+    };
   }
 
   async function handleAlmoxEntrySubmit_(event) {
@@ -10211,6 +10248,7 @@
     const state = loadAlmoxState_();
     const environmentId = getActiveStockEnvironmentId_();
     const name = clean(formData.get("name"));
+    const sku = normalizeStockFullSku_(formData.get("sku") || formData.get("fiscalCode"));
     const initialQuantity = parseNumber_(formData.get("initialQuantity"));
     const minimumStock = parseNumber_(formData.get("minimumStock"));
     const defaultMovementDate = getDefaultAlmoxMovementDate_();
@@ -10224,11 +10262,15 @@
       return { ok: false, message: "Informe quantidades iguais ou maiores que zero." };
     }
 
+    if (findStockFullDuplicateSku_(state.items, sku, environmentId)) {
+      return buildStockFullDuplicateSkuResult_(sku);
+    }
+
     const item = createCompanyScopedRecord_({
       id: createId_("alm"),
       environmentId: environmentId,
-      fiscalCode: clean(formData.get("fiscalCode") || formData.get("sku")),
-      sku: clean(formData.get("sku") || formData.get("fiscalCode")),
+      fiscalCode: sku,
+      sku: sku,
       name: name,
       category: clean(formData.get("category")) || "Geral",
       unit: clean(formData.get("unit")) || "un",
@@ -12122,7 +12164,7 @@
     subtitle.className = "auth-note";
     subtitle.textContent = environment.mode === "obra"
       ? "Stock IA Obra filtrando itens, histórico, dashboard e auditoria deste ambiente."
-      : "Stock Full organizando itens, historico, dashboard e auditoria desta unidade.";
+      : "Stock Full organizando itens, histórico, dashboard e auditoria desta unidade.";
     info.appendChild(eyebrow);
     info.appendChild(title);
     info.appendChild(subtitle);
@@ -12520,7 +12562,7 @@
       appendAlmoxItemSelect_(form, activeItems, payload.itemId);
       appendStockIaField_(form, "quantity", "Quantidade", "number", "", true, "0.001");
       appendStockIaField_(form, "documentNumber", "Origem/fornecedor/nota fiscal", "text", "", false);
-      appendStockIaField_(form, "responsible", "Responsavel pelo recebimento", "text", "", false);
+      appendStockIaField_(form, "responsible", "Responsável pelo recebimento", "text", "", false);
       appendStockIaField_(form, "movementDate", "Data da movimentacao", "date", getDefaultAlmoxMovementDate_(), true);
       appendStockIaField_(form, "movementTime", "Hora da movimentacao", "time", getDefaultAlmoxMovementTime_(), true);
       appendStockIaTextarea_(form, "notes", "Observação", "");
@@ -12963,7 +13005,7 @@
     almoxSummaryCards.innerHTML = "";
     [
       ["Itens cadastrados", balances.length],
-      ["Itens abaixo do minimo", belowMinimum],
+      ["Itens abaixo do mínimo", belowMinimum],
       ["Itens zerados", zeroItems],
       ["Movimentacoes recentes", recentMovements]
     ].forEach(function (item) {
@@ -13007,9 +13049,9 @@
     const lastMovement = movements[0] || null;
     const lastItem = lastMovement ? (itemsById[lastMovement.itemId] || {}) : {};
     const recommendation = zeroItems.length
-      ? "Priorize reposicao dos itens zerados antes de novas retiradas."
+      ? "Priorize reposição dos itens zerados antes de novas retiradas."
       : (belowMinimum.length
-        ? "Revise os itens abaixo do minimo e planeje reposicao."
+        ? "Revise os itens abaixo do mínimo e planeje reposição."
         : (balances.length ? "Estoque sem alerta critico neste ambiente." : "Comece cadastrando item ou importando XML da nota."));
 
     almoxFlowStatus.innerHTML = [
@@ -13026,11 +13068,11 @@
       "<div class=\"almox-flow-last\">",
       "<small>Ultima movimentacao</small>",
       "<strong>" + (lastMovement ? escapeHtml_((lastMovement.type === "entrada" ? "Entrada" : "Saida") + " - " + (lastItem.name || "Item")) : "Nenhuma movimentacao") + "</strong>",
-      "<span>" + (lastMovement ? escapeHtml_(getAlmoxMovementDisplayDateTime_(lastMovement)) : "Registre entrada ou saida para iniciar o historico.") + "</span>",
+      "<span>" + (lastMovement ? escapeHtml_(getAlmoxMovementDisplayDateTime_(lastMovement)) : "Registre entrada ou saída para iniciar o histórico.") + "</span>",
       "</div>",
       "<div class=\"almox-flow-actions\" aria-label=\"Atalhos do ambiente\">",
       "<button type=\"button\" class=\"mini-button\" data-almox-flow-action=\"dashboard\">Ver dashboard</button>",
-      "<button type=\"button\" class=\"mini-button\" data-almox-flow-action=\"history\">Ver historico</button>",
+      "<button type=\"button\" class=\"mini-button\" data-almox-flow-action=\"history\">Ver histórico</button>",
       "<button type=\"button\" class=\"mini-button primary\" data-almox-flow-action=\"summary\">Gerar resumo</button>",
       "</div>"
     ].join("");
@@ -13118,11 +13160,11 @@
       cards: [
         { label: "Total de itens cadastrados", value: data.balances.length, className: "status-muted" },
         { label: "Saldo total", value: formatQuantity_(totalBalance), suffix: "unidades", className: "status-muted" },
-        { label: "Itens abaixo do minimo", value: shortage.belowMinimum.length, className: shortage.belowMinimum.length ? "status-warning" : "status-ok", action: "filtered", filter: "below" },
+        { label: "Itens abaixo do mínimo", value: shortage.belowMinimum.length, className: shortage.belowMinimum.length ? "status-warning" : "status-ok", action: "filtered", filter: "below" },
         { label: "Itens zerados", value: shortage.zeroItems.length, className: shortage.zeroItems.length ? "status-danger" : "status-ok", action: "filtered", filter: "zero" },
-        { label: "Itens proximos do vencimento", value: expiration.expired.length + expiration.until30.length + expiration.until60.length, className: expiration.expired.length || expiration.until30.length ? "status-danger" : (expiration.until60.length ? "status-warning" : "status-ok"), action: "filtered", filter: "expiration" },
+        { label: "Itens próximos do vencimento", value: expiration.expired.length + expiration.until30.length + expiration.until60.length, className: expiration.expired.length || expiration.until30.length ? "status-danger" : (expiration.until60.length ? "status-warning" : "status-ok"), action: "filtered", filter: "expiration" },
         { label: "Movimentacoes recentes", value: periodMovements.length, suffix: getAlmoxDashboardPeriodLabel_(almoxDashboardPeriod), className: "status-muted" },
-        { label: "Saidas no periodo", value: periodExits.length, className: periodExits.length ? "status-warning" : "status-muted" },
+        { label: "Saídas no período", value: periodExits.length, className: periodExits.length ? "status-warning" : "status-muted" },
         { label: "Entradas no periodo", value: periodEntries.length, className: periodEntries.length ? "status-ok" : "status-muted" },
         { label: "Risco geral do almoxarifado", value: shortage.label, className: shortage.className, action: "filtered", filter: "shortage" }
       ]
@@ -13207,7 +13249,7 @@
         label: "Critico",
         className: "status-danger",
         message: "Ha item(ns) com saldo zerado.",
-        recommendation: "Priorize a reposicao dos itens criticos antes de novas retiradas.",
+        recommendation: "Priorize a reposição dos itens críticos antes de novas retiradas.",
         zeroItems: zeroItems,
         belowMinimum: belowMinimum,
         okItems: okItems
@@ -13274,7 +13316,7 @@
 
     if (data.shortage && data.shortage.belowMinimum.length && data.periodExits && data.periodExits.length >= 3) {
       return {
-        label: "Tendencia de falta nos proximos dias.",
+        label: "Tendência de falta nos próximos dias.",
         className: "status-warning",
         message: "Ha muitas saidas recentes e saldo baixo em item(ns) critico(s)."
       };
@@ -13291,7 +13333,7 @@
     return {
       label: "Acompanhar alertas.",
       className: "status-warning",
-      message: "Existem alertas ativos. Revise reposicao, validade e retiradas recentes."
+      message: "Existem alertas ativos. Revise reposição, validade e retiradas recentes."
     };
   }
 
@@ -13423,7 +13465,7 @@
 
     const topItem = viewModel.topMovedItems[0];
     almoxDashboardTrend.innerHTML = "";
-    appendAlmoxDashboardBlockHeader_(almoxDashboardTrend, "Tendencia operacional", "Leitura simples por regra de negocio.");
+    appendAlmoxDashboardBlockHeader_(almoxDashboardTrend, "Tendência operacional", "Leitura simples por regra de negócio.");
     appendAlmoxDashboardNote_(almoxDashboardTrend, viewModel.trend.label, viewModel.trend.className);
     appendAlmoxDashboardNote_(almoxDashboardTrend, viewModel.trend.message, "status-muted");
     appendAlmoxDashboardNote_(almoxDashboardTrend, "Periodo analisado: " + viewModel.periodLabel + ".", "status-muted");
@@ -13521,10 +13563,10 @@
       title = "Itens zerados";
       groups = [{ title: "Critico", items: shortage.zeroItems }];
     } else if (filter === "below") {
-      title = "Itens abaixo do minimo";
+      title = "Itens abaixo do mínimo";
       groups = [{ title: "Atencao", items: shortage.belowMinimum }];
     } else if (filter === "expiration") {
-      title = "Itens proximos do vencimento";
+      title = "Itens próximos do vencimento";
       groups = [
         { title: "Vencidos", items: expiration.expired.map(function (entry) { return entry.balance; }) },
         { title: "Vencem em ate 30 dias", items: expiration.until30.map(function (entry) { return entry.balance; }) },
@@ -13653,7 +13695,7 @@
     });
 
     const historyTitle = document.createElement("h4");
-    historyTitle.textContent = "Ultimas movimentacoes";
+    historyTitle.textContent = "Últimas movimentações";
     history.appendChild(historyTitle);
     if (!viewModel.lastMovements.length) {
       const empty = document.createElement("p");
@@ -13667,7 +13709,7 @@
         row.className = "almox-summary-history-row";
         main.textContent = getAlmoxMovementDisplayDateTime_(movement) + " - " + (movement.type === "entrada" ? "Entrada" : "Saida") + " - " + formatQuantity_(movement.quantity) + " " + (item.unit || "un");
         meta.textContent = [
-          movement.responsible ? "Responsavel: " + movement.responsible : "",
+          movement.responsible ? "Responsável: " + movement.responsible : "",
           movement.recipient ? "Destino/pessoa: " + movement.recipient : "",
           movement.sector ? "Setor: " + movement.sector : "",
           movement.documentNumber ? "Origem/nota: " + movement.documentNumber : ""
@@ -13726,7 +13768,7 @@
       return "7 dias";
     }
     if (period === "all") {
-      return "todo o historico";
+      return "todo o histórico";
     }
     return "30 dias";
   }
@@ -13870,7 +13912,7 @@
           label: "Alertas de Reposicao",
           value: data.zeroItems.length + data.criticalItems.length,
           suffix: "itens",
-          note: data.zeroItems.length ? "critico/zerado" : (data.criticalItems.length ? "abaixo do minimo" : "sem alertas"),
+          note: data.zeroItems.length ? "critico/zerado" : (data.criticalItems.length ? "abaixo do mínimo" : "sem alertas"),
           className: data.zeroItems.length ? "status-danger" : (data.criticalItems.length ? "status-warning" : "status-ok")
         },
         {
@@ -13887,10 +13929,10 @@
           className: todayManualEntries.length ? "status-ok" : "status-muted"
         },
         {
-          label: "Saidas Hoje",
+          label: "Saídas Hoje",
           value: todayExits.length,
           suffix: todayExits.length === 1 ? "ordem" : "ordens",
-          note: todayExits.length ? "operacao ativa" : "sem saidas hoje",
+          note: todayExits.length ? "operação ativa" : "sem saídas hoje",
           className: todayExits.length ? "status-warning" : "status-muted"
         }
       ]
@@ -14111,7 +14153,7 @@
     if (!viewModel.urgentItems.length) {
       const empty = document.createElement("p");
       empty.className = "stock-full-empty";
-      empty.textContent = "Nenhum item abaixo do minimo agora.";
+      empty.textContent = "Nenhum item abaixo do mínimo agora.";
       stockFullUrgentList.appendChild(empty);
       return;
     }
@@ -14351,7 +14393,7 @@
         value: data.criticalItems.length,
         className: data.criticalItems.length ? "status-danger" : "status-ok",
         lines: data.criticalItems.length ? data.criticalItems.map(function (balance) {
-          return balance.item.name + " esta abaixo do minimo. Saldo: " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + ".";
+          return balance.item.name + " esta abaixo do mínimo. Saldo: " + formatQuantity_(balance.balance) + " " + (balance.item.unit || "un") + ".";
         }) : ["Nenhum item critico no momento."]
       },
       {
@@ -14363,12 +14405,12 @@
         }) : ["Nenhum item zerado."]
       },
       {
-        title: "Itens proximos do vencimento",
+        title: "Itens próximos do vencimento",
         value: data.expiringItems.length,
         className: data.expiringItems.length ? "status-warning" : "status-ok",
         lines: data.expiringItems.length ? data.expiringItems.map(function (info) {
           return info.item.name + " " + info.message;
-        }) : ["Nenhum vencimento critico cadastrado."]
+        }) : ["Nenhum vencimento crítico cadastrado."]
       },
       {
         title: "Ultimas saidas",
@@ -14392,7 +14434,7 @@
         className: data.zeroItems.length ? "status-danger" : (data.criticalItems.length || data.expiringItems.length ? "status-warning" : "status-ok"),
         lines: [
           data.balances.length + " item(ns) cadastrado(s).",
-          data.zeroItems.length + " zerado(s), " + data.criticalItems.length + " abaixo do minimo.",
+          data.zeroItems.length + " zerado(s), " + data.criticalItems.length + " abaixo do mínimo.",
           state.alertsMuted ? "Alertas silenciados temporariamente." : "Alertas ativos para acompanhamento."
         ]
       },
@@ -14709,17 +14751,17 @@
       "Ambiente: " + (profile.unitName || profile.workName || "Almoxarifado atual") + ".",
       "Itens cadastrados: " + data.balances.length + ".",
       "Itens zerados: " + data.zeroItems.length + (zeroNames.length ? " (" + summarizeStockIaList_(zeroNames, 4) + ")" : "") + ".",
-      "Itens abaixo do minimo: " + data.criticalItems.length + (criticalNames.length ? " (" + summarizeStockIaList_(criticalNames, 4) + ")" : "") + ".",
-      "Itens proximos do vencimento: " + data.expiringItems.length + (expiringNames.length ? " (" + summarizeStockIaList_(expiringNames, 3) + ")" : "") + ".",
-      "Entradas recentes: " + data.recentEntries.length + ". Saidas recentes: " + data.recentExits.length + ".",
+      "Itens abaixo do mínimo: " + data.criticalItems.length + (criticalNames.length ? " (" + summarizeStockIaList_(criticalNames, 4) + ")" : "") + ".",
+      "Itens próximos do vencimento: " + data.expiringItems.length + (expiringNames.length ? " (" + summarizeStockIaList_(expiringNames, 3) + ")" : "") + ".",
+      "Entradas recentes: " + data.recentEntries.length + ". Saídas recentes: " + data.recentExits.length + ".",
       "Ultima movimentacao: " + (lastMovement ? lastMovement.type + " de " + lastMovement.material + " (" + lastMovement.quantity + ") em " + lastMovement.dateTime : "nenhuma movimentacao recente") + "."
     ].join("\n");
     let question = "Elo, analise os riscos deste almoxarifado e diga as proximas acoes prioritarias. Nao altere estoque, apenas oriente.\n\n" + baseContext;
 
     if (action === "purchase") {
-      question = "Elo, sugira uma lista de compras ou reposicao para este almoxarifado com base nos itens zerados, abaixo do minimo e proximos do vencimento. Nao altere estoque, apenas recomende.\n\n" + baseContext;
+      question = "Elo, sugira uma lista de compras ou reposição para este almoxarifado com base nos itens zerados, abaixo do mínimo e próximos do vencimento. Não altere estoque, apenas recomende.\n\n" + baseContext;
     } else if (action === "movement") {
-      question = "Elo, resuma as movimentacoes deste almoxarifado e destaque pontos de atencao operacional para o gestor. Nao altere estoque, apenas analise.\n\n" + baseContext;
+      question = "Elo, resuma as movimentações deste almoxarifado e destaque pontos de atenção operacional para o gestor. Não altere estoque, apenas analise.\n\n" + baseContext;
     }
 
     if (askEloQuestion_(question)) {
@@ -14797,7 +14839,7 @@
     return {
       label: "Baixo",
       className: "status-ok",
-      message: "Sem itens zerados ou abaixo do minimo."
+      message: "Sem itens zerados ou abaixo do mínimo."
     };
   }
 
@@ -14846,10 +14888,10 @@
       stats: [
         { label: "Itens cadastrados", value: data.balances.length, className: "status-muted" },
         { label: "Saldo total", value: formatQuantity_(totalBalance), suffix: "unidades", className: "status-muted" },
-        { label: "Itens abaixo do minimo", value: data.criticalItems.length, className: data.criticalItems.length ? "status-warning" : "status-ok" },
+        { label: "Itens abaixo do mínimo", value: data.criticalItems.length, className: data.criticalItems.length ? "status-warning" : "status-ok" },
         { label: "Itens zerados", value: data.zeroItems.length, className: data.zeroItems.length ? "status-danger" : "status-ok" },
         { label: "Movimentacoes recentes", value: data.movements.length, className: "status-muted" },
-        { label: "Saidas no periodo", value: dashboard.periodExits.length, suffix: dashboard.periodLabel, className: dashboard.periodExits.length ? "status-warning" : "status-muted" },
+        { label: "Saídas no período", value: dashboard.periodExits.length, suffix: dashboard.periodLabel, className: dashboard.periodExits.length ? "status-warning" : "status-muted" },
         { label: "Entradas no periodo", value: dashboard.periodEntries.length, suffix: dashboard.periodLabel, className: dashboard.periodEntries.length ? "status-ok" : "status-muted" },
         { label: "Alertas ativos", value: data.activeAlerts.length, className: data.activeAlerts.some(function (alert) { return alert.severity === "critical"; }) ? "status-danger" : (data.activeAlerts.length ? "status-warning" : "status-ok") },
         { label: "Risco geral", value: risk.label, className: risk.className }
@@ -14858,27 +14900,27 @@
       summaryItems: [
         ["Itens cadastrados", data.balances.length],
         ["Saldo total", formatQuantity_(totalBalance) + " unidades"],
-        ["Itens abaixo do minimo", data.criticalItems.length],
+        ["Itens abaixo do mínimo", data.criticalItems.length],
         ["Itens zerados", data.zeroItems.length],
         ["Alertas ativos", data.activeAlerts.length ? summarizeStockIaList_(data.activeAlerts.map(function (alert) { return alert.message; }), 3) : "Nenhum alerta ativo."],
         ["Material mais movimentado", dashboardTopMoved ? dashboardTopMoved.name + " - " + formatQuantity_(dashboardTopMoved.quantity) + " " + dashboardTopMoved.unit + " em " + dashboard.periodLabel : "Nenhuma saida no periodo."],
-        ["Tendencia operacional", dashboard.trend.label],
+        ["Tendência operacional", dashboard.trend.label],
         ["Ultima entrada", describeMovement(lastEntry)],
         ["Ultima saida", describeMovement(lastExit)],
-        ["Recomendacao", data.zeroItems.length || data.criticalItems.length ? "Priorizar reposicao e revisar retiradas recentes." : "Manter acompanhamento periodico do estoque."]
+        ["Recomendação", data.zeroItems.length || data.criticalItems.length ? "Priorizar reposição e revisar retiradas recentes." : "Manter acompanhamento periódico do estoque."]
       ],
       auditItems: [
         ["Risco de falta", risk.message],
         ["Risco geral do dashboard", dashboard.shortage.label],
         ["Itens zerados", data.zeroItems.length ? summarizeStockIaList_(data.zeroItems.map(function (balance) { return balance.item.name; }), 6) : "Nenhum item zerado."],
-        ["Itens abaixo do minimo", data.criticalItems.length ? summarizeStockIaList_(data.criticalItems.map(function (balance) { return balance.item.name; }), 6) : "Nenhum item abaixo do minimo."],
+        ["Itens abaixo do mínimo", data.criticalItems.length ? summarizeStockIaList_(data.criticalItems.map(function (balance) { return balance.item.name; }), 6) : "Nenhum item abaixo do mínimo."],
         ["Entradas sem origem/nota", entriesWithoutOrigin.length],
-        ["Saidas sem responsavel", exitsWithoutResponsible.length],
-        ["Saidas sem setor/destino", exitsWithoutSector.length],
+        ["Saídas sem responsável", exitsWithoutResponsible.length],
+        ["Saídas sem setor/destino", exitsWithoutSector.length],
         ["Movimentacoes invalidas", invalidMovements.length],
         ["Alertas gerados", data.alertHistory.length ? summarizeStockIaList_(data.alertHistory.slice(0, 4).map(function (alert) { return alert.message; }), 4) : "Nenhum alerta registrado."],
-        ["Recomendacao de reposicao", data.zeroItems.length ? "Comprar/repor itens zerados imediatamente." : (data.criticalItems.length ? "Repor itens abaixo do minimo antes da proxima retirada." : "Nao ha reposicao urgente no momento.")],
-        ["Recomendacao de controle", "Bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada."]
+        ["Recomendação de reposição", data.zeroItems.length ? "Comprar/repor itens zerados imediatamente." : (data.criticalItems.length ? "Repor itens abaixo do mínimo antes da próxima retirada." : "Não há reposição urgente no momento.")],
+        ["Recomendação de controle", "Bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada."]
       ],
       tables: {
         criticalItems: data.criticalItems.map(function (balance) {
@@ -15675,7 +15717,7 @@
     const topMoved = dashboard.topMovedItems[0];
 
     return buildAlmoxReportIntro_() + " O estoque possui " + balances.length + " item(ns) cadastrado(s), com saldo total de " +
-      formatQuantity_(totalBalance) + " unidade(s). Ha " + belowMinimum + " item(ns) abaixo do minimo e " +
+      formatQuantity_(totalBalance) + " unidade(s). Ha " + belowMinimum + " item(ns) abaixo do mínimo e " +
       zeroItems + " item(ns) zerado(s). Foram registradas " + activeMovements.length +
       " movimentacao(oes) recentes. A ultima entrada foi " + describeMovement(lastEntry) +
       ". A ultima saida foi " + describeMovement(lastExit) +
@@ -15683,7 +15725,7 @@
       (topMoved ? topMoved.name + " (" + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + ")" : "nenhum item com saida no periodo") +
       ". Risco geral: " + dashboard.shortage.label + ". Tendencia: " + dashboard.trend.label +
       ". Alertas ativos: " + (activeAlerts.length ? summarizeStockIaList_(activeAlerts.map(function (alert) { return alert.message; }), 3) : "nenhum alerta ativo") +
-      ". Mensagem ao gestor: acompanhe os itens criticos e programe reposicao antes da falta em campo.";
+      ". Mensagem ao gestor: acompanhe os itens críticos e programe reposição antes da falta em campo.";
   }
 
   function buildAlmoxAuditText_() {
@@ -15742,7 +15784,7 @@
     const issues = [];
 
     if (zeroItems.length) {
-      issues.push(zeroItems.length + " item(ns) zerado(s) exigem reposicao urgente: " + summarizeStockIaList_(zeroItems.map(function (balance) { return balance.item.name; }), 5) + ".");
+      issues.push(zeroItems.length + " item(ns) zerado(s) exigem reposição urgente: " + summarizeStockIaList_(zeroItems.map(function (balance) { return balance.item.name; }), 5) + ".");
     }
 
     if (belowMinimum.length) {
@@ -15779,20 +15821,20 @@
       csvImportEntries.length + " importação(ões) CSV e " +
       manualExits.length + " saída(s) manual(is).";
     const dashboardInsight = " Dashboard: risco geral " + dashboard.shortage.label +
-      ", tendencia operacional: " + dashboard.trend.label +
+      ", tendência operacional: " + dashboard.trend.label +
       ", material mais movimentado em " + dashboard.periodLabel + ": " +
       (topMoved ? topMoved.name + " com " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit + " retiradas." : "sem saidas no periodo.") +
       originInsight;
 
     if (!issues.length) {
-      return buildAlmoxReportIntro_() + " Nao foram encontradas inconsistencias criticas. O estoque esta dentro dos parametros cadastrados. Tendencia operacional: " + dashboard.trend.label;
+      return buildAlmoxReportIntro_() + " Não foram encontradas inconsistências críticas. O estoque está dentro dos parâmetros cadastrados. Tendência operacional: " + dashboard.trend.label;
     }
 
     return buildAlmoxReportIntro_() + " Auditoria do estoque: " + issues.join(" ") +
       dashboardInsight +
       " Risco de falta: " + (zeroItems.length || belowMinimum.length ? "alto para itens criticos." : "baixo no momento.") +
-      " Recomendacao de reposicao: priorize itens zerados e abaixo do minimo." +
-      " Recomendacao de controle: bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada.";
+      " Recomendação de reposição: priorize itens zerados e abaixo do mínimo." +
+      " Recomendação de controle: bloquear retiradas sem identificacao, exigir setor/destino e registrar origem ou nota em toda entrada.";
   }
 
   function renderAlmoxGeneratedReport_(type, data) {
@@ -15846,10 +15888,10 @@
       "Nenhum item zerado encontrado."
     ));
     almoxGeneratedReport.appendChild(createAlmoxTableSection_(
-      "Itens proximos do vencimento",
+      "Itens próximos do vencimento",
       ["Material", "Vencimento", "Dias restantes", "Status"],
       viewModel.tables.expirationItems,
-      "Nenhum vencimento critico cadastrado."
+      "Nenhum vencimento crítico cadastrado."
     ));
     almoxGeneratedReport.appendChild(createAlmoxTableSection_(
       "Alertas ativos",
@@ -15864,8 +15906,8 @@
       "Nenhum alerta disparado."
     ));
     almoxGeneratedReport.appendChild(createAlmoxTableSection_(
-      "Ultimas movimentacoes",
-      ["Data/hora", "Tipo", "Material", "Quantidade", "Responsavel", "Setor/origem"],
+      "Últimas movimentações",
+      ["Data/hora", "Tipo", "Material", "Quantidade", "Responsável", "Setor/origem"],
       viewModel.tables.recentMovements,
       "Nenhuma movimentacao recente registrada."
     ));
@@ -16100,7 +16142,7 @@
       "Relatorio Stock IA - Almoxarifado",
       "",
       "Cliente/unidade: " + profile.clientName + " - " + profile.unitName,
-      "Responsavel: " + profile.responsibleName,
+      "Responsável: " + profile.responsibleName,
       "Data/hora: " + profile.emittedAt,
       "",
       "Resumo:",
@@ -16115,7 +16157,7 @@
       "Tendencia: " + dashboard.trend.label,
       "Material mais movimentado: " + (topMoved ? topMoved.name + " - " + formatQuantity_(topMoved.quantity) + " " + topMoved.unit : "sem saidas no periodo"),
       "Entradas no periodo: " + dashboard.periodEntries.length,
-      "Saidas no periodo: " + dashboard.periodExits.length,
+      "Saídas no período: " + dashboard.periodExits.length,
       "",
       "Itens criticos:",
       formatAlmoxPlainList_(data.criticalItems, function (balance) {
@@ -16124,13 +16166,13 @@
       "",
       "Itens zerados:",
       formatAlmoxPlainList_(data.zeroItems, function (balance) {
-        return balance.item.name + " - reposicao urgente.";
+        return balance.item.name + " - reposição urgente.";
       }, "Nenhum item zerado."),
       "",
-      "Itens proximos do vencimento:",
+      "Itens próximos do vencimento:",
       formatAlmoxPlainList_(data.expiringItems, function (info) {
         return info.item.name + " - " + info.message;
-      }, "Nenhum vencimento critico cadastrado."),
+      }, "Nenhum vencimento crítico cadastrado."),
       "",
       "Alertas ativos:",
       formatAlmoxPlainList_(data.activeAlerts, function (alert) {
@@ -16142,7 +16184,7 @@
         return formatDateTime_(alert.createdAt) + " - " + alert.message;
       }, "Nenhum alerta disparado."),
       "",
-      "Ultimas movimentacoes:",
+      "Últimas movimentações:",
       formatAlmoxPlainList_(data.movements.slice(0, 6), function (movement) {
         return formatAlmoxDateTime_(movement) + " - " + formatAlmoxMovementText_(movement, data.itemsById[movement.itemId] || {});
       }, "Nenhuma movimentacao registrada."),
@@ -16769,8 +16811,8 @@
       ? { label: "Saldo total", value: formatQuantity_(balanceUnitSummary.totalBalance) + " " + balanceUnitSummary.singleUnit }
       : { label: "Produtos com saldo", value: String(balanceUnitSummary.productsWithBalance) };
     const executiveSummary = balanceUnitSummary.hasSingleUnit
-      ? "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, saldo total de " + formatQuantity_(balanceUnitSummary.totalBalance) + " " + balanceUnitSummary.singleUnit + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do minimo", "abaixo do minimo") + "."
-      : "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, " + formatStockFullPluralCount_(balanceUnitSummary.productsWithBalance, "com saldo disponivel", "com saldo disponivel") + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do minimo", "abaixo do minimo") + ". Os saldos sao controlados em multiplas unidades de medida.";
+      ? "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, saldo total de " + formatQuantity_(balanceUnitSummary.totalBalance) + " " + balanceUnitSummary.singleUnit + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do mínimo", "abaixo do mínimo") + "."
+      : "O Stock Full consolidou " + consideredBalances.length + " produtos cadastrados, " + formatStockFullPluralCount_(balanceUnitSummary.productsWithBalance, "com saldo disponivel", "com saldo disponivel") + ", " + formatStockFullPluralCount_(zeroItems.length, "zerado", "zerados") + " e " + formatStockFullPluralCount_(criticalItems.length, "abaixo do mínimo", "abaixo do mínimo") + ". Os saldos sao controlados em multiplas unidades de medida.";
     const recommendations = [];
     if (zeroItems.length) recommendations.push("Repor itens zerados antes de autorizar novas saidas.");
     if (criticalItems.length) recommendations.push("Revisar compras para itens abaixo do estoque minimo.");
@@ -16785,7 +16827,7 @@
         { label: "Itens zerados", value: String(zeroItems.length) },
         { label: "Abaixo do minimo", value: String(criticalItems.length) },
         { label: "Entradas no periodo", value: String(entries.length) },
-        { label: "Saidas no periodo", value: String(exits.length) },
+        { label: "Saídas no período", value: String(exits.length) },
         { label: "Ajustes no periodo", value: String(adjustments.length) },
         { label: "NF-e importadas", value: String(nfe.length) }
       ],
@@ -16822,12 +16864,12 @@
       "<title>" + escapeHtml_(viewModel.title) + "</title><style>" +
       "@page{size:A4;margin:15mm 13mm 17mm}" +
       "*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.35}.page{width:100%;margin:0 auto}.report-head{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px}.brand{font-size:12px;font-weight:700;text-transform:uppercase}.brand strong{display:block;font-size:22px;letter-spacing:0}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;text-align:right}.meta span,.filters span{display:block;color:#444;font-size:9px;text-transform:uppercase;font-weight:700}.filters,.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:10px 0 12px}.box,.metric{border:1px solid #999;padding:7px;break-inside:avoid}.metric strong{display:block;font-size:16px;margin-top:3px}.section{margin-top:12px;break-inside:auto}h1,h2,h3,p{margin-top:0}h1{font-size:20px;margin-bottom:4px}h2{font-size:13px;border-bottom:1px solid #111;padding-bottom:4px;margin-bottom:7px}.list{display:grid;grid-template-columns:42mm 1fr;gap:5px 8px}.list dt{font-weight:700}.list dd{margin:0}.print-footer{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #999;padding-top:4px;font-size:9px;color:#444;display:block}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #999;padding:5px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;color:#111;font-size:9px;text-transform:uppercase}.empty{border:1px solid #999;padding:7px;color:#444}.muted{color:#444}@media screen{body{background:#e5e7eb;padding:24px}.page{max-width:210mm;min-height:297mm;background:#fff;padding:15mm 13mm 17mm;box-shadow:0 18px 60px rgba(0,0,0,.18)}}@media print{body{background:#fff}.page{padding:0;box-shadow:none}.section{break-inside:auto}}" +
-      "</style></head><body><main class=\"page\" data-stock-full-management-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Relatorio gerencial profissional</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Controle comercial de estoque por empresa e unidade ativa.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsavel</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
+      "</style></head><body><main class=\"page\" data-stock-full-management-pdf=\"true\"><header class=\"report-head\"><div><span class=\"brand\"><strong>Stock Full</strong>Relatorio gerencial profissional</span><h1>" + escapeHtml_(viewModel.title) + "</h1><p class=\"muted\">Controle comercial de estoque por empresa e unidade ativa.</p></div><div class=\"meta\"><div><span>Empresa</span>" + escapeHtml_(profile.companyName) + "</div><div><span>Unidade</span>" + escapeHtml_(profile.unitName) + "</div><div><span>Ambiente</span>" + escapeHtml_(profile.environmentName) + "</div><div><span>Institution ID</span>" + escapeHtml_(profile.institutionId || "-") + "</div><div><span>Gerado em</span>" + escapeHtml_(profile.generatedAt) + "</div><div><span>Responsável</span>" + escapeHtml_(profile.generatedBy) + "</div></div></header>" +
       "<section class=\"filters\">" + formatStockFullReportBoxes_(viewModel.filters) + "</section>" +
       "<section class=\"metrics\">" + viewModel.metrics.map(function (metric) { return "<article class=\"metric\"><span>" + escapeHtml_(metric.label) + "</span><strong>" + escapeHtml_(metric.value) + "</strong></article>"; }).join("") + "</section>" +
       "<section class=\"section\"><h2>Resumo executivo</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.summary) + "</section>" +
-      "<section class=\"section\"><h2>Movimentacoes por produto</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Saidas", "Ajustes", "NF-e", "Mov."], viewModel.tables.movementByProduct, "Nenhuma movimentacao encontrada para os filtros selecionados.") + "</section>" +
-      "<section class=\"section\"><h2>Ultimas movimentacoes</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "Quantidade", "Usuario", "Origem"], viewModel.tables.recentMovements, "Nenhuma movimentacao no periodo filtrado.") + "</section>" +
+      "<section class=\"section\"><h2>Movimentações por produto</h2>" + formatAlmoxHtmlTable_(["Produto", "SKU", "Entradas", "Saidas", "Ajustes", "NF-e", "Mov."], viewModel.tables.movementByProduct, "Nenhuma movimentação encontrada para os filtros selecionados.") + "</section>" +
+      "<section class=\"section\"><h2>Últimas movimentações</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Produto", "Quantidade", "Usuario", "Origem"], viewModel.tables.recentMovements, "Nenhuma movimentação no período filtrado.") + "</section>" +
       "<section class=\"section\"><h2>NF-e importadas no periodo</h2>" + formatAlmoxHtmlTable_(["Data", "Numero", "Chave", "Fornecedor", "Produtos", "Quantidade"], viewModel.tables.nfe, "Nenhuma NF-e importada nos filtros selecionados.") + "</section>" +
       "<section class=\"section\"><h2>Alertas e recomendacoes</h2>" + formatAlmoxHtmlTable_(["Status", "Produto", "Mensagem"], viewModel.tables.alerts, "Nenhum alerta ativo para a unidade atual.") + "</section>" +
       "<footer class=\"print-footer\">Stock Full - relatorio gerencial sem segredos ou dados de outro tenant.</footer><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},150);});</script></main></body></html>";
@@ -16901,7 +16943,7 @@
       "<section class=\"meta\">" +
       "<div><strong>Cliente</strong><br>" + escapeHtml_(profile.clientName) + "</div>" +
       "<div><strong>Unidade</strong><br>" + escapeHtml_(profile.unitName) + "</div>" +
-      "<div><strong>Responsavel</strong><br>" + escapeHtml_(profile.responsibleName) + "</div>" +
+      "<div><strong>Responsável</strong><br>" + escapeHtml_(profile.responsibleName) + "</div>" +
       "</section>" +
       "<section class=\"stats\">" + viewModel.stats.map(function (stat) {
         return "<article class=\"stat " + escapeAttribute_(stat.className || "status-muted") + "\"><span>" + escapeHtml_(stat.label) + "</span><strong>" + escapeHtml_(stat.value) + "</strong>" + (stat.suffix ? "<small>" + escapeHtml_(stat.suffix) + "</small>" : "") + "</article>";
@@ -16910,10 +16952,10 @@
       "<section class=\"section\"><h2>Auditoria</h2>" + formatAlmoxHtmlDefinitionList_(viewModel.auditItems) + "</section>" +
       "<section class=\"section\"><h2>Itens criticos</h2>" + formatAlmoxHtmlTable_(["Material", "Saldo", "Minimo", "Status", "Acao recomendada"], viewModel.tables.criticalItems, "Nenhum item critico encontrado.") + "</section>" +
       "<section class=\"section\"><h2>Itens zerados</h2>" + formatAlmoxHtmlTable_(["Material", "Status", "Acao recomendada"], viewModel.tables.zeroItems, "Nenhum item zerado encontrado.") + "</section>" +
-      "<section class=\"section\"><h2>Itens proximos do vencimento</h2>" + formatAlmoxHtmlTable_(["Material", "Vencimento", "Dias restantes", "Status"], viewModel.tables.expirationItems, "Nenhum vencimento critico cadastrado.") + "</section>" +
+      "<section class=\"section\"><h2>Itens próximos do vencimento</h2>" + formatAlmoxHtmlTable_(["Material", "Vencimento", "Dias restantes", "Status"], viewModel.tables.expirationItems, "Nenhum vencimento crítico cadastrado.") + "</section>" +
       "<section class=\"section\"><h2>Alertas ativos</h2>" + formatAlmoxHtmlTable_(["Status", "Material", "Tipo", "Mensagem"], viewModel.tables.alerts, "Nenhum alerta ativo.") + "</section>" +
       "<section class=\"section\"><h2>Historico de alertas</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Status", "Material", "Mensagem"], viewModel.tables.alertHistory, "Nenhum alerta disparado.") + "</section>" +
-      "<section class=\"section\"><h2>Ultimas movimentacoes</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Material", "Quantidade", "Responsavel", "Setor/origem"], viewModel.tables.recentMovements, "Nenhuma movimentacao recente registrada.") + "</section>" +
+      "<section class=\"section\"><h2>Últimas movimentações</h2>" + formatAlmoxHtmlTable_(["Data/hora", "Tipo", "Material", "Quantidade", "Responsável", "Setor/origem"], viewModel.tables.recentMovements, "Nenhuma movimentacao recente registrada.") + "</section>" +
       "<footer>Gerado por Stock IA / ObraReport.</footer>" +
       "<script>window.onload=function(){window.print();};</script>" +
       "</main></body></html>";
@@ -17384,7 +17426,7 @@
     }
 
     if (period === "all") {
-      return "em todo o historico";
+      return "em todo o histórico";
     }
 
     return "nos ultimos 30 dias";
@@ -17463,7 +17505,7 @@
       } else if (balance.realBalance === 0) {
         alerts.push(createStockAlert_("zerado", "alta", item.name + " esta zerado", "O saldo atual esta zerado. Registre uma entrada ou revise o consumo antes de novas saidas.", item.id, item.workId, now));
       } else if (parseNumber_(item.minimumStock) > 0 && balance.realBalance <= parseNumber_(item.minimumStock)) {
-        alerts.push(createStockAlert_("baixo", "alta", item.name + " esta abaixo do minimo", "Saldo atual: " + formatQuantity_(balance.realBalance) + " " + unit + ". Minimo: " + formatQuantity_(item.minimumStock) + " " + unit + ".", item.id, item.workId, now));
+        alerts.push(createStockAlert_("baixo", "alta", item.name + " esta abaixo do mínimo", "Saldo atual: " + formatQuantity_(balance.realBalance) + " " + unit + ". Minimo: " + formatQuantity_(item.minimumStock) + " " + unit + ".", item.id, item.workId, now));
       }
 
       if (parseNumber_(balance.entries) <= 0) {
@@ -17659,7 +17701,7 @@
       (topNames.length ? "o maior consumo registrado foi de " + topNames.join(", ") + ". " : "ainda nao ha consumo suficiente para ranking. ") +
       "Existem " + criticalCount + " alerta(s) critico(s) e " + highCount + " alerta(s) alto(s). " +
       (topWork ? "A obra com maior custo consumido foi " + topWork.workName + " (" + formatCurrency_(topWork.totalCost) + "). " : "") +
-      "Proximo passo recomendado: revisar itens negativos, zerados e abaixo do minimo antes de novas compras.";
+      "Proximo passo recomendado: revisar itens negativos, zerados e abaixo do mínimo antes de novas compras.";
   }
 
   function loadStockPurchaseReviewedState_() {
@@ -18578,7 +18620,7 @@
     }
 
     return "Seu estoque possui " + summary.itemCount + " item(ns) cadastrado(s). " +
-      summary.lowStockCount + " estao abaixo do minimo e " + summary.negativeCount + " ficaram negativos. " +
+      summary.lowStockCount + " estao abaixo do mínimo e " + summary.negativeCount + " ficaram negativos. " +
       "Existem " + summary.unlinkedCount + " consumo(s) do RDO ainda nao vinculado(s). " +
       "Proximo passo recomendado: revisar itens negativos, vincular consumos pendentes e registrar entradas iniciais.";
   }
@@ -18707,7 +18749,7 @@
     if (!alerts.length) {
       const empty = document.createElement("p");
       empty.className = "auth-note";
-      empty.textContent = "Nenhum alerta operacional encontrado no periodo selecionado.";
+      empty.textContent = "Nenhum alerta operacional encontrado no período selecionado.";
       stockIaAlertsList.appendChild(empty);
       return;
     }
@@ -20470,13 +20512,13 @@
 
   function normalizeDisplayText_(value) {
     return String(value || "")
-      .replace(/mÂ²/g, "m²")
-      .replace(/mÂ³/g, "m³")
-      .replace(/Â·/g, "·")
-      .replace(/cerÂmico/g, "cerâmico")
-      .replace(/CerÂmico/g, "Cerâmico")
-      .replace(/cerÃ¢mico/g, "cerâmico")
-      .replace(/CerÃ¢mico/g, "Cerâmico");
+      .replace(/m\u00c2\u00b2/g, "m²")
+      .replace(/m\u00c2\u00b3/g, "m³")
+      .replace(/\u00c2\u00b7/g, "·")
+      .replace(/cer\u00c2mico/g, "cerâmico")
+      .replace(/Cer\u00c2mico/g, "Cerâmico")
+      .replace(/cer\u00c3\u00a2mico/g, "cerâmico")
+      .replace(/Cer\u00c3\u00a2mico/g, "Cerâmico");
   }
 
   function getWorkName_(workId) {

@@ -653,8 +653,8 @@
   function getSyncStatusLabel() {
     const meta = refreshSyncMetaSilently();
     if (syncInProgress) return "Sincronizando";
-    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincroniza��o";
-    if (meta.pendingCount > 0) return "Pendente de sincroniza��o";
+    if (meta.conflictCount > 0 || meta.failedCount > 0) return "Erro de sincronização";
+    if (meta.pendingCount > 0) return "Pendente de sincronização";
     if (window.navigator && window.navigator.onLine === false) return "Offline";
     return "Online";
   }
@@ -684,7 +684,7 @@
     panel = window.document.createElement("section");
     panel.id = "stockFullSyncPanel";
     panel.className = "stock-full-sync-panel";
-    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pend�ncias</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
+    panel.innerHTML = '<div><strong id="stockFullSyncStatus">Online</strong><span id="stockFullSyncDetails">0 pendências</span></div><button type="button" class="mini-button" id="stockFullSyncNowButton">Sincronizar agora</button>';
     const commandStrip = window.document.querySelector(".stock-full-command-strip");
     if (commandStrip && commandStrip.parentNode) commandStrip.parentNode.insertBefore(panel, commandStrip.nextSibling);
     else target.insertBefore(panel, target.firstChild);

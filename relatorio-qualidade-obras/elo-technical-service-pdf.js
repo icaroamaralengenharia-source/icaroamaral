@@ -1,4 +1,4 @@
-(function (root) {
+﻿(function (root) {
   "use strict";
 
   const VERSION = "20260717-elo-technical-service-pdf-v3";
@@ -46,15 +46,24 @@
   }
   function normalizeLine(value) {
     return formatDimensionNumbers(value)
+      .replace(/^AREA:/, "\u00c1REA:")
+      .replace(/^PRECO:/, "PRE\u00c7O:")
+      .replace(/^VAOS:/, "V\u00c3OS:")
+      .replace(/^MODULO ADOTADO:/, "M\u00d3DULO ADOTADO:")
       .replace(/Area projetada/g, "\u00c1rea projetada")
       .replace(/Area inclinada/g, "\u00c1rea inclinada")
       .replace(/Area com perdas/g, "\u00c1rea com perdas")
+      .replace(/Area =/g, "\u00c1rea =")
       .replace(/inclinacao/g, "inclina\u00e7\u00e3o")
       .replace(/Aco estrutural nao incluido neste quantitativo\.?/gi, "A\u00e7o estrutural n\u00e3o inclu\u00eddo neste quantitativo.");
   }
   function serviceName(value) {
     const text = normalize(value);
     if (/alvenaria/.test(text)) return "Alvenaria de bloco cer\u00e2mico";
+    if (/reboco|emboco|massa unica/.test(text)) return "Reboco";
+    if (/piso|porcelanato|revestimento ceramico/.test(text)) return "Piso";
+    if (/pintura|pintar|tinta/.test(text)) return "Pintura";
+    if (/contrapiso/.test(text)) return "Contrapiso";
     if (/escavacao.*vala/.test(text)) return "Escava\u00e7\u00e3o manual de vala";
     if (/viga baldrame/.test(text)) return "Concreto para viga baldrame";
     if (/cobertura|telhado|telha/.test(text)) return "Cobertura cer\u00e2mica";
@@ -62,6 +71,7 @@
   }
   function pendingText(value) {
     const text = clean(value);
+    if (/Area bruta de alvenaria; vaos nao descontados/i.test(text)) return "\u00c1rea bruta de alvenaria; v\u00e3os n\u00e3o descontados porque n\u00e3o foram informados.";
     if (text === "cumeeira_length_missing") return "Comprimento da cumeeira n\u00e3o informado.";
     if (text === "loss_percent_not_informed") return "Percentual de perdas n\u00e3o informado.";
     if (text === "steel_not_included" || /aco estrutural nao incluido|a.o estrutural n.o inclu.do/i.test(text)) return "A\u00e7o estrutural n\u00e3o inclu\u00eddo.";
@@ -72,6 +82,24 @@
     const unique = [];
     (items || []).forEach(function (item) { const text = clean(item).replace(/[.\s]+$/g, ""); if (text && unique.indexOf(text) < 0) unique.push(text); });
     return unique.length ? unique.join("; ") + "." : "nenhuma.";
+  }
+  function serviceQuantityLabel(result) {
+    const explicit = clean(result && result.serviceQuantityLabel);
+    const serviceType = clean(result && result.serviceType);
+    const service = normalize(result && result.service);
+    const label = explicit || (serviceType === "masonry" || /alvenaria|parede|bloco/.test(service) ? "Area de alvenaria" :
+      serviceType === "plaster" || /reboco|emboco/.test(service) ? "Area de reboco" :
+      serviceType === "flooring" || /piso|porcelanato|revestimento ceramico/.test(service) ? "Area de piso" :
+      serviceType === "painting" || /pintura|pintar/.test(service) ? "Area de pintura" :
+      serviceType === "subfloor" || /contrapiso/.test(service) ? "Area de contrapiso" :
+      "Quantidade do servico");
+    return label
+      .replace(/^Area de alvenaria$/i, "\u00c1REA DE ALVENARIA")
+      .replace(/^Area de reboco$/i, "\u00c1REA DE REBOCO")
+      .replace(/^Area de piso$/i, "\u00c1REA DE PISO")
+      .replace(/^Area de pintura$/i, "\u00c1REA DE PINTURA")
+      .replace(/^Area de contrapiso$/i, "\u00c1REA DE CONTRAPISO")
+      .replace(/^Quantidade do servico$/i, "QUANTIDADE DO SERVI\u00c7O");
   }
   function roleText(value) {
     const text = clean(value);
@@ -208,7 +236,7 @@
     }
     return "<section class=\"stage\">" +
       "<h2>" + (index + 1) + ". " + escapeHtml(serviceName(result.service)) + "</h2>" +
-      "<div class=\"summary\"><span>Quantidade final</span><strong>" + quantity(result.quantity) + " " + unit(result.unit) + "</strong></div>" +
+      "<div class=\"summary\"><span>" + escapeHtml(serviceQuantityLabel(result)) + "</span><strong>" + quantity(result.quantity) + " " + unit(result.unit) + "</strong></div>" +
       "<h3>Mem\u00f3ria de c\u00e1lculo</h3><ul>" + (memories.length ? memories.map(function (line) { return "<li>" + escapeHtml(line) + "</li>"; }).join("") : "<li>Sem mem\u00f3ria geom\u00e9trica informada.</li>") + "</ul>" +
       "<h3>Composi\u00e7\u00f5es SINAPI</h3><table><thead><tr><th>Papel</th><th>C\u00f3digo</th><th>Descri\u00e7\u00e3o</th><th>Un.</th><th>Fonte</th></tr></thead><tbody>" +
       (compositions.length ? compositions.map(function (item) { return "<tr><td>" + escapeHtml(roleText(item.role)) + "</td><td>" + escapeHtml(item.code || "-") + "</td><td>" + escapeHtml(item.description || "-") + "</td><td>" + unit(item.unit) + "</td><td>" + escapeHtml(item.source || "-") + "</td></tr>"; }).join("") : "<tr><td colspan=\"5\">Nenhuma composi\u00e7\u00e3o localizada.</td></tr>") + "</tbody></table>" +
@@ -310,10 +338,10 @@
     const list = Array.isArray(results) ? results : [];
     const generatedAt = settings.generatedAt || new Date().toISOString();
     const css = "@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#172033;font-size:10.5px;line-height:1.32}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:12px 0 6px;break-after:avoid;border-bottom:1px solid #aeb9c9;padding-bottom:4px}h3{font-size:11.5px;margin:9px 0 4px;break-after:avoid}.meta,.identity,.base{color:#4e5d70;margin-bottom:8px}.identity{border:1px solid #ccd5e2;padding:8px}.stage,.executive,.consolidated,.financial,.priced-items,.materials-use{break-inside:auto;margin-bottom:12px}.summary{display:inline-block;border:1px solid #c7d0de;padding:6px 9px;margin:3px 0 6px;background:#f7f9fc}.summary span{display:block;color:#526071;font-size:9.5px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:4px 0 7px;break-inside:auto}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #d5dce7;padding:3px 4px;vertical-align:top;word-break:break-word}th{background:#eef3f8;text-align:left}.num{text-align:right;white-space:nowrap}.total td{font-weight:700;background:#f1f5f9}ul{margin:3px 0 7px 16px;padding:0}li{margin:1px 0}.grand-total,.footer{border-top:1px solid #aeb9c9;padding-top:7px}.footer{margin-top:12px;color:#687386}";
-    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Quantitativos t\u00e9cnicos do ELO</title><style>" + css + "</style></head><body>" +
-      "<h1>Quantitativos t\u00e9cnicos do ELO</h1>" +
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Or\u00e7amento preliminar - servi\u00e7o isolado</title><style>" + css + "</style></head><body>" +
+      "<h1>Or\u00e7amento preliminar - servi\u00e7o isolado</h1>" +
       identificationBlock(settings.identification) +
-      "<div class=\"meta\">Or\u00e7amento preliminar e quantitativos t\u00e9cnicos. Gerado em " + escapeHtml(formatDate(generatedAt)) + ".</div>" +
+      "<div class=\"meta\">Servi\u00e7o isolado com quantitativo t\u00e9cnico e composi\u00e7\u00e3o oficial quando dispon\u00edvel. Gerado em " + escapeHtml(formatDate(generatedAt)) + ".</div>" +
       executiveSummary(list) + servicesWithValueSection(list) + pricedItemsSection(list) + materialsUseSection(list) + technicalAnnex(list) +
       "<div class=\"footer\">Pre\u00e7os exibidos somente quando a base carregada informou valores confi\u00e1veis. Nenhum pre\u00e7o foi inventado. BDI e perdas n\u00e3o foram aplicados. A\u00e7o estrutural, formas, escava\u00e7\u00e3o, impermeabiliza\u00e7\u00e3o e reaterro permanecem fora do escopo quando n\u00e3o fizerem parte da composi\u00e7\u00e3o selecionada.</div>" +
       "</body></html>";

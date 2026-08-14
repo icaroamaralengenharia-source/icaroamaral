@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -8,11 +8,12 @@ import vm from "node:vm";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoDir = join(testDir, "..", "..");
 
-function loadBridge(searchEngine) {
+function loadBridge(searchEngine, options = {}) {
   const sandbox = { console, window: { CompositionSearchEngine: searchEngine || notFoundSearch() } };
   sandbox.globalThis = sandbox.window;
   vm.createContext(sandbox);
-  for (const file of ["elo-consumption-engine.js", "elo-technical-service-bridge.js"]) {
+  const files = options.withResolver ? ["elo-consumption-engine.js", "elo-composition-resolver.js", "elo-technical-service-bridge.js"] : ["elo-consumption-engine.js", "elo-technical-service-bridge.js"];
+  for (const file of files) {
     vm.runInContext(readFileSync(join(repoDir, "relatorio-qualidade-obras", file), "utf8"), sandbox, { filename: file });
   }
   return sandbox.window.EloTechnicalServiceBridge;
@@ -41,7 +42,7 @@ function searchFor(composition) {
           unit: composition.unit,
           source: composition.source,
           score: 0.97,
-          reasons: ["mock compatível"],
+          reasons: ["mock compativel"],
           composition
         }]
       };
@@ -258,6 +259,35 @@ test("servico informado diretamente em m2", () => {
   assert.equal(result.materials[0].quantity, 567);
 });
 
+
+test("servico isolado usa composition resolver antes de consumir e precificar", () => {
+  const search = searchFor(composition("priced"));
+  const bridge = loadBridge(search, { withResolver: true });
+  const result = bridge.build({ text: "quero fazer uma parede de alvenaria de bloco ceramico, 20 metros por 2,80 metros" });
+
+  assert.equal(result.quantity, 56);
+  assert.equal(result.unit, "m2");
+  assert.equal(result.compositionResolverCalled, true);
+  assert.ok(result.compositionResolution);
+  assert.equal(result.composition.code, "SINAPI-ALV-001");
+  assert.equal(result.unitCost, 50);
+  assert.equal(result.totalCost, 2800);
+  assert.equal(search.calls.length, 1);
+  assert.match(search.calls[0].query, /alvenaria de bloco ceramico/i);
+});
+
+test("servico isolado sem composicao registra candidatos rejeitados e nao inventa preco", () => {
+  const search = notFoundSearch();
+  const bridge = loadBridge(search, { withResolver: true });
+  const result = bridge.build({ text: "quero fazer 30 m2 de piso", service: "servico isolado sem base" });
+
+  assert.equal(result.pricingStatus, "blocked_composition_not_found");
+  assert.equal(result.compositionResolverCalled, true);
+  assert.equal(result.composition, null);
+  assert.equal(result.unitCost, null);
+  assert.equal(result.totalCost, null);
+  assert.ok(Array.isArray(result.rejectedCandidates));
+});
 test("piso com area direta usa composicao por m2", () => {
   const search = searchFor(areaComposition("SINAPI-PISO-001", "Revestimento ceramico para piso", 2.5));
   const bridge = loadBridge(search);
