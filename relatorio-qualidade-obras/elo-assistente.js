@@ -50,6 +50,7 @@
     rdo: { id: "rdo", publicName: "Diário de obra", route: "/relatorio-qualidade-obras/#rdo-identificacao", openingMessage: "Abrindo o Diário de obra...", aliases: ["rdo", "diario de obra", "diário de obra", "diario", "diário"] }
   };
   const ELO_PDF_TEXT_CONTEXT_LIMIT = 15000;
+  const ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT = ELO_PDF_TEXT_CONTEXT_LIMIT;
   const ELO_PDFJS_LIBRARY_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
   const ELO_PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   const ELO_STOCK_IA_PLANS_STORAGE_KEY = "obraReport.stockIa.plannedConsumptions";
@@ -6587,6 +6588,7 @@
     pendingStockRelease: null,
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
+    activeDocumentContext: null,
     activeConversationTopic: "",
     activeTask: null
   };
@@ -7212,6 +7214,66 @@
     ].join("\n");
   }
 
+  function normalizeEloActiveDocumentEntry_(entry) {
+    const safe = entry && typeof entry === "object" ? entry : {};
+    const text = sanitizeUserText(safe.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
+    if (!text) return null;
+    return {
+      fileName: sanitizeUserText(safe.fileName || "documento.pdf") || "documento.pdf",
+      text: text,
+      type: sanitizeUserText(safe.type || "pdf") || "pdf"
+    };
+  }
+
+  function rememberEloActiveDocumentContext_(entries) {
+    const documents = Array.prototype.slice.call(entries || []).map(normalizeEloActiveDocumentEntry_).filter(Boolean).slice(0, 4);
+    if (!documents.length) return null;
+    ELO_SESSION_MEMORY.activeDocumentContext = {
+      documents: documents,
+      updatedAt: new Date().toISOString()
+    };
+    return ELO_SESSION_MEMORY.activeDocumentContext;
+  }
+
+  function getEloActiveDocumentContext_() {
+    const context = ELO_SESSION_MEMORY.activeDocumentContext;
+    if (!context || !Array.isArray(context.documents)) return null;
+    const documents = context.documents.map(normalizeEloActiveDocumentEntry_).filter(Boolean);
+    return documents.length ? Object.assign({}, context, { documents: documents }) : null;
+  }
+
+  function isEloActiveDocumentReference_(question) {
+    const text = normalizeText(question || "");
+    if (!text) return false;
+    if (/\b(?:esse|este|nesse|neste|desse|deste|no|do)\s+(?:pdf|arquivo|documento|anexo)\b/.test(text)) return true;
+    if (/\b(?:o|esse|este)\s+anexo\b/.test(text)) return true;
+    if (/\bcom\s+base\s+(?:nele|nesse|neste|no\s+pdf|nesse\s+pdf|neste\s+pdf|nesse\s+arquivo|neste\s+arquivo)\b/.test(text)) return true;
+    if (/^(?:continue|continua|continuar)$/.test(text)) return true;
+    if (/^(?:continue|continua|extraia|extrair|faca|faça|monte|gere|crie)\b/.test(text) && /\b(?:topicos|questoes|perguntas?|mais\s+\d+|\d+\s+questoes)\b/.test(text)) return true;
+    if (/^(?:faca|faça|mande|gere|crie)\s+mais\s+\d+\b/.test(text)) return true;
+    return false;
+  }
+
+  function buildEloActiveDocumentSummary_(context) {
+    const documents = context && Array.isArray(context.documents) ? context.documents : [];
+    return documents.map(function (entry, index) {
+      return [
+        "Documento ativo " + (index + 1) + ": " + sanitizeUserText(entry.fileName || "documento.pdf"),
+        "Trecho extraido:",
+        sanitizeUserText(entry.text || "").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT)
+      ].join("\n");
+    }).join("\n\n").slice(0, ELO_ACTIVE_DOCUMENT_CONTEXT_LIMIT);
+  }
+
+  function applyEloActiveDocumentContextToPayload_(payload, question) {
+    const activeDocument = getEloActiveDocumentContext_();
+    if (!activeDocument || !isEloActiveDocumentReference_(question)) return false;
+    payload.message = buildEloQuestionWithPdfContext_(payload.message, activeDocument.documents);
+    payload.context.documentsSummary = buildEloActiveDocumentSummary_(activeDocument);
+    payload.context.activeDocumentReused = true;
+    return true;
+  }
+
   function prepareEloPdfAttachmentContext_(question, files) {
     const pdfFiles = Array.prototype.slice.call(files || []).filter(isEloPdfAttachment_);
     if (!pdfFiles.length) {
@@ -7247,6 +7309,7 @@
         };
       }
 
+      rememberEloActiveDocumentContext_(readable);
       return {
         message: buildEloQuestionWithPdfContext_(question, readable),
         blockingMessage: ""
@@ -7277,6 +7340,9 @@
       }
     };
     const files = Array.prototype.slice.call(attachments || []).filter(Boolean);
+    if (!files.length) {
+      applyEloActiveDocumentContextToPayload_(payload, payload.message);
+    }
 
     if (files.length) {
       return prepareEloPdfAttachmentContext_(payload.message, files).then(function (prepared) {
@@ -24731,6 +24797,21 @@ function isEloResidentialNewPipelineEnabled_() {
     input: null,
     attachmentInput: null,
     attachmentButton: null,
+    voiceButton: null,
+    voiceStatus: null,
+    voiceRecognition: null,
+    voiceState: "idle",
+    voiceDraftBase: "",
+    voiceHadTranscript: false,
+    voiceModeEnabled: false,
+    voiceModeButton: null,
+    voiceModeStatus: "idle",
+    voiceModeAwaitingResponse: false,
+    voiceModeSubmitting: false,
+    voiceModeRecognitionSubmitted: false,
+    speechSynthesisUtterance: null,
+    speechSynthesisButton: null,
+    speechSynthesisState: "idle",
     attachmentStatus: null,
     localReportButton: null,
     lastLocalExecutionStockReport: null,
@@ -24777,6 +24858,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const footer = createElement("footer", "elo-footer");
 
     const inputRow = createElement("form", "elo-input-row");
+    ELO_UI.form = inputRow;
     ELO_UI.input = createElement("input", "elo-input");
     ELO_UI.input.type = "text";
     ELO_UI.input.maxLength = 220;
@@ -24786,6 +24868,7 @@ function isEloResidentialNewPipelineEnabled_() {
       inputRow.appendChild(attachmentControls.button);
       inputRow.appendChild(attachmentControls.input);
     }
+    inputRow.appendChild(buildEloVoiceButton_());
     const sendButton = createElement("button", "elo-send-button", "Enviar");
     sendButton.type = "submit";
     inputRow.appendChild(ELO_UI.input);
@@ -24795,6 +24878,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (window.ELO_PRODUCT_MODE) {
       ELO_UI.attachmentStatus = createElement("p", "elo-attachment-status");
       footer.appendChild(ELO_UI.attachmentStatus);
+    }
+    ELO_UI.voiceStatus = createElement("p", "elo-voice-status");
+    ELO_UI.voiceStatus.setAttribute("aria-live", "polite");
+    footer.appendChild(buildEloVoiceModeButton_());
+    footer.appendChild(ELO_UI.voiceStatus);
+    if (ELO_UI.voiceState === "error") {
+      setEloVoiceState_("error", "Reconhecimento de voz nao suportado neste navegador.");
     }
     footer.appendChild(buildTools());
 
@@ -26208,6 +26298,414 @@ function isEloResidentialNewPipelineEnabled_() {
     return { button: button, input: input };
   }
 
+  function getEloSpeechRecognitionConstructor_() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function getEloSpeechSynthesis_() {
+    return window.speechSynthesis || null;
+  }
+
+  function getEloSpeechSynthesisUtteranceConstructor_() {
+    return window.SpeechSynthesisUtterance || null;
+  }
+
+  function setEloVoiceModeStatus_(state, message) {
+    const safeState = state === "listening" || state === "responding" || state === "speaking" ? state : "idle";
+    ELO_UI.voiceModeStatus = safeState;
+    if (ELO_UI.voiceModeButton) {
+      ELO_UI.voiceModeButton.dataset.eloVoiceModeState = safeState;
+      ELO_UI.voiceModeButton.textContent = ELO_UI.voiceModeEnabled ? "Modo Voz ON" : "Modo Voz OFF";
+      ELO_UI.voiceModeButton.classList.toggle("is-active", !!ELO_UI.voiceModeEnabled);
+      ELO_UI.voiceModeButton.setAttribute("aria-pressed", ELO_UI.voiceModeEnabled ? "true" : "false");
+      ELO_UI.voiceModeButton.title = ELO_UI.voiceModeEnabled ? "Desativar modo voz" : "Ativar modo voz";
+    }
+    if (ELO_UI.voiceStatus) {
+      const statusLabel = message || (ELO_UI.voiceModeEnabled ? "Modo Voz: Parado." : "");
+      ELO_UI.voiceStatus.textContent = sanitizeUserText(statusLabel);
+      ELO_UI.voiceStatus.dataset.eloVoiceModeState = safeState;
+    }
+  }
+
+  function setEloVoiceModeEnabled_(enabled) {
+    ELO_UI.voiceModeEnabled = !!enabled;
+    ELO_UI.voiceModeSubmitting = false;
+    ELO_UI.voiceModeAwaitingResponse = false;
+    ELO_UI.voiceModeRecognitionSubmitted = false;
+    if (!ELO_UI.voiceModeEnabled) {
+      stopEloVoiceInput_();
+      stopEloSpeechOutput_();
+      setEloVoiceModeStatus_("idle", "");
+      return false;
+    }
+    setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
+    return true;
+  }
+
+  function toggleEloVoiceMode_() {
+    return setEloVoiceModeEnabled_(!ELO_UI.voiceModeEnabled);
+  }
+
+  function buildEloVoiceModeButton_() {
+    const button = createElement("button", "elo-inline-button elo-voice-mode-button", "Modo Voz OFF");
+    button.type = "button";
+    ELO_UI.voiceModeButton = button;
+    button.addEventListener("click", function () { toggleEloVoiceMode_(); });
+    setEloVoiceModeStatus_(ELO_UI.voiceModeStatus, ELO_UI.voiceModeEnabled ? "Modo Voz: Parado." : "");
+    return button;
+  }
+
+  function ensureEloVoiceModeButton_(form) {
+    if (!form || !form.parentNode) return false;
+    let button = form.parentNode.querySelector ? form.parentNode.querySelector(".elo-voice-mode-button") : null;
+    if (!button) {
+      button = buildEloVoiceModeButton_();
+      if (ELO_UI.voiceStatus && ELO_UI.voiceStatus.parentNode === form.parentNode) {
+        form.parentNode.insertBefore(button, ELO_UI.voiceStatus);
+      } else {
+        form.parentNode.insertBefore(button, form.nextSibling);
+      }
+    } else if (!button.dataset.eloVoiceModeBound) {
+      ELO_UI.voiceModeButton = button;
+      button.addEventListener("click", function () { toggleEloVoiceMode_(); });
+    }
+    button.dataset.eloVoiceModeBound = "true";
+    setEloVoiceModeStatus_(ELO_UI.voiceModeStatus, ELO_UI.voiceModeEnabled ? "Modo Voz: Parado." : "");
+    return true;
+  }
+
+  function isEloVoiceModeSpeakableResponse_(text) {
+    const clean = sanitizeUserText(text || "");
+    if (!clean) return false;
+    if (/^\s*(?:analisando|gerando|consultando|pensando|\.\.\.)\b/i.test(clean)) return false;
+    return true;
+  }
+
+  function submitEloVoiceModeTranscript_() {
+    if (!ELO_UI.voiceModeEnabled || ELO_UI.voiceModeSubmitting || ELO_UI.voiceModeRecognitionSubmitted || !ELO_UI.form || !ELO_UI.input) return false;
+    const text = sanitizeUserText(ELO_UI.input.value || "");
+    if (!text) return false;
+    ELO_UI.voiceModeSubmitting = true;
+    ELO_UI.voiceModeRecognitionSubmitted = true;
+    ELO_UI.voiceModeAwaitingResponse = true;
+    setEloVoiceModeStatus_("responding", "Modo Voz: Respondendo.");
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") stopEloVoiceInput_();
+    const SubmitEventCtor = window.SubmitEvent || window.Event;
+    const event = new SubmitEventCtor("submit", { bubbles: true, cancelable: true });
+    ELO_UI.form.dispatchEvent(event);
+    window.setTimeout(function () { ELO_UI.voiceModeSubmitting = false; }, 0);
+    return true;
+  }
+
+  function maybeSpeakEloVoiceModeResponse_(message, text) {
+    if (!ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
+    ELO_UI.voiceModeAwaitingResponse = false;
+    const button = message && message.querySelector ? message.querySelector(".elo-speech-button") : null;
+    const started = speakEloText_(text, button);
+    if (started) {
+      setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    } else {
+      setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
+    }
+    return started;
+  }
+  function setEloSpeechButtonState_(button, speaking) {
+    if (!button) return;
+    button.textContent = speaking ? "Parar" : "Ouvir";
+    button.dataset.eloSpeechState = speaking ? "speaking" : "idle";
+    button.setAttribute("aria-pressed", speaking ? "true" : "false");
+    button.title = speaking ? "Parar leitura" : "Ouvir resposta";
+    button.setAttribute("aria-label", speaking ? "Parar leitura da resposta" : "Ouvir resposta em voz alta");
+  }
+
+  function resetEloSpeechButton_(button) {
+    setEloSpeechButtonState_(button || ELO_UI.speechSynthesisButton, false);
+    if (button && ELO_UI.speechSynthesisButton === button) ELO_UI.speechSynthesisButton = null;
+    if (!button) ELO_UI.speechSynthesisButton = null;
+    ELO_UI.speechSynthesisState = "idle";
+    ELO_UI.speechSynthesisUtterance = null;
+    if (ELO_UI.voiceModeEnabled && ELO_UI.voiceModeStatus === "speaking") {
+      setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
+    }
+  }
+
+  function cleanEloTextForSpeech_(text) {
+    return sanitizeEloMultilineText_(text)
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+      .replace(/https?:\/\/\S{24,}/g, " link ")
+      .replace(/https?:\/\/\S+/g, " link ")
+      .replace(/^\s{0,3}(#{1,6}|[-*+>] |\d+[.)] )/gm, "")
+      .replace(/[\*_~|>#]/g, " ")
+      .replace(/\b(?:sessionIntent|sessionTheme|budgetOrchestratorV2|meta_web_search|data-elo-[a-z0-9_-]+)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 5000);
+  }
+
+  function chooseEloPortugueseVoice_(synthesis) {
+    if (!synthesis || typeof synthesis.getVoices !== "function") return null;
+    const voices = Array.prototype.slice.call(synthesis.getVoices() || []);
+    return voices.find(function (voice) { return /^pt-BR$/i.test(String(voice.lang || "")); }) ||
+      voices.find(function (voice) { return /^pt/i.test(String(voice.lang || "")); }) ||
+      null;
+  }
+
+  function stopEloSpeechOutput_() {
+    const synthesis = getEloSpeechSynthesis_();
+    if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    resetEloSpeechButton_();
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
+    return true;
+  }
+
+  function speakEloText_(text, button) {
+    const synthesis = getEloSpeechSynthesis_();
+    const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
+    if (!synthesis || !Utterance) {
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Sem voz";
+        button.title = "Leitura em voz alta nao suportada neste navegador";
+      }
+      return false;
+    }
+    if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
+      stopEloVoiceInput_();
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    }
+    if (typeof synthesis.cancel === "function") synthesis.cancel();
+    resetEloSpeechButton_();
+    const speechText = cleanEloTextForSpeech_(text);
+    if (!speechText) return false;
+    const utterance = new Utterance(speechText);
+    const voice = chooseEloPortugueseVoice_(synthesis);
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice && voice.lang ? voice.lang : "pt-BR";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.onend = function () { resetEloSpeechButton_(button); };
+    utterance.onerror = function () {
+      resetEloSpeechButton_(button);
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
+    };
+    ELO_UI.speechSynthesisUtterance = utterance;
+    ELO_UI.speechSynthesisButton = button;
+    ELO_UI.speechSynthesisState = "speaking";
+    setEloSpeechButtonState_(button, true);
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    synthesis.speak(utterance);
+    return true;
+  }
+
+  function appendEloSpeechAction_(message, text) {
+    if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
+    const synthesis = getEloSpeechSynthesis_();
+    const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
+    const actions = createElement("div", "elo-message-actions elo-speech-actions");
+    const button = createElement("button", "elo-inline-button elo-speech-button", synthesis && Utterance ? "Ouvir" : "Sem voz");
+    button.type = "button";
+    button.dataset.eloSpeechText = String(text || "");
+    if (!synthesis || !Utterance) {
+      button.disabled = true;
+      button.title = "Leitura em voz alta nao suportada neste navegador";
+      button.setAttribute("aria-label", "Leitura em voz alta nao suportada neste navegador");
+    } else {
+      setEloSpeechButtonState_(button, false);
+      button.addEventListener("click", function () { speakEloText_(button.dataset.eloSpeechText || "", button); });
+    }
+    actions.appendChild(button);
+    message.appendChild(actions);
+    if (message.dataset) message.dataset.eloSpeechActionBound = "true";
+    return true;
+  }
+
+  function refreshEloSpeechAction_(message, text) {
+    if (!message) return false;
+    const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
+    if (button) {
+      button.dataset.eloSpeechText = String(text || "");
+      if (button.disabled && getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_()) {
+        button.disabled = false;
+        setEloSpeechButtonState_(button, false);
+        button.addEventListener("click", function () { speakEloText_(button.dataset.eloSpeechText || "", button); });
+      }
+      return true;
+    }
+    return appendEloSpeechAction_(message, text);
+  }
+
+  function setEloVoiceState_(state, message) {
+    const safeState = state === "listening" || state === "error" ? state : "idle";
+    ELO_UI.voiceState = safeState;
+    if (ELO_UI.voiceButton) {
+      ELO_UI.voiceButton.dataset.eloVoiceState = safeState;
+      ELO_UI.voiceButton.textContent = safeState === "listening" ? "Ouvindo" : "Mic";
+      ELO_UI.voiceButton.classList.toggle("is-listening", safeState === "listening");
+      ELO_UI.voiceButton.setAttribute("aria-pressed", safeState === "listening" ? "true" : "false");
+      ELO_UI.voiceButton.title = safeState === "listening" ? "Parar escuta" : "Falar com o Elo";
+      ELO_UI.voiceButton.setAttribute("aria-label", safeState === "listening" ? "Parar escuta do microfone" : "Falar e transcrever para o campo de mensagem");
+    }
+    if (ELO_UI.voiceStatus) {
+      ELO_UI.voiceStatus.textContent = sanitizeUserText(message || "");
+      ELO_UI.voiceStatus.dataset.eloVoiceState = safeState;
+    }
+  }
+
+  function formatEloSpeechError_(error) {
+    const code = sanitizeUserText(error && error.error || error && error.message || "");
+    if (code === "not-allowed" || code === "service-not-allowed") return "Permissao do microfone negada.";
+    if (code === "no-speech") return "Nao ouvi fala suficiente.";
+    if (code === "audio-capture") return "Microfone indisponivel no navegador.";
+    if (code === "network") return "Reconhecimento de voz indisponivel pela rede.";
+    if (code === "aborted") return "Escuta interrompida.";
+    return "Nao consegui reconhecer a fala.";
+  }
+
+  function writeEloVoiceTranscriptToInput_(transcript) {
+    if (!ELO_UI.input) return false;
+    const cleanTranscript = sanitizeUserText(transcript);
+    if (!cleanTranscript) return false;
+    const base = sanitizeUserText(ELO_UI.voiceDraftBase);
+    ELO_UI.input.value = [base, cleanTranscript].filter(Boolean).join(base ? " " : "");
+    ELO_UI.voiceHadTranscript = true;
+    if (typeof ELO_UI.input.dispatchEvent === "function") {
+      ELO_UI.input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    refreshEloInputHeight_();
+    return true;
+  }
+
+  function startEloVoiceInput_() {
+    const Recognition = getEloSpeechRecognitionConstructor_();
+    if (!Recognition) {
+      setEloVoiceState_("error", "Reconhecimento de voz nao suportado neste navegador.");
+      return false;
+    }
+    if (!ELO_UI.input) {
+      setEloVoiceState_("error", "Campo de mensagem indisponivel.");
+      return false;
+    }
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
+      ELO_UI.voiceRecognition.stop();
+      return true;
+    }
+    if (ELO_UI.speechSynthesisState === "speaking") {
+      stopEloSpeechOutput_();
+    }
+
+    const recognition = new Recognition();
+    ELO_UI.voiceRecognition = recognition;
+    ELO_UI.voiceDraftBase = ELO_UI.input.value || "";
+    ELO_UI.voiceHadTranscript = false;
+    ELO_UI.voiceModeRecognitionSubmitted = false;
+    recognition.lang = "pt-BR";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = function () {
+      setEloVoiceState_("listening", "Ouvindo...");
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("listening", "Modo Voz: Ouvindo.");
+    };
+    recognition.onresult = function (event) {
+      const results = Array.prototype.slice.call(event && event.results || [], event && event.resultIndex || 0);
+      const transcript = results.map(function (result) {
+        return result && result[0] && result[0].transcript || "";
+      }).join(" ");
+      const hasFinalTranscript = results.some(function (result) { return !!(result && result.isFinal); });
+      if (writeEloVoiceTranscriptToInput_(transcript)) {
+        setEloVoiceState_("listening", "Ouvindo... transcricao no campo.");
+        if (hasFinalTranscript && ELO_UI.voiceModeEnabled) submitEloVoiceModeTranscript_();
+      }
+    };
+    recognition.onerror = function (event) {
+      ELO_UI.voiceModeSubmitting = false;
+      setEloVoiceState_("error", formatEloSpeechError_(event));
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: " + formatEloSpeechError_(event));
+    };
+    recognition.onend = function () {
+      if (ELO_UI.voiceState === "listening") {
+        const doneMessage = ELO_UI.voiceHadTranscript ? "Transcricao pronta para editar e enviar." : "Escuta finalizada sem texto.";
+        setEloVoiceState_("idle", doneMessage);
+        if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript && ELO_UI.voiceModeRecognitionSubmitted ? "Modo Voz: Respondendo." : "Modo Voz: Parado.");
+      }
+      ELO_UI.voiceRecognition = null;
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      setEloVoiceState_("error", formatEloSpeechError_(error));
+      return false;
+    }
+    return true;
+  }
+
+  function stopEloVoiceInput_() {
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
+      ELO_UI.voiceRecognition.stop();
+      return true;
+    }
+    setEloVoiceState_("idle", "");
+    if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
+    return false;
+  }
+
+  function toggleEloVoiceInput_() {
+    if (ELO_UI.voiceState === "listening") return stopEloVoiceInput_();
+    return startEloVoiceInput_();
+  }
+
+  function buildEloVoiceButton_() {
+    const button = createElement("button", "elo-attach-button elo-mic-button", "Mic");
+    button.type = "button";
+    ELO_UI.voiceButton = button;
+    button.addEventListener("click", function () {
+      toggleEloVoiceInput_();
+    });
+    if (!getEloSpeechRecognitionConstructor_()) {
+      button.disabled = true;
+      setEloVoiceState_("error", "Reconhecimento de voz nao suportado neste navegador.");
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: microfone sem suporte.");
+    } else {
+      setEloVoiceState_("idle", "");
+    }
+    return button;
+  }
+
+  function ensureEloVoiceControls_(form, input) {
+    if (!form || !input) return false;
+    ELO_UI.form = form;
+    ELO_UI.input = input;
+    let button = form.querySelector ? form.querySelector(".elo-mic-button") : null;
+    if (!button) {
+      button = buildEloVoiceButton_();
+      form.insertBefore(button, input);
+    } else if (!button.dataset.eloVoiceBound) {
+      ELO_UI.voiceButton = button;
+      button.addEventListener("click", function () { toggleEloVoiceInput_(); });
+    }
+    button.dataset.eloVoiceBound = "true";
+    if (!ELO_UI.voiceStatus || !ELO_UI.voiceStatus.parentNode) {
+      ELO_UI.voiceStatus = createElement("p", "elo-voice-status");
+      ELO_UI.voiceStatus.setAttribute("aria-live", "polite");
+      form.parentNode.insertBefore(ELO_UI.voiceStatus, form.nextSibling);
+    }
+    if (!getEloSpeechRecognitionConstructor_()) {
+      button.disabled = true;
+      setEloVoiceState_("error", "Reconhecimento de voz nao suportado neste navegador.");
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: microfone sem suporte.");
+    } else {
+      button.disabled = false;
+      setEloVoiceState_("idle", "");
+    }
+    ensureEloVoiceModeButton_(form);
+    return true;
+  }
+
   function renderProductAttachmentStatus() {
     const preview = document.querySelector("[data-elo-attachment-preview]");
     const iconEl = document.querySelector(".elo-attachment-icon");
@@ -26472,6 +26970,10 @@ function isEloResidentialNewPipelineEnabled_() {
     if (bubble) {
       bubble.textContent = text;
     }
+    if (message && message.classList && message.classList.contains("assistant")) {
+      refreshEloSpeechAction_(message, text);
+      maybeSpeakEloVoiceModeResponse_(message, text);
+    }
     scrollEloConversationToBottom_({ force: shouldStick });
   }
 
@@ -26559,6 +27061,10 @@ function isEloResidentialNewPipelineEnabled_() {
       message.appendChild(createEloMascotAvatar_());
     }
     message.appendChild(bubble);
+    if (kind === "assistant") {
+      appendEloSpeechAction_(message, text);
+      maybeSpeakEloVoiceModeResponse_(message, text);
+    }
     ELO_UI.messages.appendChild(message);
     setEloCoreLayoutState_(getEloCoreMessageCount_());
     if (kind === "user" || kind === "assistant") {
@@ -29163,6 +29669,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.form = form;
     ELO_UI.attachments = [];
     ELO_UI.awaitingStandaloneName = false;
+    ensureEloVoiceControls_(form, input);
 
     if (attachmentButton && attachmentInput && !attachmentButton.dataset.eloEngineBound) {
       attachmentButton.dataset.eloEngineBound = "true";
@@ -29313,6 +29820,10 @@ function isEloResidentialNewPipelineEnabled_() {
       return cloneEloStockObrasCompositionBriefing_(ELO_SESSION_MEMORY.stockObrasCompositionBriefing);
     },
     getReliabilitySnapshotForTest: getEloCoreReliabilitySnapshotForTest_,
+    rememberActiveDocumentForTest: rememberEloActiveDocumentContext_,
+    getActiveDocumentForTest: getEloActiveDocumentContext_,
+    isActiveDocumentReferenceForTest: isEloActiveDocumentReference_,
+    applyActiveDocumentContextToPayloadForTest: applyEloActiveDocumentContextToPayload_,
     recordReliabilityEventForTest: recordEloCoreReliabilityEvent_,
     buildSafeModeAnswerForTest: buildEloCoreSafeModeAnswer_,
     loadCoreMemoriesForTest: loadEloCoreMemories_,
@@ -29325,6 +29836,17 @@ function isEloResidentialNewPipelineEnabled_() {
     clearLocalConversationForTest: clearEloCoreLocalConversationState_,
     setCoreMessagesElementForTest: function (element) { ELO_UI.messages = element; },
     setCorePanelElementForTest: function (element) { ELO_UI.panel = element; },
+    getVoiceStateForTest: function () { return ELO_UI.voiceState; },
+    getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
+    setVoiceModeEnabledForTest: setEloVoiceModeEnabled_,
+    startVoiceInputForTest: startEloVoiceInput_,
+    stopVoiceInputForTest: stopEloVoiceInput_,
+    ensureVoiceControlsForTest: ensureEloVoiceControls_,
+    getSpeechRecognitionConstructorForTest: getEloSpeechRecognitionConstructor_,
+    cleanTextForSpeechForTest: cleanEloTextForSpeech_,
+    speakTextForTest: speakEloText_,
+    stopSpeechOutputForTest: stopEloSpeechOutput_,
+    choosePortugueseVoiceForTest: chooseEloPortugueseVoice_,
     appendMessageForLayoutTest: appendMessage,
     startNewConversationForLayoutTest: startEloCoreNewConversation_,
     refreshLayoutStateForTest: setEloCoreWelcomeVisible_,
