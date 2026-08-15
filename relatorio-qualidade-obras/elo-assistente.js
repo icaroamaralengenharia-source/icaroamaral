@@ -254,7 +254,8 @@
       add({ type: "research_or_opinion", topic: topicMatch ? sanitizeUserText(topicMatch[1]) : "previsão" });
     }
     const operationalReleaseMath = /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text) && /material|materiais|liberar|saida|sa.da|almoxarifado/.test(text);
-    if (!operationalReleaseMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))) add({ type: "math" });
+    const constructionGeometryMath = /\b(?:parede|viga|pilar|laje|sapata|baldrame|concreto|volume|area|área)\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:x|por|com)\s*\d+(?:[,.]\d+)?/.test(text);
+    if (!operationalReleaseMath && !constructionGeometryMath && (/\b(quanto e|quanto é|calcule|calcular|soma|subtraia|multiplique|divida)\b/.test(text) || /\d+(?:[,.]\d+)?\s*[+*x×/÷-]\s*\d+/.test(text))) add({ type: "math" });
     if (/\b(memoria|memória|lembre|lembra|guardar|guarde|esquecer|apagar memoria|apagar memória)\b/.test(text)) add({ type: "memory" });
     if (/\b(relatorio|relatório|laudo|vistoria|foto|imagem)\b/.test(text)) add({ type: "report" });
     if (/\b(orcamento|orçamento|bdi|sinapi|orse|composicao|composição|custo)\b/.test(text)) add({ type: "budget" });
@@ -19186,33 +19187,33 @@
     detectBudgetIntent(message) {
       const text = normalizeText(message || "");
       if (!text) return false;
-      if (/orcamento\s+oficial|orÃ§amento\s+oficial|orcamento\s+executivo|orÃ§amento\s+executivo/.test(text)) return false;
+      if (/orcamento\s+oficial|orçamento\s+oficial|orcamento\s+executivo|orçamento\s+executivo/.test(text)) return false;
       if (this.isResidentialPackageIntent_(text)) return true;
       if (this.isWallBudgetIntent_(text)) return true;
       if (/reforma\s+de\s+(?:banheiro|cozinha)|trocar\s+piso/.test(text)) return true;
       if (this.isMaterialListIntent_(text)) return true;
       if (/\b(casa|terrea|t??rrea|sobrado|galpao|galp??o|reforma\s+de\s+banheiro)\b/.test(text) && /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m??|m?|metros?\s+quadrados?)/.test(text)) return true;
-      return /orcamento|orÃ§amento|orcar|orÃ§ar|quanto\s+custa|quanto\s+gasto|quanto\s+fica|levantar\s+material|mao\s+de\s+obra|mÃ£o\s+de\s+obra/.test(text) && /casa|residencial|residencia|residÃªncia|obra|construir|construcao|construÃ§Ã£o|terrea|tÃ©rrea|reforma|parede|muro|alvenaria/.test(text);
+      return /orcamento|orçamento|orcar|orçar|quanto\s+custa|quanto\s+gasto|quanto\s+fica|levantar\s+material|mao\s+de\s+obra|mão\s+de\s+obra/.test(text) && /casa|residencial|residencia|residência|obra|construir|construcao|construção|terrea|térrea|reforma|parede|muro|alvenaria/.test(text);
     }
 
     isMaterialListIntent_(text) {
-      return /lista\s+de\s+materiais|materiais\s+da\s+obra|materiais\s+dessa\s+casa|quais\s+materiais\s+vou\s+usar|faca\s+a\s+lista\s+de\s+materiais|faÃ§a\s+a\s+lista\s+de\s+materiais/.test(text);
+      return /lista\s+de\s+materiais|materiais\s+da\s+obra|materiais\s+dessa\s+casa|quais\s+materiais\s+vou\s+usar|faca\s+a\s+lista\s+de\s+materiais|faça\s+a\s+lista\s+de\s+materiais/.test(text);
     }
 
     isBudgetResetIntent_(text) {
-      return /novo\s+orcamento|novo\s+orÃ§amento|comecar\s+outro\s+orcamento|comeÃ§ar\s+outro\s+orÃ§amento|limpar\s+orcamento|limpar\s+orÃ§amento|trocar\s+obra|zerar\s+orcamento|zerar\s+orÃ§amento/.test(text);
+      return /novo\s+orcamento|novo\s+orçamento|comecar\s+outro\s+orcamento|começar\s+outro\s+orçamento|limpar\s+orcamento|limpar\s+orçamento|trocar\s+obra|zerar\s+orcamento|zerar\s+orçamento/.test(text);
     }
 
     isContinuationIntent_(text) {
-      return /orcamento|orÃ§amento|custo|preco|preÃ§o|quanto\s+custa|material|lista\s+de\s+materiais|composicao|composiÃ§Ã£o|sinapi|orse|bdi|quantitativo|metro\s+quadrado|m2|mÂ²|parede|casa|obra|fundacao|fundaÃ§Ã£o|estrutura|alvenaria|cobertura|eletrica|elÃ©trica|hidraulica|hidrÃ¡ulica|revestimento|pintura|esquadria|cronograma|memorial/.test(text);
+      return /orcamento|orçamento|custo|preco|preço|quanto\s+custa|material|lista\s+de\s+materiais|composicao|composição|sinapi|orse|bdi|quantitativo|metro\s+quadrado|m2|m²|parede|casa|obra|fundacao|fundação|estrutura|alvenaria|cobertura|eletrica|elétrica|hidraulica|hidráulica|revestimento|pintura|esquadria|cronograma|memorial/.test(text);
     }
 
     isReuseInheritedConfirmation_(text) {
-      return /^(sim|pode|pode\s+reutilizar|mantem|mantÃ©m|manter|usa\s+esses\s+dados|pode\s+usar|sim\s+pode|ok|certo)(\b|[\s,.!])/i.test(text);
+      return /^(sim|pode|pode\s+reutilizar|mantem|mantém|manter|usa\s+esses\s+dados|pode\s+usar|sim\s+pode|ok|certo)(\b|[\s,.!])/i.test(text);
     }
 
     isInheritedChangeRequest_(text) {
-      return /^(nao|nÃ£o)\b|alterar|mudar\s+cidade|mudar\s+padrao|mudar\s+padrÃ£o|outro\s+padrao|outro\s+padrÃ£o|outra\s+cidade/.test(text);
+      return /^(nao|não)\b|alterar|mudar\s+cidade|mudar\s+padrao|mudar\s+padrão|outro\s+padrao|outro\s+padrão|outra\s+cidade/.test(text);
     }
 
 
@@ -19238,10 +19239,10 @@
     }
 
     isResidentialPackageIntent_(text) {
-      const hasResidentialSubject = /casa|residencial|residencia|residÃªncia|terrea|tÃ©rrea|sobrado/.test(text);
-      const hasArea = /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|mÂ²|metros\s+quadrados)/.test(text);
+      const hasResidentialSubject = /casa|residencial|residencia|residência|terrea|térrea|sobrado/.test(text);
+      const hasArea = /\d+(?:[,.]\d+)?\s*(?:m2|m\^2|m²|metros\s+quadrados)/.test(text);
       if (!hasResidentialSubject || !hasArea) return false;
-      if (/parede|alvenaria|bloco|tijolo|reboco|contrapiso|telhado|pintura|piso\s+(?:ceramico|cerÃ¢mico)|trocar\s+piso/.test(text) && !/casa|residencial|residencia|terrea|tÃ©rrea|sobrado/.test(text)) return false;
+      if (/parede|alvenaria|bloco|tijolo|reboco|contrapiso|telhado|pintura|piso\s+(?:ceramico|cerâmico)|trocar\s+piso/.test(text) && !/casa|residencial|residencia|terrea|térrea|sobrado/.test(text)) return false;
       return true;
     }
     isWallBudgetIntent_(text) {
@@ -19302,7 +19303,7 @@
           || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff\s.'-]+?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})\b/i)
           || raw.match(/\bem\s+([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s+([A-Z]{2})(?=\b|[,.;])/)
           || raw.match(/(?:^|[,;]\s*)([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:[-/,]\s*)\s*([A-Za-z]{2})(?=\b|[,.;])/i)
-          || raw.match(/^\s*([A-Za-zï¿½-ï¿½][A-Za-zï¿½-ï¿½\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
+          || raw.match(/^\s*([A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff\s.'-]{1,80}?)\s*(?:\/|\s+-\s+|,\s*)\s*([A-Za-z]{2})\s*$/i);
         if (match) {
           facts.city = sanitizeUserText(match[1]).replace(/\s+/g, " ").trim().replace(/Vit.ria/i, "Vitoria");
           facts.state = sanitizeUserText(match[2]).toUpperCase();
@@ -19461,17 +19462,17 @@
         clearField("city");
         clearField("state");
         request = "Informe a nova cidade/UF.";
-      } else if (/padrao|padrÃ£o|outro\s+padrao|outro\s+padrÃ£o/.test(text)) {
+      } else if (/padrao|padrão|outro\s+padrao|outro\s+padrão/.test(text)) {
         next.standard = "";
         clearField("standard");
-        request = "Informe o novo padrÃ£o construtivo.";
+        request = "Informe o novo padrão construtivo.";
       }
       next.missingFields = this.getMissingFields(next);
       next.budgetStage = this.resolveStage_(next);
       ELO_SESSION_MEMORY.budgetOrchestratorV2 = next;
       return {
         shortAnswer: "Tudo bem, vamos alterar os dados herdados.",
-        fullAnswer: "Tudo bem. NÃ£o vou reutilizar automaticamente os dados herdados.\n\n" + request,
+        fullAnswer: "Tudo bem. Não vou reutilizar automaticamente os dados herdados.\n\n" + request,
         nextAction: request,
         canSave: false,
         sessionTheme: "residential_budget_package",
@@ -19859,7 +19860,7 @@
     buildWallBriefingResponse_(state) {
       const missing = state.missingFields || [];
       return {
-        shortAnswer: "Vou conduzir o orÃ§amento da parede sem perder contexto.",
+        shortAnswer: "Vou conduzir o orçamento da parede sem perder contexto.",
         fullAnswer: ["ELO ORCAMENTISTA V2 - PAREDE", "Dados pendentes:", missing.length ? missing.map(function (item) { return "- " + item; }).join("\n") : "- Nenhuma pendencia minima.", "", "Aviso tecnico: calculo consumo apenas com premissas suficientes e composicao oficial/importada quando houver. Nao invento preco."].join("\n"),
         nextAction: missing.length ? "Informe " + missing.join(", ") + "." : "Confirme perda, vaos e base SINAPI/ORSE para consolidar.",
         canSave: false,
@@ -25392,6 +25393,10 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const completeResidentialBudgetPriority = isEloCompleteResidentialBudgetPriorityRequest_(question) || isEloResidentialBudgetBriefingQuestion_(question);
     const activeWallBudgetV2ForPriority = ELO_SESSION_MEMORY.budgetOrchestratorV2 || null;
+    const wallCompleteV2EarlyPriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallCompleteV2Answer_(question);
+    if (wallCompleteV2EarlyPriorityResponse) {
+      return applyEloBrainMarker_(question, wallCompleteV2EarlyPriorityResponse);
+    }
     const isolatedServiceBridgeResponse = completeResidentialBudgetPriority ? null : buildEloIsolatedServiceProfessionalBudget_(question);
     if (isolatedServiceBridgeResponse) {
       return applyEloBrainMarker_(question, isolatedServiceBridgeResponse);
@@ -25405,6 +25410,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const wallBudgetTaskPriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallBudgetTaskAnswer_(question);
     if (wallBudgetTaskPriorityResponse) {
       return applyEloBrainMarker_(question, wallBudgetTaskPriorityResponse);
+    }
+    const liveSearchPriorityResponse = buildEloWebSearchRouteResponse_(question);
+    if (liveSearchPriorityResponse) {
+      return applyEloBrainMarker_(question, liveSearchPriorityResponse);
     }
     const commonIntentPriorityResponse = routeEloCoreIntents_(question, {});
     if (commonIntentPriorityResponse && !completeResidentialBudgetPriority && !/meta_workflow|poc_|memory/.test(String(commonIntentPriorityResponse.sessionIntent || ""))) {
@@ -25703,12 +25712,259 @@ function isEloResidentialNewPipelineEnabled_() {
       clearProductAttachmentPreview();
     }
   }
+  const ELO_RDO_PREVIEW_MAX_PHOTOS = 12;
+  const ELO_RDO_PREVIEW_LOCATIONS_ = ["Fachada frontal", "Lateral direita", "Lateral esquerda", "Fundos", "Cozinha", "Copa", "Banheiro"];
+  const ELO_RDO_PREVIEW_STATE_ = { active: false, data: null, nextGenericPhotoIndex: 1 };
+
+  function createEloRdoPreviewData_() {
+    return { data: new Date().toISOString().slice(0, 10), obra: getEloRdoPreviewCurrentWork_(), equipe: [], tempo: "", servicos: [], epi: null, observacoes: "", fotos: [] };
+  }
+
+  function getEloRdoPreviewCurrentWork_() {
+    const auth = typeof getEloCoreAuthContext_ === "function" ? getEloCoreAuthContext_() : {};
+    const profile = auth && auth.profile || {};
+    return sanitizeUserText(auth.projectName || auth.projectLabel || profile.project_name || profile.projectName || auth.projectId || profile.project_id || profile.projectId || "");
+  }
+
+  function ensureEloRdoPreviewState_() {
+    if (!ELO_RDO_PREVIEW_STATE_.data) ELO_RDO_PREVIEW_STATE_.data = createEloRdoPreviewData_();
+    ELO_RDO_PREVIEW_STATE_.active = true;
+    return ELO_RDO_PREVIEW_STATE_.data;
+  }
+
+  function resetEloRdoPreviewState_() {
+    ELO_RDO_PREVIEW_STATE_.active = false;
+    ELO_RDO_PREVIEW_STATE_.data = null;
+    ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex = 1;
+  }
+
+  function isEloRdoPreviewActive_() {
+    return ELO_RDO_PREVIEW_STATE_.active && !!ELO_RDO_PREVIEW_STATE_.data;
+  }
+
+  function getEloAttachmentLimit_() {
+    return isEloRdoPreviewActive_() ? ELO_RDO_PREVIEW_MAX_PHOTOS : 6;
+  }
+
+  function isEloRdoPreviewIntent_(message) {
+    const text = normalizeText(message);
+    if (!text || /\bo que e rdo\b/.test(text) || /\bcomo funciona\b[\s\S]{0,40}\brdo\b/.test(text)) return false;
+    return /(^|\b)(faca|crie|criar|monte|montar)\s+(o\s+)?rdo\b/.test(text) || /\brdo de hoje\b/.test(text) || /\bdiario de obra\b/.test(text) || /\bvamos fazer o diario da obra\b/.test(text);
+  }
+
+  function isEloRdoPreviewCancel_(message) {
+    return /\bcancelar\s+rdo\b|\bcancele\s+(o\s+)?rdo\b|\babortar\s+rdo\b/.test(normalizeText(message));
+  }
+
+  function isEloRdoPreviewConfirmation_(message) {
+    return /^(sim|confirmar|confirmado|pode salvar|salvar|ok|correto|esta correto)$/.test(normalizeText(message));
+  }
+
+  function titleCaseEloRdoPreview_(value) {
+    return sanitizeUserText(value).toLowerCase().replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+  }
+
+  function pluralizeEloRdoPreview_(word, quantity) {
+    const cleanWord = sanitizeUserText(word).toLowerCase();
+    if (Number(quantity) === 1) return cleanWord;
+    if (/s$/.test(cleanWord)) return cleanWord;
+    if (/r$/.test(cleanWord)) return cleanWord + "es";
+    return cleanWord + "s";
+  }
+
+  function mergeEloRdoPreviewTeam_(data, team) {
+    (team || []).forEach(function (item) {
+      const role = titleCaseEloRdoPreview_(item.funcao);
+      const quantity = Number(item.quantidade || 0);
+      if (!role || quantity <= 0) return;
+      const existing = data.equipe.find(function (entry) { return normalizeText(entry.funcao) === normalizeText(role); });
+      if (existing) existing.quantidade = quantity;
+      else data.equipe.push({ funcao: role, quantidade: quantity });
+    });
+  }
+
+  function mergeEloRdoPreviewServices_(data, services) {
+    (services || []).forEach(function (service) {
+      const cleanService = titleCaseEloRdoPreview_(service);
+      if (!cleanService) return;
+      const exists = data.servicos.some(function (item) { return normalizeText(item) === normalizeText(cleanService); });
+      if (!exists) data.servicos.push(cleanService);
+    });
+  }
+
+  function extractEloRdoPreviewData_(message) {
+    const raw = sanitizeUserText(message);
+    const text = normalizeText(raw);
+    const result = { equipe: [], tempo: "", servicos: [], epi: null, observacoes: "" };
+    let match;
+    const teamPattern = /(\d+)\s+([^0-9,.;]{3,36}?)(?=,|\.|;|\se\s+\d+|$)/g;
+    while ((match = teamPattern.exec(raw)) !== null) {
+      let role = match[2].replace(/\b(e|de|da|do|das|dos)\b$/i, "").trim();
+      role = role.replace(/\b(pedreiros|serventes|ajudantes|carpinteiros|armadores)\b/i, function (value) { return value.replace(/s$/i, ""); });
+      if (role && !/^(tempo|servico|servicos|servi[c\u00e7]os|epi)$/i.test(role)) result.equipe.push({ funcao: role, quantidade: Number(match[1]) });
+    }
+    if (/\bchuvoso|chuva|chovendo\b/.test(text)) result.tempo = "Chuvoso";
+    else if (/\bnublado|encoberto\b/.test(text)) result.tempo = "Nublado";
+    else if (/\bensolarado|sol|tempo firme\b/.test(text)) result.tempo = "Ensolarado";
+    else if (/\btempo\s+([^0-9,.;]{3,40})(?:\.|,|;|$)/i.test(raw)) result.tempo = titleCaseEloRdoPreview_(raw.match(/\btempo\s+([^0-9,.;]{3,40})(?:\.|,|;|$)/i)[1]);
+    const serviceMatch = raw.match(/\b(?:executamos|servicos(?: executados)?|servi[c\u00e7]os(?: executados)?|foi executado|foram executados)\s+(.+?)(?:\.|;|,\s*(?:epi|observa[c\u00e7][a\u00e3]o)|$)/i);
+    if (serviceMatch) result.servicos = serviceMatch[1].split(/\s*,\s*|\s+e\s+/i).map(function (item) { return item.replace(/^(servico|servi?o)\s+/i, "").trim(); }).filter(Boolean);
+    if (/\btodos\s+usaram\s+epi\b|\busaram\s+epi\b|\bcom\s+epi\b|\buso\s+de\s+epi\b|\bepi\s+(?:ok|sim|regular)\b/.test(text)) result.epi = true;
+    else if (/\bsem\s+epi\b|\bnao\s+usaram\s+epi\b/.test(text)) result.epi = false;
+    const noteMatch = raw.match(/\b(?:observacoes|observa[c\u00e7][o\u00f5]es|observa[c\u00e7][a\u00e3]o|obs)\s*(?::|\-| )\s*(.+)$/i);
+    if (noteMatch) result.observacoes = sanitizeUserText(noteMatch[1]);
+    return result;
+  }
+
+  function applyEloRdoPreviewExtraction_(data, extraction) {
+    mergeEloRdoPreviewTeam_(data, extraction.equipe);
+    if (extraction.tempo) data.tempo = extraction.tempo;
+    mergeEloRdoPreviewServices_(data, extraction.servicos);
+    if (typeof extraction.epi === "boolean") data.epi = extraction.epi;
+    if (extraction.observacoes) data.observacoes = extraction.observacoes;
+  }
+
+  function getEloRdoPreviewMissingFields_(data) {
+    const missing = [];
+    if (!data.equipe.length) missing.push("equipe");
+    if (!data.tempo) missing.push("tempo");
+    if (!data.servicos.length) missing.push("servicos");
+    if (typeof data.epi !== "boolean") missing.push("EPI");
+    return missing;
+  }
+
+  function buildEloRdoPreviewMissingQuestion_(missing) {
+    if (missing.length === 1 && missing[0] === "tempo") return "Faltou so o tempo. Estava ensolarado, nublado ou chuvoso?";
+    const labels = { equipe: "equipe", tempo: "tempo", servicos: "servicos executados", EPI: "uso de EPI" };
+    return "Faltou so:\n" + missing.map(function (field) { return "- " + labels[field]; }).join("\\n");
+  }
+
+  function formatEloRdoPreviewDate_(dateText) {
+    const match = sanitizeUserText(dateText).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? match[3] + "/" + match[2] + "/" + match[1] : new Date().toLocaleDateString("pt-BR");
+  }
+
+  function formatEloRdoPreview_(data) {
+    const lines = ["RDO PRELIMINAR - " + formatEloRdoPreviewDate_(data.data), ""];
+    if (data.obra) lines.push("Obra", "- " + data.obra, "");
+    lines.push("Equipe");
+    lines.push.apply(lines, data.equipe.length ? data.equipe.map(function (item) { return "- " + item.quantidade + " " + pluralizeEloRdoPreview_(item.funcao, item.quantidade); }) : ["- Nao informada"]);
+    lines.push("", "Tempo", "- " + (data.tempo || "Nao informado"), "", "Servicos executados");
+    lines.push.apply(lines, data.servicos.length ? data.servicos.map(function (item) { return "- " + item; }) : ["- Nao informados"]);
+    lines.push("", "EPI", "- " + (typeof data.epi === "boolean" ? (data.epi ? "Sim" : "Nao") : "Nao informado"));
+    if (data.observacoes) lines.push("", "Observacoes", "- " + data.observacoes);
+    lines.push("", "Fotos", "- " + data.fotos.length + " anexada(s)");
+    data.fotos.forEach(function (photo, index) { lines.push("- " + String(index + 1).padStart(2, "0") + " - " + photo.local); });
+    lines.push("", "Esta correto?");
+    return lines.join("\\n");
+  }
+
+  function normalizeEloRdoPreviewLocation_(value, number) {
+    const text = normalizeText(value);
+    for (let index = 0; index < ELO_RDO_PREVIEW_LOCATIONS_.length; index += 1) {
+      const label = ELO_RDO_PREVIEW_LOCATIONS_[index];
+      if (text.indexOf(normalizeText(label)) >= 0) return label;
+    }
+    if (/\bfachada\b/.test(text) && /\bfrontal|frente\b/.test(text)) return "Fachada frontal";
+    if (/\blateral\b/.test(text) && /\bdireita\b/.test(text)) return "Lateral direita";
+    if (/\blateral\b/.test(text) && /\besquerda\b/.test(text)) return "Lateral esquerda";
+    if (/\bfundos|fundo\b/.test(text)) return "Fundos";
+    if (/\bcozinha\b/.test(text)) return "Cozinha";
+    if (/\bcopa\b/.test(text)) return "Copa";
+    if (/\bbanheiro|wc|lavabo\b/.test(text)) return "Banheiro";
+    return "Ambiente " + String(number || ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex).padStart(2, "0");
+  }
+
+  function classifyEloRdoPreviewPhotoFromText_(text, fallbackNumber) {
+    return normalizeEloRdoPreviewLocation_(text, fallbackNumber);
+  }
+
+  function applyEloRdoPreviewCorrection_(data, message) {
+    const raw = sanitizeUserText(message);
+    let changed = false;
+    const replaceMatch = raw.match(/\b(?:troque|mude|altere)\s+(.+?)\s+para\s+(.+?)(?:\.|$)/i);
+    if (replaceMatch && data.tempo && normalizeText(data.tempo).indexOf(normalizeText(replaceMatch[1])) >= 0) { data.tempo = titleCaseEloRdoPreview_(replaceMatch[2]); changed = true; }
+    const removeMatch = raw.match(/\bremova\s+(.+?)(?:\.|$)/i);
+    if (removeMatch) { const target = normalizeText(removeMatch[1]); const before = data.servicos.length; data.servicos = data.servicos.filter(function (item) { return normalizeText(item).indexOf(target) < 0; }); changed = changed || before !== data.servicos.length; }
+    const photoMatch = raw.match(/\bfoto\s+(\d{1,2})\s+(?:e|eh|=)\s+(.+?)(?:\.|$)/i);
+    if (photoMatch) { const photo = data.fotos[Number(photoMatch[1]) - 1]; if (photo) { photo.local = normalizeEloRdoPreviewLocation_(photoMatch[2], Number(photoMatch[1])); changed = true; } }
+    const extraction = extractEloRdoPreviewData_(raw);
+    if (extraction.equipe.length) { mergeEloRdoPreviewTeam_(data, extraction.equipe); changed = true; }
+    return changed;
+  }
+
+  async function classifyEloRdoPreviewPhoto_(file, imagePayload) {
+    const fallbackNumber = ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex;
+    const context = { source: "elo-rdo-preview", imageLabel: file && file.name || "foto do RDO", targetName: "Identificar apenas ambiente/local da foto do RDO", instruction: "Classifique somente o local/ambiente. Nao diagnostique patologia, risco, interdicao ou nao conformidade.", allowedLocations: ELO_RDO_PREVIEW_LOCATIONS_, report: { obra: getEloRdoPreviewCurrentWork_(), local: "RDO Preview" } };
+    try {
+      if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
+        const result = await window.ObraReportAI.analyzeImage(imagePayload, context);
+        const text = [result && result.suggestion, result && result.analysis && result.analysis.contextoProvavel, result && result.analysis && result.analysis.elementoObservado, file && file.name].filter(Boolean).join(" ");
+        return classifyEloRdoPreviewPhotoFromText_(text, fallbackNumber);
+      }
+    } catch (error) {}
+    return classifyEloRdoPreviewPhotoFromText_(file && file.name || "", fallbackNumber);
+  }
+
+  async function addEloRdoPreviewPhotos_(data, attachments, statusMessage) {
+    const imageFiles = Array.prototype.slice.call(attachments || []).filter(isEloImageAttachment_).slice(0, ELO_RDO_PREVIEW_MAX_PHOTOS);
+    const files = imageFiles.slice(0, Math.max(0, ELO_RDO_PREVIEW_MAX_PHOTOS - data.fotos.length));
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      if (statusMessage) updateEloMessage_(statusMessage, "Organizando foto " + (data.fotos.length + 1) + " de " + Math.min(imageFiles.length, ELO_RDO_PREVIEW_MAX_PHOTOS) + "...");
+      const payload = await compressEloImageAttachment_(file);
+      const local = await classifyEloRdoPreviewPhoto_(file, payload);
+      data.fotos.push({ id: "elo-rdo-preview-photo-" + String(data.fotos.length + 1).padStart(2, "0"), fileName: file.name || payload.fileName || "foto.jpg", local: local, payload: payload });
+      if (/^Ambiente\b/.test(local)) ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex += 1;
+    }
+    if (imageFiles.length > files.length && statusMessage) appendMessage("system", "Usei as 12 primeiras fotos no RDO Preview. As demais nao entraram nesta etapa.");
+  }
+
+  function clearEloRdoPreviewAttachments_() {
+    ELO_UI.attachments = [];
+    if (ELO_UI.attachmentInput) ELO_UI.attachmentInput.value = "";
+    renderProductAttachmentStatus();
+  }
+
+  async function handleEloRdoPreview_(question, attachments, options) {
+    const cleanQuestion = sanitizeUserText(question);
+    const shouldStart = isEloRdoPreviewIntent_(cleanQuestion);
+    if (!shouldStart && !isEloRdoPreviewActive_()) return false;
+    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+    ELO_UI.suppressRemotePersistence = true;
+    appendMessage("user", cleanQuestion || "Fotos do RDO");
+    const statusMessage = options && options.hasAttachments ? appendMessage("assistant", "Organizando fotos do RDO Preview...") : null;
+    try {
+      if (isEloRdoPreviewCancel_(cleanQuestion)) { resetEloRdoPreviewState_(); const answer = "RDO Preview cancelado. Estado temporario limpo."; if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer); clearEloRdoPreviewAttachments_(); return true; }
+      const data = ensureEloRdoPreviewState_();
+      const extraction = extractEloRdoPreviewData_(cleanQuestion);
+      const isOnlyStart = shouldStart && !extraction.equipe.length && !extraction.tempo && !extraction.servicos.length && typeof extraction.epi !== "boolean" && !(attachments || []).length;
+      if (isOnlyStart) { appendMessage("assistant", "Claro. Me passe:\n- equipe;\n- tempo;\n- servicos executados;\n- uso de EPI;\ne, se quiser, anexe as fotos."); return true; }
+      if (isEloRdoPreviewConfirmation_(cleanQuestion)) { const answer = "Preview confirmado. A integracao de salvamento ainda nao esta ativa nesta etapa."; if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer); clearEloRdoPreviewAttachments_(); return true; }
+      const changedByCorrection = applyEloRdoPreviewCorrection_(data, cleanQuestion);
+      applyEloRdoPreviewExtraction_(data, extraction);
+      await addEloRdoPreviewPhotos_(data, attachments, statusMessage);
+      const missing = getEloRdoPreviewMissingFields_(data);
+      const answer = missing.length ? buildEloRdoPreviewMissingQuestion_(missing) : formatEloRdoPreview_(data);
+      if (statusMessage) updateEloMessage_(statusMessage, changedByCorrection ? "Preview atualizado.\n\n" + answer : answer);
+      else appendMessage("assistant", changedByCorrection ? "Preview atualizado.\n\n" + answer : answer);
+      clearEloRdoPreviewAttachments_();
+      return true;
+    } finally {
+      ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+    }
+  }
+
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
+      handleEloRdoPreview_(cleanQuestion, attachedFiles, { hasAttachments: attachedFiles.length > 0 });
+      return;
+    }
     if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
       return;
     }
@@ -26398,7 +26654,7 @@ function isEloResidentialNewPipelineEnabled_() {
     });
 
     input.addEventListener("change", function () {
-      ELO_UI.attachments = Array.prototype.slice.call(input.files || []).slice(0, 6);
+      ELO_UI.attachments = Array.prototype.slice.call(input.files || []).slice(0, getEloAttachmentLimit_());
       renderProductAttachmentStatus();
     });
 
@@ -27191,7 +27447,7 @@ function isEloResidentialNewPipelineEnabled_() {
     message.setAttribute("aria-live", "polite");
     message.setAttribute("data-elo-typing", "true");
     const bubble = createElement("div", "elo-message-bubble elo-typing-bubble");
-    const label = createElement("span", "elo-typing-label", "...estou pensando");
+    const label = createElement("span", "elo-typing-label", "Elo está pensando");
     const dots = createElement("span", "elo-typing-dots");
     [0, 1, 2].forEach(function () {
       dots.appendChild(createElement("span", ""));
@@ -29799,7 +30055,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (attachmentInput && !attachmentInput.dataset.eloEngineBound) {
       attachmentInput.dataset.eloEngineBound = "true";
       attachmentInput.addEventListener("change", function () {
-        ELO_UI.attachments = Array.prototype.slice.call(attachmentInput.files || []).slice(0, 6);
+        ELO_UI.attachments = Array.prototype.slice.call(attachmentInput.files || []).slice(0, getEloAttachmentLimit_());
         renderProductAttachmentStatus();
       });
     }
@@ -29810,8 +30066,8 @@ function isEloResidentialNewPipelineEnabled_() {
 
       if (attachmentIntent.type === "image") {
         ELO_UI.input.value = "";
-        if (isEloReportPdfGenerationRequest_(question)) {
-          askElo(question, ELO_UI.attachments);
+        if (isEloReportPdfGenerationRequest_(question) || isEloRdoPreviewActive_() || isEloRdoPreviewIntent_(question)) {
+          askElo(question || "Fotos do RDO", ELO_UI.attachments);
         } else {
           analyzeEloImageAttachment_(question, attachmentIntent.file);
         }
@@ -29877,6 +30133,12 @@ function isEloResidentialNewPipelineEnabled_() {
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
     appendAssistantMessageForTest: appendAssistantMessage,
+    detectRdoPreviewIntentForTest: isEloRdoPreviewIntent_,
+    extractRdoPreviewDataForTest: extractEloRdoPreviewData_,
+    formatRdoPreviewForTest: formatEloRdoPreview_,
+    classifyRdoPreviewPhotoFromTextForTest: classifyEloRdoPreviewPhotoFromText_,
+    getRdoPreviewStateForTest: function () { return JSON.parse(JSON.stringify(ELO_RDO_PREVIEW_STATE_)); },
+    resetRdoPreviewForTest: resetEloRdoPreviewState_,
     startBudgetRouteForTest: maybeStartEloBudgetRoute_,
     hasBudgetRoutePendingForTest: hasEloBudgetRoutePending_,
     requestWebSearchForTest: requestEloWebSearchAnswer_,
