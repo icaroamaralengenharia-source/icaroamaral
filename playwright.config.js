@@ -17,8 +17,8 @@ export default defineConfig({
     video: "retain-on-failure"
   },
   webServer: {
-    command: "npm.cmd run dev -- --host 127.0.0.1 --port 5541",
-    url: "http://127.0.0.1:5541/relatorio-qualidade-obras.html",
+    command: "npm.cmd run dev:elo -- --host 127.0.0.1 --port 5541",
+    url: "http://127.0.0.1:5541/elo.html",
     reuseExistingServer: true,
     timeout: 30_000
   },

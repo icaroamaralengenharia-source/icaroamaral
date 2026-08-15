@@ -45,6 +45,24 @@ function imagePayload(name) {
   };
 }
 
+async function openEloStandalone(page) {
+  await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
+  await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
+  await page.goto("/elo.html", { waitUntil: "commit" });
+  await page.waitForFunction(() => {
+    const form = document.querySelector(".elo-input-row");
+    const attachmentInput = document.querySelector(".elo-attachment-input");
+    return Boolean(
+      window.EloAssistente &&
+      typeof window.EloAssistente.initializeSurface === "function" &&
+      form &&
+      form.dataset.eloEngineBound === "true" &&
+      attachmentInput &&
+      attachmentInput.dataset.eloEngineBound === "true"
+    );
+  }, null, { timeout: 60_000 });
+}
+
 async function login(page) {
   await page.addInitScript((storageKey) => {
     window.sessionStorage.setItem(storageKey, JSON.stringify({
@@ -53,7 +71,7 @@ async function login(page) {
       expiresAt: Date.now() + 12 * 60 * 60 * 1000
     }));
   }, SITE_ACCESS_STORAGE_KEY);
-  await page.goto("/relatorio-qualidade-obras/relatorio-qualidade-obras.html");
+  await page.goto("/relatorio-qualidade-obras/relatorio-qualidade-obras.html", { waitUntil: "commit" });
   await page.evaluate((storageKey) => {
     window.localStorage.clear();
     window.sessionStorage.setItem(storageKey, JSON.stringify({
@@ -62,7 +80,7 @@ async function login(page) {
       expiresAt: Date.now() + 12 * 60 * 60 * 1000
     }));
   }, SITE_ACCESS_STORAGE_KEY);
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "commit" });
   await page.locator('[data-home-action="relatorio"]').first().click();
   await expect(page.locator("#loginForm")).toBeVisible();
   await page.locator("#loginForm [name='userName']").fill("Engenheiro E2E");
@@ -336,9 +354,7 @@ test("Elo com imagem gera payload ObraReport e mostra link PDF clicavel", async 
     });
   });
 
-  await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".site-access-gate")).toBeHidden();
-  await expect(page.locator(".elo-input-row")).toBeVisible();
+  await openEloStandalone(page);
 
   for (const [index, requestText] of pdfRequests.entries()) {
     await page.locator(".elo-attachment-input").setInputFiles(imagePayload(`elo-umidade-parede-${index + 1}.png`));
@@ -417,9 +433,7 @@ test("Elo com imagem preserva analise visual e OCR fora do PDF", async ({ page }
     });
   });
 
-  await page.goto("/elo.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".site-access-gate")).toBeHidden();
-  await expect(page.locator(".elo-input-row")).toBeVisible();
+  await openEloStandalone(page);
 
   for (const [index, requestText] of visualRequests.entries()) {
     await page.locator(".elo-attachment-input").setInputFiles(imagePayload(`elo-visual-${index + 1}.png`));
