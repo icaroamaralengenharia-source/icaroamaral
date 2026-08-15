@@ -26373,8 +26373,8 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildProductAttachmentControls() {
     const button = createElement("button", "elo-attach-button", "Anexar");
     button.type = "button";
-    button.setAttribute("aria-label", "Anexar PDF, planilha ou imagem");
-    button.title = "Anexar PDF, planilha ou imagem";
+    button.setAttribute("aria-label", "Anexar arquivo");
+    button.title = "Anexar arquivo";
     ELO_UI.attachmentButton = button;
 
     const input = createElement("input", "elo-attachment-input");
