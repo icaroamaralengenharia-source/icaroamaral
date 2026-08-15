@@ -21193,6 +21193,19 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
+  function getEloOperationalAlmoxMovements_() {
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.getAlmoxMovements !== "function") {
+      return [];
+    }
+    try {
+      return bridge.getAlmoxMovements().filter(Boolean);
+    } catch (error) {
+      console.warn("Nao foi possivel consultar historico operacional do Almoxarifado.", error);
+      return [];
+    }
+  }
+
   function normalizeEloStockBalanceTerm_(value) {
     return normalizeText(value)
       .replace(/[^a-z0-9\s]/g, " ")
@@ -21204,71 +21217,91 @@ function isEloResidentialNewPipelineEnabled_() {
       .join(" ");
   }
 
+  function normalizeEloStockCode_(value) {
+    return normalizeText(value || "").replace(/[^a-z0-9]/g, "");
+  }
+
+  function isEloStockConceptQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /\b(o\s+que\s+e|oque\s+e|como\s+calcular|conceito|defina|explique)\b/.test(text) && /\b(estoque|minimo|m.nimo|sku|saldo)\b/.test(text);
+  }
+
+  function isEloStockReadonlyWriteRequest_(message) {
+    const text = normalizeText(message || "");
+    const hasStockContext = /\b(estoque|almoxarifado|stock|produto|material|materiais|cimento|areia|brita|bloco|piso|argamassa)\b/.test(text);
+    const writeIntent = /\b(retire|retirar|baixe|baixar|dar\s+baixa|de\s+saida|registre\s+saida|registrar\s+saida|registre\s+entrada|registrar\s+entrada|adicione|adicionar|inclua|incluir|lance|lancar|ajuste|ajustar|movimente|movimentar)\b/.test(text);
+    if (isEloStockReleaseConfirmation_(message) && !!getEloPendingStockRelease_()) return true;
+    return hasStockContext && writeIntent;
+  }
+
+  function buildEloStockReadonlyWriteBlockedAnswer_(message) {
+    if (!isEloStockReadonlyWriteRequest_(message)) return null;
+    return {
+      shortAnswer: "Consigo consultar o estoque. A movimentação pelo ELO ainda não está habilitada.",
+      fullAnswer: "Consigo consultar o estoque. A movimentação pelo ELO ainda não está habilitada.",
+      nextAction: "Abra o Stock/Almoxarifado para registrar entradas, saídas ou ajustes.",
+      canSave: false,
+      sessionTheme: "stock_full_readonly",
+      sessionIntent: "stock_full_write_blocked"
+    };
+  }
+
+  function isEloStockLowQuestion_(message) {
+    const text = normalizeText(message || "");
+    if (isEloStockConceptQuestion_(message)) return false;
+    return /\b(abaixo|baixo|baixos|baixa|atencao|aten..o|minimo|m.nimo|reposicao|reposi..o)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
+  }
+
+  function isEloStockZeroQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /\b(zerado|zerados|zero|sem\s+estoque|acabou|acabaram)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
+  }
+
+  function isEloStockHistoryQuestion_(message) {
+    const text = normalizeText(message || "");
+    if (isEloStockConceptQuestion_(message)) return false;
+    return /\b(historico|hist.rico|movimentacoes|movimenta..es|movimentos)\b/.test(text) && /\b(estoque|stock|produto|item|almoxarifado|entrada|saida|sa.da|sku|cimento|areia|brita|bloco|piso|argamassa)\b/.test(text);
+  }
+
+  function isEloStockLastExitsQuestion_(message) {
+    const text = normalizeText(message || "");
+    return /\b(ultimas|ultimos|recentes|quais|mostre|listar|liste)\b/.test(text) && /\b(saidas|saida|sa.das|sa.da|retiradas|baixas)\b/.test(text);
+  }
+
   function isEloStockBalanceQuestion_(message) {
+    if (isEloStockConceptQuestion_(message)) return false;
     const text = normalizeText(message);
     const asksBalance = hasAnyTerm(text, [
-      "quantas", "quantos", "quanto tenho", "qual saldo", "saldo de", "saldo do",
-      "saldo da", "tenho em estoque", "tenho no estoque", "tem no estoque",
+      "quantas", "quantos", "quanto temos", "quanto tenho", "qual saldo", "saldo de", "saldo do",
+      "saldo da", "tenho em estoque", "temos em estoque", "tenho no estoque", "tem no estoque",
       "existe em estoque", "disponivel em estoque", "quanto tem", "quanto ainda tem"
     ]);
-    const stockContext = hasAnyTerm(text, ["estoque", "saldo", "almoxarifado", "stock full", "stock"]);
+    const stockContext = hasAnyTerm(text, ["estoque", "saldo", "almoxarifado", "stock full", "stock", "sku"]);
     if (asksBalance && stockContext) {
       return true;
     }
+    if (/\bsku\b[\s\S]{0,60}\b[a-z0-9][a-z0-9\s._-]{2,}\b/.test(text) && /\b(quanto|saldo|temos|tem|estoque)\b/.test(text)) {
+      return true;
+    }
     if (/^quanto\s+.+\s+(?:ainda\s+)?tem\??$/.test(text)) {
-      return !!findEloStockBalanceByQuestion_(message, getEloOperationalAlmoxBalances_());
+      return !!findEloStockBalanceByQuestion_(message, getEloOperationalAlmoxBalances_()).item;
     }
     return false;
   }
 
   function extractEloStockBalanceQuery_(message) {
     const stopwords = {
-      a: true,
-      as: true,
-      o: true,
-      os: true,
-      de: true,
-      da: true,
-      das: true,
-      do: true,
-      dos: true,
-      em: true,
-      no: true,
-      na: true,
-      nos: true,
-      nas: true,
-      meu: true,
-      minha: true,
-      minhas: true,
-      meus: true,
-      estoque: true,
-      almoxarifado: true,
-      stock: true,
-      full: true,
-      saldo: true,
-      atual: true,
-      item: true,
-      itens: true,
-      produto: true,
-      produtos: true,
-      unidade: true,
-      unidades: true,
-      qtd: true,
-      quantidade: true,
-      quantas: true,
-      quantos: true,
-      quanto: true,
-      qual: true,
-      quais: true,
-      tenho: true,
-      tem: true,
-      existe: true,
-      existem: true,
-      disponivel: true,
-      disponiveis: true
+      a: true, as: true, o: true, os: true, de: true, da: true, das: true, do: true, dos: true,
+      em: true, no: true, na: true, nos: true, nas: true, meu: true, minha: true, minhas: true, meus: true,
+      estoque: true, almoxarifado: true, stock: true, full: true, saldo: true, atual: true,
+      item: true, itens: true, produto: true, produtos: true, unidade: true, unidades: true,
+      qtd: true, quantidade: true, quantas: true, quantos: true, quanto: true, qual: true, quais: true,
+      temos: true, tenho: true, tem: true, existe: true, existem: true, disponivel: true, disponiveis: true,
+      mostre: true, mostrar: true, liste: true, listar: true, historico: true, movimentacoes: true,
+      movimentos: true, ultimas: true, ultimos: true, recentes: true, foram: true, sku: true, codigo: true, cod: true
     };
     return normalizeText(message)
-      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/[^a-z0-9\s._-]/g, " ")
       .split(/\s+/)
       .filter(function (word) {
         return word && !stopwords[word];
@@ -21294,26 +21327,65 @@ function isEloResidentialNewPipelineEnabled_() {
     }, 0);
   }
 
+  function getEloStockItemCode_(item) {
+    return normalizeEloStockCode_(item && (item.sku || item.fiscalCode || item.code));
+  }
+
   function findEloStockBalanceByQuestion_(message, balances) {
     const query = extractEloStockBalanceQuery_(message);
-    if (!query) {
-      return null;
+    const queryCode = normalizeEloStockCode_(query);
+    if (!query && !queryCode) {
+      return { status: "missing_query", item: null, matches: [] };
     }
-    return (balances || []).map(function (balance) {
-      return {
-        balance: balance,
-        score: scoreEloStockBalanceMatch_(query, balance)
-      };
-    }).sort(function (a, b) {
-      return b.score - a.score;
+
+    const bySku = queryCode ? (balances || []).filter(function (balance) {
+      return getEloStockItemCode_(balance) === queryCode;
+    }) : [];
+    if (bySku.length === 1) return { status: "found", item: bySku[0], matches: bySku, query: query, source: "sku" };
+    if (bySku.length > 1) return { status: "ambiguous", item: null, matches: bySku, query: query, source: "sku" };
+
+    const normalizedQuery = normalizeEloStockBalanceTerm_(query);
+    const exactName = (balances || []).filter(function (balance) {
+      return normalizeEloStockBalanceTerm_(balance && balance.name) === normalizedQuery;
+    });
+    if (exactName.length === 1) return { status: "found", item: exactName[0], matches: exactName, query: query, source: "name_exact" };
+    if (exactName.length > 1) return { status: "ambiguous", item: null, matches: exactName, query: query, source: "name_exact" };
+
+    const partial = (balances || []).map(function (balance) {
+      return { balance: balance, score: scoreEloStockBalanceMatch_(query, balance) };
     }).filter(function (entry) {
       return entry.score > 0;
-    })[0] || null;
+    }).sort(function (a, b) {
+      return b.score - a.score || String(a.balance && a.balance.name || "").localeCompare(String(b.balance && b.balance.name || ""));
+    });
+    if (!partial.length) return { status: "not_found", item: null, matches: [], query: query };
+    const bestScore = partial[0].score;
+    const bestMatches = partial.filter(function (entry) { return entry.score === bestScore; }).map(function (entry) { return entry.balance; });
+    if (bestMatches.length === 1) return { status: "found", item: bestMatches[0], matches: bestMatches, query: query, source: "name_partial" };
+    return { status: "ambiguous", item: null, matches: bestMatches, query: query, source: "name_partial" };
   }
 
   function formatEloStockQuantity_(value) {
     const number = Number(value || 0);
     return String(Math.round(number * 1000) / 1000).replace(".", ",");
+  }
+
+  function buildEloStockAmbiguityAnswer_(resolution) {
+    const matches = (resolution && resolution.matches || []).slice(0, 8);
+    const lines = ["Encontrei " + matches.length + " produtos:"];
+    matches.forEach(function (item) {
+      const sku = item.sku || item.fiscalCode ? " (SKU " + (item.sku || item.fiscalCode) + ")" : "";
+      lines.push("- " + (item.name || "Produto sem nome") + sku);
+    });
+    lines.push("", "Qual deles?");
+    return {
+      shortAnswer: "Encontrei mais de um produto. Qual deles?",
+      fullAnswer: lines.join("\n"),
+      nextAction: "Responda com o nome completo ou SKU.",
+      canSave: false,
+      sessionTheme: "stock_full_readonly",
+      sessionIntent: "stock_full_ambiguous"
+    };
   }
 
   function buildEloStockBalanceAnswer_(message) {
@@ -21322,49 +21394,120 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const balances = getEloOperationalAlmoxBalances_();
     const match = findEloStockBalanceByQuestion_(message, balances);
-    if (!match || !match.balance) {
+    if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
+    if (!match.item) {
       return {
         shortAnswer: "Não encontrei esse item no estoque atual.",
-        fullAnswer: "Não encontrei esse item no estoque atual. Confira se o nome está cadastrado no Almoxarifado/Stock Full ou pergunte usando o nome do produto como aparece na lista.",
+        fullAnswer: "Não encontrei esse item no estoque atual. Confira se o nome ou SKU está cadastrado no Almoxarifado/Stock Full.",
         nextAction: "Abra a lista de itens ou tente perguntar pelo nome exato do produto.",
         canSave: false,
-        sessionTheme: "stock_full_saldo",
+        sessionTheme: "stock_full_readonly",
         sessionIntent: "stock_full_saldo"
       };
     }
 
-    const item = match.balance;
+    const item = match.item;
     const unit = item.unit || "un";
     const quantity = formatEloStockQuantity_(item.balance || item.realBalance || 0);
     const minimum = Number(item.minimumStock || 0);
-    const lines = [
-      "Você tem " + quantity + " " + unit + " de " + (item.name || "item") + " no estoque atual.",
-      "",
-      "Resumo:",
-      "- Saldo atual: " + quantity + " " + unit,
-      "- Entradas registradas: " + formatEloStockQuantity_(item.entries || 0) + " " + unit,
-      "- Saídas registradas: " + formatEloStockQuantity_(item.exits || 0) + " " + unit
-    ];
-    if (minimum > 0) {
-      lines.push("- Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit);
-      if (Number(item.balance || item.realBalance || 0) < minimum) {
-        lines.push("- Alerta: abaixo do estoque mínimo.");
-      }
-    }
-    if (item.status && normalizeText(item.status) !== "ok") {
-      lines.push("- Status: " + item.status + ".");
-    }
-    lines.push("");
-    lines.push("Fonte: saldo consolidado do Almoxarifado/Stock Full nesta tela. Nenhum movimento foi criado.");
-
+    const prefix = match.source === "sku" && (item.sku || item.fiscalCode)
+      ? "SKU " + (item.sku || item.fiscalCode)
+      : (item.name || "Item");
+    const lines = [prefix + ": " + quantity + " " + unit + (match.source === "sku" ? "." : " em estoque.")];
+    if (minimum > 0) lines.push("Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit + ".");
+    if (Number(item.balance || item.realBalance || 0) <= 0) lines.push("Status: zerado/crítico.");
+    else if (minimum > 0 && Number(item.balance || item.realBalance || 0) <= minimum) lines.push("Status: baixo/atenção.");
     return {
       shortAnswer: lines[0],
       fullAnswer: lines.join("\n"),
-      nextAction: "Se quiser, posso ajudar a conferir itens abaixo do mínimo ou próximos do vencimento.",
+      nextAction: "Consulta somente leitura. Nenhum movimento foi criado.",
       canSave: false,
-      sessionTheme: "stock_full_saldo",
+      sessionTheme: "stock_full_readonly",
       sessionIntent: "stock_full_saldo"
     };
+  }
+
+  function buildEloStockLowAnswer_(message) {
+    if (!isEloStockLowQuestion_(message) && !isEloStockZeroQuestion_(message)) return null;
+    const balances = getEloOperationalAlmoxBalances_();
+    const zeros = balances.filter(function (item) { return Number(item.balance || item.realBalance || 0) <= 0; });
+    const lows = balances.filter(function (item) {
+      const balance = Number(item.balance || item.realBalance || 0);
+      const minimum = Number(item.minimumStock || 0);
+      return balance > 0 && minimum > 0 && balance <= minimum;
+    });
+    const wantsOnlyZero = isEloStockZeroQuestion_(message) && !isEloStockLowQuestion_(message);
+    const lines = [];
+    if (!balances.length) lines.push("Não encontrei produtos no estoque atual.");
+    else if (wantsOnlyZero) {
+      lines.push(zeros.length ? "Produtos zerados/críticos:" : "Não encontrei produto zerado no estoque atual.");
+      zeros.slice(0, 12).forEach(function (item) { lines.push("- " + (item.name || "Produto") + ": " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
+    } else {
+      lines.push("Zerado/crítico: " + zeros.length + ". Baixo/atenção: " + lows.length + ".");
+      zeros.slice(0, 8).forEach(function (item) { lines.push("- Zerado: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
+      lows.slice(0, 8).forEach(function (item) { lines.push("- Baixo: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un") + " (mín. " + formatEloStockQuantity_(item.minimumStock || 0) + ")"); });
+    }
+    return {
+      shortAnswer: lines[0],
+      fullAnswer: lines.join("\n"),
+      nextAction: "Consulta somente leitura. Nenhum movimento foi criado.",
+      canSave: false,
+      sessionTheme: "stock_full_readonly",
+      sessionIntent: wantsOnlyZero ? "stock_full_zerados" : "stock_full_baixo_estoque"
+    };
+  }
+
+  function getEloStockMovementTypeLabel_(movement) {
+    const type = normalizeText(movement && movement.type || "");
+    if (type === "entrada") return "Entrada";
+    if (type === "saida") return "Saída";
+    if (type === "ajuste") return "Ajuste";
+    return movement && movement.type || "Movimentação";
+  }
+
+  function formatEloStockMovementLine_(movement) {
+    const parts = [
+      getEloStockMovementTypeLabel_(movement),
+      formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un"),
+      movement && (movement.dateTime || movement.sortKey) || "data não informada"
+    ];
+    const responsible = movement && movement.responsible || "";
+    const destination = movement && (movement.destination || movement.recipient || movement.sector) || "";
+    if (responsible) parts.push("resp. " + responsible);
+    if (destination) parts.push(destination);
+    return "- " + parts.join(" — ");
+  }
+
+  function buildEloStockHistoryAnswer_(message) {
+    if (!isEloStockHistoryQuestion_(message) && !isEloStockLastExitsQuestion_(message)) return null;
+    const movements = getEloOperationalAlmoxMovements_();
+    if (isEloStockLastExitsQuestion_(message)) {
+      const amountMatch = normalizeText(message || "").match(/\b(?:ultimas|ultimos)\s+(\d{1,2})\b/);
+      const limit = Math.min(20, Math.max(1, Number(amountMatch && amountMatch[1] || 10)));
+      const exits = movements.filter(function (movement) { return normalizeText(movement && movement.type) === "saida"; }).slice(0, limit);
+      const lines = [exits.length ? "Últimas " + exits.length + " saídas:" : "Não encontrei saídas no histórico atual."];
+      exits.forEach(function (movement) { lines.push(formatEloStockMovementLine_(movement)); });
+      return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_ultimas_saidas" };
+    }
+
+    const balances = getEloOperationalAlmoxBalances_();
+    const match = findEloStockBalanceByQuestion_(message, balances);
+    if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
+    if (!match.item) {
+      return { shortAnswer: "Não encontrei esse item no estoque atual.", fullAnswer: "Não encontrei esse item no estoque atual. Confira o nome ou SKU e tente novamente.", nextAction: "Use o nome completo ou SKU do produto.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_historico" };
+    }
+    const itemId = match.item.itemId || match.item.id;
+    const itemMovements = movements.filter(function (movement) { return movement.itemId === itemId || movement.productId === itemId; }).slice(0, 10);
+    const lines = [itemMovements.length ? "Últimas movimentações de " + (match.item.name || "produto") + ":" : "Não encontrei movimentações para " + (match.item.name || "esse produto") + "."];
+    itemMovements.forEach(function (movement) { lines.push(formatEloStockMovementLine_(movement)); });
+    return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_historico" };
+  }
+
+  function buildEloStockReadonlyAnswer_(message) {
+    const blocked = buildEloStockReadonlyWriteBlockedAnswer_(message);
+    if (blocked) return blocked;
+    if (isEloStockConceptQuestion_(message)) return null;
+    return buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
   function isEloOperationalUnitCompatible_(predictedUnit, balanceUnit) {
@@ -21578,6 +21721,30 @@ function isEloResidentialNewPipelineEnabled_() {
     const almoxLines = [];
     let hasInsufficient = false;
     let hasMissing = false;
+    if (!balances.length) {
+      almoxLines.push("Nao encontrei saldo do Almoxarifado disponivel nesta tela para comparar.");
+    } else {
+      prediction.predictedItems.forEach(function (item) {
+        const required = roundEloOperationalQuantity_(item.quantity || item.predictedQuantity || 0);
+        const match = matchEloPredictedMaterialToBalance_(item, balances);
+        const material = item.name || item.material || "Material";
+        const unit = item.unit || (match && match.unit) || "un";
+        if (!match) {
+          hasMissing = true;
+          almoxLines.push("- " + material + ": não encontrado.");
+          return;
+        }
+        const availableRaw = match.balance !== undefined ? match.balance : (match.realBalance !== undefined ? match.realBalance : match.available);
+        const available = roundEloOperationalQuantity_(availableRaw || 0);
+        const missing = roundEloOperationalQuantity_(Math.max(required - available, 0));
+        if (missing > 0) {
+          hasInsufficient = true;
+          almoxLines.push("- " + material + ": precisa " + formatEloOperationalQuantity_(required) + " " + formatEloOperationalDisplayUnit_(unit) + "; saldo " + formatEloOperationalQuantity_(available) + "; faltam " + formatEloOperationalQuantity_(missing) + " " + formatEloOperationalDisplayUnit_(unit) + ".");
+          return;
+        }
+        almoxLines.push("- " + material + ": precisa " + formatEloOperationalQuantity_(required) + " " + formatEloOperationalDisplayUnit_(unit) + "; saldo " + formatEloOperationalQuantity_(available) + "; suficiente.");
+      });
+    }
 
     const standaloneOperationalMode = isStandaloneMode();
     let resultTitle = "✅ Saldo suficiente";
@@ -25351,6 +25518,10 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const pendingBudgetRouteResponse = buildEloBudgetRoutePendingAnswer_(question);
     if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
+    const stockReadonlyPriorityResponse = buildEloStockReadonlyAnswer_(question);
+    if (stockReadonlyPriorityResponse) {
+      return applyEloBrainMarker_(question, stockReadonlyPriorityResponse);
+    }
     const operationalReleasePriorityResponse = (isEloStockReleaseRequest_(question) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(question || ""))) ? buildEloOperationalConstructionAnswer_(question) : null;
     if (operationalReleasePriorityResponse) {
       return applyEloBrainMarker_(question, operationalReleasePriorityResponse);
@@ -25437,7 +25608,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (stockReleaseConfirmationResponse) {
       return applyEloBrainMarker_(question, stockReleaseConfirmationResponse);
     }
-    const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
+    const stockBalanceResponse = buildEloStockReadonlyAnswer_(question);
     if (stockBalanceResponse) {
       return applyEloBrainMarker_(question, stockBalanceResponse);
     }
@@ -26106,6 +26277,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
       return;
     }
+    const localStockReadonly = !attachedFiles.length ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
+    if (localStockReadonly) {
+      appendMessage("user", cleanQuestion);
+      appendAssistantMessage(cleanQuestion, formatResponse(localStockReadonly), false, localStockReadonly);
+      clearProductAttachmentPreview();
+      return;
+    }
     const localOperationalDocument = !attachedFiles.length && isEloOperationalDocumentRequest_(cleanQuestion);
     if (localOperationalDocument) {
       const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
@@ -26750,7 +26928,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (stockReleaseConfirmationResponse) {
       return applyEloBrainMarker_(question, stockReleaseConfirmationResponse);
     }
-    const stockBalanceResponse = buildEloStockBalanceAnswer_(question);
+    const stockBalanceResponse = buildEloStockReadonlyAnswer_(question);
     if (stockBalanceResponse) {
       return stockBalanceResponse;
     }
