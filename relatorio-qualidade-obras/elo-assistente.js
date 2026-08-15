@@ -509,11 +509,17 @@
   function isEloImageTextOnlyRequest_(question) {
     const text = normalizeText(question || "");
     if (!text) return false;
-    if (/\b(ocr|transcreva|transcrever|copie o texto|copiar o texto|escreva o texto|ler texto|leia o texto|texto da imagem|qual o texto|descreva o texto)\b/.test(text)) return true;
+    if (/\b(ocr|transcreva|transcrever|copie o texto|copiar o texto|escreva o texto|ler texto|leia o texto|leia esta imagem|leia essa imagem|texto da imagem|qual o texto|descreva o texto)\b/.test(text)) return true;
     if (/\b(somente|apenas|so)\b[\s\S]{0,30}\btexto\b/.test(text)) return true;
     const hasTextTarget = /\b(texto|escrito|escrita|frase|palavra|conteudo|ocr|transcricao)\b/.test(text);
     const hasReadVerb = /\b(descreva|descrever|leia|ler|transcreva|transcrever|extraia|extrair|copie|copiar|identifique|identificar|qual|quais|o que)\b/.test(text);
     return hasTextTarget && hasReadVerb;
+  }
+
+  function isEloImageTextAndVisualRequest_(question) {
+    const text = normalizeText(question || "");
+    if (!text || !isEloImageTextOnlyRequest_(text)) return false;
+    return /\b(analise|analisar|avalia|avalie|avaliar|diagnostico|diagnosticar|parecer|laudo|manifestacao|patologia|inconformidade)\b/.test(text);
   }
 
   function canonicalizeEloSemanticText_(message) {
@@ -25520,10 +25526,17 @@ function isEloResidentialNewPipelineEnabled_() {
   }
   const ELO_RDO_PREVIEW_MAX_PHOTOS = 12;
   const ELO_RDO_PREVIEW_LOCATIONS_ = ["Fachada frontal", "Lateral direita", "Lateral esquerda", "Fundos", "Cozinha", "Copa", "Banheiro"];
-  const ELO_RDO_PREVIEW_STATE_ = { active: false, data: null, nextGenericPhotoIndex: 1 };
+  const ELO_RDO_PREVIEW_STATE_ = { active: false, status: "idle", data: null, nextGenericPhotoIndex: 1 };
+
+  function createEloRdoPreviewId_() {
+    const random = window.crypto && typeof window.crypto.randomUUID === "function"
+      ? window.crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+      : Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return "dia_elo_rdo_preview_" + random;
+  }
 
   function createEloRdoPreviewData_() {
-    return { data: new Date().toISOString().slice(0, 10), obra: getEloRdoPreviewCurrentWork_(), equipe: [], tempo: "", servicos: [], epi: null, observacoes: "", fotos: [] };
+    return { dailyLogId: createEloRdoPreviewId_(), status: "draft", data: new Date().toISOString().slice(0, 10), obra: getEloRdoPreviewCurrentWork_(), workId: getEloRdoPreviewWorkId_(), equipe: [], tempo: "", servicos: [], epi: null, observacoes: "", fotos: [] };
   }
 
   function getEloRdoPreviewCurrentWork_() {
@@ -25532,14 +25545,22 @@ function isEloResidentialNewPipelineEnabled_() {
     return sanitizeUserText(auth.projectName || auth.projectLabel || profile.project_name || profile.projectName || auth.projectId || profile.project_id || profile.projectId || "");
   }
 
+  function getEloRdoPreviewWorkId_() {
+    const scope = typeof getEloObraSnapshotScope_ === "function" ? getEloObraSnapshotScope_() : {};
+    const auth = typeof getEloCoreAuthContext_ === "function" ? getEloCoreAuthContext_() : {};
+    return sanitizeUserText(scope.workId || auth.workId || window.ELO_WORK_ID || "").slice(0, 140);
+  }
+
   function ensureEloRdoPreviewState_() {
     if (!ELO_RDO_PREVIEW_STATE_.data) ELO_RDO_PREVIEW_STATE_.data = createEloRdoPreviewData_();
     ELO_RDO_PREVIEW_STATE_.active = true;
+    if (ELO_RDO_PREVIEW_STATE_.status === "idle") ELO_RDO_PREVIEW_STATE_.status = ELO_RDO_PREVIEW_STATE_.data.status || "draft";
     return ELO_RDO_PREVIEW_STATE_.data;
   }
 
   function resetEloRdoPreviewState_() {
     ELO_RDO_PREVIEW_STATE_.active = false;
+    ELO_RDO_PREVIEW_STATE_.status = "idle";
     ELO_RDO_PREVIEW_STATE_.data = null;
     ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex = 1;
   }
@@ -25718,10 +25739,14 @@ function isEloResidentialNewPipelineEnabled_() {
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       if (statusMessage) updateEloMessage_(statusMessage, "Organizando foto " + (data.fotos.length + 1) + " de " + Math.min(imageFiles.length, ELO_RDO_PREVIEW_MAX_PHOTOS) + "...");
-      const payload = await compressEloImageAttachment_(file);
-      const local = await classifyEloRdoPreviewPhoto_(file, payload);
-      data.fotos.push({ id: "elo-rdo-preview-photo-" + String(data.fotos.length + 1).padStart(2, "0"), fileName: file.name || payload.fileName || "foto.jpg", local: local, payload: payload });
-      if (/^Ambiente\b/.test(local)) ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex += 1;
+      try {
+        const payload = await compressEloImageAttachment_(file);
+        const local = await classifyEloRdoPreviewPhoto_(file, payload);
+        data.fotos.push({ id: "elo-rdo-preview-photo-" + String(data.fotos.length + 1).padStart(2, "0"), fileName: file.name || payload.fileName || "foto.jpg", local: local, payload: payload, updatedAt: new Date().toISOString() });
+        if (/^Ambiente\b/.test(local)) ELO_RDO_PREVIEW_STATE_.nextGenericPhotoIndex += 1;
+      } catch (error) {
+        if (statusMessage) updateEloMessage_(statusMessage, "Nao consegui ler uma foto anexada. As demais informacoes do RDO Preview foram preservadas.");
+      }
     }
     if (imageFiles.length > files.length && statusMessage) appendMessage("system", "Usei as 12 primeiras fotos no RDO Preview. As demais nao entraram nesta etapa.");
   }
@@ -25730,6 +25755,100 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.attachments = [];
     if (ELO_UI.attachmentInput) ELO_UI.attachmentInput.value = "";
     renderProductAttachmentStatus();
+  }
+
+  function normalizeEloRdoPreviewWeather_(weather) {
+    const text = normalizeText(weather || "");
+    if (/chuva|chuvoso|chovendo/.test(text)) return "Chuva leve";
+    if (/nublado|encoberto/.test(text)) return "Nublado";
+    if (/parcial/.test(text)) return "Parcialmente nublado";
+    return "Sol";
+  }
+
+  function buildEloRdoPreviewTeamText_(data) {
+    return (data.equipe || []).map(function (item) {
+      return item.quantidade + " " + pluralizeEloRdoPreview_(item.funcao, item.quantidade);
+    }).join("; ");
+  }
+
+  function buildEloRdoPreviewPhotoForDailyLog_(photo, index) {
+    const payload = photo && photo.payload ? photo.payload : {};
+    const caption = sanitizeUserText(photo && (photo.local || photo.fileName) || "Foto do dia " + String(index + 1).padStart(2, "0"));
+    const previewDataUrl = payload.base64 ? "data:" + (payload.mimeType || "image/jpeg") + ";base64," + payload.base64 : "";
+    return {
+      id: sanitizeUserText(photo && photo.id) || "elo-rdo-preview-photo-" + String(index + 1).padStart(2, "0"),
+      caption: caption,
+      previewDataUrl: previewDataUrl,
+      payload: payload,
+      updatedAt: sanitizeUserText(photo && photo.updatedAt) || new Date().toISOString()
+    };
+  }
+
+  function buildEloRdoPreviewDailyLogPayload_(data) {
+    const teamText = buildEloRdoPreviewTeamText_(data);
+    const employeeCount = (data.equipe || []).reduce(function (sum, item) { return sum + Number(item.quantidade || 0); }, 0);
+    const services = (data.servicos || []).join("\n");
+    const epiText = typeof data.epi === "boolean" ? (data.epi ? "Uso de EPI registrado como regular." : "Uso de EPI registrado como pendente.") : "Uso de EPI nao informado.";
+    const notes = [data.observacoes, epiText].filter(Boolean).join("\n");
+    return {
+      dailyLogId: data.dailyLogId,
+      workId: data.workId || getEloRdoPreviewWorkId_(),
+      date: data.data,
+      weather: normalizeEloRdoPreviewWeather_(data.tempo),
+      impact: "Sem impacto",
+      teamPresent: teamText,
+      employeeCount: employeeCount ? String(employeeCount) : "",
+      services: services,
+      safetyOccurrence: data.epi === false ? "Funcionário sem EPI" : "Nenhuma ocorrência",
+      generalNotes: notes,
+      summary: "RDO salvo a partir do preview confirmado pelo ELO.",
+      photos: (data.fotos || []).map(buildEloRdoPreviewPhotoForDailyLog_)
+    };
+  }
+
+  function saveEloRdoPreviewAsDailyLog_(data) {
+    if (ELO_RDO_PREVIEW_STATE_.status === "saved" || data.status === "saved") {
+      return { ok: true, alreadySaved: true, dailyLogId: data.dailyLogId };
+    }
+
+    const bridge = window.ObraReportDailyLog;
+    if (!bridge || typeof bridge.savePreview !== "function") {
+      return { ok: false, error: "daily_log_bridge_unavailable" };
+    }
+
+    const payload = buildEloRdoPreviewDailyLogPayload_(data);
+    const result = bridge.savePreview(payload);
+    if (!result || result.ok !== true) {
+      return result || { ok: false, error: "daily_log_save_failed" };
+    }
+
+    data.status = "saved";
+    ELO_RDO_PREVIEW_STATE_.status = "saved";
+
+    if (typeof bridge.openPdf === "function") {
+      try {
+        const pdfResult = bridge.openPdf(data.dailyLogId);
+        if (!pdfResult || pdfResult.ok !== true) {
+          return Object.assign({}, result, { dailyLogId: data.dailyLogId, pdfOk: false, pdfError: pdfResult && pdfResult.error || "daily_log_pdf_failed" });
+        }
+      } catch (error) {
+        return Object.assign({}, result, { dailyLogId: data.dailyLogId, pdfOk: false, pdfError: error && error.message || "daily_log_pdf_failed" });
+      }
+    }
+
+    return Object.assign({}, result, { dailyLogId: data.dailyLogId, pdfOk: true });
+  }
+
+  function formatEloRdoPreviewSaveError_(error) {
+    const code = sanitizeUserText(error);
+    const messages = {
+      daily_log_bridge_unavailable: "Nao encontrei o modulo real do Diario de Obras nesta tela.",
+      daily_log_form_unavailable: "Nao encontrei o formulario real do Diario de Obras nesta tela.",
+      daily_log_user_unavailable: "Entre no ObraReport antes de salvar o RDO real.",
+      daily_log_id_required: "O preview esta sem ID estavel. Cancele e monte o RDO novamente.",
+      daily_log_work_required: "Selecione uma obra no ObraReport antes de salvar o RDO real."
+    };
+    return messages[code] || "Nao foi possivel salvar o RDO real agora.";
   }
 
   async function handleEloRdoPreview_(question, attachments, options) {
@@ -25742,11 +25861,30 @@ function isEloResidentialNewPipelineEnabled_() {
     const statusMessage = options && options.hasAttachments ? appendMessage("assistant", "Organizando fotos do RDO Preview...") : null;
     try {
       if (isEloRdoPreviewCancel_(cleanQuestion)) { resetEloRdoPreviewState_(); const answer = "RDO Preview cancelado. Estado temporario limpo."; if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer); clearEloRdoPreviewAttachments_(); return true; }
+      if (shouldStart && ELO_RDO_PREVIEW_STATE_.status === "saved") resetEloRdoPreviewState_();
       const data = ensureEloRdoPreviewState_();
       const extraction = extractEloRdoPreviewData_(cleanQuestion);
       const isOnlyStart = shouldStart && !extraction.equipe.length && !extraction.tempo && !extraction.servicos.length && typeof extraction.epi !== "boolean" && !(attachments || []).length;
       if (isOnlyStart) { appendMessage("assistant", "Claro. Me passe:\n- equipe;\n- tempo;\n- servicos executados;\n- uso de EPI;\ne, se quiser, anexe as fotos."); return true; }
-      if (isEloRdoPreviewConfirmation_(cleanQuestion)) { const answer = "Preview confirmado. A integracao de salvamento ainda nao esta ativa nesta etapa."; if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer); clearEloRdoPreviewAttachments_(); return true; }
+      if (isEloRdoPreviewConfirmation_(cleanQuestion)) {
+        const missingBeforeSave = ELO_RDO_PREVIEW_STATE_.status === "saved" || data.status === "saved" ? [] : getEloRdoPreviewMissingFields_(data);
+        if (missingBeforeSave.length) {
+          const answer = buildEloRdoPreviewMissingQuestion_(missingBeforeSave);
+          if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer);
+          clearEloRdoPreviewAttachments_();
+          return true;
+        }
+
+        const saveResult = saveEloRdoPreviewAsDailyLog_(data);
+        const answer = saveResult && saveResult.alreadySaved
+          ? "Este RDO ja foi salvo. Nao criei outro registro."
+          : saveResult && saveResult.ok
+            ? (saveResult.pdfOk === false ? "RDO real salvo, mas nao foi possivel abrir o PDF agora." : "RDO real salvo com sucesso e PDF rico aberto pelo gerador existente.")
+            : formatEloRdoPreviewSaveError_(saveResult && saveResult.error);
+        if (statusMessage) updateEloMessage_(statusMessage, answer); else appendMessage("assistant", answer);
+        clearEloRdoPreviewAttachments_();
+        return true;
+      }
       const changedByCorrection = applyEloRdoPreviewCorrection_(data, cleanQuestion);
       applyEloRdoPreviewExtraction_(data, extraction);
       await addEloRdoPreviewPhotos_(data, attachments, statusMessage);
@@ -27131,6 +27269,62 @@ function isEloResidentialNewPipelineEnabled_() {
     actions.appendChild(openButton);
     message.appendChild(actions);
     scrollEloConversationToBottom_({ force: true });
+  }
+  function formatEloImageTextOnlyAnalysis_(result) {
+    const analysis = result && typeof result === "object" ? (result.analysis || {}) : {};
+    const text = sanitizeUserText(
+      result && typeof result === "object"
+        ? (result.text || result.ocrText || result.extractedText || result.transcription || analysis.text || analysis.ocrText || analysis.extractedText || "")
+        : ""
+    );
+    return text ? "Texto identificado\n\n" + text : "Nao identifiquei texto legivel nesta imagem.";
+  }
+
+  async function analyzeEloImageTextOnlyAttachment_(question, file) {
+    const cleanQuestion = sanitizeUserText(question) || "Elo, leia o texto desta imagem";
+    appendMessage("system", "Imagem anexada: " + (file.name || "imagem.jpg"));
+    appendMessage("user", cleanQuestion);
+    const statusMessage = appendMessage("assistant", "Lendo texto da imagem...");
+
+    try {
+      const imagePayload = await compressEloImageAttachment_(file);
+      const context = {
+        source: "elo",
+        kind: "elo-image-ocr",
+        question: cleanQuestion,
+        imageLabel: file.name || "imagem anexada"
+      };
+      let result = null;
+
+      const configuredEndpoint = (window.RELATORIO_QUALIDADE_CONFIG && window.RELATORIO_QUALIDADE_CONFIG.aiImageAnalysisUrl) ||
+        getEloBackendEndpoint_("/api/ai/analyze-image");
+      if (configuredEndpoint && window.fetch) {
+        const response = await fetch(configuredEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: imagePayload, context: context })
+        });
+        result = await response.json();
+      } else if (window.ObraReportAI && typeof window.ObraReportAI.analyzeImage === "function") {
+        result = await window.ObraReportAI.analyzeImage(imagePayload, context);
+      }
+
+      const answer = formatEloImageTextOnlyAnalysis_(result);
+      updateEloMessage_(statusMessage, answer);
+      saveConversation(cleanQuestion, answer);
+      rememberSessionTurn(cleanQuestion, {
+        sessionTheme: "ocr-imagem",
+        nextAction: "Revise o texto identificado antes de usar em documento tecnico."
+      }, answer);
+    } catch (error) {
+      updateEloMessage_(statusMessage, error && error.message ? error.message : "Nao consegui ler o texto da imagem agora.");
+    } finally {
+      ELO_UI.attachments = [];
+      if (ELO_UI.attachmentInput) {
+        ELO_UI.attachmentInput.value = "";
+      }
+      renderProductAttachmentStatus();
+    }
   }
   async function analyzeEloImageAttachment_(question, file) {
     const cleanQuestion = sanitizeUserText(question) || "Elo, analise esta imagem";
@@ -29846,6 +30040,8 @@ function isEloResidentialNewPipelineEnabled_() {
         ELO_UI.input.value = "";
         if (isEloReportPdfGenerationRequest_(question) || isEloRdoPreviewActive_() || isEloRdoPreviewIntent_(question)) {
           askElo(question || "Fotos do RDO", ELO_UI.attachments);
+        } else if (isEloImageTextOnlyRequest_(question) && !isEloImageTextAndVisualRequest_(question)) {
+          analyzeEloImageTextOnlyAttachment_(question, attachmentIntent.file);
         } else {
           analyzeEloImageAttachment_(question, attachmentIntent.file);
         }

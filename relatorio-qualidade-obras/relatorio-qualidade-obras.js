@@ -6338,6 +6338,86 @@
     setDailyLogStatus_("Diário salvo localmente e enviado para sincronização.", "success");
   }
 
+  function saveDailyLogPreviewFromElo_(preview) {
+    if (!dailyLogForm) {
+      return { ok: false, error: "daily_log_form_unavailable" };
+    }
+
+    currentUser = currentUser || getCurrentUser_();
+    if (!currentUser) {
+      return { ok: false, error: "daily_log_user_unavailable" };
+    }
+
+    const safePreview = preview && typeof preview === "object" ? preview : {};
+    const dailyLogId = clean(safePreview.dailyLogId || safePreview.id);
+    let workId = clean(safePreview.workId || (appState.local && appState.local.lastWorkId));
+
+    if (!dailyLogId) {
+      return { ok: false, error: "daily_log_id_required" };
+    }
+
+    if (!workId || !findWork_(workId)) {
+      const fallbackWorkId = clean(appState.local && appState.local.lastWorkId);
+      workId = fallbackWorkId && findWork_(fallbackWorkId) ? fallbackWorkId : "";
+    }
+
+    if (!workId) {
+      return { ok: false, error: "daily_log_work_required" };
+    }
+
+    dailyLogForm.reset();
+    setDailyLogField_("dailyLogId", dailyLogId);
+    setDailyLogField_("workId", workId);
+    setDailyLogField_("date", safePreview.date || new Date().toISOString().slice(0, 10));
+    setDailyLogField_("responsible", safePreview.responsible || currentUser.name || "");
+    setDailyLogField_("weather", safePreview.weather || "Sol");
+    setDailyLogField_("impact", safePreview.impact || "Sem impacto");
+    setDailyLogField_("teamPresent", safePreview.teamPresent || "");
+    setDailyLogField_("employeeCount", safePreview.employeeCount || "");
+    setDailyLogField_("services", safePreview.services || "");
+    setDailyLogField_("safetyOccurrence", safePreview.safetyOccurrence || "Nenhuma ocorrência");
+    setDailyLogField_("generalNotes", safePreview.generalNotes || "");
+    setDailyLogField_("summary", safePreview.summary || "");
+
+    dailyLogDraft = createEmptyDailyLogDraft_();
+    dailyLogDraft.photos = normalizeDailyLogPreviewPhotos_(safePreview.photos || safePreview.fotos || []);
+    currentDailyLogMaterialRequests_ = [];
+    clearDailyLogEstimate_();
+    renderDailyLogDraftLists_();
+
+    saveDailyLogFromForm_();
+    return findDailyLog_(dailyLogId)
+      ? { ok: true, dailyLogId: dailyLogId }
+      : { ok: false, error: "daily_log_save_failed" };
+  }
+
+  function normalizeDailyLogPreviewPhotos_(photos) {
+    return (Array.isArray(photos) ? photos : []).slice(0, 30).map(function (photo, index) {
+      const payload = photo && photo.payload && typeof photo.payload === "object"
+        ? cloneDailyLogItems_(photo.payload)
+        : {};
+      const previewDataUrl = clean(photo && photo.previewDataUrl) ||
+        (payload.base64 ? "data:" + (payload.mimeType || "image/jpeg") + ";base64," + payload.base64 : "");
+      const fallbackCaption = "Foto do dia " + String(index + 1).padStart(2, "0");
+
+      return {
+        id: clean(photo && photo.id) || createId_("fot"),
+        caption: clean(photo && (photo.caption || photo.local || photo.fileName)) || fallbackCaption,
+        previewDataUrl: previewDataUrl,
+        payload: payload,
+        updatedAt: clean(photo && photo.updatedAt) || new Date().toISOString()
+      };
+    });
+  }
+  function openDailyLogPreviewPdfFromElo_(dailyLogId) {
+    const logItem = findDailyLog_(dailyLogId);
+    if (!logItem) {
+      return { ok: false, error: "daily_log_not_found" };
+    }
+
+    openDailyLogPdf_(decorateDailyLogForExport_(logItem));
+    return { ok: true, dailyLogId: dailyLogId };
+  }
   function refreshExecutionStockAnalysisAfterRdoSave_(savedRdo) {
     const analysisApi = window.ObraReportExecutionStockAnalysis;
     const snapshotApi = window.EloStockObrasSnapshot;
@@ -22766,6 +22846,10 @@
   window.StockFullAuditPdf = Object.assign({}, window.StockFullAuditPdf || {}, {
     buildHtmlForTest: buildStockFullAuditReportPdfHtml_,
     buildViewModelForTest: buildStockFullAuditReportViewModel_
+  });
+  window.ObraReportDailyLog = Object.assign({}, window.ObraReportDailyLog || {}, {
+    savePreview: saveDailyLogPreviewFromElo_,
+    openPdf: openDailyLogPreviewPdfFromElo_
   });
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
