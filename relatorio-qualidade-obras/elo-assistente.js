@@ -2328,15 +2328,57 @@
     return null;
   }
   function buildEloOpeningMessage_() {
-    const greeting = getEloOpeningPeriodGreeting_();
-    const context = resolveEloOpeningContext_();
-    if (context && context.type === "active_document") {
-      return greeting + ". " + context.label + " ainda está disponível. Quer continuar trabalhando nele ou fazer outra coisa?";
+    return "Oi, tudo bem?";
+  }
+  function buildEloQuickGreetingAnswer_(message) {
+    const raw = String(message || "").replace(/^\s*elo\s*[,;:\-]*\s*/i, "").replace(/\s+/g, " ").trim();
+    if (!raw) return null;
+    if (raw === "OI" || raw === "Oi" || raw === "oi") {
+      return { shortAnswer: raw, fullAnswer: raw, language: "pt", sessionTheme: "conversa", sessionIntent: "cumprimento_rapido_local", canSave: false };
     }
-    if (context && context.type === "session_topic") {
-      return greeting + ". Da última vez estávamos trabalhando em " + context.label + ". Quer continuar ou começar outra tarefa?";
+    if (raw === "Hi") {
+      return { shortAnswer: "Hi, how are you?", fullAnswer: "Hi, how are you?", language: "en", sessionTheme: "conversation", sessionIntent: "quick_local_greeting", canSave: false };
     }
-    return greeting + ". Estou por aqui. Quer continuar algum projeto ou precisa de ajuda com outra coisa?";
+    if (raw === "hi") {
+      return { shortAnswer: "hi, how are you?", fullAnswer: "hi, how are you?", language: "en", sessionTheme: "conversation", sessionIntent: "quick_local_greeting", canSave: false };
+    }
+    if (raw === "Hello") {
+      return { shortAnswer: "Hello, how are you?", fullAnswer: "Hello, how are you?", language: "en", sessionTheme: "conversation", sessionIntent: "quick_local_greeting", canSave: false };
+    }
+    const compact = normalizeText(raw).replace(/[?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+    if (compact === "oie tudo bem") {
+      return { shortAnswer: "oie tudo, e voc\u00ea?", fullAnswer: "oie tudo, e voc\u00ea?", language: "pt", sessionTheme: "conversa", sessionIntent: "cumprimento_rapido_local", canSave: false };
+    }
+    if (compact === "oi tudo bem") {
+      return { shortAnswer: "Oi, tudo bem? E voc\u00ea?", fullAnswer: "Oi, tudo bem? E voc\u00ea?", language: "pt", sessionTheme: "conversa", sessionIntent: "cumprimento_rapido_local", canSave: false };
+    }
+    if (compact === "ola") {
+      return { shortAnswer: "Ol\u00e1, tudo bem?", fullAnswer: "Ol\u00e1, tudo bem?", language: "pt", sessionTheme: "conversa", sessionIntent: "cumprimento_rapido_local", canSave: false };
+    }
+    return null;
+  }
+  function applyEloQuickGreetingLanguage_(quickGreeting) {
+    if (!quickGreeting || quickGreeting.language !== "en" || !ELO_SESSION_MEMORY) return;
+    if (Object.prototype.hasOwnProperty.call(ELO_SESSION_MEMORY, "language")) ELO_SESSION_MEMORY.language = "en";
+    if (Object.prototype.hasOwnProperty.call(ELO_SESSION_MEMORY, "currentLanguage")) ELO_SESSION_MEMORY.currentLanguage = "en";
+    if (Object.prototype.hasOwnProperty.call(ELO_SESSION_MEMORY, "conversationLanguage")) ELO_SESSION_MEMORY.conversationLanguage = "en";
+  }
+  function handleEloQuickGreeting_(cleanQuestion) {
+    const quickGreeting = buildEloQuickGreetingAnswer_(cleanQuestion);
+    if (!quickGreeting) return false;
+    const answer = quickGreeting.shortAnswer || quickGreeting.fullAnswer || "";
+    applyEloQuickGreetingLanguage_(quickGreeting);
+    const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
+    ELO_UI.suppressRemotePersistence = true;
+    try {
+      appendMessage("user", cleanQuestion);
+      appendAssistantMessage(cleanQuestion, answer, false, quickGreeting);
+      rememberSessionTurn(cleanQuestion, quickGreeting, answer);
+      clearProductAttachmentPreview();
+    } finally {
+      ELO_UI.suppressRemotePersistence = previousSuppressRemotePersistence;
+    }
+    return true;
   }
   function appendEloOpeningMessageVisual_(text) {
     if (!ELO_UI.messages) return null;
@@ -25667,6 +25709,9 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
+      return;
+    }
     const localOperationalDocument = !attachedFiles.length && isEloOperationalDocumentRequest_(cleanQuestion);
     if (localOperationalDocument) {
       const previousSuppressRemotePersistence = ELO_UI.suppressRemotePersistence === true;
@@ -29912,6 +29957,7 @@ function isEloResidentialNewPipelineEnabled_() {
     choosePortugueseVoiceForTest: chooseEloPortugueseVoice_,
     appendMessageForLayoutTest: appendMessage,
     buildOpeningMessageForTest: buildEloOpeningMessage_,
+    buildQuickGreetingAnswerForTest: buildEloQuickGreetingAnswer_,
     resolveOpeningContextForTest: resolveEloOpeningContext_,
     showOpeningMessageForTest: showEloOpeningMessage_,
     startNewConversationForLayoutTest: startEloCoreNewConversation_,
