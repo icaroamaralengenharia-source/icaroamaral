@@ -10036,6 +10036,10 @@
         id: item.id || "",
         itemId: item.id || "",
         name: item.name || "",
+        sku: item.sku || item.fiscalCode || "",
+        fiscalCode: item.fiscalCode || item.sku || "",
+        category: item.category || "",
+        location: item.location || "",
         unit: item.unit || "un",
         balance: roundQuantity_(balance.balance),
         realBalance: roundQuantity_(balance.balance),
@@ -10044,6 +10048,44 @@
         minimumStock: parseNumber_(item.minimumStock),
         status: balance.status || "",
         environmentId: item.environmentId || getActiveStockEnvironmentId_()
+      };
+    });
+  }
+
+  function getOperationalAlmoxMovementSnapshot_() {
+    const state = loadAlmoxState_();
+    const itemsById = {};
+    filterAlmoxItemsByActiveEnvironment_(state.items).forEach(function (item) {
+      itemsById[item.id] = item;
+    });
+    return filterAlmoxMovementsByActiveEnvironment_(state.movements).slice().sort(function (a, b) {
+      return String(getAlmoxMovementSortKey_(b)).localeCompare(String(getAlmoxMovementSortKey_(a)));
+    }).map(function (movement) {
+      const item = itemsById[movement.itemId || movement.productId] || {};
+      return {
+        id: movement.id || "",
+        itemId: movement.itemId || movement.productId || "",
+        productId: movement.productId || movement.itemId || "",
+        itemName: item.name || movement.itemName || "",
+        sku: item.sku || item.fiscalCode || "",
+        fiscalCode: item.fiscalCode || item.sku || "",
+        type: movement.type || "",
+        origin: movement.origin || "",
+        quantity: roundQuantity_(movement.quantity),
+        unit: item.unit || movement.unit || "un",
+        responsible: movement.responsible || "",
+        recipient: movement.recipient || movement.destination || "",
+        destination: movement.destination || movement.recipient || movement.sector || "",
+        sector: movement.sector || "",
+        supplier: movement.supplier || "",
+        documentNumber: movement.documentNumber || "",
+        notes: movement.notes || "",
+        operationId: movement.operationId || "",
+        offlineUuid: movement.offlineUuid || "",
+        syncStatus: movement.syncStatus || "",
+        dateTime: getAlmoxMovementDisplayDateTime_(movement),
+        sortKey: getAlmoxMovementSortKey_(movement),
+        environmentId: movement.environmentId || getActiveStockEnvironmentId_()
       };
     });
   }
@@ -22853,6 +22895,7 @@
   });
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
+    getAlmoxMovements: getOperationalAlmoxMovementSnapshot_,
     createConfirmedExit: createConfirmedOperationalExit_
   });
 })();
