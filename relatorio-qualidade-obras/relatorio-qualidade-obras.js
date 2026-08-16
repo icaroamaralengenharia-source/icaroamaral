@@ -2,6 +2,7 @@
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
+  const isEloStockBridgeOnly_ = window.ELO_STOCK_BRIDGE_ONLY === true;
   const form = document.getElementById("qualityReportForm");
   const homePanel = document.getElementById("homePanel");
   const loginPanel = document.getElementById("loginPanel");
@@ -361,145 +362,148 @@
   const STOCK_FULL_AUDIT_LIMIT_MESSAGE = "O per\u00edodo possui mais de 1.000 movimenta\u00e7\u00f5es. Reduza o per\u00edodo ou aplique filtros para gerar o PDF.";
 
   const todayInput = document.querySelector("[name='dataVistoria']");
-  if (todayInput) {
-    todayInput.valueAsDate = new Date();
-  }
 
-  if (!isStockFullIsolatedApp_) {
-    renderFotoUnidadeFields();
-    renderInconformidadeFields();
-    initializeWizard_();
-    initializeDraft_();
-    initializeAiAssistant_();
-    initializeDailyLogModule_();
-  }
-  initializeSaas_();
+  if (!isEloStockBridgeOnly_) {
+    if (todayInput) {
+      todayInput.valueAsDate = new Date();
+    }
 
-  if (openReportButton && homePanel && reportPanel) {
-    openReportButton.addEventListener("click", function () {
-      if (currentUser && hasLocalAccessSession_()) {
-        showDashboardPanel_("dashboard");
-        return;
-      }
+    if (!isStockFullIsolatedApp_) {
+      renderFotoUnidadeFields();
+      renderInconformidadeFields();
+      initializeWizard_();
+      initializeDraft_();
+      initializeAiAssistant_();
+      initializeDailyLogModule_();
+    }
+    initializeSaas_();
 
-      showLoginPanel_();
-    });
-  }
+    if (openReportButton && homePanel && reportPanel) {
+      openReportButton.addEventListener("click", function () {
+        if (currentUser && hasLocalAccessSession_()) {
+          showDashboardPanel_("dashboard");
+          return;
+        }
 
-  homeActionButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      handleHomeAction_(button.dataset.homeAction);
-    });
-  });
-
-  initializeHomeQueryActions_();
-
-  form.addEventListener("submit", async function (event) {
-    event.preventDefault();
-
-    try {
-      if (!validateAllRequired_()) {
-        return;
-      }
-
-      setBusy(true);
-      setGenerationStatus_("Processando imagens...");
-      setLog("Processando imagens...");
-
-      if (!config.appsScriptUrl || config.appsScriptUrl.includes("COLE_AQUI")) {
-        throw new Error("Configure a URL do Web App em relatorio-config.js.");
-      }
-
-      const formData = new FormData(form);
-      const fotosUnidade = await collectFotosUnidade_(formData);
-      const inconformidades = await collectInconformidades_(formData);
-
-      if (!fotosUnidade.length && !inconformidades.length) {
-        throw new Error("Envie pelo menos uma foto da unidade ou uma inconformidade.");
-      }
-
-      const payload = {
-        submittedAt: new Date().toISOString(),
-        source: window.location.href,
-        tipoRelatorio: "fiscalizacao",
-        report: {
-          obra: clean(formData.get("obra")),
-          cliente: getActiveReportClientName_(),
-          dataVistoria: clean(formData.get("dataVistoria")),
-          responsavelTecnico: clean(formData.get("responsavelTecnico")),
-          nomeEmpresa: clean(formData.get("nomeEmpresa")),
-          creaCau: clean(formData.get("creaCau") || formData.get("registroProfissional")),
-          logoEmpresaUrl: clean(formData.get("logoEmpresaUrl")),
-          logoEmpresaBase64: clean(formData.get("logoEmpresaBase64")),
-          assinaturaUrl: clean(formData.get("assinaturaUrl")),
-          assinaturaBase64: clean(formData.get("assinaturaBase64")),
-          local: clean(formData.get("local")),
-          dataInicioObra: clean(formData.get("dataInicioObra")),
-          linkCameras: clean(formData.get("linkCameras")),
-          tipoObra: clean(formData.get("tipoObra")),
-          avancoFisico: clean(formData.get("avancoFisico")),
-          avancoFinanceiro: clean(formData.get("avancoFinanceiro")),
-          funcionariosCampo: clean(formData.get("funcionariosCampo")),
-          utilizacaoEpi: clean(formData.get("utilizacaoEpi")),
-          controleConcreto: clean(formData.get("controleConcreto")),
-          observacoes: clean(formData.get("observacoes")),
-          conclusaoTecnica: clean(formData.get("conclusaoTecnica")),
-          revisaoTecnicaIa: clean(formData.get("revisaoTecnicaIa")),
-          emailDestino: clean(formData.get("emailDestino"))
-        },
-        fotosUnidade: fotosUnidade,
-        inconformidades: inconformidades,
-        billing: buildBillingExportSnapshot_()
-      };
-
-      setGenerationStatus_("Enviando PDF...");
-      setLog("Enviando PDF...");
-
-      const response = await fetch(config.appsScriptUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload)
+        showLoginPanel_();
       });
+    }
 
-      const text = await response.text();
-      let result;
+    homeActionButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        handleHomeAction_(button.dataset.homeAction);
+      });
+    });
+
+    initializeHomeQueryActions_();
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
 
       try {
-        result = JSON.parse(text);
-      } catch (error) {
-        throw new Error("Resposta inválida do Apps Script: " + text.slice(0, 180));
-      }
-
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || "Falha ao gerar relatório.");
-      }
-
-      saveActiveReportExport_(result.pdfUrl, payload);
-      setGenerationStatus_("Relatório gerado com sucesso.");
-      setLog("Relatório enviado com sucesso. PDF: " + result.pdfUrl, "success");
-
-      if (!activeReportId) {
-        form.reset();
-        imageCache.clear();
-        clearAllImagePreviews_();
-        await clearDraft_();
-
-        if (todayInput) {
-          todayInput.valueAsDate = new Date();
+        if (!validateAllRequired_()) {
+          return;
         }
-      } else {
-        await saveDraft_();
+
+        setBusy(true);
+        setGenerationStatus_("Processando imagens...");
+        setLog("Processando imagens...");
+
+        if (!config.appsScriptUrl || config.appsScriptUrl.includes("COLE_AQUI")) {
+          throw new Error("Configure a URL do Web App em relatorio-config.js.");
+        }
+
+        const formData = new FormData(form);
+        const fotosUnidade = await collectFotosUnidade_(formData);
+        const inconformidades = await collectInconformidades_(formData);
+
+        if (!fotosUnidade.length && !inconformidades.length) {
+          throw new Error("Envie pelo menos uma foto da unidade ou uma inconformidade.");
+        }
+
+        const payload = {
+          submittedAt: new Date().toISOString(),
+          source: window.location.href,
+          tipoRelatorio: "fiscalizacao",
+          report: {
+            obra: clean(formData.get("obra")),
+            cliente: getActiveReportClientName_(),
+            dataVistoria: clean(formData.get("dataVistoria")),
+            responsavelTecnico: clean(formData.get("responsavelTecnico")),
+            nomeEmpresa: clean(formData.get("nomeEmpresa")),
+            creaCau: clean(formData.get("creaCau") || formData.get("registroProfissional")),
+            logoEmpresaUrl: clean(formData.get("logoEmpresaUrl")),
+            logoEmpresaBase64: clean(formData.get("logoEmpresaBase64")),
+            assinaturaUrl: clean(formData.get("assinaturaUrl")),
+            assinaturaBase64: clean(formData.get("assinaturaBase64")),
+            local: clean(formData.get("local")),
+            dataInicioObra: clean(formData.get("dataInicioObra")),
+            linkCameras: clean(formData.get("linkCameras")),
+            tipoObra: clean(formData.get("tipoObra")),
+            avancoFisico: clean(formData.get("avancoFisico")),
+            avancoFinanceiro: clean(formData.get("avancoFinanceiro")),
+            funcionariosCampo: clean(formData.get("funcionariosCampo")),
+            utilizacaoEpi: clean(formData.get("utilizacaoEpi")),
+            controleConcreto: clean(formData.get("controleConcreto")),
+            observacoes: clean(formData.get("observacoes")),
+            conclusaoTecnica: clean(formData.get("conclusaoTecnica")),
+            revisaoTecnicaIa: clean(formData.get("revisaoTecnicaIa")),
+            emailDestino: clean(formData.get("emailDestino"))
+          },
+          fotosUnidade: fotosUnidade,
+          inconformidades: inconformidades,
+          billing: buildBillingExportSnapshot_()
+        };
+
+        setGenerationStatus_("Enviando PDF...");
+        setLog("Enviando PDF...");
+
+        const response = await fetch(config.appsScriptUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await response.text();
+        let result;
+
+        try {
+          result = JSON.parse(text);
+        } catch (error) {
+          throw new Error("Resposta inválida do Apps Script: " + text.slice(0, 180));
+        }
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || "Falha ao gerar relatório.");
+        }
+
+        saveActiveReportExport_(result.pdfUrl, payload);
+        setGenerationStatus_("Relatório gerado com sucesso.");
+        setLog("Relatório enviado com sucesso. PDF: " + result.pdfUrl, "success");
+
+        if (!activeReportId) {
+          form.reset();
+          imageCache.clear();
+          clearAllImagePreviews_();
+          await clearDraft_();
+
+          if (todayInput) {
+            todayInput.valueAsDate = new Date();
+          }
+        } else {
+          await saveDraft_();
+        }
+      } catch (error) {
+        console.error(error);
+        setGenerationStatus_("Não foi possível gerar o relatório.");
+        setLog(error.message || "Erro inesperado ao enviar relatório.", "error");
+      } finally {
+        setBusy(false);
       }
-    } catch (error) {
-      console.error(error);
-      setGenerationStatus_("Não foi possível gerar o relatório.");
-      setLog(error.message || "Erro inesperado ao enviar relatório.", "error");
-    } finally {
-      setBusy(false);
+    });
     }
-  });
 
   async function collectFotosUnidade_(formData) {
     const fotos = [];
@@ -1306,6 +1310,9 @@
   }
 
   function isStockFullContext_() {
+    if (isEloStockBridgeOnly_) {
+      return true;
+    }
     if (clean(getCurrentUrlParams_().get("produto")).toLowerCase() === "stock-full") {
       return true;
     }
