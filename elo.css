@@ -3360,3 +3360,84 @@ html:not(.elo-intent-orcamento) body[data-elo-product="chat"].elo-chat-state .el
     text-align: left;
   }
 }
+
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-product-top {
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    transform: none !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+  }
+
+  body[data-elo-product="chat"] .elo-core-actions {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    flex: 0 0 auto;
+    max-width: calc(100vw - 24px);
+    margin-right: auto;
+  }
+
+  body[data-elo-product="chat"] .elo-core-actions [data-elo-history] {
+    max-width: 100%;
+  }
+}
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-history-list,
+  body[data-elo-product="chat"] .elo-history-item,
+  body[data-elo-product="chat"] .elo-history-actions,
+  body[data-elo-product="chat"] .elo-history-title,
+  body[data-elo-product="chat"] .elo-history-meta,
+  body[data-elo-product="chat"] .elo-history-summary {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  body[data-elo-product="chat"] .elo-history-list {
+    overflow-x: clip;
+  }
+
+  body[data-elo-product="chat"] .elo-history-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  body[data-elo-product="chat"] .elo-history-actions .elo-inline-button {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-history-list * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  body[data-elo-product="chat"] .elo-history-list,
+  body[data-elo-product="chat"] .elo-history-item,
+  body[data-elo-product="chat"] .elo-history-actions {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  body[data-elo-product="chat"] .elo-history-actions .elo-inline-button {
+    white-space: normal;
+  }
+}
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-message:has(.elo-history-list),
+  body[data-elo-product="chat"] .elo-message-bubble:has(.elo-history-list) {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+@media (max-width: 640px) {
+  body[data-elo-product="chat"] .elo-history-list {
+    width: min(100%, calc(100vw - 48px));
+    min-width: min(320px, calc(100vw - 48px));
+  }
+}

@@ -48,7 +48,20 @@ function imagePayload(name) {
 async function openEloStandalone(page) {
   await page.route("https://fonts.googleapis.com/**", (route) => route.abort());
   await page.route("https://fonts.gstatic.com/**", (route) => route.abort());
+  await page.addInitScript(() => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    window.EloCoreAuthGate = {
+      setAuthenticated() {}
+    };
+  });
   await page.goto("/elo.html", { waitUntil: "commit" });
+  await page.waitForLoadState("domcontentloaded");
+  await page.evaluate(() => {
+    window.ELO_AUTH_SESSION_VALIDATED = true;
+    if (window.EloCoreAuthGate && typeof window.EloCoreAuthGate.setAuthenticated === "function") {
+      window.EloCoreAuthGate.setAuthenticated(true);
+    }
+  });
   await page.waitForFunction(() => {
     const form = document.querySelector(".elo-input-row");
     const attachmentInput = document.querySelector(".elo-attachment-input");

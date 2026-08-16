@@ -968,8 +968,8 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.html).toContain("multiplas unidades de medida");
     expect(result.html).toContain("Itens zerados");
     expect(result.html).toContain("Abaixo do minimo");
-    expect(result.html).toContain("Movimentacoes por produto");
-    expect(result.html).toContain("Ultimas movimentacoes");
+    expect(result.html).toContain("Movimentações por produto");
+    expect(result.html).toContain("Últimas movimentações");
     expect(result.html).toContain("NF-e importadas no periodo");
     expect(result.html).toContain("Fornecedor PDF Ltda");
     expect(result.html).toContain("29260612...00012345");
