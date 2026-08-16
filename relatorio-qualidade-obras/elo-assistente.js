@@ -6604,6 +6604,7 @@
     lastOperationalWallEstimate: null,
     pendingQuantitativePremises: null,
     pendingStockRelease: null,
+    pendingStockProductCreate: null,
     stockObrasCompositionBriefing: null,
     lastTechnicalPackage: null,
     activeDocumentContext: null,
@@ -21370,6 +21371,176 @@ function isEloResidentialNewPipelineEnabled_() {
     return buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
+  function parseEloStockProductCreateQuantity_(value) {
+    const number = Number(String(value || "").replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function normalizeEloStockProductCreateUnit_(value) {
+    const unit = normalizeText(value || "un");
+    const map = {
+      saco: "saco", sacos: "saco",
+      unidade: "unidade", unidades: "unidade", un: "unidade", und: "unidade",
+      lata: "lata", latas: "lata",
+      caixa: "caixa", caixas: "caixa",
+      metro: "metro", metros: "metro", m: "m",
+      kg: "kg", quilo: "kg", quilos: "kg",
+      litro: "litro", litros: "litro"
+    };
+    return map[unit] || unit || "unidade";
+  }
+
+  function titleCaseEloStockProductName_(value) {
+    return normalizeText(value || "")
+      .replace(/\b(?:no|na|nos|nas|em|ao|aos|estoque|almoxarifado|stock|full)\b/g, " ")
+      .replace(/[^a-z0-9\s._-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean)
+      .map(function (word) { return word.charAt(0).toUpperCase() + word.slice(1); })
+      .join(" ");
+  }
+
+  function parseEloStockProductCreateCommand_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    if (/\b(?:entrada|saida|saidas|retirar|retire|baixa|baixar|movimente|movimentar)\b/.test(text)) return null;
+
+    let match = text.match(/\b(?:cadastre|cadastrar|registre|registrar|inclua|incluir|adicione|adicionar)\s+(\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+de\s+(.+)$/);
+    if (match) {
+      const quantity = parseEloStockProductCreateQuantity_(match[1]);
+      const unit = normalizeEloStockProductCreateUnit_(match[2]);
+      const name = titleCaseEloStockProductName_(match[3]);
+      if (quantity > 0 && name) return { action: "create_product", name: name, initialQuantity: quantity, unit: unit, sourceMessage: sanitizeUserText(message) };
+    }
+
+    match = text.match(/\b(?:crie|criar|cadastre|cadastrar)\s+(?:o\s+|um\s+|uma\s+)?produto\s+(.+?)\s+com\s+(\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\b/);
+    if (match) {
+      const productName = titleCaseEloStockProductName_(match[1]);
+      const productQuantity = parseEloStockProductCreateQuantity_(match[2]);
+      const productUnit = normalizeEloStockProductCreateUnit_(match[3]);
+      if (productQuantity > 0 && productName) return { action: "create_product", name: productName, initialQuantity: productQuantity, unit: productUnit, sourceMessage: sanitizeUserText(message) };
+    }
+
+    return null;
+  }
+
+  function isEloStockProductCreateConfirmation_(message) {
+    return /^(?:sim|confirmar|confirmo|pode cadastrar|pode salvar|pode|cadastre|cadastrar|ok|correto|isso mesmo)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloStockProductCreateCancel_(message) {
+    return /^(?:nao|não|cancelar|cancele|abortar|deixa|deixe|nao cadastrar|não cadastrar)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function findEloStockProductCreateExisting_(draft) {
+    const balances = getEloOperationalAlmoxBalances_();
+    const match = findEloStockBalanceByQuestion_(draft && draft.name || "", balances);
+    return match && match.item ? match.item : null;
+  }
+
+  function formatEloStockProductCreatePreview_(draft) {
+    return [
+      "Cadastrar no Stock:",
+      "",
+      "Produto: " + draft.name,
+      "Quantidade inicial: " + formatEloStockQuantity_(draft.initialQuantity) + " " + draft.unit,
+      "",
+      "Confirmar?"
+    ].join("\n");
+  }
+
+  function buildEloStockProductAlreadyExistsResponse_(item, draft) {
+    const unit = item && item.unit || draft && draft.unit || "unidade";
+    const balance = item && (item.balance || item.realBalance || 0) || 0;
+    const name = item && item.name || draft && draft.name || "Produto";
+    const answer = name + " ja esta cadastrado. Saldo atual: " + formatEloStockQuantity_(balance) + " " + unit + ".";
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "Nenhum produto duplicado foi criado.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_duplicate" };
+  }
+
+  function setEloPendingStockProductCreate_(draft) {
+    ELO_SESSION_MEMORY.pendingStockProductCreate = draft || null;
+    return ELO_SESSION_MEMORY.pendingStockProductCreate;
+  }
+
+  function handleEloStockProductCreate_(message, attachments) {
+    if ((attachments || []).length) return false;
+    const cleanMessage = sanitizeUserText(message);
+    const pending = ELO_SESSION_MEMORY.pendingStockProductCreate;
+
+    if (pending && isEloStockProductCreateCancel_(cleanMessage)) {
+      setEloPendingStockProductCreate_(null);
+      appendMessage("user", cleanMessage);
+      appendAssistantMessage(cleanMessage, "Cadastro cancelado. Nenhum produto foi criado.", false, { shortAnswer: "Cadastro cancelado. Nenhum produto foi criado.", fullAnswer: "Cadastro cancelado. Nenhum produto foi criado.", nextAction: "Envie um novo comando de cadastro quando quiser.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_create_cancelled" });
+      clearProductAttachmentPreview();
+      return true;
+    }
+
+    if (pending && isEloStockProductCreateConfirmation_(cleanMessage)) {
+      appendMessage("user", cleanMessage);
+      if (pending.status === "saving") {
+        appendAssistantMessage(cleanMessage, "Ja estou salvando esse produto. Nao vou criar duplicado.", false, { shortAnswer: "Ja estou salvando esse produto. Nao vou criar duplicado.", fullAnswer: "Ja estou salvando esse produto. Nao vou criar duplicado.", nextAction: "Aguarde a confirmacao do cadastro.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_create_saving" });
+        clearProductAttachmentPreview();
+        return true;
+      }
+      if (pending.status === "saved") {
+        appendAssistantMessage(cleanMessage, "Produto cadastrado com sucesso. Nao criei outro registro.", false, { shortAnswer: "Produto cadastrado com sucesso.", fullAnswer: "Produto cadastrado com sucesso. Nao criei outro registro.", nextAction: "Consulte o saldo para conferir.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_create_idempotent" });
+        clearProductAttachmentPreview();
+        return true;
+      }
+
+      const bridge = window.ObraReportOperationalStock;
+      if (!bridge || typeof bridge.createConfirmedProduct !== "function") {
+        appendAssistantMessage(cleanMessage, "Ponte do Stock Full indisponivel nesta tela. Nenhum produto foi criado.", false, { shortAnswer: "Ponte do Stock Full indisponivel nesta tela.", fullAnswer: "Ponte do Stock Full indisponivel nesta tela. Nenhum produto foi criado.", nextAction: "Abra o ObraReport com Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_bridge_missing" });
+        clearProductAttachmentPreview();
+        return true;
+      }
+
+      pending.status = "saving";
+      const statusMessage = appendMessage("assistant", "Cadastrando produto no Stock...");
+      Promise.resolve(bridge.createConfirmedProduct({ name: pending.name, initialQuantity: pending.initialQuantity, unit: pending.unit })).then(function (result) {
+        if (result && result.duplicate) {
+          pending.status = "saved";
+          updateEloMessage_(statusMessage, formatResponse(buildEloStockProductAlreadyExistsResponse_(result.item, pending)));
+          return;
+        }
+        if (!result || !result.ok) {
+          pending.status = "pending";
+          updateEloMessage_(statusMessage, result && result.message || "Nao foi possivel cadastrar o produto. Nenhum duplicado foi criado.");
+          return;
+        }
+        pending.status = "saved";
+        pending.savedItemId = result.item && result.item.id || "";
+        updateEloMessage_(statusMessage, "Produto cadastrado com sucesso.");
+      }).catch(function (error) {
+        pending.status = "pending";
+        console.warn("Nao foi possivel cadastrar produto pelo ELO.", error);
+        updateEloMessage_(statusMessage, "Nao foi possivel cadastrar o produto agora. Nenhum duplicado foi criado.");
+      }).finally(function () {
+        clearProductAttachmentPreview();
+      });
+      return true;
+    }
+
+    const draft = parseEloStockProductCreateCommand_(cleanMessage);
+    if (!draft) return false;
+    const existing = findEloStockProductCreateExisting_(draft);
+    appendMessage("user", cleanMessage);
+    if (existing) {
+      appendAssistantMessage(cleanMessage, formatResponse(buildEloStockProductAlreadyExistsResponse_(existing, draft)), false, buildEloStockProductAlreadyExistsResponse_(existing, draft));
+      clearProductAttachmentPreview();
+      return true;
+    }
+
+    draft.status = "pending";
+    draft.createdAt = Date.now();
+    setEloPendingStockProductCreate_(draft);
+    const preview = formatEloStockProductCreatePreview_(draft);
+    appendAssistantMessage(cleanMessage, preview, false, { shortAnswer: preview, fullAnswer: preview, nextAction: "Responda sim, confirmar ou pode cadastrar para executar.", canSave: false, sessionTheme: "stock_full_create_product", sessionIntent: "stock_full_product_create_preview" });
+    clearProductAttachmentPreview();
+    return true;
+  }
   function isEloOperationalUnitCompatible_(predictedUnit, balanceUnit) {
     const predicted = normalizeEloOperationalUnit_(predictedUnit || "un");
     const balance = normalizeEloOperationalUnit_(balanceUnit || "un");
@@ -26083,6 +26254,9 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!attachedFiles.length && handleEloQuickGreeting_(cleanQuestion)) {
       return;
     }
+    if (handleEloStockProductCreate_(cleanQuestion, attachedFiles)) {
+      return;
+    }
     const localStockReadonly = !attachedFiles.length ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
     if (localStockReadonly) {
       appendMessage("user", cleanQuestion);
@@ -30322,6 +30496,7 @@ function isEloResidentialNewPipelineEnabled_() {
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
+    parseStockProductCreateCommandForTest: parseEloStockProductCreateCommand_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     needsLiveSearchForTest: needsLiveSearch,

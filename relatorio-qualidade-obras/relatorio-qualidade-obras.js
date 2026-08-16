@@ -10090,6 +10090,73 @@
     });
   }
 
+  function normalizeOperationalStockProductName_(value) {
+    return clean(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function findOperationalAlmoxProductByName_(name) {
+    const normalizedName = normalizeOperationalStockProductName_(name);
+    if (!normalizedName) return null;
+    return getOperationalAlmoxBalanceSnapshot_().find(function (item) {
+      return normalizeOperationalStockProductName_(item && item.name) === normalizedName;
+    }) || null;
+  }
+
+  async function createConfirmedOperationalProduct_(payload) {
+    const safePayload = payload || {};
+    const name = clean(safePayload.name);
+    const unit = clean(safePayload.unit) || "un";
+    const initialQuantity = parseNumber_(safePayload.initialQuantity);
+    const existing = findOperationalAlmoxProductByName_(name);
+
+    if (!name) {
+      return { ok: false, message: "Informe o nome do produto." };
+    }
+
+    if (initialQuantity < 0) {
+      return { ok: false, message: "Informe quantidade inicial igual ou maior que zero." };
+    }
+
+    if (existing) {
+      return { ok: true, duplicate: true, item: existing, balance: existing.balance || existing.realBalance || 0 };
+    }
+
+    if (isStockFullContext_() && !requireStockFullPermission_("products:create", "Usuario sem permissao para cadastrar produto.")) {
+      return { ok: false, message: "Usuario sem permissao para cadastrar produto." };
+    }
+
+    const formData = new FormData();
+    formData.set("name", name);
+    formData.set("sku", clean(safePayload.sku));
+    formData.set("category", clean(safePayload.category) || "Geral");
+    formData.set("unit", unit);
+    formData.set("initialQuantity", String(initialQuantity));
+    formData.set("minimumStock", String(parseNumber_(safePayload.minimumStock)));
+    formData.set("costPrice", String(parseNumber_(safePayload.costPrice)));
+    formData.set("salePrice", String(parseNumber_(safePayload.salePrice)));
+    formData.set("supplier", clean(safePayload.supplier));
+    formData.set("location", clean(safePayload.location));
+    formData.set("expirationDate", clean(safePayload.expirationDate));
+    formData.set("notes", clean(safePayload.notes) || "Cadastro confirmado pelo ELO.");
+
+    const result = isStockFullRemoteActive_()
+      ? await saveStockFullRemoteItemFromFormData_(formData)
+      : saveAlmoxItemFromFormData_(formData);
+
+    if (!result || !result.ok) {
+      return result || { ok: false, message: "Nao foi possivel cadastrar o produto." };
+    }
+
+    renderAlmoxarifadoPanel_();
+    showAlmoxToast_("Produto cadastrado pelo ELO.", "success");
+    return result;
+  }
   async function handleAlmoxItemSubmit_(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
@@ -22896,6 +22963,7 @@
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
     getAlmoxMovements: getOperationalAlmoxMovementSnapshot_,
+    createConfirmedProduct: createConfirmedOperationalProduct_,
     createConfirmedExit: createConfirmedOperationalExit_
   });
 })();
