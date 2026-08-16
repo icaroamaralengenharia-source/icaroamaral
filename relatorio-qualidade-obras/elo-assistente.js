@@ -21355,6 +21355,95 @@ function isEloResidentialNewPipelineEnabled_() {
     return "- " + parts.join(" — ");
   }
 
+
+  function getEloLocalDateKey_(offsetDays) {
+    const date = new Date();
+    date.setDate(date.getDate() + Number(offsetDays || 0));
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
+  function parseEloStockMovementDayQuery_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    const asksMovement = /\b(movimentacoes|movimentacao|movimentos|historico|entradas|entrada|saidas|saida|saiu|entraram|entrou)\b/.test(text);
+    const asksDate = /\b(hoje|ontem)\b/.test(text);
+    const asksStock = /\b(estoque|stock|almoxarifado|movimentacoes|movimentacao|movimentos|entradas|entrada|saidas|saida|saiu|entraram|entrou)\b/.test(text);
+    if (!asksMovement || !asksDate || !asksStock) return null;
+    let type = "";
+    if (/\b(saidas|saida|saiu)\b/.test(text)) type = "saida";
+    else if (/\b(entradas|entrada|entraram|entrou)\b/.test(text)) type = "entrada";
+    const dateKey = /\bontem\b/.test(text) ? getEloLocalDateKey_(-1) : getEloLocalDateKey_(0);
+    const label = /\bontem\b/.test(text) ? "ontem" : "hoje";
+    return { type: type, dateKey: dateKey, label: label };
+  }
+
+  function getEloStockMovementDateKey_(movement) {
+    const direct = sanitizeUserText(movement && (movement.movementDate || movement.date) || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
+    const sortKey = sanitizeUserText(movement && (movement.sortKey || movement.movementDateTime || movement.createdAt || movement.dateTime) || "");
+    const match = sortKey.match(/\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : "";
+  }
+
+  function getEloStockMovementTimeLabel_(movement) {
+    const direct = sanitizeUserText(movement && movement.movementTime || "");
+    if (/^\d{2}:\d{2}/.test(direct)) return direct.slice(0, 5);
+    const sortKey = sanitizeUserText(movement && (movement.sortKey || movement.movementDateTime || movement.createdAt) || "");
+    const isoMatch = sortKey.match(/T(\d{2}:\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    const display = sanitizeUserText(movement && movement.dateTime || "");
+    const displayMatch = display.match(/\b(\d{2}:\d{2})\b/);
+    return displayMatch ? displayMatch[1] : "horario nao informado";
+  }
+
+  function getEloStockMovementItemName_(movement) {
+    return sanitizeUserText(movement && (movement.itemName || movement.material || movement.name || movement.productName) || "Produto");
+  }
+
+  function isEloStockMovementInCurrentScope_(movement, balances) {
+    const itemId = sanitizeUserText(movement && (movement.itemId || movement.productId) || "");
+    const movementEnvironmentId = sanitizeUserText(movement && movement.environmentId || "");
+    const movementCompanyId = sanitizeUserText(movement && movement.companyId || "");
+    if (!itemId && !movementEnvironmentId && !movementCompanyId) return true;
+    return (balances || []).some(function (balance) {
+      const balanceItemId = sanitizeUserText(balance && (balance.itemId || balance.id || balance.productId) || "");
+      const balanceEnvironmentId = sanitizeUserText(balance && balance.environmentId || "");
+      const balanceCompanyId = sanitizeUserText(balance && balance.companyId || "");
+      if (itemId && balanceItemId && itemId === balanceItemId) return true;
+      if (movementCompanyId && balanceCompanyId && movementCompanyId !== balanceCompanyId) return false;
+      if (movementEnvironmentId && balanceEnvironmentId && movementEnvironmentId !== balanceEnvironmentId) return false;
+      return false;
+    });
+  }
+
+  function formatEloStockMovementDayLine_(movement) {
+    return "- " + getEloStockMovementItemName_(movement) + " — " + formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un") + " — " + getEloStockMovementTimeLabel_(movement);
+  }
+
+  function buildEloStockMovementDayAnswer_(message) {
+    const query = parseEloStockMovementDayQuery_(message);
+    if (!query) return null;
+    const balances = getEloOperationalAlmoxBalances_();
+    const movements = getEloOperationalAlmoxMovements_().filter(function (movement) {
+      const type = normalizeText(movement && movement.type || "");
+      if (query.type && type !== query.type) return false;
+      if (getEloStockMovementDateKey_(movement) !== query.dateKey) return false;
+      return isEloStockMovementInCurrentScope_(movement, balances);
+    });
+    const typeLabel = query.type === "saida" ? "Saidas" : query.type === "entrada" ? "Entradas" : "Movimentacoes";
+    if (!movements.length) {
+      const none = "Nenhuma " + (query.type === "saida" ? "saida" : query.type === "entrada" ? "entrada" : "movimentacao") + " registrada " + query.label + ".";
+      return { shortAnswer: none, fullAnswer: none, nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movements_day" };
+    }
+    const lines = [typeLabel + " de " + query.label + ":"];
+    movements.slice(0, 20).forEach(function (movement) { lines.push(formatEloStockMovementDayLine_(movement)); });
+    lines.push("Total: " + movements.length + " " + (movements.length === 1 ? "movimentacao." : "movimentacoes."));
+    return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movements_day" };
+  }
+
   function buildEloStockHistoryAnswer_(message) {
     if (!isEloStockHistoryQuestion_(message) && !isEloStockLastExitsQuestion_(message)) return null;
     const movements = getEloOperationalAlmoxMovements_();
@@ -21817,7 +21906,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const blocked = buildEloStockReadonlyWriteBlockedAnswer_(message);
     if (blocked) return blocked;
     if (isEloStockConceptQuestion_(message)) return null;
-    return buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
+    return buildEloStockMovementDayAnswer_(message) || buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
   function parseEloStockProductCreateQuantity_(value) {
@@ -30967,6 +31056,7 @@ function isEloResidentialNewPipelineEnabled_() {
     buildStockExitAnswerForTest: buildEloStockExitAnswer_,
     getPendingStockExitForTest: getEloPendingStockExit_,
     clearPendingStockExitForTest: function () { setEloPendingStockExit_(null); },
+    buildStockMovementDayAnswerForTest: buildEloStockMovementDayAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     needsLiveSearchForTest: needsLiveSearch,

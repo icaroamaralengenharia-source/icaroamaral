@@ -41,7 +41,7 @@ function loadEloStockExitSandbox_(options = {}) {
     { itemId: "item-cimento", id: "item-cimento", sku: "CIM-001", fiscalCode: "CIM-001", name: "Cimento Teste ELO Saida", unit: "saco", balance: 10, realBalance: 10, minimumStock: 1, companyId: "company-a", environmentId: "env-a" },
     { itemId: "item-mascara", id: "item-mascara", sku: "MAS-001", name: "Mascara", unit: "un", balance: 5, realBalance: 5, companyId: "company-a", environmentId: "env-a" }
   ]).map((item) => ({ ...item }));
-  const movements = [];
+  const movements = (options.movements || []).map((movement) => ({ ...movement }));
   const audit = [];
   const entryCalls = [];
   const exitCalls = [];
@@ -260,6 +260,85 @@ test("Elo mantem entrada funcionando apos habilitar saida", () => {
   sandbox.window.EloAssistente.buildStockEntryAnswerForTest("confirmar");
   assert.equal(entryCalls.length, 1);
   assert.equal(balances[0].balance, 15);
+});
+
+
+
+test("Elo consulta saidas de hoje sem escrever", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-s1", type: "saida", itemId: "item-cimento", productId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", movementDate: dateKey, movementTime: "14:32", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-e1", type: "entrada", itemId: "item-cimento", productId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 3, unit: "saco", movementDate: dateKey, movementTime: "10:10", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("o que saiu hoje?");
+
+  assert.equal(answer.sessionIntent, "stock_movements_day");
+  assert.match(answer.fullAnswer, /Saidas de hoje:/);
+  assert.match(answer.fullAnswer, /Cimento Teste ELO Saida — 5 saco — 14:32/);
+  assert.doesNotMatch(answer.fullAnswer, /10:10/);
+  assert.match(answer.fullAnswer, /Total: 1 movimentacao\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo consulta entradas de hoje e todas as movimentacoes de hoje", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-s1", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", movementDate: dateKey, movementTime: "14:32", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-e1", type: "entrada", itemId: "item-mascara", itemName: "Mascara", quantity: 2, unit: "un", movementDate: dateKey, movementTime: "09:15", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const entries = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("quais foram as entradas de hoje?");
+  const all = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("mostre as movimentacoes de hoje");
+
+  assert.match(entries.fullAnswer, /Entradas de hoje:/);
+  assert.match(entries.fullAnswer, /Mascara — 2 un — 09:15/);
+  assert.doesNotMatch(entries.fullAnswer, /14:32/);
+  assert.match(all.fullAnswer, /Movimentacoes de hoje:/);
+  assert.match(all.fullAnswer, /Cimento Teste ELO Saida/);
+  assert.match(all.fullAnswer, /Mascara/);
+  assert.match(all.fullAnswer, /Total: 2 movimentacoes\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo filtra movimentacoes por ontem e informa dia sem movimento", () => {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const todayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const yesterdayKey = yesterday.getFullYear() + "-" + String(yesterday.getMonth() + 1).padStart(2, "0") + "-" + String(yesterday.getDate()).padStart(2, "0");
+  const { sandbox } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-y1", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 1, unit: "saco", movementDate: yesterdayKey, movementTime: "08:00", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-t1", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 2, unit: "saco", movementDate: todayKey, movementTime: "16:00", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const yesterdayAnswer = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("o que saiu do estoque ontem?");
+  const noEntries = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("quais foram as entradas de hoje?");
+
+  assert.match(yesterdayAnswer.fullAnswer, /Saidas de ontem:/);
+  assert.match(yesterdayAnswer.fullAnswer, /08:00/);
+  assert.doesNotMatch(yesterdayAnswer.fullAnswer, /16:00/);
+  assert.equal(noEntries.fullAnswer, "Nenhuma entrada registrada hoje.");
+});
+
+test("Elo nao mistura outro company ou environment na consulta", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-ok", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 1, unit: "saco", movementDate: dateKey, movementTime: "11:00", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-env", type: "saida", itemId: "item-outro-env", itemName: "Outro ambiente", quantity: 9, unit: "saco", movementDate: dateKey, movementTime: "12:00", environmentId: "env-b", companyId: "company-a" },
+    { id: "mov-company", type: "saida", itemId: "item-outra-company", itemName: "Outra empresa", quantity: 8, unit: "saco", movementDate: dateKey, movementTime: "13:00", environmentId: "env-a", companyId: "company-b" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementDayAnswerForTest("o que saiu hoje?");
+
+  assert.match(answer.fullAnswer, /11:00/);
+  assert.doesNotMatch(answer.fullAnswer, /12:00/);
+  assert.doesNotMatch(answer.fullAnswer, /13:00/);
+  assert.match(answer.fullAnswer, /Total: 1 movimentacao\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
 });
 
 test("contrato local exporta wrapper de saida oficial e Elo nao escreve direto no Stock", () => {
