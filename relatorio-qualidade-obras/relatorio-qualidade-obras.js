@@ -22871,6 +22871,95 @@
     }) || null;
   }
 
+  function normalizeOperationalEntryUnit_(value) {
+    const unit = clean(value).toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const map = {
+      un: "un", und: "un", unidade: "un", unidades: "un",
+      saco: "saco", sacos: "saco", lata: "lata", latas: "lata",
+      caixa: "caixa", caixas: "caixa", kg: "kg", quilo: "kg", quilos: "kg",
+      litro: "litro", litros: "litro", m: "m", metro: "m", metros: "m", m2: "m2", m3: "m3"
+    };
+    return map[unit] || unit.replace(/\s+/g, " ").trim();
+  }
+
+  function findOperationalMovementByIdSet_(movements, ids) {
+    const existingIds = ids || {};
+    return (movements || []).find(function (movement) {
+      return movement && !existingIds[clean(movement.id)];
+    }) || null;
+  }
+
+  function createConfirmedOperationalEntry_(payload) {
+    const safe = payload && typeof payload === "object" ? payload : {};
+    const entryId = clean(safe.entryId || safe.operationId);
+    const itemId = clean(safe.itemId || safe.stockItemId || safe.productId);
+    const quantity = parseNumber_(safe.quantity);
+    const requestedUnit = normalizeOperationalEntryUnit_(safe.unit);
+    const responsible = clean(safe.responsible || safe.requestedBy) || "ELO";
+    const documentNumber = clean(safe.documentNumber || safe.invoiceNumber);
+    const notes = clean(safe.notes);
+    const reason = clean(safe.reason) || "Entrada confirmada pelo ELO";
+
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:in", "Usuario sem permissao para registrar entrada.")) {
+      return { ok: false, message: "Usuario sem permissao para registrar entrada." };
+    }
+    if (!entryId) return { ok: false, message: "entryId obrigatorio para confirmar entrada." };
+    if (!itemId || quantity <= 0) return { ok: false, message: "Item ou quantidade invalida." };
+
+    const before = getOperationalAlmoxBalanceSnapshot_();
+    const balance = findOperationalBalanceByItemId_(before, itemId);
+    if (!balance) return { ok: false, message: "Item nao encontrado no Almoxarifado.", before: before, after: before, movements: [] };
+
+    const registeredUnit = normalizeOperationalEntryUnit_(balance.unit || "un");
+    if (requestedUnit && registeredUnit && requestedUnit !== registeredUnit) {
+      return { ok: false, message: "Unidade informada diferente da unidade cadastrada.", before: before, after: before, movements: [] };
+    }
+
+    const stateBefore = loadAlmoxState_();
+    const previousIds = {};
+    (stateBefore.movements || []).forEach(function (movement) {
+      if (movement && movement.id) previousIds[clean(movement.id)] = true;
+    });
+
+    const formData = createOperationalFormData_({
+      itemId: itemId,
+      quantity: quantity,
+      responsible: responsible,
+      documentNumber: documentNumber,
+      unitCost: parseNumber_(safe.unitCost),
+      reason: reason,
+      notes: notes ? notes + " entryId=" + entryId + "." : "Origem ELO. entryId=" + entryId + ".",
+      movementDate: clean(safe.movementDate || safe.date),
+      movementTime: clean(safe.movementTime)
+    });
+    const result = saveAlmoxEntryFromFormData_(formData);
+    if (!result || result.ok !== true) {
+      return { ok: false, message: result && result.message || "Falha ao registrar entrada.", before: before, after: getOperationalAlmoxBalanceSnapshot_(), movements: [] };
+    }
+
+    const stateAfter = loadAlmoxState_();
+    const movement = findOperationalMovementByIdSet_((stateAfter.movements || []).filter(function (candidate) {
+      return candidate && candidate.type === "entrada" && clean(candidate.itemId || candidate.productId) === itemId;
+    }).reverse(), previousIds);
+    const after = getOperationalAlmoxBalanceSnapshot_();
+    const afterBalance = findOperationalBalanceByItemId_(after, itemId) || {};
+    return {
+      ok: true,
+      entryId: entryId,
+      itemId: itemId,
+      quantity: quantity,
+      unit: balance.unit || "un",
+      before: before,
+      after: after,
+      balanceBefore: balance.balance || balance.realBalance || 0,
+      balanceAfter: afterBalance.balance || afterBalance.realBalance || 0,
+      movement: movement || null,
+      movements: movement ? [Object.assign({}, movement, { material: balance.name || "", unit: balance.unit || "un", balanceAfter: afterBalance.balance || afterBalance.realBalance || 0 })] : []
+    };
+  }
+
   function createConfirmedOperationalExit_(payload) {
     const safe = payload && typeof payload === "object" ? payload : {};
     const releaseId = clean(safe.releaseId);
@@ -22964,6 +23053,7 @@
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
     getAlmoxMovements: getOperationalAlmoxMovementSnapshot_,
     createConfirmedProduct: createConfirmedOperationalProduct_,
+    createConfirmedEntry: createConfirmedOperationalEntry_,
     createConfirmedExit: createConfirmedOperationalExit_
   });
 })();
