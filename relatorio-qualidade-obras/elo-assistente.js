@@ -21423,6 +21423,92 @@ function isEloResidentialNewPipelineEnabled_() {
     return "- " + getEloStockMovementItemName_(movement) + " — " + formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un") + " — " + getEloStockMovementTimeLabel_(movement);
   }
 
+
+  function parseEloStockMovementResponsibleQuery_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || !/\bquem\b/.test(text)) return null;
+    const movementIntent = /\b(movimentou|movimentacao|movimentacoes|fez|registrou|deu|saida|saiu|entrada|entrou|baixa)\b/.test(text);
+    if (!movementIntent) return null;
+    let type = "";
+    if (/\b(saida|saiu|baixa|baixou)\b/.test(text)) type = "saida";
+    else if (/\b(entrada|entrou)\b/.test(text)) type = "entrada";
+    const dateKey = /\bontem\b/.test(text) ? getEloLocalDateKey_(-1) : /\bhoje\b/.test(text) ? getEloLocalDateKey_(0) : "";
+    const dateLabel = /\bontem\b/.test(text) ? "ontem" : /\bhoje\b/.test(text) ? "hoje" : "";
+    const wantsLast = /\b(ultima|ultimo|essa|esse)\b/.test(text);
+    let productQuery = "";
+    const productMatch = text.match(/\b(?:no|na|nos|nas|do|da|dos|das|de|em)\s+(.+)$/);
+    if (productMatch && !/\b(estoque|stock|almoxarifado|hoje|ontem|movimentacao|movimentacoes)$/.test(productMatch[1])) {
+      productQuery = cleanEloStockEntryProductQuery_(productMatch[1]);
+    }
+    return { type: type, dateKey: dateKey, dateLabel: dateLabel, wantsLast: wantsLast, productQuery: productQuery };
+  }
+
+  function getEloStockMovementResponsible_(movement) {
+    return sanitizeUserText(movement && (movement.responsible || movement.requestedBy || movement.userName || movement.createdByName || movement.createdByRole || "") || "");
+  }
+
+  function getEloStockMovementTypeLabelLower_(movement) {
+    const type = normalizeText(movement && movement.type || "");
+    if (type === "entrada") return "entrada";
+    if (type === "saida") return "saida";
+    return type || "movimentacao";
+  }
+
+  function formatEloStockMovementResponsibleLine_(movement) {
+    const responsible = getEloStockMovementResponsible_(movement);
+    const movementText = getEloStockMovementTypeLabelLower_(movement) + " de " + formatEloStockQuantity_(movement && movement.quantity || 0) + " " + (movement && movement.unit || "un") + " de " + getEloStockMovementItemName_(movement) + " — " + getEloStockMovementTimeLabel_(movement) + ".";
+    if (!responsible) return "Responsável não identificado no registro. " + movementText;
+    return responsible + " — " + movementText;
+  }
+
+  function filterEloStockResponsibleMovements_(query, balances) {
+    let productResolution = null;
+    if (query.productQuery) {
+      productResolution = findEloStockBalanceByQuery_(query.productQuery, balances);
+      if (productResolution.status === "ambiguous") return { ambiguous: productResolution, movements: [] };
+      if (!productResolution.item) return { missingProduct: true, movements: [] };
+    }
+    const productItemId = productResolution && productResolution.item ? getEloStockEntryItemId_(productResolution.item) : "";
+    const movements = getEloOperationalAlmoxMovements_().filter(function (movement) {
+      const type = normalizeText(movement && movement.type || "");
+      if (query.type && type !== query.type) return false;
+      if (query.dateKey && getEloStockMovementDateKey_(movement) !== query.dateKey) return false;
+      if (productItemId && getEloStockEntryItemId_(movement) !== productItemId) return false;
+      return isEloStockMovementInCurrentScope_(movement, balances);
+    }).sort(function (first, second) {
+      return String(second && (second.sortKey || second.movementDateTime || second.createdAt || second.dateTime || "")).localeCompare(String(first && (first.sortKey || first.movementDateTime || first.createdAt || first.dateTime || "")));
+    });
+    return { movements: movements };
+  }
+
+  function buildEloStockMovementResponsibleAnswer_(message) {
+    const query = parseEloStockMovementResponsibleQuery_(message);
+    if (!query) return null;
+    const balances = getEloOperationalAlmoxBalances_();
+    const filtered = filterEloStockResponsibleMovements_(query, balances);
+    if (filtered.ambiguous) return Object.assign({}, buildEloStockAmbiguityAnswer_(filtered.ambiguous), { sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" });
+    if (filtered.missingProduct) {
+      return { shortAnswer: "Nao encontrei esse produto no Stock.", fullAnswer: "Nao encontrei esse produto no Stock. Use o nome completo ou SKU do produto.", nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    const movements = filtered.movements || [];
+    if (!movements.length) {
+      const typeText = query.type === "saida" ? "saida" : query.type === "entrada" ? "entrada" : "movimentacao";
+      const dateText = query.dateLabel ? " " + query.dateLabel : "";
+      const productText = query.productQuery ? " para esse produto" : "";
+      const none = "Nenhuma " + typeText + productText + " encontrada" + dateText + ".";
+      return { shortAnswer: none, fullAnswer: none, nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    if (query.wantsLast || query.productQuery || !query.dateKey) {
+      const movement = movements[0];
+      const lines = ["Ultima movimentacao:", formatEloStockMovementResponsibleLine_(movement)];
+      return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+    }
+    const lines = ["Responsaveis de " + query.dateLabel + ":"];
+    movements.slice(0, 20).forEach(function (movement) { lines.push("- " + formatEloStockMovementResponsibleLine_(movement)); });
+    lines.push("Total: " + movements.length + " " + (movements.length === 1 ? "movimentacao." : "movimentacoes."));
+    return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_movement_responsible" };
+  }
+
   function buildEloStockMovementDayAnswer_(message) {
     const query = parseEloStockMovementDayQuery_(message);
     if (!query) return null;
@@ -21906,7 +21992,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const blocked = buildEloStockReadonlyWriteBlockedAnswer_(message);
     if (blocked) return blocked;
     if (isEloStockConceptQuestion_(message)) return null;
-    return buildEloStockMovementDayAnswer_(message) || buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
+    return buildEloStockMovementResponsibleAnswer_(message) || buildEloStockMovementDayAnswer_(message) || buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
   function parseEloStockProductCreateQuantity_(value) {
@@ -31057,6 +31143,7 @@ function isEloResidentialNewPipelineEnabled_() {
     getPendingStockExitForTest: getEloPendingStockExit_,
     clearPendingStockExitForTest: function () { setEloPendingStockExit_(null); },
     buildStockMovementDayAnswerForTest: buildEloStockMovementDayAnswer_,
+    buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
     needsLiveSearchForTest: needsLiveSearch,

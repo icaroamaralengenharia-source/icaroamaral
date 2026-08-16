@@ -341,6 +341,90 @@ test("Elo nao mistura outro company ou environment na consulta", () => {
   assert.equal(exitCalls.length + entryCalls.length, 0);
 });
 
+
+
+test("Elo consulta responsavel de saida e entrada sem escrever", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-s1", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", responsible: "Manoel", movementDate: dateKey, movementTime: "14:32", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-e1", type: "entrada", itemId: "item-mascara", itemName: "Mascara", quantity: 2, unit: "un", responsible: "Carla", movementDate: dateKey, movementTime: "09:15", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const whoMoved = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem movimentou o estoque hoje?");
+  const whoEntry = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem registrou essa entrada?");
+
+  assert.equal(whoMoved.sessionIntent, "stock_movement_responsible");
+  assert.match(whoMoved.fullAnswer, /Manoel — saida de 5 saco de Cimento Teste ELO Saida — 14:32\./);
+  assert.match(whoMoved.fullAnswer, /Carla — entrada de 2 un de Mascara — 09:15\./);
+  assert.match(whoEntry.fullAnswer, /Carla — entrada de 2 un de Mascara — 09:15\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo consulta ultima movimentacao", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-old", type: "entrada", itemId: "item-mascara", itemName: "Mascara", quantity: 1, unit: "un", responsible: "Carla", movementDate: dateKey, movementTime: "08:00", sortKey: dateKey + "T08:00:00", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-new", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", responsible: "Manoel", movementDate: dateKey, movementTime: "16:10", sortKey: dateKey + "T16:10:00", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem fez a ultima movimentacao?");
+
+  assert.match(answer.fullAnswer, /Ultima movimentacao:/);
+  assert.match(answer.fullAnswer, /Manoel — saida de 5 saco de Cimento Teste ELO Saida — 16:10\./);
+  assert.doesNotMatch(answer.fullAnswer, /08:00/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo filtra responsavel por produto", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-cim", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", responsible: "Manoel", movementDate: dateKey, movementTime: "14:32", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-mas", type: "saida", itemId: "item-mascara", itemName: "Mascara", quantity: 1, unit: "un", responsible: "Joao", movementDate: dateKey, movementTime: "12:00", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem deu saida no cimento?");
+
+  assert.match(answer.fullAnswer, /Manoel/);
+  assert.match(answer.fullAnswer, /Cimento Teste ELO Saida/);
+  assert.doesNotMatch(answer.fullAnswer, /Joao/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo informa registro sem responsavel", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-s1", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 5, unit: "saco", movementDate: dateKey, movementTime: "14:32", environmentId: "env-a", companyId: "company-a" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem fez a ultima movimentacao?");
+
+  assert.match(answer.fullAnswer, /Responsável não identificado no registro\./);
+  assert.match(answer.fullAnswer, /saida de 5 saco de Cimento Teste ELO Saida/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo isola responsavel por company e environment", () => {
+  const today = new Date();
+  const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ movements: [
+    { id: "mov-ok", type: "saida", itemId: "item-cimento", itemName: "Cimento Teste ELO Saida", quantity: 1, unit: "saco", responsible: "Manoel", movementDate: dateKey, movementTime: "11:00", environmentId: "env-a", companyId: "company-a" },
+    { id: "mov-env", type: "saida", itemId: "item-outro-env", itemName: "Outro ambiente", quantity: 9, unit: "saco", responsible: "Outro Env", movementDate: dateKey, movementTime: "12:00", environmentId: "env-b", companyId: "company-a" },
+    { id: "mov-company", type: "saida", itemId: "item-outra-company", itemName: "Outra empresa", quantity: 8, unit: "saco", responsible: "Outro Tenant", movementDate: dateKey, movementTime: "13:00", environmentId: "env-a", companyId: "company-b" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildStockMovementResponsibleAnswerForTest("quem movimentou o estoque hoje?");
+
+  assert.match(answer.fullAnswer, /Manoel/);
+  assert.doesNotMatch(answer.fullAnswer, /Outro Env/);
+  assert.doesNotMatch(answer.fullAnswer, /Outro Tenant/);
+  assert.match(answer.fullAnswer, /Total: 1 movimentacao\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
 test("contrato local exporta wrapper de saida oficial e Elo nao escreve direto no Stock", () => {
   const eloSource = readFileSync(new URL("../../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
   const reportSource = readFileSync(new URL("../../relatorio-qualidade-obras/relatorio-qualidade-obras.js", import.meta.url), "utf8");
