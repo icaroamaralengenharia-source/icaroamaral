@@ -79,7 +79,11 @@ function loadEloStockExitSandbox_(options = {}) {
   sandbox.ELO_SKIP_AUTO_WIDGET = true;
   sandbox.ObraReportOperationalStock = {
     getAlmoxBalances() {
-      return balances.map((item) => ({ ...item }));
+      return balances.filter((item) => {
+        if (options.activeCompanyId && item.companyId && item.companyId !== options.activeCompanyId) return false;
+        if (options.activeEnvironmentId && item.environmentId && item.environmentId !== options.activeEnvironmentId) return false;
+        return true;
+      }).map((item) => ({ ...item }));
     },
     getAlmoxMovements() {
       return movements.map((movement) => ({ ...movement }));
@@ -422,6 +426,79 @@ test("Elo isola responsavel por company e environment", () => {
   assert.doesNotMatch(answer.fullAnswer, /Outro Env/);
   assert.doesNotMatch(answer.fullAnswer, /Outro Tenant/);
   assert.match(answer.fullAnswer, /Total: 1 movimentacao\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+
+test("Elo consulta itens abaixo do minimo sem escrever", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ balances: [
+    { itemId: "zero", id: "zero", name: "Argamassa AC-II", unit: "saco", balance: 0, realBalance: 0, minimumStock: 5, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "low", id: "low", name: "Cimento CP II", unit: "saco", balance: 3, realBalance: 3, minimumStock: 10, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "min", id: "min", name: "Areia Media", unit: "m3", balance: 4, realBalance: 4, minimumStock: 4, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "ok", id: "ok", name: "Brita", unit: "m3", balance: 12, realBalance: 12, minimumStock: 5, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "nom", id: "nom", name: "Sem Minimo", unit: "un", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-a" }
+  ] });
+
+  const answer = sandbox.window.EloAssistente.buildResponseForTest("quais itens estão abaixo do mínimo?");
+
+  assert.equal(answer.sessionIntent, "stock_full_baixo_estoque");
+  assert.match(answer.fullAnswer, /Itens que precisam de reposição:/);
+  assert.match(answer.fullAnswer, /Argamassa AC-II — ZERADO — mínimo 5 — faltam 5/);
+  assert.match(answer.fullAnswer, /Cimento CP II — saldo 3 saco — mínimo 10 — faltam 7/);
+  assert.match(answer.fullAnswer, /Areia Media — saldo 4 m3 — mínimo 4 — faltam 0/);
+  assert.doesNotMatch(answer.fullAnswer, /Brita/);
+  assert.doesNotMatch(answer.fullAnswer, /Sem Minimo/);
+  assert.match(answer.fullAnswer, /Total: 3 itens\./);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo reconhece perguntas de estoque acabando e reposicao", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ balances: [
+    { itemId: "low", id: "low", name: "Cimento CP II", unit: "saco", balance: 3, realBalance: 3, minStock: 10, companyId: "company-a", environmentId: "env-a" }
+  ] });
+
+  assert.equal(sandbox.window.EloAssistente.buildResponseForTest("o que está acabando no estoque?").sessionIntent, "stock_full_baixo_estoque");
+  assert.equal(sandbox.window.EloAssistente.buildResponseForTest("quais itens precisam de reposição?").sessionIntent, "stock_full_baixo_estoque");
+  assert.equal(sandbox.window.EloAssistente.buildResponseForTest("tem produto com estoque baixo?").sessionIntent, "stock_full_baixo_estoque");
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo consulta somente zerados e informa dia sem alerta de minimo", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({ balances: [
+    { itemId: "zero", id: "zero", name: "Argamassa AC-II", unit: "saco", balance: 0, realBalance: 0, minimumStock: 5, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "low", id: "low", name: "Cimento CP II", unit: "saco", balance: 3, realBalance: 3, minimumStock: 10, companyId: "company-a", environmentId: "env-a" }
+  ] });
+  const zeros = sandbox.window.EloAssistente.buildResponseForTest("tem produto zerado no estoque?");
+
+  assert.equal(zeros.sessionIntent, "stock_full_zerados");
+  assert.match(zeros.fullAnswer, /Itens zerados:/);
+  assert.match(zeros.fullAnswer, /Argamassa AC-II/);
+  assert.doesNotMatch(zeros.fullAnswer, /Cimento CP II/);
+
+  const noAlert = loadEloStockExitSandbox_({ balances: [
+    { itemId: "ok", id: "ok", name: "Brita", unit: "m3", balance: 12, realBalance: 12, minimumStock: 5, companyId: "company-a", environmentId: "env-a" }
+  ] });
+  assert.equal(noAlert.sandbox.window.EloAssistente.buildResponseForTest("quais itens estão abaixo do mínimo?").fullAnswer, "Nenhum item está abaixo do estoque mínimo.");
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo respeita isolamento company e environment na consulta de minimo", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    balances: [
+      { itemId: "ok", id: "ok", name: "Cimento CP II", unit: "saco", balance: 3, realBalance: 3, minimumStock: 10, companyId: "company-a", environmentId: "env-a" },
+      { itemId: "env", id: "env", name: "Outro ambiente", unit: "saco", balance: 0, realBalance: 0, minimumStock: 10, companyId: "company-a", environmentId: "env-b" },
+      { itemId: "tenant", id: "tenant", name: "Outra empresa", unit: "saco", balance: 0, realBalance: 0, minimumStock: 10, companyId: "company-b", environmentId: "env-a" }
+    ]
+  });
+
+  const answer = sandbox.window.EloAssistente.buildResponseForTest("quais itens precisam de reposição?");
+
+  assert.match(answer.fullAnswer, /Cimento CP II/);
+  assert.doesNotMatch(answer.fullAnswer, /Outro ambiente/);
+  assert.doesNotMatch(answer.fullAnswer, /Outra empresa/);
+  assert.match(answer.fullAnswer, /Total: 1 item\./);
   assert.equal(exitCalls.length + entryCalls.length, 0);
 });
 

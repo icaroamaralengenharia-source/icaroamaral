@@ -21122,7 +21122,7 @@ function isEloResidentialNewPipelineEnabled_() {
   function isEloStockLowQuestion_(message) {
     const text = normalizeText(message || "");
     if (isEloStockConceptQuestion_(message)) return false;
-    return /\b(abaixo|baixo|baixos|baixa|atencao|aten..o|minimo|m.nimo|reposicao|reposi..o)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
+    return /\b(abaixo|baixo|baixos|baixa|atencao|aten..o|minimo|m.nimo|reposicao|reposi..o|acabando|acabar|faltando|falta)\b/.test(text) && /\b(estoque|stock|produto|produtos|itens|item|almoxarifado)\b/.test(text);
   }
 
   function isEloStockZeroQuestion_(message) {
@@ -21304,25 +21304,73 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
+  function getEloStockNumber_(value) {
+    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    const parsed = Number(String(value == null ? "" : value).replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function getEloStockMinimumValue_(item) {
+    if (!item) return 0;
+    if (item.minimumStock != null && item.minimumStock !== "") return getEloStockNumber_(item.minimumStock);
+    if (item.minStock != null && item.minStock !== "") return getEloStockNumber_(item.minStock);
+    return 0;
+  }
+
+  function getEloStockBalanceValue_(item) {
+    if (!item) return 0;
+    if (item.balance != null && item.balance !== "") return getEloStockNumber_(item.balance);
+    if (item.realBalance != null && item.realBalance !== "") return getEloStockNumber_(item.realBalance);
+    if (item.currentStock != null && item.currentStock !== "") return getEloStockNumber_(item.currentStock);
+    return 0;
+  }
+
+  function classifyEloStockMinimumStatus_(balance, minimum) {
+    if (balance <= 0) return "ZERADO";
+    if (minimum > 0 && balance < minimum) return "ABAIXO DO MÍNIMO";
+    if (minimum > 0 && balance === minimum) return "NO MÍNIMO";
+    return "OK";
+  }
+
+  function formatEloStockMinimumLine_(item) {
+    const balance = getEloStockBalanceValue_(item);
+    const minimum = getEloStockMinimumValue_(item);
+    const missing = Math.max(minimum - balance, 0);
+    const status = classifyEloStockMinimumStatus_(balance, minimum);
+    const name = item && item.name || "Produto";
+    const unit = item && item.unit || "un";
+    const balanceText = status === "ZERADO"
+      ? "ZERADO"
+      : "saldo " + formatEloStockQuantity_(balance) + " " + unit;
+    return "- " + name + " — " + balanceText + " — mínimo " + formatEloStockQuantity_(minimum) + " — faltam " + formatEloStockQuantity_(missing);
+  }
+
   function buildEloStockLowAnswer_(message) {
     if (!isEloStockLowQuestion_(message) && !isEloStockZeroQuestion_(message)) return null;
     const balances = getEloOperationalAlmoxBalances_();
-    const zeros = balances.filter(function (item) { return Number(item.balance || item.realBalance || 0) <= 0; });
-    const lows = balances.filter(function (item) {
-      const balance = Number(item.balance || item.realBalance || 0);
-      const minimum = Number(item.minimumStock || 0);
-      return balance > 0 && minimum > 0 && balance <= minimum;
-    });
     const wantsOnlyZero = isEloStockZeroQuestion_(message) && !isEloStockLowQuestion_(message);
+    const candidates = balances.filter(function (item) {
+      const balance = getEloStockBalanceValue_(item);
+      const minimum = getEloStockMinimumValue_(item);
+      if (balance <= 0) return true;
+      if (minimum <= 0) return false;
+      return balance <= minimum;
+    }).sort(function (a, b) {
+      const order = { "ZERADO": 0, "ABAIXO DO MÍNIMO": 1, "NO MÍNIMO": 2, OK: 3 };
+      const statusA = classifyEloStockMinimumStatus_(getEloStockBalanceValue_(a), getEloStockMinimumValue_(a));
+      const statusB = classifyEloStockMinimumStatus_(getEloStockBalanceValue_(b), getEloStockMinimumValue_(b));
+      return order[statusA] - order[statusB] || String(a && a.name || "").localeCompare(String(b && b.name || ""));
+    });
+    const items = wantsOnlyZero ? candidates.filter(function (item) {
+      return getEloStockBalanceValue_(item) <= 0;
+    }) : candidates;
     const lines = [];
     if (!balances.length) lines.push("Não encontrei produtos no estoque atual.");
-    else if (wantsOnlyZero) {
-      lines.push(zeros.length ? "Produtos zerados/críticos:" : "Não encontrei produto zerado no estoque atual.");
-      zeros.slice(0, 12).forEach(function (item) { lines.push("- " + (item.name || "Produto") + ": " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
-    } else {
-      lines.push("Zerado/crítico: " + zeros.length + ". Baixo/atenção: " + lows.length + ".");
-      zeros.slice(0, 8).forEach(function (item) { lines.push("- Zerado: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un")); });
-      lows.slice(0, 8).forEach(function (item) { lines.push("- Baixo: " + (item.name || "Produto") + " — " + formatEloStockQuantity_(item.balance || item.realBalance || 0) + " " + (item.unit || "un") + " (mín. " + formatEloStockQuantity_(item.minimumStock || 0) + ")"); });
+    else if (!items.length) lines.push(wantsOnlyZero ? "Nenhum item está zerado no estoque atual." : "Nenhum item está abaixo do estoque mínimo.");
+    else {
+      lines.push(wantsOnlyZero ? "Itens zerados:" : "Itens que precisam de reposição:");
+      items.slice(0, 12).forEach(function (item) { lines.push(formatEloStockMinimumLine_(item)); });
+      lines.push("Total: " + items.length + " " + (items.length === 1 ? "item." : "itens."));
     }
     return {
       shortAnswer: lines[0],
@@ -21333,7 +21381,6 @@ function isEloResidentialNewPipelineEnabled_() {
       sessionIntent: wantsOnlyZero ? "stock_full_zerados" : "stock_full_baixo_estoque"
     };
   }
-
   function getEloStockMovementTypeLabel_(movement) {
     const type = normalizeText(movement && movement.type || "");
     if (type === "entrada") return "Entrada";
