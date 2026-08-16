@@ -22977,6 +22977,9 @@
     const environmentId = clean(safe.environmentId) || getActiveStockEnvironmentId_();
     const items = Array.isArray(safe.items) ? safe.items : [];
 
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:out", "Usuario sem permissao para registrar saida.")) {
+      return { ok: false, message: "Usuario sem permissao para registrar saida." };
+    }
     if (!releaseId) return { ok: false, message: "releaseId obrigatorio para confirmar saida." };
     if (!items.length) return { ok: false, message: "Nenhum item liberavel informado." };
     if (clean(environmentId) !== clean(getActiveStockEnvironmentId_())) {
@@ -22998,8 +23001,11 @@
       const quantity = parseNumber_(item.releaseQuantity || item.quantity);
       const balance = findOperationalBalanceByItemId_(before, itemId);
       const available = parseNumber_(balance && (balance.balance || balance.realBalance));
+      const requestedUnit = normalizeOperationalEntryUnit_(item.unit);
+      const registeredUnit = normalizeOperationalEntryUnit_(balance && balance.unit || "un");
       if (!itemId || quantity <= 0) blocked.push({ item: item, message: "Item ou quantidade invalida." });
       else if (!balance) blocked.push({ item: item, message: "Item nao encontrado no Almoxarifado." });
+      else if (requestedUnit && registeredUnit && requestedUnit !== registeredUnit) blocked.push({ item: item, message: "Unidade informada diferente da unidade cadastrada." });
       else if (quantity > available) blocked.push({ item: item, message: "Saldo insuficiente." });
     });
     if (blocked.length) {

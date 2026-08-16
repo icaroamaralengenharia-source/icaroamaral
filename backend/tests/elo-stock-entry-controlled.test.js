@@ -188,12 +188,12 @@ test("Elo propaga bloqueio de permissao movements:in da ponte oficial", () => {
   assert.equal(balances.find((item) => item.itemId === "item-cimento").balance, 42);
 });
 
-test("Elo mantem saida bloqueada e preserva Stock Read e cadastro", () => {
+test("Elo mostra preview de saida sem escrita e preserva Stock Read e cadastro", () => {
   const { sandbox, calls } = loadEloStockEntrySandbox_();
 
   const exit = sandbox.window.EloAssistente.buildResponseForTest("retire 10 sacos de cimento");
-  assert.equal(exit.sessionIntent, "stock_full_exit_blocked");
-  assert.match(exit.fullAnswer, /Saida pelo ELO ainda nao esta habilitada/);
+  assert.equal(exit.sessionIntent, "stock_exit_preview");
+  assert.match(exit.fullAnswer, /Saida de estoque/);
   assert.equal(calls.length, 0);
 
   const balance = sandbox.window.EloAssistente.buildResponseForTest("qual saldo do cimento no estoque?");
