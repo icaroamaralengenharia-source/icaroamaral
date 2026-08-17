@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-08-17T13:04:24.980Z",
-  "coletadoEm": "2026-08-17T13:04:24.980Z",
+  "atualizadoEm": "2026-08-17T13:52:17.961Z",
+  "coletadoEm": "2026-08-17T13:52:17.961Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "8c365134f871c353",
+      "titulo": "Termina na quinta-feira prazo para solicitação de voto em trânsito",
+      "resumo": "Termina na próxima quinta-feira (20) o prazo para o eleitor solicitar a habilitação para votar em trânsito nas eleições de outubro. A solicitação pode ser feita pela página do Tribunal Superior Eleitoral (TSE) na internet ou nos cartórios eleitorais em todo o país.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/justica/noticia/2026-08/termina-na-quinta-feira-prazo-para-solicitacao-de-voto-em-transito",
+      "publicadoEm": "2026-08-17T12:37:00.000Z",
+      "coletadoEm": "2026-08-17T13:52:17.961Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/vV4uiZXVSxrvj_LLytZrfqqH0As=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/07/17/dji_20260716174410_0332_d.jpg?itok=1PBsy9Xl",
+      "imagemAlt": "Termina na quinta-feira prazo para solicitação de voto em trânsito",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "e209e820b37f65d8",
       "titulo": "Deu na mídia: indicadores econômicos da construção repercutem na imprensa",
