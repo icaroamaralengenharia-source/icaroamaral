@@ -21171,7 +21171,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return true;
     }
     if (/^quanto\s+.+\s+(?:ainda\s+)?tem\??$/.test(text)) {
-      return !!findEloStockBalanceByQuestion_(message, getEloOperationalAlmoxBalances_()).item;
+      return !!findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message)).item;
     }
     return false;
   }
@@ -21218,6 +21218,20 @@ function isEloResidentialNewPipelineEnabled_() {
     return normalizeEloStockCode_(item && (item.sku || item.fiscalCode || item.code));
   }
 
+  function getEloStockEnvironmentId_(item) {
+    return sanitizeUserText(item && (item.environmentId || item.stockEnvironmentId || item.organizationId) || "");
+  }
+
+  function getEloStockEnvironmentLabel_(item) {
+    const environmentId = getEloStockEnvironmentId_(item);
+    if (!environmentId) return "";
+    const environment = getEloOperationalAlmoxEnvironments_().find(function (candidate) {
+      const candidateId = sanitizeUserText(candidate && (candidate.id || candidate.environmentId) || "");
+      return candidateId === environmentId;
+    }) || null;
+    return sanitizeUserText(environment && (environment.name || environment.environmentName || environment.label) || environmentId);
+  }
+
   function findEloStockBalanceByQuery_(query, balances) {
     const cleanQuery = sanitizeUserText(query || "").trim();
     const queryCode = normalizeEloStockCode_(cleanQuery);
@@ -21252,6 +21266,18 @@ function isEloResidentialNewPipelineEnabled_() {
     return { status: "ambiguous", item: null, matches: bestMatches, query: cleanQuery, source: "name_partial" };
   }
 
+  function findEloStockBalanceByQueryInCurrentTenant_(query) {
+    const activeBalances = getEloOperationalAlmoxBalances_();
+    const activeResolution = findEloStockBalanceByQuery_(query, activeBalances);
+    if (activeResolution.status !== "not_found") {
+      return Object.assign({}, activeResolution, { scope: "active_environment", balances: activeBalances });
+    }
+
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const allResolution = findEloStockBalanceByQuery_(query, allBalances);
+    return Object.assign({}, allResolution, { scope: "all_environments", balances: allBalances });
+  }
+
   function findEloStockBalanceByQuestion_(message, balances) {
     return findEloStockBalanceByQuery_(extractEloStockBalanceQuery_(message), balances);
   }
@@ -21266,25 +21292,31 @@ function isEloResidentialNewPipelineEnabled_() {
     const lines = ["Encontrei " + matches.length + " produtos:"];
     matches.forEach(function (item) {
       const sku = item.sku || item.fiscalCode ? " (SKU " + (item.sku || item.fiscalCode) + ")" : "";
-      lines.push("- " + (item.name || "Produto sem nome") + sku);
+      const environment = getEloStockEnvironmentLabel_(item);
+      lines.push("- " + (item.name || "Produto sem nome") + sku + (environment ? " — Ambiente: " + environment : ""));
     });
     lines.push("", "Qual deles?");
     return {
       shortAnswer: "Encontrei mais de um produto. Qual deles?",
       fullAnswer: lines.join("\n"),
-      nextAction: "Responda com o nome completo ou SKU.",
+      nextAction: "Responda com o nome completo, SKU ou ambiente/obra.",
       canSave: false,
       sessionTheme: "stock_full_readonly",
       sessionIntent: "stock_full_ambiguous"
     };
   }
 
+  function formatEloStockResolvedEnvironmentLine_(item, resolution) {
+    if (!resolution || resolution.scope !== "all_environments") return "";
+    const environment = getEloStockEnvironmentLabel_(item);
+    return environment ? "Ambiente afetado: " + environment : "";
+  }
+
   function buildEloStockBalanceAnswer_(message) {
     if (!isEloStockBalanceQuestion_(message)) {
       return null;
     }
-    const balances = getEloOperationalAlmoxBalances_();
-    const match = findEloStockBalanceByQuestion_(message, balances);
+    const match = findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message));
     if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
     if (!match.item) {
       return {
@@ -21305,6 +21337,8 @@ function isEloResidentialNewPipelineEnabled_() {
       ? "SKU " + (item.sku || item.fiscalCode)
       : (item.name || "Item");
     const lines = [prefix + ": " + quantity + " " + unit + (match.source === "sku" ? "." : " em estoque.")];
+    const environmentLine = formatEloStockResolvedEnvironmentLine_(item, match);
+    if (environmentLine) lines.push(environmentLine + ".");
     if (minimum > 0) lines.push("Estoque mínimo: " + formatEloStockQuantity_(minimum) + " " + unit + ".");
     if (Number(item.balance || item.realBalance || 0) <= 0) lines.push("Status: zerado/crítico.");
     else if (minimum > 0 && Number(item.balance || item.realBalance || 0) <= minimum) lines.push("Status: baixo/atenção.");
@@ -21603,8 +21637,7 @@ function isEloResidentialNewPipelineEnabled_() {
       return { shortAnswer: lines[0], fullAnswer: lines.join("\n"), nextAction: "Consulta somente leitura. Nenhum movimento foi criado.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_ultimas_saidas" };
     }
 
-    const balances = getEloOperationalAlmoxBalances_();
-    const match = findEloStockBalanceByQuestion_(message, balances);
+    const match = findEloStockBalanceByQueryInCurrentTenant_(extractEloStockBalanceQuery_(message));
     if (match.status === "ambiguous") return buildEloStockAmbiguityAnswer_(match);
     if (!match.item) {
       return { shortAnswer: "Não encontrei esse item no estoque atual.", fullAnswer: "Não encontrei esse item no estoque atual. Confira o nome ou SKU e tente novamente.", nextAction: "Use o nome completo ou SKU do produto.", canSave: false, sessionTheme: "stock_full_readonly", sessionIntent: "stock_full_historico" };
@@ -21712,8 +21745,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!command.productQuery) return buildEloStockEntryInvalidAnswer_("Nao identifiquei o produto da entrada. Nenhum movimento foi criado.", "Informe produto, quantidade e unidade.");
     if (!(command.quantity > 0)) return buildEloStockEntryInvalidAnswer_("Quantidade invalida para entrada. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
 
-    const balances = getEloOperationalAlmoxBalances_();
-    const resolution = findEloStockBalanceByQuery_(command.productQuery, balances);
+    const resolution = findEloStockBalanceByQueryInCurrentTenant_(command.productQuery);
     if (resolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(resolution), { sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_ambiguous" });
     if (!resolution.item) return buildEloStockEntryInvalidAnswer_("Nao encontrei esse produto no Stock. Nenhum cadastro foi criado automaticamente.", "Use um SKU existente ou o nome cadastrado no Stock.");
 
@@ -21731,7 +21763,7 @@ function isEloResidentialNewPipelineEnabled_() {
       createdAt: Date.now(),
       question: sanitizeUserText(message).slice(0, 500),
       command: command,
-      item: { id: getEloStockEntryItemId_(item), itemId: getEloStockEntryItemId_(item), name: item.name || "Produto", sku: item.sku || item.fiscalCode || item.code || "", unit: unit },
+      item: { id: getEloStockEntryItemId_(item), itemId: getEloStockEntryItemId_(item), name: item.name || "Produto", sku: item.sku || item.fiscalCode || item.code || "", unit: unit, companyId: item.companyId || "", environmentId: item.environmentId || "" },
       quantity: command.quantity,
       unit: unit,
       balanceBefore: balanceBefore,
@@ -21742,13 +21774,14 @@ function isEloResidentialNewPipelineEnabled_() {
       "Entrada no Stock",
       "",
       "Produto: " + (item.name || "Produto"),
+      formatEloStockResolvedEnvironmentLine_(item, resolution),
       "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit,
       "Saldo atual: " + formatEloStockQuantity_(balanceBefore) + " " + unit,
       "Saldo previsto: " + formatEloStockQuantity_(balanceAfter) + " " + unit,
       "",
       "Confirmar?"
     ];
-    return { shortAnswer: "Entrada pendente de confirmacao.", fullAnswer: lines.join("\n"), nextAction: "Responda sim, confirmar ou pode registrar para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_preview", stockEntry: entry };
+    return { shortAnswer: "Entrada pendente de confirmacao.", fullAnswer: lines.filter(Boolean).join("\n"), nextAction: "Responda sim, confirmar ou pode registrar para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_preview", stockEntry: entry };
   }
 
   function buildEloConfirmedStockEntryAnswer_(entry, result) {
@@ -21887,7 +21920,7 @@ function isEloResidentialNewPipelineEnabled_() {
   function findEloStockExitCurrentItem_(exit) {
     const itemId = getEloStockEntryItemId_(exit && exit.item || {});
     const balances = getEloOperationalAlmoxBalances_();
-    return findEloStockExitCurrentSnapshotItem_(balances, itemId);
+    return findEloStockExitCurrentSnapshotItem_(balances, itemId) || findEloStockExitCurrentSnapshotItem_(getEloOperationalAlmoxBalances_({ allEnvironments: true }), itemId);
   }
 
   function buildEloStockExitPreviewAnswer_(message) {
@@ -21896,8 +21929,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!command.productQuery) return buildEloStockExitInvalidAnswer_("Nao identifiquei o produto da saida. Nenhum movimento foi criado.", "Informe produto, quantidade e unidade.");
     if (!(command.quantity > 0)) return buildEloStockExitInvalidAnswer_("Quantidade invalida para saida. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
 
-    const balances = getEloOperationalAlmoxBalances_();
-    const resolution = findEloStockBalanceByQuery_(command.productQuery, balances);
+    const resolution = findEloStockBalanceByQueryInCurrentTenant_(command.productQuery);
     if (resolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(resolution), { sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_ambiguous" });
     if (!resolution.item) return buildEloStockExitInvalidAnswer_("Nao encontrei esse produto no Stock. Nenhum cadastro foi criado automaticamente.", "Use um SKU existente ou o nome cadastrado no Stock.");
 
@@ -21931,13 +21963,14 @@ function isEloResidentialNewPipelineEnabled_() {
       "Saida de estoque",
       "",
       "Produto: " + (item.name || "Produto"),
+      formatEloStockResolvedEnvironmentLine_(item, resolution),
       "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit,
       "Saldo atual: " + formatEloStockQuantity_(balanceBefore) + " " + unit,
       "Saldo previsto: " + formatEloStockQuantity_(balanceAfter) + " " + unit,
       "",
       "Confirma a saida?"
     ];
-    return { shortAnswer: "Saida pendente de confirmacao.", fullAnswer: lines.join("\n"), nextAction: "Responda sim, confirmar ou confirmo para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_preview", stockExit: exit };
+    return { shortAnswer: "Saida pendente de confirmacao.", fullAnswer: lines.filter(Boolean).join("\n"), nextAction: "Responda sim, confirmar ou confirmo para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_preview", stockExit: exit };
   }
 
   function buildEloConfirmedStockExitAnswer_(exit, result) {

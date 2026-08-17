@@ -428,6 +428,85 @@ test("Elo mantem entrada funcionando apos habilitar saida", () => {
 
 
 
+test("Elo resolve produto direto primeiro no ambiente ativo", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    balances: [
+      { itemId: "active-cimento", id: "active-cimento", sku: "CIM-A", name: "Cimento Multi Ambiente", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+      { itemId: "other-cimento", id: "other-cimento", sku: "CIM-B", name: "Cimento Multi Ambiente", unit: "saco", balance: 40, realBalance: 40, companyId: "company-a", environmentId: "env-b" }
+    ]
+  });
+
+  const preview = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("registre entrada de 5 sacos de Cimento Multi Ambiente");
+
+  assert.equal(preview.sessionIntent, "stock_entry_preview");
+  assert.equal(preview.stockEntry.item.itemId, "active-cimento");
+  assert.match(preview.fullAnswer, /Saldo atual: 10 saco/);
+  assert.doesNotMatch(preview.fullAnswer, /Ambiente afetado/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo resolve produto direto em outro ambiente do mesmo tenant com fallback seguro", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    balances: [
+      { itemId: "remote-cimento", id: "remote-cimento", sku: "CIM-REMOTE", name: "Cimento Remoto ELO", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-b" }
+    ]
+  });
+
+  const entry = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("registre entrada de 5 sacos de Cimento Remoto ELO");
+  const exit = sandbox.window.EloAssistente.buildStockExitAnswerForTest("retire 4 sacos de Cimento Remoto ELO");
+  const query = sandbox.window.EloAssistente.buildResponseForTest("qual saldo do Cimento Remoto ELO no estoque?");
+
+  assert.equal(entry.sessionIntent, "stock_entry_preview");
+  assert.equal(entry.stockEntry.item.itemId, "remote-cimento");
+  assert.match(entry.fullAnswer, /Ambiente afetado: Obra A/);
+  assert.match(entry.fullAnswer, /Saldo atual: 10 saco/);
+  assert.match(entry.fullAnswer, /Saldo previsto: 15 saco/);
+  assert.equal(exit.sessionIntent, "stock_exit_preview");
+  assert.equal(exit.stockExit.item.itemId, "remote-cimento");
+  assert.match(exit.fullAnswer, /Ambiente afetado: Obra A/);
+  assert.match(exit.fullAnswer, /Saldo previsto: 6 saco/);
+  assert.equal(query.sessionIntent, "stock_full_saldo");
+  assert.match(query.fullAnswer, /Cimento Remoto ELO: 10 saco em estoque/);
+  assert.match(query.fullAnswer, /Ambiente afetado: Obra A/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo bloqueia ambiguidade quando fallback encontra o mesmo produto em ambientes diferentes", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-c",
+    balances: [
+      { itemId: "amb-a", id: "amb-a", sku: "AMB-A", name: "Cimento Ambiguo", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+      { itemId: "amb-b", id: "amb-b", sku: "AMB-B", name: "Cimento Ambiguo", unit: "saco", balance: 8, realBalance: 8, companyId: "company-a", environmentId: "env-b" }
+    ]
+  });
+
+  const answer = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("registre entrada de 5 sacos de Cimento Ambiguo");
+
+  assert.equal(answer.sessionIntent, "stock_entry_ambiguous");
+  assert.match(answer.fullAnswer, /Ambiente: Almoxarifado Central/);
+  assert.match(answer.fullAnswer, /Ambiente: Obra A/);
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
+
+test("Elo nao resolve produto de outro tenant no fallback allEnvironments", () => {
+  const { sandbox, exitCalls, entryCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    balances: [
+      { itemId: "tenant-b", id: "tenant-b", sku: "TEN-B", name: "Cimento Outro Tenant", unit: "saco", balance: 10, realBalance: 10, companyId: "company-b", environmentId: "env-b" }
+    ]
+  });
+
+  const answer = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("registre entrada de 5 sacos de Cimento Outro Tenant");
+
+  assert.equal(answer.sessionIntent, "stock_entry_blocked");
+  assert.equal(exitCalls.length + entryCalls.length, 0);
+});
 test("Elo consulta saidas de hoje sem escrever", () => {
   const today = new Date();
   const dateKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
