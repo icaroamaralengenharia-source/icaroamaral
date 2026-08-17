@@ -1669,6 +1669,7 @@
     if (results[0].error || results[1].error || results[2].error) throw (results[0].error || results[1].error || results[2].error);
     stockFullRemoteItems = (results[0].data || []).map(mapSupabaseProductToAlmox_);
     stockFullRemoteItemsLoaded = true;
+    invalidateStockFullManagerDataCache_();
     const mappedMovements = (results[1].data || []).map(mapSupabaseMovementToAlmox_);
     stockFullRemoteEntries = mappedMovements.filter(function (movement) { return movement.type === "entrada"; });
     stockFullRemoteExits = mappedMovements.filter(function (movement) { return movement.type === "saida"; });
@@ -1753,6 +1754,7 @@
     }
     stockFullRemoteItems = data.items.map(mapStockFullRemoteItemToAlmox_);
     stockFullRemoteItemsLoaded = true;
+    invalidateStockFullManagerDataCache_();
     updateAlmoxOfflineStatus_();
     return { ok: true, items: stockFullRemoteItems };
   }
@@ -10679,8 +10681,11 @@
         throw new Error("stock_full_remote_item_create_failed");
       }
       const remoteItem = mapStockFullRemoteItemToAlmox_(result.item);
+      stockFullRemoteItems = stockFullRemoteItems.filter(function (item) { return clean(item && item.id) !== clean(remoteItem.id); });
       stockFullRemoteItems.push(remoteItem);
       stockFullRemoteItemsLoaded = true;
+      invalidateStockFullManagerDataCache_();
+      buildStockFullRemoteReadyState_();
       // TODO Fase 3: sincronizacao/importacao controlada de itens locais para nuvem.
       return {
         ok: true,
@@ -10790,6 +10795,8 @@
       if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
         stockFullRemoteItems.push(updatedItem);
       }
+      invalidateStockFullManagerDataCache_();
+      buildStockFullRemoteReadyState_();
       stockFullRemoteEntries.unshift(result.entry);
       await loadStockFullRemoteAuditLog_().catch(function () {
         stockFullRemoteAuditLog = [];
@@ -10874,6 +10881,8 @@
       if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
         stockFullRemoteItems.push(updatedItem);
       }
+      invalidateStockFullManagerDataCache_();
+      buildStockFullRemoteReadyState_();
       stockFullRemoteExits.unshift(result.exit);
       await loadStockFullRemoteAuditLog_().catch(function () {
         stockFullRemoteAuditLog = [];
