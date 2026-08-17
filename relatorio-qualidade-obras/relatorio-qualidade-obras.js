@@ -1750,6 +1750,14 @@
     });
   }
 
+  async function createStockFullRemoteTransfer_(transfer) {
+    return await fetchStockFullJson_("/api/stock-full/transfers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(transfer)
+    });
+  }
+
   function getStockFullDeviceId_() {
     if (window.StockFullCore && typeof window.StockFullCore.getDeviceId === "function") {
       return clean(window.StockFullCore.getDeviceId());
@@ -1801,6 +1809,84 @@
       syncStatus: "synced",
       source: "elo"
     };
+  }
+
+  function markConfirmedTransferRemoteStatus_(transferId, patch) {
+    const id = clean(transferId);
+    if (!id) return [];
+    const state = loadAlmoxState_();
+    const updated = [];
+    state.movements = (state.movements || []).map(function (candidate) {
+      if (!candidate || clean(candidate.transferId || candidate.operationId) !== id || clean(candidate.origin) !== "elo_transfer") return candidate;
+      const next = Object.assign({}, candidate, patch || {}, { updatedAt: new Date().toISOString() });
+      updated.push(next);
+      return next;
+    });
+    if (updated.length) saveAlmoxState_(state);
+    return updated;
+  }
+
+  function buildConfirmedStockTransferRemotePayload_(payload, movements) {
+    const safe = payload || {};
+    const transferId = clean(safe.transferId || safe.operationId);
+    return {
+      transferId: transferId,
+      sourceItemId: clean(safe.sourceItemId),
+      destinationItemId: clean(safe.destinationItemId),
+      quantity: parseNumber_(safe.quantity),
+      unitCost: parseNumber_(safe.unitCost),
+      responsible: clean(safe.responsible) || getCurrentStockFullSession_().userName || "ELO",
+      notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".",
+      deviceId: getStockFullDeviceId_(),
+      syncStatus: "synced",
+      source: "elo",
+      localExitId: clean(movements && movements[0] && movements[0].id),
+      localEntryId: clean(movements && movements[1] && movements[1].id)
+    };
+  }
+
+  async function syncConfirmedTransfer_(payload, movements) {
+    const transferId = clean(payload && (payload.transferId || payload.operationId));
+    if (!transferId) return { ok: false, pending: true, error: "transfer_id_required" };
+    markConfirmedTransferRemoteStatus_(transferId, {
+      localConfirmationStatus: "local_confirmed",
+      remoteSyncStatus: "remote_pending",
+      remoteSyncError: "",
+      remoteSyncStartedAt: new Date().toISOString()
+    });
+    if (!isStockFullRemoteActive_()) {
+      const inactive = markConfirmedTransferRemoteStatus_(transferId, { remoteSyncStatus: "remote_pending", remoteSyncError: "stock_full_remote_inactive" });
+      return { ok: false, pending: true, error: "stock_full_remote_inactive", movements: inactive };
+    }
+    try {
+      const result = await createStockFullRemoteTransfer_(buildConfirmedStockTransferRemotePayload_(payload, movements));
+      if (!result || result.ok !== true) {
+        throw new Error(clean(result && result.error) || clean(result && result.message) || "stock_full_remote_transfer_failed");
+      }
+      const syncedAt = new Date().toISOString();
+      const updated = markConfirmedTransferRemoteStatus_(transferId, {
+        remoteSyncStatus: "remote_confirmed",
+        syncStatus: "synced",
+        remoteSyncError: "",
+        remoteTransferId: clean(result.transferId || transferId),
+        remoteDuplicate: Boolean(result.duplicate),
+        remoteSyncedAt: syncedAt,
+        remoteResult: result
+      });
+      if (result.sourceItem && result.sourceItem.id) stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === result.sourceItem.id ? mapStockFullRemoteItemToAlmox_(result.sourceItem) : item; });
+      if (result.destinationItem && result.destinationItem.id) stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === result.destinationItem.id ? mapStockFullRemoteItemToAlmox_(result.destinationItem) : item; });
+      if (result.exit) stockFullRemoteExits.unshift(result.exit);
+      if (result.entry) stockFullRemoteEntries.unshift(result.entry);
+      return { ok: true, result: result, movements: updated, duplicate: Boolean(result.duplicate) };
+    } catch (error) {
+      const message = clean(error && error.message) || "stock_full_remote_transfer_failed";
+      const failed = markConfirmedTransferRemoteStatus_(transferId, {
+        remoteSyncStatus: "remote_error",
+        remoteSyncError: message,
+        remoteSyncFailedAt: new Date().toISOString()
+      });
+      return { ok: false, pending: true, error: message, movements: failed };
+    }
   }
 
   async function syncConfirmedMovement_(movement, options) {
@@ -10337,11 +10423,11 @@
     const baseCompanyId = companyId || clean(sourceItem.companyId || sourceEnvironment.companyId || destinationEnvironment.companyId);
     const outMovement = {
       id: createId_("almmov"), companyId: baseCompanyId, environmentId: sourceEnvironmentId, itemId: sourceItem.id, productId: sourceItem.id,
-      type: "saida", quantity: quantity, unit: sourceItem.unit || safe.unit || "un", recipient: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), sector: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), purpose: "Transferencia confirmada pelo ELO", responsible: responsible, source: "elo", releaseId: transferId, transferId: transferId, operationId: transferId, destinationEnvironmentId: destinationEnvironmentId, destinationItemId: destinationItem.id, reason: "Transferencia de estoque", origin: "elo_transfer", date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
+      type: "saida", quantity: quantity, unit: sourceItem.unit || safe.unit || "un", recipient: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), sector: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), purpose: "Transferencia confirmada pelo ELO", responsible: responsible, source: "elo", releaseId: transferId, transferId: transferId, operationId: transferId, offlineUuid: transferId, deviceId: getStockFullDeviceId_(), localConfirmationStatus: "local_confirmed", remoteSyncStatus: "remote_pending", syncStatus: "remote_pending", destinationEnvironmentId: destinationEnvironmentId, destinationItemId: destinationItem.id, reason: "Transferencia de estoque", origin: "elo_transfer", date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
     };
     const inMovement = {
       id: createId_("almmov"), companyId: baseCompanyId, environmentId: destinationEnvironmentId, itemId: destinationItem.id, productId: destinationItem.id,
-      type: "entrada", quantity: quantity, unit: destinationItem.unit || sourceItem.unit || safe.unit || "un", responsible: responsible, documentNumber: transferId, unitCost: parseNumber_(safe.unitCost), total: quantity * parseNumber_(safe.unitCost), reason: "Transferencia de estoque", supplier: clean(sourceEnvironment.environmentName || sourceEnvironment.unitName || sourceEnvironment.workName || sourceEnvironment.id), origin: "elo_transfer", sourceEnvironmentId: sourceEnvironmentId, sourceItemId: sourceItem.id, transferId: transferId, operationId: transferId, date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
+      type: "entrada", quantity: quantity, unit: destinationItem.unit || sourceItem.unit || safe.unit || "un", responsible: responsible, documentNumber: transferId, unitCost: parseNumber_(safe.unitCost), total: quantity * parseNumber_(safe.unitCost), reason: "Transferencia de estoque", supplier: clean(sourceEnvironment.environmentName || sourceEnvironment.unitName || sourceEnvironment.workName || sourceEnvironment.id), origin: "elo_transfer", sourceEnvironmentId: sourceEnvironmentId, sourceItemId: sourceItem.id, transferId: transferId, operationId: transferId, offlineUuid: transferId, deviceId: getStockFullDeviceId_(), localConfirmationStatus: "local_confirmed", remoteSyncStatus: "remote_pending", syncStatus: "remote_pending", date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
     };
 
     state.movements.push(outMovement);
@@ -10351,7 +10437,8 @@
     saveAlmoxState_(state);
     syncStockDemoRemoteAfterLocalChange_();
     const after = getOperationalAlmoxBalanceSnapshot_({ allEnvironments: true });
-    return { ok: true, transferId: transferId, sourceItemId: sourceItem.id, destinationItemId: destinationItem.id, quantity: quantity, unit: sourceItem.unit || destinationItem.unit || "un", sourceBalanceBefore: sourceBalanceBefore, sourceBalanceAfter: roundQuantity_(sourceBalanceBefore - quantity), destinationBalanceBefore: destinationBalanceBefore, destinationBalanceAfter: roundQuantity_(destinationBalanceBefore + quantity), before: before, after: after, movements: [outMovement, inMovement], history: [outMovement, inMovement] };
+    const transferPayload = { transferId: transferId, sourceItemId: sourceItem.id, destinationItemId: destinationItem.id, quantity: quantity, unitCost: parseNumber_(safe.unitCost), responsible: responsible, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + "." };
+    return { ok: true, transferId: transferId, sourceItemId: sourceItem.id, destinationItemId: destinationItem.id, quantity: quantity, unit: sourceItem.unit || destinationItem.unit || "un", sourceBalanceBefore: sourceBalanceBefore, sourceBalanceAfter: roundQuantity_(sourceBalanceBefore - quantity), destinationBalanceBefore: destinationBalanceBefore, destinationBalanceAfter: roundQuantity_(destinationBalanceBefore + quantity), before: before, after: after, movements: [outMovement, inMovement], history: [outMovement, inMovement], remoteSync: syncConfirmedTransfer_(transferPayload, [outMovement, inMovement]) };
   }
 
   function normalizeOperationalStockProductName_(value) {
@@ -23357,6 +23444,7 @@
     createConfirmedEntry: createConfirmedOperationalEntry_,
     createConfirmedExit: createConfirmedOperationalExit_,
     createConfirmedTransfer: createConfirmedOperationalTransfer_,
-    syncConfirmedMovement: syncConfirmedMovement_
+    syncConfirmedMovement: syncConfirmedMovement_,
+    syncConfirmedTransfer: syncConfirmedTransfer_
   });
 })();

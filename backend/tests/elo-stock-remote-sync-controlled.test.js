@@ -62,9 +62,19 @@ test("remote sync uses existing endpoints and backend idempotency contract", () 
   assert.match(backendSource, /database\.rpc\("stock_full_apply_movement"/);
 });
 
-test("remote transfer remains unchanged in this stage", () => {
+test("remote transfer uses dedicated atomic endpoint and reconciles local movements", () => {
   const transferBody = functionBody_("createConfirmedOperationalTransfer_");
-  assert.doesNotMatch(transferBody, /syncConfirmedMovement_|createStockFullRemoteEntry_|createStockFullRemoteExit_|\/api\/stock-full\/transfers/);
+  const syncTransferBody = functionBody_("syncConfirmedTransfer_");
+  assert.doesNotMatch(transferBody, /syncConfirmedMovement_|createStockFullRemoteEntry_|createStockFullRemoteExit_/);
   assert.match(transferBody, /state\.movements\.push\(outMovement\)/);
   assert.match(transferBody, /state\.movements\.push\(inMovement\)/);
+  assert.match(transferBody, /remoteSync:\s*syncConfirmedTransfer_\(transferPayload, \[outMovement, inMovement\]\)/);
+  assert.match(syncTransferBody, /createStockFullRemoteTransfer_/);
+  assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_pending"/);
+  assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_confirmed"/);
+  assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_error"/);
+  assert.match(reportSource, /fetchStockFullJson_\("\/api\/stock-full\/transfers"/);
+  assert.match(reportSource, /syncConfirmedTransfer:\s*syncConfirmedTransfer_/);
+  assert.match(backendSource, /app\.post\("\/api\/stock-full\/transfers"[\s\S]*applyStockFullTransferRpc_\(database, session\.profile/);
+  assert.match(backendSource, /database\.rpc\("stock_full_apply_transfer"/);
 });
