@@ -50,6 +50,8 @@ function loadEloStockExitSandbox_(options = {}) {
   const entryCalls = [];
   const exitCalls = [];
   const transferCalls = [];
+  const syncCalls = [];
+  const remoteSyncResults = Array.isArray(options.remoteSyncResults) ? options.remoteSyncResults.slice() : null;
   const element = createElementStub_();
   const sandbox = {
     console,
@@ -159,19 +161,24 @@ function loadEloStockExitSandbox_(options = {}) {
         if (quantity > available) return { ok: false, message: "Saida bloqueada para evitar saldo negativo.", before, after: balances.map((entry) => ({ ...entry })), movements: [] };
         item.balance = available - quantity;
         item.realBalance = item.balance;
-        const movement = { id: "mov-exit-" + exitCalls.length, type: "saida", itemId: item.itemId, productId: item.itemId, quantity, unit: item.unit, material: item.name, balanceAfter: item.balance, releaseId, origin: "elo_release", source: payload.source || "elo" };
+        const movement = { id: "mov-exit-" + exitCalls.length, type: "saida", itemId: item.itemId, productId: item.itemId, quantity, unit: item.unit, material: item.name, balanceAfter: item.balance, releaseId, operationId: "elo:saida:" + releaseId + ":" + item.itemId, origin: "elo_release", source: payload.source || "elo" };
+        if (remoteSyncResults) movement.remoteSync = Promise.resolve(remoteSyncResults.shift() || { ok: true, movement });
         movements.unshift(movement);
         audit.unshift({ action: "movement_out_created", entityType: "stock_movements", entityId: movement.id, metadata: { itemId: item.itemId, quantity } });
         created.push(movement);
       }
       return { ok: true, releaseId, before, after: balances.map((entry) => ({ ...entry })), movements: created, history: created };
+    },
+    syncConfirmedMovement(movement) {
+      syncCalls.push(clone_(movement));
+      return Promise.resolve(remoteSyncResults && remoteSyncResults.length ? remoteSyncResults.shift() : { ok: true, movement });
     }
   };
   createContext(sandbox);
   runInContext(validatorContent, sandbox);
   runInContext(stockEngineContent, sandbox);
   runInContext(eloContent, sandbox);
-  return { sandbox, balances, movements, environments, audit, entryCalls, exitCalls, transferCalls };
+  return { sandbox, balances, movements, environments, audit, entryCalls, exitCalls, transferCalls, syncCalls };
 }
 
 
@@ -397,6 +404,31 @@ test("Elo revalida saldo no momento da confirmacao", () => {
   assert.equal(sandbox.window.EloAssistente.getPendingStockExitForTest(), null);
 });
 
+test("Elo nao confirma sucesso remoto quando sync de saida falha e retry usa a mesma operacao", async () => {
+  const { sandbox, balances, exitCalls, syncCalls } = loadEloStockExitSandbox_({
+    remoteSyncResults: [
+      { ok: false, pending: true, error: "remote_down" },
+      { ok: true, movement: { id: "remote-exit-1" } }
+    ]
+  });
+
+  const preview = sandbox.window.EloAssistente.buildStockExitAnswerForTest("retire 5 sacos de Cimento Teste ELO Saida");
+  assert.equal(preview.sessionIntent, "stock_exit_preview");
+
+  const blocked = await sandbox.window.EloAssistente.buildStockExitAnswerForTest("sim");
+  assert.equal(blocked.sessionIntent, "stock_exit_remote_sync_failed");
+  assert.match(blocked.fullAnswer, /remote_down/);
+  assert.equal(exitCalls.length, 1);
+  assert.equal(syncCalls.length, 0);
+  assert.equal(balances.find((item) => item.itemId === "item-cimento").balance, 5);
+
+  const retried = await sandbox.window.EloAssistente.buildStockExitAnswerForTest("confirmar");
+  assert.equal(retried.sessionIntent, "stock_exit_confirmed");
+  assert.equal(exitCalls.length, 1);
+  assert.equal(syncCalls.length, 1);
+  assert.equal(syncCalls[0].releaseId, exitCalls[0].releaseId);
+  assert.equal(balances.find((item) => item.itemId === "item-cimento").balance, 5);
+});
 test("Elo propaga bloqueio de permissao movements:out da ponte oficial", () => {
   const { sandbox, balances, movements, exitCalls } = loadEloStockExitSandbox_({ blockExit: true });
 

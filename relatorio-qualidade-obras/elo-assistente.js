@@ -22038,6 +22038,44 @@ function isEloResidentialNewPipelineEnabled_() {
     return lines.join("\n");
   }
 
+  function buildEloStockExitRemoteSyncBlockedAnswer_(exit, syncResult) {
+    const messageText = sanitizeUserText(syncResult && (syncResult.error || syncResult.message) || "stock_full_remote_sync_failed");
+    return {
+      shortAnswer: "Saida pendente de sincronizacao remota.",
+      fullAnswer: "A saida foi confirmada localmente, mas a sincronizacao remota falhou: " + messageText + ".\n\nIdempotencia: confirme novamente para tentar sincronizar a mesma operacao, sem criar nova baixa local.",
+      nextAction: "Responda confirmar para tentar sincronizar novamente a mesma saida.",
+      canSave: false,
+      sessionTheme: "stock_full_exit",
+      sessionIntent: "stock_exit_remote_sync_failed",
+      stockExit: exit
+    };
+  }
+
+  function getEloStockExitRemoteSyncPromises_(result) {
+    const movements = Array.isArray(result && result.movements) ? result.movements : [];
+    return movements.map(function (movement) { return movement && movement.remoteSync; }).filter(Boolean);
+  }
+
+  function finishEloStockExitConfirmation_(exit, result, syncResults) {
+    const safeSyncResults = Array.isArray(syncResults) ? syncResults : [];
+    const failedSync = safeSyncResults.find(function (syncResult) { return syncResult && syncResult.ok !== true; }) || null;
+    if (failedSync) {
+      exit.status = "remote_error";
+      exit.savedAt = Date.now();
+      exit.result = result;
+      exit.remoteSyncResults = safeSyncResults;
+      setEloPendingStockExit_(exit);
+      return buildEloStockExitRemoteSyncBlockedAnswer_(exit, failedSync);
+    }
+    exit.status = "saved";
+    exit.savedAt = Date.now();
+    exit.result = result;
+    exit.remoteSyncResults = safeSyncResults;
+    exit.confirmationText = buildEloConfirmedStockExitAnswer_(exit, result);
+    setEloPendingStockExit_(exit);
+    const intent = result && result.duplicate ? "stock_exit_idempotent" : "stock_exit_confirmed";
+    return { shortAnswer: result && result.duplicate ? "Essa saida ja foi confirmada." : "Saida registrada no Stock.", fullAnswer: result && result.duplicate ? exit.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova baixa." : exit.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: intent, stockExit: exit };
+  }
   function buildEloStockExitConfirmationAnswer_(message) {
     const exit = getEloPendingStockExit_();
     if (!exit) return null;
@@ -22055,6 +22093,21 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (exit.status === "saving") {
       return { shortAnswer: "Essa saida ja esta sendo registrada.", fullAnswer: "Essa saida ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_saving", stockExit: exit };
+    }
+    if (exit.status === "remote_error") {
+      const retryBridge = window.ObraReportOperationalStock;
+      const retryResult = exit.result || {};
+      const retryMovements = Array.isArray(retryResult.movements) ? retryResult.movements : [];
+      if (!retryBridge || typeof retryBridge.syncConfirmedMovement !== "function" || !retryMovements.length) {
+        return buildEloStockExitRemoteSyncBlockedAnswer_(exit, exit.remoteSyncResults && exit.remoteSyncResults[0] || { error: "stock_full_remote_sync_unavailable" });
+      }
+      exit.status = "saving";
+      setEloPendingStockExit_(exit);
+      return Promise.all(retryMovements.map(function (movement) {
+        return Promise.resolve(retryBridge.syncConfirmedMovement(movement, { type: "saida" }));
+      })).then(function (syncResults) {
+        return finishEloStockExitConfirmation_(exit, retryResult, syncResults);
+      });
     }
 
     const currentItem = findEloStockExitCurrentItem_(exit);
@@ -22109,13 +22162,13 @@ function isEloResidentialNewPipelineEnabled_() {
       const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a saida. Nenhum saldo foi movimentado.");
       return { shortAnswer: "Saida bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, quantidade, unidade e saldo antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: "stock_exit_blocked", stockExit: exit };
     }
-    exit.status = "saved";
-    exit.savedAt = Date.now();
-    exit.result = result;
-    exit.confirmationText = buildEloConfirmedStockExitAnswer_(exit, result);
-    setEloPendingStockExit_(exit);
-    const intent = result.duplicate ? "stock_exit_idempotent" : "stock_exit_confirmed";
-    return { shortAnswer: result.duplicate ? "Essa saida ja foi confirmada." : "Saida registrada no Stock.", fullAnswer: result.duplicate ? exit.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova baixa." : exit.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_exit", sessionIntent: intent, stockExit: exit };
+    const remoteSyncPromises = getEloStockExitRemoteSyncPromises_(result);
+    if (remoteSyncPromises.length) {
+      return Promise.all(remoteSyncPromises.map(function (remoteSync) { return Promise.resolve(remoteSync); })).then(function (syncResults) {
+        return finishEloStockExitConfirmation_(exit, result, syncResults);
+      });
+    }
+    return finishEloStockExitConfirmation_(exit, result, []);
   }
 
   function buildEloStockExitAnswer_(message) {

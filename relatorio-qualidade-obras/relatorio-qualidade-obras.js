@@ -1885,6 +1885,33 @@
     return updated || movement || null;
   }
 
+  function removeConfirmedStockLocalMovement_(movement) {
+    const operationId = clean(movement && movement.operationId);
+    const movementId = clean(movement && movement.id);
+    if (!operationId && !movementId) return false;
+    try {
+      const storage = getLocalStorage_();
+      if (!storage) return false;
+      const parsed = JSON.parse(storage.getItem(ALMOX_STORAGE_KEY) || "{}");
+      const movements = Array.isArray(parsed.movements) ? parsed.movements : [];
+      const nextMovements = movements.filter(function (candidate) {
+        if (!candidate) return false;
+        const matchesOperation = operationId && clean(candidate.operationId) === operationId;
+        const matchesId = movementId && clean(candidate.id) === movementId;
+        return !matchesOperation && !matchesId;
+      });
+      if (nextMovements.length === movements.length) return false;
+      parsed.movements = nextMovements;
+      parsed.updatedAt = new Date().toISOString();
+      storage.setItem(ALMOX_STORAGE_KEY, JSON.stringify(parsed));
+      stockFullAlmoxStateCacheKey = "";
+      stockFullAlmoxStateCache = null;
+      invalidateStockFullManagerDataCache_();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
   function buildConfirmedStockRemotePayload_(movement) {
     const source = movement || {};
     const operationId = clean(source.operationId);
@@ -2028,6 +2055,9 @@
         remoteSyncedAt: syncedAt,
         remoteResult: result
       });
+      if (updated) {
+        removeConfirmedStockLocalMovement_(updated);
+      }
       if (result.item && result.item.id) {
         const updatedItem = mapStockFullRemoteItemToAlmox_(result.item);
         stockFullRemoteItems = stockFullRemoteItems.map(function (item) {
@@ -2037,6 +2067,7 @@
           stockFullRemoteItems.push(updatedItem);
         }
         stockFullRemoteItemsLoaded = true;
+        invalidateStockFullManagerDataCache_();
         buildStockFullRemoteReadyState_();
       }
       if (type === "saida" && remoteMovement) stockFullRemoteExits.unshift(remoteMovement);
