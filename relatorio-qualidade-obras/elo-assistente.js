@@ -21801,6 +21801,37 @@ function isEloResidentialNewPipelineEnabled_() {
     return lines.join("\n");
   }
 
+  function buildEloStockEntryRemoteSyncBlockedAnswer_(entry, syncResult) {
+    const messageText = sanitizeUserText(syncResult && (syncResult.error || syncResult.message) || "stock_full_remote_sync_failed");
+    return {
+      shortAnswer: "Entrada pendente de sincronizacao remota.",
+      fullAnswer: "A entrada foi confirmada localmente, mas a sincronizacao remota falhou: " + messageText + ".\n\nIdempotencia: confirme novamente para tentar sincronizar a mesma operacao, sem criar nova entrada local.",
+      nextAction: "Responda confirmar para tentar sincronizar novamente a mesma entrada.",
+      canSave: false,
+      sessionTheme: "stock_full_entry",
+      sessionIntent: "stock_entry_remote_sync_failed",
+      stockEntry: entry
+    };
+  }
+
+  function finishEloStockEntryConfirmation_(entry, result, syncResult) {
+    const safeSync = syncResult || null;
+    if (safeSync && safeSync.ok !== true) {
+      entry.status = "remote_error";
+      entry.savedAt = Date.now();
+      entry.result = result;
+      entry.remoteSyncResult = safeSync;
+      setEloPendingStockEntry_(entry);
+      return buildEloStockEntryRemoteSyncBlockedAnswer_(entry, safeSync);
+    }
+    entry.status = "saved";
+    entry.savedAt = Date.now();
+    entry.result = result;
+    entry.remoteSyncResult = safeSync;
+    entry.confirmationText = buildEloConfirmedStockEntryAnswer_(entry, result);
+    setEloPendingStockEntry_(entry);
+    return { shortAnswer: "Entrada registrada no Stock.", fullAnswer: entry.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_confirmed", stockEntry: entry };
+  }
   function buildEloStockEntryConfirmationAnswer_(message) {
     const entry = getEloPendingStockEntry_();
     if (!entry) return null;
@@ -21815,6 +21846,18 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (entry.status === "saved" && entry.confirmationText) {
       return { shortAnswer: "Essa entrada ja foi registrada.", fullAnswer: entry.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova entrada.", nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_idempotent", stockEntry: entry };
+    }
+    if (entry.status === "remote_error") {
+      const bridge = window.ObraReportOperationalStock;
+      const movement = entry.result && (entry.result.movement || entry.result.movements && entry.result.movements[0]);
+      if (!bridge || typeof bridge.syncConfirmedMovement !== "function" || !movement) {
+        return buildEloStockEntryRemoteSyncBlockedAnswer_(entry, entry.remoteSyncResult || { error: "stock_full_remote_sync_unavailable" });
+      }
+      entry.status = "saving";
+      setEloPendingStockEntry_(entry);
+      return Promise.resolve(bridge.syncConfirmedMovement(movement, { type: "entrada" })).then(function (syncResult) {
+        return finishEloStockEntryConfirmation_(entry, entry.result, syncResult);
+      });
     }
     if (entry.status === "saving") {
       return { shortAnswer: "Essa entrada ja esta sendo registrada.", fullAnswer: "Essa entrada ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_saving", stockEntry: entry };
@@ -21832,12 +21875,12 @@ function isEloResidentialNewPipelineEnabled_() {
       const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a entrada. Nenhum saldo foi movimentado.");
       return { shortAnswer: "Entrada bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, quantidade e unidade antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_blocked", stockEntry: entry };
     }
-    entry.status = "saved";
-    entry.savedAt = Date.now();
-    entry.result = result;
-    entry.confirmationText = buildEloConfirmedStockEntryAnswer_(entry, result);
-    setEloPendingStockEntry_(entry);
-    return { shortAnswer: "Entrada registrada no Stock.", fullAnswer: entry.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_entry", sessionIntent: "stock_entry_confirmed", stockEntry: entry };
+    if (result.remoteSync) {
+      return Promise.resolve(result.remoteSync).then(function (syncResult) {
+        return finishEloStockEntryConfirmation_(entry, result, syncResult);
+      });
+    }
+    return finishEloStockEntryConfirmation_(entry, result, null);
   }
 
   function buildEloStockEntryAnswer_(message) {
@@ -22317,6 +22360,39 @@ function isEloResidentialNewPipelineEnabled_() {
     return buildEloStockMovementResponsibleAnswer_(message) || buildEloStockMovementDayAnswer_(message) || buildEloStockHistoryAnswer_(message) || buildEloStockLowAnswer_(message) || buildEloStockBalanceAnswer_(message);
   }
 
+
+  function isEloAsyncResponse_(response) {
+    return response && typeof response.then === "function";
+  }
+
+  function resolveEloAsyncResponseForChat_(question, responsePromise, options) {
+    const settings = options || {};
+    return Promise.resolve(responsePromise).then(function (response) {
+      const finalResponse = settings.applyBrainMarker ? applyEloBrainMarker_(question, response) : response;
+      const answer = formatResponse(finalResponse);
+      appendAssistantMessage(question, answer, finalResponse && finalResponse.canSave !== false, finalResponse);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, finalResponse, answer);
+      return finalResponse;
+    }).catch(function (error) {
+      const messageText = sanitizeUserText(error && error.message || "stock_full_async_response_failed");
+      const response = {
+        shortAnswer: "Operacao bloqueada.",
+        fullAnswer: messageText,
+        nextAction: "Revise o estado remoto do Stock e tente novamente.",
+        canSave: false,
+        sessionTheme: "stock_full",
+        sessionIntent: "stock_full_async_failed"
+      };
+      const answer = formatResponse(response);
+      appendAssistantMessage(question, answer, false, response);
+      saveConversation(question, answer);
+      rememberSessionTurn(question, response, answer);
+      return response;
+    }).finally(function () {
+      clearProductAttachmentPreview();
+    });
+  }
   function parseEloStockProductCreateQuantity_(value) {
     const number = Number(String(value || "").replace(/\./g, "").replace(",", "."));
     return Number.isFinite(number) ? number : 0;
@@ -26447,6 +26523,9 @@ function isEloResidentialNewPipelineEnabled_() {
     if (pendingBudgetRouteResponse) return applyEloBrainMarker_(question, pendingBudgetRouteResponse);
     const stockReadonlyPriorityResponse = buildEloStockReadonlyAnswer_(question);
     if (stockReadonlyPriorityResponse) {
+      if (isEloAsyncResponse_(stockReadonlyPriorityResponse)) {
+        return stockReadonlyPriorityResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
       return applyEloBrainMarker_(question, stockReadonlyPriorityResponse);
     }
     const operationalReleasePriorityResponse = (isEloStockReleaseRequest_(question) || /material completo|preciso liberar|liberar material|liberar/.test(normalizeText(question || ""))) ? buildEloOperationalConstructionAnswer_(question) : null;
@@ -26517,6 +26596,9 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const stockEntryPriorityResponse = buildEloStockEntryAnswer_(question);
     if (stockEntryPriorityResponse) {
+      if (isEloAsyncResponse_(stockEntryPriorityResponse)) {
+        return stockEntryPriorityResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
       return applyEloBrainMarker_(question, stockEntryPriorityResponse);
     }
     const commonIntentPriorityResponse = routeEloCoreIntents_(question, {});
@@ -26537,6 +26619,9 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     const stockBalanceResponse = buildEloStockReadonlyAnswer_(question);
     if (stockBalanceResponse) {
+      if (isEloAsyncResponse_(stockBalanceResponse)) {
+        return stockBalanceResponse.then(function (response) { return applyEloBrainMarker_(question, response); });
+      }
       return applyEloBrainMarker_(question, stockBalanceResponse);
     }
     const wallCompleteV2PriorityResponse = completeResidentialBudgetPriority ? null : buildEloWallCompleteV2Answer_(question);
@@ -27210,6 +27295,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const localStockReadonly = !attachedFiles.length ? buildEloStockReadonlyAnswer_(cleanQuestion) : null;
     if (localStockReadonly) {
       appendMessage("user", cleanQuestion);
+      if (isEloAsyncResponse_(localStockReadonly)) {
+        resolveEloAsyncResponseForChat_(cleanQuestion, localStockReadonly);
+        return;
+      }
       appendAssistantMessage(cleanQuestion, formatResponse(localStockReadonly), false, localStockReadonly);
       clearProductAttachmentPreview();
       return;
@@ -27521,6 +27610,10 @@ function isEloResidentialNewPipelineEnabled_() {
 
     const stockEntryConfirmationResponse = buildEloStockEntryAnswer_(cleanQuestion);
     if (stockEntryConfirmationResponse) {
+      if (isEloAsyncResponse_(stockEntryConfirmationResponse)) {
+        resolveEloAsyncResponseForChat_(cleanQuestion, stockEntryConfirmationResponse);
+        return;
+      }
       const entryAnswer = formatResponse(stockEntryConfirmationResponse);
       appendAssistantMessage(cleanQuestion, entryAnswer, false, stockEntryConfirmationResponse);
       saveConversation(cleanQuestion, entryAnswer);

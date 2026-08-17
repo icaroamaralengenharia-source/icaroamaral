@@ -40,6 +40,8 @@ function loadEloStockEntrySandbox_(options = {}) {
   ]).map((item) => ({ ...item }));
   const movements = [];
   const calls = [];
+  const syncCalls = [];
+  const remoteSyncResults = Array.isArray(options.remoteSyncResults) ? options.remoteSyncResults.slice() : null;
   const element = createElementStub_();
   const sandbox = {
     console,
@@ -88,16 +90,22 @@ function loadEloStockEntrySandbox_(options = {}) {
       const quantity = Number(payload.quantity || 0);
       item.balance = before + quantity;
       item.realBalance = item.balance;
-      const movement = { id: "mov-" + calls.length, type: "entrada", itemId: item.itemId, quantity, unit: item.unit, material: item.name, balanceAfter: item.balance };
+      const movement = { id: "mov-" + calls.length, type: "entrada", itemId: item.itemId, quantity, unit: item.unit, material: item.name, balanceAfter: item.balance, operationId: payload.entryId };
       movements.unshift(movement);
-      return { ok: true, entryId: payload.entryId, itemId: item.itemId, quantity, unit: item.unit, balanceBefore: before, balanceAfter: item.balance, movement, movements: [movement], before: [], after: balances.map((entry) => ({ ...entry })) };
+      const result = { ok: true, entryId: payload.entryId, operationId: payload.entryId, itemId: item.itemId, quantity, unit: item.unit, balanceBefore: before, balanceAfter: item.balance, movement, movements: [movement], before: [], after: balances.map((entry) => ({ ...entry })) };
+      if (remoteSyncResults) result.remoteSync = Promise.resolve(remoteSyncResults.shift() || { ok: true, movement });
+      return result;
+    },
+    syncConfirmedMovement(movement) {
+      syncCalls.push({ ...movement });
+      return Promise.resolve(remoteSyncResults && remoteSyncResults.length ? remoteSyncResults.shift() : { ok: true, movement });
     }
   };
   createContext(sandbox);
   runInContext(validatorContent, sandbox);
   runInContext(stockEngineContent, sandbox);
   runInContext(eloContent, sandbox);
-  return { sandbox, balances, movements, calls };
+  return { sandbox, balances, movements, calls, syncCalls };
 }
 
 test("Elo parseia comandos de entrada sem acionar escrita", () => {
@@ -132,6 +140,32 @@ test("Elo mostra preview, confirma uma entrada real e bloqueia dupla confirmacao
   const repeated = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("confirmar");
   assert.equal(repeated.sessionIntent, "stock_entry_idempotent");
   assert.equal(calls.length, 1);
+});
+
+test("Elo nao confirma sucesso remoto quando sync de entrada falha e retry usa a mesma operacao", async () => {
+  const { sandbox, calls, syncCalls, balances } = loadEloStockEntrySandbox_({
+    remoteSyncResults: [
+      { ok: false, pending: true, error: "remote_down" },
+      { ok: true, movement: { id: "remote-entry-1" } }
+    ]
+  });
+
+  const preview = sandbox.window.EloAssistente.buildStockEntryAnswerForTest("registre entrada de 30 sacos de cimento");
+  assert.equal(preview.sessionIntent, "stock_entry_preview");
+
+  const blocked = await sandbox.window.EloAssistente.buildStockEntryAnswerForTest("sim");
+  assert.equal(blocked.sessionIntent, "stock_entry_remote_sync_failed");
+  assert.match(blocked.fullAnswer, /remote_down/);
+  assert.equal(calls.length, 1);
+  assert.equal(syncCalls.length, 0);
+  assert.equal(balances.find((item) => item.itemId === "item-cimento").balance, 72);
+
+  const retried = await sandbox.window.EloAssistente.buildStockEntryAnswerForTest("confirmar");
+  assert.equal(retried.sessionIntent, "stock_entry_confirmed");
+  assert.equal(calls.length, 1);
+  assert.equal(syncCalls.length, 1);
+  assert.equal(syncCalls[0].operationId, calls[0].entryId);
+  assert.equal(balances.find((item) => item.itemId === "item-cimento").balance, 72);
 });
 
 test("Elo resolve entrada por SKU exato", () => {

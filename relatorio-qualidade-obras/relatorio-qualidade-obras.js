@@ -2028,6 +2028,17 @@
         remoteSyncedAt: syncedAt,
         remoteResult: result
       });
+      if (result.item && result.item.id) {
+        const updatedItem = mapStockFullRemoteItemToAlmox_(result.item);
+        stockFullRemoteItems = stockFullRemoteItems.map(function (item) {
+          return item.id === updatedItem.id ? updatedItem : item;
+        });
+        if (!stockFullRemoteItems.some(function (item) { return item.id === updatedItem.id; })) {
+          stockFullRemoteItems.push(updatedItem);
+        }
+        stockFullRemoteItemsLoaded = true;
+        buildStockFullRemoteReadyState_();
+      }
       if (type === "saida" && remoteMovement) stockFullRemoteExits.unshift(remoteMovement);
       if (type === "entrada" && remoteMovement) stockFullRemoteEntries.unshift(remoteMovement);
       return { ok: true, result: result, movement: updated || movement, duplicate: Boolean(result.duplicate) };

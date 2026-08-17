@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { OBRA_COMPOSICOES_DEMONSTRATIVAS } from "./data/obra-composicoes.js";
+import { createClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabase.js";
 import { resolveAuthContext } from "./auth-context.js";
 import { createEloCoreStore } from "./elo-core-store.js";
@@ -1169,13 +1170,14 @@ export function createApp(options = {}) {
       response.status(400).json({ ok: false, error: "credentials_required" });
       return;
     }
-    if (!database.auth || typeof database.auth.signInWithPassword !== "function") {
+    const authClient = createIsolatedSupabaseAuthClient_(database);
+    if (!authClient.auth || typeof authClient.auth.signInWithPassword !== "function") {
       response.status(503).json({ ok: false, error: "stock_full_login_not_configured" });
       return;
     }
 
     try {
-      const { data, error } = await database.auth.signInWithPassword({ email, password });
+      const { data, error } = await authClient.auth.signInWithPassword({ email, password });
       const user = data && data.user;
       const session = data && data.session;
       if (error || !user || !session || !clean_(session.access_token)) {
@@ -3142,6 +3144,23 @@ function requireStockFullDatabase_(env, response, databaseOverride = null) {
   return database;
 }
 
+function createIsolatedSupabaseAuthClient_(supabase) {
+  if (!supabase || Array.isArray(supabase.rpcCalls)) {
+    return supabase;
+  }
+  const supabaseUrl = String(process.env.SUPABASE_URL || "").trim();
+  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!supabaseUrl || !serviceRoleKey) {
+    return supabase;
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
 async function getSupabaseUserFromRequest_(request, supabase) {
   const authorization = clean_(request.headers.authorization);
   const match = authorization.match(/^Bearer\s+(.+)$/i);
@@ -3154,7 +3173,8 @@ async function getSupabaseUserFromRequest_(request, supabase) {
     return { ok: false, status: 401, error: "authentication_required" };
   }
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const authClient = createIsolatedSupabaseAuthClient_(supabase);
+  const { data, error } = await authClient.auth.getUser(token);
   if (error || !data || !data.user) {
     return { ok: false, status: 401, error: "invalid_session" };
   }
