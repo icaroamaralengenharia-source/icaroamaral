@@ -42,9 +42,14 @@ function loadEloStockExitSandbox_(options = {}) {
     { itemId: "item-mascara", id: "item-mascara", sku: "MAS-001", name: "Mascara", unit: "un", balance: 5, realBalance: 5, companyId: "company-a", environmentId: "env-a" }
   ]).map((item) => ({ ...item }));
   const movements = (options.movements || []).map((movement) => ({ ...movement }));
+  const environments = (options.environments || [
+    { id: "env-a", environmentId: "env-a", name: "Almoxarifado Central", environmentName: "Almoxarifado Central", companyId: "company-a" },
+    { id: "env-b", environmentId: "env-b", name: "Obra A", environmentName: "Obra A", companyId: "company-a" }
+  ]).map((environment) => ({ ...environment }));
   const audit = [];
   const entryCalls = [];
   const exitCalls = [];
+  const transferCalls = [];
   const element = createElementStub_();
   const sandbox = {
     console,
@@ -78,12 +83,15 @@ function loadEloStockExitSandbox_(options = {}) {
   sandbox.globalThis = sandbox;
   sandbox.ELO_SKIP_AUTO_WIDGET = true;
   sandbox.ObraReportOperationalStock = {
-    getAlmoxBalances() {
+    getAlmoxBalances(request = {}) {
       return balances.filter((item) => {
         if (options.activeCompanyId && item.companyId && item.companyId !== options.activeCompanyId) return false;
-        if (options.activeEnvironmentId && item.environmentId && item.environmentId !== options.activeEnvironmentId) return false;
+        if (!request.allEnvironments && options.activeEnvironmentId && item.environmentId && item.environmentId !== options.activeEnvironmentId) return false;
         return true;
       }).map((item) => ({ ...item }));
+    },
+    getAlmoxEnvironments() {
+      return environments.filter((environment) => !options.activeCompanyId || !environment.companyId || environment.companyId === options.activeCompanyId).map((environment) => ({ ...environment }));
     },
     getAlmoxMovements() {
       return movements.map((movement) => ({ ...movement }));
@@ -99,6 +107,39 @@ function loadEloStockExitSandbox_(options = {}) {
       const movement = { id: "mov-entry-" + entryCalls.length, type: "entrada", itemId: item.itemId, quantity, unit: item.unit, material: item.name, balanceAfter: item.balance };
       movements.unshift(movement);
       return { ok: true, entryId: payload.entryId, itemId: item.itemId, quantity, unit: item.unit, balanceBefore: before, balanceAfter: item.balance, movement, movements: [movement], before: [], after: balances.map((entry) => ({ ...entry })) };
+    },
+    createConfirmedTransfer(payload) {
+      transferCalls.push(clone_(payload));
+      if (options.blockTransfer) return { ok: false, message: options.blockTransferMessage || "Usuario sem permissao para registrar transferencia." };
+      const transferId = String(payload.transferId || payload.operationId || "");
+      const duplicate = movements.filter((movement) => movement.origin === "elo_transfer" && movement.transferId === transferId);
+      if (duplicate.length >= 2) return { ok: true, duplicate: true, transferId, before: balances.map((item) => ({ ...item })), after: balances.map((item) => ({ ...item })), movements: duplicate.map((item) => ({ ...item })) };
+      const sourceEnvironment = environments.find((environment) => environment.id === payload.sourceEnvironmentId || environment.environmentId === payload.sourceEnvironmentId);
+      const destinationEnvironment = environments.find((environment) => environment.id === payload.destinationEnvironmentId || environment.environmentId === payload.destinationEnvironmentId);
+      if (!sourceEnvironment) return { ok: false, message: "Ambiente de origem nao encontrado." };
+      if (!destinationEnvironment) return { ok: false, message: "Ambiente de destino nao encontrado." };
+      if (sourceEnvironment.companyId && destinationEnvironment.companyId && sourceEnvironment.companyId !== destinationEnvironment.companyId) return { ok: false, message: "Origem e destino precisam pertencer a mesma empresa." };
+      if (payload.sourceEnvironmentId === payload.destinationEnvironmentId) return { ok: false, message: "Origem e destino nao podem ser iguais." };
+      const sourceItem = balances.find((candidate) => (candidate.itemId === payload.sourceItemId || candidate.id === payload.sourceItemId) && candidate.environmentId === payload.sourceEnvironmentId);
+      const destinationItem = balances.find((candidate) => (candidate.itemId === payload.destinationItemId || candidate.id === payload.destinationItemId) && candidate.environmentId === payload.destinationEnvironmentId);
+      const quantity = Number(payload.quantity || 0);
+      if (!sourceItem || !destinationItem || quantity <= 0) return { ok: false, message: "Item ou quantidade invalida.", before: balances.map((item) => ({ ...item })), after: balances.map((item) => ({ ...item })), movements: [] };
+      if (payload.unit && payload.unit !== sourceItem.unit) return { ok: false, message: "Unidade informada diferente da unidade cadastrada na origem.", before: balances.map((item) => ({ ...item })), after: balances.map((item) => ({ ...item })), movements: [] };
+      if (sourceItem.unit !== destinationItem.unit) return { ok: false, message: "Unidade do destino diferente da unidade da origem.", before: balances.map((item) => ({ ...item })), after: balances.map((item) => ({ ...item })), movements: [] };
+      const sourceBefore = Number(sourceItem.balance || sourceItem.realBalance || 0);
+      const destinationBefore = Number(destinationItem.balance || destinationItem.realBalance || 0);
+      if (quantity > sourceBefore) return { ok: false, message: "Saldo insuficiente para transferencia.", before: balances.map((item) => ({ ...item })), after: balances.map((item) => ({ ...item })), movements: [] };
+      sourceItem.balance = sourceBefore - quantity;
+      sourceItem.realBalance = sourceItem.balance;
+      destinationItem.balance = destinationBefore + quantity;
+      destinationItem.realBalance = destinationItem.balance;
+      const outMovement = { id: "mov-transfer-out-" + transferCalls.length, type: "saida", itemId: sourceItem.itemId || sourceItem.id, productId: sourceItem.itemId || sourceItem.id, quantity, unit: sourceItem.unit, material: sourceItem.name, balanceAfter: sourceItem.balance, transferId, operationId: transferId, origin: "elo_transfer", environmentId: payload.sourceEnvironmentId, destinationEnvironmentId: payload.destinationEnvironmentId };
+      const inMovement = { id: "mov-transfer-in-" + transferCalls.length, type: "entrada", itemId: destinationItem.itemId || destinationItem.id, productId: destinationItem.itemId || destinationItem.id, quantity, unit: destinationItem.unit, material: destinationItem.name, balanceAfter: destinationItem.balance, transferId, operationId: transferId, origin: "elo_transfer", environmentId: payload.destinationEnvironmentId, sourceEnvironmentId: payload.sourceEnvironmentId };
+      movements.unshift(inMovement);
+      movements.unshift(outMovement);
+      audit.unshift({ action: "movement_in_created", entityType: "stock_movements", entityId: inMovement.id, metadata: { origin: "ELO", transferId, itemId: destinationItem.itemId || destinationItem.id, quantity } });
+      audit.unshift({ action: "movement_out_created", entityType: "stock_movements", entityId: outMovement.id, metadata: { origin: "ELO", transferId, itemId: sourceItem.itemId || sourceItem.id, quantity } });
+      return { ok: true, transferId, sourceBalanceBefore: sourceBefore, sourceBalanceAfter: sourceItem.balance, destinationBalanceBefore: destinationBefore, destinationBalanceAfter: destinationItem.balance, unit: sourceItem.unit, before: [], after: balances.map((item) => ({ ...item })), movements: [outMovement, inMovement], history: [outMovement, inMovement] };
     },
     createConfirmedExit(payload) {
       exitCalls.push(clone_(payload));
@@ -130,8 +171,127 @@ function loadEloStockExitSandbox_(options = {}) {
   runInContext(validatorContent, sandbox);
   runInContext(stockEngineContent, sandbox);
   runInContext(eloContent, sandbox);
-  return { sandbox, balances, movements, audit, entryCalls, exitCalls };
+  return { sandbox, balances, movements, environments, audit, entryCalls, exitCalls, transferCalls };
 }
+
+
+test("Elo parseia comandos de transferencia sem acionar escrita", () => {
+  const { sandbox, transferCalls } = loadEloStockExitSandbox_();
+  const parse = sandbox.window.EloAssistente.parseStockTransferCommandForTest;
+
+  assert.deepEqual(JSON.parse(JSON.stringify(parse("transfira 5 sacos de cimento do Almoxarifado Central para Obra A"))), { action: "stock_transfer", quantity: 5, unit: "saco", originalUnit: "sacos", productQuery: "cimento", sourceEnvironmentQuery: "almoxarifado central", destinationEnvironmentQuery: "obra a", sourceMessage: "transfira 5 sacos de cimento do Almoxarifado Central para Obra A" });
+  assert.equal(parse("mande 3 sacos de cimento para a Obra B").quantity, 3);
+  assert.equal(parse("transfira 2 unidades do ambiente X para o ambiente Y").unit, "un");
+  assert.equal(parse("cadastre 5 sacos de cimento"), null);
+  assert.equal(transferCalls.length, 0);
+});
+
+test("Elo mostra preview de transferencia sem escrita e confirma dois movimentos vinculados", () => {
+  const { sandbox, balances, movements, audit, transferCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    balances: [
+      { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", fiscalCode: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+      { itemId: "cimento-dest", id: "cimento-dest", sku: "CIM-TR", fiscalCode: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-b" }
+    ]
+  });
+
+  const preview = sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 5 sacos de Cimento CP II do Almoxarifado Central para Obra A");
+  assert.equal(preview.sessionIntent, "stock_transfer_preview");
+  assert.match(preview.fullAnswer, /Transferência de estoque/);
+  assert.match(preview.fullAnswer, /Origem: Almoxarifado Central/);
+  assert.match(preview.fullAnswer, /Destino: Obra A/);
+  assert.match(preview.fullAnswer, /Saldo atual na origem: 10 saco/);
+  assert.match(preview.fullAnswer, /Saldo previsto na origem: 5 saco/);
+  assert.match(preview.fullAnswer, /Saldo atual no destino: 2 saco/);
+  assert.match(preview.fullAnswer, /Saldo previsto no destino: 7 saco/);
+  assert.equal(transferCalls.length, 0);
+  assert.equal(movements.length, 0);
+  assert.equal(balances.find((item) => item.itemId === "cimento-origin").balance, 10);
+  assert.equal(balances.find((item) => item.itemId === "cimento-dest").balance, 2);
+
+  const confirmed = sandbox.window.EloAssistente.buildStockTransferAnswerForTest("sim");
+  assert.equal(confirmed.sessionIntent, "stock_transfer_confirmed");
+  assert.match(confirmed.fullAnswer, /Transferencia registrada no Stock/);
+  assert.match(confirmed.fullAnswer, /Saldo origem: 10 -> 5 saco/);
+  assert.match(confirmed.fullAnswer, /Saldo destino: 2 -> 7 saco/);
+  assert.equal(transferCalls.length, 1);
+  assert.equal(movements.length, 2);
+  assert.equal(movements.filter((movement) => movement.type === "saida").length, 1);
+  assert.equal(movements.filter((movement) => movement.type === "entrada").length, 1);
+  assert.equal(movements[0].transferId, movements[1].transferId);
+  assert.ok(movements[0].transferId);
+  assert.equal(balances.find((item) => item.itemId === "cimento-origin").balance, 5);
+  assert.equal(balances.find((item) => item.itemId === "cimento-dest").balance, 7);
+  assert.deepEqual(audit.slice(0, 2).map((item) => item.action), ["movement_out_created", "movement_in_created"]);
+});
+
+test("Elo bloqueia dupla confirmacao e cancelamento de transferencia", () => {
+  const first = loadEloStockExitSandbox_({ activeCompanyId: "company-a", activeEnvironmentId: "env-a", balances: [
+    { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "cimento-dest", id: "cimento-dest", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-b" }
+  ] });
+  first.sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 5 sacos de Cimento CP II do Almoxarifado Central para Obra A");
+  first.sandbox.window.EloAssistente.buildStockTransferAnswerForTest("sim");
+  const repeated = first.sandbox.window.EloAssistente.buildStockTransferAnswerForTest("confirmar");
+  assert.equal(repeated.sessionIntent, "stock_transfer_idempotent");
+  assert.equal(first.transferCalls.length, 1);
+  assert.equal(first.movements.length, 2);
+
+  const second = loadEloStockExitSandbox_({ activeCompanyId: "company-a", activeEnvironmentId: "env-a", balances: [
+    { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "cimento-dest", id: "cimento-dest", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-b" }
+  ] });
+  second.sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 2 sacos de Cimento CP II do Almoxarifado Central para Obra A");
+  const cancelled = second.sandbox.window.EloAssistente.buildStockTransferAnswerForTest("cancelar");
+  assert.equal(cancelled.sessionIntent, "stock_transfer_cancelled");
+  assert.equal(second.transferCalls.length, 0);
+  assert.equal(second.movements.length, 0);
+  assert.equal(second.sandbox.window.EloAssistente.getPendingStockTransferForTest(), null);
+});
+
+test("Elo bloqueia transferencia invalida sem escrever", () => {
+  const { sandbox, transferCalls, movements } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    environments: [
+      { id: "env-a", name: "Almoxarifado Central", environmentName: "Almoxarifado Central", companyId: "company-a" },
+      { id: "env-b", name: "Obra A", environmentName: "Obra A", companyId: "company-a" },
+      { id: "env-c", name: "Outra Empresa", environmentName: "Outra Empresa", companyId: "company-b" }
+    ],
+    balances: [
+      { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 5, realBalance: 5, companyId: "company-a", environmentId: "env-a" },
+      { itemId: "cimento-dest", id: "cimento-dest", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-b" },
+      { itemId: "cimento-other", id: "cimento-other", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-b", environmentId: "env-c" }
+    ]
+  });
+
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 0 sacos de Cimento CP II do Almoxarifado Central para Obra A").sessionIntent, "stock_transfer_blocked");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira -5 sacos de Cimento CP II do Almoxarifado Central para Obra A").sessionIntent, "stock_transfer_blocked");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 6 sacos de Cimento CP II do Almoxarifado Central para Obra A").sessionIntent, "stock_exit_insufficient");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 1 saco de Cimento CP II do Almoxarifado Central para Almoxarifado Central").sessionIntent, "stock_transfer_same_environment");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 1 saco de Cimento CP II do Almoxarifado Central para Obra Fantasma").sessionIntent, "stock_transfer_destination_missing");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 1 saco de Cimento CP II do Almoxarifado Central para Outra Empresa").sessionIntent, "stock_transfer_destination_missing");
+  assert.equal(sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 1 lata de Cimento CP II do Almoxarifado Central para Obra A").sessionIntent, "stock_transfer_blocked");
+  assert.equal(transferCalls.length, 0);
+  assert.equal(movements.length, 0);
+});
+
+test("Elo revalida saldo de transferencia no sim", () => {
+  const { sandbox, balances, transferCalls, movements } = loadEloStockExitSandbox_({ activeCompanyId: "company-a", activeEnvironmentId: "env-a", balances: [
+    { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },
+    { itemId: "cimento-dest", id: "cimento-dest", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-b" }
+  ] });
+
+  sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 5 sacos de Cimento CP II do Almoxarifado Central para Obra A");
+  balances.find((item) => item.itemId === "cimento-origin").balance = 3;
+  balances.find((item) => item.itemId === "cimento-origin").realBalance = 3;
+  const blocked = sandbox.window.EloAssistente.buildStockTransferAnswerForTest("sim");
+
+  assert.equal(blocked.sessionIntent, "stock_transfer_balance_changed");
+  assert.equal(transferCalls.length, 0);
+  assert.equal(movements.length, 0);
+});
 
 test("Elo parseia comandos de saida direta sem acionar escrita", () => {
   const { sandbox, exitCalls } = loadEloStockExitSandbox_();

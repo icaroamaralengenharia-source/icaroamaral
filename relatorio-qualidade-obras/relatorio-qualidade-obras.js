@@ -10036,8 +10036,12 @@
     return roundQuantity_(parseNumber_(item.initialQuantity) + entries - exits);
   }
 
-  function getOperationalAlmoxBalanceSnapshot_() {
-    return calculateAlmoxBalances_().map(function (balance) {
+  function getOperationalAlmoxBalanceSnapshot_(options) {
+    const settings = options || {};
+    const state = loadAlmoxState_();
+    const items = settings.allEnvironments ? filterStockFullByCompany_(state.items || []) : filterAlmoxItemsByActiveEnvironment_(state.items || []);
+    const movements = settings.allEnvironments ? filterStockFullByCompany_(state.movements || []) : filterAlmoxMovementsByActiveEnvironment_(state.movements || []);
+    return calculateAlmoxBalances_(state, items, movements).map(function (balance) {
       const item = balance.item || {};
       return {
         id: item.id || "",
@@ -10054,6 +10058,7 @@
         exits: roundQuantity_(balance.exits),
         minimumStock: parseNumber_(item.minimumStock),
         status: balance.status || "",
+        companyId: item.companyId || getCurrentCompanyId_(),
         environmentId: item.environmentId || getActiveStockEnvironmentId_()
       };
     });
@@ -10095,6 +10100,147 @@
         environmentId: movement.environmentId || getActiveStockEnvironmentId_()
       };
     });
+  }
+
+
+  function getOperationalAlmoxEnvironmentSnapshot_() {
+    const companyId = getCurrentCompanyId_();
+    const state = loadAlmoxState_();
+    return (state.stockEnvironments || []).filter(function (environment) {
+      return environment && clean(environment.id) && (!companyId || !clean(environment.companyId) || clean(environment.companyId) === companyId);
+    }).map(function (environment) {
+      return {
+        id: clean(environment.id),
+        environmentId: clean(environment.id),
+        companyId: clean(environment.companyId) || companyId,
+        name: clean(environment.environmentName || environment.unitName || environment.workName || environment.clientName || environment.id),
+        environmentName: clean(environment.environmentName),
+        unitName: clean(environment.unitName),
+        workName: clean(environment.workName),
+        clientName: clean(environment.clientName),
+        mode: clean(environment.mode)
+      };
+    });
+  }
+
+  function normalizeOperationalEnvironmentName_(value) {
+    return clean(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function findOperationalEnvironmentById_(environments, id) {
+    const target = clean(id);
+    if (!target) return null;
+    return (environments || []).find(function (environment) {
+      return clean(environment.id || environment.environmentId) === target;
+    }) || null;
+  }
+
+  function findOperationalItemForEnvironment_(items, reference, environmentId, companyId) {
+    const safeReference = reference || {};
+    const refSku = clean(safeReference.sku || safeReference.fiscalCode || safeReference.code);
+    const refName = normalizeOperationalStockProductName_(safeReference.name);
+    const refUnit = normalizeOperationalEntryUnit_(safeReference.unit || "un");
+    return (items || []).find(function (item) {
+      if (clean(item.environmentId) !== clean(environmentId)) return false;
+      if (companyId && clean(item.companyId) && clean(item.companyId) !== clean(companyId)) return false;
+      const itemUnit = normalizeOperationalEntryUnit_(item.unit || "un");
+      if (refUnit && itemUnit && refUnit !== itemUnit) return false;
+      const itemSku = clean(item.sku || item.fiscalCode || item.code);
+      if (refSku && itemSku && itemSku === refSku) return true;
+      return refName && normalizeOperationalStockProductName_(item.name) === refName;
+    }) || null;
+  }
+
+  function createConfirmedOperationalTransfer_(payload) {
+    const safe = payload && typeof payload === "object" ? payload : {};
+    const transferId = clean(safe.transferId || safe.operationId);
+    const sourceEnvironmentId = clean(safe.sourceEnvironmentId || safe.originEnvironmentId || safe.fromEnvironmentId);
+    const destinationEnvironmentId = clean(safe.destinationEnvironmentId || safe.targetEnvironmentId || safe.toEnvironmentId);
+    const sourceItemId = clean(safe.sourceItemId || safe.itemId || safe.stockItemId || safe.productId);
+    const destinationItemId = clean(safe.destinationItemId || safe.targetItemId);
+    const quantity = parseNumber_(safe.quantity);
+    const requestedUnit = normalizeOperationalEntryUnit_(safe.unit || "un");
+    const responsible = clean(safe.responsible || safe.requestedBy) || "ELO";
+
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:out", "Usuario sem permissao para registrar transferencia.")) {
+      return { ok: false, message: "Usuario sem permissao para registrar transferencia." };
+    }
+    if (isStockFullContext_() && !requireStockFullPermission_("movements:in", "Usuario sem permissao para registrar transferencia.")) {
+      return { ok: false, message: "Usuario sem permissao para registrar transferencia." };
+    }
+    if (!transferId) return { ok: false, message: "transferId obrigatorio para confirmar transferencia." };
+    if (!sourceEnvironmentId || !destinationEnvironmentId) return { ok: false, message: "Origem e destino obrigatorios para transferencia." };
+    if (sourceEnvironmentId === destinationEnvironmentId) return { ok: false, message: "Origem e destino nao podem ser iguais." };
+    if (!sourceItemId || quantity <= 0) return { ok: false, message: "Item ou quantidade invalida." };
+
+    const state = loadAlmoxState_();
+    const session = getCurrentStockFullSession_();
+    const companyId = getCurrentCompanyId_();
+    const environments = state.stockEnvironments || [];
+    const sourceEnvironment = findOperationalEnvironmentById_(environments, sourceEnvironmentId);
+    const destinationEnvironment = findOperationalEnvironmentById_(environments, destinationEnvironmentId);
+    if (!sourceEnvironment) return { ok: false, message: "Ambiente de origem nao encontrado." };
+    if (!destinationEnvironment) return { ok: false, message: "Ambiente de destino nao encontrado." };
+    if (companyId && clean(sourceEnvironment.companyId) && clean(sourceEnvironment.companyId) !== companyId) return { ok: false, message: "Ambiente de origem pertence a outra empresa." };
+    if (companyId && clean(destinationEnvironment.companyId) && clean(destinationEnvironment.companyId) !== companyId) return { ok: false, message: "Ambiente de destino pertence a outra empresa." };
+    if (clean(sourceEnvironment.companyId) && clean(destinationEnvironment.companyId) && clean(sourceEnvironment.companyId) !== clean(destinationEnvironment.companyId)) {
+      return { ok: false, message: "Origem e destino precisam pertencer a mesma empresa." };
+    }
+
+    const duplicate = (state.movements || []).filter(function (movement) {
+      return clean(movement.transferId || movement.operationId) === transferId && clean(movement.origin) === "elo_transfer";
+    });
+    if (duplicate.length >= 2) {
+      return { ok: true, duplicate: true, transferId: transferId, movements: duplicate, before: getOperationalAlmoxBalanceSnapshot_({ allEnvironments: true }), after: getOperationalAlmoxBalanceSnapshot_({ allEnvironments: true }) };
+    }
+
+    const sourceItem = (state.items || []).find(function (item) {
+      return clean(item.id) === sourceItemId && clean(item.environmentId) === sourceEnvironmentId && (!companyId || !clean(item.companyId) || clean(item.companyId) === companyId);
+    });
+    if (!sourceItem) return { ok: false, message: "Produto nao encontrado na origem." };
+    const destinationItem = destinationItemId
+      ? (state.items || []).find(function (item) { return clean(item.id) === destinationItemId && clean(item.environmentId) === destinationEnvironmentId && (!companyId || !clean(item.companyId) || clean(item.companyId) === companyId); })
+      : findOperationalItemForEnvironment_(state.items || [], sourceItem, destinationEnvironmentId, companyId);
+    if (!destinationItem) return { ok: false, message: "Produto correspondente nao encontrado no destino." };
+
+    const sourceUnit = normalizeOperationalEntryUnit_(sourceItem.unit || "un");
+    const destinationUnit = normalizeOperationalEntryUnit_(destinationItem.unit || "un");
+    if (requestedUnit && sourceUnit && requestedUnit !== sourceUnit) return { ok: false, message: "Unidade informada diferente da unidade cadastrada na origem." };
+    if (sourceUnit && destinationUnit && sourceUnit !== destinationUnit) return { ok: false, message: "Unidade do destino diferente da unidade da origem." };
+
+    const before = getOperationalAlmoxBalanceSnapshot_({ allEnvironments: true });
+    const sourceBalanceBefore = getAlmoxItemBalance_(sourceItem.id, state);
+    const destinationBalanceBefore = getAlmoxItemBalance_(destinationItem.id, state);
+    if (quantity > sourceBalanceBefore) return { ok: false, message: "Saldo insuficiente para transferencia.", before: before, after: before, movements: [] };
+
+    const movementDate = clean(safe.movementDate || safe.date) || getDefaultAlmoxMovementDate_();
+    const movementTime = clean(safe.movementTime) || getDefaultAlmoxMovementTime_();
+    const movementDateTime = buildAlmoxMovementDateTime_(movementDate, movementTime);
+    const createdAt = new Date().toISOString();
+    const baseCompanyId = companyId || clean(sourceItem.companyId || sourceEnvironment.companyId || destinationEnvironment.companyId);
+    const outMovement = {
+      id: createId_("almmov"), companyId: baseCompanyId, environmentId: sourceEnvironmentId, itemId: sourceItem.id, productId: sourceItem.id,
+      type: "saida", quantity: quantity, unit: sourceItem.unit || safe.unit || "un", recipient: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), sector: clean(destinationEnvironment.environmentName || destinationEnvironment.unitName || destinationEnvironment.workName || destinationEnvironment.id), purpose: "Transferencia confirmada pelo ELO", responsible: responsible, source: "elo", releaseId: transferId, transferId: transferId, operationId: transferId, destinationEnvironmentId: destinationEnvironmentId, destinationItemId: destinationItem.id, reason: "Transferencia de estoque", origin: "elo_transfer", date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
+    };
+    const inMovement = {
+      id: createId_("almmov"), companyId: baseCompanyId, environmentId: destinationEnvironmentId, itemId: destinationItem.id, productId: destinationItem.id,
+      type: "entrada", quantity: quantity, unit: destinationItem.unit || sourceItem.unit || safe.unit || "un", responsible: responsible, documentNumber: transferId, unitCost: parseNumber_(safe.unitCost), total: quantity * parseNumber_(safe.unitCost), reason: "Transferencia de estoque", supplier: clean(sourceEnvironment.environmentName || sourceEnvironment.unitName || sourceEnvironment.workName || sourceEnvironment.id), origin: "elo_transfer", sourceEnvironmentId: sourceEnvironmentId, sourceItemId: sourceItem.id, transferId: transferId, operationId: transferId, date: movementDate, movementDate: movementDate, movementTime: movementTime, movementDateTime: movementDateTime, notes: clean(safe.notes) || "Origem ELO. transferId=" + transferId + ".", createdBy: clean(session.userId || session.userEmail), createdByRole: clean(session.role), createdAt: createdAt
+    };
+
+    state.movements.push(outMovement);
+    state.movements.push(inMovement);
+    appendStockFullLocalAudit_(state, "movement_out_created", "stock_movements", outMovement.id, "Saida por transferencia registrada", { origin: "ELO", transferId: transferId, itemId: sourceItem.id, quantity: quantity, sourceEnvironmentId: sourceEnvironmentId, destinationEnvironmentId: destinationEnvironmentId });
+    appendStockFullLocalAudit_(state, "movement_in_created", "stock_movements", inMovement.id, "Entrada por transferencia registrada", { origin: "ELO", transferId: transferId, itemId: destinationItem.id, quantity: quantity, sourceEnvironmentId: sourceEnvironmentId, destinationEnvironmentId: destinationEnvironmentId });
+    saveAlmoxState_(state);
+    syncStockDemoRemoteAfterLocalChange_();
+    const after = getOperationalAlmoxBalanceSnapshot_({ allEnvironments: true });
+    return { ok: true, transferId: transferId, sourceItemId: sourceItem.id, destinationItemId: destinationItem.id, quantity: quantity, unit: sourceItem.unit || destinationItem.unit || "un", sourceBalanceBefore: sourceBalanceBefore, sourceBalanceAfter: roundQuantity_(sourceBalanceBefore - quantity), destinationBalanceBefore: destinationBalanceBefore, destinationBalanceAfter: roundQuantity_(destinationBalanceBefore + quantity), before: before, after: after, movements: [outMovement, inMovement], history: [outMovement, inMovement] };
   }
 
   function normalizeOperationalStockProductName_(value) {
@@ -23065,8 +23211,10 @@
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
     getAlmoxMovements: getOperationalAlmoxMovementSnapshot_,
+    getAlmoxEnvironments: getOperationalAlmoxEnvironmentSnapshot_,
     createConfirmedProduct: createConfirmedOperationalProduct_,
     createConfirmedEntry: createConfirmedOperationalEntry_,
-    createConfirmedExit: createConfirmedOperationalExit_
+    createConfirmedExit: createConfirmedOperationalExit_,
+    createConfirmedTransfer: createConfirmedOperationalTransfer_
   });
 })();

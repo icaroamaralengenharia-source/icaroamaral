@@ -58,6 +58,7 @@
   const ELO_PENDING_STOCK_RELEASE_KEY = "obraReport.elo.pendingStockRelease";
   const ELO_PENDING_STOCK_ENTRY_KEY = "obraReport.elo.pendingStockEntry";
   const ELO_PENDING_STOCK_EXIT_KEY = "obraReport.elo.pendingStockExit";
+  const ELO_PENDING_STOCK_TRANSFER_KEY = "obraReport.elo.pendingStockTransfer";
   const ELO_TECH_SOURCE_PREFERENCE_KEY = "elo_technical_source_preference_v1";
 
   function getEloBackendEndpoint_(path) {
@@ -21043,15 +21044,28 @@ function isEloResidentialNewPipelineEnabled_() {
     };
   }
 
-  function getEloOperationalAlmoxBalances_() {
+  function getEloOperationalAlmoxBalances_(options) {
     const bridge = window.ObraReportOperationalStock;
     if (!bridge || typeof bridge.getAlmoxBalances !== "function") {
       return [];
     }
     try {
-      return bridge.getAlmoxBalances().filter(Boolean);
+      return bridge.getAlmoxBalances(options || {}).filter(Boolean);
     } catch (error) {
       console.warn("Nao foi possivel consultar saldo operacional do Almoxarifado.", error);
+      return [];
+    }
+  }
+
+  function getEloOperationalAlmoxEnvironments_() {
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.getAlmoxEnvironments !== "function") {
+      return [];
+    }
+    try {
+      return bridge.getAlmoxEnvironments().filter(Boolean);
+    } catch (error) {
+      console.warn("Nao foi possivel consultar ambientes operacionais do Almoxarifado.", error);
       return [];
     }
   }
@@ -22031,7 +22045,235 @@ function isEloResidentialNewPipelineEnabled_() {
   function buildEloStockExitAnswer_(message) {
     return buildEloStockExitConfirmationAnswer_(message) || buildEloStockExitPreviewAnswer_(message);
   }
+
+  function cleanEloStockTransferEnvironmentQuery_(value) {
+    return normalizeText(value || "")
+      .replace(/\b(?:do|da|dos|das|de|para|pro|pra|estoque|stock)\b/g, " ")
+      .replace(/[^a-z0-9\s._-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function parseEloStockTransferCommand_(message) {
+    const text = normalizeText(message || "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!text || /\b(?:cadastre|cadastrar|cadastro|crie|criar)\b/.test(text)) return null;
+    let match = text.match(/\b(?:transfira|transferir|mande|mandar|envie|enviar)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+?)\s+(?:do|da|dos|das|de)\s+(.+?)\s+para\s+(.+)$/);
+    if (match) {
+      return { action: "stock_transfer", quantity: parseEloStockEntryQuantity_(match[1]), unit: normalizeEloStockEntryUnit_(match[2]), originalUnit: sanitizeUserText(match[2]), productQuery: cleanEloStockEntryProductQuery_(match[3]), sourceEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[4]), destinationEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[5]), sourceMessage: sanitizeUserText(message) };
+    }
+    match = text.match(/\b(?:mande|mandar|envie|enviar|transfira|transferir)\s+(-?\d+(?:[,.]\d+)?)\s+([a-z0-9._-]+)\s+(?:de\s+)?(.+?)\s+para\s+(.+)$/);
+    if (!match) return null;
+    return { action: "stock_transfer", quantity: parseEloStockEntryQuantity_(match[1]), unit: normalizeEloStockEntryUnit_(match[2]), originalUnit: sanitizeUserText(match[2]), productQuery: cleanEloStockEntryProductQuery_(match[3]), sourceEnvironmentQuery: "", destinationEnvironmentQuery: cleanEloStockTransferEnvironmentQuery_(match[4]), sourceMessage: sanitizeUserText(message) };
+  }
+
+  function isEloStockTransferConfirmation_(message) {
+    return /^(?:sim|confirmar|confirmo|pode\s+transferir|pode\s+registrar|pode|registrar|registre|ok|correto|isso\s+mesmo)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function isEloStockTransferCancel_(message) {
+    return /^(?:nao|não|cancelar|cancele|abortar|desistir|deixa|deixe|nao\s+transferir|não\s+transferir|nao\s+registrar|não\s+registrar)\.?$/i.test(normalizeText(message || ""));
+  }
+
+  function getEloPendingStockTransfer_() {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(ELO_PENDING_STOCK_TRANSFER_KEY) || "null");
+      return saved && typeof saved === "object" ? saved : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setEloPendingStockTransfer_(transfer) {
+    try {
+      if (transfer) window.sessionStorage.setItem(ELO_PENDING_STOCK_TRANSFER_KEY, JSON.stringify(transfer));
+      else window.sessionStorage.removeItem(ELO_PENDING_STOCK_TRANSFER_KEY);
+    } catch (error) {}
+  }
+
+  function isEloPendingStockTransferExpired_(transfer) {
+    return !transfer || !transfer.createdAt || Date.now() - Number(transfer.createdAt || 0) > 30 * 60 * 1000;
+  }
+
+  function createEloStockTransferOperationId_() {
+    return "elo_transfer_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function buildEloStockTransferInvalidAnswer_(messageText, nextAction, sessionIntent) {
+    return { shortAnswer: messageText, fullAnswer: messageText, nextAction: nextAction || "Revise produto, origem, destino, quantidade, unidade e saldo antes de tentar novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: sessionIntent || "stock_transfer_blocked" };
+  }
+
+  function getEloStockTransferEnvironmentName_(environment) {
+    return sanitizeUserText(environment && (environment.name || environment.environmentName || environment.unitName || environment.workName || environment.clientName || environment.id) || "Ambiente");
+  }
+
+  function scoreEloStockTransferEnvironment_(query, environment) {
+    const normalizedQuery = normalizeEloStockBalanceTerm_(query);
+    if (!normalizedQuery) return 0;
+    const fields = [environment && environment.id, environment && environment.name, environment && environment.environmentName, environment && environment.unitName, environment && environment.workName, environment && environment.clientName].map(normalizeEloStockBalanceTerm_).filter(Boolean);
+    if (fields.some(function (field) { return field === normalizedQuery; })) return 100;
+    if (fields.some(function (field) { return field.indexOf(normalizedQuery) >= 0 || normalizedQuery.indexOf(field) >= 0; })) return 80;
+    const words = normalizedQuery.split(/\s+/).filter(function (word) { return word && word.length > 1; });
+    if (!words.length) return 0;
+    if (!words.every(function (word) { return fields.some(function (field) { return field.indexOf(word) >= 0; }); })) return 0;
+    return words.length * 20;
+  }
+
+  function resolveEloStockTransferEnvironment_(query, environments) {
+    const cleanQuery = cleanEloStockTransferEnvironmentQuery_(query);
+    if (!cleanQuery) return { status: "missing", environment: null, matches: [] };
+    const ranked = (environments || []).map(function (environment) {
+      return { environment: environment, score: scoreEloStockTransferEnvironment_(cleanQuery, environment) };
+    }).filter(function (entry) { return entry.score > 0; }).sort(function (a, b) {
+      return b.score - a.score || getEloStockTransferEnvironmentName_(a.environment).localeCompare(getEloStockTransferEnvironmentName_(b.environment));
+    });
+    if (!ranked.length) return { status: "not_found", environment: null, matches: [], query: cleanQuery };
+    const bestScore = ranked[0].score;
+    const matches = ranked.filter(function (entry) { return entry.score === bestScore; }).map(function (entry) { return entry.environment; });
+    if (matches.length === 1) return { status: "found", environment: matches[0], matches: matches, query: cleanQuery };
+    return { status: "ambiguous", environment: null, matches: matches, query: cleanQuery };
+  }
+
+  function findEloStockTransferSnapshotItem_(items, itemId, environmentId) {
+    const id = sanitizeUserText(itemId || "");
+    const env = sanitizeUserText(environmentId || "");
+    return (items || []).find(function (item) {
+      return getEloStockEntryItemId_(item) === id && (!env || sanitizeUserText(item.environmentId || "") === env);
+    }) || null;
+  }
+
+  function findEloStockTransferDestinationItem_(sourceItem, destinationEnvironment, balances) {
+    const destinationEnvironmentId = sanitizeUserText(destinationEnvironment && (destinationEnvironment.id || destinationEnvironment.environmentId) || "");
+    const sourceSku = normalizeEloStockCode_(sourceItem && (sourceItem.sku || sourceItem.fiscalCode || sourceItem.code));
+    const sourceName = normalizeEloStockBalanceTerm_(sourceItem && sourceItem.name);
+    const sourceUnit = normalizeEloStockEntryUnit_(sourceItem && sourceItem.unit || "un");
+    return (balances || []).find(function (item) {
+      if (sanitizeUserText(item.environmentId || "") !== destinationEnvironmentId) return false;
+      const itemUnit = normalizeEloStockEntryUnit_(item.unit || "un");
+      if (sourceUnit && itemUnit && sourceUnit !== itemUnit) return false;
+      const itemSku = normalizeEloStockCode_(item.sku || item.fiscalCode || item.code);
+      if (sourceSku && itemSku && sourceSku === itemSku) return true;
+      return sourceName && normalizeEloStockBalanceTerm_(item.name) === sourceName;
+    }) || null;
+  }
+
+  function buildEloStockTransferPreviewAnswer_(message) {
+    const command = parseEloStockTransferCommand_(message);
+    if (!command) return null;
+    if (!command.productQuery) return buildEloStockTransferInvalidAnswer_("Nao identifiquei o produto da transferencia. Nenhum movimento foi criado.", "Informe produto, quantidade, unidade, origem e destino.");
+    if (!(command.quantity > 0)) return buildEloStockTransferInvalidAnswer_("Quantidade invalida para transferencia. Nenhum movimento foi criado.", "Informe uma quantidade maior que zero.");
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedTransfer !== "function") {
+      return buildEloStockTransferInvalidAnswer_("Ponte de transferencia do Stock indisponivel. Nenhum estoque foi movimentado.", "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", "stock_transfer_bridge_missing");
+    }
+    const environments = getEloOperationalAlmoxEnvironments_();
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const destinationResolution = resolveEloStockTransferEnvironment_(command.destinationEnvironmentQuery, environments);
+    if (destinationResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de um destino compativel. Nenhum movimento foi criado.", "Informe o nome exato do ambiente de destino.", "stock_transfer_environment_ambiguous");
+    if (!destinationResolution.environment) return buildEloStockTransferInvalidAnswer_("Destino da transferencia nao encontrado. Nenhum movimento foi criado.", "Informe um ambiente/obra existente.", "stock_transfer_destination_missing");
+
+    let sourceEnvironment = null;
+    let sourceBalances = [];
+    if (command.sourceEnvironmentQuery) {
+      const sourceResolution = resolveEloStockTransferEnvironment_(command.sourceEnvironmentQuery, environments);
+      if (sourceResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de uma origem compativel. Nenhum movimento foi criado.", "Informe o nome exato do ambiente de origem.", "stock_transfer_environment_ambiguous");
+      if (!sourceResolution.environment) return buildEloStockTransferInvalidAnswer_("Origem da transferencia nao encontrada. Nenhum movimento foi criado.", "Informe um ambiente/obra existente.", "stock_transfer_source_missing");
+      sourceEnvironment = sourceResolution.environment;
+      sourceBalances = allBalances.filter(function (item) { return sanitizeUserText(item.environmentId || "") === sanitizeUserText(sourceEnvironment.id || sourceEnvironment.environmentId || ""); });
+    } else {
+      sourceBalances = getEloOperationalAlmoxBalances_();
+    }
+
+    const sourceResolution = findEloStockBalanceByQuery_(command.productQuery, sourceBalances);
+    if (sourceResolution.status === "ambiguous") return Object.assign({}, buildEloStockAmbiguityAnswer_(sourceResolution), { sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_ambiguous" });
+    if (!sourceResolution.item) return buildEloStockTransferInvalidAnswer_("Produto nao encontrado na origem. Nenhum movimento foi criado.", "Use um SKU existente ou o nome cadastrado na origem.", "stock_transfer_product_missing");
+    const sourceItem = sourceResolution.item;
+    if (!sourceEnvironment) {
+      sourceEnvironment = environments.find(function (environment) { return sanitizeUserText(environment.id || environment.environmentId || "") === sanitizeUserText(sourceItem.environmentId || ""); }) || { id: sourceItem.environmentId, name: sourceItem.environmentId || "Origem" };
+    }
+    const sourceEnvironmentId = sanitizeUserText(sourceEnvironment.id || sourceEnvironment.environmentId || sourceItem.environmentId || "");
+    const destinationEnvironmentId = sanitizeUserText(destinationResolution.environment.id || destinationResolution.environment.environmentId || "");
+    if (sourceEnvironmentId && destinationEnvironmentId && sourceEnvironmentId === destinationEnvironmentId) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha ambientes diferentes.", "stock_transfer_same_environment");
+    if (sourceItem.companyId && destinationResolution.environment.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationResolution.environment.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
+
+    const itemUnit = normalizeEloStockEntryUnit_(sourceItem.unit || "un");
+    if (command.unit && itemUnit && command.unit !== itemUnit) return buildEloStockTransferInvalidAnswer_("Unidade incompatível com o produto cadastrado. Nenhum movimento foi criado.", "Use a unidade cadastrada para " + (sourceItem.name || "o produto") + ": " + (sourceItem.unit || "un") + ".");
+    const destinationItem = findEloStockTransferDestinationItem_(sourceItem, destinationResolution.environment, allBalances);
+    if (!destinationItem) return buildEloStockTransferInvalidAnswer_("Produto correspondente nao encontrado no destino. Nenhum movimento foi criado.", "Cadastre o produto no destino antes de transferir.", "stock_transfer_destination_product_missing");
+    const balanceBefore = Number(sourceItem.balance || sourceItem.realBalance || 0);
+    const destinationBefore = Number(destinationItem.balance || destinationItem.realBalance || 0);
+    if (balanceBefore < command.quantity) return buildEloStockExitInsufficientAnswer_(sourceItem, command.quantity, sourceItem.unit || command.unit || "un", balanceBefore);
+    const unit = sourceItem.unit || command.unit || "un";
+    const transfer = { id: createEloStockTransferOperationId_(), action: "stock_transfer", status: "pending", createdAt: Date.now(), question: sanitizeUserText(message).slice(0, 500), command: command, item: { id: getEloStockEntryItemId_(sourceItem), itemId: getEloStockEntryItemId_(sourceItem), name: sourceItem.name || "Produto", sku: sourceItem.sku || sourceItem.fiscalCode || sourceItem.code || "", unit: unit, companyId: sourceItem.companyId || "", environmentId: sourceEnvironmentId }, destinationItem: { id: getEloStockEntryItemId_(destinationItem), itemId: getEloStockEntryItemId_(destinationItem), name: destinationItem.name || sourceItem.name || "Produto", unit: destinationItem.unit || unit, environmentId: destinationEnvironmentId }, sourceEnvironment: { id: sourceEnvironmentId, name: getEloStockTransferEnvironmentName_(sourceEnvironment), companyId: sourceEnvironment.companyId || sourceItem.companyId || "" }, destinationEnvironment: { id: destinationEnvironmentId, name: getEloStockTransferEnvironmentName_(destinationResolution.environment), companyId: destinationResolution.environment.companyId || sourceItem.companyId || "" }, quantity: command.quantity, unit: unit, sourceBalanceBefore: balanceBefore, sourceBalanceAfter: balanceBefore - command.quantity, destinationBalanceBefore: destinationBefore, destinationBalanceAfter: destinationBefore + command.quantity, companyId: sourceItem.companyId || "" };
+    setEloPendingStockTransfer_(transfer);
+    const lines = ["Transferência de estoque", "", "Produto: " + (sourceItem.name || "Produto"), "Origem: " + transfer.sourceEnvironment.name, "Destino: " + transfer.destinationEnvironment.name, "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit, "Saldo atual na origem: " + formatEloStockQuantity_(balanceBefore) + " " + unit, "Saldo previsto na origem: " + formatEloStockQuantity_(transfer.sourceBalanceAfter) + " " + unit, "Saldo atual no destino: " + formatEloStockQuantity_(destinationBefore) + " " + unit, "Saldo previsto no destino: " + formatEloStockQuantity_(transfer.destinationBalanceAfter) + " " + unit, "", "Confirma a transferência?"];
+    return { shortAnswer: "Transferencia pendente de confirmacao.", fullAnswer: lines.join("\n"), nextAction: "Responda sim, confirmar ou pode transferir para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_preview", stockTransfer: transfer };
+  }
+
+  function buildEloConfirmedStockTransferAnswer_(transfer, result) {
+    const unit = result && result.unit || transfer.unit || "un";
+    const lines = ["Transferencia registrada no Stock.", "Produto: " + (transfer.item && transfer.item.name || "Produto"), "Origem: " + (transfer.sourceEnvironment && transfer.sourceEnvironment.name || "Origem"), "Destino: " + (transfer.destinationEnvironment && transfer.destinationEnvironment.name || "Destino"), "Quantidade: " + formatEloStockQuantity_(transfer.quantity || 0) + " " + unit, "Saldo origem: " + formatEloStockQuantity_(result && result.sourceBalanceBefore !== undefined ? result.sourceBalanceBefore : transfer.sourceBalanceBefore || 0) + " -> " + formatEloStockQuantity_(result && result.sourceBalanceAfter !== undefined ? result.sourceBalanceAfter : transfer.sourceBalanceAfter || 0) + " " + unit, "Saldo destino: " + formatEloStockQuantity_(result && result.destinationBalanceBefore !== undefined ? result.destinationBalanceBefore : transfer.destinationBalanceBefore || 0) + " -> " + formatEloStockQuantity_(result && result.destinationBalanceAfter !== undefined ? result.destinationBalanceAfter : transfer.destinationBalanceAfter || 0) + " " + unit];
+    if (result && result.transferId) lines.push("Transfer ID: " + result.transferId + ".");
+    lines.push("Historico/Audit: saida e entrada vinculadas pelo fluxo real local do Stock.");
+    return lines.join("\n");
+  }
+
+  function buildEloStockTransferConfirmationAnswer_(message) {
+    const transfer = getEloPendingStockTransfer_();
+    if (!transfer) return null;
+    if (!isEloStockTransferConfirmation_(message) && !isEloStockTransferCancel_(message)) return null;
+    if (isEloPendingStockTransferExpired_(transfer)) {
+      setEloPendingStockTransfer_(null);
+      return { shortAnswer: "A transferencia pendente expirou.", fullAnswer: "A transferencia pendente expirou por seguranca. Nenhum movimento foi criado.", nextAction: "Refaca o pedido de transferencia.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_expired" };
+    }
+    if (isEloStockTransferCancel_(message)) {
+      setEloPendingStockTransfer_(null);
+      return { shortAnswer: "Transferencia cancelada.", fullAnswer: "Transferencia cancelada. Nenhum movimento foi criado.", nextAction: "Quando quiser, peca uma nova transferencia com produto, quantidade, origem e destino.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_cancelled" };
+    }
+    if (transfer.status === "saved" && transfer.confirmationText) {
+      return { shortAnswer: "Essa transferencia ja foi confirmada.", fullAnswer: transfer.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova transferencia.", nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_idempotent", stockTransfer: transfer };
+    }
+    if (transfer.status === "saving") return { shortAnswer: "Essa transferencia ja esta sendo registrada.", fullAnswer: "Essa transferencia ja esta sendo registrada. Aguarde a conclusao antes de enviar outra confirmacao.", nextAction: "Aguarde a resposta do Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_saving", stockTransfer: transfer };
+    const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
+    const currentSource = findEloStockTransferSnapshotItem_(allBalances, transfer.item && transfer.item.itemId, transfer.sourceEnvironment && transfer.sourceEnvironment.id);
+    const currentDestination = findEloStockTransferSnapshotItem_(allBalances, transfer.destinationItem && transfer.destinationItem.itemId, transfer.destinationEnvironment && transfer.destinationEnvironment.id);
+    if (!currentSource) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Produto da origem nao foi encontrado no Stock atual. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    if (!currentDestination) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Produto do destino nao foi encontrado no Stock atual. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    const currentUnit = normalizeEloStockEntryUnit_(currentSource.unit || "un");
+    const requestedUnit = normalizeEloStockEntryUnit_(transfer.unit || "un");
+    if (requestedUnit && currentUnit && requestedUnit !== currentUnit) { setEloPendingStockTransfer_(null); return buildEloStockTransferInvalidAnswer_("Unidade do produto mudou desde o preview. Nenhum movimento foi criado.", "Refaca o preview da transferencia.", "stock_transfer_revalidation_blocked"); }
+    const currentBalance = Number(currentSource.balance || currentSource.realBalance || 0);
+    if (currentBalance < Number(transfer.quantity || 0)) {
+      setEloPendingStockTransfer_(null);
+      const lines = ["Transferencia bloqueada porque o saldo mudou desde o preview.", "Saldo atual na origem: " + formatEloStockQuantity_(currentBalance) + " " + (currentSource.unit || transfer.unit || "un") + ".", "Quantidade solicitada: " + formatEloStockQuantity_(transfer.quantity || 0) + " " + (currentSource.unit || transfer.unit || "un") + ".", "Nenhuma movimentacao foi realizada.", "Refaca o pedido para gerar um novo preview."];
+      return { shortAnswer: "Transferencia bloqueada por saldo insuficiente.", fullAnswer: lines.join("\n"), nextAction: "Refaca o preview da transferencia.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_balance_changed", stockTransfer: transfer };
+    }
+    const bridge = window.ObraReportOperationalStock;
+    if (!bridge || typeof bridge.createConfirmedTransfer !== "function") return { shortAnswer: "Ponte do Stock indisponivel.", fullAnswer: "Nao consegui confirmar a transferencia porque a ponte oficial do Stock nao esta disponivel nesta tela. Nenhum estoque foi movimentado.", nextAction: "Abra o ObraReport com Stock/Almoxarifado ativo e tente novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_bridge_missing", stockTransfer: transfer };
+    transfer.status = "saving";
+    setEloPendingStockTransfer_(transfer);
+    const result = bridge.createConfirmedTransfer({ transferId: transfer.id, source: "elo", requestedBy: "ELO", responsible: "ELO", sourceEnvironmentId: transfer.sourceEnvironment && transfer.sourceEnvironment.id, destinationEnvironmentId: transfer.destinationEnvironment && transfer.destinationEnvironment.id, sourceItemId: transfer.item && transfer.item.itemId, destinationItemId: transfer.destinationItem && transfer.destinationItem.itemId, quantity: transfer.quantity, unit: transfer.unit, notes: "Origem ELO. Pedido: " + sanitizeUserText(transfer.question || "") });
+    if (!result || result.ok !== true) {
+      transfer.status = "pending";
+      setEloPendingStockTransfer_(transfer);
+      const messageText = sanitizeUserText(result && result.message || "Nao foi possivel registrar a transferencia. Nenhum saldo foi movimentado.");
+      return { shortAnswer: "Transferencia bloqueada.", fullAnswer: messageText, nextAction: "Revise permissao, produto, origem, destino, quantidade, unidade e saldo antes de confirmar novamente.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_blocked", stockTransfer: transfer };
+    }
+    transfer.status = "saved";
+    transfer.savedAt = Date.now();
+    transfer.result = result;
+    transfer.confirmationText = buildEloConfirmedStockTransferAnswer_(transfer, result);
+    setEloPendingStockTransfer_(transfer);
+    const intent = result.duplicate ? "stock_transfer_idempotent" : "stock_transfer_confirmed";
+    return { shortAnswer: result.duplicate ? "Essa transferencia ja foi confirmada." : "Transferencia registrada no Stock.", fullAnswer: result.duplicate ? transfer.confirmationText + "\n\nIdempotencia: a confirmacao repetida nao criou nova transferencia." : transfer.confirmationText, nextAction: "Consulte o saldo ou o historico no Stock.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: intent, stockTransfer: transfer };
+  }
+
+  function buildEloStockTransferAnswer_(message) {
+    return buildEloStockTransferConfirmationAnswer_(message) || buildEloStockTransferPreviewAnswer_(message);
+  }
+
   function buildEloStockReadonlyAnswer_(message) {
+    const transfer = buildEloStockTransferAnswer_(message);
+    if (transfer) return transfer;
     const entry = buildEloStockEntryAnswer_(message);
     if (entry) return entry;
     const exit = buildEloStockExitAnswer_(message);
@@ -31189,6 +31431,10 @@ function isEloResidentialNewPipelineEnabled_() {
     buildStockExitAnswerForTest: buildEloStockExitAnswer_,
     getPendingStockExitForTest: getEloPendingStockExit_,
     clearPendingStockExitForTest: function () { setEloPendingStockExit_(null); },
+    parseStockTransferCommandForTest: parseEloStockTransferCommand_,
+    buildStockTransferAnswerForTest: buildEloStockTransferAnswer_,
+    getPendingStockTransferForTest: getEloPendingStockTransfer_,
+    clearPendingStockTransferForTest: function () { setEloPendingStockTransfer_(null); },
     buildStockMovementDayAnswerForTest: buildEloStockMovementDayAnswer_,
     buildStockMovementResponsibleAnswerForTest: buildEloStockMovementResponsibleAnswer_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
