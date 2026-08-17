@@ -550,6 +550,82 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     expect(result.keepsBackendSessionProduction).toBe(false);
   });
 
+  test("localhost sem flag preserva login demo local e nao chama backend", async ({ page }) => {
+    const loginRequests = [];
+    await page.route(APP_ORIGIN + "/api/stock-full/login", async (route) => {
+      loginRequests.push(route.request().postDataJSON());
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "unexpected_backend_login" }) });
+    });
+
+    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+    await page.locator("[data-stock-full-demo-login=\"manoel\"]").click();
+
+    const session = await page.evaluate(() => JSON.parse(window.localStorage.getItem("stockFullSession") || "{}"));
+    expect(loginRequests).toHaveLength(0);
+    expect(session).toMatchObject({ isAuthenticated: true, userEmail: "manoel@manoelimportados.com", role: "admin" });
+  });
+
+  test("localhost com stockFullRemote=1 usa login backend oficial", async ({ page }) => {
+    const loginRequests = [];
+    await page.route(APP_ORIGIN + "/api/stock-full/login", async (route) => {
+      const body = route.request().postDataJSON();
+      loginRequests.push({ url: route.request().url(), method: route.request().method(), keys: Object.keys(body).sort() });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          module: "stock-full",
+          mode: "remote",
+          user: { id: "auth_remote", email: "teste@stocksaude.com" },
+          profile: { id: "profile_remote", email: "teste@stocksaude.com", institution_id: "inst_remote", institution_name: "Instituicao Remote", role: "gestor" },
+          session: { access_token: "token.remote", refresh_token: "refresh.remote", expires_at: 1893456000 }
+        })
+      });
+    });
+
+    await page.goto(APP_URL + "?stockFullRemote=1", { waitUntil: "domcontentloaded" });
+    expect(await page.evaluate(() => window.StockFullAppRuntime.isRemoteBackendMode())).toBe(true);
+    await page.locator("#stockFullLoginForm [name=email]").fill("teste@stocksaude.com");
+    await page.locator("#stockFullLoginForm [name=password]").fill("senha-remota");
+    await page.locator("#stockFullLoginForm button[type=submit]").click();
+    await page.waitForLoadState("domcontentloaded");
+    await expect.poll(async () => {
+      try {
+        return await page.evaluate(() => Boolean(window.localStorage.getItem("sb-stock-full-backend-auth-token")));
+      } catch (error) {
+        return false;
+      }
+    }).toBe(true);
+
+    const stored = await page.evaluate(() => ({
+      session: JSON.parse(window.localStorage.getItem("stockFullSession") || "{}"),
+      token: JSON.parse(window.localStorage.getItem("sb-stock-full-backend-auth-token") || "{}")
+    }));
+    expect(loginRequests).toEqual([{ url: APP_ORIGIN + "/api/stock-full/login", method: "POST", keys: ["email", "password"] }]);
+    expect(stored.session).toMatchObject({ isAuthenticated: true, mode: "backend", profileId: "profile_remote", companyId: "inst_remote", role: "gestor" });
+    expect(stored.token.access_token).toBe("token.remote");
+  });
+
+  test("localhost com stockFullRemote=1 mostra erro backend e nao cria sessao invalida", async ({ page }) => {
+    const loginRequests = [];
+    await page.route(APP_ORIGIN + "/api/stock-full/login", async (route) => {
+      const body = route.request().postDataJSON();
+      loginRequests.push({ keys: Object.keys(body).sort() });
+      await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ ok: false, error: "invalid_credentials" }) });
+    });
+
+    await page.goto(APP_URL + "?stockFullRemote=1", { waitUntil: "domcontentloaded" });
+    await page.locator("#stockFullLoginForm [name=email]").fill("teste@stocksaude.com");
+    await page.locator("#stockFullLoginForm [name=password]").fill("senha-invalida");
+    await page.locator("#stockFullLoginForm button[type=submit]").click();
+
+    await expect(page.locator("#stockFullLoginStatus")).toContainText("invalid_credentials");
+    expect(loginRequests).toEqual([{ keys: ["email", "password"] }]);
+    const storage = await page.evaluate(() => ({ hasSession: Boolean(window.localStorage.getItem("stockFullSession")), hasToken: Boolean(window.localStorage.getItem("sb-stock-full-backend-auth-token")) }));
+    expect(storage).toEqual({ hasSession: false, hasToken: false });
+  });
+
   test("fila offline sincroniza usando API backend configurada", async ({ page }) => {
     const requests = [];
     await page.route("https://backend.example/api/stock-full/sync", async (route) => {

@@ -5,7 +5,18 @@
     return core.isPublishedProductionLocation ? core.isPublishedProductionLocation(locationLike) : !/^(localhost|127\\.0\\.0\\.1|::1)$/i.test((locationLike && locationLike.hostname) || window.location.hostname || "");
   }
 
+  function isRemoteBackendRequested() {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      const value = String(params.get("stockFullRemote") || "").toLowerCase();
+      return value === "1" || value === "true";
+    } catch (error) {
+      return false;
+    }
+  }
+
   const production = isProductionLocation();
+  const remoteBackendMode = production || isRemoteBackendRequested();
 
   if (!window.location.search || window.location.search.indexOf("produto=stock-full") < 0) {
     const separator = window.location.pathname.indexOf("?") >= 0 ? "&" : "?";
@@ -100,6 +111,7 @@
   }
 
   async function loginWithBackend(email, password) {
+    if (!originalFetch) throw new Error("stock_full_fetch_unavailable");
     const response = await originalFetch(apiUrl("login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -132,7 +144,7 @@
   }, true);
 
   document.addEventListener("submit", async function (event) {
-    if (!production || !event.target || event.target.id !== "stockFullLoginForm") return;
+    if (!remoteBackendMode || !event.target || event.target.id !== "stockFullLoginForm") return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const formData = new FormData(event.target);
@@ -142,7 +154,7 @@
       setLoginStatus("Login online realizado. Carregando dados da empresa...", "success");
       window.location.reload();
     } catch (error) {
-      setLoginStatus("Servidor indisponivel. Nao foi possivel carregar dados online.", "error");
+      setLoginStatus(error && error.message ? error.message : "stock_full_backend_login_failed", "error");
     }
   }, true);
 
@@ -154,6 +166,8 @@
 
   window.StockFullAppRuntime = {
     isProduction: function () { return production; },
+    isRemoteBackendMode: function () { return remoteBackendMode; },
+    isRemoteBackendRequested,
     isProductionLocation,
     isDemoLoginAllowedFor: function (locationLike) { return !isProductionLocation(locationLike); },
     shouldClearLocalOnlySession,
