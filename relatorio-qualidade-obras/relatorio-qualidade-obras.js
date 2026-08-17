@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const config = window.RELATORIO_QUALIDADE_CONFIG || {};
@@ -300,6 +300,8 @@
   let stockFullRemoteEntries = [];
   let stockFullRemoteExits = [];
   let stockFullRemoteAuditLog = [];
+  let stockFullRemoteReadyState = { ok: false, mode: "local", itemsLoaded: false, items: 0, institutionId: "" };
+  let stockFullRemoteReadyPromise = Promise.resolve(stockFullRemoteReadyState);
   let currentUser = getCurrentUser_();
   let activeReportId = null;
   let draftSaveTimer = null;
@@ -1316,6 +1318,10 @@
     if (clean(getCurrentUrlParams_().get("produto")).toLowerCase() === "stock-full") {
       return true;
     }
+    const stockFullRemote = clean(getCurrentUrlParams_().get("stockFullRemote")).toLowerCase();
+    if (stockFullRemote === "1" || stockFullRemote === "true") {
+      return true;
+    }
     if (document.body && document.body.dataset && document.body.dataset.stockFullApp === "true") {
       return true;
     }
@@ -1402,13 +1408,29 @@
     return "";
   }
 
+  function isStockFullRemoteRequested_() {
+    try {
+      const value = clean(getCurrentUrlParams_().get("stockFullRemote")).toLowerCase();
+      return value === "1" || value === "true";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function buildStockFullBackendApiUrl_(path) {
+    if (window.StockFullCore && typeof window.StockFullCore.buildStockFullApiUrl === "function") {
+      return window.StockFullCore.buildStockFullApiUrl(path);
+    }
+    return path;
+  }
+
   async function fetchStockFullMe_() {
     const token = getStockFullSupabaseToken_();
     if (!token) {
       return null;
     }
 
-    const response = await fetch("/api/stock-full/me", {
+    const response = await fetch(buildStockFullBackendApiUrl_("/api/stock-full/me"), {
       headers: {
         Authorization: "Bearer " + token
       }
@@ -1434,7 +1456,7 @@
       Authorization: "Bearer " + token
     });
 
-    const response = await fetch(url, requestOptions);
+    const response = await fetch(buildStockFullBackendApiUrl_(url), requestOptions);
     if (!response.ok) {
       try {
         const errorData = await response.json();
@@ -1448,6 +1470,77 @@
 
   function isStockFullRemoteActive_() {
     return isStockFullContext_() && stockFullRuntimeMode === "remote" && Boolean(stockFullAuthContext.profile);
+  }
+
+  async function ensureStockFullBackendRemoteContext_() {
+    if (isStockFullRemoteActive_()) {
+      return true;
+    }
+    if (!isStockFullContext_()) {
+      return false;
+    }
+    const currentSession = getCurrentStockFullSession_();
+    if (!isStockFullRemoteRequested_() && currentSession.mode !== "backend") {
+      return false;
+    }
+    try {
+      const session = await fetchStockFullMe_();
+      if (session && session.ok && session.profile) {
+        setStockFullRuntimeMode_("remote", session);
+        return true;
+      }
+    } catch (error) {
+      // A sessao backend persistida ainda sera validada pelo proprio backend no POST.
+    }
+    if (getStockFullSupabaseToken_() && currentSession.mode === "backend") {
+      setStockFullRuntimeMode_("remote", {
+        user: { id: clean(currentSession.userId), email: clean(currentSession.userEmail) },
+        profile: {
+          id: clean(currentSession.profileId || currentSession.userId),
+          institution_id: clean(currentSession.companyId || currentSession.institutionId),
+          unit_id: clean(currentSession.unitId),
+          name: clean(currentSession.userName),
+          email: clean(currentSession.userEmail),
+          role: clean(currentSession.role) || "usuario"
+        }
+      });
+      return true;
+    }
+    return false;
+  }
+
+  function buildStockFullRemoteReadyState_(extra) {
+    const state = Object.assign({
+      ok: isStockFullRemoteActive_() && stockFullRemoteItemsLoaded,
+      mode: stockFullRuntimeMode,
+      itemsLoaded: stockFullRemoteItemsLoaded,
+      items: stockFullRemoteItems.length,
+      entries: stockFullRemoteEntries.length,
+      exits: stockFullRemoteExits.length,
+      institutionId: stockFullAuthContext.institutionId || ""
+    }, extra || {});
+    stockFullRemoteReadyState = state;
+    return state;
+  }
+
+  function setStockFullRemoteReadyPromise_(promise) {
+    stockFullRemoteReadyPromise = Promise.resolve(promise).then(function () {
+      return buildStockFullRemoteReadyState_();
+    }).catch(function (error) {
+      return buildStockFullRemoteReadyState_({ ok: false, error: clean(error && error.message) || "stock_full_remote_hydrate_failed" });
+    });
+    return stockFullRemoteReadyPromise;
+  }
+
+  function waitStockFullRemoteReady_() {
+    if (!isStockFullRemoteRequested_() && !isStockFullRemoteActive_()) {
+      return Promise.resolve(buildStockFullRemoteReadyState_());
+    }
+    return stockFullRemoteReadyPromise;
+  }
+
+  function getStockFullRemoteReadyState_() {
+    return Object.assign({}, stockFullRemoteReadyState);
   }
 
   function mapStockFullRemoteItemToAlmox_(item) {
@@ -1972,6 +2065,7 @@
       stockFullRemoteEntries = [];
       stockFullRemoteExits = [];
       stockFullRemoteAuditLog = [];
+      buildStockFullRemoteReadyState_({ ok: false });
     }
     updateAlmoxOfflineStatus_();
   }
@@ -2013,8 +2107,10 @@
             renderAlmoxarifadoPanel_();
           }
         } catch (remoteError) {
-          console.info("Stock Full: produtos remotos indisponiveis; mantendo modo local.");
-          setStockFullRuntimeMode_("local");
+          console.info("Stock Full: produtos remotos indisponiveis.");
+          if (!isStockFullRemoteRequested_()) {
+            setStockFullRuntimeMode_("local");
+          }
         }
         return stockFullAuthContext;
       }
@@ -2058,7 +2154,7 @@
       banner.classList.remove("is-hidden");
     }
 
-    const stockFullAuthInit = initStockFullAuthContext_();
+    const stockFullAuthInit = setStockFullRemoteReadyPromise_(initStockFullAuthContext_());
     if (isStockFullIsolatedApp_ && stockFullAuthInit && typeof stockFullAuthInit.then === "function") {
       stockFullAuthInit.then(function () {
         renderAlmoxarifadoPanel_();
@@ -10482,6 +10578,10 @@
       return { ok: false, message: "Usuario sem permissao para cadastrar produto." };
     }
 
+    if (isStockFullRemoteRequested_() && !await ensureStockFullBackendRemoteContext_()) {
+      return { ok: false, error: "stock_full_remote_session_unavailable", message: "Sessao remota do Stock Full indisponivel." };
+    }
+
     const formData = new FormData();
     formData.set("name", name);
     formData.set("sku", clean(safePayload.sku));
@@ -10589,6 +10689,13 @@
     } catch (error) {
       if (clean(error && error.message) === "stock_full_sku_duplicate") {
         return buildStockFullDuplicateSkuResult_(sku);
+      }
+      if (isStockFullRemoteRequested_()) {
+        return {
+          ok: false,
+          error: clean(error && error.message) || "stock_full_remote_item_create_failed",
+          message: "Nao foi possivel cadastrar o produto no backend remoto."
+        };
       }
       console.info("Stock Full: cadastro remoto indisponivel; salvando item no modo local.");
       setStockFullRuntimeMode_("local");
@@ -23436,6 +23543,10 @@
     savePreview: saveDailyLogPreviewFromElo_,
     openPdf: openDailyLogPreviewPdfFromElo_
   });
+  if (isEloStockBridgeOnly_ && isStockFullRemoteRequested_()) {
+    setStockFullRemoteReadyPromise_(initStockFullAuthContext_());
+  }
+
   window.ObraReportOperationalStock = Object.assign({}, window.ObraReportOperationalStock || {}, {
     getAlmoxBalances: getOperationalAlmoxBalanceSnapshot_,
     getAlmoxMovements: getOperationalAlmoxMovementSnapshot_,
@@ -23445,6 +23556,9 @@
     createConfirmedExit: createConfirmedOperationalExit_,
     createConfirmedTransfer: createConfirmedOperationalTransfer_,
     syncConfirmedMovement: syncConfirmedMovement_,
-    syncConfirmedTransfer: syncConfirmedTransfer_
+    syncConfirmedTransfer: syncConfirmedTransfer_,
+    remoteReady: stockFullRemoteReadyPromise,
+    waitRemoteReady: waitStockFullRemoteReady_,
+    getRemoteStatus: getStockFullRemoteReadyState_
   });
 })();

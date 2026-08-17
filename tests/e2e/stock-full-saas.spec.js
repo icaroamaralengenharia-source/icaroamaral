@@ -1419,4 +1419,90 @@ test.describe("Stock Full SaaS - fase A cirurgica", () => {
     const mobileHtml = await page.evaluate(() => window.__stockFullOpenedHtml);
     expect(mobileHtml).toContain("data-stock-full-audit-pdf");
     expect(mobileHtml).toContain("window.print");
-  });});
+  });
+  test("ELO sem flag cria produto local sem chamar backend", async ({ page }) => {
+    const itemRequests = [];
+    await page.route(APP_ORIGIN + "/api/stock-full/**", async (route) => {
+      itemRequests.push({ url: route.request().url(), method: route.request().method() });
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "unexpected_backend_call" }) });
+    });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "local", userId: "local_gestor", userName: "Gestor Local", companyId: "company_local", companyName: "Empresa Local", role: "gestor" }));
+    });
+    await page.goto(APP_ORIGIN + "/elo.html", { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.ObraReportOperationalStock && typeof window.ObraReportOperationalStock.createConfirmedProduct === "function");
+    const result = await page.evaluate(async () => window.ObraReportOperationalStock.createConfirmedProduct({ name: "Produto Local ELO", sku: "LOCAL-ELO-001", unit: "saco", initialQuantity: 10 }));
+    expect(result.ok).toBe(true);
+    expect(String(result.item.id)).toMatch(/^alm_/);
+    expect(itemRequests).toEqual([]);
+  });
+
+  test("ELO com stockFullRemote=1 cria produto pelo backend e reconcilia ID remoto", async ({ page }) => {
+    const requests = [];
+    const remoteItems = [];
+    await page.route(APP_ORIGIN + "/api/stock-full/me", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, mode: "remote", user: { id: "auth_remote", email: "teste@stocksaude.com" }, profile: { id: "profile_remote", institution_id: "inst_remote", role: "gestor", email: "teste@stocksaude.com" } }) });
+    });
+    await page.route(APP_ORIGIN + "/api/stock-full/items", async (route) => {
+      requests.push({ method: route.request().method(), body: route.request().postDataJSON?.() || null });
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: remoteItems }) });
+        return;
+      }
+      const item = { id: "remote_item_elo_1", institution_id: "inst_remote", name: "Produto Remoto ELO", unit: "saco", currentQuantity: 10, minQuantity: 0, isActive: true };
+      remoteItems.splice(0, remoteItems.length, item);
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true, mode: "remote", item }) });
+    });
+    await page.route(APP_ORIGIN + "/api/stock-full/entries", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entries: [] }) }));
+    await page.route(APP_ORIGIN + "/api/stock-full/exits", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, exits: [] }) }));
+    await page.route(APP_ORIGIN + "/api/stock-full/audit-log", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, auditLog: [] }) }));
+    await page.addInitScript(() => {
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "backend", profileId: "profile_remote", userId: "auth_remote", userName: "Gestor Remote", userEmail: "teste@stocksaude.com", companyId: "inst_remote", companyName: "Instituicao Remote", role: "gestor" }));
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "header.payload.signature", currentSession: { access_token: "header.payload.signature" } }));
+    });
+    await page.goto(APP_ORIGIN + "/elo.html?stockFullRemote=1", { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.ObraReportOperationalStock && typeof window.ObraReportOperationalStock.createConfirmedProduct === "function");
+    const result = await page.evaluate(async () => window.ObraReportOperationalStock.createConfirmedProduct({ name: "Produto Remoto ELO", sku: "REMOTE-ELO-001", unit: "saco", initialQuantity: 10 }));
+    expect(result.ok).toBe(true);
+    expect(result.item.id).toBe("remote_item_elo_1");
+    expect(result.item.initialQuantity).toBe(10);
+    expect(requests.filter((request) => request.method === "POST")).toHaveLength(1);
+    expect(requests.find((request) => request.method === "POST").body).toMatchObject({ name: "Produto Remoto ELO", unit: "saco", currentQuantity: 10 });
+    const balances = await page.evaluate(() => window.ObraReportOperationalStock.getAlmoxBalances({ allEnvironments: true }).filter((item) => item.name === "Produto Remoto ELO"));
+    expect(balances).toHaveLength(1);
+    expect(balances[0]).toMatchObject({ id: "remote_item_elo_1", balance: 10 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.ObraReportOperationalStock && typeof window.ObraReportOperationalStock.waitRemoteReady === "function");
+    const remoteReady = await page.evaluate(() => window.ObraReportOperationalStock.waitRemoteReady());
+    expect(remoteReady.ok).toBe(true);
+    const reloadedBalances = await page.evaluate(() => window.ObraReportOperationalStock.getAlmoxBalances({ allEnvironments: true }).filter((item) => item.name === "Produto Remoto ELO"));
+    expect(reloadedBalances).toHaveLength(1);
+    expect(reloadedBalances[0]).toMatchObject({ id: "remote_item_elo_1", balance: 10 });
+  });
+
+  test("ELO com stockFullRemote=1 nao confirma produto quando backend falha", async ({ page }) => {
+    await page.route(APP_ORIGIN + "/api/stock-full/me", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, mode: "remote", user: { id: "auth_remote" }, profile: { id: "profile_remote", institution_id: "inst_remote", role: "gestor" } }) });
+    });
+    await page.route(APP_ORIGIN + "/api/stock-full/items", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, items: [] }) });
+        return;
+      }
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, error: "remote_down" }) });
+    });
+    await page.route(APP_ORIGIN + "/api/stock-full/entries", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entries: [] }) }));
+    await page.route(APP_ORIGIN + "/api/stock-full/exits", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, exits: [] }) }));
+    await page.route(APP_ORIGIN + "/api/stock-full/audit-log", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, auditLog: [] }) }));
+    await page.addInitScript(() => {
+      window.localStorage.setItem("stockFullSession", JSON.stringify({ isAuthenticated: true, mode: "backend", profileId: "profile_remote", userId: "auth_remote", companyId: "inst_remote", role: "gestor" }));
+      window.localStorage.setItem("sb-stock-full-backend-auth-token", JSON.stringify({ access_token: "header.payload.signature", currentSession: { access_token: "header.payload.signature" } }));
+    });
+    await page.goto(APP_ORIGIN + "/elo.html?stockFullRemote=1", { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.ObraReportOperationalStock && typeof window.ObraReportOperationalStock.createConfirmedProduct === "function");
+    const result = await page.evaluate(async () => window.ObraReportOperationalStock.createConfirmedProduct({ name: "Produto Falha Remota", sku: "REMOTE-FAIL-001", unit: "saco", initialQuantity: 10 }));
+    expect(result.ok).toBe(false);
+    const balances = await page.evaluate(() => window.ObraReportOperationalStock.getAlmoxBalances({ allEnvironments: true }).filter((item) => item.name === "Produto Falha Remota"));
+    expect(balances).toHaveLength(0);
+  });
+});
