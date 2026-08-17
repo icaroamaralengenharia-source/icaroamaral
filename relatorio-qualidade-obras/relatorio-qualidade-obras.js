@@ -1750,6 +1750,117 @@
     });
   }
 
+  function getStockFullDeviceId_() {
+    if (window.StockFullCore && typeof window.StockFullCore.getDeviceId === "function") {
+      return clean(window.StockFullCore.getDeviceId());
+    }
+    return "elo-local";
+  }
+
+  function buildEloStockMovementOperationId_(type, id, suffix) {
+    const movementType = clean(type) === "saida" ? "exit" : "entry";
+    const stableId = clean(id).replace(/\s+/g, "-");
+    const stableSuffix = clean(suffix).replace(/\s+/g, "-");
+    return ["elo", movementType, stableId, stableSuffix].filter(Boolean).join(":");
+  }
+
+  function markConfirmedStockMovementRemoteStatus_(movement, patch) {
+    const operationId = clean(movement && movement.operationId);
+    const movementId = clean(movement && movement.id);
+    if (!operationId && !movementId) return movement || null;
+    const state = loadAlmoxState_();
+    let updated = null;
+    state.movements = (state.movements || []).map(function (candidate) {
+      if (!candidate) return candidate;
+      const matchesOperation = operationId && clean(candidate.operationId) === operationId;
+      const matchesId = movementId && clean(candidate.id) === movementId;
+      if (!matchesOperation && !matchesId) return candidate;
+      updated = Object.assign({}, candidate, patch || {}, { updatedAt: new Date().toISOString() });
+      return updated;
+    });
+    if (updated) saveAlmoxState_(state);
+    return updated || movement || null;
+  }
+
+  function buildConfirmedStockRemotePayload_(movement) {
+    const source = movement || {};
+    const operationId = clean(source.operationId);
+    return {
+      itemId: clean(source.itemId || source.productId),
+      quantity: parseNumber_(source.quantity),
+      unitCost: parseNumber_(source.unitCost),
+      supplier: clean(source.supplier),
+      invoiceNumber: clean(source.invoiceNumber || source.documentNumber),
+      documentNumber: clean(source.documentNumber || source.invoiceNumber),
+      destination: clean(source.destination || source.sector || source.recipient),
+      responsible: clean(source.responsible) || getCurrentStockFullSession_().userName || "ELO",
+      notes: clean(source.notes),
+      operationId: operationId,
+      offlineUuid: clean(source.offlineUuid || operationId),
+      deviceId: clean(source.deviceId) || getStockFullDeviceId_(),
+      syncStatus: "synced",
+      source: "elo"
+    };
+  }
+
+  async function syncConfirmedMovement_(movement, options) {
+    const settings = options || {};
+    const type = clean(settings.type || movement && movement.type);
+    if (type !== "entrada" && type !== "saida") {
+      return { ok: false, pending: true, error: "stock_full_movement_type_invalid" };
+    }
+    const operationId = clean(movement && movement.operationId);
+    if (!operationId) {
+      return { ok: false, pending: true, error: "stock_full_idempotency_key_required" };
+    }
+    markConfirmedStockMovementRemoteStatus_(movement, {
+      localConfirmationStatus: "local_confirmed",
+      remoteSyncStatus: "remote_pending",
+      remoteSyncError: "",
+      remoteSyncStartedAt: new Date().toISOString()
+    });
+    if (!isStockFullRemoteActive_()) {
+      const inactive = markConfirmedStockMovementRemoteStatus_(movement, {
+        remoteSyncStatus: "remote_pending",
+        remoteSyncError: "stock_full_remote_inactive"
+      });
+      return { ok: false, pending: true, error: "stock_full_remote_inactive", movement: inactive };
+    }
+    try {
+      const payload = buildConfirmedStockRemotePayload_(movement);
+      const result = type === "saida"
+        ? await createStockFullRemoteExit_(payload)
+        : await createStockFullRemoteEntry_(payload);
+      if (!result || result.ok !== true) {
+        throw new Error(clean(result && result.error) || clean(result && result.message) || "stock_full_remote_sync_failed");
+      }
+      const remoteMovement = type === "saida" ? result.exit : result.entry;
+      const syncedAt = clean(result.syncedAt || remoteMovement && remoteMovement.syncedAt) || new Date().toISOString();
+      const updated = markConfirmedStockMovementRemoteStatus_(movement, {
+        remoteSyncStatus: "synced",
+        syncStatus: "synced",
+        remoteSyncError: "",
+        remoteId: clean(remoteMovement && remoteMovement.id),
+        remoteItemId: clean(result.item && result.item.id),
+        remoteOperationId: clean(remoteMovement && remoteMovement.operationId) || operationId,
+        remoteDuplicate: Boolean(result.duplicate),
+        remoteSyncedAt: syncedAt,
+        remoteResult: result
+      });
+      if (type === "saida" && remoteMovement) stockFullRemoteExits.unshift(remoteMovement);
+      if (type === "entrada" && remoteMovement) stockFullRemoteEntries.unshift(remoteMovement);
+      return { ok: true, result: result, movement: updated || movement, duplicate: Boolean(result.duplicate) };
+    } catch (error) {
+      const message = clean(error && error.message) || "stock_full_remote_sync_failed";
+      const failed = markConfirmedStockMovementRemoteStatus_(movement, {
+        remoteSyncStatus: "remote_error",
+        remoteSyncError: message,
+        remoteSyncFailedAt: new Date().toISOString()
+      });
+      return { ok: false, pending: true, error: message, movement: failed };
+    }
+  }
+
   function setStockFullRuntimeMode_(mode, context) {
     stockFullRuntimeMode = mode === "remote" ? "remote" : "local";
     if (stockFullRuntimeMode === "remote" && context && context.profile) {
@@ -10691,7 +10802,13 @@
       unitCost: parseNumber_(formData.get("unitCost")),
       total: quantity * parseNumber_(formData.get("unitCost")),
       reason: clean(formData.get("reason")) || "Entrada manual",
-      origin: "manual_entry",
+      origin: clean(formData.get("origin")) || "manual_entry",
+      operationId: clean(formData.get("operationId")),
+      offlineUuid: clean(formData.get("offlineUuid")) || clean(formData.get("operationId")),
+      deviceId: clean(formData.get("deviceId")) || getStockFullDeviceId_(),
+      localConfirmationStatus: clean(formData.get("localConfirmationStatus")),
+      remoteSyncStatus: clean(formData.get("remoteSyncStatus")),
+      syncStatus: clean(formData.get("syncStatus")),
       date: movementDate,
       movementDate: movementDate,
       movementTime: movementTime,
@@ -10743,6 +10860,12 @@
       workId: clean(formData.get("workId")) || null,
       source: clean(formData.get("source")) || null,
       releaseId: clean(formData.get("releaseId")) || null,
+      operationId: clean(formData.get("operationId")),
+      offlineUuid: clean(formData.get("offlineUuid")) || clean(formData.get("operationId")),
+      deviceId: clean(formData.get("deviceId")) || getStockFullDeviceId_(),
+      localConfirmationStatus: clean(formData.get("localConfirmationStatus")),
+      remoteSyncStatus: clean(formData.get("remoteSyncStatus")),
+      syncStatus: clean(formData.get("syncStatus")),
       unitCost: 0,
       total: 0,
       reason: clean(formData.get("purpose")) || "Saida manual",
@@ -23080,6 +23203,13 @@
       itemId: itemId,
       quantity: quantity,
       responsible: responsible,
+      origin: "elo_entry",
+      operationId: buildEloStockMovementOperationId_("entrada", entryId),
+      offlineUuid: buildEloStockMovementOperationId_("entrada", entryId),
+      deviceId: getStockFullDeviceId_(),
+      localConfirmationStatus: "local_confirmed",
+      remoteSyncStatus: "remote_pending",
+      syncStatus: "remote_pending",
       documentNumber: documentNumber,
       unitCost: parseNumber_(safe.unitCost),
       reason: reason,
@@ -23104,6 +23234,8 @@
       itemId: itemId,
       quantity: quantity,
       unit: balance.unit || "un",
+      operationId: movement && movement.operationId || buildEloStockMovementOperationId_("entrada", entryId),
+      remoteSync: movement ? syncConfirmedMovement_(movement, { type: "entrada" }) : Promise.resolve({ ok: false, pending: true, error: "stock_full_movement_not_found" }),
       before: before,
       after: after,
       balanceBefore: balance.balance || balance.realBalance || 0,
@@ -23161,6 +23293,7 @@
     const movements = [];
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
+      const exitOperationId = buildEloStockMovementOperationId_("saida", releaseId, clean(item.stockItemId || item.itemId) || String(index + 1));
       const formData = createOperationalFormData_({
         itemId: clean(item.stockItemId || item.itemId),
         quantity: parseNumber_(item.releaseQuantity || item.quantity),
@@ -23173,6 +23306,12 @@
         workId: workId,
         source: source,
         releaseId: releaseId,
+        operationId: exitOperationId,
+        offlineUuid: exitOperationId,
+        deviceId: getStockFullDeviceId_(),
+        localConfirmationStatus: "local_confirmed",
+        remoteSyncStatus: "remote_pending",
+        syncStatus: "remote_pending",
         origin: "elo_release"
       });
       const result = saveAlmoxExitFromFormData_(formData);
@@ -23185,7 +23324,9 @@
       });
       if (movement) {
         const balanceAfterItem = findOperationalBalanceByItemId_(getOperationalAlmoxBalanceSnapshot_(), movement.itemId) || {};
+        const remoteSync = syncConfirmedMovement_(movement, { type: "saida" });
         movements.push(Object.assign({}, movement, {
+          remoteSync: remoteSync,
           material: clean(item.material || item.name),
           unit: clean(item.unit || balanceAfterItem.unit || "un"),
           balanceAfter: balanceAfterItem.balance
@@ -23215,6 +23356,7 @@
     createConfirmedProduct: createConfirmedOperationalProduct_,
     createConfirmedEntry: createConfirmedOperationalEntry_,
     createConfirmedExit: createConfirmedOperationalExit_,
-    createConfirmedTransfer: createConfirmedOperationalTransfer_
+    createConfirmedTransfer: createConfirmedOperationalTransfer_,
+    syncConfirmedMovement: syncConfirmedMovement_
   });
 })();
