@@ -26495,22 +26495,22 @@ function isEloResidentialNewPipelineEnabled_() {
       refreshEloInputHeight_();
     }
     if (!media) {
-      appendMessage("assistant", "Não consegui carregar o player de música agora.");
+      appendMessage("assistant", "Não consegui carregar o player de música agora.", { messageType: "media_status", suppressTts: true });
       return true;
     }
     if (intent.type === "pause") {
       if (typeof media.pause === "function") media.pause();
-      appendMessage("assistant", "Música pausada.");
+      appendMessage("assistant", "Música pausada.", { messageType: "media_status", suppressTts: true });
       return true;
     }
     if (intent.type === "resume") {
       if (typeof media.resume === "function") media.resume();
-      appendMessage("assistant", "Continuando a música.");
+      appendMessage("assistant", "Continuando a música.", { messageType: "media_status", suppressTts: true });
       return true;
     }
     if (intent.type === "stop") {
       if (typeof media.stop === "function") media.stop();
-      appendMessage("assistant", "Música parada.");
+      appendMessage("assistant", "Música parada.", { messageType: "media_status", suppressTts: true });
       return true;
     }
     if (intent.type === "play") {
@@ -27339,8 +27339,12 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function isEloMessageTtsSuppressed_(message) {
+    return !!(message && message.dataset && message.dataset.eloSuppressTts === "true");
+  }
+
   function maybeSpeakEloVoiceModeResponse_(message, text) {
-    if (!ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
+    if (isEloMessageTtsSuppressed_(message) || !ELO_UI.voiceModeEnabled || !ELO_UI.voiceModeAwaitingResponse || !isEloVoiceModeSpeakableResponse_(text)) return false;
     ELO_UI.voiceModeAwaitingResponse = false;
     const button = message && message.querySelector ? message.querySelector(".elo-speech-button") : null;
     const started = speakEloText_(text, button);
@@ -27484,7 +27488,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function appendEloSpeechAction_(message, text) {
-    if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
+    if (isEloMessageTtsSuppressed_(message) || !message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
     const supported = hasEloSpeechOutputSupport_();
     const actions = createElement("div", "elo-message-actions elo-speech-actions");
     const button = createElement("button", "elo-inline-button elo-speech-button", supported ? "Ouvir" : "Sem voz");
@@ -27505,7 +27509,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function refreshEloSpeechAction_(message, text) {
-    if (!message) return false;
+    if (!message || isEloMessageTtsSuppressed_(message)) return false;
     const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
     if (button) {
       button.dataset.eloSpeechText = String(text || "");
@@ -28084,12 +28088,20 @@ function isEloResidentialNewPipelineEnabled_() {
     return avatar;
   }
 
-  function appendMessage(kind, text) {
+  function appendMessage(kind, text, options) {
+    options = options || {};
     const shouldStick = kind === "user" || isEloConversationNearBottom_(ELO_UI.messages);
     if (kind !== "user") {
       removeTypingIndicator();
     }
     const message = createElement("article", "elo-message " + kind);
+    if (options.messageType) {
+      message.dataset.eloMessageType = String(options.messageType);
+      message.classList.add("elo-message--" + String(options.messageType).replace(/[^a-z0-9_-]/gi, "-"));
+    }
+    if (options.suppressTts === true) {
+      message.dataset.eloSuppressTts = "true";
+    }
     if (kind === "assistant" && /^\s*analisando\b/i.test(sanitizeUserText(text || ""))) {
       message.classList.add("is-analyzing");
     }
@@ -28098,7 +28110,7 @@ function isEloResidentialNewPipelineEnabled_() {
       message.appendChild(createEloMascotAvatar_());
     }
     message.appendChild(bubble);
-    if (kind === "assistant") {
+    if (kind === "assistant" && !isEloMessageTtsSuppressed_(message)) {
       appendEloSpeechAction_(message, text);
       maybeSpeakEloVoiceModeResponse_(message, text);
     }
@@ -30751,22 +30763,22 @@ function isEloResidentialNewPipelineEnabled_() {
       refreshEloInputHeight_();
       appendMessage("user", question);
       if (!media) {
-        appendMessage("assistant", "Não consegui carregar o player de música agora.");
+        appendMessage("assistant", "Não consegui carregar o player de música agora.", { messageType: "media_status", suppressTts: true });
         return true;
       }
       if (intent.type === "pause") {
         if (typeof media.pause === "function") media.pause();
-        appendMessage("assistant", "Música pausada.");
+        appendMessage("assistant", "Música pausada.", { messageType: "media_status", suppressTts: true });
         return true;
       }
       if (intent.type === "resume") {
         if (typeof media.resume === "function") media.resume();
-        appendMessage("assistant", "Continuando a música.");
+        appendMessage("assistant", "Continuando a música.", { messageType: "media_status", suppressTts: true });
         return true;
       }
       if (intent.type === "stop") {
         if (typeof media.stop === "function") media.stop();
-        appendMessage("assistant", "Música parada.");
+        appendMessage("assistant", "Música parada.", { messageType: "media_status", suppressTts: true });
         return true;
       }
       if (intent.type === "play") {

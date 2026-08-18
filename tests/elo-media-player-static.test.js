@@ -6,6 +6,7 @@ import vm from "node:vm";
 const mediaClient = readFileSync(new URL("../elo-media-player.js", import.meta.url), "utf8");
 const eloPage = readFileSync(new URL("../elo.html", import.meta.url), "utf8");
 const assistant = readFileSync(new URL("../relatorio-qualidade-obras/elo-assistente.js", import.meta.url), "utf8");
+const css = readFileSync(new URL("../elo.css", import.meta.url), "utf8");
 
 function createDocumentHarness() {
   const nodes = {};
@@ -26,7 +27,9 @@ function createDocumentHarness() {
         attributes: {},
         className: "",
         hidden: false,
+        disabled: false,
         textContent: "",
+        innerHTML: "",
         style: {},
         events: {},
         appendChild(child) {
@@ -34,6 +37,7 @@ function createDocumentHarness() {
           this.children.push(child);
           if (child) child.parentNode = this;
           if (child && child.attributes && child.attributes["data-elo-media-status"]) this.status = child;
+          if (child && child.attributes && child.attributes["data-elo-media-title"]) this.titleNode = child;
         },
         addEventListener(type, handler) { this.events[type] = handler; },
         click() { if (this.events.click) return this.events.click(); },
@@ -43,7 +47,8 @@ function createDocumentHarness() {
         },
         querySelector(selector) {
           if (selector === "[data-elo-media-status]") return this.status || null;
-          const match = selector.match(/^\[data-elo-media-control="([^\"]+)"\]$/);
+          if (selector === "[data-elo-media-title]") return this.titleNode || null;
+          const match = selector.match(/^\[data-elo-media-control="([^"]+)"\]$/);
           if (match) {
             const stack = [...this.children];
             while (stack.length) {
@@ -85,8 +90,8 @@ function createMediaContext(options = {}) {
             config.events.onStateChange({ data: context.window.YT.PlayerState.PLAYING });
           }
         },
-        pauseVideo() { calls.push(["pauseVideo"]); },
-        stopVideo() { calls.push(["stopVideo"]); },
+        pauseVideo() { calls.push(["pauseVideo"]); config.events.onStateChange({ data: context.window.YT.PlayerState.PAUSED }); },
+        stopVideo() { calls.push(["stopVideo"]); config.events.onStateChange({ data: context.window.YT.PlayerState.ENDED }); },
         setVolume(value) { calls.push(["setVolume", value]); }
       };
     }
@@ -135,7 +140,6 @@ test("play usa YouTube IFrame API e controles chamam player oficial", async () =
   assert.ok(calls.some((item) => item[0] === "setVolume" && item[1] === 25));
 });
 
-
 test("autoplay bloqueado mostra botão Tocar real e não usa botão Ouvir", async () => {
   const { calls, document, media } = createMediaContext({ autoplay: false });
   const result = await media.play("toque Sultans of Swing");
@@ -143,13 +147,16 @@ test("autoplay bloqueado mostra botão Tocar real e não usa botão Ouvir", asyn
   const playButton = container.querySelector("[data-elo-media-control=\"play\"]");
   const pauseButton = container.querySelector("[data-elo-media-control=\"pause\"]");
   const stopButton = container.querySelector("[data-elo-media-control=\"stop\"]");
+  const status = container.querySelector("[data-elo-media-status]");
 
   assert.equal(result.autoplayBlocked, true);
+  assert.equal(status.textContent, "A música está pronta.");
   assert.equal(playButton.hidden, false);
-  assert.equal(playButton.textContent, "▶ Tocar");
+  assert.equal(playButton.attributes["aria-label"], "Tocar");
+  assert.match(playButton.className, /elo-media-control--primary/);
   assert.equal(stopButton.hidden, false);
   assert.equal(pauseButton.hidden, true);
-  assert.notEqual(playButton.textContent, "Ouvir");
+  assert.notEqual(playButton.attributes["aria-label"], "Ouvir");
 
   playButton.click();
   assert.equal(calls.filter((item) => item[0] === "playVideo").length, 2);
@@ -163,23 +170,56 @@ test("autoplay bloqueado mostra botão Tocar real e não usa botão Ouvir", asyn
   assert.ok(calls.some((item) => item[0] === "stopVideo"));
 });
 
-
-test("controles de música podem ser montados dentro da mensagem do ELO", async () => {
+test("controles de música podem ser montados dentro de um card na mensagem do ELO", async () => {
   const { document, media } = createMediaContext({ autoplay: false });
   const message = document.createElement("article");
   message.className = "elo-message assistant";
   const result = await media.play("toque Sultans of Swing", { mount: message });
   const container = message.querySelector("[data-elo-media-player]") || message.children.find((child) => child.attributes && child.attributes["data-elo-media-player"]);
+  const title = container.children[0].children[1];
   const playButton = container.querySelector("[data-elo-media-control=\"play\"]");
   const stopButton = container.querySelector("[data-elo-media-control=\"stop\"]");
 
   assert.equal(result.autoplayBlocked, true);
   assert.equal(container.parentNode, message);
+  assert.equal(title.textContent, "Sultans of Swing");
   assert.equal(playButton.hidden, false);
-  assert.equal(playButton.textContent, "▶ Tocar");
-  assert.equal(stopButton.hidden, false);
-  assert.notEqual(playButton.textContent, "Ouvir");
+  assert.equal(playButton.attributes["aria-label"], "Tocar");
+  assert.match(stopButton.className, /elo-media-control--secondary/);
 });
+test("media status renderiza sem botão Ouvir e sem TTS", () => {
+  assert.match(assistant, /messageType: "media_status", suppressTts: true/);
+  assert.match(assistant, /if \(kind === "assistant" && !isEloMessageTtsSuppressed_\(message\)\)/);
+  assert.match(assistant, /if \(isEloMessageTtsSuppressed_\(message\) \|\| !ELO_UI\.voiceModeEnabled/);
+  assert.match(assistant, /function appendMessage\(kind, text, options\)/);
+  assert.doesNotMatch(assistant, /Localizando música\.\.\.[\s\S]{0,180}appendEloSpeechAction_/);
+});
+
+test("mensagem normal do ELO preserva botão Ouvir e TTS", () => {
+  assert.match(assistant, /appendEloSpeechAction_\(message, text\)/);
+  assert.match(assistant, /maybeSpeakEloVoiceModeResponse_\(message, text\)/);
+  assert.match(assistant, /voice\.speak\(speechText, \{ voice: "alloy" \}\)/);
+});
+
+test("controles usam card moderno sem aparência nativa", () => {
+  assert.match(mediaClient, /className = "elo-media-player"/);
+  assert.match(mediaClient, /elo-media-heading/);
+  assert.match(mediaClient, /elo-media-frame-wrap/);
+  assert.match(mediaClient, /elo-media-control elo-media-control--/);
+  assert.match(mediaClient, /"secondary"/);
+  assert.match(mediaClient, /createSvgIcon/);
+  assert.doesNotMatch(mediaClient, /▶ Tocar|■ Parar|⏸ Pausar/);
+});
+
+test("CSS de mídia cobre desktop e mobile sem overflow horizontal", () => {
+  assert.match(css, /\.elo-media-player/);
+  assert.match(css, /width: min\(100%, 420px\)/);
+  assert.match(css, /\.elo-media-frame-wrap/);
+  assert.match(css, /aspect-ratio: 16 \/ 9/);
+  assert.match(css, /@media \(max-width: 520px\)/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
+});
+
 test("assistente intercepta música com resolver sem alterar pergunta comum", () => {
   assert.match(assistant, /function getEloMediaIntent_/);
   assert.match(assistant, /handleEloMediaCommand_\(question\)/);
@@ -195,4 +235,3 @@ test("não adiciona API key nem baixa áudio", () => {
   assert.doesNotMatch(mediaClient, /YOUTUBE_API_KEY|AIza|download|extract|audio-only/i);
   assert.match(mediaClient, /https:\/\/www\.youtube\.com\/iframe_api/);
 });
-

@@ -2,7 +2,7 @@
   "use strict";
 
   var SULTANS_OF_SWING = {
-    title: "Sultans Of Swing",
+    title: "Sultans of Swing",
     artist: "Dire Straits",
     videoId: "h0ffIJ7ZO4U"
   };
@@ -15,7 +15,8 @@
     title: "",
     videoId: "",
     playing: false,
-    blocked: false
+    blocked: false,
+    status: "Mídia pronta."
   };
   var controls = {
     play: null,
@@ -33,6 +34,30 @@
       .trim();
   }
 
+  function createSvgIcon(pathData) {
+    var svg = document.createElement("span");
+    svg.className = "elo-media-control-icon";
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = '<svg viewBox="0 0 24 24" focusable="false"><path d="' + pathData + '"></path></svg>';
+    return svg;
+  }
+
+  function createControlButton(name, label, iconPath, handler, variant) {
+    var button = document.createElement("button");
+    var text = document.createElement("span");
+    button.type = "button";
+    button.className = "elo-media-control elo-media-control--" + (variant || "primary");
+    button.setAttribute("data-elo-media-control", name);
+    button.setAttribute("aria-label", label);
+    text.className = "elo-media-control-label";
+    text.textContent = label;
+    button.appendChild(createSvgIcon(iconPath));
+    button.appendChild(text);
+    button.addEventListener("click", handler);
+    controls[name] = button;
+    return button;
+  }
+
   function ensureContainer() {
     var container = document.querySelector("[data-elo-media-player]");
     if (container) return container;
@@ -41,38 +66,42 @@
     container.setAttribute("data-elo-media-player", "true");
     container.hidden = true;
 
+    var heading = document.createElement("div");
+    heading.className = "elo-media-heading";
+
+    var eyebrow = document.createElement("span");
+    eyebrow.className = "elo-media-eyebrow";
+    eyebrow.textContent = "Música";
+    heading.appendChild(eyebrow);
+
+    var title = document.createElement("strong");
+    title.className = "elo-media-title";
+    title.setAttribute("data-elo-media-title", "true");
+    title.textContent = SULTANS_OF_SWING.title;
+    heading.appendChild(title);
+    container.appendChild(heading);
+
     var status = document.createElement("div");
     status.className = "elo-media-status";
     status.setAttribute("data-elo-media-status", "true");
-    status.textContent = "Mídia pronta.";
+    status.textContent = state.status;
     container.appendChild(status);
 
     var actions = document.createElement("div");
     actions.className = "elo-media-actions";
-    actions.style.display = "flex";
-    actions.style.gap = "8px";
-    actions.style.flexWrap = "wrap";
-    [
-      ["play", "▶ Tocar", resume],
-      ["pause", "⏸ Pausar", pause],
-      ["resume", "▶ Continuar", resume],
-      ["stop", "■ Parar", stop]
-    ].forEach(function (item) {
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "elo-inline-button";
-      button.textContent = item[1];
-      button.setAttribute("data-elo-media-control", item[0]);
-      button.addEventListener("click", item[2]);
-      controls[item[0]] = button;
-      actions.appendChild(button);
-    });
+    actions.appendChild(createControlButton("play", "Tocar", "M8 5v14l11-7z", resume, "primary"));
+    actions.appendChild(createControlButton("pause", "Pausar", "M7 5h4v14H7zM13 5h4v14h-4z", pause, "primary"));
+    actions.appendChild(createControlButton("resume", "Continuar", "M8 5v14l11-7z", resume, "primary"));
+    actions.appendChild(createControlButton("stop", "Parar", "M7 7h10v10H7z", stop, "secondary"));
     container.appendChild(actions);
 
+    var frameWrap = document.createElement("div");
+    frameWrap.className = "elo-media-frame-wrap";
     var frame = document.createElement("div");
     frame.className = "elo-media-frame";
     frame.id = "elo-youtube-player";
-    container.appendChild(frame);
+    frameWrap.appendChild(frame);
+    container.appendChild(frameWrap);
 
     var host = currentMount || document.querySelector(".elo-panel") || document.querySelector(".elo-chat-shell") || document.body;
     host.appendChild(container);
@@ -98,13 +127,17 @@
     setControlVisible("pause", hasMedia && state.playing && !state.blocked);
     setControlVisible("resume", hasMedia && !state.playing && !state.blocked);
     setControlVisible("stop", hasMedia);
+    if (controls.stop) controls.stop.disabled = !hasMedia;
   }
 
   function setStatus(message, blocked) {
     var container = ensureContainer();
     var status = container.querySelector("[data-elo-media-status]");
+    var title = container.querySelector("[data-elo-media-title]");
     container.hidden = false;
     state.blocked = !!blocked;
+    state.status = message;
+    if (title) title.textContent = state.title || SULTANS_OF_SWING.title;
     if (status) status.textContent = message;
     updateControls();
   }
@@ -150,7 +183,7 @@
             if (event.data === YT.PlayerState.PLAYING) {
               state.playing = true;
               state.blocked = false;
-              setStatus("Tocando: " + state.title, false);
+              setStatus("Tocando", false);
               if (pendingResolve) {
                 pendingResolve({ ok: true, autoplayBlocked: false, title: state.title, videoId: state.videoId });
                 pendingResolve = null;
@@ -158,12 +191,12 @@
             }
             if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
               state.playing = false;
-              updateControls();
+              setStatus(event.data === YT.PlayerState.PAUSED ? "Pausado" : "Parado", false);
             }
           },
           onError: function () {
             state.playing = false;
-            setStatus("Não consegui tocar este vídeo pelo YouTube.", true);
+            setStatus("Reprodução indisponível neste vídeo.", true);
             if (pendingResolve) {
               pendingResolve({ ok: false, autoplayBlocked: true, title: state.title, videoId: state.videoId });
               pendingResolve = null;
@@ -209,7 +242,7 @@
     state.playing = false;
     state.blocked = false;
     pendingVideoId = state.videoId;
-    setStatus("Tocando: " + state.title, false);
+    setStatus("Preparando reprodução", false);
     return new Promise(function (resolve) {
       pendingResolve = resolve;
       ensurePlayer().then(function (ytPlayer) {
@@ -218,13 +251,13 @@
           ytPlayer.playVideo();
           window.setTimeout(function () {
             if (pendingResolve) {
-              setStatus("A música está pronta. Clique em Tocar para iniciar.", true);
+              setStatus("A música está pronta.", true);
               pendingResolve({ ok: true, autoplayBlocked: true, title: state.title, videoId: state.videoId });
               pendingResolve = null;
             }
           }, 1800);
         } catch (error) {
-          setStatus("A música está pronta. Clique em Tocar para iniciar.", true);
+          setStatus("A música está pronta.", true);
           pendingResolve = null;
           resolve({ ok: true, autoplayBlocked: true, title: state.title, videoId: state.videoId });
         }
@@ -235,7 +268,7 @@
   function pause() {
     if (player && typeof player.pauseVideo === "function") player.pauseVideo();
     state.playing = false;
-    setStatus(state.title ? "Pausado: " + state.title : "Música pausada.", false);
+    setStatus("Pausado", false);
     return true;
   }
 
@@ -243,7 +276,7 @@
     if (!player && state.videoId) return playYouTubeVideo(state.videoId, state.title);
     if (player && typeof player.playVideo === "function") player.playVideo();
     state.blocked = false;
-    setStatus(state.title ? "Tocando: " + state.title : "Música retomada.", false);
+    setStatus("Tocando", false);
     return true;
   }
 
@@ -251,7 +284,7 @@
     if (player && typeof player.stopVideo === "function") player.stopVideo();
     state.playing = false;
     state.blocked = false;
-    setStatus(state.title ? "Parado: " + state.title : "Música parada.", false);
+    setStatus("Parado", false);
     return true;
   }
 
@@ -278,4 +311,3 @@
     resolveCommandForTest: resolveCommand
   };
 })();
-
