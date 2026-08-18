@@ -19,6 +19,7 @@ import { registerMunicipalReportRoutes } from "./municipal-report-router.js";
 import { registerMunicipalAssetRoutes } from "./municipal-asset-router.js";
 import { registerMunicipalNotificationRoutes } from "./municipal-notification-router.js";
 import { buildEloMunicipalAnswerIfNeeded } from "./elo-municipal-tools.js";
+import { registerEloTtsRoute } from "./elo-tts.js";
 import { createEloSentinelService } from "./elo-sentinel-service.js";
 import { createEloSentinelStore } from "./elo-sentinel-store.js";
 import { defaultEloBudgetService } from "./services/elo-budget-service.js";
@@ -2842,6 +2843,8 @@ export function createApp(options = {}) {
       response.status(502).json({ ok: false, error: "web_search_failed" });
     }
   });
+
+  registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
 
   app.get("/api/elo/budgets", (request, response) => {
     try {

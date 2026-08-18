@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ELO Voice Test</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, sans-serif; }
+    body { margin: 0; background: #f4f7fb; color: #102033; }
+    main { max-width: 760px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 28px; margin: 0 0 18px; }
+    label { display: block; font-weight: 700; margin: 18px 0 8px; }
+    textarea, select { width: 100%; box-sizing: border-box; border: 1px solid #b9c6d6; border-radius: 8px; padding: 12px; font: inherit; background: #fff; }
+    textarea { min-height: 150px; resize: vertical; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    button { border: 0; border-radius: 8px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; background: #0c66e4; color: #fff; }
+    button.secondary { background: #2f3f53; }
+    output { display: block; min-height: 22px; margin-top: 18px; font-weight: 700; }
+    dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; margin-top: 18px; }
+    dt { color: #506176; }
+    dd { margin: 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ELO Voice Test</h1>
+    <label for="voiceText">Texto</label>
+    <textarea id="voiceText">Olá. Eu sou o ELO. Esta é uma demonstração da nova voz neural.</textarea>
+    <label for="voiceSelect">Voz</label>
+    <select id="voiceSelect">
+      <option value="alloy">Alloy</option>
+      <option value="nova">Nova</option>
+      <option value="onyx">Onyx</option>
+      <option value="shimmer">Shimmer</option>
+      <option value="coral">Coral</option>
+    </select>
+    <div class="actions">
+      <button id="speakButton" type="button">Falar</button>
+      <button id="stopButton" class="secondary" type="button">Parar</button>
+    </div>
+    <output id="voiceStatus">Parado</output>
+    <dl>
+      <dt>Geração backend</dt><dd id="providerMs">-</dd>
+      <dt>Rede</dt><dd id="requestMs">-</dd>
+      <dt>Time-to-first-audio</dt><dd id="firstAudioMs">-</dd>
+      <dt>Duração do áudio</dt><dd id="durationMs">-</dd>
+    </dl>
+  </main>
+  <script src="./elo-voice-client.js"></script>
+  <script>
+    (function () {
+      var text = document.getElementById("voiceText");
+      var voice = document.getElementById("voiceSelect");
+      var status = document.getElementById("voiceStatus");
+      var providerMs = document.getElementById("providerMs");
+      var requestMs = document.getElementById("requestMs");
+      var firstAudioMs = document.getElementById("firstAudioMs");
+      var durationMs = document.getElementById("durationMs");
+
+      function setMetrics(result) {
+        providerMs.textContent = result && result.providerMs ? result.providerMs + " ms" : "-";
+        requestMs.textContent = result && result.requestMs ? result.requestMs + " ms" : "-";
+        firstAudioMs.textContent = result && result.timeToFirstAudioMs ? result.timeToFirstAudioMs + " ms" : "-";
+        durationMs.textContent = result && result.durationMs ? result.durationMs + " ms" : "-";
+      }
+
+      document.getElementById("speakButton").addEventListener("click", async function () {
+        status.textContent = "Gerando voz...";
+        setMetrics(null);
+        try {
+          var result = await window.EloVoice.speak(text.value, { voice: voice.value, fallback: true });
+          status.textContent = result && result.mode === "neural" ? "Falando" : "Parado";
+          setMetrics(result || {});
+          window.setTimeout(function () {
+            if (!window.EloVoice.isSpeaking()) status.textContent = "Parado";
+          }, 250);
+        } catch (error) {
+          status.textContent = "Erro";
+        }
+      });
+
+      document.getElementById("stopButton").addEventListener("click", function () {
+        window.EloVoice.stop();
+        status.textContent = "Parado";
+      });
+    })();
+  </script>
+</body>
+</html>
