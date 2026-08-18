@@ -3,16 +3,22 @@
 
   const STATE_OFF = "OFF";
   const STATE_WAKE_LISTENING = "WAKE_LISTENING";
+  const STATE_ACKNOWLEDGING = "ACKNOWLEDGING";
   const STATE_COMMAND_LISTENING = "COMMAND_LISTENING";
   const COMMAND_TIMEOUT_MS = 8000;
   const RESTART_DELAY_MS = 120;
+  const ACK_TEXT = "Oi! Pode falar.";
   const WAKE_WORDS = ["elo", "hello"];
   const CANCEL_WORDS = ["cancelar", "cancela"];
 
   let state = STATE_OFF;
   let recognition = null;
+  let recognitionActive = false;
+  let recognitionMode = "";
+  let stopPending = false;
+  let pendingCommandStart = false;
   let commandTimer = null;
-  let restartingAfterSpeech = false;
+  let commandDelivered = false;
   let manualStop = false;
   let lastError = "";
 
@@ -51,7 +57,7 @@
     if (!button) return;
     const active = state !== STATE_OFF;
     button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.textContent = active ? "● ELO ativo" : "○ ELO inativo";
+    button.textContent = state === STATE_COMMAND_LISTENING ? "● ELO ouvindo..." : (active ? "● ELO ativo" : "○ ELO inativo");
     button.dataset.eloWakeState = state;
     button.title = state === STATE_COMMAND_LISTENING ? "ELO ouvindo o proximo comando" : (active ? "Desativar ELO por voz" : "Ativar ELO por voz");
   }
@@ -64,62 +70,107 @@
   function startCommandTimeout() {
     clearCommandTimer();
     commandTimer = window.setTimeout(function () {
-      if (state === STATE_COMMAND_LISTENING) {
-        state = STATE_WAKE_LISTENING;
-        setStatus("ELO ativo. Diga ELO para chamar.");
-        updateToggle();
-      }
+      if (state !== STATE_COMMAND_LISTENING) return;
+      enterWakeListening("Diga ELO para chamar.");
     }, COMMAND_TIMEOUT_MS);
   }
 
-  function safeRecognitionStart() {
-    if (!recognition || state === STATE_OFF) return;
+  function safeRecognitionStart(mode) {
+    if (!recognition || state === STATE_OFF || recognitionActive) return false;
     try {
       recognition.start();
+      recognitionActive = true;
+      recognitionMode = mode || recognitionMode || "wake";
+      stopPending = false;
+      return true;
     } catch (error) {
-      if (!/already started|recognition has already started/i.test(String(error && error.message || ""))) {
-        lastError = String(error && error.message || error || "");
+      const message = String(error && (error.name || error.message) || error || "");
+      if (/InvalidStateError|already started|recognition has already started/i.test(message)) {
+        lastError = message;
+        return false;
       }
+      lastError = message;
+      setStatus("Nao consegui ativar o reconhecimento de voz.");
+      return false;
     }
   }
 
   function safeRecognitionStop() {
-    if (!recognition) return;
-    try { recognition.stop(); } catch (error) {}
+    if (!recognition || (!recognitionActive && !stopPending)) return;
+    stopPending = true;
+    try { recognition.stop(); } catch (error) { recognitionActive = false; stopPending = false; }
   }
 
-  function restartRecognitionSoon() {
-    if (manualStop || restartingAfterSpeech || state === STATE_OFF) return;
-    window.setTimeout(safeRecognitionStart, RESTART_DELAY_MS);
+  function startRecognitionForWake() {
+    if (state !== STATE_WAKE_LISTENING || manualStop) return;
+    pendingCommandStart = false;
+    safeRecognitionStart("wake");
+  }
+
+  function startRecognitionForCommand() {
+    if (state !== STATE_COMMAND_LISTENING || manualStop || !recognition) return;
+    if (recognitionActive || stopPending) {
+      pendingCommandStart = true;
+      return;
+    }
+    pendingCommandStart = false;
+    commandDelivered = false;
+    if (safeRecognitionStart("command")) {
+      setStatus("Pode falar.");
+      updateToggle();
+      startCommandTimeout();
+      return;
+    }
+    pendingCommandStart = true;
+    window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+  }
+
+  function handleRecognitionEnd() {
+    recognitionActive = false;
+    stopPending = false;
+    recognitionMode = "";
+
+    if (manualStop || state === STATE_OFF) return;
+    if (pendingCommandStart && state === STATE_COMMAND_LISTENING) {
+      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+      return;
+    }
+    if (state === STATE_COMMAND_LISTENING && !commandDelivered) {
+      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+      return;
+    }
+    if (state === STATE_WAKE_LISTENING) {
+      window.setTimeout(startRecognitionForWake, RESTART_DELAY_MS);
+    }
+  }
+
+  function beginCommandListening() {
+    if (manualStop || state !== STATE_ACKNOWLEDGING) return;
+    state = STATE_COMMAND_LISTENING;
+    commandDelivered = false;
+    setStatus("Pode falar.");
+    updateToggle();
+    startRecognitionForCommand();
   }
 
   function speakWakeGreeting() {
-    restartingAfterSpeech = true;
-    safeRecognitionStop();
-
-    function resume() {
-      restartingAfterSpeech = false;
-      if (state === STATE_COMMAND_LISTENING) safeRecognitionStart();
-    }
-
     const synth = window.speechSynthesis;
     const Utterance = window.SpeechSynthesisUtterance;
     if (!synth || !Utterance) {
-      resume();
+      beginCommandListening();
       return;
     }
 
     try {
-      const utterance = new Utterance("Oi");
+      const utterance = new Utterance(ACK_TEXT);
       utterance.lang = "pt-BR";
       utterance.rate = 1;
-      utterance.onend = resume;
-      utterance.onerror = resume;
+      utterance.onend = beginCommandListening;
+      utterance.onerror = beginCommandListening;
       synth.cancel();
       synth.speak(utterance);
-      window.setTimeout(function () { if (restartingAfterSpeech) resume(); }, 900);
     } catch (error) {
-      resume();
+      beginCommandListening();
     }
   }
 
@@ -142,33 +193,51 @@
   function enterWakeListening(message) {
     state = STATE_WAKE_LISTENING;
     clearCommandTimer();
-    setStatus(message || "ELO ativo. Diga ELO para chamar.");
+    pendingCommandStart = false;
+    commandDelivered = false;
+    setStatus(message || "Diga ELO para chamar.");
     updateToggle();
+    if (!recognitionActive && !stopPending) startRecognitionForWake();
   }
 
-  function enterCommandListening() {
-    state = STATE_COMMAND_LISTENING;
-    setStatus("ELO ouvindo comando...");
+  function enterAcknowledging() {
+    state = STATE_ACKNOWLEDGING;
+    clearCommandTimer();
+    pendingCommandStart = false;
+    commandDelivered = false;
+    setStatus("Pode falar.");
     updateToggle();
-    startCommandTimeout();
+    safeRecognitionStop();
     speakWakeGreeting();
+  }
+
+  function completeCommand(transcript) {
+    if (commandDelivered) return;
+    commandDelivered = true;
+    clearCommandTimer();
+    safeRecognitionStop();
+    const command = String(transcript || "").trim();
+    enterWakeListening("Diga ELO para chamar.");
+    dispatchCommand(command);
+  }
+
+  function cancelCommand() {
+    commandDelivered = true;
+    clearCommandTimer();
+    safeRecognitionStop();
+    enterWakeListening("Comando cancelado. Diga ELO para chamar.");
   }
 
   function handleTranscript(transcript, isFinal) {
     const normalized = normalizeTranscript(transcript);
-    if (!normalized || restartingAfterSpeech) return;
+    if (!normalized || state === STATE_ACKNOWLEDGING) return;
     if (state === STATE_WAKE_LISTENING) {
-      if (isWakeWord(normalized)) enterCommandListening();
+      if (isWakeWord(normalized)) enterAcknowledging();
       return;
     }
     if (state === STATE_COMMAND_LISTENING && isFinal) {
-      if (isCancelCommand(normalized)) {
-        enterWakeListening("Comando cancelado. Diga ELO para chamar.");
-        return;
-      }
-      clearCommandTimer();
-      dispatchCommand(transcript);
-      enterWakeListening("ELO ativo. Diga ELO para chamar.");
+      if (isCancelCommand(normalized)) cancelCommand();
+      else completeCommand(transcript);
     }
   }
 
@@ -196,7 +265,7 @@
         setStatus("Permissao do microfone necessaria para ativar o ELO por voz.");
       }
     };
-    instance.onend = restartRecognitionSoon;
+    instance.onend = handleRecognitionEnd;
     return instance;
   }
 
@@ -212,7 +281,6 @@
     }
     manualStop = false;
     enterWakeListening();
-    safeRecognitionStart();
     return true;
   }
 
@@ -220,9 +288,13 @@
     manualStop = true;
     clearCommandTimer();
     state = STATE_OFF;
-    restartingAfterSpeech = false;
+    pendingCommandStart = false;
+    commandDelivered = false;
     safeRecognitionStop();
     recognition = null;
+    recognitionActive = false;
+    stopPending = false;
+    recognitionMode = "";
     setStatus("");
     updateToggle();
   }
@@ -248,6 +320,7 @@
     isListeningForCommand: isListeningForCommand,
     getLastErrorForTest: function () { return lastError; },
     getStateForTest: function () { return state; },
+    getRecognitionModeForTest: function () { return recognitionMode; },
     handleTranscriptForTest: handleTranscript,
     normalizeTranscriptForTest: normalizeTranscript,
     isWakeWordForTest: isWakeWord

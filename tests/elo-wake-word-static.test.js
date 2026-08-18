@@ -83,6 +83,18 @@ function createHarness() {
     latestRecognition.onresult({ resultIndex: 0, results: [{ 0: { transcript }, isFinal }] });
   }
 
+  function endRecognition() {
+    latestRecognition.onend();
+  }
+
+  function endSpeech() {
+    context.window.speechSynthesis.lastUtterance.onend();
+  }
+
+  function errorSpeech() {
+    context.window.speechSynthesis.lastUtterance.onerror();
+  }
+
   function runTimer(delay) {
     const timer = timers.find((item) => item.delay === delay && !item.cleared);
     assert.ok(timer, "timer " + delay + "ms deveria existir");
@@ -90,7 +102,7 @@ function createHarness() {
     timer.callback();
   }
 
-  return { button, calls, context, emit, getRecognition: () => latestRecognition, runTimer, statusEl, timers };
+  return { button, calls, context, emit, endRecognition, endSpeech, errorSpeech, getRecognition: () => latestRecognition, runTimer, statusEl, timers };
 }
 
 test("EloWakeWord expoe API publica e configura SpeechRecognition do navegador", () => {
@@ -105,13 +117,31 @@ test("EloWakeWord expoe API publica e configura SpeechRecognition do navegador",
   assert.equal(getRecognition().interimResults, true);
 });
 
-test("detecta ELO sem enviar wake word ao chat e entra em modo comando", () => {
+test("wake detectado para reconhecimento durante ACK e nao envia ELO ao chat", () => {
   const { calls, context, emit } = createHarness();
   context.window.EloWakeWord.start();
   emit("ELO", false);
-  assert.equal(context.window.EloWakeWord.isListeningForCommand(), true);
+  assert.equal(context.window.EloWakeWord.getStateForTest(), "ACKNOWLEDGING");
+  assert.equal(context.window.EloWakeWord.isListeningForCommand(), false);
   assert.deepEqual(calls.ask, []);
+  assert.equal(calls.stops, 1);
   assert.equal(calls.synthSpeak, 1);
+  assert.equal(context.window.speechSynthesis.lastUtterance.text, "Oi! Pode falar.");
+});
+
+test("onend da fala inicia command listening e so entao abre timeout", () => {
+  const { context, emit, endSpeech, endRecognition, runTimer, timers, statusEl, button } = createHarness();
+  context.window.EloWakeWord.start();
+  emit("ELO", false);
+  endSpeech();
+  assert.equal(context.window.EloWakeWord.getStateForTest(), "COMMAND_LISTENING");
+  assert.equal(timers.some((timer) => timer.delay === 8000 && !timer.cleared), false);
+  endRecognition();
+  runTimer(120);
+  assert.equal(context.window.EloWakeWord.getRecognitionModeForTest(), "command");
+  assert.equal(timers.some((timer) => timer.delay === 8000 && !timer.cleared), true);
+  assert.equal(statusEl.textContent, "Pode falar.");
+  assert.equal(button.textContent, "● ELO ouvindo...");
 });
 
 test("normaliza acentos e aceita apenas variantes seguras", () => {
@@ -123,33 +153,74 @@ test("normaliza acentos e aceita apenas variantes seguras", () => {
   assert.equal(api.isWakeWordForTest("elogiou"), false);
 });
 
-test("comando final chama o mesmo fluxo central askElo exposto no assistente", () => {
-  const { calls, context, emit } = createHarness();
+test("comando final chama askElo uma vez e retorna para wake listening", () => {
+  const { calls, context, emit, endSpeech, endRecognition, runTimer } = createHarness();
   context.window.EloWakeWord.start();
   emit("ELO", false);
-  context.window.speechSynthesis.lastUtterance.onend();
+  endSpeech();
+  endRecognition();
+  runTimer(120);
   emit("Toque Sultans of Swing", true);
   assert.deepEqual(calls.ask, ["Toque Sultans of Swing"]);
+  assert.equal(context.window.EloWakeWord.getStateForTest(), "WAKE_LISTENING");
+  assert.equal(context.window.EloWakeWord.getRecognitionModeForTest(), "command");
+  endRecognition();
+  runTimer(120);
+  assert.equal(context.window.EloWakeWord.getRecognitionModeForTest(), "wake");
+});
+
+test("segundo ciclo funciona depois de executar um comando", () => {
+  const { calls, context, emit, endSpeech, endRecognition, runTimer } = createHarness();
+  context.window.EloWakeWord.start();
+  emit("ELO", false);
+  endSpeech();
+  endRecognition();
+  runTimer(120);
+  emit("pause a musica", true);
+  endRecognition();
+  runTimer(120);
+  emit("ELO", false);
+  endSpeech();
+  endRecognition();
+  runTimer(120);
+  emit("continue a musica", true);
+  assert.deepEqual(calls.ask, ["pause a musica", "continue a musica"]);
   assert.equal(context.window.EloWakeWord.getStateForTest(), "WAKE_LISTENING");
 });
 
 test("timeout volta para wake listening sem enviar mensagem vazia", () => {
-  const { calls, context, emit, runTimer } = createHarness();
+  const { calls, context, emit, endSpeech, endRecognition, runTimer } = createHarness();
   context.window.EloWakeWord.start();
   emit("ELO", false);
+  endSpeech();
+  endRecognition();
+  runTimer(120);
   runTimer(8000);
   assert.deepEqual(calls.ask, []);
   assert.equal(context.window.EloWakeWord.getStateForTest(), "WAKE_LISTENING");
 });
 
 test("cancelar em command mode nao envia comando ao ELO", () => {
-  const { calls, context, emit } = createHarness();
+  const { calls, context, emit, endSpeech, endRecognition, runTimer } = createHarness();
   context.window.EloWakeWord.start();
   emit("ELO", false);
-  context.window.speechSynthesis.lastUtterance.onend();
+  endSpeech();
+  endRecognition();
+  runTimer(120);
   emit("cancelar", true);
   assert.deepEqual(calls.ask, []);
   assert.equal(context.window.EloWakeWord.getStateForTest(), "WAKE_LISTENING");
+});
+
+test("erro na fala tambem abre command listening", () => {
+  const { context, emit, errorSpeech, endRecognition, runTimer } = createHarness();
+  context.window.EloWakeWord.start();
+  emit("ELO", false);
+  errorSpeech();
+  assert.equal(context.window.EloWakeWord.getStateForTest(), "COMMAND_LISTENING");
+  endRecognition();
+  runTimer(120);
+  assert.equal(context.window.EloWakeWord.getRecognitionModeForTest(), "command");
 });
 
 test("stop desliga reconhecimento e atualiza estado visual", () => {
@@ -166,9 +237,9 @@ test("protege contra loop da propria voz do ELO", () => {
   const { calls, context, emit } = createHarness();
   context.window.EloWakeWord.start();
   emit("ELO", false);
-  emit("Oi", true);
+  emit("Oi! Pode falar.", true);
   assert.deepEqual(calls.ask, []);
-  assert.equal(calls.stops, 1);
+  assert.equal(context.window.EloWakeWord.getStateForTest(), "ACKNOWLEDGING");
 });
 
 test("pagina real carrega wake word depois do assistente e mostra microfone ativo", () => {
