@@ -47,6 +47,39 @@ const PATHOLOGY_KNOWLEDGE_DIR = join(BACKEND_DIR, "patologias");
 const ELO_VECTOR_MEMORY_PATH = join(BACKEND_DIR, "data", "elo-vector-memory.json");
 const ELO_CORE_STORE_PATH = join(BACKEND_DIR, "data", "elo-core.json");
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+function nowMs_() {
+  return typeof performance !== "undefined" && performance && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+function createEloLatencyMetrics_() {
+  return {
+    memoryLookupMs: 0,
+    embeddingMs: 0,
+    modelMs: 0,
+    totalMs: 0,
+    memoryCandidateCount: 0,
+    embeddingSkipped: false
+  };
+}
+
+function finalizeEloLatencyMetrics_(metrics, startedAt) {
+  const safe = metrics && typeof metrics === "object" ? metrics : createEloLatencyMetrics_();
+  safe.totalMs = Math.max(0, Math.round(nowMs_() - startedAt));
+  safe.memoryLookupMs = Math.max(0, Math.round(Number(safe.memoryLookupMs) || 0));
+  safe.embeddingMs = Math.max(0, Math.round(Number(safe.embeddingMs) || 0));
+  safe.modelMs = Math.max(0, Math.round(Number(safe.modelMs) || 0));
+  safe.memoryCandidateCount = Math.max(0, Math.round(Number(safe.memoryCandidateCount) || 0));
+  safe.embeddingSkipped = safe.embeddingSkipped === true;
+  return safe;
+}
+
+function setEloLatencyHeader_(response, metrics, startedAt) {
+  try {
+    response.set("X-Elo-Latency", JSON.stringify(finalizeEloLatencyMetrics_(metrics, startedAt)));
+  } catch (error) {}
+}
 const OBRAREPORT_IMAGE_ANALYSIS_LIBRARY = [
   {
     id: "fissuras-trincas",
@@ -2983,6 +3016,8 @@ export function createApp(options = {}) {
   });
 
   app.post("/api/elo/chat", async (request, response) => {
+    const latencyStartedAt = nowMs_();
+    const latencyMetrics = createEloLatencyMetrics_();
     let chatRequest;
 
     try {
@@ -3134,6 +3169,7 @@ export function createApp(options = {}) {
         context: validation.payload.context,
         intent: validation.payload.interpretation.detectedIntent
       }));
+      setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
       response.status(503).json({
         ok: false,
         mode: "fallback_required",
@@ -3152,7 +3188,8 @@ export function createApp(options = {}) {
         payload: validation.payload,
         memoryStore: eloVectorMemoryStore,
         documents: chatRequest.documents,
-        attachmentErrors: chatRequest.attachmentErrors
+        attachmentErrors: chatRequest.attachmentErrors,
+        metrics: latencyMetrics
       });
       Object.assign(validation.payload.context, relevantContext.context);
       validation.payload.history = relevantContext.compactHistory;
@@ -3160,13 +3197,16 @@ export function createApp(options = {}) {
       if (relevantContext.context.stockIaLaunchPlan) {
         validation.payload.stockIaLaunchPlan = relevantContext.context.stockIaLaunchPlan;
       }
+      const modelStartedAt = nowMs_();
       const answer = sanitizeEloAnswerText_(await callOpenAiElo_(validation.payload, env));
+      latencyMetrics.modelMs += nowMs_() - modelStartedAt;
       const savePrompt = buildEloSavePromptMeta_(shouldShowEloSavePrompt_({
         userMessage: validation.payload.message,
         assistantResponse: answer,
         context: validation.payload.context,
         intent: validation.payload.interpretation.detectedIntent
       }));
+      setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
       response.json({
         ok: true,
         mode: "remote",
@@ -3198,6 +3238,7 @@ export function createApp(options = {}) {
         context: validation.payload.context,
         intent: validation.payload.interpretation.detectedIntent
       }));
+      setEloLatencyHeader_(response, latencyMetrics, latencyStartedAt);
       response.status(502).json({
         ok: false,
         mode: "fallback_required",
@@ -5195,7 +5236,7 @@ export function buildConversationSummary_(history = []) {
   return facts.length ? "Resumo atual:\n" + facts.slice(0, 8).map((fact) => "- " + fact).join("\n") : "";
 }
 
-export async function getEloRelevantContext_({ payload, memoryStore, documents = [], attachmentErrors = [] } = {}) {
+export async function getEloRelevantContext_({ payload, memoryStore, documents = [], attachmentErrors = [], metrics = null } = {}) {
   const safePayload = payload || {};
   const context = safePayload.context || {};
   const intent = safePayload.eloIntent || detectEloIntent_(safePayload.message, context, safePayload.history, {
@@ -5211,7 +5252,8 @@ export async function getEloRelevantContext_({ payload, memoryStore, documents =
     keywords: contextKeywords,
     historyText: recentHistoryText,
     includeProjectInventory: contextKeywords.includes("projetos"),
-    limit: 5
+    limit: 5,
+    metrics
   });
   const filteredLocalMemories = filterRelevantContextLines_(context.memoriesSummary, query, intent.categories, 5, {
     keywords: contextKeywords,
@@ -5524,14 +5566,26 @@ export function createEloVectorMemoryStore_(options = {}) {
       persist();
       return state.items[0];
     },
-    async search(query, ownerId, limit = 5) {
+    async search(query, ownerId, limit = 5, options = {}) {
       const safeOwnerId = sanitizeEloDeviceId_(ownerId);
+      const metrics = options && options.metrics && typeof options.metrics === "object" ? options.metrics : null;
       if (!safeOwnerId) {
+        if (metrics) metrics.embeddingSkipped = true;
         return [];
       }
+      const ownerItems = state.items.filter((item) => item.ownerId === safeOwnerId);
+      if (metrics) metrics.memoryCandidateCount = ownerItems.length;
+      if (!ownerItems.length) {
+        if (metrics) metrics.embeddingSkipped = true;
+        return [];
+      }
+      const embeddingStartedAt = nowMs_();
       const queryEmbedding = await buildEloEmbedding_(query, env);
-      return state.items
-        .filter((item) => item.ownerId === safeOwnerId)
+      if (metrics) {
+        metrics.embeddingMs += nowMs_() - embeddingStartedAt;
+        metrics.embeddingSkipped = false;
+      }
+      return ownerItems
         .filter((item) => isCompatibleEmbedding_(queryEmbedding, item))
         .map((item) => ({
           ...item,
@@ -5540,6 +5594,10 @@ export function createEloVectorMemoryStore_(options = {}) {
         .filter((item) => item.score > 0.08)
         .sort((first, second) => second.score - first.score)
         .slice(0, limit);
+    },
+    getOwnerMemoryCount(ownerId) {
+      const safeOwnerId = sanitizeEloDeviceId_(ownerId);
+      return safeOwnerId ? state.items.filter((item) => item.ownerId === safeOwnerId).length : 0;
     },
     list() {
       return state.items.slice();
@@ -5887,7 +5945,10 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
       return "";
     }
     const limit = Number(options.limit || 5);
-    const searchedItems = await store.search(query, safeOwnerId, Math.max(limit * 3, 12));
+    const metrics = options.metrics && typeof options.metrics === "object" ? options.metrics : null;
+    const lookupStartedAt = nowMs_();
+    const searchedItems = await store.search(query, safeOwnerId, Math.max(limit * 3, 12), { metrics });
+    if (metrics) metrics.memoryLookupMs += nowMs_() - lookupStartedAt;
     const listedItems = options.includeProjectInventory && store && typeof store.list === "function"
       ? store.list().filter((item) => item.ownerId === safeOwnerId)
       : [];
