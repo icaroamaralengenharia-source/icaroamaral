@@ -27306,7 +27306,20 @@ function isEloResidentialNewPipelineEnabled_() {
       null;
   }
 
+  function getEloVoiceClient_() {
+    const voice = window.EloVoice;
+    return voice && typeof voice.speak === "function" && typeof voice.stop === "function" ? voice : null;
+  }
+
+  function hasEloSpeechOutputSupport_() {
+    return !!getEloVoiceClient_() || !!(getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_());
+  }
+
   function stopEloSpeechOutput_() {
+    const voice = getEloVoiceClient_();
+    if (voice) {
+      try { voice.stop(); } catch (error) {}
+    }
     const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
     resetEloSpeechButton_();
@@ -27314,26 +27327,15 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
-  function speakEloText_(text, button) {
+  function speakEloTextWithBrowserFallback_(speechText, button) {
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
     if (!synthesis || !Utterance) {
-      if (button) {
-        button.disabled = true;
-        button.textContent = "Sem voz";
-        button.title = "Leitura em voz alta nao suportada neste navegador";
-      }
+      resetEloSpeechButton_(button);
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
       return false;
     }
-    if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
-    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
-      stopEloVoiceInput_();
-      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
-    }
     if (typeof synthesis.cancel === "function") synthesis.cancel();
-    resetEloSpeechButton_();
-    const speechText = cleanEloTextForSpeech_(text);
-    if (!speechText) return false;
     const utterance = new Utterance(speechText);
     const voice = chooseEloPortugueseVoice_(synthesis);
     if (voice) utterance.voice = voice;
@@ -27354,15 +27356,52 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
-  function appendEloSpeechAction_(message, text) {
-    if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
+  function speakEloText_(text, button) {
+    const voice = getEloVoiceClient_();
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
+    if (!voice && (!synthesis || !Utterance)) {
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Sem voz";
+        button.title = "Leitura em voz alta nao suportada neste navegador";
+      }
+      return false;
+    }
+    if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
+      stopEloVoiceInput_();
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    }
+    if (voice) {
+      try { voice.stop(); } catch (error) {}
+    }
+    if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    resetEloSpeechButton_();
+    const speechText = cleanEloTextForSpeech_(text);
+    if (!speechText) return false;
+    if (!voice) return speakEloTextWithBrowserFallback_(speechText, button);
+    ELO_UI.speechSynthesisUtterance = null;
+    ELO_UI.speechSynthesisButton = button;
+    ELO_UI.speechSynthesisState = "speaking";
+    setEloSpeechButtonState_(button, true);
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Gerando voz.");
+    voice.speak(speechText, { voice: "alloy", fallback: false }).then(function () {
+      if (ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);
+    }).catch(function () {
+      if (!speakEloTextWithBrowserFallback_(speechText, button) && ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);
+    });
+    return true;
+  }
+
+  function appendEloSpeechAction_(message, text) {
+    if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
+    const supported = hasEloSpeechOutputSupport_();
     const actions = createElement("div", "elo-message-actions elo-speech-actions");
-    const button = createElement("button", "elo-inline-button elo-speech-button", synthesis && Utterance ? "Ouvir" : "Sem voz");
+    const button = createElement("button", "elo-inline-button elo-speech-button", supported ? "Ouvir" : "Sem voz");
     button.type = "button";
     button.dataset.eloSpeechText = String(text || "");
-    if (!synthesis || !Utterance) {
+    if (!supported) {
       button.disabled = true;
       button.title = "Leitura em voz alta nao suportada neste navegador";
       button.setAttribute("aria-label", "Leitura em voz alta nao suportada neste navegador");
@@ -27381,7 +27420,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
     if (button) {
       button.dataset.eloSpeechText = String(text || "");
-      if (button.disabled && getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_()) {
+      if (button.disabled && hasEloSpeechOutputSupport_()) {
         button.disabled = false;
         setEloSpeechButtonState_(button, false);
         button.addEventListener("click", function () { speakEloText_(button.dataset.eloSpeechText || "", button); });
