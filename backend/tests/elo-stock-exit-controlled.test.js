@@ -233,6 +233,29 @@ test("Elo mostra preview de transferencia sem escrita e confirma dois movimentos
   assert.deepEqual(audit.slice(0, 2).map((item) => item.action), ["movement_out_created", "movement_in_created"]);
 });
 
+test("Elo resolve destino remoto de transferencia como item quando nao ha ambiente correspondente", () => {
+  const { sandbox, transferCalls } = loadEloStockExitSandbox_({
+    activeCompanyId: "company-a",
+    activeEnvironmentId: "env-a",
+    environments: [
+      { id: "env-a", environmentId: "env-a", name: "Estoque principal", environmentName: "Estoque principal", companyId: "company-a" }
+    ],
+    balances: [
+      { itemId: "remote-origin", id: "remote-origin", name: "SMOKE ELO REMOTO FINAL", unit: "saco", balance: 11, realBalance: 11, companyId: "company-a", environmentId: "env-a", remoteSource: "stock-full" },
+      { itemId: "remote-dest", id: "remote-dest", name: "SMOKE ELO REMOTO DESTINO", unit: "saco", balance: 2, realBalance: 2, companyId: "company-a", environmentId: "env-a", remoteSource: "stock-full" }
+    ]
+  });
+
+  const preview = sandbox.window.EloAssistente.buildStockTransferAnswerForTest("transfira 5 sacos de SMOKE ELO REMOTO FINAL para SMOKE ELO REMOTO DESTINO");
+  assert.equal(preview.sessionIntent, "stock_transfer_preview");
+  assert.match(preview.fullAnswer, /Destino: SMOKE ELO REMOTO DESTINO/);
+  assert.match(preview.fullAnswer, /Saldo atual na origem: 11 saco/);
+  assert.match(preview.fullAnswer, /Saldo previsto na origem: 6 saco/);
+  assert.match(preview.fullAnswer, /Saldo atual no destino: 2 saco/);
+  assert.match(preview.fullAnswer, /Saldo previsto no destino: 7 saco/);
+  assert.equal(transferCalls.length, 0);
+});
+
 test("Elo bloqueia dupla confirmacao e cancelamento de transferencia", () => {
   const first = loadEloStockExitSandbox_({ activeCompanyId: "company-a", activeEnvironmentId: "env-a", balances: [
     { itemId: "cimento-origin", id: "cimento-origin", sku: "CIM-TR", name: "Cimento CP II", unit: "saco", balance: 10, realBalance: 10, companyId: "company-a", environmentId: "env-a" },

@@ -22262,6 +22262,12 @@ function isEloResidentialNewPipelineEnabled_() {
     return { status: "ambiguous", environment: null, matches: matches, query: cleanQuery };
   }
 
+  function resolveEloStockTransferDestinationItem_(query, balances) {
+    const resolution = findEloStockBalanceByQuery_(query, balances || []);
+    if (resolution.status === "found" || resolution.status === "ambiguous") return resolution;
+    return { status: "not_found", item: null, matches: [], query: sanitizeUserText(query || "") };
+  }
+
   function findEloStockTransferSnapshotItem_(items, itemId, environmentId) {
     const id = sanitizeUserText(itemId || "");
     const env = sanitizeUserText(environmentId || "");
@@ -22297,8 +22303,13 @@ function isEloResidentialNewPipelineEnabled_() {
     const environments = getEloOperationalAlmoxEnvironments_();
     const allBalances = getEloOperationalAlmoxBalances_({ allEnvironments: true });
     const destinationResolution = resolveEloStockTransferEnvironment_(command.destinationEnvironmentQuery, environments);
+    let destinationItemResolution = null;
     if (destinationResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de um destino compativel. Nenhum movimento foi criado.", "Informe o nome exato do ambiente de destino.", "stock_transfer_environment_ambiguous");
-    if (!destinationResolution.environment) return buildEloStockTransferInvalidAnswer_("Destino da transferencia nao encontrado. Nenhum movimento foi criado.", "Informe um ambiente/obra existente.", "stock_transfer_destination_missing");
+    if (!destinationResolution.environment) {
+      destinationItemResolution = resolveEloStockTransferDestinationItem_(command.destinationEnvironmentQuery, allBalances);
+      if (destinationItemResolution.status === "ambiguous") return buildEloStockTransferInvalidAnswer_("Encontrei mais de um produto de destino compativel. Nenhum movimento foi criado.", "Informe o nome exato do produto destino.", "stock_transfer_destination_item_ambiguous");
+      if (!destinationItemResolution.item) return buildEloStockTransferInvalidAnswer_("Destino da transferencia nao encontrado. Nenhum movimento foi criado.", "Informe um ambiente/obra existente ou um produto destino cadastrado.", "stock_transfer_destination_missing");
+    }
 
     let sourceEnvironment = null;
     let sourceBalances = [];
@@ -22320,19 +22331,27 @@ function isEloResidentialNewPipelineEnabled_() {
       sourceEnvironment = environments.find(function (environment) { return sanitizeUserText(environment.id || environment.environmentId || "") === sanitizeUserText(sourceItem.environmentId || ""); }) || { id: sourceItem.environmentId, name: sourceItem.environmentId || "Origem" };
     }
     const sourceEnvironmentId = sanitizeUserText(sourceEnvironment.id || sourceEnvironment.environmentId || sourceItem.environmentId || "");
-    const destinationEnvironmentId = sanitizeUserText(destinationResolution.environment.id || destinationResolution.environment.environmentId || "");
-    if (sourceEnvironmentId && destinationEnvironmentId && sourceEnvironmentId === destinationEnvironmentId) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha ambientes diferentes.", "stock_transfer_same_environment");
-    if (sourceItem.companyId && destinationResolution.environment.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationResolution.environment.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
+    let destinationItem = destinationItemResolution && destinationItemResolution.item || null;
+    let destinationEnvironment = destinationResolution.environment || null;
+    if (destinationItem && !destinationEnvironment) {
+      destinationEnvironment = environments.find(function (environment) { return sanitizeUserText(environment.id || environment.environmentId || "") === sanitizeUserText(destinationItem.environmentId || ""); }) || { id: destinationItem.environmentId || sourceEnvironmentId, name: destinationItem.name || "Destino", companyId: destinationItem.companyId || sourceItem.companyId || "" };
+    }
+    const destinationEnvironmentId = sanitizeUserText(destinationEnvironment && (destinationEnvironment.id || destinationEnvironment.environmentId) || destinationItem && destinationItem.environmentId || "");
+    const itemDestinationMode = Boolean(destinationItem);
+    if (itemDestinationMode && getEloStockEntryItemId_(sourceItem) === getEloStockEntryItemId_(destinationItem)) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha um produto destino diferente.", "stock_transfer_same_item");
+    if (sourceEnvironmentId && destinationEnvironmentId && sourceEnvironmentId === destinationEnvironmentId && !itemDestinationMode) return buildEloStockTransferInvalidAnswer_("Origem e destino nao podem ser iguais. Nenhum movimento foi criado.", "Escolha ambientes diferentes.", "stock_transfer_same_environment");
+    if (sourceItem.companyId && destinationEnvironment && destinationEnvironment.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationEnvironment.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
+    if (sourceItem.companyId && destinationItem && destinationItem.companyId && sanitizeUserText(sourceItem.companyId) !== sanitizeUserText(destinationItem.companyId)) return buildEloStockTransferInvalidAnswer_("Destino pertence a outra empresa. Nenhum movimento foi criado.", "Escolha um destino da mesma empresa.", "stock_transfer_cross_company");
 
     const itemUnit = normalizeEloStockEntryUnit_(sourceItem.unit || "un");
     if (command.unit && itemUnit && command.unit !== itemUnit) return buildEloStockTransferInvalidAnswer_("Unidade incompatível com o produto cadastrado. Nenhum movimento foi criado.", "Use a unidade cadastrada para " + (sourceItem.name || "o produto") + ": " + (sourceItem.unit || "un") + ".");
-    const destinationItem = findEloStockTransferDestinationItem_(sourceItem, destinationResolution.environment, allBalances);
+    if (!destinationItem) destinationItem = findEloStockTransferDestinationItem_(sourceItem, destinationEnvironment, allBalances);
     if (!destinationItem) return buildEloStockTransferInvalidAnswer_("Produto correspondente nao encontrado no destino. Nenhum movimento foi criado.", "Cadastre o produto no destino antes de transferir.", "stock_transfer_destination_product_missing");
     const balanceBefore = Number(sourceItem.balance || sourceItem.realBalance || 0);
     const destinationBefore = Number(destinationItem.balance || destinationItem.realBalance || 0);
     if (balanceBefore < command.quantity) return buildEloStockExitInsufficientAnswer_(sourceItem, command.quantity, sourceItem.unit || command.unit || "un", balanceBefore);
     const unit = sourceItem.unit || command.unit || "un";
-    const transfer = { id: createEloStockTransferOperationId_(), action: "stock_transfer", status: "pending", createdAt: Date.now(), question: sanitizeUserText(message).slice(0, 500), command: command, item: { id: getEloStockEntryItemId_(sourceItem), itemId: getEloStockEntryItemId_(sourceItem), name: sourceItem.name || "Produto", sku: sourceItem.sku || sourceItem.fiscalCode || sourceItem.code || "", unit: unit, companyId: sourceItem.companyId || "", environmentId: sourceEnvironmentId }, destinationItem: { id: getEloStockEntryItemId_(destinationItem), itemId: getEloStockEntryItemId_(destinationItem), name: destinationItem.name || sourceItem.name || "Produto", unit: destinationItem.unit || unit, environmentId: destinationEnvironmentId }, sourceEnvironment: { id: sourceEnvironmentId, name: getEloStockTransferEnvironmentName_(sourceEnvironment), companyId: sourceEnvironment.companyId || sourceItem.companyId || "" }, destinationEnvironment: { id: destinationEnvironmentId, name: getEloStockTransferEnvironmentName_(destinationResolution.environment), companyId: destinationResolution.environment.companyId || sourceItem.companyId || "" }, quantity: command.quantity, unit: unit, sourceBalanceBefore: balanceBefore, sourceBalanceAfter: balanceBefore - command.quantity, destinationBalanceBefore: destinationBefore, destinationBalanceAfter: destinationBefore + command.quantity, companyId: sourceItem.companyId || "" };
+    const transfer = { id: createEloStockTransferOperationId_(), action: "stock_transfer", status: "pending", createdAt: Date.now(), question: sanitizeUserText(message).slice(0, 500), command: command, item: { id: getEloStockEntryItemId_(sourceItem), itemId: getEloStockEntryItemId_(sourceItem), name: sourceItem.name || "Produto", sku: sourceItem.sku || sourceItem.fiscalCode || sourceItem.code || "", unit: unit, companyId: sourceItem.companyId || "", environmentId: sourceEnvironmentId }, destinationItem: { id: getEloStockEntryItemId_(destinationItem), itemId: getEloStockEntryItemId_(destinationItem), name: destinationItem.name || sourceItem.name || "Produto", unit: destinationItem.unit || unit, environmentId: destinationEnvironmentId }, sourceEnvironment: { id: sourceEnvironmentId, name: getEloStockTransferEnvironmentName_(sourceEnvironment), companyId: sourceEnvironment.companyId || sourceItem.companyId || "" }, destinationEnvironment: { id: destinationEnvironmentId, name: itemDestinationMode ? destinationItem.name || getEloStockTransferEnvironmentName_(destinationEnvironment) : getEloStockTransferEnvironmentName_(destinationEnvironment), companyId: destinationEnvironment && destinationEnvironment.companyId || destinationItem.companyId || sourceItem.companyId || "", type: itemDestinationMode ? "item" : "environment" }, quantity: command.quantity, unit: unit, sourceBalanceBefore: balanceBefore, sourceBalanceAfter: balanceBefore - command.quantity, destinationBalanceBefore: destinationBefore, destinationBalanceAfter: destinationBefore + command.quantity, companyId: sourceItem.companyId || "" };
     setEloPendingStockTransfer_(transfer);
     const lines = ["Transferência de estoque", "", "Produto: " + (sourceItem.name || "Produto"), "Origem: " + transfer.sourceEnvironment.name, "Destino: " + transfer.destinationEnvironment.name, "Quantidade: " + formatEloStockQuantity_(command.quantity) + " " + unit, "Saldo atual na origem: " + formatEloStockQuantity_(balanceBefore) + " " + unit, "Saldo previsto na origem: " + formatEloStockQuantity_(transfer.sourceBalanceAfter) + " " + unit, "Saldo atual no destino: " + formatEloStockQuantity_(destinationBefore) + " " + unit, "Saldo previsto no destino: " + formatEloStockQuantity_(transfer.destinationBalanceAfter) + " " + unit, "", "Confirma a transferência?"];
     return { shortAnswer: "Transferencia pendente de confirmacao.", fullAnswer: lines.join("\n"), nextAction: "Responda sim, confirmar ou pode transferir para executar. Responda cancelar para abortar.", canSave: false, sessionTheme: "stock_full_transfer", sessionIntent: "stock_transfer_preview", stockTransfer: transfer };

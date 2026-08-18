@@ -10513,7 +10513,8 @@
     }
     if (!transferId) return { ok: false, message: "transferId obrigatorio para confirmar transferencia." };
     if (!sourceEnvironmentId || !destinationEnvironmentId) return { ok: false, message: "Origem e destino obrigatorios para transferencia." };
-    if (sourceEnvironmentId === destinationEnvironmentId) return { ok: false, message: "Origem e destino nao podem ser iguais." };
+    const remoteItemTransferSameEnvironment = isStockFullRemoteActive_() && sourceEnvironmentId === destinationEnvironmentId && sourceItemId && destinationItemId && sourceItemId !== destinationItemId;
+    if (sourceEnvironmentId === destinationEnvironmentId && !remoteItemTransferSameEnvironment) return { ok: false, message: "Origem e destino nao podem ser iguais." };
     if (!sourceItemId || quantity <= 0) return { ok: false, message: "Item ou quantidade invalida." };
 
     const state = loadAlmoxState_();
