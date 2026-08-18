@@ -16,6 +16,12 @@
     playing: false,
     blocked: false
   };
+  var controls = {
+    play: null,
+    pause: null,
+    resume: null,
+    stop: null
+  };
 
   function normalize(value) {
     return String(value || "")
@@ -47,24 +53,42 @@
 
     var actions = document.createElement("div");
     actions.className = "elo-media-actions";
+    actions.style.display = "flex";
+    actions.style.gap = "8px";
+    actions.style.flexWrap = "wrap";
     [
-      ["Pausar", pause],
-      ["Continuar", resume],
-      ["Parar", stop],
-      ["▶ Tocar", function () { if (state.videoId) playYouTubeVideo(state.videoId); }]
+      ["play", "▶ Tocar", resume],
+      ["pause", "⏸ Pausar", pause],
+      ["resume", "▶ Continuar", resume],
+      ["stop", "■ Parar", stop]
     ].forEach(function (item) {
       var button = document.createElement("button");
       button.type = "button";
       button.className = "elo-inline-button";
-      button.textContent = item[0];
-      button.addEventListener("click", item[1]);
+      button.textContent = item[1];
+      button.setAttribute("data-elo-media-control", item[0]);
+      button.addEventListener("click", item[2]);
+      controls[item[0]] = button;
       actions.appendChild(button);
     });
     container.appendChild(actions);
 
     var host = document.querySelector(".elo-panel") || document.querySelector(".elo-chat-shell") || document.body;
     host.appendChild(container);
+    updateControls();
     return container;
+  }
+
+  function setControlVisible(name, visible) {
+    if (controls[name]) controls[name].hidden = !visible;
+  }
+
+  function updateControls() {
+    var hasMedia = !!state.videoId;
+    setControlVisible("play", hasMedia && state.blocked);
+    setControlVisible("pause", hasMedia && state.playing && !state.blocked);
+    setControlVisible("resume", hasMedia && !state.playing && !state.blocked);
+    setControlVisible("stop", hasMedia);
   }
 
   function setStatus(message, blocked) {
@@ -73,6 +97,7 @@
     container.hidden = false;
     state.blocked = !!blocked;
     if (status) status.textContent = message;
+    updateControls();
   }
 
   function loadYouTubeApi() {
@@ -124,6 +149,7 @@
             }
             if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
               state.playing = false;
+              updateControls();
             }
           },
           onError: function () {
@@ -160,6 +186,8 @@
   function playYouTubeVideo(videoId, title) {
     state.videoId = String(videoId || "");
     state.title = title || SULTANS_OF_SWING.title;
+    state.playing = false;
+    state.blocked = false;
     pendingVideoId = state.videoId;
     setStatus("Tocando: " + state.title, false);
     return new Promise(function (resolve) {
@@ -192,7 +220,9 @@
   }
 
   function resume() {
+    if (!player && state.videoId) return playYouTubeVideo(state.videoId, state.title);
     if (player && typeof player.playVideo === "function") player.playVideo();
+    state.blocked = false;
     setStatus(state.title ? "Tocando: " + state.title : "Música retomada.", false);
     return true;
   }
@@ -200,6 +230,7 @@
   function stop() {
     if (player && typeof player.stopVideo === "function") player.stopVideo();
     state.playing = false;
+    state.blocked = false;
     setStatus(state.title ? "Parado: " + state.title : "Música parada.", false);
     return true;
   }
@@ -225,3 +256,4 @@
     resolveCommandForTest: resolveCommand
   };
 })();
+

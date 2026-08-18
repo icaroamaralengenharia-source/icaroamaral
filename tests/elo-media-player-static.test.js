@@ -27,17 +27,29 @@ function createDocumentHarness() {
         className: "",
         hidden: false,
         textContent: "",
+        style: {},
+        events: {},
         appendChild(child) {
           this.children.push(child);
           if (child && child.attributes && child.attributes["data-elo-media-status"]) this.status = child;
         },
-        addEventListener() {},
+        addEventListener(type, handler) { this.events[type] = handler; },
+        click() { if (this.events.click) return this.events.click(); },
         setAttribute(name, value) {
           this.attributes[name] = value;
           if (name === "data-elo-media-player") nodes.container = this;
         },
         querySelector(selector) {
           if (selector === "[data-elo-media-status]") return this.status || null;
+          const match = selector.match(/^\[data-elo-media-control="([^\"]+)"\]$/);
+          if (match) {
+            const stack = [...this.children];
+            while (stack.length) {
+              const child = stack.shift();
+              if (child.attributes && child.attributes["data-elo-media-control"] === match[1]) return child;
+              if (child.children) stack.push(...child.children);
+            }
+          }
           return null;
         }
       };
@@ -46,8 +58,9 @@ function createDocumentHarness() {
   };
 }
 
-function createMediaContext() {
+function createMediaContext(options = {}) {
   const calls = [];
+  const autoplay = options.autoplay !== false;
   const document = createDocumentHarness();
   const context = {
     document,
@@ -66,7 +79,9 @@ function createMediaContext() {
         loadVideoById(videoId) { calls.push(["loadVideoById", videoId]); },
         playVideo() {
           calls.push(["playVideo"]);
-          config.events.onStateChange({ data: context.window.YT.PlayerState.PLAYING });
+          if (autoplay || calls.filter((item) => item[0] === "playVideo").length > 1) {
+            config.events.onStateChange({ data: context.window.YT.PlayerState.PLAYING });
+          }
         },
         pauseVideo() { calls.push(["pauseVideo"]); },
         stopVideo() { calls.push(["stopVideo"]); },
@@ -76,7 +91,7 @@ function createMediaContext() {
   };
   vm.createContext(context);
   vm.runInContext(mediaClient, context);
-  return { calls, media: context.window.EloMedia };
+  return { calls, document, media: context.window.EloMedia };
 }
 
 test("EloMedia expõe contrato público esperado", () => {
@@ -117,6 +132,34 @@ test("play usa YouTube IFrame API e controles chamam player oficial", async () =
   assert.ok(calls.some((item) => item[0] === "setVolume" && item[1] === 25));
 });
 
+
+test("autoplay bloqueado mostra botão Tocar real e não usa botão Ouvir", async () => {
+  const { calls, document, media } = createMediaContext({ autoplay: false });
+  const result = await media.play("toque Sultans of Swing");
+  const container = document.body.lastChild;
+  const playButton = container.querySelector("[data-elo-media-control=\"play\"]");
+  const pauseButton = container.querySelector("[data-elo-media-control=\"pause\"]");
+  const stopButton = container.querySelector("[data-elo-media-control=\"stop\"]");
+
+  assert.equal(result.autoplayBlocked, true);
+  assert.equal(playButton.hidden, false);
+  assert.equal(playButton.textContent, "▶ Tocar");
+  assert.equal(stopButton.hidden, false);
+  assert.equal(pauseButton.hidden, true);
+  assert.notEqual(playButton.textContent, "Ouvir");
+
+  playButton.click();
+  assert.equal(calls.filter((item) => item[0] === "playVideo").length, 2);
+  assert.equal(playButton.hidden, true);
+  assert.equal(pauseButton.hidden, false);
+
+  pauseButton.click();
+  assert.ok(calls.some((item) => item[0] === "pauseVideo"));
+  assert.equal(container.querySelector("[data-elo-media-control=\"resume\"]").hidden, false);
+  stopButton.click();
+  assert.ok(calls.some((item) => item[0] === "stopVideo"));
+});
+
 test("assistente intercepta música sem alterar pergunta comum", () => {
   assert.match(assistant, /function getEloMediaIntent_/);
   assert.match(assistant, /handleEloMediaCommand_\(question\)/);
@@ -129,3 +172,4 @@ test("não adiciona API key nem baixa áudio", () => {
   assert.doesNotMatch(mediaClient, /YOUTUBE_API_KEY|AIza|download|extract|audio-only/i);
   assert.match(mediaClient, /https:\/\/www\.youtube\.com\/iframe_api/);
 });
+
