@@ -26435,12 +26435,67 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
+  function getEloMediaIntentGlobal_(question) {
+    const text = normalizeText(question || "");
+    const mentionsMusic = /\b(musica|música|som|audio|áudio)\b/.test(text);
+    if (/\b(pause|pausa|pausar)\b/.test(text) && mentionsMusic) return { type: "pause" };
+    if (/\b(continue|continuar|retome|retomar)\b/.test(text) && mentionsMusic) return { type: "resume" };
+    if (/\b(pare|parar|stop)\b/.test(text) && mentionsMusic) return { type: "stop" };
+    const hasPlayVerb = /\b(toque|tocar|reproduza|coloque|play)\b/.test(text);
+    const isQuestion = /\b(quem|qual|quais|quando|onde|porque|por que|canta)\b/.test(text);
+    if (!hasPlayVerb || isQuestion) return null;
+    if (/sultans of swing|sultan of swing|sul of swing|sultans swing/.test(text)) return { type: "play", title: "Sultans of Swing" };
+    return null;
+  }
+
+  function tryHandleEloMediaCommand_(question, attachments) {
+    const intent = getEloMediaIntentGlobal_(question);
+    if (!intent || (attachments && attachments.length)) return false;
+    const media = window.EloMedia;
+    appendMessage("user", question);
+    if (ELO_UI.input) {
+      ELO_UI.input.value = "";
+      refreshEloInputHeight_();
+    }
+    if (!media) {
+      appendMessage("assistant", "Não consegui carregar o player de música agora.");
+      return true;
+    }
+    if (intent.type === "pause") {
+      if (typeof media.pause === "function") media.pause();
+      appendMessage("assistant", "Música pausada.");
+      return true;
+    }
+    if (intent.type === "resume") {
+      if (typeof media.resume === "function") media.resume();
+      appendMessage("assistant", "Continuando a música.");
+      return true;
+    }
+    if (intent.type === "stop") {
+      if (typeof media.stop === "function") media.stop();
+      appendMessage("assistant", "Música parada.");
+      return true;
+    }
+    if (intent.type === "play" && typeof media.play === "function") {
+      media.play(question).then(function (result) {
+        appendMessage("assistant", result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
+      }).catch(function () {
+        appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
+      });
+      return true;
+    }
+    return false;
+  }
+
   function askElo(question, attachments) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    if (tryHandleEloMediaCommand_(cleanQuestion, attachedFiles)) {
+      return;
+    }
     if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
       handleEloRdoPreview_(cleanQuestion, attachedFiles, { hasAttachments: attachedFiles.length > 0 });
       return;

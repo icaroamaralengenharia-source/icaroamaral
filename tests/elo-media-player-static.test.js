@@ -120,6 +120,7 @@ test("play usa YouTube IFrame API e controles chamam player oficial", async () =
 test("assistente intercepta música sem alterar pergunta comum", () => {
   assert.match(assistant, /function getEloMediaIntent_/);
   assert.match(assistant, /handleEloMediaCommand_\(question\)/);
+  assert.match(assistant, /tryHandleEloMediaCommand_\(cleanQuestion, attachedFiles\)/);
   assert.match(assistant, /Tocando Sultans of Swing\./);
   assert.match(assistant, /quem\|qual\|quais\|quando\|onde\|porque\|por que\|canta/);
 });
