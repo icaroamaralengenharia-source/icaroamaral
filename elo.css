@@ -3441,3 +3441,36 @@ html:not(.elo-intent-orcamento) body[data-elo-product="chat"].elo-chat-state .el
     min-width: min(320px, calc(100vw - 48px));
   }
 }
+
+
+body[data-elo-product="chat"] .elo-wake-controls .elo-wake-toggle {
+  min-width: 112px;
+}
+
+body[data-elo-product="chat"] .elo-wake-controls .elo-wake-toggle[aria-pressed="true"] {
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #047857;
+  background: rgba(236, 253, 245, 0.92);
+}
+
+body[data-elo-product="chat"] .elo-wake-controls .elo-wake-toggle[data-elo-wake-state="COMMAND_LISTENING"] {
+  border-color: rgba(37, 99, 235, 0.45);
+  color: #1d4ed8;
+  background: rgba(239, 246, 255, 0.95);
+}
+
+body[data-elo-product="chat"] .elo-wake-controls .elo-wake-status {
+  max-width: 240px;
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+body[data-elo-product="chat"] .elo-product-chat .elo-wake-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}

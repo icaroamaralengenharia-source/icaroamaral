@@ -137,6 +137,10 @@
           <div class="elo-local-actions" data-elo-local-actions hidden>
             <button type="button" class="elo-local-report-button" data-elo-local-report hidden>Gerar relatório</button>
           </div>
+          <div class="elo-wake-controls" aria-label="Ativacao por voz do ELO">
+            <button type="button" class="elo-wake-toggle" data-elo-wake-toggle aria-pressed="false">○ ELO inativo</button>
+            <span class="elo-wake-status" data-elo-wake-status aria-live="polite"></span>
+          </div>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar arquivo" title="Anexar arquivo">Anexar</button>
             <input class="elo-attachment-input" type="file" multiple accept="application/pdf,.pdf,.xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/*">
@@ -440,5 +444,7 @@
   <script src="elo-media-player.js?v=20260818-youtube-music-v1"></script>
   <script src="elo-voice-client.js?v=20260817-neural-voice-v1"></script>
   <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260721-auth-context-v1"></script>
+  <script src="elo-wake-word.js?v=20260818-wake-word-v1"></script>
 </body>
 </html>
+
