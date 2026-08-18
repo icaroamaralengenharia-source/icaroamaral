@@ -72,6 +72,8 @@ test("remote transfer uses dedicated atomic endpoint and reconciles local moveme
   assert.match(syncTransferBody, /createStockFullRemoteTransfer_/);
   assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_pending"/);
   assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_confirmed"/);
+  assert.match(syncTransferBody, /updated\.forEach\(function \(movement\) \{/);
+  assert.match(syncTransferBody, /removeConfirmedStockLocalMovement_\(movement\)/);
   assert.match(syncTransferBody, /remoteSyncStatus:\s*"remote_error"/);
   assert.match(reportSource, /fetchStockFullJson_\("\/api\/stock-full\/transfers"/);
   assert.match(reportSource, /syncConfirmedTransfer:\s*syncConfirmedTransfer_/);

@@ -1995,10 +1995,15 @@
         remoteSyncedAt: syncedAt,
         remoteResult: result
       });
+      updated.forEach(function (movement) {
+        removeConfirmedStockLocalMovement_(movement);
+      });
       if (result.sourceItem && result.sourceItem.id) stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === result.sourceItem.id ? mapStockFullRemoteItemToAlmox_(result.sourceItem) : item; });
       if (result.destinationItem && result.destinationItem.id) stockFullRemoteItems = stockFullRemoteItems.map(function (item) { return item.id === result.destinationItem.id ? mapStockFullRemoteItemToAlmox_(result.destinationItem) : item; });
       if (result.exit) stockFullRemoteExits.unshift(result.exit);
       if (result.entry) stockFullRemoteEntries.unshift(result.entry);
+      invalidateStockFullManagerDataCache_();
+      buildStockFullRemoteReadyState_();
       return { ok: true, result: result, movements: updated, duplicate: Boolean(result.duplicate) };
     } catch (error) {
       const message = clean(error && error.message) || "stock_full_remote_transfer_failed";
