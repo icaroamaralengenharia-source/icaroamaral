@@ -27386,7 +27386,7 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.speechSynthesisState = "speaking";
     setEloSpeechButtonState_(button, true);
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Gerando voz.");
-    voice.speak(speechText, { voice: "alloy", fallback: false }).then(function () {
+    voice.speak(speechText, { voice: "alloy" }).then(function () {
       if (ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);
     }).catch(function () {
       if (!speakEloTextWithBrowserFallback_(speechText, button) && ELO_UI.speechSynthesisButton === button) resetEloSpeechButton_(button);

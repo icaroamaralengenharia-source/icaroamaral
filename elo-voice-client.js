@@ -4,7 +4,7 @@
   var enabled = true;
   var currentAudio = null;
   var currentUrl = "";
-  var fallbackEnabled = true;
+  var speakGeneration = 0;
 
   function endpoint(path) {
     var configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
@@ -28,14 +28,23 @@
     }
   }
 
+  function chooseBrowserVoice(synthesis) {
+    var voices = typeof synthesis.getVoices === "function" ? Array.prototype.slice.call(synthesis.getVoices() || []) : [];
+    return voices.find(function (voice) { return /^pt-BR$/i.test(String(voice.lang || "")); }) ||
+      voices.find(function (voice) { return /^pt/i.test(String(voice.lang || "")); }) ||
+      null;
+  }
+
   function browserSpeak(text, options) {
-    if (!fallbackEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
       return Promise.reject(new Error("tts_fallback_unavailable"));
     }
     window.speechSynthesis.cancel();
     return new Promise(function (resolve, reject) {
       var utterance = new SpeechSynthesisUtterance(String(text || ""));
-      utterance.lang = (options && options.lang) || "pt-BR";
+      var voice = chooseBrowserVoice(window.speechSynthesis);
+      if (voice) utterance.voice = voice;
+      utterance.lang = voice && voice.lang ? voice.lang : (options && options.lang) || "pt-BR";
       utterance.rate = Number(options && options.rate) || 1;
       utterance.pitch = Number(options && options.pitch) || 1;
       utterance.onend = function () { resolve({ mode: "browser" }); };
@@ -49,8 +58,9 @@
     if (!enabled) return { skipped: true };
     var cleanText = String(text || "").trim();
     if (!cleanText) return { skipped: true, reason: "empty_text" };
-    fallbackEnabled = options.fallback !== false;
     stop();
+    var generation = ++speakGeneration;
+    var fallbackEnabled = options.fallback !== false;
 
     var t0 = performance.now();
     try {
@@ -68,6 +78,10 @@
       var receivedAt = performance.now();
       if (!response.ok) throw new Error("tts_backend_" + response.status);
       var audioBlob = await response.blob();
+      var contentType = String(audioBlob && audioBlob.type || response.headers.get("content-type") || "");
+      if (!audioBlob || !audioBlob.size) throw new Error("tts_empty_audio");
+      if (contentType && !/^audio\//i.test(contentType)) throw new Error("tts_invalid_audio_type");
+      if (generation !== speakGeneration) return { mode: "stopped" };
       releaseAudio();
       currentUrl = URL.createObjectURL(audioBlob);
       currentAudio = new Audio(currentUrl);
@@ -77,6 +91,7 @@
       var result = await new Promise(function (resolve, reject) {
         audio.onplaying = function () { firstAudioAt = performance.now(); };
         audio.onended = function () {
+          if (generation !== speakGeneration) return;
           var durationMs = Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0;
           releaseAudio();
           resolve({
@@ -88,17 +103,23 @@
           });
         };
         audio.onerror = function () { reject(new Error("tts_audio_playback_failed")); };
-        audio.play().catch(reject);
+        audio.play().then(function () {
+          if (generation !== speakGeneration) reject(new Error("tts_stopped"));
+        }).catch(reject);
       });
       return result;
     } catch (error) {
       releaseAudio();
+      if (generation !== speakGeneration || String(error && error.message || error) === "tts_stopped") {
+        return { mode: "stopped" };
+      }
       if (fallbackEnabled) return browserSpeak(cleanText, options);
       return { mode: "text", error: String(error && error.message || error) };
     }
   }
 
   function stop() {
+    speakGeneration += 1;
     releaseAudio();
     if (window.speechSynthesis) {
       try { window.speechSynthesis.cancel(); } catch (error) {}
