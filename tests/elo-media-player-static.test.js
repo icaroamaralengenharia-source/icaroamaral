@@ -9,7 +9,7 @@ const assistant = readFileSync(new URL("../relatorio-qualidade-obras/elo-assiste
 
 function createDocumentHarness() {
   const nodes = {};
-  const body = { appendChild(node) { this.lastChild = node; }, querySelector() { return null; } };
+  const body = { appendChild(node) { this.lastChild = node; node.parentNode = this; }, querySelector() { return null; } };
   const head = { appendChild(node) { this.lastScript = node; } };
   return {
     body,
@@ -30,7 +30,9 @@ function createDocumentHarness() {
         style: {},
         events: {},
         appendChild(child) {
+          if (child && child.parentNode && child.parentNode.children) child.parentNode.children = child.parentNode.children.filter((item) => item !== child);
           this.children.push(child);
+          if (child) child.parentNode = this;
           if (child && child.attributes && child.attributes["data-elo-media-status"]) this.status = child;
         },
         addEventListener(type, handler) { this.events[type] = handler; },
@@ -99,6 +101,7 @@ test("EloMedia expõe contrato público esperado", () => {
   ["play", "playYouTubeVideo", "pause", "resume", "stop", "setVolume", "isPlaying"].forEach((name) => {
     assert.match(mediaClient, new RegExp(name + ": " + name));
   });
+  assert.match(mediaClient, /mountForTest: setMount/);
 });
 
 test("ELO carrega player de mídia antes do assistente", () => {
@@ -160,10 +163,28 @@ test("autoplay bloqueado mostra botão Tocar real e não usa botão Ouvir", asyn
   assert.ok(calls.some((item) => item[0] === "stopVideo"));
 });
 
+
+test("controles de música podem ser montados dentro da mensagem do ELO", async () => {
+  const { document, media } = createMediaContext({ autoplay: false });
+  const message = document.createElement("article");
+  message.className = "elo-message assistant";
+  const result = await media.play("toque Sultans of Swing", { mount: message });
+  const container = message.querySelector("[data-elo-media-player]") || message.children.find((child) => child.attributes && child.attributes["data-elo-media-player"]);
+  const playButton = container.querySelector("[data-elo-media-control=\"play\"]");
+  const stopButton = container.querySelector("[data-elo-media-control=\"stop\"]");
+
+  assert.equal(result.autoplayBlocked, true);
+  assert.equal(container.parentNode, message);
+  assert.equal(playButton.hidden, false);
+  assert.equal(playButton.textContent, "▶ Tocar");
+  assert.equal(stopButton.hidden, false);
+  assert.notEqual(playButton.textContent, "Ouvir");
+});
 test("assistente intercepta música sem alterar pergunta comum", () => {
   assert.match(assistant, /function getEloMediaIntent_/);
   assert.match(assistant, /handleEloMediaCommand_\(question\)/);
   assert.match(assistant, /tryHandleEloMediaCommand_\(cleanQuestion, attachedFiles\)/);
+  assert.match(assistant, /media\.play\(question, \{ mount: mediaMessage \}\)/);
   assert.match(assistant, /Tocando Sultans of Swing\./);
   assert.match(assistant, /quem\|qual\|quais\|quando\|onde\|porque\|por que\|canta/);
 });

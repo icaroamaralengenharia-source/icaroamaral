@@ -10,6 +10,7 @@
   var readyPromise = null;
   var pendingVideoId = "";
   var pendingResolve = null;
+  var currentMount = null;
   var state = {
     title: "",
     videoId: "",
@@ -46,11 +47,6 @@
     status.textContent = "Mídia pronta.";
     container.appendChild(status);
 
-    var frame = document.createElement("div");
-    frame.className = "elo-media-frame";
-    frame.id = "elo-youtube-player";
-    container.appendChild(frame);
-
     var actions = document.createElement("div");
     actions.className = "elo-media-actions";
     actions.style.display = "flex";
@@ -73,9 +69,22 @@
     });
     container.appendChild(actions);
 
-    var host = document.querySelector(".elo-panel") || document.querySelector(".elo-chat-shell") || document.body;
+    var frame = document.createElement("div");
+    frame.className = "elo-media-frame";
+    frame.id = "elo-youtube-player";
+    container.appendChild(frame);
+
+    var host = currentMount || document.querySelector(".elo-panel") || document.querySelector(".elo-chat-shell") || document.body;
     host.appendChild(container);
     updateControls();
+    return container;
+  }
+
+  function setMount(mount) {
+    if (!mount || typeof mount.appendChild !== "function") return ensureContainer();
+    currentMount = mount;
+    var container = ensureContainer();
+    if (container.parentNode !== mount) mount.appendChild(container);
     return container;
   }
 
@@ -177,13 +186,17 @@
     return null;
   }
 
-  function play(command) {
+  function play(command, options) {
+    options = options || {};
+    if (options.mount) setMount(options.mount);
     var media = resolveCommand(command);
     if (!media) return Promise.resolve({ ok: false, reason: "unsupported_media_command" });
-    return playYouTubeVideo(media.videoId, media.title);
+    return playYouTubeVideo(media.videoId, media.title, options);
   }
 
-  function playYouTubeVideo(videoId, title) {
+  function playYouTubeVideo(videoId, title, options) {
+    options = options || {};
+    if (options.mount) setMount(options.mount);
     state.videoId = String(videoId || "");
     state.title = title || SULTANS_OF_SWING.title;
     state.playing = false;
@@ -253,6 +266,7 @@
     stop: stop,
     setVolume: setVolume,
     isPlaying: isPlaying,
+    mountForTest: setMount,
     resolveCommandForTest: resolveCommand
   };
 })();

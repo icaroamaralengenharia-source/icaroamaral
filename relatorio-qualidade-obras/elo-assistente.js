@@ -26477,10 +26477,11 @@ function isEloResidentialNewPipelineEnabled_() {
       return true;
     }
     if (intent.type === "play" && typeof media.play === "function") {
-      media.play(question).then(function (result) {
-        appendMessage("assistant", result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
+      const mediaMessage = appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
+      media.play(question, { mount: mediaMessage }).then(function (result) {
+        updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
       }).catch(function () {
-        appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
+        updateEloMessage_(mediaMessage, "A música está pronta. Clique em Tocar para iniciar.");
       });
       return true;
     }
@@ -30742,10 +30743,11 @@ function isEloResidentialNewPipelineEnabled_() {
         return true;
       }
       if (intent.type === "play" && typeof media.play === "function") {
-        media.play(question).then(function (result) {
-          appendMessage("assistant", result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
+        const mediaMessage = appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
+        media.play(question, { mount: mediaMessage }).then(function (result) {
+          updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
         }).catch(function () {
-          appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
+          updateEloMessage_(mediaMessage, "A música está pronta. Clique em Tocar para iniciar.");
         });
         return true;
       }
