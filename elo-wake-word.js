@@ -3,24 +3,52 @@
 
   const STATE_OFF = "OFF";
   const STATE_WAKE_LISTENING = "WAKE_LISTENING";
-  const STATE_ACKNOWLEDGING = "ACKNOWLEDGING";
+  const STATE_WAKE_GRACE_PERIOD = "WAKE_GRACE_PERIOD";
   const STATE_COMMAND_LISTENING = "COMMAND_LISTENING";
+  const STATE_DISPATCHING = "DISPATCHING";
+  const WAKE_ACK_SILENCE_MS = 1500;
   const COMMAND_TIMEOUT_MS = 8000;
   const RESTART_DELAY_MS = 120;
-  const ACK_TEXT = "Oi! Pode falar.";
+  const START_WATCHDOG_MS = 1500;
   const WAKE_WORDS = ["elo", "hello"];
   const CANCEL_WORDS = ["cancelar", "cancela"];
 
   let state = STATE_OFF;
   let recognition = null;
   let recognitionActive = false;
+  let recognitionStarted = false;
   let recognitionMode = "";
+  let recognitionStopReason = "";
   let stopPending = false;
   let pendingCommandStart = false;
   let commandTimer = null;
+  let wakeAckTimer = null;
+  let wakeRestartTimer = null;
+  let recognitionStartWatchdog = null;
   let commandDelivered = false;
   let manualStop = false;
   let lastError = "";
+  let pendingWakeCommand = "";
+  const debugEvents = [];
+
+  function recordDebug(event, details) {
+    const entry = {
+      event: event,
+      state: state,
+      recognitionMode: recognitionMode,
+      recognitionExists: !!recognition,
+      recognitionActive: recognitionActive,
+      recognitionStarted: recognitionStarted,
+      stopPending: stopPending,
+      timestamp: new Date().toISOString(),
+      details: details || null
+    };
+    debugEvents.push(entry);
+    if (debugEvents.length > 100) debugEvents.shift();
+    try {
+      if (window.localStorage && window.localStorage.getItem("elo_wake_debug_v1") === "1") console.info("[ELO Wake]", entry);
+    } catch (error) {}
+  }
 
   function normalizeTranscript(text) {
     return String(text || "")
@@ -32,12 +60,26 @@
       .trim();
   }
 
-  function hasExactWord(text, words) {
-    const tokens = normalizeTranscript(text).split(" ").filter(Boolean);
-    return words.some(function (word) { return tokens.indexOf(word) >= 0; });
+  function firstToken(text) {
+    return normalizeTranscript(text).split(" ").filter(Boolean)[0] || "";
   }
 
-  function isWakeWord(text) { return hasExactWord(text, WAKE_WORDS); }
+  function isWakeWord(text) {
+    const normalized = normalizeTranscript(text);
+    return WAKE_WORDS.indexOf(normalized) >= 0;
+  }
+
+  function startsWithWakeWord(text) {
+    return WAKE_WORDS.indexOf(firstToken(text)) >= 0;
+  }
+
+  function extractCommandAfterWake(transcript) {
+    const raw = String(transcript || "").trim();
+    if (!raw) return "";
+    const match = raw.match(/^\s*(?:elo|élo|hello)\b[\s,;:!?.-]*/i);
+    if (!match) return "";
+    return raw.slice(match[0].length).trim().replace(/^[-,;:!?.\s]+/, "").trim();
+  }
 
   function isCancelCommand(text) {
     return CANCEL_WORDS.indexOf(normalizeTranscript(text)) >= 0;
@@ -63,8 +105,23 @@
   }
 
   function clearCommandTimer() {
-    if (commandTimer) window.clearTimeout(commandTimer);
+    if (commandTimer !== null) window.clearTimeout(commandTimer);
     commandTimer = null;
+  }
+
+  function clearWakeAckTimer() {
+    if (wakeAckTimer !== null) window.clearTimeout(wakeAckTimer);
+    wakeAckTimer = null;
+  }
+
+  function clearWakeRestartTimer() {
+    if (wakeRestartTimer !== null) window.clearTimeout(wakeRestartTimer);
+    wakeRestartTimer = null;
+  }
+
+  function clearRecognitionStartWatchdog() {
+    if (recognitionStartWatchdog !== null) window.clearTimeout(recognitionStartWatchdog);
+    recognitionStartWatchdog = null;
   }
 
   function startCommandTimeout() {
@@ -75,36 +132,71 @@
     }, COMMAND_TIMEOUT_MS);
   }
 
+  function scheduleWakeRestart(reason) {
+    if (manualStop || state !== STATE_WAKE_LISTENING) return;
+    clearWakeRestartTimer();
+    recordDebug("restart_scheduled", { reason: reason || "wake" });
+    wakeRestartTimer = window.setTimeout(function () {
+      wakeRestartTimer = null;
+      if (manualStop || state !== STATE_WAKE_LISTENING) return;
+      startRecognitionForWake();
+    }, RESTART_DELAY_MS);
+  }
+
+  function scheduleRecognitionStartWatchdog(mode) {
+    clearRecognitionStartWatchdog();
+    recognitionStartWatchdog = window.setTimeout(function () {
+      recognitionStartWatchdog = null;
+      if (manualStop || state === STATE_OFF || recognitionStarted || !recognitionActive || stopPending) return;
+      const expectedMode = mode || recognitionMode || "wake";
+      recordDebug("start_watchdog_restart", { mode: expectedMode });
+      recognitionActive = false;
+      try { if (recognition && typeof recognition.stop === "function") recognition.stop(); } catch (error) {}
+      if (state === STATE_WAKE_LISTENING) scheduleWakeRestart("start_watchdog");
+      if (state === STATE_COMMAND_LISTENING) window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+    }, START_WATCHDOG_MS);
+  }
+
   function safeRecognitionStart(mode) {
-    if (!recognition || state === STATE_OFF || recognitionActive) return false;
+    if (!recognition || state === STATE_OFF || recognitionActive || stopPending) return false;
     try {
       recognition.start();
       recognitionActive = true;
+      recognitionStarted = false;
       recognitionMode = mode || recognitionMode || "wake";
+      recognitionStopReason = "";
       stopPending = false;
+      recordDebug("start_called", { mode: recognitionMode });
+      scheduleRecognitionStartWatchdog(recognitionMode);
       return true;
     } catch (error) {
       const message = String(error && (error.name || error.message) || error || "");
-      if (/InvalidStateError|already started|recognition has already started/i.test(message)) {
-        lastError = message;
-        return false;
-      }
       lastError = message;
-      setStatus("Nao consegui ativar o reconhecimento de voz.");
+      recordDebug(/InvalidStateError|already started|recognition has already started/i.test(message) ? "start_invalid_state" : "start_failed", { message: message, mode: mode || recognitionMode });
       return false;
     }
   }
 
-  function safeRecognitionStop() {
+  function safeRecognitionStop(reason) {
     if (!recognition || (!recognitionActive && !stopPending)) return;
+    recognitionStopReason = reason || "controlled";
     stopPending = true;
-    try { recognition.stop(); } catch (error) { recognitionActive = false; stopPending = false; }
+    try {
+      recognition.stop();
+      recordDebug("stop_called", { mode: recognitionMode, reason: recognitionStopReason });
+    } catch (error) {
+      recognitionActive = false;
+      recognitionStarted = false;
+      stopPending = false;
+      clearRecognitionStartWatchdog();
+      recordDebug("stop_failed", { message: String(error && (error.name || error.message) || error || ""), reason: recognitionStopReason });
+    }
   }
 
   function startRecognitionForWake() {
     if (state !== STATE_WAKE_LISTENING || manualStop) return;
     pendingCommandStart = false;
-    safeRecognitionStart("wake");
+    if (!safeRecognitionStart("wake")) scheduleWakeRestart("start_failed");
   }
 
   function startRecognitionForCommand() {
@@ -125,53 +217,29 @@
     window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
   }
 
-  function handleRecognitionEnd() {
-    recognitionActive = false;
-    stopPending = false;
-    recognitionMode = "";
-
-    if (manualStop || state === STATE_OFF) return;
-    if (pendingCommandStart && state === STATE_COMMAND_LISTENING) {
-      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
-      return;
-    }
-    if (state === STATE_COMMAND_LISTENING && !commandDelivered) {
-      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
-      return;
-    }
-    if (state === STATE_WAKE_LISTENING) {
-      window.setTimeout(startRecognitionForWake, RESTART_DELAY_MS);
-    }
-  }
-
   function beginCommandListening() {
-    if (manualStop || state !== STATE_ACKNOWLEDGING) return;
+    if (manualStop || state !== STATE_WAKE_GRACE_PERIOD) return;
     state = STATE_COMMAND_LISTENING;
     commandDelivered = false;
+    pendingWakeCommand = "";
     setStatus("Pode falar.");
     updateToggle();
+    if (recognitionActive && !stopPending) {
+      recognitionMode = "command";
+      startCommandTimeout();
+      return;
+    }
     startRecognitionForCommand();
   }
 
-  function speakWakeGreeting() {
-    const synth = window.speechSynthesis;
-    const Utterance = window.SpeechSynthesisUtterance;
-    if (!synth || !Utterance) {
+  function scheduleWakePrompt() {
+    clearWakeAckTimer();
+    recordDebug("wake_grace_scheduled", { delay: WAKE_ACK_SILENCE_MS });
+    wakeAckTimer = window.setTimeout(function () {
+      wakeAckTimer = null;
+      if (manualStop || state !== STATE_WAKE_GRACE_PERIOD || pendingWakeCommand) return;
       beginCommandListening();
-      return;
-    }
-
-    try {
-      const utterance = new Utterance(ACK_TEXT);
-      utterance.lang = "pt-BR";
-      utterance.rate = 1;
-      utterance.onend = beginCommandListening;
-      utterance.onerror = beginCommandListening;
-      synth.cancel();
-      synth.speak(utterance);
-    } catch (error) {
-      beginCommandListening();
-    }
+    }, WAKE_ACK_SILENCE_MS);
   }
 
   function dispatchCommand(transcript) {
@@ -193,49 +261,101 @@
   function enterWakeListening(message) {
     state = STATE_WAKE_LISTENING;
     clearCommandTimer();
+    clearWakeAckTimer();
+    clearWakeRestartTimer();
     pendingCommandStart = false;
+    pendingWakeCommand = "";
     commandDelivered = false;
     setStatus(message || "Diga ELO para chamar.");
     updateToggle();
     if (!recognitionActive && !stopPending) startRecognitionForWake();
   }
 
-  function enterAcknowledging() {
-    state = STATE_ACKNOWLEDGING;
+  function enterWakeGracePeriod() {
+    if (manualStop || state !== STATE_WAKE_LISTENING) return;
+    state = STATE_WAKE_GRACE_PERIOD;
     clearCommandTimer();
-    pendingCommandStart = false;
+    clearWakeRestartTimer();
+    pendingWakeCommand = "";
     commandDelivered = false;
-    setStatus("Pode falar.");
+    setStatus("Ouvindo...");
     updateToggle();
-    safeRecognitionStop();
-    speakWakeGreeting();
+    recordDebug("wake_grace_started", { delay: WAKE_ACK_SILENCE_MS });
+    scheduleWakePrompt();
   }
 
   function completeCommand(transcript) {
-    if (commandDelivered) return;
-    commandDelivered = true;
-    clearCommandTimer();
-    safeRecognitionStop();
     const command = String(transcript || "").trim();
+    if (!command || commandDelivered) return;
+    commandDelivered = true;
+    state = STATE_DISPATCHING;
+    clearCommandTimer();
+    clearWakeAckTimer();
+    pendingWakeCommand = "";
+    safeRecognitionStop("dispatch");
     enterWakeListening("Diga ELO para chamar.");
+    recordDebug("dispatch", { command: command });
     dispatchCommand(command);
   }
 
   function cancelCommand() {
     commandDelivered = true;
     clearCommandTimer();
-    safeRecognitionStop();
+    clearWakeAckTimer();
+    safeRecognitionStop("cancel");
     enterWakeListening("Comando cancelado. Diga ELO para chamar.");
+  }
+
+  function handleWakeListeningTranscript(transcript, normalized, isFinal) {
+    const commandAfterWake = extractCommandAfterWake(transcript);
+    const wakeAtStart = startsWithWakeWord(transcript);
+    const wakeOnly = isWakeWord(normalized);
+    recordDebug("wake_analysis", { rawTranscript: String(transcript || ""), commandAfterWake: commandAfterWake, wakeAtStart: wakeAtStart, wakeOnly: wakeOnly, isFinal: isFinal === true });
+    if (commandAfterWake) {
+      if (isFinal) completeCommand(commandAfterWake);
+      else {
+        pendingWakeCommand = commandAfterWake;
+        enterWakeGracePeriod();
+        clearWakeAckTimer();
+      }
+      return;
+    }
+    if (wakeAtStart || wakeOnly) enterWakeGracePeriod();
+  }
+
+  function handleWakeGraceTranscript(transcript, normalized, isFinal) {
+    let command = extractCommandAfterWake(transcript);
+    const raw = String(transcript || "").trim();
+    if (!command && raw && !isWakeWord(normalized) && normalizeTranscript(raw) !== "diga") command = raw;
+    if (!command) return;
+    pendingWakeCommand = command;
+    clearWakeAckTimer();
+    recordDebug("wake_grace_command", { command: command, isFinal: isFinal === true });
+    if (isFinal) completeCommand(command);
   }
 
   function handleTranscript(transcript, isFinal) {
     const normalized = normalizeTranscript(transcript);
-    if (!normalized || state === STATE_ACKNOWLEDGING) return;
+    if (!normalized) return;
+    const commandAfterWake = extractCommandAfterWake(transcript);
+    recordDebug("onresult", {
+      rawTranscript: String(transcript || ""),
+      normalized: normalized,
+      wakeMatch: isWakeWord(normalized) || startsWithWakeWord(transcript),
+      commandAfterWake: commandAfterWake,
+      isFinal: isFinal === true
+    });
+
     if (state === STATE_WAKE_LISTENING) {
-      if (isWakeWord(normalized)) enterAcknowledging();
+      handleWakeListeningTranscript(transcript, normalized, isFinal);
+      return;
+    }
+    if (state === STATE_WAKE_GRACE_PERIOD) {
+      handleWakeGraceTranscript(transcript, normalized, isFinal);
       return;
     }
     if (state === STATE_COMMAND_LISTENING && isFinal) {
+      if (normalizeTranscript(transcript) === "diga") return;
       if (isCancelCommand(normalized)) cancelCommand();
       else completeCommand(transcript);
     }
@@ -250,6 +370,30 @@
     }
   }
 
+  function handleRecognitionEnd() {
+    const endedMode = recognitionMode;
+    const endedReason = recognitionStopReason;
+    recognitionActive = false;
+    recognitionStarted = false;
+    stopPending = false;
+    recognitionMode = "";
+    recognitionStopReason = "";
+    clearRecognitionStartWatchdog();
+    recordDebug("onend", { mode: endedMode, reason: endedReason });
+
+    if (manualStop || state === STATE_OFF) return;
+    if (state === STATE_WAKE_GRACE_PERIOD) return;
+    if (pendingCommandStart && state === STATE_COMMAND_LISTENING) {
+      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+      return;
+    }
+    if (state === STATE_COMMAND_LISTENING && !commandDelivered) {
+      window.setTimeout(startRecognitionForCommand, RESTART_DELAY_MS);
+      return;
+    }
+    if (state === STATE_WAKE_LISTENING) scheduleWakeRestart("onend");
+  }
+
   function createRecognition() {
     const Recognition = getRecognitionConstructor();
     if (!Recognition) return null;
@@ -257,9 +401,17 @@
     instance.lang = "pt-BR";
     instance.continuous = true;
     instance.interimResults = true;
+    instance.onstart = function () {
+      recognitionActive = true;
+      recognitionStarted = true;
+      stopPending = false;
+      clearRecognitionStartWatchdog();
+      recordDebug("onstart", { mode: recognitionMode });
+    };
     instance.onresult = handleResult;
     instance.onerror = function (event) {
       lastError = event && event.error ? String(event.error) : "speech_recognition_error";
+      recordDebug("onerror", { error: lastError });
       if (lastError === "not-allowed" || lastError === "service-not-allowed") {
         stop();
         setStatus("Permissao do microfone necessaria para ativar o ELO por voz.");
@@ -272,6 +424,7 @@
   function start() {
     if (state !== STATE_OFF) return true;
     lastError = "";
+    debugEvents.length = 0;
     recognition = createRecognition();
     if (!recognition) {
       lastError = "Reconhecimento de voz indisponivel neste navegador.";
@@ -287,14 +440,20 @@
   function stop() {
     manualStop = true;
     clearCommandTimer();
+    clearWakeAckTimer();
+    clearWakeRestartTimer();
+    clearRecognitionStartWatchdog();
     state = STATE_OFF;
     pendingCommandStart = false;
+    pendingWakeCommand = "";
     commandDelivered = false;
-    safeRecognitionStop();
+    safeRecognitionStop("manual");
     recognition = null;
     recognitionActive = false;
+    recognitionStarted = false;
     stopPending = false;
     recognitionMode = "";
+    recognitionStopReason = "";
     setStatus("");
     updateToggle();
   }
@@ -321,6 +480,9 @@
     getLastErrorForTest: function () { return lastError; },
     getStateForTest: function () { return state; },
     getRecognitionModeForTest: function () { return recognitionMode; },
+    getDebugForTest: function () { return debugEvents.slice(); },
+    getRuntimeForTest: function () { return { state: state, recognitionExists: !!recognition, recognitionActive: recognitionActive, recognitionStarted: recognitionStarted, recognitionMode: recognitionMode, stopPending: stopPending, pendingWakeCommand: pendingWakeCommand, lastError: lastError }; },
+    extractCommandAfterWakeForTest: extractCommandAfterWake,
     handleTranscriptForTest: handleTranscript,
     normalizeTranscriptForTest: normalizeTranscript,
     isWakeWordForTest: isWakeWord
