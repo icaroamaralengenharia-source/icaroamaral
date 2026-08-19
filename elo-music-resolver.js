@@ -53,9 +53,7 @@
 
   function getBackendEndpoint(path) {
     const configured = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
-    const location = window.location || {};
-    const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || "") || location.protocol === "file:";
-    const baseUrl = isLocalPage && !window.ELO_API_BASE_URL ? "http://localhost:3000" : (configured || "http://localhost:3000");
+    const baseUrl = configured || "http://localhost:3000";
     return baseUrl + path;
   }
   function normalize(text) {
@@ -93,7 +91,7 @@
     text = text
       .replace(/\b(por favor|pra mim|para mim|agora)\b/g, " ")
       .replace(/\b(quero ouvir|toque|toca|tocar|coloque|coloca|reproduza|reproduzir|play|ponha|bota|botar)\b/g, " ")
-      .replace(/\b(uma musica de|uma musica do|uma musica da|uma do|uma da|uma de|musica de|musica do|musica da|aquela do|aquela da|aquela de)\b/g, " ")
+      .replace(/\b(uma musica de|uma musica do|uma musica da|uma do|uma da|uma de|musica de|musica do|musica da|a musica|a música|o som|a cancao|a canção|aquela do|aquela da|aquela de)\b/g, " ")
       .replace(/\s+/g, " ")
       .trim();
     return text;
@@ -217,8 +215,17 @@
     }).sort(function (a, b) { return b.confidence - a.confidence; });
   }
 
-  function search(query) {
+  function buildRemoteSearchQuery(query) {
     var safeQuery = normalize(query).slice(0, 120);
+    if (!safeQuery) return "";
+    var tokens = safeQuery.split(" ").filter(Boolean);
+    if (tokens.length <= 2 && !/\b(musica|music|official|oficial|video|clipe|show|ao vivo)\b/.test(safeQuery)) {
+      return safeQuery + " musica";
+    }
+    return safeQuery;
+  }
+  function search(query) {
+    var safeQuery = buildRemoteSearchQuery(query);
     if (!safeQuery || typeof fetch !== "function") return Promise.resolve({ ok: false, provider: "youtube-data-api", results: [] });
     return fetch(getBackendEndpoint("/api/elo/media/search"), {
       method: "POST",
@@ -268,6 +275,7 @@
     resolveCommand: resolveCommand,
     normalize: normalize,
     search: search,
+    buildRemoteSearchQueryForTest: buildRemoteSearchQuery,
     learnAlias: learnAlias,
     extractQueryForTest: extractQuery,
     hasMusicIntentForTest: hasMusicIntent,

@@ -59,6 +59,44 @@ test("POST /api/elo/media/search consulta YouTube Data API no backend", async ()
   assert.equal(calls[0].options.method, "GET");
 });
 
+
+test("GET /api/elo/media/search aceita q para auditoria direta", async () => {
+  const calls = [];
+  const app = createApp({
+    env: { PORT: "0", YOUTUBE_DATA_API_KEY: "secret-key" },
+    mediaSearchFetch: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        ok: true,
+        json: async () => ({
+          items: [{
+            id: { videoId: "tieta123" },
+            snippet: {
+              title: "Tieta - Clipe Oficial",
+              channelTitle: "Canal Oficial",
+              thumbnails: { default: { url: "https://img.example/tieta.jpg" } }
+            }
+          }]
+        })
+      };
+    }
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(baseUrl + "/api/elo/media/search?q=Tieta");
+    const data = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.query, "Tieta");
+    assert.equal(data.results.length, 1);
+    assert.equal(data.results[0].videoId, "tieta123");
+    assert.equal(data.results[0].embeddable, true);
+  });
+
+  assert.equal(calls.length, 1);
+  const called = new URL(calls[0].url);
+  assert.equal(called.searchParams.get("q"), "Tieta official music video");
+});
 test("POST /api/elo/media/search exige query e provider configurado", async () => {
   await withServer(createApp({ env: { PORT: "0" } }), async (baseUrl) => {
     const empty = await fetch(baseUrl + "/api/elo/media/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: "" }) });

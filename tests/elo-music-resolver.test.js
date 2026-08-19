@@ -18,7 +18,7 @@ function createResolver(fetchImpl = async () => ({ ok: true, json: async () => (
   const context = {
     console,
     fetch: fetchImpl,
-    window: { localStorage: createStorage() }
+    window: { location: { hostname: "127.0.0.1", protocol: "http:" }, OBRAREPORT_API_BASE_URL: "https://obrareport-backend.onrender.com", localStorage: createStorage() }
   };
   context.window.window = context.window;
   vm.createContext(context);
@@ -92,6 +92,44 @@ test("busca remota oficial e aprende alias quando catalogo local nao basta", asy
   assert.equal(calls.length, 1);
 });
 
+
+test("busca generica usa backend configurado e amplia query curta para musica", async () => {
+  const calls = [];
+  const resolver = createResolver(async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      json: async () => ({
+        ok: true,
+        provider: "youtube-data-api",
+        results: [
+          { title: "Tieta", artist: "Caetano Veloso", channel: "Caetano Veloso", videoId: "tieta1", embeddable: true }
+        ]
+      })
+    };
+  });
+
+  const result = await resolver.resolveCommand("Toque a música Tieta.");
+  assert.equal(result.ok, true);
+  assert.equal(result.source, "remote");
+  assert.equal(result.query, "tieta");
+  assert.equal(result.track.videoId, "tieta1");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/api\/elo\/media\/search/);
+  assert.equal(JSON.parse(calls[0].options.body).q, "tieta musica");
+});
+
+test("ranking evita resultados fracos quando ha musica forte fora do cache", async () => {
+  const resolver = createResolver();
+  const ranked = resolver.rankSearchResultsForTest("tieta", [
+    { title: "React de Tieta", artist: "Canal Reaction", videoId: "bad1", embeddable: true },
+    { title: "Tieta - Clipe Oficial", artist: "Artista Oficial", channel: "Artista Oficial VEVO", videoId: "good1", embeddable: true },
+    { title: "Tieta karaoke", artist: "Karaoke", videoId: "bad2", embeddable: true }
+  ]);
+
+  assert.equal(ranked[0].track.videoId, "good1");
+  assert.ok(ranked[0].confidence >= 0.85);
+});
 test("musica desconhecida nao toca video aleatorio", async () => {
   const resolver = createResolver(async () => ({ ok: true, json: async () => ({ ok: true, results: [] }) }));
   const result = await resolver.resolveCommand("toque xyzabc musica que nao existe");

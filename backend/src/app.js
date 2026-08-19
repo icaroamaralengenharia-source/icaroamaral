@@ -2844,8 +2844,17 @@ export function createApp(options = {}) {
     }
   });
 
-  app.post("/api/elo/media/search", async (request, response) => {
-    const query = clean_(request.body && (request.body.query || request.body.q)).slice(0, 120);
+  registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
+
+  app.get("/api/elo/budgets", (request, response) => {
+    try {
+      const budgets = eloBudgetService.listBudgets(buildEloBudgetContext_(request));
+      response.json({ ok: true, budgets });
+    } catch (error) { sendEloBudgetError_(response, error); }
+  });
+  async function handleEloMediaSearchRequest_(request, response) {
+    const source = request.method === "GET" ? request.query : request.body;
+    const query = clean_(source && (source.query || source.q)).slice(0, 120);
     if (!query) {
       response.status(400).json({ ok: false, error: "query_required" });
       return;
@@ -2868,16 +2877,9 @@ export function createApp(options = {}) {
       console.error("Falha na busca de mídia do Elo:", error);
       response.status(502).json({ ok: false, error: "media_search_failed", provider: "youtube-data-api" });
     }
-  });
-
-  registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
-
-  app.get("/api/elo/budgets", (request, response) => {
-    try {
-      const budgets = eloBudgetService.listBudgets(buildEloBudgetContext_(request));
-      response.json({ ok: true, budgets });
-    } catch (error) { sendEloBudgetError_(response, error); }
-  });
+  }
+  app.get("/api/elo/media/search", handleEloMediaSearchRequest_);
+  app.post("/api/elo/media/search", handleEloMediaSearchRequest_);
   app.post("/api/elo/budgets", async (request, response) => {
     try {
       const budget = eloBudgetService.createBudget(request.body && request.body.documentData, buildEloBudgetContext_(request));
