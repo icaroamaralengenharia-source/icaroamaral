@@ -98,7 +98,7 @@ function createMediaContext(options = {}) {
 
 test("EloMedia expõe contrato público esperado", () => {
   assert.match(mediaClient, /window\.EloMedia\s*=\s*\{/);
-  ["play", "playYouTubeVideo", "pause", "resume", "stop", "setVolume", "isPlaying"].forEach((name) => {
+  ["play", "playTrack", "playYouTubeVideo", "pause", "resume", "stop", "setVolume", "isPlaying"].forEach((name) => {
     assert.match(mediaClient, new RegExp(name + ": " + name));
   });
   assert.match(mediaClient, /mountForTest: setMount/);
@@ -111,7 +111,7 @@ test("ELO carrega player de mídia antes do assistente", () => {
   assert.ok(assistantIndex > mediaIndex);
 });
 
-test("mapeia somente comandos de play para Sultans of Swing", () => {
+test("mantem fallback local para comandos de play para Sultans of Swing", () => {
   const { media } = createMediaContext();
   assert.equal(media.resolveCommandForTest("toque Sultans of Swing").videoId, "h0ffIJ7ZO4U");
   assert.equal(media.resolveCommandForTest("reproduza sultan of swing").videoId, "h0ffIJ7ZO4U");
@@ -180,13 +180,15 @@ test("controles de música podem ser montados dentro da mensagem do ELO", async 
   assert.equal(stopButton.hidden, false);
   assert.notEqual(playButton.textContent, "Ouvir");
 });
-test("assistente intercepta música sem alterar pergunta comum", () => {
+test("assistente intercepta música com resolver sem alterar pergunta comum", () => {
   assert.match(assistant, /function getEloMediaIntent_/);
   assert.match(assistant, /handleEloMediaCommand_\(question\)/);
   assert.match(assistant, /tryHandleEloMediaCommand_\(cleanQuestion, attachedFiles\)/);
-  assert.match(assistant, /media\.play\(question, \{ mount: mediaMessage \}\)/);
-  assert.match(assistant, /Tocando Sultans of Swing\./);
-  assert.match(assistant, /quem\|qual\|quais\|quando\|onde\|porque\|por que\|canta/);
+  assert.match(assistant, /EloMusicResolver/);
+  assert.match(assistant, /resolver\.resolveCommand\(question\)/);
+  assert.match(assistant, /playTrack/);
+  assert.match(assistant, /Tocando " \+ resolved\.track\.title \+ "\./);
+  assert.match(assistant, /quem\|qual\|quais\|quando\|onde\|porque\|por que\|significado\|historia\|história\|canta/);
 });
 
 test("não adiciona API key nem baixa áudio", () => {

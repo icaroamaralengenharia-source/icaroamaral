@@ -2844,6 +2844,32 @@ export function createApp(options = {}) {
     }
   });
 
+  app.post("/api/elo/media/search", async (request, response) => {
+    const query = clean_(request.body && (request.body.query || request.body.q)).slice(0, 120);
+    if (!query) {
+      response.status(400).json({ ok: false, error: "query_required" });
+      return;
+    }
+    if (!getEloMediaSearchApiKey_(env)) {
+      response.status(503).json({ ok: false, error: "media_search_provider_not_configured", provider: "youtube-data-api" });
+      return;
+    }
+
+    try {
+      const result = await callEloMediaSearch_(query, env, options.mediaSearchFetch || globalThis.fetch);
+      response.json({
+        ok: true,
+        mode: "remote",
+        provider: result.provider,
+        query,
+        results: result.results
+      });
+    } catch (error) {
+      console.error("Falha na busca de mídia do Elo:", error);
+      response.status(502).json({ ok: false, error: "media_search_failed", provider: "youtube-data-api" });
+    }
+  });
+
   registerEloTtsRoute(app, { env, fetchImpl: options.ttsFetch || globalThis.fetch });
 
   app.get("/api/elo/budgets", (request, response) => {
@@ -5990,6 +6016,59 @@ export async function searchEloRelevantMemories_(store, query, ownerId, options 
   } catch (error) {
     return "";
   }
+}
+
+function getEloMediaSearchApiKey_(env) {
+  return clean_(env && (env.YOUTUBE_API_KEY || env.YOUTUBE_DATA_API_KEY || env.ELO_YOUTUBE_API_KEY));
+}
+
+function normalizeEloMediaSearchItem_(item) {
+  const snippet = item && item.snippet || {};
+  const id = item && item.id || {};
+  const videoId = clean_(id.videoId || item && item.videoId);
+  if (!videoId) return null;
+  const title = clean_(snippet.title || item.title).slice(0, 160);
+  const channel = clean_(snippet.channelTitle || item.channel || item.artist).slice(0, 120);
+  const thumbnails = snippet.thumbnails || {};
+  const thumbnail = thumbnails.medium && thumbnails.medium.url || thumbnails.default && thumbnails.default.url || "";
+  return {
+    title: title || "Video",
+    artist: channel,
+    channel,
+    videoId,
+    thumbnail: clean_(thumbnail),
+    embeddable: true,
+    provider: "youtube"
+  };
+}
+
+async function callEloMediaSearch_(query, env, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("media_search_fetch_unavailable");
+  }
+  const key = getEloMediaSearchApiKey_(env);
+  if (!key) throw new Error("media_search_provider_not_configured");
+  const url = new URL("https://www.googleapis.com/youtube/v3/search");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("type", "video");
+  url.searchParams.set("videoEmbeddable", "true");
+  url.searchParams.set("maxResults", clean_(env && env.ELO_MEDIA_SEARCH_MAX_RESULTS) || "8");
+  url.searchParams.set("q", query + " official music video");
+  url.searchParams.set("key", key);
+  const fetchOptions = { method: "GET" };
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    fetchOptions.signal = AbortSignal.timeout(4500);
+  }
+  const response = await fetchImpl(url.toString(), fetchOptions);
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) {
+    throw new Error("media_search_provider_error");
+  }
+  const results = (Array.isArray(data.items) ? data.items : [])
+    .map(normalizeEloMediaSearchItem_)
+    .filter(Boolean)
+    .slice(0, 8);
+  return { provider: "youtube-data-api", results };
 }
 
 async function callOpenAiWebSearch_(query, env, fetchImpl = globalThis.fetch) {

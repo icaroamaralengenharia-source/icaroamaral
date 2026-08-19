@@ -26435,17 +26435,54 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
+  function formatEloMediaResolverStatus_(result) {
+    if (result && result.status === "needs_confirmation" && Array.isArray(result.options) && result.options.length) {
+      const names = result.options.slice(0, 3).map(function (track) {
+        return "'" + track.title + "'" + (track.artist ? " de " + track.artist : "");
+      });
+      return "Você quer " + names.join(" ou ") + "?";
+    }
+    return "Não consegui localizar essa música agora.";
+  }
+
+  function getEloMediaPlayIntent_(question) {
+    const text = normalizeText(question || "");
+    const hasPlayVerb = /\b(toque|toca|tocar|reproduza|reproduzir|coloque|coloca|play|ponha|bota|botar)\b/.test(text) || /\bquero ouvir\b/.test(text);
+    const isQuestion = /\b(quem|qual|quais|quando|onde|porque|por que|significado|historia|história|canta|cantou|compositor)\b/.test(text);
+    if (!hasPlayVerb || isQuestion) return null;
+    if (window.EloMusicResolver && typeof window.EloMusicResolver.hasMusicIntentForTest === "function") {
+      return window.EloMusicResolver.hasMusicIntentForTest(question) ? { type: "play" } : null;
+    }
+    return { type: "play" };
+  }
+
+  function runEloMediaResolvedPlay_(media, question, mediaMessage) {
+    const resolver = window.EloMusicResolver;
+    if (!resolver || typeof resolver.resolveCommand !== "function") {
+      updateEloMessage_(mediaMessage, "Não consegui localizar essa música agora.");
+      return;
+    }
+    resolver.resolveCommand(question).then(function (resolved) {
+      if (!resolved || !resolved.ok || !resolved.track) {
+        updateEloMessage_(mediaMessage, formatEloMediaResolverStatus_(resolved));
+        return null;
+      }
+      const playFn = typeof media.playTrack === "function" ? media.playTrack : media.play;
+      return playFn.call(media, resolved.track, { mount: mediaMessage, track: resolved.track }).then(function (result) {
+        updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta." : "Tocando " + resolved.track.title + ".");
+      });
+    }).catch(function () {
+      updateEloMessage_(mediaMessage, "Não consegui localizar essa música agora.");
+    });
+  }
+
   function getEloMediaIntentGlobal_(question) {
     const text = normalizeText(question || "");
     const mentionsMusic = /\b(musica|música|som|audio|áudio)\b/.test(text);
     if (/\b(pause|pausa|pausar)\b/.test(text) && mentionsMusic) return { type: "pause" };
     if (/\b(continue|continuar|retome|retomar)\b/.test(text) && mentionsMusic) return { type: "resume" };
     if (/\b(pare|parar|stop)\b/.test(text) && mentionsMusic) return { type: "stop" };
-    const hasPlayVerb = /\b(toque|tocar|reproduza|coloque|play)\b/.test(text);
-    const isQuestion = /\b(quem|qual|quais|quando|onde|porque|por que|canta)\b/.test(text);
-    if (!hasPlayVerb || isQuestion) return null;
-    if (/sultans of swing|sultan of swing|sul of swing|sultans swing/.test(text)) return { type: "play", title: "Sultans of Swing" };
-    return null;
+    return getEloMediaPlayIntent_(question);
   }
 
   function tryHandleEloMediaCommand_(question, attachments) {
@@ -26476,13 +26513,9 @@ function isEloResidentialNewPipelineEnabled_() {
       appendMessage("assistant", "Música parada.");
       return true;
     }
-    if (intent.type === "play" && typeof media.play === "function") {
-      const mediaMessage = appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
-      media.play(question, { mount: mediaMessage }).then(function (result) {
-        updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
-      }).catch(function () {
-        updateEloMessage_(mediaMessage, "A música está pronta. Clique em Tocar para iniciar.");
-      });
+    if (intent.type === "play") {
+      const mediaMessage = appendMessage("assistant", "Localizando música...", { messageType: "media_status", suppressTts: true });
+      runEloMediaResolvedPlay_(media, question, mediaMessage);
       return true;
     }
     return false;
@@ -30707,13 +30740,7 @@ function isEloResidentialNewPipelineEnabled_() {
       if (/\b(pause|pausa|pausar)\b/.test(text) && mentionsMusic) return { type: "pause" };
       if (/\b(continue|continuar|retome|retomar)\b/.test(text) && mentionsMusic) return { type: "resume" };
       if (/\b(pare|parar|stop)\b/.test(text) && mentionsMusic) return { type: "stop" };
-      const hasPlayVerb = /\b(toque|tocar|reproduza|coloque|play)\b/.test(text);
-      const isQuestion = /\b(quem|qual|quais|quando|onde|porque|por que|canta)\b/.test(text);
-      if (!hasPlayVerb || isQuestion) return null;
-      if (/sultans of swing|sultan of swing|sul of swing|sultans swing/.test(text)) {
-        return { type: "play", title: "Sultans of Swing" };
-      }
-      return null;
+      return getEloMediaPlayIntent_(question);
     }
 
     function handleEloMediaCommand_(question) {
@@ -30742,13 +30769,9 @@ function isEloResidentialNewPipelineEnabled_() {
         appendMessage("assistant", "Música parada.");
         return true;
       }
-      if (intent.type === "play" && typeof media.play === "function") {
-        const mediaMessage = appendMessage("assistant", "A música está pronta. Clique em Tocar para iniciar.");
-        media.play(question, { mount: mediaMessage }).then(function (result) {
-          updateEloMessage_(mediaMessage, result && result.autoplayBlocked ? "A música está pronta. Clique em Tocar para iniciar." : "Tocando Sultans of Swing.");
-        }).catch(function () {
-          updateEloMessage_(mediaMessage, "A música está pronta. Clique em Tocar para iniciar.");
-        });
+      if (intent.type === "play") {
+        const mediaMessage = appendMessage("assistant", "Localizando música...", { messageType: "media_status", suppressTts: true });
+        runEloMediaResolvedPlay_(media, question, mediaMessage);
         return true;
       }
       return false;

@@ -188,10 +188,17 @@
 
   function play(command, options) {
     options = options || {};
+    if (options.track) return playTrack(options.track, options);
     if (options.mount) setMount(options.mount);
     var media = resolveCommand(command);
     if (!media) return Promise.resolve({ ok: false, reason: "unsupported_media_command" });
-    return playYouTubeVideo(media.videoId, media.title, options);
+    return playTrack(media, options);
+  }
+
+  function playTrack(track, options) {
+    var media = track && typeof track === "object" ? track : null;
+    if (!media || !media.videoId) return Promise.resolve({ ok: false, reason: "invalid_track" });
+    return playYouTubeVideo(media.videoId, media.artist ? media.title + " - " + media.artist : media.title, options || {});
   }
 
   function playYouTubeVideo(videoId, title, options) {
@@ -260,6 +267,7 @@
 
   window.EloMedia = {
     play: play,
+    playTrack: playTrack,
     playYouTubeVideo: playYouTubeVideo,
     pause: pause,
     resume: resume,
