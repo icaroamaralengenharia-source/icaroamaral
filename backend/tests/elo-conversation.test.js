@@ -250,7 +250,7 @@ test("frontend roteia conversa humana e busca atual sem molde conceitual", () =>
   assert.ok(pureRouteIndex >= 0 && onlineRouteIndex >= 0 && pureRouteIndex < onlineRouteIndex);
   assert.ok(searchRouteIndex >= 0);
   assert.ok(searchButtonIndex >= 0 && searchRouteIndex > searchButtonIndex);
-  const greetingDetector = source.match(/function detectSocialGreeting[\s\S]*?return null;\n  \}/)?.[0] || "";
+  const greetingDetector = source.match(/function detectSocialGreeting[\s\S]*?return null;\r?\n  \}/)?.[0] || "";
   assert.match(source, /function normalizeEloSocialGreetingText_/);
   assert.match(source, /function getEloSocialGreetingDistance_/);
   assert.match(greetingDetector, /oi/);
