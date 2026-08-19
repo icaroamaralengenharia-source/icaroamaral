@@ -60,11 +60,7 @@
 
   function getEloBackendEndpoint_(path) {
     const configuredBaseUrl = String(window.ELO_API_BASE_URL || window.OBRAREPORT_API_BASE_URL || "").replace(/\/+$/g, "");
-    const isLocalPage = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "") ||
-      window.location.protocol === "file:";
-    const baseUrl = isLocalPage && !window.ELO_API_BASE_URL
-      ? "http://localhost:3000"
-      : (configuredBaseUrl || "http://localhost:3000");
+    const baseUrl = configuredBaseUrl || "http://localhost:3000";
 
     return baseUrl + path;
   }
@@ -467,6 +463,22 @@
     return buildEloCoreCasualConversationAnswer_(question);
   }
 
+  function buildEloLiveDataCapabilityAnswer_(question) {
+    const text = normalizeText(question || "");
+    if (!/\b(?:voce|você|vc|elo)\b[\s\S]{0,40}\b(?:pesquisa|pesquisar|internet|online|web)\b/.test(text) &&
+        !/\b(?:pesquisa|internet|online|web)\b[\s\S]{0,40}\b(?:voce|você|vc|elo)\b/.test(text)) return null;
+    const answer = "Sim. Quando uma pergunta depende de informação atual, posso consultar fontes online antes de responder.";
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "live_data_capability" };
+  }
+  function handleEloLiveDataCapability_(question) {
+    const response = buildEloLiveDataCapabilityAnswer_(question);
+    if (!response) return false;
+    const answer = formatResponse(response);
+    appendAssistantMessage(question, answer, false, response);
+    saveConversation(question, answer);
+    rememberSessionTurn(question, response, answer);
+    return true;
+  }
   function handleEloCorePureConversationalAnswer_(question) {
     const response = buildEloCorePureConversationalAnswer_(question);
     if (!response) return false;
@@ -588,7 +600,22 @@
     const technicalNextStep = /\bproxim[oa]s?\b[\s\S]{0,36}\b(?:passo|etapa|servico|sequencia|item|orcamento|obra|concretagem|execucao)\b/.test(text);
     return sportsScheduleSubject && sportsScheduleTime && !technicalNextStep;
   }
+  function getEloLiveDataContext_() {
+    const live = ELO_SESSION_MEMORY.lastLiveDataRoute;
+    return live && typeof live === "object" ? live : {};
+  }
+  function classifyEloLiveDataNeed_(message) {
+    if (window.EloLiveDataRouter && typeof window.EloLiveDataRouter.classifyLiveDataNeed === "function") {
+      try {
+        return window.EloLiveDataRouter.classifyLiveDataNeed(message, getEloLiveDataContext_());
+      } catch (error) {}
+    }
+    return null;
+  }
+
   function hasEloSemanticLiveSearchIntent_(message) {
+    const routed = classifyEloLiveDataNeed_(message);
+    if (routed && routed.needsLiveData) return true;
     const text = canonicalizeEloSemanticText_(message);
     if (!text || hasEloSemanticConversationNegation_(text)) return false;
     if (/\bdiferenca\s+entre\s+clima\s+e\s+tempo\b/.test(text)) return false;
@@ -653,6 +680,8 @@
         return { intent: "conversa_geral", route: "chat", reason: "short_continuation_without_active_context", context: context };
       }
     }
+    const liveDataRoute = classifyEloLiveDataNeed_(raw);
+    if (liveDataRoute && liveDataRoute.needsLiveData) return { intent: "busca_atual", route: "web-search", reason: liveDataRoute.reason || "semantic_live_search", context: context, liveData: liveDataRoute };
     if (hasEloSemanticLiveSearchIntent_(raw)) return { intent: "busca_atual", route: "web-search", reason: "semantic_live_search", context: context };
     if (isEloSemanticCadistaIntent_(text)) return { intent: "cadista", route: "technical", reason: "cadista_intent", context: context };
     if (isEloSemanticBudgetOrQuantIntent_(text)) return { intent: "orcamento_quantitativo", route: "technical", reason: "budget_or_quantitative_intent", context: context };
@@ -832,19 +861,43 @@
     }));
     return buildEloCommandBridgeAnswer_(result);
   }
+  const ELO_WEB_SEARCH_ACTION_TEMPLATE_ = { label: "Pesquise" };
   function needsLiveSearch(userText) {
     return classifyEloSemanticRoute_(userText).intent === "busca_atual";
   }
   function buildEloWebSearchRouteResponse_(question) {
     if (!needsLiveSearch(question)) return null;
     const query = sanitizeUserText(question);
-    if (isEloSportsScheduleLiveSearchIntent_(canonicalizeEloSemanticText_(query))) {
-      return { route: "web_search", needsLiveSearch: true, shortAnswer: "Posso pesquisar isso em tempo real.", fullAnswer: "Posso pesquisar isso em tempo real.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: { type: "meta_web_search", label: "Pesquise", query: query, sourceQuestion: query }, webSearchQuery: query };
-    }
-    return { route: "web_search", needsLiveSearch: true, shortAnswer: "Vou consultar e te respondo direto.", fullAnswer: "Vou consultar e te respondo direto.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: null, webSearchQuery: query };
+    const liveData = classifyEloLiveDataNeed_(query) || {};
+    return { route: "web_search", needsLiveSearch: true, shortAnswer: "Vou consultar e te respondo direto.", fullAnswer: "Vou consultar e te respondo direto.", nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "busca_atual", action: null, webSearchQuery: liveData.searchQuery || query, liveData: liveData };
   }
   function formatEloWebSearchResult_(data) { const answer = sanitizeEloMultilineText_(data && (data.answer || data.text || data.result)); const sources = Array.isArray(data && data.sources) ? data.sources.map(function (source) { return sanitizeUserText(source); }).filter(Boolean).slice(0, 4) : []; const baseAnswer = answer || "No momento nao consegui consultar informacoes em tempo real."; return sources.length ? baseAnswer + "\n\nFontes:\n" + sources.map(function (source) { return "- " + source; }).join("\n") : baseAnswer; }
-  function requestEloWebSearchAnswer_(question) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: sanitizeUserText(question) }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
+  function requestEloWebSearchAnswer_(question, liveData) { if (!window.fetch) return Promise.resolve(null); const endpoint = getEloBackendEndpoint_("/api/elo/web-search"); const classifiedLiveData = liveData || classifyEloLiveDataNeed_(question) || {}; const query = sanitizeUserText(classifiedLiveData.searchQuery || question); return window.fetch(endpoint, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()), body: JSON.stringify({ query: query }) }).then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { applyEloCoreAuthContextFromResponse_(data); if (!response.ok || data.ok === false) throw new Error(data.error || "elo_web_search_error"); return data; }); }).then(function (data) { return formatEloWebSearchResult_(data); }).catch(function () { return "No momento nao consegui consultar informacoes em tempo real."; }); }
+  function formatEloLiveDateTimeAnswer_(liveData) {
+    const route = liveData || {};
+    const now = new Date();
+    const options = { weekday: "long", day: "2-digit", month: "long", year: "numeric" };
+    if (route.timeZone) options.timeZone = route.timeZone;
+    const dateText = new Intl.DateTimeFormat("pt-BR", options).format(now);
+    const prefix = route.locationLabel ? "No " + route.locationLabel + ", hoje é " : "Hoje é ";
+    return prefix + dateText + ".";
+  }
+  function buildEloLiveDataDirectAnswer_(question, liveData) {
+    if (!liveData || liveData.category !== "date_time") return null;
+    const answer = formatEloLiveDateTimeAnswer_(liveData);
+    return { shortAnswer: answer, fullAnswer: answer, nextAction: "", canSave: false, sessionTheme: "busca_atual", sessionIntent: "live_date_time", liveData: liveData };
+  }
+  function rememberEloLiveDataRoute_(liveData) {
+    if (!liveData || !liveData.category || liveData.category === "none") return;
+    ELO_SESSION_MEMORY.lastLiveDataRoute = {
+      category: liveData.category,
+      location: sanitizeUserText(liveData.location || ""),
+      timeZone: sanitizeUserText(liveData.timeZone || ""),
+      locationLabel: sanitizeUserText(liveData.locationLabel || ""),
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
   function getEloObraBossDailyQuestionType_(question) {
     const text = normalizeText(question || "");
     if (!text || isEloCorePureConversationalRequest_(question)) return "";
@@ -6970,6 +7023,7 @@
 
   function rememberSessionTurn(question, response, answer) {
     const safeResponse = response && typeof response === "object" ? response : {};
+    if (safeResponse.liveData) rememberEloLiveDataRoute_(safeResponse.liveData);
     const normalizedQuestion = normalizeText(question);
     const detectedTheme = safeResponse.sessionTheme || detectConversationTheme(normalizedQuestion) || ELO_SESSION_MEMORY.lastTheme;
     const detectedIntent = safeResponse.sessionIntent || detectConversationIntent(normalizedQuestion);
@@ -26694,6 +26748,16 @@ function isEloResidentialNewPipelineEnabled_() {
           removeTypingIndicator();
           return;
         }
+        const directLiveDataResponse = buildEloLiveDataDirectAnswer_(cleanQuestion, liveSearchResponse.liveData);
+        if (directLiveDataResponse) {
+          const directAnswer = formatResponse(directLiveDataResponse);
+          appendAssistantMessage(cleanQuestion, directAnswer, false, directLiveDataResponse);
+          saveConversation(cleanQuestion, directAnswer);
+          rememberSessionTurn(cleanQuestion, directLiveDataResponse, directAnswer);
+          clearProductAttachmentPreview();
+          removeTypingIndicator();
+          return;
+        }
         requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
           const finalAnswer = sanitizeEloMultilineText_(searchAnswer) || "Nao consegui consultar informacoes em tempo real agora.";
           const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: finalAnswer, fullAnswer: finalAnswer, action: null });
@@ -26770,6 +26834,16 @@ function isEloResidentialNewPipelineEnabled_() {
         return;
       }
       showTypingIndicator();
+      const directLiveDataResponse = buildEloLiveDataDirectAnswer_(cleanQuestion, liveSearchResponse.liveData);
+      if (directLiveDataResponse) {
+        const directAnswer = formatResponse(directLiveDataResponse);
+        appendAssistantMessage(cleanQuestion, directAnswer, false, directLiveDataResponse);
+        saveConversation(cleanQuestion, directAnswer);
+        rememberSessionTurn(cleanQuestion, directLiveDataResponse, directAnswer);
+        clearProductAttachmentPreview();
+        removeTypingIndicator();
+        return;
+      }
       requestEloWebSearchAnswer_(cleanQuestion).then(function (searchAnswer) {
         const searchResponse = Object.assign({}, liveSearchResponse, { shortAnswer: searchAnswer, fullAnswer: searchAnswer, action: null });
         appendAssistantMessage(cleanQuestion, searchAnswer, false, searchResponse);
@@ -27113,6 +27187,11 @@ function isEloResidentialNewPipelineEnabled_() {
       return;
     }
 
+    if (!attachedFiles.length && handleEloLiveDataCapability_(cleanQuestion)) {
+      clearProductAttachmentPreview();
+      removeTypingIndicator();
+      return;
+    }
     if (!attachedFiles.length && handleEloCorePureConversationalAnswer_(cleanQuestion)) {
       removeTypingIndicator();
       return;
@@ -28455,7 +28534,7 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (response && response.action && response.action.type === "meta_web_search") {
       const searchAction = response.action;
-      const searchButton = createElement("button", "elo-inline-button", searchAction.label || "Pesquise");
+      const searchButton = createElement("button", "elo-inline-button", searchAction.label || ELO_WEB_SEARCH_ACTION_TEMPLATE_.label);
       searchButton.type = "button";
       searchButton.setAttribute("data-elo-action-type", "meta_web_search");
       searchButton.setAttribute("data-query", searchAction.query || "");
@@ -28475,7 +28554,7 @@ function isEloResidentialNewPipelineEnabled_() {
           appendMessage("system", "Nao consegui consultar informacoes em tempo real agora.");
         }).finally(function () {
           removeTypingIndicator();
-          searchButton.textContent = searchAction.label || "Pesquise";
+          searchButton.textContent = searchAction.label || ELO_WEB_SEARCH_ACTION_TEMPLATE_.label;
         });
       });
       actions.appendChild(searchButton);
@@ -30902,6 +30981,9 @@ function isEloResidentialNewPipelineEnabled_() {
     detectCoreToolIntentForTest: buildEloCoreToolIntentResponse_,
     classifyIntentForTest: classifyEloCoreIntent_,
     classifySemanticRouteForTest: classifyEloSemanticRoute_,
+    classifyLiveDataForTest: classifyEloLiveDataNeed_,
+    buildLiveDataDirectAnswerForTest: buildEloLiveDataDirectAnswer_,
+    buildLiveDataCapabilityForTest: buildEloLiveDataCapabilityAnswer_,
     parseStockProductCreateCommandForTest: parseEloStockProductCreateCommand_,
     detectCommandBridgeRequestForTest: detectEloCommandBridgeRequest_,
     buildCommandBridgeResponseForTest: buildEloCommandBridgeResponse_,
