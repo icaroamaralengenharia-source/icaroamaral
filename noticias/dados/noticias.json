@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-08-20T14:53:52.726Z",
-  "coletadoEm": "2026-08-20T14:53:52.726Z",
+  "atualizadoEm": "2026-08-20T15:48:08.322Z",
+  "coletadoEm": "2026-08-20T15:48:08.322Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "d89072606fc414b2",
+      "titulo": "Indígenas cobram participação nas decisões da COP da Desertificação",
+      "resumo": "Indígenas de diferentes partes do mundo protestaram nesta quinta-feira (20) para serem incluídos nas negociações oficiais da 17ª Conferência das Nações Unidas de Combate à Desertificação (COP17), que está sendo realizada em Ulaanbaatar, capital da Mongólia.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/meio-ambiente/noticia/2026-08/indigenas-cobram-participacao-nas-decisoes-da-cop-da-desertificacao",
+      "publicadoEm": "2026-08-20T15:02:00.000Z",
+      "coletadoEm": "2026-08-20T15:48:08.322Z",
+      "categoria": "Infraestrutura e Obras",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/iCqNIQA2B_9pHSTlg3iVb4pzyEE=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/20/55474885117_12cf6d2cd4_k.jpg?itok=8f6eI6cL",
+      "imagemAlt": "Indígenas cobram participação nas decisões da COP da Desertificação",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "71b6300920bdcec0",
       "titulo": "Renato Correia encerra gestão na CBIC com foco no fortalecimento institucional e no protagonismo da construção",
