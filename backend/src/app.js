@@ -41,6 +41,32 @@ const ELO_OPENAI_VECTOR_DIMENSIONS = 1536;
 const ELO_LOCAL_EMBEDDING_MODEL = "local-hash-96";
 const ELO_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const ELO_VECTOR_SCHEMA_VERSION = 2;
+const ELO_MUSIC_SEED_CATALOG = [
+  {
+    title: "Sultans of Swing",
+    artist: "Dire Straits",
+    videoId: "h0ffIJ7ZO4U",
+    aliases: ["sultans of swing", "sultan of swing", "sultans swing", "sul of swing", "of suking"]
+  },
+  {
+    title: "Bohemian Rhapsody",
+    artist: "Queen",
+    videoId: "fJ9rUzIMcZQ",
+    aliases: ["bohemian rhapsody", "boemiam rapisodi", "boemia rapsody", "queen bohemian"]
+  },
+  {
+    title: "Sweet Child O' Mine",
+    artist: "Guns N' Roses",
+    videoId: "1w7OgIMMRc4",
+    aliases: ["sweet child o mine", "sweet child of mine", "swit child of mine", "guns roses sweet child"]
+  },
+  {
+    title: "Hotel California",
+    artist: "Eagles",
+    videoId: "BciS5krYL80",
+    aliases: ["hotel california", "hotel california eagles"]
+  }
+];
 const BACKEND_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_DIR = join(BACKEND_DIR, "..");
 const ELO_TECHNICAL_VALIDATOR_PATH = join(REPO_DIR, "relatorio-qualidade-obras", "elo-technical-validator.js");
@@ -789,6 +815,154 @@ function validateEloTechnicalQuestion_(message, options = {}) {
   const result = getEloTechnicalValidationResult_(message, options);
   return result && result.shouldRespond ? result : null;
 }
+function normalizeEloCommandForRouter_(command) {
+  const raw = String(command || "").replace(/\s+/g, " ").trim();
+  const mathContext = /\b(quanto e|quanto é|mais|menos|vezes|dividido|some|soma|calcule|\d)\b|[+\-*/]/i.test(raw);
+  if (!mathContext) return raw;
+  const replacements = new Map([
+    ["one", "um"], ["two", "dois"], ["too", "dois"], ["to", "dois"],
+    ["three", "três"], ["tree", "três"], ["four", "quatro"], ["for", "quatro"],
+    ["five", "cinco"], ["six", "seis"], ["seven", "sete"], ["eight", "oito"],
+    ["nine", "nove"], ["ten", "dez"]
+  ]);
+  return raw.replace(/\b([a-z]+)\b/gi, (match) => replacements.get(match.toLowerCase()) || match);
+}
+
+function normalizeEloRouterText_(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[’"\"]/g, " ")
+    .replace(/[^a-z0-9'\s+\-*/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasEloMusicIntent_(command) {
+  const text = normalizeEloRouterText_(command);
+  if (/\b(quem|qual|quais|quando|onde|porque|por que|significado|historia|canta|cantou|compositor)\b/.test(text)) return false;
+  return /^(toque|toca|tocar|coloque|coloca|reproduza|reproduzir|play|ponha|bota|botar)\b/.test(text) || /\bquero ouvir\b/.test(text);
+}
+
+function extractEloMusicQuery_(command) {
+  return normalizeEloRouterText_(command)
+    .replace(/\b(por favor|pra mim|para mim|agora)\b/g, " ")
+    .replace(/\b(quero ouvir|toque|toca|tocar|coloque|coloca|reproduza|reproduzir|play|ponha|bota|botar)\b/g, " ")
+    .replace(/\b(uma musica de|uma musica do|uma musica da|uma do|uma da|uma de|musica de|musica do|musica da|a musica|o som|a cancao|aquela do|aquela da|aquela de)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreEloRouterText_(query, candidate) {
+  const q = normalizeEloRouterText_(query);
+  const c = normalizeEloRouterText_(candidate);
+  if (!q || !c) return 0;
+  if (q === c) return 1;
+  if (c.includes(q) || q.includes(c)) return 0.92;
+  const qTokens = new Set(q.split(" ").filter(Boolean));
+  const cTokens = new Set(c.split(" ").filter(Boolean));
+  let hits = 0;
+  qTokens.forEach((token) => { if (cTokens.has(token)) hits += 1; });
+  return hits / Math.max(qTokens.size, cTokens.size, 1);
+}
+
+function resolveEloMusicCommand_(command) {
+  if (!hasEloMusicIntent_(command)) return { ok: false, status: "not_music" };
+  const query = extractEloMusicQuery_(command);
+  if (!query) return { ok: false, status: "empty_query", query };
+  const ranked = ELO_MUSIC_SEED_CATALOG.map((track) => {
+    const targets = [track.title, track.artist].concat(track.aliases || []);
+    return { track, confidence: Math.max(...targets.map((target) => scoreEloRouterText_(query, target))) };
+  }).sort((a, b) => b.confidence - a.confidence);
+  const best = ranked[0];
+  if (best && best.confidence >= 0.68) return { ok: true, status: "resolved", query, confidence: best.confidence, track: best.track };
+  return { ok: false, status: "not_found", query };
+}
+
+function isEloLiveDataIntent_(command) {
+  return /\b(temperatura|graus|clima|tempo agora|previsao|previsão|chovendo|chuva)\b/i.test(command);
+}
+
+function buildEloLiveDataUnavailableAnswer_(command) {
+  const cityMatch = String(command || "").match(/(?:em|de|para)\s+([A-Za-zÀ-ÿ ]{3,80})/i);
+  const place = cityMatch ? cityMatch[1].trim().replace(/[?.!,]+$/g, "") : "essa cidade";
+  return "Eu entendi que você pediu dado ao vivo sobre " + place + ", mas o provedor de clima ao vivo ainda não está configurado neste backend.";
+}
+
+function parsePtNumberForMath_(value) {
+  const clean = normalizeEloRouterText_(value);
+  const map = { zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10 };
+  if (/^-?\d+(?:[,.]\d+)?$/.test(clean)) return Number(clean.replace(",", "."));
+  return Object.prototype.hasOwnProperty.call(map, clean) ? map[clean] : null;
+}
+
+function formatPtNumberForMath_(value) {
+  const names = { 0: "zero", 1: "um", 2: "dois", 3: "três", 4: "quatro", 5: "cinco", 6: "seis", 7: "sete", 8: "oito", 9: "nove", 10: "dez" };
+  return Number.isInteger(value) && Object.prototype.hasOwnProperty.call(names, value) ? names[value] : String(value).replace(".", ",");
+}
+
+function resolveEloSimpleMath_(command) {
+  const normalized = normalizeEloRouterText_(command).replace(/^quanto e\s+/i, "").replace(/^calcule\s+/i, "");
+  const match = normalized.match(/(-?\d+(?:[,.]\d+)?|zero|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s*(mais|\+)\s*(-?\d+(?:[,.]\d+)?|zero|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\b/i);
+  if (!match) return null;
+  const left = parsePtNumberForMath_(match[1]);
+  const right = parsePtNumberForMath_(match[3]);
+  if (left === null || right === null) return null;
+  const total = left + right;
+  return formatPtNumberForMath_(left) + " mais " + formatPtNumberForMath_(right) + " é " + formatPtNumberForMath_(total) + ".";
+}
+
+async function callEloChatFromCommand_(request, command, context = {}) {
+  const protocol = request.protocol || "http";
+  const host = request.get && request.get("host");
+  if (!host || typeof fetch !== "function") return { ok: false, status: 503, body: { answer: buildEloLocalFallbackResponse_(interpretEloUserMessage({ message: command })) } };
+  const chatResponse = await fetch(protocol + "://" + host + "/api/elo/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: command,
+      history: [],
+      context: Object.assign({ source: "elo-command-router", mode: "central", eloContext: "geral" }, context || {})
+    })
+  });
+  const body = await chatResponse.json().catch(() => ({}));
+  return { ok: chatResponse.ok, status: chatResponse.status, body };
+}
+
+export async function routeEloCommandForAndroid_(input = {}) {
+  const rawCommand = String(input.command || input.message || "").trim();
+  const normalizedCommand = normalizeEloCommandForRouter_(rawCommand);
+  if (!normalizedCommand) return { ok: false, status: 400, type: "answer", router: "INVALID", action: "none", rawCommand, normalizedCommand, answer: "Comando vazio.", ttsText: "Comando vazio.", error: "empty_command" };
+
+  const mathAnswer = resolveEloSimpleMath_(normalizedCommand);
+  if (mathAnswer) return { ok: true, status: 200, type: "answer", router: "OPERATIONAL", action: "math_answer", rawCommand, normalizedCommand, answer: mathAnswer, ttsText: mathAnswer };
+
+  const music = resolveEloMusicCommand_(normalizedCommand);
+  if (music.ok) {
+    const text = "Tocando " + music.track.title + (music.track.artist ? " de " + music.track.artist : "") + ".";
+    return { ok: true, status: 200, type: "media", router: "MUSIC", action: "play", rawCommand, normalizedCommand, answer: text, ttsText: text, media: { action: "play", title: music.track.title, artist: music.track.artist, videoId: music.track.videoId, confidence: music.confidence } };
+  }
+  if (music.status === "empty_query") {
+    const text = "Qual música você quer ouvir?";
+    return { ok: true, status: 200, type: "answer", router: "MUSIC", action: "needs_query", rawCommand, normalizedCommand, answer: text, ttsText: text };
+  }
+
+  if (isEloLiveDataIntent_(normalizedCommand)) {
+    const text = buildEloLiveDataUnavailableAnswer_(normalizedCommand);
+    return { ok: true, status: 200, type: "answer", router: "LIVE_DATA", action: "provider_unavailable", rawCommand, normalizedCommand, answer: text, ttsText: text };
+  }
+
+  if (input.request) {
+    const chat = await callEloChatFromCommand_(input.request, normalizedCommand, input.context);
+    const answer = String(chat.body && chat.body.answer || "Não consegui acessar minha inteligência online agora.").trim();
+    return { ok: chat.ok, status: chat.status || 200, type: "answer", router: "CHAT", action: "chat", rawCommand, normalizedCommand, answer, ttsText: answer, chat: chat.body };
+  }
+
+  const answer = buildEloLocalFallbackResponse_(interpretEloUserMessage({ message: normalizedCommand }));
+  return { ok: true, status: 200, type: "answer", router: "CHAT", action: "local_fallback", rawCommand, normalizedCommand, answer, ttsText: answer };
+}
+
 export function createApp(options = {}) {
   const app = express();
   const env = options.env || process.env;
@@ -3042,6 +3216,29 @@ export function createApp(options = {}) {
         ok: false,
         mode: "vector_unavailable",
         error: "Memoria vetorial indisponivel. O Elo pode continuar com a memoria local."
+      });
+    }
+  });
+
+  app.post("/api/elo/command", async (request, response) => {
+    try {
+      const result = await routeEloCommandForAndroid_({
+        command: request.body && (request.body.command || request.body.message),
+        source: request.body && request.body.source,
+        context: request.body && request.body.context,
+        request
+      });
+      response.status(result.status || 200).json(result);
+    } catch (error) {
+      console.error("Falha no roteador central do Elo:", error);
+      response.status(502).json({
+        ok: false,
+        type: "answer",
+        router: "ERROR",
+        action: "error",
+        answer: "Não consegui rotear esse comando agora.",
+        ttsText: "Não consegui rotear esse comando agora.",
+        error: error && error.message ? error.message : "command_router_error"
       });
     }
   });
