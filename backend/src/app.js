@@ -913,7 +913,83 @@ function resolveEloSimpleMath_(command) {
   return formatPtNumberForMath_(left) + " mais " + formatPtNumberForMath_(right) + " é " + formatPtNumberForMath_(total) + ".";
 }
 
-async function callEloChatFromCommand_(request, command, context = {}) {
+function sanitizeEloCommandHistory_(history = []) {
+  return (Array.isArray(history) ? history : [])
+    .map((item) => ({
+      role: clean_(item && item.role).toLowerCase() === "assistant" ? "assistant" : "user",
+      content: clean_(item && item.content).slice(0, 700)
+    }))
+    .filter((item) => item.content)
+    .slice(-10);
+}
+
+function isEloShortFollowupCommand_(command) {
+  const text = normalizeEloRouterText_(command);
+  return /^(sim|não|nao|pode|continue|continua|quero|esse|essa|aquele|aquela|isso|mais detalhes|detalhe mais|explica melhor|explique melhor|fala mais|fale mais)$/.test(text);
+}
+
+function findLastEloHistoryByRole_(history, role) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index] && history[index].role === role && history[index].content) return history[index];
+  }
+  return null;
+}
+
+function extractEloFollowupTopic_(history = []) {
+  const lastUser = findLastEloHistoryByRole_(history, "user");
+  const lastAssistant = findLastEloHistoryByRole_(history, "assistant");
+  const source = [lastAssistant && lastAssistant.content, lastUser && lastUser.content].filter(Boolean).join(" ");
+  const known = [
+    { pattern: /sultans of swing/i, topic: "Sultans of Swing" },
+    { pattern: /dire straits/i, topic: "Dire Straits" },
+    { pattern: /bohemian rhapsody/i, topic: "Bohemian Rhapsody" },
+    { pattern: /sweet child/i, topic: "Sweet Child O' Mine" },
+    { pattern: /hotel california/i, topic: "Hotel California" }
+  ].find((item) => item.pattern.test(source));
+  if (known) return known.topic;
+  const aboutMatch = source.match(/(?:sobre|da musica|da música|da banda|do artista|do assunto)\s+([A-Za-zÀ-ÿ0-9' ]{3,80})/i);
+  if (aboutMatch) return aboutMatch[1].trim().replace(/[?.!,]+$/g, "").slice(0, 80);
+  return "";
+}
+
+function resolveEloFollowupCommand_(command, history = []) {
+  const safeHistory = sanitizeEloCommandHistory_(history);
+  if (!isEloShortFollowupCommand_(command)) {
+    return { detected: false, history: safeHistory, topic: "", resolvedCommand: command };
+  }
+
+  const lastAssistant = findLastEloHistoryByRole_(safeHistory, "assistant");
+  if (!lastAssistant || !/[?]|\b(quer|quer que eu|posso|deseja|continuo|detalho|falo mais|toco)\b/i.test(lastAssistant.content)) {
+    return {
+      detected: true,
+      history: safeHistory,
+      topic: "",
+      resolvedCommand: command,
+      needsContext: true,
+      answer: "Sim sobre qual assunto? Me diga o tema e eu continuo."
+    };
+  }
+
+  const topic = extractEloFollowupTopic_(safeHistory);
+  if (!topic) {
+    return {
+      detected: true,
+      history: safeHistory,
+      topic: "",
+      resolvedCommand: command,
+      needsContext: true,
+      answer: "Posso continuar, mas preciso que você diga de qual assunto."
+    };
+  }
+
+  if (/\b(quer que eu toque|posso tocar|quer ouvir|toco)\b/i.test(lastAssistant.content) && /^(sim|pode|quero)$/i.test(normalizeEloRouterText_(command))) {
+    return { detected: true, history: safeHistory, topic, resolvedCommand: "toque " + topic, playRequested: true };
+  }
+
+  return { detected: true, history: safeHistory, topic, resolvedCommand: "continue e detalhe mais sobre " + topic };
+}
+
+async function callEloChatFromCommand_(request, command, context = {}, history = []) {
   const protocol = request.protocol || "http";
   const host = request.get && request.get("host");
   if (!host || typeof fetch !== "function") return { ok: false, status: 503, body: { answer: buildEloLocalFallbackResponse_(interpretEloUserMessage({ message: command })) } };
@@ -922,7 +998,7 @@ async function callEloChatFromCommand_(request, command, context = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: command,
-      history: [],
+      history: sanitizeEloCommandHistory_(history),
       context: Object.assign({ source: "elo-command-router", mode: "central", eloContext: "geral" }, context || {})
     })
   });
@@ -932,7 +1008,11 @@ async function callEloChatFromCommand_(request, command, context = {}) {
 
 export async function routeEloCommandForAndroid_(input = {}) {
   const rawCommand = String(input.command || input.message || "").trim();
-  const normalizedCommand = normalizeEloCommandForRouter_(rawCommand);
+  const history = sanitizeEloCommandHistory_(input.history);
+  const followup = resolveEloFollowupCommand_(rawCommand, history);
+  if (followup.needsContext) return { ok: true, status: 200, type: "answer", router: "FOLLOWUP", action: "needs_context", rawCommand, normalizedCommand: rawCommand, answer: followup.answer, ttsText: followup.answer, followupDetected: true, followupTopic: "", historySize: history.length };
+  const commandForRouting = followup.resolvedCommand || rawCommand;
+  const normalizedCommand = normalizeEloCommandForRouter_(commandForRouting);
   if (!normalizedCommand) return { ok: false, status: 400, type: "answer", router: "INVALID", action: "none", rawCommand, normalizedCommand, answer: "Comando vazio.", ttsText: "Comando vazio.", error: "empty_command" };
 
   const mathAnswer = resolveEloSimpleMath_(normalizedCommand);
@@ -941,7 +1021,7 @@ export async function routeEloCommandForAndroid_(input = {}) {
   const music = resolveEloMusicCommand_(normalizedCommand);
   if (music.ok) {
     const text = "Tocando " + music.track.title + (music.track.artist ? " de " + music.track.artist : "") + ".";
-    return { ok: true, status: 200, type: "media", router: "MUSIC", action: "play", rawCommand, normalizedCommand, answer: text, ttsText: text, media: { action: "play", title: music.track.title, artist: music.track.artist, videoId: music.track.videoId, confidence: music.confidence } };
+    return { ok: true, status: 200, type: "media", router: "MUSIC", action: "play", rawCommand, normalizedCommand, answer: text, ttsText: text, media: { action: "play", title: music.track.title, artist: music.track.artist, videoId: music.track.videoId, confidence: music.confidence }, followupDetected: Boolean(followup.detected), followupTopic: followup.topic || "", historySize: history.length };
   }
   if (music.status === "empty_query") {
     const text = "Qual música você quer ouvir?";
@@ -954,13 +1034,15 @@ export async function routeEloCommandForAndroid_(input = {}) {
   }
 
   if (input.request) {
-    const chat = await callEloChatFromCommand_(input.request, normalizedCommand, input.context);
+    const chat = await callEloChatFromCommand_(input.request, normalizedCommand, input.context, history);
     const answer = String(chat.body && chat.body.answer || "Não consegui acessar minha inteligência online agora.").trim();
-    return { ok: chat.ok, status: chat.status || 200, type: "answer", router: "CHAT", action: "chat", rawCommand, normalizedCommand, answer, ttsText: answer, chat: chat.body };
+    return { ok: chat.ok, status: chat.status || 200, type: "answer", router: followup.detected ? "FOLLOWUP" : "CHAT", action: followup.detected ? "continue_topic" : "chat", rawCommand, normalizedCommand, answer, ttsText: answer, chat: chat.body, followupDetected: Boolean(followup.detected), followupTopic: followup.topic || "", historySize: history.length };
   }
 
-  const answer = buildEloLocalFallbackResponse_(interpretEloUserMessage({ message: normalizedCommand }));
-  return { ok: true, status: 200, type: "answer", router: "CHAT", action: "local_fallback", rawCommand, normalizedCommand, answer, ttsText: answer };
+  const answer = followup.detected && followup.topic
+    ? "Continuando sobre " + followup.topic + ": esse é o ponto central do assunto. Posso detalhar histórico, contexto, importância e próximos pontos."
+    : buildEloLocalFallbackResponse_(interpretEloUserMessage({ message: normalizedCommand, history }));
+  return { ok: true, status: 200, type: "answer", router: followup.detected ? "FOLLOWUP" : "CHAT", action: followup.detected ? "continue_topic" : "local_fallback", rawCommand, normalizedCommand, answer, ttsText: answer, followupDetected: Boolean(followup.detected), followupTopic: followup.topic || "", historySize: history.length };
 }
 
 export function createApp(options = {}) {
@@ -3226,6 +3308,7 @@ export function createApp(options = {}) {
         command: request.body && (request.body.command || request.body.message),
         source: request.body && request.body.source,
         context: request.body && request.body.context,
+        history: request.body && request.body.history,
         request
       });
       response.status(result.status || 200).json(result);

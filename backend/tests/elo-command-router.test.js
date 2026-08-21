@@ -35,3 +35,54 @@ test("roteador Android classifica dado atual como live data", async () => {
   assert.equal(live.action, "provider_unavailable");
   assert.match(live.answer, /provedor de clima ao vivo/i);
 });
+
+
+test("follow-up curto continua assunto pelo historico", async () => {
+  const sultans = await routeEloCommandForAndroid_({
+    command: "sim",
+    history: [
+      { role: "user", content: "me fale sobre Sultans of Swing" },
+      { role: "assistant", content: "Sultans of Swing é uma música do Dire Straits. Quer mais detalhes?" }
+    ]
+  });
+  const dire = await routeEloCommandForAndroid_({
+    command: "sim",
+    history: [
+      { role: "user", content: "quem é Dire Straits?" },
+      { role: "assistant", content: "Dire Straits é uma banda britânica. Quer saber mais?" }
+    ]
+  });
+
+  assert.equal(sultans.router, "FOLLOWUP");
+  assert.equal(sultans.action, "continue_topic");
+  assert.equal(sultans.followupDetected, true);
+  assert.equal(sultans.followupTopic, "Sultans of Swing");
+  assert.match(sultans.answer, /Sultans of Swing/i);
+  assert.equal(dire.router, "FOLLOWUP");
+  assert.equal(dire.followupTopic, "Dire Straits");
+  assert.match(dire.answer, /Dire Straits/i);
+});
+
+test("follow-up curto sem contexto nao inventa tema", async () => {
+  const result = await routeEloCommandForAndroid_({ command: "sim", history: [] });
+
+  assert.equal(result.router, "FOLLOWUP");
+  assert.equal(result.action, "needs_context");
+  assert.equal(result.followupDetected, true);
+  assert.equal(result.followupTopic, "");
+  assert.match(result.answer, /qual assunto|tema/i);
+});
+
+test("follow-up sim so dispara play quando a pergunta anterior pede tocar", async () => {
+  const result = await routeEloCommandForAndroid_({
+    command: "sim",
+    history: [
+      { role: "user", content: "me fale sobre Sultans of Swing" },
+      { role: "assistant", content: "Quer que eu toque Sultans of Swing?" }
+    ]
+  });
+
+  assert.equal(result.router, "MUSIC");
+  assert.equal(result.action, "play");
+  assert.equal(result.media.videoId, "h0ffIJ7ZO4U");
+});
