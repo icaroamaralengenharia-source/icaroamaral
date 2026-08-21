@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-08-21T14:52:44.311Z",
-  "coletadoEm": "2026-08-21T14:52:44.311Z",
+  "atualizadoEm": "2026-08-21T15:47:19.805Z",
+  "coletadoEm": "2026-08-21T15:47:19.805Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "5609313701c691ed",
+      "titulo": "Desigualdades marcam formalização do trabalho entre jovens brasileiros",
+      "resumo": "A formalização no mercado de trabalho entre os jovens brasileiros de 16 a 29 anos é marcada por desigualdades, descreve a pesquisa Juventudes e o Mundo do Trabalho , realizada pela Fundação Itaú com apoio técnico do Datafolha e do Instituto Locomotiva.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/economia/noticia/2026-08/desigualdades-marcam-formalizacao-do-trabalho-entre-jovens-brasileiros",
+      "publicadoEm": "2026-08-21T14:31:00.000Z",
+      "coletadoEm": "2026-08-21T15:47:19.805Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/28ifgyNFas7UcXO-VU-DktgzTok=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2025/11/16/toms0114.jpg?itok=jX6_RkSQ",
+      "imagemAlt": "Desigualdades marcam formalização do trabalho entre jovens brasileiros",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "7cdaa6ac1c31691b",
       "titulo": "Eduardo Aroeira apresenta panorama da construção civil brasileira em encontro do mercado imobiliário",
