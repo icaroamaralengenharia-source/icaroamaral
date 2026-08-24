@@ -1,12 +1,26 @@
 {
-  "atualizadoEm": "2026-08-24T18:58:03.917Z",
-  "coletadoEm": "2026-08-24T18:58:03.917Z",
+  "atualizadoEm": "2026-08-24T19:43:34.902Z",
+  "coletadoEm": "2026-08-24T19:43:34.902Z",
   "fontes": [
     "Agencia Brasil",
     "CAU/BR",
     "CBIC"
   ],
   "noticias": [
+    {
+      "id": "72c08b9969865e7c",
+      "titulo": "Mobilização nacional coleta DNA de parentes de desaparecidos",
+      "resumo": "O Ministério da Justiça e Segurança Pública e os institutos de perícia federal e estaduais iniciaram, nesta segunda-feira (24), a quarta Mobilização Nacional de Coleta de DNA de Familiares de Pessoas Desaparecidas.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/direitos-humanos/noticia/2026-08/mobilizacao-nacional-coleta-dna-de-parentes-de-desaparecidos",
+      "publicadoEm": "2026-08-24T18:46:00.000Z",
+      "coletadoEm": "2026-08-24T19:43:34.902Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/ZINnFRqOWPsno0VklmVuso-s8vs=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2025/04/06/pint3245.jpg?itok=uzcxxgHy",
+      "imagemAlt": "Mobilização nacional coleta DNA de parentes de desaparecidos",
+      "imagemOrigem": "Agencia Brasil"
+    },
     {
       "id": "a42cb3ea335bcdba",
       "titulo": "CPRT debate qualificação profissional do setor da construção no Concrete Show",
@@ -36,6 +50,20 @@
       "imagemOrigem": "CBIC"
     },
     {
+      "id": "6db4995c5e3ec295",
+      "titulo": "Explosão de botijão de gás causa interdição de 13 casas em São Paulo",
+      "resumo": "Uma explosão causada por um botijão de gás na zona norte de São Paulo, resultou na interdição preventiva de 13 imóveis. O acidente ocorreu por volta das 4h da manhã do domingo (23).",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/geral/noticia/2026-08/explosao-de-botijao-de-gas-causa-interdicao-de-13-casas-em-sao-paulo",
+      "publicadoEm": "2026-08-24T18:02:00.000Z",
+      "coletadoEm": "2026-08-24T19:43:34.902Z",
+      "categoria": "Conselhos e Fiscalizacao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/SCblt1h7hfdk7y_MyKIGtMrzzP0=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/08/24/explosao-botijao.jpg?itok=8tmBldZ0",
+      "imagemAlt": "Explosão de botijão de gás causa interdição de 13 casas em São Paulo",
+      "imagemOrigem": "Agencia Brasil"
+    },
+    {
       "id": "423f9baa3f63680b",
       "titulo": "Seconci DF: trabalhadores da construção concluem ciclo de alfabetização e ensino fundamental dentro de canteiro de obras",
       "resumo": "Agosto, mês em que é celebrado o Dia do Estudante (11/8), ficará marcado na vida de 14 trabalhadores da construção civil.",
@@ -48,6 +76,20 @@
       "imagemUrl": "https://cbic.org.br/wp-content/uploads/2026/08/trabalhadores-da-construcao-civil-concluem-estudos-dentro-de-canteiro-de-obras.jpeg",
       "imagemAlt": "Seconci DF: trabalhadores da construção concluem ciclo de alfabetização e ensino fundamental dentro de canteiro de obras",
       "imagemOrigem": "CBIC"
+    },
+    {
+      "id": "8efa16bc0df03410",
+      "titulo": "Fiocruz lança carta aos candidatos com temas prioritários da saúde",
+      "resumo": "A Fundação Oswaldo Cruz (Fiocruz) divulgou nesta segunda-feira (24) uma carta aberta aos candidatos a cargos eletivos em 2026 com contribuições para o debate sobre saúde e ciência.",
+      "fonte": "Agencia Brasil",
+      "url": "https://agenciabrasil.ebc.com.br/politica/noticia/2026-08/fiocruz-lanca-carta-aos-candidatos-com-temas-prioritarios-da-saude",
+      "publicadoEm": "2026-08-24T16:44:00.000Z",
+      "coletadoEm": "2026-08-24T19:43:34.902Z",
+      "categoria": "Engenharia e Construcao",
+      "dominio": "agenciabrasil.ebc.com.br",
+      "imagemUrl": "https://imagens.ebc.com.br/JlppRwvxN-UFQDi2tN4VuxassE0=/1600x800/https://agenciabrasil.ebc.com.br/sites/default/files/thumbnails/image/2026/07/28/486e5eb1803e4b8207221f00bf60d54ac246cf30.jpg?itok=S7P3Fc-t",
+      "imagemAlt": "Fiocruz lança carta aos candidatos com temas prioritários da saúde",
+      "imagemOrigem": "Agencia Brasil"
     },
     {
       "id": "5d671acc3daf2a40",
