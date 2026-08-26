@@ -14,6 +14,9 @@
   let state = STATE_IDLE;
   let currentMedia = null;
   let ytPlayer = null;
+  let localAudio = null;
+  let localQueue = [];
+  let localQueueIndex = 0;
   let apiPromise = null;
   let playRunId = 0;
 
@@ -40,6 +43,7 @@
     log("MEDIA_PLAYER_STATE", {
       state: state,
       videoId: currentMedia && currentMedia.videoId,
+      source: currentMedia && currentMedia.source,
       title: currentMedia && currentMedia.title
     });
   }
@@ -157,6 +161,10 @@
     });
   }
 
+  function isLocalClassicalMedia(media) {
+    return !!(media && media.source === "LOCAL_CLASSICAL" && Array.isArray(media.files) && media.files.length);
+  }
+
   function buildCandidateList(media) {
     const list = [media].concat(Array.isArray(media && media.fallbackCandidates) ? media.fallbackCandidates : []);
     return list.map(normalizeMediaCandidate).filter(function (candidate) {
@@ -178,8 +186,82 @@
       try { ytPlayer.destroy(); } catch (error) {}
     }
     ytPlayer = null;
+    if (localAudio) {
+      try { localAudio.pause(); } catch (error) {}
+      try { localAudio.removeAttribute && localAudio.removeAttribute("src"); } catch (error) {}
+      try { localAudio.load && localAudio.load(); } catch (error) {}
+    }
+    localAudio = null;
+    localQueue = [];
+    localQueueIndex = 0;
     const host = document.getElementById(PLAYER_HOST_ID);
     if (host) host.innerHTML = "";
+  }
+
+  function createLocalAudio(url) {
+    if (typeof window.Audio === "function") return new window.Audio(url);
+    const audio = document.createElement("audio");
+    audio.src = url;
+    return audio;
+  }
+
+  function playLocalQueueItem(runId) {
+    if (runId !== playRunId) return Promise.resolve(false);
+    const file = localQueue[localQueueIndex];
+    if (!file || !file.url) {
+      setState(STATE_IDLE);
+      return Promise.resolve(true);
+    }
+    localAudio = createLocalAudio(file.url);
+    localAudio.preload = "auto";
+    localAudio.controls = true;
+    localAudio.setAttribute && localAudio.setAttribute("data-elo-local-audio", "true");
+    localAudio.onended = function () {
+      if (runId !== playRunId) return;
+      localQueueIndex += 1;
+      if (localQueueIndex < localQueue.length) {
+        playLocalQueueItem(runId);
+      } else {
+        setState(STATE_IDLE);
+      }
+    };
+    localAudio.onerror = function () {
+      log("MEDIA_PLAYER_ERROR", { source: "LOCAL_CLASSICAL", path: file.path || file.url, reason: "local_audio_error" });
+      setState(STATE_ERROR);
+    };
+    const host = document.getElementById(PLAYER_HOST_ID);
+    if (host) {
+      host.innerHTML = "";
+      host.appendChild(localAudio);
+    }
+    setState(STATE_BUFFERING);
+    log("MEDIA_PLAY_ATTEMPT", { source: "LOCAL_CLASSICAL", title: currentMedia && currentMedia.title, file: file.path || file.url, index: localQueueIndex + 1 });
+    return Promise.resolve(localAudio.play()).then(function () {
+      setState(STATE_PLAYING);
+      log("MEDIA_PLAY_CONFIRMED", { source: "LOCAL_CLASSICAL", title: currentMedia && currentMedia.title, file: file.path || file.url, index: localQueueIndex + 1 });
+      return true;
+    }).catch(function (error) {
+      log("MEDIA_PLAYER_ERROR", { source: "LOCAL_CLASSICAL", path: file.path || file.url, reason: sanitize(error && error.message) || "local_audio_play_failed" });
+      setState(STATE_ERROR);
+      return false;
+    });
+  }
+
+  function playLocalMedia(media) {
+    playRunId += 1;
+    const runId = playRunId;
+    const root = ensureRoot();
+    const title = root.querySelector("[data-elo-media-title]");
+    root.style.display = "block";
+    destroyPlayer();
+    currentMedia = Object.assign({}, media, { source: "LOCAL_CLASSICAL" });
+    localQueue = media.files.map(function (file, index) {
+      return Object.assign({}, file, { index: index + 1 });
+    });
+    localQueueIndex = 0;
+    if (title) title.textContent = currentMedia.title + (currentMedia.artist ? " - " + currentMedia.artist : "");
+    log("MEDIA_PLAYER_START", { ok: true, provider: "local_audio", source: "LOCAL_CLASSICAL", files: localQueue.length });
+    return playLocalQueueItem(runId);
   }
 
   function attemptCandidate(candidate, runId, index) {
@@ -260,6 +342,7 @@
   }
 
   function play(media) {
+    if (isLocalClassicalMedia(media)) return playLocalMedia(media);
     const candidates = buildCandidateList(media || {});
     playRunId += 1;
     const runId = playRunId;
@@ -283,6 +366,12 @@
   }
 
   function pause() {
+    if (currentMedia && currentMedia.source === "LOCAL_CLASSICAL") {
+      if (!localAudio || typeof localAudio.pause !== "function") return false;
+      localAudio.pause();
+      setState(STATE_PAUSED);
+      return true;
+    }
     if (!currentMedia || !ytPlayer || typeof ytPlayer.pauseVideo !== "function") return false;
     ytPlayer.pauseVideo();
     setState(STATE_PAUSED);
@@ -290,6 +379,15 @@
   }
 
   function resume() {
+    if (currentMedia && currentMedia.source === "LOCAL_CLASSICAL") {
+      if (!localAudio || typeof localAudio.play !== "function") return false;
+      Promise.resolve(localAudio.play()).then(function () { setState(STATE_PLAYING); }).catch(function (error) {
+        log("MEDIA_PLAYER_ERROR", { source: "LOCAL_CLASSICAL", reason: sanitize(error && error.message) || "local_audio_resume_failed" });
+        setState(STATE_ERROR);
+      });
+      setState(STATE_BUFFERING);
+      return true;
+    }
     if (!currentMedia || !ytPlayer || typeof ytPlayer.playVideo !== "function") return false;
     ytPlayer.playVideo();
     setState(STATE_BUFFERING);
@@ -300,6 +398,10 @@
     if (!currentMedia) return false;
     if (ytPlayer && typeof ytPlayer.stopVideo === "function") {
       try { ytPlayer.stopVideo(); } catch (error) {}
+    }
+    if (localAudio) {
+      try { localAudio.pause(); } catch (error) {}
+      try { localAudio.currentTime = 0; } catch (error) {}
     }
     const root = document.getElementById(PLAYER_ID);
     if (root) root.style.display = "none";

@@ -75,6 +75,32 @@
     return window.navigator.onLine !== false;
   }
 
+  function getOfflineLibrary() {
+    const library = window.EloOfflineMediaLibrary || null;
+    return library && typeof library.find === "function" ? library : null;
+  }
+
+  function findOfflineMedia(query) {
+    const library = getOfflineLibrary();
+    if (!library) return Promise.resolve(null);
+    const ready = typeof library.init === "function" ? library.init() : Promise.resolve();
+    return Promise.resolve(ready).then(function () {
+      const match = library.find(query);
+      if (!match || !match.id) return null;
+      log("MEDIA_OFFLINE_LIBRARY_MATCH", { query: clean(query), id: match.id, title: match.title, files: Array.isArray(match.files) ? match.files.length : 0 });
+      return Object.assign({}, match, {
+        found: true,
+        source: "LOCAL_CLASSICAL",
+        providerStatus: "LOCAL_CLASSICAL",
+        playable: true,
+        embeddable: true,
+        offline: true,
+        local: true,
+        fallbackCandidates: []
+      });
+    });
+  }
+
   function getCatalogMatch(query) {
     const catalog = window.EloMusicCatalog || window.ELO_MUSIC_CATALOG || null;
     if (!catalog) return null;
@@ -299,8 +325,7 @@
     });
   }
 
-  function resolve(query) {
-    const cleanQuery = clean(query);
+  function resolveOnlineCatalogOrProvider(cleanQuery) {
     const catalogMatch = getCatalogMatch(cleanQuery);
     const providerQuery = catalogMatch && catalogMatch.searchQuery ? catalogMatch.searchQuery : cleanQuery;
     const requestUrl = buildMediaSearchUrl(providerQuery);
@@ -359,6 +384,14 @@
     });
   }
 
+  function resolve(query) {
+    const cleanQuery = clean(query);
+    return findOfflineMedia(cleanQuery).then(function (offlineMatch) {
+      if (offlineMatch) return offlineMatch;
+      return resolveOnlineCatalogOrProvider(cleanQuery);
+    });
+  }
+
   function getPlayer() {
     const player = window.EloMediaPlayer;
     if (player && player.__eloControlBridgeApi === true && typeof player.getSource === "function") return player.getSource();
@@ -366,11 +399,18 @@
   }
 
   function play(media) {
+    const player = getPlayer();
+    if (media && media.source === "LOCAL_CLASSICAL") {
+      if (!player || typeof player.play !== "function") {
+        log("MEDIA_PLAYER_START", { ok: false, reason: "player_unavailable", source: "LOCAL_CLASSICAL" });
+        return false;
+      }
+      return Promise.resolve(player.play(media));
+    }
     if (!isOnline()) {
       log("MEDIA_PLAY_OFFLINE_BLOCKED", { catalogId: media && media.catalogId || null, videoId: media && media.videoId || null });
       return Promise.resolve(false);
     }
-    const player = getPlayer();
     if (!player || typeof player.play !== "function") {
       log("MEDIA_PLAYER_START", { ok: false, reason: "player_unavailable" });
       return false;
