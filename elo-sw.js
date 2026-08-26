@@ -1,11 +1,20 @@
-const ELO_CACHE_NAME = "elo-web-offline-v1";
+const ELO_CACHE_NAME = "elo-web-offline-v2";
 const ELO_SHELL_ASSETS = [
   "./elo.html",
   "./elo.css",
   "./relatorio-qualidade-obras/elo-assistente.js",
   "./relatorio-qualidade-obras/elo-music-catalog.js",
   "./relatorio-qualidade-obras/elo-music-resolver.js",
-  "./relatorio-qualidade-obras/elo-media-player.js"
+  "./relatorio-qualidade-obras/elo-media-player.js",
+  "./relatorio-qualidade-obras/elo-offline-media-library.js",
+  "./relatorio-qualidade-obras/offline-media/classical/library.json",
+  "./relatorio-qualidade-obras/offline-media/classical/beethoven/fur-elise.ogg",
+  "./relatorio-qualidade-obras/offline-media/classical/debussy/clair-de-lune.ogg",
+  "./relatorio-qualidade-obras/offline-media/classical/vivaldi/spring-mvt-1-allegro.oga",
+  "./relatorio-qualidade-obras/offline-media/classical/vivaldi/spring-mvt-2-largo.oga",
+  "./relatorio-qualidade-obras/offline-media/classical/vivaldi/spring-mvt-3-allegro.oga",
+  "./relatorio-qualidade-obras/offline-media/classical/pachelbel/canon-in-d.mp3",
+  "./relatorio-qualidade-obras/offline-media/classical/chopin/nocturne-op-9-no-2.ogg"
 ];
 
 self.addEventListener("install", function (event) {

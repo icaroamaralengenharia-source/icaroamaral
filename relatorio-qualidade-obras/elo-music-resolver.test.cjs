@@ -42,6 +42,15 @@ function loadResolver(options = {}) {
     const catalogSource = fs.readFileSync(path.join(__dirname, 'elo-music-catalog.js'), 'utf8');
     vm.runInContext(catalogSource, context, { filename: 'elo-music-catalog.js' });
   }
+  if (options.offlineLibrary) {
+    const previousFetch = context.window.fetch;
+    context.window.fetch = undefined;
+    const offlineSource = fs.readFileSync(path.join(__dirname, 'elo-offline-media-library.js'), 'utf8');
+    vm.runInContext(offlineSource, context, { filename: 'elo-offline-media-library.js' });
+    const library = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media/classical/library.json'), 'utf8'));
+    context.window.EloOfflineMediaLibrary.loadFromJsonForTest(library);
+    context.window.fetch = previousFetch;
+  }
   if (options.player) context.window.EloMediaPlayer = options.player;
   const source = fs.readFileSync(path.join(__dirname, 'elo-music-resolver.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'elo-music-resolver.js' });
@@ -305,4 +314,167 @@ test('ELO music resolver unit: catalog item pendente usa provider fallback', asy
   assert.equal(result.catalogId, 'steve-miller-band-fly-like-an-eagle');
   assert.equal(result.videoId, 'freshFLAE1');
   assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Steve Miller Band Fly Like an Eagle');
+});
+
+
+test('ELO offline classical: 5 obras locais resolvem antes de catalogo e provider', async () => {
+  const requestedUrls = [];
+  const played = [];
+  const { resolver } = loadResolver({
+    offlineLibrary: true,
+    window: { navigator: { onLine: false } },
+    fetch(url) { requestedUrls.push(String(url)); throw new Error('provider should not run for local classical'); },
+    player: { play(media) { played.push(media); return true; } }
+  });
+
+  const cases = [
+    ['ELO, toque Beethoven', 'beethoven-fur-elise', 1],
+    ['ELO, toque Clair de Lune', 'debussy-clair-de-lune', 1],
+    ['ELO, toque Vivaldi', 'vivaldi-four-seasons-spring', 3],
+    ['ELO, toque Canon in D', 'pachelbel-canon-in-d', 1],
+    ['ELO, toque Chopin', 'chopin-nocturne-op-9-no-2', 1]
+  ];
+
+  for (const [query, id, fileCount] of cases) {
+    const result = await resolver.resolve(query);
+    assert.equal(result.found, true, query);
+    assert.equal(result.id, id, query);
+    assert.equal(result.source, 'LOCAL_CLASSICAL', query);
+    assert.equal(result.providerStatus, 'LOCAL_CLASSICAL', query);
+    assert.equal(result.files.length, fileCount, query);
+    assert.equal(await resolver.play(result), true, query);
+  }
+
+  assert.equal(requestedUrls.length, 0);
+  assert.equal(played.length, 5);
+  assert.equal(played[2].files.length, 3);
+});
+
+test('ELO offline classical: miss preserva catalogo online para Take on Me', async () => {
+  const requestedUrls = [];
+  const { resolver } = loadResolver({
+    offlineLibrary: true,
+    fetch(url) { requestedUrls.push(String(url)); throw new Error('provider should not run for active catalog hit'); }
+  });
+
+  const result = await resolver.resolve('ELO, toque Take on Me');
+
+  assert.equal(result.found, true);
+  assert.equal(result.catalogId, 'a-ha-take-on-me');
+  assert.equal(result.source !== 'LOCAL_CLASSICAL', true);
+  assert.equal(result.providerStatus, 'CATALOG_CACHE_HIT');
+  assert.equal(requestedUrls.length, 0);
+});
+
+test('ELO offline classical: miss offline nao inventa musica online', async () => {
+  const requestedUrls = [];
+  const playCalls = [];
+  const { resolver } = loadResolver({
+    offlineLibrary: true,
+    window: { navigator: { onLine: false } },
+    fetch(url) { requestedUrls.push(String(url)); throw new Error('provider should not run offline'); },
+    player: { play(media) { playCalls.push(media); return true; } }
+  });
+
+  const result = await resolver.resolve('ELO, toque Hotel California');
+  const played = await resolver.play(result);
+
+  assert.equal(result.found, false);
+  assert.equal(result.providerStatus, 'OFFLINE');
+  assert.equal(result.source, 'offline');
+  assert.equal(requestedUrls.length, 0);
+  assert.equal(played, false);
+  assert.equal(playCalls.length, 0);
+});
+
+test('ELO service worker: cache v2 inclui modulo local library.json e 7 audios', () => {
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'elo-sw.js'), 'utf8');
+  const audioPaths = [
+    'beethoven/fur-elise.ogg',
+    'debussy/clair-de-lune.ogg',
+    'vivaldi/spring-mvt-1-allegro.oga',
+    'vivaldi/spring-mvt-2-largo.oga',
+    'vivaldi/spring-mvt-3-allegro.oga',
+    'pachelbel/canon-in-d.mp3',
+    'chopin/nocturne-op-9-no-2.ogg'
+  ];
+
+  assert.match(sw, /elo-web-offline-v2/);
+  assert.match(sw, /elo-offline-media-library\.js/);
+  assert.match(sw, /offline-media\/classical\/library\.json/);
+  for (const audioPath of audioPaths) assert.match(sw, new RegExp(audioPath.replace(/[./-]/g, '\\$&')));
+});
+
+test('ELO media player: local classical toca fila pausa continua e para', async () => {
+  const events = [];
+  const title = { textContent: '' };
+  const host = {
+    innerHTML: '',
+    children: [],
+    appendChild(node) { this.children.push(node); }
+  };
+  const root = {
+    style: { display: 'none' },
+    querySelector(selector) { return selector === '[data-elo-media-title]' ? title : null; }
+  };
+  const body = { dataset: {}, appendChild() {} };
+  const audioInstances = [];
+  function Audio(url) {
+    this.url = url;
+    this.controls = false;
+    this.preload = '';
+    this.currentTime = 12;
+    this.setAttribute = function () {};
+    this.removeAttribute = function () {};
+    this.load = function () {};
+    this.pause = function () { this.paused = true; };
+    this.play = function () { this.played = true; return Promise.resolve(true); };
+    audioInstances.push(this);
+  }
+  const context = {
+    console: { info(name, payload) { events.push({ name, payload: payload || {} }); }, log() {}, warn() {}, error() {} },
+    window: { Audio, console: { info(name, payload) { events.push({ name, payload: payload || {} }); }, log() {}, warn() {}, error() {} } },
+    document: {
+      body,
+      getElementById(id) {
+        if (id === 'elo-real-media-player') return root;
+        if (id === 'elo-real-media-host') return host;
+        return null;
+      },
+      createElement() { return { style: {}, setAttribute() {}, appendChild() {}, querySelector() { return null; } }; }
+    }
+  };
+  context.window.window = context.window;
+  context.window.document = context.document;
+  context.globalThis = context.window;
+  vm.createContext(context);
+  const source = fs.readFileSync(path.join(__dirname, 'elo-media-player.js'), 'utf8');
+  vm.runInContext(source, context, { filename: 'elo-media-player.js' });
+
+  const media = {
+    id: 'vivaldi-four-seasons-spring',
+    title: 'The Four Seasons: Spring / Primavera',
+    artist: 'Antonio Vivaldi',
+    source: 'LOCAL_CLASSICAL',
+    files: [
+      { url: './one.oga', path: 'one.oga' },
+      { url: './two.oga', path: 'two.oga' },
+      { url: './three.oga', path: 'three.oga' }
+    ]
+  };
+
+  assert.equal(await context.window.EloMediaPlayer.play(media), true);
+  assert.equal(context.window.EloMediaPlayer.getState(), 'PLAYING');
+  assert.equal(audioInstances.length, 1);
+  audioInstances[0].onended();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(audioInstances.length, 2);
+  assert.equal(context.window.EloMediaPlayer.pause(), true);
+  assert.equal(context.window.EloMediaPlayer.getState(), 'PAUSED');
+  assert.equal(context.window.EloMediaPlayer.resume(), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(context.window.EloMediaPlayer.getState(), 'PLAYING');
+  assert.equal(context.window.EloMediaPlayer.stop(), true);
+  assert.equal(context.window.EloMediaPlayer.getState(), 'IDLE');
+  assert.ok(events.some((event) => event.name === 'MEDIA_PLAYER_START' && event.payload.source === 'LOCAL_CLASSICAL'));
 });

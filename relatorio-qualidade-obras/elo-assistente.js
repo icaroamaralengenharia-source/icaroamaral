@@ -27613,7 +27613,7 @@ function isEloResidentialNewPipelineEnabled_() {
       artist: sanitizeUserText(candidate.artist || candidate.author || candidate.channel || candidate.creator || "").trim(),
       normalizedTitle: normalizeEloMusicQueryText_(candidate.normalizedTitle || candidate.title || candidate.name || candidate.track || candidate.label || label),
       normalizedLabel: normalizeEloMusicQueryText_(candidate.normalizedLabel || label),
-      source: source || candidate.source || "resolver"
+      source: candidate.source || source || "resolver"
     });
   }
 
@@ -27663,28 +27663,53 @@ function isEloResidentialNewPipelineEnabled_() {
   function requestEloMusicCandidates_(query) {
     const resolver = getEloMusicResolver_();
     const staticCandidates = getEloMusicStaticCandidates_();
+
+    function requestResolverCandidates() {
+      if (!resolver) return Promise.resolve(staticCandidates);
+      const methods = ["resolve", "search", "find", "getCandidates", "query"];
+      for (let index = 0; index < methods.length; index += 1) {
+        const method = methods[index];
+        if (typeof resolver[method] === "function") {
+          try {
+            const value = resolver[method](query, { intent: "PLAY" });
+            if (!value || typeof value.then !== "function") return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(value, "resolver")));
+            return withEloMusicTimeout_(value).then(function (result) {
+              if (result.timeout) logEloMusicEvent_("MUSIC_DECISION", { decision: "ERROR", reason: "resolver_timeout" });
+              return staticCandidates.concat(result.candidates || []);
+            });
+          } catch (error) {
+            return Promise.resolve(staticCandidates);
+          }
+        }
+      }
+      return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(resolver.candidates || resolver.items || resolver.tracks, "resolver")));
+    }
+
+    const offlineLibrary = window.EloOfflineMediaLibrary;
+    if (offlineLibrary && typeof offlineLibrary.find === "function") {
+      const ready = typeof offlineLibrary.init === "function" ? offlineLibrary.init() : Promise.resolve();
+      return Promise.resolve(ready).then(function () {
+        const local = offlineLibrary.find(query);
+        if (local) return collectEloMusicArray_(local, "LOCAL_CLASSICAL").concat(staticCandidates);
+        if (!isEloOnline_()) {
+          logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+          return staticCandidates;
+        }
+        return requestResolverCandidates();
+      }).catch(function () {
+        if (!isEloOnline_()) {
+          logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+          return staticCandidates;
+        }
+        return requestResolverCandidates();
+      });
+    }
+
     if (!isEloOnline_()) {
       logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
       return Promise.resolve(staticCandidates);
     }
-    if (!resolver) return Promise.resolve(staticCandidates);
-    const methods = ["resolve", "search", "find", "getCandidates", "query"];
-    for (let index = 0; index < methods.length; index += 1) {
-      const method = methods[index];
-      if (typeof resolver[method] === "function") {
-        try {
-          const value = resolver[method](query, { intent: "PLAY" });
-          if (!value || typeof value.then !== "function") return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(value, "resolver")));
-          return withEloMusicTimeout_(value).then(function (result) {
-            if (result.timeout) logEloMusicEvent_("MUSIC_DECISION", { decision: "ERROR", reason: "resolver_timeout" });
-            return staticCandidates.concat(result.candidates || []);
-          });
-        } catch (error) {
-          return Promise.resolve(staticCandidates);
-        }
-      }
-    }
-    return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(resolver.candidates || resolver.items || resolver.tracks, "resolver")));
+    return requestResolverCandidates();
   }
 
   function levenshteinEloMusic_(a, b) {
@@ -27775,11 +27800,14 @@ function isEloResidentialNewPipelineEnabled_() {
     const normalizedQuery = normalizeEloMusicQueryText_(query);
     const label = candidate.normalizedLabel || normalizeEloMusicQueryText_(getEloMusicCandidateLabel_(candidate));
     const title = candidate.normalizedTitle || label;
-    const bestText = Math.max(similarityEloMusic_(normalizedQuery, label), similarityEloMusic_(normalizedQuery, title));
-    const tokenScore = Math.max(tokenScoreEloMusic_(normalizedQuery, label), tokenScoreEloMusic_(normalizedQuery, title));
-    const stableTokenScore = Math.max(stableTokenScoreEloMusic_(normalizedQuery, label), stableTokenScoreEloMusic_(normalizedQuery, title));
-    const phoneticScore = Math.max(similarityEloMusic_(phoneticEloMusic_(normalizedQuery), phoneticEloMusic_(label)), similarityEloMusic_(phoneticEloMusic_(normalizedQuery), phoneticEloMusic_(title)));
-    const contextScore = candidate.source === "local_index" ? 0.08 : candidate.source === "resolver" ? 0.06 : candidate.source === "bootstrap" ? 0.04 : 0.03;
+    const aliases = Array.isArray(candidate.aliases) ? candidate.aliases.map(normalizeEloMusicQueryText_).filter(Boolean) : [];
+    const scoreTexts = [label, title].concat(aliases);
+    const bestText = scoreTexts.reduce(function (best, item) { return Math.max(best, similarityEloMusic_(normalizedQuery, item)); }, 0);
+    const tokenScore = scoreTexts.reduce(function (best, item) { return Math.max(best, tokenScoreEloMusic_(normalizedQuery, item)); }, 0);
+    const stableTokenScore = scoreTexts.reduce(function (best, item) { return Math.max(best, stableTokenScoreEloMusic_(normalizedQuery, item)); }, 0);
+    const phoneticQuery = phoneticEloMusic_(normalizedQuery);
+    const phoneticScore = scoreTexts.reduce(function (best, item) { return Math.max(best, similarityEloMusic_(phoneticQuery, phoneticEloMusic_(item))); }, 0);
+    const contextScore = candidate.source === "LOCAL_CLASSICAL" ? 0.12 : candidate.source === "local_index" ? 0.08 : candidate.source === "resolver" ? 0.06 : candidate.source === "bootstrap" ? 0.04 : 0.03;
     const relevance = Math.max(0, Math.min(1, Number(candidate.relevance || candidate.score || candidate.popularity || 0))) * 0.06;
     const combinedScore = Math.min(1, bestText * 0.28 + tokenScore * 0.28 + phoneticScore * 0.20 + stableTokenScore * 0.18 + contextScore + relevance);
     return { candidate: candidate, textualScore: bestText, tokenScore: tokenScore, stableTokenScore: stableTokenScore, phoneticScore: phoneticScore, combinedScore: combinedScore };
@@ -27916,7 +27944,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const resolver = getEloMusicResolver_();
     const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
     if (!normalized) return Promise.resolve(false);
-    if (!isEloOnline_()) {
+    if (!isEloOnline_() && normalized.source !== "LOCAL_CLASSICAL") {
       logEloMusicEvent_("MUSIC_OFFLINE_BLOCKED", { query: query, candidate: getEloMusicCandidateLabel_(normalized), status: normalized.validationStatus || "" });
       return Promise.resolve(false);
     }
@@ -27966,13 +27994,24 @@ function isEloResidentialNewPipelineEnabled_() {
       logEloMusicEvent_("MUSIC_QUERY_NORMALIZED", { query: parsed.query });
       logEloMusicEvent_("CHAT_FALLTHROUGH", { music: true, count: 0 });
       return requestEloMusicCandidates_(parsed.query).then(function (candidates) {
+        const localCandidates = (candidates || []).filter(function (candidate) { return candidate && candidate.source === "LOCAL_CLASSICAL"; });
+        if (localCandidates.length) {
+          const localDecision = chooseEloMusicCandidate_(parsed.query, localCandidates);
+          logEloMusicEvent_("MUSIC_DECISION", { decision: localDecision.decision, query: parsed.query, candidate: localDecision.best && getEloMusicCandidateLabel_(localDecision.best.candidate), source: "LOCAL_CLASSICAL", score: localDecision.best && localDecision.best.combinedScore });
+          if (localDecision.best && localDecision.decision !== "NO_MATCH") {
+            return executeEloMusicCandidate_(localDecision.best.candidate, parsed.query, { forceResolve: false }).then(function (executed) {
+              if (options && options.append && executed) appendMessage("assistant", "Tocando " + getEloMusicCandidateLabel_(localDecision.best.candidate) + ".");
+              return { handled: true, decision: executed ? localDecision.decision : "NO_HANDLER", candidate: localDecision.best.candidate, score: localDecision.best.combinedScore };
+            });
+          }
+        }
         const decision = chooseEloMusicCandidate_(parsed.query, candidates);
         logEloMusicEvent_("MUSIC_DECISION", { decision: decision.decision, query: parsed.query, candidate: decision.best && getEloMusicCandidateLabel_(decision.best.candidate), score: decision.best && decision.best.combinedScore, scoreGap: decision.scoreGap, secondCandidate: decision.second && getEloMusicCandidateLabel_(decision.second.candidate), thresholdAuto: ELO_MUSIC_AUTO_THRESHOLD, thresholdConfirm: ELO_MUSIC_CONFIRM_THRESHOLD });
         if (decision.decision === "NO_MATCH") {
           if (options && options.append) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
           return { handled: true, decision: "NO_MATCH", candidates: candidates };
         }
-        if (!isEloOnline_() && decision.best && decision.best.candidate) {
+        if (!isEloOnline_() && decision.best && decision.best.candidate && decision.best.candidate.source !== "LOCAL_CLASSICAL") {
           if (options && options.append) appendMessage("assistant", "Encontrei " + getEloMusicCandidateLabel_(decision.best.candidate) + ", mas preciso de conexão para reproduzir.");
           logEloMusicEvent_("MUSIC_DECISION", { decision: "OFFLINE", query: parsed.query, candidate: getEloMusicCandidateLabel_(decision.best.candidate), status: decision.best.candidate.validationStatus || "" });
           return { handled: true, decision: "OFFLINE", candidate: decision.best.candidate, score: decision.best.combinedScore, offline: true };

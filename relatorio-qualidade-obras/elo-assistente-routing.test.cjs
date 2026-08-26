@@ -3110,3 +3110,55 @@ test('ELO hero typography: suporta descenders q g p y em multiplas linhas', () =
   assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-heading[\s\S]*gap:\s*clamp\(12px, 2\.1vw, 20px\)/);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*line-height:\s*1\.24/);
 });
+
+
+test('ELO offline classical routing: 5 obras executam local-first sem provider ou chat', async () => {
+  const library = JSON.parse(fs.readFileSync(path.join(__dirname, 'offline-media/classical/library.json'), 'utf8'));
+  const fetchCalls = [];
+  const playCalls = [];
+  const events = [];
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-offline-media-library.js', 'elo-music-catalog.js', 'elo-music-resolver.js'],
+    window: {
+      navigator: { onLine: false },
+      console: { info(name, payload) { events.push({ name, payload: payload || {} }); }, log() {}, warn() {}, error() {} },
+      EloMediaPlayer: {
+        play(media) { playCalls.push(media); return Promise.resolve(true); },
+        pause() { return true; },
+        resume() { return true; },
+        stop() { return true; },
+        getState() { return 'PLAYING'; }
+      }
+    },
+    fetch(url) {
+      const cleanUrl = String(url);
+      fetchCalls.push(cleanUrl);
+      if (/offline-media\/classical\/library\.json/.test(cleanUrl)) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(library) });
+      }
+      throw new Error('provider_or_chat_should_not_run_for_local_classical');
+    }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  const cases = [
+    ['ELO, toque Beethoven', 'beethoven-fur-elise'],
+    ['ELO, toque Clair de Lune', 'debussy-clair-de-lune'],
+    ['ELO, toque Vivaldi', 'vivaldi-four-seasons-spring'],
+    ['ELO, toque Canon in D', 'pachelbel-canon-in-d'],
+    ['ELO, toque Chopin', 'chopin-nocturne-op-9-no-2']
+  ];
+
+  for (const [message, id] of cases) {
+    const result = await elo.handleMusicQueryForTest(message);
+    assert.equal(result.handled, true, message);
+    assert.match(result.decision, /EXACT|AUTO_CORRECTED/, message);
+    assert.equal(result.candidate.id, id, message);
+    assert.equal(result.candidate.source, 'LOCAL_CLASSICAL', message);
+  }
+
+  assert.equal(playCalls.length, 5);
+  assert.equal(playCalls.find((media) => media.id === 'vivaldi-four-seasons-spring').files.length, 3);
+  assert.equal(fetchCalls.filter((url) => /\/api\/elo\/media\/search/.test(url)).length, 0);
+  assert.ok(events.some((event) => event.name === 'MEDIA_OFFLINE_LIBRARY_MATCH'));
+});
