@@ -3360,3 +3360,55 @@ html:not(.elo-intent-orcamento) body[data-elo-product="chat"].elo-chat-state .el
     text-align: left;
   }
 }
+
+
+/* ELO WEB 09: stable hero typography */
+body[data-elo-product="chat"] .elo-product-heading,
+body[data-elo-product="chat"].elo-empty-state .elo-core-welcome {
+  height: auto;
+  min-height: 0;
+  align-content: center;
+  gap: clamp(12px, 2.1vw, 20px);
+  overflow: visible;
+}
+
+body[data-elo-product="chat"] .elo-hero-title,
+body[data-elo-product="chat"].elo-empty-state .elo-hero-title {
+  height: auto;
+  min-height: 0;
+  max-width: min(680px, 100%);
+  display: block;
+  overflow: visible;
+  line-height: 1.22;
+  padding-block: 0.08em 0.18em;
+  margin: 0 auto;
+  text-wrap: balance;
+}
+
+body[data-elo-product="chat"] .elo-rotating-text {
+  display: inline-block;
+  max-width: 100%;
+  line-height: inherit;
+  overflow: visible;
+  padding-block: 0.02em 0.12em;
+}
+
+body[data-elo-product="chat"] .elo-empty-copy {
+  height: auto;
+  min-height: 0;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  body[data-elo-product="chat"].elo-empty-state .elo-core-welcome {
+    gap: 12px;
+  }
+
+  body[data-elo-product="chat"] .elo-hero-title,
+  body[data-elo-product="chat"].elo-empty-state .elo-hero-title {
+    max-width: min(15ch, 94vw);
+    line-height: 1.24;
+    padding-block: 0.08em 0.2em;
+  }
+}

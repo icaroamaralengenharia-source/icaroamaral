@@ -14497,7 +14497,7 @@
     if (hasAnyTerm(text, ["qual meu nome", "qual e o meu nome", "qual é o meu nome", "como eu me chamo", "voce sabe meu nome", "você sabe meu nome"])) {
       return "user_name_question";
     }
-    if (hasAnyTerm(text, ["qual seu nome", "qual e seu nome", "qual é seu nome", "qual o seu nome", "qual e o seu nome", "qual é o seu nome", "qual o nome do elo", "qual e o nome do elo", "qual é o nome do elo", "seu nome e qual", "seu nome é qual", "como voce se chama", "como você se chama", "quem e voce", "quem é você", "quem e o elo", "quem é o elo", "o que e o elo", "o que é o elo"])) {
+    if (hasAnyTerm(text, ["quem e voce", "quem é você", "o que e voce", "o que é você", "quem e o elo", "quem é o elo", "elo core"])) {
       return "elo_identity";
     }
     if (detectDayClosingRequest(message)) {
@@ -26170,6 +26170,7 @@ function isEloResidentialNewPipelineEnabled_() {
     speechSynthesisState: "idle",
     neuralSpeechAudio: null,
     ttsAudit: null,
+    autoTtsSequence: 0,
     openingMessageShown: false,
     attachmentStatus: null,
     localReportButton: null,
@@ -27388,9 +27389,25 @@ function isEloResidentialNewPipelineEnabled_() {
       .trim();
   }
 
+  const ELO_WAKE_ALIASES_ = ["elo", "ello", "ellen", "hello", "e lo"];
+  const ELO_MUSIC_VERB_ALIASES_ = ["toque", "toca", "tocar", "talk", "truque", "troque"];
+
+  function readEloWakeAliasForRouting_(message) {
+    const text = normalizeEloSubmittedTextForRouting_(message);
+    const normalized = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    for (let index = 0; index < ELO_WAKE_ALIASES_.length; index += 1) {
+      const alias = ELO_WAKE_ALIASES_[index];
+      const normalizedAlias = normalizeText(alias).replace(/\s+/g, " ").trim();
+      if (normalized === normalizedAlias) return { alias: alias, rest: "", matched: true };
+      if (normalized.indexOf(normalizedAlias + " ") === 0) {
+        return { alias: alias, rest: text.slice(normalizedAlias.length).trim(), matched: true };
+      }
+    }
+    return { alias: "", rest: text, matched: false };
+  }
+
   function stripEloWakePrefixForRouting_(message) {
-    return normalizeEloSubmittedTextForRouting_(message)
-      .replace(/^elo\s+/i, "")
+    return readEloWakeAliasForRouting_(message).rest
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -27411,6 +27428,15 @@ function isEloResidentialNewPipelineEnabled_() {
     }, 0);
   }
 
+  function normalizeEloMusicVerbAlias_(value) {
+    const verb = normalizeText(value || "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().split(" ")[0] || "";
+    if (!verb) return null;
+    if (ELO_MUSIC_VERB_ALIASES_.indexOf(verb) >= 0) {
+      return { verb: verb, canonical: "toque", alias: verb !== "toque" && verb !== "toca" && verb !== "tocar", exact: true };
+    }
+    return null;
+  }
+
   function getEloMusicCatalogCandidateForIntent_(query) {
     const candidates = getEloMusicStaticCandidates_().filter(function (candidate) {
       return (candidate.source === "catalog" || candidate.source === "elo-music-catalog") && candidate.videoId && candidate.playable === true && candidate.embeddable === true;
@@ -27420,14 +27446,30 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function parseEloMusicPlayIntent_(message) {
-    const routeText = stripEloWakePrefixForRouting_(message);
-    const exact = routeText.match(/^(?:toque|toca|tocar|coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play)\s+(.+)$/i);
-    if (exact) {
-      const query = normalizeEloMusicQueryText_(exact[1]);
+    const wake = readEloWakeAliasForRouting_(message);
+    const routeText = wake.rest.replace(/\s+/g, " ").trim();
+    const exact = routeText.match(/^(\S+)\s+(.+)$/i);
+    const verbAlias = exact ? normalizeEloMusicVerbAlias_(exact[1]) : null;
+    if (verbAlias) {
+      const query = normalizeEloMusicQueryText_(exact[2]);
+      if (!query) return null;
+      if (wake.matched) logEloMusicEvent_("WAKE_ALIAS_MATCH", { alias: wake.alias, routeText: routeText });
+      logEloMusicEvent_("MUSIC_VERB_ALIAS", { verb: sanitizeUserText(exact[1]), canonical: verbAlias.canonical, alias: verbAlias.alias });
+      logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: sanitizeUserText(exact[1]), score: 1, exact: true, alias: verbAlias.alias });
+      logEloMusicEvent_("MUSIC_QUERY", { query: query, rawQuery: sanitizeUserText(exact[2]).trim() });
+      const catalogMatch = getEloMusicCatalogCandidateForIntent_(query);
+      logEloMusicEvent_("CATALOG_CANDIDATE", { query: query, label: catalogMatch && getEloMusicCandidateLabel_(catalogMatch.candidate), combinedScore: catalogMatch && catalogMatch.score });
+      logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: (wake.matched && wake.alias !== "elo") || verbAlias.alias, query: query });
+      return { intent: "PLAY", rawQuery: sanitizeUserText(exact[2]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: (wake.matched && wake.alias !== "elo") || verbAlias.alias, wakeAlias: wake.alias, verbAlias: verbAlias.verb };
+    }
+    const exactLegacy = routeText.match(/^(?:coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play)\s+(.+)$/i);
+    if (exactLegacy) {
+      const query = normalizeEloMusicQueryText_(exactLegacy[1]);
       if (!query) return null;
       logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: routeText.split(/\s+/)[0] || "", score: 1, exact: true });
+      logEloMusicEvent_("MUSIC_QUERY", { query: query, rawQuery: sanitizeUserText(exactLegacy[1]).trim() });
       logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: false, query: query });
-      return { intent: "PLAY", rawQuery: sanitizeUserText(exact[1]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: false };
+      return { intent: "PLAY", rawQuery: sanitizeUserText(exactLegacy[1]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: false };
     }
     const loose = routeText.match(/^(\S+)\s+(.+)$/i);
     if (!loose) {
@@ -28050,6 +28092,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!cleanQuestion) {
       return;
     }
+    stopEloSpeechOutput_();
     const attachedFiles = Array.prototype.slice.call(attachments || []);
     const submitSource = sanitizeUserText(source || ELO_UI.lastSubmitSource || "manual");
     const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
@@ -28853,6 +28896,16 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function isEloAutoTtsSpeakableResponse_(text) {
+    const clean = sanitizeUserText(text || "");
+    if (!isEloVoiceModeSpeakableResponse_(clean)) return false;
+    if (/^\s*(?:tocando|pausando|continuando|parando|parei|pausado|continuado)\b/i.test(clean)) return false;
+    if (/^\s*(?:qual é o nome\?|voce quis dizer|você quis dizer)\b/i.test(clean)) return false;
+    if (/^\s*(?:nao encontrei essa musica|não encontrei essa música|nao consegui tocar|não consegui tocar)\b/i.test(clean)) return false;
+    if (/^\s*(?:music_play|music_pause|music_stop|music_status|status)\b/i.test(clean)) return false;
+    return true;
+  }
+
   function submitEloVoiceModeTranscript_() {
     if (!ELO_UI.voiceModeEnabled || ELO_UI.voiceModeSubmitting || ELO_UI.voiceModeRecognitionSubmitted || !ELO_UI.form || !ELO_UI.input) return false;
     const text = sanitizeUserText(ELO_UI.input.value || "");
@@ -28880,6 +28933,18 @@ function isEloResidentialNewPipelineEnabled_() {
       setEloVoiceModeStatus_("idle", "Modo Voz: resposta textual pronta.");
     }
     return started;
+  }
+
+  function maybeAutoSpeakEloResponse_(message, text) {
+    if (!message || ELO_UI.replayingCoreHistory || !isEloAutoTtsSpeakableResponse_(text)) return false;
+    if (message.dataset && message.dataset.eloAutoTtsDone === "true") return false;
+    const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
+    if (message.dataset) {
+      ELO_UI.autoTtsSequence += 1;
+      message.dataset.eloAutoTtsDone = "true";
+      message.dataset.eloAutoTtsSequence = String(ELO_UI.autoTtsSequence);
+    }
+    return speakEloText_(text, button, { auto: true });
   }
   function setEloSpeechButtonState_(button, speaking) {
     if (!button) return;
@@ -29049,7 +29114,7 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
-  function speakEloText_(text, button) {
+  function speakEloText_(text, button, options) {
     if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       stopEloVoiceInput_();
@@ -29165,6 +29230,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (ELO_UI.voiceAutoSendDispatchedVersion === version) return false;
     const text = sanitizeUserText(ELO_UI.input.value || "");
     if (!text) return false;
+    logEloMusicEvent_("VOICE_RAW", { text: ELO_UI.voiceLastTranscript || text });
     logEloMusicEvent_("VOICE_SUBMIT_RAW", { text: ELO_UI.voiceLastTranscript || text });
     logEloMusicEvent_("VOICE_SUBMIT_VALUE", { text: text });
     ELO_UI.lastSubmitSource = "voice_auto_send";
@@ -29590,7 +29656,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (message && message.classList && message.classList.contains("assistant")) {
       refreshEloSpeechAction_(message, text);
-      maybeSpeakEloVoiceModeResponse_(message, text);
+      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
     }
     scrollEloConversationToBottom_({ force: shouldStick });
   }
@@ -29737,7 +29803,7 @@ function isEloResidentialNewPipelineEnabled_() {
     message.appendChild(bubble);
     if (kind === "assistant") {
       appendEloSpeechAction_(message, text);
-      maybeSpeakEloVoiceModeResponse_(message, text);
+      if (!maybeSpeakEloVoiceModeResponse_(message, text)) maybeAutoSpeakEloResponse_(message, text);
     }
     ELO_UI.messages.appendChild(message);
     setEloCoreWelcomeVisible_();

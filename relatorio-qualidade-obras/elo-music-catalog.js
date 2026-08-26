@@ -171,19 +171,31 @@
           "videoId": "09839DpTctU",
           "resolvedTitle": "Eagles - Hotel California (Live 1977) (Official Video) [HD]",
           "channel": "Eagles",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["09839DpTctU","dLl4PZtxia8","5wDfiCDoHy4","hrOtR1hyRog"]
+          }
       },
       "dire-straits-sultans-of-swing": {
           "videoId": "MMFSLGq1wrQ",
           "resolvedTitle": "'Sultans Of Swing' Live at Wembley 1985 @direstraitsofficial",
           "channel": "Dire Straits",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["h0ffIJ7ZO4U","UGB-ALSwNGQ","8Pa9x9fZBtY","0fAQhSRLQnM","MMFSLGq1wrQ"]
+          }
       },
       "dire-straits-walk-of-life": {
           "videoId": "kd9TlGDZGkI",
@@ -279,10 +291,16 @@
           "videoId": "FTQbiNvZqaY",
           "resolvedTitle": "Toto - Africa (Official HD Video)",
           "channel": "TotoVEVO",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["FTQbiNvZqaY","Kb7lAMjFuA0","uhwLOBFc298","U1LB_OerHCE"]
+          }
       },
       "toto-rosanna": {
           "videoId": "qmOLtTGvsbM",
@@ -351,10 +369,16 @@
           "videoId": "Y3ywicffOj4",
           "resolvedTitle": "Fleetwood Mac - Dreams (Official Music Video) [4K]",
           "channel": "Fleetwood Mac",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["Y3ywicffOj4","5oWyMakvQew","O5ugW4-BstE","PgagPdVM7bk"]
+          }
       },
       "fleetwood-mac-go-your-own-way": {
           "videoId": "ozl3L9fhKtE",
@@ -708,13 +732,19 @@
           "playConfirmed": false
       },
       "a-ha-take-on-me": {
-          "videoId": "djV11Xbc914",
-          "resolvedTitle": "a-ha - Take On Me (Official Video) [4K]",
+          "videoId": "Q5KLj2a47ow",
+          "resolvedTitle": "a-ha - Take On Me (Official Video)",
           "channel": "a-ha",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "PLAY_CONFIRMED",
+          "playConfirmed": true,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "PLAY_CONFIRMED",
+              "error": null,
+              "testedCandidateIds": ["djV11Xbc914","Q5KLj2a47ow","-iKeUC5_Wyw","jg5mXCCbd0U"]
+          }
       },
       "a-ha-the-sun-always-shines-on-tv": {
           "videoId": "a3ir9HC9vYg",
@@ -864,10 +894,16 @@
           "videoId": "kR4zpS-ky9o",
           "resolvedTitle": "Aerosmith - Dream On (Lyric Video)",
           "channel": "AerosmithVEVO",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["iJDtukGW79Y","89dGC8de0CA","kR4zpS-ky9o","NeSpx7vZifc"]
+          }
       },
       "aerosmith-i-dont-want-to-miss-a-thing": {
           "videoId": "JkK8g6FMEXE",
@@ -1026,19 +1062,31 @@
           "videoId": "G6Kspj3OO0s",
           "resolvedTitle": "The Cranberries - Linger (4K Official Music Video)",
           "channel": "TheCranberriesVEVO",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "playConfirmed": false,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "REJECTED_IFRAME_ERROR",
+              "error": "youtube_error_150",
+              "testedCandidateIds": ["G6Kspj3OO0s","fSlwn8xv8W0","CGRwhcqY1gg","cFbnefNNy_Q"]
+          }
       },
       "the-cure-friday-im-in-love": {
           "videoId": "8AEgojGUBW8",
-          "resolvedTitle": "THE CURE - FRIDAY I'M IN LOVE (OPEN'ER FESTIVAL 2026)",
+          "resolvedTitle": "THE CURE - FRIDAY IM IN LOVE (OPENER FESTIVAL 2026)",
           "channel": "The Cure",
-          "source": "youtube-catalog",
-          "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
-          "playConfirmed": false
+          "source": "youtube-iframe-physical",
+          "lastValidatedAt": "2026-08-26T03:39:15.563Z",
+          "validationStatus": "PLAY_CONFIRMED",
+          "playConfirmed": true,
+          "physicalValidation": {
+              "method": "youtube_iframe_api_http_origin",
+              "status": "PLAY_CONFIRMED",
+              "error": null,
+              "testedCandidateIds": ["8AEgojGUBW8"]
+          }
       },
       "tom-petty-i-wont-back-down": {
           "videoId": "uh0-OMx9K3I",
@@ -1068,14 +1116,15 @@
       aliases: buildAliases(id, title, artist),
       searchQuery: artist + " " + title,
       videoId: video.videoId || null,
-      playable: !!video.videoId,
-      embeddable: !!video.videoId,
+      playable: !!video.videoId && video.validationStatus !== "REJECTED_IFRAME_ERROR",
+      embeddable: !!video.videoId && video.validationStatus !== "REJECTED_IFRAME_ERROR",
       resolvedTitle: video.resolvedTitle || null,
       channel: video.channel || null,
       lastValidatedAt: video.lastValidatedAt || null,
       source: video.source || "elo-music-catalog",
       validationStatus: video.validationStatus || "PENDING",
-      playConfirmed: video.playConfirmed === true
+      playConfirmed: video.playConfirmed === true,
+      physicalValidation: video.physicalValidation || null
     };
   });
 

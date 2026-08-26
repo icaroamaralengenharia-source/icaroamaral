@@ -3,9 +3,9 @@
   "processed": 100,
   "clear": 98,
   "pending": 2,
-  "playConfirmed": 0,
-  "generatedAt": "2026-08-26T02:11:53.894Z",
-  "validationMethod": "youtube-search-plus-oembed",
+  "playConfirmed": 2,
+  "generatedAt": "2026-08-26T03:39:15.563Z",
+  "validationMethod": "youtube-search-plus-oembed-plus-iframe-physical-priority-8",
   "items": [
     {
       "catalogId": "eagles-hotel-california",
@@ -14,10 +14,10 @@
       "selectedTitle": "Eagles - Hotel California (Live 1977) (Official Video) [HD]",
       "channel": "Eagles",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
       "rejectedCandidates": [
         {
           "videoId": "DL-HvfVwZKM",
@@ -40,6 +40,22 @@
           "videoId": "ZD3C4841ft0",
           "reason": "not_found",
           "httpStatus": 401
+        },
+        {
+          "videoId": "09839DpTctU",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "dLl4PZtxia8",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "5wDfiCDoHy4",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "hrOtR1hyRog",
+          "reason": "youtube_iframe_api_error_150"
         }
       ],
       "playValidation": {
@@ -51,6 +67,23 @@
         "state": "error",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:30:55.645Z"
+      },
+      "physicalValidation": {
+        "catalogId": "eagles-hotel-california",
+        "videoId": "09839DpTctU",
+        "title": "Hotel California",
+        "artist": "Eagles",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "09839DpTctU",
+          "dLl4PZtxia8",
+          "5wDfiCDoHy4",
+          "hrOtR1hyRog"
+        ]
       }
     },
     {
@@ -60,10 +93,10 @@
       "selectedTitle": "'Sultans Of Swing' Live at Wembley 1985 @direstraitsofficial",
       "channel": "Dire Straits",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
       "rejectedCandidates": [
         {
           "videoId": "h0ffIJ7ZO4U",
@@ -78,6 +111,26 @@
         {
           "videoId": "8Pa9x9fZBtY",
           "reason": "historically_rejected_embed_unavailable"
+        },
+        {
+          "videoId": "h0ffIJ7ZO4U",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "UGB-ALSwNGQ",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "8Pa9x9fZBtY",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "0fAQhSRLQnM",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "MMFSLGq1wrQ",
+          "reason": "youtube_iframe_api_error_150"
         }
       ],
       "playValidation": {
@@ -89,6 +142,24 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:31:10.725Z"
+      },
+      "physicalValidation": {
+        "catalogId": "dire-straits-sultans-of-swing",
+        "videoId": "MMFSLGq1wrQ",
+        "title": "Sultans of Swing",
+        "artist": "Dire Straits",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "h0ffIJ7ZO4U",
+          "UGB-ALSwNGQ",
+          "8Pa9x9fZBtY",
+          "0fAQhSRLQnM",
+          "MMFSLGq1wrQ"
+        ]
       }
     },
     {
@@ -377,10 +448,10 @@
       "selectedTitle": "Toto - Africa (Official HD Video)",
       "channel": "TotoVEVO",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
       "rejectedCandidates": [
         {
           "videoId": "zbKa_OrVj-o",
@@ -397,6 +468,22 @@
           "videoId": "5IXiFfqaHEU",
           "reason": "not_found",
           "httpStatus": 401
+        },
+        {
+          "videoId": "FTQbiNvZqaY",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "Kb7lAMjFuA0",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "uhwLOBFc298",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "U1LB_OerHCE",
+          "reason": "youtube_iframe_api_error_150"
         }
       ],
       "playValidation": {
@@ -408,6 +495,23 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:31:40.775Z"
+      },
+      "physicalValidation": {
+        "catalogId": "toto-africa",
+        "videoId": "FTQbiNvZqaY",
+        "title": "Africa",
+        "artist": "Toto",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "FTQbiNvZqaY",
+          "Kb7lAMjFuA0",
+          "uhwLOBFc298",
+          "U1LB_OerHCE"
+        ]
       }
     },
     {
@@ -570,10 +674,10 @@
       "selectedTitle": "Fleetwood Mac - Dreams (Official Music Video) [4K]",
       "channel": "Fleetwood Mac",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
       "rejectedCandidates": [
         {
           "videoId": "UmPgMc3R8zg",
@@ -590,6 +694,22 @@
           "videoId": "jQFnlu990rM",
           "reason": "not_found",
           "httpStatus": 401
+        },
+        {
+          "videoId": "Y3ywicffOj4",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "5oWyMakvQew",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "O5ugW4-BstE",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "PgagPdVM7bk",
+          "reason": "youtube_iframe_api_error_150"
         }
       ],
       "playValidation": {
@@ -601,6 +721,23 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:31:55.788Z"
+      },
+      "physicalValidation": {
+        "catalogId": "fleetwood-mac-dreams",
+        "videoId": "Y3ywicffOj4",
+        "title": "Dreams",
+        "artist": "Fleetwood Mac",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "Y3ywicffOj4",
+          "5oWyMakvQew",
+          "O5ugW4-BstE",
+          "PgagPdVM7bk"
+        ]
       }
     },
     {
@@ -1665,20 +1802,32 @@
     {
       "catalogId": "a-ha-take-on-me",
       "query": "A-ha Take on Me",
-      "selectedVideoId": "djV11Xbc914",
-      "selectedTitle": "a-ha - Take On Me (Official Video) [4K]",
+      "selectedVideoId": "Q5KLj2a47ow",
+      "selectedTitle": "a-ha - Take On Me (Official Video)",
       "channel": "a-ha",
       "exists": true,
       "embeddable": true,
-      "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "playConfirmed": true,
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "PLAY_CONFIRMED",
       "rejectedCandidates": [
         {
           "videoId": "aPgl8oESTls",
           "title": "you won (and then some)",
           "channel": "Magne Furuholmen - Topic",
           "reason": "title_mismatch"
+        },
+        {
+          "videoId": "djV11Xbc914",
+          "reason": "replaced_after_iframe_error"
+        },
+        {
+          "videoId": "-iKeUC5_Wyw",
+          "reason": "replaced_after_iframe_error"
+        },
+        {
+          "videoId": "jg5mXCCbd0U",
+          "reason": "replaced_after_iframe_error"
         }
       ],
       "playValidation": {
@@ -1690,6 +1839,23 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:32:55.884Z"
+      },
+      "physicalValidation": {
+        "catalogId": "a-ha-take-on-me",
+        "videoId": "Q5KLj2a47ow",
+        "title": "Take on Me",
+        "artist": "A-ha",
+        "playConfirmed": true,
+        "state": "playing",
+        "error": null,
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "PLAY_CONFIRMED",
+        "testedCandidateIds": [
+          "djV11Xbc914",
+          "Q5KLj2a47ow",
+          "-iKeUC5_Wyw",
+          "jg5mXCCbd0U"
+        ]
       }
     },
     {
@@ -2210,11 +2376,28 @@
       "selectedTitle": "Aerosmith - Dream On (Lyric Video)",
       "channel": "AerosmithVEVO",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
-      "rejectedCandidates": [],
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "rejectedCandidates": [
+        {
+          "videoId": "iJDtukGW79Y",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "89dGC8de0CA",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "kR4zpS-ky9o",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "NeSpx7vZifc",
+          "reason": "youtube_iframe_api_error_150"
+        }
+      ],
       "playValidation": {
         "catalogId": "aerosmith-dream-on",
         "videoId": "kR4zpS-ky9o",
@@ -2224,6 +2407,23 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:33:25.947Z"
+      },
+      "physicalValidation": {
+        "catalogId": "aerosmith-dream-on",
+        "videoId": "kR4zpS-ky9o",
+        "title": "Dream On",
+        "artist": "Aerosmith",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "iJDtukGW79Y",
+          "89dGC8de0CA",
+          "kR4zpS-ky9o",
+          "NeSpx7vZifc"
+        ]
       }
     },
     {
@@ -2739,16 +2939,32 @@
       "selectedTitle": "The Cranberries - Linger (4K Official Music Video)",
       "channel": "TheCranberriesVEVO",
       "exists": true,
-      "embeddable": true,
+      "embeddable": false,
       "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
       "rejectedCandidates": [
         {
           "videoId": "8xtQBZHmi7M",
           "title": "Zombie – The Cranberries | Powerful Rock Metal Cover",
           "channel": "Vyrith",
           "reason": "title_mismatch"
+        },
+        {
+          "videoId": "G6Kspj3OO0s",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "fSlwn8xv8W0",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "CGRwhcqY1gg",
+          "reason": "youtube_iframe_api_error_150"
+        },
+        {
+          "videoId": "cFbnefNNy_Q",
+          "reason": "youtube_iframe_api_error_150"
         }
       ],
       "playValidation": {
@@ -2760,19 +2976,36 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:34:26.040Z"
+      },
+      "physicalValidation": {
+        "catalogId": "the-cranberries-linger",
+        "videoId": "G6Kspj3OO0s",
+        "title": "Linger",
+        "artist": "The Cranberries",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "youtube_error_150",
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "REJECTED_IFRAME_ERROR",
+        "testedCandidateIds": [
+          "G6Kspj3OO0s",
+          "fSlwn8xv8W0",
+          "CGRwhcqY1gg",
+          "cFbnefNNy_Q"
+        ]
       }
     },
     {
       "catalogId": "the-cure-friday-im-in-love",
       "query": "The Cure Friday I'm in Love",
       "selectedVideoId": "8AEgojGUBW8",
-      "selectedTitle": "THE CURE - FRIDAY I'M IN LOVE (OPEN'ER FESTIVAL 2026)",
+      "selectedTitle": "THE CURE - FRIDAY IM IN LOVE (OPENER FESTIVAL 2026)",
       "channel": "The Cure",
       "exists": true,
       "embeddable": true,
-      "playConfirmed": false,
-      "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "playConfirmed": true,
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "PLAY_CONFIRMED",
       "rejectedCandidates": [
         {
           "videoId": "n3nPiBai66M",
@@ -2796,6 +3029,20 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:34:41.061Z"
+      },
+      "physicalValidation": {
+        "catalogId": "the-cure-friday-im-in-love",
+        "videoId": "8AEgojGUBW8",
+        "title": "Friday I'm in Love",
+        "artist": "The Cure",
+        "playConfirmed": true,
+        "state": "playing",
+        "error": null,
+        "validatedAt": "2026-08-26T03:39:15.563Z",
+        "validationStatus": "PLAY_CONFIRMED",
+        "testedCandidateIds": [
+          "8AEgojGUBW8"
+        ]
       }
     },
     {
@@ -2825,18 +3072,25 @@
       ]
     }
   ],
-  "samplePlayConfirmed": 0,
-  "sampleSize": 16,
+  "samplePlayConfirmed": 2,
+  "sampleSize": 8,
   "samplePlayingResults": [
     {
-      "catalogId": "eagles-hotel-california",
-      "videoId": "09839DpTctU",
-      "title": "Hotel California",
-      "artist": "Eagles",
+      "catalogId": "aerosmith-dream-on",
+      "videoId": "kR4zpS-ky9o",
+      "title": "Dream On",
+      "artist": "Aerosmith",
       "playConfirmed": false,
       "state": "error",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:30:55.645Z"
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "iJDtukGW79Y",
+        "89dGC8de0CA",
+        "kR4zpS-ky9o",
+        "NeSpx7vZifc"
+      ]
     },
     {
       "catalogId": "dire-straits-sultans-of-swing",
@@ -2844,19 +3098,34 @@
       "title": "Sultans of Swing",
       "artist": "Dire Straits",
       "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:31:10.725Z"
+      "state": "error",
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "h0ffIJ7ZO4U",
+        "UGB-ALSwNGQ",
+        "8Pa9x9fZBtY",
+        "0fAQhSRLQnM",
+        "MMFSLGq1wrQ"
+      ]
     },
     {
-      "catalogId": "boston-more-than-a-feeling",
-      "videoId": "t4QK8RxCAwo",
-      "title": "More Than a Feeling",
-      "artist": "Boston",
+      "catalogId": "eagles-hotel-california",
+      "videoId": "09839DpTctU",
+      "title": "Hotel California",
+      "artist": "Eagles",
       "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:31:25.751Z"
+      "state": "error",
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "09839DpTctU",
+        "dLl4PZtxia8",
+        "5wDfiCDoHy4",
+        "hrOtR1hyRog"
+      ]
     },
     {
       "catalogId": "toto-africa",
@@ -2864,9 +3133,16 @@
       "title": "Africa",
       "artist": "Toto",
       "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:31:40.775Z"
+      "state": "error",
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "FTQbiNvZqaY",
+        "Kb7lAMjFuA0",
+        "uhwLOBFc298",
+        "U1LB_OerHCE"
+      ]
     },
     {
       "catalogId": "fleetwood-mac-dreams",
@@ -2874,99 +3150,33 @@
       "title": "Dreams",
       "artist": "Fleetwood Mac",
       "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:31:55.788Z"
-    },
-    {
-      "catalogId": "supertramp-the-logical-song",
-      "videoId": "kln_bIndDJg",
-      "title": "The Logical Song",
-      "artist": "Supertramp",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:32:10.805Z"
-    },
-    {
-      "catalogId": "creedence-clearwater-revival-have-you-ever-seen-the-rain",
-      "videoId": "JKES3yfnD9U",
-      "title": "Have You Ever Seen the Rain",
-      "artist": "Creedence Clearwater Revival",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:32:25.828Z"
-    },
-    {
-      "catalogId": "queen-dont-stop-me-now",
-      "videoId": "HgzGwKwLmgM",
-      "title": "Don't Stop Me Now",
-      "artist": "Queen",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:32:40.857Z"
+      "state": "error",
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "Y3ywicffOj4",
+        "5oWyMakvQew",
+        "O5ugW4-BstE",
+        "PgagPdVM7bk"
+      ]
     },
     {
       "catalogId": "a-ha-take-on-me",
-      "videoId": "djV11Xbc914",
+      "videoId": "Q5KLj2a47ow",
       "title": "Take on Me",
       "artist": "A-ha",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:32:55.884Z"
-    },
-    {
-      "catalogId": "bryan-adams-summer-of-69",
-      "videoId": "9f06QZCVUHg",
-      "title": "Summer of '69",
-      "artist": "Bryan Adams",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:33:10.906Z"
-    },
-    {
-      "catalogId": "aerosmith-dream-on",
-      "videoId": "kR4zpS-ky9o",
-      "title": "Dream On",
-      "artist": "Aerosmith",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:33:25.947Z"
-    },
-    {
-      "catalogId": "van-halen-jump",
-      "videoId": "SwYN7mTi6HM",
-      "title": "Jump",
-      "artist": "Van Halen",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:33:40.972Z"
-    },
-    {
-      "catalogId": "the-police-every-breath-you-take",
-      "videoId": "OMOGaugKpzs",
-      "title": "Every Breath You Take",
-      "artist": "The Police",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:33:55.994Z"
-    },
-    {
-      "catalogId": "u2-with-or-without-you",
-      "videoId": "ujNeHIo7oTE",
-      "title": "With or Without You",
-      "artist": "U2",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:34:11.015Z"
+      "playConfirmed": true,
+      "state": "playing",
+      "error": null,
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "PLAY_CONFIRMED",
+      "testedCandidateIds": [
+        "djV11Xbc914",
+        "Q5KLj2a47ow",
+        "-iKeUC5_Wyw",
+        "jg5mXCCbd0U"
+      ]
     },
     {
       "catalogId": "the-cranberries-linger",
@@ -2974,23 +3184,45 @@
       "title": "Linger",
       "artist": "The Cranberries",
       "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:34:26.040Z"
+      "state": "error",
+      "error": "youtube_error_150",
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "testedCandidateIds": [
+        "G6Kspj3OO0s",
+        "fSlwn8xv8W0",
+        "CGRwhcqY1gg",
+        "cFbnefNNy_Q"
+      ]
     },
     {
       "catalogId": "the-cure-friday-im-in-love",
       "videoId": "8AEgojGUBW8",
       "title": "Friday I'm in Love",
       "artist": "The Cure",
-      "playConfirmed": false,
-      "state": "init",
-      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
-      "validatedAt": "2026-08-26T02:34:41.061Z"
+      "playConfirmed": true,
+      "state": "playing",
+      "error": null,
+      "validatedAt": "2026-08-26T03:39:15.563Z",
+      "validationStatus": "PLAY_CONFIRMED",
+      "testedCandidateIds": [
+        "8AEgojGUBW8"
+      ]
     }
   ],
   "lowConfidenceRejected": [
     "steve-miller-band-fly-like-an-eagle",
     "the-cars-you-might-think"
-  ]
+  ],
+  "physicalEmbedValidated": 2,
+  "physicalRejected": 6,
+  "priorityPhysicalValidation": {
+    "validatedAt": "2026-08-26T03:39:15.563Z",
+    "method": "youtube_iframe_api_http_origin",
+    "sampleSize": 8,
+    "embedValidated": 2,
+    "playConfirmed": 2,
+    "rejected": 6,
+    "mocks": 0
+  }
 }
