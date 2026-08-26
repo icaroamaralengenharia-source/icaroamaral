@@ -2227,7 +2227,7 @@
       };
     }
 
-    match = raw.match(/(?:prefiro|gosto que você|responda sempre|quero respostas?)\s+([^\n]{6,180})/i);
+    match = raw.match(/(?:prefiro|gosto que você|responda sempre|quero respostas?)\s+([^\\n]{6,180})/i);
     if (match) {
       return {
         category: "preference",
@@ -2237,7 +2237,7 @@
       };
     }
 
-    match = raw.match(/(?:lembre que|guarde que|decidimos que)\s+([^\n]{8,220})/i);
+    match = raw.match(/(?:lembre que|guarde que|decidimos que)\s+([^\\n]{8,220})/i);
     if (match) {
       return {
         category: text.indexOf("decidimos") >= 0 ? "decision" : "technical_context",
@@ -5760,7 +5760,7 @@
     const source = ELO_SESSION_MEMORY.lastTechnicalPackage;
     if (!source || !source.answer) {
       const project = getActiveEloWorkProject_();
-      const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+      const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\\\\n]{2,80})/i);
       const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
       const date = new Date().toLocaleDateString("pt-BR");
       const markdownLines = [
@@ -5822,7 +5822,7 @@
     const compositions = extractEloProposalSection_(sourceText, ["Composições oficiais utilizadas", "Composicoes oficiais utilizadas", "Composições utilizadas", "Composicoes utilizadas", "Composições encontradas", "Composicoes encontradas"]) || "Nenhuma composição oficial foi localizada ou selecionada no pacote de origem.";
     const costs = extractEloProposalSection_(sourceText, ["Custos encontrados", "Custos"]) || "Somente serão exibidos valores quando houver preço real na base técnica carregada. Nenhum valor foi estimado.";
     const pending = extractEloProposalSection_(sourceText, ["Pendências técnicas", "Pendencias tecnicas", "Composições não localizadas", "Composicoes nao localizadas", "Observações técnicas", "Observacoes tecnicas", "Avisos profissionais"]) || "Confirmar projeto, memorial, composições oficiais faltantes, aço estrutural e responsabilidade técnica profissional.";
-    const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\n]{2,80})/i);
+    const clientMatch = sanitizeUserText(message || "").match(/cliente\s+([^,.\\\\n]{2,80})/i);
     const client = clientMatch ? sanitizeUserText(clientMatch[1]) : "não informado";
     const date = new Date().toLocaleDateString("pt-BR");
     const markdownLines = [
@@ -10602,7 +10602,7 @@
     const cleanText = sanitizeLibraryText(rawText, 8000);
     const normalized = normalizeText(cleanText);
     const profile = normalizeInitialProfile(null);
-    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\n]{2,80})/i);
+    let match = cleanText.match(/(?:meu nome é|meu nome e|me chamo|eu me chamo)\s+([^,.;!?\\\\n]{2,80})/i);
     if (match && match[1]) {
       profile.nome = sanitizeLibraryText(match[1], 80).replace(/[.,;:]+$/g, "");
     }
@@ -10623,20 +10623,20 @@
     if (profession) {
       profile.profissao = profession[1];
     } else {
-      match = cleanText.match(/\bsou\s+([^.\n]{4,80})/i);
+      match = cleanText.match(/\bsou\s+([^.\\\\n]{4,80})/i);
       if (match && match[1] && !hasAnyTerm(normalizeText(match[1]), ["desenvolvendo", "trabalhando com", "com pressa"])) {
         profile.profissao = sanitizeLibraryText(match[1], 120).replace(/[.,;:]+$/g, "");
       }
     }
 
-    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\n]{3,120})/i);
+    match = cleanText.match(/(?:minha empresa é|minha empresa e|empresa chamada|trabalho na|trabalho em)\s+([^.\\\\n]{3,120})/i);
     if (match && match[1]) {
       profile.empresa = sanitizeLibraryText(match[1], 160).replace(/[.,;:]+$/g, "");
     } else if (hasAnyTerm(normalized, ["empresa propria", "empresa própria", "tenho empresa"])) {
       profile.empresa = "empresa própria";
     }
 
-    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\n]{3,100})/i);
+    match = cleanText.match(/(?:moro em|cidade é|cidade e|atuo em)\s+([^.\\\\n]{3,100})/i);
     if (match && match[1]) {
       profile.cidade = sanitizeLibraryText(match[1], 140).replace(/[.,;:]+$/g, "");
     }
@@ -10666,12 +10666,12 @@
     profile.projetos = knownProjects.filter(function (project) {
       return normalized.indexOf(normalizeText(project)) >= 0;
     });
-    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\n]{3,100})/i);
+    const projectMatch = cleanText.match(/(?:estou desenvolvendo|desenvolvendo|projeto chamado|projeto principal é|projeto principal e)\s+([^.\\\\n]{3,100})/i);
     if (projectMatch && projectMatch[1]) {
       profile.projetos = mergeUniqueTextItems(profile.projetos, extractImportantTitle(projectMatch[1]));
     }
 
-    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\n]{4,180})/gi) || [];
+    const objectiveMatches = cleanText.match(/(?:meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+([^.\\\\n]{4,180})/gi) || [];
     profile.objetivos = objectiveMatches.map(function (item) {
       return item.replace(/^(meu objetivo é|meu objetivo e|objetivo é|objetivo e|quero)\s+/i, "").replace(/[.,;:]+$/g, "");
     });
@@ -10682,7 +10682,7 @@
       profile.objetivos = mergeUniqueTextItems(profile.objetivos, "desenvolvimento de software");
     }
 
-    const preferenceMatches = cleanText.match(/(?:prefiro|gosto de)\s+([^.\n]{4,180})/gi) || [];
+    const preferenceMatches = cleanText.match(/(?:prefiro|gosto de)\s+([^.\\\\n]{4,180})/gi) || [];
     profile.preferencias = preferenceMatches.map(function (item) {
       return item.replace(/^(prefiro|gosto de)\s+/i, "").replace(/[.,;:]+$/g, "");
     });
@@ -26168,6 +26168,8 @@ function isEloResidentialNewPipelineEnabled_() {
     speechSynthesisUtterance: null,
     speechSynthesisButton: null,
     speechSynthesisState: "idle",
+    neuralSpeechAudio: null,
+    ttsAudit: null,
     openingMessageShown: false,
     attachmentStatus: null,
     localReportButton: null,
@@ -26271,6 +26273,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     inputRow.addEventListener("submit", function (event) {
       event.preventDefault();
+      clearEloVoiceAutoSendTimer_();
       const question = ELO_UI.input.value;
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
         appendProductAttachmentNotice();
@@ -27348,12 +27351,726 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
-  function askElo(question, attachments) {
+  const ELO_MUSIC_INDEX_STORAGE_KEY = "elo_music_entity_index_v1";
+  const ELO_MUSIC_PENDING_CONFIRMATION_MS = 90000;
+  const ELO_MUSIC_RESOLVE_TIMEOUT_MS = 4500;
+  const ELO_VOICE_AUTO_SEND_MS = 3000;
+  const ELO_MUSIC_CONFIRM_THRESHOLD = 0.44;
+  const ELO_MUSIC_AUTO_THRESHOLD = 0.82;
+  const ELO_MUSIC_VERY_HIGH_THRESHOLD = 0.86;
+  const ELO_MUSIC_BOOTSTRAP_CANDIDATES_ = [
+    { id: "known:sultans-of-swing", title: "Sultans of Swing", artist: "Dire Straits", relevance: 0.98, source: "bootstrap" },
+    { id: "known:galinha-pintadinha", title: "Galinha Pintadinha", artist: "", relevance: 0.92, source: "bootstrap" },
+    { id: "known:dire-straits", title: "Dire Straits", artist: "", relevance: 0.88, source: "bootstrap" },
+    { id: "known:beethoven", title: "Beethoven", artist: "", relevance: 0.82, source: "bootstrap" },
+    { id: "known:clair-de-lune", title: "Clair de Lune", artist: "Claude Debussy", relevance: 0.82, source: "bootstrap" }
+  ];
+  let ELO_MUSIC_PENDING_CANDIDATE_ = null;
+
+  function logEloMusicEvent_(name, payload) {
+    try {
+      if (window.console && typeof window.console.info === "function") window.console.info(name, payload || {});
+    } catch (error) {}
+  }
+
+  function normalizeEloMusicQueryText_(value) {
+    return normalizeText(value || "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\b(?:elo|toque|toca|tocar|coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play|musica|música|som|uma|um|a|o)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeEloSubmittedTextForRouting_(message) {
+    return sanitizeUserText(message || "")
+      .replace(/[,.!?;:]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function stripEloWakePrefixForRouting_(message) {
+    return normalizeEloSubmittedTextForRouting_(message)
+      .replace(/^elo\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeEloRoutingLogText_(message) {
+    return normalizeText(message || "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function scoreEloMusicVerb_(value) {
+    const verb = normalizeEloMusicQueryText_(value).split(" ")[0] || "";
+    if (!verb) return 0;
+    const verbs = ["toque", "toca", "tocar", "coloque", "coloca", "poe", "ponha", "bota", "reproduza", "play"];
+    return verbs.reduce(function (best, candidate) {
+      return Math.max(best, similarityEloMusic_(verb, candidate), similarityEloMusic_(phoneticEloMusic_(verb), phoneticEloMusic_(candidate)));
+    }, 0);
+  }
+
+  function getEloMusicCatalogCandidateForIntent_(query) {
+    const candidates = getEloMusicStaticCandidates_().filter(function (candidate) {
+      return (candidate.source === "catalog" || candidate.source === "elo-music-catalog") && candidate.videoId && candidate.playable === true && candidate.embeddable === true;
+    });
+    const decision = chooseEloMusicCandidate_(query, candidates);
+    return decision && decision.best ? { decision: decision, candidate: decision.best.candidate, score: decision.best.combinedScore } : null;
+  }
+
+  function parseEloMusicPlayIntent_(message) {
+    const routeText = stripEloWakePrefixForRouting_(message);
+    const exact = routeText.match(/^(?:toque|toca|tocar|coloque|coloca|colocar|poe|ponha|bota|botar|reproduza|reproduzir|play)\s+(.+)$/i);
+    if (exact) {
+      const query = normalizeEloMusicQueryText_(exact[1]);
+      if (!query) return null;
+      logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: routeText.split(/\s+/)[0] || "", score: 1, exact: true });
+      logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: false, query: query });
+      return { intent: "PLAY", rawQuery: sanitizeUserText(exact[1]).trim(), query: query, routeText: routeText, verbScore: 1, recovered: false };
+    }
+    const loose = routeText.match(/^(\S+)\s+(.+)$/i);
+    if (!loose) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "no_music_verb" });
+      return null;
+    }
+    const verbScore = scoreEloMusicVerb_(loose[1]);
+    logEloMusicEvent_("MUSIC_VERB_SCORE", { verb: sanitizeUserText(loose[1]), score: verbScore, exact: false });
+    if (verbScore < 0.58) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "weak_music_verb", verbScore: verbScore });
+      return null;
+    }
+    const query = normalizeEloMusicQueryText_(loose[2]);
+    if (!query) return null;
+    const catalogMatch = getEloMusicCatalogCandidateForIntent_(query);
+    logEloMusicEvent_("CATALOG_CANDIDATE", { query: query, label: catalogMatch && getEloMusicCandidateLabel_(catalogMatch.candidate), combinedScore: catalogMatch && catalogMatch.score });
+    const validatedCatalogHit = catalogMatch && catalogMatch.candidate && catalogMatch.candidate.videoId && catalogMatch.candidate.playable === true && catalogMatch.candidate.embeddable === true;
+    const recoveryThreshold = validatedCatalogHit ? 0.7 : ELO_MUSIC_AUTO_THRESHOLD;
+    if (!catalogMatch || catalogMatch.score < recoveryThreshold) {
+      logEloMusicEvent_("MUSIC_INTENT", { matched: false, recovered: false, reason: "weak_catalog_candidate", verbScore: verbScore, combinedScore: catalogMatch && catalogMatch.score, recoveryThreshold: recoveryThreshold });
+      return null;
+    }
+    logEloMusicEvent_("MUSIC_INTENT", { matched: true, recovered: true, query: query, verbScore: verbScore, combinedScore: catalogMatch.score, candidate: getEloMusicCandidateLabel_(catalogMatch.candidate) });
+    return { intent: "PLAY", rawQuery: sanitizeUserText(loose[2]).trim(), query: query, routeText: routeText, verbScore: verbScore, recovered: true, catalogCandidate: catalogMatch.candidate };
+  }
+
+  function readEloMusicIndex_() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(ELO_MUSIC_INDEX_STORAGE_KEY) || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeEloMusicIndex_(items) {
+    try {
+      window.localStorage.setItem(ELO_MUSIC_INDEX_STORAGE_KEY, JSON.stringify((items || []).slice(-80)));
+    } catch (error) {}
+  }
+
+  function getEloMusicCandidateLabel_(candidate) {
+    const title = sanitizeUserText(candidate && (candidate.title || candidate.name || candidate.track || candidate.label || candidate.query || "")).trim();
+    const artist = sanitizeUserText(candidate && (candidate.artist || candidate.author || candidate.channel || candidate.creator || "")).trim();
+    return sanitizeUserText(title + (artist ? " - " + artist : "")).trim();
+  }
+
+  function normalizeEloMusicCandidate_(candidate, source) {
+    if (!candidate) return null;
+    if (typeof candidate === "string") candidate = { title: candidate };
+    const label = getEloMusicCandidateLabel_(candidate);
+    if (!label) return null;
+    return Object.assign({}, candidate, {
+      title: sanitizeUserText(candidate.title || candidate.name || candidate.track || candidate.label || label).trim(),
+      artist: sanitizeUserText(candidate.artist || candidate.author || candidate.channel || candidate.creator || "").trim(),
+      normalizedTitle: normalizeEloMusicQueryText_(candidate.normalizedTitle || candidate.title || candidate.name || candidate.track || candidate.label || label),
+      normalizedLabel: normalizeEloMusicQueryText_(candidate.normalizedLabel || label),
+      source: source || candidate.source || "resolver"
+    });
+  }
+
+  function collectEloMusicArray_(value, source) {
+    if (!value) return [];
+    const raw = Array.isArray(value) ? value : Array.isArray(value.results) ? value.results : Array.isArray(value.candidates) ? value.candidates : Array.isArray(value.items) ? value.items : [value];
+    return raw.map(function (item) { return normalizeEloMusicCandidate_(item, source); }).filter(Boolean);
+  }
+
+  function getEloMusicStaticCandidates_() {
+    const local = readEloMusicIndex_().map(function (item) { return normalizeEloMusicCandidate_(item, "local_index"); }).filter(Boolean);
+    const catalog = [];
+    [window.EloMusicCatalog, window.ELO_MUSIC_CATALOG, window.EloMusicLibrary].forEach(function (source) {
+      if (!source) return;
+      catalog.push.apply(catalog, collectEloMusicArray_(Array.isArray(source) ? source : source.items || source.candidates || source.tracks, "catalog"));
+    });
+    const bootstrap = ELO_MUSIC_BOOTSTRAP_CANDIDATES_.map(function (item) { return normalizeEloMusicCandidate_(item, "bootstrap"); }).filter(Boolean);
+    return catalog.concat(local, bootstrap);
+  }
+
+  function getEloMusicResolver_() {
+    return window.EloMusicResolver || window.ELO_MUSIC_RESOLVER || window.EloMediaResolver || null;
+  }
+
+  function withEloMusicTimeout_(promise) {
+    return new Promise(function (resolve) {
+      let finished = false;
+      const timer = window.setTimeout(function () {
+        if (finished) return;
+        finished = true;
+        resolve({ timeout: true, candidates: [] });
+      }, ELO_MUSIC_RESOLVE_TIMEOUT_MS);
+      Promise.resolve(promise).then(function (value) {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        resolve({ timeout: false, candidates: collectEloMusicArray_(value, "resolver") });
+      }).catch(function (error) {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(timer);
+        resolve({ timeout: false, error: error, candidates: [] });
+      });
+    });
+  }
+
+  function requestEloMusicCandidates_(query) {
+    const resolver = getEloMusicResolver_();
+    const staticCandidates = getEloMusicStaticCandidates_();
+    if (!resolver) return Promise.resolve(staticCandidates);
+    const methods = ["resolve", "search", "find", "getCandidates", "query"];
+    for (let index = 0; index < methods.length; index += 1) {
+      const method = methods[index];
+      if (typeof resolver[method] === "function") {
+        try {
+          const value = resolver[method](query, { intent: "PLAY" });
+          if (!value || typeof value.then !== "function") return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(value, "resolver")));
+          return withEloMusicTimeout_(value).then(function (result) {
+            if (result.timeout) logEloMusicEvent_("MUSIC_DECISION", { decision: "ERROR", reason: "resolver_timeout" });
+            return staticCandidates.concat(result.candidates || []);
+          });
+        } catch (error) {
+          return Promise.resolve(staticCandidates);
+        }
+      }
+    }
+    return Promise.resolve(staticCandidates.concat(collectEloMusicArray_(resolver.candidates || resolver.items || resolver.tracks, "resolver")));
+  }
+
+  function levenshteinEloMusic_(a, b) {
+    a = String(a || "");
+    b = String(b || "");
+    if (a === b) return 0;
+    if (!a) return b.length;
+    if (!b) return a.length;
+    const row = [];
+    for (let i = 0; i <= b.length; i += 1) row[i] = i;
+    for (let i = 1; i <= a.length; i += 1) {
+      let previous = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j += 1) {
+        const temp = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = temp;
+      }
+    }
+    return row[b.length];
+  }
+
+  function similarityEloMusic_(a, b) {
+    a = String(a || "");
+    b = String(b || "");
+    const max = Math.max(a.length, b.length, 1);
+    return Math.max(0, 1 - (levenshteinEloMusic_(a, b) / max));
+  }
+
+  function tokensEloMusic_(text) {
+    return normalizeEloMusicQueryText_(text).split(" ").filter(function (item) { return item.length > 1; });
+  }
+
+  function tokenScoreEloMusic_(query, candidate) {
+    const queryTokens = tokensEloMusic_(query);
+    const candidateTokens = tokensEloMusic_(candidate);
+    if (!queryTokens.length || !candidateTokens.length) return 0;
+    let score = 0;
+    queryTokens.forEach(function (queryToken, index) {
+      let best = 0;
+      candidateTokens.forEach(function (candidateToken, candidateIndex) {
+        let current = similarityEloMusic_(queryToken, candidateToken);
+        if (queryToken[0] && candidateToken[0] && queryToken[0] === candidateToken[0]) current += 0.04;
+        if (index === candidateIndex) current += 0.04;
+        best = Math.max(best, Math.min(1, current));
+      });
+      score += best;
+    });
+    return Math.min(1, score / Math.max(queryTokens.length, candidateTokens.length));
+  }
+
+  function stableTokenScoreEloMusic_(query, candidate) {
+    const queryTokens = tokensEloMusic_(query);
+    const candidateTokens = tokensEloMusic_(candidate);
+    if (!queryTokens.length || !candidateTokens.length) return 0;
+    const candidateSet = new Set(candidateTokens);
+    const shared = queryTokens.filter(function (token) { return candidateSet.has(token); }).length;
+    return Math.min(1, shared / Math.max(1, Math.min(queryTokens.length, candidateTokens.length)));
+  }
+  function phoneticEloMusic_(text) {
+    return normalizeEloMusicQueryText_(text)
+      .replace(/ph/g, "f")
+      .replace(/ght/g, "t")
+      .replace(/ck/g, "k")
+      .replace(/qu/g, "k")
+      .replace(/[ckq]/g, "k")
+      .replace(/ch|sh/g, "x")
+      .replace(/lh/g, "li")
+      .replace(/nh/g, "ni")
+      .replace(/ç/g, "s")
+      .replace(/ce|ci/g, "se")
+      .replace(/ss/g, "s")
+      .replace(/z/g, "s")
+      .replace(/ge|gi|j/g, "x")
+      .replace(/y/g, "i")
+      .replace(/w/g, "u")
+      .replace(/th/g, "t")
+      .replace(/oo/g, "u")
+      .replace(/ou/g, "u")
+      .replace(/ee/g, "i")
+      .replace(/g/g, "x")
+      .replace(/(.)\1+/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function scoreEloMusicCandidate_(query, candidate) {
+    const normalizedQuery = normalizeEloMusicQueryText_(query);
+    const label = candidate.normalizedLabel || normalizeEloMusicQueryText_(getEloMusicCandidateLabel_(candidate));
+    const title = candidate.normalizedTitle || label;
+    const bestText = Math.max(similarityEloMusic_(normalizedQuery, label), similarityEloMusic_(normalizedQuery, title));
+    const tokenScore = Math.max(tokenScoreEloMusic_(normalizedQuery, label), tokenScoreEloMusic_(normalizedQuery, title));
+    const stableTokenScore = Math.max(stableTokenScoreEloMusic_(normalizedQuery, label), stableTokenScoreEloMusic_(normalizedQuery, title));
+    const phoneticScore = Math.max(similarityEloMusic_(phoneticEloMusic_(normalizedQuery), phoneticEloMusic_(label)), similarityEloMusic_(phoneticEloMusic_(normalizedQuery), phoneticEloMusic_(title)));
+    const contextScore = candidate.source === "local_index" ? 0.08 : candidate.source === "resolver" ? 0.06 : candidate.source === "bootstrap" ? 0.04 : 0.03;
+    const relevance = Math.max(0, Math.min(1, Number(candidate.relevance || candidate.score || candidate.popularity || 0))) * 0.06;
+    const combinedScore = Math.min(1, bestText * 0.28 + tokenScore * 0.28 + phoneticScore * 0.20 + stableTokenScore * 0.18 + contextScore + relevance);
+    return { candidate: candidate, textualScore: bestText, tokenScore: tokenScore, stableTokenScore: stableTokenScore, phoneticScore: phoneticScore, combinedScore: combinedScore };
+  }
+
+  function chooseEloMusicCandidate_(query, candidates) {
+    const unique = [];
+    const seen = new Set();
+    (candidates || []).forEach(function (candidate) {
+      const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+      if (!normalized) return;
+      const keys = [normalized.normalizedLabel, normalized.normalizedTitle, normalized.id, normalized.url, getEloMusicCandidateLabel_(normalized)]
+        .map(function (key) { return String(key || '').toLowerCase().trim(); })
+        .filter(Boolean);
+      if (keys.some(function (key) { return seen.has(key); })) return;
+      keys.forEach(function (key) { seen.add(key); });
+      unique.push(normalized);
+    });
+    logEloMusicEvent_("MUSIC_CANDIDATE_COUNT", { count: unique.length });
+    logEloMusicEvent_("CANDIDATES", { items: unique.slice(0, 12).map(function (candidate) { return { label: getEloMusicCandidateLabel_(candidate), source: candidate.source }; }) });
+    const scored = unique.map(function (candidate) {
+      const score = scoreEloMusicCandidate_(query, candidate);
+      logEloMusicEvent_("MUSIC_CANDIDATE", { label: getEloMusicCandidateLabel_(candidate), source: candidate.source });
+      logEloMusicEvent_("TEXT_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.textualScore });
+      logEloMusicEvent_("TOKEN_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.tokenScore });
+      logEloMusicEvent_("PHONETIC_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.phoneticScore });
+      logEloMusicEvent_("COMBINED_SCORE", { label: getEloMusicCandidateLabel_(candidate), score: score.combinedScore });
+      return score;
+    }).sort(function (a, b) { return b.combinedScore - a.combinedScore; });
+    logEloMusicEvent_("THRESHOLD_AUTO", { value: ELO_MUSIC_AUTO_THRESHOLD, veryHigh: ELO_MUSIC_VERY_HIGH_THRESHOLD });
+    logEloMusicEvent_("THRESHOLD_CONFIRM", { value: ELO_MUSIC_CONFIRM_THRESHOLD });
+    const best = scored[0];
+    if (!best || best.combinedScore < ELO_MUSIC_CONFIRM_THRESHOLD) return { decision: "NO_MATCH", scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    const normalizedQuery = normalizeEloMusicQueryText_(query);
+    const exact = normalizedQuery === best.candidate.normalizedTitle || normalizedQuery === best.candidate.normalizedLabel;
+    const second = scored[1] || null;
+    const scoreGap = second ? best.combinedScore - second.combinedScore : 1;
+    const dominant = best.combinedScore >= ELO_MUSIC_AUTO_THRESHOLD && scoreGap >= 0.12;
+    if (exact) return { decision: "EXACT", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.combinedScore >= ELO_MUSIC_VERY_HIGH_THRESHOLD || dominant) return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.combinedScore >= ELO_MUSIC_AUTO_THRESHOLD && scoreGap >= 0.06 && best.stableTokenScore >= 0.5) return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+    if (best.candidate && best.candidate.videoId && best.candidate.playable === true && best.candidate.embeddable === true && best.combinedScore >= 0.7 && scoreGap >= 0.12) {
+      return { decision: "AUTO_CORRECTED", best: best, second: second, scoreGap: scoreGap, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD, validatedCatalogAuto: 0.7 } };
+    }
+    return { decision: "ASK_CONFIRMATION", best: best, scores: scored, thresholds: { auto: ELO_MUSIC_AUTO_THRESHOLD, confirm: ELO_MUSIC_CONFIRM_THRESHOLD } };
+  }
+
+  function rememberEloMusicCandidate_(candidate, alias) {
+    const normalized = normalizeEloMusicCandidate_(candidate, "local_index");
+    if (!normalized) return;
+    const index = readEloMusicIndex_().filter(function (item) {
+      return normalizeEloMusicQueryText_(getEloMusicCandidateLabel_(item)) !== normalized.normalizedLabel;
+    });
+    normalized.aliases = Array.from(new Set([].concat(normalized.aliases || [], alias ? [normalizeEloMusicQueryText_(alias)] : []))).filter(Boolean).slice(-12);
+    index.push({ title: normalized.title, artist: normalized.artist, id: normalized.id, url: normalized.url, normalizedTitle: normalized.normalizedTitle, normalizedLabel: normalized.normalizedLabel, aliases: normalized.aliases, source: "local_index" });
+    writeEloMusicIndex_(index);
+  }
+
+  function setEloMusicPendingCandidate_(candidate, query) {
+    ELO_MUSIC_PENDING_CANDIDATE_ = candidate ? { candidate: candidate, query: query, expiresAt: Date.now() + ELO_MUSIC_PENDING_CONFIRMATION_MS } : null;
+  }
+
+  function getEloMusicPendingCandidate_() {
+    if (!ELO_MUSIC_PENDING_CANDIDATE_) return null;
+    if (Date.now() > ELO_MUSIC_PENDING_CANDIDATE_.expiresAt) {
+      ELO_MUSIC_PENDING_CANDIDATE_ = null;
+      return null;
+    }
+    return ELO_MUSIC_PENDING_CANDIDATE_;
+  }
+
+  function isEloMusicConfirmationYes_(message) {
+    return /^(?:sim|isso|essa|esse|pode tocar|e essa|é essa|correto|confirma|confirmo|toca|toque)$/i.test(normalizeText(message || "").trim());
+  }
+
+  function isEloMusicConfirmationNo_(message) {
+    return /^(?:nao|não|nao e essa|não é essa|outra|outro|errou)$/i.test(normalizeText(message || "").trim());
+  }
+
+  function callEloMusicPlayHandler_(resolver, candidate, query) {
+    const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+    if (!normalized) return Promise.resolve(false);
+    const methods = resolver ? ["play", "playCandidate", "execute", "select"] : [];
+    for (let index = 0; index < methods.length; index += 1) {
+      const method = methods[index];
+      if (typeof resolver[method] === "function") {
+        logEloMusicEvent_("MUSIC_PLAYER_START", { handler: method, candidate: getEloMusicCandidateLabel_(normalized) });
+        return Promise.resolve(resolver[method](normalized, { query: query, intent: "PLAY" })).then(function (result) {
+          rememberEloMusicCandidate_(normalized, query);
+          return result === false ? false : true;
+        });
+      }
+    }
+    if (typeof normalized.play === "function") {
+      logEloMusicEvent_("MUSIC_PLAYER_START", { handler: "candidate.play", candidate: getEloMusicCandidateLabel_(normalized) });
+      return Promise.resolve(normalized.play()).then(function (result) {
+        rememberEloMusicCandidate_(normalized, query);
+        return result === false ? false : true;
+      });
+    }
+    return Promise.resolve(false);
+  }
+
+  function resolveEloMusicCorrectedCandidate_(resolver, candidate, query) {
+    const correctedQuery = sanitizeUserText((candidate && (candidate.title || candidate.name || candidate.track || candidate.label)) || getEloMusicCandidateLabel_(candidate)).trim();
+    if (!resolver || !correctedQuery) return Promise.resolve(null);
+    const methods = ["resolve", "search", "find", "getCandidates", "query"];
+    for (let index = 0; index < methods.length; index += 1) {
+      const method = methods[index];
+      if (typeof resolver[method] === "function") {
+        logEloMusicEvent_("MUSIC_RESOLVER_START", { handler: method, query: correctedQuery, originalQuery: query });
+        try {
+          const value = resolver[method](correctedQuery, { intent: "PLAY", correctedFrom: query, candidate: candidate });
+          return Promise.resolve(value).then(function (result) {
+            const candidates = collectEloMusicArray_(result, "resolver");
+            const resolvedChoice = candidates.length > 1 ? chooseEloMusicCandidate_(correctedQuery, candidates) : null;
+            const resolved = resolvedChoice && resolvedChoice.decision !== "NO_MATCH" && resolvedChoice.best ? resolvedChoice.best.candidate : candidates[0] || normalizeEloMusicCandidate_(result, "resolver");
+            logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: candidates.length || (resolved ? 1 : 0), candidate: resolved && getEloMusicCandidateLabel_(resolved) });
+            return resolved || null;
+          }).catch(function (error) {
+            logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: 0, error: sanitizeUserText(error && error.message).slice(0, 120) });
+            return null;
+          });
+        } catch (error) {
+          logEloMusicEvent_("MUSIC_RESOLVER_RESULT", { count: 0, error: sanitizeUserText(error && error.message).slice(0, 120) });
+          return Promise.resolve(null);
+        }
+      }
+    }
+    return Promise.resolve(null);
+  }
+
+  function executeEloMusicCandidate_(candidate, query, options) {
+    const resolver = getEloMusicResolver_();
+    const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
+    if (!normalized) return Promise.resolve(false);
+    logEloMusicEvent_("MUSIC_EXECUTE_START", { query: query, candidate: getEloMusicCandidateLabel_(normalized), source: normalized.source });
+    const needsRealResolution = options && options.forceResolve === true || normalized.source === "bootstrap" || normalized.source === "local_index" || normalized.source === "catalog" || normalized.source === "elo-music-catalog" || !normalized.videoId || /^known:/i.test(String(normalized.id || ""));
+    if (needsRealResolution) {
+      return resolveEloMusicCorrectedCandidate_(resolver, normalized, query).then(function (resolvedCandidate) {
+        if (!resolvedCandidate) return false;
+        return callEloMusicPlayHandler_(resolver, resolvedCandidate, query);
+      });
+    }
+    return callEloMusicPlayHandler_(resolver, normalized, query).then(function (executed) {
+      if (executed) return true;
+      return resolveEloMusicCorrectedCandidate_(resolver, normalized, query).then(function (resolvedCandidate) {
+        if (!resolvedCandidate) return false;
+        return callEloMusicPlayHandler_(resolver, resolvedCandidate, query);
+      });
+    });
+  }
+
+  function buildEloMusicNotFoundAnswer_() {
+    return "Não consegui localizar essa música agora.";
+  }
+
+  function handleEloMusicConfirmation_(message, options) {
+    const pending = getEloMusicPendingCandidate_();
+    if (!pending) return Promise.resolve({ handled: false });
+    if (isEloMusicConfirmationNo_(message)) {
+      setEloMusicPendingCandidate_(null);
+      if (options && options.append) appendMessage("assistant", "Qual é o nome?");
+      return Promise.resolve({ handled: true, decision: "REJECTED" });
+    }
+    if (!isEloMusicConfirmationYes_(message)) return Promise.resolve({ handled: false });
+    setEloMusicPendingCandidate_(null);
+    return executeEloMusicCandidate_(pending.candidate, pending.query).then(function (executed) {
+      if (options && options.append) appendMessage("assistant", executed ? "Tocando " + getEloMusicCandidateLabel_(pending.candidate) + "." : buildEloMusicNotFoundAnswer_());
+      return { handled: true, decision: executed ? "CONFIRMED" : "NO_HANDLER", candidate: pending.candidate };
+    });
+  }
+
+  function handleEloMusicQuery_(message, options) {
+    return handleEloMusicConfirmation_(message, options).then(function (confirmation) {
+      if (confirmation.handled) return confirmation;
+      const parsed = parseEloMusicPlayIntent_(message);
+      if (!parsed) { logEloMusicEvent_("CHAT_FALLTHROUGH", { music: false }); return { handled: false, decision: null }; }
+      logEloMusicEvent_("MUSIC_QUERY_RAW", { query: parsed.rawQuery });
+      logEloMusicEvent_("MUSIC_QUERY_NORMALIZED", { query: parsed.query });
+      logEloMusicEvent_("CHAT_FALLTHROUGH", { music: true, count: 0 });
+      return requestEloMusicCandidates_(parsed.query).then(function (candidates) {
+        const decision = chooseEloMusicCandidate_(parsed.query, candidates);
+        logEloMusicEvent_("MUSIC_DECISION", { decision: decision.decision, query: parsed.query, candidate: decision.best && getEloMusicCandidateLabel_(decision.best.candidate), score: decision.best && decision.best.combinedScore, scoreGap: decision.scoreGap, secondCandidate: decision.second && getEloMusicCandidateLabel_(decision.second.candidate), thresholdAuto: ELO_MUSIC_AUTO_THRESHOLD, thresholdConfirm: ELO_MUSIC_CONFIRM_THRESHOLD });
+        if (decision.decision === "NO_MATCH") {
+          if (options && options.append) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
+          return { handled: true, decision: "NO_MATCH", candidates: candidates };
+        }
+        if (decision.decision === "ASK_CONFIRMATION") {
+          setEloMusicPendingCandidate_(decision.best.candidate, parsed.query);
+          if (options && options.append) appendMessage("assistant", "Você quis dizer " + getEloMusicCandidateLabel_(decision.best.candidate) + "?");
+          return { handled: true, decision: "ASK_CONFIRMATION", candidate: decision.best.candidate, score: decision.best.combinedScore };
+        }
+        return executeEloMusicCandidate_(decision.best.candidate, parsed.query, { forceResolve: decision.decision === "AUTO_CORRECTED" }).then(function (executed) {
+          if (options && options.append && !executed) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
+          return { handled: true, decision: executed ? decision.decision : "NO_HANDLER", candidate: decision.best.candidate, score: decision.best.combinedScore };
+        });
+      });
+    });
+  }
+  const ELO_MEDIA_STATE_IDLE = "IDLE";
+  const ELO_MEDIA_STATE_PLAYING = "PLAYING";
+  const ELO_MEDIA_STATE_PAUSED = "PAUSED";
+  const ELO_MEDIA_STATE_BUFFERING = "BUFFERING";
+  const ELO_MEDIA_STATE_ERROR = "MEDIA_ERROR";
+  const ELO_MEDIA_STATE_UNKNOWN = "UNKNOWN";
+  let ELO_MEDIA_PLAYER_SOURCE_ = window.EloMediaPlayer && window.EloMediaPlayer.__eloControlBridgeApi !== true ? window.EloMediaPlayer : null;
+
+  function normalizeEloMediaState_(value) {
+    const text = String(value || "").toUpperCase();
+    if (/^(PLAYING|PLAY|1)$/.test(text)) return ELO_MEDIA_STATE_PLAYING;
+    if (/^(BUFFERING|BUFFER|3)$/.test(text)) return ELO_MEDIA_STATE_BUFFERING;
+    if (/^(MEDIA_ERROR|ERROR|-1)$/.test(text)) return ELO_MEDIA_STATE_ERROR;
+    if (/^(PAUSED|PAUSE|2)$/.test(text)) return ELO_MEDIA_STATE_PAUSED;
+    if (/^(IDLE|STOPPED|STOP|ENDED|0)$/.test(text)) return ELO_MEDIA_STATE_IDLE;
+    return ELO_MEDIA_STATE_UNKNOWN;
+  }
+
+  function logEloMediaEvent_(name, payload) {
+    try {
+      if (window.console && typeof window.console.info === "function") window.console.info(name, payload || {});
+    } catch (error) {}
+  }
+
+  function readEloExistingMediaState_() {
+    const source = ELO_MEDIA_PLAYER_SOURCE_;
+    if (source) {
+      try {
+        if (typeof source.getState === "function") return normalizeEloMediaState_(source.getState());
+        if (typeof source.isPlaying === "function" && source.isPlaying()) return ELO_MEDIA_STATE_PLAYING;
+        if (typeof source.isPaused === "function" && source.isPaused()) return ELO_MEDIA_STATE_PAUSED;
+        const sourceState = normalizeEloMediaState_(source.state || source.status);
+        if (sourceState !== ELO_MEDIA_STATE_UNKNOWN) return sourceState;
+      } catch (error) {}
+    }
+    if (document && document.body) {
+      const bodyState = normalizeEloMediaState_(document.body.dataset.eloMediaState || document.body.dataset.mediaState);
+      if (bodyState !== ELO_MEDIA_STATE_UNKNOWN) return bodyState;
+    }
+    return ELO_MEDIA_STATE_UNKNOWN;
+  }
+
+  function getEloMediaControlText_(element) {
+    if (!element) return "";
+    return normalizeEloMediaCommandText_([
+      element.textContent,
+      element.getAttribute && element.getAttribute("aria-label"),
+      element.getAttribute && element.getAttribute("title"),
+      element.dataset && (element.dataset.eloMediaAction || element.dataset.mediaAction || element.dataset.action)
+    ].filter(Boolean).join(" "));
+  }
+
+  function isEloMediaControlVisible_(element) {
+    if (!element || element.disabled || element.getAttribute && element.getAttribute("aria-disabled") === "true") return false;
+    if (element.hidden) return false;
+    const style = element.style || {};
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function scoreEloMediaControl_(element, action) {
+    const text = getEloMediaControlText_(element);
+    const dataAction = normalizeEloMediaCommandText_(element && element.dataset && (element.dataset.eloMediaAction || element.dataset.mediaAction || element.dataset.action));
+    const expected = action === "resume" ? ["continuar", "continue", "retomar", "retome"] :
+      action === "pause" ? ["pausar", "pause", "pausa"] :
+        action === "stop" ? ["parar", "pare", "stop"] :
+          ["tocar", "play"];
+    if (dataAction === action || (action === "resume" && dataAction === "continue")) return 100;
+    for (let index = 0; index < expected.length; index += 1) {
+      if (text === expected[index]) return 90;
+      if (text.indexOf(expected[index]) >= 0) return 60;
+    }
+    if ((action === "play" || action === "resume") && /(?:^|\s)(?:▶|play)(?:\s|$)/.test(text)) return 50;
+    if (action === "pause" && /(?:Ⅱ|\|\||pause)/.test(text)) return 50;
+    if (action === "stop" && /(?:■|stop)/.test(text)) return 50;
+    return 0;
+  }
+
+  function findEloMediaControl_(action) {
+    if (!document || typeof document.querySelectorAll !== "function") return null;
+    const controls = Array.prototype.slice.call(document.querySelectorAll("button,[role='button'],[data-elo-media-action],[data-media-action],[data-action]"));
+    let best = null;
+    let bestScore = 0;
+    controls.forEach(function (control) {
+      if (!isEloMediaControlVisible_(control)) return;
+      const score = scoreEloMediaControl_(control, action);
+      if (score > bestScore) {
+        best = control;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
+  function describeEloMediaHandler_(control) {
+    if (!control) return "none";
+    if (typeof control.onclick === "function") return "button.onclick";
+    return "button.click";
+  }
+
+  function executeEloMediaControl_(action) {
+    const control = findEloMediaControl_(action);
+    const handler = describeEloMediaHandler_(control);
+    logEloMediaEvent_("MEDIA_HANDLER_SELECTED", { action: action, handler: handler });
+    if (!control) {
+      const source = ELO_MEDIA_PLAYER_SOURCE_;
+      const sourceMethod = action === "resume" ? "resume" : action;
+      if (source && typeof source[sourceMethod] === "function") {
+        try {
+          const result = source[sourceMethod]();
+          return { executed: result === false ? false : true, handler: "source." + sourceMethod, state: readEloExistingMediaState_() };
+        } catch (error) {
+          logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: false, error: sanitizeUserText(error && error.message).slice(0, 120) });
+        }
+      }
+      return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+    }
+    try {
+      if (typeof control.onclick === "function") control.onclick.call(control);
+      else if (typeof control.click === "function") control.click();
+      else return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+      return { executed: true, handler: handler, state: readEloExistingMediaState_() };
+    } catch (error) {
+      logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: false, error: sanitizeUserText(error && error.message).slice(0, 120) });
+      return { executed: false, handler: handler, state: readEloExistingMediaState_() };
+    }
+  }
+
+  function ensureEloMediaPlayerApi_() {
+    const current = window.EloMediaPlayer;
+    if (current && current.__eloControlBridgeApi === true) return current;
+    if (current && current.__eloControlBridgeApi !== true) ELO_MEDIA_PLAYER_SOURCE_ = current;
+    const api = {
+      __eloControlBridgeApi: true,
+      getSource: function () { return ELO_MEDIA_PLAYER_SOURCE_; },
+      getState: readEloExistingMediaState_,
+      isActive: function () {
+        const state = readEloExistingMediaState_();
+        return state === ELO_MEDIA_STATE_PLAYING || state === ELO_MEDIA_STATE_PAUSED || state === ELO_MEDIA_STATE_BUFFERING || !!(findEloMediaControl_("pause") || findEloMediaControl_("resume") || findEloMediaControl_("stop") || findEloMediaControl_("play"));
+      },
+      play: function () { return executeEloMediaControl_("play"); },
+      pause: function () { return executeEloMediaControl_("pause"); },
+      resume: function () { return executeEloMediaControl_("resume"); },
+      stop: function () { return executeEloMediaControl_("stop"); }
+    };
+    window.EloMediaPlayer = api;
+    return api;
+  }
+
+  function normalizeEloMediaCommandText_(message) {
+    return normalizeText(message || "")
+      .replace(/[^a-z0-9+\s▶Ⅱ■]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^elo\s+/, "")
+      .trim();
+  }
+
+  function detectEloMediaCommandAction_(message) {
+    const text = normalizeEloMediaCommandText_(message);
+    if (!text) return null;
+    if (/^(?:pare temporariamente|para temporariamente|pare por enquanto|para por enquanto)$/.test(text)) return "pause";
+    if (/^(?:pause|pausa|pausar|da uma pausa|de uma pausa)$/.test(text)) return "pause";
+    if (/^(?:continue|continua|continuar|retome|retoma|volte|volta)$/.test(text)) return "resume";
+    if (/^(?:tocar|toca|toque)$/.test(text)) return "play";
+    if (/^(?:pare|para|parar|pare a musica|para a musica)$/.test(text)) return "stop";
+    return null;
+  }
+
+  function handleEloMediaCommand_(message) {
+    logEloMediaEvent_("MEDIA_COMMAND_RAW", { message: sanitizeUserText(message).slice(0, 120) });
+    logEloMediaEvent_("MEDIA_COMMAND_NORMALIZED", { message: normalizeEloMediaCommandText_(message) });
+    const action = detectEloMediaCommandAction_(message);
+    if (!action) return { handled: false, action: null };
+    logEloMediaEvent_("MEDIA_COMMAND_ACTION", { action: action });
+    const player = ensureEloMediaPlayerApi_();
+    const stateBefore = player.getState();
+    logEloMediaEvent_("MEDIA_STATE_BEFORE", { action: action, state: stateBefore });
+    const mediaActive = player.isActive();
+    if (!mediaActive) {
+      logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "no_real_media_control", state: stateBefore });
+      return { handled: false, action: action, state: stateBefore };
+    }
+
+    const result = action === "pause" ? player.pause() :
+      action === "resume" ? player.resume() :
+        action === "play" ? player.play() :
+          player.stop();
+    logEloMediaEvent_("MEDIA_ACTION_EXECUTED", { action: action, executed: result.executed === true, handler: result.handler });
+    if (!result.executed) {
+      logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: false, reason: "handler_not_executed", state: result.state });
+      return { handled: false, action: action, state: result.state, handler: result.handler };
+    }
+    markEloInteraction_("elo:media:" + action);
+    logEloMediaEvent_("MEDIA_STATE_AFTER", { action: action, state: result.state });
+    logEloMediaEvent_("MEDIA_COMMAND_HANDLED", { action: action, handled: true, state: result.state, handler: result.handler });
+    return { handled: true, action: action, state: result.state, handler: result.handler };
+  }
+  function askElo(question, attachments, source) {
     const cleanQuestion = sanitizeUserText(question);
     if (!cleanQuestion) {
       return;
     }
     const attachedFiles = Array.prototype.slice.call(attachments || []);
+    const submitSource = sanitizeUserText(source || ELO_UI.lastSubmitSource || "manual");
+    const normalizedSubmit = normalizeEloSubmittedTextForRouting_(cleanQuestion);
+    const routeQuestion = stripEloWakePrefixForRouting_(cleanQuestion);
+    const musicIntent = parseEloMusicPlayIntent_(routeQuestion);
+    logEloMusicEvent_("SUBMIT_SOURCE", { source: submitSource });
+    logEloMusicEvent_("SUBMIT_NORMALIZED", { text: normalizeEloRoutingLogText_(normalizedSubmit) });
+    logEloMusicEvent_("WAKE_PREFIX_STRIPPED", { text: normalizeEloRoutingLogText_(routeQuestion) });
+    logEloMusicEvent_("ROUTER_ENTER", { source: submitSource, hasAttachments: attachedFiles.length > 0 });
+    logEloMusicEvent_("MUSIC_INTENT_MATCH", { matched: !!musicIntent, query: musicIntent && musicIntent.query });
+    if (!attachedFiles.length && (getEloMusicPendingCandidate_() || musicIntent)) {
+      appendMessage("user", cleanQuestion);
+      handleEloMusicQuery_(routeQuestion, { append: true }).finally(function () {
+        clearProductAttachmentPreview();
+      });
+      return;
+    }
+    if (!attachedFiles.length && handleEloMediaCommand_(routeQuestion).handled) {
+      clearProductAttachmentPreview();
+      return;
+    }
     if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
       handleEloRdoPreview_(cleanQuestion, attachedFiles, { hasAttachments: attachedFiles.length > 0 });
       return;
@@ -28208,15 +28925,98 @@ function isEloResidentialNewPipelineEnabled_() {
       null;
   }
 
+  function getEloTtsEndpoint_() {
+    return sanitizeUserText(window.ELO_TTS_ENDPOINT || getEloBackendEndpoint_("/api/elo/tts"));
+  }
+
+  function getEloAudioConstructor_() {
+    return window.Audio || null;
+  }
+
+  function setEloTtsAudit_(audit) {
+    ELO_UI.ttsAudit = Object.assign({
+      mode: "unknown",
+      provider: "",
+      endpoint: "",
+      voice: "",
+      rate: 1,
+      pitch: 1,
+      playbackRate: 1,
+      preservesPitch: true,
+      fallback: false,
+      fallbackReason: ""
+    }, audit || {});
+    logEloMusicEvent_("TTS_AUDIT", {
+      TTS_MODE: ELO_UI.ttsAudit.mode,
+      TTS_PROVIDER: ELO_UI.ttsAudit.provider,
+      TTS_ENDPOINT: ELO_UI.ttsAudit.endpoint,
+      TTS_VOICE: ELO_UI.ttsAudit.voice,
+      TTS_RATE: ELO_UI.ttsAudit.rate,
+      TTS_PITCH: ELO_UI.ttsAudit.pitch,
+      TTS_FALLBACK_REASON: ELO_UI.ttsAudit.fallbackReason,
+      playbackRate: ELO_UI.ttsAudit.playbackRate,
+      preservesPitch: ELO_UI.ttsAudit.preservesPitch
+    });
+    return ELO_UI.ttsAudit;
+  }
+
+  function normalizeEloTtsPayload_(data) {
+    if (!data) return null;
+    const audioUrl = sanitizeUserText(data.audioUrl || data.url || data.audio_url || "");
+    const audioBase64 = sanitizeUserText(data.audioBase64 || data.audio || data.audioContent || "");
+    return {
+      audioUrl: audioUrl || (audioBase64 ? "data:audio/mpeg;base64," + audioBase64 : ""),
+      provider: sanitizeUserText(data.provider || data.ttsProvider || "neural"),
+      voice: sanitizeUserText(data.voice || data.ttsVoice || window.ELO_TTS_VOICE || "elo-neural")
+    };
+  }
+
+  function playEloNeuralSpeechAudio_(payload, button) {
+    const AudioCtor = getEloAudioConstructor_();
+    if (!AudioCtor || !payload || !payload.audioUrl) return Promise.resolve(false);
+    const audio = new AudioCtor(payload.audioUrl);
+    ELO_UI.neuralSpeechAudio = audio;
+    audio.playbackRate = 1;
+    audio.preservesPitch = true;
+    audio.mozPreservesPitch = true;
+    audio.webkitPreservesPitch = true;
+    audio.onended = function () { resetEloSpeechButton_(button); };
+    audio.onerror = function () { resetEloSpeechButton_(button); };
+    setEloTtsAudit_({ mode: "neural", provider: payload.provider, endpoint: getEloTtsEndpoint_(), voice: payload.voice, playbackRate: audio.playbackRate, preservesPitch: audio.preservesPitch !== false, fallback: false });
+    const played = typeof audio.play === "function" ? audio.play() : true;
+    return Promise.resolve(played).then(function () { return true; });
+  }
+
+  function requestEloNeuralSpeech_(speechText, button) {
+    const endpoint = getEloTtsEndpoint_();
+    if (!window.fetch || !endpoint) return Promise.resolve(false);
+    return window.fetch(endpoint, {
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json" }, getEloCoreAuthHeaders_()),
+      body: JSON.stringify({ text: speechText, voice: sanitizeUserText(window.ELO_TTS_VOICE || "") })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) throw new Error(data.error || "tts_request_failed");
+        const payload = normalizeEloTtsPayload_(data);
+        if (!payload || !payload.audioUrl) throw new Error("tts_audio_missing");
+        return playEloNeuralSpeechAudio_(payload, button);
+      });
+    });
+  }
+
   function stopEloSpeechOutput_() {
     const synthesis = getEloSpeechSynthesis_();
     if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    if (ELO_UI.neuralSpeechAudio && typeof ELO_UI.neuralSpeechAudio.pause === "function") {
+      try { ELO_UI.neuralSpeechAudio.pause(); } catch (error) {}
+    }
+    ELO_UI.neuralSpeechAudio = null;
     resetEloSpeechButton_();
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
     return true;
   }
 
-  function speakEloText_(text, button) {
+  function speakEloTextFallback_(speechText, button, reason) {
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
     if (!synthesis || !Utterance) {
@@ -28225,17 +29025,9 @@ function isEloResidentialNewPipelineEnabled_() {
         button.textContent = "Sem voz";
         button.title = "Leitura em voz alta nao suportada neste navegador";
       }
+      setEloTtsAudit_({ mode: "unavailable", provider: "none", endpoint: getEloTtsEndpoint_(), fallback: true, fallbackReason: reason || "speech_unavailable" });
       return false;
     }
-    if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
-    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
-      stopEloVoiceInput_();
-      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
-    }
-    if (typeof synthesis.cancel === "function") synthesis.cancel();
-    resetEloSpeechButton_();
-    const speechText = cleanEloTextForSpeech_(text);
-    if (!speechText) return false;
     const utterance = new Utterance(speechText);
     const voice = chooseEloPortugueseVoice_(synthesis);
     if (voice) utterance.voice = voice;
@@ -28250,9 +29042,34 @@ function isEloResidentialNewPipelineEnabled_() {
     ELO_UI.speechSynthesisUtterance = utterance;
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
+    setEloTtsAudit_({ mode: "speechSynthesis", provider: "browser", endpoint: getEloTtsEndpoint_(), voice: voice && voice.name || "", rate: utterance.rate, pitch: utterance.pitch, fallback: true, fallbackReason: reason || "neural_unavailable" });
     setEloSpeechButtonState_(button, true);
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
     synthesis.speak(utterance);
+    return true;
+  }
+
+  function speakEloText_(text, button) {
+    if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
+    if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
+      stopEloVoiceInput_();
+      if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    }
+    const synthesis = getEloSpeechSynthesis_();
+    if (synthesis && typeof synthesis.cancel === "function") synthesis.cancel();
+    resetEloSpeechButton_();
+    const speechText = cleanEloTextForSpeech_(text);
+    if (!speechText) return false;
+    ELO_UI.speechSynthesisButton = button;
+    ELO_UI.speechSynthesisState = "speaking";
+    setEloSpeechButtonState_(button, true);
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
+    requestEloNeuralSpeech_(speechText, button).then(function (ok) {
+      if (ok) return true;
+      return speakEloTextFallback_(speechText, button, "neural_unavailable");
+    }).catch(function (error) {
+      return speakEloTextFallback_(speechText, button, sanitizeUserText(error && error.message).slice(0, 120) || "neural_failed");
+    });
     return true;
   }
 
@@ -28260,11 +29077,13 @@ function isEloResidentialNewPipelineEnabled_() {
     if (!message || !text || message.dataset && message.dataset.eloSpeechActionBound === "true") return false;
     const synthesis = getEloSpeechSynthesis_();
     const Utterance = getEloSpeechSynthesisUtteranceConstructor_();
+    const hasNeural = !!(window.fetch && getEloAudioConstructor_());
+    const hasFallback = !!(synthesis && Utterance);
     const actions = createElement("div", "elo-message-actions elo-speech-actions");
-    const button = createElement("button", "elo-inline-button elo-speech-button", synthesis && Utterance ? "Ouvir" : "Sem voz");
+    const button = createElement("button", "elo-inline-button elo-speech-button", hasNeural || hasFallback ? "Ouvir" : "Sem voz");
     button.type = "button";
     button.dataset.eloSpeechText = String(text || "");
-    if (!synthesis || !Utterance) {
+    if (!hasNeural && !hasFallback) {
       button.disabled = true;
       button.title = "Leitura em voz alta nao suportada neste navegador";
       button.setAttribute("aria-label", "Leitura em voz alta nao suportada neste navegador");
@@ -28283,7 +29102,7 @@ function isEloResidentialNewPipelineEnabled_() {
     const button = message.querySelector ? message.querySelector(".elo-speech-button") : null;
     if (button) {
       button.dataset.eloSpeechText = String(text || "");
-      if (button.disabled && getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_()) {
+      if (button.disabled && ((window.fetch && getEloAudioConstructor_()) || (getEloSpeechSynthesis_() && getEloSpeechSynthesisUtteranceConstructor_()))) {
         button.disabled = false;
         setEloSpeechButtonState_(button, false);
         button.addEventListener("click", function () { speakEloText_(button.dataset.eloSpeechText || "", button); });
@@ -28334,6 +29153,47 @@ function isEloResidentialNewPipelineEnabled_() {
     return true;
   }
 
+  function clearEloVoiceAutoSendTimer_() {
+    if (ELO_UI.voiceAutoSendTimer) {
+      window.clearTimeout(ELO_UI.voiceAutoSendTimer);
+      ELO_UI.voiceAutoSendTimer = null;
+    }
+  }
+
+  function dispatchEloVoiceAutoSend_(version) {
+    if (!ELO_UI.form || !ELO_UI.input) return false;
+    if (ELO_UI.voiceAutoSendDispatchedVersion === version) return false;
+    const text = sanitizeUserText(ELO_UI.input.value || "");
+    if (!text) return false;
+    logEloMusicEvent_("VOICE_SUBMIT_RAW", { text: ELO_UI.voiceLastTranscript || text });
+    logEloMusicEvent_("VOICE_SUBMIT_VALUE", { text: text });
+    ELO_UI.lastSubmitSource = "voice_auto_send";
+    ELO_UI.voiceAutoSendDispatchedVersion = version;
+    ELO_UI.voiceModeSubmitting = true;
+    ELO_UI.voiceModeRecognitionSubmitted = true;
+    ELO_UI.voiceModeAwaitingResponse = !!ELO_UI.voiceModeEnabled;
+    setEloVoiceState_("idle", "Transcricao enviada.");
+    if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("responding", "Modo Voz: Respondendo.");
+    const SubmitEventCtor = typeof SubmitEvent === "function" ? SubmitEvent : (typeof Event === "function" ? Event : null);
+    const event = SubmitEventCtor ? new SubmitEventCtor("submit", { bubbles: true, cancelable: true }) : { type: "submit", bubbles: true, cancelable: true, defaultPrevented: false, preventDefault: function () { this.defaultPrevented = true; } };
+    ELO_UI.form.dispatchEvent(event);
+    window.setTimeout(function () { ELO_UI.voiceModeSubmitting = false; }, 0);
+    return true;
+  }
+
+  function scheduleEloVoiceAutoSend_(reason) {
+    if (!ELO_UI.input || !sanitizeUserText(ELO_UI.input.value || "")) return false;
+    clearEloVoiceAutoSendTimer_();
+    ELO_UI.voiceAutoSendVersion += 1;
+    const version = ELO_UI.voiceAutoSendVersion;
+    setEloVoiceState_(ELO_UI.voiceState === "listening" ? "listening" : "idle", "Enviando ao terminar de falar...");
+    if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("listening", "Modo Voz: Enviando ao terminar de falar.");
+    ELO_UI.voiceAutoSendTimer = window.setTimeout(function () {
+      ELO_UI.voiceAutoSendTimer = null;
+      dispatchEloVoiceAutoSend_(version);
+    }, ELO_VOICE_AUTO_SEND_MS);
+    return true;
+  }
   function startEloVoiceInput_() {
     const Recognition = getEloSpeechRecognitionConstructor_();
     if (!Recognition) {
@@ -28372,8 +29232,9 @@ function isEloResidentialNewPipelineEnabled_() {
       }).join(" ");
       const hasFinalTranscript = results.some(function (result) { return !!(result && result.isFinal); });
       if (writeEloVoiceTranscriptToInput_(transcript)) {
+        ELO_UI.voiceLastTranscript = sanitizeUserText(transcript);
         setEloVoiceState_("listening", "Ouvindo... transcricao no campo.");
-        if (hasFinalTranscript && ELO_UI.voiceModeEnabled) submitEloVoiceModeTranscript_();
+        scheduleEloVoiceAutoSend_(hasFinalTranscript ? "final" : "partial");
       }
     };
     recognition.onerror = function (event) {
@@ -28383,9 +29244,10 @@ function isEloResidentialNewPipelineEnabled_() {
     };
     recognition.onend = function () {
       if (ELO_UI.voiceState === "listening") {
-        const doneMessage = ELO_UI.voiceHadTranscript ? "Transcricao pronta para editar e enviar." : "Escuta finalizada sem texto.";
+        const doneMessage = ELO_UI.voiceHadTranscript ? "Enviando ao terminar de falar..." : "Escuta finalizada sem texto.";
         setEloVoiceState_("idle", doneMessage);
-        if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript && ELO_UI.voiceModeRecognitionSubmitted ? "Modo Voz: Respondendo." : "Modo Voz: Parado.");
+        if (ELO_UI.voiceHadTranscript) scheduleEloVoiceAutoSend_("end");
+        if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript ? "Modo Voz: aguardando silencio para enviar." : "Modo Voz: Parado.");
       }
       ELO_UI.voiceRecognition = null;
     };
@@ -28400,6 +29262,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function stopEloVoiceInput_() {
+    clearEloVoiceAutoSendTimer_();
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       ELO_UI.voiceRecognition.stop();
       return true;
@@ -31508,14 +32371,14 @@ function isEloResidentialNewPipelineEnabled_() {
       });
     }
 
-    function submitMinimalQuestion() {
+    function submitMinimalQuestion(source) {
       const question = ELO_UI.input.value;
       const attachmentIntent = detectAttachmentIntent(question);
 
       if (attachmentIntent.type === "image") {
         ELO_UI.input.value = "";
         if (isEloReportPdfGenerationRequest_(question) || isEloRdoPreviewActive_() || isEloRdoPreviewIntent_(question)) {
-          askElo(question || "Fotos do RDO", ELO_UI.attachments);
+          askElo(question || "Fotos do RDO", ELO_UI.attachments, source);
         } else if (isEloImageTextOnlyRequest_(question) && !isEloImageTextAndVisualRequest_(question)) {
           analyzeEloImageTextOnlyAttachment_(question, attachmentIntent.file);
         } else {
@@ -31525,9 +32388,9 @@ function isEloResidentialNewPipelineEnabled_() {
       }
 
       if (ELO_UI.attachments.length && !sanitizeUserText(question)) {
-        askElo("Elo, leia este anexo.", ELO_UI.attachments);
+        askElo("Elo, leia este anexo.", ELO_UI.attachments, source);
       } else {
-        askElo(question, ELO_UI.attachments);
+        askElo(question, ELO_UI.attachments, source);
       }
       ELO_UI.input.value = "";
     }
@@ -31536,7 +32399,10 @@ function isEloResidentialNewPipelineEnabled_() {
       form.dataset.eloEngineBound = "true";
       form.addEventListener("submit", function (event) {
         event.preventDefault();
-        submitMinimalQuestion();
+        logEloMusicEvent_("SUBMIT_HANDLER_ENTER", { source: ELO_UI.lastSubmitSource || "manual" });
+        clearEloVoiceAutoSendTimer_();
+        submitMinimalQuestion(ELO_UI.lastSubmitSource || "manual");
+        ELO_UI.lastSubmitSource = "";
       });
     }
 
@@ -31555,7 +32421,8 @@ function isEloResidentialNewPipelineEnabled_() {
       input.addEventListener("keydown", function (event) {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
-          submitMinimalQuestion();
+          clearEloVoiceAutoSendTimer_();
+          submitMinimalQuestion("enter");
         }
       });
     }
@@ -31673,6 +32540,11 @@ function isEloResidentialNewPipelineEnabled_() {
     setCorePanelElementForTest: function (element) { ELO_UI.panel = element; },
     getVoiceStateForTest: function () { return ELO_UI.voiceState; },
     getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
+    getVoiceAutoSendMsForTest: function () { return ELO_VOICE_AUTO_SEND_MS; },
+    setVoiceComposerForTest: function (form, input) { ELO_UI.form = form; ELO_UI.input = input; },
+    scheduleVoiceAutoSendForTest: scheduleEloVoiceAutoSend_,
+    dispatchVoiceAutoSendForTest: dispatchEloVoiceAutoSend_,
+    clearVoiceAutoSendForTest: clearEloVoiceAutoSendTimer_,
     setVoiceModeEnabledForTest: setEloVoiceModeEnabled_,
     startVoiceInputForTest: startEloVoiceInput_,
     stopVoiceInputForTest: stopEloVoiceInput_,
@@ -31682,6 +32554,19 @@ function isEloResidentialNewPipelineEnabled_() {
     speakTextForTest: speakEloText_,
     stopSpeechOutputForTest: stopEloSpeechOutput_,
     choosePortugueseVoiceForTest: chooseEloPortugueseVoice_,
+    getTtsAuditForTest: function () { return ELO_UI.ttsAudit ? Object.assign({}, ELO_UI.ttsAudit) : null; },
+    getTtsEndpointForTest: getEloTtsEndpoint_,
+    detectMusicPlayIntentForTest: parseEloMusicPlayIntent_,
+    stripWakePrefixForRoutingForTest: stripEloWakePrefixForRouting_,
+    normalizeMusicQueryForTest: normalizeEloMusicQueryText_,
+    scoreMusicCandidateForTest: scoreEloMusicCandidate_,
+    chooseMusicCandidateForTest: chooseEloMusicCandidate_,
+    handleMusicQueryForTest: handleEloMusicQuery_,
+    getPendingMusicCandidateForTest: getEloMusicPendingCandidate_,
+    clearPendingMusicCandidateForTest: function () { setEloMusicPendingCandidate_(null); },
+    detectMediaCommandForTest: detectEloMediaCommandAction_,
+    handleMediaCommandForTest: handleEloMediaCommand_,
+    getMediaPlayerStateForTest: function () { return ensureEloMediaPlayerApi_().getState(); },
     appendMessageForLayoutTest: appendMessage,
     buildOpeningMessageForTest: buildEloOpeningMessage_,
     buildQuickGreetingAnswerForTest: buildEloQuickGreetingAnswer_,
@@ -31704,3 +32589,7 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 })();
+
+
+
+
