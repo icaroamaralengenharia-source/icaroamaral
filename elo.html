@@ -43,15 +43,6 @@
       justify-content: flex-end;
     }
     body.elo-auth-required.elo-local-readonly .elo-core-actions {
-      position: absolute;
-      left: clamp(14px, 3vw, 34px);
-      top: 14px;
-      z-index: 3;
-      display: flex;
-    }
-    body.elo-auth-required.elo-local-readonly .elo-core-actions [data-elo-new-chat],
-    body.elo-auth-required.elo-local-readonly .elo-core-actions [data-elo-memory],
-    body.elo-auth-required.elo-local-readonly .elo-history-actions button:last-child {
       display: none;
     }
     body[data-elo-product="chat"].elo-auth-required.elo-local-readonly .elo-product-top {
@@ -136,10 +127,6 @@
           <p class="elo-input-hint">O ELO pode guardar informações úteis para continuar suas conversas. Você pode revisar ou apagar essa memória quando quiser.</p>
           <div class="elo-local-actions" data-elo-local-actions hidden>
             <button type="button" class="elo-local-report-button" data-elo-local-report hidden>Gerar relatório</button>
-          </div>
-          <div class="elo-wake-controls" aria-label="Ativacao por voz do ELO">
-            <button type="button" class="elo-wake-toggle" data-elo-wake-toggle aria-pressed="false">○ ELO inativo</button>
-            <span class="elo-wake-status" data-elo-wake-status aria-live="polite"></span>
           </div>
           <form class="elo-input-row">
             <button type="button" class="elo-attach-button" aria-label="Anexar arquivo" title="Anexar arquivo">Anexar</button>
@@ -440,12 +427,18 @@
   <script src="relatorio-qualidade-obras/elo-command-bridge.js?v=20260727-command-bridge-v1"></script>
   <script src="relatorio-qualidade-obras/elo-sentinel-ui.js"></script>
   <script src="relatorio-qualidade-obras/elo-operational-ui.js"></script>
-  <script src="elo-music-resolver.js?v=20260818-music-resolver-v2"></script>
-  <script src="elo-media-player.js?v=20260818-youtube-music-v1"></script>
-  <script src="elo-voice-client.js?v=20260817-neural-voice-v1"></script>
-  <script src="relatorio-qualidade-obras/elo-live-data-router.js?v=20260818-auto-research-v1"></script>
-  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260721-auth-context-v1"></script>
-  <script src="elo-wake-word.js?v=20260818-wake-word-v1"></script>
+  <script src="stock-full-core.js?v=20260626-phase-a"></script>
+  <script>window.ELO_STOCK_BRIDGE_ONLY = true;</script>
+  <script src="relatorio-qualidade-obras/relatorio-qualidade-obras.js?v=20260816-elo-stock-bridge"></script>
+  <script>window.ELO_STOCK_BRIDGE_ONLY = false;</script>
+  <script src="relatorio-qualidade-obras/elo-media-player.js?v=20260822-embed-validate-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-music-catalog.js?v=20260825-catalog-100-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-music-resolver.js?v=20260825-catalog-first-v1"></script>
+  <script src="relatorio-qualidade-obras/elo-assistente.js?v=20260825-dreamon-tts-v1"></script>
 </body>
 </html>
+
+
+
+
 

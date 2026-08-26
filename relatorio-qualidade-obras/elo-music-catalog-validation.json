@@ -1,0 +1,2996 @@
+{
+  "total": 100,
+  "processed": 100,
+  "clear": 98,
+  "pending": 2,
+  "playConfirmed": 0,
+  "generatedAt": "2026-08-26T02:11:53.894Z",
+  "validationMethod": "youtube-search-plus-oembed",
+  "items": [
+    {
+      "catalogId": "eagles-hotel-california",
+      "query": "Eagles Hotel California",
+      "selectedVideoId": "09839DpTctU",
+      "selectedTitle": "Eagles - Hotel California (Live 1977) (Official Video) [HD]",
+      "channel": "Eagles",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "DL-HvfVwZKM",
+          "title": "Heavy Metal (Take a Ride) (Soundtrack Version)",
+          "channel": "Don Felder - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "8TToLgW7zuc",
+          "title": "Glenn Frey - You Belong To The City",
+          "channel": "GlennFreyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "c9YHTAEPMpg",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "ZD3C4841ft0",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ],
+      "playValidation": {
+        "catalogId": "eagles-hotel-california",
+        "videoId": "09839DpTctU",
+        "title": "Hotel California",
+        "artist": "Eagles",
+        "playConfirmed": false,
+        "state": "error",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:30:55.645Z"
+      }
+    },
+    {
+      "catalogId": "dire-straits-sultans-of-swing",
+      "query": "Dire Straits Sultans of Swing",
+      "selectedVideoId": "MMFSLGq1wrQ",
+      "selectedTitle": "'Sultans Of Swing' Live at Wembley 1985 @direstraitsofficial",
+      "channel": "Dire Straits",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "h0ffIJ7ZO4U",
+          "reason": "historically_rejected_embed_unavailable"
+        },
+        {
+          "videoId": "09839DpTctU",
+          "title": "Eagles - Hotel California (Live 1977) (Official Video) [HD]",
+          "channel": "Eagles",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "8Pa9x9fZBtY",
+          "reason": "historically_rejected_embed_unavailable"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "dire-straits-sultans-of-swing",
+        "videoId": "MMFSLGq1wrQ",
+        "title": "Sultans of Swing",
+        "artist": "Dire Straits",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:31:10.725Z"
+      }
+    },
+    {
+      "catalogId": "dire-straits-walk-of-life",
+      "query": "Dire Straits Walk of Life",
+      "selectedVideoId": "kd9TlGDZGkI",
+      "selectedTitle": "Dire Straits - Walk Of Life (Official Music Video)",
+      "channel": "DireStraitsVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "X4vxXQRTT8U",
+          "title": "Brothers In Arms (On The Night / Live In Rotterdam, Netherlands / 31st May 1992)",
+          "channel": "DireStraitsVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "dire-straits-money-for-nothing",
+      "query": "Dire Straits Money for Nothing",
+      "selectedVideoId": "J7LzNrdrleQ",
+      "selectedTitle": "'Money For Nothing' (Live at Wembley 1985) @direstraitsofficial  #moneyfornothing",
+      "channel": "Dire Straits",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "X4vxXQRTT8U",
+          "title": "Brothers In Arms (On The Night / Live In Rotterdam, Netherlands / 31st May 1992)",
+          "channel": "DireStraitsVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "dire-straits-so-far-away",
+      "query": "Dire Straits So Far Away",
+      "selectedVideoId": "s1AYy2Tls2s",
+      "selectedTitle": "'So Far Away (Official Music Video)' @direstraitsofficial",
+      "channel": "Dire Straits",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "leZ4T8kt-1o",
+          "title": "Mark Knopfler - Sultans Of Swing (An Evening With Mark Knopfler, 2009)",
+          "channel": "Mark Knopfler",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "dbMjg_Voqak",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "dire-straits-brothers-in-arms",
+      "query": "Dire Straits Brothers in Arms",
+      "selectedVideoId": "jhdFe3evXpk",
+      "selectedTitle": "Dire Straits - Brothers In Arms (Official Music Video)",
+      "channel": "DireStraitsVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "leZ4T8kt-1o",
+          "title": "Mark Knopfler - Sultans Of Swing (An Evening With Mark Knopfler, 2009)",
+          "channel": "Mark Knopfler",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "ZtdRdgHkUsU",
+          "title": "So Far Away (Remastered 1996)",
+          "channel": "Dire Straits - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "6K6ODTZ7c10",
+          "title": "Money For Nothing (Remastered 1996)",
+          "channel": "Dire Straits - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "I828Avhvvow",
+          "title": "Dire Straits - So Far Away",
+          "channel": "David Rolfe's Rock & Metal Channel.",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "boston-more-than-a-feeling",
+      "query": "Boston More Than a Feeling",
+      "selectedVideoId": "t4QK8RxCAwo",
+      "selectedTitle": "Boston - More Than a Feeling (Official HD Video)",
+      "channel": "BostonVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "pw6_VXPwm6U",
+          "title": "Kansas Carry on my Wayward son",
+          "channel": "marlows15284",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "JCM0qTKeNJc",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "XQfB_97oej0",
+          "title": "They COOKED with these 😭",
+          "channel": "NoSchoolSaturday For Real",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "boston-more-than-a-feeling",
+        "videoId": "t4QK8RxCAwo",
+        "title": "More Than a Feeling",
+        "artist": "Boston",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:31:25.751Z"
+      }
+    },
+    {
+      "catalogId": "boston-peace-of-mind",
+      "query": "Boston Peace of Mind",
+      "selectedVideoId": "edwk-8KJ1Js",
+      "selectedTitle": "Boston - Peace of Mind (Official Audio)",
+      "channel": "BostonVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "TnwqUEelQjE",
+          "title": "Boston - Foreplay / Long Time (Official Audio)",
+          "channel": "BostonVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "STusWjMKwz0",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "TEYEl5l_Yv8",
+          "title": "Boston’s Debut Album Turned 50—And Epic Didn’t Know Where It Was Made",
+          "channel": "On This Day in Music and Entertainment History",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "fawgy8p09Jg",
+          "title": "How Boston Secretly Recorded Their Massive Debut in a Basement…",
+          "channel": "Strings Direct",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "journey-dont-stop-believin",
+      "query": "Journey Don't Stop Believin'",
+      "selectedVideoId": "1k8craCGpgs",
+      "selectedTitle": "Journey - Don't Stop Believin' (Official Audio)",
+      "channel": "journeyVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "2tiZHVMvNPA",
+          "title": "Jonathan Cain Bridal March",
+          "channel": "cgarris54",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "journey-separate-ways-worlds-apart",
+      "query": "Journey Separate Ways (Worlds Apart)",
+      "selectedVideoId": "LatorN4P9aA",
+      "selectedTitle": "Journey - Separate Ways (Worlds Apart) (Official HD Video - 1983)",
+      "channel": "journeyVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "VcjzHMhBtf0",
+          "title": "Journey - Don't Stop Believin' (Escape Tour 1981: Live In Houston)",
+          "channel": "journeyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "0WwNYY-rqIY",
+          "title": "Journey - Separate Ways (Live In Manila)",
+          "channel": "journeyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "u5zROBTAjuQ",
+          "title": "Powerhouse Omar Jose Cardona Belts Out Journey's \"Separate Ways\" | The Voice Blind Auditions 2022",
+          "channel": "The Voice",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "journey-any-way-you-want-it",
+      "query": "Journey Any Way You Want It",
+      "selectedVideoId": "atxUuldUcfI",
+      "selectedTitle": "Journey - Any Way You Want It (Official HD Video - 1980)",
+      "channel": "journeyVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "LatorN4P9aA",
+          "title": "Journey - Separate Ways (Worlds Apart) (Official HD Video - 1983)",
+          "channel": "journeyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "a2CZ57Ek2UI",
+          "title": "Evolution of Journey (1981) #nostalgic #nostalgic #journey #80smusic #dontstopbelieving",
+          "channel": "Retro",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "toto-hold-the-line",
+      "query": "Toto Hold the Line",
+      "selectedVideoId": "htgr3pvBr-I",
+      "selectedTitle": "Toto - Hold The Line (Official Video)",
+      "channel": "TotoVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "zbKa_OrVj-o",
+          "title": "Waiting For Your Love - Cover by Child's Anthem",
+          "channel": "Child's Anthem - The Music of Toto",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "toto-africa",
+      "query": "Toto Africa",
+      "selectedVideoId": "FTQbiNvZqaY",
+      "selectedTitle": "Toto - Africa (Official HD Video)",
+      "channel": "TotoVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "zbKa_OrVj-o",
+          "title": "Waiting For Your Love - Cover by Child's Anthem",
+          "channel": "Child's Anthem - The Music of Toto",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "0mcBo6asMpg",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "5IXiFfqaHEU",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ],
+      "playValidation": {
+        "catalogId": "toto-africa",
+        "videoId": "FTQbiNvZqaY",
+        "title": "Africa",
+        "artist": "Toto",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:31:40.775Z"
+      }
+    },
+    {
+      "catalogId": "toto-rosanna",
+      "query": "Toto Rosanna",
+      "selectedVideoId": "qmOLtTGvsbM",
+      "selectedTitle": "Toto - Rosanna (Official HD Video)",
+      "channel": "TotoVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "_h3G2axqGyg",
+          "title": "TOTO - Africa (Lyrics)",
+          "channel": "Retro Fever",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "_LjxpSomrEI",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "foreigner-juke-box-hero",
+      "query": "Foreigner Juke Box Hero",
+      "selectedVideoId": "BJ3hzwCeWi8",
+      "selectedTitle": "Enjoy the “Juke Box Hero” official music video now remastered in higher definition.",
+      "channel": "Foreigner",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "WGT0vA-JuAo",
+          "title": "Lost in the Shadows",
+          "channel": "Spirit Weave Sounds ",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "foreigner-waiting-for-a-girl-like-you",
+      "query": "Foreigner Waiting for a Girl Like You",
+      "selectedVideoId": "CCOEYgMQjCI",
+      "selectedTitle": "Foreigner - Waiting for a Girl Like You",
+      "channel": "ForeignerVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "lsPOCh0QInU",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "ZDvIkIajVy8",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "foreigner-i-want-to-know-what-love-is",
+      "query": "Foreigner I Want to Know What Love Is",
+      "selectedVideoId": "oe-bhvLJNjc",
+      "selectedTitle": "Foreigner - I Want To Know What Love Is (Live From Ellis Island) (Official Music Video)",
+      "channel": "ForeignerVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Lcb-Fsx_phM",
+          "title": "Foreigner - Urgent (Official Music Video)",
+          "channel": "RHINO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "dUSrN75JBpg",
+          "title": "Foreigner || I wanna Know What Love Is",
+          "channel": "Armtist TV",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "kansas-dust-in-the-wind",
+      "query": "Kansas Dust in the Wind",
+      "selectedVideoId": "tH2w6Oxx0kQ",
+      "selectedTitle": "Kansas - Dust in the Wind (Official Video)",
+      "channel": "kansasVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "HVLjhPx18rY",
+          "title": "RWBY AMV: \"Carry On Wayward Son\"",
+          "channel": "ThusKindlySheScatters",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "V4wi2E30JIk",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "kansas-carry-on-wayward-son",
+      "query": "Kansas Carry On Wayward Son",
+      "selectedVideoId": "P5ZJui3aPoQ",
+      "selectedTitle": "Kansas - Carry on Wayward Son (Official Video)",
+      "channel": "kansasVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": []
+    },
+    {
+      "catalogId": "reo-speedwagon-keep-on-loving-you",
+      "query": "REO Speedwagon Keep on Loving You",
+      "selectedVideoId": "u-L_sGRyQHY",
+      "selectedTitle": "Keep on Loving You",
+      "channel": "REO Speedwagon - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "hxTbS2ktMfk",
+          "title": "REO Speedwagon - In My Dreams (Lyrics)",
+          "channel": "ALL MIXED",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "fleetwood-mac-dreams",
+      "query": "Fleetwood Mac Dreams",
+      "selectedVideoId": "Y3ywicffOj4",
+      "selectedTitle": "Fleetwood Mac - Dreams (Official Music Video) [4K]",
+      "channel": "Fleetwood Mac",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "UmPgMc3R8zg",
+          "title": "Stevie Nicks - Edge of Seventeen (Official Music Video)",
+          "channel": "Stevie Nicks",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "ihTZyLW3F6M",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "jQFnlu990rM",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ],
+      "playValidation": {
+        "catalogId": "fleetwood-mac-dreams",
+        "videoId": "Y3ywicffOj4",
+        "title": "Dreams",
+        "artist": "Fleetwood Mac",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:31:55.788Z"
+      }
+    },
+    {
+      "catalogId": "fleetwood-mac-go-your-own-way",
+      "query": "Fleetwood Mac Go Your Own Way",
+      "selectedVideoId": "ozl3L9fhKtE",
+      "selectedTitle": "Fleetwood Mac - Go Your Own Way (Official Music Video) [HD]",
+      "channel": "Fleetwood Mac",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Kcm3dbuV8Z4",
+          "title": "Lindsey Buckingham - Trouble (Official Music Video) [HD Remaster]",
+          "channel": "Lindsey Buckingham",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "fleetwood-mac-everywhere",
+      "query": "Fleetwood Mac Everywhere",
+      "selectedVideoId": "YF1R0hc5Q2I",
+      "selectedTitle": "Fleetwood Mac - Everywhere (Official Music Video) [HD]",
+      "channel": "Fleetwood Mac",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "uCGD9dT12C0",
+          "title": "Fleetwood Mac - Little Lies (Official Music Video) [HD]",
+          "channel": "Fleetwood Mac",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "pvzfJx-M9es",
+          "title": "Fleetwood Mac (1975) #nostalgic #70smusic #fleetwoodmac #thenandnow #70srock #nostalgia #evolution",
+          "channel": "Back To Fame",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "fleetwood-mac-little-lies",
+      "query": "Fleetwood Mac Little Lies",
+      "selectedVideoId": "uCGD9dT12C0",
+      "selectedTitle": "Fleetwood Mac - Little Lies (Official Music Video) [HD]",
+      "channel": "Fleetwood Mac",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "1VIKcrEcbQs",
+          "title": "Say That You Love Me Bass Cover",
+          "channel": "TJH3113",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "QjGhne10f1o",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "supertramp-the-logical-song",
+      "query": "Supertramp The Logical Song",
+      "selectedVideoId": "kln_bIndDJg",
+      "selectedTitle": "Supertramp - The Logical Song (Official Video)",
+      "channel": "Supertramp ",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "uK27G5LpOT0",
+          "title": "SUPERTRAMP - CRIME OF THE CENTURY - volandoconalas",
+          "channel": "volandoconalas libre",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "3Sog1dydgVw",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "tRJ8PH2JN1A",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ],
+      "playValidation": {
+        "catalogId": "supertramp-the-logical-song",
+        "videoId": "kln_bIndDJg",
+        "title": "The Logical Song",
+        "artist": "Supertramp",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:32:10.805Z"
+      }
+    },
+    {
+      "catalogId": "supertramp-give-a-little-bit",
+      "query": "Supertramp Give a Little Bit",
+      "selectedVideoId": "xfFUg_wb31s",
+      "selectedTitle": "Supertramp - Give A Little Bit",
+      "channel": "SupertrampVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "u8pVZ5hTGJQ",
+          "title": "Goodbye Stranger (Remastered 2010)",
+          "channel": "Supertramp - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "supertramp-breakfast-in-america",
+      "query": "Supertramp Breakfast in America",
+      "selectedVideoId": "aQdoUUi3iJ8",
+      "selectedTitle": "Supertramp - Breakfast In America (Official Video)",
+      "channel": "Supertramp ",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "kln_bIndDJg",
+          "title": "Supertramp - The Logical Song (Official Video)",
+          "channel": "Supertramp ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "hbqVPYZgK48",
+          "title": "Gone Hollywood (Remastered 2010)",
+          "channel": "Supertramp - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "low6Coqrw9Y",
+          "title": "The Logical Song",
+          "channel": "Supertramp - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "U1ZURsd17GI",
+          "title": "Supertramp - Gone Hollywood (Official Audio)",
+          "channel": "Supertramp ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "w31GDDH_enM",
+          "title": "Supertramp - The Logical Song (Official Audio)",
+          "channel": "Supertramp ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "_Pts0jqX-yY",
+          "title": "Supertramp - Take The Long Way Home (Official Audio)",
+          "channel": "Supertramp ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "ZROlq354u80",
+          "title": "01-Gone Hollywood.",
+          "channel": "SebaVinilos ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "QB0vnE__NMw",
+          "title": "02-The Logical Song",
+          "channel": "SebaVinilos ",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "america-a-horse-with-no-name",
+      "query": "America A Horse with No Name",
+      "selectedVideoId": "LMJv9ZdVPTE",
+      "selectedTitle": "America - A Horse With No Name",
+      "channel": "America",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "UrFnsfNMqrY",
+          "title": "Best Of 70s Soft Rock Ballads Playlist - The Best Of Soft Rock Ballads - 70s Timeless Classic (2026)",
+          "channel": "70s Greatest Hits",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "america-sister-golden-hair",
+      "query": "America Sister Golden Hair",
+      "selectedVideoId": "NYZJHjEiiGY",
+      "selectedTitle": "America - Sister Golden Hair on Dolby Atmos",
+      "channel": "America",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "xXjP3hT37lQ",
+          "title": "America - Inspector Mills (Lyrics)",
+          "channel": "ALL MIXED",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "b5cjMDWiYqE",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "america-ventura-highway",
+      "query": "America Ventura Highway",
+      "selectedVideoId": "Wtc4I9QoK4Q",
+      "selectedTitle": "America - Ventura Highway (Lyric Video) (Official)",
+      "channel": "AmericaVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "xXjP3hT37lQ",
+          "title": "America - Inspector Mills (Lyrics)",
+          "channel": "ALL MIXED",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "eFOPTFItpnM",
+          "title": "A Horse With No Name America Dewey Bunnell Cover",
+          "channel": "Larry L",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "bread-everything-i-own",
+      "query": "Bread Everything I Own",
+      "selectedVideoId": "_21cZe2eO_I",
+      "selectedTitle": "Everything I Own",
+      "channel": "Bread - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "W13nFk6jSK8",
+          "title": "BREAD GREATEST HITS ALBUM-TIMELESS COLLECTION I",
+          "channel": "𝐌𝐔𝐒𝐈𝐂 𝐏𝐑𝐎𝐒",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "pXEwkAyuFog",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "A7c9adtljK8",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "bread-make-it-with-you",
+      "query": "Bread Make It with You",
+      "selectedVideoId": "OudI2JPhEqQ",
+      "selectedTitle": "Make It with You",
+      "channel": "Bread - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "w1A2NtC_8SM",
+          "title": "IF ( FEMALE VERSION ) ( BREAD )( COVER_CY )",
+          "channel": "COVER_CY",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "_21cZe2eO_I",
+          "title": "Everything I Own",
+          "channel": "Bread - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "gerry-rafferty-baker-street",
+      "query": "Gerry Rafferty Baker Street",
+      "selectedVideoId": "Fo6aKnRnBxM",
+      "selectedTitle": "Gerry Rafferty - Baker Street (Official Video)",
+      "channel": "Gerry Rafferty",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": []
+    },
+    {
+      "catalogId": "cat-stevens-wild-world",
+      "query": "Cat Stevens Wild World",
+      "selectedVideoId": "P1b8z1h_rIs",
+      "selectedTitle": "Yusuf / Cat Stevens - Wild World (Live, 1971)",
+      "channel": "Yusuf / Cat Stevens",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "P6zaCV4niKk",
+          "title": "Yusuf / Cat Stevens - Father & Son",
+          "channel": "Yusuf / Cat Stevens",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "9lBlZ0Mj5p0",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "nGrykpJLw2c",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "steve-miller-band-the-joker",
+      "query": "Steve Miller Band The Joker",
+      "selectedVideoId": "dV3AziKTBUo",
+      "selectedTitle": "Steve Miller Band - The Joker (Official Music Video)",
+      "channel": "SteveMillerBandVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "VggaYjDNX4M",
+          "title": "Steve Miller Sunday Gypsy Singing Fat Mike",
+          "channel": "MikeCT906",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "VdaeVoX3cvU",
+          "title": "Sugar Babe",
+          "channel": "Steve Miller Band - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "b1cNoxe-Jg0",
+          "title": "Mary Lou",
+          "channel": "Steve Miller Band - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "steve-miller-band-fly-like-an-eagle",
+      "query": "Steve Miller Band Fly Like an Eagle",
+      "selectedVideoId": null,
+      "selectedTitle": null,
+      "channel": null,
+      "exists": false,
+      "embeddable": false,
+      "playConfirmed": false,
+      "validatedAt": null,
+      "validationStatus": "PENDING",
+      "rejectedCandidates": [
+        {
+          "videoId": "jlFXhigvTvM",
+          "title": "Jet Airliner | Steve Miller Band",
+          "channel": "drew",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Tdb49zkgVk0",
+          "title": "Space Intro",
+          "channel": "Steve Miller Band - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "snrO4G8ed5I",
+          "title": "Fly Like An Eagle ~ Steve Miller Band {Music Video HD}",
+          "channel": "Ελπιδα Κακαση",
+          "reason": "low_confidence_channel"
+        }
+      ],
+      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload."
+    },
+    {
+      "catalogId": "electric-light-orchestra-mr-blue-sky",
+      "query": "Electric Light Orchestra Mr. Blue Sky",
+      "selectedVideoId": "aQUlA8Hcv4s",
+      "selectedTitle": "Electric Light Orchestra - Mr. Blue Sky (Official Video)",
+      "channel": "ELOVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6zOxsnNQVQY",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "electric-light-orchestra-dont-bring-me-down",
+      "query": "Electric Light Orchestra Don't Bring Me Down",
+      "selectedVideoId": "z9nkzaOPP6g",
+      "selectedTitle": "Electric Light Orchestra - Don't Bring Me Down (Official Video)",
+      "channel": "ELOVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "GQPnbH2y82o",
+          "title": "según científicos esta es la canción más feliz del mundo",
+          "channel": "Zax",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "nxz1DuVaRr8",
+          "title": "Evil Woman",
+          "channel": "Electric Light Orchestra - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "21VeAmPOBzI",
+          "title": "Electric Light Orchestra - Rock n' Roll Is King (Official Video)",
+          "channel": "ELOVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "electric-light-orchestra-last-train-to-london",
+      "query": "Electric Light Orchestra Last Train to London",
+      "selectedVideoId": "Up4WjdabA2c",
+      "selectedTitle": "Electric Light Orchestra - Last Train to London (Official Video)",
+      "channel": "ELOVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6zOxsnNQVQY",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "electric-light-orchestra-telephone-line",
+      "query": "Electric Light Orchestra Telephone Line",
+      "selectedVideoId": "w1iRhy7Rl8E",
+      "selectedTitle": "Electric Light Orchestra - Telephone Line (Official Video)",
+      "channel": "ELOVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "p5-IAE26_nE",
+          "title": "Am I a Dreamer",
+          "channel": "Kelly Groucutt - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-have-you-ever-seen-the-rain",
+      "query": "Creedence Clearwater Revival Have You Ever Seen the Rain",
+      "selectedVideoId": "JKES3yfnD9U",
+      "selectedTitle": "Creedence Clearwater Revival - Have You Ever Seen The Rain (Official Audio)",
+      "channel": "Creedence Clearwater Revival",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6NXnxTNIWkc",
+          "title": "4 Non Blondes - What's Up (Official Music Video)",
+          "channel": "4NonBlondesVEVO",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "creedence-clearwater-revival-have-you-ever-seen-the-rain",
+        "videoId": "JKES3yfnD9U",
+        "title": "Have You Ever Seen the Rain",
+        "artist": "Creedence Clearwater Revival",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:32:25.828Z"
+      }
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-proud-mary",
+      "query": "Creedence Clearwater Revival Proud Mary",
+      "selectedVideoId": "8quvq_GFEbQ",
+      "selectedTitle": "Creedence Clearwater Revival - Proud Mary (Official Audio)",
+      "channel": "Creedence Clearwater Revival",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6NXnxTNIWkc",
+          "title": "4 Non Blondes - What's Up (Official Music Video)",
+          "channel": "4NonBlondesVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "MqoAwtgFziA",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "bO28lB1uwp4",
+          "title": "Creedence Clearwater Revival - Have You Ever Seen The Rain",
+          "channel": "Creedence Clearwater Revival",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-down-on-the-corner",
+      "query": "Creedence Clearwater Revival Down on the Corner",
+      "selectedVideoId": "YbvdHHcjMbE",
+      "selectedTitle": "Creedence Clearwater Revival - Down On The Corner (Official Audio)",
+      "channel": "Creedence Clearwater Revival",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6NXnxTNIWkc",
+          "title": "4 Non Blondes - What's Up (Official Music Video)",
+          "channel": "4NonBlondesVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "3GaE_X5k3iE",
+          "title": "John Fogerty (CCR) and Brad Paisley play \"Bad Moon Rising\" on Jimmy Kimmel LIVE",
+          "channel": "John Fogerty",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-up-around-the-bend",
+      "query": "Creedence Clearwater Revival Up Around the Bend",
+      "selectedVideoId": "dgah45hZZhY",
+      "selectedTitle": "Creedence Clearwater Revival - Up Around The Bend (Official Audio)",
+      "channel": "Creedence Clearwater Revival",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Aae_RHRptRg",
+          "title": "Creedence Clearwater Revival - Lookin' Out My Back Door",
+          "channel": "CCRVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "EYGhn--fbiM",
+          "title": "Good Morning VIETNAM  Creedence Clearwater Revival",
+          "channel": "Thomas E. Hartung American Legion Post 1977",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-lookin-out-my-back-door",
+      "query": "Creedence Clearwater Revival Lookin' Out My Back Door",
+      "selectedVideoId": "YMpd3uFWImQ",
+      "selectedTitle": "Creedence Clearwater Revival - Lookin' Out My Back Door (Official Audio)",
+      "channel": "Creedence Clearwater Revival",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "XzNV27eRaVE",
+          "title": "The Old Man Down The Road",
+          "channel": "John Fogerty - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "lynyrd-skynyrd-sweet-home-alabama",
+      "query": "Lynyrd Skynyrd Sweet Home Alabama",
+      "selectedVideoId": "SQjQrYWrtFw",
+      "selectedTitle": "Lynyrd Skynyrd – Sweet Home Alabama (Live From CMA Fest 2024)",
+      "channel": "Lynyrd Skynyrd",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "lyUhqSW1YIo",
+          "title": "Billy Powell Piano Improvisation HD 1999 [Live Video]",
+          "channel": "Piero Basile",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "HbAZtQXGPkc",
+          "title": "LYNYRD SKYNYRD THEN VS NOW",
+          "channel": "Nowstalgia VT",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-doobie-brothers-long-train-runnin",
+      "query": "The Doobie Brothers Long Train Runnin'",
+      "selectedVideoId": "zpP4ytpunoY",
+      "selectedTitle": "Long Train Runnin’",
+      "channel": "The Doobie Brothers - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "abggqSd1VUg",
+          "title": "So Wrong",
+          "channel": "Patrick Simmons - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Kc3iNFNKE2k",
+          "title": "The Doobie Brothers - Long Time Runnin' | Lyrics",
+          "channel": "Rock Overdrive",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-doobie-brothers-listen-to-the-music",
+      "query": "The Doobie Brothers Listen to the Music",
+      "selectedVideoId": "nbVE-1rHyVY",
+      "selectedTitle": "The Doobie Brothers - Listen To The Music (Official Audio)",
+      "channel": "The Doobie Brothers",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "DsXfuJF789E",
+          "title": "Where Are You Tonight?",
+          "channel": "Tom Johnston - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "BhZTsfk5FKk",
+          "title": "Doobie Brothers = Ouça a música = LEGENDADO PORTUGUÊS",
+          "channel": "MACHADOLETTERS",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-doobie-brothers-what-a-fool-believes",
+      "query": "The Doobie Brothers What a Fool Believes",
+      "selectedVideoId": "qKYQNtF11eg",
+      "selectedTitle": "The Doobie Brothers - What A Fool Believes (Official Music Video) [HD]",
+      "channel": "The Doobie Brothers",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "DsXfuJF789E",
+          "title": "Where Are You Tonight?",
+          "channel": "Tom Johnston - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "steely-dan-reelin-in-the-years",
+      "query": "Steely Dan Reelin' in the Years",
+      "selectedVideoId": "91XTZ92zs2w",
+      "selectedTitle": "Reelin' In The Years",
+      "channel": "Steely Dan - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "2tRG4pTtitA",
+          "title": "Elliott Randall - Randall's Island 1970 (FULL ALBUM) [Blues Rock]",
+          "channel": "John King",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-dont-stop-me-now",
+      "query": "Queen Don't Stop Me Now",
+      "selectedVideoId": "HgzGwKwLmgM",
+      "selectedTitle": "Queen - Don't Stop Me Now (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "YJ105oW5gns",
+          "title": "We Will Rock You (HD) - Axl Rose / Queen",
+          "channel": "LO5VAGOS",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "uAvG-unHcwM",
+          "title": "he sang this Queen song like he was the frontman! ✨",
+          "channel": "Mic Drop!",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "queen-dont-stop-me-now",
+        "videoId": "HgzGwKwLmgM",
+        "title": "Don't Stop Me Now",
+        "artist": "Queen",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:32:40.857Z"
+      }
+    },
+    {
+      "catalogId": "queen-crazy-little-thing-called-love",
+      "query": "Queen Crazy Little Thing Called Love",
+      "selectedVideoId": "zO6D_BAuYCI",
+      "selectedTitle": "Queen - Crazy Little Thing Called Love (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "fNQfSxdAebg",
+          "title": "The Best of Queen Rock Songs (10 Lagu Terbaik) | Cover by VioRockestra",
+          "channel": "VioRockestra",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-another-one-bites-the-dust",
+      "query": "Queen Another One Bites the Dust",
+      "selectedVideoId": "rY0WxgSXdEE",
+      "selectedTitle": "Queen - Another One Bites the Dust (Official Video Remastered)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "quNio5RnjrA",
+          "title": "Bohemian Rhapsody - Queen - Guitar Instrumental Cover + Tab",
+          "channel": "gitar online",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-under-pressure",
+      "query": "Queen Under Pressure",
+      "selectedVideoId": "a01QQZyl-_I",
+      "selectedTitle": "Queen and David Bowie - Under Pressure (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "t365MuktYQs",
+          "title": "David Bowie - Starman (Official Video) [4K]",
+          "channel": "David Bowie",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-radio-ga-ga",
+      "query": "Queen Radio Ga Ga",
+      "selectedVideoId": "azdwsXLmrHE",
+      "selectedTitle": "Queen - Radio Ga Ga (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "fNQfSxdAebg",
+          "title": "The Best of Queen Rock Songs (10 Lagu Terbaik) | Cover by VioRockestra",
+          "channel": "VioRockestra",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-i-want-to-break-free",
+      "query": "Queen I Want to Break Free",
+      "selectedVideoId": "f4Mc-NYPHaQ",
+      "selectedTitle": "Queen - I Want To Break Free (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "fJ9rUzIMcZQ",
+          "title": "Queen – Bohemian Rhapsody (Official Video Remastered)",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "gkHz9hedyp4",
+          "title": "It’s been five years and we’re still amazed by the accuracy 🤩 #BohemianRhapsody #shorts",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-a-kind-of-magic",
+      "query": "Queen A Kind of Magic",
+      "selectedVideoId": "0p_1QSUsbsM",
+      "selectedTitle": "Queen - A Kind of Magic (Official Video Remastered)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "hFDcoX7s6rE",
+          "title": "Queen - I Want It All (Official Video Remastered)",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "2xlDLdjmL2E",
+          "title": "One Vision",
+          "channel": "Queen - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "queen-youre-my-best-friend",
+      "query": "Queen You're My Best Friend",
+      "selectedVideoId": "HaZpZQG2z10",
+      "selectedTitle": "Queen - You're My Best Friend (Official Video)",
+      "channel": "Queen Official",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "FOciDaYq_PM",
+          "title": "Roger Taylor - These Are The Days Of Our Lives (Radio 2 House Music)",
+          "channel": "BBC Music",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Wd3VPB8YFB8",
+          "title": "Send this to your best friend x #queen #shorts",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "4kKn1vLuyL0",
+          "title": "It's #NationalBestFriendsDay, we know ours, tag yours ❤️ #shorts #queen",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "5ke0o-2VbgE",
+          "title": "Welcome to the besties club! 🫰 #queen #shorts",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "uxrT29t5opI",
+          "title": "Your My Best friend : Queen",
+          "channel": "Король и Шут ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "yKu6Qotns-g",
+          "title": "An iconic studio session for an iconic birthday 🎉🎸 #johndeacon #queen",
+          "channel": "Queen Official",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Wm30I-lcqgE",
+          "title": "You Are My Closest Friend | Hurrem The Queen #shorts",
+          "channel": "Hurrem the Queen",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "simple-minds-dont-you-forget-about-me",
+      "query": "Simple Minds Don't You (Forget About Me)",
+      "selectedVideoId": "z8v84520W6s",
+      "selectedTitle": "Don't You (Forget About Me)",
+      "channel": "Simple Minds - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "ZsNf25mBXcg",
+          "title": "\" Book of brilliant things \" - Simple Minds cover by City Of light",
+          "channel": "City Of Light - A Tribute to Simple Minds",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "tears-for-fears-everybody-wants-to-rule-the-world",
+      "query": "Tears for Fears Everybody Wants to Rule the World",
+      "selectedVideoId": "T54cJGJcZ1Y",
+      "selectedTitle": "Everybody Wants To Rule The World – Official Archive Footage Music Video pt 2",
+      "channel": "Tears For Fears",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "djV11Xbc914",
+          "title": "a-ha - Take On Me (Official Video) [4K]",
+          "channel": "a-ha",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "tears-for-fears-head-over-heels",
+      "query": "Tears for Fears Head Over Heels",
+      "selectedVideoId": "luOwnc5bqho",
+      "selectedTitle": "Head Over Heels",
+      "channel": "Tears For Fears - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "cIYxWh4tD4U",
+          "title": "Mad World-  instrumental cover by Mark Allen",
+          "channel": "artfrob",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "yrh9UJFbVoc",
+          "title": "Top 10 Tears for Fears Songs from the 80s 🎧🔥",
+          "channel": "80s Retro Music",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "a-ha-take-on-me",
+      "query": "A-ha Take on Me",
+      "selectedVideoId": "djV11Xbc914",
+      "selectedTitle": "a-ha - Take On Me (Official Video) [4K]",
+      "channel": "a-ha",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "aPgl8oESTls",
+          "title": "you won (and then some)",
+          "channel": "Magne Furuholmen - Topic",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "a-ha-take-on-me",
+        "videoId": "djV11Xbc914",
+        "title": "Take on Me",
+        "artist": "A-ha",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:32:55.884Z"
+      }
+    },
+    {
+      "catalogId": "a-ha-the-sun-always-shines-on-tv",
+      "query": "A-ha The Sun Always Shines on T.V.",
+      "selectedVideoId": "a3ir9HC9vYg",
+      "selectedTitle": "a-ha - The Sun Always Shines on T.V. (Official Video)",
+      "channel": "a-ha",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "hhBNnkuj7Bo",
+          "title": "Can't Take My Eyes Off You",
+          "channel": "Morten Harket - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "tbzswAjzUps",
+          "title": "A HA - SUN ALWAYS SHINE ON TV  UNPLUGGED (Lyrics)",
+          "channel": "JeffStephen02",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "P6wagd8JUpc",
+          "title": "a-ha - The Sun Always Shine on TV (Tradução) (Legendado) (Clipe Oficial)",
+          "channel": "Max Legendas",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-cars-drive",
+      "query": "The Cars Drive",
+      "selectedVideoId": "cAxA-okbK_Q",
+      "selectedTitle": "Drive (2017 Remaster)",
+      "channel": "The Cars - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "B-KnA0vEXGI",
+          "title": "Good Times Roll by The Cars - Bass Cover with Tabs Play-Along",
+          "channel": "Brand73",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-cars-you-might-think",
+      "query": "The Cars You Might Think",
+      "selectedVideoId": null,
+      "selectedTitle": null,
+      "channel": null,
+      "exists": false,
+      "embeddable": false,
+      "playConfirmed": false,
+      "validatedAt": null,
+      "validationStatus": "PENDING",
+      "rejectedCandidates": [
+        {
+          "videoId": "E0Kv6vxZwL8",
+          "title": "The Cars - Magic (Official Music Video)",
+          "channel": "RHINO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "p8fQBllthpM",
+          "title": "THE CARS 🫣 #shorts #cars @TOYXTA45",
+          "channel": "TOYXTA ",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "HDbP42OBSFU",
+          "title": "The Song That Launched The Cars! #thecars #rockmusic #newwave",
+          "channel": "Retro Groove Radio",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "G5kI8tV2T2o",
+          "title": "Top 5 Most Viewed The Cars Songs",
+          "channel": "Rock & Metal Rankings",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Ek-owQIraFc",
+          "title": "The Cars - Five Biggest Hot 100 Hits #thecars #80smusic",
+          "channel": "Chart Chat with Davey M",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "lt2X8xUl1qk",
+          "title": "The Cars- You Might Think (Official Music Video)",
+          "channel": "ONLY_CARS_040",
+          "reason": "low_confidence_channel"
+        }
+      ],
+      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload."
+    },
+    {
+      "catalogId": "bryan-adams-summer-of-69",
+      "query": "Bryan Adams Summer of '69",
+      "selectedVideoId": "9f06QZCVUHg",
+      "selectedTitle": "Bryan Adams - Summer Of 69 (Official Music Video)",
+      "channel": "Bryan Adams",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Y0pdQU87dc8",
+          "title": "Bryan Adams - (Everything I Do) I Do It For You",
+          "channel": "Bryan Adams",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "bryan-adams-summer-of-69",
+        "videoId": "9f06QZCVUHg",
+        "title": "Summer of '69",
+        "artist": "Bryan Adams",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:33:10.906Z"
+      }
+    },
+    {
+      "catalogId": "bryan-adams-run-to-you",
+      "query": "Bryan Adams Run to You",
+      "selectedVideoId": "_g2g2v4QiZM",
+      "selectedTitle": "Bryan Adams - Run To You (Classic Version)",
+      "channel": "Bryan Adams",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Y0pdQU87dc8",
+          "title": "Bryan Adams - (Everything I Do) I Do It For You",
+          "channel": "Bryan Adams",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "9EHAo6rEuas",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "ybj9Kaktea4",
+          "title": "Back To You (MTV Unplugged)",
+          "channel": "Bryan Adams - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "bryan-adams-heaven",
+      "query": "Bryan Adams Heaven",
+      "selectedVideoId": "3eT464L1YRA",
+      "selectedTitle": "Bryan Adams - Heaven (Official Music Video)",
+      "channel": "Bryan Adams",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Y0pdQU87dc8",
+          "title": "Bryan Adams - (Everything I Do) I Do It For You",
+          "channel": "Bryan Adams",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "p4ELdp8lOKQ",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "9EHAo6rEuas",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "2i17P4_PrqU",
+          "title": "Bryan Adams Through The Years 🔥 The Evolution of a Rock Legend",
+          "channel": "9 Ninerecords",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "sjRlVjOZsGI",
+          "title": "Cuts Like A Knife (Classic Version)",
+          "channel": "Bryan Adams - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "huey-lewis-and-the-news-the-power-of-love",
+      "query": "Huey Lewis and the News The Power of Love",
+      "selectedVideoId": "wBl2QGAIx1s",
+      "selectedTitle": "Huey Lewis & The News - The Power Of Love (Official Music Video)",
+      "channel": "HueyLewisTheNewsVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "qcc8bzAiJXM",
+          "title": "Gwyneth Paltrow - Cruisin' (Lyrics) ft. Huey Lewis",
+          "channel": "DARKCLOUD MUSIC",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "z8rZ_iS2vX8",
+          "title": "The Heart Of Rock & Roll (Single Edit)",
+          "channel": "Huey Lewis & The News - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "0PhqlB-uTX8",
+          "title": "I Want A New Drug",
+          "channel": "Huey Lewis & The News - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "huey-lewis-and-the-news-stuck-with-you",
+      "query": "Huey Lewis and the News Stuck with You",
+      "selectedVideoId": "UhSZfc4l2yg",
+      "selectedTitle": "Stuck With You (Single Edit)",
+      "channel": "Huey Lewis & The News - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "qcc8bzAiJXM",
+          "title": "Gwyneth Paltrow - Cruisin' (Lyrics) ft. Huey Lewis",
+          "channel": "DARKCLOUD MUSIC",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "V0zlxWvoToo",
+          "title": "Donald Fagen song that inspired this Huey Lewis HIT 🎯",
+          "channel": "Vertex Effects",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "G_I9D6ug7iE",
+          "title": "Huey thanks the Music Supervisor of \"Deadpool & Wolverine\".",
+          "channel": "hueylewisofficial",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "WJHu0-sscFY",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "rick-springfield-jessies-girl",
+      "query": "Rick Springfield Jessie's Girl",
+      "selectedVideoId": "qYkbTyHXwbs",
+      "selectedTitle": "Rick Springfield - Jessie's Girl (Official Video)",
+      "channel": "RickSpringfieldVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "lDK9QqIzhwk",
+          "title": "Bon Jovi - Livin' On A Prayer",
+          "channel": "BonJoviVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "mlO0qNjQTRU",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "HmOr3AYhjeE",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "fXO3cnuQzD0",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "john-mellencamp-jack-and-diane",
+      "query": "John Mellencamp Jack & Diane",
+      "selectedVideoId": "h04CH9YZcpI",
+      "selectedTitle": "John Mellencamp - Jack & Diane (Official Music Video)",
+      "channel": "JohnMellencampVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "g_9rnnkRX0g",
+          "title": "Hurts So Good",
+          "channel": "John Mellencamp - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "1lWJXDG2i0A",
+          "title": "Tom Petty - Free Fallin'",
+          "channel": "TomPettyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "iUH6p4MxofU",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "john-mellencamp-hurts-so-good",
+      "query": "John Mellencamp Hurts So Good",
+      "selectedVideoId": "4dOsbsuhYGQ",
+      "selectedTitle": "John Mellencamp - Hurts So Good (Official Music Video)",
+      "channel": "JohnMellencampVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Lo2qQmj0_h4",
+          "title": "AC/DC - You Shook Me All Night Long (Official 4K Video)",
+          "channel": "acdcVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "billy-idol-dancing-with-myself",
+      "query": "Billy Idol Dancing with Myself",
+      "selectedVideoId": "cniSxTAbuco",
+      "selectedTitle": "Dancing with Myself (2001 Remaster)",
+      "channel": "Billy Idol - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "VgNX-4UojK8",
+          "title": "Billy Idol - Eyes Without a Face (Tradução/Legendado)",
+          "channel": "Dona Legendas",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "gzTWw6_Sx1k",
+          "title": "The Rebel Is Still Rocking!🔥🤘#billyidol #legend #rock #music #rockstar #80s #90s #rocknroll #popular",
+          "channel": "SonicUnion",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "wUxi3ax_P0Y",
+          "title": "Everyone was impressed with Billy Idol's new outfit #billyidol #generationx #80s #monkband",
+          "channel": "monkband world tour",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "4iCb6Sfqp90",
+          "title": "Billy Idol 🤘 | Artist Spotlight | Retro Rock Legend #shorts",
+          "channel": "Retro Vinyl Spin",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "billy-idol-eyes-without-a-face",
+      "query": "Billy Idol Eyes Without a Face",
+      "selectedVideoId": "G_GxaoOJFTY",
+      "selectedTitle": "Eyes Without A Face (Remastered 1999)",
+      "channel": "Billy Idol - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "wUxi3ax_P0Y",
+          "title": "Everyone was impressed with Billy Idol's new outfit #billyidol #generationx #80s #monkband",
+          "channel": "monkband world tour",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "znDgBy2mHbc",
+          "title": "Tears For Fears - Everybody Wants To Rule The World (Official Archive Video)",
+          "channel": "TearsForFearsVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "bon-jovi-you-give-love-a-bad-name",
+      "query": "Bon Jovi You Give Love a Bad Name",
+      "selectedVideoId": "KrZHPOeOxQQ",
+      "selectedTitle": "Bon Jovi - You Give Love A Bad Name",
+      "channel": "BonJoviVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "M7w0U1kTFV0",
+          "title": "Richie Sambora - Stranger In This Town",
+          "channel": "RichieSamboraVEVO",
+          "reason": "title_mismatch"
+        }
+      ],
+      "replacementReason": "Replaced low-quality search candidate with BonJoviVEVO oEmbed candidate."
+    },
+    {
+      "catalogId": "bon-jovi-wanted-dead-or-alive",
+      "query": "Bon Jovi Wanted Dead or Alive",
+      "selectedVideoId": "SRvCvsRp5ho",
+      "selectedTitle": "Bon Jovi - Wanted Dead Or Alive (Official Music Video)",
+      "channel": "BonJoviVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "M7w0U1kTFV0",
+          "title": "Richie Sambora - Stranger In This Town",
+          "channel": "RichieSamboraVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "bon-jovi-its-my-life",
+      "query": "Bon Jovi It's My Life",
+      "selectedVideoId": "vx2u5uUu3DE",
+      "selectedTitle": "Bon Jovi - It's My Life (Official Music Video)",
+      "channel": "BonJoviVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "lDK9QqIzhwk",
+          "title": "Bon Jovi - Livin' On A Prayer",
+          "channel": "BonJoviVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "Z1d3u1iB9lU",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "bon-jovi-always",
+      "query": "Bon Jovi Always",
+      "selectedVideoId": "9BMwcO6_hyA",
+      "selectedTitle": "Bon Jovi - Always (Official Music Video)",
+      "channel": "BonJoviVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "8SbUC-UaAxE",
+          "title": "Guns N' Roses - November Rain",
+          "channel": "GunsNRosesVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "aerosmith-dream-on",
+      "query": "Aerosmith Dream On",
+      "selectedVideoId": "kR4zpS-ky9o",
+      "selectedTitle": "Aerosmith - Dream On (Lyric Video)",
+      "channel": "AerosmithVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [],
+      "playValidation": {
+        "catalogId": "aerosmith-dream-on",
+        "videoId": "kR4zpS-ky9o",
+        "title": "Dream On",
+        "artist": "Aerosmith",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:33:25.947Z"
+      }
+    },
+    {
+      "catalogId": "aerosmith-i-dont-want-to-miss-a-thing",
+      "query": "Aerosmith I Don't Want to Miss a Thing",
+      "selectedVideoId": "JkK8g6FMEXE",
+      "selectedTitle": "Aerosmith - I Don't Want to Miss a Thing (Official HD Video)",
+      "channel": "AerosmithVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "6NXnxTNIWkc",
+          "title": "4 Non Blondes - What's Up (Official Music Video)",
+          "channel": "4NonBlondesVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "ujMxXOHJloI",
+          "title": "Aerosmith - I Don't Wanna Miss a Thing - Armageddon - Original Soundtrack | SPOILER ALERT!",
+          "channel": "Niche Films",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "73cWfFEKAfE",
+          "title": "Aerosmith: I don't wanna miss a thing -Armageddon soundtrack",
+          "channel": "Kata Szokola",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "8SbUC-UaAxE",
+          "title": "Guns N' Roses - November Rain",
+          "channel": "GunsNRosesVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "s9Qc54Jp-6M",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "aerosmith-crazy",
+      "query": "Aerosmith Crazy",
+      "selectedVideoId": "NMNgbISmF4I",
+      "selectedTitle": "Aerosmith - Crazy (Official Music Video)",
+      "channel": "AerosmithVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "8SbUC-UaAxE",
+          "title": "Guns N' Roses - November Rain",
+          "channel": "GunsNRosesVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "qfNmyxV2Ncw",
+          "title": "Aerosmith - Cryin' (Official Music Video)",
+          "channel": "AerosmithVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "_K5gCGpcddQ",
+          "title": "Aerosmith - Cryin'",
+          "channel": "AerosmithVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "van-halen-jump",
+      "query": "Van Halen Jump",
+      "selectedVideoId": "SwYN7mTi6HM",
+      "selectedTitle": "Van Halen - Jump (Official Music Video) [HD]",
+      "channel": "Van Halen",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "8RAOKfB2LCw",
+          "title": "Your Love Is Driving Me Crazy",
+          "channel": "Sammy Hagar - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "lDK9QqIzhwk",
+          "title": "Bon Jovi - Livin' On A Prayer",
+          "channel": "BonJoviVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "1uF5xMhfp1c",
+          "title": "Van Halen - Poundcake (Official Music Video) [HD]",
+          "channel": "Van Halen",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "fuKDBPw8wQA",
+          "title": "Van Halen - Panama (Official Music Video)",
+          "channel": "Van Halen",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "_Kh_AGh3Gqs",
+          "title": "Van Halen - Can't Stop Lovin' You (Official Music Video) [HD]",
+          "channel": "Van Halen",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "van-halen-jump",
+        "videoId": "SwYN7mTi6HM",
+        "title": "Jump",
+        "artist": "Van Halen",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:33:40.972Z"
+      }
+    },
+    {
+      "catalogId": "van-halen-why-cant-this-be-love",
+      "query": "Van Halen Why Can't This Be Love",
+      "selectedVideoId": "IONcKbWeyQM",
+      "selectedTitle": "Van Halen - Why Can't This Be Love [Official Video]",
+      "channel": "Van Halen",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "lfrjWFhOlEo",
+          "title": "REUPLOAD - R U Ready 4 Ze New World Order Klaus Schwab Deepfake Music Video by Michael Anthony",
+          "channel": "Daroach",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "heart-barracuda",
+      "query": "Heart Barracuda",
+      "selectedVideoId": "VdOkQ6THDVw",
+      "selectedTitle": "Heart - Barracuda (Official Audio)",
+      "channel": "HeartVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "tG9rmi0GVEU",
+          "title": "Alone - Heart (Karaoke) 🎤",
+          "channel": "Relax Vibes",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "heart-alone",
+      "query": "Heart Alone",
+      "selectedVideoId": "1Cw1ng75KP0",
+      "selectedTitle": "Heart - Alone",
+      "channel": "HeartVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "My5yeiAoKYQ",
+          "title": "Ann Wilson | Nothing But Love | Official Music Video",
+          "channel": "Ann Wilson of Heart",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "YB2Wz7TCno8",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "joan-jett-and-the-blackhearts-i-love-rock-n-roll",
+      "query": "Joan Jett & the Blackhearts I Love Rock 'n Roll",
+      "selectedVideoId": "wMsazR6Tnf8",
+      "selectedTitle": "\"I Love Rock 'n' Roll\" - Joan Jett & the Blackhearts (Official Video)",
+      "channel": "Joan Jett and the Blackhearts",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "UytCvjEFtPs",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "bpNw7jYkbVc",
+          "title": "Joan Jett & the Blackhearts - I Hate Myself For Loving You (Official Video)",
+          "channel": "JoanJettVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "scLhbjhLErs",
+          "title": "Joan Jett & The Blackhearts - (I'm Gonna) Run Away",
+          "channel": "David Rolfe's Rock & Metal Channel.",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "zVtY8BY0IkY",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ]
+    },
+    {
+      "catalogId": "pat-benatar-hit-me-with-your-best-shot",
+      "query": "Pat Benatar Hit Me with Your Best Shot",
+      "selectedVideoId": "0JRgHol94Xc",
+      "selectedTitle": "Pat Benatar - Hit Me With Your Best Shot (Live) (Official Music Video)",
+      "channel": "PatBenatarVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "s4627ZUHV6M",
+          "title": "VIDEO Eddie Schwartz   Special Girl",
+          "channel": "survivor1978",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-police-every-breath-you-take",
+      "query": "The Police Every Breath You Take",
+      "selectedVideoId": "OMOGaugKpzs",
+      "selectedTitle": "The Police - Every Breath You Take (Official Music Video)",
+      "channel": "ThePoliceVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "djV11Xbc914",
+          "title": "a-ha - Take On Me (Official Video) [4K]",
+          "channel": "a-ha",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "the-police-every-breath-you-take",
+        "videoId": "OMOGaugKpzs",
+        "title": "Every Breath You Take",
+        "artist": "The Police",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:33:55.994Z"
+      }
+    },
+    {
+      "catalogId": "the-police-message-in-a-bottle",
+      "query": "The Police Message in a Bottle",
+      "selectedVideoId": "MbXWrmQW-OE",
+      "selectedTitle": "The Police - Message In A Bottle (Official Music Video)",
+      "channel": "ThePoliceVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "DY4PAf81_Iw",
+          "title": "Carry Me Back Home",
+          "channel": "Andy Summers - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-police-every-little-thing-she-does-is-magic",
+      "query": "The Police Every Little Thing She Does Is Magic",
+      "selectedVideoId": "aENX1Sf3fgQ",
+      "selectedTitle": "The Police - Every Little Thing She Does Is Magic (Official Music Video)",
+      "channel": "ThePoliceVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "J7uLGRume5A",
+          "title": "Spyro 1 Main Theme (Orbit)",
+          "channel": "Stewart Copeland - Topic",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "1MBkgfawFas",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "OMOGaugKpzs",
+          "title": "The Police - Every Breath You Take (Official Music Video)",
+          "channel": "ThePoliceVEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "u2-with-or-without-you",
+      "query": "U2 With or Without You",
+      "selectedVideoId": "ujNeHIo7oTE",
+      "selectedTitle": "U2 - With Or Without You (Official Music Video)",
+      "channel": "U2VEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "x9VzSBxN9rA",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "PwNAeCZArew",
+          "title": "Sing 2 (2021) - I Still Haven't Found What I'm Looking For Scene | Movieclips",
+          "channel": "Movieclips",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "e3-5YC_oHjE",
+          "title": "U2 - I Still Haven't Found What I'm Looking For (Official Music Video)",
+          "channel": "U2VEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "SXSg_fHybe4",
+          "reason": "not_found",
+          "httpStatus": 401
+        }
+      ],
+      "playValidation": {
+        "catalogId": "u2-with-or-without-you",
+        "videoId": "ujNeHIo7oTE",
+        "title": "With or Without You",
+        "artist": "U2",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:34:11.015Z"
+      }
+    },
+    {
+      "catalogId": "u2-beautiful-day",
+      "query": "U2 Beautiful Day",
+      "selectedVideoId": "co6WMzDOh1o",
+      "selectedTitle": "U2 - Beautiful Day (Official Music Video)",
+      "channel": "U2VEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "EzeDqRhM09w",
+          "title": "U2 - With or Without you - lyrics",
+          "channel": "Shorty91",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "u2-where-the-streets-have-no-name",
+      "query": "U2 Where the Streets Have No Name",
+      "selectedVideoId": "GzZWSrr5wFI",
+      "selectedTitle": "U2 - Where The Streets Have No Name (Official Music Video)",
+      "channel": "U2VEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "e3-5YC_oHjE",
+          "title": "U2 - I Still Haven't Found What I'm Looking For (Official Music Video)",
+          "channel": "U2VEVO",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "rem-man-on-the-moon",
+      "query": "R.E.M. Man on the Moon",
+      "selectedVideoId": "i2D9bDbbMeY",
+      "selectedTitle": "Man On The Moon",
+      "channel": "R.E.M. - Topic",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "EALitoix4Qg",
+          "title": "R.E.M - Losing My Religion | Cover en Español |",
+          "channel": "Chamo Covers",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "k_JnCWT-_O8",
+          "title": "R.E.M. - The Great Beyond (Official Music Video)",
+          "channel": "remhq",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "-UE7tXDKIus",
+          "title": "R.E.M. - Drive (Official HD Music Video)",
+          "channel": "remhq",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "rem-the-one-i-love",
+      "query": "R.E.M. The One I Love",
+      "selectedVideoId": "j7oQEPfe-O8",
+      "selectedTitle": "R.E.M. - The One I Love (Official Music Video)",
+      "channel": "REMVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "jO9FkcGKwbI",
+          "title": "Losing My Religion by R.E.M. (Cover by Novel)",
+          "channel": "Novel",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "0DF4PrRcHz8",
+          "title": "The Evolution of Michael Stipe #rem",
+          "channel": "Before and Beyond",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "fmKs81C_96g",
+          "reason": "not_found",
+          "httpStatus": 401
+        },
+        {
+          "videoId": "Fqx6OrXf0b4",
+          "title": "U2 and R.E.M - One",
+          "channel": "Leonardo Marks",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-cranberries-dreams",
+      "query": "The Cranberries Dreams",
+      "selectedVideoId": "Yam5uK6e-bQ",
+      "selectedTitle": "The Cranberries - Dreams (Dir: Peter Scammell) (Official Music Video)",
+      "channel": "TheCranberriesVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "9noKzZk2mjU",
+          "title": "Zombie คำอ่านไทย+แปลไทย",
+          "channel": "พนาเวทย์ พนมวัลย์",
+          "reason": "title_mismatch"
+        }
+      ]
+    },
+    {
+      "catalogId": "the-cranberries-linger",
+      "query": "The Cranberries Linger",
+      "selectedVideoId": "G6Kspj3OO0s",
+      "selectedTitle": "The Cranberries - Linger (4K Official Music Video)",
+      "channel": "TheCranberriesVEVO",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "8xtQBZHmi7M",
+          "title": "Zombie – The Cranberries | Powerful Rock Metal Cover",
+          "channel": "Vyrith",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "the-cranberries-linger",
+        "videoId": "G6Kspj3OO0s",
+        "title": "Linger",
+        "artist": "The Cranberries",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:34:26.040Z"
+      }
+    },
+    {
+      "catalogId": "the-cure-friday-im-in-love",
+      "query": "The Cure Friday I'm in Love",
+      "selectedVideoId": "8AEgojGUBW8",
+      "selectedTitle": "THE CURE - FRIDAY I'M IN LOVE (OPEN'ER FESTIVAL 2026)",
+      "channel": "The Cure",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "n3nPiBai66M",
+          "title": "The Cure - Just Like Heaven",
+          "channel": "TheCureVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "V-IODSyHdZ4",
+          "title": "Robert Smith & Mary Poole Wedding - 36 years - The Cure #thecure",
+          "channel": "Professor Estrada, History of the Americas",
+          "reason": "title_mismatch"
+        }
+      ],
+      "playValidation": {
+        "catalogId": "the-cure-friday-im-in-love",
+        "videoId": "8AEgojGUBW8",
+        "title": "Friday I'm in Love",
+        "artist": "The Cure",
+        "playConfirmed": false,
+        "state": "init",
+        "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+        "validatedAt": "2026-08-26T02:34:41.061Z"
+      }
+    },
+    {
+      "catalogId": "tom-petty-i-wont-back-down",
+      "query": "Tom Petty I Won't Back Down",
+      "selectedVideoId": "uh0-OMx9K3I",
+      "selectedTitle": "Tom Petty & The Heartbreakers - I Won't Back Down (Live at the Fillmore, 1997) [Official Audio]",
+      "channel": "Tom Petty & The Heartbreakers",
+      "exists": true,
+      "embeddable": true,
+      "playConfirmed": false,
+      "validatedAt": "2026-08-26T02:11:53.894Z",
+      "validationStatus": "CLEAR_OEMBED",
+      "rejectedCandidates": [
+        {
+          "videoId": "Y1D3a5eDJIs",
+          "title": "Tom Petty And The Heartbreakers - Runnin' Down A Dream (Official Music Video)",
+          "channel": "TomPettyVEVO",
+          "reason": "title_mismatch"
+        },
+        {
+          "videoId": "YHn6S3tdpeQ",
+          "title": "Won’t Back Down",
+          "channel": "Sam Elliott - Topic",
+          "reason": "title_mismatch"
+        }
+      ]
+    }
+  ],
+  "samplePlayConfirmed": 0,
+  "sampleSize": 16,
+  "samplePlayingResults": [
+    {
+      "catalogId": "eagles-hotel-california",
+      "videoId": "09839DpTctU",
+      "title": "Hotel California",
+      "artist": "Eagles",
+      "playConfirmed": false,
+      "state": "error",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:30:55.645Z"
+    },
+    {
+      "catalogId": "dire-straits-sultans-of-swing",
+      "videoId": "MMFSLGq1wrQ",
+      "title": "Sultans of Swing",
+      "artist": "Dire Straits",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:31:10.725Z"
+    },
+    {
+      "catalogId": "boston-more-than-a-feeling",
+      "videoId": "t4QK8RxCAwo",
+      "title": "More Than a Feeling",
+      "artist": "Boston",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:31:25.751Z"
+    },
+    {
+      "catalogId": "toto-africa",
+      "videoId": "FTQbiNvZqaY",
+      "title": "Africa",
+      "artist": "Toto",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:31:40.775Z"
+    },
+    {
+      "catalogId": "fleetwood-mac-dreams",
+      "videoId": "Y3ywicffOj4",
+      "title": "Dreams",
+      "artist": "Fleetwood Mac",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:31:55.788Z"
+    },
+    {
+      "catalogId": "supertramp-the-logical-song",
+      "videoId": "kln_bIndDJg",
+      "title": "The Logical Song",
+      "artist": "Supertramp",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:32:10.805Z"
+    },
+    {
+      "catalogId": "creedence-clearwater-revival-have-you-ever-seen-the-rain",
+      "videoId": "JKES3yfnD9U",
+      "title": "Have You Ever Seen the Rain",
+      "artist": "Creedence Clearwater Revival",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:32:25.828Z"
+    },
+    {
+      "catalogId": "queen-dont-stop-me-now",
+      "videoId": "HgzGwKwLmgM",
+      "title": "Don't Stop Me Now",
+      "artist": "Queen",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:32:40.857Z"
+    },
+    {
+      "catalogId": "a-ha-take-on-me",
+      "videoId": "djV11Xbc914",
+      "title": "Take on Me",
+      "artist": "A-ha",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:32:55.884Z"
+    },
+    {
+      "catalogId": "bryan-adams-summer-of-69",
+      "videoId": "9f06QZCVUHg",
+      "title": "Summer of '69",
+      "artist": "Bryan Adams",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:33:10.906Z"
+    },
+    {
+      "catalogId": "aerosmith-dream-on",
+      "videoId": "kR4zpS-ky9o",
+      "title": "Dream On",
+      "artist": "Aerosmith",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:33:25.947Z"
+    },
+    {
+      "catalogId": "van-halen-jump",
+      "videoId": "SwYN7mTi6HM",
+      "title": "Jump",
+      "artist": "Van Halen",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:33:40.972Z"
+    },
+    {
+      "catalogId": "the-police-every-breath-you-take",
+      "videoId": "OMOGaugKpzs",
+      "title": "Every Breath You Take",
+      "artist": "The Police",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:33:55.994Z"
+    },
+    {
+      "catalogId": "u2-with-or-without-you",
+      "videoId": "ujNeHIo7oTE",
+      "title": "With or Without You",
+      "artist": "U2",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:34:11.015Z"
+    },
+    {
+      "catalogId": "the-cranberries-linger",
+      "videoId": "G6Kspj3OO0s",
+      "title": "Linger",
+      "artist": "The Cranberries",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:34:26.040Z"
+    },
+    {
+      "catalogId": "the-cure-friday-im-in-love",
+      "videoId": "8AEgojGUBW8",
+      "title": "Friday I'm in Love",
+      "artist": "The Cure",
+      "playConfirmed": false,
+      "state": "init",
+      "error": "page.waitForFunction: Timeout 15000ms exceeded.",
+      "validatedAt": "2026-08-26T02:34:41.061Z"
+    }
+  ],
+  "lowConfidenceRejected": [
+    "steve-miller-band-fly-like-an-eagle",
+    "the-cars-you-might-think"
+  ]
+}
