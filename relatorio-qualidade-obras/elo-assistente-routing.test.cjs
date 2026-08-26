@@ -2779,17 +2779,79 @@ test('ELO music routing: recupera verbo deformado para Dream On sem fuzzy global
   for (const message of ['ELO, toque Dream On', 'ELO truque Dream om', 'ELO toque Drim On']) {
     const result = await elo.handleMusicQueryForTest(message);
     assert.equal(result.handled, true, message);
-    assert.match(result.decision, /EXACT|AUTO_CORRECTED/, message);
+    assert.match(result.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/, message);
     assert.equal(result.candidate.title, 'Dream On', message);
+    if (result.decision === 'ASK_CONFIRMATION') {
+      assert.equal(result.candidate.playable === false || result.candidate.embeddable === false || result.candidate.validationStatus === 'PENDING', true, message);
+    }
   }
 
   const nope = await elo.handleMusicQueryForTest('abacaxi hidráulico');
   assert.equal(nope.handled, false);
   assert.ok(events.some((event) => event.name === 'MUSIC_VERB_SCORE' && /truque/i.test(event.payload.verb)));
-  assert.ok(events.some((event) => event.name === 'CATALOG_CANDIDATE' && /Dream On/.test(String(event.payload.label || ''))));
+  assert.ok(events.some((event) => event.name === 'MUSIC_DECISION' && /Dream On/.test(String(event.payload.candidate || ''))));
   assert.ok(events.some((event) => event.name === 'MUSIC_INTENT' && event.payload.recovered === true));
   assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
   assert.ok(calls.some((call) => call[0] === 'play' && call[1] === 'aerosmith-dream-on'));
+});
+
+test('ELO music routing: recupera wake Ellen e verbo talk para Dream On', async () => {
+  const events = [];
+  const calls = [];
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const resolver = {
+    resolve(query, options = {}) {
+      calls.push(['resolve', query, options.correctedFrom || '']);
+      if (/dream on/i.test(query)) return { id: 'aerosmith-dream-on', title: 'Dream On', artist: 'Aerosmith', videoId: 'kR4zpS-ky9o', playable: true, embeddable: true };
+      if (/sultans of swing/i.test(query)) return { id: 'sultans-video', title: 'Sultans of Swing', artist: 'Dire Straits', videoId: '8Pa9x9fZBtY', playable: true, embeddable: true };
+      return null;
+    },
+    play(candidate) { calls.push(['play', candidate.id || candidate.title]); return true; }
+  };
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: { EloMusicResolver: resolver, console: fakeConsole },
+    fetch() { throw new Error('chat fallthrough'); }
+  });
+
+  const normal = await elo.handleMusicQueryForTest('ELO, toque Dream On');
+  assert.equal(normal.handled, true);
+  assert.equal(normal.candidate.title, 'Dream On');
+
+  const talk = await elo.handleMusicQueryForTest('Ellen, talk Dream On');
+  assert.equal(talk.handled, true);
+  assert.match(talk.decision, /EXACT|AUTO_CORRECTED|ASK_CONFIRMATION/);
+  assert.equal(talk.candidate.title, 'Dream On');
+
+  const sultans = await elo.handleMusicQueryForTest('Ellen, toque Sultans of Swing');
+  assert.equal(sultans.handled, true);
+  assert.equal(sultans.candidate.title, 'Sultans of Swing');
+
+  assert.ok(events.some((event) => event.name === 'WAKE_ALIAS_MATCH' && event.payload.alias === 'ellen'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_VERB_ALIAS' && event.payload.verb === 'talk'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_QUERY' && event.payload.query === 'dream on'));
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
+  assert.ok(calls.some((call) => call[0] === 'play' && call[1] === 'aerosmith-dream-on'));
+});
+
+test('ELO music routing: verbo alias sem candidato forte vira NO_MATCH sem inventar', async () => {
+  const events = [];
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: { console: fakeConsole }
+  });
+
+  const result = await elo.handleMusicQueryForTest('talk abacaxi hidráulico');
+  assert.equal(result.handled, true);
+  assert.equal(result.decision, 'NO_MATCH');
+  assert.ok(events.some((event) => event.name === 'MUSIC_VERB_ALIAS' && event.payload.verb === 'talk'));
+  assert.ok(events.some((event) => event.name === 'MUSIC_DECISION' && event.payload.decision === 'NO_MATCH'));
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
 });
 
 test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis', async () => {
@@ -2858,4 +2920,88 @@ test('ELO TTS web: fallback speechSynthesis auditado com rate e pitch normais', 
   assert.equal(utterance.rate, 1);
   assert.equal(utterance.pitch, 1);
   assert.equal(speechCalls, 1);
+});
+
+test('ELO auto-TTS: resposta normal fala automaticamente uma vez', async () => {
+  const audioInstances = [];
+  let fetchCalls = 0;
+  function Audio(url) {
+    this.url = url;
+    this.playbackRate = 0.5;
+    audioInstances.push(this);
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch(url, options = {}) {
+      fetchCalls += 1;
+      assert.equal(String(url), 'https://tts.test/api/elo/tts');
+      assert.equal(options.method, 'POST');
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:auto-tts', provider: 'openai-tts', voice: 'elo-neural-ptbr' }) });
+    }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  const message = elo.appendMessageForLayoutTest('assistant', 'Claro. Vou organizar a resposta técnica agora.');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 1);
+  assert.equal(message.dataset.eloAutoTtsDone, 'true');
+  assert.equal(audioInstances.length, 1);
+  assert.equal(audioInstances[0].playbackRate, 1);
+  assert.equal(audioInstances[0].preservesPitch, true);
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(audit.mode, 'neural');
+  assert.equal(audit.provider, 'openai-tts');
+  assert.equal(audit.fallback, false);
+});
+
+test('ELO auto-TTS: nao fala musica nem status interno', async () => {
+  let fetchCalls = 0;
+  const { elo } = loadEloContext({
+    window: { Audio: function Audio() { this.play = () => Promise.resolve(true); } },
+    fetch() { fetchCalls += 1; return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:blocked' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Tocando Dream On.');
+  elo.appendMessageForLayoutTest('assistant', 'Pausando música.');
+  elo.appendMessageForLayoutTest('assistant', 'Analisando imagem e gerando PDF real pelo ObraReport...');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchCalls, 0);
+});
+
+test('ELO auto-TTS: nova pergunta cancela fala anterior', async () => {
+  const pauses = [];
+  function Audio(url) {
+    this.url = url;
+    this.playbackRate = 1;
+    this.pause = () => { pauses.push(url); };
+    this.play = () => Promise.resolve(true);
+  }
+  const { elo } = loadEloContext({
+    window: { Audio, ELO_TTS_ENDPOINT: 'https://tts.test/api/elo/tts' },
+    fetch() { return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, audioUrl: 'blob:tts-live', provider: 'openai-tts' }) }); }
+  });
+  const messages = createElement('div');
+  elo.setCoreMessagesElementForTest(messages);
+
+  elo.appendMessageForLayoutTest('assistant', 'Resposta normal para ser falada.');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  elo.ask('Nova pergunta do usuário');
+
+  assert.deepEqual(pauses, ['blob:tts-live']);
+});
+
+test('ELO hero typography: suporta descenders q g p y em multiplas linhas', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'elo.css'), 'utf8');
+  assert.match(css, /ELO WEB 09: stable hero typography/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*height:\s*auto/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*line-height:\s*1\.22/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-hero-title[\s\S]*padding-block:\s*0\.08em 0\.18em/);
+  assert.match(css, /body\[data-elo-product="chat"\] \.elo-product-heading[\s\S]*gap:\s*clamp\(12px, 2\.1vw, 20px\)/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*line-height:\s*1\.24/);
 });

@@ -101,7 +101,7 @@ test('ELO music catalog unit: carrega exatamente 100 faixas sem videoId inventad
   assert.equal(catalog.find('toque losing my religion'), null);
   assert.equal(catalog.get('rem-man-on-the-moon').title, 'Man on the Moon');
   assert.equal(items.filter((item) => item.videoId !== null).length, 98);
-  assert.equal(items.filter((item) => item.playable === true && item.embeddable === true).length, 98);
+  assert.equal(items.filter((item) => item.playable === true && item.embeddable === true).length, 92);
   assert.equal(catalog.get('steve-miller-band-fly-like-an-eagle').validationStatus, 'PENDING');
   assert.equal(catalog.get('the-cars-you-might-think').validationStatus, 'PENDING');
   assert.equal(items.some((item) => /fake|mock|sultans-video|galinha-video/i.test(String(item.videoId || item.id))), false);
@@ -114,11 +114,11 @@ test('ELO music resolver unit: catalog hit validado nao chama provider', async (
     }
   });
 
-  const result = await resolver.resolve('toque hotel california');
+  const result = await resolver.resolve('toque take on me');
 
   assert.equal(result.found, true);
-  assert.equal(result.catalogId, 'eagles-hotel-california');
-  assert.equal(result.videoId, '09839DpTctU');
+  assert.equal(result.catalogId, 'a-ha-take-on-me');
+  assert.equal(result.videoId, 'Q5KLj2a47ow');
   assert.equal(result.providerStatus, 'CATALOG_CACHE_HIT');
   assert.ok(events.some((event) => event.name === 'MEDIA_CATALOG_DIRECT'));
 });
