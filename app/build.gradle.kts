@@ -17,5 +17,20 @@ android {
         versionCode = 1
         versionName = "0.1"
     }
+
+    testOptions {
+        unitTests.all {
+            val localTestClasses = files(
+                "$buildDir/tmp/kotlin-classes/debugUnitTest",
+                "$buildDir/intermediates/javac/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes"
+            )
+            it.classpath = it.classpath.plus(localTestClasses)
+        }
+    }
+
+
 }
 
+dependencies {
+    testImplementation(kotlin("test-junit"))
+}
