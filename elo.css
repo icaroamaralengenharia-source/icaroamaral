@@ -3412,3 +3412,40 @@ body[data-elo-product="chat"] .elo-empty-copy {
     padding-block: 0.08em 0.2em;
   }
 }
+
+
+/* ELO WEB 10: offline status badge */
+.elo-offline-badge {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 9999;
+  transform: translateX(-50%);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid rgba(32, 48, 66, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.elo-offline-badge[hidden] {
+  display: none;
+}
+
+.elo-offline-badge.is-offline {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: #fff8ed;
+  color: #713f12;
+}
+
+.elo-offline-badge.is-online {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: #effdf4;
+  color: #14532d;
+}

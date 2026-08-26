@@ -7342,6 +7342,10 @@
   // ELO_TRANSPORT_API
   // The backend is the primary answer source. Local fallback only runs when this call is unavailable.
   function requestEloOnlineAnswer(question, attachments) {
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "chat" });
+      return Promise.resolve(ELO_OFFLINE_CHAT_MESSAGE);
+    }
     if (!ELO_CONFIG.chatEndpoint || !window.fetch) {
       return Promise.resolve(null);
     }
@@ -26176,6 +26180,8 @@ function isEloResidentialNewPipelineEnabled_() {
     localReportButton: null,
     lastLocalExecutionStockReport: null,
     attachments: [],
+    connectivity: null,
+    connectivityBadge: null,
     typingIndicator: null,
     activeRequestStartedAt: 0,
     contextLabel: null,
@@ -27352,6 +27358,86 @@ function isEloResidentialNewPipelineEnabled_() {
     }
   }
 
+  const ELO_OFFLINE_CHAT_MESSAGE = "Estou sem conexão agora. Posso continuar com os recursos locais, mas essa consulta precisa de internet.";
+
+  function readEloNavigatorOnline_() {
+    if (!window.navigator || typeof window.navigator.onLine !== "boolean") return true;
+    return window.navigator.onLine !== false;
+  }
+
+  function isEloOnline_() {
+    return !ELO_UI.connectivity || ELO_UI.connectivity.online !== false;
+  }
+
+  function ensureEloConnectivityBadge_() {
+    if (ELO_UI.connectivityBadge || !window.document || !document.body) return ELO_UI.connectivityBadge;
+    const badge = createElement("div", "elo-offline-badge");
+    badge.setAttribute("role", "status");
+    badge.setAttribute("aria-live", "polite");
+    badge.hidden = true;
+    badge.textContent = "";
+    document.body.appendChild(badge);
+    ELO_UI.connectivityBadge = badge;
+    return badge;
+  }
+
+  function renderEloConnectivityBadge_(message) {
+    const badge = ensureEloConnectivityBadge_();
+    if (!badge) return;
+    const online = isEloOnline_();
+    badge.hidden = online && !message;
+    badge.textContent = sanitizeUserText(message || (online ? "Conexão restaurada" : "ELO offline\nAlguns recursos online estão temporariamente indisponíveis."));
+    badge.classList.toggle("is-offline", !online);
+    badge.classList.toggle("is-online", online);
+    if (online && message) {
+      window.setTimeout(function () {
+        if (ELO_UI.connectivity && ELO_UI.connectivity.online === true) {
+          badge.hidden = true;
+          badge.textContent = "";
+        }
+      }, 3500);
+    }
+  }
+
+  function setEloConnectivityState_(online, reason) {
+    const nextOnline = online !== false;
+    ELO_UI.connectivity = {
+      online: nextOnline,
+      lastChangedAt: Date.now(),
+      reason: sanitizeUserText(reason || (nextOnline ? "online" : "offline"))
+    };
+    logEloMusicEvent_("CONNECTIVITY_STATE", ELO_UI.connectivity);
+    renderEloConnectivityBadge_(nextOnline ? "Conexão restaurada" : "");
+    return ELO_UI.connectivity;
+  }
+
+  function initEloConnectivity_() {
+    if (ELO_UI.connectivity && ELO_UI.connectivity.initialized) return ELO_UI.connectivity;
+    setEloConnectivityState_(readEloNavigatorOnline_(), "initial");
+    ELO_UI.connectivity.initialized = true;
+    if (window.addEventListener) {
+      window.addEventListener("online", function () { setEloConnectivityState_(true, "online_event"); });
+      window.addEventListener("offline", function () { setEloConnectivityState_(false, "offline_event"); });
+    }
+    renderEloConnectivityBadge_();
+    return ELO_UI.connectivity;
+  }
+
+  function appendEloOfflineChatResponse_(question) {
+    removeTypingIndicator();
+    const response = {
+      shortAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      fullAnswer: ELO_OFFLINE_CHAT_MESSAGE,
+      nextAction: "Tente novamente quando a conexão voltar.",
+      canSave: false,
+      sessionTheme: "offline"
+    };
+    logEloMusicEvent_("OFFLINE_RESPONSE", { kind: "chat", fetchCalls: 0, question: sanitizeUserText(question).slice(0, 120) });
+    appendAssistantMessage(question, ELO_OFFLINE_CHAT_MESSAGE, false, response);
+    clearProductAttachmentPreview();
+    return response;
+  }
+
   const ELO_MUSIC_INDEX_STORAGE_KEY = "elo_music_entity_index_v1";
   const ELO_MUSIC_PENDING_CONFIRMATION_MS = 90000;
   const ELO_MUSIC_RESOLVE_TIMEOUT_MS = 4500;
@@ -27577,6 +27663,10 @@ function isEloResidentialNewPipelineEnabled_() {
   function requestEloMusicCandidates_(query) {
     const resolver = getEloMusicResolver_();
     const staticCandidates = getEloMusicStaticCandidates_();
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "music_provider", query: query });
+      return Promise.resolve(staticCandidates);
+    }
     if (!resolver) return Promise.resolve(staticCandidates);
     const methods = ["resolve", "search", "find", "getCandidates", "query"];
     for (let index = 0; index < methods.length; index += 1) {
@@ -27826,6 +27916,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const resolver = getEloMusicResolver_();
     const normalized = normalizeEloMusicCandidate_(candidate, candidate && candidate.source);
     if (!normalized) return Promise.resolve(false);
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("MUSIC_OFFLINE_BLOCKED", { query: query, candidate: getEloMusicCandidateLabel_(normalized), status: normalized.validationStatus || "" });
+      return Promise.resolve(false);
+    }
     logEloMusicEvent_("MUSIC_EXECUTE_START", { query: query, candidate: getEloMusicCandidateLabel_(normalized), source: normalized.source });
     const needsRealResolution = options && options.forceResolve === true || normalized.source === "bootstrap" || normalized.source === "local_index" || normalized.source === "catalog" || normalized.source === "elo-music-catalog" || !normalized.videoId || /^known:/i.test(String(normalized.id || ""));
     if (needsRealResolution) {
@@ -27877,6 +27971,11 @@ function isEloResidentialNewPipelineEnabled_() {
         if (decision.decision === "NO_MATCH") {
           if (options && options.append) appendMessage("assistant", buildEloMusicNotFoundAnswer_());
           return { handled: true, decision: "NO_MATCH", candidates: candidates };
+        }
+        if (!isEloOnline_() && decision.best && decision.best.candidate) {
+          if (options && options.append) appendMessage("assistant", "Encontrei " + getEloMusicCandidateLabel_(decision.best.candidate) + ", mas preciso de conexão para reproduzir.");
+          logEloMusicEvent_("MUSIC_DECISION", { decision: "OFFLINE", query: parsed.query, candidate: getEloMusicCandidateLabel_(decision.best.candidate), status: decision.best.candidate.validationStatus || "" });
+          return { handled: true, decision: "OFFLINE", candidate: decision.best.candidate, score: decision.best.combinedScore, offline: true };
         }
         if (decision.decision === "ASK_CONFIRMATION") {
           setEloMusicPendingCandidate_(decision.best.candidate, parsed.query);
@@ -28177,6 +28276,11 @@ function isEloResidentialNewPipelineEnabled_() {
 
     if (isEloReportPdfGenerationRequest_(cleanQuestion)) {
       generateEloReportPdfFromChat_(cleanQuestion, attachedFiles);
+      return;
+    }
+
+    if (!isEloOnline_()) {
+      appendEloOfflineChatResponse_(cleanQuestion);
       return;
     }
 
@@ -29054,6 +29158,10 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function requestEloNeuralSpeech_(speechText, button) {
     const endpoint = getEloTtsEndpoint_();
+    if (!isEloOnline_()) {
+      logEloMusicEvent_("OFFLINE_REMOTE_BLOCKED", { target: "tts" });
+      return Promise.resolve(false);
+    }
     if (!window.fetch || !endpoint) return Promise.resolve(false);
     return window.fetch(endpoint, {
       method: "POST",
@@ -29131,7 +29239,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
     requestEloNeuralSpeech_(speechText, button).then(function (ok) {
       if (ok) return true;
-      return speakEloTextFallback_(speechText, button, "neural_unavailable");
+      return speakEloTextFallback_(speechText, button, isEloOnline_() ? "neural_unavailable" : "offline");
     }).catch(function (error) {
       return speakEloTextFallback_(speechText, button, sanitizeUserText(error && error.message).slice(0, 120) || "neural_failed");
     });
@@ -32500,6 +32608,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (historyButton && !historyButton.dataset.eloCoreBound) { historyButton.dataset.eloCoreBound = "true"; historyButton.addEventListener("click", showEloCoreHistory_); }
     if (memoryButton && !memoryButton.dataset.eloCoreBound) { memoryButton.dataset.eloCoreBound = "true"; memoryButton.addEventListener("click", showEloCoreMemoryPanel_); }
     maybeStartEloBudgetRoute_();
+    initEloConnectivity_();
     showEloOpeningMessage_();
     setEloCoreWelcomeVisible_();
     initEloCorePersistence_();
@@ -32604,6 +32713,13 @@ function isEloResidentialNewPipelineEnabled_() {
     clearLocalConversationForTest: clearEloCoreLocalConversationState_,
     setCoreMessagesElementForTest: function (element) { ELO_UI.messages = element; },
     setCorePanelElementForTest: function (element) { ELO_UI.panel = element; },
+    isOnlineForTest: isEloOnline_,
+    setConnectivityForTest: setEloConnectivityState_,
+    initConnectivityForTest: initEloConnectivity_,
+    getConnectivityForTest: function () { return ELO_UI.connectivity ? Object.assign({}, ELO_UI.connectivity) : null; },
+    getConnectivityBadgeForTest: function () { return ELO_UI.connectivityBadge; },
+    hasTypingIndicatorForTest: function () { return !!ELO_UI.typingIndicator; },
+    buildOfflineChatResponseForTest: appendEloOfflineChatResponse_,
     getVoiceStateForTest: function () { return ELO_UI.voiceState; },
     getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
     getVoiceAutoSendMsForTest: function () { return ELO_VOICE_AUTO_SEND_MS; },
