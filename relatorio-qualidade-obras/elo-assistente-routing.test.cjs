@@ -2854,6 +2854,111 @@ test('ELO music routing: verbo alias sem candidato forte vira NO_MATCH sem inven
   assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).at(-1).payload.count, 0);
 });
 
+test('ELO offline: estado de conectividade e badge respondem a eventos', () => {
+  const listeners = {};
+  const { elo } = loadEloContext({
+    window: {
+      navigator: { onLine: true },
+      addEventListener(type, handler) { listeners[type] = handler; }
+    }
+  });
+  elo.setCoreMessagesElementForTest(createElement('div'));
+  assert.equal(elo.initConnectivityForTest().online, true);
+  assert.equal(elo.isOnlineForTest(), true);
+
+  elo.setConnectivityForTest(false, 'test');
+  const badge = elo.getConnectivityBadgeForTest();
+  assert.equal(elo.isOnlineForTest(), false);
+  assert.equal(badge.hidden, false);
+  assert.match(badge.textContent, /ELO offline/);
+
+  listeners.online();
+  assert.equal(elo.isOnlineForTest(), true);
+  assert.equal(elo.getConnectivityForTest().reason, 'online_event');
+});
+
+test('ELO offline: chat remoto responde sem fetch e sem spinner eterno', () => {
+  let fetchCalls = 0;
+  const messages = createElement('div');
+  const { elo } = loadEloContext({
+    window: { navigator: { onLine: false } },
+    fetch() { fetchCalls += 1; throw new Error('fetch should not run offline'); }
+  });
+  elo.setCoreMessagesElementForTest(messages);
+  elo.setConnectivityForTest(false, 'test');
+
+  elo.ask('ELO, me explique concreto protendido');
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(elo.hasTypingIndicatorForTest(), false);
+  assert.equal(messages.children.length >= 2, true);
+});
+
+test('ELO offline: TTS nao chama neural e usa speechSynthesis normalizado', async () => {
+  let fetchCalls = 0;
+  let speechCalls = 0;
+  let utterance = null;
+  const { elo } = loadEloContext({
+    window: {
+      navigator: { onLine: false },
+      speechSynthesis: { cancel() {}, getVoices() { return [{ name: 'Microsoft Maria', lang: 'pt-BR' }]; }, speak(value) { speechCalls += 1; utterance = value; } },
+      SpeechSynthesisUtterance: function Utterance(text) { this.text = text; }
+    },
+    fetch() { fetchCalls += 1; return Promise.reject(new Error('offline')); }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  assert.equal(elo.speakTextForTest('quem foi Renato Russo'), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const audit = elo.getTtsAuditForTest();
+  assert.equal(fetchCalls, 0);
+  assert.equal(speechCalls, 1);
+  assert.equal(audit.mode, 'speechSynthesis');
+  assert.equal(audit.fallback, true);
+  assert.equal(audit.fallbackReason, 'offline');
+  assert.equal(utterance.rate, 1);
+  assert.equal(utterance.pitch, 1);
+});
+
+test('ELO offline: musica resolve catalogo sem provider play ou chat', async () => {
+  const events = [];
+  let providerCalls = 0;
+  let playCalls = 0;
+  const fakeConsole = Object.assign({}, console, {
+    info(name, payload) { events.push({ name, payload: payload || {} }); }
+  });
+  const { elo } = loadEloContext({
+    preloadScripts: ['elo-music-catalog.js'],
+    window: {
+      navigator: { onLine: false },
+      console: fakeConsole,
+      EloMusicResolver: {
+        resolve() { providerCalls += 1; throw new Error('provider should not run offline'); },
+        play() { playCalls += 1; return true; }
+      }
+    },
+    fetch() { throw new Error('chat should not run offline'); }
+  });
+  elo.setConnectivityForTest(false, 'test');
+
+  const take = await elo.handleMusicQueryForTest('ELO, toque Take on Me');
+  const dream = await elo.handleMusicQueryForTest('ELO, toque Dream On');
+  const pending = await elo.handleMusicQueryForTest('ELO, toque Fly Like an Eagle');
+  const nope = await elo.handleMusicQueryForTest('ELO, toque abacaxi hidráulico');
+
+  assert.equal(take.handled, true);
+  assert.equal(take.decision, 'OFFLINE');
+  assert.equal(take.candidate.title, 'Take on Me');
+  assert.equal(take.candidate.validationStatus, 'ACTIVE');
+  assert.equal(dream.candidate.validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(pending.candidate.validationStatus, 'PENDING');
+  assert.equal(nope.decision, 'NO_MATCH');
+  assert.equal(providerCalls, 0);
+  assert.equal(playCalls, 0);
+  assert.equal(events.filter((event) => event.name === 'CHAT_FALLTHROUGH' && event.payload.music === true).length >= 3, true);
+});
+
 test('ELO TTS web: usa neural primeiro com playback normal e sem speechSynthesis', async () => {
   const events = [];
   const audioInstances = [];

@@ -173,7 +173,7 @@
           "channel": "Eagles",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -188,7 +188,7 @@
           "channel": "Dire Straits",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -203,7 +203,7 @@
           "channel": "DireStraitsVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "dire-straits-money-for-nothing": {
@@ -212,7 +212,7 @@
           "channel": "Dire Straits",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "dire-straits-so-far-away": {
@@ -221,7 +221,7 @@
           "channel": "Dire Straits",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "dire-straits-brothers-in-arms": {
@@ -230,7 +230,7 @@
           "channel": "DireStraitsVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "boston-more-than-a-feeling": {
@@ -239,7 +239,7 @@
           "channel": "BostonVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "boston-peace-of-mind": {
@@ -248,7 +248,7 @@
           "channel": "BostonVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "journey-dont-stop-believin": {
@@ -257,7 +257,7 @@
           "channel": "journeyVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "journey-separate-ways-worlds-apart": {
@@ -266,7 +266,7 @@
           "channel": "journeyVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "journey-any-way-you-want-it": {
@@ -275,7 +275,7 @@
           "channel": "journeyVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "toto-hold-the-line": {
@@ -284,7 +284,7 @@
           "channel": "TotoVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "toto-africa": {
@@ -293,7 +293,7 @@
           "channel": "TotoVEVO",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -308,7 +308,7 @@
           "channel": "TotoVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "foreigner-juke-box-hero": {
@@ -317,7 +317,7 @@
           "channel": "Foreigner",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "foreigner-waiting-for-a-girl-like-you": {
@@ -326,7 +326,7 @@
           "channel": "ForeignerVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "foreigner-i-want-to-know-what-love-is": {
@@ -335,7 +335,7 @@
           "channel": "ForeignerVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "kansas-dust-in-the-wind": {
@@ -344,7 +344,7 @@
           "channel": "kansasVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "kansas-carry-on-wayward-son": {
@@ -353,7 +353,7 @@
           "channel": "kansasVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "reo-speedwagon-keep-on-loving-you": {
@@ -362,7 +362,7 @@
           "channel": "REO Speedwagon - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "fleetwood-mac-dreams": {
@@ -371,7 +371,7 @@
           "channel": "Fleetwood Mac",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -386,7 +386,7 @@
           "channel": "Fleetwood Mac",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "fleetwood-mac-everywhere": {
@@ -395,7 +395,7 @@
           "channel": "Fleetwood Mac",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "fleetwood-mac-little-lies": {
@@ -404,7 +404,7 @@
           "channel": "Fleetwood Mac",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "supertramp-the-logical-song": {
@@ -413,7 +413,7 @@
           "channel": "Supertramp ",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "supertramp-give-a-little-bit": {
@@ -422,7 +422,7 @@
           "channel": "SupertrampVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "supertramp-breakfast-in-america": {
@@ -431,7 +431,7 @@
           "channel": "Supertramp ",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "america-a-horse-with-no-name": {
@@ -440,7 +440,7 @@
           "channel": "America",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "america-sister-golden-hair": {
@@ -449,7 +449,7 @@
           "channel": "America",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "america-ventura-highway": {
@@ -458,7 +458,7 @@
           "channel": "AmericaVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bread-everything-i-own": {
@@ -467,7 +467,7 @@
           "channel": "Bread - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bread-make-it-with-you": {
@@ -476,7 +476,7 @@
           "channel": "Bread - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "gerry-rafferty-baker-street": {
@@ -485,7 +485,7 @@
           "channel": "Gerry Rafferty",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "cat-stevens-wild-world": {
@@ -494,7 +494,7 @@
           "channel": "Yusuf / Cat Stevens",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "steve-miller-band-the-joker": {
@@ -503,7 +503,7 @@
           "channel": "SteveMillerBandVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "electric-light-orchestra-mr-blue-sky": {
@@ -512,7 +512,7 @@
           "channel": "ELOVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "electric-light-orchestra-dont-bring-me-down": {
@@ -521,7 +521,7 @@
           "channel": "ELOVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "electric-light-orchestra-last-train-to-london": {
@@ -530,7 +530,7 @@
           "channel": "ELOVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "electric-light-orchestra-telephone-line": {
@@ -539,7 +539,7 @@
           "channel": "ELOVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "creedence-clearwater-revival-have-you-ever-seen-the-rain": {
@@ -548,7 +548,7 @@
           "channel": "Creedence Clearwater Revival",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "creedence-clearwater-revival-proud-mary": {
@@ -557,7 +557,7 @@
           "channel": "Creedence Clearwater Revival",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "creedence-clearwater-revival-down-on-the-corner": {
@@ -566,7 +566,7 @@
           "channel": "Creedence Clearwater Revival",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "creedence-clearwater-revival-up-around-the-bend": {
@@ -575,7 +575,7 @@
           "channel": "Creedence Clearwater Revival",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "creedence-clearwater-revival-lookin-out-my-back-door": {
@@ -584,7 +584,7 @@
           "channel": "Creedence Clearwater Revival",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "lynyrd-skynyrd-sweet-home-alabama": {
@@ -593,7 +593,7 @@
           "channel": "Lynyrd Skynyrd",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-doobie-brothers-long-train-runnin": {
@@ -602,7 +602,7 @@
           "channel": "The Doobie Brothers - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-doobie-brothers-listen-to-the-music": {
@@ -611,7 +611,7 @@
           "channel": "The Doobie Brothers",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-doobie-brothers-what-a-fool-believes": {
@@ -620,7 +620,7 @@
           "channel": "The Doobie Brothers",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "steely-dan-reelin-in-the-years": {
@@ -629,7 +629,7 @@
           "channel": "Steely Dan - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-dont-stop-me-now": {
@@ -638,7 +638,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-crazy-little-thing-called-love": {
@@ -647,7 +647,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-another-one-bites-the-dust": {
@@ -656,7 +656,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-under-pressure": {
@@ -665,7 +665,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-radio-ga-ga": {
@@ -674,7 +674,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-i-want-to-break-free": {
@@ -683,7 +683,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-a-kind-of-magic": {
@@ -692,7 +692,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "queen-youre-my-best-friend": {
@@ -701,7 +701,7 @@
           "channel": "Queen Official",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "simple-minds-dont-you-forget-about-me": {
@@ -710,7 +710,7 @@
           "channel": "Simple Minds - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "tears-for-fears-everybody-wants-to-rule-the-world": {
@@ -719,7 +719,7 @@
           "channel": "Tears For Fears",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "tears-for-fears-head-over-heels": {
@@ -728,7 +728,7 @@
           "channel": "Tears For Fears - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "a-ha-take-on-me": {
@@ -737,7 +737,7 @@
           "channel": "a-ha",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "PLAY_CONFIRMED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": true,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -752,7 +752,7 @@
           "channel": "a-ha",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-cars-drive": {
@@ -761,7 +761,7 @@
           "channel": "The Cars - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bryan-adams-summer-of-69": {
@@ -770,7 +770,7 @@
           "channel": "Bryan Adams",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bryan-adams-run-to-you": {
@@ -779,7 +779,7 @@
           "channel": "Bryan Adams",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bryan-adams-heaven": {
@@ -788,7 +788,7 @@
           "channel": "Bryan Adams",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "huey-lewis-and-the-news-the-power-of-love": {
@@ -797,7 +797,7 @@
           "channel": "HueyLewisTheNewsVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "huey-lewis-and-the-news-stuck-with-you": {
@@ -806,7 +806,7 @@
           "channel": "Huey Lewis & The News - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "rick-springfield-jessies-girl": {
@@ -815,7 +815,7 @@
           "channel": "RickSpringfieldVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "john-mellencamp-jack-and-diane": {
@@ -824,7 +824,7 @@
           "channel": "JohnMellencampVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "john-mellencamp-hurts-so-good": {
@@ -833,7 +833,7 @@
           "channel": "JohnMellencampVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "billy-idol-dancing-with-myself": {
@@ -842,7 +842,7 @@
           "channel": "Billy Idol - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "billy-idol-eyes-without-a-face": {
@@ -851,7 +851,7 @@
           "channel": "Billy Idol - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bon-jovi-you-give-love-a-bad-name": {
@@ -860,7 +860,7 @@
           "channel": "BonJoviVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bon-jovi-wanted-dead-or-alive": {
@@ -869,7 +869,7 @@
           "channel": "BonJoviVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bon-jovi-its-my-life": {
@@ -878,7 +878,7 @@
           "channel": "BonJoviVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "bon-jovi-always": {
@@ -887,7 +887,7 @@
           "channel": "BonJoviVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "aerosmith-dream-on": {
@@ -896,7 +896,7 @@
           "channel": "AerosmithVEVO",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -911,7 +911,7 @@
           "channel": "AerosmithVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "aerosmith-crazy": {
@@ -920,7 +920,7 @@
           "channel": "AerosmithVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "van-halen-jump": {
@@ -929,7 +929,7 @@
           "channel": "Van Halen",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "van-halen-why-cant-this-be-love": {
@@ -938,7 +938,7 @@
           "channel": "Van Halen",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "heart-barracuda": {
@@ -947,7 +947,7 @@
           "channel": "HeartVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "heart-alone": {
@@ -956,7 +956,7 @@
           "channel": "HeartVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "joan-jett-and-the-blackhearts-i-love-rock-n-roll": {
@@ -965,7 +965,7 @@
           "channel": "Joan Jett and the Blackhearts",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "pat-benatar-hit-me-with-your-best-shot": {
@@ -974,7 +974,7 @@
           "channel": "PatBenatarVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-police-every-breath-you-take": {
@@ -983,7 +983,7 @@
           "channel": "ThePoliceVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-police-message-in-a-bottle": {
@@ -992,7 +992,7 @@
           "channel": "ThePoliceVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-police-every-little-thing-she-does-is-magic": {
@@ -1001,7 +1001,7 @@
           "channel": "ThePoliceVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "u2-with-or-without-you": {
@@ -1010,7 +1010,7 @@
           "channel": "U2VEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "u2-beautiful-day": {
@@ -1019,7 +1019,7 @@
           "channel": "U2VEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "u2-where-the-streets-have-no-name": {
@@ -1028,7 +1028,7 @@
           "channel": "U2VEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "rem-man-on-the-moon": {
@@ -1037,7 +1037,7 @@
           "channel": "R.E.M. - Topic",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "rem-the-one-i-love": {
@@ -1046,7 +1046,7 @@
           "channel": "REMVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-cranberries-dreams": {
@@ -1055,7 +1055,7 @@
           "channel": "TheCranberriesVEVO",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       },
       "the-cranberries-linger": {
@@ -1064,7 +1064,7 @@
           "channel": "TheCranberriesVEVO",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "REJECTED_IFRAME_ERROR",
+          "validationStatus": "REJECTED_PHYSICAL",
           "playConfirmed": false,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -1079,7 +1079,7 @@
           "channel": "The Cure",
           "source": "youtube-iframe-physical",
           "lastValidatedAt": "2026-08-26T03:39:15.563Z",
-          "validationStatus": "PLAY_CONFIRMED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": true,
           "physicalValidation": {
               "method": "youtube_iframe_api_http_origin",
@@ -1094,7 +1094,7 @@
           "channel": "Tom Petty & The Heartbreakers",
           "source": "youtube-catalog",
           "lastValidatedAt": "2026-08-26T02:11:53.894Z",
-          "validationStatus": "CLEAR_OEMBED",
+          "validationStatus": "ACTIVE",
           "playConfirmed": false
       }
   };
@@ -1116,8 +1116,8 @@
       aliases: buildAliases(id, title, artist),
       searchQuery: artist + " " + title,
       videoId: video.videoId || null,
-      playable: !!video.videoId && video.validationStatus !== "REJECTED_IFRAME_ERROR",
-      embeddable: !!video.videoId && video.validationStatus !== "REJECTED_IFRAME_ERROR",
+      playable: !!video.videoId && video.validationStatus === "ACTIVE",
+      embeddable: !!video.videoId && video.validationStatus === "ACTIVE",
       resolvedTitle: video.resolvedTitle || null,
       channel: video.channel || null,
       lastValidatedAt: video.lastValidatedAt || null,

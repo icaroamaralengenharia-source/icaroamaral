@@ -1,7 +1,7 @@
 {
   "total": 100,
   "processed": 100,
-  "clear": 98,
+  "clear": 92,
   "pending": 2,
   "playConfirmed": 2,
   "generatedAt": "2026-08-26T03:39:15.563Z",
@@ -17,7 +17,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "DL-HvfVwZKM",
@@ -84,7 +84,8 @@
           "5wDfiCDoHy4",
           "hrOtR1hyRog"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "dire-straits-sultans-of-swing",
@@ -96,7 +97,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "h0ffIJ7ZO4U",
@@ -160,7 +161,8 @@
           "0fAQhSRLQnM",
           "MMFSLGq1wrQ"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "dire-straits-walk-of-life",
@@ -172,7 +174,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "X4vxXQRTT8U",
@@ -180,7 +182,8 @@
           "channel": "DireStraitsVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "dire-straits-money-for-nothing",
@@ -192,7 +195,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "X4vxXQRTT8U",
@@ -200,7 +203,8 @@
           "channel": "DireStraitsVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "dire-straits-so-far-away",
@@ -212,7 +216,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "leZ4T8kt-1o",
@@ -225,7 +229,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "dire-straits-brothers-in-arms",
@@ -237,7 +242,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "leZ4T8kt-1o",
@@ -263,7 +268,8 @@
           "channel": "David Rolfe's Rock & Metal Channel.",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "boston-more-than-a-feeling",
@@ -275,7 +281,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "pw6_VXPwm6U",
@@ -304,7 +310,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:31:25.751Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "boston-peace-of-mind",
@@ -316,7 +323,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "TnwqUEelQjE",
@@ -341,7 +348,8 @@
           "channel": "Strings Direct",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "journey-dont-stop-believin",
@@ -353,7 +361,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "2tiZHVMvNPA",
@@ -361,7 +369,8 @@
           "channel": "cgarris54",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "journey-separate-ways-worlds-apart",
@@ -373,7 +382,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "VcjzHMhBtf0",
@@ -393,7 +402,8 @@
           "channel": "The Voice",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "journey-any-way-you-want-it",
@@ -405,7 +415,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "LatorN4P9aA",
@@ -419,7 +429,8 @@
           "channel": "Retro",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "toto-hold-the-line",
@@ -431,7 +442,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "zbKa_OrVj-o",
@@ -439,7 +450,8 @@
           "channel": "Child's Anthem - The Music of Toto",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "toto-africa",
@@ -451,7 +463,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "zbKa_OrVj-o",
@@ -512,7 +524,8 @@
           "uhwLOBFc298",
           "U1LB_OerHCE"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "toto-rosanna",
@@ -524,7 +537,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "_h3G2axqGyg",
@@ -537,7 +550,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "foreigner-juke-box-hero",
@@ -549,7 +563,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "WGT0vA-JuAo",
@@ -557,7 +571,8 @@
           "channel": "Spirit Weave Sounds ",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "foreigner-waiting-for-a-girl-like-you",
@@ -569,7 +584,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "lsPOCh0QInU",
@@ -581,7 +596,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "foreigner-i-want-to-know-what-love-is",
@@ -593,7 +609,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Lcb-Fsx_phM",
@@ -607,7 +623,8 @@
           "channel": "Armtist TV",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "kansas-dust-in-the-wind",
@@ -619,7 +636,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "HVLjhPx18rY",
@@ -632,7 +649,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "kansas-carry-on-wayward-son",
@@ -644,8 +662,9 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
-      "rejectedCandidates": []
+      "validationStatus": "ACTIVE",
+      "rejectedCandidates": [],
+      "playable": true
     },
     {
       "catalogId": "reo-speedwagon-keep-on-loving-you",
@@ -657,7 +676,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "hxTbS2ktMfk",
@@ -665,7 +684,8 @@
           "channel": "ALL MIXED",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "fleetwood-mac-dreams",
@@ -677,7 +697,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "UmPgMc3R8zg",
@@ -738,7 +758,8 @@
           "O5ugW4-BstE",
           "PgagPdVM7bk"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "fleetwood-mac-go-your-own-way",
@@ -750,7 +771,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Kcm3dbuV8Z4",
@@ -758,7 +779,8 @@
           "channel": "Lindsey Buckingham",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "fleetwood-mac-everywhere",
@@ -770,7 +792,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "uCGD9dT12C0",
@@ -784,7 +806,8 @@
           "channel": "Back To Fame",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "fleetwood-mac-little-lies",
@@ -796,7 +819,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "1VIKcrEcbQs",
@@ -809,7 +832,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "supertramp-the-logical-song",
@@ -821,7 +845,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "uK27G5LpOT0",
@@ -849,7 +873,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:32:10.805Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "supertramp-give-a-little-bit",
@@ -861,7 +886,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "u8pVZ5hTGJQ",
@@ -869,7 +894,8 @@
           "channel": "Supertramp - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "supertramp-breakfast-in-america",
@@ -881,7 +907,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "kln_bIndDJg",
@@ -931,7 +957,8 @@
           "channel": "SebaVinilos ",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "america-a-horse-with-no-name",
@@ -943,7 +970,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "UrFnsfNMqrY",
@@ -951,7 +978,8 @@
           "channel": "70s Greatest Hits",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "america-sister-golden-hair",
@@ -963,7 +991,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "xXjP3hT37lQ",
@@ -976,7 +1004,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "america-ventura-highway",
@@ -988,7 +1017,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "xXjP3hT37lQ",
@@ -1002,7 +1031,8 @@
           "channel": "Larry L",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bread-everything-i-own",
@@ -1014,7 +1044,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "W13nFk6jSK8",
@@ -1032,7 +1062,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bread-make-it-with-you",
@@ -1044,7 +1075,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "w1A2NtC_8SM",
@@ -1058,7 +1089,8 @@
           "channel": "Bread - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "gerry-rafferty-baker-street",
@@ -1070,8 +1102,9 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
-      "rejectedCandidates": []
+      "validationStatus": "ACTIVE",
+      "rejectedCandidates": [],
+      "playable": true
     },
     {
       "catalogId": "cat-stevens-wild-world",
@@ -1083,7 +1116,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "P6zaCV4niKk",
@@ -1101,7 +1134,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "steve-miller-band-the-joker",
@@ -1113,7 +1147,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "VggaYjDNX4M",
@@ -1133,7 +1167,8 @@
           "channel": "Steve Miller Band - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "steve-miller-band-fly-like-an-eagle",
@@ -1166,7 +1201,8 @@
           "reason": "low_confidence_channel"
         }
       ],
-      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload."
+      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload.",
+      "playable": false
     },
     {
       "catalogId": "electric-light-orchestra-mr-blue-sky",
@@ -1178,14 +1214,15 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6zOxsnNQVQY",
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "electric-light-orchestra-dont-bring-me-down",
@@ -1197,7 +1234,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "GQPnbH2y82o",
@@ -1217,7 +1254,8 @@
           "channel": "ELOVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "electric-light-orchestra-last-train-to-london",
@@ -1229,14 +1267,15 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6zOxsnNQVQY",
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "electric-light-orchestra-telephone-line",
@@ -1248,7 +1287,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "p5-IAE26_nE",
@@ -1256,7 +1295,8 @@
           "channel": "Kelly Groucutt - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "creedence-clearwater-revival-have-you-ever-seen-the-rain",
@@ -1268,7 +1308,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6NXnxTNIWkc",
@@ -1286,7 +1326,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:32:25.828Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "creedence-clearwater-revival-proud-mary",
@@ -1298,7 +1339,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6NXnxTNIWkc",
@@ -1317,7 +1358,8 @@
           "channel": "Creedence Clearwater Revival",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "creedence-clearwater-revival-down-on-the-corner",
@@ -1329,7 +1371,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6NXnxTNIWkc",
@@ -1343,7 +1385,8 @@
           "channel": "John Fogerty",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "creedence-clearwater-revival-up-around-the-bend",
@@ -1355,7 +1398,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Aae_RHRptRg",
@@ -1369,7 +1412,8 @@
           "channel": "Thomas E. Hartung American Legion Post 1977",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "creedence-clearwater-revival-lookin-out-my-back-door",
@@ -1381,7 +1425,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "XzNV27eRaVE",
@@ -1389,7 +1433,8 @@
           "channel": "John Fogerty - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "lynyrd-skynyrd-sweet-home-alabama",
@@ -1401,7 +1446,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "lyUhqSW1YIo",
@@ -1415,7 +1460,8 @@
           "channel": "Nowstalgia VT",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-doobie-brothers-long-train-runnin",
@@ -1427,7 +1473,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "abggqSd1VUg",
@@ -1441,7 +1487,8 @@
           "channel": "Rock Overdrive",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-doobie-brothers-listen-to-the-music",
@@ -1453,7 +1500,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "DsXfuJF789E",
@@ -1467,7 +1514,8 @@
           "channel": "MACHADOLETTERS",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-doobie-brothers-what-a-fool-believes",
@@ -1479,7 +1527,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "DsXfuJF789E",
@@ -1487,7 +1535,8 @@
           "channel": "Tom Johnston - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "steely-dan-reelin-in-the-years",
@@ -1499,7 +1548,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "2tRG4pTtitA",
@@ -1507,7 +1556,8 @@
           "channel": "John King",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-dont-stop-me-now",
@@ -1519,7 +1569,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "YJ105oW5gns",
@@ -1543,7 +1593,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:32:40.857Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "queen-crazy-little-thing-called-love",
@@ -1555,7 +1606,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "fNQfSxdAebg",
@@ -1563,7 +1614,8 @@
           "channel": "VioRockestra",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-another-one-bites-the-dust",
@@ -1575,7 +1627,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "quNio5RnjrA",
@@ -1583,7 +1635,8 @@
           "channel": "gitar online",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-under-pressure",
@@ -1595,7 +1648,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "t365MuktYQs",
@@ -1603,7 +1656,8 @@
           "channel": "David Bowie",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-radio-ga-ga",
@@ -1615,7 +1669,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "fNQfSxdAebg",
@@ -1623,7 +1677,8 @@
           "channel": "VioRockestra",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-i-want-to-break-free",
@@ -1635,7 +1690,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "fJ9rUzIMcZQ",
@@ -1649,7 +1704,8 @@
           "channel": "Queen Official",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-a-kind-of-magic",
@@ -1661,7 +1717,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "hFDcoX7s6rE",
@@ -1675,7 +1731,8 @@
           "channel": "Queen - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "queen-youre-my-best-friend",
@@ -1687,7 +1744,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "FOciDaYq_PM",
@@ -1731,7 +1788,8 @@
           "channel": "Hurrem the Queen",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "simple-minds-dont-you-forget-about-me",
@@ -1743,7 +1801,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "ZsNf25mBXcg",
@@ -1751,7 +1809,8 @@
           "channel": "City Of Light - A Tribute to Simple Minds",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "tears-for-fears-everybody-wants-to-rule-the-world",
@@ -1763,7 +1822,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "djV11Xbc914",
@@ -1771,7 +1830,8 @@
           "channel": "a-ha",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "tears-for-fears-head-over-heels",
@@ -1783,7 +1843,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "cIYxWh4tD4U",
@@ -1797,7 +1857,8 @@
           "channel": "80s Retro Music",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "a-ha-take-on-me",
@@ -1809,7 +1870,7 @@
       "embeddable": true,
       "playConfirmed": true,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "PLAY_CONFIRMED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "aPgl8oESTls",
@@ -1856,7 +1917,8 @@
           "-iKeUC5_Wyw",
           "jg5mXCCbd0U"
         ]
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "a-ha-the-sun-always-shines-on-tv",
@@ -1868,7 +1930,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "hhBNnkuj7Bo",
@@ -1888,7 +1950,8 @@
           "channel": "Max Legendas",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-cars-drive",
@@ -1900,7 +1963,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "B-KnA0vEXGI",
@@ -1908,7 +1971,8 @@
           "channel": "Brand73",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-cars-you-might-think",
@@ -1959,7 +2023,8 @@
           "reason": "low_confidence_channel"
         }
       ],
-      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload."
+      "pendingReason": "No official/VEVO/artist/label candidate could be confidently selected; previous oEmbed candidate was rejected as low-confidence upload.",
+      "playable": false
     },
     {
       "catalogId": "bryan-adams-summer-of-69",
@@ -1971,7 +2036,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Y0pdQU87dc8",
@@ -1989,7 +2054,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:33:10.906Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "bryan-adams-run-to-you",
@@ -2001,7 +2067,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Y0pdQU87dc8",
@@ -2020,7 +2086,8 @@
           "channel": "Bryan Adams - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bryan-adams-heaven",
@@ -2032,7 +2099,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Y0pdQU87dc8",
@@ -2062,7 +2129,8 @@
           "channel": "Bryan Adams - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "huey-lewis-and-the-news-the-power-of-love",
@@ -2074,7 +2142,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "qcc8bzAiJXM",
@@ -2094,7 +2162,8 @@
           "channel": "Huey Lewis & The News - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "huey-lewis-and-the-news-stuck-with-you",
@@ -2106,7 +2175,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "qcc8bzAiJXM",
@@ -2131,7 +2200,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "rick-springfield-jessies-girl",
@@ -2143,7 +2213,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "lDK9QqIzhwk",
@@ -2166,7 +2236,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "john-mellencamp-jack-and-diane",
@@ -2178,7 +2249,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "g_9rnnkRX0g",
@@ -2197,7 +2268,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "john-mellencamp-hurts-so-good",
@@ -2209,7 +2281,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Lo2qQmj0_h4",
@@ -2217,7 +2289,8 @@
           "channel": "acdcVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "billy-idol-dancing-with-myself",
@@ -2229,7 +2302,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "VgNX-4UojK8",
@@ -2255,7 +2328,8 @@
           "channel": "Retro Vinyl Spin",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "billy-idol-eyes-without-a-face",
@@ -2267,7 +2341,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "wUxi3ax_P0Y",
@@ -2281,7 +2355,8 @@
           "channel": "TearsForFearsVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bon-jovi-you-give-love-a-bad-name",
@@ -2293,7 +2368,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "M7w0U1kTFV0",
@@ -2302,7 +2377,8 @@
           "reason": "title_mismatch"
         }
       ],
-      "replacementReason": "Replaced low-quality search candidate with BonJoviVEVO oEmbed candidate."
+      "replacementReason": "Replaced low-quality search candidate with BonJoviVEVO oEmbed candidate.",
+      "playable": true
     },
     {
       "catalogId": "bon-jovi-wanted-dead-or-alive",
@@ -2314,7 +2390,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "M7w0U1kTFV0",
@@ -2322,7 +2398,8 @@
           "channel": "RichieSamboraVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bon-jovi-its-my-life",
@@ -2334,7 +2411,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "lDK9QqIzhwk",
@@ -2347,7 +2424,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "bon-jovi-always",
@@ -2359,7 +2437,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "8SbUC-UaAxE",
@@ -2367,7 +2445,8 @@
           "channel": "GunsNRosesVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "aerosmith-dream-on",
@@ -2379,7 +2458,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "iJDtukGW79Y",
@@ -2424,7 +2503,8 @@
           "kR4zpS-ky9o",
           "NeSpx7vZifc"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "aerosmith-i-dont-want-to-miss-a-thing",
@@ -2436,7 +2516,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "6NXnxTNIWkc",
@@ -2467,7 +2547,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "aerosmith-crazy",
@@ -2479,7 +2560,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "8SbUC-UaAxE",
@@ -2499,7 +2580,8 @@
           "channel": "AerosmithVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "van-halen-jump",
@@ -2511,7 +2593,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "8RAOKfB2LCw",
@@ -2553,7 +2635,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:33:40.972Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "van-halen-why-cant-this-be-love",
@@ -2565,7 +2648,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "lfrjWFhOlEo",
@@ -2573,7 +2656,8 @@
           "channel": "Daroach",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "heart-barracuda",
@@ -2585,7 +2669,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "tG9rmi0GVEU",
@@ -2593,7 +2677,8 @@
           "channel": "Relax Vibes",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "heart-alone",
@@ -2605,7 +2690,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "My5yeiAoKYQ",
@@ -2618,7 +2703,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "joan-jett-and-the-blackhearts-i-love-rock-n-roll",
@@ -2630,7 +2716,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "UytCvjEFtPs",
@@ -2654,7 +2740,8 @@
           "reason": "not_found",
           "httpStatus": 401
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "pat-benatar-hit-me-with-your-best-shot",
@@ -2666,7 +2753,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "s4627ZUHV6M",
@@ -2674,7 +2761,8 @@
           "channel": "survivor1978",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-police-every-breath-you-take",
@@ -2686,7 +2774,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "djV11Xbc914",
@@ -2704,7 +2792,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:33:55.994Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "the-police-message-in-a-bottle",
@@ -2716,7 +2805,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "DY4PAf81_Iw",
@@ -2724,7 +2813,8 @@
           "channel": "Andy Summers - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-police-every-little-thing-she-does-is-magic",
@@ -2736,7 +2826,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "J7uLGRume5A",
@@ -2755,7 +2845,8 @@
           "channel": "ThePoliceVEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "u2-with-or-without-you",
@@ -2767,7 +2858,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "x9VzSBxN9rA",
@@ -2801,7 +2892,8 @@
         "state": "init",
         "error": "page.waitForFunction: Timeout 15000ms exceeded.",
         "validatedAt": "2026-08-26T02:34:11.015Z"
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "u2-beautiful-day",
@@ -2813,7 +2905,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "EzeDqRhM09w",
@@ -2821,7 +2913,8 @@
           "channel": "Shorty91",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "u2-where-the-streets-have-no-name",
@@ -2833,7 +2926,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "e3-5YC_oHjE",
@@ -2841,7 +2934,8 @@
           "channel": "U2VEVO",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "rem-man-on-the-moon",
@@ -2853,7 +2947,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "EALitoix4Qg",
@@ -2873,7 +2967,8 @@
           "channel": "remhq",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "rem-the-one-i-love",
@@ -2885,7 +2980,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "jO9FkcGKwbI",
@@ -2910,7 +3005,8 @@
           "channel": "Leonardo Marks",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-cranberries-dreams",
@@ -2922,7 +3018,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "9noKzZk2mjU",
@@ -2930,7 +3026,8 @@
           "channel": "พนาเวทย์ พนมวัลย์",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     },
     {
       "catalogId": "the-cranberries-linger",
@@ -2942,7 +3039,7 @@
       "embeddable": false,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "rejectedCandidates": [
         {
           "videoId": "8xtQBZHmi7M",
@@ -2993,7 +3090,8 @@
           "CGRwhcqY1gg",
           "cFbnefNNy_Q"
         ]
-      }
+      },
+      "playable": false
     },
     {
       "catalogId": "the-cure-friday-im-in-love",
@@ -3005,7 +3103,7 @@
       "embeddable": true,
       "playConfirmed": true,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "PLAY_CONFIRMED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "n3nPiBai66M",
@@ -3043,7 +3141,8 @@
         "testedCandidateIds": [
           "8AEgojGUBW8"
         ]
-      }
+      },
+      "playable": true
     },
     {
       "catalogId": "tom-petty-i-wont-back-down",
@@ -3055,7 +3154,7 @@
       "embeddable": true,
       "playConfirmed": false,
       "validatedAt": "2026-08-26T02:11:53.894Z",
-      "validationStatus": "CLEAR_OEMBED",
+      "validationStatus": "ACTIVE",
       "rejectedCandidates": [
         {
           "videoId": "Y1D3a5eDJIs",
@@ -3069,7 +3168,8 @@
           "channel": "Sam Elliott - Topic",
           "reason": "title_mismatch"
         }
-      ]
+      ],
+      "playable": true
     }
   ],
   "samplePlayConfirmed": 2,
@@ -3084,13 +3184,15 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "iJDtukGW79Y",
         "89dGC8de0CA",
         "kR4zpS-ky9o",
         "NeSpx7vZifc"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "dire-straits-sultans-of-swing",
@@ -3101,14 +3203,16 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "h0ffIJ7ZO4U",
         "UGB-ALSwNGQ",
         "8Pa9x9fZBtY",
         "0fAQhSRLQnM",
         "MMFSLGq1wrQ"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "eagles-hotel-california",
@@ -3119,13 +3223,15 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "09839DpTctU",
         "dLl4PZtxia8",
         "5wDfiCDoHy4",
         "hrOtR1hyRog"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "toto-africa",
@@ -3136,13 +3242,15 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "FTQbiNvZqaY",
         "Kb7lAMjFuA0",
         "uhwLOBFc298",
         "U1LB_OerHCE"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "fleetwood-mac-dreams",
@@ -3153,13 +3261,15 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "Y3ywicffOj4",
         "5oWyMakvQew",
         "O5ugW4-BstE",
         "PgagPdVM7bk"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "a-ha-take-on-me",
@@ -3170,13 +3280,15 @@
       "state": "playing",
       "error": null,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "PLAY_CONFIRMED",
+      "validationStatus": "ACTIVE",
       "testedCandidateIds": [
         "djV11Xbc914",
         "Q5KLj2a47ow",
         "-iKeUC5_Wyw",
         "jg5mXCCbd0U"
-      ]
+      ],
+      "playable": true,
+      "embeddable": true
     },
     {
       "catalogId": "the-cranberries-linger",
@@ -3187,13 +3299,15 @@
       "state": "error",
       "error": "youtube_error_150",
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "REJECTED_IFRAME_ERROR",
+      "validationStatus": "REJECTED_PHYSICAL",
       "testedCandidateIds": [
         "G6Kspj3OO0s",
         "fSlwn8xv8W0",
         "CGRwhcqY1gg",
         "cFbnefNNy_Q"
-      ]
+      ],
+      "playable": false,
+      "embeddable": false
     },
     {
       "catalogId": "the-cure-friday-im-in-love",
@@ -3204,10 +3318,12 @@
       "state": "playing",
       "error": null,
       "validatedAt": "2026-08-26T03:39:15.563Z",
-      "validationStatus": "PLAY_CONFIRMED",
+      "validationStatus": "ACTIVE",
       "testedCandidateIds": [
         "8AEgojGUBW8"
-      ]
+      ],
+      "playable": true,
+      "embeddable": true
     }
   ],
   "lowConfidenceRejected": [

@@ -67,7 +67,12 @@
   }
 
   function isPlayableCatalogMedia(media) {
-    return !!(media && media.videoId && media.playable === true && media.embeddable === true);
+    return !!(media && media.validationStatus === "ACTIVE" && media.videoId && media.playable === true && media.embeddable === true);
+  }
+
+  function isOnline() {
+    if (!window.navigator || typeof window.navigator.onLine !== "boolean") return true;
+    return window.navigator.onLine !== false;
   }
 
   function getCatalogMatch(query) {
@@ -85,11 +90,12 @@
     if (!item || !item.id) return null;
     const cache = readCatalogCache();
     const cached = cache[item.id];
-    if (isPlayableCatalogMedia(cached)) {
+    if (item.validationStatus === "ACTIVE" && cached && isPlayableCatalogMedia(Object.assign({}, item, cached))) {
       return Object.assign({}, item, cached, {
         id: cached.id || item.id,
         catalogId: item.id,
         source: cached.source || "catalog-cache",
+        validationStatus: item.validationStatus,
         searchQuery: item.searchQuery || (item.artist + " " + item.title)
       });
     }
@@ -108,6 +114,7 @@
       videoId: resolved.videoId,
       playable: true,
       embeddable: true,
+      validationStatus: "ACTIVE",
       source: resolved.source || "youtube-data-api",
       lastValidatedAt: new Date().toISOString()
     };
@@ -225,7 +232,8 @@
         found: false,
         source: data && data.provider || "youtube-data-api",
         providerStatus: data && data.error === "media_search_provider_not_configured" ? "PROVIDER_UNAVAILABLE" : "NO_EMBEDDABLE_RESULTS",
-        candidates: []
+        candidates: [],
+        catalogMatch: catalogItem || null
       };
     }
     const best = Object.assign({}, playableCandidates[0], {
@@ -308,10 +316,18 @@
         videoId: catalogMatch.videoId || null
       });
       if (isPlayableCatalogMedia(catalogMatch)) {
+        if (!isOnline()) {
+          log("MEDIA_OFFLINE_BLOCKED", { catalogId: catalogMatch.catalogId, title: catalogMatch.title, providerCalls: 0 });
+          return Promise.resolve(Object.assign({}, catalogMatch, { found: false, providerStatus: "OFFLINE", offline: true, catalogMatch: catalogMatch, fallbackCandidates: [] }));
+        }
         log("MEDIA_CATALOG_DIRECT", { catalogId: catalogMatch.catalogId, videoId: catalogMatch.videoId });
         return Promise.resolve(Object.assign({}, catalogMatch, { found: true, providerStatus: "CATALOG_CACHE_HIT", fallbackCandidates: [] }));
       }
       log("MEDIA_CATALOG_NEEDS_PROVIDER", { catalogId: catalogMatch.catalogId, searchQuery: providerQuery });
+    }
+    if (!isOnline()) {
+      log("MEDIA_OFFLINE_BLOCKED", { catalogId: catalogMatch && catalogMatch.catalogId || null, query: cleanQuery, providerCalls: 0 });
+      return Promise.resolve({ found: false, source: "offline", providerStatus: "OFFLINE", offline: true, candidates: [], catalogMatch: catalogMatch || null });
     }
     log("MEDIA_RESOLVE_START", { query: providerQuery, originalQuery: cleanQuery, provider: "youtube-data-api", requestUrl: requestUrl || null });
     if (!requestUrl) {
@@ -350,6 +366,10 @@
   }
 
   function play(media) {
+    if (!isOnline()) {
+      log("MEDIA_PLAY_OFFLINE_BLOCKED", { catalogId: media && media.catalogId || null, videoId: media && media.videoId || null });
+      return Promise.resolve(false);
+    }
     const player = getPlayer();
     if (!player || typeof player.play !== "function") {
       log("MEDIA_PLAYER_START", { ok: false, reason: "player_unavailable" });

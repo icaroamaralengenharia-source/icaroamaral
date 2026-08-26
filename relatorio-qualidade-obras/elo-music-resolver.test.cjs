@@ -34,6 +34,7 @@ function loadResolver(options = {}) {
     },
     document: { querySelector() { return null; }, body: { appendChild() {} }, createElement() { return {}; } }
   };
+  Object.assign(context.window, options.window || {});
   context.window.window = context.window;
   context.globalThis = context.window;
   vm.createContext(context);
@@ -100,8 +101,23 @@ test('ELO music catalog unit: carrega exatamente 100 faixas sem videoId inventad
   assert.equal(catalog.find('toque dreams fleetwood mac').artist, 'Fleetwood Mac');
   assert.equal(catalog.find('toque losing my religion'), null);
   assert.equal(catalog.get('rem-man-on-the-moon').title, 'Man on the Moon');
+  const byStatus = items.reduce((acc, item) => {
+    acc[item.validationStatus] = (acc[item.validationStatus] || 0) + 1;
+    return acc;
+  }, {});
   assert.equal(items.filter((item) => item.videoId !== null).length, 98);
-  assert.equal(items.filter((item) => item.playable === true && item.embeddable === true).length, 92);
+  assert.equal(byStatus.ACTIVE, 92);
+  assert.equal(byStatus.REJECTED_PHYSICAL, 6);
+  assert.equal(byStatus.PENDING, 2);
+  assert.equal(byStatus.ACTIVE + byStatus.REJECTED_PHYSICAL + byStatus.PENDING, 100);
+  assert.equal(items.filter((item) => item.playConfirmed === true).length, 2);
+  assert.equal(catalog.get('aerosmith-dream-on').validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(catalog.get('dire-straits-sultans-of-swing').validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(catalog.get('eagles-hotel-california').validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(catalog.get('a-ha-take-on-me').validationStatus, 'ACTIVE');
+  assert.equal(catalog.get('a-ha-take-on-me').playConfirmed, true);
+  assert.equal(catalog.get('the-cure-friday-im-in-love').validationStatus, 'ACTIVE');
+  assert.equal(catalog.get('the-cure-friday-im-in-love').playConfirmed, true);
   assert.equal(catalog.get('steve-miller-band-fly-like-an-eagle').validationStatus, 'PENDING');
   assert.equal(catalog.get('the-cars-you-might-think').validationStatus, 'PENDING');
   assert.equal(items.some((item) => /fake|mock|sultans-video|galinha-video/i.test(String(item.videoId || item.id))), false);
@@ -127,13 +143,14 @@ test('ELO music resolver unit: catalog cache validado evita nova busca', async (
   const { resolver } = loadResolver({
     localStorage: {
       elo_music_catalog_cache_v1: JSON.stringify({
-        'toto-africa': {
+        'a-ha-take-on-me': {
           id: 'youtube:africa1',
-          title: 'Africa',
-          artist: 'Toto',
-          videoId: 'africa1',
+          title: 'Take on Me',
+          artist: 'A-ha',
+          videoId: 'takeonme1',
           playable: true,
           embeddable: true,
+          validationStatus: 'ACTIVE',
           source: 'youtube-data-api',
           lastValidatedAt: '2026-08-25T00:00:00.000Z'
         }
@@ -144,12 +161,12 @@ test('ELO music resolver unit: catalog cache validado evita nova busca', async (
     }
   });
 
-  const result = await resolver.resolve('toque africa');
+  const result = await resolver.resolve('toque take on me');
 
   assert.equal(result.found, true);
   assert.equal(result.providerStatus, 'CATALOG_CACHE_HIT');
-  assert.equal(result.catalogId, 'toto-africa');
-  assert.equal(result.videoId, 'africa1');
+  assert.equal(result.catalogId, 'a-ha-take-on-me');
+  assert.equal(result.videoId, 'takeonme1');
 });
 
 test('ELO music resolver unit: musica fora do catalogo continua usando provider generico', async () => {
@@ -205,6 +222,63 @@ test('ELO music resolver unit: MEDIA_ERROR invalida cache de catalogo', async ()
   assert.equal(cache['aerosmith-dream-on'].invalidationReason, 'MEDIA_ERROR');
 });
 
+
+test('ELO music resolver unit: rejected physical nao retorna videoId direto nem cache stale', async () => {
+  const requestedUrls = [];
+  const { resolver } = loadResolver({
+    localStorage: {
+      elo_music_catalog_cache_v1: JSON.stringify({
+        'aerosmith-dream-on': {
+          id: 'youtube:staleDream',
+          title: 'Dream On',
+          artist: 'Aerosmith',
+          videoId: 'staleDream',
+          playable: true,
+          embeddable: true,
+          validationStatus: 'ACTIVE'
+        }
+      })
+    },
+    fetch(url) {
+      requestedUrls.push(url);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true, provider: 'youtube-data-api', candidates: [] })
+      });
+    }
+  });
+
+  const result = await resolver.resolve('toque dream on');
+
+  assert.equal(result.found, false);
+  assert.equal(result.providerStatus, 'NO_EMBEDDABLE_RESULTS');
+  assert.equal(result.catalogMatch.catalogId, 'aerosmith-dream-on');
+  assert.equal(result.catalogMatch.validationStatus, 'REJECTED_PHYSICAL');
+  assert.equal(result.catalogMatch.playable, false);
+  assert.equal(result.catalogMatch.embeddable, false);
+  assert.equal(decodeURIComponent(requestedUrls[0]), 'https://obrareport-backend.onrender.com/api/elo/media/search?q=Aerosmith Dream On');
+});
+
+test('ELO music resolver unit: offline nao chama provider nem toca catalogo active', async () => {
+  const requestedUrls = [];
+  let playCalls = 0;
+  const { resolver } = loadResolver({
+    window: { navigator: { onLine: false } },
+    fetch(url) { requestedUrls.push(url); throw new Error('provider should not run offline'); },
+    player: { play() { playCalls += 1; return true; } }
+  });
+
+  const result = await resolver.resolve('toque take on me');
+  const played = await resolver.play({ catalogId: 'a-ha-take-on-me', videoId: 'Q5KLj2a47ow', title: 'Take on Me', validationStatus: 'ACTIVE', playable: true, embeddable: true });
+
+  assert.equal(result.found, false);
+  assert.equal(result.providerStatus, 'OFFLINE');
+  assert.equal(result.catalogMatch.validationStatus, 'ACTIVE');
+  assert.equal(requestedUrls.length, 0);
+  assert.equal(played, false);
+  assert.equal(playCalls, 0);
+});
 
 test('ELO music resolver unit: catalog item pendente usa provider fallback', async () => {
   const requestedUrls = [];
