@@ -2330,7 +2330,80 @@
   function buildEloOpeningMessage_() {
     return "Oi, tudo bem?";
   }
+
+  function normalizeEloSocialFastPathText_(message) {
+    return normalizeText(String(message || "")
+      .replace(/^\s*elo\s*[,;:\-]*\s*/i, "")
+      .replace(/\bvc\b/gi, "voce")
+      .replace(/\bcê\b/gi, "voce"))
+      .replace(/[?!.,;:]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function hasEloPendingActionForSocialFastPath_() {
+    return !!(
+      getEloMusicPendingCandidate_ && getEloMusicPendingCandidate_() ||
+      isEloRdoPreviewActive_ && isEloRdoPreviewActive_() ||
+      hasEloBudgetRoutePending_ && hasEloBudgetRoutePending_() ||
+      ELO_SESSION_MEMORY.activeResidentialBudgetState ||
+      ELO_SESSION_MEMORY.budgetOrchestratorV2 ||
+      ELO_SESSION_MEMORY.stockObrasCompositionBriefing && ELO_SESSION_MEMORY.stockObrasCompositionBriefing.active
+    );
+  }
+
+  function buildEloSocialFastPathAnswer_(message, options) {
+    const opts = options || {};
+    const text = normalizeEloSocialFastPathText_(message);
+    if (!text) return null;
+
+    const shortContinuation = /^(?:sim|s|nao|não|ok|pode|continue|continuar|continua|pode continuar)$/.test(text);
+    if (!opts.ignorePending && shortContinuation && hasEloPendingActionForSocialFastPath_()) return null;
+
+    const profile = getUserProfile ? getUserProfile() : null;
+    const name = profile && profile.userName ? ", " + profile.userName.split(/\s+/)[0] : "";
+    let answer = "";
+    let intent = "social_fast_path";
+
+    if (/^(?:tudo|tudo bem|tudo certo|bem|bem e voce|tudo e voce|tranquilo|de boa|otimo|otima|estou bem|to bem|ta tudo bem)$/.test(text)) {
+      answer = "Tudo certo por aqui.";
+      intent = "social_greeting_reply_no_loop";
+    } else if (/^(?:oi|ola|olá|oie|opa|bom dia|boa tarde|boa noite|salve|alo|alô)$/.test(text)) {
+      const greeting = /bom dia/.test(text) ? "Bom dia" : /boa tarde/.test(text) ? "Boa tarde" : /boa noite/.test(text) ? "Boa noite" : "Oi";
+      answer = greeting + name + ". Estou pronto.";
+      intent = "cumprimento_instantaneo";
+    } else if (/^(?:obrigado|obrigada|muito obrigado|muito obrigada|valeu|show obrigado|perfeito obrigado)$/.test(text)) {
+      answer = "Disponha.";
+      intent = "agradecimento_instantaneo";
+    } else if (/^(?:sim|s|ok|pode|pode continuar|continue|continuar|continua)$/.test(text)) {
+      answer = "Certo.";
+      intent = "confirmacao_instantanea";
+    } else if (/^(?:nao|não|n)$/.test(text)) {
+      answer = "Tudo bem.";
+      intent = "negacao_instantanea";
+    } else {
+      return null;
+    }
+
+    return {
+      shortAnswer: answer,
+      fullAnswer: answer,
+      nextAction: "",
+      canSave: false,
+      fastPath: intent === "cumprimento_instantaneo" ? "greeting" : "SOCIAL_FAST_PATH",
+      socialFastPath: true,
+      responseType: "conversational",
+      brain: "conversational",
+      route: "local_social",
+      language: "pt",
+      sessionTheme: "conversa",
+      sessionIntent: intent
+    };
+  }
+
   function buildEloQuickGreetingAnswer_(message) {
+    const socialFastPath = buildEloSocialFastPathAnswer_(message);
+    if (socialFastPath) return socialFastPath;
     const raw = String(message || "").replace(/^\s*elo\s*[,;:\-]*\s*/i, "").replace(/\s+/g, " ").trim();
     if (!raw) return null;
     if (raw === "OI" || raw === "Oi" || raw === "oi") {
@@ -2373,6 +2446,8 @@
     try {
       appendMessage("user", cleanQuestion);
       appendAssistantMessage(cleanQuestion, answer, false, quickGreeting);
+      ELO_UI.socialFastPathMetrics = { fastPath: quickGreeting.fastPath || "SOCIAL_FAST_PATH", responseMs: 0 };
+      recordEloCoreReliabilityEvent_("SOCIAL_FAST_PATH", { intent: quickGreeting.sessionIntent || "", responseMs: 0 });
       rememberSessionTurn(cleanQuestion, quickGreeting, answer);
       clearProductAttachmentPreview();
     } finally {
@@ -26188,7 +26263,10 @@ function isEloResidentialNewPipelineEnabled_() {
     suggestions: null,
     pendingSavePrompt: null,
     hasOpenedGreeting: false,
-    awaitingStandaloneName: false
+    awaitingStandaloneName: false,
+    currentVisualSubject: "",
+    currentVisualMedia: null,
+    socialFastPathMetrics: null
   };
 
   function buildWidget() {
@@ -26595,6 +26673,10 @@ function isEloResidentialNewPipelineEnabled_() {
     const routeOptions = options || {};
     const startedAt = Date.now();
     try {
+    const socialFastPathResponse = buildEloSocialFastPathAnswer_(question);
+    if (socialFastPathResponse) return socialFastPathResponse;
+    const visualMediaResponse = buildEloVisualMediaResponse_(question);
+    if (visualMediaResponse) return visualMediaResponse;
     const operationalDocumentResponse = isEloOperationalDocumentRequest_(question) ? { shortAnswer: "Documentos da obra", fullAnswer: formatEloOperationalDocumentsAnswer_(question), nextAction: "Abra explicitamente um documento para regenerar a versao local.", canSave: false, sessionTheme: "operational_documents", sessionIntent: "operational_documents_readonly" } : null;
     if (operationalDocumentResponse) return operationalDocumentResponse;
     const surgicalRoutePriorityResponse = buildEloSurgicalRoutePriorityAnswer_(question);
@@ -28196,6 +28278,88 @@ function isEloResidentialNewPipelineEnabled_() {
     return null;
   }
 
+  function extractEloVisualMediaSubject_(message, type) {
+    let text = normalizeEloSocialFastPathText_(message);
+    if (!text) return "";
+    if (/^(?:renderize aqui|renderiza aqui|mostre aqui|mostrar aqui|abra aqui|abre aqui)$/.test(text)) {
+      return sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    }
+    text = text
+      .replace(/\b(?:me\s+)?(?:mostre|mostrar|ver|quero\s+ver|abra|abre|abrir|renderize|renderiza|mande|manda)\b/g, " ")
+      .replace(/\b(?:aqui|uma|um|de|da|do|foto|imagem|video|vídeo|player|renderizar|conteudo|conteúdo)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text && type === "image") text = sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    return sanitizeUserText(text).slice(0, 90);
+  }
+
+  function detectEloVisualMediaIntent_(message) {
+    const text = normalizeEloSocialFastPathText_(message);
+    if (!text) return null;
+    const wantsVideo = /\b(?:video|vídeo)\b/.test(text) && /\b(?:abra|abre|abrir|mostre|mostrar|quero ver|ver)\b/.test(text);
+    if (wantsVideo) {
+      const subject = extractEloVisualMediaSubject_(message, "video");
+      return subject ? { type: "video", subject: subject, intent: "VIDEO_SEARCH" } : null;
+    }
+    const wantsImage = /\b(?:imagem|foto)\b/.test(text) && /\b(?:mostre|mostrar|ver|quero ver|renderize|renderiza|abra|abre|abrir)\b/.test(text);
+    const wantsReferentRender = /^(?:renderize aqui|renderiza aqui|mostre aqui|mostrar aqui|abra aqui|abre aqui)$/.test(text) && sanitizeUserText(ELO_UI.currentVisualSubject || "");
+    if (wantsImage || wantsReferentRender) {
+      const subject = extractEloVisualMediaSubject_(message, "image");
+      return subject ? { type: "image", subject: subject, intent: wantsReferentRender ? "VISUAL_REFERENT" : "IMAGE_INTENT" } : null;
+    }
+    return null;
+  }
+
+  function buildEloVisualMediaResponse_(message) {
+    const intent = detectEloVisualMediaIntent_(message);
+    if (!intent) return null;
+    const subject = intent.subject || "conteudo visual";
+    const encoded = encodeURIComponent(subject);
+    const media = intent.type === "video"
+      ? {
+        type: "video",
+        title: "Video: " + subject,
+        source: "YouTube",
+        src: "https://www.youtube.com/embed?listType=search&list=" + encoded,
+        href: "https://www.youtube.com/results?search_query=" + encoded
+      }
+      : {
+        type: "image",
+        title: "Imagem: " + subject,
+        source: "Unsplash",
+        src: "https://source.unsplash.com/900x620/?" + encoded,
+        fallbackSrc: "https://images.unsplash.com/photo-1583512603805-3cc6b41f3edb?auto=format&fit=crop&w=900&q=80"
+      };
+    ELO_UI.currentVisualSubject = subject;
+    ELO_UI.currentVisualMedia = media;
+    return {
+      shortAnswer: intent.type === "video" ? "Video carregado." : "Imagem carregada.",
+      fullAnswer: "",
+      nextAction: "",
+      canSave: false,
+      route: "local_media",
+      fastPath: intent.intent,
+      sessionTheme: "midia_inline",
+      sessionIntent: intent.type === "video" ? "video_search_inline" : "image_inline_render",
+      visualMedia: media,
+      skipLongTts: true
+    };
+  }
+
+  function handleEloVisualMediaRequest_(cleanQuestion) {
+    const startedAt = nowEloPerformance_();
+    const response = buildEloVisualMediaResponse_(cleanQuestion);
+    if (!response) return false;
+    appendMessage("user", cleanQuestion);
+    const answer = formatResponse(response);
+    appendAssistantMessage(cleanQuestion, answer, false, response);
+    saveConversation(cleanQuestion, answer);
+    rememberSessionTurn(cleanQuestion, response, answer);
+    recordEloCoreReliabilityEvent_(response.fastPath || "media_inline", { subject: response.visualMedia && response.visualMedia.title, responseMs: Math.round(nowEloPerformance_() - startedAt) });
+    clearProductAttachmentPreview();
+    return true;
+  }
+
   function handleEloMediaCommand_(message) {
     logEloMediaEvent_("MEDIA_COMMAND_RAW", { message: sanitizeUserText(message).slice(0, 120) });
     logEloMediaEvent_("MEDIA_COMMAND_NORMALIZED", { message: normalizeEloMediaCommandText_(message) });
@@ -28250,6 +28414,9 @@ function isEloResidentialNewPipelineEnabled_() {
     }
     if (!attachedFiles.length && handleEloMediaCommand_(routeQuestion).handled) {
       clearProductAttachmentPreview();
+      return;
+    }
+    if (!attachedFiles.length && handleEloVisualMediaRequest_(routeQuestion)) {
       return;
     }
     if (isEloRdoPreviewIntent_(cleanQuestion) || isEloRdoPreviewActive_()) {
@@ -30244,6 +30411,49 @@ function isEloResidentialNewPipelineEnabled_() {
     });
   }
 
+  function appendEloInlineMedia_(message, media) {
+    if (!message || !media) return null;
+    const card = createElement("figure", "elo-inline-media-card");
+    card.setAttribute("data-elo-media-type", media.type || "");
+    if (media.title) card.appendChild(createElement("figcaption", "elo-inline-media-title", media.title));
+    if (media.type === "video") {
+      const frame = createElement("iframe", "elo-inline-video");
+      frame.src = media.src || "";
+      frame.title = media.title || "Video";
+      frame.loading = "lazy";
+      frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+      frame.allowFullscreen = true;
+      card.appendChild(frame);
+      if (media.href) {
+        const link = createElement("a", "elo-inline-media-link", "Abrir busca de video");
+        link.href = media.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        card.appendChild(link);
+      }
+    } else {
+      const image = createElement("img", "elo-inline-image");
+      image.src = media.src || "";
+      image.alt = media.alt || media.title || "Imagem solicitada";
+      image.loading = "lazy";
+      image.referrerPolicy = "no-referrer";
+      image.onerror = function () {
+        if (media.fallbackSrc && image.src !== media.fallbackSrc) {
+          image.src = media.fallbackSrc;
+          return;
+        }
+        card.classList.add("is-error");
+        image.remove();
+        card.appendChild(createElement("p", "elo-inline-media-error", "Nao consegui carregar essa imagem agora."));
+      };
+      card.appendChild(image);
+      if (media.source) card.appendChild(createElement("span", "elo-inline-media-source", media.source));
+    }
+    message.appendChild(card);
+    scrollEloConversationToBottom_({ force: true });
+    return card;
+  }
+
   function appendAssistantMessage(question, answer, canSave, response) {
     markEloInteraction_("elo:answer-visible");
     const cleanAnswer = sanitizeEloAnswerForDisplay(answer);
@@ -30266,6 +30476,10 @@ function isEloResidentialNewPipelineEnabled_() {
       });
       fullButton.classList.add("elo-secondary-response-action");
       actions.appendChild(fullButton);
+    }
+
+    if (response && response.visualMedia) {
+      appendEloInlineMedia_(message, response.visualMedia);
     }
 
     if (response && response.localDocumentResult) {
@@ -32663,6 +32877,9 @@ function isEloResidentialNewPipelineEnabled_() {
     buildResponse: buildResponse,
     buildOperationalConstructionAnswer: buildEloOperationalConstructionAnswer_,
     buildResponseForTest: buildResponse,
+    buildSocialFastPathForTest: buildEloSocialFastPathAnswer_,
+    detectVisualMediaIntentForTest: detectEloVisualMediaIntent_,
+    buildVisualMediaResponseForTest: buildEloVisualMediaResponse_,
     appendAssistantMessageForTest: appendAssistantMessage,
     detectRdoPreviewIntentForTest: isEloRdoPreviewIntent_,
     extractRdoPreviewDataForTest: extractEloRdoPreviewData_,

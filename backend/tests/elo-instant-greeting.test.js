@@ -72,7 +72,7 @@ test("Elo responde oi pelo fast-path sem base tecnica", () => {
   assert.equal(response.fastPath, "greeting");
   assert.equal(response.sessionIntent, "cumprimento_instantaneo");
   assert.match(response.shortAnswer, /Oi, Icaro\. Estou pronto\./);
-  assert.match(response.fullAnswer, /SINAPI|obra/i);
+  assert.equal(response.fullAnswer, response.shortAnswer);
   assert.deepEqual(calls, { router: 0, technical: 0, composition: 0 });
 });
 

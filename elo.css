@@ -3449,3 +3449,52 @@ body[data-elo-product="chat"] .elo-empty-copy {
   background: #effdf4;
   color: #14532d;
 }
+
+
+.elo-inline-media-card {
+  width: min(100%, 560px);
+  margin: 10px 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.elo-inline-media-title {
+  padding: 10px 12px;
+  color: #f8fafc;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.elo-inline-image,
+.elo-inline-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 0;
+  object-fit: cover;
+  background: #111827;
+}
+
+.elo-inline-video {
+  aspect-ratio: 16 / 9;
+}
+
+.elo-inline-media-source,
+.elo-inline-media-link,
+.elo-inline-media-error {
+  display: block;
+  padding: 8px 12px 10px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+
+.elo-inline-media-link {
+  color: #bfdbfe;
+  text-decoration: none;
+}
+
+.elo-inline-media-link:hover {
+  text-decoration: underline;
+}
