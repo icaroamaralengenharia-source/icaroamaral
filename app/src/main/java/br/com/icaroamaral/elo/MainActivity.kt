@@ -92,6 +92,7 @@ class MainActivity : Activity() {
         }
         val activate = Button(this).apply { text = "ATIVAR ELO" }
         val testLocalTts = Button(this).apply { text = "TESTAR TTS LOCAL" }
+        val battery = Button(this).apply { text = "BATERIA / SEGUNDO PLANO" }
         val deactivate = Button(this).apply { text = "DESATIVAR" }
         statusText = TextView(this).apply {
             textSize = 14f
@@ -101,12 +102,14 @@ class MainActivity : Activity() {
         root.addView(title)
         root.addView(activate)
         root.addView(testLocalTts)
+        root.addView(battery)
         root.addView(deactivate)
         root.addView(statusText)
         setContentView(root)
 
         activate.setOnClickListener { requestMicThenStart() }
         testLocalTts.setOnClickListener { startTestLocalTts() }
+        battery.setOnClickListener { openBatterySettings() }
         deactivate.setOnClickListener { startService(Intent(this, EloWakeService::class.java).setAction(EloWakeService.ACTION_STOP)) }
     }
 
@@ -149,6 +152,17 @@ class MainActivity : Activity() {
     private fun startTestLocalTts() {
         val intent = Intent(this, EloWakeService::class.java).setAction(EloWakeService.ACTION_TEST_LOCAL_TTS)
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+    }
+
+    private fun openBatterySettings() {
+        val ignored = EloServiceSettings.isBatteryOptimizationIgnored(this)
+        val guidance = "Para manter o ELO ativo com a tela bloqueada, permita execucao em segundo plano e remova restricoes de bateria para o app."
+        statusText.text = initialStatusText() + "\nBattery optimization ignored: " + ignored + "\n" + guidance
+        runCatching {
+            startActivity(EloServiceSettings.batteryOptimizationSettingsIntent())
+        }.onFailure {
+            statusText.text = statusText.text.toString() + "\nBattery settings error: " + (it.message ?: it.javaClass.simpleName)
+        }
     }
 
     private fun renderStatus(

@@ -154,16 +154,21 @@ class EloWakeService : Service(), RecognitionListener {
 
     override fun onCreate() {
         super.onCreate()
+        Log.i("EloWakeService", "SERVICE_CREATED")
         createChannel()
         voicePlayer = EloVoicePlayer(this)
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ELO:ProcessingSpeaking").apply { setReferenceCounted(false) }    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_STOP -> stopWake()
+        val action = intent?.action
+        Log.i("EloWakeService", "SERVICE_START_COMMAND action=" + (action ?: "null") + " flags=" + flags + " startId=" + startId)
+        when (action) {
+            ACTION_STOP -> stopWake(persistDisabled = true)
             ACTION_TEST_LOCAL_TTS -> testLocalTts()
-            else -> startWake()
+            ACTION_RESTORE_AFTER_BOOT -> restoreWake("boot")
+            null -> restoreWake("process-death")
+            else -> startWake(restored = false)
         }
         return START_STICKY
     }
@@ -171,22 +176,35 @@ class EloWakeService : Service(), RecognitionListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        stopWake()
+        stopWake(persistDisabled = false, requestStopSelf = false)
         voicePlayer?.shutdown()
         voicePlayer = null
         super.onDestroy()
     }
 
-    private fun startWake() {
+    private fun startWake(restored: Boolean) {
+        EloServiceSettings.setServiceEnabled(this, true)
         serviceEnabled = true
         lastError = "none"
         state = EloConversationState.WAKE_LISTENING
         returnToWakePending = false
+        Log.i("EloWakeService", if (restored) "SERVICE_RESTORED" else "SERVICE_STARTED")
         startForeground(NOTIFICATION_ID, notification())
         ensureRecognizer()
         broadcast("RUNNING", state.name)
         scheduleRestart(150)
         preWarmOnce()
+    }
+
+    private fun restoreWake(reason: String) {
+        val enabled = EloServiceSettings.isServiceEnabled(this)
+        Log.i("EloWakeService", "SERVICE_RESTORE_REQUEST reason=" + reason + " enabled=" + enabled)
+        if (!enabled) {
+            stopSelf()
+            return
+        }
+        if (reason == "process-death") Log.i("EloWakeService", "WAKE_RESTART_AFTER_PROCESS_DEATH")
+        startWake(restored = true)
     }
 
     private fun preWarmOnce() {
@@ -202,7 +220,8 @@ class EloWakeService : Service(), RecognitionListener {
             }
         }.start()
     }
-    private fun stopWake() {
+    private fun stopWake(persistDisabled: Boolean = true, requestStopSelf: Boolean = true) {
+        if (persistDisabled) EloServiceSettings.setServiceEnabled(this, false)
         serviceEnabled = false
         restartPending = false
         returnToWakePending = false
@@ -217,7 +236,7 @@ class EloWakeService : Service(), RecognitionListener {
         recognizer = null
         broadcast("STOPPED", "STOPPED")
         stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        if (requestStopSelf) stopSelf()
     }
 
     private fun ensureRecognizer() {
@@ -1190,6 +1209,7 @@ class EloWakeService : Service(), RecognitionListener {
         const val ACTION_START = "br.com.icaroamaral.elo.START"
         const val ACTION_STOP = "br.com.icaroamaral.elo.STOP"
         const val ACTION_TEST_LOCAL_TTS = "br.com.icaroamaral.elo.TEST_LOCAL_TTS"
+        const val ACTION_RESTORE_AFTER_BOOT = "br.com.icaroamaral.elo.RESTORE_AFTER_BOOT"
         const val ACTION_STATUS = "br.com.icaroamaral.elo.STATUS"
         const val EXTRA_SERVICE = "service"
         const val EXTRA_RECOGNITION = "recognition"
