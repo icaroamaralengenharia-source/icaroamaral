@@ -26236,6 +26236,19 @@ function isEloResidentialNewPipelineEnabled_() {
     voiceStatus: null,
     voiceRecognition: null,
     voiceState: "idle",
+    wakeContinuousEnabled: false,
+    wakeContinuousButton: null,
+    wakeContinuousState: "IDLE",
+    wakeRecognitionMode: "",
+    wakeRecognitionStarting: false,
+    wakeRecognitionActive: false,
+    wakeRestartScheduled: false,
+    wakeStartWatchdogTimer: null,
+    wakeRestartTimer: null,
+    wakeCommandTimer: null,
+    wakeCommandDispatched: false,
+    wakeLastCommand: "",
+    wakeEvents: [],
     voiceDraftBase: "",
     voiceHadTranscript: false,
     voiceModeEnabled: false,
@@ -29123,6 +29136,299 @@ function isEloResidentialNewPipelineEnabled_() {
     return { button: button, input: input };
   }
 
+  const ELO_WAKE_CONTINUOUS_STORAGE_KEY_ = "elo_web_wake_enabled";
+  const ELO_WAKE_START_WATCHDOG_MS_ = 1500;
+  const ELO_WAKE_RESTART_DELAY_MS_ = 120;
+  const ELO_WAKE_COMMAND_TIMEOUT_MS_ = 8000;
+
+  function logEloWakeEvent_(name, payload) {
+    const eventName = sanitizeUserText(name || "WAKE_EVENT").slice(0, 80);
+    const eventPayload = Object.assign({ state: ELO_UI.wakeContinuousState, mode: ELO_UI.wakeRecognitionMode }, payload || {});
+    ELO_UI.wakeEvents.push({ name: eventName, payload: eventPayload, at: Date.now() });
+    if (ELO_UI.wakeEvents.length > 80) ELO_UI.wakeEvents.shift();
+    try {
+      if (window.console && typeof window.console.info === "function") window.console.info(eventName, eventPayload);
+    } catch (error) {}
+  }
+
+  function setEloWakeContinuousState_(state, message) {
+    const safeState = /^(?:IDLE|WAKE_LISTENING|COMMAND_LISTENING|PROCESSING|SPEAKING)$/.test(state || "") ? state : "IDLE";
+    ELO_UI.wakeContinuousState = safeState;
+    if (ELO_UI.wakeContinuousButton) {
+      const active = ELO_UI.wakeContinuousEnabled && safeState !== "IDLE" && (ELO_UI.wakeRecognitionActive || safeState === "COMMAND_LISTENING" || safeState === "PROCESSING" || safeState === "SPEAKING");
+      ELO_UI.wakeContinuousButton.textContent = active ? "ELO ativo" : (ELO_UI.wakeContinuousEnabled ? "ELO ativando" : "ELO desativado");
+      ELO_UI.wakeContinuousButton.classList.toggle("is-active", active);
+      ELO_UI.wakeContinuousButton.dataset.eloWakeState = safeState;
+      ELO_UI.wakeContinuousButton.setAttribute("aria-pressed", active ? "true" : "false");
+      ELO_UI.wakeContinuousButton.title = active ? "Desativar wake continuo do ELO" : "Ativar wake continuo do ELO";
+    }
+    if (ELO_UI.voiceStatus && message) {
+      ELO_UI.voiceStatus.textContent = sanitizeUserText(message);
+      ELO_UI.voiceStatus.dataset.eloWakeState = safeState;
+    }
+  }
+
+  function clearEloWakeStartWatchdog_() {
+    if (ELO_UI.wakeStartWatchdogTimer) window.clearTimeout(ELO_UI.wakeStartWatchdogTimer);
+    ELO_UI.wakeStartWatchdogTimer = null;
+  }
+
+  function clearEloWakeRestartTimer_() {
+    if (ELO_UI.wakeRestartTimer) window.clearTimeout(ELO_UI.wakeRestartTimer);
+    ELO_UI.wakeRestartTimer = null;
+    ELO_UI.wakeRestartScheduled = false;
+  }
+
+  function clearEloWakeCommandTimer_() {
+    if (ELO_UI.wakeCommandTimer) window.clearTimeout(ELO_UI.wakeCommandTimer);
+    ELO_UI.wakeCommandTimer = null;
+  }
+
+  function readEloWakeEnabledPreference_() {
+    try { return window.localStorage && window.localStorage.getItem(ELO_WAKE_CONTINUOUS_STORAGE_KEY_) === "true"; } catch (error) { return false; }
+  }
+
+  function writeEloWakeEnabledPreference_(enabled) {
+    try { if (window.localStorage) window.localStorage.setItem(ELO_WAKE_CONTINUOUS_STORAGE_KEY_, enabled ? "true" : "false"); } catch (error) {}
+  }
+
+  function readEloContinuousWake_(message) {
+    const cleanText = sanitizeUserText(message || "").replace(/[,.!?;:]+/g, " ").replace(/\s+/g, " ").trim();
+    const comparable = cleanText.toLowerCase();
+    for (let index = 0; index < ELO_WAKE_ALIASES_.length; index += 1) {
+      const alias = ELO_WAKE_ALIASES_[index];
+      if (comparable === alias) return { matched: true, alias: alias, command: "" };
+      if (comparable.indexOf(alias + " ") === 0) {
+        return { matched: true, alias: alias, command: cleanText.slice(alias.length).replace(/^[\s,.:;!?\-–—]+/, "").replace(/\s+/g, " ").trim() };
+      }
+    }
+    return { matched: false, alias: "", command: cleanText };
+  }
+
+  function stopEloWakeRecognitionOnly_() {
+    clearEloWakeStartWatchdog_();
+    clearEloWakeRestartTimer_();
+    if (ELO_UI.voiceRecognition && ELO_UI.wakeRecognitionMode) {
+      try { if (typeof ELO_UI.voiceRecognition.stop === "function") ELO_UI.voiceRecognition.stop(); } catch (error) {}
+    }
+    ELO_UI.wakeRecognitionStarting = false;
+    ELO_UI.wakeRecognitionActive = false;
+    ELO_UI.wakeRecognitionMode = "";
+    ELO_UI.voiceRecognition = null;
+  }
+
+  function scheduleEloWakeRestart_(reason) {
+    if (!ELO_UI.wakeContinuousEnabled || ELO_UI.wakeContinuousState !== "WAKE_LISTENING") return false;
+    if (ELO_UI.wakeRestartScheduled) return false;
+    ELO_UI.wakeRestartScheduled = true;
+    logEloWakeEvent_("WAKE_RESTART", { reason: reason || "restart" });
+    ELO_UI.wakeRestartTimer = window.setTimeout(function () {
+      ELO_UI.wakeRestartTimer = null;
+      ELO_UI.wakeRestartScheduled = false;
+      if (ELO_UI.wakeContinuousEnabled && ELO_UI.wakeContinuousState === "WAKE_LISTENING") startEloWakeRecognition_("wake_restart");
+    }, ELO_WAKE_RESTART_DELAY_MS_);
+    return true;
+  }
+
+  function startEloWakeStartWatchdog_() {
+    clearEloWakeStartWatchdog_();
+    ELO_UI.wakeStartWatchdogTimer = window.setTimeout(function () {
+      ELO_UI.wakeStartWatchdogTimer = null;
+      if (!ELO_UI.wakeContinuousEnabled || !ELO_UI.wakeRecognitionStarting || ELO_UI.wakeRecognitionActive) return;
+      logEloWakeEvent_("WAKE_START_WATCHDOG", { mode: ELO_UI.wakeRecognitionMode || "wake" });
+      ELO_UI.wakeRecognitionStarting = false;
+      ELO_UI.wakeRecognitionActive = false;
+      stopEloWakeRecognitionOnly_();
+      scheduleEloWakeRestart_("start_watchdog");
+    }, ELO_WAKE_START_WATCHDOG_MS_);
+  }
+
+  function dispatchEloWakeCommand_(command) {
+    const cleanCommand = sanitizeUserText(command || "");
+    if (!cleanCommand || ELO_UI.wakeCommandDispatched) return false;
+    ELO_UI.wakeCommandDispatched = true;
+    ELO_UI.wakeLastCommand = cleanCommand;
+    clearEloWakeCommandTimer_();
+    stopEloWakeRecognitionOnly_();
+    setEloWakeContinuousState_("PROCESSING", "ELO processando...");
+    logEloWakeEvent_("WAKE_COMMAND_DISPATCH", { command: cleanCommand });
+    askElo(cleanCommand, [], "wake_continuous");
+    if (ELO_UI.wakeContinuousEnabled && ELO_UI.speechSynthesisState !== "speaking") {
+      setEloWakeContinuousState_("WAKE_LISTENING", "ELO ativo. Diga ELO para chamar.");
+      scheduleEloWakeRestart_("command_dispatched");
+    }
+    return true;
+  }
+
+  function enterEloWakeCommandListening_() {
+    if (!ELO_UI.wakeContinuousEnabled) return false;
+    stopEloWakeRecognitionOnly_();
+    ELO_UI.wakeCommandDispatched = false;
+    setEloWakeContinuousState_("COMMAND_LISTENING", "ELO ouvindo comando...");
+    logEloWakeEvent_("WAKE_COMMAND_MODE", {});
+    clearEloWakeCommandTimer_();
+    ELO_UI.wakeCommandTimer = window.setTimeout(function () {
+      ELO_UI.wakeCommandTimer = null;
+      if (!ELO_UI.wakeContinuousEnabled || ELO_UI.wakeContinuousState !== "COMMAND_LISTENING") return;
+      logEloWakeEvent_("WAKE_COMMAND_TIMEOUT", {});
+      setEloWakeContinuousState_("WAKE_LISTENING", "ELO ativo. Diga ELO para chamar.");
+      scheduleEloWakeRestart_("command_timeout");
+    }, ELO_WAKE_COMMAND_TIMEOUT_MS_);
+    window.setTimeout(function () {
+      if (ELO_UI.wakeContinuousEnabled && ELO_UI.wakeContinuousState === "COMMAND_LISTENING") startEloWakeRecognition_("command");
+    }, ELO_WAKE_RESTART_DELAY_MS_);
+    return true;
+  }
+
+  function handleEloWakeTranscript_(transcript, isFinal) {
+    const raw = sanitizeUserText(transcript || "");
+    if (!raw || !ELO_UI.wakeContinuousEnabled) return false;
+    if (ELO_UI.wakeContinuousState === "WAKE_LISTENING") {
+      const wake = readEloContinuousWake_(raw);
+      if (!wake.matched) return false;
+      logEloWakeEvent_("WAKE_MATCH", { alias: wake.alias, command: wake.command });
+      if (wake.command) return dispatchEloWakeCommand_(wake.command);
+      return enterEloWakeCommandListening_();
+    }
+    if (ELO_UI.wakeContinuousState === "COMMAND_LISTENING" && isFinal) {
+      return dispatchEloWakeCommand_(raw);
+    }
+    return false;
+  }
+
+  function createEloWakeRecognition_(mode) {
+    const Recognition = getEloSpeechRecognitionConstructor_();
+    if (!Recognition) return null;
+    const recognition = new Recognition();
+    recognition.lang = "pt-BR";
+    recognition.interimResults = true;
+    recognition.continuous = mode === "wake";
+    recognition.maxAlternatives = 1;
+    recognition.onstart = function () {
+      ELO_UI.wakeRecognitionStarting = false;
+      ELO_UI.wakeRecognitionActive = true;
+      clearEloWakeStartWatchdog_();
+      logEloWakeEvent_("WAKE_ONSTART", { mode: ELO_UI.wakeRecognitionMode });
+      if (ELO_UI.wakeContinuousState === "WAKE_LISTENING") setEloWakeContinuousState_("WAKE_LISTENING", "ELO ativo. Diga ELO para chamar.");
+    };
+    recognition.onresult = function (event) {
+      const results = Array.prototype.slice.call(event && event.results || [], event && event.resultIndex || 0);
+      const transcript = results.map(function (result) { return result && result[0] && result[0].transcript || ""; }).join(" ");
+      const hasFinalTranscript = results.some(function (result) { return !!(result && result.isFinal); });
+      handleEloWakeTranscript_(transcript, hasFinalTranscript);
+    };
+    recognition.onerror = function (event) {
+      const code = sanitizeUserText(event && event.error || "speech_recognition_error");
+      ELO_UI.wakeRecognitionStarting = false;
+      ELO_UI.wakeRecognitionActive = false;
+      logEloWakeEvent_("WAKE_ONERROR", { error: code });
+      if (/not-allowed|service-not-allowed/.test(code)) {
+        setEloWakeContinuousEnabled_(false, { persist: true });
+        setEloWakeContinuousState_("IDLE", "Permissao do microfone necessaria para ativar o ELO.");
+        return;
+      }
+      if (ELO_UI.wakeContinuousState === "WAKE_LISTENING") scheduleEloWakeRestart_("error_" + code);
+    };
+    recognition.onend = function () {
+      ELO_UI.wakeRecognitionStarting = false;
+      ELO_UI.wakeRecognitionActive = false;
+      clearEloWakeStartWatchdog_();
+      logEloWakeEvent_("WAKE_ONEND", { mode: ELO_UI.wakeRecognitionMode });
+      ELO_UI.wakeRecognitionMode = "";
+      if (ELO_UI.voiceRecognition === recognition) ELO_UI.voiceRecognition = null;
+      if (ELO_UI.wakeContinuousEnabled && ELO_UI.wakeContinuousState === "WAKE_LISTENING") scheduleEloWakeRestart_("onend");
+    };
+    return recognition;
+  }
+
+  function startEloWakeRecognition_(mode) {
+    if (!ELO_UI.wakeContinuousEnabled) return false;
+    const targetMode = mode === "command" ? "command" : "wake";
+    if (ELO_UI.voiceRecognition || ELO_UI.wakeRecognitionStarting || ELO_UI.wakeRecognitionActive) {
+      logEloWakeEvent_("WAKE_START_SKIPPED", { mode: targetMode, currentMode: ELO_UI.wakeRecognitionMode });
+      return false;
+    }
+    const recognition = createEloWakeRecognition_(targetMode);
+    if (!recognition) {
+      setEloWakeContinuousState_("IDLE", "Reconhecimento de voz nao suportado neste navegador.");
+      return false;
+    }
+    ELO_UI.voiceRecognition = recognition;
+    ELO_UI.wakeRecognitionMode = targetMode;
+    ELO_UI.wakeRecognitionStarting = true;
+    ELO_UI.wakeRecognitionActive = false;
+    logEloWakeEvent_("WAKE_START_CALLED", { mode: targetMode });
+    startEloWakeStartWatchdog_();
+    try {
+      recognition.start();
+      return true;
+    } catch (error) {
+      ELO_UI.wakeRecognitionStarting = false;
+      ELO_UI.voiceRecognition = null;
+      logEloWakeEvent_("WAKE_ONERROR", { error: sanitizeUserText(error && (error.name || error.message) || error).slice(0, 120) });
+      scheduleEloWakeRestart_("start_exception");
+      return false;
+    }
+  }
+
+  function resumeEloWakeContinuous_(reason) {
+    if (!ELO_UI.wakeContinuousEnabled) return false;
+    if (ELO_UI.speechSynthesisState === "speaking") return false;
+    if (ELO_UI.wakeContinuousState === "COMMAND_LISTENING") return false;
+    if (ELO_UI.voiceRecognition || ELO_UI.wakeRecognitionStarting || ELO_UI.wakeRecognitionActive) return false;
+    setEloWakeContinuousState_("WAKE_LISTENING", "ELO ativo. Diga ELO para chamar.");
+    return scheduleEloWakeRestart_(reason || "resume");
+  }
+
+  function setEloWakeContinuousEnabled_(enabled, options) {
+    const shouldEnable = !!enabled;
+    const shouldPersist = !options || options.persist !== false;
+    if (shouldPersist) writeEloWakeEnabledPreference_(shouldEnable);
+    if (!shouldEnable) {
+      ELO_UI.wakeContinuousEnabled = false;
+      clearEloWakeCommandTimer_();
+      stopEloWakeRecognitionOnly_();
+      setEloWakeContinuousState_("IDLE", "ELO desativado.");
+      return false;
+    }
+    if (!getEloSpeechRecognitionConstructor_()) {
+      setEloWakeContinuousState_("IDLE", "Reconhecimento de voz nao suportado neste navegador.");
+      return false;
+    }
+    ELO_UI.wakeContinuousEnabled = true;
+    ELO_UI.wakeCommandDispatched = false;
+    setEloWakeContinuousState_("WAKE_LISTENING", "ELO ativo. Diga ELO para chamar.");
+    return startEloWakeRecognition_("wake");
+  }
+
+  function toggleEloWakeContinuous_() {
+    return setEloWakeContinuousEnabled_(!ELO_UI.wakeContinuousEnabled, { persist: true });
+  }
+
+  function buildEloWakeContinuousButton_() {
+    const button = createElement("button", "elo-inline-button elo-wake-continuous-button", "ELO desativado");
+    button.type = "button";
+    ELO_UI.wakeContinuousButton = button;
+    button.addEventListener("click", function () { toggleEloWakeContinuous_(); });
+    setEloWakeContinuousState_(ELO_UI.wakeContinuousState, readEloWakeEnabledPreference_() ? "Clique para ativar o ELO por voz." : "");
+    return button;
+  }
+
+  function ensureEloWakeContinuousButton_(form) {
+    if (!form || !form.parentNode) return false;
+    let button = form.parentNode.querySelector ? form.parentNode.querySelector(".elo-wake-continuous-button") : null;
+    if (!button) {
+      button = buildEloWakeContinuousButton_();
+      if (ELO_UI.voiceStatus && ELO_UI.voiceStatus.parentNode === form.parentNode) form.parentNode.insertBefore(button, ELO_UI.voiceStatus);
+      else form.parentNode.insertBefore(button, form.nextSibling);
+    } else if (!button.dataset.eloWakeContinuousBound) {
+      ELO_UI.wakeContinuousButton = button;
+      button.addEventListener("click", function () { toggleEloWakeContinuous_(); });
+    }
+    button.dataset.eloWakeContinuousBound = "true";
+    setEloWakeContinuousState_(ELO_UI.wakeContinuousState, "");
+    return true;
+  }
   function getEloSpeechRecognitionConstructor_() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }
@@ -29266,6 +29572,7 @@ function isEloResidentialNewPipelineEnabled_() {
   }
 
   function resetEloSpeechButton_(button) {
+    const shouldResumeWake = ELO_UI.wakeContinuousEnabled && ELO_UI.wakeContinuousState === "SPEAKING";
     setEloSpeechButtonState_(button || ELO_UI.speechSynthesisButton, false);
     if (button && ELO_UI.speechSynthesisButton === button) ELO_UI.speechSynthesisButton = null;
     if (!button) ELO_UI.speechSynthesisButton = null;
@@ -29274,6 +29581,7 @@ function isEloResidentialNewPipelineEnabled_() {
     if (ELO_UI.voiceModeEnabled && ELO_UI.voiceModeStatus === "speaking") {
       setEloVoiceModeStatus_("idle", "Modo Voz: Parado.");
     }
+    if (shouldResumeWake) resumeEloWakeContinuous_("tts_finished");
   }
 
   function cleanEloTextForSpeech_(text) {
@@ -29430,6 +29738,9 @@ function isEloResidentialNewPipelineEnabled_() {
 
   function speakEloText_(text, button, options) {
     if (ELO_UI.speechSynthesisButton === button && ELO_UI.speechSynthesisState === "speaking") return stopEloSpeechOutput_();
+    if (ELO_UI.wakeContinuousEnabled) {
+      stopEloWakeRecognitionOnly_();
+    }
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       stopEloVoiceInput_();
       if (ELO_UI.voiceModeEnabled) setEloVoiceModeStatus_("speaking", "Modo Voz: Falando.");
@@ -29439,6 +29750,7 @@ function isEloResidentialNewPipelineEnabled_() {
     resetEloSpeechButton_();
     const speechText = cleanEloTextForSpeech_(text);
     if (!speechText) return false;
+    if (ELO_UI.wakeContinuousEnabled) setEloWakeContinuousState_("SPEAKING", "ELO falando...");
     ELO_UI.speechSynthesisButton = button;
     ELO_UI.speechSynthesisState = "speaking";
     setEloSpeechButtonState_(button, true);
@@ -29584,6 +29896,10 @@ function isEloResidentialNewPipelineEnabled_() {
       setEloVoiceState_("error", "Campo de mensagem indisponivel.");
       return false;
     }
+    if (ELO_UI.wakeContinuousEnabled && ELO_UI.wakeContinuousState === "WAKE_LISTENING") {
+      setEloWakeContinuousState_("COMMAND_LISTENING", "Mic manual ativo...");
+      stopEloWakeRecognitionOnly_();
+    }
     if (ELO_UI.voiceRecognition && ELO_UI.voiceState === "listening") {
       ELO_UI.voiceRecognition.stop();
       return true;
@@ -29630,12 +29946,14 @@ function isEloResidentialNewPipelineEnabled_() {
         if (ELO_UI.voiceModeEnabled && !ELO_UI.voiceModeAwaitingResponse) setEloVoiceModeStatus_("idle", ELO_UI.voiceHadTranscript ? "Modo Voz: aguardando silencio para enviar." : "Modo Voz: Parado.");
       }
       ELO_UI.voiceRecognition = null;
+      resumeEloWakeContinuous_("manual_mic_end");
     };
 
     try {
       recognition.start();
     } catch (error) {
       setEloVoiceState_("error", formatEloSpeechError_(error));
+      resumeEloWakeContinuous_("manual_mic_start_error");
       return false;
     }
     return true;
@@ -29701,6 +30019,7 @@ function isEloResidentialNewPipelineEnabled_() {
       setEloVoiceState_("idle", "");
     }
     ensureEloVoiceModeButton_(form);
+    ensureEloWakeContinuousButton_(form);
     return true;
   }
 
@@ -32979,6 +33298,14 @@ function isEloResidentialNewPipelineEnabled_() {
     getVoiceStateForTest: function () { return ELO_UI.voiceState; },
     getVoiceModeStateForTest: function () { return { enabled: ELO_UI.voiceModeEnabled, status: ELO_UI.voiceModeStatus, awaitingResponse: ELO_UI.voiceModeAwaitingResponse, submitting: ELO_UI.voiceModeSubmitting, recognitionSubmitted: ELO_UI.voiceModeRecognitionSubmitted }; },
     getVoiceAutoSendMsForTest: function () { return ELO_VOICE_AUTO_SEND_MS; },
+    detectWakeContinuousForTest: readEloContinuousWake_,
+    startWakeContinuousForTest: function () { return setEloWakeContinuousEnabled_(true, { persist: false }); },
+    stopWakeContinuousForTest: function () { return setEloWakeContinuousEnabled_(false, { persist: false }); },
+    setWakeContinuousForTest: function (enabled) { return setEloWakeContinuousEnabled_(enabled, { persist: false }); },
+    getWakeContinuousStateForTest: function () { return { enabled: ELO_UI.wakeContinuousEnabled, state: ELO_UI.wakeContinuousState, mode: ELO_UI.wakeRecognitionMode, starting: ELO_UI.wakeRecognitionStarting, active: ELO_UI.wakeRecognitionActive, restartScheduled: ELO_UI.wakeRestartScheduled, lastCommand: ELO_UI.wakeLastCommand, buttonText: ELO_UI.wakeContinuousButton && ELO_UI.wakeContinuousButton.textContent || "" }; },
+    getWakeEventsForTest: function () { return ELO_UI.wakeEvents.slice(); },
+    handleWakeTranscriptForTest: handleEloWakeTranscript_,
+    resumeWakeContinuousForTest: resumeEloWakeContinuous_,
     setVoiceComposerForTest: function (form, input) { ELO_UI.form = form; ELO_UI.input = input; },
     scheduleVoiceAutoSendForTest: scheduleEloVoiceAutoSend_,
     dispatchVoiceAutoSendForTest: dispatchEloVoiceAutoSend_,
